@@ -17,8 +17,8 @@ You are an expert on racing HUD (heads-up display) design — combining motorspo
 ```
 # Existing HUD design reference
 src/agents/racing-hud-design-skill/SKILL.md           # Design review framework
-.skills/visual-aesthetic.md                            # Core visual design principles
-.skills/component-architecture.md                      # Component tree and data flow
+plugin-visual-aesthetic skill                          # Core visual design principles
+plugin-component-architecture skill                    # Component tree and data flow
 docs/STYLEGUIDE.md                                    # Visual style guide
 
 # Current overlay implementation

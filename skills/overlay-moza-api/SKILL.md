@@ -7,7 +7,7 @@ description: Moza hardware UI and API consumption for the RaceCor overlay. Use t
 
 This skill covers how the Electron overlay consumes Moza hardware data from the SimHub plugin's HTTP API on port 8889. It's the consumer side of the Moza direct hardware integration.
 
-For the protocol and hardware side (the producer), see `racecor-plugin/skills/moza-hardware/SKILL.md`.
+For the protocol and hardware side (the producer), see the `plugin-moza-hardware` skill.
 
 ## Context: What Exists vs. What We're Building
 
@@ -332,6 +332,6 @@ Tests go in `tests/` following existing Playwright patterns.
 
 ## Relationship to Other Projects
 
-- **Plugin** (`racecor-plugin/skills/moza-hardware/`): The producer. Implements `MozaSerialManager` and exposes the HTTP endpoints this overlay consumes. Any new endpoint must be added there first.
+- **Plugin** (`plugin-moza-hardware` skill): The producer. Implements `MozaSerialManager` and exposes the HTTP endpoints this overlay consumes. Any new endpoint must be added there first.
 - **Existing pedal UI** (`modules/js/pedal-curves.js`): Extend, don't replace. Add hardware-direct mode alongside the existing Pit House file-based mode.
 - **Design system** (`web/src/lib/tokens/`): Use design tokens for colors, spacing, and typography in new Moza UI. Don't hardcode values that exist as CSS custom properties.

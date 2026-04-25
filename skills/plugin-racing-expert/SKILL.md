@@ -22,7 +22,7 @@ Read based on the project context:
 docs/AI_STRATEGIST_DESIGN.md                          # AI strategy system design
 docs/FEATURE_SPEC_INCIDENT_COACH.md                   # Incident coaching feature spec
 docs/iracing-progression-features.md                  # iRacing progression roadmap
-.skills/racing-domain.md                              # Racing domain reference (if exists)
+plugin-racing-domain skill                            # Racing domain reference
 
 # Plugin commentary & strategy (for plugin/overlay work)
 racecor-plugin/docs/COMMENTARY_ENGINE.md              # Trigger system, fragment assembly
