@@ -1,0 +1,245 @@
+{
+  "skill_name": "race-coach",
+  "evals": [
+    {
+      "id": 1,
+      "name": "podium-finish-broadcast",
+      "prompt": "Generate AI race analysis for this race data using broadcast commentator tone at standard depth",
+      "expected_output": "Dramatic, enthusiastic commentary about a P2 finish with specific lap references, structured sections, and excitement about the battle for position",
+      "tone": "broadcast",
+      "depth": "standard",
+      "race_data": {
+        "position": 2,
+        "trackName": "Watkins Glen International",
+        "carModel": "Dallara P217 LMP2",
+        "totalLaps": 30,
+        "currentLap": 30,
+        "bestLapTime": 102.347,
+        "lapTimes": [105.2, 103.8, 103.1, 102.9, 102.5, 102.347, 103.0, 103.4, 102.8, 102.6, 103.1, 102.9, 103.5, 103.2, 102.8, 102.7, 103.0, 103.3, 102.9, 103.1, 103.4, 103.0, 102.8, 103.2, 103.5, 103.8, 104.1, 103.9, 103.6, 103.2],
+        "positions": [8, 8, 7, 7, 6, 5, 5, 4, 4, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+        "incidents": 2,
+        "iRatingDelta": 67,
+        "fuelLevels": [45.2, 42.8, 40.3, 37.9, 35.5, 33.1, 30.7, 28.3, 25.9, 23.5, 21.1, 18.7, 16.3, 13.9, 11.5, 45.0, 42.6, 40.2, 37.8, 35.4, 33.0, 30.6, 28.2, 25.8, 23.4, 21.0, 18.6, 16.2, 13.8, 11.4],
+        "tyreTempAvg": [85, 89, 92, 94, 95, 96, 97, 97, 98, 98, 97, 96, 95, 94, 93, 88, 91, 94, 96, 97, 98, 98, 99, 99, 100, 101, 102, 103, 104, 105],
+        "commentaryLog": [
+          {"lap": 3, "title": "Position Gained!", "text": "Moved up to P7 with a clean pass", "topicId": "position_gained"},
+          {"lap": 6, "title": "Personal Best!", "text": "New fastest lap: 1:42.347", "topicId": "personal_best"},
+          {"lap": 10, "title": "Podium Battle!", "text": "Into P3 — fighting for the podium", "topicId": "close_battle"},
+          {"lap": 16, "title": "P2!", "text": "Passed for second place on the inside of Turn 1", "topicId": "position_gained"}
+        ]
+      },
+      "assertions": [
+        {"text": "Response is valid JSON with summary field", "type": "structural"},
+        {"text": "References specific lap numbers from the data", "type": "data_grounding"},
+        {"text": "Tone is enthusiastic/dramatic (broadcast style)", "type": "tone"},
+        {"text": "Includes paceAnalysis, keyMoments, improvements, nextFocus sections", "type": "structural"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "high-incidents-coach",
+      "prompt": "Generate AI race analysis using racing engineer tone at standard depth for a rough race with many incidents",
+      "expected_output": "Direct, analytical debrief addressing the 8 incidents head-on, identifying where pace dropped, data-driven suggestions for improvement",
+      "tone": "coach",
+      "depth": "standard",
+      "race_data": {
+        "position": 14,
+        "trackName": "Spa-Francorchamps",
+        "carModel": "BMW M4 GT3",
+        "totalLaps": 18,
+        "currentLap": 18,
+        "bestLapTime": 138.5,
+        "lapTimes": [142.3, 140.1, 139.8, 139.2, 138.5, 141.7, 143.2, 140.8, 139.9, 139.5, 142.1, 144.8, 140.2, 139.7, 139.4, 140.1, 141.5, 140.8],
+        "positions": [12, 11, 11, 10, 9, 12, 14, 13, 13, 12, 14, 16, 15, 14, 14, 14, 14, 14],
+        "incidents": 8,
+        "iRatingDelta": -43,
+        "fuelLevels": [50, 47.2, 44.4, 41.6, 38.8, 36.0, 33.2, 30.4, 27.6, 24.8, 22.0, 19.2, 16.4, 13.6, 10.8, 8.0, 5.2, 2.4],
+        "tyreTempAvg": [86, 92, 96, 99, 102, 108, 112, 106, 100, 98, 105, 115, 108, 101, 99, 100, 103, 106],
+        "commentaryLog": [
+          {"lap": 6, "title": "Incident!", "text": "Contact with wall exiting Eau Rouge", "topicId": "wall_contact"},
+          {"lap": 7, "title": "Off Track", "text": "Ran wide at Blanchimont — lost two positions", "topicId": "off_track"},
+          {"lap": 11, "title": "Position Lost", "text": "Dropped to P14 after spin", "topicId": "position_lost"},
+          {"lap": 12, "title": "Spin!", "text": "Lost the rear through Pouhon — barely saved it", "topicId": "spin_catch"}
+        ]
+      },
+      "assertions": [
+        {"text": "Response is valid JSON with summary field", "type": "structural"},
+        {"text": "Directly addresses the high incident count (8)", "type": "data_grounding"},
+        {"text": "Tone is analytical and direct (not sugar-coating)", "type": "tone"},
+        {"text": "References specific corners/events from commentary log", "type": "data_grounding"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "new-driver-mentor-quick",
+      "prompt": "Generate AI race analysis using friendly mentor tone at quick depth for a mid-pack finish",
+      "expected_output": "Short, encouraging 2-sentence summary that celebrates what went well before any critique. No structured sections — just a tight paragraph.",
+      "tone": "mentor",
+      "depth": "quick",
+      "race_data": {
+        "position": 11,
+        "trackName": "Tsukuba Circuit",
+        "carModel": "Mazda MX-5 Cup",
+        "totalLaps": 12,
+        "currentLap": 12,
+        "bestLapTime": 65.8,
+        "lapTimes": [69.2, 67.5, 66.8, 66.3, 66.1, 65.8, 66.0, 66.4, 66.8, 67.1, 67.5, 68.0],
+        "positions": [15, 14, 13, 12, 12, 11, 11, 11, 11, 11, 11, 11],
+        "incidents": 1,
+        "iRatingDelta": 12,
+        "fuelLevels": [20, 18.3, 16.6, 14.9, 13.2, 11.5, 9.8, 8.1, 6.4, 4.7, 3.0, 1.3],
+        "tyreTempAvg": [75, 80, 84, 86, 87, 88, 88, 87, 86, 85, 84, 83],
+        "commentaryLog": [
+          {"lap": 2, "title": "Gained Position", "text": "Clean pass into the hairpin", "topicId": "position_gained"},
+          {"lap": 6, "title": "Personal Best!", "text": "1:05.800 — new best", "topicId": "personal_best"}
+        ]
+      },
+      "assertions": [
+        {"text": "Response is valid JSON with summary field", "type": "structural"},
+        {"text": "Response contains only summary (no paceAnalysis, keyMoments, etc.)", "type": "structural"},
+        {"text": "Tone is encouraging and approachable", "type": "tone"},
+        {"text": "Summary is concise (under 100 words)", "type": "length"}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "held-position-quiet-race-coach",
+      "prompt": "Generate AI race analysis using racing engineer tone at standard depth for a quiet, unremarkable race where not much happened",
+      "expected_output": "Analytical debrief that finds useful observations in a race with no drama — lap time consistency, tyre management, and small areas to find time. Should not manufacture excitement that wasn't there.",
+      "tone": "coach",
+      "depth": "standard",
+      "race_data": {
+        "position": 7,
+        "trackName": "Okayama International Circuit",
+        "carModel": "Porsche 911 GT3 Cup (992)",
+        "totalLaps": 20,
+        "currentLap": 20,
+        "bestLapTime": 94.2,
+        "lapTimes": [97.1, 95.8, 95.1, 94.8, 94.6, 94.5, 94.3, 94.2, 94.5, 94.7, 94.9, 95.0, 95.2, 94.8, 94.6, 94.5, 94.7, 95.1, 95.4, 95.8],
+        "positions": [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 7, 7, 7, 7, 7, 7],
+        "incidents": 0,
+        "iRatingDelta": 8,
+        "fuelLevels": [38, 36.1, 34.2, 32.3, 30.4, 28.5, 26.6, 24.7, 22.8, 20.9, 19.0, 17.1, 15.2, 13.3, 11.4, 9.5, 7.6, 5.7, 3.8, 1.9],
+        "tyreTempAvg": [82, 87, 90, 92, 93, 93, 94, 94, 95, 95, 96, 96, 97, 97, 97, 98, 98, 99, 100, 101],
+        "commentaryLog": [
+          {"lap": 13, "title": "Position Lost", "text": "Dropped to P8 — passed on the outside into the Attwood Curve", "topicId": "position_lost"},
+          {"lap": 15, "title": "Position Gained", "text": "Retook P7 with a cutback into the hairpin", "topicId": "position_gained"}
+        ]
+      },
+      "assertions": [
+        {"text": "Response is valid JSON with all standard sections", "type": "structural"},
+        {"text": "Notes the 0-incident clean race", "type": "data_grounding"},
+        {"text": "Observes the gradual pace degradation (tyre temps climbing, times rising)", "type": "data_grounding"},
+        {"text": "Does not over-hype a quiet race — tone matches the data", "type": "tone"}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "close-battle-lost-out-broadcast",
+      "prompt": "Generate AI race analysis using broadcast tone at standard depth for a close fight that didn't go the driver's way",
+      "expected_output": "Dramatic retelling of the wheel-to-wheel battle with empathy for the result. Should reference the position swaps and acknowledge the effort even though the outcome was disappointing.",
+      "tone": "broadcast",
+      "depth": "standard",
+      "race_data": {
+        "position": 6,
+        "trackName": "Sebring International Raceway",
+        "carModel": "Ferrari 296 GT3",
+        "totalLaps": 22,
+        "currentLap": 22,
+        "bestLapTime": 119.4,
+        "lapTimes": [123.5, 121.2, 120.4, 120.1, 119.8, 119.6, 119.4, 119.7, 120.0, 119.5, 119.8, 120.3, 119.9, 119.6, 119.4, 120.1, 119.7, 120.5, 120.8, 121.2, 120.6, 120.9],
+        "positions": [8, 7, 7, 6, 5, 5, 5, 6, 5, 5, 6, 6, 5, 5, 5, 6, 5, 6, 6, 6, 6, 6],
+        "incidents": 3,
+        "iRatingDelta": 11,
+        "fuelLevels": [55, 52.5, 50.0, 47.5, 45.0, 42.5, 40.0, 37.5, 35.0, 32.5, 30.0, 55.0, 52.5, 50.0, 47.5, 45.0, 42.5, 40.0, 37.5, 35.0, 32.5, 30.0],
+        "tyreTempAvg": [84, 90, 94, 97, 99, 100, 101, 101, 102, 102, 103, 86, 91, 95, 98, 100, 101, 102, 103, 104, 105, 106],
+        "commentaryLog": [
+          {"lap": 4, "title": "Position Gained!", "text": "Up to P6 — clean move under braking into Turn 1", "topicId": "position_gained"},
+          {"lap": 5, "title": "Close Battle", "text": "Side by side through Sunset Bend — held the position", "topicId": "close_battle"},
+          {"lap": 8, "title": "Position Lost", "text": "Lost P5 on the exit of Turn 7 — slight oversteer cost the spot", "topicId": "position_lost"},
+          {"lap": 11, "title": "Pit Entry", "text": "Boxing for fuel and tyres", "topicId": "pit_entry"},
+          {"lap": 17, "title": "Close Battle", "text": "Back at it with the same car — nose to tail through the esses", "topicId": "close_battle"},
+          {"lap": 18, "title": "Position Lost", "text": "Outbraked into Turn 17 — dropped to P6 for good", "topicId": "position_lost"}
+        ]
+      },
+      "assertions": [
+        {"text": "Response is valid JSON with all standard sections", "type": "structural"},
+        {"text": "References the recurring battle and position swaps", "type": "data_grounding"},
+        {"text": "Acknowledges the frustration of losing out while recognizing the effort", "type": "tone"},
+        {"text": "Notes the pit stop and its impact on the race", "type": "data_grounding"}
+      ]
+    },
+    {
+      "id": 6,
+      "name": "slow-start-strong-finish-mentor",
+      "prompt": "Generate AI race analysis using friendly mentor tone at standard depth for a driver who struggled early but found rhythm late",
+      "expected_output": "Encouraging analysis that highlights the improvement arc. Should celebrate the recovery and draw specific comparisons between early and late pace.",
+      "tone": "mentor",
+      "depth": "standard",
+      "race_data": {
+        "position": 9,
+        "trackName": "Road Atlanta",
+        "carModel": "Hyundai Elantra N TC",
+        "totalLaps": 16,
+        "currentLap": 16,
+        "bestLapTime": 88.9,
+        "lapTimes": [95.3, 93.1, 92.4, 91.8, 91.2, 90.5, 90.1, 89.7, 89.3, 89.1, 88.9, 89.0, 89.2, 89.1, 89.3, 89.5],
+        "positions": [16, 15, 14, 14, 13, 12, 11, 10, 10, 9, 9, 9, 9, 9, 9, 9],
+        "incidents": 2,
+        "iRatingDelta": 22,
+        "fuelLevels": [28, 26.2, 24.4, 22.6, 20.8, 19.0, 17.2, 15.4, 13.6, 11.8, 10.0, 8.2, 6.4, 4.6, 2.8, 1.0],
+        "tyreTempAvg": [78, 85, 89, 92, 94, 95, 95, 96, 96, 96, 96, 96, 97, 97, 97, 98],
+        "commentaryLog": [
+          {"lap": 1, "title": "Off Track", "text": "Ran wide at Turn 10A on the opening lap — lost two spots", "topicId": "off_track"},
+          {"lap": 6, "title": "Position Gained", "text": "Moved up to P12 with improving pace", "topicId": "position_gained"},
+          {"lap": 11, "title": "Personal Best!", "text": "New fastest: 1:28.900", "topicId": "personal_best"},
+          {"lap": 8, "title": "Position Gained", "text": "Into the top 10 — P10", "topicId": "position_gained"}
+        ]
+      },
+      "assertions": [
+        {"text": "Response is valid JSON with all standard sections", "type": "structural"},
+        {"text": "Highlights the improvement trend from early to late laps (6+ seconds gained)", "type": "data_grounding"},
+        {"text": "Frames the rocky start positively — recovery narrative, not criticism", "type": "tone"},
+        {"text": "References the personal best on lap 11", "type": "data_grounding"}
+      ]
+    },
+    {
+      "id": 7,
+      "name": "pit-strategy-deep-coach",
+      "prompt": "Generate AI race analysis using racing engineer tone at deep depth for a longer race with pit strategy",
+      "expected_output": "Thorough analysis with detailed lap-by-lap trends, stint comparisons, fuel usage analysis, tyre degradation curves, and a strategy recommendation. Should be noticeably longer and more granular than standard depth.",
+      "tone": "coach",
+      "depth": "deep",
+      "race_data": {
+        "position": 4,
+        "trackName": "Daytona International Speedway (Road Course)",
+        "carModel": "Porsche 963 GTP",
+        "totalLaps": 35,
+        "currentLap": 35,
+        "bestLapTime": 105.8,
+        "lapTimes": [110.2, 108.1, 107.2, 106.5, 106.1, 105.8, 106.0, 106.3, 106.8, 107.1, 107.5, 108.0, 108.4, 106.2, 105.9, 105.8, 106.1, 106.4, 106.7, 107.0, 107.3, 107.8, 108.2, 108.7, 106.0, 105.9, 106.2, 106.5, 106.9, 107.2, 107.6, 108.0, 108.5, 109.0, 109.3],
+        "positions": [6, 6, 5, 5, 4, 4, 4, 4, 4, 5, 5, 5, 5, 4, 4, 3, 3, 3, 4, 4, 4, 4, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+        "incidents": 2,
+        "iRatingDelta": 35,
+        "fuelLevels": [65, 62.1, 59.2, 56.3, 53.4, 50.5, 47.6, 44.7, 41.8, 38.9, 36.0, 33.1, 30.2, 65.0, 62.1, 59.2, 56.3, 53.4, 50.5, 47.6, 44.7, 41.8, 38.9, 36.0, 65.0, 62.1, 59.2, 56.3, 53.4, 50.5, 47.6, 44.7, 41.8, 38.9, 36.0],
+        "tyreTempAvg": [80, 87, 92, 95, 97, 98, 99, 100, 101, 102, 103, 104, 105, 82, 89, 94, 97, 99, 100, 101, 103, 104, 106, 107, 83, 90, 95, 98, 100, 102, 103, 105, 107, 109, 111],
+        "commentaryLog": [
+          {"lap": 3, "title": "Position Gained", "text": "Up to P5 with a move into the Bus Stop", "topicId": "position_gained"},
+          {"lap": 6, "title": "Personal Best!", "text": "1:45.800 — quick lap", "topicId": "personal_best"},
+          {"lap": 10, "title": "Position Lost", "text": "Passed by faster car on the banking — dropped to P5", "topicId": "position_lost"},
+          {"lap": 14, "title": "Pit Entry", "text": "First stop — fuel and tyres", "topicId": "pit_entry"},
+          {"lap": 16, "title": "Close Battle", "text": "Fighting for P3 out of the pits", "topicId": "close_battle"},
+          {"lap": 19, "title": "Position Lost", "text": "Lost P3 — undercut didn't quite work", "topicId": "position_lost"},
+          {"lap": 25, "title": "Pit Entry", "text": "Second stop — splash and go considered but took full service", "topicId": "pit_entry"}
+        ]
+      },
+      "assertions": [
+        {"text": "Response is valid JSON with all deep sections including strategyNote", "type": "structural"},
+        {"text": "Compares pace across the three stints", "type": "data_grounding"},
+        {"text": "Notes the tyre degradation pattern (temps climbing ~1°C per lap)", "type": "data_grounding"},
+        {"text": "Includes a concrete strategy recommendation for the next race", "type": "structural"},
+        {"text": "Response is noticeably longer/more detailed than standard depth evals", "type": "length"}
+      ]
+    }
+  ]
+}
