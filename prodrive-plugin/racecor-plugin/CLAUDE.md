@@ -1,9 +1,8 @@
-# RaceCor Plugin — SimHub + Homebridge
+# RaceCor Plugin — SimHub
 
-This directory contains two related plugins that share a data directory and documentation:
+The SimHub plugin (`simhub-plugin/`) — C# .NET Framework 4.8. Ingests telemetry from iRacing (and other sims), runs commentary triggers and strategy analysis, and serves results over HTTP on port 8889.
 
-1. **SimHub Plugin** (`simhub-plugin/`) — C# .NET Framework 4.8. Ingests telemetry from iRacing (and other sims), runs commentary triggers and strategy analysis, and serves results over HTTP.
-2. **Homebridge Plugin** (`homebridge-plugin/`) — TypeScript. Subscribes to the SimHub plugin's HTTP API and maps telemetry states to HomeKit smart light colors/patterns.
+> The Homebridge plugin that used to live alongside this directory has moved to its own repo: [`k10-motorsports/prodrive-homebridge`](https://github.com/k10-motorsports/prodrive-homebridge) (instructions: [`../../prodrive-homebridge/CLAUDE.md`](../../prodrive-homebridge/CLAUDE.md)). It remains a consumer of the same HTTP API described below.
 
 ## Integration Contract (Plugin ↔ Overlay)
 
@@ -98,57 +97,19 @@ After building in Visual Studio, export built files back to the repo:
 # Does NOT copy datasets — repo is source of truth for those
 ```
 
-## Homebridge Plugin (TypeScript)
-
-### Tech Stack
-
-- TypeScript targeting Node.js 18+
-- Zero runtime dependencies (uses Node built-in `http` module)
-- Jest for testing
-- Homebridge v1.6+ platform plugin
-
-### Key Files
-
-| What | Path |
-|------|------|
-| Source | `homebridge-plugin/src/` |
-| Tests | `homebridge-plugin/src/__tests__/` |
-| Package | `homebridge-plugin/package.json` |
-
-### How It Works
-
-Registered as `homebridge-racecor-lights` / `RaceCorProDriveLights` platform. Polls SimHub's HTTP API and maps telemetry state to HomeKit light attributes: flag colors (8 states), severity colors (6 levels), proximity-based colors, and blink patterns. Supports per-light mode overrides.
-
-### Building & Testing
-
-```bash
-cd homebridge-plugin
-npm install && npm run build    # TypeScript → dist/
-npm test                         # 133 Jest tests
-npm run test:coverage           # With coverage
-npm run lint                    # ESLint
-npm run watch                   # Dev mode
-```
-
-133 Jest tests covering: color mapping (84), SimHub HTTP client (24), per-light mode overrides (25).
-
 ## CI
 
-The `simhub-ci.yml` workflow runs on every push/PR with 4 parallel jobs:
+The `simhub-ci.yml` workflow runs on every push/PR with 3 parallel jobs:
 
 | Job | Runner | Tests |
 |-----|--------|-------|
 | Python Tests | ubuntu-latest | Dataset validation (28) + installer tests (34) |
 | C# Tests | ubuntu-latest | NUnit (.NET 6.0, 200+) |
-| Homebridge Tests | ubuntu-latest | Jest (133) |
 | Windows Installer | windows-latest | Live `.bat` execution (3) |
-
-The `homebridge-ci.yml` workflow also runs Homebridge tests independently.
 
 ## Code Style
 
 - C# follows standard .NET conventions, no special formatting rules
-- TypeScript uses the project ESLint config
 - Dataset JSON files must pass all 28 validation tests before committing
 - When adding a new commentary topic: add to `commentary_topics.json`, add matching fragments (≥6 openers / ≥8 bodies / ≥5 closers), add sentiment if new, validate, rebuild
 
@@ -159,5 +120,4 @@ Detailed docs in `docs/`:
 - `DATASETS.md` — JSON dataset schema and validation rules
 - `DEVELOPMENT.md` — full build/test/export workflow
 - `TESTING.md` — comprehensive test suite documentation
-- `HOMEBRIDGE_PLUGIN.md` / `HOMEKIT.md` — Homebridge architecture
 - `SIMHUB_PLUGIN.md` — SimHub plugin architecture

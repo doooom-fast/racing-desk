@@ -35,7 +35,7 @@ iRacing SDK
     → flat JSON object with 100+ properties (telemetry, commentary, strategy)
   → Electron overlay polls at ~30fps (prodrive-overlay/)
   → WebGL2 + Canvas 2D rendering
-  → Homebridge subscribes for light color mapping (prodrive-plugin/racecor-plugin/homebridge-plugin/)
+  → Homebridge plugin subscribes for light color mapping (prodrive-homebridge/)
 ```
 
 The plugin is the **producer**, the overlay is the **consumer**, and the HTTP JSON API on port 8889 is the **contract** between them.

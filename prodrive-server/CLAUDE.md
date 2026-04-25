@@ -13,12 +13,15 @@ Closed-source web-facing side of RaceCor Pro Drive. Split from the open `alterna
 
 ## Relationship to the open monorepo
 
-The open [`alternatekev/k10-motorsports`](https://github.com/alternatekev/k10-motorsports) repo hosts:
+The open [`k10-motorsports/prodrive-plugin`](https://github.com/k10-motorsports/prodrive-plugin) repo hosts:
 - `racecor-plugin/` — SimHub plugin (C# .NET 4.8)
 - `racecor-overlay/` — Electron overlay (30fps polling HUD)
-- `racecor-edit/` — replay/editing tool
 - `installer/` — Inno Setup Windows installer
 - `src/agents/` — MCP servers
+
+Two adjacent open repos cover related rig-side surfaces:
+- [`k10-motorsports/prodrive-homebridge`](https://github.com/k10-motorsports/prodrive-homebridge) — Homebridge plugin (HomeKit smart light mapping)
+- [`k10-motorsports/prodrive-edit`](https://github.com/k10-motorsports/prodrive-edit) — AI race editing pipeline
 
 The plugin produces telemetry JSON on `http://localhost:8889/racecor-io-pro-drive/`. The overlay polls that. This closed repo is **independent of that runtime pipeline** — nothing here runs on the user's racing rig. Pro Drive server features run in a hosted web environment and are consumed by a logged-in user in their browser.
 

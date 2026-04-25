@@ -10,15 +10,17 @@ All agent-spawned work MUST use `isolation: "worktree"`. Exceptions: read-only e
 
 | Directory | CLAUDE.md | Stack | Purpose |
 |-----------|-----------|-------|---------|
-| `racecor-plugin/` | [CLAUDE.md](racecor-plugin/CLAUDE.md) | C# .NET 4.8, TypeScript, NUnit, Jest | SimHub plugin + Homebridge plugin |
+| `racecor-plugin/` | [CLAUDE.md](racecor-plugin/CLAUDE.md) | C# .NET 4.8, NUnit | SimHub plugin |
 | `racecor-overlay/` | [CLAUDE.md](racecor-overlay/CLAUDE.md) | Electron, vanilla JS, WebGL2, Canvas 2D | Overlay HUD (30fps polling) |
-| `racecor-edit/` | — | — | Replay/editing tool |
 | `src/agents/` | [CLAUDE.md](src/agents/CLAUDE.md) | Node.js, MCP SDK | 3 MCP servers |
 | `installer/` | [CLAUDE.md](installer/CLAUDE.md) | Inno Setup | Windows installer (.iss) |
 | `scripts/` | [CLAUDE.md](scripts/CLAUDE.md) | Bash, Node, Python | Build, install, launch scripts |
 | `docs/` | [CLAUDE.md](docs/CLAUDE.md) | Markdown, HTML | Architecture and design docs |
 
-> **Note — web side split out:** The marketing site, Pro Drive admin (Next.js), mock telemetry server, and shared React component library now live in the closed [`alternatekev/racecor-prodrive-server`](https://github.com/alternatekev/racecor-prodrive-server) repo. See the "Closed-repo seams" section below for the cross-repo contracts.
+> **Note — split-out repos:**
+> - The Homebridge plugin moved to [`k10-motorsports/prodrive-homebridge`](https://github.com/k10-motorsports/prodrive-homebridge) — instructions: [`prodrive-homebridge/CLAUDE.md`](../prodrive-homebridge/CLAUDE.md).
+> - The race editing pipeline moved to [`k10-motorsports/prodrive-edit`](https://github.com/k10-motorsports/prodrive-edit) — instructions: [`prodrive-edit/CLAUDE.md`](../prodrive-edit/CLAUDE.md).
+> - The marketing site, Pro Drive admin (Next.js), mock telemetry server, and shared React component library live in the closed [`k10-motorsports/prodrive-server`](https://github.com/k10-motorsports/prodrive-server) repo. See the "Closed-repo seams" section below for the cross-repo contracts.
 
 ## End-to-End Data Flow (Integration Contract)
 
@@ -34,7 +36,7 @@ iRacing SDK
     → flat JSON object with 100+ properties (telemetry, commentary, strategy)
   → Electron overlay polls at ~30fps (racecor-overlay/)
   → WebGL2 + Canvas 2D rendering
-  → Homebridge subscribes for light color mapping (racecor-plugin/homebridge-plugin/)
+  → Homebridge plugin (separate repo: prodrive-homebridge) subscribes for light color mapping
 ```
 
 The plugin is the **producer**, the overlay is the **consumer**, and the HTTP JSON API on port 8889 is the **contract** between them.
@@ -63,9 +65,9 @@ All workflows live in `.github/workflows/`:
 |----------|---------|---------------|
 | `dashboard-ci.yml` | Push/PR | Overlay Playwright tests |
 | `simhub-ci.yml` | Push/PR | C# NUnit (~147), Python dataset validation (28), Python installer tests (34) |
-| `homebridge-ci.yml` | Push/PR | Homebridge Jest (133) |
 | `release.yml` | `v*` tags | Full release build |
-| `plugin-ci.yml` | Disabled | Legacy duplicate of simhub-ci |
+
+The Homebridge plugin's CI lives in its own repo ([`prodrive-homebridge`](https://github.com/k10-motorsports/prodrive-homebridge)).
 
 ## iRacing Web Scraping — HARD CONSTRAINTS
 
