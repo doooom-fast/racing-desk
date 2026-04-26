@@ -8,11 +8,9 @@
 
 ## Why this exists
 
-After Phase 9 (PRs #10–#17 in `prodrive-server`), every remaining dashboard analytic — Driver DNA, Mastery, Moments, Scatter, When-Engine, Race Summary, Next Race Ideas — runs in a single TypeScript implementation under `apps/web-api/src/calc/`. The web app and the Electron overlay already consume that calc layer over HTTP. The four native apps do not yet, and their `APIClient` scaffolding pre-dates the calc surface.
+After Phase 9 (PRs #10–#17 in `prodrive-server`), every dashboard analytic — Driver DNA, Mastery, Moments, Scatter, When-Engine, Race-Now Verdict, Race Summary, Next Race Ideas — runs in a single TypeScript implementation under `apps/web-api/src/calc/`. The web app and the Electron overlay already consume that calc layer over HTTP. The four native apps do not yet, and their `APIClient` scaffolding pre-dates the calc surface.
 
 This doc defines how the four native apps should fetch data so that what they show is **byte-identical** to what the web dashboard shows. It supersedes any pre-Phase-9 assumptions about per-app calc reimplementation.
-
-> **Note on Race-Now / "Should I race right now?":** the verdict feature was removed from the web app. Treat the calc endpoint at `/api/v1/calc/race-now` as deprecated — don't build new clients against it. If/when this comes back as a native-only feature, this section gets rewritten.
 
 > **Note on the SimHub plugin:** the plugin is a *data producer* (telemetry → port 8889 → consumers), not a calc consumer. The overlay (today) and the native apps (target) hold the user's Bearer token and call `/api/v1/calc/*` directly. The plugin's [`Calc/CalcClient.cs`](https://github.com/k10-motorsports/prodrive-plugin/blob/main/racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/Calc/CalcClient.cs) (merged in PR #186) is dormant scaffolding — keep, but no current consumer. If a future plugin feature wants derived analytics, the right path is to ask the consumer (overlay/native app) over the existing port-8889 channel, not to mint a parallel auth path in the plugin.
 
@@ -39,9 +37,9 @@ See [`native-apps-api-contract.md`](native-apps-api-contract.md) for the catalog
 
 The server-side query functions internally call the calc engines, so the per-screen blobs are always consistent with what calc POST would return for the same inputs.
 
-## Calc POST endpoints — the seven
+## Calc POST endpoints — the eight
 
-All seven are documented in [`prodrive-server/docs/native-app-integration.md`](https://github.com/k10-motorsports/prodrive-server/blob/main/docs/native-app-integration.md) (note: that doc still lists eight; the eighth is `/api/v1/calc/race-now` which is deprecated — see the Race-Now note above). Quick reference:
+All eight are documented in [`prodrive-server/docs/native-app-integration.md`](https://github.com/k10-motorsports/prodrive-server/blob/main/docs/native-app-integration.md). Quick reference:
 
 | Endpoint | Body | Response highlight | Native cadence |
 |---|---|---|---|
@@ -50,10 +48,13 @@ All seven are documented in [`prodrive-server/docs/native-app-integration.md`](h
 | `POST /api/v1/calc/moments` | `{ sessions, ratings }` | sorted highlights | On screen open |
 | `POST /api/v1/calc/scatter` | `{ sessions, timeZone? }` | `buckets[]` for heatmap | On screen open |
 | `POST /api/v1/calc/when` | `{ sessions, ratings, timeZone? }` | `profile`, `insights[]`, `panel` (pre-rendered strings) | On screen open |
+| `POST /api/v1/calc/race-now` | `{ profile, now?, timeZone?, sessions? }` | verdict + alternatives | App start, then hourly |
 | `POST /api/v1/calc/race-summary` | `{ session, laps, behavior, trackHistory, ratingContext }` | full debrief | After race completion |
 | `POST /api/v1/calc/next-race-ideas` | `{ sessions, ratings, driverRatings, schedule, ... }` | sorted suggestions | On widget open + every 5–10 min |
 
 `when.panel.strengths.paragraph`, `panel.watchOut.paragraph`, etc. are **pre-rendered** server-side. Native apps render verbatim — no string formatting in Swift / C#.
+
+**Race-Now polling cadence is critical.** The verdict only changes on hour boundaries. Use a Timer/DispatcherTimer aligned to the next hour boundary, not a 5-minute interval. Faster polling burns the user's data plan for nothing.
 
 ## Auth posture
 
@@ -149,20 +150,18 @@ Use `fetch` (not Axios — the rest of the RN app is fetch-based) and the type s
 
 ## What to delete in each native repo
 
-Grep for and remove any local re-implementations of the 7 live calc engines:
+Grep for and remove any local re-implementations of the 8 calc engines:
 
 ```
 # Swift
-rg -l 'driverDna|computeMastery|computeArchetype|whenProfile|nextRaceIdeas|raceSummary|scatterBuckets' Sources/
+rg -l 'driverDna|computeMastery|computeArchetype|whenProfile|raceNowVerdict|nextRaceIdeas|raceSummary|scatterBuckets' Sources/
 
 # C#
-rg -l 'DriverDna|ComputeMastery|WhenProfile|NextRaceIdeas|RaceSummary' src/
+rg -l 'DriverDna|ComputeMastery|WhenProfile|RaceNowVerdict|NextRaceIdeas|RaceSummary' src/
 
 # RN
-rg -l 'driverDna|computeMastery|whenProfile|nextRaceIdeas|raceSummary' apps/rn/src/
+rg -l 'driverDna|computeMastery|whenProfile|raceNowVerdict|nextRaceIdeas|raceSummary' apps/rn/src/
 ```
-
-Also grep for `raceNow|RaceNowVerdict|shouldIRaceNow` and **delete** any matches — that feature is deprecated, not just centralized.
 
 If anything matches, delete the implementation and replace call sites with the appropriate `CalcClient` method or the per-screen GET. Keep:
 
@@ -195,9 +194,9 @@ For each of `prodrive-ios`, `prodrive-macos`, `prodrive-tvos`, `prodrive-windows
 
 - [ ] `CalcClient` (or equivalent) exists alongside the per-screen client; one `Authorization` header injection path serves both.
 - [ ] Configurable base URLs for both surfaces via env var or settings file (dev/staging/prod can differ).
-- [ ] No local code reimplements any of the 7 live calc engines.
-- [ ] Any pre-existing Race-Now / "Should I race now?" code paths are deleted (feature is deprecated, not just relocated).
-- [ ] Driver DNA, Mastery, Moments, Scatter, When-Engine, Race Summary, NRI panels render strings and numbers byte-identical to `prodrive.racecor.io` for the same user.
+- [ ] No local code reimplements any of the 8 calc engines.
+- [ ] Race-Now polls on hour boundaries, not on a fixed 5-minute interval.
+- [ ] Driver DNA, Mastery, Moments, Scatter, When-Engine, Race-Now, Race Summary, NRI panels render strings and numbers byte-identical to `prodrive.racecor.io` for the same user.
 - [ ] Offline: every screen reads from cache without a network round-trip.
 - [ ] Parity dump CLI / debug menu item exists.
 
