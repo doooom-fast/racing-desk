@@ -5,7 +5,8 @@ Cross-repo context — anything that applies to the K10 Motorsports platform as 
 | Doc | What it covers | Originally lived at |
 |-----|----------------|---------------------|
 | [monorepo-orchestration.md](monorepo-orchestration.md) | Repo map, end-to-end data flow, cross-repo contracts (design tokens, demo build, Windows installer, native apps), iRacing scraping constraints | [`prodrive-plugin/CLAUDE.md`](../prodrive-plugin/CLAUDE.md) (back when plugin and overlay were one monorepo) |
-| [native-apps-api-contract.md](native-apps-api-contract.md) | Versioned API surface that ios/macos/tvos/windows clients consume from prodrive-server | (originated here) |
+| [native-apps-api-contract.md](native-apps-api-contract.md) | Per-screen GET REST contract that ios/macos/tvos/windows clients consume from prodrive-server | (originated here) |
+| [native-apps-calc-integration.md](native-apps-calc-integration.md) | How native apps consume the post-Phase-9 calc API; division of labor with the per-screen REST surface | (originated here) |
 | [native-apps-plan.md](native-apps-plan.md) | Rollout plan for the native apps work | (originated here) |
 
 ## When to add something here
