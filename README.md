@@ -8,6 +8,8 @@ Central instructions and skills for every repo in the [k10-motorsports](https://
 prodrive-context/         ← cross-repo context (data flow, contracts, conventions)
 prodrive-plugin/          ← mirrors prodrive-plugin/'s instruction tree
 prodrive-overlay/         ← mirrors prodrive-overlay/'s instruction tree
+prodrive-homebridge/      ← mirrors prodrive-homebridge/'s instruction tree
+prodrive-edit/            ← mirrors prodrive-edit/'s instruction tree
 prodrive-server/          ← mirrors prodrive-server/'s instruction tree
 prodrive-windows/         ← mirrors prodrive-windows/'s instruction tree
 prodrive-ios/             ← mirrors prodrive-ios/'s instruction tree

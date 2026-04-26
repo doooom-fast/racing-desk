@@ -1,6 +1,8 @@
-# RaceCor Edit — AI Race Editing Pipeline
+# prodrive-edit — AI Race Editing Pipeline
 
 CLI tool that takes raw recordings from the RaceCor overlay (cockpit video + TV-view video + telemetry JSONL sidecar) and produces broadcast-quality race edits, condensed highlights, and social media clips.
+
+This tool previously lived inside [`prodrive-plugin`](https://github.com/k10-motorsports/prodrive-plugin) at `racecor-edit/`. It was extracted into its own repo so the editing pipeline can iterate independently from the SimHub plugin and overlay.
 
 ## Tech Stack
 
