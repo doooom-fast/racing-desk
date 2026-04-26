@@ -19,6 +19,7 @@ All agent-spawned work MUST use `isolation: "worktree"`. Exceptions: read-only e
 | [`prodrive-ios`](https://github.com/k10-motorsports/prodrive-ios) | Swift / SwiftUI / RN | iOS native + RN apps | [agents/prodrive-ios/CLAUDE.md](../prodrive-ios/CLAUDE.md) |
 | [`prodrive-macos`](https://github.com/k10-motorsports/prodrive-macos) | Swift / SwiftUI | macOS native app | [agents/prodrive-macos/CLAUDE.md](../prodrive-macos/CLAUDE.md) |
 | [`prodrive-tvos`](https://github.com/k10-motorsports/prodrive-tvos) | Swift / SwiftUI | tvOS native app | [agents/prodrive-tvos/](../prodrive-tvos/) |
+| [`prodrive-designer`](https://github.com/k10-motorsports/prodrive-designer) | Electron, vanilla JS, Claude Agent SDK | Live prototyping shell — composites the overlay over recorded race video with telemetry replay + element picker + Claude attached | [agents/prodrive-designer/CLAUDE.md](../prodrive-designer/CLAUDE.md) |
 | [`prodrive-agents`](https://github.com/k10-motorsports/prodrive-agents) | Markdown | This repo — central agent instructions and skills | (you are here) |
 
 ## End-to-End Data Flow (Integration Contract)
