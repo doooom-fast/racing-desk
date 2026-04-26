@@ -23,7 +23,7 @@ All agent-spawned work MUST use `isolation: "worktree"`. Exceptions: read-only e
 
 ## End-to-End Data Flow (Integration Contract)
 
-The contract that ties the plugin and overlay together. Changes to the JSON shape must be coordinated across both repos.
+The contract that ties the plugin and its consumers together. Changes to the JSON shape must be coordinated across all consumers.
 
 ```
 iRacing SDK
@@ -33,12 +33,17 @@ iRacing SDK
   → strategy modules (tire/fuel/pit/opponent/position)
   → HTTP API on port 8889: GET http://localhost:8889/racecor-io-pro-drive/
     → flat JSON object with 100+ properties (telemetry, commentary, strategy)
-  → Electron overlay polls at ~30fps (prodrive-overlay/)
-  → WebGL2 + Canvas 2D rendering
-  → Homebridge plugin subscribes for light color mapping (prodrive-homebridge/)
+  → Consumers (any of the below — same contract, different renderers):
+    ├─ Electron overlay polls at ~30fps (prodrive-overlay/, transitional)
+    │  └─ WebGL2 + Canvas 2D rendering
+    ├─ Windows native app (prodrive-windows/, target replacement for overlay)
+    ├─ macOS / iOS / tvOS native apps when paired with a gaming PC on the LAN
+    └─ Homebridge plugin subscribes for light color mapping (prodrive-homebridge/)
 ```
 
-The plugin is the **producer**, the overlay is the **consumer**, and the HTTP JSON API on port 8889 is the **contract** between them.
+The plugin is the **producer**. The overlay is the **current consumer**; the four native apps inherit that role as they reach feature parity. The HTTP JSON API on port 8889 is the **contract** — stable across the consumer change.
+
+**The plugin never calls web-api.** Its role ends at "produce JSON on port 8889." Anything that wants derived analytics (Driver DNA, Mastery, NRI, etc.) is a consumer, fetches its own user token, and calls `/api/v1/calc/*` directly. See [`native-apps-calc-integration.md`](native-apps-calc-integration.md) for that surface.
 
 ## Cross-repo seams
 
@@ -60,7 +65,15 @@ The server's marketing site embeds a live dashboard demo built by inlining overl
 
 ### 4. Native apps API contract (server → ios/macos/tvos/windows)
 
-Native apps consume a versioned API surface from [`prodrive-server`](https://github.com/k10-motorsports/prodrive-server). The contract is documented in [`native-apps-api-contract.md`](native-apps-api-contract.md) and the rollout plan in [`native-apps-plan.md`](native-apps-plan.md) (both in this folder).
+Native apps consume two API surfaces from [`prodrive-server`](https://github.com/k10-motorsports/prodrive-server):
+
+- **Per-screen REST** (`prodrive.racecor.io/api/v1/*`, Bearer-authed GET) — one call per screen, server aggregates + runs calc internally + returns a finalized blob. Default for normal usage.
+- **Calc engines** (`api.prodrive.racecor.io/api/v1/calc/*`, POST) — the Phase 9 layer; escape hatch for what-if flows that need scoped/synthetic inputs.
+
+Docs:
+- [`native-apps-api-contract.md`](native-apps-api-contract.md) — per-screen REST surface
+- [`native-apps-calc-integration.md`](native-apps-calc-integration.md) — calc API + division of labor with per-screen REST + per-platform client recommendations
+- [`native-apps-plan.md`](native-apps-plan.md) — high-level rollout plan
 
 ## iRacing Web Scraping — HARD CONSTRAINTS
 

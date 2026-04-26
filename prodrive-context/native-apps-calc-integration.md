@@ -8,9 +8,13 @@
 
 ## Why this exists
 
-After Phase 9 (PRs #10–#17 in `prodrive-server`), every dashboard analytic — Driver DNA, Mastery, Moments, Scatter, When-Engine, Race-Now Verdict, Race Summary, Next Race Ideas — runs in a single TypeScript implementation under `apps/web-api/src/calc/`. The web app, the Electron overlay, and the SimHub plugin already consume that calc layer over HTTP. The four native apps do not yet, and their `APIClient` scaffolding pre-dates the calc surface.
+After Phase 9 (PRs #10–#17 in `prodrive-server`), every remaining dashboard analytic — Driver DNA, Mastery, Moments, Scatter, When-Engine, Race Summary, Next Race Ideas — runs in a single TypeScript implementation under `apps/web-api/src/calc/`. The web app and the Electron overlay already consume that calc layer over HTTP. The four native apps do not yet, and their `APIClient` scaffolding pre-dates the calc surface.
 
 This doc defines how the four native apps should fetch data so that what they show is **byte-identical** to what the web dashboard shows. It supersedes any pre-Phase-9 assumptions about per-app calc reimplementation.
+
+> **Note on Race-Now / "Should I race right now?":** the verdict feature was removed from the web app. Treat the calc endpoint at `/api/v1/calc/race-now` as deprecated — don't build new clients against it. If/when this comes back as a native-only feature, this section gets rewritten.
+
+> **Note on the SimHub plugin:** the plugin is a *data producer* (telemetry → port 8889 → consumers), not a calc consumer. The overlay (today) and the native apps (target) hold the user's Bearer token and call `/api/v1/calc/*` directly. The plugin's [`Calc/CalcClient.cs`](https://github.com/k10-motorsports/prodrive-plugin/blob/main/racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/Calc/CalcClient.cs) (merged in PR #186) is dormant scaffolding — keep, but no current consumer. If a future plugin feature wants derived analytics, the right path is to ask the consumer (overlay/native app) over the existing port-8889 channel, not to mint a parallel auth path in the plugin.
 
 ## Two API surfaces — when to use which
 
@@ -24,7 +28,6 @@ This doc defines how the four native apps should fetch data so that what they sh
 **Calc POST is escape-hatch, not main course.** Reserve it for:
 
 - Driver DNA "compare myself last 30 days vs all-time" toggles
-- Race-Now polling (the verdict only changes on hour boundaries — see cadence note below)
 - Pre-race "what would happen if I ran X series next" hypotheticals
 - Replays of specific sessions from local cache without re-fetching
 
@@ -36,9 +39,9 @@ See [`native-apps-api-contract.md`](native-apps-api-contract.md) for the catalog
 
 The server-side query functions internally call the calc engines, so the per-screen blobs are always consistent with what calc POST would return for the same inputs.
 
-## Calc POST endpoints — the eight
+## Calc POST endpoints — the seven
 
-All eight are documented in [`prodrive-server/docs/native-app-integration.md`](https://github.com/k10-motorsports/prodrive-server/blob/main/docs/native-app-integration.md). Quick reference:
+All seven are documented in [`prodrive-server/docs/native-app-integration.md`](https://github.com/k10-motorsports/prodrive-server/blob/main/docs/native-app-integration.md) (note: that doc still lists eight; the eighth is `/api/v1/calc/race-now` which is deprecated — see the Race-Now note above). Quick reference:
 
 | Endpoint | Body | Response highlight | Native cadence |
 |---|---|---|---|
@@ -47,28 +50,37 @@ All eight are documented in [`prodrive-server/docs/native-app-integration.md`](h
 | `POST /api/v1/calc/moments` | `{ sessions, ratings }` | sorted highlights | On screen open |
 | `POST /api/v1/calc/scatter` | `{ sessions, timeZone? }` | `buckets[]` for heatmap | On screen open |
 | `POST /api/v1/calc/when` | `{ sessions, ratings, timeZone? }` | `profile`, `insights[]`, `panel` (pre-rendered strings) | On screen open |
-| `POST /api/v1/calc/race-now` | `{ profile, now?, timeZone?, sessions? }` | verdict + alternatives | App start, then hourly |
 | `POST /api/v1/calc/race-summary` | `{ session, laps, behavior, trackHistory, ratingContext }` | full debrief | After race completion |
 | `POST /api/v1/calc/next-race-ideas` | `{ sessions, ratings, driverRatings, schedule, ... }` | sorted suggestions | On widget open + every 5–10 min |
 
 `when.panel.strengths.paragraph`, `panel.watchOut.paragraph`, etc. are **pre-rendered** server-side. Native apps render verbatim — no string formatting in Swift / C#.
-
-**Race-Now polling cadence is critical.** The verdict only changes on hour boundaries. Use a Timer/DispatcherTimer aligned to the next hour boundary, not a 5-minute interval. Faster polling burns the user's data plan for nothing.
 
 ## Auth posture
 
 | Surface | Today | After Phase 9b |
 |---|---|---|
 | Per-screen GET | `Authorization: Bearer <token>` from `/api/plugin-auth/token` | Same |
-| Calc POST | None required | `Authorization: Bearer <token>` (likely a per-app token bundled with the installer or shared with the user token) |
+| Calc POST | None required | **Same JWT** as the per-screen Bearer |
 
-**Send Bearer prophylactically on calc POST too.** Today the server ignores it on the calc surface. When Phase 9b lands, every native client that already sends Bearer becomes compatible without a release. Concretely: each native app's calc subsurface should reuse the same `Authorization` header injection the per-screen client uses. One token plumbing path, two surfaces.
+**Decision (locked in 2026-04-26):** Phase 9b will reuse the existing `/api/plugin-auth/token` JWT on the calc surface — one token, two surfaces. No separate per-app installer token. This collapses what would otherwise be two auth pipelines into one and means each native app's calc subsurface can literally reuse the same `Authorization` header injection the per-screen client uses.
+
+**Send Bearer prophylactically on calc POST today.** The server currently ignores it; when 9b lands, clients that already include the header become compatible without a release.
 
 The token store layouts already exist:
 
 - iOS / macOS / tvOS: `Sources/Auth/TokenStore.swift` (Keychain-backed)
 - Windows: `src/RaceCorProDrive/Auth/` (Credential Manager)
 - iOS RN: `expo-secure-store`
+
+## How the SimHub plugin fits (it doesn't, directly)
+
+The SimHub plugin runs alongside iRacing on the user's gaming PC and serves telemetry on `http://localhost:8889`. The current consumer of that channel is the Electron overlay; the target consumer is the Windows native app (and any other native app paired with a running game session).
+
+The plugin **never** calls `/api/v1/calc/*` directly. It has no user identity, no Bearer token, no need for derived analytics. Its job ends at "produce JSON telemetry on port 8889 and let consumers do whatever with it."
+
+If a future plugin feature actually needs a derived value (e.g. CommentaryEngine wants to mention "you're consistent with this car" mid-race), the plugin should request that value from the consumer over the existing port-8889 channel — the consumer already has the token and the cached calc result. Don't reach for HTTP-to-web-api from inside the plugin.
+
+This is why the plugin's [`Calc/CalcClient.cs`](https://github.com/k10-motorsports/prodrive-plugin/blob/main/racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/Calc/CalcClient.cs) (PR #186) is dormant. It's not wrong; it's just unused. Revert it if it bitrots; otherwise leave it alone.
 
 ## Recommended client shape per platform
 
@@ -137,18 +149,20 @@ Use `fetch` (not Axios — the rest of the RN app is fetch-based) and the type s
 
 ## What to delete in each native repo
 
-Grep for and remove any local re-implementations of the 8 calc engines:
+Grep for and remove any local re-implementations of the 7 live calc engines:
 
 ```
 # Swift
-rg -l 'driverDna|computeMastery|computeArchetype|whenProfile|raceNowVerdict|nextRaceIdeas|raceSummary|scatterBuckets' Sources/
+rg -l 'driverDna|computeMastery|computeArchetype|whenProfile|nextRaceIdeas|raceSummary|scatterBuckets' Sources/
 
 # C#
-rg -l 'DriverDna|ComputeMastery|WhenProfile|RaceNowVerdict|NextRaceIdeas|RaceSummary' src/
+rg -l 'DriverDna|ComputeMastery|WhenProfile|NextRaceIdeas|RaceSummary' src/
 
 # RN
-rg -l 'driverDna|computeMastery|whenProfile|raceNowVerdict|nextRaceIdeas|raceSummary' apps/rn/src/
+rg -l 'driverDna|computeMastery|whenProfile|nextRaceIdeas|raceSummary' apps/rn/src/
 ```
+
+Also grep for `raceNow|RaceNowVerdict|shouldIRaceNow` and **delete** any matches — that feature is deprecated, not just centralized.
 
 If anything matches, delete the implementation and replace call sites with the appropriate `CalcClient` method or the per-screen GET. Keep:
 
@@ -160,7 +174,7 @@ If anything matches, delete the implementation and replace call sites with the a
 ## Caching and offline
 
 - **Per-screen GET**: respect `Cache-Control: private, max-age=60, stale-while-revalidate=300`. Cache to disk (Core Data on Apple, SQLite on Windows, AsyncStorage on RN). Show stale-while-revalidate state in the UI (subtle "updating…" badge).
-- **Calc POST**: server sends no cache headers — cache client-side keyed on a hash of the request body. Race-Now is hour-keyed (see above). DNA / Mastery / When recompute on every screen open is fine; the calc engines run in milliseconds.
+- **Calc POST**: server sends no cache headers — cache client-side keyed on a hash of the request body. DNA / Mastery / When recompute on every screen open is fine; the calc engines run in milliseconds.
 - **Offline**: every native app should be readable offline from cache. The four are not write surfaces — there are no mutations to queue.
 
 ## Verifying parity
@@ -181,17 +195,17 @@ For each of `prodrive-ios`, `prodrive-macos`, `prodrive-tvos`, `prodrive-windows
 
 - [ ] `CalcClient` (or equivalent) exists alongside the per-screen client; one `Authorization` header injection path serves both.
 - [ ] Configurable base URLs for both surfaces via env var or settings file (dev/staging/prod can differ).
-- [ ] No local code reimplements any of the 8 calc engines.
-- [ ] Driver DNA, Mastery, Moments, Scatter, When-Engine, Race-Now, Race Summary, NRI panels render strings and numbers byte-identical to `prodrive.racecor.io` for the same user.
-- [ ] Race-Now polls on hour boundaries, not on a fixed 5-minute interval.
+- [ ] No local code reimplements any of the 7 live calc engines.
+- [ ] Any pre-existing Race-Now / "Should I race now?" code paths are deleted (feature is deprecated, not just relocated).
+- [ ] Driver DNA, Mastery, Moments, Scatter, When-Engine, Race Summary, NRI panels render strings and numbers byte-identical to `prodrive.racecor.io` for the same user.
 - [ ] Offline: every screen reads from cache without a network round-trip.
 - [ ] Parity dump CLI / debug menu item exists.
 
-When all four (five with RN) repos meet those criteria, the calc layer is genuinely a single source of truth across web + overlay + plugin + 4 native apps + 1 RN preview.
+When all four (five with RN) repos meet those criteria, the calc layer is genuinely a single source of truth across web + overlay + 4 native apps + 1 RN preview. (The SimHub plugin participates as a telemetry source on port 8889; it does not call calc directly.)
 
 ## Open questions
 
 1. **Should `prodrive-server` add per-screen GETs that expose the calc panels not yet covered?** E.g. `GET /api/v1/race-summary?sessionId=X` (already in the v1 contract) is fine, but `GET /api/v1/dna?window=last30d` doesn't exist — the calc POST is the only way to get a windowed DNA today. Decide before native apps ship if windowed views are needed.
-2. **Token-format alignment** between the per-screen Bearer (issued by `/api/plugin-auth/token`) and the eventual calc Bearer (Phase 9b) — same JWT, or two different tokens? Pick before Phase 9b lands so native apps can plumb correctly.
-3. **iRacing schedule blob** for `next-race-ideas`. The plugin and overlay fetch it from the local SimHub plugin's `weekPlanner` action. Native apps don't have that local plugin available — they'd need either a `GET /api/v1/iracing/schedule` proxy on `prodrive-server` (doesn't exist yet) or to call iRacing's upstream directly with the user's auth (more brittle). Recommend the proxy.
+2. ~~**Token-format alignment** between the per-screen Bearer and the eventual calc Bearer (Phase 9b) — same JWT, or two different tokens?~~ **Resolved 2026-04-26: same JWT.** See Auth posture above.
+3. **iRacing schedule blob** for `next-race-ideas`. The overlay fetches it from the local SimHub plugin's `weekPlanner` action. Native apps without a paired plugin (e.g. iOS away from the gaming PC) need either a `GET /api/v1/iracing/schedule` proxy on `prodrive-server` (doesn't exist yet) or to call iRacing's upstream directly with the user's auth (more brittle). Recommend the proxy. Native apps **with** a paired plugin (the Windows native app on the gaming PC) can keep using the port-8889 channel.
 4. **RN ↔ SwiftUI iOS app pick-a-winner** — decision still pending per `native-apps-plan.md` Q5. Both ship their own `CalcClient`; the loser's gets archived along with its app.
