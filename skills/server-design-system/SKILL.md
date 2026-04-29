@@ -16,6 +16,86 @@ This skill captures the full visual language of the Pro Drive sim racing dashboa
 
 ---
 
+## Label Conventions
+
+Three rules govern user-facing labels in Pro Drive. **Codes / file
+names / DB columns / wire formats stay legacy** — only the rendered
+string changes. Never search-and-replace; touch labels surgically.
+
+### 1. iRacing category names — display vs. internal
+
+iRacing renamed the `road` category to **"Sports Car"** in 2024 S2
+when `sports_car` was merged into `road`. The DB, API, internal
+variables, and wire format all keep `road`. Every user-facing
+label says "Sports Car".
+
+| Internal key | Display label |
+|---|---|
+| `road`        | **Sports Car** |
+| `oval`        | Oval |
+| `dirt_road`   | Dirt Road |
+| `dirt_oval`   | Dirt Oval |
+| `formula`     | Formula |
+
+Reference implementations to mirror:
+- `apps/web/src/app/drive/dashboard/DataStrip.tsx:CAT_LABEL`
+- `apps/web/src/components/UserMenu.tsx:LICENSE_LABELS`
+
+When you need this map elsewhere, copy the constant alongside the
+component instead of importing — labels are presentation, not data.
+
+### 2. Race / Practice — context-aware labels
+
+The dashboard renders in one of two **contexts**: `race` (default)
+or `practice`. Toggled via the user menu; URL param is `?context=`.
+Every label that names the entity being counted/listed must
+follow the active context:
+
+| Context | Label spelling |
+|---|---|
+| `race`      | "Race" / "Races" |
+| `practice`  | "Practice" / "Practices" |
+
+Apply this to:
+- The DataStrip count Stat (`<Stat label={context === 'practice' ? 'Practices' : 'Races'} ...>`)
+- Headline copy ("3 of 5 races recorded" → "3 of 5 practices recorded")
+- Empty-state messaging
+- Section headers that name the activity
+
+Do **not** apply this to:
+- Tab names that refer to upcoming iRacing schedule events ("Next Race" / "Previous Races") — those refer to actual race-class events on the iRacing schedule, not the dashboard's data context.
+- File names, component names, variable names, props, types — code stays as-is.
+- Wire / DB names — `RaceSession` table, `raceSessions` array, `RaceSuggestion` interface all keep their names.
+
+The rule is **data-display labels follow the active context; everything else stays legacy**.
+
+When adding a new component that displays a count or names an
+activity, accept a `context: 'race' | 'practice'` prop with a
+default of `'race'` and switch the label inline at the render
+site. Don't build a context-aware label helper — the conditional
+is trivial and inlining it keeps the call site readable.
+
+### 3. Show only what the user has
+
+License-filter / category-selector style controls (anywhere the
+user picks among `road / oval / dirt_road / dirt_oval / formula`)
+must restrict their option set to **categories the user has
+actually competed in**. If the user only has data in one category,
+hide the selector entirely — there's nothing to slice to.
+
+`DriveHeader.tsx` queries `selectDistinct(category)` from
+`raceSessions` and passes the result down as `availableLicenses`.
+The user menu's license `<select>` only renders when
+`availableLicenses.length > 1`. New filter UIs that branch by
+category should follow the same pattern: query once at the
+boundary that knows the user, pass down, conditionally render.
+
+This applies generally: don't render a "filter by X" control with
+options the user has no data for. An empty filter result is a
+bad surprise; a missing filter is invisible.
+
+---
+
 ## Design Tokens (CSS Custom Properties)
 
 All colors, typography, and spacing are controlled by CSS custom properties defined in `src/styles/globals.css`. A remote "token blob" can override these (loaded per-team for F1 branding), so **never hardcode colors** — always use the variables.
