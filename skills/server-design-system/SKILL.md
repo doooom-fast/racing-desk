@@ -44,22 +44,31 @@ Reference implementations to mirror:
 When you need this map elsewhere, copy the constant alongside the
 component instead of importing — labels are presentation, not data.
 
-### 2. Race / Practice — context-aware labels
+### 2. Race / Practice — context-aware labels (with plurality)
 
 The dashboard renders in one of two **contexts**: `race` (default)
 or `practice`. Toggled via the user menu; URL param is `?context=`.
 Every label that names the entity being counted/listed must
-follow the active context:
+follow the active context — **and** match plurality with whatever
+the equivalent race-form word would be.
 
-| Context | Label spelling |
-|---|---|
-| `race`      | "Race" / "Races" |
-| `practice`  | "Practice" / "Practices" |
+| Context | Singular | Plural |
+|---|---|---|
+| `race`      | "race"     | "races"     |
+| `practice`  | "practice" | "practices" |
+
+Plurality matters: a sentence that reads "3 of 5 races recorded"
+must become "3 of 5 **practices** recorded" — not "3 of 5
+practice recorded". Inconsistencies the early native ports had
+("Races" plural toggle but "Practice" singular toggle on the same
+control) read as bugs.
 
 Apply this to:
-- The DataStrip count Stat (`<Stat label={context === 'practice' ? 'Practices' : 'Races'} ...>`)
+- DataStrip / count column labels (`"RACES"` / `"PRACTICES"`)
+- Filter picker / segmented control titles (always plural; both
+  options should match grammatical class)
 - Headline copy ("3 of 5 races recorded" → "3 of 5 practices recorded")
-- Empty-state messaging
+- Empty-state messaging ("No races yet" → "No practices yet")
 - Section headers that name the activity
 
 Do **not** apply this to:
@@ -69,11 +78,21 @@ Do **not** apply this to:
 
 The rule is **data-display labels follow the active context; everything else stays legacy**.
 
-When adding a new component that displays a count or names an
-activity, accept a `context: 'race' | 'practice'` prop with a
-default of `'race'` and switch the label inline at the render
-site. Don't build a context-aware label helper — the conditional
-is trivial and inlining it keeps the call site readable.
+#### Helper functions to use
+
+Each platform provides a plurality-aware noun helper so call
+sites don't reinvent the conditional. Use them for any string
+that names the activity; don't inline `context === 'practice' ?
+... : ...` ladders past the trivial single-word case.
+
+| Platform | Helper |
+|---|---|
+| Web | `activityNoun(context, plural)` from `@/lib/dashboard-context-copy` |
+| Apple (iOS / macOS / tvOS) | `DashboardContext.noun(plural:)` instance method |
+| Windows | `DashboardContextExtensions.Noun(this DashboardContext ctx, bool plural)` |
+
+Each returns the same set of values across platforms — keep them
+in sync if you touch one.
 
 ### 3. Show only what the user has
 
