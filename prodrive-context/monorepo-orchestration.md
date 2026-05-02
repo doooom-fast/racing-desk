@@ -99,7 +99,7 @@ All three land in the same Postgres tables and run the same import pipeline (tra
 - **tvOS** — device-link flow via `/api/plugin-auth/device/{start, poll, authorize}`. User enters 6-char code at racecor.io/link
 - **SimHub plugin** — Bearer token issued via `/api/plugin-auth/{authorize, token}`. Stored in `%APPDATA%\RaceCor\plugin\auth.json`. Refreshes automatically.
 
-**No Stripe / no billing** today — Pro Drive is closed-beta, Discord-invite-only.
+**No Stripe / no billing** today — there's no payment flow in the codebase yet. Whether Pro Drive is invite-gated, paid, or open is a product decision; this doc only documents what the code does.
 
 ## AI surfaces
 
