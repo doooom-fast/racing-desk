@@ -1,57 +1,114 @@
-# racecor-prodrive-server — Monorepo Root
+# prodrive-server — RaceCor.io marketing + Pro Drive members + calc engines
 
-Closed-source web-facing side of RaceCor Pro Drive. Split from the open `alternatekev/k10-motorsports` monorepo on 2026-04-18. This CLAUDE.md is for cross-project orchestration. For day-to-day work, use the project-specific CLAUDE.md in the workspace you're touching.
+The web-facing side of Pro Drive. Hosts:
+
+- **Marketing site** at racecor.io
+- **Members dashboard** at racecor.io/drive (Discord-gated)
+- **Chrome extension source** at `apps/web/browser-extension/`
+- **65 API routes** including iRacing ingest, calc engines, plugin auth, admin
+- **Calc engine deployment** at api.prodrive.racecor.io (separate Vercel project)
+
+A sibling repo, [`prodrive-server-showcase`](https://github.com/k10-motorsports/prodrive-server-showcase), holds the same code with `denyIfDemo()` removed from three write routes — used as a read-only public demo.
 
 ## Project Map
 
-| Path | CLAUDE.md | Stack | Purpose |
-|------|-----------|-------|---------|
-| `apps/web/` | [CLAUDE.md](apps/web/CLAUDE.md) | Next.js 16, React 19, Tailwind 4, Drizzle, Strapi | Marketing site + Pro Drive admin |
-| `apps/web-api/` | — | Node.js ESM | Mock telemetry server (dev only) |
-| `packages/components/` | [CLAUDE.md](packages/components/CLAUDE.md) | Storybook, React 19 | Shared component library |
-| `scripts/` | — | Node.js | Build scripts (notably `build-web-demo.mjs`) |
+| Path | Stack | Purpose |
+|------|-------|---------|
+| `apps/web/` | Next.js 16, React 19, Tailwind 4, Drizzle, NextAuth (Discord), Vercel Blob | Marketing site + Pro Drive members dashboard + Chrome extension + 65 API routes |
+| `apps/web-api/` | Vercel Functions / Node ESM | Calc engines (DNA, Moments, Mastery, race-summary, etc.) deployed to api.prodrive.racecor.io |
+| `apps/web/browser-extension/` | Manifest V3 Chrome extension | "RaceCor iRacing Sync" — scrapes members-ng.iracing.com, posts to /api/iracing/extension-sync |
+| `packages/components/` | Storybook, React 19 | Shared component library |
+| `scripts/` | Node.js | Build scripts (notably `build-web-demo.mjs`) |
 
-## Relationship to the open monorepo
+## Tech stack
 
-The open [`k10-motorsports/prodrive-plugin`](https://github.com/k10-motorsports/prodrive-plugin) repo hosts:
-- `racecor-plugin/` — SimHub plugin (C# .NET 4.8)
-- `racecor-overlay/` — Electron overlay (30fps polling HUD)
-- `installer/` — Inno Setup Windows installer
-- `src/agents/` — MCP servers
+- **Next.js 16** + **React 19** + **Tailwind 4**
+- **Drizzle ORM** over **Neon Postgres**
+- **NextAuth v5 (beta)** with **Discord** as the only OAuth provider
+- **Vercel Blob** for telemetry trace storage
+- **No Strapi** (older docs claimed CMS; not present in code today)
+- **No Stripe / no billing** — closed beta, Discord-invite-only
+- **Style Dictionary** pipeline for design tokens (`apps/web/src/lib/tokens/`)
 
-Two adjacent open repos cover related rig-side surfaces:
-- [`k10-motorsports/prodrive-homebridge`](https://github.com/k10-motorsports/prodrive-homebridge) — Homebridge plugin (HomeKit smart light mapping)
-- [`k10-motorsports/prodrive-edit`](https://github.com/k10-motorsports/prodrive-edit) — AI race editing pipeline
+## API routes (high level)
 
-The plugin produces telemetry JSON on `http://localhost:8889/racecor-io-pro-drive/`. The overlay polls that. This closed repo is **independent of that runtime pipeline** — nothing here runs on the user's racing rig. Pro Drive server features run in a hosted web environment and are consumed by a logged-in user in their browser.
+### Calc engines (`apps/web-api`, deployed to `api.prodrive.racecor.io/api/v1/calc/*`)
 
-The two repos are related, not coupled. Changes here don't need to be coordinated with plugin/overlay releases unless touching the design system or the demo-generation script.
+Pure functions over user data — no DB writes. Reproducible at any time:
+
+`/dna`, `/moments`, `/mastery`, `/when`, `/scatter`, `/race-summary`, `/next-race-ideas`, `/race-now`, `/previous-races`
+
+### User data (`apps/web`, served at `prodrive.racecor.io/api/v1/*`)
+
+Bearer-authed GET, one call per screen, server aggregates:
+
+`/me`, `/sessions`, `/sessions/{id}`, `/dashboard`, `/iracing/schedule`, `/tokens/native?format={swift,cs,kotlin}`
+
+### iRacing ingest (`apps/web`)
+
+The three sync paths:
+
+- `POST /api/iracing/upload` — manual paste/drop at `/drive/iracing` AND Chrome extension full-result push (intercepted from S3 fetches)
+- `POST /api/iracing/extension-sync` — Chrome extension DOM-scraped data (rating history, careers)
+- `POST /api/iracing/import` — SimHub plugin Bearer-authed session push
+
+Plus housekeeping: `/latest`, `/consolidate-tracks`, `/dedupe`, `/clear`.
+
+CORS allows `chrome-extension://`, localhost:3000, dev, and prod domains.
+
+### Plugin OAuth + device link
+
+- `/api/plugin-auth/{authorize, token, verify}` — Bearer issuance for plugin / desktop apps
+- `/api/plugin-auth/device/{start, poll, authorize}` — tvOS device-link flow (6-char code at racecor.io/link)
+
+### Admin
+
+`/api/admin/{ratings, logos, heroes, seed-demo, themes, tokens, tracks, users}` — auth + `denyIfDemo()` guarded.
+
+### Misc
+
+Download latest version, Unsplash backgrounds, theme CSS tokens, health check.
 
 ## Cross-repo seams
 
-### Demo generation (`scripts/build-web-demo.mjs`)
+### 1. Chrome extension — same repo, different deployment
 
-This script inlines overlay CSS/JS into `apps/web/public/_demo/dashboard-embed.html` for the marketing site's live dashboard preview. It needs access to overlay source, which now lives in the open repo.
+Lives at `apps/web/browser-extension/`. Manifest V3. Targets `https://members-ng.iracing.com/*` for the content script; `prodrive.racecor.io` (+ localhost dev) for API endpoints.
 
-**Resolution order:** `RACECOR_OVERLAY_PATH` env var → sibling `../k10-motorsports/racecor-overlay/` → skip gracefully.
+Distribution today is a packed zip from a private Discord channel; Chrome Web Store listing in progress.
 
-**Long-term plan:** the open monorepo's CI should publish a versioned `@racecor/overlay-assets` npm package with the inlined CSS/JS, and this repo's prebuild step should consume it. Tracked under Open Questions below.
+### 2. Demo page generation (`scripts/build-web-demo.mjs`)
 
-### Design tokens
+Inlines overlay CSS/JS into `apps/web/public/_demo/dashboard-embed.html` for the marketing-site live demo. Resolution order: `RACECOR_OVERLAY_PATH` env var → sibling `../prodrive-overlay-showcase/` → sibling `../prodrive-overlay/` → skip gracefully.
 
-`apps/web/src/lib/tokens/build.ts` is the Style Dictionary pipeline that generates CSS custom properties from the token DB. The overlay consumes these tokens.
+### 3. Design tokens
 
-**Current state:** Tokens are built in this repo and need to reach the overlay.
+`apps/web/src/lib/tokens/` is the Style Dictionary source. Consumed by:
 
-**Decision per plan:** publish `packages/components` (or a dedicated tokens sub-package) to npm so the overlay can install it as a dependency. Defer until we see how often tokens change in practice. Tracked under Open Questions.
+- The overlay's `token-loader.js` (live fetch from `/api/v1/tokens/native`)
+- The native apps via `/api/v1/tokens/native?format={swift,cs,kotlin}`
 
-## Agent Work — Worktrees
+### 4. Plugin Bearer issuance
+
+The SimHub plugin uses `/api/plugin-auth/{authorize, token}` PKCE for Bearer tokens, then pushes session data to `/api/iracing/import`. See [`../prodrive-plugin/CLAUDE.md`](../prodrive-plugin/CLAUDE.md).
+
+### 5. Native apps API contract
+
+See [`../prodrive-context/native-apps-api-contract.md`](../prodrive-context/native-apps-api-contract.md) for per-screen REST + [`../prodrive-context/native-apps-calc-integration.md`](../prodrive-context/native-apps-calc-integration.md) for calc API shape and division of labor.
+
+## What this repo is NOT
+
+- Not the rig-side runtime — nothing here runs on the user's racing rig.
+- Not currently a CMS host (no Strapi). Content is static MDX or Postgres-stored.
+- Not a billing surface yet. Closed-beta, free, Discord-gated.
+
+## Agent work policy
 
 All agent-spawned work MUST use `isolation: "worktree"`. Exceptions: read-only exploration, single non-code file writes.
 
-## Open Questions
+## Pointers
 
-1. **Overlay asset publishing.** What's the mechanism for the open repo's overlay to publish inlined demo assets that `build-web-demo.mjs` can consume without a sibling checkout? Options: npm package, GitHub release artifact, CDN. No decision yet.
-2. **Token publishing to overlay.** npm package (private or public), release artifact, or something else? Gated on seeing real change frequency.
-3. **CI.** The open monorepo has `.github/workflows/dashboard-ci.yml`, `simhub-ci.yml`, `homebridge-ci.yml`, and `release.yml`. This repo needs its own web-focused CI — not yet set up.
-4. **Auth / deployment infrastructure.** The Discord OAuth, Neon DB, and Vercel Blob credentials were set up against the open repo originally. Verify that environment variables and deployment targets follow this repo after the split.
+- Cross-repo orchestration: [`../prodrive-context/monorepo-orchestration.md`](../prodrive-context/monorepo-orchestration.md)
+- Plugin (Bearer client): [`../prodrive-plugin/CLAUDE.md`](../prodrive-plugin/CLAUDE.md)
+- Native API contract: [`../prodrive-context/native-apps-api-contract.md`](../prodrive-context/native-apps-api-contract.md)
+- Calc integration: [`../prodrive-context/native-apps-calc-integration.md`](../prodrive-context/native-apps-calc-integration.md)
