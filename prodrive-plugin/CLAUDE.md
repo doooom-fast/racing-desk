@@ -1,89 +1,90 @@
-# K10 Motorsports — Monorepo Root
+# prodrive-plugin — SimHub plugin (the producer)
 
-Broadcast-grade sim racing platform. This root CLAUDE.md is for **cross-project orchestration only**. For day-to-day work, use the project-specific CLAUDE.md in the directory you're working in.
+## What this repo is
 
-## Agent Work — Always Use Worktrees
+The **Pro Drive SimHub plugin** — C# .NET 4.8 plugin that runs inside [SimHub](https://www.simhubdash.com), reads iRacing SDK telemetry, and exposes it on `localhost:8889` for in-machine consumers (overlay, Pro Drive desktop app, Homebridge plugin).
+
+It's also a **cloud client** today — fetches track configuration from the server at track change, and pushes session data to the server at session end via Bearer auth.
+
+The plugin is **distributed separately** from the Pro Drive Windows installer; the installer bundles the overlay only, not this plugin.
+
+## Tech stack
+
+- **C# .NET Framework 4.8** (SimHub's runtime requirement)
+- **NUnit** for tests
+- **HttpListener** for the localhost server
+- **iRacing SDK shared-memory bridge** via `IRacingSdkBridge.cs`
+- **Direct iRacing API client** via `IRacingDataClient.cs` — authenticates against `members-ng.iracing.com/auth` with stored local credentials to fetch live iRating + Safety Rating
+- **Anthropic prompt fragments** — 240+ pre-generated Haiku-4.5 commentary fragments for offline use, **plus** live API hooks for the overlay's race-coach (the overlay handles the API call, not this plugin)
+- **MozaSerialManager** — direct serial control of Moza wheels for force-feedback events triggered by telemetry
+
+## What it exposes
+
+### `localhost:8889` — the contract
+
+`GET http://localhost:8889/racecor-io-pro-drive/` returns a flat JSON object with 100+ properties:
+
+- `telemetry.*` — speed, RPM, gear, throttle / brake / clutch / steering, fuel, tyres
+- `lap.*` — current lap, lap time, sector deltas, optimal lap target
+- `session.*` — track name, layout, car name, series, session type
+- `field.*` — number of cars, your position, gap to leader / next / behind
+- `weather.*` — track temp, air temp, wind, sky
+- `commentary.*` — derived event commentary (incidents, position changes, fuel calls)
+- `strategy.*` — pit window, fuel projection, tyre wear projection
+
+WebSocket variant at `ws://localhost:8889/racecor-io-pro-drive/ws` for push-style consumption.
+
+Polled by:
+
+- [`prodrive-overlay`](../prodrive-overlay/CLAUDE.md) at ~30 fps
+- [`prodrive-windows`](../prodrive-windows/CLAUDE.md) for Dashboard HUD-status indicator
+- Any third-party tool
+
+(`prodrive-homebridge` polls SimHub directly on port **8888** — not this plugin's port.)
+
+## Cross-repo seams
+
+### 1. Track config — plugin → server
+
+At every track change, the plugin GETs `https://prodrive.racecor.io/api/tracks?trackName=...` to load custom sector boundaries. Cached in-memory until track changes again.
+
+Implementation: `racecor-plugin/.../Engine/TelemetrySnapshot.Capture.cs:~1007`.
+
+### 2. Session push — plugin → server
+
+After each session ends, the plugin packages captured telemetry and POSTs to `https://prodrive.racecor.io/api/iracing/import` with a Bearer token.
+
+Auth via `/api/plugin-auth/{authorize, token}` PKCE flow. Token stored in `%APPDATA%\RaceCor\plugin\auth.json`. Refreshes automatically.
+
+This is the only path that captures **per-frame telemetry traces** (the Chrome extension scrape only sees what iRacing exposes on the website).
+
+### 3. Direct iRacing API — plugin → members-ng.iracing.com
+
+`IRacingDataClient.cs` authenticates against `members-ng.iracing.com/auth` with stored local credentials to fetch the user's live iRating + Safety Rating for the overlay's display.
+
+This is **separate from the Chrome extension's scraping path** in `prodrive-server/apps/web/browser-extension/`. The plugin authenticates as the user; the extension scrapes the user's already-loaded session. Both end up in the server's Postgres tables but via different mechanisms.
+
+## Distribution
+
+GitHub release zip from [k10-motorsports/prodrive-plugin](https://github.com/k10-motorsports/prodrive-plugin) → user drops into `%PROGRAMFILES%\SimHub\PluginsData\Common\RaceCor\` → restart SimHub → enable in **Additional plugins**.
+
+CI: `simhub-ci.yml` runs C# NUnit (~147 tests), Python dataset validation (28), Python installer tests (34).
+
+Release wave: **Wave 1** of the lockstep release (parallel with overlay), per the release orchestrator at [`.claude/commands/release.md`](../.claude/commands/release.md) in this agents repo.
+
+## What this repo does NOT do
+
+- **Does NOT process `.ibt` files.** Reads live SDK shared memory only.
+- **Does NOT host the overlay or Windows desktop app.** Those are separate repos.
+- **Does NOT call the Anthropic API directly.** The overlay's `race-coach.js` does that; the plugin only ships pre-generated commentary fragments.
+
+## Agent work policy
 
 All agent-spawned work MUST use `isolation: "worktree"`. Exceptions: read-only exploration, single non-code file writes.
 
-## Project Map
+## Pointers
 
-| Directory | CLAUDE.md | Stack | Purpose |
-|-----------|-----------|-------|---------|
-| `racecor-plugin/` | [CLAUDE.md](racecor-plugin/CLAUDE.md) | C# .NET 4.8, NUnit | SimHub plugin |
-| `racecor-overlay/` | [CLAUDE.md](racecor-overlay/CLAUDE.md) | Electron, vanilla JS, WebGL2, Canvas 2D | Overlay HUD (30fps polling) |
-| `src/agents/` | [CLAUDE.md](src/agents/CLAUDE.md) | Node.js, MCP SDK | 3 MCP servers |
-| `installer/` | [CLAUDE.md](installer/CLAUDE.md) | Inno Setup | Windows installer (.iss) |
-| `scripts/` | [CLAUDE.md](scripts/CLAUDE.md) | Bash, Node, Python | Build, install, launch scripts |
-| `docs/` | [CLAUDE.md](docs/CLAUDE.md) | Markdown, HTML | Architecture and design docs |
-
-> **Note — split-out repos:**
-> - The Homebridge plugin moved to [`k10-motorsports/prodrive-homebridge`](https://github.com/k10-motorsports/prodrive-homebridge) — instructions: [`prodrive-homebridge/CLAUDE.md`](../prodrive-homebridge/CLAUDE.md).
-> - The race editing pipeline moved to [`k10-motorsports/prodrive-edit`](https://github.com/k10-motorsports/prodrive-edit) — instructions: [`prodrive-edit/CLAUDE.md`](../prodrive-edit/CLAUDE.md).
-> - The marketing site, Pro Drive admin (Next.js), mock telemetry server, and shared React component library live in the closed [`k10-motorsports/prodrive-server`](https://github.com/k10-motorsports/prodrive-server) repo. See the "Closed-repo seams" section below for the cross-repo contracts.
-
-## End-to-End Data Flow (Integration Contract)
-
-This is the contract that ties the plugin and overlay together. Changes to the JSON shape must be coordinated across both projects.
-
-```
-iRacing SDK
-  → C# TelemetrySnapshot (racecor-plugin/simhub-plugin/)
-  → cross-game normalization
-  → 33+ commentary triggers
-  → strategy modules (tire/fuel/pit/opponent/position)
-  → HTTP API on port 8889: GET http://localhost:8889/racecor-io-pro-drive/
-    → flat JSON object with 100+ properties (telemetry, commentary, strategy)
-  → Electron overlay polls at ~30fps (racecor-overlay/)
-  → WebGL2 + Canvas 2D rendering
-  → Homebridge plugin (separate repo: prodrive-homebridge) subscribes for light color mapping
-```
-
-The plugin is the **producer**, the overlay is the **consumer**, and the HTTP JSON API on port 8889 is the **contract** between them.
-
-## Closed-repo seams
-
-The web-facing side of the product lives in [`alternatekev/racecor-prodrive-server`](https://github.com/alternatekev/racecor-prodrive-server). Two cross-repo contracts matter:
-
-### 1. Design tokens
-
-Token definitions and the Style Dictionary pipeline live in the closed repo (`apps/web/src/lib/tokens/build.ts`). The overlay consumes these tokens as CSS custom properties in `racecor-overlay/modules/styles/`.
-
-**Open question:** the publishing mechanism from closed → open isn't decided yet. Current options: private npm package, GitHub release artifact, or manual sync. Until resolved, token changes require manual copy.
-
-Reference docs: `docs/STYLE_DICTIONARY_PLAN.md`, `docs/STYLEGUIDE.md`.
-
-### 2. Demo page generation
-
-The closed repo's marketing site embeds a live dashboard demo built by inlining overlay CSS/JS. The build script (`scripts/build-web-demo.mjs` in the closed repo) expects access to overlay source via `RACECOR_OVERLAY_PATH` env var or a sibling checkout of this repo.
-
-## CI Workflows
-
-All workflows live in `.github/workflows/`:
-
-| Workflow | Trigger | What It Tests |
-|----------|---------|---------------|
-| `dashboard-ci.yml` | Push/PR | Overlay Playwright tests |
-| `simhub-ci.yml` | Push/PR | C# NUnit (~147), Python dataset validation (28), Python installer tests (34) |
-| `release.yml` | `v*` tags | Full release build |
-
-The Homebridge plugin's CI lives in its own repo ([`prodrive-homebridge`](https://github.com/k10-motorsports/prodrive-homebridge)).
-
-## iRacing Web Scraping — HARD CONSTRAINTS
-
-The iRacing member site is an Angular SSR app. **No data API calls work from the embedded Electron BrowserWindow.** This has been tested extensively:
-
-- `/data/` API endpoints require separate OAuth auth that the embedded browser does not have
-- `/bff/pub/proxy/api/` BFF proxy endpoints return OAuth session metadata, NOT member/racing data
-- `fetchBff`, `fetchIRacingEndpoint`, `fetchDirectData`, `fetchViaWebContents` — all fail for chart/member data
-- The only working approach is **DOM scraping of server-rendered pages**
-
-To get historical iRating data, you MUST:
-1. Navigate the BrowserWindow to the page that renders the iRating chart (e.g. profile/charts)
-2. Wait for Angular SSR to render the chart into the DOM
-3. Scrape data points from the rendered SVG/Canvas chart elements
-4. Navigate back to the dashboard afterward
-
-**Do not attempt API/BFF calls for iRating history. They do not work. Period.**
-
-Key file: `racecor-overlay/iracing-client.js` — `runSync(wc)` function (line ~1092)
+- Cross-repo orchestration: [`../prodrive-context/monorepo-orchestration.md`](../prodrive-context/monorepo-orchestration.md)
+- Overlay (consumer): [`../prodrive-overlay/CLAUDE.md`](../prodrive-overlay/CLAUDE.md)
+- Server (cloud target): [`../prodrive-server/CLAUDE.md`](../prodrive-server/CLAUDE.md)
+- Telemetry sidecar schema: [`../prodrive-context/telemetry-sidecar-schema.md`](../prodrive-context/telemetry-sidecar-schema.md)
