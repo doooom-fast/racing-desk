@@ -151,6 +151,9 @@ jobs:
       matrix:
         repo: ${{ fromJSON(needs.preflight.outputs.wave1) }}
     steps:
+      # Required so the runner can resolve `./.github/actions/release-one`
+      # — local composite actions live in this repo's working tree.
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/release-one
         with:
           repo: prodrive-${{ matrix.repo }}
@@ -167,6 +170,7 @@ jobs:
       matrix:
         repo: ${{ fromJSON(needs.preflight.outputs.wave2) }}
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/release-one
         with:
           repo: prodrive-${{ matrix.repo }}
