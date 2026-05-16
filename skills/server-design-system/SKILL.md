@@ -207,9 +207,6 @@ The standard card:
 Every Pro Drive page uses a full-width hero:
 ```jsx
 <div className="relative overflow-hidden bg-[var(--bg-panel)]">
-  {/* Optional background image — very low opacity */}
-  <img className="absolute inset-0 w-full h-full object-cover opacity-15" />
-  
   {/* Gradient overlays — ALWAYS include both */}
   <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-panel)] via-[var(--bg-panel)]/80 to-transparent" />
   <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[var(--bg)] to-transparent" />
