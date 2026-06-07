@@ -9,6 +9,7 @@ Cross-repo context — anything that applies to the K10 Motorsports platform as 
 | [native-apps-calc-integration.md](native-apps-calc-integration.md) | How native apps consume the post-Phase-9 calc API; division of labor with the per-screen REST surface | (originated here) |
 | [native-apps-plan.md](native-apps-plan.md) | Rollout plan for the native apps work | (originated here) |
 | [video-editor-plan.md](video-editor-plan.md) | Native-only video editor (mac/win) consolidating prodrive-edit + prodrive-designer; `.rcpdv` bundle format; LAN/Blob transfer; YouTube upload; web is YouTube-consumer-only | (originated here) |
+| [obs-recording-mode-plan.md](obs-recording-mode-plan.md) | OBS recording option — OBS owns video + composition while a headless companion records the edit-compatible telemetry sidecar; 16:9/custom broadcast overlay as an OBS Browser Source; native-plugin tradeoff | (originated here) |
 
 ## When to add something here
 
