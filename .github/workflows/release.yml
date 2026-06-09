@@ -163,7 +163,15 @@ jobs:
   wave2:
     name: "Wave 2 — ${{ matrix.repo }}"
     needs: [preflight, wave1]
-    if: needs.preflight.outputs.wave2 != '[]' && !inputs.dry_run
+    # Run when wave2 is in scope and wave1 didn't FAIL — wave1 being *skipped*
+    # (empty scope, e.g. a consumer-only or drift-recovery release) must not
+    # cascade-skip wave2. Without the status guards a skipped wave1 propagates
+    # skip to this job even when its own `if` is true.
+    if: >-
+      !cancelled() && !inputs.dry_run
+      && needs.preflight.result == 'success'
+      && needs.wave1.result != 'failure'
+      && needs.preflight.outputs.wave2 != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
