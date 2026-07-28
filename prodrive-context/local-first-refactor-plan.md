@@ -40,6 +40,7 @@ happens on one machine, with no account, no upload, and no network dependency at
 | NextAuth + Discord OAuth | *(gone)* |
 | 83 API routes | *(gone)* |
 | Vercel Blob telemetry storage | *(gone)* |
+| Stored track maps + SVGs, alias/resolution tooling, 13 track routes | *(gone — track data is read locally, never stored, never shipped; §3)* |
 | Calc engines on `api.prodrive.racecor.io` | Ported into the Electron main process |
 | Chrome extension scraping members-ng | *(gone — auth path is retired anyway)* |
 | Marketing site | Static site, unchanged in spirit |
@@ -61,6 +62,7 @@ No login. No PII. No database. The only outbound request the app ever makes is
 | Session-info YAML: `SplitTimeInfo` sectors, `DriverInfo` iRating/SR/licence, full grid with every opponent's iRating, incident limits | **Replaces four server features outright**: track sector-boundary storage, iRating/SR fetch, driver-rating tables, and incident-limit config. We already parse most of this in `IRacingSdkBridge.cs` — it just isn't the source of truth yet. |
 | `.ibt` files in `Documents\iRacing\telemetry\` | Cold-start history. On first run we can backfill months of racing the user already has on disk — something the cloud version could never do. |
 | Installed content on disk (`<install>\tracks\`, `\cars\`) | Ground truth for what the user *owns*. Suggestions that never recommend content you'd have to buy. **Verify layout on the rig — Phase 0.** |
+| Track data already on the user's machine — the sim's own map data plus live SDK world position | **The only track-geometry source.** We store none of it and ship none of it (§3). Deletes the entire server-side track apparatus. |
 
 ### Takes away
 
@@ -156,19 +158,54 @@ cache-first, baseline copy shipped in the installer so a rig with no network sti
 
 | Pack | Cadence | Contents |
 |---|---|---|
-| `tracks-<season>` | per season | Track geometry, sector fallbacks, track metadata, logos |
-| `cars-<season>` | per season | Car metadata, class mapping, logos |
 | `schedule-<season>-w<NN>` | weekly | Series schedule — the input `next-race-ideas` already expects |
 | `tokens-<ver>` | on change | Design tokens (replaces `/api/v1/tokens/native` and `token-loader.js`'s live fetch) |
 | `commentary-<ver>` | on change | The 240+ pre-generated fragments |
 
-**Track geometry: build our own, don't redistribute iRacing's.** `TrackMapProvider.cs` already
-records an outline from world positions and normalises it to an SVG viewBox. Promote that to the
-primary source: record once, refine offline into a properly *designed* vector map (corner numbers,
-elevation, camber cues, our own line weights), and ship it in the pack. This is geometry we
-generated, it is IP we own, and — critically — it is the thing our rendering differentiator is built
-on. Pulling iRacing's official track SVGs would be faster but raises a redistribution question
-that needs a real answer before it ships. **Open item — see §9.**
+**No track pack. No car pack. We ship none of iRacing's data, in any form.** Everything about a
+track or a car is resolved on the user's machine from data iRacing already put there. The packs
+carry only things we authored: our schedule build, our design tokens, our commentary fragments.
+
+### Track data: iRacing's local data only
+
+**The track API reads iRacing's own local data and nothing else. We store zero SVGs — not on a
+server, not in a pack, not in the installer.**
+
+Two local sources, in order of preference:
+
+1. **iRacing's own map data on disk.** The sim ships a Track Map widget as of 2026 S3, so the
+   geometry for every track the user owns is already on their machine, under a licence they already
+   hold. Read it in place. **Exact location and format is a Phase 0 question** — this is the single
+   highest-value item in the discovery spike.
+2. **Live SDK world position.** `TrackMapProvider.cs` already records an outline from world X/Z +
+   `LapDistPct` and normalises it to a 0–100 viewBox. It works today and needs no permission from
+   anyone: it is generated at runtime, on the user's machine, from the session they are driving.
+
+Sector boundaries come from `SplitTimeInfo` in the session YAML — also local, also already parsed.
+
+What this deletes, immediately and without replacement:
+
+| Gone | Size |
+|---|---:|
+| `track_maps` table — `svg_path`, `raw_csv`, `svg_preview`, `logo_svg`, `logo_png`, `sector_boundaries` | 1 table |
+| `track_aliases`, `track_resolution_misses` | 2 tables |
+| 13 track routes (`/api/tracks`, `/api/v1/tracks/*`, 9 × `/api/admin/tracks/*`, `/api/iracing/consolidate-tracks`) | 1,429 lines |
+| `track-svg.ts`, `parse-shtl.ts`, `resolve-track.ts`, `track-resolver{,-core}.ts`, `tracks.ts`, `track-backfill.ts` | 885 lines |
+| Admin tracks page, `/k10/tracks` page, the whole alias/merge/rename/backfill/miss-tracking workflow | — |
+| Overlay: `_trackApiSvgCache` and the `K10_DISPLAY_NAME_API` fetch in `poll-engine.js`; the `_apiSvg` preference in `drive-hud.js` | — |
+| Plugin: the `GET /api/tracks?trackName=` call in `TelemetrySnapshot.Capture.cs` | — |
+
+The overlay already falls back to the plugin's local `TrackMap.SvgPath` when the API returns
+nothing (`drive-hud.js:197–205`). Deleting the API path doesn't break the feature — it *removes a
+branch*. The fallback becomes the only path, and then gets to be the thing we actually invest in.
+
+That investment is the point. Track rendering stops being "fetch a curated SVG from Postgres" and
+becomes a real-time rendering problem over local geometry — which is exactly where the
+differentiator lives (§5) and exactly the kind of work the replay harness (§7) makes fast.
+
+> Remaining stored-SVG asset: the `car_logos` table (manufacturer brand marks). Those aren't
+> iRacing's data, so they're a separate call — keep them in a pack or drop them, but don't let them
+> ride along under this decision.
 
 **Schedule pack: fix the fragile bit.** Today `iracing-schedule-fetcher.ts` scrapes a third-party
 React SPA's webpack bundle (`iracing-week-planner.tmo.lol`) for season data. That is one bundle-hash
@@ -184,7 +221,7 @@ Current system, measured:
 
 | Repo | Files | Lines | Disposition |
 |---|---:|---:|---|
-| `prodrive-server` | 472 | 94,743 | **Reduce to a static marketing site.** Delete 83 API routes, 23 tables, NextAuth, Drizzle/Neon, Vercel Blob, 8 admin pages, the Chrome extension. Port the ~7k lines of calc engines into Electron. |
+| `prodrive-server` | 472 | 94,743 | **Reduce to a static marketing site.** Delete 83 API routes, 23 tables, NextAuth, Drizzle/Neon, Vercel Blob, 8 admin pages, the Chrome extension, and the entire track apparatus (§3 — 2,314 lines and 3 tables on its own). Port the ~7k lines of calc engines into Electron. |
 | `prodrive-windows` | 160 | 66,960 | **Delete.** Absorb the Moza settings UI + installer into the Electron app / one Inno script. |
 | `prodrive-plugin` | 190 | 31,756 C# | **Keep and restructure.** Split core → netstandard2.0; delete `IRacingDataClient.cs` (dead) and all cloud push/fetch; add SQLite writer + `.ibt` ingest. |
 | `prodrive-overlay` | 279 | 52,477 | **Keep almost entirely.** Delete `calc-client.js`, `session-sync.js`; repoint `token-loader.js`, `car-logos.js`, `pit-wall-chip.js`, `poll-engine.js` at local + packs. Add desk window. |
@@ -211,7 +248,7 @@ the system and none of them are being thrown away.
 | `race-now-verdict.ts` | 515 | Port. |
 | `driver-dna.ts` | 499 | Port. |
 | `previous-races.ts` / `mastery.ts` / `moments.ts` | 1,163 | Port. |
-| `fuzzy-match.ts` / `tz.ts` / view helpers | 621 | Port. Track-name fuzzy matching gets *easier* — the SDK gives canonical names, so the whole alias/resolution/consolidation apparatus (`track_aliases`, `track_resolution_misses`, 6 admin routes) disappears. |
+| `fuzzy-match.ts` / `tz.ts` / view helpers | 621 | Port — and `fuzzy-match` mostly *retires*. It exists to reconcile track names scraped from three different sources; with the SDK as the only source, names are already canonical. The alias/resolution/consolidation apparatus goes with it (§3). |
 
 Every one of these takes `sessions[]` + `ratings[]` + `schedule` as input. Those become SQLite
 queries instead of Postgres queries. The engines themselves barely change.
@@ -230,7 +267,7 @@ race, on the rig, rendered properly. Different jobs.
 | | Garage 61 | Pro Drive (target) |
 |---|---|---|
 | Where the value lands | Browser, post-session | In-car, live + on-rig debrief |
-| Data location | Their cloud | Your disk. Nothing leaves. |
+| Data location | Their cloud | Your disk. Nothing leaves, and nothing of iRacing's is redistributed to you either. |
 | Account | Required | **None** |
 | Works offline | No | Yes |
 | Moat | Community lap corpus | Rendering, information design, opinion |
@@ -411,10 +448,18 @@ GitHub Release. One version number. No Vercel in the path.
 Each phase ends in something runnable. Nothing is deleted until its replacement works.
 
 **Phase 0 — Rig discovery spike.** *(Gate. Do not skip.)*
-Inventory the actual machine: installed-content directory layout, `.ibt` naming/retention, whether
-the sim's new Track Map/Fuel widgets expose anything to the SDK, whether iRacing's UI caches
-schedule data locally, SimHub-optional viability, current OAuth registration status.
-**Done when:** a findings doc exists and S1 (owned-content) is confirmed or replaced.
+Inventory the actual machine. In priority order:
+
+1. **Where does iRacing keep track map data locally, and is it machine-readable?** This decides
+   whether the track API reads the sim's own data (preferred) or leans entirely on runtime
+   recording. Blocks §3 and Phase 5.
+2. Installed-content directory layout — confirms or replaces S1 (owned-content filtering).
+3. `.ibt` naming, retention and rollover; how far back a typical rig's history actually goes.
+4. Whether the new Fuel Calculator / Incident Tracker widgets expose anything to the SDK.
+5. Whether iRacing's UI caches schedule data locally (would give a second schedule source).
+6. SimHub-optional viability; current OAuth registration status.
+
+**Done when:** a findings doc exists and questions 1 and 2 are answered on real hardware.
 
 **Phase 1 — Monorepo + dev loop.** Consolidate repos, stand up `pnpm dev`, build the replay harness,
 add golden-frame tests. **No feature work.**
@@ -426,16 +471,16 @@ sim running.
 **Done when:** a full race is captured, stored and re-readable with the network cable unplugged.
 
 **Phase 3 — Cut the cord.** Port calc engines into Electron main. Publish packs v1. Delete
-`calc-client.js`, `session-sync.js`, `IRacingDataClient.cs`, and every cloud fetch in the overlay and
-plugin. Build the first fully offline installer.
+`calc-client.js`, `session-sync.js`, `IRacingDataClient.cs`, the entire track apparatus (§3), and
+every cloud fetch in the overlay and plugin. Build the first fully offline installer.
 **Done when:** a clean Windows install with no account and no network reaches a working HUD and a
 populated dashboard.
 
 **Phase 4 — Race Now.** Suggestion engine with S1–S7 and the designed explanation surface.
 **Done when:** the verdict card is something you'd actually act on before your own race.
 
-**Phase 5 — The differentiator push.** Track map v2 from our own geometry, the rendering and
-information-design work this whole refactor exists to make room for, replay/debrief.
+**Phase 5 — The differentiator push.** Track rendering v2 over locally-resolved geometry, the
+rendering and information-design work this whole refactor exists to make room for, replay/debrief.
 **Done when:** screenshots sell the product without a paragraph of explanation.
 
 **Phase 6 — Sunset.** Server reduced to static marketing. Archive `prodrive-windows`,
@@ -448,7 +493,8 @@ both showcase repos, and the Chrome extension. Park the Apple clients with a not
 | Item | Assessment |
 |---|---|
 | **iRacing OAuth pause** | Not a blocker *by design* — nothing in this plan needs `/data`. If it reopens, official track assets and richer schedule data become optional upgrades. |
-| **Track-asset redistribution** | Shipping iRacing's official track SVGs in our packs is a legal question, not a technical one. Plan assumes **our own telemetry-derived geometry** and treats official assets as an unresolved open item. Needs an actual answer before Phase 5. |
+| **Track-asset redistribution** | **Resolved by decision, not mitigation.** We ship none of iRacing's data — no SVGs stored anywhere, no track pack, no car pack. The track API reads only what's already on the user's machine (§3). This removes the legal question entirely rather than answering it. |
+| **Local track data may not be machine-readable** | The cost of the above. If iRacing's on-disk map data turns out to be an opaque format, the fallback is runtime recording via `TrackMapProvider.cs` — which works today but means the map is absent for the first lap at an unseen track, and quality depends on the recording lap. Phase 0 question #1; worth a real look before committing Phase 5's scope. |
 | **Schedule mirror fragility** | Still depends on a third-party SPA bundle. Mitigated (weekly pack build, checked-in fallback, manual override) but not eliminated. Worth building a second independent source. |
 | **iRacing shipping our features** | Already happened once (map/fuel/incidents). Assume it happens again. The defence is that they will not out-design us, and they have no interest in personalised race selection. |
 | **Losing phone/TV/multi-device** | Real regression. iOS/macOS/tvOS die with the server API. LAN discovery to the rig can bring them back later; do not carry them through the refactor. |
