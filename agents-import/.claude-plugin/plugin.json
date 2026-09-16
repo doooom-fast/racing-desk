@@ -1,9 +1,0 @@
-{
-  "name": "prodrive-knowledge",
-  "version": "0.1.0",
-  "description": "Shared skills and domain knowledge for the K10 Motorsports Pro Drive platform — racing domain expertise, design system, telemetry, hardware integration, and per-app architecture guides.",
-  "author": {
-    "name": "K10 Motorsports"
-  },
-  "keywords": ["racing", "sim-racing", "moza", "simhub", "iracing", "racecor", "prodrive"]
-}

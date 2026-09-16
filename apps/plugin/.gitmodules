@@ -1,3 +1,0 @@
-[submodule "agents"]
-	path = agents
-	url = git@github.com:k10-motorsports/prodrive-agents.git

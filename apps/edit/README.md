@@ -83,22 +83,11 @@ Tests live in `tests/` (using Node's built-in test runner):
 
 The fixtures under `tests/` use sample telemetry from [`prodrive-telemetry`](https://github.com/k10-motorsports/prodrive-telemetry) (a sibling repo of `.mp4` + `.telemetry.jsonl` pairs from real iRacing sessions).
 
-## Cross-repo context
+## Context
 
-This repo is independent from the lockstep release set — ships on its own cadence. Canonical agent instructions live under [`agents/prodrive-edit/`](agents/prodrive-edit/) — pulled in via the [prodrive-agents](https://github.com/k10-motorsports/prodrive-agents) submodule.
-
-To pull updates:
-
-```bash
-git submodule update --init --remote agents
-```
-
-Common entry points:
-- Repo overview: [`agents/prodrive-edit/CLAUDE.md`](agents/prodrive-edit/CLAUDE.md)
-- Cross-repo orchestration: [`agents/prodrive-context/`](agents/prodrive-context/)
-- Telemetry sidecar schema: [`agents/prodrive-context/telemetry-sidecar-schema.md`](agents/prodrive-context/telemetry-sidecar-schema.md)
-- Sibling overlay (the producer): [`prodrive-overlay`](https://github.com/k10-motorsports/prodrive-overlay)
-- Sibling sample data: [`prodrive-telemetry`](https://github.com/k10-motorsports/prodrive-telemetry)
+Part of the `prodrive` monorepo. Agent instructions: [`CLAUDE.md`](CLAUDE.md). Shared docs:
+[`docs/`](../../docs/) — notably the [telemetry sidecar schema](../../docs/telemetry-sidecar-schema.md).
+The overlay that produces bundles is [`apps/overlay`](../overlay/).
 
 ## License
 
