@@ -1,0 +1,22 @@
+{
+  "skill_name": "tufte-audit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I made a matplotlib bar chart showing quarterly revenue for 2024-2025. It uses a dark grey background, 3D bar effects, a heavy black grid, rainbow colors for each quarter, and the y-axis starts at $900K even though the values range from $950K to $1.1M. Can you audit this chart and tell me how to fix it?\n\n```python\nimport matplotlib.pyplot as plt\nimport numpy as np\n\nquarters = ['Q1 24','Q2 24','Q3 24','Q4 24','Q1 25','Q2 25','Q3 25','Q4 25']\nrevenue = [950, 980, 1020, 1050, 1010, 1070, 1090, 1100]\ncolors = ['red','orange','yellow','green','blue','purple','pink','brown']\n\nfig, ax = plt.subplots(figsize=(10,6))\nfig.patch.set_facecolor('#333333')\nax.set_facecolor('#444444')\nax.bar(quarters, revenue, color=colors, edgecolor='black', linewidth=2)\nax.set_ylim(900, 1150)\nax.grid(True, color='black', linewidth=1.5)\nax.set_title('Quarterly Revenue', color='white', fontsize=20, fontweight='bold')\nax.tick_params(colors='white')\nfor spine in ax.spines.values():\n    spine.set_color('white')\nplt.tight_layout()\nplt.savefig('revenue.png', dpi=150)\n```",
+      "expected_output": "A structured Tufte audit identifying: truncated y-axis (Lie Factor), rainbow colors as chartjunk, dark background as non-data-ink, heavy grid, missing axis labels/units. Should provide corrected matplotlib code with white background, single color, y-axis starting at 0, light or no gridlines, direct value labels.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I have a dashboard with 6 KPI cards showing monthly metrics. Each card has a big number and a percentage change, but no sparklines or trend context. There's also a choropleth map of the US colored by sales volume (rainbow colormap) and a single line chart with 12 overlapping product lines that's pretty much unreadable spaghetti. How would Tufte evaluate this dashboard and what should I change?",
+      "expected_output": "Audit should recommend: sparklines in KPI cards for trend context, replacing the choropleth with a better map type or at minimum fixing the rainbow colormap, replacing the spaghetti chart with small multiples, and overall reducing dashboard chrome/decoration.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Review this React heatmap component and tell me what Tufte would think:\n\n```jsx\nconst Heatmap = ({ data }) => {\n  const getColor = (val) => {\n    if (val < 20) return '#0000ff';\n    if (val < 40) return '#00ff00';\n    if (val < 60) return '#ffff00';\n    if (val < 80) return '#ff8800';\n    return '#ff0000';\n  };\n  return (\n    <div style={{background: '#1a1a2e', padding: 20, borderRadius: 12}}>\n      <h2 style={{color: 'white', textAlign: 'center'}}>Activity Heatmap</h2>\n      {data.map((row, i) => (\n        <div key={i} style={{display: 'flex'}}>\n          {row.map((val, j) => (\n            <div key={j} style={{\n              width: 40, height: 40,\n              backgroundColor: getColor(val),\n              border: '2px solid #1a1a2e',\n              borderRadius: 4,\n              margin: 1\n            }} />\n          ))}\n        </div>\n      ))}\n    </div>\n  );\n};\n```",
+      "expected_output": "Audit should flag: rainbow colormap (jet-style discrete buckets), dark decorative background, thick borders fragmenting the pattern, rounded corners as decoration, no legend, no axis labels, no value annotations, no meaningful ordering context. Should provide corrected React code with a sequential single-hue colormap, white background, thin or no borders, a legend, and cell value annotations."
+    }
+  ]
+}

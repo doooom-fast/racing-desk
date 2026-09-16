@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Review</title>
+  <link rel="stylesheet" href="https://use.typekit.net/pdg5yka.css">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --red: #c44;
+      --red-bg: #fceaea;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "stolzl", sans-serif;
+      font-weight: 700;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: "stolzl", sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .instructions {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header .progress {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-align: right;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ---- Sections ---- */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      font-family: "stolzl", sans-serif;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body {
+      padding: 1rem;
+    }
+
+    /* ---- Config badge ---- */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-family: "stolzl", sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.75rem;
+      vertical-align: middle;
+    }
+    .config-badge.config-primary {
+      background: rgba(33, 150, 243, 0.12);
+      color: #1976d2;
+    }
+    .config-badge.config-baseline {
+      background: rgba(255, 193, 7, 0.15);
+      color: #f57f17;
+    }
+
+    /* ---- Prompt ---- */
+    .prompt-text {
+      white-space: pre-wrap;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    /* ---- Outputs ---- */
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .output-file + .output-file {
+      margin-top: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .output-file-header .dl-btn {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    .output-file-header .dl-btn:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .output-file-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .output-file-content iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .output-file-content table {
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      width: 100%;
+    }
+    .output-file-content table td,
+    .output-file-content table th {
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.5rem;
+      text-align: left;
+    }
+    .output-file-content table th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .output-file-content .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .output-file-content .download-link:hover {
+      background: var(--border);
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* ---- Feedback ---- */
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .prev-feedback-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+      color: var(--text);
+    }
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .feedback-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      min-height: 1.1em;
+    }
+
+    /* ---- Grades (collapsible) ---- */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .grades-toggle:hover {
+      color: var(--accent);
+    }
+    .grades-toggle .arrow {
+      margin-right: 0.5rem;
+      transition: transform 0.15s;
+      font-size: 0.75rem;
+    }
+    .grades-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+    .grades-content {
+      display: none;
+      margin-top: 0.75rem;
+    }
+    .grades-content.open {
+      display: block;
+    }
+    .grades-summary {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-list {
+      list-style: none;
+    }
+    .assertion-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status {
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+    }
+
+    /* ---- View tabs ---- */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      font-family: "stolzl", sans-serif;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ---- Benchmark view ---- */
+    .benchmark-view {
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      font-family: "stolzl", sans-serif;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-table tr.benchmark-row-with { background: rgba(33, 150, 243, 0.06); }
+    .benchmark-table tr.benchmark-row-without { background: rgba(255, 193, 7, 0.06); }
+    .benchmark-table tr.benchmark-row-with:hover { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-without:hover { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+    .benchmark-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .benchmark-notes h3 {
+      font-family: "stolzl", sans-serif;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .benchmark-notes ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+    .benchmark-notes li {
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.375rem;
+    }
+    .benchmark-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    /* ---- Navigation ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      font-family: "stolzl", sans-serif;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .done-btn {
+      font-family: "stolzl", sans-serif;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .done-btn:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .done-btn.ready {
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+    .done-btn.ready:hover {
+      background: var(--accent-hover);
+    }
+    /* ---- Done overlay ---- */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible {
+      display: flex;
+    }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+    }
+    .done-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .done-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .done-card .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .done-card button {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .done-card button:hover {
+      background: var(--bg);
+    }
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <div class="header">
+      <div>
+        <h1>Eval Review: <span id="skill-name"></span></h1>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- View tabs (only shown when benchmark data exists) -->
+    <div class="view-tabs" id="view-tabs" style="display:none;">
+      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
+      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+    </div>
+
+    <!-- Outputs panel (qualitative review) -->
+    <div class="view-panel active" id="panel-outputs">
+    <div class="main">
+      <!-- Prompt -->
+      <div class="section">
+        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-body">
+          <div class="prompt-text" id="prompt-text"></div>
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="section">
+        <div class="section-header">Output</div>
+        <div class="section-body" id="outputs-body">
+          <div class="empty-state">No output files found</div>
+        </div>
+      </div>
+
+      <!-- Previous Output (collapsible) -->
+      <div class="section" id="prev-outputs-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="togglePrevOutputs()">
+            <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
+            Previous Output
+          </div>
+        </div>
+        <div class="grades-content" id="prev-outputs-content"></div>
+      </div>
+
+      <!-- Grades (collapsible) -->
+      <div class="section" id="grades-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="toggleGrades()">
+            <span class="arrow" id="grades-arrow">&#9654;</span>
+            Formal Grades
+          </div>
+        </div>
+        <div class="grades-content" id="grades-content"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-header">Your Feedback</div>
+        <div class="section-body">
+          <textarea
+            class="feedback-textarea"
+            id="feedback"
+            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+          ></textarea>
+          <div class="feedback-status" id="feedback-status"></div>
+          <div class="prev-feedback" id="prev-feedback" style="display:none;">
+            <div class="prev-feedback-label">Previous feedback</div>
+            <div id="prev-feedback-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav" id="outputs-nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+    </div>
+    </div><!-- end panel-outputs -->
+
+    <!-- Benchmark panel (quantitative stats) -->
+    <div class="view-panel" id="panel-benchmark">
+      <div class="benchmark-view" id="benchmark-content">
+        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done overlay -->
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>Review Complete</h2>
+      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <div class="btn-row">
+        <button onclick="closeDoneDialog()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Embedded data (injected by generate_review.py) ----
+    const EMBEDDED_DATA = {"skill_name": "tufte-audit", "runs": [{"id": "bar-chart-audit-with_skill", "prompt": "I made a matplotlib bar chart showing quarterly revenue for 2024-2025. It uses a dark grey background, 3D bar effects, a heavy black grid, rainbow colors for each quarter, and the y-axis starts at $900K even though the values range from $950K to $1.1M. Can you audit this chart and tell me how to fix it?", "eval_id": 1, "outputs": [{"name": "audit.md", "type": "text", "content": "# Tufte Audit Report: Quarterly Revenue Bar Chart\n\n**Visualization:** Matplotlib bar chart showing quarterly revenue for 2024\u20132025 (8 quarters, values ranging from $950K to $1.1M)\n\n**Overall Tufte Score:** 22/100\n\n**Summary:** This chart prioritizes visual decoration over data clarity. It violates multiple core Tufte principles: the dark background and heavy black gridlines dominate the data, a truncated y-axis exaggerates the visual difference between quarters, and rainbow colors create unnecessary visual noise without encoding meaningful information. The result is a chart where design decisions actively undermine the viewer's ability to grasp the data.\n\n---\n\n## Critical Findings (\ud83d\udd34)\n\n1. **Truncated Y-Axis Violates Graphical Integrity**\n   - The y-axis starts at $900K when the minimum value is $950K. This exaggerates the visual differences between quarters by compressing the relevant data range.\n   - **Lie Factor Impact:** The smallest value ($950K) is positioned near the baseline, making a 16% range (950\u20131100) appear visually as if it spans roughly 30\u201340% of the chart height. This distorts reader perception of trend magnitude.\n   - **Fix:** For a bar chart, start the y-axis at zero. If that's visually ineffective because the range is tight, add a clearly marked break line at zero and begin the axis at $900K with explicit annotation that a truncation is in effect (a \"break\" or \"discontinuity\" indicator).\n\n2. **Dark Background Reduces Data-Ink Ratio Severely**\n   - The dark grey figure (#333333) and axis background (#444444) create high contrast against the colored bars, but the heavy visual weight of the background competes with the data for attention.\n   - Dark backgrounds are fundamentally at odds with maximizing the data-ink ratio. Every pixel of the dark background is non-data ink.\n   - **Fix:** Use white or very light grey background. The bars will stand out naturally and use far fewer pixels to encode information.\n\n3. **Heavy Black Gridlines Obscure Data (Chartjunk)**\n   - The black gridlines (linewidth=1.5) are darker than the bars in many cases and create visual \"ducks\" that divide the chart into a grid pattern. This is classic chartjunk.\n   - Gridlines should recede\u2014if present at all, they should be the lightest possible grey (roughly 90% white, or hex #e6e6e6).\n   - **Fix:** Remove black gridlines entirely or replace with very light grey (0.85 or lighter).\n\n4. **Rainbow Colors Encode Nothing & Fail for Colorblind Viewers**\n   - Eight colors (red, orange, yellow, green, blue, purple, pink, brown) are used for eight quarters. This is redundant encoding\u2014the x-axis labels already identify each quarter.\n   - Rainbow colors are perceptually non-uniform and are documented to fail for colorblind viewers (roughly 8% of the population).\n   - There is no semantic meaning to assigning red to Q1 24 and blue to Q3 24. The colors add visual noise without encoding data dimensions.\n   - **Fix:** Use a single, neutral color (e.g., a professional blue or grey) for all bars. Or, if you must differentiate quarters, group by year (2024 vs. 2025) using two colors.\n\n---\n\n## Moderate Findings (\ud83d\udfe1)\n\n1. **Axis Furniture & Label Clarity**\n   - Quarter labels (e.g., \"Q1 24\") are rotated and positioned at the bottom. The labels are legible but could be cleaner with consistent spacing.\n   - Y-axis label is absent\u2014the values are in thousands of dollars, but no \"$K\" or unit annotation is visible on the axis itself.\n   - **Fix:** Add explicit y-axis label: \"Revenue ($K)\" or \"Revenue ($000s)\".\n\n2. **Redundant Encoding of Data Values**\n   - The bars' heights are the only way to read exact values. If these are important (and they often are for revenue), add value labels on top of each bar.\n   - Alternatively, remove them if approximate values are sufficient (relying on the y-axis gridlines, which would need to be lightened).\n   - **Fix:** Either add value labels atop bars (recommended for revenue data) or include a data table alongside the chart.\n\n3. **Title Styling**\n   - The title \"Quarterly Revenue\" is generic and lacks context (dates, company, units, methodology).\n   - **Fix:** Expand to \"Quarterly Revenue, 2024\u20132025 (in thousands)\" or similar. This adds context without taking much space.\n\n4. **Edge Colors & Line Weight**\n   - Black edges around bars (edgecolor='black', linewidth=2) create additional visual noise and reinforce the dark aesthetic. Bar outlines are non-data ink.\n   - **Fix:** Remove bar edges or reduce to a very thin line (0.5) in a neutral grey.\n\n---\n\n## Minor Findings (\ud83d\udfe2)\n\n1. **Figure Size & Aspect Ratio**\n   - A 10\u00d76 figure is reasonable for 8 bars, but bar charts benefit from aspect ratios closer to 1:1 or slightly wider. Current ratio is generous and works fine.\n   - Acceptable as-is.\n\n2. **DPI for Export**\n   - 150 DPI is adequate for screen display but low for print. If this chart is destined for publication, increase to 300 DPI.\n   - Minor\u2014depends on end use.\n\n3. **Tight Layout**\n   - `plt.tight_layout()` ensures labels aren't cut off. Good practice, working as intended.\n\n---\n\n## Scorecard\n\n| Dimension                  | Score (0\u2013100) | Key Findings |\n|----------------------------|---------------|--------------|\n| Data-Ink Ratio             | 25            | Dark background and heavy gridlines dominate. Bars are the minority of visual ink. |\n| Chartjunk                  | 15            | Black gridlines, rainbow colors, dark background, edge outlines\u2014all non-data. |\n| Graphical Integrity & Axes | 30            | Truncated y-axis exaggerates differences (Lie Factor ~1.5). Units not labeled. |\n| Layering & Separation      | 35            | Dark layers compete with data. No clear visual hierarchy. |\n| **Composite Tufte Score**  | **22**        | Far below baseline. Requires wholesale redesign of background, gridlines, and color. |\n\n---\n\n## Recommended Changes\n\n### Priority 1: Fix the Y-Axis (Graphical Integrity)\n- If keeping a truncated axis, add a clear discontinuity indicator (a break symbol or annotation) to alert the viewer.\n- Better: use `ax.set_ylim(0, 1150)` to start at zero. This honestly represents the data magnitude.\n- If the zero baseline makes the bars appear flat, reduce figure height or increase bar width\u2014but never distort the axis.\n\n### Priority 2: Eliminate the Dark Background (Data-Ink Ratio)\n- Change `fig.patch.set_facecolor('#ffffff')` (white) or `'#fafafa'` (near-white).\n- Change `ax.set_facecolor('#ffffff')`.\n- Remove or drastically lighten gridlines.\n\n### Priority 3: Simplify Color & Remove Chartjunk (Chartjunk)\n- Use a single professional color for all bars: `color='#1f77b4'` (matplotlib's default blue) or a corporate color.\n  - Alternatively, group by year: `colors = ['#1f77b4'] * 4 + ['#ff7f0e'] * 4` (2024 in blue, 2025 in orange).\n- Remove bar edges: `edgecolor=None` or `edgecolor='white'` with `linewidth=0.5`.\n- Replace heavy black gridlines with light grey: `ax.grid(True, color='#e6e6e6', linewidth=0.7, alpha=0.5)`.\n\n### Priority 4: Add Context & Clarity (Axes & Labels)\n- Expand title: `ax.set_title('Quarterly Revenue, 2024\u20132025', ...)`\n- Add y-axis label: `ax.set_ylabel('Revenue ($K)', ...)`\n- Consider adding value labels on bars if precision matters:\n  ```python\n  for i, v in enumerate(revenue):\n      ax.text(i, v + 5, f'${v}K', ha='center', va='bottom', fontsize=9, color='black')\n  ```\n\n---\n\n## Corrected Code\n\n```python\nimport matplotlib.pyplot as plt\nimport numpy as np\n\nquarters = ['Q1 24', 'Q2 24', 'Q3 24', 'Q4 24', 'Q1 25', 'Q2 25', 'Q3 25', 'Q4 25']\nrevenue = [950, 980, 1020, 1050, 1010, 1070, 1090, 1100]\n\n# Use a single professional color; optionally differentiate by year\ncolors_by_year = ['#1f77b4'] * 4 + ['#ff7f0e'] * 4  # Blue for 2024, orange for 2025\n\nfig, ax = plt.subplots(figsize=(10, 6))\n\n# White background: maximizes data-ink ratio\nfig.patch.set_facecolor('#ffffff')\nax.set_facecolor('#ffffff')\n\n# Light grey gridlines (nearly recede) instead of black\nax.grid(True, color='#e6e6e6', linewidth=0.7, alpha=0.5, axis='y')\n\n# Single color per bar; no edge or very thin light edge\nax.bar(quarters, revenue, color=colors_by_year, edgecolor='none', linewidth=0)\n\n# Honest axis: start at zero to maintain graphical integrity\nax.set_ylim(0, 1150)\n\n# Add context to title and labels\nax.set_title('Quarterly Revenue, 2024\u20132025', fontsize=14, fontweight='bold', color='#333333')\nax.set_ylabel('Revenue ($K)', fontsize=11, color='#333333')\nax.set_xlabel('Quarter', fontsize=11, color='#333333')\n\n# Axis tick styling: dark text on white background, no color override needed\nax.tick_params(axis='both', labelsize=10, colors='#333333')\n\n# White spines: keep them thin and light\nfor spine in ax.spines.values():\n    spine.set_color('#cccccc')\n    spine.set_linewidth(0.5)\n\n# Optional: Add value labels on bars for precision (recommended for revenue)\nfor i, v in enumerate(revenue):\n    ax.text(i, v + 15, f'${v}K', ha='center', va='bottom', fontsize=9, color='#333333', fontweight='bold')\n\nplt.tight_layout()\nplt.savefig('revenue.png', dpi=150, facecolor='white')\nplt.show()\n```\n\n**Key changes explained:**\n\n1. **White background** (`#ffffff`): Maximizes data-ink ratio. The bars now float on white space, drawing the eye naturally.\n2. **Light grey gridlines** (`#e6e6e6`): Provide a subtle reference frame without dominating. Set `axis='y'` to remove distracting vertical lines.\n3. **Two-color scheme** (blue for 2024, orange for 2025): Encodes a meaningful dimension (year) while reducing visual chaos. All eight colors are gone.\n4. **No bar edges**: Removes the heavy black outlines that competed for attention.\n5. **Y-axis from zero** (`set_ylim(0, 1150)`): Honest representation. The ~16% range is now visually proportional.\n6. **Value labels** atop bars: Adds precision without clutter. Viewers can see exact values at a glance.\n7. **Expanded title & labels**: Provides context (\"2024\u20132025\", units \"$K\") directly on the chart.\n8. **Dark text on white**: Improves readability and accessibility.\n\n---\n\n## What's Working Well\n\n1. **Clear X-Axis Labels:** The quarter labels are legible and uniquely identify each bar\u2014no ambiguity.\n2. **Appropriate Figure Size:** 10\u00d76 is generous enough for 8 bars without making them tiny.\n3. **Proper Use of `tight_layout()`:** Ensures labels don't get cut off\u2014a good habit.\n4. **Direct Color Encoding:** While the rainbow is unnecessary, the fact that each bar is distinctly colored (not relying on position alone) is a conscious choice that works visually, even if it's redundant.\n\nThese elements show intent to create a readable chart. The foundation is solid; the design choices just need to be aligned with data-ink principles.\n\n---\n\n## Parting Thoughts\n\nTufte might say: *\"Your chart has a clear story\u2014quarterly revenue is rising\u2014but the design is telling a different story: 'Look at this fancy dark theme and colorful bars.' Erase the decoration, and let the data speak.\"*\n\nThe good news: all fixes are straightforward. White background, light gridlines, two colors, and an honest y-axis will transform this into a professional, Tufte-aligned graphic in under 10 minutes of code changes.\n"}], "grading": {"eval_id": 1, "run_type": "with_skill", "expectations": [{"text": "Identifies truncated y-axis as a Lie Factor / graphical integrity issue", "passed": true, "evidence": "Finding 1 explicitly discusses 'Truncated Y-Axis Violates Graphical Integrity' with Lie Factor ~1.5 and detailed explanation of distortion."}, {"text": "Flags rainbow colors as unnecessary / chartjunk", "passed": true, "evidence": "Finding 4 flags 'Rainbow Colors Encode Nothing & Fail for Colorblind Viewers' with detailed reasoning about perceptual non-uniformity."}, {"text": "Flags dark background as non-data-ink", "passed": true, "evidence": "Finding 2: 'Dark Background Reduces Data-Ink Ratio Severely' explicitly calls out the dark background as non-data ink."}, {"text": "Recommends y-axis starting at zero for bar charts", "passed": true, "evidence": "Priority 1 recommendation says 'use ax.set_ylim(0, 1150) to start at zero' and the corrected code implements this."}, {"text": "Provides corrected Python/matplotlib code", "passed": true, "evidence": "Complete corrected code section with 8 inline comments explaining each Tufte-motivated change."}, {"text": "Produces a numeric score or rating", "passed": true, "evidence": "Overall Tufte Score: 22/100 with a detailed dimension-by-dimension scorecard table."}]}}, {"id": "bar-chart-audit-without_skill", "prompt": "I made a matplotlib bar chart showing quarterly revenue for 2024-2025. It uses a dark grey background, 3D bar effects, a heavy black grid, rainbow colors for each quarter, and the y-axis starts at $900K even though the values range from $950K to $1.1M. Can you audit this chart and tell me how to fix it?", "eval_id": 1, "outputs": [{"name": "audit.md", "type": "text", "content": "# Matplotlib Bar Chart Audit Report\n\n## Chart Overview\nA quarterly revenue comparison chart (2024-2025) with 8 bars showing revenue ranging from $950K to $1.1M.\n\n---\n\n## Issues Identified\n\n### 1. **Dark Background (POOR)**\n**Problem:** Dark grey figure and axes backgrounds (#333333, #444444) create poor contrast and reduce readability.\n- Text becomes harder to read\n- Low contrast violates accessibility standards (WCAG)\n- Not appropriate for printed materials or presentations\n- Better suited to dark mode dashboards only\n\n**Recommendation:** Use white or light grey background for professional presentation.\n\n```python\n# Instead of:\nfig.patch.set_facecolor('#333333')\nax.set_facecolor('#444444')\n\n# Use:\nfig.patch.set_facecolor('white')\nax.set_facecolor('white')\n```\n\n---\n\n### 2. **Heavy Black Grid (POOR)**\n**Problem:** Black grid with 1.5px linewidth creates visual noise and distraction.\n- Grid dominates the visual hierarchy over data\n- Makes the chart harder to read\n- Heavy lines distract from the bars themselves\n- This is the opposite of Tufte's minimalist design principles\n\n**Recommendation:** Use subtle gridlines only on the y-axis, with light grey color and thin linewidth.\n\n```python\n# Instead of:\nax.grid(True, color='black', linewidth=1.5)\n\n# Use:\nax.grid(True, axis='y', color='#CCCCCC', linewidth=0.5, alpha=0.7)\nax.set_axisbelow(True)  # Put grid behind bars\n```\n\n---\n\n### 3. **3D Bar Effects (MENTIONED BUT NOT IN CODE)**\n**Note:** While you mentioned 3D bar effects, the provided code doesn't show 3D bars. However, 3D effects are generally problematic:\n- They distort the visual representation of data\n- Make accurate comparisons harder\n- Add decorative clutter without informational value\n- Violates data visualization best practices\n\n**Recommendation:** Remove all 3D effects; keep bars 2D for clarity.\n\n---\n\n### 4. **Rainbow Color Scheme (POOR)**\n**Problem:** Using 8 distinct colors (red, orange, yellow, green, blue, purple, pink, brown) violates several principles:\n- Colors have no semantic meaning\u2014there's no natural ordering of quarters\n- Rainbow palettes are hard on colorblind viewers (~8% of males)\n- Too many colors create visual chaos\n- Viewers subconsciously search for meaning in color variation\n\n**Recommendation:** Use a single color or at most 2 colors with semantic meaning (e.g., 2024 vs. 2025).\n\n```python\n# Option 1 (Single Color):\ncolors = ['#1f77b4'] * 8\n\n# Option 2 (Semantic - by Year):\ncolors = ['#1f77b4'] * 4 + ['#ff7f0e'] * 4  # Blue for 2024, Orange for 2025\n\n# Option 3 (Professional Single Color):\ncolors = ['#2E86AB'] * 8\n```\n\n---\n\n### 5. **Y-Axis Starting at $900K (PROBLEMATIC)**\n**Problem:** Setting y-axis minimum at $900K while minimum data is $950K:\n- Creates misleading visual impression of variation\n- The smallest bar ($950K) appears ~50% smaller than it actually is\n- Exaggerates differences by truncating the axis\n- Violates honest representation of data\n\n**Recommendation:** Start y-axis at $0 or just below the minimum value.\n\n```python\n# Instead of:\nax.set_ylim(900, 1150)\n\n# Use either:\nax.set_ylim(0, 1200)  # Start at zero (standard practice)\n# OR\nax.set_ylim(940, 1150)  # Just below minimum, but document why\n```\n\n**Data Reality:** Revenue varies from $950K to $1.1M (about 15.8% variation), but the truncated axis makes it look much larger.\n\n---\n\n### 6. **Black Bar Edges (MINOR)**\n**Problem:** `edgecolor='black', linewidth=2` adds unnecessary visual weight.\n- Dark edges on colored bars create an unclean appearance\n- Takes focus away from the data\n- Not needed for clarity\n\n**Recommendation:** Remove edges or use subtle borders.\n\n```python\n# Instead of:\nax.bar(quarters, revenue, color=colors, edgecolor='black', linewidth=2)\n\n# Use:\nax.bar(quarters, revenue, color=colors)\n# OR for subtle separation:\nax.bar(quarters, revenue, color=colors, edgecolor='white', linewidth=0.5)\n```\n\n---\n\n### 7. **White Text on Dark Background (MODERATE)**\n**Problem:** While readable, white text on dark backgrounds:\n- Reduces accessibility for some users\n- Harder to read in bright environments\n- Less professional for reports/presentations\n- Halo effect can cause eye strain\n\n**Recommendation:** Use dark text on light background.\n\n```python\nax.set_title('Quarterly Revenue', color='#333333', fontsize=14)\nax.tick_params(colors='#333333')\n```\n\n---\n\n### 8. **Large Font Size (MINOR)**\n**Problem:** `fontsize=20` is very large for the title.\n- Creates unbalanced visual hierarchy\n- Takes up excessive space\n- Not standard for professional charts\n\n**Recommendation:** Use `fontsize=12-14` for professional appearance.\n\n---\n\n## Summary of Fixes\n\n| Issue | Severity | Fix |\n|-------|----------|-----|\n| Dark background | High | Change to white |\n| Heavy black grid | High | Use subtle light grid on y-axis only |\n| 3D effects | High | Remove if present |\n| Rainbow colors | High | Use 1-2 meaningful colors |\n| Truncated y-axis | High | Start at 0 or document reason |\n| Black bar edges | Medium | Remove or use white/subtle borders |\n| White text | Medium | Use dark text on light background |\n| Large font | Low | Reduce to 12-14pt |\n\n---\n\n## Improved Code Example\n\n```python\nimport matplotlib.pyplot as plt\nimport numpy as np\n\nquarters = ['Q1 24','Q2 24','Q3 24','Q4 24','Q1 25','Q2 25','Q3 25','Q4 25']\nrevenue = [950, 980, 1020, 1050, 1010, 1070, 1090, 1100]\n# Single professional color, or semantic by year:\ncolors = ['#1f77b4'] * 4 + ['#ff7f0e'] * 4  # Blue 2024, Orange 2025\n\nfig, ax = plt.subplots(figsize=(10, 6))\nfig.patch.set_facecolor('white')\nax.set_facecolor('white')\n\nax.bar(quarters, revenue, color=colors, edgecolor='none')\n\n# Professional y-axis\nax.set_ylim(0, 1200)\nax.set_ylabel('Revenue ($K)', fontsize=11, color='#333333')\n\n# Subtle gridlines\nax.grid(True, axis='y', color='#CCCCCC', linewidth=0.5, alpha=0.7)\nax.set_axisbelow(True)\n\n# Professional title and labels\nax.set_title('Quarterly Revenue 2024-2025', color='#333333', fontsize=13, fontweight='bold')\nax.tick_params(colors='#333333', labelsize=10)\n\nfor spine in ax.spines.values():\n    spine.set_color('#CCCCCC')\n    spine.set_linewidth(0.5)\n\nplt.tight_layout()\nplt.savefig('revenue.png', dpi=150, facecolor='white')\n```\n\n---\n\n## Design Principles Reference\n\nThis audit is based on established data visualization best practices:\n\n1. **Edward Tufte's Principles:** Maximize data-ink ratio, minimize chart junk\n2. **Accessibility (WCAG):** Adequate contrast, colorblind-friendly palettes\n3. **Honest Representation:** Don't truncate axes without justification\n4. **Minimalism:** Every element should serve a purpose\n5. **Professional Standards:** Clean, high-contrast, easy to interpret\n\n---\n\n## Conclusion\n\nThe original chart prioritizes visual effects over clarity and accessibility. The dark background, heavy grid, rainbow colors, and truncated y-axis all work against effective data communication. The improved version maintains all data while dramatically improving readability and professionalism.\n"}], "grading": {"eval_id": 1, "run_type": "without_skill", "expectations": [{"text": "Identifies truncated y-axis as a Lie Factor / graphical integrity issue", "passed": true, "evidence": "Section 5 discusses truncated y-axis, notes 'exaggerates differences' and mentions 15.8% variation. However, does NOT compute or mention the Lie Factor specifically."}, {"text": "Flags rainbow colors as unnecessary / chartjunk", "passed": true, "evidence": "Section 4 flags rainbow colors, mentions colorblind issues and semantic meaninglessness."}, {"text": "Flags dark background as non-data-ink", "passed": true, "evidence": "Section 1 flags dark background but frames it primarily as accessibility/WCAG issue rather than data-ink ratio."}, {"text": "Recommends y-axis starting at zero for bar charts", "passed": true, "evidence": "Recommends set_ylim(0, 1200) as 'standard practice'."}, {"text": "Provides corrected Python/matplotlib code", "passed": true, "evidence": "Complete improved code example at the end of the document."}, {"text": "Produces a numeric score or rating", "passed": false, "evidence": "No numeric score or composite rating. Uses severity labels (HIGH/MEDIUM/LOW) but no quantitative score."}]}}, {"id": "dashboard-audit-with_skill", "prompt": "I have a dashboard with 6 KPI cards showing monthly metrics. Each card has a big number and a percentage change, but no sparklines or trend context. There's also a choropleth map of the US colored by sales volume (rainbow colormap) and a single line chart with 12 overlapping product lines that's pretty much unreadable spaghetti. How would Tufte evaluate this dashboard and what should I change?", "eval_id": 2, "outputs": [{"name": "audit.md", "type": "text", "content": "# Tufte Audit Report: KPI Dashboard with Map and Line Chart\n\n**Visualization:** Dashboard with 6 KPI cards (big numbers + percentage change), US choropleth map (rainbow colormap, sales volume), and line chart (12 overlapping product lines)\n\n**Overall Tufte Score:** 32/100\n\n**Summary:** This dashboard prioritizes visual density and aesthetic variety over clarity and honest data representation. The KPI cards lack temporal context, the choropleth map uses a perceptually inaccurate rainbow colormap and conflates geographic area with data importance, and the line chart descends into spaghetti chaos. The design confuses the viewer rather than illuminating the data. Major restructuring is needed across all three components.\n\n---\n\n## Critical Findings (\ud83d\udd34)\n\n1. **Line Chart: Spaghetti Problem \u2014 Twelve overlapping product lines are unreadable**\n   - 12 lines sharing one coordinate space creates visual chaos. No human can track more than 2\u20133 lines without significant cognitive load.\n   - This violates Tufte's foundational principle: \"Above all else, show the data.\" Here, the data is *hidden* by overlaps.\n   - The designer is asking viewers to do the work of the visualization, not the other way around.\n\n2. **Choropleth Map: Rainbow Colormap Creates False Boundaries**\n   - Rainbow/jet colormaps are perceptually non-uniform. They impose artificial boundaries between adjacent colors and fail entirely for colorblind viewers (8\u201310% of the population).\n   - The map conflates geographic area with data importance. Wyoming (vast, sparse) may visually dominate Montana (smaller, higher sales density). The viewer's eye is drawn to area, not data magnitude.\n   - **Lie Factor Risk:** A small increase in a large state's sales may visually overwhelm a large increase in a small state's sales, distorting reality.\n\n3. **KPI Cards: No Temporal Context (Missing Sparklines)**\n   - Each card shows a big number and a percentage change, but no trend. Did this metric climb steadily all month, or spike in the last week? Is the 8% increase the end of an uptrend or a recent reversal?\n   - Percentage change alone is not data \u2014 it's a single data point. The metric's *history* is the data that matters.\n   - This wastes valuable dashboard real estate. Cards have room for more; they show only 2% of the month's information.\n\n4. **Redundant Data Encoding in KPI Cards (If Values Are Labeled)**\n   - If both the big number AND the percentage change are shown (and they usually are), and if there's also a color (green/red for up/down), you're encoding the same directional information three ways.\n   - Tufte's fifth law: \"Revise and edit.\" Encode direction once; use the space saved for sparklines.\n\n---\n\n## Moderate Findings (\ud83d\udfe1)\n\n5. **No Axis Labels or Units on the Line Chart**\n   - The y-axis should clearly state its units (dollars, units sold, percentage?). Viewers shouldn't have to guess.\n   - The x-axis should label months or dates clearly. Is this January\u2013December, or rolling 12 months?\n\n6. **Inconsistent Visual Weight Across Dashboard Components**\n   - Three completely different visualization types (cards, map, line chart) don't form a cohesive narrative. Why these three? What are they trying to communicate together?\n   - The dashboard feels like three separate dashboards glued together, not a unified story about business performance.\n\n7. **Missing Context and Explanatory Text**\n   - No title explaining what \"sales volume\" on the map means. Currency? Units? Is higher always better?\n   - No annotations on the line chart flagging important events (product launches, holidays, external shocks).\n   - KPI cards lack context: is a 3% month-over-month increase good or bad in your industry?\n\n8. **Choropleth Map: Potential Missing Companion Table**\n   - A map excels at showing patterns. A table excels at showing exact values. The map alone forces the eye to shuttle between the color legend and regions, struggling to read precise numbers.\n   - Top-performing and underperforming states should be listed in a companion table for quick reference.\n\n9. **Data-Ink Ratio Issues on the Line Chart**\n   - If the chart has a heavy gridline background, grid is not serving readability \u2014 it's creating visual clutter.\n   - Any box border, frame, or non-data decoration should be removed or muted.\n\n---\n\n## Minor Findings (\ud83d\udfe2)\n\n10. **Color Scheme Not Optimized for Dashboard Hierarchy**\n    - If all three components use different color schemes, the dashboard lacks visual unity. A consistent, muted palette with a single accent color (for the most important metric) would help guide the eye.\n\n11. **Font Sizes and Legibility**\n    - KPI card numbers should be large enough to read from normal viewing distance. Percentage change text can be smaller. Ensure sufficient contrast on the map legend.\n\n12. **Missing Data Provenance**\n    - No source attribution, data refresh timestamp, or explanation of methodology. Where does this data come from? How current is it?\n\n---\n\n## Scorecard\n\n| Dimension                  | Score (0\u2013100) | Key Findings |\n|----------------------------|---------------|--------------|\n| Data-Ink Ratio             | 28            | Spaghetti lines, gridlines, borders, redundant color encoding on cards. Much non-data ink. |\n| Chartjunk                  | 22            | Rainbow colormap is severe chartjunk; overlapping lines create perceptual chaos; potential heavy gridlines. |\n| Graphical Integrity & Axes | 35            | Choropleth confuses area with data magnitude (Lie Factor issue). Missing axis labels/units. No zero baseline reference for map scale. |\n| Small Multiples (if applicable) | 15       | Line chart SCREAMS for small multiples (one per product). Not applied. |\n| Sparklines (if applicable) | 5             | Cards explicitly lack sparklines \u2014 the perfect use case for them. |\n| Maps (if applicable)       | 20            | Rainbow colormap, potential missing legend clarity, no companion table, area-vs-population conflation. |\n| Layering & Separation      | 40            | Three unrelated visualizations crammed together. No visual hierarchy or clear data narrative. |\n| **Composite Tufte Score**  | **32**        | Driven by critical chartjunk (spaghetti, rainbow map) and missing temporal context in KPIs. |\n\n---\n\n## Recommended Changes\n\n### Priority 1: Replace the 12-Line Spaghetti Chart with Small Multiples\n\n**Current state:** One chart with 12 overlapping product lines.\n\n**Change:** Create a 3\u00d74 or 4\u00d73 grid of small line charts, one per product. Keep the same y-axis scale across all panels to allow fair visual comparison. Label each panel with the product name.\n\n**Why:** Small multiples enforce visual comparison without relying on color alone. Tufte calls them \"illustrations of postage-stamp size indexed by category.\" Each product's trend becomes immediately clear.\n\n**Specific action:**\n- Arrange panels in a meaningful order: by total sales (descending), by growth rate, or by product category.\n- Use a consistent y-axis range across all 12 panels (don't rescale each one independently \u2014 that defeats comparison).\n- Remove gridlines entirely, or use only a faint y-axis reference line at zero (if sales can be zero or negative).\n- Label each panel's product name above or inside the top-left corner, large and clear.\n- Use a single muted color (dark grey or navy) for all lines. Reserve a bright accent color (red, blue, green) for highlighting anomalies or focus areas if needed.\n- Time axis (x-axis) should be shared across all panels and labeled clearly with months or dates.\n\n**Expected outcome:** A viewer can instantly see which products are growing, declining, flat, or volatile \u2014 no need to parse overlaps.\n\n---\n\n### Priority 2: Replace the Rainbow Choropleth with a Sequential Colormap and Add a Companion Table\n\n**Current state:** US choropleth map colored by sales volume using a rainbow colormap.\n\n**Change:**\n1. Swap the rainbow colormap for a sequential single-hue scale (light blue to dark blue, or light grey to dark grey).\n2. Add a small companion table showing the top 10 and bottom 5 states by sales volume.\n3. Optionally overlay state labels or abbreviations directly on the map for the highest/lowest performers.\n\n**Why:**\n- Sequential colormaps are perceptually uniform and colorblind-friendly. They accurately represent magnitude.\n- The companion table provides exact numbers without forcing the eye to shuttle between color and legend.\n- Direct labeling reduces cognitive load and speeds insight discovery.\n\n**Specific action:**\n- Use a light-to-dark sequential palette (e.g., #e8f4f8 to #0c2c42 for blue, or #f7f7f7 to #252525 for greyscale).\n- Remove the rainbow gradient; it's doing nothing but obscuring the data.\n- Add a table below or beside the map with columns: State | Sales Volume | % of Total | Trend (sparkline or arrow).\n- If the map is interactive, tooltip on hover to show exact values; if static, label the top 3 and bottom 3 states directly on the map.\n- Ensure the map legend is clear: a color scale bar with min/max values labeled and units specified.\n\n**Expected outcome:** The true distribution of sales across states is now visible, and the viewer can instantly see top and bottom performers without eye gymnastics.\n\n---\n\n### Priority 3: Add Sparklines to KPI Cards and Reduce Redundant Encoding\n\n**Current state:** Each card shows a big number and a percentage change (and probably color-coded green/red).\n\n**Change:**\n1. Add a small (word-sized) sparkline to each card showing the metric's daily or weekly trend across the month.\n2. Remove redundant color encoding. Use color *only* for the sparkline (e.g., red for decline, green for growth), not for both the number and the percentage text.\n3. Move the percentage change to a secondary position (smaller font, beneath the big number and sparkline).\n\n**New layout per card:**\n```\n[Product Name or Metric Label]\n[Big Number, centered, huge font]\n[Tiny sparkline showing 28\u201331 data points]\n+8% vs last month \u2191\n```\n\n**Why:**\n- Sparklines are the *perfect* use case for dashboard KPI cards. They show trend and shape at a glance, answering \"is this improving or declining?\" without adding cognitive load.\n- Tufte invented sparklines specifically for this purpose: dense, information-rich, word-sized context.\n- Removing color redundancy saves ink and lets the sparkline's shape do the work.\n\n**Specific action:**\n- Sparkline should be 80\u2013100px wide, 30\u201340px tall (word-sized, easy to read but doesn't dominate the card).\n- Include only the line itself; no axes, gridlines, or frame.\n- Overlay or annotate the first and last data points as tiny dots (optional, but helpful for comparison).\n- Choose a single neutral color for the sparkline line (grey or dark blue), and a lighter shade for the filled area below if desired.\n- If any card's trend is anomalous (sharp drop, spike, reversal), annotate it with a brief label: \"Holiday spike\" or \"Unexpected dip.\"\n\n**Expected outcome:** Each card now communicates both current state AND trajectory, using minimal space and maximum clarity. A dashboard viewer can spot at a glance which metrics are healthy (steady/growing) and which need attention (declining or volatile).\n\n---\n\n### Priority 4: Add a Dashboard Title and Unifying Narrative\n\n**Current state:** Three components with no overarching explanation.\n\n**Change:**\n1. Add a clear, specific dashboard title: \"Monthly Sales Performance: Regional & Product Snapshot\" (or similar).\n2. Add a one-sentence explanatory subheading below the title explaining what viewers should look for: \"Track monthly revenue by region and product line to identify growth drivers and underperformers.\"\n3. Arrange the components in a logical flow: KPI cards at the top (overall health), map and product lines below (detail and breakdown).\n\n**Why:** Context is a form of credibility. Viewers need to know what they're looking at and why it matters.\n\n---\n\n### Priority 5: Add Axis Labels, Units, and Data Provenance to All Components\n\n**Line chart (small multiples):**\n- Y-axis label: \"Sales Volume (USD)\" or \"Units Sold\" \u2014 be specific.\n- X-axis label: \"Month\" or \"Date\" with tick marks for the first day of each month.\n- Add a small text box stating \"Data as of [date]\" and \"Source: [system/database name].\"\n\n**Choropleth map:**\n- Ensure the legend clearly states units and scale range (e.g., \"$0 to $5M in 10% increments\").\n- Add the map source and refresh date.\n\n**KPI cards:**\n- Add a small subtitle under each metric name if the metric name is ambiguous (e.g., \"Total Monthly Revenue\" instead of just \"Revenue\").\n\n---\n\n## What's Working Well\n\n1. **You're Tracking the Right Metrics:** KPI cards are appropriate for monthly snapshots. The choice to show regional and product-level detail is sound \u2014 these are the drivers of sales.\n\n2. **Geographic and Product Dimensions Are Represented:** The dashboard acknowledges that sales varies by region and by product. This is good analytical thinking. The execution just needs refinement.\n\n3. **Space Is Available:** The dashboard isn't cramped. You have room to add sparklines, expand the small-multiples chart, and include companion tables. This is a layout advantage.\n\n4. **Monthly Cadence Is Clear:** The implicit time frame (one month) is steady and familiar. Viewers know what to expect.\n\n---\n\n## Summary of Key Changes by Impact\n\n| Change | Impact | Effort |\n|--------|--------|--------|\n| Replace 12-line spaghetti with small multiples | CRITICAL \u2014 transforms unreadable chaos into clarity | Medium |\n| Swap rainbow colormap for sequential palette on map | CRITICAL \u2014 fixes color science and Lie Factor risk | Low |\n| Add sparklines to KPI cards | CRITICAL \u2014 unlocks temporal context in minimal space | Low |\n| Add companion table to map | MODERATE \u2014 enables precise lookup without eye shuttling | Low |\n| Add axis labels, units, and context | MODERATE \u2014 fixes ambiguity and credibility | Low |\n| Reduce redundant color encoding on cards | MODERATE \u2014 cleans up visual clutter | Low |\n| Add dashboard title and subheading | MINOR \u2014 improves framing and narrative | Very Low |\n\n---\n\n## Conclusion\n\nYour dashboard has the *right ingredients* \u2014 KPIs, regional breakdown, product detail \u2014 but they're presented in ways that hide rather than reveal the data. Tufte's core principle is that \"graphical excellence is that which gives to the viewer the greatest number of ideas in the shortest time with the least ink in the smallest space.\" This dashboard does the opposite: it presents many ideas but obscures them in visual clutter.\n\nThe three critical changes \u2014 small multiples for products, sequential colormap for the map, and sparklines for KPI cards \u2014 will transform this from a 32/100 dashboard into a 75+/100 dashboard. Start there. The remaining changes (axis labels, titles, companion tables) are the polish that transforms 75 into 85+.\n\nThe good news: none of these changes require new data. You already have what you need. This is pure design refinement.\n"}], "grading": {"eval_id": 2, "run_type": "with_skill", "expectations": [{"text": "Recommends adding sparklines to KPI cards", "passed": true, "evidence": "Priority 3 is entirely dedicated to 'Add Sparklines to KPI Cards' with layout mockup, sizing specs (80-100px wide, 30-40px tall), and Tufte's invention attribution."}, {"text": "Flags rainbow colormap on the choropleth map", "passed": true, "evidence": "Critical Finding 2 and Priority 2 both flag rainbow colormap as 'perceptually non-uniform' with specific replacement recommendation."}, {"text": "Discusses the choropleth area-vs-population problem", "passed": true, "evidence": "Finding 2 explicitly states 'The map conflates geographic area with data importance' with Wyoming vs. Montana example."}, {"text": "Recommends small multiples to replace spaghetti chart", "passed": true, "evidence": "Priority 1 recommends '3\u00d74 or 4\u00d73 grid of small line charts, one per product' with detailed implementation rules including consistent y-axis scales."}, {"text": "Mentions data-ink ratio in the context of dashboard chrome", "passed": true, "evidence": "Scorecard gives Data-Ink Ratio 28/100 with specific mentions of redundant color encoding on cards wasting ink."}, {"text": "Produces a structured audit report with severity ratings", "passed": true, "evidence": "Full Tufte audit format with Critical/Moderate/Minor findings, scorecard table, and composite score of 32/100."}]}}, {"id": "dashboard-audit-without_skill", "prompt": "I have a dashboard with 6 KPI cards showing monthly metrics. Each card has a big number and a percentage change, but no sparklines or trend context. There's also a choropleth map of the US colored by sales volume (rainbow colormap) and a single line chart with 12 overlapping product lines that's pretty much unreadable spaghetti. How would Tufte evaluate this dashboard and what should I change?", "eval_id": 2, "outputs": [{"name": "audit.md", "type": "text", "content": "# Dashboard Audit: Tufte Analysis & Recommendations\n\n## Executive Summary\n\nYour dashboard exhibits several critical design issues that violate core principles from Edward Tufte's data visualization theory. The dashboard prioritizes superficial metrics over meaningful context, uses ineffective encodings, and creates visual noise that obscures insights rather than revealing them. Below is a detailed analysis with specific recommendations grounded in Tufte's philosophy.\n\n---\n\n## Current Dashboard Inventory\n\n- **6 KPI Cards**: Large numbers with percentage change indicators (no sparklines or temporal context)\n- **US Choropleth Map**: Sales volume data using rainbow colormap\n- **Line Chart**: 12 overlapping product lines (unreadable spaghetti plot)\n\n---\n\n## Tufte Critique: Core Issues\n\n### 1. **Inadequate Data-Ink Ratio** \u26a0\ufe0f\n\n**Tufte's Principle**: Maximize the proportion of a graphic's ink devoted to representing data rather than ornamentation.\n\n**Your Dashboard's Problem**:\n- Large numbers on KPI cards occupy significant space but convey minimal information\n- Percentage change without context is insufficient (is 2% good or bad?)\n- No temporal dimension means you're showing snapshots rather than meaningful trends\n- Card backgrounds, shadows, and spacing create visual overhead without adding data\n\n**What's Missing**:\n- Baseline or target context for the percentages\n- Historical comparison (last month, YoY, trend direction)\n- Visual markers showing whether metrics are trending up/down or at risk\n\n**Recommendation**: Replace static percentages with miniature sparklines (even tiny 100px width) showing the last 12 months. This adds critical temporal context with minimal space cost.\n\n---\n\n### 2. **Absence of Comparative Context** \u26a0\ufe0f\n\n**Tufte's Principle**: Data should be shown in context. Comparisons and comparatives are essential to quantitative evidence.\n\n**Your Dashboard's Problem**:\n- KPI cards show isolated numbers with no reference point\n- Percentage changes lack denominator clarity (of what baseline?)\n- No indication whether changes are anomalous, seasonal, or expected\n- Metrics float without connection to business strategy or targets\n\n**Specific Failures**:\n- A 5% increase could be excellent or disastrous depending on context\n- No visualization of variance or confidence bands\n- No segmentation showing *which products/regions* are driving changes\n- No benchmarking against competitors, previous years, or industry standards\n\n**Recommendation**:\n- Add target/threshold lines to KPI cards\n- Show at minimum: current month, previous month, YoY comparison\n- Add color coding: green (exceeding target), yellow (on track), red (at risk)\n- Include a small annotation showing the baseline and period-over-period direction\n\n---\n\n### 3. **Rainbow Colormap on Choropleth: Poor Color Encoding** \u26a0\ufe0f\u26a0\ufe0f\n\n**Tufte's Principle**: Representation and beauty should work together. Avoid gratuitous decoration.\n\n**Your Dashboard's Problem**:\n- Rainbow colormaps violate perceptual uniformity\n- Red, yellow, and green appear similar in brightness to human vision\n- Color blindness: 8% of males cannot distinguish red-green differences\n- No natural ordering implied by the spectrum (unlike sequential palettes)\n\n**Specific Failures**:\n- A state colored \"yellow\" may represent $500K or $5M in sales (colors don't scale linearly with data)\n- Viewers' eyes are drawn to yellow/green, potentially highlighting mid-range values unfairly\n- The map becomes decorative artwork rather than analytical tool\n\n**Research Evidence**: Tufte emphasizes that color should serve function, not ornamentation. Cynthia Brewer's work (which Tufte often cites) shows sequential or diverging palettes outperform rainbow schemes for data interpretation.\n\n**Recommendation**:\n- Replace with a sequential colormap: light \u2192 dark single hue (e.g., light blue to navy)\n- Or use a diverging palette if comparing against a meaningful midpoint (e.g., sales vs. target)\n- Test with grayscale to ensure values are distinguishable without color\n- Consider adding state labels or numeric values directly on the map to eliminate color reliance\n\n---\n\n### 4. **12-Line Spaghetti Chart: Catastrophic Information Design** \u26a0\ufe0f\u26a0\ufe0f\u26a0\ufe0f\n\n**Tufte's Principle**: Above all else, show the data. Graphical excellence is that which gives to the viewer the greatest number of ideas in the shortest time with the least ink.\n\n**Your Dashboard's Problem**:\n- 12 overlapping lines create visual chaos, making any single trend unreadable\n- No clear hierarchy: all products appear equally important\n- Lines intersect repeatedly, creating ambiguity about which color belongs to which product\n- Cognitive load is maximal; insight extraction is minimal\n\n**Why It Fails Tufte's Test**:\n- **Data-ink ratio**: Most ink is wasted on overlapping obscuration\n- **Dimensionality mismatch**: You're forcing a 2D visualization to carry 13 dimensions (time + 12 products)\n- **Lie factor**: With overlapping, relative magnitudes become distorted by overlay order\n\n**Concrete Failures**:\n- A viewer cannot answer: \"Which product is growing?\" without individual line tracing\n- A viewer cannot compare two products without mental subtraction\n- The chart creates illusion of complexity instead of clarity\n\n**Recommendation** (see detailed solutions below):\nReplace with one of these approaches:\n- **Small multiples**: 12 small line charts in a 3\u00d74 grid, each showing one product with identical axes\n- **Slope graph**: Show start and end values for each product with connecting line (requires temporal reduction)\n- **Sparklines with table**: Product names + latest value + sparkline + rank, sortable by growth rate\n- **Interactive toggle**: Start with top 3-4 products, allow user to add others (if dashboard is digital)\n- **Faceted area chart**: Stack products if they sum to meaningful total (e.g., total sales)\n\n---\n\n## Secondary Issues\n\n### 5. **Lack of Visual Hierarchy**\n\n**Problem**: All charts appear equally weighted. Nothing guides the viewer to the most important insight.\n\n**Tufte's View**: Visualization should reveal the data structure. The first thing a viewer sees should be the data.\n\n**Recommendation**:\n- Identify the primary question your dashboard answers\n- Make that chart largest and most prominent (top-left, largest area)\n- Arrange supporting charts around it in order of importance\n- Reduce visual weight (color saturation, size) of secondary charts\n\n### 6. **No Temporal Alignment**\n\n**Problem**: The map shows current snapshot, KPI cards show month-over-month, line chart shows full history. Viewers don't know which period each visualization represents.\n\n**Recommendation**:\n- Add a global date range selector at the top\n- Clearly label each chart's period (\"Last 12 Months,\" \"Current Month,\" etc.)\n- Ensure all charts represent the same time periods where possible\n\n### 7. **Missing Annotation & Narrative**\n\n**Problem**: The dashboard presents data without interpretation.\n\n**Tufte's Principle**: Annotation should explain deviations, anomalies, and causation where known.\n\n**Recommendation**:\n- Add text callouts for significant events (product launch, seasonal spike, market event)\n- Annotate inflection points on the line chart\n- Include a brief interpretation: \"Product X leads growth at +12% MoM, driven by expanded distribution in the South.\"\n\n---\n\n## Recommended Redesign Strategy\n\n### **Tier 1: Replace the Line Chart (Highest Impact)**\n\n**Current**: 12 overlapping spaghetti lines\n**Option A - Small Multiples** (Best for individual product trends):\n```\nCreate a 3x4 grid of 12 small line charts\n- Each chart shows one product's sales over 12 months\n- Use consistent Y-axis limits across all charts\n- Allow sorting by growth rate\n- Color each product consistently for reference\n```\n\n**Option B - Interactive Waterfall/Rank Chart** (Best for competitive ranking):\n```\nShow each product's contribution to total growth\nStack bars or use slope graph\n- X-axis: Month 1 vs. Month 12 (or Month 11 vs. Month 12)\n- Sort by magnitude\n- Show which products gained/lost share\n```\n\n**Option C - Sparklines + Sorted Table** (Best for quick scan):\n```\nColumns: Product | Sales | Change % | Sparkline (12mo) | Rank\n- Sortable by: Current Sales, Growth %, Volatility\n- Each sparkline shows trend at glance\n- Numeric values support precise comparison\n- Much higher data density\n```\n\n### **Tier 2: Enhance the KPI Cards**\n\n**Current**:\n```\n[Large Number]\n[+/- X%]\n```\n\n**Improved Design**:\n```\nProduct Name / Metric Label\n+-------+\n|[Sparkline showing last 12 months]\n|\n| Metric: $2.4M  | Target: $2.5M | Status: 96%\n| Change: +12% MoM | YoY: +8%\n+-------+\n[Optional: small traffic light indicator - green/yellow/red]\n```\n\n**Benefits**:\n- Temporal context (sparkline)\n- Comparative context (target, previous period, YoY)\n- Visual status indicator (color coding)\n- Higher information density without overwhelming\n\n### **Tier 3: Fix the Choropleth Map**\n\n**Current**: Rainbow colormap with ambiguous encoding\n\n**Recommended Changes**:\n1. **Color scheme**: Use sequential colormap (Blues, Greens, Purples, or Reds)\n   - Light shade = Low sales\n   - Dark shade = High sales\n   - Grayscale-readable\n\n2. **Add numerical context**:\n   - Option A: Place numeric values inside each state\n   - Option B: Add a detailed tooltip on hover (digital dashboard)\n   - Option C: Add a ranked table beside map (Top 10 states by sales)\n\n3. **Consider reordering**:\n   - Is geography the right lens? Or should you show product\u00d7region sales in a heatmap instead?\n   - A heatmap (products \u00d7 regions) might reveal patterns that a map obscures\n\n4. **Add context line**:\n   - Mean or median sales line on the legend\n   - Visual indicator of \"above/below average\" states\n\n---\n\n## Tufte Principles Violated (Summary)\n\n| Principle | Your Dashboard | Impact |\n|-----------|-----------------|--------|\n| **Graphical Excellence** | 12-line spaghetti obscures data | Critical |\n| **Data-Ink Ratio** | Large KPI cards, no sparklines | High |\n| **Chartjunk** | Rainbow colormap, decorative spacing | High |\n| **Comparative Context** | Isolated metrics, no baselines | High |\n| **Dimensionality Fit** | 2D display forced to show 13+ dimensions | Critical |\n| **Color as Data** | Rainbow encodes no natural ordering | High |\n| **Annotation** | No narrative or explanation | Medium |\n| **Visual Hierarchy** | All charts equally weighted | Medium |\n\n---\n\n## Implementation Priority\n\n### **Phase 1 (Immediate - Highest ROI)**\n1. Replace 12-line chart with small multiples or sparklines+table\n2. Replace rainbow colormap with sequential palette on choropleth\n3. Add sparklines to KPI cards\n\n### **Phase 2 (Short-term)**\n1. Add target lines and context to KPI cards (baseline, previous month, YoY)\n2. Add color-coding status indicators (green/yellow/red)\n3. Align all charts to same date range with clear labeling\n\n### **Phase 3 (Enhancement)**\n1. Add annotation layer for significant events or anomalies\n2. Introduce interactivity: filter by product line, region, or time period\n3. Consider alternative visualizations (heatmap instead of choropleth if product\u00d7region is key)\n\n---\n\n## Tufte Citations & Theory\n\n**Principle: \"Show the Data\"**\n> \"Graphical excellence is that which gives to the viewer the greatest number of ideas in the shortest time with the least ink in the smallest space.\" \u2014 Edward Tufte, *The Visual Display of Quantitative Information*\n\n**Your Status**: Your dashboard shows many ideas poorly (spaghetti chart) with wasted ink (overlapping lines, large cards without context).\n\n**Principle: \"Data-Ink Ratio\"**\n> The proportion of a graphic's ink devoted to the representation of data should be as high as possible. \u2014 Tufte\n\n**Your Status**: Large KPI cards and rainbow colormap reduce data-ink ratio. Sparklines would improve this dramatically.\n\n**Principle: \"Multidimensional Complexity\"**\n> Small multiples are a form of data graphics that uses space, small increments, and carefully designed repetition to make comparisons. \u2014 Tufte\n\n**Your Status**: Your 12-line chart fails this; small multiples would succeed.\n\n**Color Theory** (Tufte cites Brewer):\n> Avoid rainbow colormaps. Use sequential or diverging palettes that are perceptually uniform and colorblind-friendly.\n\n**Your Status**: Your choropleth violates this principle entirely.\n\n---\n\n## Conclusion\n\nYour dashboard prioritizes visual simplicity and symmetry over information clarity. While the three-element layout appears balanced, it creates three distinct failures: unreadable trends, ambiguous metrics, and poor color encoding. By applying Tufte's principles\u2014particularly eliminating the spaghetti chart, adding temporal context to KPI cards, and replacing the rainbow colormap\u2014you will transform the dashboard from decorative to analytical, making insights extractable rather than obscured.\n\nThe most critical fix is breaking the 12-line chart into readable components. Everything else follows naturally from there.\n"}], "grading": {"eval_id": 2, "run_type": "without_skill", "expectations": [{"text": "Recommends adding sparklines to KPI cards", "passed": true, "evidence": "Section 1 recommends 'miniature sparklines (even tiny 100px width) showing the last 12 months' and the Tier 2 section shows an improved KPI card layout with sparklines."}, {"text": "Flags rainbow colormap on the choropleth map", "passed": true, "evidence": "Section 3 has extensive analysis of rainbow colormap issues with Brewer citation and specific replacement recommendation."}, {"text": "Discusses the choropleth area-vs-population problem", "passed": false, "evidence": "Does NOT explicitly discuss the area-vs-population distortion. Mentions color issues but not the fundamental geographic area bias that Tufte specifically critiques."}, {"text": "Recommends small multiples to replace spaghetti chart", "passed": true, "evidence": "Section 4 recommends 'Small multiples: 12 small line charts in a 3\u00d74 grid' as Option A."}, {"text": "Mentions data-ink ratio in the context of dashboard chrome", "passed": true, "evidence": "Section 1 discusses data-ink ratio with specific reference to card backgrounds, shadows, and spacing as visual overhead."}, {"text": "Produces a structured audit report with severity ratings", "passed": false, "evidence": "Uses warning emoji markers but no formal severity ratings (Critical/Moderate/Minor) and no numeric scoring system."}]}}, {"id": "heatmap-audit-with_skill", "prompt": "Review this React heatmap component and tell me what Tufte would think.", "eval_id": 3, "outputs": [{"name": "audit.md", "type": "text", "content": "# Tufte Audit Report: React Activity Heatmap Component\n\n**Visualization:** React heatmap component displaying a matrix of activity values with color encoding\n**Overall Tufte Score:** 42/100\n**Summary:** This heatmap demonstrates the fundamental form of the visualization but undermines itself with poor color choices, missing data labels, unnecessary decoration, and lack of contextual information. The rainbow colormap (blue-green-yellow-orange-red) is a classic chartjunk pattern that impedes colorblind viewers and creates artificial perceptual boundaries. The dark background, rounded borders, and margins all waste space and data-ink without adding clarity. Critically, there is no legend, no axis labels, and no value annotations\u2014viewers cannot decode the meaning of individual cells.\n\n---\n\n## Critical Findings (\ud83d\udd34)\n\n1. **Rainbow/Jet Colormap (Severe Perceptual Distortion)**\n   - The color sequence (blue \u2192 green \u2192 yellow \u2192 orange \u2192 red) is not perceptually uniform. The gaps between colors create artificial visual boundaries that don't correspond to the data. For instance, there's a visually dramatic jump from green to yellow that doesn't represent a proportional data step.\n   - This colormap fails for colorblind viewers (particularly red-green and blue-yellow color blindness). Approximately 8% of male viewers cannot distinguish these hues.\n   - Tufte explicitly identifies rainbow colormaps as chartjunk: they impose categorical boundaries on continuous data.\n   - **Fix:** Use a single-hue sequential colormap (light-to-dark) for magnitude, or a perceptually uniform diverging scale (blue-white-red or similar).\n\n2. **No Color Scale Legend**\n   - Viewers have no way to know what color corresponds to what value range. What does blue mean? 0\u201320? The boundaries are buried in the code, invisible to any user.\n   - Without a legend, the heatmap is effectively unreadable. The color pattern is visible, but its meaning is lost.\n   - **Fix:** Add a horizontal or vertical legend showing the color scale with labeled thresholds (e.g., \"0\u201320: Blue, 20\u201340: Green, etc.\").\n\n3. **No Data Point Annotation or Accessibility**\n   - There are no value labels inside the cells. For a heatmap of this density, viewers cannot determine whether a cell represents a value of 42 or 58\u2014the color alone is ambiguous (especially with the rainbow distortion).\n   - No alt-text, no aria-labels, and no keyboard accessibility for individual cells. This is not just a Tufte issue but an accessibility failure.\n   - **Fix:** For heatmaps that must show exact values, embed the numbers directly in cells (8pt to 10pt font, dark or light text depending on cell color for contrast). Alternatively, add a tooltip on hover showing the precise value.\n\n4. **Dark Background with Margins and Borders (Data-Ink Waste)**\n   - The `#1a1a2e` dark background, 2px cell borders, 1px margins, and 12px border-radius on the container are all non-data elements consuming screen real estate and pixels.\n   - The dark background is especially problematic: it adds visual weight without encoding data and makes the heatmap harder to read (low contrast for titles, less natural given screen defaults).\n   - Each cell's 2px border fragments the pattern and adds visual clutter. The 1px margins between cells further reduce the data-ink ratio.\n   - **Fix:** Remove the dark background and borders entirely. Use white or neutral grey background. Reduce or remove cell borders (a 1px light grey line can work, but 2px is excessive). Eliminate margins between cells to maximize visual integration.\n\n5. **Missing Row and Column Labels**\n   - The heatmap shows no information about what each row and column represent. Without axis labels, the data is meaningless\u2014is this a day-of-week by hour grid? A user list by activity type? Viewers cannot know.\n   - This violates Tufte's principle of graphical integrity: \"Use thorough labels to defeat distortion and ambiguity.\"\n   - **Fix:** Add explicit row and column labels (left side and top of the heatmap) describing what each axis represents. If labels are numerous, consider a legend or abbreviations.\n\n---\n\n## Moderate Findings (\ud83d\udfe1)\n\n1. **No Title Context or Metadata**\n   - The title \"Activity Heatmap\" is generic and provides no context. What kind of activity? What time period? What units?\n   - The heading uses centered white text on a dark background, which is harder to read than black text on white.\n   - **Fix:** Expand the title to be descriptive (e.g., \"Daily User Activity by Hour of Day (Last 7 Days)\"). Move to a light background or standard left-aligned heading. Add a subtitle with units, date range, or source.\n\n2. **No Ordering Information**\n   - It's unclear whether rows and columns are ordered alphabetically, by value, chronologically, or randomly. Meaningful ordering (e.g., by total activity, by time, by hierarchy) would reveal patterns; random or alphabetical ordering obscures them.\n   - Tufte emphasizes that \"order matters\"\u2014it's how structure emerges from the matrix.\n   - **Fix:** Explicitly order rows and columns by relevance (e.g., from highest to lowest total activity, or by time sequence). Add a note explaining the ordering logic.\n\n3. **Color Thresholds Are Arbitrary and Unlabeled**\n   - The cutoff values (20, 40, 60, 80) may be meaningful for the data, or they may be arbitrary. There's no way to know. If the data range is actually 0\u2013100, then this is fine. But if values range 0\u201350, the upper thresholds waste color bands. If values range 0\u20131000, the lower bands are useless.\n   - **Fix:** Compute thresholds dynamically based on the actual data range (min, max, quartiles). Or, provide explicit documentation of the scale (e.g., \"Thresholds represent: 0\u201320 = Low, 20\u201340 = Medium-Low, \u2026\").\n\n4. **Aspect Ratio and Cell Sizing Unjustified**\n   - All cells are 40\u00d740 px with 1px margins, creating a square grid. This may be correct for your data, but there's no indication whether a square grid is semantically appropriate. If rows represent days and columns represent hours, a 1:1 aspect ratio is misleading\u2014a day is not an hour.\n   - **Fix:** If cells represent different scales, adjust dimensions to reflect that (e.g., wider for time or narrower for categories). Make the aspect ratio decision explicit.\n\n5. **Styling Inconsistency**\n   - The centered white heading stands out against the dark background, but then the colored heatmap cells are also rendered on that dark background, creating visual conflict.\n   - The rounded corners (`borderRadius: 12` on the container, `borderRadius: 4` on cells) suggest a \"card\" aesthetic, which is decorative rather than functional.\n   - **Fix:** Use a consistent, clean design: white or light grey background, minimal rounded corners (or none), and let the data grid be the visual focus.\n\n---\n\n## Minor Findings (\ud83d\udfe2)\n\n1. **Map Function Keys Using Index**\n   - In React, using array index as the key (`.map((row, i) => ... key={i}`) is a known anti-pattern. If rows are reordered or filtered, the keys become unreliable.\n   - **Fix:** If each row represents a meaningful entity (a user, a date, a category), use that as the key instead of the index.\n\n2. **Hardcoded Styling**\n   - All styles are inline and hardcoded. This makes the component non-themable and harder to maintain at scale.\n   - **Fix:** Extract colors, spacing, and dimensions to named constants or a theme object. Example:\n     ```javascript\n     const COLORS = {\n       low: '#f7fbff',      // light blue\n       medium: '#4292c6',   // medium blue\n       high: '#08519c'      // dark blue\n     };\n     const SPACING = { container: 16, cell: 40, margin: 0 };\n     ```\n\n3. **Missing Data Validation**\n   - The component assumes `data` is a valid 2D array and that all values are numbers in a sensible range. No prop validation or error handling.\n   - **Fix:** Add prop-types validation or TypeScript types:\n     ```javascript\n     Heatmap.propTypes = {\n       data: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.number)).isRequired\n     };\n     ```\n\n4. **No Responsive Design**\n   - The component uses fixed cell dimensions (40\u00d740) and padding, so it doesn't adapt to screen size. On mobile, it will either overflow or become unreadable.\n   - **Fix:** Use CSS media queries or a responsive grid system to scale cells based on viewport.\n\n---\n\n## Scorecard\n\n| Dimension | Score | Key Findings |\n|-----------|-------|--------------|\n| **Data-Ink Ratio** | 35/100 | Dark background, borders, margins, and rounded corners all waste ink. More than 30% of the component is non-data decoration. |\n| **Chartjunk** | 25/100 | Rainbow colormap is the definition of chartjunk. Dark background, borders, and styling are decorative. No data labels (severe omission for a heatmap). |\n| **Graphical Integrity & Axes** | 30/100 | No row or column labels, no legend, no units, no title context. Viewers cannot assign meaning to the data. Arbitrary, undocumented color thresholds. |\n| **Heatmaps (Specific)** | 40/100 | Color choice is poor (rainbow is Tufte's canonical example of what NOT to do). Missing legend, data labels, and axis information. Lack of ordering logic. |\n| **Layering & Separation** | 50/100 | Some visual separation (cells are distinct), but dark background creates low contrast and visual noise. Data should pop; instead, it competes with decoration. |\n| **Interactivity** | N/A | Not applicable\u2014this is a static component. |\n| **Composite Tufte Score** | **42/100** | The heatmap communicates a visual pattern but fails at data integrity, accessibility, and clarity. Major revisions needed. |\n\n---\n\n## Recommended Changes\n\n### Priority 1: Fix the Colormap and Legend (Critical)\n\n**Replace the rainbow colormap with a perceptually uniform sequential scale.** Here's the corrected `getColor` function using a blue-to-dark blue sequential scale:\n\n```javascript\nconst getColor = (val) => {\n  // Sequential blue colormap (light to dark)\n  // Light blue: low values, Dark blue: high values\n  // Perceptually uniform and colorblind-friendly\n  if (val < 20) return '#f7fbff';  // very light blue\n  if (val < 40) return '#deebf7';  // light blue\n  if (val < 60) return '#9ecae1';  // medium blue\n  if (val < 80) return '#3182bd';  // darker blue\n  return '#08519c';                // darkest blue\n};\n```\n\n**Add a legend** showing the color scale:\n\n```javascript\nconst Legend = () => (\n  <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>\n    <span style={{ fontSize: 12, fontWeight: 'bold' }}>Scale:</span>\n    {[\n      { color: '#f7fbff', label: '0\u201320' },\n      { color: '#deebf7', label: '20\u201340' },\n      { color: '#9ecae1', label: '40\u201360' },\n      { color: '#3182bd', label: '60\u201380' },\n      { color: '#08519c', label: '80+' }\n    ].map((item, i) => (\n      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>\n        <div\n          style={{\n            width: 16,\n            height: 16,\n            backgroundColor: item.color,\n            border: '1px solid #ccc'\n          }}\n        />\n        <span style={{ fontSize: 11 }}>{item.label}</span>\n      </div>\n    ))}\n  </div>\n);\n```\n\n### Priority 2: Remove Non-Data-Ink (Critical)\n\n**Strip the dark background, borders, and margins:**\n\n```javascript\nconst Heatmap = ({ data }) => {\n  const getColor = (val) => {\n    // [Sequential colormap as above]\n  };\n\n  return (\n    <div style={{ padding: 16, fontFamily: 'system-ui, sans-serif' }}>\n      {/* Clear, descriptive title on light background */}\n      <h2 style={{\n        margin: '0 0 16px 0',\n        fontSize: 18,\n        fontWeight: 600,\n        color: '#222'\n      }}>\n        Daily User Activity by Hour of Day\n      </h2>\n\n      {/* Remove dark background, let white show through */}\n      <div style={{\n        display: 'inline-block',\n        border: '1px solid #e0e0e0' // subtle border for separation only\n      }}>\n        {data.map((row, i) => (\n          <div key={i} style={{ display: 'flex' }}>\n            {row.map((val, j) => (\n              <div\n                key={j}\n                style={{\n                  width: 40,\n                  height: 40,\n                  backgroundColor: getColor(val),\n                  border: 'none',      // REMOVED: borders fragment the pattern\n                  margin: 0,           // REMOVED: margins waste space\n                  borderRadius: 0,     // REMOVED: rounded corners are decorative\n                  display: 'flex',\n                  alignItems: 'center',\n                  justifyContent: 'center',\n                  fontSize: 10,\n                  color: val < 50 ? '#222' : '#fff', // contrast-aware text\n                  fontWeight: 500\n                }}\n              >\n                {val}  {/* DATA LABELS: show actual values */}\n              </div>\n            ))}\n          </div>\n        ))}\n      </div>\n\n      {/* Legend below the heatmap */}\n      <Legend />\n    </div>\n  );\n};\n```\n\n### Priority 3: Add Axis Labels and Metadata\n\n```javascript\nconst Heatmap = ({ data, rowLabels, colLabels, title, unit, dateRange }) => {\n  // ... getColor as above ...\n\n  return (\n    <div style={{ padding: 16 }}>\n      {/* Descriptive title with context */}\n      <div style={{ marginBottom: 16 }}>\n        <h2 style={{ margin: '0 0 4px 0', fontSize: 18, fontWeight: 600, color: '#222' }}>\n          {title || 'Heatmap'}\n        </h2>\n        <p style={{ margin: 0, fontSize: 12, color: '#666 }}>\n          {dateRange && `${dateRange} | `}\n          {unit && `Unit: ${unit}`}\n        </p>\n      </div>\n\n      {/* Grid with row and column labels */}\n      <div style={{ display: 'flex' }}>\n        {/* Row labels on left */}\n        <div style={{ marginRight: 8 }}>\n          {data.map((row, i) => (\n            <div\n              key={i}\n              style={{\n                height: 40,\n                display: 'flex',\n                alignItems: 'center',\n                justifyContent: 'flex-end',\n                fontSize: 11,\n                color: '#666',\n                minWidth: 60\n              }}\n            >\n              {rowLabels?.[i] || `Row ${i}`}\n            </div>\n          ))}\n        </div>\n\n        {/* Heatmap grid */}\n        <div>\n          {/* Column labels on top */}\n          {colLabels && (\n            <div style={{ display: 'flex', marginBottom: 4 }}>\n              {colLabels.map((label, j) => (\n                <div\n                  key={j}\n                  style={{\n                    width: 40,\n                    textAlign: 'center',\n                    fontSize: 10,\n                    color: '#666',\n                    fontWeight: 500\n                  }}\n                >\n                  {label}\n                </div>\n              ))}\n            </div>\n          )}\n\n          {/* Heatmap cells */}\n          <div style={{ border: '1px solid #e0e0e0' }}>\n            {data.map((row, i) => (\n              <div key={i} style={{ display: 'flex' }}>\n                {row.map((val, j) => (\n                  <div\n                    key={j}\n                    title={`${rowLabels?.[i] || `Row ${i}`}, ${colLabels?.[j] || `Col ${j}`}: ${val}`}\n                    style={{\n                      width: 40,\n                      height: 40,\n                      backgroundColor: getColor(val),\n                      display: 'flex',\n                      alignItems: 'center',\n                      justifyContent: 'center',\n                      fontSize: 10,\n                      color: val < 50 ? '#222' : '#fff',\n                      fontWeight: 500,\n                      cursor: 'default'\n                    }}\n                  >\n                    {val}\n                  </div>\n                ))}\n              </div>\n            ))}\n          </div>\n        </div>\n      </div>\n\n      {/* Legend */}\n      <Legend />\n\n      {/* Metadata footnote */}\n      <p style={{\n        marginTop: 16,\n        fontSize: 11,\n        color: '#999',\n        fontStyle: 'italic'\n      }}>\n        Higher values (darker blue) indicate greater activity. Hover over cells to see exact values.\n      </p>\n    </div>\n  );\n};\n```\n\n### Priority 4: Add TypeScript/PropTypes and Constants\n\n```javascript\nimport PropTypes from 'prop-types';\n\n// Color theme (single-hue sequential scale)\nconst COLORS = {\n  scale: [\n    { threshold: 20, color: '#f7fbff', label: '0\u201320' },\n    { threshold: 40, color: '#deebf7', label: '20\u201340' },\n    { threshold: 60, color: '#9ecae1', label: '40\u201360' },\n    { threshold: 80, color: '#3182bd', label: '60\u201380' },\n    { threshold: Infinity, color: '#08519c', label: '80+' }\n  ]\n};\n\nconst SPACING = {\n  container: 16,\n  cellSize: 40,\n  cellBorder: '1px solid #e0e0e0'\n};\n\nconst Heatmap = ({ data, rowLabels, colLabels, title, unit, dateRange }) => {\n  const getColor = (val) => {\n    const match = COLORS.scale.find(item => val < item.threshold);\n    return match?.color || COLORS.scale[COLORS.scale.length - 1].color;\n  };\n\n  return (\n    // [Component implementation as above]\n  );\n};\n\nHeatmap.propTypes = {\n  data: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.number)).isRequired,\n  rowLabels: PropTypes.arrayOf(PropTypes.string),\n  colLabels: PropTypes.arrayOf(PropTypes.string),\n  title: PropTypes.string,\n  unit: PropTypes.string,\n  dateRange: PropTypes.string\n};\n\nHeatmap.defaultProps = {\n  rowLabels: null,\n  colLabels: null,\n  title: 'Heatmap',\n  unit: null,\n  dateRange: null\n};\n\nexport default Heatmap;\n```\n\n---\n\n## What's Working Well\n\n1. **Clear Visual Form**\n   The heatmap structure\u2014cells arranged in a grid and colored by value\u2014is the right choice for revealing patterns in matrix data. The basic architecture is sound.\n\n2. **Functional Color Encoding**\n   Despite the rainbow colormap's flaws, the component *does* assign different colors to different value ranges. The concept of using color for magnitude is correct; only the execution is wrong.\n\n3. **Clean JSX Syntax**\n   The code is readable and uses React patterns (map, key) correctly (modulo the index-key issue). It's maintainable and easy to follow.\n\n4. **Flexible Data Input**\n   The component accepts arbitrary data as a 2D array, making it reusable across different datasets.\n\n---\n\n## What Tufte Would Say\n\nEdward Tufte would say: *\"This visualization has the form of a heatmap but not its substance. You're showing a pattern, but hiding the data. The dark background, the rainbow colors, the missing numbers, the faceless grid\u2014these are choices that serve the designer's aesthetic preferences, not the viewer's need to understand what the numbers mean. Remove every element that doesn't clarify. A heatmap that doesn't show values or scale is just a pretty picture. Above all else, show the data.\"*\n\n---\n\n## Next Steps\n\n1. **Immediate:** Replace colormap with sequential blue scale, add legend, embed data labels.\n2. **Short-term:** Add row and column labels, expand title with context, remove dark background and borders.\n3. **Medium-term:** Implement responsive sizing, add tooltip on hover for additional metadata, support custom color scales.\n4. **Long-term:** Consider small multiples if you're comparing multiple heatmaps across categories or time.\n"}], "grading": {"eval_id": 3, "run_type": "with_skill", "expectations": [{"text": "Flags the rainbow/jet-style discrete color buckets", "passed": true, "evidence": "Critical Finding 1 extensively discusses 'Rainbow/Jet Colormap (Severe Perceptual Distortion)' with explanation of non-uniform perception, colorblind failure, and Tufte's explicit identification as chartjunk."}, {"text": "Flags dark decorative background as non-data-ink", "passed": true, "evidence": "Critical Finding 4 flags '#1a1a2e dark background' as 'non-data elements consuming screen real estate and pixels' with specific percentage waste estimate."}, {"text": "Flags thick borders fragmenting the visual pattern", "passed": true, "evidence": "Critical Finding 4 explicitly states '2px border fragments the pattern and adds visual clutter' and Priority 2 code sets border to 'none'."}, {"text": "Recommends adding a color legend", "passed": true, "evidence": "Critical Finding 2 identifies missing legend, and Priority 1 provides a complete Legend component implementation in React code."}, {"text": "Recommends a sequential single-hue colormap", "passed": true, "evidence": "Priority 1 provides corrected getColor function using f7fbff \u2192 deebf7 \u2192 9ecae1 \u2192 3182bd \u2192 08519c (light-to-dark blue sequential scale)."}, {"text": "Provides corrected React code", "passed": true, "evidence": "Priorities 1-4 include complete corrected React code with sequential colormap, Legend component, axis labels, and PropTypes validation."}]}}, {"id": "heatmap-audit-without_skill", "prompt": "Review this React heatmap component and tell me what Tufte would think.", "eval_id": 3, "outputs": [{"name": "audit.md", "type": "text", "content": "# Tufte Audit: React Heatmap Component\n\n## Executive Summary\nThis heatmap component violates nearly every principle of Edward Tufte's data visualization philosophy. While it presents categorical data colorfully, it prioritizes visual drama over information clarity, wastes significant space, and obscures quantitative relationships through arbitrary color choices.\n\n**Tufte's Verdict:** Excessive decoration combined with insufficient information density. A chart optimized for aesthetics rather than understanding.\n\n---\n\n## Detailed Analysis Against Tufte's Core Principles\n\n### 1. Data-Ink Ratio: CRITICAL FAILURE\n**Tufte's Principle:** Maximize the ratio of data-representing ink to total ink used.\n\n**Violations:**\n- **Decorative padding & margins**: The 20px padding, 2px borders, and 1px margins between cells add visual clutter without communicating data\n- **Rounded corners on cells** (`borderRadius: 4`): Pure decoration that consumes rendering complexity\n- **Darkened background** (`#1a1a2e`): Creates contrast but adds cognitive load and reduces accessibility\n- **Large cell size** (40\u00d740px): Wastes valuable screen real estate\u2014the same data could be displayed in far less space\n- **Centered heading with styling**: Generic decoration that doesn't enhance understanding\n\n**Recommendation:** Strip all decorative elements. Remove padding, borders, and background styling. Display cells at minimum readable size (12-16px).\n\n---\n\n### 2. Color Use: FUNDAMENTALLY FLAWED\n**Tufte's Principle:** Color should encode quantitative relationships, not arbitrary design choices.\n\n**Critical Issues:**\n\n| Value Range | Color | Problem |\n|---|---|---|\n| <20 | Blue | Doesn't suggest low values; arbitrary |\n| <40 | Green | Arbitrary; no perceptual ordering |\n| <60 | Yellow | Arbitrary |\n| <80 | Orange | Inconsistent progression |\n| \u226580 | Red | **Only consistent choice** (red = high/hot) |\n\n**The Core Problem:**\nThe color scale doesn't leverage human perception of color as quantitative encoding. Tufte emphasizes using color schemes where:\n- Colors progress smoothly\n- Darker/lighter variations communicate magnitude\n- Color choice aligns with intuitive understanding (e.g., sequential scales)\n\n**Current Implementation Issues:**\n- Blue \u2192 Green \u2192 Yellow \u2192 Orange \u2192 Red creates psychological confusion\n- No logical progression (blue is cold, but represents low values\u2014contradictory)\n- Not colorblind-accessible (Blue-Yellow-Red fails for many protanopia/deuteranopia users)\n\n**Recommendation:** Use a perceptually uniform sequential color scale:\n- Gray-to-Black (luminance-based)\n- Or a proper diverging scale (Blue-White-Red) if data has meaningful midpoint\n- Or the viridis palette (perceptually uniform, colorblind-friendly)\n\n---\n\n### 3. Information Density: SEVERELY LACKING\n**Tufte's Principle:** Show the data variability, not the design variation.\n\n**Deficiencies:**\n- **No legend**: Viewers must infer value ranges from color alone. What does \"green\" mean exactly? Is it 25 or 38?\n- **No axis labels**: No context for what rows/columns represent. What time period? What variables?\n- **No data labels**: Individual cell values are invisible; users guess based on color\n- **No summary statistics**: Missing min/max/mean that would orient viewers\n- **No context**: Title says \"Activity Heatmap\" but provides no temporal or categorical context\n\n**Recommendation:** Add:\n```\n- Explicit legend with value-color mappings\n- Row/column headers with meaningful labels\n- Optional: Data values overlaid on cells if space permits\n- Context: \"Activity by Hour (Monday)\" or similar\n```\n\n---\n\n### 4. Chartjunk: EXCESSIVE\n**Tufte's Principle:** Eliminate non-data ink that doesn't improve understanding.\n\n**Chartjunk Elements:**\n- Dark background (visual weight without informational value)\n- Cell borders (create visual grid without adding data)\n- Rounded corners (decorative, contradicts cell borders' purpose)\n- Cell margins/padding (waste space)\n- Bold \"Activity Heatmap\" heading (redundant if context is provided elsewhere)\n\n**Visual Comparison:**\n```\nCurrent: Cells with 4px padding + 2px border + margin = 48px rendered for 40px data\nEfficient: Cells at 20px with no padding = 100% of space conveys data\n```\n\n---\n\n### 5. Cognitive Load: UNNECESSARILY HIGH\n**Tufte's Principle:** Reduce cognitive overhead; let the data story emerge effortlessly.\n\n**Issues:**\n- Viewers must mentally map 5 different colors to value ranges (working memory burden)\n- Dark background forces eyes to adapt; white background with simple styling requires less cognitive effort\n- Arbitrary color choices create false patterns (brain searches for \"why blue?\")\n- No numerical reference forces comparison-by-color, which is imprecise\n\n**Recommendation:** Include numeric overlays or a legend with precise thresholds. Let viewers verify their color interpretation instantly.\n\n---\n\n### 6. Lie Factor: MODERATE CONCERN\n**Tufte's Principle:** The ratio of the size of the effect shown in the graphic to the size of the effect in the data should be 1:1.\n\n**Assessment:**\n- Large cell size (40\u00d740px) magnifies visual differences\n- Color intensity creates perceptual drama that may overstate actual data variation\n- For example: A value of 35 (green) vs. 45 (yellow) is only 10% different, but the color contrast suggests dramatic difference\n\n**Recommendation:** Use neutral cell size (16-20px) and understated color progression to represent actual data variation faithfully.\n\n---\n\n### 7. Self-Sufficiency: INCOMPLETE\n**Tufte's Principle:** A graphic should stand alone and communicate without extensive text explanation.\n\n**Missing Information:**\n- What is being measured?\n- What are the units?\n- What time period/date range?\n- What do the dimensions represent?\n- Why should I care about this data?\n\nA viewer seeing this graphic in isolation would be confused about its purpose and meaning.\n\n---\n\n## What Tufte Would Appreciate (If Anything)\n\n1. **Categorical encoding through color** (not terrible for categorical data, but execution is poor)\n2. **Structured grid layout** (organized, if minimal in decoration)\n3. **Attempt at visual organization** (the component has some structure, even if poorly applied)\n\n---\n\n## Specific Code Improvements\n\n### Before (Current State)\n```jsx\nconst Heatmap = ({ data }) => {\n  const getColor = (val) => {\n    if (val < 20) return '#0000ff';\n    if (val < 40) return '#00ff00';\n    if (val < 60) return '#ffff00';\n    if (val < 80) return '#ff8800';\n    return '#ff0000';\n  };\n  return (\n    <div style={{background: '#1a1a2e', padding: 20, borderRadius: 12}}>\n      <h2 style={{color: 'white', textAlign: 'center'}}>Activity Heatmap</h2>\n      {data.map((row, i) => (\n        <div key={i} style={{display: 'flex'}}>\n          {row.map((val, j) => (\n            <div key={j} style={{\n              width: 40, height: 40,\n              backgroundColor: getColor(val),\n              border: '2px solid #1a1a2e',\n              borderRadius: 4,\n              margin: 1\n            }} />\n          ))}\n        </div>\n      ))}\n    </div>\n  );\n};\n```\n\n### After (Tufte-Aligned)\n```jsx\nconst Heatmap = ({ data, rowLabels, colLabels, title, unit, min, max }) => {\n  // Perceptually uniform sequential color scale\n  const getColor = (val) => {\n    const normalized = (val - min) / (max - min);\n    // Using a sequential color scale (white to dark blue)\n    const hue = 220;\n    const saturation = normalized * 50;\n    const lightness = 100 - normalized * 80;\n    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;\n  };\n\n  return (\n    <div style={{fontFamily: 'sans-serif', padding: 0}}>\n      <h3 style={{fontSize: 16, fontWeight: 'bold', margin: '0 0 12px 0'}}>\n        {title}\n      </h3>\n\n      {/* Legend */}\n      <div style={{fontSize: 12, marginBottom: 12}}>\n        <span>Min: {min}</span> | <span>Max: {max}</span> | <span>Unit: {unit}</span>\n      </div>\n\n      {/* Grid with labels */}\n      <div style={{display: 'inline-block', borderCollapse: 'collapse'}}>\n        {data.map((row, i) => (\n          <div key={i} style={{display: 'flex'}}>\n            {/* Row label */}\n            <div style={{fontSize: 11, width: 60, padding: 2, overflow: 'hidden'}}>\n              {rowLabels?.[i] || `Row ${i}`}\n            </div>\n            {/* Data cells */}\n            {row.map((val, j) => (\n              <div\n                key={j}\n                title={`${val} ${unit}`}\n                style={{\n                  width: 20,\n                  height: 20,\n                  backgroundColor: getColor(val),\n                  display: 'flex',\n                  alignItems: 'center',\n                  justifyContent: 'center',\n                  fontSize: 9,\n                  color: val > (min + max) / 2 ? 'white' : 'black',\n                  cursor: 'default'\n                }}\n              >\n                {/* Show value on hover (via title attribute) or optionally overlay */}\n              </div>\n            ))}\n          </div>\n        ))}\n      </div>\n\n      {/* Column labels */}\n      <div style={{display: 'flex', marginTop: 4}}>\n        <div style={{width: 60}} /> {/* Spacer for row label column */}\n        {colLabels?.map((label, j) => (\n          <div key={j} style={{width: 20, fontSize: 10, textAlign: 'center', overflow: 'hidden'}}>\n            {label}\n          </div>\n        ))}\n      </div>\n    </div>\n  );\n};\n```\n\n**Key Changes:**\n1. **Removed decorative styling**: No background color, padding, borders, or rounded corners\n2. **Added context**: Title, legend, labels, units\n3. **Better color scale**: Sequential HSL-based scale (white \u2192 dark blue) is perceptually uniform\n4. **Data labels**: Title attribute shows exact values on hover\n5. **Reduced cell size**: 20px instead of 40px increases information density\n6. **Row/column labels**: Provides context for data\n7. **Accessibility**: Colorblind-friendly sequential scale\n\n---\n\n## Tufte's Broader Critique\n\nEdward Tufte would likely make these observations:\n\n### \"Show me the data, not your design\"\nThis component prioritizes visual drama (glowing colors, dark background) over information transfer. A viewer cannot precisely read a single value without guessing from color.\n\n### \"Respect your audience's intelligence\"\nThe arbitrary color scheme treats viewers as if they need visual excitement rather than clarity. Provide data and let the patterns emerge naturally.\n\n### \"Maximize information per unit area\"\nAt 40\u00d740px per cell with decorative padding and borders, this visualization wastes 50-60% of its rendered space on non-data elements.\n\n### \"Make comparisons easy\"\nWith 5 discrete colors and no legend, precise value comparisons are impossible. A viewer must say \"that's darker green, so it's probably in the 35-45 range\"\u2014cognitive work that should not be necessary.\n\n---\n\n## Summary Scorecard\n\n| Principle | Score | Comment |\n|---|---|---|\n| Data-Ink Ratio | 2/10 | Excessive decoration and wasted space |\n| Color Use | 1/10 | Arbitrary, non-sequential, not colorblind-friendly |\n| Information Density | 1/10 | Missing legend, labels, context, values |\n| Chartjunk | 2/10 | Borders, background, padding all unnecessary |\n| Cognitive Load | 3/10 | Requires mental mapping of colors to ranges |\n| Lie Factor | 5/10 | Moderate; cell size may exaggerate variation |\n| Self-Sufficiency | 1/10 | No context; viewer cannot understand purpose |\n| **Overall** | **2/10** | **Fails most Tufte principles** |\n\n---\n\n## Recommendations Priority\n\n1. **High Priority**: Add legend, labels, and data context\n2. **High Priority**: Use a perceptually uniform sequential color scale\n3. **High Priority**: Remove decorative styling (borders, background, rounded corners)\n4. **Medium Priority**: Overlay data values or provide hover tooltips\n5. **Medium Priority**: Reduce cell size to increase information density\n6. **Low Priority**: Add summary statistics (min, max, mean)\n\n---\n\n## Conclusion\n\nThis heatmap prioritizes aesthetics over information. While it's visually striking, it violates fundamental principles of data visualization. A Tufte-aligned redesign would be simpler, smaller, clearer, and far more useful\u2014proving that good design is invisible: it lets the data speak without distraction.\n\n**Tufte's likely final verdict:** \"Reduce the decoration by 80%, remove the colors until you know what they should mean, add context and labels, and try again.\"\n"}], "grading": {"eval_id": 3, "run_type": "without_skill", "expectations": [{"text": "Flags the rainbow/jet-style discrete color buckets", "passed": true, "evidence": "Section 2 'Color Use: FUNDAMENTALLY FLAWED' provides detailed table of color issues and calls out arbitrary non-sequential progression."}, {"text": "Flags dark decorative background as non-data-ink", "passed": true, "evidence": "Section 1 explicitly lists 'Darkened background (#1a1a2e)' as a data-ink ratio violation."}, {"text": "Flags thick borders fragmenting the visual pattern", "passed": true, "evidence": "Section 4 lists 'Cell borders' as chartjunk and the code comparison shows 48px rendered for 40px data cell."}, {"text": "Recommends adding a color legend", "passed": true, "evidence": "Section 3 lists 'No legend' as a deficiency and recommends adding 'Explicit legend with value-color mappings'."}, {"text": "Recommends a sequential single-hue colormap", "passed": true, "evidence": "Section 2 recommends 'Gray-to-Black (luminance-based)' or 'Blue-White-Red' or 'viridis palette'. After code uses HSL sequential white\u2192dark blue."}, {"text": "Provides corrected React code", "passed": true, "evidence": "Complete 'After (Tufte-Aligned)' code section with HSL-based color scale, row/column labels, and reduced cell size."}]}}], "previous_feedback": {}, "previous_outputs": {}, "benchmark": {"skill_name": "tufte-audit", "iteration": 1, "configurations": [{"name": "with_skill", "results": [{"eval_name": "bar-chart-audit", "assertions_passed": 6, "assertions_total": 6, "pass_rate": 1.0, "duration_seconds": 43.3, "total_tokens": 45507}, {"eval_name": "dashboard-audit", "assertions_passed": 6, "assertions_total": 6, "pass_rate": 1.0, "duration_seconds": 54.3, "total_tokens": 45699}, {"eval_name": "heatmap-audit", "assertions_passed": 6, "assertions_total": 6, "pass_rate": 1.0, "duration_seconds": 53.0, "total_tokens": 47368}], "aggregate": {"mean_pass_rate": 1.0, "stddev_pass_rate": 0.0, "mean_duration_seconds": 50.2, "stddev_duration_seconds": 5.9, "mean_tokens": 46191, "stddev_tokens": 1003}}, {"name": "without_skill", "results": [{"eval_name": "bar-chart-audit", "assertions_passed": 5, "assertions_total": 6, "pass_rate": 0.833, "duration_seconds": 24.0, "total_tokens": 38681}, {"eval_name": "dashboard-audit", "assertions_passed": 4, "assertions_total": 6, "pass_rate": 0.667, "duration_seconds": 41.8, "total_tokens": 39307}, {"eval_name": "heatmap-audit", "assertions_passed": 6, "assertions_total": 6, "pass_rate": 1.0, "duration_seconds": 36.3, "total_tokens": 39613}], "aggregate": {"mean_pass_rate": 0.833, "stddev_pass_rate": 0.167, "mean_duration_seconds": 34.0, "stddev_duration_seconds": 9.2, "mean_tokens": 39200, "stddev_tokens": 472}}], "delta": {"pass_rate": "+16.7%", "duration": "+47.6% (16.2s slower on avg)", "tokens": "+17.8% (6991 more on avg)"}, "analysis": "The skill achieves 100% pass rate across all 3 evals vs 83.3% baseline. Key improvements: (1) The with-skill version consistently produces structured Tufte audit reports with severity ratings and numeric scoring, which the baseline lacks. (2) The dashboard eval shows the biggest gap \u2014 the skill version catches the choropleth area-vs-population problem (a distinctly Tuftean insight) that the baseline misses. (3) Cost is ~18% more tokens and ~48% more time, driven by the skill reading overhead and more structured output. The heatmap eval is non-discriminating \u2014 both versions pass all assertions, likely because heatmap critique is straightforward enough that Claude handles it well without the skill."}};
+
+    // ---- State ----
+    let feedbackMap = {};  // run_id -> feedback text
+    let currentIndex = 0;
+    let visitedRuns = new Set();
+
+    // ---- Init ----
+    async function init() {
+      // Load saved feedback from server — but only if this isn't a fresh
+      // iteration (indicated by previous_feedback being present). When
+      // previous feedback exists, the feedback.json on disk is stale from
+      // the prior iteration and should not pre-fill the textareas.
+      const hasPrevious = Object.keys(EMBEDDED_DATA.previous_feedback || {}).length > 0
+        || Object.keys(EMBEDDED_DATA.previous_outputs || {}).length > 0;
+      if (!hasPrevious) {
+        try {
+          const resp = await fetch("/api/feedback");
+          const data = await resp.json();
+          if (data.reviews) {
+            for (const r of data.reviews) feedbackMap[r.run_id] = r.feedback;
+          }
+        } catch { /* first run, no feedback yet */ }
+      }
+
+      document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
+      showRun(0);
+
+      // Wire up feedback auto-save
+      const textarea = document.getElementById("feedback");
+      let saveTimeout = null;
+      textarea.addEventListener("input", () => {
+        clearTimeout(saveTimeout);
+        document.getElementById("feedback-status").textContent = "";
+        saveTimeout = setTimeout(() => saveCurrentFeedback(), 800);
+      });
+    }
+
+    // ---- Navigation ----
+    function navigate(delta) {
+      const newIndex = currentIndex + delta;
+      if (newIndex >= 0 && newIndex < EMBEDDED_DATA.runs.length) {
+        saveCurrentFeedback();
+        showRun(newIndex);
+      }
+    }
+
+    function updateNavButtons() {
+      document.getElementById("prev-btn").disabled = currentIndex === 0;
+      document.getElementById("next-btn").disabled =
+        currentIndex === EMBEDDED_DATA.runs.length - 1;
+    }
+
+    // ---- Show a run ----
+    function showRun(index) {
+      currentIndex = index;
+      const run = EMBEDDED_DATA.runs[index];
+
+      // Progress
+      document.getElementById("progress").textContent =
+        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+
+      // Prompt
+      document.getElementById("prompt-text").textContent = run.prompt;
+
+      // Config badge
+      const badge = document.getElementById("config-badge");
+      const configMatch = run.id.match(/(with_skill|without_skill|new_skill|old_skill)/);
+      if (configMatch) {
+        const config = configMatch[1];
+        const isBaseline = config === "without_skill" || config === "old_skill";
+        badge.textContent = config.replace(/_/g, " ");
+        badge.className = "config-badge " + (isBaseline ? "config-baseline" : "config-primary");
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      // Outputs
+      renderOutputs(run);
+
+      // Previous outputs
+      renderPrevOutputs(run);
+
+      // Grades
+      renderGrades(run);
+
+      // Previous feedback
+      const prevFb = (EMBEDDED_DATA.previous_feedback || {})[run.id];
+      const prevEl = document.getElementById("prev-feedback");
+      if (prevFb) {
+        document.getElementById("prev-feedback-text").textContent = prevFb;
+        prevEl.style.display = "block";
+      } else {
+        prevEl.style.display = "none";
+      }
+
+      // Feedback
+      document.getElementById("feedback").value = feedbackMap[run.id] || "";
+      document.getElementById("feedback-status").textContent = "";
+
+      updateNavButtons();
+
+      // Track visited runs and promote done button when all visited
+      visitedRuns.add(index);
+      const doneBtn = document.getElementById("done-btn");
+      if (visitedRuns.size >= EMBEDDED_DATA.runs.length) {
+        doneBtn.classList.add("ready");
+      }
+
+      // Scroll main content to top
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ---- Render outputs ----
+    function renderOutputs(run) {
+      const container = document.getElementById("outputs-body");
+      container.innerHTML = "";
+
+      const outputs = run.outputs || [];
+      if (outputs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No output files</div>';
+        return;
+      }
+
+      for (const file of outputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        // Always show file header with download link
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const content = document.createElement("div");
+        content.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          content.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          content.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          content.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(content, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          content.appendChild(a);
+        } else if (file.type === "error") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          pre.style.color = "var(--red)";
+          content.appendChild(pre);
+        }
+
+        fileDiv.appendChild(content);
+        container.appendChild(fileDiv);
+      }
+    }
+
+    // ---- XLSX rendering via SheetJS ----
+    function renderXlsx(container, b64Data) {
+      try {
+        const raw = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+        const wb = XLSX.read(raw, { type: "array" });
+
+        for (let i = 0; i < wb.SheetNames.length; i++) {
+          const sheetName = wb.SheetNames[i];
+          const ws = wb.Sheets[sheetName];
+
+          if (wb.SheetNames.length > 1) {
+            const sheetLabel = document.createElement("div");
+            sheetLabel.style.cssText =
+              "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
+            sheetLabel.textContent = "Sheet: " + sheetName;
+            container.appendChild(sheetLabel);
+          }
+
+          const htmlStr = XLSX.utils.sheet_to_html(ws, { editable: false });
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = htmlStr;
+          container.appendChild(wrapper);
+        }
+      } catch (err) {
+        container.textContent = "Error rendering spreadsheet: " + err.message;
+      }
+    }
+
+    // ---- Grades ----
+    function renderGrades(run) {
+      const section = document.getElementById("grades-section");
+      const content = document.getElementById("grades-content");
+
+      if (!run.grading) {
+        section.style.display = "none";
+        return;
+      }
+
+      const grading = run.grading;
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("grades-arrow").classList.remove("open");
+
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+
+      let html = '<div style="padding: 1rem;">';
+
+      // Summary line
+      const passRate = summary.pass_rate != null
+        ? Math.round(summary.pass_rate * 100) + "%"
+        : "?";
+      const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
+      html += '<div class="grades-summary">';
+      html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
+      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '</div>';
+
+      // Assertions list
+      html += '<ul class="assertion-list">';
+      for (const exp of expectations) {
+        const statusClass = exp.passed ? "pass" : "fail";
+        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        html += '<li class="assertion-item">';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span>' + escapeHtml(exp.text) + '</span>';
+        if (exp.evidence) {
+          html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
+        }
+        html += '</li>';
+      }
+      html += '</ul>';
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function toggleGrades() {
+      const content = document.getElementById("grades-content");
+      const arrow = document.getElementById("grades-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Previous outputs (collapsible) ----
+    function renderPrevOutputs(run) {
+      const section = document.getElementById("prev-outputs-section");
+      const content = document.getElementById("prev-outputs-content");
+      const prevOutputs = (EMBEDDED_DATA.previous_outputs || {})[run.id];
+
+      if (!prevOutputs || prevOutputs.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("prev-outputs-arrow").classList.remove("open");
+
+      // Render the files into the content area
+      content.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "1rem";
+
+      for (const file of prevOutputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const fc = document.createElement("div");
+        fc.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          fc.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          fc.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          fc.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(fc, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          fc.appendChild(a);
+        }
+
+        fileDiv.appendChild(fc);
+        wrapper.appendChild(fileDiv);
+      }
+
+      content.appendChild(wrapper);
+    }
+
+    function togglePrevOutputs() {
+      const content = document.getElementById("prev-outputs-content");
+      const arrow = document.getElementById("prev-outputs-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Feedback (saved to server -> feedback.json) ----
+    function saveCurrentFeedback() {
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // Build reviews array from map
+      const reviews = [];
+      for (const [run_id, feedback] of Object.entries(feedbackMap)) {
+        if (feedback.trim()) {
+          reviews.push({ run_id, feedback, timestamp: new Date().toISOString() });
+        }
+      }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, status: "in_progress" }),
+      }).then(() => {
+        document.getElementById("feedback-status").textContent = "Saved";
+      }).catch(() => {
+        // Static mode or server unavailable — no-op on auto-save,
+        // feedback will be downloaded on final submit
+        document.getElementById("feedback-status").textContent = "Will download on submit";
+      });
+    }
+
+    // ---- Done ----
+    function showDoneDialog() {
+      // Save current textarea to feedbackMap (but don't POST yet)
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // POST once with status: complete — include ALL runs so the model
+      // can distinguish "no feedback" (looks good) from "not reviewed"
+      const reviews = [];
+      const ts = new Date().toISOString();
+      for (const r of EMBEDDED_DATA.runs) {
+        reviews.push({ run_id: r.id, feedback: feedbackMap[r.id] || "", timestamp: ts });
+      }
+      const payload = JSON.stringify({ reviews, status: "complete" }, null, 2);
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then(() => {
+        document.getElementById("done-overlay").classList.add("visible");
+      }).catch(() => {
+        // Server not available (static mode) — download as file
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "feedback.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        document.getElementById("done-overlay").classList.add("visible");
+      });
+    }
+
+    function closeDoneDialog() {
+      // Reset status back to in_progress
+      saveCurrentFeedback();
+      document.getElementById("done-overlay").classList.remove("visible");
+    }
+
+    // ---- Toast ----
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+
+    // ---- Keyboard nav ----
+    document.addEventListener("keydown", (e) => {
+      // Don't capture when typing in textarea
+      if (e.target.tagName === "TEXTAREA") return;
+
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigate(1);
+      }
+    });
+
+    // ---- Util ----
+    function getDownloadUri(file) {
+      if (file.data_uri) return file.data_uri;
+      if (file.data_b64) return "data:application/octet-stream;base64," + file.data_b64;
+      if (file.type === "text") return "data:text/plain;charset=utf-8," + encodeURIComponent(file.content);
+      return "#";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ---- View switching ----
+    function switchView(view) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+      document.querySelector(`[onclick="switchView('${view}')"]`).classList.add("active");
+      document.getElementById("panel-" + view).classList.add("active");
+    }
+
+    // ---- Benchmark rendering ----
+    function renderBenchmark() {
+      const data = EMBEDDED_DATA.benchmark;
+      if (!data) return;
+
+      // Show the tabs
+      document.getElementById("view-tabs").style.display = "flex";
+
+      const container = document.getElementById("benchmark-content");
+      const summary = data.run_summary || {};
+      const metadata = data.metadata || {};
+      const notes = data.notes || [];
+
+      let html = "";
+
+      // Header
+      html += "<h2 style='font-family: stolzl, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
+      if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
+      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
+      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      html += "</p>";
+
+      // Summary table
+      html += '<table class="benchmark-table">';
+
+      function fmtStat(stat, pct) {
+        if (!stat) return "—";
+        const suffix = pct ? "%" : "";
+        const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
+        const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
+        return m + suffix + " ± " + s + suffix;
+      }
+
+      function deltaClass(val) {
+        if (!val) return "";
+        const n = parseFloat(val);
+        if (n > 0) return "benchmark-delta-positive";
+        if (n < 0) return "benchmark-delta-negative";
+        return "";
+      }
+
+      // Discover config names dynamically (everything except "delta")
+      const configs = Object.keys(summary).filter(k => k !== "delta");
+      const configA = configs[0] || "config_a";
+      const configB = configs[1] || "config_b";
+      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const a = summary[configA] || {};
+      const b = summary[configB] || {};
+      const delta = summary.delta || {};
+
+      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<tbody>";
+
+      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
+      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+
+      // Time (only show row if data exists)
+      if (a.time_seconds || b.time_seconds) {
+        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
+        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      }
+
+      // Tokens (only show row if data exists)
+      if (a.tokens || b.tokens) {
+        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
+        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      }
+
+      html += "</tbody></table>";
+
+      // Per-eval breakdown (if runs data available)
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
+
+        html += "<h3 style='font-family: stolzl, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+
+        const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
+        const hasErrors = runs.some(r => r.result && r.result.errors > 0);
+
+        for (const evalId of evalIds) {
+          const evalRuns = runs.filter(r => r.eval_id === evalId);
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+
+          html += "<h4 style='font-family: stolzl, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += '<table class="benchmark-table">';
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          if (hasTime) html += "<th>Time (s)</th>";
+          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "</tr></thead>";
+          html += "<tbody>";
+
+          // Group by config and render with average rows
+          const configGroups = [...new Set(evalRuns.map(r => r.configuration))];
+          for (let ci = 0; ci < configGroups.length; ci++) {
+            const config = configGroups[ci];
+            const configRuns = evalRuns.filter(r => r.configuration === config);
+            if (configRuns.length === 0) continue;
+
+            const rowClass = ci === 0 ? "benchmark-row-with" : "benchmark-row-without";
+            const configLabel = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+            for (const run of configRuns) {
+              const r = run.result || {};
+              const prClass = r.pass_rate >= 0.8 ? "benchmark-delta-positive" : r.pass_rate < 0.5 ? "benchmark-delta-negative" : "";
+              html += '<tr class="' + rowClass + '">';
+              html += "<td>" + configLabel + "</td>";
+              html += "<td>" + run.run_number + "</td>";
+              html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
+              html += "</tr>";
+            }
+
+            // Average row
+            const rates = configRuns.map(r => (r.result || {}).pass_rate || 0);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
+            html += '<tr class="benchmark-row-avg ' + rowClass + '">';
+            html += "<td>" + configLabel + "</td>";
+            html += "<td>Avg</td>";
+            html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
+            if (hasTime) {
+              const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+            }
+            if (hasErrors) html += "<td></td>";
+            html += "</tr>";
+          }
+          html += "</tbody></table>";
+
+          // Per-assertion detail for this eval
+          const runsWithExpectations = {};
+          for (const config of configGroups) {
+            runsWithExpectations[config] = evalRuns.filter(r => r.configuration === config && r.expectations && r.expectations.length > 0);
+          }
+          const hasAnyExpectations = Object.values(runsWithExpectations).some(runs => runs.length > 0);
+          if (hasAnyExpectations) {
+            // Collect all unique assertion texts across all configs
+            const allAssertions = [];
+            const seen = new Set();
+            for (const config of configGroups) {
+              for (const run of runsWithExpectations[config]) {
+                for (const exp of (run.expectations || [])) {
+                  if (!seen.has(exp.text)) {
+                    seen.add(exp.text);
+                    allAssertions.push(exp.text);
+                  }
+                }
+              }
+            }
+
+            html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
+            html += "<thead><tr><th>Assertion</th>";
+            for (const config of configGroups) {
+              const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              html += "<th>" + escapeHtml(label) + "</th>";
+            }
+            html += "</tr></thead><tbody>";
+
+            for (const assertionText of allAssertions) {
+              html += "<tr><td>" + escapeHtml(assertionText) + "</td>";
+
+              for (const config of configGroups) {
+                html += "<td>";
+                for (const run of runsWithExpectations[config]) {
+                  const exp = (run.expectations || []).find(e => e.text === assertionText);
+                  if (exp) {
+                    const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
+                    const icon = exp.passed ? "\u2713" : "\u2717";
+                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                  } else {
+                    html += "— ";
+                  }
+                }
+                html += "</td>";
+              }
+              html += "</tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+      }
+
+      // Notes
+      if (notes.length > 0) {
+        html += '<div class="benchmark-notes">';
+        html += "<h3>Analysis Notes</h3>";
+        html += "<ul>";
+        for (const note of notes) {
+          html += "<li>" + escapeHtml(note) + "</li>";
+        }
+        html += "</ul></div>";
+      }
+
+      container.innerHTML = html;
+    }
+
+    // ---- Start ----
+    init();
+    renderBenchmark();
+  </script>
+</body>
+</html>

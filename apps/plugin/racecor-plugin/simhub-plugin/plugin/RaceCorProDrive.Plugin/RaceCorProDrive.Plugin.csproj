@@ -1,0 +1,159 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>RaceCorProDrive</AssemblyName>
+    <RootNamespace>RaceCorProDrive.Plugin</RootNamespace>
+    <Nullable>disable</Nullable>
+    <LangVersion>8.0</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+    <!--
+      SimHubPath resolution order:
+        1. SIMHUB_PATH environment variable (if set)
+        2. Default SimHub install folder (if it exists — local dev)
+        3. lib/simhub-refs/ in the repo (CI builds)
+    -->
+    <SimHubPath Condition="'$(SIMHUB_PATH)'!=''">$(SIMHUB_PATH)</SimHubPath>
+    <SimHubPath Condition="'$(SimHubPath)'=='' And Exists('C:\Program Files (x86)\SimHub\SimHubWPF.exe')">C:\Program Files (x86)\SimHub\</SimHubPath>
+    <SimHubRefsPath>$(MSBuildProjectDirectory)\..\..\lib\simhub-refs\</SimHubRefsPath>
+    <SimHubPath Condition="'$(SimHubPath)'==''">$(SimHubRefsPath)</SimHubPath>
+
+    <!--
+      ALWAYS build to a local staging folder, never directly into
+      SimHub. The previous setup wrote OutputPath=$(SimHubPath) when
+      SimHub was detected, which dumped every transitive dep
+      (System.Buffers, System.Memory, BCL polyfills, etc.) on top of
+      SimHub's stock copies. SimHub does strict patch-version checks
+      on those deps at startup; a single mismatch silently disables
+      its entire plugin manager (we hit this with Newtonsoft.Json
+      13.0.3 overwriting SimHub's 13.0.4 — once we fixed that, OTHER
+      deps in our drop-set kept doing the same kind of damage).
+
+      Now we always build to build/, and install.bat copies a
+      strict allow-list of files (our DLL + clearly-third-party
+      deps SimHub doesn't ship) into SimHub. SimHub's stock files
+      are never overwritten.
+    -->
+    <OutputPath>$(MSBuildProjectDirectory)\..\..\build\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <!--
+      true: copies third-party deps (IRSDKSharper, Fleck, MessagePack
+      and its transitive BCL polyfills) into the build/ staging
+      folder. install.bat then surgically copies only the files
+      SimHub doesn't already provide.
+    -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <!-- Plugin sidebar icon — embedded in the assembly -->
+  <ItemGroup>
+    <Resource Include="icon.png" />
+    <Resource Include="logo-racecor.png" />
+  </ItemGroup>
+
+  <!-- NuGet packages -->
+  <ItemGroup>
+    <PackageReference Include="IRSDKSharper" Version="1.1.4" />
+    <!--
+      Newtonsoft.Json + log4net come from NuGet for compile-time
+      reference resolution (so CI builds without SimHub installed
+      can compile), but their runtime DLLs are EXCLUDED from output
+      (ExcludeAssets=runtime) so we don't overwrite SimHub's own
+      versions in its install directory.
+
+      SimHub ships these DLLs and version-checks them at startup -
+      shipping a different patch (e.g. our Newtonsoft.Json 13.0.3
+      vs SimHub's 13.0.4) trips an INVALID version error in
+      SimHub.txt and disables plugin discovery entirely. Let SimHub
+      provide them; we just compile against them.
+
+      Newtonsoft.Json bumped 13.0.3 -> 13.0.4 to match what SimHub
+      v9.11+ requires (their AssemblyVersion check is patch-strict).
+    -->
+    <PackageReference Include="log4net" Version="2.0.15">
+      <ExcludeAssets>runtime</ExcludeAssets>
+      <Private>false</Private>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4">
+      <ExcludeAssets>runtime</ExcludeAssets>
+      <Private>false</Private>
+    </PackageReference>
+    <!-- WebSocket server (pure-managed, net48 compatible) -->
+    <PackageReference Include="Fleck" Version="1.2.0" />
+    <!-- MessagePack serialization (stay on 2.5.x for net48 compatibility) -->
+    <PackageReference Include="MessagePack" Version="2.5.187" />
+  </ItemGroup>
+
+  <!-- WinForms — needed for FolderBrowserDialog in settings panel -->
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+    <!-- Microsoft.CSharp — required for dynamic/DLR call sites on net48 -->
+    <Reference Include="Microsoft.CSharp" />
+    <!-- WMI — needed for Moza USB device discovery via Win32_PnPEntity -->
+    <Reference Include="System.Management" />
+  </ItemGroup>
+
+  <!--
+    SimHub plugin SDK DLLs — must NOT be copied to output (Private=False).
+    HintPath tries SimHubPath first (local dev or CI via lib/simhub-refs/).
+  -->
+  <ItemGroup>
+    <Reference Include="GameReaderCommon">
+      <HintPath>$(SimHubPath)GameReaderCommon.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="SimHub.Plugins">
+      <HintPath>$(SimHubPath)SimHub.Plugins.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="SimHub.Logging">
+      <HintPath>$(SimHubPath)SimHub.Logging.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    Dataset copy is handled by install.bat now (writes into SimHub
+    via an explicit allow-list step) — the previous in-MSBuild
+    CopyDataset target was tied to the deleted $(_IsLocalDev) flag
+    and would also write into SimHub at build time, which is exactly
+    the kind of side-effect we removed when we made OutputPath always
+    point at build/.
+  -->
+
+  <!--
+    Post-build: export built artifacts back into the repo.
+    Local dev reads from SimHub folder; CI reads from build/ folder.
+    RepoPluginDir = racecor-plugin/ (two levels up from this .csproj).
+  -->
+  <PropertyGroup>
+    <RepoPluginDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..'))\</RepoPluginDir>
+  </PropertyGroup>
+  <Target Name="ExportToRepo" AfterTargets="Build">
+    <!-- DLL -->
+    <Copy SourceFiles="$(OutputPath)RaceCorProDrive.dll"
+          DestinationFolder="$(RepoPluginDir)"
+          SkipUnchangedFiles="true" />
+    <!-- PDB (Debug builds only) -->
+    <Copy SourceFiles="$(OutputPath)RaceCorProDrive.pdb"
+          DestinationFolder="$(RepoPluginDir)"
+          Condition="Exists('$(OutputPath)RaceCorProDrive.pdb')"
+          SkipUnchangedFiles="true" />
+  
+  </Target>
+
+  <!-- Debug: launch SimHub when pressing F5 -->
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <StartAction>Program</StartAction>
+    <StartProgram>$(SimHubPath)SimHubWPF.exe</StartProgram>
+  </PropertyGroup>
+
+</Project>

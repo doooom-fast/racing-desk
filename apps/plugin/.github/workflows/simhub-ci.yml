@@ -1,0 +1,208 @@
+name: SimHub CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "racecor-plugin/**"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "racecor-plugin/simhub-plugin/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+
+  # ---------------------------------------------------------------
+  # Python tests: dataset validation + installer/export
+  # Run under coverage.py so we get a Cobertura report.
+  # ---------------------------------------------------------------
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install coverage.py
+        run: pip install --upgrade coverage
+
+      - name: Dataset validation (28 tests, with coverage)
+        working-directory: racecor-plugin/simhub-plugin
+        run: coverage run --source=tools,tests -a tests/validate_datasets.py -v
+
+      - name: Installer and export tests (34 tests, with coverage)
+        working-directory: racecor-plugin/simhub-plugin
+        run: coverage run --source=tools,tests -a tools/test_installer.py -v
+
+      - name: Emit coverage reports
+        if: always()
+        working-directory: racecor-plugin/simhub-plugin
+        run: |
+          coverage report || true
+          coverage xml -o ../../coverage-python.xml
+          coverage json -o ../../coverage-python.json
+
+      - name: Append Python coverage to job summary
+        if: always()
+        run: |
+          {
+            echo "## Python coverage (plugin)"
+            echo '```'
+            if [ -f coverage-python.json ]; then
+              jq -r '.totals | "lines    \(.percent_covered_display)%  (\(.covered_lines)/\(.num_statements))"' coverage-python.json
+            else
+              echo "no coverage-python.json produced"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post Python coverage comment on PR
+        if: github.event_name == 'pull_request' && hashFiles('coverage-python.xml') != ''
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage-python.xml
+          format: markdown
+          output: both
+          badge: true
+          hide_complexity: true
+          indicators: true
+
+      - name: Add Python coverage PR comment
+        if: github.event_name == 'pull_request' && hashFiles('code-coverage-results.md') != ''
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: code-coverage-results.md
+          header: plugin-python-coverage
+
+      - name: Upload Python coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-python-coverage
+          path: |
+            coverage-python.xml
+            coverage-python.json
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------
+  # Build plugin from source (verifies C# compiles on CI)
+  # SimHub SDK DLLs committed in racecor-plugin/simhub-plugin/lib/simhub-refs/
+  # ---------------------------------------------------------------
+  build-plugin:
+    name: Build Plugin
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build plugin (Release)
+        run: dotnet build racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/RaceCorProDrive.Plugin.csproj -c Release
+
+      - name: Verify DLL was produced
+        run: |
+          if (!(Test-Path "racecor-plugin/simhub-plugin/RaceCorProDrive.dll")) {
+            Write-Error "Plugin DLL not produced by build."
+            exit 1
+          }
+          Write-Host "OK: RaceCorProDrive.dll built successfully"
+        shell: pwsh
+
+  # ---------------------------------------------------------------
+  # C# unit tests with Coverlet — Cobertura output → PR comment.
+  # ---------------------------------------------------------------
+  dotnet-tests:
+    name: C# Tests (NUnit + Coverlet)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "6.0.x"
+
+      - name: Restore NuGet packages
+        run: dotnet restore racecor-plugin/simhub-plugin/tests/RaceCorProDrive.Tests/RaceCorProDrive.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build racecor-plugin/simhub-plugin/tests/RaceCorProDrive.Tests/RaceCorProDrive.Tests.csproj --no-restore
+
+      - name: Run tests with coverage
+        run: |
+          dotnet test racecor-plugin/simhub-plugin/tests/RaceCorProDrive.Tests/RaceCorProDrive.Tests.csproj \
+            --no-build \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --settings racecor-plugin/simhub-plugin/tests/RaceCorProDrive.Tests/coverlet.runsettings \
+            --results-directory TestResults
+
+      - name: Locate coverage report
+        run: |
+          report=$(find TestResults -name 'coverage.cobertura.xml' | head -n1)
+          if [ -z "$report" ]; then
+            echo "::error::coverage.cobertura.xml not found"
+            exit 1
+          fi
+          mkdir -p coverage
+          cp "$report" coverage/cobertura-coverage.xml
+
+      - name: Append C# coverage to job summary
+        if: always()
+        run: |
+          {
+            echo "## C# coverage (plugin)"
+            echo '```'
+            if [ -f coverage/cobertura-coverage.xml ]; then
+              python3 - <<'PY'
+import xml.etree.ElementTree as ET
+t = ET.parse('coverage/cobertura-coverage.xml').getroot()
+line_rate = float(t.attrib.get('line-rate', 0)) * 100
+branch_rate = float(t.attrib.get('branch-rate', 0)) * 100
+print(f"lines    {line_rate:.2f}%  ({t.attrib.get('lines-covered','?')}/{t.attrib.get('lines-valid','?')})")
+print(f"branches {branch_rate:.2f}%  ({t.attrib.get('branches-covered','?')}/{t.attrib.get('branches-valid','?')})")
+PY
+            else
+              echo "no cobertura report found"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post C# coverage comment on PR
+        if: github.event_name == 'pull_request' && hashFiles('coverage/cobertura-coverage.xml') != ''
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage/cobertura-coverage.xml
+          format: markdown
+          output: both
+          badge: true
+          hide_complexity: true
+          indicators: true
+
+      - name: Add C# coverage PR comment
+        if: github.event_name == 'pull_request' && hashFiles('code-coverage-results.md') != ''
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: code-coverage-results.md
+          header: plugin-csharp-coverage
+
+      - name: Upload C# coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-csharp-coverage
+          path: |
+            coverage/
+            TestResults/
+          if-no-files-found: warn

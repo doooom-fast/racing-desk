@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "simhub-telemetry": {
+      "command": "node",
+      "args": ["src/agents/simhub-telemetry/dist/index.js"],
+      "env": {}
+    },
+    "k10-plugin": {
+      "command": "node",
+      "args": ["src/agents/k10-plugin/dist/index.js"],
+      "env": {
+        "K10_PLUGIN_ROOT": "racecor-plugin"
+      }
+    },
+    "k10-broadcaster": {
+      "command": "node",
+      "args": ["src/agents/k10-broadcaster/dist/index.js"],
+      "env": {
+        "K10_BROADCASTER_ROOT": "racecor-overlay"
+      }
+    }
+  }
+}

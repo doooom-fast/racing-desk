@@ -1,0 +1,95 @@
+name: Build & Release
+
+# Builds the SimHub plugin (C# net48) on a v* tag and attaches the
+# packed build/ tree as a release asset. Consumed by prodrive-windows'
+# release.yml, which downloads the latest plugin release zip and
+# bundles it into the combined installer.
+#
+# Homebridge plugin is published separately via npm and is not part
+# of this workflow — it has no role in the Windows installer.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-simhub:
+    name: Build SimHub Plugin
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Stamp version from tag
+        # Rewrites AssemblyVersion / AssemblyFileVersion in
+        # AssemblyInfo.cs from the pushed git tag so the built DLL
+        # actually reflects the release. Without this the CI just
+        # builds whatever was last manually written into the file -
+        # which is how 0.9.42 kept shipping under newer tags.
+        # Tag format: v<MAJOR>.<MINOR>.<PATCH>  (e.g. v0.12.0)
+        # Stamped form: <MAJOR>.<MINOR>.<PATCH>.0
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v(\d+)\.(\d+)\.(\d+)$') {
+            throw "Tag '$tag' is not in the expected vMAJOR.MINOR.PATCH format"
+          }
+          $version = "$($matches[1]).$($matches[2]).$($matches[3]).0"
+          Write-Host "Stamping version: $version"
+          $info = "racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/Properties/AssemblyInfo.cs"
+          $content = Get-Content $info -Raw
+          $content = $content -replace 'AssemblyVersion\("[^"]+"\)',     ('AssemblyVersion("'    + $version + '")')
+          $content = $content -replace 'AssemblyFileVersion\("[^"]+"\)', ('AssemblyFileVersion("' + $version + '")')
+          Set-Content -Path $info -Value $content -NoNewline
+          # Echo the result so the version is visible in the run log.
+          Get-Content $info | Select-String 'AssemblyVersion|AssemblyFileVersion'
+
+      - name: Build plugin (Release)
+        shell: pwsh
+        run: |
+          dotnet build `
+            racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/RaceCorProDrive.Plugin.csproj `
+            -c Release
+          $dll = "racecor-plugin/simhub-plugin/build/RaceCorProDrive.dll"
+          if (-not (Test-Path $dll)) { throw "Plugin DLL not produced at $dll" }
+          Write-Host "Built: $((Get-Item $dll).Length) bytes"
+
+      - name: Pack build/ tree
+        shell: pwsh
+        run: |
+          # The build/ output contains DLLs only. Plugin.cs's
+          # ResolveDatasetFile() looks for racecorprodrive-data/ next
+          # to RaceCorProDrive.dll on disk to load the commentary
+          # corpus (topics, fragments, cars, tracks, sentiments). If
+          # the data folder isn't shipped alongside the DLL, the
+          # CommentaryEngine quietly falls back to the 2-topic
+          # hardcoded stub and the overlay's commentary panel goes
+          # essentially silent. Stage the data folder into build/
+          # before zipping so the host installer's CopyTreeRecursive
+          # step has something to copy into SimHub.
+          $dataSrc  = "racecor-plugin/simhub-plugin/racecorprodrive-data"
+          $dataDest = "racecor-plugin/simhub-plugin/build/racecorprodrive-data"
+          if (-not (Test-Path "$dataSrc/commentary_topics.json")) {
+            throw "Plugin data folder missing or incomplete at $dataSrc — commentary corpus would not ship."
+          }
+          Copy-Item -Recurse -Force $dataSrc $dataDest
+          Compress-Archive `
+            -Path racecor-plugin/simhub-plugin/build/* `
+            -DestinationPath simhub-plugin.zip
+          Write-Host "Packed: $((Get-Item simhub-plugin.zip).Length) bytes"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: simhub-plugin.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

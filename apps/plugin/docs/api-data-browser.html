@@ -1,0 +1,3004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RaceCorProDrive — API Data Browser</title>
+<style>
+  :root {
+    --bg: #0a0b0e;
+    --surface: #12141a;
+    --surface2: #1a1d26;
+    --surface3: #21263a;
+    --border: #2a2f44;
+    --accent: #e8a020;
+    --accent2: #5b8fff;
+    --accent3: #3ecf7e;
+    --accent4: #e05a5a;
+    --accent5: #b97ef5;
+    --text: #e4e6f0;
+    --text-dim: #7a8099;
+    --text-bright: #ffffff;
+    --tag-bg: #1e2235;
+    --iracing: #00b4ff;
+    --simhub: #e8a020;
+    --commentary: #3ecf7e;
+    --computed: #b97ef5;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 13px;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--accent), #c07010);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  .logo-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: -0.3px;
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .search-wrap {
+    flex: 1;
+    min-width: 200px;
+    max-width: 480px;
+    position: relative;
+  }
+
+  .search-wrap svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  #search {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 9px 12px 9px 36px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  #search:focus {
+    border-color: var(--accent);
+  }
+
+  #search::placeholder { color: var(--text-dim); }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 11px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .result-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .result-count span { color: var(--accent); font-weight: 600; }
+
+  /* ─── LEGEND ─── */
+  .legend {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 10px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .legend-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-right: 4px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ─── LAYOUT ─── */
+  .content {
+    padding: 20px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* ─── SECTION ─── */
+  .section {
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: opacity 0.2s;
+  }
+
+  .section.hidden { display: none; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+
+  .section-header:hover { background: var(--surface3); }
+
+  .section-chevron {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+    opacity: 0.5;
+  }
+
+  .section.collapsed .section-chevron { transform: rotate(-90deg); }
+
+  .section-stripe {
+    width: 3px;
+    height: 20px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+    flex: 1;
+  }
+
+  .section-source {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    opacity: 0.85;
+  }
+
+  .section-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2px 8px;
+    min-width: 28px;
+    text-align: center;
+  }
+
+  /* ─── GRID ─── */
+  .section-body {
+    background: var(--surface);
+    padding: 12px;
+  }
+
+  .section.collapsed .section-body { display: none; }
+
+  .fields-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 8px;
+  }
+
+  /* ─── FIELD CARD ─── */
+  .field-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 13px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .field-card:hover {
+    border-color: #3a4060;
+    background: var(--surface3);
+  }
+
+  .field-card.search-hidden { display: none; }
+  .field-card.search-match .field-name { color: var(--accent); }
+
+  .field-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 5px;
+  }
+
+  .field-source-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  .field-name {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-bright);
+    word-break: break-all;
+    flex: 1;
+    line-height: 1.4;
+  }
+
+  .field-type {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+    font-family: monospace;
+    white-space: nowrap;
+  }
+
+  .field-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-left: 14px;
+  }
+
+  .field-meta {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    margin-left: 14px;
+    flex-wrap: wrap;
+  }
+
+  .field-tag {
+    font-size: 10px;
+    background: var(--tag-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 7px;
+    color: var(--text-dim);
+  }
+
+  .field-tag.range { border-color: #2a3560; color: #5b8fff; }
+  .field-tag.unit { border-color: #2a3a2a; color: #3ecf7e; }
+  .field-tag.trigger { border-color: #3a2a3a; color: #b97ef5; }
+  .field-tag.threshold { border-color: #3a2a20; color: #e8a020; }
+
+  /* source badges on each card */
+  .field-tag.source-iracing    { border-color: rgba(0,180,255,0.35); color: var(--iracing); background: rgba(0,180,255,0.07); font-weight: 600; }
+  .field-tag.source-simhub     { border-color: rgba(232,160,32,0.35); color: var(--simhub); background: rgba(232,160,32,0.07); font-weight: 600; }
+  .field-tag.source-commentary { border-color: rgba(62,207,126,0.35); color: var(--commentary); background: rgba(62,207,126,0.07); font-weight: 600; }
+  .field-tag.source-computed   { border-color: rgba(185,126,245,0.35); color: var(--computed); background: rgba(185,126,245,0.07); font-weight: 600; }
+  .field-tag.source-simhub-gd  { border-color: rgba(30,184,200,0.35); color: #1eb8c8; background: rgba(30,184,200,0.07); font-weight: 600; }
+
+  /* status badges */
+  .field-tag.wired      { border-color: rgba(62,207,126,0.4); color: #3ecf7e; background: rgba(62,207,126,0.08); }
+  .field-tag.deprecated { border-color: rgba(224,90,90,0.4);  color: #e05a5a; background: rgba(224,90,90,0.08); }
+  .field-tag.live-only  { border-color: rgba(185,126,245,0.4);color: #b97ef5; background: rgba(185,126,245,0.08); }
+  .field-tag.disk-only  { border-color: rgba(91,143,255,0.4); color: #5b8fff; background: rgba(91,143,255,0.08); }
+
+  /* simhub-gamedata stripe colour */
+  .bg-simhub-gd            { background: #1eb8c8; }
+  .label-simhub-gd         { background: rgba(30,184,200,0.12); color: #1eb8c8; }
+  .field-source-dot.bg-simhub-gd { background: #1eb8c8; }
+
+  /* ─── TRIGGER CARD ─── */
+  .trigger-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 13px;
+    transition: border-color 0.15s;
+  }
+
+  .trigger-card:hover { border-color: #3a4060; }
+  .trigger-card.search-hidden { display: none; }
+  .trigger-card.search-match .trigger-name { color: var(--accent); }
+
+  .trigger-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-bottom: 3px;
+  }
+
+  .trigger-condition {
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(232, 160, 32, 0.08);
+    border: 1px solid rgba(232, 160, 32, 0.2);
+    border-radius: 4px;
+    padding: 2px 8px;
+    display: inline-block;
+    margin: 4px 0;
+  }
+
+  .trigger-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-top: 4px;
+  }
+
+  /* ─── EMPTY STATE ─── */
+  .no-results {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--text-dim);
+    display: none;
+  }
+
+  .no-results.visible { display: block; }
+
+  .no-results-icon { font-size: 36px; margin-bottom: 12px; }
+  .no-results h3 { font-size: 15px; color: var(--text); margin-bottom: 6px; }
+  .no-results p { font-size: 12px; }
+
+  /* ─── COLOR SOURCES ─── */
+  .src-iracing   { color: var(--iracing); }
+  .src-simhub    { color: var(--simhub); }
+  .src-commentary{ color: var(--commentary); }
+  .src-computed  { color: var(--computed); }
+
+  .bg-iracing   { background: var(--iracing); }
+  .bg-simhub    { background: var(--simhub); }
+  .bg-commentary{ background: var(--commentary); }
+  .bg-computed  { background: var(--computed); }
+  .bg-mixed     { background: var(--accent4); }
+
+  .label-iracing    { background: rgba(0,180,255,0.12); color: var(--iracing); }
+  .label-simhub     { background: rgba(232,160,32,0.12); color: var(--simhub); }
+  .label-commentary { background: rgba(62,207,126,0.12); color: var(--commentary); }
+  .label-computed   { background: rgba(185,126,245,0.12); color: var(--computed); }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 700px) {
+    header { padding: 12px 16px; }
+    .content { padding: 12px 16px; }
+    .fields-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🏁</div>
+    <div>
+      <div class="logo-text">RaceCorProDrive</div>
+      <div class="logo-sub">API Data Browser</div>
+    </div>
+  </div>
+
+  <div class="search-wrap">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input type="text" id="search" placeholder="Search fields, descriptions, units…" autocomplete="off" spellcheck="false">
+  </div>
+
+  <div class="result-count" id="result-count"><span id="visible-count">0</span> of <span id="total-count">0</span> fields</div>
+
+  <div class="header-actions">
+    <button class="btn" id="expand-all">Expand All</button>
+    <button class="btn" id="collapse-all">Collapse All</button>
+  </div>
+</header>
+
+<!-- LEGEND -->
+<div class="legend">
+  <span class="legend-label">Source</span>
+  <div class="legend-item"><div class="dot bg-iracing"></div> iRacing Telemetry</div>
+  <div class="legend-item"><div class="dot bg-simhub"></div> SimHub Plugin</div>
+  <div class="legend-item"><div class="dot bg-commentary"></div> Commentary System</div>
+  <div class="legend-item"><div class="dot bg-computed"></div> Computed / Derived</div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="content" id="content">
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 1 — SPEED, ENGINE & CONTROLS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-engine">
+    <div class="section-header" onclick="toggleSection('sec-engine')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Speed, Engine &amp; Driver Inputs</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-engine"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-engine">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SpeedKmh</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Current vehicle speed in kilometres per hour</div>
+          <div class="field-meta">
+            <span class="field-tag unit">km/h</span>
+            <span class="field-tag range">0 – 400</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">Rpms</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Current engine revolutions per minute</div>
+          <div class="field-meta">
+            <span class="field-tag unit">RPM</span>
+            <span class="field-tag range">0 – 18 000</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">MaxRpm</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Engine redline / maximum RPM for the current car</div>
+          <div class="field-meta">
+            <span class="field-tag unit">RPM</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">RpmRatio</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Normalised RPM as a fraction of redline (Rpms ÷ MaxRpm)</div>
+          <div class="field-meta">
+            <span class="field-tag range">0.0 – 1.0</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">Gear</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Current selected gear. -1 = Reverse, 0 = Neutral, 1–9 = forward gears</div>
+          <div class="field-meta">
+            <span class="field-tag range">-1 – 9</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">Throttle</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Throttle pedal position (0 = fully off, 100 = wide open throttle)</div>
+          <div class="field-meta">
+            <span class="field-tag unit">%</span>
+            <span class="field-tag range">0 – 100</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">Brake</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Brake pedal position (0 = fully off, 100 = maximum braking)</div>
+          <div class="field-meta">
+            <span class="field-tag unit">%</span>
+            <span class="field-tag range">0 – 100</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">Clutch</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Clutch pedal position (0 = fully released, 100 = fully pressed)</div>
+          <div class="field-meta">
+            <span class="field-tag unit">%</span>
+            <span class="field-tag range">0 – 100</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">FrameRate</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Game render frame rate — how many frames per second iRacing is producing</div>
+          <div class="field-meta">
+            <span class="field-tag unit">FPS</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 2 — LAP TIMING
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-timing">
+    <div class="section-header" onclick="toggleSection('sec-timing')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Lap Timing &amp; Sector Splits</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-timing"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-timing">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">CurrentLap</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Current lap number counting from lap 1 at the start of the session</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">CompletedLaps</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Number of fully completed laps this session</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">LapCurrentTime</div>
+            <div class="field-type">TimeSpan</div>
+          </div>
+          <div class="field-desc">Elapsed time on the current in-progress lap</div>
+          <div class="field-meta">
+            <span class="field-tag unit">seconds</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">LapLastTime</div>
+            <div class="field-type">TimeSpan</div>
+          </div>
+          <div class="field-desc">Time recorded for the most recently completed lap</div>
+          <div class="field-meta">
+            <span class="field-tag unit">seconds</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">LapBestTime</div>
+            <div class="field-type">TimeSpan</div>
+          </div>
+          <div class="field-desc">Driver's personal best lap time in this session</div>
+          <div class="field-meta">
+            <span class="field-tag unit">seconds</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">LapDeltaToBest</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Live delta time vs personal best on current lap. Negative = ahead of best</div>
+          <div class="field-meta">
+            <span class="field-tag unit">seconds</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SessionTimeRemain</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Remaining time in a timed session. Returns very large value for lap-count sessions</div>
+          <div class="field-meta">
+            <span class="field-tag unit">seconds</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">CurrentSector</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Which track sector the car is currently in (1, 2, or 3)</div>
+          <div class="field-meta">
+            <span class="field-tag range">1 – 3</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SectorSplitS1 / S2 / S3</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Time recorded for sectors 1, 2, and 3 of the current or last lap</div>
+          <div class="field-meta">
+            <span class="field-tag unit">seconds</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SectorDeltaS1 / S2 / S3</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Time delta for each sector vs personal best split. Negative = improvement</div>
+          <div class="field-meta">
+            <span class="field-tag unit">seconds</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SectorStateS1 / S2 / S3</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Sector colour state: 0 = none, 1 = personal best, 2 = faster than PB, 3 = slower than PB</div>
+          <div class="field-meta">
+            <span class="field-tag range">0 – 3</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 3 — RACE POSITION & SESSION
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-session">
+    <div class="section-header" onclick="toggleSection('sec-session')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Race Position &amp; Session State</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-session"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-session">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">Position</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Current race position (1 = leader)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TrackPositionPct</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Fraction of track distance completed on current lap. Used for track map positioning</div>
+          <div class="field-meta">
+            <span class="field-tag range">0.0 – 1.0</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SessionTypeName</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Human-readable session type name</div>
+          <div class="field-meta">
+            <span class="field-tag">"Race" | "Qualify" | "Practice" | "Time Trial"</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SessionState</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Current phase of the session lifecycle</div>
+          <div class="field-meta">
+            <span class="field-tag">0=Invalid 1=GetInCar 2=Warmup 3=ParadeLaps 4=Racing 5=Checkered 6=Cooldown</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">CarModel</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Name of the car being driven in this session (e.g. "Dallara IR-18")</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TotalCars</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Total number of cars participating in the session</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">GriddedCars</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Number of cars still on-track and on the lead lap grid</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">PaceMode</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Formation/safety car pacing state during caution periods</div>
+          <div class="field-meta">
+            <span class="field-tag">0=NotPacing 1=Pacing 2=Approaching 3=FieldCrossSF</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">IsStandingStart</div>
+            <div class="field-type">bool</div>
+          </div>
+          <div class="field-desc">True if the race uses a standing start (grid); false for rolling/pace-car starts</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TrackCountry</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">ISO 3166-1 alpha-2 country code of the track location (e.g. "DE", "US", "AU")</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">CarIdxLapDistPct[]</div>
+            <div class="field-type">float[]</div>
+          </div>
+          <div class="field-desc">Array of track position fractions for every car in the session, indexed by car index</div>
+          <div class="field-meta">
+            <span class="field-tag range">0.0 – 1.0 per car</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">CarIdxLapCompleted[]</div>
+            <div class="field-type">int[]</div>
+          </div>
+          <div class="field-desc">Number of completed laps for every car in the session, indexed by car index</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 4 — TYRES
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-tyres">
+    <div class="section-header" onclick="toggleSection('sec-tyres')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Tyres — Temperature &amp; Wear</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-tyres"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-tyres">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TyreTempFL</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Front-left tyre surface temperature</div>
+          <div class="field-meta"><span class="field-tag unit">°F (iRacing native)</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TyreTempFR</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Front-right tyre surface temperature</div>
+          <div class="field-meta"><span class="field-tag unit">°F (iRacing native)</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TyreTempRL</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Rear-left tyre surface temperature</div>
+          <div class="field-meta"><span class="field-tag unit">°F (iRacing native)</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TyreTempRR</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Rear-right tyre surface temperature</div>
+          <div class="field-meta"><span class="field-tag unit">°F (iRacing native)</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TyreWearFL</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Front-left tyre wear remaining — 1.0 is brand new, 0.0 is fully worn</div>
+          <div class="field-meta">
+            <span class="field-tag range">0.0 – 1.0</span>
+            <span class="field-tag trigger">trigger at &lt; 0.35</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TyreWearFR</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Front-right tyre wear remaining — 1.0 is brand new, 0.0 is fully worn</div>
+          <div class="field-meta">
+            <span class="field-tag range">0.0 – 1.0</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TyreWearRL</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Rear-left tyre wear remaining</div>
+          <div class="field-meta"><span class="field-tag range">0.0 – 1.0</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TyreWearRR</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Rear-right tyre wear remaining</div>
+          <div class="field-meta"><span class="field-tag range">0.0 – 1.0</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 5 — FUEL
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-fuel">
+    <div class="section-header" onclick="toggleSection('sec-fuel')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Fuel</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-fuel"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-fuel">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">FuelLevel</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Current fuel quantity in the tank</div>
+          <div class="field-meta"><span class="field-tag unit">litres</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">FuelPercent</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Fuel level as a percentage of the tank's total capacity</div>
+          <div class="field-meta">
+            <span class="field-tag unit">%</span>
+            <span class="field-tag range">0 – 100</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">FuelLapsRemaining</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Estimated laps of fuel remaining based on rolling average consumption per lap</div>
+          <div class="field-meta"><span class="field-tag unit">laps</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">Fuel_LitersPerLap</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Average fuel consumption per lap calculated by SimHub over the last several laps</div>
+          <div class="field-meta"><span class="field-tag unit">litres/lap</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 6 — PHYSICS & G-FORCES
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-physics">
+    <div class="section-header" onclick="toggleSection('sec-physics')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Physics, G-Forces &amp; World-Space Velocity</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-physics"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-physics">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">LatAccel</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Lateral (side-to-side) acceleration in G-force. Positive = right, negative = left</div>
+          <div class="field-meta">
+            <span class="field-tag unit">G</span>
+            <span class="field-tag trigger">trigger threshold: &gt; 4.5G</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">LongAccel</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Longitudinal (fore-aft) acceleration. Negative during braking. Used for heavy braking detection</div>
+          <div class="field-meta">
+            <span class="field-tag unit">m/s²</span>
+            <span class="field-tag trigger">trigger threshold: &lt; -38 m/s²</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">VertAccel</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Vertical acceleration. Spike above 10G = kerb hit; spike above 20G = wall contact</div>
+          <div class="field-meta">
+            <span class="field-tag unit">G</span>
+            <span class="field-tag trigger">kerb: &gt;10G spike | wall: &gt;20G spike</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">YawRate</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Rate of rotation around the car's vertical axis. High values indicate snap oversteer or spin</div>
+          <div class="field-meta">
+            <span class="field-tag unit">rad/s</span>
+            <span class="field-tag trigger">spin catch threshold: &gt; 3.0 rad/s</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">VelocityX</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Lateral velocity component in car-local coordinates. Used for track map dot rendering</div>
+          <div class="field-meta"><span class="field-tag unit">m/s</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">VelocityZ</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Forward velocity component in car-local coordinates. Used for track map dot rendering</div>
+          <div class="field-meta"><span class="field-tag unit">m/s</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">Yaw</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Car heading angle in world space. Combined with VelocityX/Z to draw directional track map cursor</div>
+          <div class="field-meta"><span class="field-tag unit">radians</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 7 — DRIVER AIDS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-aids">
+    <div class="section-header" onclick="toggleSection('sec-aids')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Driver Aids — ABS &amp; Traction Control</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-aids"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-aids">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">AbsActive</div>
+            <div class="field-type">bool</div>
+          </div>
+          <div class="field-desc">True at this exact moment if ABS is actively intervening and modulating brake pressure</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TcActive</div>
+            <div class="field-type">bool</div>
+          </div>
+          <div class="field-desc">True at this exact moment if traction control is actively cutting power to prevent wheelspin</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">AbsSetting</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Current ABS aggressiveness level set by the driver. Higher = more intervention</div>
+          <div class="field-meta">
+            <span class="field-tag range">0 – 12</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TractionControlSetting</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Current TC aggressiveness level set by the driver. Higher = more intervention</div>
+          <div class="field-meta">
+            <span class="field-tag range">0 – 12</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 8 — FLAGS & INCIDENTS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-flags">
+    <div class="section-header" onclick="toggleSection('sec-flags')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Flags, Safety &amp; Incidents</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-flags"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-flags">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SessionFlags</div>
+            <div class="field-type">bitmask</div>
+          </div>
+          <div class="field-desc">Bitmask of all active flags. Race: checkered (0x01), white (0x02), green (0x04), yellow (0x08), red (0x10), blue (0x20), debris (0x40), crossed (0x80). Caution: yellowWaving (0x100), oneLapToGreen (0x200), greenHeld (0x400), tenToGo (0x800), fiveToGo (0x1000), caution (0x4000), cautionWaving (0x8000). Penalty: black (0x10000), disqualify (0x20000), servicible/meatball (0x40000), furled (0x80000), repair (0x100000). Start lights: hidden (0x10000000), ready (0x20000000), set (0x40000000), go (0x80000000)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">CurrentFlagState</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Human-readable current flag decoded from SessionFlags bitmask</div>
+          <div class="field-meta">
+            <span class="field-tag">"green" | "yellow" | "red" | "checkered" | "black" | "debris" | "white"</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">IncidentCount</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Cumulative iRacing incident points accumulated this session (x = 0.5x, off-track = 1x, contact = 2–4x)</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 9 — PITS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-pit">
+    <div class="section-header" onclick="toggleSection('sec-pit')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Pit Lane &amp; Pit Stop Services</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-pit"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-pit">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">IsInPit</div>
+            <div class="field-type">bool</div>
+          </div>
+          <div class="field-desc">True when the car is in the pit stall being serviced</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">IsInPitLane</div>
+            <div class="field-type">bool</div>
+          </div>
+          <div class="field-desc">True when the car is anywhere in the pit lane (includes driving through)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">PitLimiterOn</div>
+            <div class="field-type">bool</div>
+          </div>
+          <div class="field-desc">True when the pit lane speed limiter is active</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">PitSpeedLimitKmh</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Maximum permitted speed in the pit lane for this circuit</div>
+          <div class="field-meta"><span class="field-tag unit">km/h</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">PitSvFlags</div>
+            <div class="field-type">bitmask</div>
+          </div>
+          <div class="field-desc">Bitmask of pit services selected for the next stop (fuel, LF/RF/LR/RR tyres, windshield, fast repair)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">PitSvFuel</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Amount of fuel to add during the next pit stop as selected in the pit menu</div>
+          <div class="field-meta"><span class="field-tag unit">litres</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">PitSvLFP / RFP / LRP / RRP</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Target tyre pressures for each corner to be set during the next pit stop</div>
+          <div class="field-meta"><span class="field-tag unit">kPa</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">PitSvTireCompound</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Tyre compound selected for the next pit stop (car/series dependent mapping)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">PitSvFastRepair</div>
+            <div class="field-type">bool</div>
+          </div>
+          <div class="field-desc">True if fast repair (where permitted by the series) has been selected for the next stop</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">PitSvWindshieldTearoff</div>
+            <div class="field-type">bool</div>
+          </div>
+          <div class="field-desc">True if a windshield tear-off is selected for the next pit stop</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 10 — IN-CAR ADJUSTMENTS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-setup">
+    <div class="section-header" onclick="toggleSection('sec-setup')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">In-Car Adjustments</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-setup"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-setup">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">BrakeBias</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Brake balance front/rear distribution as adjusted from the cockpit</div>
+          <div class="field-meta">
+            <span class="field-tag unit">%</span>
+            <span class="field-tag range">30 – 70</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">ArbFront / ArbRear</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Anti-roll bar stiffness setting for front and rear axles. Adjustable during the race on some cars</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">WingFront / WingRear</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Front and rear aerodynamic wing angle setting (applicable on open-wheel cars with adjustable aero)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">EnginePower</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Engine power map or mode setting selected by the driver</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">FuelMixture</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Fuel mixture richness setting — affects consumption rate and power output</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">WeightJackerLeft / Right</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Weight jacker position for left and right corners (oval-specific handling adjustment)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SteeringWheelAngle</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Current steering wheel rotation angle from the straight-ahead position</div>
+          <div class="field-meta"><span class="field-tag unit">radians</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SteeringWheelTorque</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Force feedback torque being output by the game to the steering wheel. Spike detection at &gt; 25 Nm</div>
+          <div class="field-meta">
+            <span class="field-tag unit">Nm</span>
+            <span class="field-tag trigger">ffb spike: &gt; 25 Nm</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 11 — ENVIRONMENT
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-env">
+    <div class="section-header" onclick="toggleSection('sec-env')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Environment &amp; Track Conditions</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-env"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-env">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">TrackTemp</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Current track surface temperature. Commentary triggers above hot threshold or below cold threshold</div>
+          <div class="field-meta">
+            <span class="field-tag unit">°C</span>
+            <span class="field-tag trigger">hot: &gt; 45°C | cold: &lt; 15°C</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">WeatherWet</div>
+            <div class="field-type">bool</div>
+          </div>
+          <div class="field-desc">True if the current track state is classified as wet (rain or damp conditions active)</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 12 — OPPONENTS & GAPS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-opponents">
+    <div class="section-header" onclick="toggleSection('sec-opponents')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">Opponents &amp; Proximity Gaps</div>
+      <span class="section-source label-iracing">iRacing</span>
+      <span class="section-count" id="count-sec-opponents"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-opponents">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">NearestAheadName</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Driver name of the nearest car ahead on track</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">NearestBehindName</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Driver name of the nearest car behind on track</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">NearestAheadRating</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">iRating of the nearest car ahead</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">NearestBehindRating</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">iRating of the nearest car behind</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">GapAhead</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Time gap to the car ahead based on interpolated track positions</div>
+          <div class="field-meta"><span class="field-tag unit">seconds</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">GapBehind</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Time gap to the car behind based on interpolated track positions</div>
+          <div class="field-meta"><span class="field-tag unit">seconds</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">NearestCarDistance</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Track distance fraction to the nearest car in any direction. Used for close-battle proximity detection</div>
+          <div class="field-meta">
+            <span class="field-tag range">0.0 – 1.0</span>
+            <span class="field-tag trigger">close battle: &lt; 0.008</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 13 — ERS / DRS / HYBRID
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-hybrid">
+    <div class="section-header" onclick="toggleSection('sec-hybrid')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">ERS / DRS / Hybrid Systems</div>
+      <span class="section-source label-iracing">iRacing (F1 cars)</span>
+      <span class="section-count" id="count-sec-hybrid"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-hybrid">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">DrsStatus</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">DRS (Drag Reduction System) availability state for the current lap/zone</div>
+          <div class="field-meta">
+            <span class="field-tag">0=unavailable 1=available 2=active</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">ErsBattery</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Energy Recovery System battery charge level. Low battery triggers commentary event</div>
+          <div class="field-meta">
+            <span class="field-tag unit">%</span>
+            <span class="field-tag range">0 – 100</span>
+            <span class="field-tag trigger">low ERS: &lt; 20%</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">MgukPower</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Motor Generator Unit – Kinetic power output (hybrid deployment to drive wheels)</div>
+          <div class="field-meta"><span class="field-tag unit">kW</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 14 — iRATING & SAFETY
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-rating">
+    <div class="section-header" onclick="toggleSection('sec-rating')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-iracing"></div>
+      <div class="section-title">iRating &amp; Safety Rating</div>
+      <span class="section-source label-iracing">iRacing Extra Properties</span>
+      <span class="section-count" id="count-sec-rating"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-rating">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">IRating</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Player's current iRating — iRacing's competitive skill ranking. Requires "iRacing Extra Properties" SimHub plugin</div>
+          <div class="field-meta">
+            <span class="field-tag range">100 – 10 000+</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">SafetyRating</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Player's iRacing Safety Rating — determines licence class (Rookie/D/C/B/A/Pro)</div>
+          <div class="field-meta">
+            <span class="field-tag range">0.0 – 4.99</span>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">EstimatedIRatingDelta</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Projected iRating change if the race ended at the current position. Can be negative</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-iracing"></div>
+            <div class="field-name">IRatingFieldSize</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Total number of drivers used for iRating calculation (field size for the split)</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 15 — SIMHUB PLUGIN OUTPUT
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-plugin">
+    <div class="section-header" onclick="toggleSection('sec-plugin')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-simhub"></div>
+      <div class="section-title">SimHub Plugin Output Properties</div>
+      <span class="section-source label-simhub">RaceCorProDrive.Plugin.*</span>
+      <span class="section-count" id="count-sec-plugin"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-plugin">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">CommentaryText</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">The current broadcaster commentary prompt text, fully assembled and ready to display</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">CommentaryVisible</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Whether commentary should currently be shown on the HUD. 1 = active, 0 = idle/hidden</div>
+          <div class="field-meta"><span class="field-tag range">0 | 1</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">CommentaryCategory</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Composite category+sentiment label for the active commentary (e.g. "car_response:positive")</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">CommentaryTitle</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Topic display title for the active commentary event (e.g. "Big Save", "Personal Best")</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">CommentarySeverity</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">How notable the triggering event was. Higher values produce more dramatic commentary responses</div>
+          <div class="field-meta"><span class="field-tag range">0 – 5</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">CommentarySentimentColor</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Background colour for the commentary panel derived from the sentiment of the event</div>
+          <div class="field-meta"><span class="field-tag">#AARRGGBB hex</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">CommentaryTextColor</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Foreground text colour guaranteed to contrast with CommentarySentimentColor for readability</div>
+          <div class="field-meta"><span class="field-tag">#AARRGGBB hex</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">CurrentEventExposition</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Short factual description of the current race event for display in the broadcast HUD</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 16 — HTTP API FIELDS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-api">
+    <div class="section-header" onclick="toggleSection('sec-api')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-simhub"></div>
+      <div class="section-title">HTTP API — Snapshot Fields</div>
+      <span class="section-source label-simhub">GET :8889/racecor-io-pro-drive/</span>
+      <span class="section-count" id="count-sec-api"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-api">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">DS.LatG</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Lateral G-force as exposed in the API snapshot</div>
+          <div class="field-meta"><span class="field-tag unit">G</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">DS.LongG</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Longitudinal G-force as exposed in the API snapshot</div>
+          <div class="field-meta"><span class="field-tag unit">G</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">DS.VertG</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Vertical G-force / bump force as exposed in the API snapshot</div>
+          <div class="field-meta"><span class="field-tag unit">G</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">DS.YawRate</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Yaw rotation rate as exposed in the API snapshot</div>
+          <div class="field-meta"><span class="field-tag unit">rad/s</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">DS.SteerTorque</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Steering wheel force feedback torque as exposed in the API snapshot</div>
+          <div class="field-meta"><span class="field-tag unit">Nm</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">DS.RpmRatio</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Normalised RPM fraction (0.0–1.0) as exposed in the API snapshot</div>
+          <div class="field-meta"><span class="field-tag range">0.0 – 1.0</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">DS.FuelLapsRemaining</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Estimated laps of fuel remaining as exposed in the API snapshot</div>
+          <div class="field-meta"><span class="field-tag unit">laps</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">commentary_text</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Active commentary text in the flat JSON API response</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">commentary_visible</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Commentary visibility flag in the flat JSON API response (0 or 1)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">commentary_severity</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Commentary severity level in the flat JSON API response (0–5)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">commentary_sentiment_color</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Sentiment colour hex string in the flat JSON API response</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">flag_state</div>
+            <div class="field-type">string</div>
+          </div>
+          <div class="field-desc">Current flag state string in the flat JSON API response</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">nearest_car_distance</div>
+            <div class="field-type">float</div>
+          </div>
+          <div class="field-desc">Nearest car proximity distance in the flat JSON API response</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-simhub"></div>
+            <div class="field-name">is_in_pit_lane</div>
+            <div class="field-type">int</div>
+          </div>
+          <div class="field-desc">Pit lane flag in the flat JSON API response (0 or 1)</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 17 — CAR RESPONSE TRIGGERS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-trig-car">
+    <div class="section-header" onclick="toggleSection('sec-trig-car')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-commentary"></div>
+      <div class="section-title">Commentary Triggers — Car Response</div>
+      <span class="section-source label-commentary">12 topics</span>
+      <span class="section-count" id="count-sec-trig-car"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-trig-car">
+
+        <div class="trigger-card">
+          <div class="trigger-name">spin_catch</div>
+          <div class="trigger-condition">YawRate spike &gt; 3.0 rad/s</div>
+          <div class="trigger-desc">Driver catches a snap of oversteer or a spin before going completely sideways</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">kerb_hit</div>
+          <div class="trigger-condition">VertAccel spike &gt; 10G</div>
+          <div class="trigger-desc">Car rides over a kerb hard enough to launch or disturb the car significantly</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">abs_activation</div>
+          <div class="trigger-condition">AbsActive == true</div>
+          <div class="trigger-desc">ABS system intervenes during braking — pumping brakes to prevent lockup</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">tc_intervention</div>
+          <div class="trigger-condition">TcActive == true</div>
+          <div class="trigger-desc">Traction control cuts power to prevent wheelspin on corner exit</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">high_cornering_load</div>
+          <div class="trigger-condition">LatAccel extreme &gt; 4.5G</div>
+          <div class="trigger-desc">Car is generating very high lateral G-force through a high-speed corner</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">tyre_wear_high</div>
+          <div class="trigger-condition">TyreWearFL/FR/RL/RR &lt; 0.35</div>
+          <div class="trigger-desc">Any tyre is worn below 35% remaining — degradation warning for strategy</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">hot_tyres</div>
+          <div class="trigger-condition">TyreTempFL/FR/RL/RR &gt; 250°F</div>
+          <div class="trigger-desc">Tyre surface temperature has exceeded the safe operating window</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">heavy_braking</div>
+          <div class="trigger-condition">LongAccel &lt; -38 m/s²</div>
+          <div class="trigger-desc">Extremely hard braking event — late and deep into a braking zone</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">ers_low</div>
+          <div class="trigger-condition">ErsBattery &lt; 20%</div>
+          <div class="trigger-desc">ERS battery is critically low — driver must manage deployment carefully</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">drs_active</div>
+          <div class="trigger-condition">DrsStatus == 2</div>
+          <div class="trigger-desc">DRS flap has opened — car has reduced drag for a straight-line speed boost</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">car_balance_sustained</div>
+          <div class="trigger-condition">LatAccel sustained rapid change</div>
+          <div class="trigger-desc">Car balance oscillating — driver working hard to keep it stable through a sequence</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">rapid_gear_change</div>
+          <div class="trigger-condition">Gear rapid_change (>2 per frame)</div>
+          <div class="trigger-desc">Very fast sequential gear changes detected — heel-toe or paddle-shift sequence</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 18 — RACING EXPERIENCE TRIGGERS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-trig-race">
+    <div class="section-header" onclick="toggleSection('sec-trig-race')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-commentary"></div>
+      <div class="section-title">Commentary Triggers — Racing Experience</div>
+      <span class="section-source label-commentary">18 topics</span>
+      <span class="section-count" id="count-sec-trig-race"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-trig-race">
+
+        <div class="trigger-card">
+          <div class="trigger-name">wall_contact</div>
+          <div class="trigger-condition">VertAccel spike &gt; 20G</div>
+          <div class="trigger-desc">Hard impact with a barrier or wall — significant collision event</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">off_track</div>
+          <div class="trigger-condition">VertAccel spike &gt; 12G</div>
+          <div class="trigger-desc">Car has gone off the circuit surface — gravel, grass, or runoff area</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">close_battle</div>
+          <div class="trigger-condition">NearestCarDistance &lt; 0.008</div>
+          <div class="trigger-desc">Two cars are racing in very close proximity — wheel-to-wheel battle situation</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">position_gained</div>
+          <div class="trigger-condition">player_gain_position</div>
+          <div class="trigger-desc">Driver has moved forward in the race classification — successful overtake</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">position_lost</div>
+          <div class="trigger-condition">player_lost_position</div>
+          <div class="trigger-desc">Driver has dropped back in the race classification — was overtaken</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">yellow_flag</div>
+          <div class="trigger-condition">SessionFlags yellow bit active</div>
+          <div class="trigger-desc">Yellow flag has been shown — caution period, no overtaking permitted</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">debris_on_track</div>
+          <div class="trigger-condition">SessionFlags debris bit active</div>
+          <div class="trigger-desc">Debris flag shown — dangerous material on the racing surface</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">race_start</div>
+          <div class="trigger-condition">CurrentLap change 0 → 1</div>
+          <div class="trigger-desc">Race has started — lap counter transitions from 0 to lap 1</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">formation_lap</div>
+          <div class="trigger-condition">SessionState == 3 (ParadeLaps)</div>
+          <div class="trigger-desc">Formation/parade lap in progress before the race start</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">personal_best</div>
+          <div class="trigger-condition">personal_best event</div>
+          <div class="trigger-desc">Driver has set a new personal best lap time in this session</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">pit_entry</div>
+          <div class="trigger-condition">player_entering pit lane</div>
+          <div class="trigger-desc">Car has entered the pit lane — pit stop sequence beginning</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">low_fuel</div>
+          <div class="trigger-condition">FuelPercent &lt; 10%</div>
+          <div class="trigger-desc">Fuel level critically low — must pit or risk running out on track</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">wet_track</div>
+          <div class="trigger-condition">WeatherWet == true</div>
+          <div class="trigger-desc">Track is wet — rain or damp conditions have changed the racing surface</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">qualifying_push</div>
+          <div class="trigger-condition">SessionTypeName == "Qualify" &amp;&amp; Throttle &gt; 95%</div>
+          <div class="trigger-desc">Driver is on a hot qualifying lap pushing for maximum performance</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">incident_spike</div>
+          <div class="trigger-condition">IncidentCount spike &gt; 2</div>
+          <div class="trigger-desc">Incident points have jumped significantly — contact, off-track penalty</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">black_flag</div>
+          <div class="trigger-condition">SessionFlags black bit active</div>
+          <div class="trigger-desc">Driver has been black-flagged — disqualification or mandatory pit stop</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">long_stint</div>
+          <div class="trigger-condition">CompletedLaps &gt; 20 since last pit</div>
+          <div class="trigger-desc">Driver is deep into a very long stint — tyre and fuel management critical</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">session_time_low</div>
+          <div class="trigger-condition">SessionTimeRemain &lt; 300s</div>
+          <div class="trigger-desc">Less than 5 minutes remaining in a timed session — final push phase</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 19 — GAME FEEL & HARDWARE TRIGGERS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-trig-other">
+    <div class="section-header" onclick="toggleSection('sec-trig-other')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-commentary"></div>
+      <div class="section-title">Commentary Triggers — Game Feel &amp; Hardware</div>
+      <span class="section-source label-commentary">3 topics</span>
+      <span class="section-count" id="count-sec-trig-other"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-trig-other">
+
+        <div class="trigger-card">
+          <div class="trigger-name">track_temp_hot</div>
+          <div class="trigger-condition">TrackTemp &gt; 45°C</div>
+          <div class="trigger-desc">Track surface temperature is very high — tyres may overheat faster than expected</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">track_temp_cold</div>
+          <div class="trigger-condition">TrackTemp &lt; 15°C</div>
+          <div class="trigger-desc">Track surface temperature is very low — grip levels are reduced until tyres heat up</div>
+        </div>
+
+        <div class="trigger-card">
+          <div class="trigger-name">ffb_torque_spike</div>
+          <div class="trigger-condition">SteeringWheelTorque spike &gt; 25 Nm</div>
+          <div class="trigger-desc">Sudden large spike in force feedback torque — indicates a major kerb, bump, or contact event</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SECTION 20 — TRIGGER CONDITION TYPES
+  ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-trig-types">
+    <div class="section-header" onclick="toggleSection('sec-trig-types')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe bg-computed"></div>
+      <div class="section-title">Trigger Condition Types Reference</div>
+      <span class="section-source label-computed">TriggerEvaluator</span>
+      <span class="section-count" id="count-sec-trig-types"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-sec-trig-types">
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">&gt;</div>
+            <div class="field-type">threshold</div>
+          </div>
+          <div class="field-desc">Field value exceeds a specified threshold. Fires once when value crosses upward</div>
+          <div class="field-meta"><span class="field-tag">param: value</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">&lt;</div>
+            <div class="field-type">threshold</div>
+          </div>
+          <div class="field-desc">Field value drops below a specified threshold. Fires once when value crosses downward</div>
+          <div class="field-meta"><span class="field-tag">param: value</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">==</div>
+            <div class="field-type">equality</div>
+          </div>
+          <div class="field-desc">Field value equals a specific value exactly. Fires on state change to match</div>
+          <div class="field-meta"><span class="field-tag">param: value</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">change</div>
+            <div class="field-type">delta</div>
+          </div>
+          <div class="field-desc">Absolute change from a recent baseline exceeds a threshold delta. Detects gradual drift</div>
+          <div class="field-meta"><span class="field-tag">param: thresholdDelta</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">spike</div>
+            <div class="field-type">single-frame</div>
+          </div>
+          <div class="field-desc">Single-frame positive delta exceeds threshold. Catches fast transient events like kerb hits</div>
+          <div class="field-meta"><span class="field-tag">param: thresholdDelta</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">sudden_drop</div>
+            <div class="field-type">single-frame</div>
+          </div>
+          <div class="field-desc">Single-frame negative delta exceeds threshold. Catches sudden losses (e.g. fuel drop, RPM cut)</div>
+          <div class="field-meta"><span class="field-tag">param: thresholdDelta</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">extreme</div>
+            <div class="field-type">absolute</div>
+          </div>
+          <div class="field-desc">Absolute value of field exceeds threshold (direction-agnostic). Good for bidirectional G-force</div>
+          <div class="field-meta"><span class="field-tag">param: absValue</span></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">rapid_change</div>
+            <div class="field-type">rate</div>
+          </div>
+          <div class="field-desc">More than 2 units of change in a single frame — catches very rapid transitions</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">increase</div>
+            <div class="field-type">direction</div>
+          </div>
+          <div class="field-desc">Field value increased compared to the previous frame (any amount)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">personal_best</div>
+            <div class="field-type">event</div>
+          </div>
+          <div class="field-desc">Special event condition: fires when a new personal best lap time is set in the session</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">player_gain_position</div>
+            <div class="field-type">event</div>
+          </div>
+          <div class="field-desc">Special event condition: fires when the driver's race position number decreases (improves)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">player_lost_position</div>
+            <div class="field-type">event</div>
+          </div>
+          <div class="field-desc">Special event condition: fires when the driver's race position number increases (drops back)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">player_entering</div>
+            <div class="field-type">event</div>
+          </div>
+          <div class="field-desc">Special event condition: fires when the driver enters a named zone (e.g. pit lane)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">off_track</div>
+            <div class="field-type">event</div>
+          </div>
+          <div class="field-desc">Special event condition: fires on VertAccel spike above 12G (off-surface impact)</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">yellow_flag / black_flag</div>
+            <div class="field-type">event</div>
+          </div>
+          <div class="field-desc">Special event conditions: fire when the respective flag bit activates in SessionFlags</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">race_start</div>
+            <div class="field-type">event</div>
+          </div>
+          <div class="field-desc">Special event condition: fires once when the race transitions from formation to racing lap 1</div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            <div class="field-source-dot bg-computed"></div>
+            <div class="field-name">close_proximity</div>
+            <div class="field-type">proximity</div>
+          </div>
+          <div class="field-desc">Fires when the nearest car distance fraction is below the configured threshold</div>
+          <div class="field-meta"><span class="field-tag">param: proximityThreshold</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="no-results" id="no-results">
+    <div class="no-results-icon">🔍</div>
+    <h3>No fields match</h3>
+    <p>Try a different search term — field names, units, or descriptions are all searchable</p>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// COUNT BADGES
+// ─────────────────────────────────────────────
+const sections = [
+  'sec-engine','sec-timing','sec-session','sec-tyres','sec-fuel',
+  'sec-physics','sec-aids','sec-flags','sec-pit','sec-setup',
+  'sec-env','sec-opponents','sec-hybrid','sec-rating',
+  'sec-plugin','sec-api',
+  'sec-trig-car','sec-trig-race','sec-trig-other','sec-trig-types'
+];
+
+function updateCounts() {
+  let total = 0;
+  let visible = 0;
+
+  sections.forEach(id => {
+    const grid = document.getElementById('grid-' + id);
+    if (!grid) return;
+    const cards = grid.querySelectorAll('.field-card, .trigger-card');
+    const visibleCards = grid.querySelectorAll('.field-card:not(.search-hidden), .trigger-card:not(.search-hidden)');
+    const badge = document.getElementById('count-' + id);
+    if (badge) {
+      badge.textContent = visibleCards.length === cards.length
+        ? cards.length
+        : visibleCards.length + '/' + cards.length;
+    }
+    total += cards.length;
+    visible += visibleCards.length;
+
+    // show/hide the entire section when searching
+    const section = document.getElementById(id);
+    if (section) {
+      const q = document.getElementById('search').value.trim();
+      if (q && visibleCards.length === 0) {
+        section.classList.add('hidden');
+      } else {
+        section.classList.remove('hidden');
+      }
+    }
+  });
+
+  document.getElementById('total-count').textContent = total;
+  document.getElementById('visible-count').textContent = visible;
+
+  const noResults = document.getElementById('no-results');
+  noResults.classList.toggle('visible', visible === 0);
+}
+
+// ─────────────────────────────────────────────
+// TOGGLE SECTIONS
+// ─────────────────────────────────────────────
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('collapsed');
+}
+
+document.getElementById('expand-all').addEventListener('click', () => {
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('collapsed');
+  });
+});
+
+document.getElementById('collapse-all').addEventListener('click', () => {
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('collapsed');
+  });
+});
+
+// ─────────────────────────────────────────────
+// SEARCH
+// ─────────────────────────────────────────────
+document.getElementById('search').addEventListener('input', function() {
+  const q = this.value.trim().toLowerCase();
+
+  document.querySelectorAll('.field-card, .trigger-card').forEach(card => {
+    if (!q) {
+      card.classList.remove('search-hidden', 'search-match');
+      return;
+    }
+    const text = card.textContent.toLowerCase();
+    const matches = text.includes(q);
+    card.classList.toggle('search-hidden', !matches);
+    card.classList.toggle('search-match', matches);
+  });
+
+  // Re-open collapsed sections that have matches
+  if (q) {
+    sections.forEach(id => {
+      const section = document.getElementById(id);
+      const grid = document.getElementById('grid-' + id);
+      if (!section || !grid) return;
+      const hasVisible = grid.querySelectorAll('.field-card:not(.search-hidden), .trigger-card:not(.search-hidden)').length > 0;
+      if (hasVisible) section.classList.remove('collapsed');
+    });
+  }
+
+  updateCounts();
+});
+
+// ─────────────────────────────────────────────
+// SOURCE LABELS + WIRED BADGE
+// ─────────────────────────────────────────────
+const SOURCE_MAP = {
+  'bg-iracing':    { cls: 'source-iracing',    label: 'iRacing SDK' },
+  'bg-simhub':     { cls: 'source-simhub',     label: 'SimHub Plugin' },
+  'bg-commentary': { cls: 'source-commentary', label: 'Commentary Engine' },
+  'bg-computed':   { cls: 'source-computed',   label: 'Computed' },
+  'bg-simhub-gd':  { cls: 'source-simhub-gd',  label: 'SimHub GameData' },
+};
+
+document.querySelectorAll('.field-card, .trigger-card').forEach(card => {
+  const dot = card.querySelector('.field-source-dot');
+  if (!dot) return;
+  const sourceKey = Object.keys(SOURCE_MAP).find(k => dot.classList.contains(k));
+  if (!sourceKey) return;
+  const { cls, label } = SOURCE_MAP[sourceKey];
+  let meta = card.querySelector('.field-meta');
+  if (!meta) { meta = document.createElement('div'); meta.className = 'field-meta'; card.appendChild(meta); }
+  const badge = document.createElement('span');
+  badge.className = `field-tag ${cls}`;
+  badge.textContent = label;
+  meta.insertBefore(badge, meta.firstChild);
+  // All HTML-authored cards are wired in TelemetrySnapshot.cs
+  const wired = document.createElement('span');
+  wired.className = 'field-tag wired';
+  wired.textContent = '✓ wired';
+  meta.insertBefore(wired, meta.firstChild);
+});
+
+// ─────────────────────────────────────────────
+// DATA-DRIVEN SECTION RENDERER
+// ─────────────────────────────────────────────
+function makeCard(f) {
+  const dot  = f.dotCls  || 'bg-iracing';
+  const tags = [];
+  if (f.wired)      tags.push(`<span class="field-tag wired">✓ wired</span>`);
+  const srcKey = dot.replace('bg-','');
+  tags.push(`<span class="field-tag source-${srcKey}">${SOURCE_MAP[dot]?.label || dot}</span>`);
+  if (f.deprecated) tags.push(`<span class="field-tag deprecated">deprecated</span>`);
+  if (f.liveOnly)   tags.push(`<span class="field-tag live-only">live only</span>`);
+  if (f.diskOnly)   tags.push(`<span class="field-tag disk-only">disk only</span>`);
+  if (f.unit)       tags.push(`<span class="field-tag unit">${f.unit}</span>`);
+  if (f.range)      tags.push(`<span class="field-tag range">${f.range}</span>`);
+  if (f.extra)      tags.push(`<span class="field-tag">${f.extra}</span>`);
+  return `<div class="field-card">
+    <div class="field-header">
+      <div class="field-source-dot ${dot}"></div>
+      <div class="field-name">${f.name}</div>
+      <div class="field-type">${f.type || 'float'}</div>
+    </div>
+    <div class="field-desc">${f.desc}</div>
+    ${tags.length ? `<div class="field-meta">${tags.join('')}</div>` : ''}
+  </div>`;
+}
+
+function renderSection(cfg) {
+  const id      = cfg.id;
+  const stripe  = cfg.stripe  || 'bg-iracing';
+  const srcCls  = cfg.srcCls  || 'label-iracing';
+  const srcLabel= cfg.srcLabel|| 'iRacing SDK';
+  const html = `
+  <div class="section" id="${id}">
+    <div class="section-header" onclick="toggleSection('${id}')">
+      <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="section-stripe ${stripe}"></div>
+      <div class="section-title">${cfg.title}</div>
+      <span class="section-source ${srcCls}">${srcLabel}</span>
+      <span class="section-count" id="count-${id}"></span>
+    </div>
+    <div class="section-body">
+      <div class="fields-grid" id="grid-${id}">
+        ${cfg.fields.map(makeCard).join('')}
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('no-results').insertAdjacentHTML('beforebegin', html);
+  sections.push(id);
+}
+
+// ─────────────────────────────────────────────
+// iRacing SDK — ADDITIONAL SECTIONS
+// ─────────────────────────────────────────────
+
+renderSection({ id:'sec-penalties', title:'Penalties, Disqualification & Tow', fields:[
+  {name:'SessionFlags — black',      type:'bit 0x10000', desc:'Set when the player has been given a black flag penalty. Driver must pit within 3 laps to serve it. Read from the SessionFlags bitmask', wired:true},
+  {name:'SessionFlags — disqualify',  type:'bit 0x20000', desc:'Set when the player has been disqualified and removed from the session. Read from the SessionFlags bitmask', wired:true},
+  {name:'SessionFlags — servicible (meatball)', type:'bit 0x40000', desc:'Set when the player\'s car has excessive damage and must pit for mandatory repairs or face disqualification. Known as the "meatball" flag (orange circle on black)', wired:true},
+  {name:'SessionFlags — furled',      type:'bit 0x80000', desc:'Furled black flag — a warning state that a penalty is pending but not yet served. Typically displayed rolled up or partially hidden'},
+  {name:'SessionFlags — repair',      type:'bit 0x100000',desc:'Set when the car requires mandatory repairs before it can continue racing safely'},
+  {name:'CarIdxSessionFlags',          type:'int[]', range:'64 cars', desc:'Per-car session flags bitmask. Includes penalty bits (black, disqualify, meatball) for every car in the session — not just the player'},
+  {name:'PlayerCarTowTime',            type:'float', unit:'s', desc:'Countdown timer for how long until the player\'s car is towed. Greater than zero means the car is being towed back to the pits'},
+  {name:'PlayerCarPitSvStatus',        type:'int',   desc:'Pit service status enum for the player: 0=None, 1=InProgress, 2=Complete. Error states: TooFarLeft, TooFarRight, TooFarForward, TooFarBack, BadAngle, CantFixThat'},
+  {name:'PlayerCarDriverIncidentCount',type:'int',   desc:'Total incident points accumulated by the player driver this session', wired:true},
+  {name:'PlayerCarMyIncidentCount',    type:'int',   desc:'Incident points caused directly by the player (excludes team members in team events)'},
+  {name:'PlayerCarTeamIncidentCount',  type:'int',   desc:'Total incident points accumulated across all drivers on the player\'s team'},
+  {name:'PlayerCarWeightPenalty',      type:'float', unit:'kg', desc:'Ballast weight penalty applied to the player\'s car (from Balance of Performance or sporting regulation)'},
+]});
+
+renderSection({ id:'sec-raw-inputs', title:'Raw Pedal & Handbrake Inputs', fields:[
+  {name:'BrakeRaw',    type:'float', unit:'0–1', desc:'Raw brake pedal axis position before any force curves or deadzones are applied'},
+  {name:'ThrottleRaw', type:'float', unit:'0–1', desc:'Raw throttle pedal axis position before force curve mapping'},
+  {name:'ClutchRaw',   type:'float', unit:'0–1', desc:'Raw clutch pedal axis position — 0=disengaged, 1=fully pressed'},
+  {name:'HandBrakeRaw',type:'float', unit:'0–1', desc:'Handbrake controller axis raw position'},
+]});
+
+renderSection({ id:'sec-orientation', title:'Vehicle Orientation — Pitch & Roll', fields:[
+  {name:'Pitch',     type:'float', unit:'radians', desc:'Vehicle pitch angle — positive when nose is up, negative when nose is down'},
+  {name:'PitchRate', type:'float', unit:'rad/s',   desc:'Rate of change of pitch angle — indicates nose bobbing and front suspension loading'},
+  {name:'Roll',      type:'float', unit:'radians', desc:'Vehicle roll angle — lateral body lean through corners'},
+  {name:'RollRate',  type:'float', unit:'rad/s',   desc:'Rate of change of roll angle — captures transition dynamics into and out of corners'},
+  {name:'YawNorth',  type:'float', unit:'radians', desc:'Yaw angle relative to geographic north — absolute heading on the globe'},
+  {name:'Speed',     type:'float', unit:'m/s',     desc:'Native SDK speed in metres per second (use SpeedKmh for normalised km/h)'},
+]});
+
+renderSection({ id:'sec-engine-fluids', title:'Engine Fluids, Systems & Electrical', fields:[
+  {name:'OilTemp',      type:'float', unit:'°C',  desc:'Engine oil temperature — elevated values indicate sustained high load or cooling issues'},
+  {name:'OilPress',     type:'float', unit:'kPa', desc:'Engine oil pressure — low values can indicate oil starvation or pump failure'},
+  {name:'OilLevel',     type:'float',              desc:'Engine oil level in reservoir — car/series dependent whether this is modelled'},
+  {name:'WaterTemp',    type:'float', unit:'°C',  desc:'Engine coolant water temperature'},
+  {name:'WaterLevel',   type:'float',              desc:'Engine coolant level in reservoir'},
+  {name:'FuelPress',    type:'float', unit:'kPa', desc:'Fuel rail system pressure'},
+  {name:'FuelUsePerHour',type:'float',unit:'kg/h',desc:'Instantaneous fuel consumption rate — useful for endurance fuel strategy'},
+  {name:'ManifoldPress',type:'float', unit:'kPa', desc:'Engine intake manifold pressure — proxy for throttle position and engine load'},
+  {name:'Voltage',      type:'float', unit:'V',   desc:'Vehicle electrical system voltage — important for electric/hybrid vehicles'},
+  {name:'EngineWarnings',type:'bitfield',          desc:'Active engine warning flags bitmask. Bits: waterTemp, fuelPressure, oilPressure, engineStalled, pitSpeedLimiter, revLimiterActive, oilTemp'},
+]});
+
+renderSection({ id:'sec-suspension', title:'Suspension — Per Corner (Ride Height, Shock, Brakes)', fields:[
+  {name:'LFrideHeight', type:'float', unit:'m',   desc:'Left-front ride height — distance from car floor to road surface'},
+  {name:'LFshockDefl',  type:'float', unit:'m',   desc:'Left-front shock absorber deflection from rest position'},
+  {name:'LFshockVel',   type:'float', unit:'m/s', desc:'Left-front shock absorber velocity — rate of deflection change'},
+  {name:'LFbrakeLinePress',type:'float',unit:'kPa',desc:'Left-front brake line hydraulic pressure'},
+  {name:'RFrideHeight', type:'float', unit:'m',   desc:'Right-front ride height'},
+  {name:'RFshockDefl',  type:'float', unit:'m',   desc:'Right-front shock absorber deflection'},
+  {name:'RFshockVel',   type:'float', unit:'m/s', desc:'Right-front shock absorber velocity'},
+  {name:'RFbrakeLinePress',type:'float',unit:'kPa',desc:'Right-front brake line hydraulic pressure'},
+  {name:'LRrideHeight', type:'float', unit:'m',   desc:'Left-rear ride height'},
+  {name:'LRshockDefl',  type:'float', unit:'m',   desc:'Left-rear shock absorber deflection'},
+  {name:'LRshockVel',   type:'float', unit:'m/s', desc:'Left-rear shock absorber velocity'},
+  {name:'LRbrakeLinePress',type:'float',unit:'kPa',desc:'Left-rear brake line hydraulic pressure'},
+  {name:'RRrideHeight', type:'float', unit:'m',   desc:'Right-rear ride height'},
+  {name:'RRshockDefl',  type:'float', unit:'m',   desc:'Right-rear shock absorber deflection'},
+  {name:'RRshockVel',   type:'float', unit:'m/s', desc:'Right-rear shock absorber velocity'},
+  {name:'RRbrakeLinePress',type:'float',unit:'kPa',desc:'Right-rear brake line hydraulic pressure'},
+  {name:'LFshockDefl_ST / RFshockDefl_ST / LRshockDefl_ST / RRshockDefl_ST', type:'float[6]', desc:'Sub-tick sample arrays for shock deflection — 6 samples per 60Hz frame for higher resolution analysis'},
+  {name:'LFshockVel_ST / RFshockVel_ST / LRshockVel_ST / RRshockVel_ST',   type:'float[6]', desc:'Sub-tick sample arrays for shock velocity'},
+]});
+
+renderSection({ id:'sec-tyre-zone-temp', title:'Tyre Temperature — Per Corner Zone (Inner / Mid / Outer)', fields:[
+  {name:'LFtempCL', type:'float', unit:'°C', desc:'Left-front tyre inner (left) zone temperature'},
+  {name:'LFtempCM', type:'float', unit:'°C', desc:'Left-front tyre middle zone temperature'},
+  {name:'LFtempCR', type:'float', unit:'°C', desc:'Left-front tyre outer (right) zone temperature'},
+  {name:'RFtempCL', type:'float', unit:'°C', desc:'Right-front tyre inner zone temperature'},
+  {name:'RFtempCM', type:'float', unit:'°C', desc:'Right-front tyre middle zone temperature'},
+  {name:'RFtempCR', type:'float', unit:'°C', desc:'Right-front tyre outer zone temperature'},
+  {name:'LRtempCL', type:'float', unit:'°C', desc:'Left-rear tyre inner zone temperature'},
+  {name:'LRtempCM', type:'float', unit:'°C', desc:'Left-rear tyre middle zone temperature'},
+  {name:'LRtempCR', type:'float', unit:'°C', desc:'Left-rear tyre outer zone temperature'},
+  {name:'RRtempCL', type:'float', unit:'°C', desc:'Right-rear tyre inner zone temperature'},
+  {name:'RRtempCM', type:'float', unit:'°C', desc:'Right-rear tyre middle zone temperature'},
+  {name:'RRtempCR', type:'float', unit:'°C', desc:'Right-rear tyre outer zone temperature'},
+]});
+
+renderSection({ id:'sec-tyre-zone-wear', title:'Tyre Wear — Per Corner Zone (Left / Mid / Right)', fields:[
+  {name:'LFwearL', type:'float', range:'0–1', desc:'Left-front tyre left edge wear — 1.0=new, 0.0=worn through'},
+  {name:'LFwearM', type:'float', range:'0–1', desc:'Left-front tyre centre wear'},
+  {name:'LFwearR', type:'float', range:'0–1', desc:'Left-front tyre right edge wear'},
+  {name:'RFwearL', type:'float', range:'0–1', desc:'Right-front tyre left edge wear'},
+  {name:'RFwearM', type:'float', range:'0–1', desc:'Right-front tyre centre wear'},
+  {name:'RFwearR', type:'float', range:'0–1', desc:'Right-front tyre right edge wear'},
+  {name:'LRwearL', type:'float', range:'0–1', desc:'Left-rear tyre left edge wear'},
+  {name:'LRwearM', type:'float', range:'0–1', desc:'Left-rear tyre centre wear'},
+  {name:'LRwearR', type:'float', range:'0–1', desc:'Left-rear tyre right edge wear'},
+  {name:'RRwearL', type:'float', range:'0–1', desc:'Right-rear tyre left edge wear'},
+  {name:'RRwearM', type:'float', range:'0–1', desc:'Right-rear tyre centre wear'},
+  {name:'RRwearR', type:'float', range:'0–1', desc:'Right-rear tyre right edge wear'},
+]});
+
+renderSection({ id:'sec-tyre-sets', title:'Tyre Sets & Compound Selection', fields:[
+  {name:'TireSetsAvailable',       type:'int', desc:'Total tyre sets remaining for this car (255 = unlimited)'},
+  {name:'TireSetsUsed',            type:'int', desc:'Total tyre sets consumed so far this session'},
+  {name:'LeftTireSetsAvailable',   type:'int', desc:'Left-side specific tyre sets remaining'},
+  {name:'RightTireSetsAvailable',  type:'int', desc:'Right-side specific tyre sets remaining'},
+  {name:'FrontTireSetsAvailable',  type:'int', desc:'Front-axle specific tyre sets remaining'},
+  {name:'FrontTireSetsUsed',       type:'int', desc:'Front-axle tyre sets consumed'},
+  {name:'RearTireSetsAvailable',   type:'int', desc:'Rear-axle specific tyre sets remaining'},
+  {name:'RearTireSetsUsed',        type:'int', desc:'Rear-axle tyre sets consumed'},
+  {name:'PlayerTireCompound',      type:'int', desc:'Index of the tyre compound currently fitted on the player car'},
+  {name:'CarIdxTireCompound',      type:'int[]', range:'64 cars', desc:'Tyre compound index for every car in the session'},
+]});
+
+renderSection({ id:'sec-weather', title:'Weather & Atmosphere', fields:[
+  {name:'AirTemp',           type:'float', unit:'°C',     desc:'Air temperature at the start/finish line'},
+  {name:'AirDensity',        type:'float', unit:'kg/m³',  desc:'Air density at start/finish line — affects aerodynamic downforce'},
+  {name:'AirPressure',       type:'float', unit:'Pa',     desc:'Atmospheric air pressure (changed from inHg to Pa in 2023 S4 Patch 3)', extra:'unit changed 2023'},
+  {name:'TrackTempCrew',     type:'int',   unit:'°C',     desc:'Track surface temperature measured at the crew/pit area — authoritative value (TrackTemp is deprecated)'},
+  {name:'TrackTemp',         type:'int',   unit:'°C',     desc:'Track temperature (deprecated — now mirrors TrackTempCrew)', deprecated:true},
+  {name:'TrackWetness',      type:'enum',                 desc:'Estimated track wetness state: Dry, MostlyDry, VeryLightlyWet, LightlyWet, ModeratelyWet, VeryWet, ExtremelyWet'},
+  {name:'WeatherDeclaredWet',type:'bool',                 desc:'True when race control has officially declared the track wet, enabling rain tyre usage', wired:true},
+  {name:'Precipitation',     type:'float', unit:'%',      desc:'Current precipitation level at start/finish line'},
+  {name:'RelativeHumidity',  type:'float', unit:'%',      desc:'Relative humidity as a percentage'},
+  {name:'FogLevel',          type:'float', unit:'%',      desc:'Fog density level as a percentage'},
+  {name:'WindVel',           type:'float', unit:'m/s',    desc:'Wind speed at start/finish line'},
+  {name:'WindDir',           type:'float', unit:'radians',desc:'Wind direction at start/finish line. Value can exceed one rotation — use modulo for 0–2π normalisation'},
+  {name:'Skies',             type:'int',                  desc:'Cloud cover enum: 0=Clear, 1=PartlyCloudy, 2=MostlyCloudy, 3=Overcast'},
+]});
+
+renderSection({ id:'sec-session-ext', title:'Session Info — Extended', fields:[
+  {name:'SessionTime',        type:'double', unit:'s',     desc:'Total elapsed time since the session started — monotonically increasing'},
+  {name:'SessionTimeOfDay',   type:'float',  unit:'s',     desc:'Seconds since midnight for the in-game clock (adjusts for time acceleration setting)'},
+  {name:'SessionTick',        type:'int',                  desc:'Internal simulation tick counter — increments every frame'},
+  {name:'SessionNum',         type:'int',                  desc:'Index of the current session within the event (practice=0, qualify=1, race=2, etc.)'},
+  {name:'SessionUniqueID',    type:'int',                  desc:'Unique identifier for the current session — useful for detecting session resets'},
+  {name:'SessionLapsRemainEx',type:'int',    unit:'laps',  desc:'Accurate laps remaining in the session. Use this over SessionLapsRemain'},
+  {name:'SessionLapsRemain',  type:'int',    unit:'laps',  desc:'Laps remaining — off by one error; use SessionLapsRemainEx instead', deprecated:true},
+  {name:'SessionLapsTotal',   type:'int',    unit:'laps',  desc:'Total scheduled lap count for the session (0 for timed races)'},
+  {name:'RaceLaps',           type:'int',    unit:'laps',  desc:'Laps completed by the race leader — authoritative lap count for the event', liveOnly:true},
+  {name:'LapDist',            type:'float',  unit:'m',     desc:'Distance in metres from the start line on the current lap'},
+  {name:'PitstopActive',      type:'bool',                 desc:'True while a pit stop service is actively in progress'},
+  {name:'FastRepairAvailable',type:'int',                  desc:'Number of fast repair uses remaining. 255 = unlimited'},
+  {name:'FastRepairUsed',     type:'int',                  desc:'Number of fast repair uses consumed this session'},
+]});
+
+renderSection({ id:'sec-lap-deltas', title:'Lap Deltas — Full Suite', fields:[
+  {name:'LapDeltaToOptimalLap',         type:'float', unit:'s', desc:'Live delta to the driver\'s theoretical optimal lap (best of each sector combined)'},
+  {name:'LapDeltaToOptimalLap_DD',      type:'float',           desc:'Delta direction/validity data for optimal lap delta'},
+  {name:'LapDeltaToOptimalLap_OK',      type:'bool',            desc:'True when the optimal lap delta value is currently valid and trustworthy'},
+  {name:'LapDeltaToSessionBestLap',     type:'float', unit:'s', desc:'Live delta to the overall session best lap set by any driver'},
+  {name:'LapDeltaToSessionBestLap_DD',  type:'float',           desc:'Delta direction/validity data for session best delta'},
+  {name:'LapDeltaToSessionBestLap_OK',  type:'bool',            desc:'True when session best lap delta is valid'},
+  {name:'LapDeltaToSessionLastlLap',    type:'float', unit:'s', desc:'Live delta vs the session\'s most recently completed lap by any driver'},
+  {name:'LapDeltaToSessionLastlLap_OK', type:'bool',            desc:'True when session last lap delta is valid'},
+  {name:'LapDeltaToSessionOptimalLap',  type:'float', unit:'s', desc:'Live delta to the session-wide theoretical optimal lap'},
+  {name:'LapDeltaToSessionOptimalLap_OK',type:'bool',           desc:'True when session optimal lap delta is valid'},
+  {name:'LapBestNLapTime',              type:'float', unit:'s', desc:'Best rolling N-lap average time — used for timed elimination qualifying formats'},
+  {name:'LapLastNLapTime',              type:'float', unit:'s', desc:'Most recent rolling N-lap average time'},
+]});
+
+renderSection({ id:'sec-player-car', title:'Player Car State & Penalties', fields:[
+  {name:'PlayerCarClass',              type:'int',   desc:'Car class index for the player\'s vehicle in multiclass events'},
+  {name:'PlayerCarClassPosition',      type:'int',   desc:'Player\'s position within their car class (1 = class leader)'},
+  {name:'PlayerCarDriverIncidentCount',type:'int',   desc:'Total incident points accumulated by the player driver this session'},
+  {name:'PlayerCarInPitStall',         type:'bool',  desc:'True when the car is cleanly stopped within the pit stall boundaries'},
+  {name:'PlayerCarWeightPenalty',      type:'float', desc:'Additional ballast weight penalty applied to the car (BOP or sporting regulation penalty)'},
+  {name:'PlayerTrackSurface',          type:'int',   desc:'Track surface type enum for player\'s current location: 0=NotInWorld, 1=OffTrack, 2=InPitStall, 3=AproachingPits, 4=OnTrack'},
+  {name:'PlayerTrackSurfaceMaterial',  type:'int',   desc:'Material composition of the surface the player is currently on: 0=Unspecified, 1=Asphalt, 2=Rumble, 3=Concrete, 4=Loose, 5=Grass, 6=Sand'},
+  {name:'PitRepairLeft',               type:'float', unit:'s', desc:'Mandatory repair time remaining in the current pit stop. Only valid when PlayerCarInPitStall is true'},
+  {name:'PitOptRepairLeft',            type:'float', unit:'s', desc:'Optional (cosmetic) repair time remaining in the current pit stop'},
+  {name:'OnPitRoad',                   type:'bool',  desc:'True when the player\'s car is anywhere on pit road'},
+  {name:'EnterExitReset',              type:'int',   desc:'State of the reset/enter/exit key: 0=Enter, 1=Exit, 2=Reset'},
+  {name:'PlayerCarPitSvStatus',        type:'int',   desc:'Current pit service status enum for the player car'},
+]});
+
+renderSection({ id:'sec-p2p', title:'Push-to-Pass, Joker Laps & Pace Flags', fields:[
+  {name:'P2P_Count',            type:'float', desc:'Shortcut: number of Push-to-Pass activations remaining for the player'},
+  {name:'P2P_Status',           type:'bool',  desc:'Shortcut: true when player Push-to-Pass is currently active/deployed'},
+  {name:'PushToPass',           type:'bool',  desc:'True while the Push-to-Pass button/key is physically held down'},
+  {name:'CarIdxP2P_Count',      type:'int[]', range:'64 cars', desc:'Push-to-Pass activations remaining for every car'},
+  {name:'CarIdxP2P_Status',     type:'bool[]',range:'64 cars', desc:'Push-to-Pass active status for every car'},
+  {name:'CarIdxPaceFlags',      type:'int[]', range:'64 cars', desc:'Pace car instruction flags bitmask for each car during caution'},
+  {name:'CarIdxPaceLine',       type:'int[]', range:'64 cars', desc:'Assigned pace car line position for each car (single-file=0, double-file=1)'},
+  {name:'CarIdxPaceRow',        type:'int[]', range:'64 cars', desc:'Assigned row number in the pace car formation for each car'},
+  {name:'SessionJokerLapsRemain',type:'int',  desc:'Joker laps remaining in sessions using rally-cross style joker lap rules'},
+]});
+
+renderSection({ id:'sec-shift', title:'Shift Indicators & Power Metrics', fields:[
+  {name:'ShiftPowerPct',   type:'float', unit:'%', desc:'Fraction of maximum engine power currently being delivered — drops during gear shifts'},
+  {name:'ShiftIndicatorPct',type:'float',unit:'%', desc:'Shift light / upshift indicator intensity percentage', deprecated:true, extra:'use DriverInfo.DriverCarSLBlinkRPM'},
+  {name:'ShiftGrindRPM',  type:'float', unit:'RPM',desc:'Engine RPM at which a missed gear shift would cause transmission damage'},
+]});
+
+renderSection({ id:'sec-caridx-timing', title:'Per-Car Arrays — Lap & Timing', fields:[
+  {name:'CarIdxBestLapNum',   type:'int[]',   range:'64 cars', desc:'Lap number on which each car set their session best lap time. -1 if no lap set'},
+  {name:'CarIdxBestLapTime',  type:'float[]', range:'64 cars', unit:'s', desc:'Session best lap time for each car. -1 when driver disconnected'},
+  {name:'CarIdxLastLapTime',  type:'float[]', range:'64 cars', unit:'s', desc:'Most recently completed lap time for each car'},
+  {name:'CarIdxLap',          type:'int[]',   range:'64 cars', desc:'Current lap number for each car'},
+  {name:'CarIdxEstTime',      type:'float[]', range:'64 cars', unit:'s', desc:'Estimated remaining lap time for each car based on current pace'},
+  {name:'CarIdxF2Time',       type:'float[]', range:'64 cars', unit:'s', desc:'Time delta from each car to the race leader (F2 timing format)'},
+]});
+
+renderSection({ id:'sec-caridx-state', title:'Per-Car Arrays — Race State', fields:[
+  {name:'CarIdxClass',         type:'int[]',  range:'64 cars', desc:'Car class index for each car — used to separate multiclass leaderboard'},
+  {name:'CarIdxClassPosition', type:'int[]',  range:'64 cars', desc:'Race position within car class for each car'},
+  {name:'CarIdxGear',          type:'int[]',  range:'64 cars', desc:'Current selected gear for each car (-1=Reverse, 0=Neutral)'},
+  {name:'CarIdxPosition',      type:'int[]',  range:'64 cars', desc:'Overall race position for each car (1 = leader)'},
+  {name:'CarIdxRPM',           type:'float[]',range:'64 cars', unit:'RPM', desc:'Current engine RPM for each car'},
+  {name:'CarIdxSessionFlags',  type:'int[]',  range:'64 cars', desc:'Per-car active session flags bitmask (e.g. blue flag shown to specific car)'},
+  {name:'CarIdxSteer',         type:'float[]',range:'64 cars', unit:'rad', desc:'Steering wheel angle for each car'},
+]});
+
+renderSection({ id:'sec-caridx-track', title:'Per-Car Arrays — Track Surface & Position', fields:[
+  {name:'CarIdxTrackSurface',         type:'int[]', range:'64 cars', desc:'Track surface type for each car: -1=NotInWorld, 0=OffTrack, 1=InPitStall, 2=ApproachingPits, 3=OnTrack'},
+  {name:'CarIdxTrackSurfaceMaterial', type:'int[]', range:'64 cars', desc:'Surface material for each car: 0=Unspecified, 1=Asphalt, 2=Rumble, 3=Concrete, 4=Loose, 5=Grass, 6=Sand'},
+]});
+
+renderSection({ id:'sec-camera', title:'Camera System', srcLabel:'iRacing SDK (Live Only)', fields:[
+  {name:'CamCarIdx',       type:'int',      liveOnly:true, desc:'Car index that the active broadcast camera is currently focused on'},
+  {name:'CamCameraNumber', type:'int',      liveOnly:true, desc:'Active camera number within the current group'},
+  {name:'CamGroupNumber',  type:'int',      liveOnly:true, desc:'Active camera group number (e.g. cockpit, TV, blimp)'},
+  {name:'CamCameraState',  type:'bitfield', liveOnly:true, desc:'Bitmask of camera system state flags: isSessionScreen, isScenicActive, isCameraToolActive, isUIHidden, etc.'},
+  {name:'CamSwitchNum',    type:'bitfield', liveOnly:true, desc:'Broadcast command to switch camera focus — write this to change the active camera programmatically'},
+  {name:'RadioTransmitCarIdx', type:'int',               desc:'Car index of the driver currently transmitting on the radio'},
+]});
+
+renderSection({ id:'sec-replay', title:'Replay Controls & State', fields:[
+  {name:'IsReplayPlaying',     type:'bool', desc:'True when a replay is currently playing back'},
+  {name:'ReplayFrameNum',      type:'int',  unit:'frame', desc:'Current frame number being displayed during replay playback'},
+  {name:'ReplayFrameNumEnd',   type:'int',  unit:'frame', desc:'Last available frame number in the replay buffer'},
+  {name:'ReplayPlaySpeed',     type:'int',               desc:'Replay playback speed multiplier (1=real time, negative=reverse)'},
+  {name:'ReplayPlaySlowMotion',type:'bool',              desc:'True when replay is in slow-motion mode'},
+  {name:'ReplaySessionNum',    type:'int',               desc:'Session index being replayed when multiple sessions exist in the event'},
+  {name:'ReplaySessionTime',   type:'float',unit:'s',    desc:'Session time position of the current replay frame'},
+]});
+
+renderSection({ id:'sec-network', title:'Network Quality & System Performance', fields:[
+  {name:'ChanLatency',        type:'float', unit:'s',   desc:'Current telemetry data channel round-trip latency'},
+  {name:'ChanAvgLatency',     type:'float', unit:'s',   desc:'Rolling average channel latency over recent samples'},
+  {name:'ChanClockSkew',      type:'float', unit:'s',   desc:'Clock synchronisation skew between client and server'},
+  {name:'ChanQuality',        type:'float', range:'0–1',desc:'Overall telemetry channel quality score'},
+  {name:'ChanPartnerQuality', type:'float', range:'0–1',desc:'Network quality metric for the partner / opponent connection'},
+  {name:'CpuUsageFG',         type:'float', unit:'%',   desc:'iRacing foreground process CPU usage percentage'},
+  {name:'CpuUsageBG',         type:'float', unit:'%',   desc:'iRacing background process CPU usage percentage'},
+  {name:'GpuUsage',           type:'float', unit:'%',   desc:'GPU usage percentage by the iRacing rendering process'},
+  {name:'MemPageFaultSec',    type:'float',              desc:'Memory hard page fault rate per second'},
+  {name:'MemSoftPageFaultSec',type:'float',              desc:'Memory soft page fault rate per second'},
+]});
+
+renderSection({ id:'sec-session-control', title:'Session Control, State Flags & I/O', fields:[
+  {name:'IsOnTrack',           type:'bool', desc:'True when the player is in the car with physics actively running'},
+  {name:'IsOnTrackCar',        type:'bool', desc:'True when the player\'s car exists in the world with physics active (includes pit stall)'},
+  {name:'IsInGarage',          type:'bool', desc:'True when the player is currently in the garage screen'},
+  {name:'IsDiskLoggingActive', type:'bool', desc:'True when IBT telemetry disk logging is currently recording to file'},
+  {name:'IsDiskLoggingEnabled',type:'bool', desc:'True when IBT disk logging is enabled in settings (may not be actively recording)'},
+  {name:'VidCapActive',        type:'bool', desc:'True when iRacing\'s built-in video capture is actively recording'},
+  {name:'VidCapEnabled',       type:'bool', desc:'True when video capture is enabled in settings'},
+  {name:'DisplayUnits',        type:'int',  liveOnly:true, desc:'Units preference: 0 = Imperial (mph/°F), 1 = Metric (km/h/°C)'},
+  {name:'DriverMarker',        type:'bool', desc:'Driver-set position marker — used to flag a track location during a session'},
+  {name:'PushToTalk',          type:'bool', desc:'True while the push-to-talk radio button is held'},
+]});
+
+renderSection({ id:'sec-gps', title:'GPS / World Position (Disk Only)', srcLabel:'iRacing SDK (Disk Only)', fields:[
+  {name:'Lat', type:'float', unit:'degrees', diskOnly:true, desc:'Geographic latitude of the car\'s current world position — only written to IBT replay files'},
+  {name:'Lon', type:'float', unit:'degrees', diskOnly:true, desc:'Geographic longitude of the car\'s current world position — only written to IBT replay files'},
+  {name:'Alt', type:'float', unit:'m',       diskOnly:true, desc:'Altitude of the car\'s current world position above sea level — only written to IBT replay files'},
+]});
+
+// ─────────────────────────────────────────────
+// SimHub GameData — SECTIONS
+// (DataCorePlugin.GameData.* — normalised across all supported games)
+// ─────────────────────────────────────────────
+const SH = { stripe:'bg-simhub-gd', srcCls:'label-simhub-gd', srcLabel:'SimHub GameData', dotCls:'bg-simhub-gd' };
+
+renderSection({ ...SH, id:'sec-sh-core', title:'SimHub GameData — Speed, Engine & Inputs', fields:[
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.SpeedKmh',   type:'double', unit:'km/h', wired:true, desc:'Normalised vehicle speed in km/h — available across all SimHub-supported games'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.SpeedMph',   type:'double', unit:'mph',  wired:true, desc:'Normalised vehicle speed in miles per hour'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Rpms',       type:'double', unit:'RPM',  wired:true, desc:'Engine RPM — normalised cross-game'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.MaxRpm',     type:'double', unit:'RPM',  wired:true, desc:'Engine redline RPM for the current car'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Gear',       type:'string', wired:true,  desc:'Current gear as string: "R", "N", "1"–"9"'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Throttle',   type:'double', unit:'%', range:'0–100', wired:true, desc:'Throttle pedal position, normalised 0–100 across all games'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Brake',      type:'double', unit:'%', range:'0–100', wired:true, desc:'Brake pedal position, normalised 0–100'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Clutch',     type:'double', unit:'%', range:'0–100', wired:true, desc:'Clutch pedal position, normalised 0–100'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.GlobalAccelerationG', type:'double', unit:'G', desc:'Total combined G-force magnitude (lateral² + longitudinal²)^0.5'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.AccelerationSway',   type:'double', unit:'G', wired:true, desc:'Lateral (left-right) G-force — cross-game fallback for LatAccel'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.AccelerationSurge',  type:'double', unit:'G', wired:true, desc:'Longitudinal (fore-aft) G-force — cross-game fallback for LongAccel'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.AccelerationHeave',  type:'double', unit:'G', wired:true, desc:'Vertical G-force — cross-game fallback for VertAccel'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.YawVelocity',        type:'double', unit:'rad/s', wired:true, desc:'Yaw rotation rate — cross-game fallback for YawRate'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.OrientationRoll',    type:'double', unit:'radians', desc:'Vehicle roll angle from SimHub\'s physics model'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.OrientationPitch',   type:'double', unit:'radians', desc:'Vehicle pitch angle from SimHub\'s physics model'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.OrientationYaw',     type:'double', unit:'radians', desc:'Vehicle yaw / heading angle from SimHub\'s physics model'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.VelocityX',          type:'double', unit:'m/s', wired:true, desc:'Lateral velocity component — cross-game fallback for track map'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.VelocityZ',          type:'double', unit:'m/s', wired:true, desc:'Forward velocity component — cross-game fallback for track map'},
+]});
+
+renderSection({ ...SH, id:'sec-sh-timing', title:'SimHub GameData — Lap Timing', fields:[
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.CurrentLap',           type:'int',    wired:true, desc:'Current lap number'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.CompletedLaps',        type:'int',    wired:true, desc:'Fully completed lap count'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.CurrentLapTime',       type:'TimeSpan', unit:'s', wired:true, desc:'Elapsed time on the current lap — cross-game fallback'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.LastLapTime',          type:'TimeSpan', unit:'s', wired:true, desc:'Most recently completed lap time — cross-game fallback'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.BestLapTime',          type:'TimeSpan', unit:'s', wired:true, desc:'Session personal best lap time — cross-game fallback'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.DeltaToSessionBestLap',type:'TimeSpan', unit:'s', wired:true, desc:'Live delta to the overall session best lap'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.DeltaToOptimalLap',    type:'TimeSpan', unit:'s', desc:'Live delta to the theoretical optimal lap (best sectors combined)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TrackPositionPercent', type:'double', range:'0–1', wired:true, desc:'Track position as fraction of lap — cross-game fallback for TrackPositionPct'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.SessionTimeLeft',      type:'TimeSpan', unit:'s', wired:true, desc:'Remaining session time — cross-game fallback for SessionTimeRemain'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.RemainingLaps',        type:'int',    wired:true, desc:'Estimated laps remaining based on session distance/time'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TotalLaps',            type:'int',    wired:true, desc:'Total scheduled laps for the session (0 for timed sessions)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.CurrentLapIsValid',    type:'bool',   desc:'True when the current lap is clean and will be counted as a valid time'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.BestLapOpponentName',  type:'string', desc:'Driver name who holds the overall session best lap time'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.BestLapOpponentTime',  type:'TimeSpan', unit:'s', desc:'Overall session best lap time (set by any driver)'},
+]});
+
+renderSection({ ...SH, id:'sec-sh-tyres', title:'SimHub GameData — Tyres & Brakes', fields:[
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreTempFrontLeft',       type:'double', unit:'°C', wired:true, desc:'Front-left tyre surface temperature — normalised across games'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreTempFrontRight',      type:'double', unit:'°C', wired:true, desc:'Front-right tyre surface temperature'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreTempRearLeft',        type:'double', unit:'°C', wired:true, desc:'Rear-left tyre surface temperature'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreTempRearRight',       type:'double', unit:'°C', wired:true, desc:'Rear-right tyre surface temperature'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreWearFrontLeft',       type:'double', range:'0–1', wired:true, desc:'Front-left tyre wear remaining (1=new, 0=worn)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreWearFrontRight',      type:'double', range:'0–1', wired:true, desc:'Front-right tyre wear remaining'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreWearRearLeft',        type:'double', range:'0–1', wired:true, desc:'Rear-left tyre wear remaining'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreWearRearRight',       type:'double', range:'0–1', wired:true, desc:'Rear-right tyre wear remaining'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyrePressureFrontLeft',   type:'double', unit:'kPa', desc:'Front-left tyre pressure'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyrePressureFrontRight',  type:'double', unit:'kPa', desc:'Front-right tyre pressure'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyrePressureRearLeft',    type:'double', unit:'kPa', desc:'Rear-left tyre pressure'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyrePressureRearRight',   type:'double', unit:'kPa', desc:'Rear-right tyre pressure'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.BrakeTemperatureFrontLeft',  type:'double', unit:'°C', desc:'Front-left brake disc/pad temperature'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.BrakeTemperatureFrontRight', type:'double', unit:'°C', desc:'Front-right brake disc/pad temperature'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.BrakeTemperatureRearLeft',   type:'double', unit:'°C', desc:'Rear-left brake disc/pad temperature'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.BrakeTemperatureRearRight',  type:'double', unit:'°C', desc:'Rear-right brake disc/pad temperature'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.SuspensionTravelMM_FrontLeft',  type:'double', unit:'mm', desc:'Front-left suspension travel in millimetres'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.SuspensionTravelMM_FrontRight', type:'double', unit:'mm', desc:'Front-right suspension travel in millimetres'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.SuspensionTravelMM_RearLeft',   type:'double', unit:'mm', desc:'Rear-left suspension travel in millimetres'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.SuspensionTravelMM_RearRight',  type:'double', unit:'mm', desc:'Rear-right suspension travel in millimetres'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.WheelSlip_FrontLeft',   type:'double', desc:'Front-left wheel slip ratio — longitudinal overspeed relative to car velocity'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.WheelSlip_FrontRight',  type:'double', desc:'Front-right wheel slip ratio'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.WheelSlip_RearLeft',    type:'double', desc:'Rear-left wheel slip ratio'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.WheelSlip_RearRight',   type:'double', desc:'Rear-right wheel slip ratio'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.WheelInAir_FrontLeft',  type:'bool', desc:'True when the front-left wheel has lost contact with the road surface'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.WheelInAir_FrontRight', type:'bool', desc:'True when the front-right wheel has lost contact with the road surface'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.WheelInAir_RearLeft',   type:'bool', desc:'True when the rear-left wheel has lost contact with the road surface'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.WheelInAir_RearRight',  type:'bool', desc:'True when the rear-right wheel has lost contact with the road surface'},
+]});
+
+renderSection({ ...SH, id:'sec-sh-aids', title:'SimHub GameData — Driver Aids & Car Systems', fields:[
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.ABSActive',   type:'bool',   wired:true, desc:'True when ABS is currently intervening — cross-game fallback for AbsActive'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TCActive',    type:'bool',   wired:true, desc:'True when traction control is currently intervening — cross-game fallback for TcActive'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.ABSLevel',    type:'int',    desc:'ABS aggressiveness level (game-specific scale)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TCLevel',     type:'int',    desc:'Traction control aggressiveness level (game-specific scale)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.BrakeBias',   type:'double', unit:'%', desc:'Brake balance front-to-rear (game-specific; not always available)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.DrsAvailable',type:'bool',   desc:'True when DRS is permitted for use on this lap or in this zone'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.DrsEnabled',  type:'bool',   desc:'True when DRS is currently deployed and the flap is open'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.ErsPercent',  type:'double', unit:'%', range:'0–100', desc:'ERS battery charge as a percentage of maximum capacity'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.PitLimiterOn',type:'bool',   wired:true, desc:'True when the pit speed limiter is active — cross-game fallback'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.OilTemperature',   type:'double', unit:'°C', desc:'Engine oil temperature — available across most SimHub games'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.WaterTemperature', type:'double', unit:'°C', desc:'Engine coolant temperature'},
+]});
+
+renderSection({ ...SH, id:'sec-sh-fuel', title:'SimHub GameData — Fuel & Strategy', fields:[
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Fuel',        type:'double', unit:'L',  wired:true, desc:'Current fuel level in the tank'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.MaxFuel',     type:'double', unit:'L',  desc:'Maximum fuel capacity of the car'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.FuelPercent',  type:'double', unit:'%',  wired:true, desc:'Fuel level as a percentage of tank capacity'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.Computed.Fuel_LitersPerLap', type:'double', unit:'L/lap', wired:true, desc:'Rolling average fuel consumption per lap — computed by SimHub over recent laps'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.RemainingLaps',     type:'int',    unit:'laps', wired:true, desc:'Estimated laps remaining in session'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.MandatoryPitDone',  type:'bool',   desc:'True once the mandatory pit stop requirement has been satisfied'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.InMandatoryPit',    type:'bool',   desc:'True while currently serving a mandatory pit stop'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.PitWindowOpen',     type:'bool',   desc:'True during the window when a mandatory pit stop may be served'},
+]});
+
+renderSection({ ...SH, id:'sec-sh-weather', title:'SimHub GameData — Weather & Environment', fields:[
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.AirTemperature',  type:'double', unit:'°C',  desc:'Ambient air temperature'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.RoadTemperature', type:'double', unit:'°C',  wired:true, desc:'Track/road surface temperature — cross-game fallback for TrackTemp'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.RainIntensity',   type:'double', range:'0–1', wired:true, desc:'Rain intensity normalised 0–1 — used for WeatherWet fallback in non-iRacing games'},
+]});
+
+renderSection({ ...SH, id:'sec-sh-session', title:'SimHub GameData — Session, Position & Flags', fields:[
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Position',       type:'int',    wired:true, desc:'Player\'s current race position (1 = leader)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.OpponentsCount', type:'int',    desc:'Total number of opponents in the session'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.IsInPit',        type:'int',    wired:true, desc:'Non-zero when the car is being serviced in the pit stall'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.IsInPitLane',    type:'int',    wired:true, desc:'Non-zero when the car is anywhere in the pit lane'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.SessionTypeName',type:'string', wired:true, desc:'Session type: "Race", "Qualify", "Practice", "Time Trial", etc.'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Flag_Yellow',    type:'bool',   desc:'True when yellow/caution flag is active'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Flag_Green',     type:'bool',   desc:'True when green flag is active (racing)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Flag_Checkered', type:'bool',   desc:'True when checkered flag is shown (session end)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Flag_Blue',      type:'bool',   desc:'True when blue flag shown to the player (being lapped)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Flag_Black',     type:'bool',   desc:'True when black flag shown to the player (penalty/disqualification)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.Flag_White',     type:'bool',   desc:'True when white flag shown (final lap)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.IRating',        type:'int',    wired:true, desc:'Player iRating — cross-game fallback from SimHub normalised properties'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.SafetyRating',   type:'double', wired:true, desc:'Player safety rating — cross-game fallback from SimHub normalised properties'},
+]});
+
+renderSection({ ...SH, id:'sec-sh-car', title:'SimHub GameData — Car & Track Identity', fields:[
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.CarModel',      type:'string', wired:true, desc:'Name of the car being driven (e.g. "Dallara IR-18", "Ferrari 488 GT3")'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TrackName',     type:'string', desc:'Name of the circuit (e.g. "Spa-Francorchamps", "Daytona International Speedway")'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TrackId',       type:'string', desc:'Internal track identifier used by SimHub'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TrackCountry',  type:'string', wired:true, desc:'Country of the track — cross-game fallback (ISO code or full name depending on game)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.PlayerName',    type:'string', wired:true, desc:'Display name of the player driver'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameRunning',            type:'bool',   wired:true, desc:'True when a supported game is running and connected to SimHub'},
+]});
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+updateCounts();
+</script>
+</body>
+</html>

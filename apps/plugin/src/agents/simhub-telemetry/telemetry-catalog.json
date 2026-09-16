@@ -1,0 +1,579 @@
+{
+  "version": "2.0.0",
+  "description": "Complete telemetry data catalog for the K10 Motorsports — all iRacing SDK variables, SimHub GameData properties, SimHub plugin outputs, commentary triggers, and computed fields.",
+  "sources": {
+    "iracing-sdk": "Raw iRacing SDK shared memory variables (via DataCorePlugin.GameRawData.Telemetry.*)",
+    "simhub-gamedata": "SimHub normalised cross-game properties (DataCorePlugin.GameData.*)",
+    "simhub-computed": "SimHub computed/derived properties (DataCorePlugin.Computed.*)",
+    "k10-plugin": "RaceCorProDrive.Plugin.* output properties",
+    "commentary": "Commentary engine trigger conditions"
+  },
+  "sections": [
+    {
+      "id": "speed-engine-inputs",
+      "title": "Speed, Engine & Driver Inputs",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "Speed", "type": "float", "unit": "m/s", "wired": false, "desc": "Vehicle instantaneous velocity in metres per second (native SDK unit)"},
+        {"name": "SpeedKmh", "type": "float", "unit": "km/h", "wired": true, "desc": "Current vehicle speed in kilometres per hour (normalised)"},
+        {"name": "RPM", "type": "float", "unit": "rev/min", "wired": true, "simhubPath": "DataCorePlugin.GameData.Rpms", "desc": "Engine revolutions per minute"},
+        {"name": "MaxRpm", "type": "float", "unit": "rev/min", "wired": true, "desc": "Engine redline / maximum RPM for the current car"},
+        {"name": "Gear", "type": "int", "range": "-1–9", "wired": true, "desc": "Current gear: -1=Reverse, 0=Neutral, 1–9=forward gears"},
+        {"name": "Throttle", "type": "float", "range": "0–1", "wired": true, "desc": "Throttle pedal position after force curves (0=off, 1=WOT)"},
+        {"name": "ThrottleRaw", "type": "float", "range": "0–1", "wired": false, "desc": "Raw throttle pedal axis position before force curve mapping"},
+        {"name": "Brake", "type": "float", "range": "0–1", "wired": true, "desc": "Brake pedal position after force curves (0=off, 1=max)"},
+        {"name": "BrakeRaw", "type": "float", "range": "0–1", "wired": false, "desc": "Raw brake pedal axis position before force curves"},
+        {"name": "BrakeABSactive", "type": "bool", "wired": true, "desc": "True when ABS is actively modulating brake pressure"},
+        {"name": "Clutch", "type": "float", "range": "0–1", "wired": true, "desc": "Clutch pedal position (0=released, 1=fully pressed)"},
+        {"name": "ClutchRaw", "type": "float", "range": "0–1", "wired": false, "desc": "Raw clutch axis position (0=disengaged, 1=engaged)"},
+        {"name": "HandBrakeRaw", "type": "float", "range": "0–1", "wired": false, "desc": "Handbrake controller axis raw position"},
+        {"name": "FrameRate", "type": "float", "unit": "FPS", "wired": true, "desc": "Game render frame rate"}
+      ]
+    },
+    {
+      "id": "lap-timing",
+      "title": "Lap Timing & Sector Splits",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "Lap", "type": "int", "wired": true, "desc": "Client's current lap number"},
+        {"name": "LapCompleted", "type": "int", "wired": true, "desc": "Number of fully completed laps"},
+        {"name": "LapCurrentLapTime", "type": "float", "unit": "s", "wired": true, "desc": "Elapsed time on the current in-progress lap"},
+        {"name": "LapLastLapTime", "type": "float", "unit": "s", "wired": true, "desc": "Time recorded for the most recently completed lap"},
+        {"name": "LapBestLapTime", "type": "float", "unit": "s", "wired": true, "desc": "Personal best lap time in this session"},
+        {"name": "LapDeltaToBestLap", "type": "float", "unit": "s", "wired": true, "desc": "Live delta vs personal best on current lap (negative=ahead)"},
+        {"name": "LapDeltaToBestLap_DD", "type": "float", "wired": false, "desc": "Delta direction/validity data for best lap delta"},
+        {"name": "LapDeltaToBestLap_OK", "type": "bool", "wired": false, "desc": "True when best lap delta value is valid"},
+        {"name": "LapDeltaToOptimalLap", "type": "float", "unit": "s", "wired": false, "desc": "Delta to theoretical optimal lap (best of each sector combined)"},
+        {"name": "LapDeltaToOptimalLap_DD", "type": "float", "wired": false, "desc": "Delta direction/validity data for optimal lap delta"},
+        {"name": "LapDeltaToOptimalLap_OK", "type": "bool", "wired": false, "desc": "True when optimal lap delta is valid"},
+        {"name": "LapDeltaToSessionBestLap", "type": "float", "unit": "s", "wired": false, "desc": "Live delta to overall session best lap set by any driver"},
+        {"name": "LapDeltaToSessionBestLap_DD", "type": "float", "wired": false, "desc": "Delta direction/validity data for session best delta"},
+        {"name": "LapDeltaToSessionBestLap_OK", "type": "bool", "wired": false, "desc": "True when session best lap delta is valid"},
+        {"name": "LapDeltaToSessionLastlLap", "type": "float", "unit": "s", "wired": false, "desc": "Live delta vs session's most recently completed lap"},
+        {"name": "LapDeltaToSessionLastlLap_OK", "type": "bool", "wired": false, "desc": "True when session last lap delta is valid"},
+        {"name": "LapDeltaToSessionOptimalLap", "type": "float", "unit": "s", "wired": false, "desc": "Live delta to session-wide theoretical optimal lap"},
+        {"name": "LapDeltaToSessionOptimalLap_OK", "type": "bool", "wired": false, "desc": "True when session optimal lap delta is valid"},
+        {"name": "LapDist", "type": "float", "unit": "m", "wired": false, "desc": "Distance in metres from the start line on the current lap"},
+        {"name": "LapDistPct", "type": "float", "range": "0–1", "wired": true, "desc": "Percentage of current lap completed (fraction of track)"},
+        {"name": "LapBestNLapTime", "type": "float", "unit": "s", "wired": false, "desc": "Best rolling N-lap average time"},
+        {"name": "LapLastNLapTime", "type": "float", "unit": "s", "wired": false, "desc": "Most recent rolling N-lap average time"},
+        {"name": "SessionTimeRemain", "type": "float", "unit": "s", "wired": true, "desc": "Time remaining in timed session (-1 until race starts)"}
+      ]
+    },
+    {
+      "id": "race-position-session",
+      "title": "Race Position & Session State",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "PlayerCarPosition", "type": "int", "wired": true, "desc": "Player's race position (1=leader)"},
+        {"name": "PlayerCarClassPosition", "type": "int", "wired": false, "desc": "Player's position within their car class"},
+        {"name": "PlayerCarClass", "type": "int", "wired": false, "desc": "Player's car class index in multiclass events"},
+        {"name": "PlayerCarIdx", "type": "int", "wired": true, "desc": "Player's car index in the session arrays"},
+        {"name": "SessionState", "type": "int", "wired": true, "desc": "Session lifecycle phase: 0=Invalid, 1=GetInCar, 2=Warmup, 3=ParadeLaps, 4=Racing, 5=Checkered, 6=Cooldown"},
+        {"name": "SessionNum", "type": "int", "wired": false, "desc": "Index of current session within the event (practice=0, qualify=1, race=2)"},
+        {"name": "SessionUniqueID", "type": "int", "wired": false, "desc": "Unique identifier for the current session"},
+        {"name": "SessionTime", "type": "double", "unit": "s", "wired": false, "desc": "Total elapsed time since session started"},
+        {"name": "SessionTimeOfDay", "type": "float", "unit": "s", "wired": false, "desc": "Seconds since midnight for in-game clock (adjusts for time acceleration)"},
+        {"name": "SessionTick", "type": "int", "wired": false, "desc": "Internal simulation tick counter — increments every frame"},
+        {"name": "SessionLapsRemainEx", "type": "int", "unit": "laps", "wired": false, "desc": "Accurate laps remaining in the session"},
+        {"name": "SessionLapsTotal", "type": "int", "unit": "laps", "wired": false, "desc": "Total scheduled lap count (0 for timed races)"},
+        {"name": "RaceLaps", "type": "int", "unit": "laps", "wired": false, "liveOnly": true, "desc": "Laps completed by the race leader"},
+        {"name": "PaceMode", "type": "int", "wired": true, "desc": "Formation/safety car pacing state: 0=NotPacing, 1=Pacing, 2=Approaching, 3=FieldCrossSF"},
+        {"name": "DisplayUnits", "type": "int", "wired": false, "liveOnly": true, "desc": "Units preference: 0=Imperial, 1=Metric"},
+        {"name": "EnterExitReset", "type": "int", "wired": false, "desc": "Reset key state: 0=Enter, 1=Exit, 2=Reset"}
+      ]
+    },
+    {
+      "id": "physics-gforces",
+      "title": "Physics, G-Forces & World-Space Velocity",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "LatAccel", "type": "float", "unit": "G", "wired": true, "desc": "Lateral acceleration. Positive=right, negative=left. Trigger threshold: >4.5G"},
+        {"name": "LatAccel_ST", "type": "float[6]", "unit": "G", "wired": false, "desc": "Sub-tick lateral acceleration samples (6 per frame)"},
+        {"name": "LongAccel", "type": "float", "unit": "m/s²", "wired": true, "desc": "Longitudinal acceleration. Negative during braking. Trigger threshold: <-38 m/s²"},
+        {"name": "LongAccel_ST", "type": "float[6]", "unit": "m/s²", "wired": false, "desc": "Sub-tick longitudinal acceleration samples"},
+        {"name": "VertAccel", "type": "float", "unit": "G", "wired": true, "desc": "Vertical acceleration. Spike >10G=kerb, >12G=off-track, >20G=wall contact"},
+        {"name": "VertAccel_ST", "type": "float[6]", "unit": "G", "wired": false, "desc": "Sub-tick vertical acceleration samples"},
+        {"name": "YawRate", "type": "float", "unit": "rad/s", "wired": true, "desc": "Rate of rotation around vertical axis. Spin catch threshold: >3.0 rad/s"},
+        {"name": "YawRate_ST", "type": "float[6]", "unit": "rad/s", "wired": false, "desc": "Sub-tick yaw rate samples"},
+        {"name": "Pitch", "type": "float", "unit": "radians", "wired": false, "desc": "Vehicle pitch angle — positive=nose up"},
+        {"name": "PitchRate", "type": "float", "unit": "rad/s", "wired": false, "desc": "Rate of change of pitch angle"},
+        {"name": "Roll", "type": "float", "unit": "radians", "wired": false, "desc": "Vehicle roll angle — lateral body lean through corners"},
+        {"name": "RollRate", "type": "float", "unit": "rad/s", "wired": false, "desc": "Rate of change of roll angle"},
+        {"name": "RollRate_ST", "type": "float[6]", "unit": "rad/s", "wired": false, "desc": "Sub-tick roll rate samples"},
+        {"name": "Yaw", "type": "float", "unit": "radians", "wired": true, "desc": "Car heading angle in world space"},
+        {"name": "YawNorth", "type": "float", "unit": "radians", "wired": false, "desc": "Yaw angle relative to geographic north"},
+        {"name": "VelocityX", "type": "float", "unit": "m/s", "wired": true, "desc": "Lateral velocity (car-local) — used for track map"},
+        {"name": "VelocityX_ST", "type": "float[6]", "unit": "m/s", "wired": false, "desc": "Sub-tick lateral velocity samples"},
+        {"name": "VelocityY", "type": "float", "unit": "m/s", "wired": false, "desc": "Vertical velocity component"},
+        {"name": "VelocityY_ST", "type": "float[6]", "unit": "m/s", "wired": false, "desc": "Sub-tick vertical velocity samples"},
+        {"name": "VelocityZ", "type": "float", "unit": "m/s", "wired": true, "desc": "Forward velocity (car-local) — used for track map"},
+        {"name": "VelocityZ_ST", "type": "float[6]", "unit": "m/s", "wired": false, "desc": "Sub-tick forward velocity samples"}
+      ]
+    },
+    {
+      "id": "driver-aids",
+      "title": "Driver Aids — ABS & Traction Control",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "BrakeABSactive", "type": "bool", "wired": true, "desc": "True when ABS is actively modulating brake pressure"},
+        {"name": "dcABS", "type": "int", "range": "0–12", "wired": true, "desc": "ABS aggressiveness level set by the driver"},
+        {"name": "dcTractionControl", "type": "int", "range": "0–12", "wired": true, "desc": "Traction control aggressiveness level"},
+        {"name": "dcBrakeBias", "type": "float", "unit": "%", "range": "30–70", "wired": true, "desc": "Brake balance front/rear distribution"}
+      ]
+    },
+    {
+      "id": "tyres",
+      "title": "Tyres — Temperature & Wear (Per Corner)",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "TyreTempFL/FR/RL/RR", "type": "float", "unit": "°F", "wired": true, "desc": "Per-corner tyre surface temperature (iRacing native = °F)"},
+        {"name": "TyreWearFL/FR/RL/RR", "type": "float", "range": "0–1", "wired": true, "desc": "Per-corner tyre wear remaining (1.0=new, 0.0=worn). Trigger at <0.35"}
+      ]
+    },
+    {
+      "id": "tyre-zone-temps",
+      "title": "Tyre Temperature — Per Corner Zone (Inner / Mid / Outer)",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "LFtempCL", "type": "float", "unit": "°C", "wired": false, "desc": "Left-front tyre inner (left) zone temperature"},
+        {"name": "LFtempCM", "type": "float", "unit": "°C", "wired": false, "desc": "Left-front tyre middle zone temperature"},
+        {"name": "LFtempCR", "type": "float", "unit": "°C", "wired": false, "desc": "Left-front tyre outer (right) zone temperature"},
+        {"name": "RFtempCL", "type": "float", "unit": "°C", "wired": false, "desc": "Right-front tyre inner zone temperature"},
+        {"name": "RFtempCM", "type": "float", "unit": "°C", "wired": false, "desc": "Right-front tyre middle zone temperature"},
+        {"name": "RFtempCR", "type": "float", "unit": "°C", "wired": false, "desc": "Right-front tyre outer zone temperature"},
+        {"name": "LRtempCL", "type": "float", "unit": "°C", "wired": false, "desc": "Left-rear tyre inner zone temperature"},
+        {"name": "LRtempCM", "type": "float", "unit": "°C", "wired": false, "desc": "Left-rear tyre middle zone temperature"},
+        {"name": "LRtempCR", "type": "float", "unit": "°C", "wired": false, "desc": "Left-rear tyre outer zone temperature"},
+        {"name": "RRtempCL", "type": "float", "unit": "°C", "wired": false, "desc": "Right-rear tyre inner zone temperature"},
+        {"name": "RRtempCM", "type": "float", "unit": "°C", "wired": false, "desc": "Right-rear tyre middle zone temperature"},
+        {"name": "RRtempCR", "type": "float", "unit": "°C", "wired": false, "desc": "Right-rear tyre outer zone temperature"}
+      ]
+    },
+    {
+      "id": "tyre-zone-wear",
+      "title": "Tyre Wear — Per Corner Zone (Left / Mid / Right)",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "LFwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Left-front tyre wear per zone (L=left edge, M=centre, R=right edge)"},
+        {"name": "RFwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Right-front tyre wear per zone"},
+        {"name": "LRwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Left-rear tyre wear per zone"},
+        {"name": "RRwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Right-rear tyre wear per zone"}
+      ]
+    },
+    {
+      "id": "tyre-sets",
+      "title": "Tyre Sets & Compound Selection",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "TireSetsAvailable", "type": "int", "wired": false, "desc": "Total tyre sets remaining (255=unlimited)"},
+        {"name": "TireSetsUsed", "type": "int", "wired": false, "desc": "Total tyre sets consumed"},
+        {"name": "LeftTireSetsAvailable", "type": "int", "wired": false, "desc": "Left-side tyre sets remaining"},
+        {"name": "RightTireSetsAvailable", "type": "int", "wired": false, "desc": "Right-side tyre sets remaining"},
+        {"name": "FrontTireSetsAvailable", "type": "int", "wired": false, "desc": "Front-axle tyre sets remaining"},
+        {"name": "RearTireSetsAvailable", "type": "int", "wired": false, "desc": "Rear-axle tyre sets remaining"},
+        {"name": "PlayerTireCompound", "type": "int", "wired": false, "desc": "Index of tyre compound currently fitted"}
+      ]
+    },
+    {
+      "id": "fuel",
+      "title": "Fuel",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "FuelLevel", "type": "float", "unit": "L", "wired": true, "desc": "Current fuel quantity in tank"},
+        {"name": "FuelLevelPct", "type": "float", "range": "0–1", "wired": true, "desc": "Fuel level as fraction of tank capacity"},
+        {"name": "FuelPress", "type": "float", "unit": "kPa", "wired": false, "desc": "Fuel rail system pressure"},
+        {"name": "FuelUsePerHour", "type": "float", "unit": "kg/h", "wired": false, "desc": "Instantaneous fuel consumption rate"}
+      ]
+    },
+    {
+      "id": "engine-fluids",
+      "title": "Engine Fluids, Systems & Electrical",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "OilTemp", "type": "float", "unit": "°C", "wired": false, "desc": "Engine oil temperature"},
+        {"name": "OilPress", "type": "float", "unit": "kPa", "wired": false, "desc": "Engine oil pressure"},
+        {"name": "OilLevel", "type": "float", "wired": false, "desc": "Engine oil level"},
+        {"name": "WaterTemp", "type": "float", "unit": "°C", "wired": false, "desc": "Engine coolant temperature"},
+        {"name": "WaterLevel", "type": "float", "wired": false, "desc": "Engine coolant level"},
+        {"name": "ManifoldPress", "type": "float", "unit": "kPa", "wired": false, "desc": "Engine intake manifold pressure"},
+        {"name": "Voltage", "type": "float", "unit": "V", "wired": false, "desc": "Vehicle electrical system voltage"},
+        {"name": "EngineWarnings", "type": "bitfield", "wired": false, "desc": "Active engine warning flags: waterTemp, fuelPressure, oilPressure, engineStalled, pitSpeedLimiter, revLimiterActive, oilTemp"}
+      ]
+    },
+    {
+      "id": "suspension",
+      "title": "Suspension — Per Corner (Ride Height, Shock, Brakes)",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "LFrideHeight / RFrideHeight / LRrideHeight / RRrideHeight", "type": "float", "unit": "m", "wired": false, "desc": "Ride height per corner — distance from car floor to road surface"},
+        {"name": "LFshockDefl / RFshockDefl / LRshockDefl / RRshockDefl", "type": "float", "unit": "m", "wired": false, "desc": "Shock absorber deflection from rest per corner"},
+        {"name": "LFshockVel / RFshockVel / LRshockVel / RRshockVel", "type": "float", "unit": "m/s", "wired": false, "desc": "Shock absorber velocity per corner"},
+        {"name": "LFbrakeLinePress / RFbrakeLinePress / LRbrakeLinePress / RRbrakeLinePress", "type": "float", "unit": "kPa", "wired": false, "desc": "Brake line hydraulic pressure per corner"},
+        {"name": "*shockDefl_ST / *shockVel_ST", "type": "float[6]", "wired": false, "desc": "Sub-tick sample arrays for shock deflection and velocity (6 per frame)"}
+      ]
+    },
+    {
+      "id": "flags-penalties",
+      "title": "Flags, Penalties & Disqualification",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "SessionFlags", "type": "bitfield", "wired": true, "desc": "Full bitmask of active flags. Race: checkered(0x01), white(0x02), green(0x04), yellow(0x08), red(0x10), blue(0x20), debris(0x40). Caution: yellowWaving(0x100), oneLapToGreen(0x200), greenHeld(0x400), tenToGo(0x800), fiveToGo(0x1000), caution(0x4000), cautionWaving(0x8000). Penalty: black(0x10000), disqualify(0x20000), servicible/meatball(0x40000), furled(0x80000), repair(0x100000). Starts: hidden(0x10000000), ready(0x20000000), set(0x40000000), go(0x80000000)"},
+        {"name": "CarIdxSessionFlags", "type": "int[]", "range": "64 cars", "wired": false, "desc": "Per-car session flags bitmask including penalty bits for every car"},
+        {"name": "PlayerCarDriverIncidentCount", "type": "int", "wired": true, "desc": "Total incident points accumulated by the player driver"},
+        {"name": "PlayerCarMyIncidentCount", "type": "int", "wired": false, "desc": "Incident points caused directly by the player"},
+        {"name": "PlayerCarTeamIncidentCount", "type": "int", "wired": false, "desc": "Total team incident points"},
+        {"name": "PlayerCarTowTime", "type": "float", "unit": "s", "wired": false, "desc": "Countdown timer for tow — >0 means car is being towed to pits"},
+        {"name": "PlayerCarWeightPenalty", "type": "float", "unit": "kg", "wired": false, "desc": "Ballast weight penalty applied to the car"}
+      ]
+    },
+    {
+      "id": "pit-stop",
+      "title": "Pit Lane & Pit Stop Services",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "OnPitRoad", "type": "bool", "wired": false, "desc": "True when player's car is anywhere on pit road"},
+        {"name": "PlayerCarInPitStall", "type": "bool", "wired": false, "desc": "True when car is cleanly stopped in pit stall"},
+        {"name": "PlayerCarPitSvStatus", "type": "int", "wired": false, "desc": "Pit service status: 0=None, 1=InProgress, 2=Complete, plus error states (TooFarLeft, TooFarRight, TooFarForward, TooFarBack, BadAngle, CantFixThat)"},
+        {"name": "PitstopActive", "type": "bool", "wired": false, "desc": "True while pit stop service is in progress"},
+        {"name": "PitRepairLeft", "type": "float", "unit": "s", "wired": false, "desc": "Mandatory repair time remaining (valid when PlayerCarInPitStall=true)"},
+        {"name": "PitOptRepairLeft", "type": "float", "unit": "s", "wired": false, "desc": "Optional (cosmetic) repair time remaining"},
+        {"name": "PitSvFlags", "type": "bitfield", "wired": true, "desc": "Bitmask of pit services selected (fuel, tyres, windshield, fast repair)"},
+        {"name": "PitSvFuel", "type": "float", "unit": "L", "wired": true, "desc": "Fuel to add during next pit stop"},
+        {"name": "PitSvLFP / PitSvRFP / PitSvLRP / PitSvRRP", "type": "float", "unit": "kPa", "wired": true, "desc": "Target tyre pressures per corner for next pit stop"},
+        {"name": "PitSvTireCompound", "type": "int", "wired": true, "desc": "Tyre compound selected for next stop"},
+        {"name": "FastRepairAvailable", "type": "int", "wired": false, "desc": "Fast repairs remaining (255=unlimited)"},
+        {"name": "FastRepairUsed", "type": "int", "wired": false, "desc": "Fast repairs consumed this session"}
+      ]
+    },
+    {
+      "id": "in-car-adjustments",
+      "title": "In-Car Adjustments",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "dcAntiRollFront / dcAntiRollRear", "type": "int", "wired": true, "desc": "Anti-roll bar stiffness front/rear"},
+        {"name": "dcEnginePower", "type": "int", "wired": true, "desc": "Engine power map setting"},
+        {"name": "dcFuelMixture", "type": "int", "wired": true, "desc": "Fuel mixture richness setting"},
+        {"name": "dcWeightJackerLeft / dcWeightJackerRight", "type": "int", "wired": true, "desc": "Weight jacker position (oval handling)"},
+        {"name": "dcWingFront / dcWingRear", "type": "int", "wired": true, "desc": "Aerodynamic wing angle settings"},
+        {"name": "SteeringWheelAngle", "type": "float", "unit": "radians", "wired": true, "desc": "Steering wheel rotation angle from centre"},
+        {"name": "SteeringWheelAngleMax", "type": "float", "unit": "radians", "wired": false, "desc": "Steering angle at full lock"},
+        {"name": "SteeringWheelTorque", "type": "float", "unit": "Nm", "wired": true, "desc": "Force feedback torque output. FFB spike trigger: >25Nm"},
+        {"name": "SteeringWheelTorque_ST", "type": "float[6]", "unit": "Nm", "wired": false, "desc": "Sub-tick steering torque samples"},
+        {"name": "SteeringWheelPctTorque", "type": "float", "unit": "%", "wired": false, "desc": "Steering wheel torque as percentage of max"},
+        {"name": "SteeringWheelPctDamper", "type": "float", "unit": "%", "wired": false, "desc": "Steering wheel damper percentage"},
+        {"name": "SteeringWheelMaxForceNm", "type": "float", "unit": "Nm", "wired": false, "desc": "Maximum steering wheel force"},
+        {"name": "SteeringWheelPeakForceNm", "type": "float", "unit": "Nm", "wired": false, "desc": "Peak steering wheel force recorded"},
+        {"name": "ShiftPowerPct", "type": "float", "unit": "%", "wired": false, "desc": "Fraction of max engine power — drops during gear shifts"},
+        {"name": "ShiftGrindRPM", "type": "float", "unit": "RPM", "wired": false, "desc": "RPM at which a missed shift causes transmission damage"}
+      ]
+    },
+    {
+      "id": "weather-environment",
+      "title": "Weather & Environment",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "AirTemp", "type": "float", "unit": "°C", "wired": false, "desc": "Air temperature at start/finish line"},
+        {"name": "AirDensity", "type": "float", "unit": "kg/m³", "wired": false, "desc": "Air density at start/finish line — affects aero downforce"},
+        {"name": "AirPressure", "type": "float", "unit": "Pa", "wired": false, "desc": "Atmospheric pressure (changed from inHg to Pa in 2023 S4 Patch 3)"},
+        {"name": "TrackTempCrew", "type": "int", "unit": "°C", "wired": false, "desc": "Track temperature at crew area — authoritative value"},
+        {"name": "TrackTemp", "type": "int", "unit": "°C", "wired": true, "deprecated": true, "desc": "Track temperature (deprecated, mirrors TrackTempCrew)"},
+        {"name": "TrackWetness", "type": "enum", "wired": false, "desc": "Track wetness: Dry, MostlyDry, VeryLightlyWet, LightlyWet, ModeratelyWet, VeryWet, ExtremelyWet"},
+        {"name": "WeatherDeclaredWet", "type": "bool", "wired": true, "desc": "True when race control declared wet — enables rain tyres"},
+        {"name": "Precipitation", "type": "float", "unit": "%", "wired": false, "desc": "Current precipitation level"},
+        {"name": "RelativeHumidity", "type": "float", "unit": "%", "wired": false, "desc": "Relative humidity percentage"},
+        {"name": "FogLevel", "type": "float", "unit": "%", "wired": false, "desc": "Fog density level"},
+        {"name": "WindVel", "type": "float", "unit": "m/s", "wired": false, "desc": "Wind speed at start/finish line"},
+        {"name": "WindDir", "type": "float", "unit": "radians", "wired": false, "desc": "Wind direction (can exceed one rotation — use modulo)"},
+        {"name": "Skies", "type": "int", "wired": false, "desc": "Cloud cover: 0=Clear, 1=PartlyCloudy, 2=MostlyCloudy, 3=Overcast"}
+      ]
+    },
+    {
+      "id": "opponents-gaps",
+      "title": "Opponents & Proximity Gaps",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "NearestAheadName", "type": "string", "wired": true, "desc": "Driver name of nearest car ahead"},
+        {"name": "NearestBehindName", "type": "string", "wired": true, "desc": "Driver name of nearest car behind"},
+        {"name": "NearestAheadRating", "type": "int", "wired": true, "desc": "iRating of nearest car ahead"},
+        {"name": "NearestBehindRating", "type": "int", "wired": true, "desc": "iRating of nearest car behind"},
+        {"name": "GapAhead", "type": "float", "unit": "s", "wired": true, "desc": "Time gap to car ahead"},
+        {"name": "GapBehind", "type": "float", "unit": "s", "wired": true, "desc": "Time gap to car behind"},
+        {"name": "NearestCarDistance", "type": "float", "range": "0–1", "wired": true, "desc": "Track distance fraction to nearest car. Close battle trigger: <0.008"}
+      ]
+    },
+    {
+      "id": "per-car-arrays",
+      "title": "Per-Car Arrays (64 cars)",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "CarIdxLapDistPct", "type": "float[]", "range": "0–1", "wired": true, "desc": "Track position fraction for every car"},
+        {"name": "CarIdxLapCompleted", "type": "int[]", "wired": true, "desc": "Completed laps for every car"},
+        {"name": "CarIdxOnPitRoad", "type": "bool[]", "wired": true, "desc": "Whether each car is on pit road"},
+        {"name": "CarIdxBestLapNum", "type": "int[]", "wired": false, "desc": "Lap number of each car's session best (-1 if none)"},
+        {"name": "CarIdxBestLapTime", "type": "float[]", "unit": "s", "wired": false, "desc": "Session best lap time for each car (-1 when disconnected)"},
+        {"name": "CarIdxLastLapTime", "type": "float[]", "unit": "s", "wired": false, "desc": "Most recent lap time for each car"},
+        {"name": "CarIdxLap", "type": "int[]", "wired": false, "desc": "Current lap number for each car"},
+        {"name": "CarIdxEstTime", "type": "float[]", "unit": "s", "wired": false, "desc": "Estimated remaining lap time for each car"},
+        {"name": "CarIdxF2Time", "type": "float[]", "unit": "s", "wired": false, "desc": "Time delta from each car to the leader"},
+        {"name": "CarIdxClass", "type": "int[]", "wired": false, "desc": "Car class index for each car"},
+        {"name": "CarIdxClassPosition", "type": "int[]", "wired": false, "desc": "Position within class for each car"},
+        {"name": "CarIdxPosition", "type": "int[]", "wired": false, "desc": "Overall race position for each car"},
+        {"name": "CarIdxGear", "type": "int[]", "wired": false, "desc": "Current gear for each car"},
+        {"name": "CarIdxRPM", "type": "float[]", "unit": "RPM", "wired": false, "desc": "Engine RPM for each car"},
+        {"name": "CarIdxSteer", "type": "float[]", "unit": "rad", "wired": false, "desc": "Steering angle for each car"},
+        {"name": "CarIdxSessionFlags", "type": "int[]", "wired": false, "desc": "Per-car session flags bitmask (includes penalty flags)"},
+        {"name": "CarIdxTireCompound", "type": "int[]", "wired": false, "desc": "Tyre compound index for each car"},
+        {"name": "CarIdxTrackSurface", "type": "int[]", "wired": false, "desc": "Track surface for each car: -1=NotInWorld, 0=OffTrack, 1=InPitStall, 2=ApproachPits, 3=OnTrack"},
+        {"name": "CarIdxTrackSurfaceMaterial", "type": "int[]", "wired": false, "desc": "Surface material for each car: 0=Unspecified, 1=Asphalt, 2=Rumble, 3=Concrete, 4=Loose, 5=Grass, 6=Sand"},
+        {"name": "CarIdxP2P_Count", "type": "int[]", "wired": false, "desc": "Push-to-Pass activations remaining per car"},
+        {"name": "CarIdxP2P_Status", "type": "bool[]", "wired": false, "desc": "Push-to-Pass active status per car"},
+        {"name": "CarIdxPaceFlags", "type": "int[]", "wired": false, "desc": "Pace car instruction flags per car"},
+        {"name": "CarIdxPaceLine", "type": "int[]", "wired": false, "desc": "Assigned pace line position per car"},
+        {"name": "CarIdxPaceRow", "type": "int[]", "wired": false, "desc": "Assigned pace row per car"}
+      ]
+    },
+    {
+      "id": "ers-drs-hybrid",
+      "title": "ERS / DRS / Hybrid Systems",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "DrsStatus", "type": "int", "wired": true, "desc": "DRS availability: 0=unavailable, 1=available, 2=active"},
+        {"name": "ErsBattery", "type": "float", "unit": "%", "range": "0–100", "wired": true, "desc": "ERS battery charge. Low ERS trigger: <20%"},
+        {"name": "MgukPower", "type": "float", "unit": "kW", "wired": true, "desc": "Motor Generator Unit – Kinetic power output"},
+        {"name": "P2P_Count", "type": "float", "wired": false, "desc": "Push-to-Pass activations remaining"},
+        {"name": "P2P_Status", "type": "bool", "wired": false, "desc": "True when Push-to-Pass is active"},
+        {"name": "PushToPass", "type": "bool", "wired": false, "desc": "True while P2P button is held"}
+      ]
+    },
+    {
+      "id": "irating-safety",
+      "title": "iRating & Safety Rating",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "IRating", "type": "int", "range": "100–10000+", "wired": true, "desc": "Player iRating (requires iRacing Extra Properties or shared memory)"},
+        {"name": "SafetyRating", "type": "float", "range": "0–4.99", "wired": true, "desc": "Player Safety Rating (determines licence class)"},
+        {"name": "EstimatedIRatingDelta", "type": "int", "wired": true, "desc": "Projected iRating change at current position"},
+        {"name": "IRatingFieldSize", "type": "int", "wired": true, "desc": "Total drivers for iRating calculation"}
+      ]
+    },
+    {
+      "id": "camera-system",
+      "title": "Camera System (Live Only)",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "CamCarIdx", "type": "int", "liveOnly": true, "wired": false, "desc": "Car index the broadcast camera is focused on"},
+        {"name": "CamCameraNumber", "type": "int", "liveOnly": true, "wired": false, "desc": "Active camera number within current group"},
+        {"name": "CamGroupNumber", "type": "int", "liveOnly": true, "wired": false, "desc": "Active camera group (cockpit, TV, blimp, etc.)"},
+        {"name": "CamCameraState", "type": "bitfield", "liveOnly": true, "wired": false, "desc": "Camera system state flags"},
+        {"name": "RadioTransmitCarIdx", "type": "int", "wired": false, "desc": "Car index currently transmitting on radio"}
+      ]
+    },
+    {
+      "id": "replay-controls",
+      "title": "Replay Controls",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "IsReplayPlaying", "type": "bool", "wired": false, "desc": "True when replay is playing back"},
+        {"name": "ReplayFrameNum", "type": "int", "unit": "frame", "wired": false, "desc": "Current replay frame number"},
+        {"name": "ReplayFrameNumEnd", "type": "int", "unit": "frame", "wired": false, "desc": "Last available replay frame"},
+        {"name": "ReplayPlaySpeed", "type": "int", "wired": false, "desc": "Replay speed multiplier (negative=reverse)"},
+        {"name": "ReplayPlaySlowMotion", "type": "bool", "wired": false, "desc": "True when slow-motion is active"},
+        {"name": "ReplaySessionNum", "type": "int", "wired": false, "desc": "Session index being replayed"}
+      ]
+    },
+    {
+      "id": "network-performance",
+      "title": "Network Quality & System Performance",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "ChanLatency", "type": "float", "unit": "s", "wired": false, "desc": "Telemetry channel round-trip latency"},
+        {"name": "ChanAvgLatency", "type": "float", "unit": "s", "wired": false, "desc": "Rolling average channel latency"},
+        {"name": "ChanClockSkew", "type": "float", "unit": "s", "wired": false, "desc": "Client-server clock skew"},
+        {"name": "ChanQuality", "type": "float", "range": "0–1", "wired": false, "desc": "Telemetry channel quality score"},
+        {"name": "ChanPartnerQuality", "type": "float", "range": "0–1", "wired": false, "desc": "Partner connection quality"},
+        {"name": "CpuUsageFG", "type": "float", "unit": "%", "wired": false, "desc": "Foreground CPU usage"},
+        {"name": "CpuUsageBG", "type": "float", "unit": "%", "wired": false, "desc": "Background CPU usage"},
+        {"name": "GpuUsage", "type": "float", "unit": "%", "wired": false, "desc": "GPU usage"},
+        {"name": "MemPageFaultSec", "type": "float", "wired": false, "desc": "Hard page fault rate per second"},
+        {"name": "MemSoftPageFaultSec", "type": "float", "wired": false, "desc": "Soft page fault rate per second"}
+      ]
+    },
+    {
+      "id": "session-control",
+      "title": "Session Control & State Flags",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "IsOnTrack", "type": "bool", "wired": false, "desc": "True when player is in car with physics running"},
+        {"name": "IsOnTrackCar", "type": "bool", "wired": false, "desc": "True when car exists in world with physics active"},
+        {"name": "IsInGarage", "type": "bool", "wired": false, "desc": "True when player is in garage screen"},
+        {"name": "IsDiskLoggingActive", "type": "bool", "wired": false, "desc": "True when IBT telemetry disk logging is recording"},
+        {"name": "IsDiskLoggingEnabled", "type": "bool", "wired": false, "desc": "True when disk logging is enabled in settings"},
+        {"name": "DriverMarker", "type": "bool", "wired": false, "desc": "Driver-set position marker on track"},
+        {"name": "PushToTalk", "type": "bool", "wired": false, "desc": "True while push-to-talk radio button is held"}
+      ]
+    },
+    {
+      "id": "gps-position",
+      "title": "GPS / World Position (Disk Only)",
+      "source": "iracing-sdk",
+      "fields": [
+        {"name": "Lat", "type": "float", "unit": "degrees", "diskOnly": true, "wired": false, "desc": "Geographic latitude — IBT replay files only"},
+        {"name": "Lon", "type": "float", "unit": "degrees", "diskOnly": true, "wired": false, "desc": "Geographic longitude — IBT replay files only"},
+        {"name": "Alt", "type": "float", "unit": "m", "diskOnly": true, "wired": false, "desc": "Altitude above sea level — IBT replay files only"}
+      ]
+    },
+    {
+      "id": "simhub-gamedata-core",
+      "title": "SimHub GameData — Core Properties",
+      "source": "simhub-gamedata",
+      "fields": [
+        {"name": "DataCorePlugin.GameData.SpeedKmh", "type": "double", "unit": "km/h", "wired": true, "desc": "Normalised speed — available across all SimHub-supported games"},
+        {"name": "DataCorePlugin.GameData.Rpms", "type": "double", "unit": "RPM", "wired": true, "desc": "Engine RPM — cross-game"},
+        {"name": "DataCorePlugin.GameData.MaxRpm", "type": "double", "unit": "RPM", "wired": true, "desc": "Engine redline RPM"},
+        {"name": "DataCorePlugin.GameData.Gear", "type": "string", "wired": true, "desc": "Current gear as string"},
+        {"name": "DataCorePlugin.GameData.Throttle", "type": "double", "range": "0–100", "wired": true, "desc": "Throttle 0–100 (cross-game)"},
+        {"name": "DataCorePlugin.GameData.Brake", "type": "double", "range": "0–100", "wired": true, "desc": "Brake 0–100 (cross-game)"},
+        {"name": "DataCorePlugin.GameData.Clutch", "type": "double", "range": "0–100", "wired": true, "desc": "Clutch 0–100 (cross-game)"},
+        {"name": "DataCorePlugin.GameData.Position", "type": "int", "wired": true, "desc": "Race position"},
+        {"name": "DataCorePlugin.GameData.CarModel", "type": "string", "wired": true, "desc": "Car name"},
+        {"name": "DataCorePlugin.GameData.TrackName", "type": "string", "wired": false, "desc": "Track name"},
+        {"name": "DataCorePlugin.GameData.PlayerName", "type": "string", "wired": true, "desc": "Player display name"},
+        {"name": "DataCorePlugin.GameRunning", "type": "bool", "wired": true, "desc": "True when a supported game is connected"}
+      ]
+    },
+    {
+      "id": "simhub-gamedata-physics",
+      "title": "SimHub GameData — Physics & Motion",
+      "source": "simhub-gamedata",
+      "fields": [
+        {"name": "DataCorePlugin.GameData.AccelerationSway", "type": "double", "unit": "G", "wired": true, "desc": "Lateral G-force — cross-game fallback for LatAccel"},
+        {"name": "DataCorePlugin.GameData.AccelerationSurge", "type": "double", "unit": "G", "wired": true, "desc": "Longitudinal G-force — cross-game fallback for LongAccel"},
+        {"name": "DataCorePlugin.GameData.AccelerationHeave", "type": "double", "unit": "G", "wired": true, "desc": "Vertical G-force — cross-game fallback for VertAccel"},
+        {"name": "DataCorePlugin.GameData.YawVelocity", "type": "double", "unit": "rad/s", "wired": true, "desc": "Yaw rotation rate — cross-game fallback for YawRate"},
+        {"name": "DataCorePlugin.GameData.GlobalAccelerationG", "type": "double", "unit": "G", "wired": false, "desc": "Total combined G-force magnitude"},
+        {"name": "DataCorePlugin.GameData.OrientationRoll", "type": "double", "unit": "rad", "wired": false, "desc": "Vehicle roll angle"},
+        {"name": "DataCorePlugin.GameData.OrientationPitch", "type": "double", "unit": "rad", "wired": false, "desc": "Vehicle pitch angle"},
+        {"name": "DataCorePlugin.GameData.OrientationYaw", "type": "double", "unit": "rad", "wired": false, "desc": "Vehicle heading angle"}
+      ]
+    },
+    {
+      "id": "simhub-gamedata-tyres",
+      "title": "SimHub GameData — Tyres, Brakes & Suspension",
+      "source": "simhub-gamedata",
+      "fields": [
+        {"name": "DataCorePlugin.GameData.TyreTempFrontLeft/Right", "type": "double", "unit": "°C", "wired": true, "desc": "Front tyre surface temps — cross-game"},
+        {"name": "DataCorePlugin.GameData.TyreTempRearLeft/Right", "type": "double", "unit": "°C", "wired": true, "desc": "Rear tyre surface temps — cross-game"},
+        {"name": "DataCorePlugin.GameData.TyreWearFrontLeft/Right", "type": "double", "range": "0–1", "wired": true, "desc": "Front tyre wear — cross-game"},
+        {"name": "DataCorePlugin.GameData.TyreWearRearLeft/Right", "type": "double", "range": "0–1", "wired": true, "desc": "Rear tyre wear — cross-game"},
+        {"name": "DataCorePlugin.GameData.TyrePressureFrontLeft/Right", "type": "double", "unit": "kPa", "wired": false, "desc": "Front tyre pressures"},
+        {"name": "DataCorePlugin.GameData.TyrePressureRearLeft/Right", "type": "double", "unit": "kPa", "wired": false, "desc": "Rear tyre pressures"},
+        {"name": "DataCorePlugin.GameData.BrakeTemperatureFrontLeft/Right", "type": "double", "unit": "°C", "wired": false, "desc": "Front brake temps"},
+        {"name": "DataCorePlugin.GameData.BrakeTemperatureRearLeft/Right", "type": "double", "unit": "°C", "wired": false, "desc": "Rear brake temps"},
+        {"name": "DataCorePlugin.GameData.WheelSlip_FrontLeft/Right", "type": "double", "wired": false, "desc": "Front wheel slip ratios"},
+        {"name": "DataCorePlugin.GameData.WheelSlip_RearLeft/Right", "type": "double", "wired": false, "desc": "Rear wheel slip ratios"},
+        {"name": "DataCorePlugin.GameData.SuspensionTravelMM_FrontLeft/Right", "type": "double", "unit": "mm", "wired": false, "desc": "Front suspension travel"},
+        {"name": "DataCorePlugin.GameData.SuspensionTravelMM_RearLeft/Right", "type": "double", "unit": "mm", "wired": false, "desc": "Rear suspension travel"}
+      ]
+    },
+    {
+      "id": "simhub-gamedata-timing",
+      "title": "SimHub GameData — Timing & Session",
+      "source": "simhub-gamedata",
+      "fields": [
+        {"name": "DataCorePlugin.GameData.CurrentLap", "type": "int", "wired": true, "desc": "Current lap number"},
+        {"name": "DataCorePlugin.GameData.CompletedLaps", "type": "int", "wired": true, "desc": "Completed laps"},
+        {"name": "DataCorePlugin.GameData.CurrentLapTime", "type": "TimeSpan", "unit": "s", "wired": true, "desc": "Current lap elapsed time"},
+        {"name": "DataCorePlugin.GameData.LastLapTime", "type": "TimeSpan", "unit": "s", "wired": true, "desc": "Last completed lap time"},
+        {"name": "DataCorePlugin.GameData.BestLapTime", "type": "TimeSpan", "unit": "s", "wired": true, "desc": "Personal best lap time"},
+        {"name": "DataCorePlugin.GameData.SessionTimeLeft", "type": "TimeSpan", "unit": "s", "wired": true, "desc": "Remaining session time"},
+        {"name": "DataCorePlugin.GameData.RemainingLaps", "type": "int", "wired": true, "desc": "Estimated laps remaining"},
+        {"name": "DataCorePlugin.GameData.SessionTypeName", "type": "string", "wired": true, "desc": "Session type name"},
+        {"name": "DataCorePlugin.GameData.Flag_Yellow", "type": "bool", "wired": false, "desc": "Yellow flag active"},
+        {"name": "DataCorePlugin.GameData.Flag_Green", "type": "bool", "wired": false, "desc": "Green flag active"},
+        {"name": "DataCorePlugin.GameData.Flag_Checkered", "type": "bool", "wired": false, "desc": "Checkered flag shown"},
+        {"name": "DataCorePlugin.GameData.Flag_Blue", "type": "bool", "wired": false, "desc": "Blue flag shown to player"},
+        {"name": "DataCorePlugin.GameData.Flag_Black", "type": "bool", "wired": false, "desc": "Black flag shown to player"}
+      ]
+    },
+    {
+      "id": "simhub-gamedata-fuel",
+      "title": "SimHub GameData — Fuel & Strategy",
+      "source": "simhub-gamedata",
+      "fields": [
+        {"name": "DataCorePlugin.GameData.Fuel", "type": "double", "unit": "L", "wired": true, "desc": "Current fuel level"},
+        {"name": "DataCorePlugin.GameData.MaxFuel", "type": "double", "unit": "L", "wired": false, "desc": "Maximum fuel capacity"},
+        {"name": "DataCorePlugin.GameData.FuelPercent", "type": "double", "unit": "%", "wired": true, "desc": "Fuel as percentage of capacity"},
+        {"name": "DataCorePlugin.Computed.Fuel_LitersPerLap", "type": "double", "unit": "L/lap", "wired": true, "desc": "Rolling average fuel per lap — computed by SimHub"},
+        {"name": "DataCorePlugin.GameData.MandatoryPitDone", "type": "bool", "wired": false, "desc": "True when mandatory pit requirement satisfied"},
+        {"name": "DataCorePlugin.GameData.PitWindowOpen", "type": "bool", "wired": false, "desc": "True during mandatory pit window"}
+      ]
+    },
+    {
+      "id": "k10-plugin-outputs",
+      "title": "K10 Plugin Output Properties",
+      "source": "k10-plugin",
+      "fields": [
+        {"name": "RaceCorProDrive.Plugin.CommentaryText", "type": "string", "wired": true, "desc": "Current assembled commentary prompt text"},
+        {"name": "RaceCorProDrive.Plugin.CommentaryVisible", "type": "int", "range": "0|1", "wired": true, "desc": "Whether commentary is active (1) or idle (0)"},
+        {"name": "RaceCorProDrive.Plugin.CommentaryCategory", "type": "string", "wired": true, "desc": "Category+sentiment label (e.g. 'car_response:positive')"},
+        {"name": "RaceCorProDrive.Plugin.CommentaryTitle", "type": "string", "wired": true, "desc": "Topic display title (e.g. 'Big Save')"},
+        {"name": "RaceCorProDrive.Plugin.CommentarySeverity", "type": "int", "range": "0–5", "wired": true, "desc": "Event severity level"},
+        {"name": "RaceCorProDrive.Plugin.CommentarySentimentColor", "type": "string", "wired": true, "desc": "Background colour (#AARRGGBB hex)"},
+        {"name": "RaceCorProDrive.Plugin.CommentaryTextColor", "type": "string", "wired": true, "desc": "Foreground text colour for contrast"},
+        {"name": "RaceCorProDrive.Plugin.CurrentEventExposition", "type": "string", "wired": true, "desc": "Short factual event description for HUD"},
+        {"name": "RaceCorProDrive.Plugin.CurrentFlagState", "type": "string", "wired": true, "desc": "Human-readable flag: green, yellow, red, checkered, black, debris, white"},
+        {"name": "RaceCorProDrive.Plugin.NearestCarDistance", "type": "float", "range": "0–1", "wired": true, "desc": "Nearest car proximity distance (track fraction)"},
+        {"name": "RaceCorProDrive.Plugin.IsInPitLane", "type": "int", "range": "0|1", "wired": true, "desc": "Pit lane flag"},
+        {"name": "RaceCorProDrive.Plugin.DS.LatG", "type": "float", "unit": "G", "wired": true, "desc": "Lateral G in HTTP API snapshot"},
+        {"name": "RaceCorProDrive.Plugin.DS.LongG", "type": "float", "unit": "G", "wired": true, "desc": "Longitudinal G in HTTP API snapshot"},
+        {"name": "RaceCorProDrive.Plugin.DS.VertG", "type": "float", "unit": "G", "wired": true, "desc": "Vertical G in HTTP API snapshot"},
+        {"name": "RaceCorProDrive.Plugin.DS.YawRate", "type": "float", "unit": "rad/s", "wired": true, "desc": "Yaw rate in HTTP API snapshot"},
+        {"name": "RaceCorProDrive.Plugin.DS.SteerTorque", "type": "float", "unit": "Nm", "wired": true, "desc": "Steering torque in HTTP API snapshot"},
+        {"name": "RaceCorProDrive.Plugin.DS.RpmRatio", "type": "float", "range": "0–1", "wired": true, "desc": "Normalised RPM fraction in HTTP API snapshot"},
+        {"name": "RaceCorProDrive.Plugin.DS.FuelLapsRemaining", "type": "float", "unit": "laps", "wired": true, "desc": "Estimated fuel laps remaining"},
+        {"name": "RaceCorProDrive.Plugin.DS.EstimatedIRatingDelta", "type": "int", "wired": true, "desc": "Projected iRating change at current position"}
+      ]
+    },
+    {
+      "id": "commentary-triggers",
+      "title": "Commentary Trigger Conditions",
+      "source": "commentary",
+      "fields": [
+        {"name": "spin_catch", "type": "trigger", "wired": true, "desc": "YawRate spike > 3.0 rad/s — driver catches oversteer"},
+        {"name": "kerb_hit", "type": "trigger", "wired": true, "desc": "VertAccel spike > 10G — hard kerb ride"},
+        {"name": "wall_contact", "type": "trigger", "wired": true, "desc": "VertAccel spike > 20G — barrier impact"},
+        {"name": "off_track", "type": "trigger", "wired": true, "desc": "VertAccel spike > 12G — off-surface"},
+        {"name": "abs_activation", "type": "trigger", "wired": true, "desc": "AbsActive == true"},
+        {"name": "tc_intervention", "type": "trigger", "wired": true, "desc": "TcActive == true"},
+        {"name": "high_cornering_load", "type": "trigger", "wired": true, "desc": "LatAccel extreme > 4.5G"},
+        {"name": "heavy_braking", "type": "trigger", "wired": true, "desc": "LongAccel < -38 m/s²"},
+        {"name": "tyre_wear_high", "type": "trigger", "wired": true, "desc": "Any TyreWear < 0.35"},
+        {"name": "hot_tyres", "type": "trigger", "wired": true, "desc": "Any TyreTemp > 250°F"},
+        {"name": "close_battle", "type": "trigger", "wired": true, "desc": "NearestCarDistance < 0.008"},
+        {"name": "position_gained", "type": "trigger", "wired": true, "desc": "Position improved"},
+        {"name": "position_lost", "type": "trigger", "wired": true, "desc": "Position dropped"},
+        {"name": "yellow_flag", "type": "trigger", "wired": true, "desc": "SessionFlags yellow bit active"},
+        {"name": "black_flag", "type": "trigger", "wired": true, "desc": "SessionFlags black bit active"},
+        {"name": "race_start", "type": "trigger", "wired": true, "desc": "CurrentLap change 0→1"},
+        {"name": "personal_best", "type": "trigger", "wired": true, "desc": "New session best lap"},
+        {"name": "pit_entry", "type": "trigger", "wired": true, "desc": "Entered pit lane"},
+        {"name": "low_fuel", "type": "trigger", "wired": true, "desc": "FuelPercent < 10%"},
+        {"name": "wet_track", "type": "trigger", "wired": true, "desc": "WeatherWet == true"},
+        {"name": "ers_low", "type": "trigger", "wired": true, "desc": "ErsBattery < 20%"},
+        {"name": "drs_active", "type": "trigger", "wired": true, "desc": "DrsStatus == 2"},
+        {"name": "incident_spike", "type": "trigger", "wired": true, "desc": "IncidentCount spike > 2"},
+        {"name": "ffb_torque_spike", "type": "trigger", "wired": true, "desc": "SteeringWheelTorque spike > 25Nm"},
+        {"name": "track_temp_hot", "type": "trigger", "wired": true, "desc": "TrackTemp > 45°C"},
+        {"name": "track_temp_cold", "type": "trigger", "wired": true, "desc": "TrackTemp < 15°C"},
+        {"name": "formation_lap", "type": "trigger", "wired": true, "desc": "SessionState == 3 (ParadeLaps)"},
+        {"name": "session_time_low", "type": "trigger", "wired": true, "desc": "SessionTimeRemain < 300s"},
+        {"name": "long_stint", "type": "trigger", "wired": true, "desc": "CompletedLaps > 20 since last pit"},
+        {"name": "qualifying_push", "type": "trigger", "wired": true, "desc": "Qualify session + Throttle > 95%"},
+        {"name": "debris_on_track", "type": "trigger", "wired": true, "desc": "SessionFlags debris bit active"},
+        {"name": "rapid_gear_change", "type": "trigger", "wired": true, "desc": "Gear rapid_change > 2 per frame"},
+        {"name": "car_balance_sustained", "type": "trigger", "wired": true, "desc": "LatAccel sustained rapid change"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+# ── OS ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Node / JS ───────────────────────────────────────────────────────
+node_modules/
+dist/
+/*/dist
+*.tgz
+
+# ── .NET ────────────────────────────────────────────────────────────
+**/bin/
+**/obj/
+*.exe
+
+# ── Logs ────────────────────────────────────────────────────────────
+*.log
+/logs/
+
+# ── SimHub reference DLLs (plugin SDK — committed for CI builds)
+# lib/simhub-refs/*.dll
+
+# ── Test results ────────────────────────────────────────────────────
+**/test-results/
+
+# ── Plugin build output ──────────────────────────────────────────
+# Old path (legacy CI builds dropped here)
+racecor-plugin/build/
+# New path (csproj's OutputPath now always points here, so install.bat
+# can surgically copy an allow-list into SimHub instead of writing the
+# whole drop-set of NuGet deps over SimHub's stock files)
+racecor-plugin/simhub-plugin/build/
+
+# ── Claude / MCP config (may contain API tokens) ─────────────────
+.claude/*
+# Project-wide plugin enablement is committed; local overrides stay ignored.
+!.claude/settings.json
+.vercel
+.env*.local
+
+# test coverage output
+.coverage
+coverage/

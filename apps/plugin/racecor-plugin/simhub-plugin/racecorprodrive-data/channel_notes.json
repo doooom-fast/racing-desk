@@ -1,0 +1,366 @@
+{
+  "version": "1.0",
+  "description": "Notes on commentary style and topic tendencies per YouTube channel. Used to weight and flavor prompt generation.",
+  "note": "Transcript-level data requires yt-dlp or YouTube API. Run dataset/scripts/fetch_transcripts.py once yt-dlp is installed to enrich this file.",
+  "channels": [
+
+    {
+      "id": "jimmy_broadbent",
+      "handle": "@Jimmy_Broadbent",
+      "url": "https://www.youtube.com/@Jimmy_Broadbent",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione"],
+      "contentStyle": "high_energy_humorous",
+      "keyTraits": [
+        "Self-deprecating humor about mistakes ('world-class incompetence')",
+        "Genuine excitement expressed in exaggerated British vernacular",
+        "Strong commentary on car feel and FFB quality",
+        "Frequent comparisons between sims",
+        "Community-facing: acknowledges viewers while driving",
+        "Known catchphrases: 'No punterino!', saying 'F' for misfortune",
+        "Covers LMP1/prototype classes extensively in iRacing",
+        "Discusses hybrid system deployment on prototype cars"
+      ],
+      "topicWeights": {
+        "hardware": 0.7,
+        "game_feel": 0.8,
+        "car_response": 0.9,
+        "racing_experience": 1.0
+      },
+      "sentimentWeights": {
+        "excitement_positive": 1.0,
+        "frustration_negative": 1.0,
+        "self_deprecating": 1.0,
+        "technical_analytical": 0.7
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "mgcharoudin",
+      "handle": "@mgcharoudin",
+      "url": "https://www.youtube.com/@mgcharoudin",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione"],
+      "contentStyle": "technical_competitive",
+      "keyTraits": [
+        "Heavy focus on car setup and telemetry analysis",
+        "FFB configuration and hardware discussion",
+        "Competitive driving — race craft and overtaking",
+        "Technical breakdown of setup changes between sessions"
+      ],
+      "topicWeights": {
+        "hardware": 1.0,
+        "game_feel": 0.6,
+        "car_response": 1.0,
+        "racing_experience": 0.8
+      },
+      "sentimentWeights": {
+        "technical_analytical": 1.0,
+        "neutral_narrative": 0.9,
+        "driving_advice": 0.8,
+        "excitement_positive": 0.6
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "jaaames",
+      "handle": "@Jaaames",
+      "url": "https://www.youtube.com/@Jaaames",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione"],
+      "contentStyle": "accessible_entertaining",
+      "keyTraits": [
+        "Accessible commentary style aimed at broad sim racing audience",
+        "Mix of gameplay and setup/hardware discussion",
+        "Race craft and clean racing focus"
+      ],
+      "topicWeights": {
+        "hardware": 0.7,
+        "game_feel": 0.7,
+        "car_response": 0.8,
+        "racing_experience": 0.9
+      },
+      "sentimentWeights": {
+        "neutral_narrative": 0.9,
+        "excitement_positive": 0.8,
+        "technical_analytical": 0.7,
+        "self_deprecating": 0.6
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "traxion_gg",
+      "handle": "@TraxionGG",
+      "url": "https://www.youtube.com/@TraxionGG",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione", "Gran Turismo", "Automobilista 2"],
+      "contentStyle": "journalistic_review",
+      "keyTraits": [
+        "News and review focused — game releases, updates, hardware",
+        "Cross-sim comparisons and feature coverage",
+        "Less in-race commentary, more editorial analysis",
+        "Good source for sim comparison topic phrases"
+      ],
+      "topicWeights": {
+        "hardware": 0.9,
+        "game_feel": 1.0,
+        "car_response": 0.7,
+        "racing_experience": 0.6
+      },
+      "sentimentWeights": {
+        "sim_comparison": 1.0,
+        "technical_analytical": 0.9,
+        "neutral_narrative": 0.8,
+        "driving_advice": 0.6
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "justhun_gaming",
+      "handle": "@JustHunGaming",
+      "url": "https://www.youtube.com/@JustHunGaming",
+      "primarySims": ["iRacing"],
+      "contentStyle": "grassroots_racing",
+      "keyTraits": [
+        "iRacing focused content",
+        "Relatable commentary from a club/competitive level racer",
+        "Emphasis on clean racing and race craft"
+      ],
+      "topicWeights": {
+        "hardware": 0.6,
+        "game_feel": 0.6,
+        "car_response": 0.8,
+        "racing_experience": 1.0
+      },
+      "sentimentWeights": {
+        "neutral_narrative": 0.9,
+        "frustration_negative": 0.8,
+        "excitement_positive": 0.8,
+        "technical_analytical": 0.7
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "project_sim_racing",
+      "handle": "@ProjectSimRacing",
+      "url": "https://www.youtube.com/@ProjectSimRacing",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione", "Automobilista 2"],
+      "contentStyle": "setup_and_hardware",
+      "keyTraits": [
+        "Strong focus on rig builds and hardware",
+        "Setup guides and driving improvement tips",
+        "Testing and comparison across sim titles"
+      ],
+      "topicWeights": {
+        "hardware": 1.0,
+        "game_feel": 0.9,
+        "car_response": 0.8,
+        "racing_experience": 0.6
+      },
+      "sentimentWeights": {
+        "driving_advice": 1.0,
+        "technical_analytical": 1.0,
+        "sim_comparison": 0.8,
+        "neutral_narrative": 0.7
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "just_sim_racing",
+      "handle": "@JUSTSIMRACINGYT",
+      "url": "https://www.youtube.com/@JUSTSIMRACINGYT",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione"],
+      "contentStyle": "community_racing",
+      "keyTraits": [
+        "Community and competitive race content",
+        "Race highlights and commentary",
+        "Clean race etiquette emphasis"
+      ],
+      "topicWeights": {
+        "hardware": 0.5,
+        "game_feel": 0.6,
+        "car_response": 0.8,
+        "racing_experience": 1.0
+      },
+      "sentimentWeights": {
+        "neutral_narrative": 1.0,
+        "excitement_positive": 0.8,
+        "frustration_negative": 0.7,
+        "technical_analytical": 0.6
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "redd500_gaming",
+      "handle": "@Redd500Gaming",
+      "url": "https://www.youtube.com/@Redd500Gaming",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione"],
+      "contentStyle": "competitive_irating_focused",
+      "keyTraits": [
+        "iRating improvement and competitive driving focus",
+        "Race craft and incident avoidance",
+        "Setup and driving technique tips"
+      ],
+      "topicWeights": {
+        "hardware": 0.6,
+        "game_feel": 0.6,
+        "car_response": 0.9,
+        "racing_experience": 1.0
+      },
+      "sentimentWeights": {
+        "technical_analytical": 0.9,
+        "neutral_narrative": 0.8,
+        "frustration_negative": 0.7,
+        "driving_advice": 0.8
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "global_simracing_channel",
+      "handle": "@GlobalSimRacingChannel",
+      "url": "https://www.youtube.com/@GlobalSimRacingChannel",
+      "primarySims": ["iRacing"],
+      "contentStyle": "professional_broadcast",
+      "keyTraits": [
+        "Play-by-play + color analyst dual commentary format",
+        "Race narrative arc: buildup, battle, resolution",
+        "Real-time incident and overtake calling",
+        "Multi-class race coverage with class distinction calls",
+        "Pre and post-race show format",
+        "Key commentators: Joe Peak, Richard Losper, Samuel Reiman"
+      ],
+      "topicWeights": {
+        "hardware": 0.2,
+        "game_feel": 0.4,
+        "car_response": 0.7,
+        "racing_experience": 1.0
+      },
+      "sentimentWeights": {
+        "excitement_positive": 1.0,
+        "neutral_narrative": 0.9,
+        "technical_analytical": 0.7,
+        "frustration_negative": 0.5
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "racespot_tv",
+      "handle": "@RaceSpotTV",
+      "url": "https://www.youtube.com/@RaceSpotTV",
+      "primarySims": ["iRacing"],
+      "contentStyle": "professional_broadcast_esports",
+      "keyTraits": [
+        "eNASCAR Coca-Cola iRacing Series broadcaster (aired on NBC Sports)",
+        "Lead play-by-play: Evan Posocco ('The Voice of eNASCAR')",
+        "Oval and road course coverage",
+        "TV-grade production with broadcast pacing",
+        "Restart and caution sequence commentary",
+        "Also produces 'Talking Tenths' podcast"
+      ],
+      "topicWeights": {
+        "hardware": 0.2,
+        "game_feel": 0.3,
+        "car_response": 0.6,
+        "racing_experience": 1.0
+      },
+      "sentimentWeights": {
+        "excitement_positive": 1.0,
+        "neutral_narrative": 0.8,
+        "technical_analytical": 0.6,
+        "frustration_negative": 0.5
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "apex_racing_tv",
+      "handle": "@ApexRacingTV",
+      "url": "https://www.youtube.com/@ApexRacingTV",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione"],
+      "contentStyle": "professional_broadcast",
+      "keyTraits": [
+        "10+ years of sim racing broadcasts",
+        "League and endurance race coverage",
+        "Lead commentator: Chaz Draycott",
+        "Multi-class race management calls",
+        "Also produces 'The Late Apex' sim racing news podcast"
+      ],
+      "topicWeights": {
+        "hardware": 0.3,
+        "game_feel": 0.5,
+        "car_response": 0.6,
+        "racing_experience": 1.0
+      },
+      "sentimentWeights": {
+        "excitement_positive": 0.9,
+        "neutral_narrative": 1.0,
+        "technical_analytical": 0.7,
+        "frustration_negative": 0.5
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "driver61",
+      "handle": "@Driver61",
+      "url": "https://www.youtube.com/@Driver61",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione", "F1 Games"],
+      "contentStyle": "coaching_instructional",
+      "keyTraits": [
+        "Scott Mansell — 15 years coaching, 1.4M+ subscribers",
+        "Technique-focused: braking points, trail braking, weight transfer",
+        "Telemetry analysis overlay videos comparing driver inputs",
+        "Track guides with line and braking point discussion",
+        "Also developing trophi.ai — AI coaching with real-time voice guidance",
+        "Coaching tone: direct, specific, constructive"
+      ],
+      "topicWeights": {
+        "hardware": 0.4,
+        "game_feel": 0.5,
+        "car_response": 1.0,
+        "racing_experience": 0.6
+      },
+      "sentimentWeights": {
+        "driving_advice": 1.0,
+        "technical_analytical": 1.0,
+        "neutral_narrative": 0.8,
+        "excitement_positive": 0.5
+      },
+      "transcriptStatus": "pending"
+    },
+
+    {
+      "id": "suellio_almeida",
+      "handle": "@SuellioAlmeida",
+      "url": "https://www.youtube.com/@SuellioAlmeida",
+      "primarySims": ["iRacing", "Assetto Corsa Competizione"],
+      "contentStyle": "coaching_competitive",
+      "keyTraits": [
+        "Professional sim racing coach turned real IMSA driver",
+        "2000+ hours coaching, 7000+ students, Logitech G sponsored",
+        "Bridges sim and real-world car behavior — cross-references physics",
+        "Setup explanation and driving technique instruction",
+        "Competitive mindset and race craft coaching"
+      ],
+      "topicWeights": {
+        "hardware": 0.5,
+        "game_feel": 0.6,
+        "car_response": 1.0,
+        "racing_experience": 0.8
+      },
+      "sentimentWeights": {
+        "driving_advice": 1.0,
+        "technical_analytical": 0.9,
+        "neutral_narrative": 0.7,
+        "excitement_positive": 0.6
+      },
+      "transcriptStatus": "pending"
+    }
+
+  ]
+}

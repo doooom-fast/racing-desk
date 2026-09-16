@@ -1,0 +1,661 @@
+{
+  "version": "1.0",
+  "description": "Index of alternative commentary transcript sources for Media Broadcaster plugin. Organized by source type with acquisition method, content style, and relevance to each plugin category.",
+  "note": "Sources marked 'transcript_method: auto_caption' use YouTube auto-generated captions via yt-dlp. Sources marked 'transcript_method: manual' require manual transcription or scraping. Sources marked 'transcript_method: api' have structured data available via API or download.",
+
+  "existing_sources": {
+    "description": "Currently indexed in channel_notes.json — 8 sim racing YouTube creators",
+    "channels": [
+      "jimmy_broadbent", "mgcharoudin", "jaaames", "traxion_gg",
+      "justhun_gaming", "project_sim_racing", "just_sim_racing", "redd500_gaming"
+    ],
+    "gap_analysis": {
+      "strengths": [
+        "Good coverage of iRacing and ACC gameplay commentary",
+        "Mix of competitive and casual content styles",
+        "Some hardware/FFB discussion"
+      ],
+      "gaps": [
+        "No professional broadcast-style commentary (play-by-play + color)",
+        "No real-world motorsport commentary for authenticity reference",
+        "No coaching/instructional commentary (technique-focused)",
+        "No oval racing commentary style",
+        "No endurance racing commentary (multi-hour stint patterns)",
+        "No race engineer/spotter communication patterns",
+        "Limited diversity in sentiment — mostly entertainment-focused",
+        "No structured phrase databases (like Crew Chief)"
+      ]
+    }
+  },
+
+  "alternative_sources": {
+
+    "sim_racing_broadcast": {
+      "description": "Professional sim racing broadcast teams that commentate races in a play-by-play + color analyst format, mirroring real motorsport TV coverage.",
+
+      "sources": [
+        {
+          "id": "global_simracing_channel",
+          "name": "Global SimRacing Channel",
+          "url": "https://www.youtube.com/@GlobalSimRacingChannel",
+          "website": "https://globalsimracingchannel.com/",
+          "platform": "youtube",
+          "transcript_method": "auto_caption",
+          "content_style": "professional_broadcast",
+          "description": "Founded 2013. Professional broadcast team with director + 2 commentators per race. Covers iRacing leagues and special events with production values rivaling real motorsport TV. Key commentators: Joe Peak, Richard Losper, Samuel Reiman, Ayrton Ellis, Kevin Browne.",
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 0.7,
+            "game_feel": 0.4,
+            "hardware": 0.2
+          },
+          "unique_value": "Play-by-play + color commentary structure, race narrative arc, incident calls, overtaking descriptions, multi-car battle commentary"
+        },
+        {
+          "id": "racespot_tv",
+          "name": "RaceSpot TV",
+          "url": "https://www.youtube.com/@RaceSpotTV",
+          "website": "https://racespot.tv/",
+          "platform": "youtube",
+          "transcript_method": "auto_caption",
+          "content_style": "professional_broadcast",
+          "description": "Major sim racing broadcast network. Produces eNASCAR Coca-Cola iRacing Series coverage (aired on NBC Sports). Lead commentator Evan Posocco ('The Voice of eNASCAR') has been the play-by-play announcer since 2016. Also produces 'Talking Tenths' podcast.",
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 0.6,
+            "game_feel": 0.3,
+            "hardware": 0.2
+          },
+          "unique_value": "TV-grade broadcast commentary, oval racing calls, restart/caution commentary, NASCAR-style race narrative, professional pacing"
+        },
+        {
+          "id": "apex_racing_tv",
+          "name": "Apex Racing TV",
+          "url": "https://www.youtube.com/@ApexRacingTV",
+          "website": "https://www.apexracingtv.com/",
+          "platform": "youtube",
+          "transcript_method": "auto_caption",
+          "content_style": "professional_broadcast",
+          "description": "10+ years of sim racing broadcasts. Key commentator Chaz Draycott. Covers iRacing leagues and events. Also produces 'The Late Apex' sim racing news podcast.",
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 0.6,
+            "game_feel": 0.5,
+            "hardware": 0.3
+          },
+          "unique_value": "League racing commentary, multi-class endurance race calls, pit strategy discussion"
+        }
+      ]
+    },
+
+    "real_motorsport_broadcast": {
+      "description": "Real-world motorsport commentary from professional broadcasters. These are the gold standard for commentary cadence, phrase structure, and emotional arc.",
+
+      "sources": [
+        {
+          "id": "radio_le_mans",
+          "name": "Radio Le Mans",
+          "url": "https://radiolemans.co/",
+          "podcast_url": "https://podcasts.apple.com/us/channel/radio-le-mans/id6446605056",
+          "platform": "web_stream_and_podcast",
+          "transcript_method": "manual",
+          "content_style": "endurance_race_commentary",
+          "description": "The defining voice of endurance motorsport since 1989. John Hindhaugh and team provide continuous commentary across WEC, IMSA, ELMS, Nurburgring 24. Three dedicated audio channels (RS1, RS2, RS3). Extensive free archive of past broadcasts on their website.",
+          "key_commentators": ["John Hindhaugh", "Eve Hewitt", "Shea Adam", "Joe Bradley"],
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 0.8,
+            "game_feel": 0.0,
+            "hardware": 0.1
+          },
+          "unique_value": "Endurance racing pacing — how commentary rhythm changes over multi-hour stints. Prototype/GT class distinction calls. Pit window strategy language. Night racing atmosphere. Safety car procedure commentary. The emotional arc of a 24-hour race."
+        },
+        {
+          "id": "sky_f1_commentary",
+          "name": "Sky Sports F1 (Croft & Brundle)",
+          "url": "https://www.skysports.com/f1",
+          "platform": "tv_broadcast",
+          "transcript_method": "manual",
+          "content_style": "f1_tv_commentary",
+          "description": "David Croft (play-by-play, energetic, fact-driven) and Martin Brundle (color, calm, ex-driver analytical insight) have been the defining F1 commentary pair since 2012. Brundle's style — calm authority, technical precision, experience-based insight — is closest to the 'technically grounded, direct' voice profile in channel_notes.json.",
+          "key_commentators": ["David Croft", "Martin Brundle"],
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 0.9,
+            "game_feel": 0.0,
+            "hardware": 0.3
+          },
+          "unique_value": "The Brundle style: first-person-informed technical analysis ('the car is doing X because Y'). Croft style: dramatic race narrative and position-change calls. Tyre degradation discussion. DRS/strategy commentary. Incident reaction phrasing."
+        },
+        {
+          "id": "f1tv_commentary",
+          "name": "F1 TV (Alex Jacques, Jolyon Palmer, Alex Brundle)",
+          "url": "https://f1tv.formula1.com/",
+          "platform": "streaming",
+          "transcript_method": "manual",
+          "content_style": "f1_analytical_commentary",
+          "description": "Alex Jacques (lead, described as 'warm and broad') with Jolyon Palmer and Alex Brundle providing driver-perspective color. Palmer's technical analysis of onboard footage is particularly strong — breaks down braking points, steering inputs, and car behavior frame by frame.",
+          "key_commentators": ["Alex Jacques", "Jolyon Palmer", "Alex Brundle"],
+          "category_relevance": {
+            "racing_experience": 0.9,
+            "car_response": 1.0,
+            "game_feel": 0.0,
+            "hardware": 0.2
+          },
+          "unique_value": "Onboard analysis commentary — describing what the driver is doing with inputs in real time. Palmer's 'Analysis' segments are a direct template for our car_response prompts."
+        },
+        {
+          "id": "mrn_prn_nascar",
+          "name": "MRN / PRN (NASCAR Radio)",
+          "url": "https://www.mrn.com/",
+          "platform": "radio",
+          "transcript_method": "manual",
+          "content_style": "nascar_radio_commentary",
+          "description": "Motor Racing Network (founded 1970 by Ken Squier) and Performance Racing Network — the two NASCAR radio broadcast networks. 600+ affiliate stations. Audio-only format forces extremely descriptive, vivid commentary since listeners can't see the action.",
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 0.7,
+            "game_feel": 0.0,
+            "hardware": 0.1
+          },
+          "unique_value": "Audio-only commentary is the closest analog to our text-only prompt system — both must paint the picture without visuals. Oval racing terminology. Pack racing descriptions. Restart and caution language. Extremely concise position-change calls designed for radio."
+        },
+        {
+          "id": "imsa_commentary",
+          "name": "IMSA Official Commentary",
+          "url": "https://www.imsa.com/",
+          "platform": "tv_and_web",
+          "transcript_method": "manual",
+          "content_style": "multiclass_endurance",
+          "description": "Official IMSA WeatherTech SportsCar Championship broadcast commentary. Covers Daytona 24, Sebring 12, Petit Le Mans. Multi-class racing (GTP/LMDh, GTD Pro, GTD) requires commentators to rapidly context-switch between car types — relevant to our category system.",
+          "key_commentators": ["Leigh Diffey", "Calvin Fish", "AJ Allmendinger"],
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 0.8,
+            "game_feel": 0.0,
+            "hardware": 0.2
+          },
+          "unique_value": "Multi-class racing calls — explaining class interactions. Prototype vs GT behavior differences. Stint strategy and driver change commentary. BoP (Balance of Performance) discussion."
+        },
+        {
+          "id": "indycar_commentary",
+          "name": "IndyCar / NBC Sports Commentary",
+          "url": "https://www.indycar.com/",
+          "platform": "tv_broadcast",
+          "transcript_method": "manual",
+          "content_style": "indycar_broadcast",
+          "description": "IndyCar Series commentary featuring Will Buxton (now lead on Fox Sports) and various analysts. Covers both oval and road/street course racing — the only major series with both disciplines.",
+          "key_commentators": ["Will Buxton", "James Hinchcliffe", "Townsend Bell"],
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 0.8,
+            "game_feel": 0.0,
+            "hardware": 0.3
+          },
+          "unique_value": "Oval vs road course commentary style shifts. Push-to-pass strategy. Fuel saving commentary. Street course incident language. Indianapolis 500 buildup and emotional arc."
+        }
+      ]
+    },
+
+    "f1_team_radio": {
+      "description": "Driver-engineer communication transcripts. These are NOT commentary but provide authentic in-car language patterns for car_response and racing_experience prompts.",
+
+      "sources": [
+        {
+          "id": "racefans_radio_transcripts",
+          "name": "RaceFans Team Radio Transcripts",
+          "url": "https://www.racefans.net/category/regular-features/team-radio-transcripts/",
+          "platform": "web",
+          "transcript_method": "manual",
+          "content_style": "driver_engineer_communication",
+          "description": "Full transcripts of F1 team radio messages from every Grand Prix. Covers driver-engineer exchanges about car behavior, tyre management, strategy, and incident reactions. Written transcripts with timestamps.",
+          "category_relevance": {
+            "racing_experience": 0.8,
+            "car_response": 1.0,
+            "game_feel": 0.0,
+            "hardware": 0.3
+          },
+          "unique_value": "Authentic first-person car-feel language: 'the rears are gone', 'massive understeer into T3', 'brakes are overheating'. These are real driver descriptions of exactly the telemetry events our plugin monitors."
+        },
+        {
+          "id": "f1_radio_replay",
+          "name": "F1 Radio Replay",
+          "url": "https://f1radioreplay.com/",
+          "platform": "web",
+          "transcript_method": "api",
+          "content_style": "driver_engineer_communication",
+          "description": "Searchable database of F1 team radio messages. Can search by driver, team, or session. Audio + text transcriptions.",
+          "category_relevance": {
+            "racing_experience": 0.7,
+            "car_response": 1.0,
+            "game_feel": 0.0,
+            "hardware": 0.2
+          },
+          "unique_value": "Searchable archive — can query for specific car-behavior terms to build a vocabulary of how real drivers describe understeer, oversteer, tyre deg, brake feel, etc."
+        },
+        {
+          "id": "f1_live_pulse",
+          "name": "Formula Live Pulse (AI Transcriptions)",
+          "url": "https://www.f1livepulse.com/en/features/team-radio/",
+          "platform": "web",
+          "transcript_method": "api",
+          "content_style": "driver_engineer_communication",
+          "description": "AI-generated transcriptions of live F1 team radio. Near real-time during sessions. Covers all drivers and teams.",
+          "category_relevance": {
+            "racing_experience": 0.7,
+            "car_response": 1.0,
+            "game_feel": 0.0,
+            "hardware": 0.2
+          },
+          "unique_value": "Volume — covers every radio message from every session, not just broadcast highlights."
+        }
+      ]
+    },
+
+    "coaching_and_instructional": {
+      "description": "Sim racing coaches and driving instructors whose commentary focuses on technique, telemetry interpretation, and deliberate improvement.",
+
+      "sources": [
+        {
+          "id": "driver61",
+          "name": "Driver61 (Scott Mansell)",
+          "url": "https://www.youtube.com/@Driver61",
+          "website": "https://driver61.com/",
+          "platform": "youtube",
+          "transcript_method": "auto_caption",
+          "content_style": "coaching_instructional",
+          "description": "1.4M+ subscribers. 15 years of racing/coaching. Track guides, technique breakdowns, telemetry analysis. Now also developing trophi.ai — an AI coaching platform with real-time voice guidance during sim sessions.",
+          "category_relevance": {
+            "racing_experience": 0.6,
+            "car_response": 1.0,
+            "game_feel": 0.5,
+            "hardware": 0.4
+          },
+          "unique_value": "Technique-focused commentary: braking points, trail braking, throttle application, weight transfer. Telemetry overlay analysis. The coaching tone is exactly what our 'driving_advice' sentiment needs — direct, specific, constructive."
+        },
+        {
+          "id": "suellio_almeida",
+          "name": "Suellio Almeida (Racing Coach)",
+          "url": "https://www.youtube.com/@SuellioAlmeida",
+          "website": "https://suellioalmeida.ca/",
+          "platform": "youtube",
+          "transcript_method": "auto_caption",
+          "content_style": "coaching_competitive",
+          "description": "Professional sim racing coach turned IMSA driver. 2000+ hours coaching, 7000+ students. Known for bridging sim racing to real-world racing. Logitech G sponsored. Coaches beginners to F1 engineers.",
+          "category_relevance": {
+            "racing_experience": 0.8,
+            "car_response": 1.0,
+            "game_feel": 0.6,
+            "hardware": 0.5
+          },
+          "unique_value": "Real-world racing credibility applied to sim coaching. Cross-references sim behavior with real car behavior. Setup explanation language. Competitive mindset coaching."
+        },
+        {
+          "id": "sim_racing_coach",
+          "name": "Sim Racing Coach (SimRacingCoach.com)",
+          "url": "https://www.simracingcoach.com/",
+          "platform": "web",
+          "transcript_method": "manual",
+          "content_style": "data_driven_coaching",
+          "description": "Data-driven coaching platform with telemetry analysis tools. Content focuses on interpreting telemetry overlays, comparing driver inputs, and identifying specific improvement areas.",
+          "category_relevance": {
+            "racing_experience": 0.5,
+            "car_response": 1.0,
+            "game_feel": 0.4,
+            "hardware": 0.3
+          },
+          "unique_value": "Telemetry interpretation language — how to describe what data points mean in human terms. Directly maps to our trigger system's data vocabulary."
+        }
+      ]
+    },
+
+    "structured_phrase_databases": {
+      "description": "Structured, machine-readable phrase collections designed for race engineer / spotter audio systems. These are the closest existing analogs to our fragment composition system.",
+
+      "sources": [
+        {
+          "id": "crew_chief_v4",
+          "name": "Crew Chief V4 (Source + Voice Packs)",
+          "url": "https://github.com/mrbelowski/CrewChiefV4",
+          "platform": "github",
+          "transcript_method": "api",
+          "content_style": "race_engineer_spotter",
+          "description": "Open source virtual race engineer. 400+ voice commands, 50+ alert types. Audio clips organized in folder hierarchies by event type — the exact architecture that inspired our fragment composition system. The crew-chief-autovoicepack project includes a phrase_inventory.csv with 30K+ phrases.",
+          "phrase_inventory_url": "https://github.com/cktlco/crew-chief-autovoicepack",
+          "category_relevance": {
+            "racing_experience": 0.9,
+            "car_response": 0.9,
+            "game_feel": 0.3,
+            "hardware": 0.2
+          },
+          "unique_value": "HIGHEST PRIORITY SOURCE. Machine-readable phrase inventory organized by event type. Direct mapping to our topic/trigger system. Folder hierarchy = our fragment structure. 30K+ phrases = massive vocabulary reference."
+        },
+        {
+          "id": "digital_race_engineer",
+          "name": "Digital Race Engineer (DRE)",
+          "url": "https://www.thedigitalraceengineer.com/",
+          "platform": "app",
+          "transcript_method": "manual",
+          "content_style": "race_engineer",
+          "description": "iRacing spotter and race engineer app. Alternative to Crew Chief with focus on strategic callouts, gap management, and pit window timing.",
+          "category_relevance": {
+            "racing_experience": 0.9,
+            "car_response": 0.6,
+            "game_feel": 0.1,
+            "hardware": 0.1
+          },
+          "unique_value": "Strategic race engineer language — pit window calculations, undercut/overcut timing, fuel save instructions. A different register from Crew Chief's spotter calls."
+        },
+        {
+          "id": "jj_spotter_pack",
+          "name": "JJ Spotter Pack (Chad Knaus / Earl Barban)",
+          "url": "https://forum.iracing.com/",
+          "platform": "iracing_forum",
+          "transcript_method": "manual",
+          "content_style": "nascar_spotter",
+          "description": "5,400+ real audio samples from NASCAR crew chief Chad Knaus and spotter Earl Barban. Replaces iRacing's default spotter with authentic NASCAR team radio. Built for immersion — no two races sound the same.",
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 0.5,
+            "game_feel": 0.0,
+            "hardware": 0.0
+          },
+          "unique_value": "Authentic NASCAR team radio cadence and vocabulary. Spotter calls ('clear', 'outside', 'three wide') are the real-time urgency register we need for high-severity prompts."
+        }
+      ]
+    },
+
+    "podcasts_and_editorial": {
+      "description": "Long-form discussion content about sim racing and motorsport. Less useful for real-time prompt text, but valuable for style reference and vocabulary expansion.",
+
+      "sources": [
+        {
+          "id": "talking_tenths",
+          "name": "Talking Tenths (RaceSpot TV Podcast)",
+          "url": "https://podcasts.apple.com/us/podcast/talking-tenths/id1526740937",
+          "platform": "podcast",
+          "transcript_method": "auto_caption",
+          "content_style": "sim_racing_discussion",
+          "description": "RaceSpot TV's podcast featuring conversations with top sim racers (virtual and real-world crossovers). Race analysis, driver interviews, broadcast behind-the-scenes.",
+          "category_relevance": {
+            "racing_experience": 0.8,
+            "car_response": 0.6,
+            "game_feel": 0.5,
+            "hardware": 0.4
+          },
+          "unique_value": "How professional broadcasters discuss racing in conversational rather than commentary mode — a useful register for lower-severity, reflective prompts."
+        },
+        {
+          "id": "the_late_apex",
+          "name": "The Late Apex (Apex Racing TV Podcast)",
+          "url": "https://podcasts.apple.com/us/podcast/the-late-apex-sim-racing-news/id1710755544",
+          "platform": "podcast",
+          "transcript_method": "auto_caption",
+          "content_style": "sim_racing_news",
+          "description": "Weekly sim racing news podcast from Apex Racing TV studio. Covers iRacing updates, esports events, community discussion.",
+          "category_relevance": {
+            "racing_experience": 0.6,
+            "car_response": 0.4,
+            "game_feel": 0.8,
+            "hardware": 0.5
+          },
+          "unique_value": "News and editorial perspective on sim racing — useful for sim_comparison sentiment vocabulary."
+        },
+        {
+          "id": "marshall_pruett_podcast",
+          "name": "The Marshall Pruett Podcast",
+          "url": "https://marshallpruett.com/",
+          "platform": "podcast",
+          "transcript_method": "auto_caption",
+          "content_style": "real_motorsport_insider",
+          "description": "Deep-dive motorsport journalism podcast. Interviews with real-world drivers, engineers, team principals. Covers IndyCar, IMSA, WEC. Two-part interview with Radio Le Mans' John Hindhaugh covers commentary philosophy.",
+          "category_relevance": {
+            "racing_experience": 0.9,
+            "car_response": 0.7,
+            "game_feel": 0.0,
+            "hardware": 0.2
+          },
+          "unique_value": "Real driver descriptions of car behavior in interview context — less filtered than broadcast commentary. Engineer-level technical vocabulary."
+        },
+        {
+          "id": "motorsport_broadcasting_blog",
+          "name": "Motorsport Broadcasting Blog",
+          "url": "https://motorsportbroadcasting.com/",
+          "platform": "web",
+          "transcript_method": "manual",
+          "content_style": "commentary_analysis",
+          "description": "Blog analyzing motorsport broadcasting — commentary technique, broadcast production, commentator profiles. Features interviews with commentators about their approach and philosophy.",
+          "category_relevance": {
+            "racing_experience": 0.5,
+            "car_response": 0.3,
+            "game_feel": 0.0,
+            "hardware": 0.1
+          },
+          "unique_value": "Meta-commentary — how commentators think about commentary. Alex Jacques interview: 'Commentary should always feel warm, and as broad as possible.' Useful for calibrating our prompt tone."
+        }
+      ]
+    },
+
+    "user_content": {
+      "description": "Kevin's own content — the primary voice target for the plugin.",
+
+      "sources": [
+        {
+          "id": "alternate_org",
+          "name": "alternate.org (Kevin's website)",
+          "url": "http://www.alternate.org",
+          "platform": "web",
+          "transcript_method": "manual",
+          "content_style": "primary_voice_target",
+          "description": "Kevin's personal website. Referenced in PLUGIN_FEEDBACK.md and channel_notes.json as the primary voice-matching source. Content style should be the baseline against which all generated prompts are calibrated.",
+          "category_relevance": {
+            "racing_experience": 1.0,
+            "car_response": 1.0,
+            "game_feel": 1.0,
+            "hardware": 1.0
+          },
+          "unique_value": "THE voice target. All other sources are inputs that get filtered through Kevin's voice. This source defines the output register."
+        }
+      ]
+    }
+  },
+
+  "acquisition_priority": [
+    {
+      "priority": 1,
+      "source_id": "crew_chief_v4",
+      "reason": "Machine-readable phrase database. Direct structural analog to our fragment system. Can be parsed programmatically.",
+      "effort": "low",
+      "method": "Clone repo, parse phrase_inventory.csv, map folders to our topic IDs"
+    },
+    {
+      "priority": 2,
+      "source_id": "alternate_org",
+      "reason": "Primary voice target. All prompts should sound like Kevin.",
+      "effort": "low",
+      "method": "Scrape or manually extract content for voice calibration"
+    },
+    {
+      "priority": 3,
+      "source_id": "racefans_radio_transcripts",
+      "reason": "Structured text transcripts of real driver-car descriptions. Maps directly to our telemetry event vocabulary.",
+      "effort": "medium",
+      "method": "Scrape transcript pages, extract car-behavior phrases, classify by category"
+    },
+    {
+      "priority": 4,
+      "source_id": "driver61",
+      "reason": "Coaching commentary fills the 'driving_advice' sentiment gap. YouTube auto-captions available.",
+      "effort": "medium",
+      "method": "Use fetch_transcripts.py with added channel entry"
+    },
+    {
+      "priority": 5,
+      "source_id": "global_simracing_channel",
+      "reason": "Professional broadcast commentary structure — play-by-play calls for overtakes, incidents, strategy.",
+      "effort": "medium",
+      "method": "Use fetch_transcripts.py with added channel entry"
+    },
+    {
+      "priority": 6,
+      "source_id": "racespot_tv",
+      "reason": "eNASCAR broadcast commentary — oval racing style, restart/caution calls.",
+      "effort": "medium",
+      "method": "Use fetch_transcripts.py with added channel entry"
+    },
+    {
+      "priority": 7,
+      "source_id": "radio_le_mans",
+      "reason": "Gold standard for endurance racing commentary pacing and emotional arc.",
+      "effort": "high",
+      "method": "Download podcast archive, run speech-to-text, extract phrases"
+    },
+    {
+      "priority": 8,
+      "source_id": "sky_f1_commentary",
+      "reason": "Reference for professional commentary cadence. Brundle's analytical style closest to our target voice.",
+      "effort": "high",
+      "method": "Manual transcription from broadcasts or fan-transcribed sources"
+    }
+  ],
+
+  "fetch_script_additions": {
+    "description": "New channel entries to add to channel_notes.json for use with fetch_transcripts.py",
+    "channels": [
+      {
+        "id": "global_simracing_channel",
+        "handle": "@GlobalSimRacingChannel",
+        "url": "https://www.youtube.com/@GlobalSimRacingChannel",
+        "primarySims": ["iRacing"],
+        "contentStyle": "professional_broadcast",
+        "keyTraits": [
+          "Play-by-play + color analyst dual commentary",
+          "Race narrative arc: buildup, battle, resolution",
+          "Incident and overtake calling in real time",
+          "Multi-class race coverage",
+          "Pre and post-race show format"
+        ],
+        "topicWeights": {
+          "hardware": 0.2,
+          "game_feel": 0.4,
+          "car_response": 0.7,
+          "racing_experience": 1.0
+        },
+        "sentimentWeights": {
+          "excitement_positive": 1.0,
+          "neutral_narrative": 0.9,
+          "technical_analytical": 0.7,
+          "frustration_negative": 0.5
+        },
+        "transcriptStatus": "pending"
+      },
+      {
+        "id": "racespot_tv",
+        "handle": "@RaceSpotTV",
+        "url": "https://www.youtube.com/@RaceSpotTV",
+        "primarySims": ["iRacing"],
+        "contentStyle": "professional_broadcast_esports",
+        "keyTraits": [
+          "eNASCAR Coca-Cola iRacing Series broadcaster",
+          "Oval and road course coverage",
+          "TV-grade production quality (aired on NBC Sports)",
+          "Evan Posocco lead play-by-play",
+          "Restart and caution sequence commentary"
+        ],
+        "topicWeights": {
+          "hardware": 0.2,
+          "game_feel": 0.3,
+          "car_response": 0.6,
+          "racing_experience": 1.0
+        },
+        "sentimentWeights": {
+          "excitement_positive": 1.0,
+          "neutral_narrative": 0.8,
+          "technical_analytical": 0.6,
+          "frustration_negative": 0.5
+        },
+        "transcriptStatus": "pending"
+      },
+      {
+        "id": "apex_racing_tv",
+        "handle": "@ApexRacingTV",
+        "url": "https://www.youtube.com/@ApexRacingTV",
+        "primarySims": ["iRacing", "Assetto Corsa Competizione"],
+        "contentStyle": "professional_broadcast",
+        "keyTraits": [
+          "10+ years of sim racing broadcasts",
+          "League and endurance race coverage",
+          "Chaz Draycott lead commentary",
+          "Multi-class race management calls"
+        ],
+        "topicWeights": {
+          "hardware": 0.3,
+          "game_feel": 0.5,
+          "car_response": 0.6,
+          "racing_experience": 1.0
+        },
+        "sentimentWeights": {
+          "excitement_positive": 0.9,
+          "neutral_narrative": 1.0,
+          "technical_analytical": 0.7,
+          "frustration_negative": 0.5
+        },
+        "transcriptStatus": "pending"
+      },
+      {
+        "id": "driver61",
+        "handle": "@Driver61",
+        "url": "https://www.youtube.com/@Driver61",
+        "primarySims": ["iRacing", "Assetto Corsa Competizione", "F1 Games"],
+        "contentStyle": "coaching_instructional",
+        "keyTraits": [
+          "15 years coaching experience — technique-focused",
+          "Telemetry analysis overlay videos",
+          "Track guides with braking point and line discussion",
+          "Trail braking, throttle application, weight transfer coaching",
+          "1.4M subscribers, extensive back catalog"
+        ],
+        "topicWeights": {
+          "hardware": 0.4,
+          "game_feel": 0.5,
+          "car_response": 1.0,
+          "racing_experience": 0.6
+        },
+        "sentimentWeights": {
+          "driving_advice": 1.0,
+          "technical_analytical": 1.0,
+          "neutral_narrative": 0.8,
+          "excitement_positive": 0.5
+        },
+        "transcriptStatus": "pending"
+      },
+      {
+        "id": "suellio_almeida",
+        "handle": "@SuellioAlmeida",
+        "url": "https://www.youtube.com/@SuellioAlmeida",
+        "primarySims": ["iRacing", "Assetto Corsa Competizione"],
+        "contentStyle": "coaching_competitive",
+        "keyTraits": [
+          "Real-world IMSA driver who coaches sim racers",
+          "Bridges sim and real-world car behavior",
+          "Setup and driving technique instruction",
+          "Competitive mindset and race craft coaching",
+          "2000+ hours coaching experience"
+        ],
+        "topicWeights": {
+          "hardware": 0.5,
+          "game_feel": 0.6,
+          "car_response": 1.0,
+          "racing_experience": 0.8
+        },
+        "sentimentWeights": {
+          "driving_advice": 1.0,
+          "technical_analytical": 0.9,
+          "neutral_narrative": 0.7,
+          "excitement_positive": 0.6
+        },
+        "transcriptStatus": "pending"
+      }
+    ]
+  }
+}

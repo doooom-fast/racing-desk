@@ -1,0 +1,23 @@
+{
+  "skill_name": "racing-hud-design",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a Tufte audit of my SimHub racing overlay — can you review the findings through a racing-specific lens and tell me which recommendations make sense for a driver HUD vs. a broadcast overlay?",
+      "expected_output": "Re-evaluates each Tufte finding considering 200ms glance rule, peripheral readability, and racing color conventions. Distinguishes driver-HUD vs broadcast-overlay applicability.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I'm designing a sim racing dashboard with fuel, tires, pedals, and a leaderboard. What's the best layout and information hierarchy for a 1200x280px overlay?",
+      "expected_output": "Provides zone-based layout guidance, recommends primary/secondary/tertiary information placement, suggests specific pixel budgets and groupings.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Review my tachometer implementation — it uses a segmented bar with green/yellow/red zones, a WebGL bloom glow, and a numeric RPM readout. Is the glow useful or chartjunk?",
+      "expected_output": "Evaluates the tachometer against glanceability principles, identifies the glow as non-data ink unless it encodes data, recommends keeping bar+color zones as the primary encoding.",
+      "files": []
+    }
+  ]
+}

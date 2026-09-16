@@ -1,0 +1,1323 @@
+{
+  "version": "3.0",
+  "description": "Pre-generated commentary fragments for sentence composition at runtime. Each topic contains openers, bodies, and closers that assemble into complete sentences. 3rd-person broadcast commentary style — uses {driver} placeholder (randomly resolved to first or last name). Incorporates vocabulary from broadcast commentary, team radio transcripts, and coaching channels.",
+  "fragments": [
+    {
+      "topicId": "spin_catch",
+      "fragments": {
+        "openers": [
+          "The rear came round on {driver}.",
+          "Massive snap right there.",
+          "That's the limit for {driver}.",
+          "{driver} nearly lost it.",
+          "Full rotation attempt.",
+          "Caught it, barely."
+        ],
+        "bodies": [
+          "The car was telling {driver} exactly what happens past the edge — brilliant reactions to pull it back.",
+          "The difference between catching it and spinning out is all in how much the wheel was talking to {driver}.",
+          "That's not a controlled slide — that's the car done with the corner and {driver} saved it.",
+          "The yaw rate hit the limit and {driver} had to pull it back with pure instinct.",
+          "The physics of that save are worth noting — left foot, hands, instinct all at once from {driver}.",
+          "{driver} felt every bit of that through the wheel and reacted in time.",
+          "The car pushed past the limit and demanded immediate correction from {driver}.",
+          "That's genuine oversteer and the recovery shows what {driver}'s capable of under pressure."
+        ],
+        "closers": [
+          "Big save.",
+          "That takes real feel.",
+          "Full correction needed.",
+          "Impressive reactions.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "wall_contact",
+      "fragments": {
+        "openers": [
+          "That's the wall for {driver}.",
+          "{driver} hits the barrier hard.",
+          "Contact with the barrier.",
+          "Hard impact for {driver}.",
+          "{driver} into the barrier.",
+          "That's a real hit."
+        ],
+        "bodies": [
+          "The race just changed for {driver} in that impact — real damage to time, maybe to the car.",
+          "That's a moment that resets everything — the cost from here is significant for {driver}.",
+          "{driver} felt that through the entire car and everything shifts from this point.",
+          "It happened fast and the consequences are going to be felt for the rest of {driver}'s stint.",
+          "The sim is telling {driver} exactly what that does to the car and the session.",
+          "The damage is instantly apparent and {driver}'s strategy just got more complicated.",
+          "That's the kind of impact that either costs {driver} the race or costs the car.",
+          "The barrier just showed {driver} exactly where the track actually ends."
+        ],
+        "closers": [
+          "Recovery mode now.",
+          "Assessing the damage.",
+          "Can {driver} continue?",
+          "That changes everything.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "off_track",
+      "fragments": {
+        "openers": [
+          "{driver} off track.",
+          "Into the run-off for {driver}.",
+          "{driver} off the circuit.",
+          "Gone wide there.",
+          "{driver} out of bounds.",
+          "Left the surface."
+        ],
+        "bodies": [
+          "That's entirely on {driver} — the car went exactly where it was pointed.",
+          "That's lap time {driver}'s not getting back — an honest mistake.",
+          "What's interesting is what the car does out here for {driver} — totally different surface, totally different feedback.",
+          "That's what happens when confidence outruns grip — {driver} found the limit the wrong way.",
+          "The car told {driver} exactly where the limit is and it was found the hard way.",
+          "Self-inflicted and completely avoidable — {driver} knows that.",
+          "The gravel's doing its job — slowing {driver} down and reminding where the track ends.",
+          "Out here the car's a completely different animal for {driver}."
+        ],
+        "closers": [
+          "Moving on.",
+          "Lesson learned.",
+          "Back on it.",
+          "That stings.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "kerb_hit",
+      "fragments": {
+        "openers": [
+          "{driver} hit that kerb hard.",
+          "Big impact over the apex.",
+          "That kerb grabbed {driver}'s car.",
+          "{driver} rode over that kerb.",
+          "Hard contact with the kerb.",
+          "The kerb bit {driver} there."
+        ],
+        "bodies": [
+          "You can feel it trying to unsettle the car — whether to use the kerbs here is a real setup decision for {driver}.",
+          "The car reacted to that and {driver} felt why that's a risk in the sim.",
+          "There's a reason some of these are controversial — they punish you for getting it slightly wrong.",
+          "That's the sim communicating to {driver} what happens when that risk is taken.",
+          "The feedback through the wheel tells {driver} exactly how much load went through the suspension.",
+          "That kerb is either an aid or a penalty depending on how {driver} hits it.",
+          "The car went over it rough and the whole corner got unsettled for {driver}.",
+          "That's the kind of impact that changes the rest of the lap."
+        ],
+        "closers": [
+          "Respect the kerbs.",
+          "Handle it better.",
+          "Setup decision.",
+          "Noted.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "abs_activation",
+      "fragments": {
+        "openers": [
+          "ABS fired for {driver}.",
+          "ABS active on that braking.",
+          "The system intervened.",
+          "ABS on the brakes.",
+          "System engaged for {driver}.",
+          "Brakes locked and caught."
+        ],
+        "bodies": [
+          "The difference between that and locking up is what separates control from a slide for {driver}.",
+          "Whether {driver} relies on it or fights against it says a lot about the approach to this car.",
+          "That's the threshold — {driver} braked slightly past it and the electronics took over.",
+          "In real life that pulse through the pedal is constant information — the sim works the same way for {driver}.",
+          "The system prevented a full lockup and kept the car pointed where {driver} wanted it.",
+          "That's the safety net working and {driver} can feel the subtle chatter through the pedal.",
+          "The electronics are doing exactly what they're supposed to do at that threshold.",
+          "{driver} felt that intervention and it shows where the braking limit is."
+        ],
+        "closers": [
+          "System working.",
+          "Threshold noted.",
+          "Control maintained.",
+          "Understood.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "tc_intervention",
+      "fragments": {
+        "openers": [
+          "TC cutting in for {driver}.",
+          "Traction control fired.",
+          "TC intervention on exit.",
+          "The system stepped in.",
+          "TC active for {driver}.",
+          "System cut the power."
+        ],
+        "bodies": [
+          "The system is working and it's costing {driver} a small amount of traction — a tradeoff in the setup.",
+          "The rear wants to go and the computer says not yet — the balance between {driver} and the electronics.",
+          "{driver} can feel it choking the throttle application — the question is whether the setting is right.",
+          "Running TC means {driver} is trading raw exit speed for consistency — depends on the circuit.",
+          "That chop in the throttle response is the system being protective when it needs to be.",
+          "The car wanted more grip than available and the electronics prevented the slide for {driver}.",
+          "That's the tuning point right there — is the TC doing its job or costing {driver} time.",
+          "{driver} should note that intervention for the setup review."
+        ],
+        "closers": [
+          "Tuning tradeoff.",
+          "Setup question.",
+          "Working as set.",
+          "Noted.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "close_battle",
+      "fragments": {
+        "openers": [
+          "Car right next to {driver}.",
+          "Door to door.",
+          "Running this close.",
+          "Wheel to wheel for {driver}.",
+          "Right on the car.",
+          "Door-to-door racing."
+        ],
+        "bodies": [
+          "Every input matters more when {driver}'s this close — one mistake and it's both cars in the barrier.",
+          "This is the real test — how precise can {driver} be when someone's watching every move.",
+          "The margins in the sim match what this would feel like in real life — genuinely intense for {driver}.",
+          "That gap is nothing — this is genuine racing and every tenth matters for {driver}.",
+          "One car length between clean racing and incident points — every move has to be calculated.",
+          "The proximity demands absolute precision from {driver} and the margin for error just evaporated.",
+          "This is the moment that separates racers from just driving — and {driver} is in it now.",
+          "The battle is fully on and the next few corners will define what happens for {driver}."
+        ],
+        "closers": [
+          "Stay sharp.",
+          "Precision time.",
+          "This is it.",
+          "This is racing.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "position_gained",
+      "fragments": {
+        "openers": [
+          "{driver} past {ahead}.",
+          "Made the move.",
+          "Got through cleanly.",
+          "Position up for {driver}.",
+          "Clean overtake.",
+          "Successfully past."
+        ],
+        "bodies": [
+          "That's a position gained and every one counts for {driver} in this race.",
+          "Clean pass, well-timed — that's real on-track progress for {driver}.",
+          "Now it's about not making a mistake in the next few corners — {driver} needs to build the lead.",
+          "The gap ahead is what matters now — time for {driver} to close it down and build the margin.",
+          "That move had to be executed perfectly and it was — credit to {driver}.",
+          "One position at a time is how {driver} builds a race — one closer to the goal.",
+          "That was the opportunity and {driver} took it cleanly — now capitalize on it.",
+          "The car had the pace and the moment was right — that's how passes should look."
+        ],
+        "closers": [
+          "Build on it.",
+          "Next target.",
+          "Moving forward.",
+          "Keep pushing.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "position_lost",
+      "fragments": {
+        "openers": [
+          "{behind} gets past {driver}.",
+          "{driver} loses that position.",
+          "{behind} found a way through.",
+          "{driver} drops a place.",
+          "Position gone for {driver}.",
+          "That position's gone."
+        ],
+        "bodies": [
+          "That's a position gone and {driver} needs to respond — not panic, respond.",
+          "Credit to {behind} — clean move, and {driver} needs to close that gap back down.",
+          "It stings but it's part of racing — the question is where {driver} gave the opportunity.",
+          "This is where the race either falls apart for {driver} or the dig-in happens.",
+          "That move was better than {driver}'s defense — response time now.",
+          "One position lost for {driver} — the math just got harder but it's not over.",
+          "{driver} had to defend there and didn't manage it well enough.",
+          "Now it's about {driver} closing the gap and getting that position back when the moment comes."
+        ],
+        "closers": [
+          "Chase it down.",
+          "Respond now.",
+          "Close the gap.",
+          "Next corner.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "yellow_flag",
+      "fragments": {
+        "openers": [
+          "Yellow flag out.",
+          "Caution deployed.",
+          "Yellow on the track.",
+          "Caution flag.",
+          "Flag is out.",
+          "Incident on track."
+        ],
+        "bodies": [
+          "Something happened and the race has paused itself — this changes the calculation for {driver} completely.",
+          "The field bunches up and everything {driver} built in terms of gap just resets — that's racing.",
+          "Depending on where this falls in the stint it either saves {driver} or costs the strategy.",
+          "This is a moment where patience matters more than pace — {driver} needs to get through it cleanly.",
+          "The yellow changes everything about the race situation and {driver}'s next call has to be smart.",
+          "The race got compressed and {driver}'s gap to the car ahead just disappeared.",
+          "This changes the strategy window and maybe the tire planning for {driver} too.",
+          "Everything that was set in stone just became flexible with the yellow flag."
+        ],
+        "closers": [
+          "Stay patient.",
+          "Pace back.",
+          "Caution mode.",
+          "Race on.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "debris_on_track",
+      "fragments": {
+        "openers": [
+          "Debris flag.",
+          "Debris on track.",
+          "Something's on the circuit.",
+          "Hazard flag.",
+          "Debris ahead of {driver}.",
+          "Track hazard."
+        ],
+        "bodies": [
+          "Something's on the circuit and {driver} is running blind to it — caution is the fast option.",
+          "In a real car this is one of the most dangerous moments — {driver} needs to stay alert.",
+          "This is the kind of situation where incident points get handed out — {driver} needs to stay clean.",
+          "Debris changes the risk calculation for {driver} on every lap until it's cleared.",
+          "That hazard could be anything and the track just became more dangerous for {driver}.",
+          "{driver} can't see what's there from a distance and hitting it would be catastrophic.",
+          "The track just became unpredictable for {driver} and every line is a gamble.",
+          "That debris is out there somewhere and caution is the only smart approach for {driver}."
+        ],
+        "closers": [
+          "Stay cautious.",
+          "Avoid it.",
+          "Pace down.",
+          "Until cleared.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "race_start",
+      "fragments": {
+        "openers": [
+          "They're racing.",
+          "Lights out.",
+          "Race start for {driver}.",
+          "Here we go.",
+          "It's on.",
+          "Race is live."
+        ],
+        "bodies": [
+          "The work {driver} put into this — setup, qualifying, pace — gets tested right now.",
+          "Every bit of {driver}'s preparation comes down to the next ninety seconds of first lap chaos.",
+          "The goal for {driver} is simple: survive lap one, then race from there — nothing clever, just clean.",
+          "First corner is make or break — {driver} needs to stay out of trouble and build from there.",
+          "Everything is unpredictable at the start and control is {driver}'s only real advantage.",
+          "The race is alive and the chaos of first lap is where reputations are made and lost.",
+          "All that practice and prep from {driver} means nothing if lap one goes wrong — survival first.",
+          "The start demands composure and {driver} needs to let the race come."
+        ],
+        "closers": [
+          "Survive lap one.",
+          "Race on.",
+          "Clean start.",
+          "Build from here.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "formation_lap",
+      "fragments": {
+        "openers": [
+          "Formation lap for {driver}.",
+          "Pace lap running.",
+          "Building to the start.",
+          "Formation lap now.",
+          "Warming everything up.",
+          "Final lap before racing."
+        ],
+        "bodies": [
+          "Last chance for {driver} to check the setup feels right and get focused for the start.",
+          "{driver} running behind the leader, building temperature in the tyres and brakes for what's coming.",
+          "This is the moment before it all gets real for {driver} — car sorted, tyres warm, head in the right place.",
+          "The formation lap is where {driver} dials in mentally for the first corner chaos.",
+          "Building temperature in the rubber and clearing the brake dust for what's ahead.",
+          "Everything gets one final check as {driver} follows the pace car around.",
+          "The moment before the moment — {driver} settling in and preparing mentally.",
+          "This lap sets the tone for how {driver}'s start goes."
+        ],
+        "closers": [
+          "Almost here.",
+          "Ready now.",
+          "Stay focused.",
+          "One more lap.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "personal_best",
+      "fragments": {
+        "openers": [
+          "Personal best for {driver}.",
+          "New PB.",
+          "Personal best lap.",
+          "{driver} sets the best.",
+          "That's it — PB.",
+          "Quickest lap yet."
+        ],
+        "bodies": [
+          "The lap did what it needed to do for {driver} — clean, committed, no mistakes where it mattered.",
+          "That's the car working and {driver}'s driving matching it — every sector contributed.",
+          "That's the result of getting the setup right and {driver} actually executing on it.",
+          "That's confidence from {driver} — the car's right and everything came together.",
+          "Every part of that lap worked for {driver} and the result is on the board now.",
+          "The pace was there and {driver}'s execution was clean — that's how personal bests happen.",
+          "That lap felt fast from {driver} and the timer confirms it — time to build on this.",
+          "The combination of car and {driver} came together perfectly for that lap."
+        ],
+        "closers": [
+          "Build on it.",
+          "Repeat that.",
+          "There's more.",
+          "Know the feel.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "pit_entry",
+      "fragments": {
+        "openers": [
+          "{driver} into the pits.",
+          "Pitting now.",
+          "Pit lane entry.",
+          "{driver} coming in.",
+          "Pit stop.",
+          "In for service."
+        ],
+        "bodies": [
+          "The call has been made — now it's about {driver} coming out in the right window.",
+          "The tyre situation made this decision and now {driver}'s race reshapes around where the car emerges.",
+          "A good stop is part of the lap time — everything has to go right for {driver} in these few seconds.",
+          "{driver}'s strategy either worked or it didn't — the answer comes in thirty seconds.",
+          "The timing has to be right and the execution has to be perfect for {driver}.",
+          "This is where the pit crew's work matters and {driver}'s strategy gets tested.",
+          "{driver} coming in means leaving pace on the table but gaining in the long run.",
+          "The pit window is now and {driver}'s race gets decided in the next twenty seconds."
+        ],
+        "closers": [
+          "Clean stop.",
+          "Get out fast.",
+          "Strategy check.",
+          "New cycle.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "high_cornering_load",
+      "fragments": {
+        "openers": [
+          "Maximum lateral load for {driver}.",
+          "Peak cornering load.",
+          "Full lateral G.",
+          "{driver}'s car is planted.",
+          "Absolute grip.",
+          "Full cornering load."
+        ],
+        "bodies": [
+          "The grip level in this car is something {driver} has to experience to understand.",
+          "That's the engineering talking — the grip at this speed for {driver} is extraordinary.",
+          "The force through the seat and the wheel in a corner like that is why this car exists.",
+          "That's what the car was built for and {driver} just takes it — totally committed.",
+          "The grip is absolute and the car wants to stay on the line for {driver} no matter what.",
+          "That cornering speed is only possible with this level of downforce and tire grip.",
+          "{driver} can feel that load through the whole body — that's the car's capability on display.",
+          "The car's working at peak performance for {driver} and every system is delivering."
+        ],
+        "closers": [
+          "Feel the grip.",
+          "Car's capable.",
+          "Limit found.",
+          "Trust it.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "ffb_torque_spike",
+      "fragments": {
+        "openers": [
+          "The wheel kicked back on {driver}.",
+          "Massive torque spike.",
+          "That snap through the wheel.",
+          "Hard feedback spike for {driver}.",
+          "The wheel fought back.",
+          "Torque spike through here."
+        ],
+        "bodies": [
+          "That's the FFB telling {driver} exactly what the front tyre just experienced.",
+          "That's direct communication from the car to {driver} — the wheel is doing its job.",
+          "That's the value of good FFB — {driver} felt it before seeing the car move.",
+          "Everything that went through the contact patch came straight to {driver}'s hands.",
+          "The front end just loaded and the wheel transmitted every bit of it back to {driver}.",
+          "That's feedback that matters and it's telling {driver} the car's at the limit.",
+          "The torque spike is the car saying something happened and {driver} needs to know.",
+          "{driver} can use that feedback to understand what the car is doing underneath."
+        ],
+        "closers": [
+          "Trust the feedback.",
+          "Car's communicating.",
+          "Feel that load.",
+          "Feedback working.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "low_fuel",
+      "fragments": {
+        "openers": [
+          "Fuel is critical for {driver}.",
+          "Running low.",
+          "Low fuel warning.",
+          "{driver}'s tank nearly empty.",
+          "Fuel running out.",
+          "The tank is running out."
+        ],
+        "bodies": [
+          "Every lap from here is a calculation for {driver} — how much pushing before the tank says no.",
+          "{driver}'s car gets lighter but the risk gets higher — this is where the fuel strategy holds or doesn't.",
+          "Lift, coast, manage — {driver}'s pace suffers but finishing matters more than lap times right now.",
+          "This is the honest part of long-distance racing for {driver} — planned for but still feels close.",
+          "The fuel window just got tighter and the math on {driver}'s race got more complicated.",
+          "Every throttle input for {driver} now has to factor in the fuel tank instead of just lap time.",
+          "The finish line is the only target for {driver} now and fuel is the limiting factor.",
+          "This is where endurance racing separates pace from strategy for {driver}."
+        ],
+        "closers": [
+          "Manage it.",
+          "Stretch it.",
+          "Count laps.",
+          "Make it home.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "wet_track",
+      "fragments": {
+        "openers": [
+          "It's wet for {driver}.",
+          "Wet track declared.",
+          "Rain conditions.",
+          "Wet out there.",
+          "Conditions wet.",
+          "The track is wet."
+        ],
+        "bodies": [
+          "Every reference point changes for {driver} — every threshold drops, the car becomes a different puzzle.",
+          "This is where real driving skill separates people — smooth inputs and reading the surface for {driver}.",
+          "The sim handles this seriously — tyre temp, water distribution, grip levels all in play for {driver}.",
+          "The braking points move, the apexes move — the whole circuit gets rewritten by water for {driver}.",
+          "Wet conditions demand a completely different approach to every corner and input from {driver}.",
+          "The grip is unpredictable and finding the dry line means finding the only real grip for {driver}.",
+          "Smooth is faster in the wet and that's the key principle for {driver} right now.",
+          "The car just became much harder for {driver} to drive and the margins got a lot smaller."
+        ],
+        "closers": [
+          "Smooth inputs.",
+          "Find the grip.",
+          "Wet driving.",
+          "Careful now.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "track_temp_cold",
+      "fragments": {
+        "openers": [
+          "Track is cold for {driver}.",
+          "Low temperature.",
+          "Cold conditions.",
+          "Track surface cold.",
+          "Grip is limited.",
+          "Building heat slowly."
+        ],
+        "bodies": [
+          "{driver}'s tyres need building and rushing them is how you lose it early.",
+          "Everything feels a step down from normal for {driver} — pace builds gradually with patience.",
+          "The window for grip is narrow and the car feels different for {driver} through every corner.",
+          "{driver}'s tyres come in slowly and that has to be respected or the session gets away.",
+          "Cold track means cold tyres and that means reduced grip for {driver} until things warm up.",
+          "Rushing it now will cost {driver} more than being patient in these conditions.",
+          "The car behaves differently when everything is cold — smoother is smarter for {driver}.",
+          "Building heat gradually is the only way through cold conditions for {driver}."
+        ],
+        "closers": [
+          "Patience now.",
+          "Builds gradually.",
+          "Stay smooth.",
+          "Warm it up.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "tyre_wear_high",
+      "fragments": {
+        "openers": [
+          "{driver}'s tyres are going.",
+          "High tyre wear.",
+          "Degradation is real.",
+          "Tyre wear critical.",
+          "{driver}'s tyres are shot.",
+          "Grip is leaving."
+        ],
+        "bodies": [
+          "{driver} can feel it in every corner — the grip is leaving and the car is telling the story.",
+          "The setup that worked for {driver} at the start of the stint doesn't work the same way now.",
+          "Every lap the window shifts and {driver} has to adapt the driving style to what the rubber can still do.",
+          "{driver}'s tyres have given a lot this stint and managing what's left to the stop is the whole job now.",
+          "The car's character is changing for {driver} — what worked before doesn't work anymore.",
+          "The tire model is showing exactly how grip falls off and {driver}'s car reacts accordingly.",
+          "Every lap gets harder and the tires are telling the whole story in how {driver}'s car feels.",
+          "The worn rubber is the limiting factor for {driver} in every corner now."
+        ],
+        "closers": [
+          "Manage the tire.",
+          "Pace back.",
+          "Time to stop.",
+          "Nearly there.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "hot_tyres",
+      "fragments": {
+        "openers": [
+          "{driver}'s tyres are overheating.",
+          "Too hot on the fronts.",
+          "Temperatures are critical.",
+          "Tyre temp spike for {driver}.",
+          "Tyres through the roof.",
+          "Overheating for {driver}."
+        ],
+        "bodies": [
+          "The grip is going away for {driver} — the compound can't handle this temperature.",
+          "This is thermal degradation — the rubber is greasing and {driver}'s car knows it.",
+          "Managing this is a real skill for {driver} — back off, build it back, or accept the pace hit.",
+          "{driver}'s car is sliding everywhere and the sim is communicating real physics.",
+          "The tires are past their optimal window and everything gets harder for {driver} from here.",
+          "The heat is cooking the compound and {driver}'s pace is dropping fast.",
+          "That temperature rise means the tires are breaking down and {driver} is losing grip rapidly.",
+          "The overheating means the brake cooling or tire compound is the limit for {driver}."
+        ],
+        "closers": [
+          "Cool them down.",
+          "Pace off.",
+          "Manage temps.",
+          "Back off now.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "heavy_braking",
+      "fragments": {
+        "openers": [
+          "Serious braking from {driver}.",
+          "Maximum braking.",
+          "Big braking event.",
+          "Aggressive stop by {driver}.",
+          "Heavy deceleration.",
+          "That stop was hard."
+        ],
+        "bodies": [
+          "The deceleration forces for {driver} in a corner like that are eye-watering in any car.",
+          "From that speed to nothing in that distance — {driver} committed fully to that braking zone.",
+          "{driver}'s car is right on the limit of what's physically possible under braking.",
+          "The balance under braking tells you everything about where {driver}'s car is set up.",
+          "That braking force is only available because of everything working together for {driver}.",
+          "{driver} is at the physical limit and the car is right on the threshold.",
+          "That braking load is the result of perfect setup and absolute commitment from {driver}.",
+          "The stopping power available to {driver} here is remarkable."
+        ],
+        "closers": [
+          "Committed braking.",
+          "Brakes working.",
+          "Limit found.",
+          "Control it.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "qualifying_push",
+      "fragments": {
+        "openers": [
+          "This lap is coming together for {driver}.",
+          "Hot lap in qualifying.",
+          "The delta says this is it.",
+          "Every sector contributing for {driver}.",
+          "This is the lap.",
+          "Qualifying lap firing."
+        ],
+        "bodies": [
+          "The delta is positive everywhere for {driver} — just needs to hold it in the final sector.",
+          "{driver}'s car feels locked in and this is the result of getting every setup decision right.",
+          "{driver} needs to stay with it, don't brake early, don't run wide — this is what qualifying is for.",
+          "The lap is clean for {driver} — if it holds, this is a result worth having.",
+          "Every input from {driver} is perfect and the car is responding to everything asked of it.",
+          "This is the moment qualifying builds to and everything is aligned for {driver}.",
+          "The pace is there and {driver}'s execution is matching it — stay smooth.",
+          "The combination of setup and {driver} is delivering and the lap shows it."
+        ],
+        "closers": [
+          "Hold it together.",
+          "Finish clean.",
+          "Final sector.",
+          "Keep pushing.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "incident_spike",
+      "fragments": {
+        "openers": [
+          "Incident points for {driver}.",
+          "iRacing incident added.",
+          "That's on {driver}'s record.",
+          "Another incident point.",
+          "Incident counter up.",
+          "Incident flagged for {driver}."
+        ],
+        "bodies": [
+          "iRacing saw that and {driver}'s Safety Rating is going to reflect it.",
+          "In iRacing that's permanent — every contact is recorded and it matters for {driver}'s rating.",
+          "The iRating system doesn't care about context — it logs {driver}'s incident and moves on.",
+          "The SR implications are real for {driver} and they don't go away quickly — cleaner driving needed.",
+          "That contact just got recorded and the rating hit is automatic for {driver}.",
+          "iRacing flagged that and {driver}'s incident is part of the official record now.",
+          "The system saw contact and logged it against {driver} regardless of circumstances.",
+          "That incident just cost {driver} SR and the rating impact is immediate."
+        ],
+        "closers": [
+          "Drive cleaner.",
+          "SR taking a hit.",
+          "Rating drops.",
+          "Move forward.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "ers_low",
+      "fragments": {
+        "openers": [
+          "ERS almost gone for {driver}.",
+          "Battery depleted.",
+          "The hybrid is out.",
+          "ERS empty for {driver}.",
+          "Battery running dry.",
+          "ERS at critical."
+        ],
+        "bodies": [
+          "The performance difference without the hybrid is immediately noticeable for {driver} on every straight.",
+          "From here to the next regen zone, {driver}'s car runs on the combustion engine alone.",
+          "Managing these depletion windows is a core skill — it changes {driver}'s car completely.",
+          "That's the delta between hybrid and non-hybrid performance for {driver}.",
+          "The boost is gone and {driver}'s car just lost a significant amount of power.",
+          "Without ERS deployment the straights get much slower for {driver} and passing becomes harder.",
+          "The energy is gone and the next few laps are going to feel a lot slower for {driver}.",
+          "ERS being empty means {driver}'s car is down on performance until it recharges."
+        ],
+        "closers": [
+          "No more boost.",
+          "Pace drops.",
+          "Manage it.",
+          "Until regen.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "track_temp_hot",
+      "fragments": {
+        "openers": [
+          "Track temperature is high.",
+          "Hot track surface.",
+          "Temperatures like this.",
+          "The tarmac is baking.",
+          "Track surface hot.",
+          "High track temp."
+        ],
+        "bodies": [
+          "{driver}'s tyres are working in a brutal environment — degradation is accelerated.",
+          "The rubber goes down fast and the grip window is narrow for {driver} — a proper tyre management challenge.",
+          "The compounds peak early and fall off hard — every lap is a tradeoff for {driver}.",
+          "The grip is there early in the stint for {driver} and then it goes away faster than expected.",
+          "Hot conditions change the whole race calculation for {driver} and the tires tell the story.",
+          "The heat accelerates everything for {driver} — degradation, tire temps, brake temps.",
+          "The thermal load is high and everything in {driver}'s car is working harder.",
+          "Hot tracks demand aggressive management from {driver} — no coasting through a stint."
+        ],
+        "closers": [
+          "Manage heat.",
+          "Tires fade fast.",
+          "Plan ahead.",
+          "Stay sharp.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "drs_active",
+      "fragments": {
+        "openers": [
+          "DRS open for {driver}.",
+          "Rear wing open.",
+          "DRS zone active.",
+          "The wing is open.",
+          "DRS deployed for {driver}.",
+          "Flap is deployed."
+        ],
+        "bodies": [
+          "{driver} can feel the drag drop away — the car just accelerates differently with DRS.",
+          "The straight-line advantage is genuine for {driver} and it changes the overtaking calculation.",
+          "Whether that's enough for {driver} to make the move is the question — the physics are helping.",
+          "That speed delta is real for {driver} — this is where the pass either happens or it doesn't.",
+          "The wing is working for {driver} and the speed advantage is immediately apparent.",
+          "DRS gives {driver} the edge — now it's about using it before the zone ends.",
+          "The rear wing configuration just changed the power-to-drag ratio for {driver} significantly.",
+          "That deployment means the straight is {driver}'s to use."
+        ],
+        "closers": [
+          "Make the move.",
+          "Use the advantage.",
+          "Build the gap.",
+          "Speed gained.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "car_balance_sustained",
+      "fragments": {
+        "openers": [
+          "{driver}'s car at the limit.",
+          "Well-sorted car.",
+          "Completely hooked up.",
+          "Car is balanced.",
+          "Setup translating.",
+          "Car perfectly balanced."
+        ],
+        "bodies": [
+          "When it's working this well for {driver}, you stop thinking and start feeling.",
+          "The balance is exactly where {driver} needs it — rotation on demand, grip when asked for.",
+          "That kind of trust in the car makes {driver} drive differently.",
+          "{driver}'s car is communicating everything and responding to everything — built for this.",
+          "The setup is working exactly as intended and {driver}'s car delivers it consistently.",
+          "This is the state where the car and {driver} align perfectly.",
+          "The balance point is found and every corner rewards {driver}'s setup.",
+          "{driver}'s car is responding predictably and that predictability is everything in racing."
+        ],
+        "closers": [
+          "Trust the balance.",
+          "This works.",
+          "Keep it.",
+          "Perfect setup.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "black_flag",
+      "fragments": {
+        "openers": [
+          "Black flag for {driver}.",
+          "That's the flag.",
+          "{driver} disqualified.",
+          "Session over.",
+          "The flag came down.",
+          "Done for today."
+        ],
+        "bodies": [
+          "That's the end of the race for {driver} — whatever earned this, it's final.",
+          "The black flag is the last word in iRacing — {driver} can't come back from this.",
+          "{driver}'s session is finished — time to accept it and move on.",
+          "That's the system making its statement and there's no appeal for {driver}.",
+          "The race ends right now for {driver} with that flag — everything before it doesn't matter.",
+          "One decision, one flag, and {driver}'s whole session is done.",
+          "That's what disqualification looks like in iRacing — it's complete for {driver}.",
+          "The flag means it's over and {driver}'s only place to go is the garage."
+        ],
+        "closers": [
+          "Accept it.",
+          "Move on.",
+          "Lesson learned.",
+          "Next time.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "rapid_gear_change",
+      "fragments": {
+        "openers": [
+          "Quick downshift from {driver}.",
+          "Stacked shift.",
+          "Rapid gearing from {driver}.",
+          "Multi-gear shift.",
+          "Aggressive shifting.",
+          "Shift sequence."
+        ],
+        "bodies": [
+          "Multiple gears in rapid succession from {driver} — that's the aggression the corner demanded.",
+          "Going from high gear to low quickly changes how the car rotates for {driver}.",
+          "The transmission is doing what it needs to do for {driver} to set up for what's coming next.",
+          "That sequencing from {driver} is part of how rotation is managed into a complex corner.",
+          "The downshift stack sets up the engine braking {driver} needs for entry.",
+          "That rapid gear change puts {driver}'s engine in the right rev range for the corner.",
+          "Stacking gears quickly gives {driver} the aggression needed for that point on track.",
+          "The multi-gear shift is a technique tool — part of {driver}'s craft."
+        ],
+        "closers": [
+          "Rotation setup.",
+          "Engine braking.",
+          "Corner ready.",
+          "Well timed.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "long_stint",
+      "fragments": {
+        "openers": [
+          "{driver} deep in the stint.",
+          "Long distance now.",
+          "Stint progressing.",
+          "Committed now.",
+          "Many laps in for {driver}.",
+          "Building laps."
+        ],
+        "bodies": [
+          "{driver} is deep in the stint now — it's all about management: fuel, tyres, and patience.",
+          "After many laps it becomes about consistency and smart decisions for {driver} over pace.",
+          "The car dynamics are different now for {driver} with fuel load and tyre wear compounding.",
+          "{driver}'s pace has to be sustainable and the strategy has to hold from here to the stop.",
+          "Long stints are won on consistency — every lap from {driver} has to be similar to the last.",
+          "This is where experience matters — {driver} knowing how much the car has left.",
+          "The attrition phase of the race starts here — who can maintain pace longest?",
+          "Distance racing is about margins for {driver} — small decisions compound over many laps."
+        ],
+        "closers": [
+          "Stay consistent.",
+          "Manage resources.",
+          "Pace sustainable.",
+          "Hold it together.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "session_time_low",
+      "fragments": {
+        "openers": [
+          "Time running out for {driver}.",
+          "Clock winding down.",
+          "Final minutes.",
+          "Very low time.",
+          "Almost done.",
+          "Seconds matter."
+        ],
+        "bodies": [
+          "Less than five minutes and every lap counts for {driver} — maximum pace now.",
+          "This is the final push of the race for {driver} — time to leave everything on the track.",
+          "Whatever position {driver} has now, the gaps have to be managed through to the end.",
+          "These final minutes are where positions are made and lost — it's go time for {driver}.",
+          "The sprint to the end starts now for {driver} and every tenth is critical.",
+          "Time pressure means one thing for {driver} — maximum effort for what's left.",
+          "The finish line is close and this is where people make their move around {driver}.",
+          "Final laps demand absolute commitment from {driver} — no time left to recover."
+        ],
+        "closers": [
+          "Push now.",
+          "All in.",
+          "Final effort.",
+          "This is it.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "brake_bias_change",
+      "fragments": {
+        "openers": [
+          "{driver} adjusts brake bias.",
+          "Brake balance change.",
+          "{driver} moves the bias.",
+          "Brake bias adjusted.",
+          "Balance shift from {driver}.",
+          "Braking change."
+        ],
+        "bodies": [
+          "Moving the balance forward gives {driver} more front braking stability; moving it back helps rotation into corners.",
+          "That's a real-time response from {driver} to how the car is behaving under braking — the car asked for it.",
+          "A small change to the braking balance can completely change {driver}'s entry to slow corners.",
+          "Brake bias is one of the most impactful in-car changes — it directly affects how {driver}'s car turns in.",
+          "That adjustment shows {driver} is adapting to changing conditions — tyres degrading or track evolving.",
+          "The braking balance shift means {driver} felt something in the last few corners and is responding.",
+          "{driver} is fine-tuning the braking zone — this is active car management mid-session.",
+          "That change to the bias tells you {driver} is working on the car while racing it."
+        ],
+        "closers": [
+          "Adapting to the car.",
+          "Balance refined.",
+          "Active management.",
+          "Setup evolving.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "tc_setting_change",
+      "fragments": {
+        "openers": [
+          "{driver} changes TC level.",
+          "Traction control adjusted.",
+          "TC change from {driver}.",
+          "{driver} dials the TC.",
+          "TC level shift.",
+          "Intervention level changed."
+        ],
+        "bodies": [
+          "Dialing TC up gives {driver} more protection on exit but costs acceleration; dialing down is faster but riskier.",
+          "That's a conscious decision from {driver} about how much the car is allowed to slide on exit.",
+          "Some circuits and corners demand more TC intervention — {driver} is adapting to the track in real time.",
+          "This is about finding the right balance between the computer's protection and {driver}'s throttle confidence.",
+          "Higher TC keeps {driver} safe from rear slides but takes the edge off exit speed.",
+          "Lower TC lets {driver} use more of the car's potential but demands perfect throttle application.",
+          "That TC change from {driver} is a response to the rear grip level — the car communicates and the driver adjusts.",
+          "The setting change shows {driver} is actively managing the car's electronics to match conditions."
+        ],
+        "closers": [
+          "Finding the balance.",
+          "Adapting.",
+          "Working the setup.",
+          "Smart adjustment.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "abs_setting_change",
+      "fragments": {
+        "openers": [
+          "{driver} adjusts ABS level.",
+          "ABS setting changed.",
+          "ABS change from {driver}.",
+          "{driver} moves the ABS.",
+          "Braking system adjusted.",
+          "ABS level shift."
+        ],
+        "bodies": [
+          "Higher ABS means the system intervenes earlier for {driver} to prevent lock-ups; lower lets the threshold be managed personally.",
+          "Lower ABS gives {driver} shorter stopping distances if the pedal is managed well, but risks flat-spotting.",
+          "In a car with this much downforce, the braking threshold changes corner to corner — {driver} is matching the setting.",
+          "That ABS change is about trust in the brake pedal — more intervention means safer but less feel for {driver} at the limit.",
+          "Adjusting ABS shows {driver} is fine-tuning the braking system to match how the car is responding.",
+          "The ABS change means {driver} felt something in the braking zones that needed addressing.",
+          "Lower ABS means {driver} is confident enough to manage the lock-up threshold directly.",
+          "Higher ABS from {driver} means prioritizing consistency over absolute braking performance."
+        ],
+        "closers": [
+          "Pedal feel refined.",
+          "Braking adapted.",
+          "Trust the pedal.",
+          "Smart change.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "arb_front_change",
+      "fragments": {
+        "openers": [
+          "{driver} adjusts front ARB.",
+          "Front anti-roll bar changed.",
+          "Front ARB from {driver}.",
+          "{driver} moves the front bar.",
+          "Roll stiffness adjusted.",
+          "Front ARB shift."
+        ],
+        "bodies": [
+          "Stiffer front ARB reduces body roll for {driver} in fast corners but can make the front less responsive in slow turns.",
+          "This directly affects how much {driver}'s front end rolls — stiffer is more responsive but pushes the front grip limit.",
+          "The anti-roll bars are one of the biggest handling levers available to {driver} mid-race.",
+          "Softening the front ARB helps put {driver}'s front tyres to work in tight sections; stiffening keeps the car stable at speed.",
+          "That ARB change shows {driver} is actively managing the car's handling balance while racing.",
+          "Front ARB adjustment means {driver} felt the front end wasn't responding as needed and is correcting it.",
+          "A stiffer front bar makes {driver}'s car more direct and responsive but reduces mechanical front grip.",
+          "Softening the front ARB gives {driver} more front grip in slow corners at the cost of high-speed stability."
+        ],
+        "closers": [
+          "Handling balance.",
+          "Front end refined.",
+          "Active tuning.",
+          "Feel the difference.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "arb_rear_change",
+      "fragments": {
+        "openers": [
+          "{driver} adjusts rear ARB.",
+          "Rear anti-roll bar changed.",
+          "Rear ARB from {driver}.",
+          "{driver} moves the rear bar.",
+          "Rear roll stiffness adjusted.",
+          "Rear ARB shift."
+        ],
+        "bodies": [
+          "Stiffer rear ARB adds oversteer for {driver} — the rear rotates more — while softer makes the car more stable.",
+          "This is a handling balance adjustment from {driver} — more rear stiffness means more rotation, less means more grip.",
+          "If {driver}'s car is understeering, stiffening the rear can free it up; if the rear is loose, softening adds grip.",
+          "The rear anti-roll bar is one of the first things drivers change when the car doesn't feel balanced — {driver} is reacting.",
+          "That ARB change is {driver} directly adjusting how the car behaves in the corners — a fundamental handling lever.",
+          "Stiffer rear bar means {driver} wants the car to rotate more — probably dealing with understeer.",
+          "Softening the rear bar means {driver} wants more rear stability — probably dealing with oversteer.",
+          "The rear ARB adjustment shows {driver} is reading the car's behavior and responding mid-session."
+        ],
+        "closers": [
+          "Balance adjusted.",
+          "Rear end sorted.",
+          "Active management.",
+          "Rotation tuned.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "track_context",
+      "fragments": {
+        "openers": [
+          "Here at {track}.",
+          "A note about {trackNickname}.",
+          "Coming through {corner}.",
+          "This is {track}.",
+          "{driver} at {trackNickname}.",
+          "Interesting one about this circuit."
+        ],
+        "bodies": [
+          "{trackFact} — the kind of detail that shapes how {driver} approaches every lap here.",
+          "{trackFact}. Understanding this place is half the battle.",
+          "Every driver who's raced here knows {corner} — it's what makes this circuit special.",
+          "{trackFact}. That's what separates {track} from every other venue on the calendar.",
+          "Through {corner}, the circuit demands respect from {driver} — and rewards those who give it.",
+          "{trackFact}. The history here adds weight to every lap {driver} turns.",
+          "The approach through {corner} defines the whole rhythm of this place for {driver}.",
+          "{trackFact} — broadcast-worthy detail about a world-class venue."
+        ],
+        "closers": [
+          "Fascinating circuit.",
+          "History matters here.",
+          "Special place.",
+          "Worth knowing.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "prerace_track",
+      "fragments": {
+        "openers": [
+          "Welcome to {track}.",
+          "Grid forming at {trackNickname}.",
+          "{driver} on the grid at {track}.",
+          "Pre-race at {trackNickname}.",
+          "Approaching race start at {track}.",
+          "The grid at {track}."
+        ],
+        "bodies": [
+          "{trackFact}. {driver} will need to respect the history and challenge of this circuit.",
+          "The approach through {corner} will be critical on the opening lap for {driver}.",
+          "{trackFact} — the kind of knowledge that changes how {driver} attacks every corner here.",
+          "Watch for {corner} — it's where this track separates the committed from the cautious.",
+          "{trackFact}. Every circuit has its secrets and {trackNickname} has plenty.",
+          "The character of this place is defined by {corner} and {driver} needs to know it inside out.",
+          "{trackFact}. That context matters when the lights go out for {driver}.",
+          "This venue rewards preparation and {driver} needs to respect what {trackNickname} demands."
+        ],
+        "closers": [
+          "Race time.",
+          "Know the track.",
+          "Respect the venue.",
+          "Here we go.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "prerace_circuit_detail",
+      "fragments": {
+        "openers": [
+          "A closer look at {corner}.",
+          "{corner} is the talking point.",
+          "Watch {driver} through {corner}.",
+          "The approach into {corner}.",
+          "At {trackNickname}, {corner}.",
+          "Key section at {track}."
+        ],
+        "bodies": [
+          "{trackFact}. The line through here defines the whole lap for {driver}.",
+          "How {driver} handles this section will set the pace for the entire stint.",
+          "{trackFact} — that's the character of {trackNickname} and what makes it unique.",
+          "This is where the lap comes together or falls apart for {driver} at {track}.",
+          "{trackFact}. That's what makes this one of the most talked-about venues on the calendar.",
+          "At {trackNickname}, this is where the real racing happens and {driver} knows it.",
+          "The circuit demands precision here and {trackFact} adds context to every attempt.",
+          "{driver} has to get this section right — it defines everything else at {track}."
+        ],
+        "closers": [
+          "Lap-defining.",
+          "Key section.",
+          "Critical point.",
+          "Watch this.",
+          ""
+        ]
+      }
+    },
+    {
+      "topicId": "car_context",
+      "fragments": {
+        "openers": [
+          "Here's a bit of background on {carNickname}.",
+          "Let's talk about what makes {car} tick.",
+          "Some context on {driver}'s machinery.",
+          "A word about {carNickname} and its heritage.",
+          "What's special about this particular {class} car?",
+          "Time for some car talk."
+        ],
+        "bodies": [
+          "{carFact}. Powered by {engineSpec}, {carCharacter}.",
+          "{manufacturerFact} — and that DNA runs through {carNickname}. {racingPhilosophy}.",
+          "Under the skin, {engineSpec} does the heavy lifting. {carFact}.",
+          "{carCharacter}. That's the {manufacturer} way — {racingPhilosophy}.",
+          "The engineers at {manufacturer} designed this car around one principle: {racingPhilosophy}. {carFact}.",
+          "{carFact}. On track, {carCharacter} — and that's what separates the good laps from the great ones."
+        ],
+        "closers": [
+          "Every car has a story — this one's worth knowing.",
+          "Understanding the car helps you read {driver}'s decisions on track.",
+          "That's {carNickname} in a nutshell — a fascinating piece of engineering.",
+          "Knowledge like this is what makes watching {class} racing so rewarding.",
+          "Keep that in mind as {driver} works through the field.",
+          "A machine with real pedigree."
+        ]
+      }
+    },
+    {
+      "topicId": "prerace_car",
+      "fragments": {
+        "openers": [
+          "Eyes on {carNickname} as {driver} settles in on the grid.",
+          "Let's preview {driver}'s weapon of choice today — {car}.",
+          "Before lights out, a closer look at {carNickname}.",
+          "Pre-race spotlight: {driver} and the {car}.",
+          "On the grid now, {driver} in {carNickname}.",
+          "Final preparations for {driver} in {car}."
+        ],
+        "bodies": [
+          "{carFact}. With {engineSpec}, this {class} machine is built for exactly this kind of racing.",
+          "{carCharacter} — that's what {driver} will be managing over the course of this race. {engineSpec} provides the soundtrack.",
+          "{manufacturerFact}. {carNickname} carries that legacy — {engineSpec} and a chassis that rewards precision.",
+          "The key to {carNickname}: {carCharacter}. {carFact} — and that shows in the data.",
+          "{engineSpec} under the bonnet. {carFact}. A proper {class} racing car through and through.",
+          "{carFact}. {manufacturer} built {carNickname} with {racingPhilosophy} — and it shows."
+        ],
+        "closers": [
+          "A fascinating car to watch in action — let's see what {driver} can do.",
+          "When the lights go out, all that engineering has to deliver. Race time.",
+          "The grid is set, the cars are ready — it's nearly time.",
+          "That's the car — now it's down to the driver and the strategy.",
+          "Keep an eye on how {driver} manages {carNickname} through the opening laps.",
+          "Lights out shortly. Let's go racing."
+        ]
+      }
+    },
+    {
+      "topicId": "prerace_manufacturer",
+      "fragments": {
+        "openers": [
+          "A word on the {manufacturer} racing programme.",
+          "Before we go green — the {manufacturer} story.",
+          "Let's talk {manufacturer} and their commitment to {class}.",
+          "Behind {carNickname} sits the {manufacturer} motorsport operation.",
+          "The manufacturer angle: what {manufacturer} brings to {class}.",
+          "Pre-race insight — the {manufacturer} philosophy."
+        ],
+        "bodies": [
+          "{manufacturerFact}. {racingPhilosophy} — and you feel that in every input through {carNickname}.",
+          "{racingPhilosophy}. {manufacturerFact} — it's that depth of experience that makes the difference in close racing.",
+          "The {manufacturer} approach: {racingPhilosophy}. In {carNickname}, that translates to {carCharacter}.",
+          "{manufacturerFact}. From road car to race car, {manufacturer} has always understood that {racingPhilosophy}.",
+          "What sets {manufacturer} apart in {class}? {racingPhilosophy}. {manufacturerFact} — and {carNickname} is the latest expression of that.",
+          "{manufacturerFact}. In the hands of {driver}, {carNickname} shows exactly why {racingPhilosophy}."
+        ],
+        "closers": [
+          "Fascinating heritage from {manufacturer} — let's see it translate on track.",
+          "That's the legacy. Now it's about execution.",
+          "Manufacturer expertise meets driver skill — the recipe for great racing.",
+          "Understanding the manufacturer context adds a whole new dimension to watching {class}.",
+          "{manufacturer} at the top level. There's a reason they keep coming back.",
+          "Race time approaches — and {manufacturer} is ready."
+        ]
+      }
+    }
+  ]
+}

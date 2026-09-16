@@ -1,0 +1,18 @@
+{
+  "name": "@k10/broadcaster-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for reading K10 Motorsports dashboard overlay source — 28+ JS modules, WebGL shaders, CSS modules, and Electron config",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
