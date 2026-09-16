@@ -40,6 +40,13 @@ export default defineConfig({
       name: 'visual',
       testDir: './tests/visual',
     },
+    // Golden frames — real dashboard.html fed by the replay harness at pinned frames
+    {
+      name: 'golden',
+      testDir: './tests/golden',
+      timeout: 60000,
+      use: { viewport: { width: 1920, height: 1080 } },
+    },
     // Legacy: original dashboard.html (opt-in, not run by default)
     {
       name: 'original',

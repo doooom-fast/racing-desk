@@ -12,7 +12,8 @@
     "record": "node packages/replay/cli.mjs record",
     "replay": "node packages/replay/cli.mjs play",
     "recordings": "node packages/replay/cli.mjs list",
-    "test": "npm test --workspaces --if-present"
+    "test": "npm test --workspaces --if-present",
+    "test:golden": "npm run test:golden -w racecor-overlay --"
   },
   "engines": {
     "node": ">=22"

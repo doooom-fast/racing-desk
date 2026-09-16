@@ -16,7 +16,8 @@
     "dist": "electron-builder --mac --win --config electron-builder.yml",
     "test": "npx playwright test --project=unit",
     "test:contract": "node --test tests/layout-contract.test.mjs",
-    "test:dashboard": "npx playwright test"
+    "test:dashboard": "npx playwright test",
+    "test:golden": "playwright test --project=golden"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
@@ -26,6 +27,7 @@
   "dependencies": {
     "@playwright/test": "^1.58.2",
     "electron-updater": "^6.3.9",
-    "ffmpeg-static": "^5.2.0"
+    "ffmpeg-static": "^5.2.0",
+    "@prodrive/replay": "*"
   }
 }

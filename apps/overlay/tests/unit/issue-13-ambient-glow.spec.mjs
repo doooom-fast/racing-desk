@@ -10,9 +10,10 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const CSS_PATH = path.resolve(
-  new URL('.', import.meta.url).pathname,
+  path.dirname(fileURLToPath(import.meta.url)),
   '../../modules/styles/ambient.css'
 );
 
@@ -54,8 +55,15 @@ test.describe('Issue #13 — Ambient CSS: inset-only box-shadows on plastic pane
     const plasticBlocks = css.match(/body\.ambient-plastic[^{]*\{[^}]*box-shadow[^}]*\}/g) || [];
     for (const block of plasticBlocks) {
       const shadowDecl = block.match(/box-shadow\s*:\s*([^;]+)/)?.[1] ?? '';
-      // Split into individual shadow layers (comma-separated)
-      const layers = shadowDecl.split(',').map(s => s.trim());
+      // Split into shadow layers on top-level commas only — rgba(var(--r), var(--g), ...) has its own
+      const layers = [];
+      let depth = 0, current = '';
+      for (const ch of shadowDecl) {
+        if (ch === '(') depth++;
+        if (ch === ')') depth--;
+        if (ch === ',' && depth === 0) { layers.push(current.trim()); current = ''; } else current += ch;
+      }
+      layers.push(current.trim());
       for (const layer of layers) {
         if (!layer) continue;
         // An outer shadow does NOT start with 'inset'

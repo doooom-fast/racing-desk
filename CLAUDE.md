@@ -21,6 +21,23 @@ Imported 2026-09-16 from `prodrive-overlay`, `prodrive-plugin`, `prodrive-edit` 
 with history (subtree merges). Those repos, plus `prodrive-server` and `prodrive-windows`, still exist
 and are archived in Phase 6 — nothing is deleted before its replacement works.
 
+## Dev loop
+
+```bash
+npm install
+npm run dev                       # replay newest recording + overlay dev mode (CSS hot reload)
+npm run dev -- --live             # overlay dev mode against live SimHub
+npm run record -- --only-in-car   # record the :8889 payload while driving or in SimHub demo mode
+npm run replay                    # serve a recording on :8889 (SimHub must be closed)
+npm run recordings                # list recordings in %LOCALAPPDATA%\RaceCor\recordings
+npm test                          # all workspace tests
+npm run test:golden               # golden frames (headless)
+```
+
+The replay format and server live in `packages/replay`; the plugin's payload is ~330 flat dotted keys
+served by plain HTTP GET on `:8889/racecor-io-pro-drive/` (a MessagePack WebSocket on `:8890` also
+exists; the overlay doesn't use it).
+
 ## Ground rules
 
 - **Single user, local only.** No accounts, sync, telemetry upload, content packs, installer, release

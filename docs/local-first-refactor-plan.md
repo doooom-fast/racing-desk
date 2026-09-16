@@ -361,7 +361,7 @@ driving, no install, no network.**
 git, Node 22+, .NET 8 SDK, VS Build Tools 2022 (C++ + .NET desktop),
 Claude Code (native Windows — needs PowerShell, dotnet,
 and Documents\iRacing access)
-C:\dev\prodrive   ← single monorepo
+Documents\GitHub\prodrive   ← single monorepo (next to the old repos)
 ```
 
 Native Windows Claude Code, not WSL — the agent needs to build .NET, launch Electron, read
@@ -385,20 +385,21 @@ prodrive/
   .claude/            ← ex-prodrive-agents
 ```
 
-pnpm workspaces + one `.sln`. `pnpm dev` starts: `dotnet watch` on the host, Electron with reload,
-and the replay harness if iRacing isn't running.
+npm workspaces + one `.sln` (npm, not pnpm: the overlay and edit already used npm). `npm run dev`
+starts the replay harness and Electron in dev mode; `dotnet watch` on the host joins in Phase 2.
 
 ### The replay harness is the centrepiece
 
-`pnpm replay <bundle|ibt> [--speed 2 --seek 00:14:20]` streams recorded frames onto
-`localhost:8889` in the exact live contract. Consequences:
+`npm run replay -- [<recording>] [--speed 2 --seek 00:14:20]` streams recorded frames onto
+`localhost:8889` in the exact live contract. Recordings are captured from the live plugin with
+`npm run record`; `.ibt` input arrives with the Phase 2 core. Consequences:
 
 - **UI and design work needs no sim and no driving.** This alone is most of the velocity win.
 - **Deterministic.** Frame 8,412 is always frame 8,412 → golden-frame screenshot tests.
 - **Showcase mode goes away** — delete `prodrive-overlay-showcase` and `showcase-bootstrap.js`;
   with no audience to demo to, the harness covers everything they did.
 - **`prodrive-designer` folds in** — its "composite the overlay over recorded race video with an
-  element picker and Claude attached" idea becomes `pnpm dev --composite <bundle>`.
+  element picker and Claude attached" idea becomes `npm run dev -- --composite <bundle>`.
 
 `.ibt` playback is available off the shelf (`SVappsLAB.iRacingTelemetrySDK` supports IBT-file mode
 with a speed multiplier; IRSDKSharper does its own record/playback), so the harness is days of work,
@@ -419,9 +420,9 @@ not weeks.
 
 ### Build and run
 
-`pnpm build` on the rig produces the Electron app, the standalone host and the optional SimHub plugin
+`npm run build` on the rig produces the Electron app, the standalone host and the optional SimHub plugin
 in place; a start-at-login shortcut points at the build output. No installer, no code signing, no
-GitHub Release, no version lockstep. "Shipping" is `git pull && pnpm build`.
+GitHub Release, no version lockstep. "Shipping" is `git pull && npm run build`.
 
 ---
 
@@ -444,10 +445,19 @@ Inventory the actual machine. In priority order:
 
 **Done when:** a findings doc exists and questions 1 and 2 are answered on real hardware.
 
-**Phase 1 — Monorepo + dev loop.** Consolidate repos, stand up `pnpm dev`, build the replay harness,
+**Phase 1 — Monorepo + dev loop.** Consolidate repos, stand up `npm run dev`, build the replay harness,
 add golden-frame tests. **No feature work.**
 **Done when:** you can change a CSS value and see it on a replayed race in under 3 seconds, with no
 sim running.
+
+> **Status 2026-09-16 — built, one step short of done.** Local monorepo at `Documents\GitHub\prodrive`
+> (overlay, plugin, edit, agents imported with history). `packages/replay` records and replays the
+> `:8889` payload (verified against live SimHub: all 328 keys match). Overlay dev mode hot-swaps CSS
+> ~80 ms after save and redirects `:8889` to replay so SimHub can keep running. Golden frames run
+> headless (Playwright Chromium, not Electron — no window on screen), pixel-exact across runs.
+> **Missing:** a recording of an actual race or of SimHub demo mode — the rig's only recording is
+> idle, and the golden frame uses a synthetic in-car payload until one exists. Not yet pushed to
+> GitHub (needs a new `k10-motorsports/prodrive` repo).
 
 **Phase 2 — Local data spine.** Multi-target core (`net48;net8.0-windows`), add the .NET 8 host, SQLite schema,
 `.ibt` backfill ingest, session capture writing locally.
