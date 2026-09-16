@@ -1,0 +1,29 @@
+{
+  "name": "k10-motorsports",
+  "version": "0.1.4",
+  "description": "K10 Motorsports — broadcast-grade transparent HUD overlay for sim racing with WebGL effects, real-time strategy, and AI commentary",
+  "main": "main.js",
+  "author": "Kevin Conboy",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "start:safe": "cross-env K10_FORCE_SOFTWARE=1 electron .",
+    "rebuild": "echo 'Dashboard uses vanilla JS — no build step needed'",
+    "build:win": "electron-builder --win --config electron-builder.yml",
+    "build:mac": "electron-builder --mac --config electron-builder.yml",
+    "build": "electron-builder --config electron-builder.yml",
+    "dist": "electron-builder --mac --win --config electron-builder.yml",
+    "test": "npx playwright test --project=unit",
+    "test:dashboard": "npx playwright test"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.58.2",
+    "electron-updater": "^6.3.9"
+  }
+}

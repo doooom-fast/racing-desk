@@ -1,0 +1,1501 @@
+  /* ═══════════════════════════════════════════════
+     LAYOUT POSITION SYSTEM — 5 positions
+     4 corners (user-selectable) + absolute-center (programmatic).
+     All behavior is deterministic from the corner choice:
+       Right corners → RTL flow (logo at right edge)
+       Left corners  → LTR flow (logo at left edge)
+       Bottom corners → column-reverse + vswap
+       Top corners    → column normal
+     ═══════════════════════════════════════════════ */
+
+  /* ── Position anchoring ──
+     Zoomed fixed elements use --edge-z (zoom-compensated) so the visual
+     gap from screen edges stays consistent regardless of zoom level.
+     --edge-z is set by applyZoom() in JS. Falls back to --edge. */
+  .dashboard.layout-tr { top: var(--edge-z, var(--edge)); right: var(--edge-z, var(--edge)); }
+  .dashboard.layout-tl { top: var(--edge-z, var(--edge)); left: var(--edge-z, var(--edge)); }
+  .dashboard.layout-br { bottom: var(--edge-z, var(--edge)); right: var(--edge-z, var(--edge)); }
+  .dashboard.layout-bl { bottom: var(--edge-z, var(--edge)); left: var(--edge-z, var(--edge)); }
+  .dashboard.layout-ac { top: 500px; left: 50%; transform: translateX(-50%); }
+
+  /* ── Horizontal flow ── */
+  /* Right corners: RTL — logo+tacho at right edge, data panels extend left */
+  .dashboard.layout-tr .main-row,
+  .dashboard.layout-br .main-row { flex-direction: row-reverse; }
+  .dashboard.layout-tr .main-area,
+  .dashboard.layout-br .main-area { flex-direction: row; }
+
+  /* Left corners: LTR — logo+tacho at left edge, data panels extend right */
+  .dashboard.layout-tl .main-row,
+  .dashboard.layout-bl .main-row { flex-direction: row; }
+  .dashboard.layout-tl .main-area,
+  .dashboard.layout-bl .main-area { flex-direction: row-reverse; }
+
+  /* Absolute center: LTR default */
+  .dashboard.layout-ac .main-row { flex-direction: row; }
+  .dashboard.layout-ac .main-area { flex-direction: row-reverse; }
+
+  /* ── Corner rounding for LTR flow (left corners) ── */
+  .dashboard.layout-tl .fuel-block,
+  .dashboard.layout-bl .fuel-block,
+  .dashboard.layout-ac .fuel-block {
+    border-top-left-radius: 0; border-top-right-radius: var(--corner-r);
+  }
+  .dashboard.layout-tl .tyres-block,
+  .dashboard.layout-bl .tyres-block,
+  .dashboard.layout-ac .tyres-block {
+    border-bottom-left-radius: 0; border-bottom-right-radius: var(--corner-r);
+  }
+  .dashboard.layout-tl .tacho-block,
+  .dashboard.layout-bl .tacho-block,
+  .dashboard.layout-ac .tacho-block {
+    border-top-right-radius: 0; border-bottom-right-radius: 0;
+    border-top-left-radius: var(--corner-r); border-bottom-left-radius: var(--corner-r);
+  }
+
+  /* ── Vertical swap DISABLED ──
+     Previously reversed internal column order for bottom layouts.
+     Modules now keep the same orientation regardless of HUD position. */
+  .dashboard::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: calc(var(--corner-r) + 2px);
+    background: hsla(var(--sentiment-h), var(--sentiment-s), var(--sentiment-l), var(--sentiment-alpha));
+    pointer-events: none;
+    z-index: 0;
+    transition: background 1s ease;
+  }
+  .dashboard > * { position: relative; z-index: 1; pointer-events: auto; }
+
+  .panel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: var(--pad);
+    transition: background var(--t-slow), border-color var(--t-med);
+    overflow: hidden;
+  }
+
+  /* ── UNIFIED GRID ROUNDING ──
+     Only outer corners of the non-logo block grid get radius.
+     Inner corners where panels meet through gaps stay square. */
+  .fuel-block  { border-top-left-radius: var(--corner-r); }
+  .tyres-block { border-bottom-left-radius: var(--corner-r); }
+  .tacho-block {
+    border-top-right-radius: var(--corner-r);
+    border-bottom-right-radius: var(--corner-r);
+  }
+  .panel-label {
+    font-family: var(--ff);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-bottom: 2px;
+    white-space: nowrap;
+  }
+
+  /* ── COMMENTARY (positioning now handled in base.css as position:fixed) ── */
+  .commentary-inner {
+    position: relative;
+    width: 280px;
+    flex: 1;
+    background: hsla(var(--commentary-h, 0), 50%, 13%, 0.96);
+    border: 1px solid hsla(var(--commentary-h, 0), 50%, 27%, 0.50);
+    border-radius: var(--corner-r);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    transition: background 0.8s ease, border-color 0.8s ease;
+    overflow: visible;
+    min-height: 0;
+  }
+  .commentary-gl-canvas {
+    position: absolute;
+    inset: -8px;
+    width: calc(100% + 16px);
+    height: calc(100% + 16px);
+    pointer-events: none;
+    z-index: 0;
+    border-radius: calc(var(--corner-r) + 4px);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .commentary-col.visible .commentary-gl-canvas {
+    opacity: 1;
+  }
+  /* ── Track Image (shown during track-related commentary) ── */
+  .commentary-track-img {
+    width: calc(100% + 28px);   /* bleed into padding */
+    margin: -14px -14px 10px;   /* pull into parent padding, gap below */
+    height: 0;
+    overflow: hidden;
+    border-radius: var(--corner-r) var(--corner-r) 0 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+    opacity: 0;
+    transition: height 0.5s cubic-bezier(.4,0,.2,1),
+                opacity 0.6s ease 0.15s;
+  }
+  .commentary-track-img.active {
+    height: 120px;
+    opacity: 1;
+  }
+  /* dark gradient overlay for text below */
+  .commentary-track-img::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      transparent 30%,
+      hsla(var(--commentary-h, 0), 50%, 13%, 0.85) 100%
+    );
+    pointer-events: none;
+  }
+  /* attribution badge */
+  .commentary-track-img .img-attr {
+    position: absolute;
+    bottom: 4px;
+    right: 6px;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    color: rgba(255,255,255,0.45);
+    z-index: 1;
+    letter-spacing: 0.3px;
+  }
+
+  .commentary-title {
+    font-family: var(--ff-display);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.0;
+    margin-bottom: 6px;
+    padding-right: 38px;  /* room for icon */
+  }
+  .commentary-icon {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    opacity: 0.85;
+    transition: opacity 0.4s ease;
+  }
+  .commentary-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .commentary-text-scroll {
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    /* Fade mask at bottom to hint more text below */
+    -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  }
+  .commentary-text-scroll.no-overflow {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .commentary-text {
+    font-family: var(--ff-display);
+    font-size: 15px;
+    font-weight: var(--fw-regular);
+    line-height: 1.2;
+    color: var(--text-primary);
+  }
+  .commentary-text.scrolling {
+    animation: commentaryScroll var(--scroll-duration, 8s) linear 2s infinite;
+  }
+  @keyframes commentaryScroll {
+    0%   { transform: translateY(0); }
+    20%  { transform: translateY(0); }          /* hold at top for first 20% */
+    80%  { transform: translateY(var(--scroll-distance, 0px)); }  /* scroll to bottom */
+    95%  { transform: translateY(var(--scroll-distance, 0px)); }  /* hold at bottom */
+    100% { transform: translateY(0); }          /* snap back to top */
+  }
+  .commentary-meta {
+    display: none;
+  }
+
+  /* ── Commentary Data Visualization ── */
+  .commentary-viz {
+    position: relative;
+    width: 100%;
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    margin-top: 0;
+    transition: height 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 0.35s ease 0.05s,
+                margin-top 0.4s ease;
+  }
+  .commentary-viz.viz-active {
+    height: 86px;
+    opacity: 1;
+    margin-top: 10px;
+    overflow: visible;
+  }
+  .commentary-viz[data-viz-type="quad"].viz-active {
+    height: 78px;
+  }
+  .commentary-viz[data-viz-type="counter"].viz-active {
+    height: 46px;
+  }
+  .commentary-viz[data-viz-type="gforce"].viz-active {
+    height: 96px;
+  }
+  .commentary-viz[data-viz-type="bar"].viz-active {
+    height: 52px;
+  }
+  .commentary-viz[data-viz-type="delta"].viz-active {
+    height: 52px;
+  }
+  .commentary-viz[data-viz-type="grid"].viz-active {
+    height: 78px;
+  }
+  .commentary-viz[data-viz-type="incident"].viz-active {
+    height: 78px;
+  }
+  #commentaryVizCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .commentary-viz-value {
+    position: absolute;
+    bottom: 4px;
+    right: 0;
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+    color: var(--text-primary);
+    opacity: 0.85;
+    text-shadow: 0 1px 3px hsla(0, 0%, 0%, 0.6);
+    pointer-events: none;
+  }
+  .commentary-viz[data-viz-type="counter"] .commentary-viz-value {
+    position: relative;
+    bottom: auto;
+    right: auto;
+    text-align: center;
+    font-size: 22px;
+    font-weight: var(--fw-black);
+    line-height: 1;
+    opacity: 1;
+    width: 100%;
+    padding-top: 4px;
+  }
+  .commentary-viz-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+  .commentary-viz[data-viz-type="counter"] .commentary-viz-label {
+    position: relative;
+    text-align: center;
+    width: 100%;
+  }
+
+  /* ── MAIN AREA ── */
+  .main-area {
+    display: flex;
+    flex-direction: row;
+    gap: var(--gap);
+    align-items: stretch;
+    height: 100%;
+  }
+
+  /* ── Stacked column blocks ── */
+  .fuel-tyres-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    flex-shrink: 0;
+  }
+  .controls-pedals-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    flex-shrink: 0;
+    /* 50% wider than fuel-tyres-col (160px) */
+    width: 240px;
+  }
+
+  /* ── CYCLING ── */
+  .cycle-container { position: relative; overflow: hidden; }
+  .cycle-page {
+    transition: opacity 1s ease;
+    position: absolute;
+    inset: 0;
+    padding: var(--pad);
+  }
+  .cycle-page.active { opacity: 1; z-index: 2; }
+  .cycle-page.inactive { opacity: 0; z-index: 1; }
+  .cycle-sizer { visibility: hidden; position: relative; padding: var(--pad); }
+  .cycle-dots {
+    position: absolute;
+    bottom: 3px;
+    left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    z-index: 5;
+  }
+  .cycle-dot {
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: hsla(0,0%,100%,0.2);
+    transition: background 0.3s;
+  }
+  .cycle-dot.active { background: hsla(0,0%,100%,0.6); }
+
+  /* ═══════════════════════════════════════════════
+     COL: LOGO (two stacked squares)
+     ═══════════════════════════════════════════════ */
+  .logo-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    flex-shrink: 0;
+  }
+  .logo-square {
+    position: relative;
+    background: var(--bg-logo);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: var(--row-h);
+    flex: 0 0 var(--row-h);
+    border-radius: 0;
+    border: none;
+    overflow: hidden;
+  }
+  /* Manufacturer country flag — WebGL cloth ripple behind logo */
+  .mfr-flag-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1s ease-out;
+  }
+  .mfr-flag-canvas.flag-visible { opacity: 1; }
+  .car-logo-icon { position: relative; z-index: 1; }
+  .car-model-label { position: relative; z-index: 1; }
+  .logo-col .logo-square:first-child {
+    border-top-left-radius: var(--corner-r);
+    border-top-right-radius: var(--corner-r);
+  }
+  .logo-col .logo-square:last-child {
+    border-bottom-left-radius: var(--corner-r);
+    border-bottom-right-radius: var(--corner-r);
+  }
+  .logo-square img {
+    width: 70%;
+    height: auto;
+    opacity: 1;
+  }
+  .logo-square svg {
+    width: 60%;
+    height: 60%;
+    opacity: 0.96;
+  }
+  .car-logo-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    flex-shrink: 0;
+  }
+  .car-logo-icon svg {
+    width: 64px;
+    height: 64px;
+    opacity: 0.96;
+  }
+  .car-model-label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: center;
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    max-width: 90%;
+    padding: 0 4px 2px;
+    line-height: 1.15;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .car-model-label:empty { display: none; }
+
+  .logo-subtitle {
+    display: block;
+    text-align: center;
+    font-family: var(--ff);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-top: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* ═══════════════════════════════════════════════
+     TACH — gear top-left, RPM top-right, speed+MPH beneath RPM
+     segments fill bottom
+     ═══════════════════════════════════════════════ */
+  .tacho-block {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 140px;
+    position: relative;
+  }
+  .tacho-top-row {
+    display: flex;
+    align-items: flex-start;
+    height: var(--row-h);
+    overflow: hidden;
+  }
+  .tacho-gear {
+    font-family: var(--ff-mono);
+    font-size: 96px;
+    font-weight: var(--fw-black);
+    line-height: 0.85;
+    text-align: left;
+  }
+  .tacho-speed-cluster {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-left: auto;
+  }
+  .tacho-rpm {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+    transition: color 0.2s ease, text-shadow 0.15s ease-out, transform 0.15s ease-out;
+    text-align: right;
+    line-height: 1;
+    margin-top: 2px;
+  }
+  .tacho-rpm.rpm-pulse-green  { text-shadow: 0 0 8px var(--green), 0 0 16px hsla(140, 70%, 50%, 0.3); transform: scale(1.04); }
+  .tacho-rpm.rpm-pulse-yellow { text-shadow: 0 0 8px var(--amber), 0 0 16px hsla(45, 90%, 55%, 0.3); transform: scale(1.04); }
+  .tacho-rpm.rpm-pulse-red    { text-shadow: 0 0 10px var(--red), 0 0 20px hsla(0, 80%, 50%, 0.4); transform: scale(1.06); }
+  .speed-value {
+    font-family: var(--ff-mono);
+    font-size: 28px;
+    font-weight: var(--fw-black);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    text-align: right;
+  }
+  .speed-unit {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    color: var(--text-dim);
+    text-align: right;
+    line-height: 1;
+  }
+  .tacho-bar-track {
+    display: flex;
+    gap: 2px;
+    flex: 1;
+    align-items: flex-end;
+    margin-top: 4px;
+  }
+  .tacho-seg {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    background: hsla(0,0%,100%,0.06);
+    transition: background var(--t-fast), height 60ms linear, box-shadow var(--t-fast);
+    min-height: 2px;
+    height: 2px;
+    position: relative;
+    /* Unlit: subtle inset for depth */
+    border: 1px solid hsla(0,0%,100%,0.04);
+    border-bottom: none;
+  }
+
+  /* ── Lit segment base: convex LED surface via gradient + multi-layer glow ── */
+  .tacho-seg.lit-green {
+    background: linear-gradient(
+      to bottom,
+      hsla(140, 75%, 70%, 0.95) 0%,
+      var(--green) 35%,
+      hsla(140, 80%, 30%, 0.90) 100%
+    );
+    border-color: hsla(140, 60%, 50%, 0.30);
+    box-shadow:
+      inset 0  1px 0 hsla(140, 80%, 85%, 0.40),   /* top highlight */
+      inset 0 -1px 2px hsla(140, 80%, 20%, 0.50),  /* bottom shadow */
+      0 0 4px hsla(140, 70%, 50%, 0.35),            /* outer glow */
+      0 0 10px hsla(140, 70%, 50%, 0.12);           /* diffuse glow */
+    opacity: 1;
+  }
+  .tacho-seg.lit-yellow {
+    background: linear-gradient(
+      to bottom,
+      hsla(45, 95%, 75%, 0.95) 0%,
+      var(--amber) 35%,
+      hsla(40, 90%, 28%, 0.90) 100%
+    );
+    border-color: hsla(45, 80%, 50%, 0.30);
+    box-shadow:
+      inset 0  1px 0 hsla(45, 90%, 88%, 0.45),
+      inset 0 -1px 2px hsla(40, 80%, 20%, 0.50),
+      0 0 5px hsla(45, 85%, 55%, 0.40),
+      0 0 12px hsla(45, 85%, 55%, 0.15);
+    opacity: 1;
+  }
+  .tacho-seg.lit-red {
+    background: linear-gradient(
+      to bottom,
+      hsla(0, 85%, 65%, 0.95) 0%,
+      var(--red) 35%,
+      hsla(0, 80%, 25%, 0.90) 100%
+    );
+    border-color: hsla(0, 70%, 50%, 0.35);
+    box-shadow:
+      inset 0  1px 0 hsla(0, 80%, 80%, 0.45),
+      inset 0 -1px 2px hsla(0, 80%, 18%, 0.55),
+      0 0 6px hsla(0, 80%, 50%, 0.45),
+      0 0 14px hsla(0, 80%, 50%, 0.18);
+    opacity: 1;
+  }
+  .tacho-seg.lit-redline {
+    background: linear-gradient(
+      to bottom,
+      hsla(0, 90%, 72%, 1.0) 0%,
+      var(--red) 30%,
+      hsla(0, 85%, 28%, 0.95) 100%
+    );
+    border-color: hsla(0, 80%, 50%, 0.50);
+    box-shadow:
+      inset 0  1px 0 hsla(0, 85%, 85%, 0.55),
+      inset 0 -1px 2px hsla(0, 85%, 18%, 0.60),
+      0 0 8px hsla(0, 85%, 50%, 0.55),
+      0 0 18px hsla(0, 85%, 50%, 0.25);
+    animation: redline-pulse 0.3s ease-in-out infinite alternate;
+  }
+  @keyframes redline-pulse { 0%{opacity:.84} 100%{opacity:1} }
+
+  /* ── Pit limiter engaged — blue glow on entire tacho module ── */
+  .tacho-block.pit-limiter-engaged {
+    box-shadow:
+      inset 0 0 22px hsla(210, 90%, 55%, 0.25),
+      0 0 8px 2px hsla(210, 90%, 55%, 0.15);
+    animation: pit-limiter-pulse 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes pit-limiter-pulse {
+    0%   {
+      border-color: hsla(210, 80%, 55%, 0.30);
+      box-shadow: inset 0 0 18px hsla(210, 90%, 55%, 0.18), 0 0 6px 1px hsla(210, 90%, 55%, 0.10);
+    }
+    100% {
+      border-color: hsla(210, 80%, 55%, 0.55);
+      box-shadow: inset 0 0 26px hsla(210, 90%, 55%, 0.30), 0 0 12px 3px hsla(210, 90%, 55%, 0.20);
+    }
+  }
+  /* Blue-tinted lit segments when pit limiter is engaged */
+  .tacho-block.pit-limiter-engaged .tacho-seg.lit-green,
+  .tacho-block.pit-limiter-engaged .tacho-seg.lit-yellow,
+  .tacho-block.pit-limiter-engaged .tacho-seg.lit-red,
+  .tacho-block.pit-limiter-engaged .tacho-seg.lit-redline {
+    background: linear-gradient(
+      to bottom,
+      hsla(210, 80%, 70%, 0.95) 0%,
+      hsla(210, 85%, 50%, 1.0) 35%,
+      hsla(210, 80%, 28%, 0.90) 100%
+    );
+    border-color: hsla(210, 70%, 55%, 0.35);
+    box-shadow:
+      inset 0  1px 0 hsla(210, 80%, 85%, 0.45),
+      inset 0 -1px 2px hsla(210, 80%, 20%, 0.50),
+      0 0 5px hsla(210, 85%, 55%, 0.40),
+      0 0 12px hsla(210, 85%, 55%, 0.15);
+    animation: none;
+  }
+  /* Gear + speed text goes blue */
+  .tacho-block.pit-limiter-engaged .tacho-gear,
+  .tacho-block.pit-limiter-engaged .speed-value {
+    color: hsl(210, 85%, 65%);
+    text-shadow: 0 0 10px hsla(210, 90%, 55%, 0.4);
+  }
+  .tacho-block.pit-limiter-engaged .tacho-rpm {
+    color: hsl(210, 80%, 60%) !important;
+    text-shadow: 0 0 8px hsla(210, 90%, 55%, 0.35) !important;
+  }
+
+  .tacho-block.tacho-redline {
+    box-shadow: inset 0 0 24px hsla(0, 85%, 50%, 0.30), 0 0 6px 1px hsla(0, 85%, 50%, 0.12);
+    animation: tacho-redline-flash 0.25s ease-in-out infinite alternate;
+  }
+  @keyframes tacho-redline-flash {
+    0%   {
+      border-color: hsla(0, 80%, 50%, 0.4);
+      box-shadow: inset 0 0 20px hsla(0, 85%, 50%, 0.22), 0 0 4px 0px hsla(0, 85%, 50%, 0.08);
+    }
+    100% {
+      border-color: hsla(0, 80%, 50%, 0.65);
+      box-shadow: inset 0 0 28px hsla(0, 85%, 50%, 0.35), 0 0 10px 2px hsla(0, 85%, 50%, 0.18);
+    }
+  }
+
+  /* WebGL FX overlay canvases */
+  .gl-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    border-radius: inherit;
+  }
+
+  /* ═══════════════════════════════════════════════
+     POSITION/RATING + GAPS
+     ═══════════════════════════════════════════════ */
+  .pos-gaps-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    flex-shrink: 0;
+    min-width: 150px;
+    width: max-content;
+  }
+  .rating-pos-block {
+    width: 100%;
+    flex: 1;
+  }
+  .rating-value {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    font-weight: var(--fw-black);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  .rating-delta {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semi);
+    margin-top: 2px;
+  }
+  .rating-delta.positive { color: var(--green); }
+  .rating-delta.negative { color: var(--red); }
+  .rating-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .rating-item { flex: 1; text-align: center; }
+
+  /* iRating horizontal bar */
+  .ir-bar-container {
+    margin-top: 4px;
+  }
+  .ir-bar-track {
+    position: relative;
+    height: 8px;
+    background: hsla(0,0%,100%,0.06);
+    border-radius: 2px;
+    overflow: visible;
+  }
+  .ir-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, hsl(200,60%,40%), hsl(200,70%,55%));
+    transition: width var(--t-med);
+  }
+  .ir-bar-ticks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .ir-bar-tick {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 1px;
+    background: hsla(0,0%,100%,0.25);
+  }
+  .ir-bar-tick-label {
+    position: absolute;
+    top: 10px;
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    transform: translateX(-50%);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Safety Rating pie chart */
+  .sr-pie-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+  }
+  .sr-pie-svg {
+    width: 36px;
+    height: 36px;
+  }
+  .sr-pie-bg {
+    fill: none;
+    stroke: hsla(0,0%,100%,0.06);
+    stroke-width: 5;
+  }
+  .sr-pie-fill {
+    fill: none;
+    stroke-width: 5;
+    stroke-linecap: round;
+    transition: stroke-dashoffset var(--t-med), stroke var(--t-med);
+    transform: rotate(-90deg);
+    transform-origin: center;
+  }
+  /* sr-pie-text removed */
+
+  .pos-layout {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    height: 100%;
+  }
+  .pos-number {
+    font-family: var(--ff-mono);
+    font-size: 44px;
+    font-weight: var(--fw-black);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    text-align: left;
+    flex-shrink: 0;
+  }
+  .skew-accent { transform: skewX(-6deg); display: inline-block; }
+  .pos-delta {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+    letter-spacing: 0.02em;
+    text-align: left;
+    margin-top: 2px;
+    opacity: 0;
+    transition: opacity 0.4s ease, color 0.4s ease;
+  }
+  .pos-delta.visible { opacity: 1; }
+  .pos-delta.delta-up   { color: hsl(145, 50%, 55%); }
+  .pos-delta.delta-down { color: hsl(0, 50%, 60%); }
+  .pos-delta.delta-same { color: var(--text-secondary); opacity: 0; }
+  .pos-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-left: auto;
+    padding-top: 2px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .pos-meta-row {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--text-secondary);
+    text-align: right;
+  }
+  .pos-meta-row:first-child {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semi);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pos-meta-row:first-child .val {
+    font-size: 22px;
+  }
+  .pos-meta-row .val {
+    font-weight: var(--fw-bold);
+    color: var(--text-primary);
+  }
+  .pos-meta-row .val.purple { color: var(--purple); }
+  .pos-meta-row .val.green  { color: var(--green); }
+  .pos-meta-row.current-row {
+    font-size: 16px;
+    font-weight: var(--fw-semi);
+    text-align: center;
+    width: 100%;
+  }
+  .pos-meta-row.current-row .val {
+    font-family: var(--ff-mono);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    display: block;
+    text-align: center;
+  }
+  .pos-meta-row.delta-row {
+    text-align: center;
+    width: 100%;
+    min-height: 14px;
+  }
+  .pos-meta-row.delta-row .val {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    display: block;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s ease;
+  }
+  .pos-meta-row.delta-row .val.delta-faster { color: var(--green); }
+  .pos-meta-row.delta-row .val.delta-slower { color: hsl(0, 60%, 55%); }
+  .pos-meta-row.delta-row .val.delta-pb     { color: var(--purple); }
+
+  /* Gaps — side-by-side */
+  .gaps-block {
+    display: flex;
+    flex-direction: row;
+    gap: 3px;
+    flex: 1;
+  }
+
+  /* F1-style sector indicator (shown during practice/qualifying/testing) */
+  .sector-indicator {
+    display: flex;
+    flex-direction: row;
+    gap: 3px;
+    flex: 1;
+    width: 100%;
+  }
+  .sector-cell {
+    flex: 1;
+    text-align: center;
+    padding: 6px 4px;
+    border-radius: var(--corner-r-sm);
+    background: hsla(0,0%,100%,0.03);
+    transition: background 0.3s, color 0.3s;
+  }
+  .sector-label {
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: hsla(0,0%,100%,0.35);
+    margin-bottom: 2px;
+  }
+  .sector-time {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .sector-delta {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: hsla(0,0%,100%,0.35);
+    margin-top: 1px;
+  }
+  .sector-cell.sector-pb {
+    background: hsla(280,60%,45%,0.4);
+  }
+  .sector-cell.sector-pb .sector-time { color: hsl(280,80%,78%); }
+  .sector-cell.sector-pb .sector-delta { color: hsl(280,80%,78%); }
+  .sector-cell.sector-faster {
+    background: hsla(130,55%,40%,0.4);
+  }
+  .sector-cell.sector-faster .sector-time { color: hsl(130,75%,72%); }
+  .sector-cell.sector-faster .sector-delta { color: hsl(130,75%,72%); }
+  .sector-cell.sector-slower {
+    background: hsla(45,80%,40%,0.35);
+  }
+  .sector-cell.sector-slower .sector-time { color: hsl(45,95%,68%); }
+  .sector-cell.sector-slower .sector-delta { color: hsl(45,95%,68%); }
+  .sector-cell.sector-invalid {
+    background: hsla(0,65%,45%,0.4);
+  }
+  .sector-cell.sector-invalid .sector-time { color: hsl(0,80%,72%); }
+  .sector-cell.sector-invalid .sector-delta { color: hsl(0,80%,72%); }
+  .sector-cell.sector-active {
+    border: 1px solid hsla(0,0%,100%,0.15);
+  }
+  .gap-item {
+    flex: 1;
+    text-align: center;
+    padding: 4px;
+    border-radius: var(--corner-r-sm);
+    position: relative;
+    overflow: hidden;
+    transition: all var(--t-med);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+  }
+  .gap-item::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .gap-item.ahead-changed::after { animation: value-flash 1.4s ease-out forwards; }
+  .gap-item.ahead-changed { --flash-color: hsla(123, 60%, 45%, 0.16); }
+  .gap-item.behind-changed::after { animation: value-flash 1.4s ease-out forwards; }
+  .gap-item.behind-changed { --flash-color: hsla(15, 80%, 50%, 0.16); }
+  .gap-item.gap-closing::after  { animation: value-flash 1.4s ease-out forwards; }
+  .gap-item.gap-closing  { --flash-color: hsla(0, 65%, 50%, 0.18); }
+  .gap-item.gap-growing::after  { animation: value-flash 1.4s ease-out forwards; }
+  .gap-item.gap-growing  { --flash-color: hsla(123, 55%, 45%, 0.14); }
+
+  .gap-driver {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .gap-time {
+    font-family: var(--ff-mono);
+    font-size: 17px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+  .gap-time.ahead { color: var(--green); }
+  .gap-time.behind { color: var(--red); }
+  .gap-ir {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Flag status overlay on gaps block ── */
+  .gaps-block.flag-active .gap-item {
+    transition: background 0.4s ease, border-color 0.4s ease;
+  }
+  .gap-normal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    width: 100%;
+    flex: 1;
+  }
+  .gaps-block { position: relative; }
+  .gaps-block.flag-active .gap-item { visibility: hidden; }
+  .gaps-block.flag-active .flag-overlay { display: flex; }
+  .flag-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    z-index: 3;
+    border-radius: inherit;
+  }
+  .flag-label {
+    font-size: 17px;
+    font-weight: var(--fw-black);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+  }
+  .flag-context {
+    font-size: var(--fs-xs);
+    opacity: 0.75;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .flag-gl {
+    display: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    border-radius: inherit;
+  }
+  .gaps-block.flag-active .flag-gl { display: block; }
+
+  /* Flag color themes — redline-style inset glow with slow pulse on the block itself */
+  .gaps-block.flag-active {
+    transition: box-shadow 0.4s ease, border-color 0.4s ease;
+  }
+
+  /* ── Yellow / Caution — WebGL flag background ── */
+  .gaps-block.flag-yellow {
+    animation: flag-glow-yellow 3.5s ease-in-out infinite alternate;
+    border: 1px dashed;
+    border-image: repeating-linear-gradient(90deg, hsl(48, 95%, 55%) 0 8px, hsl(0, 0%, 92%) 8px 16px) 1;
+  }
+  .gaps-block.flag-yellow .flag-label { color: hsl(48, 95%, 65%); }
+  .gaps-block.flag-yellow .flag-context { color: hsl(48, 80%, 70%); }
+  @keyframes flag-glow-yellow {
+    0%   { box-shadow: inset 0 0 18px hsla(48, 95%, 50%, 0.60), 0 0 10px hsla(48, 95%, 50%, 0.30); }
+    100% { box-shadow: inset 0 0 30px hsla(48, 95%, 50%, 1.0), 0 0 20px hsla(48, 95%, 50%, 0.66); }
+  }
+
+  /* ── Red Flag — WebGL flag background ── */
+  .gaps-block.flag-red {
+    animation: flag-glow-red 3.5s ease-in-out infinite alternate;
+    border: 1px dashed;
+    border-image: repeating-linear-gradient(90deg, hsl(0, 85%, 55%) 0 8px, hsl(0, 75%, 30%) 8px 16px) 1;
+  }
+  .gaps-block.flag-red .flag-label { color: hsl(0, 90%, 65%); }
+  .gaps-block.flag-red .flag-context { color: hsl(0, 70%, 75%); }
+  @keyframes flag-glow-red {
+    0%   { box-shadow: inset 0 0 18px hsla(0, 85%, 50%, 0.66), 0 0 10px hsla(0, 85%, 50%, 0.36); }
+    100% { box-shadow: inset 0 0 30px hsla(0, 85%, 50%, 1.0), 0 0 20px hsla(0, 85%, 50%, 0.75); }
+  }
+
+  /* ── Blue Flag — WebGL flag background ── */
+  .gaps-block.flag-blue {
+    animation: flag-glow-blue 3.5s ease-in-out infinite alternate;
+    border: 1px dashed;
+    border-image: repeating-linear-gradient(90deg, hsl(220, 80%, 60%) 0 8px, hsl(220, 70%, 30%) 8px 16px) 1;
+  }
+  .gaps-block.flag-blue .flag-label { color: hsl(220, 85%, 68%); }
+  .gaps-block.flag-blue .flag-context { color: hsl(220, 65%, 75%); }
+  @keyframes flag-glow-blue {
+    0%   { box-shadow: inset 0 0 18px hsla(220, 80%, 55%, 0.60), 0 0 10px hsla(220, 80%, 55%, 0.30); }
+    100% { box-shadow: inset 0 0 30px hsla(220, 80%, 55%, 1.0), 0 0 20px hsla(220, 80%, 55%, 0.66); }
+  }
+
+  /* ── Green Flag — WebGL flag background ── */
+  .gaps-block.flag-green {
+    animation: flag-glow-green 3.5s ease-in-out infinite alternate;
+  }
+  .gaps-block.flag-green .flag-label { color: hsl(130, 75%, 58%); }
+  .gaps-block.flag-green .flag-context { color: hsl(130, 55%, 70%); }
+  @keyframes flag-glow-green {
+    0%   { box-shadow: inset 0 0 18px hsla(130, 70%, 45%, 0.60), 0 0 10px hsla(130, 70%, 45%, 0.30); border-color: hsla(130, 70%, 45%, 0.75); }
+    100% { box-shadow: inset 0 0 30px hsla(130, 70%, 45%, 1.0), 0 0 20px hsla(130, 70%, 45%, 0.66); border-color: hsla(130, 70%, 45%, 1.0); }
+  }
+
+  /* ── White Flag — WebGL flag background ── */
+  .gaps-block.flag-white {
+    animation: flag-glow-white 3.5s ease-in-out infinite alternate;
+  }
+  .gaps-block.flag-white .flag-label { color: hsl(0, 0%, 92%); }
+  .gaps-block.flag-white .flag-context { color: hsl(0, 0%, 75%); }
+  @keyframes flag-glow-white {
+    0%   { box-shadow: inset 0 0 14px hsla(0, 0%, 90%, 0.45), 0 0 8px hsla(0, 0%, 90%, 0.24); border-color: hsla(0, 0%, 90%, 0.54); }
+    100% { box-shadow: inset 0 0 26px hsla(0, 0%, 90%, 0.90), 0 0 16px hsla(0, 0%, 90%, 0.48); border-color: hsla(0, 0%, 90%, 1.0); }
+  }
+
+  /* ── Debris — WebGL flag background ── */
+  .gaps-block.flag-debris {
+    animation: flag-glow-debris 3.5s ease-in-out infinite alternate;
+    border: 1px dashed;
+    border-image: repeating-linear-gradient(90deg, hsl(48, 90%, 55%) 0 8px, hsl(0, 80%, 50%) 8px 16px) 1;
+  }
+  .gaps-block.flag-debris .flag-label { color: hsl(45, 90%, 65%); }
+  .gaps-block.flag-debris .flag-context { color: hsl(30, 70%, 70%); }
+  @keyframes flag-glow-debris {
+    0%   { box-shadow: inset 0 0 18px hsla(35, 80%, 50%, 0.45), 0 0 10px hsla(0, 80%, 50%, 0.24); }
+    100% { box-shadow: inset 0 0 30px hsla(35, 80%, 50%, 0.90), 0 0 20px hsla(0, 80%, 50%, 0.45); }
+  }
+
+  /* ── Checkered — WebGL flag background ── */
+  .gaps-block.flag-checkered {
+    animation: flag-glow-checkered 3.5s ease-in-out infinite alternate;
+    border: 1px dashed;
+    border-image: repeating-linear-gradient(90deg, hsl(0, 0%, 95%) 0 8px, hsl(0, 0%, 20%) 8px 16px) 1;
+  }
+  .gaps-block.flag-checkered .flag-label { color: #fff; }
+  .gaps-block.flag-checkered .flag-context { color: hsl(0, 0%, 80%); }
+  @keyframes flag-glow-checkered {
+    0%   { box-shadow: inset 0 0 14px hsla(0, 0%, 100%, 0.36), 0 0 8px hsla(0, 0%, 100%, 0.18); }
+    100% { box-shadow: inset 0 0 26px hsla(0, 0%, 100%, 0.84), 0 0 16px hsla(0, 0%, 100%, 0.42); }
+  }
+
+  /* ── Black Flag — WebGL flag background ── */
+  .gaps-block.flag-black {
+    animation: flag-glow-black 3.5s ease-in-out infinite alternate;
+    border: 1px dashed;
+    border-image: repeating-linear-gradient(90deg, hsl(0, 0%, 12%) 0 8px, hsl(0, 75%, 40%) 8px 16px) 1;
+  }
+  .gaps-block.flag-black .flag-label { color: hsl(0, 80%, 58%); }
+  .gaps-block.flag-black .flag-context { color: hsl(0, 50%, 65%); }
+  @keyframes flag-glow-black {
+    0%   { box-shadow: inset 0 0 18px hsla(0, 80%, 40%, 0.45), 0 0 8px hsla(0, 80%, 40%, 0.24); }
+    100% { box-shadow: inset 0 0 28px hsla(0, 80%, 40%, 1.0), 0 0 16px hsla(0, 80%, 40%, 0.54); }
+  }
+
+  /* ── Meatball Flag — red circles on black, repair required ── */
+  .gaps-block.flag-meatball {
+    animation: flag-glow-meatball 2.5s ease-in-out infinite alternate;
+    border: 1px dashed;
+    border-image: repeating-linear-gradient(90deg, hsl(0, 85%, 50%) 0 8px, hsl(0, 0%, 8%) 8px 16px) 1;
+  }
+  .gaps-block.flag-meatball .flag-label { color: hsl(0, 90%, 62%); }
+  .gaps-block.flag-meatball .flag-context { color: hsl(0, 70%, 72%); }
+  @keyframes flag-glow-meatball {
+    0%   { box-shadow: inset 0 0 18px hsla(0, 90%, 45%, 0.50), 0 0 8px hsla(0, 90%, 45%, 0.28); }
+    100% { box-shadow: inset 0 0 30px hsla(0, 90%, 45%, 1.0), 0 0 18px hsla(0, 90%, 45%, 0.60); }
+  }
+
+  /* ── Orange Flag — lapped car ahead must yield ── */
+  .gaps-block.flag-orange {
+    animation: flag-glow-orange 3.5s ease-in-out infinite alternate;
+  }
+  .gaps-block.flag-orange .flag-label { color: hsl(30, 95%, 58%); }
+  .gaps-block.flag-orange .flag-context { color: hsl(30, 80%, 68%); }
+  @keyframes flag-glow-orange {
+    0%   { box-shadow: 0 0 0px hsla(30, 95%, 55%, 0); }
+    100% { box-shadow: 0 0 20px hsla(30, 95%, 55%, 0.45); }
+  }
+
+  /* ═══════════════════════════════════════════════
+     RACE TIMER MODULE
+     ═══════════════════════════════════════════════ */
+  .timer-row {
+    display: flex;
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.4s ease;
+  }
+  .timer-row.timer-visible {
+    max-height: 80px;
+  }
+  /* Right corners (RTL): timer aligns right, offset past logo + tacho */
+  .dashboard.layout-tr .timer-row,
+  .dashboard.layout-br .timer-row {
+    justify-content: flex-end;
+    padding-right: calc(var(--row-h) + 140px + var(--gap) * 2);
+  }
+  /* Left corners (LTR): timer aligns left, offset past logo + tacho */
+  .dashboard.layout-tl .timer-row,
+  .dashboard.layout-bl .timer-row,
+  .dashboard.layout-ac .timer-row {
+    justify-content: flex-start;
+    padding-left: calc(var(--row-h) + 140px + var(--gap) * 2);
+  }
+
+  .race-timer-block {
+    width: 150px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    padding: 6px 8px;
+  }
+  .race-timer-value {
+    font-family: var(--ff-mono);
+    font-size: 26px;
+    font-weight: 700;
+    color: #FFFFFF;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+  }
+  .race-timer-lap {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    margin-top: 3px;
+    letter-spacing: -0.02em;
+  }
+  .race-timer-lap .timer-label {
+    font-family: var(--ff);
+    font-weight: var(--fw-semi);
+    color: var(--text-secondary);
+    margin-right: 3px;
+    letter-spacing: 0;
+  }
+
+  /* ═══════════════════════════════════════════════
+     MAPS — stacked
+     ═══════════════════════════════════════════════ */
+  .maps-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    flex-shrink: 0;
+    width: 96px;
+  }
+  .map-panel {
+    height: var(--row-h);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 2px 0;
+    overflow: hidden;
+  }
+  .map-svg { width: 92%; flex: 1 1 0; min-height: 0; }
+  /* Full map label: single-line marquee so long names slide past instead of
+     wrapping and stealing vertical space from the map above. */
+  .map-panel > .map-zoom-label {
+    position: static;
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: 100%;
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    line-height: 1.2;
+    /* Soft fade on the sides so the slide doesn't clip hard at the edges. */
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+            mask-image: linear-gradient(to right,
+      transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+  }
+  .map-panel > .map-zoom-label .map-zoom-label-inner {
+    display: inline-block;
+    will-change: transform;
+  }
+  /* Animation only runs when JS detects overflow and adds .is-marquee.
+     Names that fit stay centered with no motion. */
+  .map-panel > .map-zoom-label.is-marquee {
+    text-align: left;
+  }
+  .map-panel > .map-zoom-label.is-marquee .map-zoom-label-inner {
+    animation: track-name-marquee var(--marquee-duration, 14s) ease-in-out infinite;
+  }
+  @keyframes track-name-marquee {
+    0%, 12%  { transform: translateX(0); }
+    50%, 88% { transform: translateX(var(--marquee-distance, 0)); }
+    100%     { transform: translateX(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .map-panel > .map-zoom-label.is-marquee .map-zoom-label-inner {
+      animation: none;
+      transform: translateX(0);
+    }
+  }
+  /* Track outline — three-layer rendering: thick outer edges, dark gap, thin center line */
+  .map-track-outer {
+    fill: none;
+    stroke: hsla(0,0%,100%,0.18);
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke 0.4s ease;
+  }
+  .map-track-outer.off-track {
+    stroke: hsla(0,60%,55%,0.45);
+  }
+  .map-track {
+    fill: none;
+    stroke: hsla(220,15%,8%,0.95);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .map-track-inner {
+    fill: none;
+    stroke: hsla(0,0%,100%,0.08);
+    stroke-width: 0.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke 0.4s ease;
+  }
+  .map-track-inner.on-track {
+    stroke: hsla(185,60%,55%,0.35);
+  }
+  /* Zoom map uses thinner strokes */
+  .map-zoom-svg .map-track-outer { stroke-width: 2.5; }
+  .map-zoom-svg .map-track { stroke-width: 1.5; }
+  .map-zoom-svg .map-track-inner { stroke-width: 0.3; }
+  .map-sector {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+    transition: stroke 0.3s;
+  }
+  .map-player {
+    fill: var(--map-player-color, var(--cyan));
+    transition: fill 0.4s ease;
+    filter: drop-shadow(0 0 2px hsla(0,0%,100%,0.7))
+            drop-shadow(0 0 3px var(--map-player-color, var(--cyan)));
+    animation: map-player-pulse 2s ease-in-out infinite;
+  }
+  @keyframes map-player-pulse {
+    0%, 100% {
+      filter: drop-shadow(0 0 2px hsla(0,0%,100%,0.7))
+              drop-shadow(0 0 3px var(--map-player-color, var(--cyan)));
+    }
+    50% {
+      filter: drop-shadow(0 0 2px hsla(0,0%,100%,0.9))
+              drop-shadow(0 0 5px var(--map-player-color, var(--cyan)))
+              drop-shadow(0 0 7px var(--map-player-color, var(--cyan)));
+    }
+  }
+  .map-gforce-trail {
+    pointer-events: none;
+    opacity: 0.8;
+    transition: stroke 0.15s ease;
+  }
+  .map-opponent { fill: hsla(0,0%,100%,0.35); }
+  .map-opponent.close { fill: var(--orange); }
+
+  /* Pulse animation for nearby opponents */
+  @keyframes map-opponent-pulse {
+    0%, 100% {
+      opacity: 0.7;
+      filter: none;
+    }
+    50% {
+      opacity: 1;
+      filter: drop-shadow(0 0 3px hsla(0,70%,60%,0.6));
+    }
+  }
+  .map-opponent.map-opponent-near {
+    animation: map-opponent-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* SVG radial glow pulse behind player dot — tighter radius */
+  @keyframes map-glow-pulse {
+    0%, 100% { r: 7; opacity: 0.8; }
+    50% { r: 10; opacity: 1; }
+  }
+
+  .map-zoom-panel {
+    height: var(--row-h);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+  .map-zoom-svg {
+    width: 92%;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  .map-zoom-label {
+    position: static;
+    flex: 0 0 auto;
+    margin-top: 4px;
+    text-align: center;
+    font-size: var(--fs-xs);
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* ═══════════════════════════════════════════════
+     SECONDARY PANELS FLEX CONTAINER
+     Wraps leaderboard, datastream, pitbox in a flex row.
+     Flows horizontally from the same corner as the main HUD.
+     Hidden panels collapse, remaining panels reflow automatically.
+     Restored from the deleted modules/styles/settings.css after the
+     in-overlay settings UI was retired (commit 826ed67) — without
+     these rules secondary panels stack vertically because the
+     panels themselves intentionally drop their fixed-position
+     offsets in favour of the container's flex layout.
+     ═══════════════════════════════════════════════ */
+  .sec-container {
+    position: fixed;
+    z-index: 50;
+    display: flex;
+    flex-direction: row;
+    gap: var(--panel-gap);
+    align-items: flex-start;
+    pointer-events: none;
+    /* Prevent sec panels from growing into the opposite-edge HUD.
+       JS sets --sec-max-h dynamically; fallback keeps it safe. */
+    max-height: var(--sec-max-h, 55vh);
+  }
+  .sec-container > * { pointer-events: auto; }
+
+  /* Vertical edge — uses --edge-z (zoom-compensated) for consistent visual margins */
+  .sec-container.sec-top    { top: var(--edge-z, var(--edge)); }
+  .sec-container.sec-bottom { bottom: var(--edge-z, var(--edge)); align-items: flex-end; }
+
+  /* Horizontal edge — right positions use row-reverse so
+     the first child (leaderboard) stays at the screen edge */
+  .sec-container.sec-right  { right: var(--edge-z, var(--edge)); flex-direction: row-reverse; }
+  .sec-container.sec-left   { left: var(--edge-z, var(--edge)); }
+
+  /* Panels inside container: relative flow, no fixed offsets */
+  .sec-container .leaderboard-panel,
+  .sec-container .datastream-panel,
+  .sec-container .pitbox-panel {
+    position: relative;
+    top: auto; bottom: auto; left: auto; right: auto;
+    margin: 0;
+  }
+
+/* ═══════════════════════════════════════════════════════════════
+   Layout v2 — data-driven groups (modules/js/layout-v2.js)
+   Containers are positioned inline by the engine (left/top/transform/
+   zoom/flex-direction/gap are all data-driven); these rules cover only
+   what is static. Contract: prodrive-windows/docs/overlay-layout-v2.md.
+   ═══════════════════════════════════════════════════════════════ */
+
+.layout-group {
+  position: fixed;
+  display: flex;
+  z-index: 40;
+}
+.layout-group > .layout-slot { display: flex; }
+
+/* Adopted module roots become plain flex children. Legacy rules pin
+   several of them (commentary cmt-*, incidents inc-*, spotter, the
+   sec-* panel classes) with position:fixed + edge offsets — neutralize
+   all of that, including inline leftovers, without enumerating every
+   legacy class. zoom is owned by the group container. */
+.layout-group .lv2-module {
+  position: static !important;
+  inset: auto !important;
+  margin: 0 !important;
+  zoom: 1 !important;
+}
+
+/* While v2 owns placement, the legacy shells that modules were lifted
+   out of must not render ghost boxes. conn-status stays visible (it is
+   a direct .dashboard child, not inside these wrappers). */
+body.layout-v2-active .dashboard .main-row,
+body.layout-v2-active .dashboard .timer-row,
+body.layout-v2-active .sec-container {
+  display: none;
+}

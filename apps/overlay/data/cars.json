@@ -1,0 +1,1149 @@
+[
+  {
+    "id": "ferrari-499p",
+    "officialName": "Ferrari 499P LMDh",
+    "manufacturer": "Ferrari",
+    "manufacturerLogoAvailable": true,
+    "category": "LMDh/GTP Prototype",
+    "realWorldSpecs": {
+      "engineType": "Twin-Turbo V6 Hybrid",
+      "displacement": "3.0L",
+      "horsepower": 680,
+      "torque": "N/A",
+      "weight": 1030,
+      "drivetrain": "Hybrid AWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA World Endurance Championship", "IMSA WeatherTech SportsCar Championship"],
+      "notableWins": ["24 Hours of Le Mans 2023", "24 Hours of Le Mans 2024", "24 Hours of Le Mans 2025"],
+      "championshipHistory": "Won Le Mans back-to-back in 2023, 2024, 2025"
+    },
+    "drivingCharacteristics": {
+      "description": "Powerful hybrid prototype with excellent traction. Aggressive power delivery with hybrid boost. Requires precision in hybrid management. Strong aerodynamics provide good stability at high speeds.",
+      "understeerTendency": "Neutral to slight understeer",
+      "brakeFeel": "Strong, responsive brakes with good modulation"
+    },
+    "notableDrivers": ["Jules Guérin", "Alessandro Pier Guidi", "Olivier Pla"],
+    "manufacturerHistory": {
+      "foundingYear": 1947,
+      "headquarters": "Maranello, Italy",
+      "racingHeritage": "Founded by Enzo Ferrari. Scuderia Ferrari established 1929. Most successful Formula 1 team with 16 Constructors' Championships. Legendary Le Mans record with multiple outright wins.",
+      "notableRoadCars": "250 GTO, 288 GTO, Testarossa, F40, Enzo, LaFerrari"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "PRO",
+      "seriesAvailable": ["IMSA iRacing Series", "Special Endurance Events"],
+      "setupTraits": "Favor downforce balance, hybrid management setup critical, requires precision throttle control"
+    }
+  },
+  {
+    "id": "porsche-963",
+    "officialName": "Porsche 963 LMDh",
+    "manufacturer": "Porsche",
+    "manufacturerLogoAvailable": true,
+    "category": "LMDh/GTP Prototype",
+    "realWorldSpecs": {
+      "engineType": "Twin-Turbo V8 Hybrid",
+      "displacement": "4.6L",
+      "horsepower": 670,
+      "torque": "N/A",
+      "weight": 1030,
+      "drivetrain": "Hybrid AWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA World Endurance Championship", "IMSA WeatherTech SportsCar Championship"],
+      "notableWins": ["24 Hours of Daytona 2023 (Penske entry)", "Long Beach IMSA 2023"],
+      "championshipHistory": "Multiple IMSA wins since 2023 debut"
+    },
+    "drivingCharacteristics": {
+      "description": "Naturally aggressive power delivery from turbo V8. Good mid-range torque. Balanced chassis. Responds well to aerodynamic adjustments.",
+      "understeerTendency": "Balanced to slight oversteer",
+      "brakeFeel": "Linear, strong braking performance"
+    },
+    "notableDrivers": ["Dane Cameron", "Matt Campbell", "Felipe Nasr", "Josef Newgarden"],
+    "manufacturerHistory": {
+      "foundingYear": 1948,
+      "headquarters": "Stuttgart/Zuffenhausen, Germany",
+      "racingHeritage": "19 Le Mans 24 Hours wins. Porsche 911 has over 30,000 racing victories. Multiple Formula 1 engine supplier roles. Rich endurance racing heritage.",
+      "notableRoadCars": "911, Carrera, Boxster, Cayman, Panamera, Taycan"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "PRO",
+      "seriesAvailable": ["IMSA iRacing Series", "Special Endurance Events"],
+      "setupTraits": "Balanced setup philosophy, responsive to aero changes, strong in both acceleration and corner exit"
+    }
+  },
+  {
+    "id": "cadillac-v-series-r",
+    "officialName": "Cadillac V-Series.R GTP",
+    "manufacturer": "Cadillac",
+    "manufacturerLogoAvailable": true,
+    "category": "GTP Prototype",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8 Hybrid",
+      "displacement": "5.5L",
+      "horsepower": 670,
+      "torque": "N/A",
+      "weight": 1030,
+      "drivetrain": "Hybrid AWD"
+    },
+    "realWorldHistory": {
+      "series": ["IMSA WeatherTech SportsCar Championship", "FIA World Endurance Championship"],
+      "notableWins": ["24 Hours of Daytona 2023"],
+      "championshipHistory": "Debuted at Daytona 24 2023, won overall with Cadillac Racing"
+    },
+    "drivingCharacteristics": {
+      "description": "Unique naturally-aspirated engine provides linear power delivery. Largest displacement in GTP field. Smooth, predictable power curve. Strong traction due to weight and engine characteristics.",
+      "understeerTendency": "Slight understeer, predictable handling",
+      "brakeFeel": "Smooth, strong braking with good modulation"
+    },
+    "notableDrivers": ["Ricky Taylor", "Felipe Nasr", "Mike Rockenfeller"],
+    "manufacturerHistory": {
+      "foundingYear": 1902,
+      "headquarters": "New York, USA (General Motors brand)",
+      "racingHeritage": "Cadillac has long American luxury heritage. Limited recent racing history before GTP program. Strong brand in American motorsport.",
+      "notableRoadCars": "Eldorado, Escalade, CTS, XT5, Lyriq"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "PRO",
+      "seriesAvailable": ["IMSA iRacing Series", "Special Endurance Events"],
+      "setupTraits": "Smooth, linear power delivery allows for more aggressive setups, strong on high-speed circuits"
+    }
+  },
+  {
+    "id": "acura-arx-06",
+    "officialName": "Acura ARX-06 GTP",
+    "manufacturer": "Acura",
+    "manufacturerLogoAvailable": false,
+    "category": "GTP Prototype",
+    "realWorldSpecs": {
+      "engineType": "Twin-Turbo V6 Hybrid",
+      "displacement": "2.4L",
+      "horsepower": 671,
+      "torque": "N/A",
+      "weight": 1030,
+      "drivetrain": "Hybrid AWD"
+    },
+    "realWorldHistory": {
+      "series": ["IMSA WeatherTech SportsCar Championship"],
+      "notableWins": ["24 Hours of Daytona 2023", "12 Hours of Sebring 2024", "Petit Le Mans 2023"],
+      "championshipHistory": "Most successful GTP car, first to win all three major IMSA endurance races in GTP era"
+    },
+    "drivingCharacteristics": {
+      "description": "Compact twin-turbo engine with high RPM capability. Agile handling. Strong throttle response. Requires active management of boost pressure.",
+      "understeerTendency": "Balanced, can be set up for either characteristic",
+      "brakeFeel": "Responsive, precise brake modulation"
+    },
+    "notableDrivers": ["Wayne Taylor", "Ricky Taylor", "Filipe Albuquerque", "Alexander Rossi"],
+    "manufacturerHistory": {
+      "foundingYear": 1986,
+      "headquarters": "Tokyo, Japan (Honda Luxury Brand)",
+      "racingHeritage": "Integrated Dynamics System (IDS). Strong racing heritage through Honda. Acura NSX GT3 competes globally.",
+      "notableRoadCars": "NSX, RDX, TLX, MDX, Integra"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "PRO",
+      "seriesAvailable": ["IMSA iRacing Series", "Special Endurance Events"],
+      "setupTraits": "Agile platform rewards precision driving, good low-speed torque, responds well to brake balance adjustments"
+    }
+  },
+  {
+    "id": "bmw-m4-gt3-evo",
+    "officialName": "BMW M4 GT3 EVO",
+    "manufacturer": "BMW",
+    "manufacturerLogoAvailable": true,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Twin-Turbo I6",
+      "displacement": "3.0L",
+      "horsepower": 590,
+      "torque": 516,
+      "weight": 1250,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA GT World Challenge", "IMSA", "SRO International"],
+      "notableWins": ["Nürburgring 24 Hours", "Dubai 24 Hours 2025 Overall"],
+      "championshipHistory": "80 victories and 100+ podiums in first season as EVO. BMW M8 GTE predecessor won Le Mans twice."
+    },
+    "drivingCharacteristics": {
+      "description": "Responsive turbo engine with smooth power delivery. Well-balanced chassis. Predictable handling characteristics. Strong in all conditions. Slightly rear-biased power delivery.",
+      "understeerTendency": "Balanced, slight tendency to rotate",
+      "brakeFeel": "Strong, linear braking response"
+    },
+    "notableDrivers": ["Augusto Farfus", "Yannick Mettler", "Marco Wittmann"],
+    "manufacturerHistory": {
+      "foundingYear": 1916,
+      "headquarters": "Munich, Germany",
+      "racingHeritage": "BMW Motorsport established 1972. M3 is most successful touring car under Group A and DTM regulations. Multiple Le Mans winners. Formula 1 engine supplier. 90+ years racing history.",
+      "notableRoadCars": "M2, M3, M4, M5, M760i, i8"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "IMSA iRacing", "Nürburgring 24H", "Special Events"],
+      "setupTraits": "Balanced handling allows multiple setup philosophies, good tire warm-up characteristics, versatile across tracks"
+    }
+  },
+  {
+    "id": "porsche-911-gt3-r-992",
+    "officialName": "Porsche 911 GT3 R (992)",
+    "manufacturer": "Porsche",
+    "manufacturerLogoAvailable": true,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated Flat-Six",
+      "displacement": "4.2L",
+      "horsepower": 565,
+      "torque": "N/A",
+      "weight": 1250,
+      "driletrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA GT World Challenge", "IMSA", "Porsche Carrera Cup"],
+      "notableWins": ["Multiple international GT3 championships", "24 Hours of Daytona podiums"],
+      "championshipHistory": "Proven successful in multiple racing series"
+    },
+    "drivingCharacteristics": {
+      "description": "Naturally-aspirated flat-six provides immediate throttle response. Slight rear-biased weight distribution. Excellent mid-range power. Requires smooth inputs for best lap times.",
+      "understeerTendency": "Balanced to slight oversteer",
+      "brakeFeel": "Progressive, natural braking feel"
+    },
+    "notableDrivers": ["Patrick Pilet", "Jörg Bergmeister", "Dirk Werner"],
+    "manufacturerHistory": {
+      "foundingYear": 1948,
+      "headquarters": "Stuttgart/Zuffenhausen, Germany",
+      "racingHeritage": "19 Le Mans 24 Hours wins. Porsche 911 has 30,000+ racing victories. Multiple class wins worldwide.",
+      "notableRoadCars": "911 Carrera, 911 Turbo, 911 GT3, Boxster, Cayman"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "IMSA iRacing", "Special Endurance Events"],
+      "setupTraits": "Responds well to aero balance, naturally-aspirated engine predictable, good tire warm-up"
+    }
+  },
+  {
+    "id": "mercedes-amg-gt3",
+    "officialName": "Mercedes-AMG GT3 Edition 130Y",
+    "manufacturer": "Mercedes-Benz",
+    "manufacturerLogoAvailable": true,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "6.3L",
+      "horsepower": 680,
+      "torque": "N/A",
+      "weight": 1275,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA GT World Challenge", "Blancpain GT", "IMSA"],
+      "notableWins": ["Multiple international GT3 wins", "Spa 24 Hours podiums"],
+      "championshipHistory": "Consistent podium finisher in major GT3 series"
+    },
+    "drivingCharacteristics": {
+      "description": "Large displacement NA V8 provides strong, linear power delivery. Heavy car requires smooth inputs. Excellent acceleration. Requires careful weight management through corners.",
+      "understeerTendency": "Slight understeer, requires driving finesse",
+      "brakeFeel": "Strong, responsive braking"
+    },
+    "notableDrivers": ["Dominik Baumann", "Frank Perera", "Samuel Seger"],
+    "manufacturerHistory": {
+      "foundingYear": 1926,
+      "headquarters": "Stuttgart, Germany",
+      "racingHeritage": "Over 130 years in motorsport. One of three constructors to win Triple Crown of Motorsport. Multiple Formula 1 championships. Le Mans wins. Historic racing legacy.",
+      "notableRoadCars": "S-Class, E-Class, C-Class, SL, AMG GT, EQS"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "IMSA iRacing", "Special Events"],
+      "setupTraits": "Strong torque delivery allows aggressive setup, good for high-speed circuits, requires smooth brake modulation"
+    }
+  },
+  {
+    "id": "lamborghini-huracan-gt3-evo",
+    "officialName": "Lamborghini Huracán GT3 EVO",
+    "manufacturer": "Lamborghini",
+    "manufacturerLogoAvailable": true,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V10",
+      "displacement": "5.2L",
+      "horsepower": 580,
+      "torque": 488,
+      "weight": 1229,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA GT World Challenge", "IMSA", "International GT3 Series"],
+      "notableWins": ["24 Hours of Daytona 2019 GTD class victory"],
+      "championshipHistory": "Successful GTD and GT3 competitor since 2019"
+    },
+    "drivingCharacteristics": {
+      "description": "Screaming naturally-aspirated V10 with linear power delivery. Excellent engine sound character. Requires precision throttle control. Predictable handling balance.",
+      "understeerTendency": "Balanced, slight rotation tendency",
+      "brakeFeel": "Linear, responsive braking feel"
+    },
+    "notableDrivers": ["Andrea Caldarelli", "Marco Mapelli", "Mirko Bortolotti"],
+    "manufacturerHistory": {
+      "foundingYear": 1963,
+      "headquarters": "Sant'Agata Bolognese, Italy",
+      "racingHeritage": "Founder Ferruccio Lamborghini initially avoided factory racing. Huracán brought official factory racing program via Squadra Corse in 2015. Growing competitive presence.",
+      "notableRoadCars": "Huracán, Aventador, Urus, Revuelto"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "IMSA iRacing", "Special Events"],
+      "setupTraits": "V10 engine character requires smooth inputs, good mid-range torque, balanced platform allows varied setup approaches"
+    }
+  },
+  {
+    "id": "ferrari-488-gt3",
+    "officialName": "Ferrari 488 GT3 EVO",
+    "manufacturer": "Ferrari",
+    "manufacturerLogoAvailable": true,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Twin-Turbo V8",
+      "displacement": "3.9L",
+      "horsepower": 600,
+      "torque": 700,
+      "weight": "N/A",
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["IMSA", "Blancpain GT", "FIA GT World Challenge"],
+      "notableWins": ["12 Hours of Sebring multiple wins", "24 Hours of Spa 2021 Pro class"],
+      "championshipHistory": "Triumphed in first six races of its career. Won 2021 Spa 24 Hours Pro class."
+    },
+    "drivingCharacteristics": {
+      "description": "Twin-turbo engine provides strong low-end torque. Smooth power delivery once boost builds. Responsive to setup changes. Mid-engine configuration provides good balance.",
+      "understeerTendency": "Balanced, can be tuned either way",
+      "brakeFeel": "Strong, linear braking with good modulation"
+    },
+    "notableDrivers": ["James Calado", "Alessandro Pier Guidi", "Davide Rigon"],
+    "manufacturerHistory": {
+      "foundingYear": 1947,
+      "headquarters": "Maranello, Italy",
+      "racingHeritage": "Scuderia Ferrari founded 1929. 16 Formula 1 Constructors' Championships. Multiple Le Mans wins. Legendary motorsport heritage.",
+      "notableRoadCars": "F8 Tributo, 296, SF90 Stradale, Daytona SP3"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "IMSA iRacing", "Special Events"],
+      "setupTraits": "Responsive mid-engine platform, strong low-end torque, good tire warm-up characteristics"
+    }
+  },
+  {
+    "id": "audi-r8-lms-evo-ii-gt3",
+    "officialName": "Audi R8 LMS EVO II GT3",
+    "manufacturer": "Audi",
+    "manufacturerLogoAvailable": true,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V10",
+      "displacement": "5.2L",
+      "horsepower": 585,
+      "torque": 406,
+      "weight": 1235,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA GT World Challenge", "International GT3", "Bathurst 12 Hours"],
+      "notableWins": ["Bathurst 12 Hours 2026 overall competition"],
+      "championshipHistory": "Competitive in global GT3 championships. V10 is dying breed becoming rarer."
+    },
+    "drivingCharacteristics": {
+      "description": "Responsive naturally-aspirated V10. Good mid-range torque. Well-balanced chassis. Lighter than competition. Excellent tire warm-up. Requires smooth corner entry.",
+      "understeerTendency": "Balanced, responds to setup",
+      "brakeFeel": "Linear, responsive braking"
+    },
+    "notableDrivers": ["Christopher Mies", "Patric Niederhauser", "Kelvin van der Linde"],
+    "manufacturerHistory": {
+      "foundingYear": 1910,
+      "headquarters": "Ingolstadt, Germany",
+      "racingHeritage": "Strong rally heritage. Le Mans prototypes. Successful GT racing. Quattro AWD technology revolutionized motorsport.",
+      "notableRoadCars": "R8, RS e-tron, S4, RS6, A6, Q7"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "Special Events"],
+      "setupTraits": "Lightweight platform, good throttle response, V10 character provides unique driving feel"
+    }
+  },
+  {
+    "id": "mclaren-720s-gt3-evo",
+    "officialName": "McLaren 720S GT3 EVO",
+    "manufacturer": "McLaren",
+    "manufacturerLogoAvailable": true,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Twin-Turbo V8",
+      "displacement": "4.0L",
+      "horsepower": 710,
+      "torque": "N/A",
+      "weight": "N/A",
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA GT World Challenge", "International GT3", "Customer Racing"],
+      "notableWins": ["Multiple international GT3 wins"],
+      "championshipHistory": "Successor to 570S GT3. Improved aerodynamic performance."
+    },
+    "drivingCharacteristics": {
+      "description": "Powerful twin-turbo V8 with aggressive performance. Excellent downforce from refined aerodynamics. Mid-engine provides balance. Sharp, responsive handling.",
+      "understeerTendency": "Balanced, slightly responsive to rotation",
+      "brakeFeel": "Strong, progressive braking response"
+    },
+    "notableDrivers": ["Rob Bell", "Andy Soucek", "Rory Penttinen"],
+    "manufacturerHistory": {
+      "foundingYear": 1985,
+      "headquarters": "Woking, England",
+      "racingHeritage": "16 Formula 1 constructors' titles. Le Mans LMP1 winner. Strong GT racing presence. Performance-focused manufacturer.",
+      "notableRoadCars": "720S, 765LT, Artura, Senna, GT"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "Special Events"],
+      "setupTraits": "Powerful platform rewards smooth inputs, good low-speed torque, responsive to aero changes"
+    }
+  },
+  {
+    "id": "chevrolet-corvette-z06-gt3r",
+    "officialName": "Chevrolet Corvette Z06 GT3.R",
+    "manufacturer": "Chevrolet",
+    "manufacturerLogoAvailable": true,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "5.5L",
+      "horsepower": 600,
+      "torque": "N/A",
+      "weight": 1240,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["IMSA", "International Endurance Racing"],
+      "notableWins": ["Daytona 24 Hours podiums", "Le Mans 24 Hours entry"],
+      "championshipHistory": "Replaces successful C8.R GTE. Latest American GT3 offering."
+    },
+    "drivingCharacteristics": {
+      "description": "Large displacement naturally-aspirated V8 provides immediate throttle response. Strong linear power curve. American muscle character. Requires smooth inputs at limit.",
+      "understeerTendency": "Balanced, slightly predictable",
+      "brakeFeel": "Strong, powerful braking capacity"
+    },
+    "notableDrivers": ["Nick Tandy", "Antonio Garcia", "Jan Magnussen"],
+    "manufacturerHistory": {
+      "foundingYear": 1911,
+      "headquarters": "Detroit, Michigan, USA",
+      "racingHeritage": "39 NASCAR Manufacturer titles. Corvette Racing 8 consecutive ALMS GT1 manufacturer championships. Le Mans wins. Powerful American racing heritage.",
+      "notableRoadCars": "Corvette Z06, Camaro, Silverado, Tahoe"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "IMSA iRacing", "Special Events"],
+      "setupTraits": "Strong NA V8 character, responsive low-speed torque, good tire warm-up, requires smooth corner entry"
+    }
+  },
+  {
+    "id": "acura-nsx-gt3-evo-22",
+    "officialName": "Acura NSX GT3 EVO 22",
+    "manufacturer": "Acura",
+    "manufacturerLogoAvailable": false,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Twin-Turbo V6",
+      "displacement": "3.5L",
+      "horsepower": 520,
+      "torque": 475,
+      "weight": "N/A",
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["IMSA", "Petit Le Mans"],
+      "notableWins": ["Petit Le Mans victories", "IMSA podiums"],
+      "championshipHistory": "Competed in IMSA series. BoP-limited for competition balance."
+    },
+    "drivingCharacteristics": {
+      "description": "Mid-engine twin-turbo provides excellent balance. Responsive power delivery. Good traction. Re-tuned suspension for second evolution. Agile handling.",
+      "understeerTendency": "Balanced, responsive to setup",
+      "brakeFeel": "Responsive, good modulation"
+    },
+    "notableDrivers": ["Shigetoshi Matsuda", "Hattori Tetsuo", "Tomoki Nojiri"],
+    "manufacturerHistory": {
+      "foundingYear": 1986,
+      "headquarters": "Tokyo, Japan (Honda Luxury Brand)",
+      "racingHeritage": "Strong racing pedigree through Honda connection. NSX GT3 competes internationally.",
+      "notableRoadCars": "NSX, RDX, TLX, MDX, Integra"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "IMSA iRacing", "Petit Le Mans"],
+      "setupTraits": "Agile mid-engine platform, balanced handling, responsive to suspension tuning"
+    }
+  },
+  {
+    "id": "aston-martin-vantage-gt3-evo",
+    "officialName": "Aston Martin Vantage GT3 EVO",
+    "manufacturer": "Aston Martin",
+    "manufacturerLogoAvailable": true,
+    "category": "GT3",
+    "realWorldSpecs": {
+      "engineType": "Twin-Turbo V8",
+      "displacement": "4.0L",
+      "horsepower": 535,
+      "torque": "N/A",
+      "weight": 1330,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA GT World Challenge", "International GT3"],
+      "notableWins": ["Multiple GT3 international wins"],
+      "championshipHistory": "Successor to V12 variant with revised aerodynamics"
+    },
+    "drivingCharacteristics": {
+      "description": "Twin-turbo V8 with smooth power delivery. Good mid-range torque. Heavy platform requires smooth inputs. Revised aerodynamics improve downforce and consistency.",
+      "understeerTendency": "Balanced to slight understeer",
+      "brakeFeel": "Strong, responsive braking"
+    },
+    "notableDrivers": ["Marco Sorensen", "Jonny Adam", "Ross Gunn"],
+    "manufacturerHistory": {
+      "foundingYear": 1913,
+      "headquarters": "Gaydon, England",
+      "racingHeritage": "Le Mans entries. DBR1 historic racing car. Strong gentleman racing presence. Works racing program in GT.",
+      "notableRoadCars": "DB11, DBS, Vantage, DBX, Rapide"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["GT Sprint", "Special Events"],
+      "setupTraits": "Heavier platform, smooth power delivery, responds well to aero balance adjustments"
+    }
+  },
+  {
+    "id": "ford-mustang-gt4",
+    "officialName": "Ford Mustang GT4",
+    "manufacturer": "Ford",
+    "manufacturerLogoAvailable": true,
+    "category": "GT4",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "5.0L",
+      "horsepower": 500,
+      "torque": 429,
+      "weight": "N/A",
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["IMSA Michelin Pilot Challenge", "British GT Championship", "International GT4"],
+      "notableWins": ["Multiple GT4 series wins"],
+      "championshipHistory": "Competitive GT4 entry available for customer purchase"
+    },
+    "drivingCharacteristics": {
+      "description": "Responsive naturally-aspirated V8 with immediate throttle response. Strong low-end torque. American muscle character. Good rotation characteristics.",
+      "understeerTendency": "Balanced, responsive",
+      "brakeFeel": "Strong braking performance"
+    },
+    "notableDrivers": ["Various customer racing drivers"],
+    "manufacturerHistory": {
+      "foundingYear": 1903,
+      "headquarters": "Dearborn, Michigan, USA",
+      "racingHeritage": "Strong NASCAR presence. GT racing history. Mustang iconic American performance car.",
+      "notableRoadCars": "Mustang, F-150, Bronco, Ranger"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "B",
+      "seriesAvailable": ["GT4 Series", "IMSA Pilot Challenge Events"],
+      "setupTraits": "Good torque delivery, responsive handling, benefits from smooth inputs"
+    }
+  },
+  {
+    "id": "bmw-m2-cs-racing",
+    "officialName": "BMW M2 CS Racing (M2 CSR)",
+    "manufacturer": "BMW",
+    "manufacturerLogoAvailable": true,
+    "category": "Touring Car (TCX/TCR)",
+    "realWorldSpecs": {
+      "engineType": "Twin-Turbo I6",
+      "displacement": "3.0L",
+      "horsepower": 365,
+      "torque": "N/A",
+      "weight": 1545,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["M2 CS Racing Cup", "TCX International Racing"],
+      "notableWins": ["Multiple M2 CS Racing Cup victories", "International TCX wins"],
+      "championshipHistory": "Homologated for TCX class. Competes worldwide in touring car championships."
+    },
+    "drivingCharacteristics": {
+      "description": "Turbocharged I6 with linear power delivery. Responsive platform. Good brake feel. FIA-approved roll cage and racing suspension. ABS tuned for track use.",
+      "understeerTendency": "Balanced, responsive setup",
+      "brakeFeel": "Strong, linear braking response"
+    },
+    "notableDrivers": ["Professional touring car drivers"],
+    "manufacturerHistory": {
+      "foundingYear": 1916,
+      "headquarters": "Munich, Germany",
+      "racingHeritage": "BMW Motorsport established 1972. M3 most successful touring car. Multiple Le Mans wins. Strong endurance racing heritage.",
+      "notableRoadCars": "M2 Competition, M3, M4, M5"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "B",
+      "seriesAvailable": ["Touring Car Series", "Special Events", "Nürburgring 24H"],
+      "setupTraits": "Balanced platform, responsive to brake balance, good rain racing characteristics"
+    }
+  },
+  {
+    "id": "hyundai-elantra-n-tcr",
+    "officialName": "Hyundai Elantra N TCR",
+    "manufacturer": "Hyundai",
+    "manufacturerLogoAvailable": true,
+    "category": "Touring Car (TCR)",
+    "realWorldSpecs": {
+      "engineType": "Turbocharged I4",
+      "displacement": "2.0L",
+      "horsepower": 350,
+      "torque": "N/A",
+      "weight": "N/A",
+      "drivetrain": "FWD"
+    },
+    "realWorldHistory": {
+      "series": ["TCR International", "Customer Racing"],
+      "notableWins": ["TCR series wins"],
+      "championshipHistory": "Strong TCR competitor since 2020"
+    },
+    "drivingCharacteristics": {
+      "description": "Turbocharged engine with responsive power delivery. Front-wheel drive requires careful throttle management. One of strongest TCR cars. Good turn-in balance.",
+      "understeerTendency": "Slight understeer typical of FWD, manageable",
+      "brakeFeel": "Good braking performance for class"
+    },
+    "notableDrivers": ["Gabriele Tarquini", "Norbert Michelisz", "Attila Tassi"],
+    "manufacturerHistory": {
+      "foundingYear": 1967,
+      "headquarters": "Seoul, South Korea",
+      "racingHeritage": "Growing racing presence. Hyundai N performance division. Increasingly competitive in international racing.",
+      "notableRoadCars": "Elantra N, Veloster N, i30 N, Ioniq 5"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "B",
+      "seriesAvailable": ["TCR Virtual Challenge", "Touring Car Series"],
+      "setupTraits": "FWD characteristic influences setup philosophy, good tire warm-up, responsive to brake bias"
+    }
+  },
+  {
+    "id": "honda-civic-type-r-tcr",
+    "officialName": "Honda Civic Type R TCR",
+    "manufacturer": "Honda",
+    "manufacturerLogoAvailable": true,
+    "category": "Touring Car (TCR)",
+    "realWorldSpecs": {
+      "engineType": "Turbocharged I4",
+      "displacement": "2.0L",
+      "horsepower": "340+",
+      "torque": "N/A",
+      "weight": "N/A",
+      "drivetrain": "FWD"
+    },
+    "realWorldHistory": {
+      "series": ["TCR International", "Various touring car series"],
+      "notableWins": ["TCR series podiums"],
+      "championshipHistory": "Competitive TCR entry globally"
+    },
+    "drivingCharacteristics": {
+      "description": "Responsive turbocharged engine. Well-balanced FWD chassis. Good turn-in feel. Predictable handling. Type R performance heritage.",
+      "understeerTendency": "Slight understeer, manageable with setup",
+      "brakeFeel": "Good braking response"
+    },
+    "notableDrivers": ["Various TCR competitors"],
+    "manufacturerHistory": {
+      "foundingYear": 1946,
+      "headquarters": "Tokyo, Japan",
+      "racingHeritage": "Strong Formula 1 heritage. Le Mans prototypes. Successful touring car and FF racing. Type R performance brand.",
+      "notableRoadCars": "Civic Type R, Accord, NSX, CR-V, Pilot"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "B",
+      "seriesAvailable": ["TCR Virtual Challenge", "Touring Car Series"],
+      "setupTraits": "FWD handling balance, good low-speed torque, responsive to brake setup"
+    }
+  },
+  {
+    "id": "audi-rs3-tcr",
+    "officialName": "Audi RS3 TCR",
+    "manufacturer": "Audi",
+    "manufacturerLogoAvailable": true,
+    "category": "Touring Car (TCR)",
+    "realWorldSpecs": {
+      "engineType": "Turbocharged I5",
+      "displacement": "2.5L",
+      "horsepower": 370,
+      "torque": "N/A",
+      "weight": "N/A",
+      "drivetrain": "AWD"
+    },
+    "realWorldHistory": {
+      "series": ["TCR International", "Various touring car championships"],
+      "notableWins": ["TCR wins and podiums"],
+      "championshipHistory": "Successful AWD TCR platform"
+    },
+    "drivingCharacteristics": {
+      "description": "Unique turbocharged I5 engine with distinctive character. All-wheel drive provides superior traction. Good launch characteristics. Rally-derived handling.",
+      "understeerTendency": "Balanced, AWD aids traction",
+      "brakeFeel": "Strong braking for class"
+    },
+    "notableDrivers": ["Niels Koolen", "Sergey Sirotkin", "TCR competitors"],
+    "manufacturerHistory": {
+      "foundingYear": 1910,
+      "headquarters": "Ingolstadt, Germany",
+      "racingHeritage": "Rally legendary. Quattro AWD revolutionized motorsport. Le Mans prototypes. Strong TCR presence.",
+      "notableRoadCars": "RS3, RS4, RS6, R8, e-tron GT"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "B",
+      "seriesAvailable": ["TCR Virtual Challenge", "Touring Car Series"],
+      "setupTraits": "AWD platform provides traction advantage, good all-weather characteristics, responsive to suspension setup"
+    }
+  },
+  {
+    "id": "nascar-cup-series-gen6",
+    "officialName": "NASCAR Cup Series (Next Gen)",
+    "manufacturer": "Chevrolet / Ford / Toyota",
+    "manufacturerLogoAvailable": true,
+    "category": "Stock Car",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "5.87L (358 CID)",
+      "horsepower": 670,
+      "torque": "N/A",
+      "weight": 1542,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["NASCAR Cup Series"],
+      "notableWins": ["Multiple annual races", "Daytona 500", "Coca-Cola 600"],
+      "championshipHistory": "Introduced 2022. Current generation of NASCAR's top series."
+    },
+    "drivingCharacteristics": {
+      "description": "Powerful naturally-aspirated V8 with linear power delivery. Superspeedway versions have reduced power (510 hp). Close drafting behavior. Strong downforce. Three manufacturers with identical physics.",
+      "understeerTendency": "Balanced, track-dependent",
+      "brakeFeel": "Strong braking capacity"
+    },
+    "notableDrivers": ["Multiple contemporary NASCAR drivers"],
+    "manufacturerHistory": {
+      "foundingYear": "1903-1911 (Chevrolet/Ford/Toyota)",
+      "headquarters": "Detroit, Michigan / Tokyo, Japan",
+      "racingHeritage": "Chevrolet: 39 NASCAR manufacturer titles. Ford: Long NASCAR heritage. Toyota: 180 NASCAR wins, 3 manufacturer's championships.",
+      "notableRoadCars": "Chevrolet Camaro/Malibu, Ford Mustang/Fusion, Toyota Camry/Supra"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "PRO",
+      "seriesAvailable": ["NASCAR iRacing Cup Series", "Class A Series"],
+      "setupTraits": "Balanced setup philosophy, superspeedway requires drafting knowledge, road course aero setup critical"
+    }
+  },
+  {
+    "id": "nascar-truck-series",
+    "officialName": "NASCAR Craftsman Truck Series",
+    "manufacturer": "Chevrolet / Ford / Toyota",
+    "manufacturerLogoAvailable": true,
+    "category": "Stock Car / Truck",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "5.87L (358 CID)",
+      "horsepower": "~600",
+      "torque": "N/A",
+      "weight": "N/A",
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["NASCAR Craftsman Truck Series"],
+      "notableWins": ["Multiple annual races"],
+      "championshipHistory": "National touring series since 1995"
+    },
+    "drivingCharacteristics": {
+      "description": "High-riding platform with good visibility. V8 power delivery. Truck physics differ from Cup cars. Good acceleration. Requires precise brake management.",
+      "understeerTendency": "Balanced, truck-specific handling",
+      "brakeFeel": "Strong braking response"
+    },
+    "notableDrivers": ["Various Truck Series competitors"],
+    "manufacturerHistory": {
+      "foundingYear": "1903-1911",
+      "headquarters": "Detroit, Michigan / Tokyo, Japan",
+      "racingHeritage": "All three manufacturers have strong NASCAR heritage",
+      "notableRoadCars": "Silverado, F-150, Tundra"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["NASCAR Class C Series", "Special Events"],
+      "setupTraits": "Truck-specific physics, high-riding platform affects aero, good acceleration from stops"
+    }
+  },
+  {
+    "id": "nascar-xfinity-series",
+    "officialName": "NASCAR Xfinity Series",
+    "manufacturer": "Chevrolet / Ford / Toyota",
+    "manufacturerLogoAvailable": true,
+    "category": "Stock Car",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "5.87L",
+      "horsepower": "600+",
+      "torque": "N/A",
+      "weight": "N/A",
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["NASCAR Xfinity Series"],
+      "notableWins": ["Multiple annual races"],
+      "championshipHistory": "NASCAR's second-tier series"
+    },
+    "drivingCharacteristics": {
+      "description": "Similar to Cup cars but with slightly different aerodynamics. Good mid-range power. Responsive handling. Competitive field typical of series.",
+      "understeerTendency": "Balanced",
+      "brakeFeel": "Strong braking capacity"
+    },
+    "notableDrivers": ["Various Xfinity Series competitors"],
+    "manufacturerHistory": {
+      "foundingYear": "1903-1911",
+      "headquarters": "Detroit, Michigan / Tokyo, Japan",
+      "racingHeritage": "Established NASCAR platform",
+      "notableRoadCars": "Camaro, Supra, Fusion, Mustang"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "B",
+      "seriesAvailable": ["NASCAR Class B Series", "Special Events"],
+      "setupTraits": "Similar to Cup cars, balanced physics, good all-around platform"
+    }
+  },
+  {
+    "id": "arca-series-chevrolet",
+    "officialName": "ARCA Menards Series Chevrolet",
+    "manufacturer": "Chevrolet",
+    "manufacturerLogoAvailable": true,
+    "category": "Stock Car",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "5.87L",
+      "horsepower": "550+",
+      "torque": "N/A",
+      "weight": "N/A",
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["ARCA Menards Series"],
+      "notableWins": ["Multiple ARCA races"],
+      "championshipHistory": "ARCA racing series"
+    },
+    "drivingCharacteristics": {
+      "description": "Lighter platform than Cup cars. Responsive V8 power. Good turning characteristics. Lower-budget series character.",
+      "understeerTendency": "Balanced, responsive",
+      "brakeFeel": "Good braking capacity"
+    },
+    "notableDrivers": ["ARCA series competitors"],
+    "manufacturerHistory": {
+      "foundingYear": 1911,
+      "headquarters": "Detroit, Michigan, USA",
+      "racingHeritage": "Long NASCAR-affiliated racing heritage",
+      "notableRoadCars": "Chevrolet SS, Silverado, Corvette"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["ARCA Series", "Special Events"],
+      "setupTraits": "Lighter car responsive to setup, good value learning platform"
+    }
+  },
+  {
+    "id": "arca-series-ford",
+    "officialName": "ARCA Menards Series Ford",
+    "manufacturer": "Ford",
+    "manufacturerLogoAvailable": true,
+    "category": "Stock Car",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "5.87L",
+      "horsepower": "550+",
+      "torque": "N/A",
+      "weight": "N/A",
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["ARCA Menards Series"],
+      "notableWins": ["Multiple ARCA wins"],
+      "championshipHistory": "ARCA racing series"
+    },
+    "drivingCharacteristics": {
+      "description": "Responsive V8 power. Good handling balance. Lightweight platform responsive to inputs.",
+      "understeerTendency": "Balanced",
+      "brakeFeel": "Good braking capacity"
+    },
+    "notableDrivers": ["ARCA series competitors"],
+    "manufacturerHistory": {
+      "foundingYear": 1903,
+      "headquarters": "Dearborn, Michigan, USA",
+      "racingHeritage": "Strong NASCAR heritage",
+      "notableRoadCars": "Mustang, F-150, Fusion"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["ARCA Series", "Special Events"],
+      "setupTraits": "Responsive to setup changes, good learning platform"
+    }
+  },
+  {
+    "id": "arca-series-toyota",
+    "officialName": "ARCA Menards Series Toyota",
+    "manufacturer": "Toyota",
+    "manufacturerLogoAvailable": true,
+    "category": "Stock Car",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "5.87L",
+      "horsepower": "550+",
+      "torque": "N/A",
+      "weight": "N/A",
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["ARCA Menards Series"],
+      "notableWins": ["Multiple ARCA wins"],
+      "championshipHistory": "ARCA racing series"
+    },
+    "drivingCharacteristics": {
+      "description": "Responsive performance. Balanced handling. Good acceleration.",
+      "understeerTendency": "Balanced",
+      "brakeFeel": "Good braking response"
+    },
+    "notableDrivers": ["ARCA series competitors"],
+    "manufacturerHistory": {
+      "foundingYear": 1937,
+      "headquarters": "Toyota City, Japan",
+      "racingHeritage": "180 NASCAR wins, 3 manufacturer's championships. Growing racing presence.",
+      "notableRoadCars": "Camry, Camry TRD, GR86, Supra"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["ARCA Series", "Special Events"],
+      "setupTraits": "Responsive platform, good learning series"
+    }
+  },
+  {
+    "id": "dallara-il-15-indy-nxt",
+    "officialName": "Dallara IL-15 (INDY NXT)",
+    "manufacturer": "Dallara",
+    "manufacturerLogoAvailable": true,
+    "category": "Open Wheel / Formula",
+    "realWorldSpecs": {
+      "engineType": "Turbocharged I4",
+      "displacement": "2.0L",
+      "horsepower": 450,
+      "torque": "N/A",
+      "weight": 626,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["INDY NXT Championship"],
+      "notableWins": ["INDY NXT seasonal races"],
+      "championshipHistory": "INDY NXT development series champion ship"
+    },
+    "drivingCharacteristics": {
+      "description": "Lightweight, responsive platform. Turbocharged engine with immediate response. Good throttle sensitivity. Precise steering inputs required. Excellent turn-in.",
+      "understeerTendency": "Responsive, balanced",
+      "brakeFeel": "Progressive, responsive braking"
+    },
+    "notableDrivers": ["Various INDY NXT drivers"],
+    "manufacturerHistory": {
+      "foundingYear": 1972,
+      "headquarters": "Varese, Italy",
+      "racingHeritage": "Leading open-wheel chassis manufacturer. Formula 3, Formula 2, IndyCar, and specialized racing platforms. Premier engineering firm.",
+      "notableRoadCars": "Racing-only manufacturer"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "B",
+      "seriesAvailable": ["INDY NXT Series", "Special Events"],
+      "setupTraits": "Lightweight platform responsive to aero, good tire warm-up, precision steering required"
+    }
+  },
+  {
+    "id": "dallara-p217-lmp2",
+    "officialName": "Dallara P217 LMP2",
+    "manufacturer": "Dallara",
+    "manufacturerLogoAvailable": true,
+    "category": "LMP2 Prototype",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "4.2L",
+      "horsepower": 600,
+      "torque": "N/A",
+      "weight": 930,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA World Endurance Championship", "IMSA Prototype Challenge"],
+      "notableWins": ["Multiple LMP2 wins"],
+      "championshipHistory": "Dominant LMP2 platform"
+    },
+    "drivingCharacteristics": {
+      "description": "Powerful naturally-aspirated V8 with linear power delivery. Lightweight for class. Excellent high-speed stability. Good mid-range torque. Responsive to setup.",
+      "understeerTendency": "Balanced, responsive to aero",
+      "brakeFeel": "Strong, responsive braking"
+    },
+    "notableDrivers": ["Various LMP2 drivers"],
+    "manufacturerHistory": {
+      "foundingYear": 1972,
+      "headquarters": "Varese, Italy",
+      "racingHeritage": "Leading prototype chassis manufacturer. Multiple championships. Premier open-wheel and sports car builder.",
+      "notableRoadCars": "Racing-only manufacturer"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "B",
+      "seriesAvailable": ["LMP2 Prototype Challenge", "Endurance Series"],
+      "setupTraits": "Lightweight platform, strong power delivery, responsive to aero balance"
+    }
+  },
+  {
+    "id": "ligier-js-p320-lmp3",
+    "officialName": "Ligier JS P320 LMP3",
+    "manufacturer": "Ligier",
+    "manufacturerLogoAvailable": true,
+    "category": "LMP3 Prototype",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated V8",
+      "displacement": "5.6L",
+      "horsepower": 460,
+      "torque": "N/A",
+      "weight": 950,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["IMSA Michelin Pilot Challenge", "Various LMP3 championships"],
+      "notableWins": ["Multiple LMP3 wins"],
+      "championshipHistory": "Competitive LMP3 platform"
+    },
+    "drivingCharacteristics": {
+      "description": "Responsive naturally-aspirated V8. Good power delivery. Lightweight, agile handling. Good high-speed stability. Mid-engine balance.",
+      "understeerTendency": "Balanced, responsive",
+      "brakeFeel": "Strong braking capacity"
+    },
+    "notableDrivers": ["Various LMP3 drivers"],
+    "manufacturerHistory": {
+      "foundingYear": 1968,
+      "headquarters": "Dieppe, France",
+      "racingHeritage": "Historic sports car and prototype manufacturer. Multiple championship chassis. Strong engineering reputation.",
+      "notableRoadCars": "Ligier JS models (limited production)"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["LMP3 Championship", "Endurance Events"],
+      "setupTraits": "Agile platform, responsive to aero, good tire warm-up characteristics"
+    }
+  },
+  {
+    "id": "global-mazda-mx-5-cup",
+    "officialName": "Global Mazda MX-5 Cup",
+    "manufacturer": "Mazda",
+    "manufacturerLogoAvailable": true,
+    "category": "Sports Car / Cup Car",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated I4",
+      "displacement": "2.0L",
+      "horsepower": 155,
+      "torque": "N/A",
+      "weight": 892,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["Mazda MX-5 Cup", "Road racing series"],
+      "notableWins": ["Multiple Mazda Cup wins"],
+      "championshipHistory": "Mazda's entry-level racing platform"
+    },
+    "drivingCharacteristics": {
+      "description": "Responsive naturally-aspirated engine. Lightweight platform with excellent power-to-weight ratio. Sharp handling. Good tire feedback. Precise steering inputs rewarded.",
+      "understeerTendency": "Responsive, slightly rotation-biased",
+      "brakeFeel": "Progressive, good modulation"
+    },
+    "notableDrivers": ["Various MX-5 Cup drivers"],
+    "manufacturerHistory": {
+      "foundingYear": 1920,
+      "headquarters": "Hiroshima, Japan",
+      "racingHeritage": "Iconic MX-5 roadster with decades of racing success. Strong enthusiast racing presence. Le Mans prototypes.",
+      "notableRoadCars": "MX-5 Miata, CX-5, CX-9, Mazda3"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "D",
+      "seriesAvailable": ["Global Mazda MX-5 Cup", "Advanced Mazda Cup"],
+      "setupTraits": "Lightweight, responsive platform, rewards smooth inputs, good beginner learning car"
+    }
+  },
+  {
+    "id": "porsche-911-cup-992",
+    "officialName": "Porsche 911 Cup (992)",
+    "manufacturer": "Porsche",
+    "manufacturerLogoAvailable": true,
+    "category": "One-Make Cup Car",
+    "realWorldSpecs": {
+      "engineType": "Naturally-Aspirated Flat-Six",
+      "displacement": "4.0L",
+      "horsepower": 510,
+      "torque": "N/A",
+      "weight": 1260,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["Porsche Carrera Cup", "Porsche one-make championships"],
+      "notableWins": ["Multiple Porsche Cup wins"],
+      "championshipHistory": "Porsche's official one-make cup car"
+    },
+    "drivingCharacteristics": {
+      "description": "Naturally-aspirated flat-six with immediate response. Well-balanced chassis. Good turn-in. Predictable handling. Porsche 911 heritage character.",
+      "understeerTendency": "Balanced, responds to setup",
+      "brakeFeel": "Strong, progressive braking"
+    },
+    "notableDrivers": ["Various Carrera Cup drivers"],
+    "manufacturerHistory": {
+      "foundingYear": 1948,
+      "headquarters": "Stuttgart/Zuffenhausen, Germany",
+      "racingHeritage": "19 Le Mans 24 Hours wins. 30,000+ Porsche 911 race wins. Iconic racing brand.",
+      "notableRoadCars": "911, 911 Turbo, 911 Dakar, 992 variants"
+    },
+    "iRacingNotes": {
+      "licenseLevel": "A",
+      "seriesAvailable": ["Porsche Cup Series", "Special Events"],
+      "setupTraits": "Balanced platform, good tire warm-up, responsive to aero adjustments"
+    }
+  },
+  {
+    "id": "fia-f4-tatuus",
+    "officialName": "FIA F4 (Tatuus T-014)",
+    "manufacturer": "FIA",
+    "manufacturerLogoAvailable": true,
+    "category": "Single-seater Formula",
+    "realWorldSpecs": {
+      "engineType": "Naturally aspirated 4-cyl",
+      "displacement": "1.4L",
+      "horsepower": 160,
+      "torque": "N/A",
+      "weight": 570,
+      "drivetrain": "RWD"
+    },
+    "realWorldHistory": {
+      "series": ["FIA Formula 4 Championships (regional)"],
+      "notableWins": [],
+      "championshipHistory": "Entry-level open-wheel category sanctioned by the FIA, used in regional F4 championships worldwide."
+    },
+    "drivingCharacteristics": {
+      "description": "Lightweight open-wheel chassis with a sealed Abarth four-cylinder. Sharp, low-grip platform that rewards smooth inputs and consistent braking.",
+      "understeerTendency": "Neutral with slight push under power",
+      "brakeFeel": "Firm pedal, short travel, requires deliberate trail-braking"
+    },
+    "notableDrivers": [],
+    "manufacturerHistory": {
+      "foundingYear": 1904,
+      "headquarters": "Paris, France",
+      "racingHeritage": "Federation Internationale de l'Automobile — global motorsport governing body. F4 is the standardized junior open-wheel category.",
+      "notableRoadCars": ""
+    },
+    "iRacingNotes": {
+      "licenseLevel": "D",
+      "seriesAvailable": ["iRacing Formula 4 Challenge"],
+      "setupTraits": "Mostly fixed-setup category; focus on driving line and tyre management."
+    }
+  }
+]

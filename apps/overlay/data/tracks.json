@@ -1,0 +1,2093 @@
+[
+  {
+    "id": "spa-francorchamps",
+    "name": "Circuit de Spa-Francorchamps",
+    "location": {
+      "city": "Stavelot",
+      "region": "Wallonia",
+      "country": "Belgium"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 4.35,
+        "kilometers": 7.0
+      },
+      "turns": 19,
+      "banking": "0-4 degrees in turns, 0 degrees on straightaways",
+      "seatingCapacity": 110000
+    },
+    "history": {
+      "yearBuilt": 1920,
+      "notableRaces": [
+        "Belgian Grand Prix (Formula 1)",
+        "World Endurance Championship",
+        "FIA World Touring Car Championship"
+      ],
+      "historicalNotes": "Originally 15km over public roads in Ardennes region. Hairpin eliminated at Eau Rouge creek. Reconfigured for safety concerns in 1980s. Continues to evolve."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Eau Rouge corner - high-speed left-right combination",
+        "Blanchimont - fast sweeper",
+        "La Source - opening hairpin"
+      ],
+      "elevationChanges": "Significant elevation changes through Ardennes Mountains",
+      "surfaceType": "asphalt",
+      "description": "Longest lap of all current F1 circuits. High speeds, technical corners, weather-dependent conditions."
+    },
+    "cornerByCornerNotes": {
+      "eau_rouge": "Iconic high-speed left-right combination following the long Mulsanne straight. Requires commitment and precise line.",
+      "blanchimont": "Fast sweeping right-hander in the high-speed section",
+      "la_source": "Tight opening hairpin after the opening straight"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "2021-2022 safety updates"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "iRacing Formula Pro Series",
+        "IMSA GT3",
+        "Porsche Carrera Cup",
+        "GT World Challenge"
+      ],
+      "difficulty": "Advanced - high-speed layout, elevation changes, weather sensitivity",
+      "price": "$14.95 USD",
+      "configurations": 7
+    }
+  },
+  {
+    "id": "silverstone",
+    "name": "Silverstone Circuit",
+    "location": {
+      "city": "Silverstone",
+      "region": "Northamptonshire",
+      "country": "United Kingdom"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 3.20,
+        "kilometers": 5.891
+      },
+      "turns": 18,
+      "banking": "0-4 degrees in turns",
+      "seatingCapacity": 140000
+    },
+    "history": {
+      "yearBuilt": 1948,
+      "notableRaces": [
+        "Formula 1 British Grand Prix (since 1950)",
+        "MotoGP",
+        "World Endurance Championship"
+      ],
+      "historicalNotes": "Originally RAF airfield, ad-hoc 2-mile race in 1947. Official opening 1948. Hosted inaugural F1 World Championship in 1950 (won by Giuseppe Farina). Major reconfiguration 2010-2011 with Arena section."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Copse - high-speed right-hander",
+        "Maggotts-Becketts-Chapel complex - technical section",
+        "Stowe - fast sweeper",
+        "Village-Loop-Aintree - Arena section for overtaking"
+      ],
+      "elevationChanges": "Moderate elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Historic F1 circuit with high-speed character. Recently modified Arena section provides modern overtaking opportunities while maintaining legendary sections like Copse and Stowe."
+    },
+    "cornerByCornerNotes": {
+      "copse": "High-speed right-hander at circuit entrance, iconic corner",
+      "maggotts_becketts_chapel": "Technical complex combining multiple direction changes at speed",
+      "stowe": "Fast left-hand sweeper, top speed corner",
+      "village_loop_aintree": "Modern Arena section added 2010-2011 for overtaking"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Arena section added 2010-2011, various safety improvements"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "iRacing Formula Pro Series",
+        "Porsche Carrera Cup",
+        "GT World Challenge",
+        "IndyCar Road"
+      ],
+      "difficulty": "Intermediate - historical high-speed layout with modern overtaking areas",
+      "price": "$14.95 USD",
+      "configurations": 5
+    }
+  },
+  {
+    "id": "watkins-glen",
+    "name": "Watkins Glen International",
+    "location": {
+      "city": "Watkins Glen",
+      "region": "New York",
+      "country": "United States"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 3.45,
+        "kilometers": 5.55
+      },
+      "turns": 11,
+      "banking": "6-10 degrees in turns",
+      "seatingCapacity": 50000
+    },
+    "history": {
+      "yearBuilt": 1956,
+      "notableRaces": [
+        "Formula 1 United States Grand Prix (1961-1980)",
+        "IndyCar",
+        "NASCAR Cup Series",
+        "IMSA",
+        "MotoGP"
+      ],
+      "historicalNotes": "Opened in 1956 on public roads. Originally 6.6 miles on highway. Boot section added in 1971 for safety. Reconfigured multiple times for safety improvements."
+    },
+    "characteristics": {
+      "notable_features": [
+        "The 90 (Turn 1) - right-hander, passing zone",
+        "The Esses (Turns 2-4) - series of sweeping turns",
+        "The Boot (Turns 9-10) - hammerhead up-and-downhill section added 1971",
+        "The Inner Loop - bus-stop chicane on both layouts"
+      ],
+      "elevationChanges": "Great elevation changes throughout",
+      "surfaceType": "asphalt",
+      "description": "Historic American road course with excellent elevation changes and technical sections. Notable for The Boot's unique uphill-downhill design."
+    },
+    "cornerByCornerNotes": {
+      "the_90": "Turn 1 right-hander, good passing opportunity on entry to back straight",
+      "the_esses": "Turns 2-4 fast sweeping apexes flowing onto back straight",
+      "the_boot": "Hammerhead turns 9-10 with unique elevation change, added for safety",
+      "inner_loop": "Bus-stop chicane configuration on both long and short layouts"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Full rescan and updates 2022 Season 1"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "IMSA Esports Global Championship",
+        "Porsche TAG Heuer Esports Supercup",
+        "IndyCar Series",
+        "Touring Cars"
+      ],
+      "difficulty": "Intermediate - good elevation changes, multiple layouts, technical boot section",
+      "price": "$14.95 USD",
+      "configurations": 4
+    }
+  },
+  {
+    "id": "laguna-seca",
+    "name": "WeatherTech Raceway Laguna Seca",
+    "location": {
+      "city": "Salinas",
+      "region": "California",
+      "country": "United States"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.238,
+        "kilometers": 3.602
+      },
+      "turns": 11,
+      "banking": "0-4 degrees in turns",
+      "seatingCapacity": 25000
+    },
+    "history": {
+      "yearBuilt": 1957,
+      "notableRaces": [
+        "MotoGP (1982-2023)",
+        "IndyCar",
+        "IMSA",
+        "Formula Drift"
+      ],
+      "historicalNotes": "Opened in 1957 on former Fort Ord military base. Known for producing excellent road racing. Home to MotoGP for decades."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Corkscrew (Turns 8-8A) - famous 130m downward slope with 33m elevation change",
+        "The Esses - technical section",
+        "Rahal Straight - high-speed section"
+      ],
+      "elevationChanges": "180 feet (55 meters) total elevation change between highest and lowest points",
+      "surfaceType": "asphalt",
+      "description": "Famous for the Corkscrew, one of the most challenging corners in racing. Elevation changes make it unique and difficult."
+    },
+    "cornerByCornerNotes": {
+      "corkscrew": "Turns 8-8A: 130-meter downward slope with 59-foot drop between entry and exit. 12% drop at Turn 8 apex, 18% at Turn 8A apex. One of racing's most feared corners.",
+      "the_esses": "Technical section combining multiple direction changes",
+      "rahal_straight": "High-speed section allowing for good speeds"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Various safety and facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "IMSA Esports",
+        "Formula Pro Series",
+        "Porsche Carrera Cup",
+        "GT World Challenge"
+      ],
+      "difficulty": "Advanced - Corkscrew is notoriously difficult, elevation changes significant",
+      "price": "$14.95 USD",
+      "configurations": 2
+    }
+  },
+  {
+    "id": "road-america",
+    "name": "Road America",
+    "location": {
+      "city": "Elkhart Lake",
+      "region": "Wisconsin",
+      "country": "United States"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 4.048,
+        "kilometers": 6.515
+      },
+      "turns": 14,
+      "banking": "0-4 degrees in turns",
+      "seatingCapacity": 150000
+    },
+    "history": {
+      "yearBuilt": 1955,
+      "notableRaces": [
+        "IndyCar (since 1982)",
+        "IMSA",
+        "SCCA Sports Cars",
+        "Can-Am",
+        "Trans-Am"
+      ],
+      "historicalNotes": "Opened 1955 in Kettle Moraine region. Built by Cliff Tufte as 14-turn, 4-mile circuit. Maintained original configuration - one of few circuits doing so."
+    },
+    "characteristics": {
+      "notable_features": [
+        "The Kink - famous backside corner with optional chicane",
+        "Turn 1 - long corner into frontstretch",
+        "Various elevation changes"
+      ],
+      "elevationChanges": "Moderate elevation changes throughout",
+      "surfaceType": "asphalt",
+      "description": "Classic American road course with high speeds, especially on front straight (approaching 200mph). Long lap provides good racing."
+    },
+    "cornerByCornerNotes": {
+      "the_kink": "Famous backside turn with optional chicane configuration on second layout",
+      "front_straight": "Long frontstretch allowing speeds approaching 200 mph",
+      "turn_1": "Long right-hand corner leading onto front straight"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Various facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "IndyCar Series",
+        "Formula Pro Series",
+        "Porsche Carrera Cup",
+        "GT World Challenge",
+        "IMSA"
+      ],
+      "difficulty": "Intermediate - good speeds but manageable for most skill levels",
+      "price": "$14.95 USD",
+      "configurations": 2
+    }
+  },
+  {
+    "id": "daytona",
+    "name": "Daytona International Speedway",
+    "location": {
+      "city": "Daytona Beach",
+      "region": "Florida",
+      "country": "United States"
+    },
+    "trackType": "oval superspeedway",
+    "specifications": {
+      "length": {
+        "miles": 2.5,
+        "kilometers": 4.023
+      },
+      "turns": 4,
+      "banking": "31 degrees in turns, 18 degrees on straightaways",
+      "seatingCapacity": 101500
+    },
+    "history": {
+      "yearBuilt": 1959,
+      "notableRaces": [
+        "NASCAR Daytona 500",
+        "IndyCar",
+        "IMSA 24 Hours of Daytona"
+      ],
+      "historicalNotes": "Opened 1959 as America's first superspeedway. Hosted Daytona 500 since 1959. Repaved in 2011, changing racing characteristics significantly."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Tri-oval configuration",
+        "High banking enabling high speeds",
+        "Long straightaways"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "asphalt",
+      "description": "Legendary superspeedway known for high speeds and pack racing. Steep banking (31 degrees) allows speeds approaching 200 mph."
+    },
+    "cornerByCornerNotes": {
+      "turn_1": "Highly banked right-hand turn, beginning of tri-oval",
+      "turn_3": "Highly banked left-hand turn, critical passing zone",
+      "frontstretch": "3,800 feet long, high-speed zone",
+      "backstretch": "3,000 feet long, called superstretch"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Repaved 2011, major facility renovations ongoing"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "NASCAR Cup Series",
+        "IMSA Esports",
+        "IndyCar"
+      ],
+      "difficulty": "Intermediate - pack racing, high speeds, tire management critical",
+      "price": "Included/varies",
+      "configurations": 2,
+      "specialNotes": "Both 2008 and 2011 repave versions available"
+    }
+  },
+  {
+    "id": "indianapolis",
+    "name": "Indianapolis Motor Speedway",
+    "location": {
+      "city": "Indianapolis",
+      "region": "Indiana",
+      "country": "United States"
+    },
+    "trackType": "oval superspeedway",
+    "specifications": {
+      "length": {
+        "miles": 2.5,
+        "kilometers": 4.023
+      },
+      "turns": 4,
+      "banking": "9 degrees 12 minutes in turns, flat straights",
+      "seatingCapacity": 235000
+    },
+    "history": {
+      "yearBuilt": 1909,
+      "notableRaces": [
+        "Indianapolis 500 (since 1911)",
+        "IndyCar",
+        "NASCAR"
+      ],
+      "historicalNotes": "Opened 1909. Hosted first Indy 500 in 1911. Most prestigious American racing event. Rectangular superspeedway design."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Rectangular layout",
+        "Two 0.625 mile straightaways",
+        "Four 0.250 mile turns",
+        "Low banking relative to Daytona"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "asphalt",
+      "description": "America's most famous racing venue. Rectangular shape with relatively flat banking makes it unique. Home of the Indy 500."
+    },
+    "cornerByCornerNotes": {
+      "turn_1": "Turn 1, 9-degree banking, start of first short chute",
+      "turn_2": "Turn 2, 9-degree banking, end of front straight",
+      "short_chute_1": "0.125 mile short chute between turns 1 and 2",
+      "short_chute_2": "0.125 mile short chute between turns 3 and 4"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Ongoing facility improvements, new road course added"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "IndyCar Series",
+        "NASCAR",
+        "Road to Indy"
+      ],
+      "difficulty": "Intermediate - distinctive rectangular shape, good racing surface",
+      "price": "Included/varies",
+      "configurations": 7,
+      "specialNotes": "Includes oval and road course configurations"
+    }
+  },
+  {
+    "id": "nurburgring-nordschleife",
+    "name": "Nürburgring Nordschleife",
+    "location": {
+      "city": "Nürburg",
+      "region": "Rhineland-Palatinate",
+      "country": "Germany"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 12.94,
+        "kilometers": 20.82
+      },
+      "turns": 154,
+      "banking": "0 degrees",
+      "seatingCapacity": 80000
+    },
+    "history": {
+      "yearBuilt": 1927,
+      "notableRaces": [
+        "German Grand Prix (1927-1976, 1984-1991)",
+        "MotoGP",
+        "World Touring Car Championship",
+        "VLN Endurance Series"
+      ],
+      "historicalNotes": "Built 1927. Also known as Green Hell. One of world's most demanding road courses. Natural undulating terrain through Eifel Mountains."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Hatzenbach section",
+        "Adenauer Forst corner",
+        "Wehrseifen",
+        "Karussell - famous banked left hander",
+        "Pflanzgarten",
+        "Schwalbenschwanz",
+        "Subway section"
+      ],
+      "elevationChanges": "Nearly 1,000 feet elevation gain/loss per lap",
+      "surfaceType": "asphalt",
+      "description": "World's most demanding road course. Twists and turns through Eifel Mountains for nearly 13 miles with extreme elevation changes. Natural terrain creates blind corners and constant direction changes."
+    },
+    "cornerByCornerNotes": {
+      "hatzenbach": "Opening section establishing the circuit's demanding character",
+      "adenauer_forst": "Quick downhill section through forest",
+      "karussell": "Famous banked left-hand corner, must be respected",
+      "pflanzgarten": "Fast section following Karussell",
+      "subway": "Underpass section, unique feature"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Ongoing safety improvements, regularly maintained"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Porsche Carrera Cup",
+        "RUF Challenge",
+        "GT World Challenge"
+      ],
+      "difficulty": "Expert - longest circuit in iRacing, extreme elevation, 154 turns, very demanding",
+      "price": "$14.95 USD",
+      "configurations": 2,
+      "specialNotes": "Separated from Grand-Prix-Strecke. Extreme test of skill and car control."
+    }
+  },
+  {
+    "id": "suzuka",
+    "name": "Suzuka International Racing Course",
+    "location": {
+      "city": "Suzuka",
+      "region": "Mie Prefecture",
+      "country": "Japan"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 3.617,
+        "kilometers": 5.821
+      },
+      "turns": 17,
+      "banking": "0-6 degrees in turns",
+      "seatingCapacity": 155000
+    },
+    "history": {
+      "yearBuilt": 1962,
+      "notableRaces": [
+        "Formula 1 Japanese Grand Prix",
+        "Super Formula",
+        "Super GT",
+        "MotoGP"
+      ],
+      "historicalNotes": "Opened 1962, originally Honda test track. Designed by John Hugenholtz. Unique figure-8 layout causes track to cross over itself."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Figure-8 layout - rare crossing design",
+        "First corner complex (130R)",
+        "Spoon Curve",
+        "Final chicane",
+        "Multiple esses"
+      ],
+      "elevationChanges": "Moderate elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Unique figure-8 layout with track crossing over itself via overpass. Honda-owned facility. Technical mix of high-speed and slow corners."
+    },
+    "cornerByCornerNotes": {
+      "130r": "Fast sweeping right-hander, demanding corner in final section",
+      "spoon_curve": "Multi-apex sweeping left-hander, technical section",
+      "chicane": "Final chicane before finish line",
+      "first_esses": "Testing series of esses at circuit start"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Various facility updates"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Super Formula Lights",
+        "GT World Challenge",
+        "Toyota GR86"
+      ],
+      "difficulty": "Advanced - figure-8 layout unique, multi-apex corners demanding",
+      "price": "$14.95 USD",
+      "configurations": 5
+    }
+  },
+  {
+    "id": "bathurst",
+    "name": "Mount Panorama Motor Racing Circuit",
+    "location": {
+      "city": "Bathurst",
+      "region": "New South Wales",
+      "country": "Australia"
+    },
+    "trackType": "road course / street circuit",
+    "specifications": {
+      "length": {
+        "miles": 3.86,
+        "kilometers": 6.212
+      },
+      "turns": 23,
+      "banking": "0-8 degrees in turns",
+      "seatingCapacity": 57939
+    },
+    "history": {
+      "yearBuilt": 1938,
+      "notableRaces": [
+        "Bathurst 1000 (touring cars)",
+        "Bathurst 12 Hour (GT)",
+        "Supercars Championship"
+      ],
+      "historicalNotes": "First race 1938. Uses public roadways when not racing. Added as iRacing newest facility November 2013. 570ft/174m vertical difference between high and low points."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Mt Panorama climb - steep hill section",
+        "Conrod Straight - high-speed downhill section",
+        "Skyline - famous high-speed section",
+        "Dipper corner - downhill right-hander",
+        "Chase - technical section"
+      ],
+      "elevationChanges": "570 feet (174 meters) total elevation change, very steep",
+      "surfaceType": "asphalt",
+      "description": "Most treacherous circuit due to excessive steepness. Combines public road characteristics with racing. Famous for dramatic elevation changes and high-speed sections downhill."
+    },
+    "cornerByCornerNotes": {
+      "mt_panorama_climb": "Famous uphill section starting circuit",
+      "conrod_straight": "High-speed downhill section, critical",
+      "skyline": "Fast right-hander at elevation, iconic section",
+      "dipper": "Downhill right-hander, challenging braking zone",
+      "chase": "Technical section requiring precision"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Various facility improvements for racing"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Bathurst 12 Hour",
+        "GT World Challenge",
+        "Porsche Carrera Cup",
+        "Ferrari Challenge"
+      ],
+      "difficulty": "Expert - extreme elevation changes, public road characteristics, technical and high-speed sections",
+      "price": "$14.95 USD",
+      "configurations": 1
+    }
+  },
+  {
+    "id": "circuit-of-americas",
+    "name": "Circuit of the Americas",
+    "location": {
+      "city": "Austin",
+      "region": "Texas",
+      "country": "United States"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 3.427,
+        "kilometers": 5.515
+      },
+      "turns": 20,
+      "banking": "0 degrees",
+      "seatingCapacity": 120000
+    },
+    "history": {
+      "yearBuilt": 2012,
+      "notableRaces": [
+        "Formula 1 United States Grand Prix (since 2012)",
+        "IndyCar",
+        "MotoGP",
+        "IMSA"
+      ],
+      "historicalNotes": "Designed by Hermann Tilke. Designed December 2010, FIA approval September 2012, first F1 race 60 days later. Built on ~900 acres near Austin."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Turn 1 - signature tight hairpin at 133ft elevation crest",
+        "Turns 3-9 - flowing esses section",
+        "Turn 15 - flat-out high-speed left",
+        "Technical back section"
+      ],
+      "elevationChanges": "133 feet elevation gain at Turn 1",
+      "surfaceType": "asphalt",
+      "description": "Modern circuit designed for multiple racing series. Signature Turn 1 at elevation provides unique challenge. Mix of technical and high-speed sections."
+    },
+    "cornerByCornerNotes": {
+      "turn_1": "Tight hairpin at 133-foot elevation crest, signature corner requiring precision",
+      "esses": "Turns 3-9 flowing technical section",
+      "turn_15": "Flat-out high-speed left-hander, critical corner"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Scheduled for complete art overhaul in 2025"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "IndyCar",
+        "Porsche Carrera Cup",
+        "GT World Challenge"
+      ],
+      "difficulty": "Intermediate - modern design, good racing, turn 1 hairpin challenging",
+      "price": "$14.95 USD",
+      "configurations": 3
+    }
+  },
+  {
+    "id": "le-mans",
+    "name": "Circuit des 24 Heures du Mans",
+    "location": {
+      "city": "Le Mans",
+      "region": "Pays de la Loire",
+      "country": "France"
+    },
+    "trackType": "road course / endurance circuit",
+    "specifications": {
+      "length": {
+        "miles": 8.47,
+        "kilometers": 13.63
+      },
+      "turns": 33,
+      "banking": "0 degrees",
+      "seatingCapacity": 240000
+    },
+    "history": {
+      "yearBuilt": 1923,
+      "notableRaces": [
+        "24 Hours of Le Mans (since 1923)",
+        "FIA World Endurance Championship",
+        "Michelin Le Mans Cup"
+      ],
+      "historicalNotes": "1920s original was 10.7 miles. 1932 bypass eliminated triangular loop into town, reducing to 8.3 miles. Pit straightaway widened after 1955 disaster (83 deaths). Porsche Curves and Ford Chicanes added 1970s."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Mulsanne Straight - long high-speed straight",
+        "Porsche Curves - technical high-speed section",
+        "Ford Chicanes - slow chicanes approach pits",
+        "Tertre Rouge",
+        "Indianapolis corner"
+      ],
+      "elevationChanges": "Minimal elevation changes",
+      "surfaceType": "asphalt",
+      "description": "World's most famous endurance race venue. Long high-speed straights combined with technical chicanes. Demands car balance for both speed and fuel economy."
+    },
+    "cornerByCornerNotes": {
+      "mulsanne_straight": "Long high-speed straight, famous for top speeds in endurance racing",
+      "porsche_curves": "Technical high-speed section following Mulsanne",
+      "ford_chicanes": "Mandatory slow chicanes before pits for safety",
+      "tertre_rouge": "Technical section after pit straight",
+      "indianapolis": "Right-hand turn, technical section"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Various safety improvements ongoing"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "IMSA Esports",
+        "24 Hours of Le Mans special event",
+        "GT World Challenge"
+      ],
+      "difficulty": "Advanced - long endurance circuit, fuel/tire management critical, demanding race format",
+      "price": "$14.95 USD",
+      "configurations": 2,
+      "specialNotes": "Special 24-hour endurance race events held annually"
+    }
+  },
+  {
+    "id": "brands-hatch",
+    "name": "Brands Hatch Circuit",
+    "location": {
+      "city": "West Kingsdown",
+      "region": "Kent",
+      "country": "United Kingdom"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.433,
+        "kilometers": 3.916
+      },
+      "turns": 9,
+      "banking": "0 degrees",
+      "seatingCapacity": 40000
+    },
+    "history": {
+      "yearBuilt": 1950,
+      "notableRaces": [
+        "Formula 1 British Grand Prix (multiple times)",
+        "Formula 2",
+        "Touring Cars",
+        "Motorcycle racing"
+      ],
+      "historicalNotes": "1920s motorcycle events on 3/4 mile dirt track. Post-WWII paved and modified with Druids hairpin. 1959 added mile of track for 2.3 mile full circuit. Indy circuit uses original 1.2 mile track."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Druids Bend - hairpin corner",
+        "Clearways - fast section",
+        "Pilgrims Drop - fast downhill right",
+        "Dramatic elevation changes"
+      ],
+      "elevationChanges": "Significant elevation changes throughout",
+      "surfaceType": "asphalt",
+      "description": "Historic circuit 30 miles southeast of London. Dramatic elevation changes and challenging mixture of fast, slow and medium-speed corners. Millimeter-accurate recreation in iRacing."
+    },
+    "cornerByCornerNotes": {
+      "druids_bend": "Hairpin corner, technical section",
+      "clearways": "Fast right-hand section",
+      "pilgrims_drop": "Fast downhill right-hander, challenging"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Various facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Porsche Carrera Cup",
+        "Touring Car",
+        "Rallycross"
+      ],
+      "difficulty": "Intermediate - elevation changes significant, Druids hairpin technical, good racing",
+      "price": "$14.95 USD",
+      "configurations": 2,
+      "specialNotes": "Includes Indy (1.2 mi) and Grand Prix (2.4 mi) layouts. Rallycross configuration available."
+    }
+  },
+  {
+    "id": "bristol",
+    "name": "Bristol Motor Speedway",
+    "location": {
+      "city": "Bristol",
+      "region": "Tennessee",
+      "country": "United States"
+    },
+    "trackType": "oval short track",
+    "specifications": {
+      "length": {
+        "miles": 0.533,
+        "kilometers": 0.858
+      },
+      "turns": 4,
+      "banking": "24-28 degrees variable in turns, 5-9 degrees on frontstretch, 4-8 degrees on backstretch",
+      "seatingCapacity": 30127
+    },
+    "history": {
+      "yearBuilt": 1961,
+      "notableRaces": [
+        "NASCAR Cup Series",
+        "Truck Series",
+        "Xfinity Series"
+      ],
+      "historicalNotes": "Opened 1961. High-banked short track known for intense fender-banging racing. Notable for variable banking design allowing steep banking with minimal speed loss between corners."
+    },
+    "characteristics": {
+      "notable_features": [
+        "300-yard wide corners",
+        "All-concrete surface",
+        "High banking",
+        "40-foot racing surface width"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "concrete",
+      "description": "Tightest oval in NASCAR Cup Series. Concrete surface provides excellent traction. Variable banking design unique. Known for side-by-side racing and frequent contact."
+    },
+    "cornerByCornerNotes": {
+      "turns_1_2": "Variable banking 24-28 degrees, steep design",
+      "turns_3_4": "Variable banking, challenging exits"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Full art overhaul 2025"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "NASCAR Cup Series",
+        "Truck Series",
+        "Xfinity Series"
+      ],
+      "difficulty": "Intermediate - tight oval, aggressive racing, concrete surface, side-by-side challenges",
+      "price": "Included/varies",
+      "configurations": 2,
+      "specialNotes": "Asphalt and dirt variants available"
+    }
+  },
+  {
+    "id": "charlotte",
+    "name": "Charlotte Motor Speedway",
+    "location": {
+      "city": "Concord",
+      "region": "North Carolina",
+      "country": "United States"
+    },
+    "trackType": "oval superspeedway",
+    "specifications": {
+      "length": {
+        "miles": 1.5,
+        "kilometers": 2.414
+      },
+      "turns": 4,
+      "banking": "24 degrees in turns, 5 degrees on straightaways",
+      "seatingCapacity": 95000
+    },
+    "history": {
+      "yearBuilt": 1960,
+      "notableRaces": [
+        "NASCAR Coca-Cola 600",
+        "NASCAR Cup Series"
+      ],
+      "historicalNotes": "Opened 1960. Quad-oval configuration. Modern facility with various configurations for different racing types."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Quad-oval configuration",
+        "24-degree banking",
+        "Wide racing surface"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "asphalt",
+      "description": "Quad-oval intermediate speedway hosting major NASCAR events. 24-degree banking provides good racing with multiple grooves."
+    },
+    "cornerByCornerNotes": {
+      "turn_1": "Banked right-hand turn",
+      "turn_3": "Banked left-hand turn"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Roval configuration added, facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "NASCAR Cup Series",
+        "Truck Series"
+      ],
+      "difficulty": "Intermediate - quad-oval configuration, good racing surface, 24-degree banking",
+      "price": "Included/varies",
+      "configurations": 2,
+      "specialNotes": "Includes oval and Roval (road/oval hybrid) configurations"
+    }
+  },
+  {
+    "id": "las-vegas",
+    "name": "Las Vegas Motor Speedway",
+    "location": {
+      "city": "Las Vegas",
+      "region": "Nevada",
+      "country": "United States"
+    },
+    "trackType": "oval intermediate speedway",
+    "specifications": {
+      "length": {
+        "miles": 1.5,
+        "kilometers": 2.414
+      },
+      "turns": 4,
+      "banking": "20 degrees graduated banking",
+      "seatingCapacity": 136000
+    },
+    "history": {
+      "yearBuilt": 1996,
+      "notableRaces": [
+        "NASCAR Cup Series",
+        "Truck Series",
+        "IndyCar"
+      ],
+      "historicalNotes": "Opened 1996. Major renovation 2006 increased banking from 12 to 20 degrees. Progressive banking design modern."
+    },
+    "characteristics": {
+      "notable_features": [
+        "D-shaped oval",
+        "Progressive banking",
+        "Wide racing surface",
+        "Modern facility"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "asphalt",
+      "description": "Modern D-shaped oval with progressive banking promoting side-by-side racing while maintaining intermediate speedway characteristics."
+    },
+    "cornerByCornerNotes": {
+      "turn_1_2": "Progressively banked right-hand turns",
+      "turn_3_4": "Progressively banked left-hand turns"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Full art overhaul 2025, facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "NASCAR Cup Series",
+        "Truck Series",
+        "IndyCar"
+      ],
+      "difficulty": "Intermediate - graduated banking, good side-by-side racing, modern design",
+      "price": "Included/varies",
+      "configurations": 2
+    }
+  },
+  {
+    "id": "michigan",
+    "name": "Michigan International Speedway",
+    "location": {
+      "city": "Brooklyn",
+      "region": "Michigan",
+      "country": "United States"
+    },
+    "trackType": "oval superspeedway",
+    "specifications": {
+      "length": {
+        "miles": 2.0,
+        "kilometers": 3.22
+      },
+      "turns": 4,
+      "banking": "18 degrees in turns, 12 degrees on frontstretch, 5 degrees on backstretch",
+      "seatingCapacity": 56000
+    },
+    "history": {
+      "yearBuilt": 1969,
+      "notableRaces": [
+        "NASCAR Cup Series",
+        "IndyCar"
+      ],
+      "historicalNotes": "Opened 1969. D-shaped superspeedway with 73-foot wide racing surface. High banks and wide surface enable good racing."
+    },
+    "characteristics": {
+      "notable_features": [
+        "D-shaped oval",
+        "18-degree banking",
+        "73-foot wide racing surface",
+        "Two-mile length"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "asphalt",
+      "description": "Two-mile D-shaped superspeedway with 18-degree banking and wide racing surface. Allows multiple racing grooves and competitive racing."
+    },
+    "cornerByCornerNotes": {
+      "turn_1_2": "18-degree banked right-hand turns",
+      "turn_3_4": "18-degree banked left-hand turns"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "NASCAR Cup Series",
+        "IndyCar"
+      ],
+      "difficulty": "Intermediate - 18-degree banking, two-mile length, multiple grooves available",
+      "price": "Included/varies",
+      "configurations": 2
+    }
+  },
+  {
+    "id": "martinsville",
+    "name": "Martinsville Speedway",
+    "location": {
+      "city": "Martinsville",
+      "region": "Virginia",
+      "country": "United States"
+    },
+    "trackType": "oval short track",
+    "specifications": {
+      "length": {
+        "miles": 0.526,
+        "kilometers": 0.847
+      },
+      "turns": 4,
+      "banking": "12 degrees in turns, 0 degrees on straights",
+      "seatingCapacity": 32000
+    },
+    "history": {
+      "yearBuilt": 1947,
+      "notableRaces": [
+        "NASCAR Cup Series",
+        "Truck Series",
+        "Xfinity Series"
+      ],
+      "historicalNotes": "Opened 1947. Distinctive paperclip oval shape. One of shortest tracks in NASCAR. Historic venue with unique characteristics."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Paperclip shape",
+        "12-degree banking",
+        "Tight oval",
+        "Single groove racing"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "asphalt",
+      "description": "Shortest track in NASCAR with distinctive paperclip shape. Tight oval with 12-degree banking. Produces competitive wheel-to-wheel racing."
+    },
+    "cornerByCornerNotes": {
+      "turn_1_2": "12-degree banking tight turns",
+      "turn_3_4": "12-degree banking tight turns"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Various facility improvements"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "NASCAR Cup Series",
+        "Truck Series",
+        "Xfinity Series"
+      ],
+      "difficulty": "Beginner - shortest NASCAR track, paperclip shape, predictable racing",
+      "price": "$11.95 USD",
+      "configurations": 1
+    }
+  },
+  {
+    "id": "talladega",
+    "name": "Talladega Superspeedway",
+    "location": {
+      "city": "Talladega",
+      "region": "Alabama",
+      "country": "United States"
+    },
+    "trackType": "oval superspeedway",
+    "specifications": {
+      "length": {
+        "miles": 2.66,
+        "kilometers": 4.28
+      },
+      "turns": 4,
+      "banking": "33 degrees in turns",
+      "seatingCapacity": 80000
+    },
+    "history": {
+      "yearBuilt": 1969,
+      "notableRaces": [
+        "NASCAR Cup Series",
+        "Truck Series"
+      ],
+      "historicalNotes": "Opened 1969. Fastest closed-circuit motorsports facility in world. 33-degree banking highest in NASCAR."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Tri-oval configuration",
+        "33-degree banking",
+        "Fastest speeds",
+        "High-speed pack racing"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "asphalt",
+      "description": "World's fastest closed-circuit facility. Extreme 33-degree banking produces highest speeds in NASCAR. Pack racing strategy critical."
+    },
+    "cornerByCornerNotes": {
+      "turn_1_2": "33-degree banking, extremely high speed",
+      "turn_3_4": "33-degree banking, critical section"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Ongoing facility improvements"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "NASCAR Cup Series",
+        "Truck Series"
+      ],
+      "difficulty": "Advanced - fastest speeds, pack racing mandatory, high banking, strategy dependent",
+      "price": "$14.95 USD",
+      "configurations": 1
+    }
+  },
+  {
+    "id": "pocono",
+    "name": "Pocono Raceway",
+    "location": {
+      "city": "Long Pond",
+      "region": "Pennsylvania",
+      "country": "United States"
+    },
+    "trackType": "oval speedway",
+    "specifications": {
+      "length": {
+        "miles": 2.5,
+        "kilometers": 4.023
+      },
+      "turns": 3,
+      "banking": "Turn 1: 14 degrees, Turn 2: 8 degrees, Turn 3: 6 degrees",
+      "seatingCapacity": 80000
+    },
+    "history": {
+      "yearBuilt": 1971,
+      "notableRaces": [
+        "NASCAR Cup Series",
+        "IndyCar",
+        "Truck Series"
+      ],
+      "historicalNotes": "Opened 1971. Known as Tricky Triangle. Designed by Rodger Ward. Each turn borrowed from different track: Turn 1 from Trenton, Turn 2 from Indianapolis, Turn 3 from Milwaukee."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Tri-oval configuration",
+        "Unique three different turns",
+        "Longest straightaway in North America (3,740 feet)",
+        "Variable banking"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "asphalt",
+      "description": "Unique tri-oval with three completely different turns, each adapted from famous speedways. Longest straightaway in North America. Diverse banking angles create unique racing challenge."
+    },
+    "cornerByCornerNotes": {
+      "turn_1": "14-degree banking (Trenton design), longest corner",
+      "long_pond_straight": "3,055 feet between turns 1 and 2, longest",
+      "turn_2": "8-degree banking (Indianapolis design), tunnel turn",
+      "turn_3": "6-degree banking (Milwaukee design)"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "NASCAR Cup Series",
+        "IndyCar",
+        "Truck Series"
+      ],
+      "difficulty": "Advanced - three unique turns, each requiring different approach, variable banking makes setup critical",
+      "price": "$14.95 USD",
+      "configurations": 1,
+      "specialNotes": "Also known as Tricky Triangle"
+    }
+  },
+  {
+    "id": "eldora",
+    "name": "Eldora Speedway",
+    "location": {
+      "city": "Rossburg",
+      "region": "Ohio",
+      "country": "United States"
+    },
+    "trackType": "dirt oval short track",
+    "specifications": {
+      "length": {
+        "miles": 0.5,
+        "kilometers": 0.805
+      },
+      "turns": 4,
+      "banking": "24 degrees in turns, 8 degrees on straightaways",
+      "seatingCapacity": 30000
+    },
+    "history": {
+      "yearBuilt": 1954,
+      "notableRaces": [
+        "World of Outlaws Sprint Cars",
+        "Truck Series (once)"
+      ],
+      "historicalNotes": "Built 1954 by Earl Baltes on former Ohio cornfield. Home of World of Outlaws. Dirt oval demanding racecraft."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Half-mile dirt oval",
+        "24-degree banking",
+        "Clay surface",
+        "High-speed dirt racing"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "dirt clay",
+      "description": "Premier dirt oval for Sprint Cars and Midgets. Half-mile clay surface with 24-degree banking provides excellent racing conditions."
+    },
+    "cornerByCornerNotes": {
+      "turns_1_4": "24-degree banked turns, high-speed dirt racing"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Ongoing facility maintenance"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "World of Outlaws Sprint Cars",
+        "World of Outlaws Late Models",
+        "Midget Series"
+      ],
+      "difficulty": "Intermediate - dirt racing dynamics, 24-degree banking, tire management",
+      "price": "$11.95 USD",
+      "configurations": 1
+    }
+  },
+  {
+    "id": "knoxville",
+    "name": "Knoxville Raceway",
+    "location": {
+      "city": "Knoxville",
+      "region": "Iowa",
+      "country": "United States"
+    },
+    "trackType": "dirt oval short track",
+    "specifications": {
+      "length": {
+        "miles": 0.56,
+        "kilometers": 0.90
+      },
+      "turns": 4,
+      "banking": "7 degrees in turns",
+      "seatingCapacity": 21135
+    },
+    "history": {
+      "yearBuilt": 1926,
+      "notableRaces": [
+        "World of Outlaws Sprint Cars",
+        "Knoxville Nationals",
+        "Chili Bowl"
+      ],
+      "historicalNotes": "Opened 1926. Known as Sprint Car Capital of the World. Annual Chili Bowl prestigious sprint car event."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Half-mile dirt oval",
+        "7-degree banking",
+        "Dirt clay surface",
+        "Competitive racing"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "dirt clay",
+      "description": "Premier dirt oval for Sprint Cars. Half-mile with 7-degree banking. Home of prestigious Knoxville Nationals and Chili Bowl."
+    },
+    "cornerByCornerNotes": {
+      "turns_1_4": "7-degree banked turns, dirt racing"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Facility maintenance ongoing"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "World of Outlaws Sprint Cars",
+        "Sprint Car Racing"
+      ],
+      "difficulty": "Intermediate - dirt racing, 7-degree banking, tire management critical",
+      "price": "$11.95 USD",
+      "configurations": 1
+    }
+  },
+  {
+    "id": "long-beach",
+    "name": "Long Beach Street Circuit",
+    "location": {
+      "city": "Long Beach",
+      "region": "California",
+      "country": "United States"
+    },
+    "trackType": "street circuit",
+    "specifications": {
+      "length": {
+        "miles": 1.97,
+        "kilometers": 3.17
+      },
+      "turns": 11,
+      "banking": "0 degrees",
+      "seatingCapacity": 200000
+    },
+    "history": {
+      "yearBuilt": 1976,
+      "notableRaces": [
+        "IndyCar (since 1976)",
+        "Formula E",
+        "IMSA"
+      ],
+      "historicalNotes": "Opened 1976. Two-mile street circuit through coastal city. Encircles Long Beach Convention Center and Aquarium."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Street circuit format",
+        "11 tight turns",
+        "Coastal location",
+        "Mixed racing speeds"
+      ],
+      "elevationChanges": "Minimal",
+      "surfaceType": "asphalt",
+      "description": "Unique street circuit winding through Long Beach streets. 11 turns create continuous tight-loose-tight pattern. Demands precision and tire management."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "11 turns in rapid succession, demanding precision"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Annual facility updates for racing"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "IndyCar Series",
+        "IMSA Esports",
+        "Formula Pro",
+        "Porsche Carrera Cup"
+      ],
+      "difficulty": "Advanced - street circuit, tight corners, wall-to-wall racing, no margin for error",
+      "price": "$14.95 USD",
+      "configurations": 1
+    }
+  },
+  {
+    "id": "imola",
+    "name": "Autódromo Internazionale Enzo e Dino Ferrari (Imola)",
+    "location": {
+      "city": "Imola",
+      "region": "Emilia-Romagna",
+      "country": "Italy"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 3.07,
+        "kilometers": 4.941
+      },
+      "turns": 22,
+      "banking": "0-3 degrees in turns",
+      "seatingCapacity": 78000
+    },
+    "history": {
+      "yearBuilt": 1950,
+      "notableRaces": [
+        "Formula 1 Emilia Romagna Grand Prix",
+        "World Touring Car Championship",
+        "MotoGP"
+      ],
+      "historicalNotes": "Opened 1950. Retained original counterclockwise direction until 1972 when chicanes added for safety. One of few international circuits run counterclockwise."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Counterclockwise layout - rare",
+        "Technical chicanes",
+        "Mix of straights and corners",
+        "High-speed sections"
+      ],
+      "elevationChanges": "Moderate elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Challenging road course with technical chicanes and demanding corners. Unique counterclockwise direction. Mix of high-speed and slow sections."
+    },
+    "cornerByCornerNotes": {
+      "rivazza": "Technical chicane complex",
+      "various_sections": "Mix of demanding corners and straights"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Safety improvements ongoing"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Porsche Carrera Cup",
+        "GT World Challenge",
+        "Ferrari Challenge"
+      ],
+      "difficulty": "Advanced - technical chicanes, high-speed sections, demanding layout",
+      "price": "$14.95 USD",
+      "configurations": 2
+    }
+  },
+  {
+    "id": "zandvoort",
+    "name": "Circuit Park Zandvoort",
+    "location": {
+      "city": "Zandvoort",
+      "region": "North Holland",
+      "country": "Netherlands"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.684,
+        "kilometers": 4.321
+      },
+      "turns": 14,
+      "banking": "0 degrees (increased banking at Turns 3 and 14 in 2020)",
+      "seatingCapacity": 70000
+    },
+    "history": {
+      "yearBuilt": 1948,
+      "notableRaces": [
+        "Formula 1 Dutch Grand Prix (2021-present)",
+        "World Touring Car Championship",
+        "MotoGP"
+      ],
+      "historicalNotes": "Opened 1948. Designed by John Hugenholtz. Located along sand dunes near North Sea. 2020 banking added to turns 3 and 14 for F1 return."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Sand dunes location near North Sea",
+        "Tarzanbocht hairpin (Turn 1)",
+        "Banking added 2020",
+        "Testing mix of corners"
+      ],
+      "elevationChanges": "Minimal elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Unique sand dunes location. Straightaways, tight and medium-speed turns. 2020 banking addition modernized for F1 return while preserving character."
+    },
+    "cornerByCornerNotes": {
+      "tarzanbocht": "First-corner tight hairpin, opening challenge",
+      "turns_3_14": "2020 banking addition for F1 return"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "2020 banking modifications, FIA Grade 1 certification"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Porsche Carrera Cup",
+        "GT World Challenge"
+      ],
+      "difficulty": "Intermediate - sand dunes location unique, banking updates modern, good racing",
+      "price": "$14.95 USD",
+      "configurations": 9
+    }
+  },
+  {
+    "id": "hungaroring",
+    "name": "Hungaroring",
+    "location": {
+      "city": "Mogyoród",
+      "region": "Pest",
+      "country": "Hungary"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.722,
+        "kilometers": 4.381
+      },
+      "turns": 14,
+      "banking": "0 degrees",
+      "seatingCapacity": 50000
+    },
+    "history": {
+      "yearBuilt": 1986,
+      "notableRaces": [
+        "Formula 1 Hungarian Grand Prix (since 1986)",
+        "World Touring Car Championship",
+        "MotoGP"
+      ],
+      "historicalNotes": "Built 1986 in rapid eight months. Hosted first-ever F1 event in Eastern Europe. Located just outside Budapest."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Just one major straight",
+        "Complex selection of slow to medium-speed turns",
+        "Tight technical layout"
+      ],
+      "elevationChanges": "Minimal elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Technical circuit with only one significant straight. Complex corner combinations require precision. Tight layout limits high-speed sections."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "Complex selection of slow and medium-speed turns"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Safety improvements ongoing"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Porsche Carrera Cup",
+        "GT World Challenge"
+      ],
+      "difficulty": "Advanced - technical layout, limited passing, demanding precision",
+      "price": "$14.95 USD",
+      "configurations": 1
+    }
+  },
+  {
+    "id": "donington-park",
+    "name": "Donington Park Racing Circuit",
+    "location": {
+      "city": "Castle Donington",
+      "region": "Leicestershire",
+      "country": "United Kingdom"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.498,
+        "kilometers": 4.02
+      },
+      "turns": 12,
+      "banking": "0 degrees",
+      "seatingCapacity": 40000
+    },
+    "history": {
+      "yearBuilt": 1931,
+      "notableRaces": [
+        "Formula 1 Grand Prix (1937-1961, 1971-1972)",
+        "MotoGP",
+        "World Touring Car Championship",
+        "British Touring Car Championship",
+        "British Truck Championship"
+      ],
+      "historicalNotes": "Historic venue hosting multiple motorsport disciplines over decades. Well-established racing facility."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Historic racing venue",
+        "Elevation changes",
+        "Technical corners"
+      ],
+      "elevationChanges": "Moderate elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Historic circuit with diverse corner mix. Good elevation changes and technical sections. Multiple circuit configurations available."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "Mix of technical corners throughout"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Facility updates"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Porsche Carrera Cup",
+        "GT World Challenge"
+      ],
+      "difficulty": "Intermediate - elevation changes, technical sections, good racing",
+      "price": "$14.95 USD",
+      "configurations": 2
+    }
+  },
+  {
+    "id": "okayama",
+    "name": "Okayama International Circuit",
+    "location": {
+      "city": "Mimasaka",
+      "region": "Okayama Prefecture",
+      "country": "Japan"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.314,
+        "kilometers": 3.724
+      },
+      "turns": 11,
+      "banking": "0-7 degrees in turns",
+      "seatingCapacity": 33600
+    },
+    "history": {
+      "yearBuilt": 1994,
+      "notableRaces": [
+        "Japanese Formula 3",
+        "Super Formula Lights",
+        "Various endurance events"
+      ],
+      "historicalNotes": "Modern facility in Japan. Known for good racing surface and technical layout."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Technical layout",
+        "Good racing surface",
+        "Mix of corners"
+      ],
+      "elevationChanges": "Moderate elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Modern Japanese circuit with technical challenging layout. Supports dynamic weather and rain racing in iRacing."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "Mix of technical corners"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "2024 major rescan and art overhaul"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Mazda MX-5 Cup",
+        "Toyota GR86",
+        "GT World Challenge"
+      ],
+      "difficulty": "Intermediate - technical layout, good racing, modern facility",
+      "price": "Free with iRacing subscription",
+      "configurations": 2,
+      "specialNotes": "Supports dynamic weather and rain racing. Updated 2024."
+    }
+  },
+  {
+    "id": "lime-rock",
+    "name": "Lime Rock Park",
+    "location": {
+      "city": "Lakeville",
+      "region": "Connecticut",
+      "country": "United States"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 1.54,
+        "kilometers": 2.478
+      },
+      "turns": 7,
+      "banking": "0-4 degrees in turns",
+      "seatingCapacity": 75000
+    },
+    "history": {
+      "yearBuilt": 1957,
+      "notableRaces": [
+        "IMSA",
+        "Sports car racing",
+        "Formula events"
+      ],
+      "historicalNotes": "Opened April 20, 1957. Home of Skip Barber Racing School. One of oldest continuously-operated road courses in North America."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Big Bend - right-hander nickname",
+        "Seven-turn clockwise circuit",
+        "Six right handers, one left",
+        "Historic venue"
+      ],
+      "elevationChanges": "Moderate elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Tight road course perfect for developing skills. Home to Skip Barber Racing School. Historic venue with simple but demanding layout."
+    },
+    "cornerByCornerNotes": {
+      "big_bend": "Right-hand corner, signature feature"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Facility maintenance"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Skip Barber Formula Series",
+        "Sports Car racing"
+      ],
+      "difficulty": "Beginner - tight circuit, good for skill development, small track",
+      "price": "Free with iRacing subscription",
+      "configurations": 5
+    }
+  },
+  {
+    "id": "sonoma",
+    "name": "Sonoma Raceway",
+    "location": {
+      "city": "Sonoma",
+      "region": "California",
+      "country": "United States"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.53,
+        "kilometers": 4.072
+      },
+      "turns": 12,
+      "banking": "0 degrees",
+      "seatingCapacity": 47000
+    },
+    "history": {
+      "yearBuilt": 1968,
+      "notableRaces": [
+        "NASCAR Cup Series",
+        "IndyCar (historically)",
+        "Sports car racing"
+      ],
+      "historicalNotes": "Historic venue hosting multiple racing series. Various configurations reflect different racing needs."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Multiple configurations",
+        "12-turn full circuit",
+        "Technical layout",
+        "Various racing surface widths"
+      ],
+      "elevationChanges": "Moderate elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Versatile venue with multiple configurations. 12-turn full circuit mixed with cup and rally configurations. Supports dynamic weather and rain racing."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "Mix of technical corners"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "NASCAR Cup Series",
+        "Sports Car racing",
+        "Rallycross"
+      ],
+      "difficulty": "Intermediate - multiple configurations, technical sections, good racing",
+      "price": "$14.95 USD",
+      "configurations": 9,
+      "specialNotes": "Supports dynamic weather and rain racing. Includes rallycross configuration."
+    }
+  },
+  {
+    "id": "barber-motorsports",
+    "name": "Barber Motorsports Park",
+    "location": {
+      "city": "Birmingham",
+      "region": "Alabama",
+      "country": "United States"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.3,
+        "kilometers": 3.702
+      },
+      "turns": 16,
+      "banking": "0 degrees",
+      "seatingCapacity": 20000
+    },
+    "history": {
+      "yearBuilt": 2003,
+      "notableRaces": [
+        "IndyCar",
+        "Sports car racing",
+        "Formula events"
+      ],
+      "historicalNotes": "Built 2003. Designed by Alan Wilson. Located in heavily wooded area near Birmingham. Recently underwent complete repave and infrastructure improvements."
+    },
+    "characteristics": {
+      "notable_features": [
+        "16-turn technical layout",
+        "45-foot wide racing surface",
+        "Wooded location",
+        "80-foot elevation changes"
+      ],
+      "elevationChanges": "Approximately 80 feet of elevation change",
+      "surfaceType": "asphalt",
+      "description": "Modern track with 16-turn technical layout. 45-foot racing width provides good passing opportunities. Heavily wooded setting makes it unique."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "16-turn technical layout requiring precise driving"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Complete repave and infrastructure rebuild, new iRacing version 2026 Season 2"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "IndyCar Series",
+        "Sports Car racing",
+        "Formula Pro Series"
+      ],
+      "difficulty": "Advanced - 16-turn technical layout, elevation changes, demanding precision",
+      "price": "$14.95 USD",
+      "configurations": 3,
+      "specialNotes": "Rebuilt from ground up 2026 Season 2 with complete repave data"
+    }
+  },
+  {
+    "id": "virginia-international",
+    "name": "Virginia International Raceway",
+    "location": {
+      "city": "Alton",
+      "region": "Virginia",
+      "country": "United States"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 3.27,
+        "kilometers": 5.26
+      },
+      "turns": 20,
+      "banking": "0 degrees",
+      "seatingCapacity": 20000
+    },
+    "history": {
+      "yearBuilt": 1969,
+      "notableRaces": [
+        "Sports car racing",
+        "Formula events",
+        "Endurance events"
+      ],
+      "historicalNotes": "Historic venue hosting various racing disciplines. Known for technical challenging layout."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Multiple configurations",
+        "3,000 feet front straight",
+        "4,000 feet back straight",
+        "130 feet elevation change"
+      ],
+      "elevationChanges": "130 feet elevation change",
+      "surfaceType": "asphalt",
+      "description": "Technical circuit with multiple configurations. Good elevation changes and varied corner types. Supports AI racing at all configurations."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "Mix of technical corners throughout"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "2022 laser scan and new artwork, AI added to all configs"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Skip Barber Formula Series",
+        "Sports Car racing",
+        "Formula Pro Series"
+      ],
+      "difficulty": "Intermediate - technical layout, multiple configs, elevation changes, good racing",
+      "price": "Free with iRacing subscription",
+      "configurations": 5,
+      "specialNotes": "AI racing available at all configurations"
+    }
+  },
+  {
+    "id": "oulton-park",
+    "name": "Oulton Park Circuit",
+    "location": {
+      "city": "Little Budworth",
+      "region": "Cheshire",
+      "country": "United Kingdom"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.692,
+        "kilometers": 4.332
+      },
+      "turns": 17,
+      "banking": "0 degrees",
+      "seatingCapacity": 40000
+    },
+    "history": {
+      "yearBuilt": 1950,
+      "notableRaces": [
+        "British Racing Car Club events",
+        "Touring car racing",
+        "Formula events"
+      ],
+      "historicalNotes": "Historic British circuit known for elevation changes and blind turns."
+    },
+    "characteristics": {
+      "notable_features": [
+        "Severe elevation changes",
+        "Numerous blind turns",
+        "Technical layout",
+        "Multiple configurations"
+      ],
+      "elevationChanges": "Significant elevation changes throughout",
+      "surfaceType": "asphalt",
+      "description": "Famous for numerous elevation changes and blind turns taken at high speed requiring commitment. Multiple circuit configurations available."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "Multiple blind turns requiring commitment"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Various facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Touring Car racing",
+        "Sports Car racing"
+      ],
+      "difficulty": "Advanced - elevation changes, blind turns, multiple configs, demanding layout",
+      "price": "Free with iRacing subscription",
+      "configurations": 8
+    }
+  },
+  {
+    "id": "snetterton",
+    "name": "Snetterton Circuit",
+    "location": {
+      "city": "Norwich",
+      "region": "Norfolk",
+      "country": "United Kingdom"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.98,
+        "kilometers": 4.797
+      },
+      "turns": 13,
+      "banking": "0-3 degrees in turns",
+      "seatingCapacity": 30000
+    },
+    "history": {
+      "yearBuilt": 1951,
+      "notableRaces": [
+        "British Formula 3",
+        "British GT",
+        "British Touring Car Championship"
+      ],
+      "historicalNotes": "Opened 1951 on former WWII RAF airfield. Built on old runways and taxi ways. Multiple circuit configurations available."
+    },
+    "characteristics": {
+      "notable_features": [
+        "RAF airfield heritage",
+        "Multiple configurations",
+        "13-turn main circuit",
+        "Good racing surface"
+      ],
+      "elevationChanges": "Minimal elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Historic circuit built on RAF airfield. Multiple configurations available. 300 circuit longest at 2.98 miles. Good racing surface."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "13-turn technical layout on main circuit"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Facility improvements"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Touring Car racing",
+        "Sports Car racing"
+      ],
+      "difficulty": "Intermediate - multiple configurations, good racing, moderate technical demand",
+      "price": "Free with iRacing subscription",
+      "configurations": 3,
+      "specialNotes": "Includes Circuit 300, 200, and 100 configurations"
+    }
+  },
+  {
+    "id": "knockhill",
+    "name": "Knockhill Racing Circuit",
+    "location": {
+      "city": "Dunfermline",
+      "region": "Fife",
+      "country": "United Kingdom"
+    },
+    "trackType": "road course / oval",
+    "specifications": {
+      "length": {
+        "miles": 1.30,
+        "kilometers": 2.092
+      },
+      "turns": 9,
+      "banking": "0-3 degrees in turns",
+      "seatingCapacity": 20000
+    },
+    "history": {
+      "yearBuilt": 1974,
+      "notableRaces": [
+        "British Touring Car Championship",
+        "British Superbike Championship",
+        "Formula events"
+      ],
+      "historicalNotes": "Historic Scottish circuit. Multiple configurations available for different racing types."
+    },
+    "characteristics": {
+      "notable_features": [
+        "9-turn international layout",
+        "Elevation changes",
+        "Tri-oval configuration available",
+        "Taylor's hairpin - final corner"
+      ],
+      "elevationChanges": "37 meters (121 feet) total elevation change",
+      "surfaceType": "asphalt",
+      "description": "Scottish circuit with elevation changes. 9-turn international layout most common. Tri-oval short configuration available. Taylor's hairpin final turn."
+    },
+    "cornerByCornerNotes": {
+      "taylors_hairpin": "Final corner hairpin, unique feature"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Facility upgrades"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Touring Car racing",
+        "Sports Car racing"
+      ],
+      "difficulty": "Intermediate - elevation changes, multiple configs, good technical layout",
+      "price": "$14.95 USD",
+      "configurations": 5
+    }
+  },
+  {
+    "id": "red-bull-ring",
+    "name": "Red Bull Ring",
+    "location": {
+      "city": "Spielberg",
+      "region": "Styria",
+      "country": "Austria"
+    },
+    "trackType": "road course",
+    "specifications": {
+      "length": {
+        "miles": 2.683,
+        "kilometers": 4.318
+      },
+      "turns": 10,
+      "banking": "0 degrees",
+      "seatingCapacity": 70000
+    },
+    "history": {
+      "yearBuilt": 2008,
+      "notableRaces": [
+        "Formula 1 Austrian Grand Prix",
+        "MotoGP",
+        "World Touring Car Championship"
+      ],
+      "historicalNotes": "Current form from 2008 reconstruction. Combines three long straights with flowing mix of fast sweeping and 90-degree turns. Modern facility."
+    },
+    "characteristics": {
+      "notable_features": [
+        "10-turn layout",
+        "Three long straights",
+        "Flowing fast sections",
+        "90-degree turns"
+      ],
+      "elevationChanges": "Minimal elevation changes",
+      "surfaceType": "asphalt",
+      "description": "Modern facility combining three long straights with technical flowing sections. 10-turn circuit with mix of fast and moderate-speed corners."
+    },
+    "cornerByCornerNotes": {
+      "various_corners": "Mix of fast sweeping and 90-degree turns"
+    },
+    "currentState": {
+      "active": true,
+      "recentRenovations": "Modern facility, ongoing maintenance"
+    },
+    "iRacingNotes": {
+      "includedSeries": [
+        "Formula Pro Series",
+        "Porsche Carrera Cup",
+        "GT World Challenge"
+      ],
+      "difficulty": "Intermediate - modern design, good racing, flowing layout",
+      "price": "$14.95 USD",
+      "configurations": 3
+    }
+  }
+]

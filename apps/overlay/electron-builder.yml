@@ -1,0 +1,83 @@
+appId: org.racecor.broadcaster
+# productName drives the Windows exe filename + the installer's display
+# name. Renamed from "RaceCor.io" because the dot-in-name read as a
+# file extension on Windows and tripped both the launcher's binary
+# resolution and the host installer .iss script.
+productName: RaceCorProDriveOverlay
+copyright: Copyright (c) 2026 Kevin Conboy
+
+files:
+  - main.js
+  - preload.js
+  - remote-server.js
+  - dashboard.html
+  - layout-registry.json
+  - modules/**/*
+  - images/**/*
+  - data/**/*
+  - streamdeck/racecor/com.k10motorsports.racecor.overlay.sdPlugin/**/*
+  - "!streamdeck/racecor/com.k10motorsports.racecor.overlay.sdPlugin/logs/**/*"
+  - "!**/node_modules/**/*"
+  - node_modules/ffmpeg-static/**/*
+  - "!**/tests/**/*"
+  - "!**/test-results/**/*"
+  - "!playwright.config.*"
+
+asarUnpack:
+  - node_modules/ffmpeg-static/**/*
+
+# Layout v2 module registry — shipped OUTSIDE the asar (resources/
+# layout-registry.json) so the WinUI host can read module identity at
+# runtime from the bundled overlay tree. Also listed in `files:` above
+# so the overlay's own main/renderer can read it in dev and packaged
+# runs alike. Contract: prodrive-windows/docs/overlay-layout-v2.md.
+extraResources:
+  - layout-registry.json
+
+icon: images/branding/icon.png
+
+win:
+  icon: images/branding/icon.ico
+  target:
+    - target: dir
+      arch:
+        - x64
+        - arm64
+
+mac:
+  category: public.app-category.games
+  icon: images/branding/icon.png
+  darkModeSupport: true
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+
+dmg:
+  title: RaceCor.io
+  artifactName: RaceCor-${version}-${arch}.${ext}
+  # Explicit window config avoids electron-builder trying to apply a
+  # background image, which triggers the hdiutil APFS race condition
+  # on arm64 macOS runners ("Above command failed, retrying N times").
+  window:
+    x: 200
+    "y": 120
+    width: 540
+    height: 380
+  contents:
+    - x: 130
+      "y": 220
+    - x: 410
+      "y": 220
+      type: link
+      path: /Applications
+
+publish:
+  provider: github
+  owner: alternatekev
+  repo: racecor
+  releaseType: release

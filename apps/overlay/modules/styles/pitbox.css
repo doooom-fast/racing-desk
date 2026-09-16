@@ -1,0 +1,428 @@
+  /* ═══════════════════════════════════════════════
+     PIT BOX PANEL — Driver panel: tyres, fuel, weather, setup, camera
+     Tabbed interface matching the dashboard glass panel aesthetic.
+     ═══════════════════════════════════════════════ */
+  .pitbox-panel {
+    width: 230px;
+    transition: opacity 0.4s ease;
+    flex-shrink: 0;
+  }
+  .pitbox-panel.section-hidden { display: none; }
+  .pitbox-panel.pb-dismissed { opacity: 0 !important; pointer-events: none; }
+
+  .pb-inner {
+    background: hsla(0, 0%, 5%, 0.90);
+    border: 1px solid hsla(0, 0%, 100%, 0.14);
+    border-radius: 8px;
+    padding: 0;
+    font-family: var(--ff);
+    overflow: hidden;
+  }
+
+  /* ── Tab bar ── */
+  .pb-tabs {
+    display: flex;
+    border-bottom: 1px solid hsla(0, 0%, 100%, 0.08);
+    background: hsla(0, 0%, 100%, 0.02);
+  }
+  .pb-tab {
+    flex: 1;
+    text-align: center;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 7px 2px;
+    color: hsla(0, 0%, 100%, 0.35);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    border-bottom: 2px solid transparent;
+  }
+  .pb-tab:hover {
+    color: hsla(0, 0%, 100%, 0.6);
+    background: hsla(0, 0%, 100%, 0.03);
+  }
+  .pb-tab.active {
+    color: hsla(0, 0%, 100%, 0.9);
+    border-bottom-color: var(--green, #4ade80);
+  }
+
+  /* ── Page container ── */
+  .pb-content { position: relative; }
+  .pb-page {
+    display: none;
+    padding: 8px 10px 10px;
+  }
+  .pb-page.active { display: block; }
+
+  /* ── Section dividers ── */
+  .pb-section-label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-dim, hsla(0, 0%, 100%, 0.4));
+    margin-bottom: 4px;
+  }
+  .pb-divider {
+    height: 1px;
+    background: hsla(0, 0%, 100%, 0.06);
+    margin: 6px 0;
+  }
+
+  /* ── Key-value rows ── */
+  .pb-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+    font-size: var(--fs-xs);
+    line-height: 1.4;
+    position: relative;
+  }
+  .pb-row.hidden { display: none; }
+  .pb-label {
+    color: hsla(0, 0%, 100%, 0.55);
+    font-weight: 500;
+  }
+  .pb-value {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: hsla(0, 0%, 100%, 0.9);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .pb-value.active  { color: var(--green, #4ade80); }
+  .pb-value.inactive { color: hsla(0, 0%, 100%, 0.25); }
+  .pb-value.on  { color: var(--orange, #ff8c00); }
+  .pb-value.off { color: hsla(0, 0%, 100%, 0.25); }
+
+  /* ── Strategist suggestion button ── */
+  .pb-strat-suggest {
+    margin-bottom: 6px;
+  }
+  .pb-strat-suggest.hidden { display: none; }
+  .pb-strat-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid hsla(45, 100%, 50%, 0.35);
+    border-radius: 5px;
+    background: hsla(45, 100%, 50%, 0.08);
+    color: hsla(45, 100%, 70%, 1);
+    font-family: var(--ff);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: left;
+  }
+  .pb-strat-btn:hover,
+  .pb-strat-btn:focus-visible {
+    background: hsla(45, 100%, 50%, 0.16);
+    border-color: hsla(45, 100%, 50%, 0.55);
+    outline: none;
+  }
+  .pb-strat-icon {
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .pb-strat-label {
+    flex: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  /* ── Circle wear charts (2×2 grid) ── */
+  .pb-tire-circles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 8px;
+    padding: 2px 0;
+    position: relative;
+  }
+
+  /* ── Car silhouette (top-down, centered between tires) ── */
+  .pb-car-silhouette {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 0;
+    color: hsla(0, 0%, 100%, 1);
+  }
+  .pb-car-svg {
+    width: 80px;
+    height: auto;
+  }
+  .pb-circle-cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .pb-wear-ring {
+    width: 72px;
+    height: 72px;
+    transform: rotate(-90deg);
+  }
+  .pb-ring-bg {
+    fill: none;
+    stroke: hsla(0, 0%, 100%, 0.06);
+    stroke-width: 4;
+  }
+  .pb-ring-fill {
+    fill: none;
+    stroke: var(--green, #4ade80);
+    stroke-width: 4;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s ease, stroke 0.4s ease;
+  }
+  .pb-ring-fill.warn { stroke: var(--orange, #ff8c00); }
+  .pb-ring-fill.crit { stroke: #ef4444; }
+
+  .pb-circle-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 72px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .pb-circle-pct {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: hsla(0, 0%, 100%, 0.9);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .pb-circle-temp {
+    font-family: var(--ff-mono);
+    font-size: 9px;
+    color: hsla(0, 0%, 100%, 0.45);
+    line-height: 1.1;
+    margin-top: 1px;
+  }
+  .pb-circle-pos {
+    font-size: 9px;
+    font-weight: 600;
+    color: hsla(0, 0%, 100%, 0.4);
+    letter-spacing: 0.5px;
+    margin-top: 0px;
+    text-transform: uppercase;
+  }
+
+  /* ── Selectable tire state (pit change toggle) ── */
+  .pb-circle-cell.selectable {
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 3px 2px;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .pb-circle-cell.selectable:hover {
+    background: hsla(0, 0%, 100%, 0.04);
+  }
+  .pb-circle-cell.selected {
+    background: hsla(142, 70%, 50%, 0.10);
+    box-shadow: 0 0 0 1px hsla(142, 70%, 50%, 0.35);
+  }
+  .pb-circle-cell.selected .pb-ring-bg {
+    stroke: hsla(142, 70%, 50%, 0.18);
+  }
+  .pb-circle-cell.selected .pb-circle-pos {
+    color: var(--green, #4ade80);
+  }
+  /* Strategist-suggested highlight (amber glow before user accepts) */
+  .pb-circle-cell.suggested {
+    box-shadow: 0 0 0 1px hsla(45, 100%, 50%, 0.30);
+    background: hsla(45, 100%, 50%, 0.06);
+  }
+  .pb-circle-cell.suggested .pb-circle-pos {
+    color: hsla(45, 100%, 70%, 1);
+  }
+
+
+  /* ── Fuel tank gauge ── */
+  .pb-fuel-tank {
+    margin-bottom: 8px;
+    padding: 4px 0 2px;
+  }
+  .pb-fuel-tank-bar {
+    position: relative;
+    height: 14px;
+    background: hsla(0, 0%, 100%, 0.06);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 5px;
+    border: 1px solid hsla(0, 0%, 100%, 0.08);
+  }
+  .pb-fuel-tank-fill {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    border-radius: 3px;
+    background: var(--green, #4ade80);
+    transition: width 0.4s ease, background 0.4s ease;
+    width: 0%;
+    z-index: 1;
+  }
+  .pb-fuel-tank-fill.warn { background: var(--orange, #ff8c00); }
+  .pb-fuel-tank-fill.crit { background: #ef4444; }
+  /* Pit-add overlay — ghost bar showing fuel that would be added */
+  .pb-fuel-tank-add {
+    position: absolute;
+    top: 0; bottom: 0;
+    border-radius: 3px;
+    background: hsla(142, 70%, 50%, 0.18);
+    border-left: 1px solid hsla(142, 70%, 50%, 0.5);
+    transition: left 0.4s ease, width 0.4s ease;
+    width: 0%;
+    left: 0%;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .pb-fuel-tank-add.active {
+    background: hsla(142, 70%, 50%, 0.22);
+  }
+  .pb-fuel-tank-labels {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .pb-fuel-tank-level {
+    font-family: var(--ff-mono);
+    font-size: 16px;
+    font-weight: 700;
+    color: white;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .pb-fuel-tank-cap {
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    color: hsla(0, 0%, 100%, 0.35);
+    letter-spacing: 0.5px;
+  }
+  /* Interactive pit-add row */
+  .pb-fuel-pit-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+  }
+  .pb-fuel-pit-row .pb-value.selectable {
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 1px 6px;
+    transition: background 0.15s;
+  }
+  .pb-fuel-pit-row .pb-value.selectable:hover {
+    background: hsla(0, 0%, 100%, 0.06);
+  }
+  .pb-fuel-pit-row .pb-value.accepted {
+    color: var(--green, #4ade80);
+    background: hsla(142, 70%, 50%, 0.10);
+  }
+
+  /* ── Weather hero ── */
+  .pb-weather-hero {
+    text-align: center;
+    padding: 10px 0 8px;
+  }
+  .pb-weather-icon {
+    font-size: 22px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .pb-weather-temp {
+    font-family: var(--ff-mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: white;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Car adjustments compact grid ── */
+  .pb-adj-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px 10px;
+  }
+  .pb-adj-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+    position: relative;
+  }
+  .pb-adj-item.hidden { display: none; }
+  .pb-adj-label {
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    color: hsla(0, 0%, 100%, 0.85);
+  }
+  .pb-adj-val {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: hsla(0, 0%, 100%, 1);
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .pb-adj-val.zero { color: hsla(0, 0%, 100%, 0.3); }
+
+  /* ── Info text ── */
+  .pb-info {
+    font-size: var(--fs-xs);
+    color: hsla(0, 0%, 100%, 0.25);
+    font-style: italic;
+    text-align: center;
+    padding: 10px 0 4px;
+    line-height: 1.4;
+  }
+
+  /* ── Change flash animation ── */
+  .pb-flash { position: relative; }
+  .pb-flash::after {
+    content: '';
+    position: absolute;
+    inset: -1px -4px;
+    border-radius: 3px;
+    pointer-events: none;
+    animation: pb-value-flash 1.4s ease-out forwards;
+  }
+  @keyframes pb-value-flash {
+    0%   { background: hsla(45, 100%, 60%, 0.22); }
+    100% { background: transparent; }
+  }
+  .pb-flash .pb-value,
+  .pb-flash .pb-adj-val {
+    filter: brightness(1.5);
+    transition: filter 1.4s ease;
+  }
+
+  /* ── No data state ── */
+  .pb-no-data {
+    text-align: center;
+    font-size: var(--fs-xs);
+    color: hsla(0, 0%, 100%, 0.3);
+    padding: 8px 10px;
+    font-style: italic;
+  }
+

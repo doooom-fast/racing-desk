@@ -1,0 +1,507 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   VISUAL MODES — Minimal, Minimal+, and Standard CSS overrides
+
+   PHILOSOPHY: Modes adapt each module's visual presentation per-module specifications,
+   not just hide/show elements. CSS custom properties are used where possible for
+   cleaner separation of concerns. Panel borders removed by transparent border-color
+   (not display:none) so gap spacing handles visual separation.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ───────────────────────────────────────────────────────────────────────────────
+   MINIMAL MODE — Tufte-pure, maximum data-ink ratio
+
+   Per-module visual adaptations:
+   - Tachometer: Hide WebGL bloom/glow canvas entirely. Keep segmented bar + number + gear
+   - Fuel bar: Single-hue green gradient (no multi-hue)
+   - SR display: Hide pie chart, show number only
+   - iRating: Hide progress bar, number only
+   - Race control: No animated stripes
+   - Track map: No player dot glow
+   - G-force vignette: Hidden (opacity 0)
+   - Sentiment halo: Hidden (opacity 0)
+   - Commentary panel: Hidden entirely
+   - All logos: Hidden (K10, car, game)
+   - All WebGL canvases: Hidden
+   - Animations disabled (except opacity fades for show/hide)
+   - Padding tightened: pad=4px, gap=3px
+   - Panel borders removed via transparent color (not display:none)
+   ─────────────────────────────────────────────────────────────────────────────── */
+
+body.mode-minimal {
+  --border: transparent;
+  --pad: 4px;
+  --gap: 3px;
+  --corner-r: 2px;
+  --corner-r-sm: 1px;
+  --panel-gap: 4px;
+  --edge: 6px;
+}
+
+/* Panel borders removed: transparent color preserves gap spacing */
+body.mode-minimal .panel,
+body.mode-minimal [class*="panel"],
+body.mode-minimal .module,
+body.mode-minimal .section {
+  border-color: transparent !important;
+}
+
+/* ── Tachometer: Hide WebGL bloom/glow, keep segmented bar + gear + RPM number ── */
+body.mode-minimal .tacho-block canvas,
+body.mode-minimal #glareCanvas,
+body.mode-minimal .gl-overlay,
+body.mode-minimal .ambient-canvas,
+body.mode-minimal .glare-canvas,
+body.mode-minimal .webgl-context {
+  display: none !important;
+}
+
+/* Hide WebGL glow effects on RPM text pulse */
+body.mode-minimal .tacho-rpm.rpm-pulse-green,
+body.mode-minimal .tacho-rpm.rpm-pulse-yellow,
+body.mode-minimal .tacho-rpm.rpm-pulse-red {
+  text-shadow: none !important;
+  transform: none !important;
+}
+
+/* ── Fuel bar: Single-hue green, no gradient ── */
+body.mode-minimal .fuel-bar,
+body.mode-minimal .fuel-fill {
+  background: var(--green) !important;
+  background-image: none !important;
+  transition: background-color var(--t-med);
+}
+
+/* Fuel state transitions: dark green on low, red on critical */
+body.mode-minimal .fuel-fill.low {
+  background: hsl(120, 50%, 15%) !important;
+}
+
+body.mode-minimal .fuel-fill.critical {
+  background: var(--red) !important;
+}
+
+/* ── Safety Rating: Hide pie chart, show value only ── */
+body.mode-minimal .sr-pie-container,
+body.mode-minimal .sr-pie-svg,
+body.mode-minimal .sr-pie,
+body.mode-minimal .sr-circle,
+body.mode-minimal [class*="safety-chart"],
+body.mode-minimal [class*="sr-chart"] {
+  display: none !important;
+}
+
+/* Ensure SR value is visible */
+body.mode-minimal .sr-value {
+  display: block !important;
+}
+
+/* ── iRating: Hide progress bar, show number only ── */
+body.mode-minimal .irating-bar,
+body.mode-minimal .irating-progress,
+body.mode-minimal [class*="irating-seg"],
+body.mode-minimal [class*="rating-bar"] {
+  display: none !important;
+}
+
+/* Ensure iRating value is visible */
+body.mode-minimal .irating-value {
+  display: block !important;
+}
+
+/* ── Race Control: No animated stripes ── */
+body.mode-minimal .rc-banner,
+body.mode-minimal .rc-inner {
+  /* Keep structure, remove animation */
+}
+
+body.mode-minimal .rc-inner::after {
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+/* ── Track map: No player dot glow, solid dot only ── */
+body.mode-minimal .map-player {
+  filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* Remove map pulse animation */
+body.mode-minimal .dh-map-svg .map-player {
+  animation: none !important;
+}
+
+/* ── Sentiment halo: Hidden ── */
+body.mode-minimal .dashboard::before {
+  opacity: 0 !important;
+}
+
+/* ── G-force vignette: Hidden ── */
+body.mode-minimal .g-vignette,
+body.mode-minimal .datastream-gvignette {
+  opacity: 0 !important;
+}
+
+/* ── Commentary panel: Hidden entirely ── */
+body.mode-minimal .commentary-col,
+body.mode-minimal .commentary-panel {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Hide commentary canvas */
+body.mode-minimal .commentary-gl-canvas {
+  display: none !important;
+}
+
+/* ── Logo visibility: Hide all logos ── */
+body.mode-minimal #k10LogoSquare,
+body.mode-minimal [data-section="k10LogoSquare"],
+body.mode-minimal .k10-logo,
+body.mode-minimal .k10-branding {
+  display: none !important;
+}
+
+body.mode-minimal #carLogoSquare,
+body.mode-minimal [data-section="carLogoSquare"],
+body.mode-minimal .car-logo,
+body.mode-minimal .manufacturer-logo {
+  display: none !important;
+}
+
+body.mode-minimal #gameLogoOverlay,
+body.mode-minimal .game-logo,
+body.mode-minimal [data-section="game-logo"],
+body.mode-minimal .game-logo-panel {
+  display: none !important;
+}
+
+/* ── Panel styling: Remove all decorative effects ── */
+body.mode-minimal .panel,
+body.mode-minimal .dashboard {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Typography: Labels regular, values bold ── */
+body.mode-minimal [class*="label"],
+body.mode-minimal .tag,
+body.mode-minimal .legend {
+  font-weight: var(--fw-regular) !important;
+}
+
+body.mode-minimal [class*="value"],
+body.mode-minimal [class*="data"],
+body.mode-minimal .number {
+  font-weight: var(--fw-bold) !important;
+}
+
+/* ── Remove backdrop-filter everywhere — pure Tufte, no glass effects ── */
+body.mode-minimal [class*="panel"],
+body.mode-minimal [class*="cell"],
+body.mode-minimal [class*="item"],
+body.mode-minimal [class*="card"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ── Animations: Disable all except essential state changes ── */
+body.mode-minimal * {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Re-enable opacity transitions for show/hide state changes */
+body.mode-minimal .settings-toggle,
+body.mode-minimal [role="switch"],
+body.mode-minimal .section-hidden,
+body.mode-minimal .hidden,
+body.mode-minimal [data-hidden],
+body.mode-minimal .visible {
+  transition: opacity var(--t-fast) !important;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────────
+   MINIMAL+ MODE — Racing-educated Tufte, preserved data-reactive effects
+
+   Per-module visual adaptations:
+   - Tachometer: Keep bloom at 60% opacity (data-reactive on RPM)
+   - Fuel bar: Keep green→amber→red racing convention
+   - SR display: Keep pie chart but visually tighter
+   - iRating: Number visible, progress bar optional
+   - Race control: Animated stripes on flag change, settle after 4s
+   - Track map: Tighten glow radius slightly
+   - G-force vignette: Show at 50% opacity
+   - Sentiment halo: Show at 40% opacity
+   - Commentary panel: Visible but tighter padding (10px vs 14px)
+   - Car logo: Visible (contextual data). K10 and game logos hidden.
+   - WebGL: Tach bloom at 60%, other effects hidden
+   - Animations: Preserved but time-limited where applicable
+   - Padding tighter: pad=5px, gap=3px
+   - Panel borders removed via transparent color
+   ─────────────────────────────────────────────────────────────────────────────── */
+
+body.mode-minimal-plus {
+  --border: transparent;
+  --pad: 5px;
+  --gap: 3px;
+}
+
+/* Panel borders removed: transparent color preserves gap spacing */
+body.mode-minimal-plus .panel,
+body.mode-minimal-plus [class*="panel"],
+body.mode-minimal-plus .module,
+body.mode-minimal-plus .section {
+  border-color: transparent !important;
+}
+
+/* ── Tachometer: Keep bloom at 60% opacity (data-reactive) ── */
+body.mode-minimal-plus .tacho-block canvas {
+  /* Keep canvas, but reduce glow opacity */
+}
+
+body.mode-minimal-plus #glareCanvas,
+body.mode-minimal-plus .ambient-canvas,
+body.mode-minimal-plus .glare-canvas {
+  display: none !important;
+}
+
+/* Tachometer RPM bloom preserved at 60% intensity — encodes urgency via color */
+body.mode-minimal-plus .gl-overlay {
+  opacity: 0.6 !important;
+  display: block !important;
+}
+
+/* Keep RPM pulse glow at reduced intensity */
+body.mode-minimal-plus .tacho-rpm.rpm-pulse-green {
+  text-shadow: 0 0 6px var(--green), 0 0 12px hsla(140, 70%, 50%, 0.2) !important;
+  transform: scale(1.02) !important;
+}
+
+body.mode-minimal-plus .tacho-rpm.rpm-pulse-yellow {
+  text-shadow: 0 0 6px var(--amber), 0 0 12px hsla(45, 90%, 55%, 0.2) !important;
+  transform: scale(1.02) !important;
+}
+
+body.mode-minimal-plus .tacho-rpm.rpm-pulse-red {
+  text-shadow: 0 0 8px var(--red), 0 0 16px hsla(0, 80%, 50%, 0.3) !important;
+  transform: scale(1.04) !important;
+}
+
+/* ── Fuel bar: Racing color convention (green → amber → red) ── */
+body.mode-minimal-plus .fuel-bar,
+body.mode-minimal-plus .fuel-fill {
+  background: linear-gradient(90deg, var(--green), var(--amber), var(--red)) !important;
+  background-image: linear-gradient(90deg, var(--green), var(--amber), var(--red)) !important;
+}
+
+/* ── Safety Rating: Keep pie chart, visually preserved ── */
+body.mode-minimal-plus .sr-pie-container,
+body.mode-minimal-plus .sr-pie-svg,
+body.mode-minimal-plus .sr-pie,
+body.mode-minimal-plus .sr-circle,
+body.mode-minimal-plus [class*="safety-chart"],
+body.mode-minimal-plus [class*="sr-chart"] {
+  display: block !important;
+  opacity: 1 !important;
+}
+
+/* ── iRating: Value visible, optional progress bar ── */
+body.mode-minimal-plus .irating-value {
+  display: block !important;
+}
+
+/* Progress bar can be visible or hidden — preference over minimal */
+
+/* ── Race Control: Animated stripes on flag change, settle after 4s ── */
+body.mode-minimal-plus .rc-banner,
+body.mode-minimal-plus .rc-inner {
+  /* Animation will be controlled by JavaScript */
+}
+
+body.mode-minimal-plus .rc-inner::after {
+  opacity: 1 !important;
+  animation: rc-flag-scroll 1.5s linear 0s 1, rc-flag-settle 0.5s ease 4s forwards;
+}
+
+@keyframes rc-flag-scroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 20px 0; }
+}
+
+@keyframes rc-flag-settle {
+  0% { opacity: 1; }
+  100% { opacity: 0.15; }
+}
+
+/* ── Track map: Glow tightened (8px vs standard 12px) ── */
+body.mode-minimal-plus .map-player {
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4)) !important;
+  box-shadow: none !important;
+}
+
+/* Preserve map pulse at reduced radius */
+body.mode-minimal-plus .dh-map-svg .map-player {
+  animation: map-player-pulse-mini 2s ease-in-out infinite;
+}
+
+@keyframes map-player-pulse-mini {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
+  }
+}
+
+/* ── G-force vignette: Show at 50% intensity (peripheral safety cue) ── */
+body.mode-minimal-plus .g-vignette,
+body.mode-minimal-plus .datastream-gvignette {
+  opacity: 0.5 !important;
+  display: block !important;
+}
+
+/* ── Sentiment halo: Show at 40% opacity (subtle peripheral cue) ── */
+body.mode-minimal-plus .dashboard::before {
+  opacity: 0.4 !important;
+  display: block !important;
+}
+
+/* ── Commentary panel: Visible with tighter padding (10px vs 14px) ── */
+body.mode-minimal-plus .commentary-col,
+body.mode-minimal-plus .commentary-panel {
+  display: block !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+body.mode-minimal-plus .commentary-col {
+  padding: 10px !important;
+}
+
+body.mode-minimal-plus .commentary-inner {
+  padding: 10px !important;
+}
+
+body.mode-minimal-plus .commentary-gl-canvas {
+  display: block !important;
+}
+
+/* ── Logo visibility: Car logo visible, K10 and game hidden ── */
+body.mode-minimal-plus #carLogoSquare,
+body.mode-minimal-plus [data-section="carLogoSquare"],
+body.mode-minimal-plus .car-logo,
+body.mode-minimal-plus .manufacturer-logo {
+  display: block !important;
+}
+
+body.mode-minimal-plus #k10LogoSquare,
+body.mode-minimal-plus [data-section="k10LogoSquare"],
+body.mode-minimal-plus .k10-logo,
+body.mode-minimal-plus .k10-branding {
+  display: none !important;
+}
+
+body.mode-minimal-plus #gameLogoOverlay,
+body.mode-minimal-plus .game-logo,
+body.mode-minimal-plus [data-section="game-logo"],
+body.mode-minimal-plus .game-logo-panel {
+  display: none !important;
+}
+
+/* ── Typography: Labels regular, values bold ── */
+body.mode-minimal-plus [class*="label"],
+body.mode-minimal-plus .tag,
+body.mode-minimal-plus .legend {
+  font-weight: var(--fw-regular) !important;
+}
+
+body.mode-minimal-plus [class*="value"],
+body.mode-minimal-plus [class*="data"],
+body.mode-minimal-plus .number {
+  font-weight: var(--fw-bold) !important;
+}
+
+/* ── Animations: Preserve essential transitions, disable non-critical ── */
+body.mode-minimal-plus * {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Re-enable essential transitions and data-reactive effects */
+body.mode-minimal-plus .settings-toggle,
+body.mode-minimal-plus [role="switch"],
+body.mode-minimal-plus .section-hidden,
+body.mode-minimal-plus .hidden,
+body.mode-minimal-plus [data-hidden],
+body.mode-minimal-plus .visible {
+  transition: opacity var(--t-fast) !important;
+}
+
+/* Allow data-reactive color transitions (RPM, fuel, etc.) */
+body.mode-minimal-plus .tacho-rpm,
+body.mode-minimal-plus .fuel-fill,
+body.mode-minimal-plus .sr-value,
+body.mode-minimal-plus .tire-temp {
+  transition: color 0.2s ease, text-shadow 0.15s ease-out, transform 0.15s ease-out, background-color var(--t-med) !important;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────────
+   DRIVE MODE — Tufte principles (Minimal-like, no atmospheric effects)
+   ─────────────────────────────────────────────────────────────────────────────── */
+
+body.drive-mode-active {
+  background: #000 !important;
+}
+
+/* Remove background tints from drive mode panels */
+body.drive-mode-active .dh-map,
+body.drive-mode-active .dh-right,
+body.drive-mode-active .dh-sector {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Remove drop shadow from map player in drive mode */
+body.drive-mode-active .map-player {
+  filter: none !important;
+  text-shadow: none !important;
+}
+
+/* Tighten sector boxes: remove border-radius, reduce padding */
+body.drive-mode-active .dh-sector {
+  border-radius: 0 !important;
+  padding: 4px !important;
+}
+
+/* Keep color-coding system (it's data, not decoration) */
+body.drive-mode-active [class*="sector-1"],
+body.drive-mode-active [class*="sector-2"],
+body.drive-mode-active [class*="sector-3"],
+body.drive-mode-active .gap-ahead,
+body.drive-mode-active .gap-behind {
+  /* Color remains — it encodes data */
+}
+
+/* Optional redline flash can be toggled */
+body.drive-mode-active[data-redline-flash="on"] .tachometer {
+  --redline-flash: on;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────────
+   UTILITY: Accessibility — respects prefers-reduced-motion
+   ─────────────────────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  body.mode-minimal-plus .rc-inner::after {
+    animation: none !important;
+  }
+}

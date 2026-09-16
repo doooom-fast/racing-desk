@@ -1,0 +1,391 @@
+/* ═══════════════════════════════════════════════════════════════
+   AMBIENT LIGHT — Per-panel glow + glass reflections
+   ═══════════════════════════════════════════════════════════════
+   Every panel/module gets TWO pseudo-element layers:
+     ::before — radial ambient glow (illumination wash)
+     ::after  — glass reflection highlight (diagonal streak)
+
+   Both are tinted by --ambient-r / --ambient-g / --ambient-b
+   (0-255) set on :root from JS.  A CSS breathing animation
+   pulses the glow subtly.
+
+   Modes: reflective (WebGL), matte (WebGL 50%), plastic (CSS-only), off.
+   Toggled off via body.ambient-off.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Hide legacy elements */
+.ambient-canvas { display: none; }
+#ambientGlowDiv { display: none; }
+#ambientGlowCanvas { display: none; }
+
+/* Dashboard positioning */
+.dashboard {
+  z-index: 55;
+  pointer-events: none;
+}
+
+/* ── Ambient color vars (set by JS) ── */
+:root {
+  --ambient-r: 80;
+  --ambient-g: 100;
+  --ambient-b: 140;
+  --ambient-lum: 0.35;   /* perceptual luminance 0-1, drives panel dimming */
+  /* Plastic mode telemetry vars (set by ambient-light.js render loop) */
+  --plastic-rotate: 0deg;   /* steering → glow rotation (±4°) */
+  --plastic-sweep: 0px;     /* speed → horizontal sweep offset */
+  --plastic-phase: 0.5;     /* time-based sweep position (0-1) */
+}
+
+/* ── Selector list for ALL panel/module types ── */
+.panel,
+.tacho-block,
+.commentary-inner,
+.leaderboard-panel,
+.datastream-panel,
+.pitbox-panel {
+  position: relative;
+}
+/* incidents + spotter need position:fixed for viewport placement;
+   their ::before/::after still work because the inner wrapper
+   (.inc-inner / .spotter-inner) provides the relative context. */
+.incidents-panel,
+.spotter-panel {
+  position: fixed;
+}
+
+/* ── ::before — PLASTIC MODE ONLY ──
+   CSS-only ambient illumination for the "plastic" mode.
+   Replaces the WebGL postfx glow with layered gradients tinted by
+   the ambient color. Animates via CSS custom properties:
+     --plastic-rotate  → steering rotation (GPU-composited transform)
+     --plastic-sweep   → speed-based horizontal sweep (background-position)
+     --plastic-phase   → time-based breathing (drives box-shadow on panels)
+   Hidden by default; shown only when body.ambient-plastic is set. */
+.panel::before,
+.tacho-block::before,
+.commentary-inner::before,
+.leaderboard-panel::before,
+.datastream-panel::before,
+.pitbox-panel::before,
+.incidents-panel::before,
+.spotter-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  border-radius: inherit;
+  overflow: hidden;
+  /* Multi-layer glow — overhead radial + sweep + wash.
+     Ported from the WebGL ambientGlow() center glow + sweep, but
+     using stacked gradients instead of per-pixel exp/sin math.
+     Rotates with steering via --plastic-rotate (GPU-composited transform).
+     Sweep shifts with speed via --plastic-sweep (background-position). */
+  background:
+    /* Layer 1: Overhead radial — main illumination source */
+    radial-gradient(
+      ellipse 140% 90% at 50% 10%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.38) 0%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.18) 30%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.05) 60%,
+      transparent 85%
+    ),
+    /* Layer 2: Diagonal sweep — simulates the WebGL light sweep band.
+       background-position shifts with speed for movement illusion. */
+    linear-gradient(
+      155deg,
+      transparent 5%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.18) 25%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.08) 50%,
+      transparent 70%
+    ),
+    /* Layer 3: Soft full-panel tint wash — base color presence */
+    linear-gradient(
+      180deg,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.10) 0%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.03) 100%
+    );
+  /* Sweep layer shifts with speed; other layers stay put */
+  background-position: 0 0, var(--plastic-sweep) 0, 0 0;
+  background-size: 100% 100%;
+  /* Steer rotation (GPU-composited — no layout/paint cost).
+     Inset by -6px so the rotated layer still covers corners without
+     escaping the parent's overflow:hidden clip. */
+  inset: -6px;
+  transform: rotate(var(--plastic-rotate));
+  transform-origin: 50% 40%;
+  will-change: transform, background-position;
+  /* Scale intensity with ambient brightness */
+  opacity: calc(0.4 + var(--ambient-lum) * 0.5);
+  transition: opacity 600ms ease;
+  /* Hidden by default — only plastic mode enables this */
+  display: none;
+}
+
+/* Show ::before glow ONLY in plastic mode */
+body.ambient-plastic .panel::before,
+body.ambient-plastic .tacho-block::before,
+body.ambient-plastic .commentary-inner::before,
+body.ambient-plastic .leaderboard-panel::before,
+body.ambient-plastic .datastream-panel::before,
+body.ambient-plastic .pitbox-panel::before,
+body.ambient-plastic .incidents-panel::before,
+body.ambient-plastic .spotter-panel::before {
+  display: block;
+}
+
+/* Plastic mode: clip ::before to panel bounds.
+   overflow:hidden clips the rotated pseudo-element to the panel's rounded rect.
+   All box-shadows are inset so the glow never escapes the module boundaries —
+   outer box-shadow bleeds through overflow:hidden by CSS spec, which is what
+   caused the "front and back lit" look. Inset-only keeps it front-lit. */
+body.ambient-plastic .panel,
+body.ambient-plastic .tacho-block,
+body.ambient-plastic .commentary-inner,
+body.ambient-plastic .leaderboard-panel,
+body.ambient-plastic .datastream-panel,
+body.ambient-plastic .pitbox-panel,
+body.ambient-plastic .incidents-panel,
+body.ambient-plastic .spotter-panel {
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 32px 10px rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b),
+      calc((0.15 + var(--plastic-phase) * 0.15) * var(--ambient-lum))),
+    inset 0 1px 0 rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.18);
+  transition: box-shadow 600ms ease;
+}
+
+/* ── ::after — Glass refraction surface ──
+   Simulates light refracting across a glass panel surface.
+   Shows a diagonal caustic sweep tinted by the ambient color,
+   plus a sharp specular highlight at the leading edge.
+   Dark ambient → subtle, bright ambient → prominent refraction. */
+.panel::after,
+.tacho-block::after,
+.commentary-inner::after,
+.leaderboard-panel::after,
+.datastream-panel::after,
+.pitbox-panel::after,
+.incidents-panel::after,
+.spotter-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  overflow: hidden;
+  /* Glass refraction: sharp specular highlight + ambient tint sweep */
+  background:
+    /* Specular highlight — bright leading edge of refraction */
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.06) 12%,
+      transparent 24%
+    ),
+    /* Caustic refraction — ambient color refracting across surface */
+    linear-gradient(
+      165deg,
+      transparent 10%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.08) 30%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.03) 55%,
+      transparent 75%
+    ),
+    /* Secondary refraction — softer, offset angle for glass depth */
+    linear-gradient(
+      175deg,
+      transparent 25%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.03) 50%,
+      transparent 70%
+    );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  /* Scale with ambient brightness */
+  opacity: calc(0.25 + var(--ambient-lum) * 0.35);
+  transition: opacity 400ms ease;
+}
+
+/* ── Matte mode: glass reflections at 50% ── */
+body.ambient-matte .panel::after,
+body.ambient-matte .tacho-block::after,
+body.ambient-matte .commentary-inner::after,
+body.ambient-matte .leaderboard-panel::after,
+body.ambient-matte .datastream-panel::after,
+body.ambient-matte .pitbox-panel::after,
+body.ambient-matte .incidents-panel::after,
+body.ambient-matte .spotter-panel::after {
+  opacity: calc((0.25 + var(--ambient-lum) * 0.35) * 0.5) !important;
+}
+
+/* ── Plastic mode: glass reflections at full (same as reflective) ── */
+/* (::after stays as-is — no override needed, inherits default full opacity) */
+
+/* ── Kill glass reflections + glow when ambient is off ── */
+body.ambient-off .panel::after,
+body.ambient-off .tacho-block::after,
+body.ambient-off .commentary-inner::after,
+body.ambient-off .leaderboard-panel::after,
+body.ambient-off .datastream-panel::after,
+body.ambient-off .pitbox-panel::after,
+body.ambient-off .incidents-panel::after,
+body.ambient-off .spotter-panel::after,
+body.ambient-off .panel::before,
+body.ambient-off .tacho-block::before,
+body.ambient-off .commentary-inner::before,
+body.ambient-off .leaderboard-panel::before,
+body.ambient-off .datastream-panel::before,
+body.ambient-off .pitbox-panel::before,
+body.ambient-off .incidents-panel::before,
+body.ambient-off .spotter-panel::before {
+  display: none !important;
+}
+
+/* ═══════════════════════════════════════════════
+   CAPTURE AREA SELECTION OVERLAY
+   ═══════════════════════════════════════════════ */
+.capture-area-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.capture-area-instructions {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.capture-area-rect {
+  position: absolute;
+  border: 2px solid hsl(45, 100%, 60%);
+  background: hsla(45, 100%, 60%, 0.12);
+  border-radius: 3px;
+  pointer-events: none;
+  display: none;
+  box-shadow: 0 0 12px hsla(45, 100%, 60%, 0.3);
+}
+
+/* Settings button style */
+.settings-btn {
+  background: hsla(0, 0%, 100%, 0.08);
+  color: var(--text-primary, #eee);
+  border: 1px solid hsla(0, 0%, 100%, 0.15);
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 200ms ease, border-color 200ms ease;
+}
+.settings-btn:hover {
+  background: hsla(0, 0%, 100%, 0.15);
+  border-color: hsla(45, 100%, 60%, 0.5);
+}
+.settings-btn.active {
+  background: hsla(45, 100%, 60%, 0.2);
+  border-color: hsla(45, 100%, 60%, 0.7);
+  color: hsl(45, 100%, 75%);
+}
+
+/* ═══════════════════════════════════════════════
+   PRESET BUTTONS (Minimal, Minimal+, Standard)
+   ═══════════════════════════════════════════════ */
+.settings-preset-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.settings-preset-btn {
+  flex: 1;
+  background: hsla(0, 0%, 100%, 0.08);
+  color: hsla(0, 0%, 100%, 0.7);
+  border: 1px solid hsla(0, 0%, 100%, 0.15);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 200ms ease, border-color 200ms ease, color 200ms ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: relative;
+}
+.settings-preset-btn:hover {
+  background: hsla(0, 0%, 100%, 0.12);
+  border-color: hsla(0, 0%, 100%, 0.3);
+  color: hsla(0, 0%, 100%, 0.9);
+}
+.settings-preset-btn.active {
+  background: hsla(280, 80%, 70%, 0.25);
+  border-color: hsl(280, 80%, 70%);
+  color: hsl(280, 80%, 80%);
+}
+.settings-preset-btn.pro-locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.settings-preset-btn.pro-locked::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  background: no-repeat center;
+  background-size: 10px;
+  opacity: 0.6;
+}
+
+/* ═══════════════════════════════════════════════
+   AMBIENT CAPTURE PREVIEW (in settings panel)
+   ═══════════════════════════════════════════════ */
+.ambient-preview-container {
+  margin-top: 8px;
+  padding: 8px;
+  background: hsla(0, 0%, 0%, 0.35);
+  border-radius: 6px;
+  border: 1px solid hsla(0, 0%, 100%, 0.08);
+}
+.ambient-preview-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: hsla(0, 0%, 100%, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+.ambient-preview-canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  background: #111;
+  display: block;
+}
+.ambient-preview-info {
+  font-size: 14px;
+  color: hsla(0, 0%, 100%, 0.4);
+  margin-top: 4px;
+  text-align: center;
+}
+.ambient-preview-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 4px;
+  border: 1px solid hsla(0, 0%, 100%, 0.2);
+}

@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "modules": [
+    { "id": "tacho",       "label": "Tachometer",        "selector": ".tacho-block",      "showKey": "showTacho",       "nominal": { "w": 150, "h": 200 }, "placeable": true },
+    { "id": "k10Logo",     "label": "K10 logo",          "selector": "#k10LogoSquare",    "showKey": "showK10Logo",     "nominal": { "w": 80,  "h": 98 },  "placeable": true },
+    { "id": "carLogo",     "label": "Car logo",          "selector": "#carLogoSquare",    "showKey": "showCarLogo",     "nominal": { "w": 80,  "h": 98 },  "placeable": true },
+    { "id": "controls",    "label": "Car controls",      "selector": ".car-controls",     "showKey": "showControls",    "nominal": { "w": 120, "h": 98 },  "placeable": true },
+    { "id": "pedals",      "label": "Pedals",            "selector": ".pedals-area",      "showKey": "showPedals",      "nominal": { "w": 120, "h": 98 },  "placeable": true },
+    { "id": "maps",        "label": "Track maps",        "selector": ".maps-col",         "showKey": "showMaps",        "nominal": { "w": 130, "h": 200 }, "placeable": true },
+    { "id": "position",    "label": "Position & rating", "selector": ".rating-pos-block", "showKey": "showPosition",    "nominal": { "w": 110, "h": 98 },  "placeable": true },
+    { "id": "gaps",        "label": "Gaps",              "selector": ".gaps-block",       "showKey": "showPosition",    "nominal": { "w": 110, "h": 98 },  "placeable": true },
+    { "id": "timer",       "label": "Race timer",        "selector": ".race-timer-block", "showKey": "showTimer",       "nominal": { "w": 130, "h": 44 },  "placeable": true },
+    { "id": "leaderboard", "label": "Leaderboard",       "selector": "#leaderboardPanel", "showKey": "showLeaderboard", "nominal": { "w": 320, "h": 240 }, "placeable": true },
+    { "id": "datastream",  "label": "Datastream",        "selector": "#datastreamPanel",  "showKey": "showDatastream",  "nominal": { "w": 200, "h": 240 }, "placeable": true },
+    { "id": "pitbox",      "label": "Pit box",           "selector": "#pitBoxPanel",      "showKey": "showPitBox",      "nominal": { "w": 280, "h": 240 }, "placeable": true },
+    { "id": "incidents",   "label": "Incidents",         "selector": "#incidentsPanel",   "showKey": "showIncidents",   "nominal": { "w": 180, "h": 140 }, "placeable": true },
+    { "id": "commentary",  "label": "Commentary",        "selector": "#commentaryCol",    "showKey": "showCommentary",  "nominal": { "w": 280, "h": 320 }, "placeable": true },
+    { "id": "spotter",     "label": "Spotter",           "selector": "#spotterPanel",     "showKey": "showSpotter",     "nominal": { "w": 140, "h": 140 }, "placeable": true },
+    { "id": "gameLogo",    "label": "Game logo",         "selector": "#gameLogoOverlay",  "showKey": "showGameLogo",    "nominal": { "w": 64,  "h": 80 },  "placeable": true },
+
+    { "id": "raceControl", "label": "Race control banner", "selector": "#rcBanner",       "showKey": null, "nominal": null, "placeable": false },
+    { "id": "pitLimiter",  "label": "Pit limiter banner",  "selector": "#pitBanner",      "showKey": null, "nominal": null, "placeable": false },
+    { "id": "raceEnd",     "label": "Race end screen",     "selector": "#raceEndScreen",  "showKey": null, "nominal": null, "placeable": false }
+  ],
+  "defaultLayout": {
+    "version": 2,
+    "groups": [
+      {
+        "id": "mainHud", "label": "Main HUD", "anchor": "top-right",
+        "x": 1, "y": 0, "locked": true, "flow": "row", "gap": 4,
+        "members": [["controls", "pedals"], "maps", ["position", "gaps"], "tacho", ["k10Logo", "carLogo"]]
+      },
+      {
+        "id": "timer", "label": "Race timer", "anchor": "top-right",
+        "x": 0.935, "y": 0.175, "locked": false, "flow": "row", "gap": 4,
+        "members": ["timer"]
+      },
+      {
+        "id": "secondary", "label": "Race data", "anchor": "bottom-right",
+        "x": 1, "y": 1, "locked": true, "flow": "row", "gap": 4,
+        "members": ["leaderboard", "datastream", "pitbox"]
+      },
+      {
+        "id": "incidents", "label": "Incidents", "anchor": "bottom-left",
+        "x": 0, "y": 1, "locked": true, "flow": "row", "gap": 4,
+        "members": ["incidents"]
+      },
+      {
+        "id": "commentary", "label": "Commentary", "anchor": "bottom-left",
+        "x": 0.012, "y": 0.7, "locked": false, "flow": "column", "gap": 4,
+        "members": ["commentary"]
+      },
+      {
+        "id": "spotter", "label": "Spotter", "anchor": "bottom-center",
+        "x": 0.5, "y": 1, "locked": true, "flow": "row", "gap": 4,
+        "members": ["spotter"]
+      },
+      {
+        "id": "gameLogo", "label": "Game logo", "anchor": "bottom-left",
+        "x": 0.06, "y": 0.985, "locked": false, "flow": "row", "gap": 4,
+        "members": ["gameLogo"]
+      }
+    ]
+  }
+}

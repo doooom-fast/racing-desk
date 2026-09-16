@@ -1,0 +1,132 @@
+/* ═══════════════════════════════════════════════════════════════
+   PIT WALL CHIP — overlay micro-widget styles
+
+   Tiny chip that surfaces Composure score + Heat direction. Lives
+   in the top-right corner by default so it pairs with the existing
+   incidents panel without crowding the central HUD. The chip is
+   self-positioning — the overlay's layout-tr/tl/br/bl class on the
+   document body shifts it to the opposite of the main HUD.
+
+   Vocabulary anchored in glossary.md. No finance terms.
+   ═══════════════════════════════════════════════════════════════ */
+
+#pitWallChip.pw-chip {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 30;
+
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+
+    background: rgba(8, 8, 14, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: var(--corner-r, 8px);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    font-family: var(--font-mono, "JetBrains Mono", "Cascadia Code", monospace);
+    color: var(--text-primary, #f0f0f0);
+    line-height: 1.0;
+
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    user-select: none;
+    pointer-events: none;
+
+    transition: opacity var(--t-med, 350ms) ease,
+                transform var(--t-med, 350ms) ease;
+}
+
+/* When the main HUD is at top-right, mirror to top-left. */
+body.layout-tr #pitWallChip.pw-chip { top: 16px; right: auto; left: 16px; }
+body.layout-tl #pitWallChip.pw-chip { top: 16px; left: auto; right: 16px; }
+body.layout-br #pitWallChip.pw-chip { top: 16px; right: 16px; }
+body.layout-bl #pitWallChip.pw-chip { top: 16px; right: 16px; }
+
+#pitWallChip.pw-chip.pw-hidden {
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
+}
+
+/* Left rail — tinted by Composure band. Sets via inline style. */
+#pitWallChip .pw-band-rail {
+    width: 4px;
+    background: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+}
+
+#pitWallChip .pw-content {
+    padding: 8px 12px 8px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
+#pitWallChip .pw-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+#pitWallChip .pw-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+#pitWallChip .pw-score {
+    font-size: 18px;
+    font-weight: 800;
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 6px currentColor;
+}
+
+#pitWallChip .pw-band {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+#pitWallChip .pw-sep {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 10px;
+}
+
+#pitWallChip .pw-heat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    box-shadow: 0 0 6px currentColor;
+    position: relative;
+    --pw-pulse-tempo: 1.6s;
+}
+
+#pitWallChip .pw-heat-dot:not(.pw-dot-static)::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: inherit;
+    opacity: 0.5;
+    animation: pwHeatPulse var(--pw-pulse-tempo) ease-in-out infinite;
+}
+
+@keyframes pwHeatPulse {
+    0%, 100% { transform: scale(1);   opacity: 0.5; }
+    50%      { transform: scale(1.7); opacity: 0.0; }
+}
+
+#pitWallChip .pw-heat {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}

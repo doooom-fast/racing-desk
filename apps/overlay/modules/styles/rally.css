@@ -1,0 +1,9 @@
+  .rally-only { display: none; }
+  body.game-rally .rally-only { display: block; }
+  body.game-rally .circuit-only { display: none; }
+
+  /* Rally: wider stage progress, no track map circle */
+  body.game-rally .map-panel { display: none; }
+
+  /* Rally leaderboard: show split times instead of gaps */
+  body.game-rally .lb-ir { display: none; } /* hide iRating column */

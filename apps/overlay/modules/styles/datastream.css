@@ -1,0 +1,313 @@
+  /* ═══════════════════════════════════════════════
+     RACE TIMELINE STRIP
+     ═══════════════════════════════════════════════ */
+  .race-timeline {
+    margin-top: 4px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: hsla(0, 0%, 5%, 0.90);
+    border: 1px solid hsla(0, 0%, 100%, 0.14);
+    padding: 2px;
+  }
+  .rt-canvas {
+    display: block;
+    width: 100%;
+    height: 9px;
+    border-radius: 3px;
+  }
+
+  /* ═══════════════════════════════════════════════
+     DATASTREAM PANEL
+     ═══════════════════════════════════════════════ */
+  .datastream-panel {
+    width: 200px;
+    transition: opacity 0.4s ease;
+    flex-shrink: 0;
+  }
+  .datastream-panel.section-hidden { display: none; }
+  /* Position offsets removed — now handled by .sec-container flex layout */
+
+  .ds-inner {
+    background: hsla(0, 0%, 5%, 0.90);
+    border: 1px solid hsla(0, 0%, 100%, 0.14);
+    border-radius: 8px;
+    padding: 6px 10px 8px;
+    position: relative;
+  }
+  .ds-header {
+    font-family: var(--ff);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: hsla(0, 0%, 100%, 0.35);
+    padding-bottom: 5px;
+    border-bottom: 1px solid hsla(0, 0%, 100%, 0.06);
+    margin-bottom: 6px;
+  }
+
+  /* G-force diamond */
+  .ds-gforce {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .ds-gforce-diamond {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+  }
+  .ds-gforce-diamond canvas {
+    width: 100%;
+    height: 100%;
+  }
+  .ds-gforce-vals {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  /* Data rows */
+  .ds-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+    border-bottom: 1px solid hsla(0, 0%, 100%, 0.03);
+  }
+  .ds-row:last-child { border-bottom: none; }
+  .ds-label {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: hsla(0, 0%, 100%, 0.35);
+  }
+  .ds-value {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semi);
+    color: var(--text-secondary);
+    letter-spacing: -0.02em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .ds-value.ds-positive { color: hsla(0, 70%, 55%, 1.0); }
+  .ds-value.ds-negative { color: hsla(145, 65%, 50%, 1.0); }
+  .ds-value.ds-neutral  { color: var(--text-dim); }
+
+
+  /* Yaw rate mini bar */
+  .ds-yaw-bar {
+    height: 3px;
+    background: hsla(0, 0%, 100%, 0.06);
+    border-radius: 2px;
+    margin-top: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+  .ds-yaw-fill {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-radius: 2px;
+    background: hsla(210, 70%, 55%, 0.7);
+    transition: left 0.1s, width 0.1s;
+  }
+
+  /* Yaw trail canvas — subtle waveform showing turn shape */
+  .ds-yaw-trail {
+    width: 100%;
+    height: 28px;
+    margin-top: 2px;
+    opacity: 0.7;
+    border-radius: 3px;
+  }
+
+  /* Datastream value-change highlights */
+  .ds-value.ds-flash {
+    animation: ds-val-flash 1.2s ease forwards;
+  }
+  @keyframes ds-val-flash {
+    0%   { filter: brightness(1.8); text-shadow: 0 0 6px currentColor; }
+    100% { filter: brightness(1.0); }
+  }
+
+  /* ═══════════════════════════════════════════════
+     INCIDENTS MODULE
+     ═══════════════════════════════════════════════ */
+  .incidents-panel {
+    position: fixed;
+    z-index: 50;
+    width: fit-content;
+    transition: opacity 0.4s ease;
+  }
+  .incidents-panel.section-hidden { display: none; }
+  .incidents-panel.inc-bottom { bottom: var(--edge-z, var(--edge)); }
+  .incidents-panel.inc-top { top: var(--edge-z, var(--edge)); }
+  .incidents-panel.inc-right { right: var(--edge-z, var(--edge)); }
+  .incidents-panel.inc-left { left: var(--edge-z, var(--edge)); }
+
+  .inc-gl-canvas {
+    position: absolute;
+    inset: -8px;
+    width: calc(100% + 16px);
+    height: calc(100% + 16px);
+    pointer-events: none;
+    z-index: 0;
+    border-radius: 12px;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .incidents-panel.inc-bonkers .inc-gl-canvas { opacity: 1; }
+
+  .inc-inner {
+    position: relative;
+    z-index: 1;
+    background: hsla(0, 0%, 5%, 0.90);
+    border: 1px solid hsla(0, 0%, 100%, 0.14);
+    border-radius: 8px;
+    padding: 4px 8px 6px;
+    text-align: center;
+    transition: background 0.4s ease, border-color 0.4s ease;
+  }
+  .inc-label {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: hsla(0, 0%, 100%, 0.35);
+    padding-bottom: 3px;
+    border-bottom: 1px solid hsla(0, 0%, 100%, 0.06);
+    margin-bottom: 3px;
+  }
+  .inc-value-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+  }
+  .inc-count {
+    font-size: 56px;
+    font-weight: var(--fw-bold);
+    letter-spacing: -0.02em;
+    color: hsl(145, 65%, 50%);
+    transition: color 0.4s ease;
+    line-height: 1;
+  }
+  .inc-x {
+    font-size: 28px;
+    font-weight: var(--fw-semi);
+    color: hsla(0, 0%, 100%, 0.25);
+    line-height: 1;
+  }
+
+  /* Progressive color escalation: green → yellow → orange → red */
+  .incidents-panel.inc-level-0 .inc-count { color: hsl(145, 65%, 50%); }
+  .incidents-panel.inc-level-1 .inc-count { color: hsl(90, 60%, 50%); }
+  .incidents-panel.inc-level-2 .inc-count { color: hsl(48, 80%, 55%); }
+  .incidents-panel.inc-level-3 .inc-count { color: hsl(30, 80%, 52%); }
+  .incidents-panel.inc-level-4 .inc-count { color: hsl(8, 75%, 52%); }
+  .incidents-panel.inc-level-5 .inc-count { color: hsl(0, 80%, 50%); }
+
+  /* Border + background escalation */
+  .incidents-panel.inc-level-0 .inc-inner { border-color: hsla(145, 50%, 40%, 0.24); }
+  .incidents-panel.inc-level-1 .inc-inner { border-color: hsla(90, 50%, 40%, 0.30); }
+  .incidents-panel.inc-level-2 .inc-inner { border-color: hsla(48, 60%, 40%, 0.36); }
+  .incidents-panel.inc-level-3 .inc-inner { border-color: hsla(30, 65%, 40%, 0.40); background: hsla(30, 40%, 8%, 1.0); }
+  .incidents-panel.inc-level-4 .inc-inner { border-color: hsla(8, 65%, 40%, 0.50); background: hsla(8, 40%, 8%, 1.0); }
+  .incidents-panel.inc-level-5 .inc-inner { border-color: hsla(0, 70%, 40%, 0.60); background: hsla(0, 45%, 8%, 1.0); }
+
+  /* Threshold rows — penalty / DQ remaining */
+  .inc-thresholds {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid hsla(0, 0%, 100%, 0.06);
+  }
+  .inc-thresh-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    letter-spacing: 0.04em;
+    color: hsla(0, 0%, 100%, 0.35);
+  }
+  .inc-thresh-val {
+    font-weight: var(--fw-semi);
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+    color: hsla(0, 0%, 100%, 0.50);
+    transition: color 0.4s ease;
+  }
+  .inc-thresh-val.thresh-near { color: hsl(48, 80%, 55%); }
+  .inc-thresh-val.thresh-crit { color: hsl(0, 75%, 55%); }
+  .inc-thresh-val.thresh-hit  { color: hsl(0, 80%, 50%); font-weight: var(--fw-black); }
+
+  /* Incident progress bar — accrued vs penalty vs DQ */
+  .inc-progress {
+    margin-top: 4px;
+    padding: 0 1px;
+  }
+  .inc-bar-track {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    background: hsla(0, 0%, 100%, 0.08);
+    border-radius: 3px;
+    overflow: visible;
+  }
+  .inc-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 3px;
+    min-width: 0;
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                background 0.4s ease;
+    background: hsl(145, 65%, 45%);
+  }
+  /* Fill color follows incident level */
+  .incidents-panel.inc-level-0 .inc-bar-fill { background: hsl(145, 65%, 45%); }
+  .incidents-panel.inc-level-1 .inc-bar-fill { background: hsl(90, 60%, 45%); }
+  .incidents-panel.inc-level-2 .inc-bar-fill { background: hsl(48, 75%, 50%); }
+  .incidents-panel.inc-level-3 .inc-bar-fill { background: hsl(30, 75%, 48%); }
+  .incidents-panel.inc-level-4 .inc-bar-fill { background: hsl(8, 70%, 48%); }
+  .incidents-panel.inc-level-5 .inc-bar-fill { background: hsl(0, 75%, 45%); }
+
+  .inc-bar-marker {
+    position: absolute;
+    top: -2px;
+    width: 2px;
+    height: 10px;
+    border-radius: 1px;
+    transition: left 0.3s ease;
+  }
+  .inc-marker-pen {
+    background: hsl(48, 80%, 55%);
+    opacity: 0.7;
+  }
+  .inc-marker-dq {
+    background: hsl(0, 75%, 55%);
+    opacity: 0.7;
+  }
+
+  /* Flash on increment */
+  @keyframes inc-flash {
+    0%   { filter: brightness(1.6); transform: scale(1.06); }
+    100% { filter: brightness(1.0); transform: scale(1.0); }
+  }
+  .inc-count.inc-flash {
+    animation: inc-flash 0.8s ease forwards;
+  }
+
+  /* ═══════════════════════════════════════════════
+     ═══════════════════════════════════════════════ */

@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RaceCor Dashboard</title>
+<!--
+  SimHub HTML Dashboard — K10 Motorsports
+  ════════════════════════════════════════════════════════════════
+
+  JS API (call from SimHub JavascriptExtensions or NCalc bindings):
+
+    updateTacho(pct)              — 0.0-1.0, drives tachometer segments + RPM color
+    updateGLFX(rpm, thr, brk, clt)   — pedal level meter bars + trace rendered via WebGL shader
+    updateIRBar(iRating)          — integer iRating value, bar fills 0-5000 range
+    updateSRPie(srValue)          — 0.0-4.0 safety rating value
+    cycleRatingPos()              — toggle between iRating/SR page and Position page
+    showCommentary(hue, title, text, meta, topicId) — show commentary panel with sentiment color + icon
+    hideCommentary()              — dismiss commentary panel
+    cycleCarLogo()                — cycle through manufacturer logos
+    flashElement(el, className)   — trigger value-change flash animation
+
+  SimHub properties → HTML elements (set via innerText/textContent):
+
+    Gear         → #gearText
+    RPM          → #rpmText
+    Speed        → #speedText
+    Fuel L       → .fuel-remaining (innerHTML with unit span)
+    Fuel bar     → .fuel-bar-inner (style.width as %)
+    Tyre temps   → .tyre-cell elements (FL/FR/RL/RR)
+    BB/TC/ABS    → .ctrl-value + --ctrl-pct CSS variable
+    Position     → .pos-number (both in cycle-sizer and positionPage)
+    Lap          → .pos-meta-row .val
+    Current lap  → .pos-meta-row.current-row .val (live timer + delta)
+    iRating      → .rating-value (first .rating-item)
+    Safety       → .rating-value (second .rating-item)
+    Gap ahead    → .gap-time.ahead + .gap-driver + .gap-ir
+    Gap behind   → .gap-time.behind + .gap-driver + .gap-ir
+
+  ════════════════════════════════════════════════════════════════
+-->
+<link rel="stylesheet" href="https://use.typekit.net/pdg5yka.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+
+<!-- Stylesheet modules -->
+<link rel="stylesheet" href="modules/styles/base.css">
+<link rel="stylesheet" href="modules/styles/dashboard.css">
+<link rel="stylesheet" href="modules/styles/leaderboard.css">
+<link rel="stylesheet" href="modules/styles/datastream.css">
+<link rel="stylesheet" href="modules/styles/effects.css">
+<link rel="stylesheet" href="modules/styles/modes.css">
+<link rel="stylesheet" href="modules/styles/rally.css">
+<link rel="stylesheet" href="modules/styles/ambient.css">
+<link rel="stylesheet" href="modules/styles/pitbox.css">
+<link rel="stylesheet" href="modules/styles/race-results.css">
+<link rel="stylesheet" href="modules/styles/incident-coach.css">
+<link rel="stylesheet" href="modules/styles/pit-wall-chip.css">
+<link rel="stylesheet" href="modules/styles/recorder.css">
+<!-- drive-mode.css removed — iPad drive mode no longer active -->
+
+</head>
+<body>
+
+<!-- Ambient light glow — full viewport WebGL canvas behind all panels -->
+<canvas class="ambient-canvas" id="ambientGlCanvas"></canvas>
+<!-- Full-screen glare canvas — renders all panel edge glows in one pass -->
+<canvas id="glareCanvas" style="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:60;"></canvas>
+
+
+
+<!-- COMPONENT: Drive Mode (Ctrl+Shift+F or auto on remote) -->
+<div class="drive-hud" id="driveHud" style="display:none;">
+
+  <!-- Left column: track map (large) + spotter below -->
+  <div class="dh-left">
+    <div class="dh-map">
+      <div class="dh-map-name" id="dhMapName"></div>
+      <svg class="dh-map-svg" id="dhMapSvg" viewBox="35 35 30 30" overflow="visible">
+        <!-- dhMapRotateGroup rotates around the player's SVG coordinate so the
+             driving direction always points up, without rotating the SVG element
+             itself (which caused rectangular clipping + crop artifacts). -->
+        <g id="dhMapRotateGroup">
+          <path class="map-track" id="dhMapTrack" d="" />
+          <path class="map-sector" id="dhSector1" d="" />
+          <path class="map-sector" id="dhSector2" d="" />
+          <path class="map-sector" id="dhSector3" d="" />
+          <g id="dhMapOpponents"></g>
+        </g>
+        <!-- Player dot is outside the rotate group so it stays upright -->
+        <circle class="map-player" id="dhMapPlayer" cx="50" cy="50" r="2" />
+      </svg>
+    </div>
+    <div class="dh-spotter" id="dhSpotter"></div>
+  </div>
+
+  <!-- Center column: timing -->
+  <div class="dh-center">
+    <div class="dh-position"><span class="dh-pos-num" id="dhPosition">P—</span></div>
+    <div class="dh-lap-delta" id="dhLapDelta">+0.000</div>
+    <div class="dh-sectors">
+      <div class="dh-sector" id="dhS1"><div class="dh-sec-label">S1</div><div class="dh-sec-time" id="dhS1Time">—</div><div class="dh-sec-delta" id="dhS1Delta"></div></div>
+      <div class="dh-sector" id="dhS2"><div class="dh-sec-label">S2</div><div class="dh-sec-time" id="dhS2Time">—</div><div class="dh-sec-delta" id="dhS2Delta"></div></div>
+      <div class="dh-sector" id="dhS3"><div class="dh-sec-label">S3</div><div class="dh-sec-time" id="dhS3Time">—</div><div class="dh-sec-delta" id="dhS3Delta"></div></div>
+    </div>
+    <div class="dh-lap-times">
+      <div class="dh-lap-row"><span class="dh-lap-label">Last</span><span class="dh-lap-val" id="dhLastLap">—</span></div>
+      <div class="dh-lap-row dh-lap-num-row"><span class="dh-lap-label">Lap</span><span class="dh-lap-val" id="dhCurrentLap">—</span></div>
+      <div class="dh-live-lap" id="dhLiveLap">
+        <span class="dh-live-time" id="dhLiveTime">—</span>
+        <span class="dh-live-delta" id="dhLiveDelta"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column: incidents -->
+  <div class="dh-right">
+    <div class="dh-incidents">
+      <div class="dh-inc-label">Incidents</div>
+      <div class="dh-inc-count" id="dhIncCount">0<span class="dh-inc-x">x</span></div>
+      <div class="dh-inc-thresholds">
+        <span id="dhIncToPen">—</span> to pen
+        <span id="dhIncToDQ">—</span> to DQ
+      </div>
+    </div>
+    <!-- Incident Coach: composure + rage score in drive mode -->
+    <div class="dh-composure" id="dhComposure" style="display:none;">
+      <div class="dh-composure-bar">
+        <div class="dh-composure-fill" id="dhComposureFill"></div>
+      </div>
+      <div class="dh-composure-label" id="dhComposureLabel">CALM</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- COMPONENT: Main Dashboard -->
+<div class="dashboard layout-tr" id="dashboard">
+
+  <div class="main-row">
+  <div class="main-area">
+
+    <!-- COL: Controls + Layered Pedals -->
+    <div class="controls-pedals-block">
+      <div class="panel car-controls">
+        <div class="ctrl-item" id="ctrlBB" style="--ctrl-pct:0%;"><div class="ctrl-label">BB</div><div class="ctrl-value">—</div></div>
+        <div class="ctrl-item" id="ctrlTC" style="--ctrl-pct:0%;"><div class="ctrl-label">TC</div><div class="ctrl-value">—</div></div>
+        <div class="ctrl-item" id="ctrlABS" style="--ctrl-pct:0%;"><div class="ctrl-label">ABS</div><div class="ctrl-value">—</div></div>
+        <div class="ctrl-no-adj" id="ctrlNoAdj">NO ADJUSTMENTS</div>
+      </div>
+      <div class="panel pedals-area" id="pedalsArea">
+        <div class="pedal-labels-row">
+          <div class="pedal-label-group">
+            <div class="pedal-channel-label throttle">THROTTLE</div>
+            <div class="pedal-pct">—%</div>
+          </div>
+          <div class="pedal-label-group">
+            <div class="pedal-channel-label brake">BRAKE</div>
+            <div class="pedal-pct">—%</div>
+          </div>
+          <div class="pedal-label-group" id="clutchLabelGroup">
+            <div class="pedal-channel-label clutch">CLUTCH</div>
+            <div class="pedal-pct">—%</div>
+          </div>
+        </div>
+        <div class="pedal-viz-stack">
+          <div class="pedal-viz-layer throttle-layer" id="throttleHist"></div>
+          <div class="pedal-viz-layer brake-layer" id="brakeHist"></div>
+          <div class="pedal-viz-layer clutch-layer" id="clutchHist"></div>
+          <canvas id="pedalTraceCanvas" class="pedal-trace-canvas"></canvas>
+          <canvas id="pedalCurveCanvas" class="pedal-curve-canvas"></canvas>
+          <div id="pedalProfileLabel" class="pedal-profile-label"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL: Maps stacked — rendered dynamically from TrackMapProvider -->
+    <div class="maps-col">
+      <div class="panel map-panel">
+        <svg class="map-svg" id="fullMapSvg" viewBox="0 0 100 100">
+          <!-- Single source-of-truth path — every rendered layer below is a
+               <use> referencing this. Updating one d attribute updates all
+               three layers, which removes the "did we touch all six path
+               elements" class of bug. -->
+          <defs>
+            <path id="fullMapTrackSrc" d="" />
+          </defs>
+          <use class="map-track-outer" id="fullMapTrackOuter" href="#fullMapTrackSrc" />
+          <use class="map-track" id="fullMapTrack" href="#fullMapTrackSrc" />
+          <use class="map-track-inner on-track" id="fullMapTrackInner" href="#fullMapTrackSrc" />
+          <path class="map-sector" id="mapSector1" d="" />
+          <path class="map-sector" id="mapSector2" d="" />
+          <path class="map-sector" id="mapSector3" d="" />
+          <g id="fullMapSF" class="map-sf" style="display:none;">
+            <line x1="0" y1="-3.5" x2="0" y2="3.5" stroke="hsla(0,0%,100%,0.6)" stroke-width="1.5" stroke-linecap="round"/>
+          </g>
+          <g id="fullMapOpponents"></g>
+          <circle class="map-player" id="fullMapPlayer" cx="50" cy="50" r="4" />
+        </svg>
+        <div class="map-zoom-label" id="fullMapLabel"><span class="map-zoom-label-inner">Full</span></div>
+      </div>
+      <div class="panel map-zoom-panel">
+        <svg class="map-zoom-svg" id="zoomMapSvg" viewBox="0 0 100 100" overflow="visible">
+          <!-- Single source-of-truth path for the zoom map. Same pattern. -->
+          <defs>
+            <path id="zoomMapTrackSrc" d="" />
+          </defs>
+          <!-- Rotate group: track + opponents rotate around the player so
+               driving direction always points up. Player dot is OUTSIDE
+               this group so it stays upright and visually centered. -->
+          <g id="zoomMapRotateGroup">
+            <use class="map-track-outer" id="zoomMapTrackOuter" href="#zoomMapTrackSrc" />
+            <use class="map-track" id="zoomMapTrack" href="#zoomMapTrackSrc" />
+            <use class="map-track-inner on-track" id="zoomMapTrackInner" href="#zoomMapTrackSrc" />
+            <g id="zoomMapSF" class="map-sf" style="display:none;">
+              <line x1="0" y1="-2" x2="0" y2="2" stroke="hsla(0,0%,100%,0.6)" stroke-width="0.8" stroke-linecap="round"/>
+            </g>
+            <g id="zoomMapOpponents"></g>
+          </g>
+          <!-- Player dot outside rotate group — always upright at center -->
+          <circle class="map-player" id="zoomMapPlayer" cx="50" cy="50" r="2" />
+        </svg>
+        <div class="map-zoom-label" id="zoomMapLabel">Local</div>
+      </div>
+    </div>
+
+    <!-- COL: Position/Rating + Gaps -->
+    <div class="pos-gaps-col">
+      <div class="panel cycle-container rating-pos-block" id="cycleRatingPos">
+        <div class="cycle-sizer">
+          <div class="pos-layout">
+            <div class="pos-number"><span class="skew-accent">P—</span><div class="pos-delta"></div></div>
+            <div class="pos-meta">
+              <div class="pos-meta-row">Lap <span class="val">—</span></div>
+              <div class="pos-meta-row current-row"><span class="val">—:——.———</span></div>
+              <div class="pos-meta-row delta-row"><span class="val"></span></div>
+            </div>
+          </div>
+        </div>
+        <!-- Page A: iRating + SR with charts -->
+        <div class="cycle-page active" id="ratingPage">
+          <div class="rating-row">
+            <div class="rating-item">
+              <div class="panel-label">iRating</div>
+              <div class="rating-value">—</div>
+              <div class="rating-delta">—</div>
+              <div class="ir-bar-container">
+                <div class="ir-bar-track">
+                  <div class="ir-bar-fill" id="irBarFill" style="width: 0%;"></div>
+                  <div class="ir-bar-ticks">
+                    <div class="ir-bar-tick" style="left: 20%;"></div>
+                    <div class="ir-bar-tick-label" style="left: 20%;">1k</div>
+                    <div class="ir-bar-tick" style="left: 40%;"></div>
+                    <div class="ir-bar-tick-label" style="left: 40%;">2k</div>
+                    <div class="ir-bar-tick" style="left: 60%;"></div>
+                    <div class="ir-bar-tick-label" style="left: 60%;">3k</div>
+                    <div class="ir-bar-tick" style="left: 80%;"></div>
+                    <div class="ir-bar-tick-label" style="left: 80%;">4k</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="rating-item">
+              <div class="panel-label">SR</div>
+              <div class="rating-value">—</div>
+              <div class="rating-delta">—</div>
+              <div class="sr-pie-container">
+                <svg class="sr-pie-svg" viewBox="0 0 40 40">
+                  <circle class="sr-pie-bg" cx="20" cy="20" r="15"/>
+                  <circle class="sr-pie-fill" id="srPieFill" cx="20" cy="20" r="15"
+                    stroke="var(--green)"
+                    stroke-dasharray="94.25"
+                    stroke-dashoffset="18.85"/>
+                  <!-- no text overlay -->
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Page B: Position + Best (purple) -->
+        <div class="cycle-page inactive" id="positionPage">
+          <div class="pos-layout">
+            <div class="pos-number"><span class="skew-accent">P—</span><div class="pos-delta"></div></div>
+            <div class="pos-meta">
+              <div class="pos-meta-row">Lap <span class="val">—</span></div>
+              <div class="pos-meta-row current-row"><span class="val">—:——.———</span></div>
+              <div class="pos-meta-row delta-row"><span class="val"></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="cycle-dots"><div class="cycle-dot active" id="dotRating"></div><div class="cycle-dot" id="dotPos"></div></div>
+      </div>
+
+      <div class="panel gaps-block" id="gapsBlock">
+        <!-- Race mode: ahead/behind -->
+        <div class="gap-item" id="gapAheadItem">
+          <div class="gap-normal">
+            <div class="panel-label">Ahead</div>
+            <div class="gap-time ahead">—</div>
+            <div class="gap-driver">—</div>
+            <div class="gap-ir"></div>
+          </div>
+        </div>
+        <div class="gap-item" id="gapBehindItem">
+          <div class="gap-normal">
+            <div class="panel-label">Behind</div>
+            <div class="gap-time behind">—</div>
+            <div class="gap-driver">—</div>
+            <div class="gap-ir"></div>
+          </div>
+        </div>
+        <!-- Non-race mode: F1-style sector indicator -->
+        <div class="sector-indicator" id="sectorIndicator" style="display:none;">
+          <div class="sector-cell" id="sector1"><div class="sector-label">S1</div><div class="sector-time" id="sector1Time">—</div><div class="sector-delta" id="sector1Delta"></div></div>
+          <div class="sector-cell" id="sector2"><div class="sector-label">S2</div><div class="sector-time" id="sector2Time">—</div><div class="sector-delta" id="sector2Delta"></div></div>
+          <div class="sector-cell" id="sector3"><div class="sector-label">S3</div><div class="sector-time" id="sector3Time">—</div><div class="sector-delta" id="sector3Delta"></div></div>
+        </div>
+        <canvas class="flag-gl gl-overlay" id="flagGlCanvas"></canvas>
+        <div class="flag-overlay" id="flagOverlay">
+          <div class="flag-label" id="flagLabel1"></div>
+          <div class="flag-context" id="flagCtx1"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- COL: Tachometer -->
+    <div class="panel tacho-block">
+      <canvas class="gl-overlay" id="tachoGlCanvas"></canvas>
+      <div class="tacho-top-row">
+        <div class="tacho-gear" id="gearText">N</div>
+        <div class="tacho-speed-cluster">
+          <div class="speed-value" id="speedText">0</div>
+          <div class="speed-unit">MPH</div>
+        </div>
+      </div>
+      <span class="tacho-rpm" id="rpmText" style="color: var(--text-dim);">0</span>
+      <div class="tacho-bar-track" id="tachoBar"></div>
+    </div>
+
+    <!-- COL: Logo (two stacked squares) -->
+    <div class="logo-col">
+      <div class="logo-square" id="k10LogoSquare">
+        <canvas class="gl-overlay" id="k10LogoGlCanvas" style="z-index:1;"></canvas>
+        <img src="images/branding/logomark.png" alt="RaceCor" style="width:75%;height:auto;opacity:1;position:relative;z-index:2;">
+      </div>
+      <div class="logo-square" id="carLogoSquare">
+        <canvas class="mfr-flag-canvas" id="mfrFlagCanvas"></canvas>
+        <!-- Generic logo (replaced by JS when CarModel data arrives) -->
+        <div class="car-logo-icon" id="carLogoIcon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="30" fill="none" stroke="hsla(0,0%,100%,0.3)" stroke-width="4"/>
+            <circle cx="40" cy="40" r="22" fill="none" stroke="hsla(0,0%,100%,0.15)" stroke-width="2"/>
+            <circle cx="40" cy="40" r="5" fill="hsla(0,0%,100%,0.3)"/>
+            <line x1="40" y1="10" x2="40" y2="18" stroke="hsla(0,0%,100%,0.3)" stroke-width="3" stroke-linecap="round"/>
+            <line x1="40" y1="62" x2="40" y2="70" stroke="hsla(0,0%,100%,0.3)" stroke-width="3" stroke-linecap="round"/>
+            <line x1="10" y1="40" x2="18" y2="40" stroke="hsla(0,0%,100%,0.3)" stroke-width="3" stroke-linecap="round"/>
+            <line x1="62" y1="40" x2="70" y2="40" stroke="hsla(0,0%,100%,0.3)" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <span class="car-model-label" id="carModelLabel"></span>
+      </div>
+    </div>
+
+  </div><!-- /main-area -->
+  </div><!-- /main-row -->
+
+  <!-- ROW: Race Timer — aligned with position box -->
+  <div class="timer-row">
+    <div class="panel race-timer-block" id="raceTimerBlock">
+      <div class="race-timer-value" id="raceTimerValue">0:00:00</div>
+      <div class="race-timer-lap"><span class="timer-label">Last</span> <span id="lastLapTimeValue">—:——.———</span></div>
+    </div>
+  </div>
+
+  <div class="conn-status connecting" id="connStatus" title="Connecting to plugin server..."></div>
+
+</div><!-- /dashboard -->
+
+<!-- COMMENTARY — independent fixed overlay, positioned in the open corner opposite the HUD -->
+<div class="commentary-col" id="commentaryCol" style="--commentary-h: 0;">
+  <canvas class="commentary-gl-canvas" id="commentaryGlCanvas"></canvas>
+  <div class="commentary-inner" id="commentaryInner">
+    <div class="commentary-track-img" id="commentaryTrackImg"></div>
+    <div class="commentary-icon" id="commentaryIcon"></div>
+    <div class="commentary-title" id="commentaryTitle"></div>
+    <div class="commentary-text-scroll" id="commentaryScroll">
+      <div class="commentary-text" id="commentaryText"></div>
+    </div>
+    <div class="commentary-viz" id="commentaryViz">
+      <canvas id="commentaryVizCanvas"></canvas>
+      <div class="commentary-viz-value" id="commentaryVizValue"></div>
+      <div class="commentary-viz-label" id="commentaryVizLabel"></div>
+    </div>
+    <div class="commentary-meta" id="commentaryMeta"></div>
+  </div>
+</div>
+
+<!-- SECONDARY PANELS CONTAINER — flex row, positioned by applyLayout() -->
+<div class="sec-container" id="secContainer">
+
+<!-- COMPONENT: Leaderboard Panel -->
+<div class="leaderboard-panel lb-bottom lb-right" id="leaderboardPanel">
+  <div class="lb-inner">
+    <canvas class="lb-gl gl-overlay" id="lbPlayerGlCanvas"></canvas>
+    <canvas class="lb-gl gl-overlay" id="lbEventGlCanvas"></canvas>
+    <div class="lb-header">Relative</div>
+    <div id="lbRows"></div>
+  </div>
+  <!-- Race Timeline — color-coded position state history strip -->
+  <div class="race-timeline" id="raceTimeline">
+    <canvas class="rt-canvas" id="rtCanvas" width="310" height="9"></canvas>
+  </div>
+</div>
+
+<!-- COMPONENT: Datastream Panel (advanced telemetry) -->
+<div class="datastream-panel ds-bottom ds-right" id="datastreamPanel">
+  <div class="ds-inner">
+    <div class="ds-header">Datastream</div>
+
+    <!-- G-force diamond + values -->
+    <div class="ds-gforce" data-ds-field="dsShowGforce">
+      <div class="ds-gforce-diamond">
+        <canvas id="dsGforceCanvas" width="128" height="128"></canvas>
+      </div>
+      <div class="ds-gforce-vals">
+        <div class="ds-row" style="border:none;padding:0;">
+          <span class="ds-label">Lat</span>
+          <span class="ds-value" id="dsLatG">0.00g</span>
+        </div>
+        <div class="ds-row" style="border:none;padding:0;">
+          <span class="ds-label">Long</span>
+          <span class="ds-value" id="dsLongG">0.00g</span>
+        </div>
+        <div class="ds-row" style="border:none;padding:0;">
+          <span class="ds-label">Peak</span>
+          <span class="ds-value" id="dsPeakG" style="color:var(--text-dim);">0.00g</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Yaw rate with bar + trail -->
+    <div data-ds-field="dsShowYaw">
+      <div class="ds-row">
+        <span class="ds-label">Yaw</span>
+        <span class="ds-value" id="dsYawRate">0.00 r/s</span>
+      </div>
+      <div class="ds-yaw-bar"><div class="ds-yaw-fill" id="dsYawFill"></div></div>
+      <canvas class="ds-yaw-trail" id="dsYawTrail" width="200" height="28"></canvas>
+    </div>
+
+    <!-- Steering torque -->
+    <div class="ds-row" data-ds-field="dsShowFfb">
+      <span class="ds-label">FFB</span>
+      <span class="ds-value" id="dsSteerTorque">0.0 Nm</span>
+    </div>
+
+    <!-- Lap delta -->
+    <div class="ds-row" data-ds-field="dsShowDelta">
+      <span class="ds-label">Delta</span>
+      <span class="ds-value ds-neutral" id="dsDelta">+0.000</span>
+    </div>
+
+    <!-- Track temp -->
+    <div class="ds-row" data-ds-field="dsShowTrackTemp">
+      <span class="ds-label">Track</span>
+      <span class="ds-value" id="dsTrackTemp">—°C</span>
+    </div>
+
+    <!-- FPS -->
+    <div class="ds-row" data-ds-field="dsShowFps">
+      <span class="ds-label">FPS</span>
+      <span class="ds-value" id="dsFps" style="color:var(--text-dim);">—</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- COMPONENT: Pit Box Panel (driver panel — tyres, fuel, weather, adjustments) -->
+<div class="pitbox-panel pb-bottom pb-left" id="pitBoxPanel">
+  <div class="pb-inner">
+
+    <div class="pb-no-data" id="pbNoData" style="display:none;">No data</div>
+
+    <div id="pbContent" class="pb-content">
+      <!-- ── TAB BAR ── -->
+      <div class="pb-tabs" id="pbTabs">
+        <div class="pb-tab active" data-pb-tab="tyres" onclick="switchPbTab(this)">Tyres</div>
+        <div class="pb-tab" data-pb-tab="fuel" onclick="switchPbTab(this)">Fuel</div>
+        <div class="pb-tab" data-pb-tab="weather" onclick="switchPbTab(this)">Weather</div>
+      </div>
+
+      <!-- ═══ TYRES TAB ═══ -->
+      <div class="pb-page active" id="pbPageTyres" data-pb-page="tyres">
+
+        <!-- Strategist suggestion — hidden until strategy says change tires -->
+        <div class="pb-strat-suggest hidden" id="pbStratSuggest">
+          <button class="pb-strat-btn" id="pbStratBtn" tabindex="0">
+            <span class="pb-strat-icon">⚡</span>
+            <span class="pb-strat-label" id="pbStratLabel">Accept tire change</span>
+          </button>
+        </div>
+
+        <!-- 2×2 circle wear charts with car silhouette -->
+        <div class="pb-tire-circles">
+          <!-- Car silhouette (top-down view) centered between the 4 tires -->
+          <div class="pb-car-silhouette" id="pbCarSilhouette">
+            <!-- GT / Roadster (default) — adapted from noun-project icon, nose at top -->
+            <svg class="pb-car-svg pb-car-gt" id="pbCarGT" viewBox="0 0 110 135" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <g opacity="0.2">
+                <!-- Body shell -->
+                <path d="M75.6,53.2s0,0,0,0c0,4.6,0,12.4,0,23.4,0,.2,0,.4,0,.6.3,1.3.5,2.7.5,4.1.2,3.9-.1,7.8-.8,11.7-.5,2.7-1.3,4.9-3.4,6.6-1.7,1.2-3.6,2.1-5.6,2.5-4.9,1.1-9.9,1.4-14.9,1.1-2.4-.1-4.7-.4-7.1-.9-2.4-.3-4.7-1.2-6.7-2.7-1.9-1.6-3.2-3.9-3.5-6.4-.9-4.4-1.1-8.8-.8-13.3,0-.9.2-1.9.4-2.8,0-.1,0-.3,0-.4,0-13,0-20.8,0-23.4h0s0,0,0,0,0,0,0,0c-.5.2-1,.3-1.5.3-.7,0-1.3-.4-1.6-1-.6-1-.9-2,0-3h0c.3-.3.7-.4,1.1-.6.5-.2,1.2-.4,2-.8h0c0,0,0,0,0-.1,0-.9,0-2.8,0-5.7,0-.2,0-.5,0-.7-.2-.9-.3-1.8-.4-2.7-.2-2.8,0-5.5.2-8.3.2-2.1.7-4.1,1.5-6,.9-1.9,2.3-3.5,4-4.6,2.9-1.9,6.4-2.4,9.7-2.9,2.9-.4,5.8-.5,8.7-.3,2.5.1,5,.5,7.5,1,1.1.3,2.2.6,3.3,1.1,2,.8,3.8,2.3,5.1,4.1,1.4,2.3,2.3,4.9,2.5,7.6.2,2.3.3,4.6.3,6.8,0,1,0,2-.2,3-.2.9-.3,1.8-.4,2.7,0,1.8,0,3.4,0,4.8,0,0,0,0,0,0,.7.3,1.5.6,2.4.9h0c.5.1.9.5,1.2,1,.2.5.3,1,0,1.5-.4,1.1-1,2-2.4,1.9h0c-.4,0-.8-.2-1.2-.3h0ZM73.7,47.4c0-2.6,0-4.1,0-4.7,0-.5,0-1.1.1-1.6.1-.6.2-1.1.3-1.7.2-3.1.1-6.2-.3-9.3-.2-5.2-4.1-9.5-9.2-10.2-5-1.1-10.2-1.3-15.3-.8-1.9.2-3.8.5-5.7,1-3.9.9-7,3.9-7.8,7.8-.2.9-.4,1.8-.5,2.8-.4,3-.4,6-.2,9,0,.4.1.7.2,1.1.1.5.2,1,.2,1.5,0,1.9,0,3.6,0,5.1h0s0,0,0,0l2.1-.9h0s0,0,0-.1c-.1-3.3,3.8-4.7,6.3-5.3h0c4.6-1,9.2-1.4,13.9-1,1.9.1,3.9.4,5.8.8,1.6.3,3.1.8,4.6,1.4,1.7.8,3.2,2.2,3.1,4.2,0,0,0,0,0,.1l2.1.9s0,0,0,0h0ZM54.7,54.9h0c4.1,0,8.1.5,12.1,1.6,0,0,0,0,0,0,.8-2.9,1.6-5.8,2.4-8.5,0-.4.2-.9.4-1.8,0-.3,0-.5-.1-.7-.6-1-1.5-1.7-2.6-2-.8-.3-1.6-.6-2.5-.8-6.4-1.4-13.1-1.4-19.5,0-.8.2-1.7.4-2.5.8-1.1.3-2,1-2.6,2-.2.2-.2.5-.1.7.2.8.3,1.4.4,1.8.7,2.7,1.5,5.5,2.4,8.5,0,0,0,0,0,0,3.9-1.1,8-1.7,12.1-1.6h0ZM38.6,49.4l-.3-1.1s0,0-.1,0c-2,1-4.1,1.8-6.2,2.6,0,0-.1.1,0,.2l.2.6c0,0,.1.1.2.1.1,0,.2,0,.3,0,1.9-.6,3.8-1.3,5.9-2.2,0,0,0,0,0,0h0ZM70.7,49.5s0,0,0,0c2.1.8,4.2,1.6,6.1,2.2h0c.1,0,.2,0,.3,0,0,0,.2,0,.2-.1l.2-.6h0c0,0,0-.2,0-.2-2.1-.8-4.2-1.7-6.3-2.6h0s0,0-.1,0l-.3,1.1ZM70.3,75.8v-24.5s0,0,0,0c0,0,0,0,0,0-.3,1.1-.9,3.3-1.9,6.7h0c0,.3-.1.7-.1,1,0,5.8,0,9.7-.1,11.8,0,.8.1,1.5.5,2.2.5.9,1.1,1.9,1.7,2.8,0,0,0,0,0,0h0ZM39.1,51.3v24.4h0s0,0,0,0c0,0,0,0,0,0l1.4-2.5h0c.4-.6.6-1.3.7-2.1,0-2.4,0-6.5,0-12.4h0c0-.2,0-.5-.1-.7-.7-2.5-1.4-4.7-1.9-6.7,0,0,0,0,0,0h0ZM72.1,52.1c0,2.1,0,11,0,26.8h0c0,.5-.3.9-.7,1.1-.5,0-.9-.2-1.1-.6-.3-.4-.4-.6-.5-.8-.7-1.1-1.7-2.7-2.8-4.8h0c-.5-.8-.7-1.8-.7-2.7,0-3.4,0-6.7,0-10,0-.9,0-1.8.1-2.7,0,0,0,0,0,0-4-1.1-8-1.6-12.1-1.5-2.5,0-5.1.3-7.6.7-1.2.2-2.4.5-3.5.8,0,0,0,0,0,0,0,.4,0,.8,0,1.1,0,3.4,0,7.1,0,10.9,0,1.1-.1,2.1-.6,3.1-.5.9-1.5,2.7-3.2,5.6-.1.3-.3.5-.6.7-.4.3-.9.2-1.2-.2-.2-.2-.3-.5-.3-.8,0-7.2,0-16.1,0-26.8,0,0,0,0,0,0l-1.5.6c0,0,0,0,0,.1v23.7c0,.5,0,1-.1,1.5-.3,1.4-.4,2.8-.5,4.3-.1,3.7.2,7.3.8,10.9.1.7.3,1.4.6,2,1.2,3.2,3.8,4.6,6.9,5.2,4.9,1,9.9,1.4,14.8,1.1,2.6-.2,5.2-.5,7.7-1.1,2.4-.5,4.8-1.5,6.2-3.6.9-1.7,1.5-3.6,1.7-5.5.5-3.5.7-7.1.5-10.6,0-1.1-.2-2.2-.4-3.2,0-.2,0-.5,0-.7v-24h0c0,0,0-.2-.1-.2l-1.4-.5s0,0,0,0c0,0,0,0,0,0h0Z"/>
+                <!-- Hood stripes -->
+                <path d="M43.7,30.7c-.4,2.3-.8,4.6-1.1,6.8,0,.3-.2.6-.5.8-.3.1-.7,0-.9-.1-.3-.2-.4-.6-.3-1,.3-2.1.6-4.2,1-6.8.5-2.6.9-4.6,1.4-6.7h0c0-.4.3-.7.7-.8.3,0,.7,0,.9.2.2.2.3.6.2.9-.5,2.1-1,4.4-1.4,6.7h0Z"/>
+                <path d="M67.5,30.4c.5,2.6.8,4.6,1,6.8h0c0,.4,0,.7-.3,1-.3.2-.6.2-.9.1-.3-.1-.5-.4-.5-.8-.3-2.2-.6-4.4-1.1-6.8-.4-2.3-.9-4.6-1.4-6.7,0-.3,0-.7.2-.9.2-.2.6-.3.9-.2.4.1.6.4.7.8.5,2.1,1,4.1,1.4,6.7Z"/>
+                <!-- Trunk / rear panel -->
+                <path d="M54.6,78.5c2.7,0,5.3-.2,7.9-.5.8-.1,1.3-.2,1.7-.3h0c.5-.1,1-.2,1.5-.2.5,0,1,.3,1.4.7.6.6.9,1.4.8,2.3,0,1.9.1,5,.2,9.5,0,1.4-1.1,2.6-2.4,3.1-1.2.4-2.5.7-3.7.8-4.9.7-9.9.7-14.8,0-1.3-.1-2.5-.4-3.7-.8-1.4-.4-2.3-1.6-2.4-3.1.1-4.5.2-7.7.2-9.5,0-.8.2-1.7.8-2.3.4-.4.8-.6,1.4-.7.5,0,1,0,1.5.2.4,0,1,.2,1.7.3,2.6.4,5.3.5,7.9.5h0ZM54.6,92.5h0c3.2,0,6.3-.2,9.4-.9.5-.1.9-.3,1.4-.5.6-.2.9-.8.9-1.4,0-1.4-.1-4.6-.2-9.6,0-.2,0-.3,0-.5,0-.3-.3-.4-.6-.4-7.1,1.3-14.5,1.3-21.6,0-.3,0-.5.2-.6.4,0,.2,0,.3,0,.5-.1,5-.2,8.1-.2,9.6,0,.6.3,1.1.9,1.4.4.2.9.4,1.4.5,3.1.6,6.3.9,9.4.9h0Z"/>
+                <!-- Left taillight -->
+                <path d="M45.2,97.6c1.2.4.8,2.1-.4,1.8-.2,0-.2,0-.3,0-2-.5-4-1.3-5.8-2.3-.7-.4-1.2-1-1.4-1.8-.4-1.2-.8-2.5-1-3.8,0-.2,0-.5,0-.8.1-.3.4-.5.7-.5.3,0,.6.1.8.4.1.2.2.4.2.6.1.6.4,1.8.9,3.4.2.6.4.7,1,1h0c1.2.7,2.5,1.2,3.8,1.6.3,0,.8.2,1.4.4h0Z"/>
+                <!-- Right taillight -->
+                <path d="M69.9,95.1c0,0,0-.1.1-.2.5-1.3.8-2.7,1.1-4.1.1-.4.4-.7.8-.7.2,0,.5,0,.7.2.4.4.3.8.1,1.5-.2.9-.5,2-.8,3.1-.1.4-.3.7-.5,1.1-.4.6-.9,1-1.5,1.3-1.8.9-3.6,1.7-5.5,2.1-.3,0-.6,0-.8-.2-.2-.2-.3-.5-.3-.7,0-.6.6-.8,1.1-1h0c1.6-.4,3.2-1.1,4.6-1.9.3-.1.5-.3.7-.5h0Z"/>
+              </g>
+            </svg>
+            <!-- Formula / Open-wheel — noun-project icon, nose at top -->
+            <svg class="pb-car-svg pb-car-formula" id="pbCarFormula" viewBox="38 25 34 65" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display:none">
+              <g opacity="0.2">
+                <path fill-rule="evenodd" d="M51.8,81.7l-.4,1.4h-.9l.2-1.4h-1.1v-1l.3-.5v-.5h-.5v-1h-.9v2.2c0,.2-.2.4-.4.4h-2.4c-.2,0-.4-.2-.4-.4v-6.6c0-.2.2-.4.4-.4h2.4c.2,0,.4.2.4.4v2.6l1.3-.8v.7l-1.1.6v.5h1.1v-2.1h-.5v-2h.5v-.8h-1.3v-.2h-2.3v-11.7s1.1-3.6,1.1-3.6v-.4c3.3-4.3,3.7-4.9,5-6.5h.5v-1.5l-3.2-2.5h-1v2c0,.2-.2.4-.4.4h-2.4c-.2,0-.4-.2-.4-.4v-6.6c0-.2.2-.4.4-.4h2.4c.2,0,.4.2.4.4v2h.6v-1.4h.5l.2.8v2.3l2.5,1.9v-1.8s-1.8,0-2.2,0l-.2-.2v-.7h2.9s0-.9,0-.9h-2.9v-.7h3.1v-1.9l.6-3.4-5.6.7-.6,1.3h-2.4s0-4.5,0-4.5l8.8-1.2v-.3h2.1v.3l8.8,1.2v4.6c0,0-2.3,0-2.3,0l-.6-1.3-5.7-.7.6,3.4v1.9h3.1v.7h-2.9v.9h2.9s0,.6,0,.6l-.2.2c-.4,0-2.2,0-2.2,0v1.8l2.5-1.9v-2.3l.2-.8h.5v1.4h.6v-2c0-.2.2-.4.4-.4h2.4c.2,0,.4.2.4.4v6.6c0,.2-.2.4-.4.4h-2.3c-.2,0-.4-.2-.4-.4v-2h-1l-3.2,2.5v1.5h.5c1.2,1.6,1.7,2.2,5,6.5v.4l1.1,3.6v11.7h-2.3v.2h-1.3v.8h.5v2h-.5v2.1h1.1v-.5s-1.1-.6-1.1-.6v-.7l1.3.8v-2.6c0-.2.2-.4.4-.4h2.4c.2,0,.4.2.4.4v6.6c0,.2-.2.4-.4.4h-2.4c-.2,0-.4-.2-.4-.4v-2.2h-.9v1h-.5v.5l.3.5v1h-1.1l.2,1.4h-.8l-.4-1.4h-6.4ZM55,57.8l-.6.2-.8,2.1v2.1s.5,0,.5,0v1.8c-.1,0-.8.5-.8.5v2h1.8c0,0,1.8,0,1.8,0v-2l-.7-.5v-1.8c-.1,0,.3,0,.3,0v-2.1s-.8-2.1-.8-2.1l-.6-.2Z"/>
+                <path fill-rule="evenodd" d="M49.2,83.2h11.8l1.6,2.6h-14.9l1.6-2.6Z"/>
+              </g>
+            </svg>
+          </div>
+          <div class="pb-circle-cell" id="pbCircleLF">
+            <svg class="pb-wear-ring" viewBox="0 0 64 64">
+              <circle class="pb-ring-bg" cx="32" cy="32" r="28"></circle>
+              <circle class="pb-ring-fill" id="pbRingLF" cx="32" cy="32" r="28"
+                      stroke-dasharray="175.93" stroke-dashoffset="0"></circle>
+            </svg>
+            <div class="pb-circle-inner">
+              <span class="pb-circle-pct" id="pbWearLFVal">—</span>
+              <span class="pb-circle-temp" id="pbTempLF">—</span>
+            </div>
+            <span class="pb-circle-pos">LF</span>
+          </div>
+          <div class="pb-circle-cell" id="pbCircleRF">
+            <svg class="pb-wear-ring" viewBox="0 0 64 64">
+              <circle class="pb-ring-bg" cx="32" cy="32" r="28"></circle>
+              <circle class="pb-ring-fill" id="pbRingRF" cx="32" cy="32" r="28"
+                      stroke-dasharray="175.93" stroke-dashoffset="0"></circle>
+            </svg>
+            <div class="pb-circle-inner">
+              <span class="pb-circle-pct" id="pbWearRFVal">—</span>
+              <span class="pb-circle-temp" id="pbTempRF">—</span>
+            </div>
+            <span class="pb-circle-pos">RF</span>
+          </div>
+          <div class="pb-circle-cell" id="pbCircleLR">
+            <svg class="pb-wear-ring" viewBox="0 0 64 64">
+              <circle class="pb-ring-bg" cx="32" cy="32" r="28"></circle>
+              <circle class="pb-ring-fill" id="pbRingLR" cx="32" cy="32" r="28"
+                      stroke-dasharray="175.93" stroke-dashoffset="0"></circle>
+            </svg>
+            <div class="pb-circle-inner">
+              <span class="pb-circle-pct" id="pbWearLRVal">—</span>
+              <span class="pb-circle-temp" id="pbTempLR">—</span>
+            </div>
+            <span class="pb-circle-pos">LR</span>
+          </div>
+          <div class="pb-circle-cell" id="pbCircleRR">
+            <svg class="pb-wear-ring" viewBox="0 0 64 64">
+              <circle class="pb-ring-bg" cx="32" cy="32" r="28"></circle>
+              <circle class="pb-ring-fill" id="pbRingRR" cx="32" cy="32" r="28"
+                      stroke-dasharray="175.93" stroke-dashoffset="0"></circle>
+            </svg>
+            <div class="pb-circle-inner">
+              <span class="pb-circle-pct" id="pbWearRRVal">—</span>
+              <span class="pb-circle-temp" id="pbTempRR">—</span>
+            </div>
+            <span class="pb-circle-pos">RR</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ═══ FUEL TAB ═══ -->
+      <div class="pb-page" id="pbPageFuel" data-pb-page="fuel">
+
+        <!-- Strategist fuel suggestion — hidden until strategy says refuel -->
+        <div class="pb-strat-suggest hidden" id="pbFuelStratSuggest">
+          <button class="pb-strat-btn" id="pbFuelStratBtn" tabindex="0">
+            <span class="pb-strat-icon">⛽</span>
+            <span class="pb-strat-label" id="pbFuelStratLabel">Accept fuel stop</span>
+          </button>
+        </div>
+
+        <!-- Tank gauge — full-width bar representing tank capacity -->
+        <div class="pb-fuel-tank">
+          <div class="pb-fuel-tank-bar">
+            <div class="pb-fuel-tank-fill" id="pbFuelBar"></div>
+            <!-- Pit-add overlay: shows how much the pit stop would add -->
+            <div class="pb-fuel-tank-add" id="pbFuelAddBar"></div>
+          </div>
+          <div class="pb-fuel-tank-labels">
+            <span class="pb-fuel-tank-level" id="pbFuelLevel">—</span>
+            <span class="pb-fuel-tank-cap" id="pbFuelCap"></span>
+          </div>
+        </div>
+
+        <!-- Fuel stats -->
+        <div class="pb-row"><span class="pb-label">Per lap</span><span class="pb-value" id="pbFuelPerLap">—</span></div>
+        <div class="pb-row"><span class="pb-label">Laps left</span><span class="pb-value" id="pbFuelLaps">—</span></div>
+
+        <!-- Pit fuel add — interactive -->
+        <div class="pb-fuel-pit-row" id="pbFuelPitRow">
+          <span class="pb-label">Pit add</span>
+          <span class="pb-value selectable" id="pbFuelVal">—</span>
+        </div>
+
+        <div class="pb-divider"></div>
+        <div class="pb-row"><span class="pb-label">Fast repair</span><span class="pb-value off" id="pbFastRepair">NO</span></div>
+        <div class="pb-row"><span class="pb-label">Tearoff</span><span class="pb-value off" id="pbWindshield">NO</span></div>
+      </div>
+
+      <!-- ═══ WEATHER TAB ═══ -->
+      <div class="pb-page" id="pbPageWeather" data-pb-page="weather">
+        <div class="pb-weather-hero">
+          <div class="pb-weather-icon" id="pbWeatherIcon">☀</div>
+          <div class="pb-weather-temp" id="pbAirTemp">—</div>
+        </div>
+        <div class="pb-row"><span class="pb-label">Track</span><span class="pb-value" id="pbTrackTemp">—</span></div>
+        <div class="pb-row"><span class="pb-label">Conditions</span><span class="pb-value" id="pbConditions">Dry</span></div>
+      </div>
+
+      <!-- Setup and Camera tabs removed -->
+
+    </div>
+  </div>
+</div>
+
+</div><!-- /sec-container -->
+
+<!-- COMPONENT: Incidents Panel (incident counter) -->
+<div class="incidents-panel inc-bottom inc-right" id="incidentsPanel">
+  <canvas class="inc-gl-canvas" id="incGlCanvas"></canvas>
+  <div class="inc-inner">
+    <div class="inc-label">Incidents</div>
+    <div class="inc-value-row">
+      <span class="inc-count" id="incCount">0</span><span class="inc-x">x</span>
+    </div>
+    <div class="inc-progress" id="incProgress">
+      <div class="inc-bar-track">
+        <div class="inc-bar-fill" id="incBarFill"></div>
+        <div class="inc-bar-marker inc-marker-pen" id="incMarkerPen"></div>
+        <div class="inc-bar-marker inc-marker-dq" id="incMarkerDQ"></div>
+      </div>
+    </div>
+    <div class="inc-thresholds">
+      <div class="inc-thresh-row"><span>Penalty in</span><span class="inc-thresh-val" id="incToPen">—</span></div>
+      <div class="inc-thresh-row"><span>DQ in</span><span class="inc-thresh-val" id="incToDQ">—</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPONENT: Race Control Banner (flag/message display) -->
+<div class="rc-banner" id="rcBanner">
+  <div class="rc-inner">
+    <!-- Race control tower icon — yellow/white on black -->
+    <svg class="rc-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Tower base -->
+      <rect x="11" y="14" width="6" height="12" rx="1" fill="hsl(48, 85%, 55%)"/>
+      <!-- Tower top / control room -->
+      <rect x="8" y="8" width="12" height="7" rx="1.5" fill="#fff"/>
+      <!-- Window panes -->
+      <rect x="9.5" y="9.5" width="3" height="4" rx="0.5" fill="hsl(48, 85%, 55%)" opacity="0.9"/>
+      <rect x="15.5" y="9.5" width="3" height="4" rx="0.5" fill="hsl(48, 85%, 55%)" opacity="0.9"/>
+      <!-- Antenna -->
+      <line x1="14" y1="3" x2="14" y2="8" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- Antenna tip -->
+      <circle cx="14" cy="2.5" r="1.5" fill="hsl(48, 90%, 55%)"/>
+      <!-- Signal arcs -->
+      <path d="M10 5.5 A5 5 0 0 1 14 3" stroke="hsla(48, 85%, 55%, 0.5)" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+      <path d="M18 5.5 A5 5 0 0 0 14 3" stroke="hsla(48, 85%, 55%, 0.5)" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+      <!-- Foundation -->
+      <rect x="9" y="25" width="10" height="2" rx="1" fill="hsla(0, 0%, 100%, 0.3)"/>
+    </svg>
+    <div class="rc-content">
+      <div class="rc-title" id="rcTitle">RACE CONTROL</div>
+      <div class="rc-detail" id="rcDetail">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPONENT: Pit Limiter Banner -->
+<div class="pit-banner" id="pitBanner">
+  <canvas class="pit-gl-canvas" id="pitGlCanvas"></canvas>
+  <div class="pit-inner">
+    <div class="pit-icon">P</div>
+    <div class="pit-label">Pit Limiter</div>
+    <div class="pit-speed" id="pitSpeed"></div>
+    <div class="pit-limit" id="pitLimit"></div>
+  </div>
+</div>
+
+<!-- COMPONENT: Race End Screen (within HUD bounds) -->
+<div class="race-end-screen" id="raceEndScreen">
+  <div class="race-end-bg"></div>
+  <div class="re-confetti" id="reConfetti"></div>
+  <div class="race-end-content" id="raceEndContent">
+    <div class="re-position" id="rePosition">P1</div>
+    <div class="re-title-block">
+      <h1 class="re-title" id="reTitle">VICTORY!</h1>
+      <p class="re-subtitle" id="reSubtitle" style="display:none;"></p>
+    </div>
+    <div class="re-clean-badge" id="reCleanBadge" style="display:none;"><span>✓</span> CLEAN RACE</div>
+    <div class="re-stats">
+      <div class="re-stat"><div class="re-stat-label">POSITION</div><div class="re-stat-val" id="reStatPos">P1</div></div>
+      <div class="re-stat"><div class="re-stat-label">INCIDENTS</div><div class="re-stat-val" id="reStatInc">0</div></div>
+      <div class="re-stat"><div class="re-stat-label">BEST LAP</div><div class="re-stat-val" id="reStatLap">—</div></div>
+      <div class="re-stat"><div class="re-stat-label">iRATING</div><div class="re-stat-val" id="reStatIR">—</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPONENT: Post-Race Results Screen -->
+<div id="raceResultsScreen">
+  <button class="rr-close" onclick="hideRaceResults()" title="Close results">✕</button>
+  <div class="rr-content">
+    <!-- Header: Position, track, metadata -->
+    <div class="rr-header">
+      <div id="rrPosition">—</div>
+      <div class="rr-header-text">
+        <h2 id="rrTrack">Track Name</h2>
+        <div id="rrMeta">Car • 0/0 laps • 0:00.000</div>
+      </div>
+      <div class="rr-rating">
+        <div class="rr-rating-label">iR Delta</div>
+        <div id="rrIRDelta">—</div>
+      </div>
+      <div class="rr-rating">
+        <div class="rr-rating-label">SR Delta</div>
+        <div id="rrSRDelta">—</div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="rr-charts">
+      <div class="rr-chart">
+        <div class="rr-chart-title">Lap Times</div>
+        <canvas id="rrLapChart" class="rr-chart-canvas"></canvas>
+      </div>
+      <div class="rr-chart">
+        <div class="rr-chart-title">Position Over Race</div>
+        <canvas id="rrPosChart" class="rr-chart-canvas"></canvas>
+      </div>
+      <div class="rr-chart">
+        <div class="rr-chart-title">Performance Delta</div>
+        <canvas id="rrPerfChart" class="rr-chart-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Key Moments Timeline -->
+    <div>
+      <h3 class="rr-section-title">Key Moments</h3>
+      <div id="rrMoments"></div>
+    </div>
+
+    <!-- Coaching Tips -->
+    <div>
+      <h3 class="rr-section-title">Coaching Tips</h3>
+      <div id="rrTips"></div>
+    </div>
+
+    <!-- Incident Coach: Behavior Report Section -->
+    <div id="rrBehaviorSection" style="display:none;">
+      <h3 class="rr-section-title">Behavior Report</h3>
+      <div class="rr-behavior-grid">
+        <div class="rr-behavior-score">
+          <div class="rr-behavior-score-num" id="rrBehaviorScore">—</div>
+          <div class="rr-behavior-score-label">COMPOSURE</div>
+        </div>
+        <div class="rr-behavior-breakdown" id="rrBehaviorBreakdown"></div>
+      </div>
+      <div class="rr-behavior-insights" id="rrBehaviorInsights"></div>
+      <div class="rr-behavior-drivers" id="rrBehaviorDrivers"></div>
+    </div>
+
+    <!-- AI Analysis Section -->
+    <div id="rrAISection">
+      <h3 class="rr-section-title">AI Race Coach</h3>
+      <button id="rrAIBtn">Generate AI Analysis</button>
+      <div id="rrAIResult"></div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPONENT: Spotter Panel (stacking voice messages, co-located with race control) -->
+<div class="spotter-panel" id="spotterPanel">
+  <canvas class="sp-gl-canvas" id="spotterGlCanvas"></canvas>
+  <div class="sp-stack" id="spotterStack"></div>
+</div>
+
+<!-- COMPONENT: Grid Module (formation lap / pre-race info) -->
+<div class="grid-module" id="gridModule">
+  <canvas class="grid-flag-gl" id="gridFlagGlCanvas"></canvas>
+  <!-- Countdown badge sits above the info card -->
+  <div class="grid-countdown" id="gridCountdown">—</div>
+  <!-- Pre-race info (visible during formation) -->
+  <div class="grid-info" id="gridInfo">
+    <!-- Country flag as card background -->
+    <div class="grid-flag" id="gridFlag">
+      <div class="grid-flag-stripe" id="flagStripe1"></div>
+      <div class="grid-flag-stripe" id="flagStripe2"></div>
+      <div class="grid-flag-stripe" id="flagStripe3"></div>
+    </div>
+    <div class="grid-bg" id="gridBg"></div>
+    <div class="grid-title">Formation Lap</div>
+    <div class="grid-cars"><span id="gridCarsGridded">0</span> <span class="grid-cars-total">/ <span id="gridCarsTotal">0</span> gridded</span></div>
+    <div class="grid-strip" id="gridStrip"></div>
+    <div class="grid-start-type" id="gridStartType">Rolling Start</div>
+  </div>
+  <!-- F1-style start lights (replaces info when lights active) -->
+  <div class="start-lights" id="startLights">
+    <div class="lights-housing">
+      <div class="light-col"><div class="light-bulb" id="light1t"></div><div class="light-bulb" id="light1b"></div></div>
+      <div class="light-col"><div class="light-bulb" id="light2t"></div><div class="light-bulb" id="light2b"></div></div>
+      <div class="light-col"><div class="light-bulb" id="light3t"></div><div class="light-bulb" id="light3b"></div></div>
+      <div class="light-col"><div class="light-bulb" id="light4t"></div><div class="light-bulb" id="light4b"></div></div>
+      <div class="light-col"><div class="light-bulb" id="light5t"></div><div class="light-bulb" id="light5b"></div></div>
+    </div>
+    <div class="lights-go" id="lightsGo">GO!</div>
+  </div>
+</div>
+
+<!-- JavaScript modules in load order -->
+<script src="modules/js/config.js"></script>
+<script src="modules/js/layout-v2.js"></script>
+<script src="modules/js/settings.js"></script>
+<script src="modules/js/token-loader.js"></script>
+<script src="modules/js/keyboard.js"></script>
+<script src="modules/js/car-logos.js"></script>
+<script src="modules/js/game-detect.js"></script>
+<script src="modules/js/webgl-helpers.js"></script>
+<script src="modules/js/pedal-curves.js"></script>
+<script src="modules/js/qr-code.js"></script>
+<script src="modules/js/debug-console.js"></script>
+<script src="modules/js/leaderboard.js"></script>
+<script src="modules/js/datastream.js"></script>
+<script src="modules/js/pitbox.js"></script>
+<script src="modules/js/race-control.js"></script>
+<script src="modules/js/race-timeline.js"></script>
+<script src="modules/js/incidents.js"></script>
+<script src="modules/js/pit-limiter.js"></script>
+<script src="modules/js/race-end.js"></script>
+<script src="modules/js/race-coach.js"></script>
+<script src="modules/js/race-results.js"></script>
+<script src="modules/js/formation.js"></script>
+<script src="modules/js/spotter.js"></script>
+<script src="modules/js/voice-coach.js"></script>
+<script src="modules/js/incident-coach.js"></script>
+<script src="modules/js/pit-wall-chip.js"></script>
+<script src="modules/js/fps.js"></script>
+<script src="modules/js/webgl.js"></script>
+<script src="modules/js/ambient-light.js"></script>
+<script src="modules/js/ambient-capture.js"></script>
+<script src="modules/js/commentary-viz.js"></script>
+<script src="modules/js/game-logo.js"></script>
+<!-- drive-mode.js removed — iPad drive mode no longer active -->
+<script src="modules/js/session-sync.js"></script>
+<script src="modules/js/calc-client.js"></script>
+<script src="modules/js/drive-hud.js"></script>
+<script src="modules/js/recorder.js"></script>
+<script src="modules/js/recorder-ui.js"></script>
+<script src="modules/js/telemetry-sidecar.js"></script>
+<script src="modules/js/auto-record.js"></script>
+<script src="modules/js/replay-buffer.js"></script>
+<script src="modules/js/replay-director-ui.js"></script>
+<script src="modules/js/poll-engine.js"></script>
+
+</body>
+</html>

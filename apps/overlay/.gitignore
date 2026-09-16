@@ -1,0 +1,9 @@
+node_modules/
+logs/
+k10-debug.log
+test-results/
+.DS_Store
+*.bak
+
+# test coverage output
+coverage/

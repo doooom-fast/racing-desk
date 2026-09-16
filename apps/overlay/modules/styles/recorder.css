@@ -1,0 +1,57 @@
+/* ═══════════════════════════════════════════════
+   SCREEN RECORDER INDICATOR
+   Red dot + timer shown while recording.
+   Fixed to the top-left corner of the overlay.
+   ═══════════════════════════════════════════════ */
+
+.rec-indicator {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  background: hsla(0, 0%, 8%, 0.80);
+  border: 1px solid hsla(0, 70%, 50%, 0.40);
+  border-radius: var(--corner-r, 8px);
+  pointer-events: none;     /* don't block click-through */
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  user-select: none;
+}
+
+.rec-indicator.rec-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Pulsing red dot ── */
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: hsl(0, 80%, 55%);
+  box-shadow: 0 0 6px hsla(0, 80%, 55%, 0.6);
+  animation: rec-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+/* ── Timer text ── */
+.rec-timer {
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(0, 70%, 65%);
+  letter-spacing: 0.5px;
+  min-width: 36px;
+}
+
+/* ── Hide when not idle and not recording ── */
+/* The indicator should be visible during recording in ALL states */

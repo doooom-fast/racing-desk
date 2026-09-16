@@ -1,0 +1,1008 @@
+  /* ═══════════════════════════════════════════════
+     RACE CONTROL MESSAGE BANNER
+     ═══════════════════════════════════════════════ */
+  .rc-banner {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100%);
+    z-index: 200;
+    pointer-events: none;
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease;
+    opacity: 0;
+  }
+  .rc-banner.rc-visible {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+  .rc-inner {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: hsla(0, 0%, 3%, 0.90);
+    border: 2px solid hsla(48, 90%, 55%, 0.80);
+    border-top: none;
+    border-radius: 0 0 14px 14px;
+    padding: 16px 36px 18px 28px;
+    box-shadow: 0 6px 40px hsla(0, 0%, 0%, 0.7), inset 0 -1px 0 hsla(48, 90%, 55%, 0.10);
+    position: relative;
+    overflow: hidden;
+  }
+  /* Animated flag stripe background */
+  .rc-inner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    background: repeating-linear-gradient(
+      -45deg,
+      hsla(48, 90%, 55%, 0.08) 0px,
+      hsla(48, 90%, 55%, 0.08) 12px,
+      transparent 12px,
+      transparent 24px
+    );
+    background-size: 34px 34px;
+    animation: rc-flag-scroll 1.5s linear infinite;
+    pointer-events: none;
+  }
+  .rc-banner.rc-visible .rc-inner::after {
+    opacity: 1;
+  }
+  @keyframes rc-flag-scroll {
+    0%   { background-position: 0 0; }
+    100% { background-position: 34px 34px; }
+  }
+  /* Per-flag stripe color overrides — only critical flags */
+  .rc-banner.rc-flag-red .rc-inner::after {
+    background: repeating-linear-gradient(-45deg, hsla(0, 85%, 55%, 0.10) 0px, hsla(0, 85%, 55%, 0.10) 12px, transparent 12px, transparent 24px);
+    background-size: 34px 34px;
+  }
+  .rc-banner.rc-flag-checkered .rc-inner::after {
+    background: repeating-linear-gradient(-45deg, hsla(0, 0%, 100%, 0.08) 0px, hsla(0, 0%, 100%, 0.08) 12px, hsla(0, 0%, 0%, 0.08) 12px, hsla(0, 0%, 0%, 0.08) 24px);
+    background-size: 34px 34px;
+  }
+  .rc-banner.rc-flag-black .rc-inner::after {
+    background: repeating-linear-gradient(-45deg, hsla(0, 75%, 45%, 0.10) 0px, hsla(0, 75%, 45%, 0.10) 12px, transparent 12px, transparent 24px);
+    background-size: 34px 34px;
+  }
+  .rc-icon {
+    width: 52px;
+    height: 52px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .rc-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    position: relative;
+    z-index: 1;
+  }
+  .rc-title {
+    font-family: var(--ff);
+    font-size: 28px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    color: #FFFFFF;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .rc-detail {
+    font-family: var(--ff-semi);
+    font-size: 15px;
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: hsl(48, 80%, 55%);
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+
+  /* Yellow stripe accent on left edge */
+  .rc-inner::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    z-index: 2;
+    background: hsl(48, 90%, 55%);
+    border-radius: 0 0 0 14px;
+  }
+
+  /* ── Dim HUD elements when RC banner is active (not the game background) ── */
+  body.rc-active #dashboard,
+  body.rc-active .leaderboard-panel,
+  body.rc-active .datastream-panel,
+  body.rc-active .pitbox-panel,
+  body.rc-active .incidents-panel {
+    opacity: 0.5;
+    transition: opacity 0.5s ease;
+  }
+
+  /* Pulse glow on the border */
+  .rc-banner.rc-visible .rc-inner {
+    animation: rc-glow 3s ease-in-out infinite alternate;
+  }
+  @keyframes rc-glow {
+    0%   { box-shadow: 0 4px 24px hsla(0, 0%, 0%, 0.6), inset 0 -1px 0 hsla(48, 90%, 55%, 0.24), 0 0 8px hsla(48, 85%, 50%, 0.24); }
+    100% { box-shadow: 0 4px 24px hsla(0, 0%, 0%, 0.6), inset 0 -1px 0 hsla(48, 90%, 55%, 0.45), 0 0 18px hsla(48, 85%, 50%, 0.54); }
+  }
+
+  /* Per-flag accent overrides — only critical flags (red, black, yellow, checkered) */
+
+  /* ── Yellow / Caution — default yellow accents already apply ── */
+
+  /* ── Red Flag ── */
+  .rc-banner.rc-flag-red .rc-inner    { border-color: hsla(0, 85%, 55%, 0.45); }
+  .rc-banner.rc-flag-red .rc-inner::before { background: hsl(0, 85%, 55%); }
+  .rc-banner.rc-flag-red .rc-detail   { color: hsl(0, 80%, 65%); }
+  .rc-banner.rc-flag-red.rc-visible .rc-inner { animation-name: rc-glow-red; }
+  @keyframes rc-glow-red {
+    0%   { box-shadow: 0 4px 24px hsla(0, 0%, 0%, 0.6), 0 0 8px hsla(0, 80%, 50%, 0.30); }
+    100% { box-shadow: 0 4px 24px hsla(0, 0%, 0%, 0.6), 0 0 18px hsla(0, 80%, 50%, 0.66); }
+  }
+
+  /* ── Checkered ── */
+  .rc-banner.rc-flag-checkered .rc-inner { border-color: hsla(0, 0%, 100%, 0.30); }
+  .rc-banner.rc-flag-checkered .rc-inner::before { background: repeating-linear-gradient(180deg, #fff 0 4px, #222 4px 8px); }
+  .rc-banner.rc-flag-checkered .rc-detail { color: hsl(0, 0%, 80%); }
+
+  /* ── Black Flag ── */
+  .rc-banner.rc-flag-black .rc-inner  { border-color: hsla(0, 75%, 40%, 0.40); }
+  .rc-banner.rc-flag-black .rc-inner::before { background: hsl(0, 75%, 45%); }
+  .rc-banner.rc-flag-black .rc-detail { color: hsl(0, 60%, 60%); }
+
+  /* ── Meatball Flag — red circle accent ── */
+  .rc-banner.rc-flag-meatball .rc-inner  { border-color: hsla(0, 90%, 50%, 0.50); }
+  .rc-banner.rc-flag-meatball .rc-inner::before { background: radial-gradient(circle, hsl(0, 85%, 52%) 40%, hsl(0, 0%, 10%) 42%); }
+  .rc-banner.rc-flag-meatball .rc-detail { color: hsl(0, 80%, 65%); }
+  .rc-banner.rc-flag-meatball.rc-visible .rc-inner { animation-name: rc-glow-meatball; }
+  @keyframes rc-glow-meatball {
+    0%   { box-shadow: 0 4px 24px hsla(0, 0%, 0%, 0.6), 0 0 8px hsla(0, 90%, 50%, 0.35); }
+    100% { box-shadow: 0 4px 24px hsla(0, 0%, 0%, 0.6), 0 0 20px hsla(0, 90%, 50%, 0.70); }
+  }
+  .rc-banner.rc-flag-meatball .rc-inner::after {
+    background: repeating-linear-gradient(-45deg, hsla(0, 85%, 55%, 0.12) 0px, hsla(0, 85%, 55%, 0.12) 12px, transparent 12px, transparent 24px);
+    background-size: 34px 34px;
+  }
+
+  /* ═══════════════════════════════════════════════
+     PIT LIMITER INDICATOR
+     ═══════════════════════════════════════════════ */
+  .pit-banner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    padding-top: 8px;
+    opacity: 0;
+    transform: translateY(-12px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .pit-banner.pit-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .pit-gl-canvas {
+    position: absolute;
+    inset: -16px -24px;
+    width: calc(100% + 48px);
+    height: calc(100% + 32px);
+    pointer-events: none;
+    z-index: 0;
+    border-radius: 20px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .pit-banner.pit-bonkers .pit-gl-canvas {
+    opacity: 1;
+  }
+  .pit-inner {
+    position: relative;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: hsla(200, 60%, 8%, 0.90);
+    border: 2px solid hsla(200, 80%, 60%, 0.60);
+    border-radius: 10px;
+    padding: 10px 28px;
+    animation: pit-glow 2.5s ease-in-out infinite alternate;
+  }
+  .pit-icon {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: hsl(200, 80%, 60%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: #000;
+    line-height: 1;
+  }
+  .pit-label {
+    font-size: 15px;
+    font-weight: var(--fw-black);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: hsl(200, 80%, 70%);
+  }
+  .pit-speed {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-bold);
+    color: hsla(0, 0%, 100%, 0.60);
+    font-variant-numeric: tabular-nums;
+  }
+  .pit-limit {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: hsla(0, 0%, 100%, 0.45);
+    margin-left: 4px;
+  }
+  @keyframes pit-glow {
+    0%   { box-shadow: inset 0 0 14px hsla(200, 80%, 60%, 0.15), 0 0 10px hsla(200, 80%, 60%, 0.10); }
+    100% { box-shadow: inset 0 0 28px hsla(200, 80%, 60%, 0.35), 0 0 20px hsla(200, 80%, 60%, 0.22); }
+  }
+
+  /* Keep all modules at full opacity in pit lane */
+  body.pit-mode .panel,
+  body.pit-mode .leaderboard-panel,
+  body.pit-mode .datastream-panel,
+  body.pit-mode .pitbox-panel,
+  body.pit-mode .incidents-panel,
+  body.pit-mode .spotter-panel {
+    transition: opacity 1.2s ease;
+    opacity: 1;
+  }
+  body:not(.pit-mode) .panel,
+  body:not(.pit-mode) .leaderboard-panel,
+  body:not(.pit-mode) .datastream-panel,
+  body:not(.pit-mode) .pitbox-panel,
+  body:not(.pit-mode) .incidents-panel,
+  body:not(.pit-mode) .spotter-panel {
+    transition: opacity 1.2s ease;
+  }
+
+
+  /* ═══════════════════════════════════════════════
+     PIT LIMITER — WARNING FLASH (limiter OFF in pit)
+     ═══════════════════════════════════════════════ */
+  .pit-banner.pit-warning .pit-inner {
+    background: hsla(10, 80%, 12%, 1.0);
+    border-color: hsla(10, 90%, 55%, 0.80);
+    animation: pit-warn-flash 0.6s ease-in-out infinite alternate;
+  }
+  .pit-banner.pit-warning .pit-icon {
+    background: hsl(10, 90%, 55%);
+  }
+  .pit-banner.pit-warning .pit-label {
+    color: hsl(10, 90%, 70%);
+  }
+  @keyframes pit-warn-flash {
+    0%   { box-shadow: inset 0 0 14px hsla(10, 90%, 55%, 0.25), 0 0 10px hsla(10, 90%, 55%, 0.15); }
+    100% { box-shadow: inset 0 0 40px hsla(10, 90%, 55%, 0.55), 0 0 30px hsla(10, 90%, 55%, 0.40); }
+  }
+
+  /* ═══════════════════════════════════════════════
+     PIT LIMITER — BONKERS (speeding over limit)
+     Violent shake, layered glow, color cycling, sparks
+     ═══════════════════════════════════════════════ */
+  .pit-banner.pit-bonkers .pit-inner {
+    background: hsla(0, 95%, 8%, 1.0);
+    border-color: hsla(0, 100%, 50%, 0.95);
+    border-width: 3px;
+    animation: pit-bonkers-shake 0.07s linear infinite,
+               pit-bonkers-glow 0.25s ease-in-out infinite alternate;
+  }
+  @keyframes pit-bonkers-shake {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    20%  { transform: translate(-3px, 1px) rotate(-0.6deg); }
+    40%  { transform: translate(2px, -2px) rotate(0.4deg); }
+    60%  { transform: translate(-1px, 2px) rotate(-0.3deg); }
+    80%  { transform: translate(3px, -1px) rotate(0.5deg); }
+    100% { transform: translate(-2px, -1px) rotate(-0.2deg); }
+  }
+  @keyframes pit-bonkers-glow {
+    0% {
+      box-shadow:
+        inset 0 0 30px hsla(0, 100%, 50%, 0.6),
+        0 0 20px hsla(0, 100%, 50%, 0.5),
+        0 0 50px hsla(20, 100%, 50%, 0.35),
+        0 0 90px hsla(40, 100%, 50%, 0.15);
+    }
+    100% {
+      box-shadow:
+        inset 0 0 50px hsla(0, 100%, 55%, 0.8),
+        0 0 35px hsla(0, 100%, 50%, 0.7),
+        0 0 70px hsla(25, 100%, 50%, 0.5),
+        0 0 120px hsla(45, 100%, 50%, 0.25);
+    }
+  }
+
+  /* Icon: rapid red↔yellow pulse */
+  .pit-banner.pit-bonkers .pit-icon {
+    animation: pit-bonkers-icon 0.12s ease-in-out infinite alternate;
+  }
+  @keyframes pit-bonkers-icon {
+    0%   { background: hsl(0, 100%, 50%); box-shadow: 0 0 10px hsla(0, 100%, 50%, 0.8); }
+    100% { background: hsl(50, 100%, 50%); box-shadow: 0 0 14px hsla(50, 100%, 50%, 0.8); }
+  }
+
+  /* Label: color-cycling red→orange→yellow */
+  .pit-banner.pit-bonkers .pit-label {
+    animation: pit-bonkers-text 0.3s linear infinite;
+    font-size: 17px;
+    letter-spacing: 0.2em;
+  }
+  @keyframes pit-bonkers-text {
+    0%   { color: hsl(0, 100%, 65%); text-shadow: 0 0 8px hsla(0, 100%, 50%, 0.5); }
+    33%  { color: hsl(25, 100%, 60%); text-shadow: 0 0 8px hsla(25, 100%, 50%, 0.5); }
+    66%  { color: hsl(50, 100%, 58%); text-shadow: 0 0 8px hsla(50, 100%, 50%, 0.5); }
+    100% { color: hsl(0, 100%, 65%); text-shadow: 0 0 8px hsla(0, 100%, 50%, 0.5); }
+  }
+
+  /* Speed value: enlarged, red, shaking independently */
+  .pit-banner.pit-bonkers .pit-speed {
+    color: hsl(0, 100%, 70%);
+    font-size: 17px;
+    font-weight: 900;
+    animation: pit-bonkers-speed 0.06s linear infinite;
+    text-shadow: 0 0 6px hsla(0, 100%, 50%, 0.6);
+  }
+  @keyframes pit-bonkers-speed {
+    0%   { transform: translateX(0) scale(1); }
+    33%  { transform: translateX(2px) scale(1.03); }
+    66%  { transform: translateX(-2px) scale(0.97); }
+    100% { transform: translateX(1px) scale(1.01); }
+  }
+
+  /* Limit value: pulsing red */
+  .pit-banner.pit-bonkers .pit-limit {
+    color: hsla(0, 100%, 65%, 0.8) !important;
+    font-size: var(--fs-sm) !important;
+  }
+
+  /* ── Spark particles (spawned by JS) ── */
+  @keyframes pit-spark-fly {
+    0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+    30%  { opacity: 1; }
+    100% { transform: translate(var(--spark-dx), var(--spark-dy)) scale(0.3); opacity: 0; }
+  }
+
+  /* ── Bonkers border flicker pseudo-element ── */
+  .pit-banner.pit-bonkers .pit-inner::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px;
+    border: 2px solid transparent;
+    pointer-events: none;
+    animation: pit-bonkers-ring 0.2s ease-in-out infinite alternate;
+  }
+  @keyframes pit-bonkers-ring {
+    0%   { border-color: hsla(0, 100%, 50%, 0.3); box-shadow: inset 0 0 20px hsla(0, 100%, 50%, 0.1); }
+    50%  { border-color: hsla(30, 100%, 55%, 0.5); box-shadow: inset 0 0 30px hsla(30, 100%, 50%, 0.15); }
+    100% { border-color: hsla(50, 100%, 50%, 0.2); box-shadow: inset 0 0 15px hsla(50, 100%, 50%, 0.08); }
+  }
+
+  /* ── Outer heat haze (second pseudo-element) ── */
+  .pit-banner.pit-bonkers .pit-inner::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+    border-radius: 20px;
+    pointer-events: none;
+    animation: pit-bonkers-haze 0.4s ease-in-out infinite alternate;
+  }
+  @keyframes pit-bonkers-haze {
+    0%   { box-shadow: 0 0 40px 8px hsla(0, 100%, 50%, 0.12), 0 0 80px 16px hsla(30, 100%, 50%, 0.06); }
+    100% { box-shadow: 0 0 60px 12px hsla(10, 100%, 50%, 0.18), 0 0 120px 24px hsla(40, 100%, 50%, 0.10); }
+  }
+
+  /* ── Bonkers-off: keep colors, kill all motion + WebGL ── */
+  body.bonkers-off .pit-banner.pit-bonkers .pit-inner {
+    animation: none;
+  }
+  body.bonkers-off .pit-banner.pit-bonkers .pit-icon {
+    animation: none;
+  }
+  body.bonkers-off .pit-banner.pit-bonkers .pit-label {
+    animation: none;
+  }
+  body.bonkers-off .pit-banner.pit-bonkers .pit-speed {
+    animation: none;
+  }
+  body.bonkers-off .pit-banner.pit-bonkers .pit-inner::before {
+    animation: none;
+  }
+  body.bonkers-off .pit-banner.pit-bonkers .pit-inner::after {
+    animation: none;
+    box-shadow: none;
+  }
+  body.bonkers-off .pit-banner.pit-bonkers .pit-gl-canvas {
+    display: none;
+  }
+
+  /* ═══════════════════════════════════════════════
+     RACE END SCREEN — within HUD bounds
+     ═══════════════════════════════════════════════ */
+  .race-end-screen {
+    position: fixed;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease-out;
+  }
+  .race-end-screen.re-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .race-end-bg {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: hsla(0, 0%, 4%, 0.92);
+    border-radius: var(--corner-r);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+  .race-end-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 28px 36px;
+    animation: re-slide-in 0.6s ease-out both;
+  }
+  @keyframes re-slide-in {
+    from { opacity: 0; transform: scale(0.9) translateY(-16px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes re-pos-reveal {
+    from { opacity: 0; transform: scale(0); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes re-gold-pulse {
+    0%, 100% { text-shadow: 0 0 30px hsla(45, 100%, 50%, 0.5); }
+    50%      { text-shadow: 0 0 50px hsla(45, 100%, 50%, 0.9); }
+  }
+  @keyframes re-confetti {
+    to { transform: translateY(300px) rotate(360deg); opacity: 0; }
+  }
+
+  .re-position {
+    font-family: var(--ff-mono);
+    font-size: 72px;
+    font-weight: var(--fw-black);
+    line-height: 1;
+    margin-bottom: 8px;
+    letter-spacing: -0.05em;
+    animation: re-pos-reveal 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  /* Tint variants */
+  .re-tint-gold .re-position {
+    color: #ffb300;
+    animation: re-pos-reveal 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+               re-gold-pulse 2s ease-in-out 0.6s infinite;
+  }
+  .re-tint-silver .re-position { color: #c0c0c0; text-shadow: 0 0 30px hsla(0, 0%, 75%, 0.4); }
+  .re-tint-bronze .re-position { color: #cd7f32; text-shadow: 0 0 30px hsla(30, 80%, 50%, 0.4); }
+  .re-tint-green  .re-position { color: var(--green); text-shadow: 0 0 24px hsla(120, 60%, 50%, 0.3); }
+  .re-tint-purple .re-position { color: var(--purple); text-shadow: 0 0 24px hsla(280, 80%, 70%, 0.3); }
+  .re-tint-neutral .re-position { color: var(--text-primary); opacity: 0.8; }
+
+  .re-title {
+    font-family: var(--ff);
+    font-size: 32px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0 0 4px 0;
+    line-height: 1.2;
+    color: var(--text-primary);
+  }
+  .re-subtitle {
+    font-size: 14px;
+    font-weight: var(--fw-regular);
+    color: var(--text-secondary);
+    margin: 0;
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .re-clean-badge {
+    display: inline-block;
+    padding: 5px 12px;
+    background: hsla(120, 60%, 50%, 0.12);
+    border: 1px solid var(--green);
+    border-radius: var(--corner-r-sm);
+    color: var(--green);
+    font-size: 14px;
+    font-weight: var(--fw-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 12px 0 8px 0;
+    animation: re-slide-in 0.6s ease-out 0.2s both;
+  }
+  .re-clean-badge span { margin-right: 4px; font-weight: var(--fw-black); }
+
+  .re-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .re-stat {
+    padding: 14px 10px;
+    background: hsla(0, 0%, 100%, 0.04);
+    border: 1px solid hsla(0, 0%, 100%, 0.08);
+    border-radius: var(--corner-r-sm);
+    flex: 1;
+  }
+  .re-stat-label {
+    font-size: 14px;
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .re-stat-val {
+    font-family: var(--ff-mono);
+    font-size: 18px;
+    font-weight: var(--fw-bold);
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+  /* Tinted stat items */
+  .re-tint-gold .re-stat   { border-color: hsla(45, 100%, 50%, 0.18); background: hsla(45, 100%, 50%, 0.06); }
+  .re-tint-silver .re-stat { border-color: hsla(0, 0%, 75%, 0.18); background: hsla(0, 0%, 75%, 0.06); }
+  .re-tint-bronze .re-stat { border-color: hsla(30, 80%, 50%, 0.18); background: hsla(30, 80%, 50%, 0.06); }
+  .re-tint-green .re-stat  { border-color: hsla(120, 60%, 50%, 0.18); background: hsla(120, 60%, 50%, 0.06); }
+  .re-tint-purple .re-stat { border-color: hsla(280, 80%, 70%, 0.18); background: hsla(280, 80%, 70%, 0.06); }
+  .re-tint-neutral .re-stat { border-color: hsla(0, 0%, 100%, 0.12); background: hsla(0, 0%, 100%, 0.04); }
+
+  /* Confetti container within race-end bounds */
+  .re-confetti {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: var(--corner-r);
+  }
+  .re-confetti-dot {
+    position: absolute;
+    top: -6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    opacity: 0.7;
+    animation: re-confetti 3s ease-in forwards;
+  }
+  .re-confetti-dot:nth-child(even) { background: var(--cyan); }
+  .re-confetti-dot:nth-child(odd)  { background: var(--amber); }
+  .re-confetti-dot:nth-child(3n)   { background: var(--red); }
+  .re-confetti-dot:nth-child(4n)   { background: var(--green); }
+
+  /* ═══════════════════════════════════════════════
+     SPOTTER MESSAGES
+     ═══════════════════════════════════════════════ */
+  .spotter-panel {
+    position: fixed;
+    z-index: 52;
+    max-width: 280px;
+    width: auto;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    /* Co-located with race control banner at top center */
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .spotter-panel.section-hidden { display: none; }
+  /* When RC banner is visible, push spotter below it */
+  body.rc-active .spotter-panel { top: 100px; }
+
+  .sp-gl-canvas {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    pointer-events: none;
+    border-radius: 12px;
+    z-index: -1;
+    transition: height 0.5s ease, opacity 0.4s ease;
+  }
+
+  .sp-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .sp-inner {
+    position: relative;
+    background: hsla(220, 30%, 8%, 0.92);
+    border: 1px solid hsla(220, 60%, 50%, 0.20);
+    border-radius: 8px;
+    padding: 8px 12px;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .spotter-panel.sp-top .sp-inner { transform: translateY(-6px); }
+  .sp-inner.sp-active {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  /* Progressive fade — older messages in stack are dimmer */
+  .sp-inner.sp-active:nth-child(2) { opacity: 0.55; }
+  .sp-inner.sp-active:nth-child(3) { opacity: 0.30; }
+  .sp-inner.sp-active:nth-child(n+4) { opacity: 0.15; }
+  /* Fade out older messages in the stack — collapse height to avoid growing the glow canvas */
+  .sp-inner.sp-fading {
+    opacity: 0;
+    transform: translateY(6px);
+    max-height: 0;
+    padding: 0 12px;
+    margin-top: -6px;
+    overflow: hidden;
+    transition: opacity 0.35s ease, transform 0.35s ease, max-height 0.4s ease 0.1s, padding 0.4s ease 0.1s, margin-top 0.4s ease 0.1s;
+  }
+  .spotter-panel.sp-top .sp-inner.sp-fading { transform: translateY(-6px); }
+  .sp-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    color: hsla(220, 60%, 60%, 0.55);
+  }
+  .sp-inner.sp-warn .sp-icon { color: hsl(35, 80%, 65%); }
+  .sp-inner.sp-danger .sp-icon { color: hsl(0, 70%, 65%); }
+  .sp-inner.sp-clear .sp-icon { color: hsl(145, 60%, 60%); }
+  .sp-header {
+    font-family: var(--ff);
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: hsla(220, 60%, 60%, 0.55);
+    margin-bottom: 2px;
+  }
+  .sp-message {
+    font-size: 24px;
+    font-weight: var(--fw-semi);
+    color: hsla(220, 50%, 80%, 0.90);
+    line-height: 1.3;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  .sp-inner.sp-warn { border-color: hsla(35, 80%, 50%, 0.30); }
+  .sp-inner.sp-warn .sp-message { color: hsl(35, 80%, 65%); }
+  .sp-inner.sp-danger { border-color: hsla(0, 70%, 50%, 0.30); }
+  .sp-inner.sp-danger .sp-message { color: hsl(0, 70%, 65%); }
+  .sp-inner.sp-clear { border-color: hsla(145, 60%, 45%, 0.25); }
+  .sp-inner.sp-clear .sp-message { color: hsl(145, 60%, 60%); }
+  /* Adjustment icon colors — use a neutral blue-white for car settings */
+  .sp-inner.sp-clear .sp-icon[data-adj] { color: hsl(210, 60%, 70%); }
+
+  /* ═══════════════════════════════════════════════
+     FORMATION LAP / GRID START MODULE
+     ═══════════════════════════════════════════════ */
+  .grid-module {
+    position: fixed;
+    top: 33%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 200;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+  .grid-module.grid-visible {
+    opacity: 1;
+  }
+  .grid-module.grid-fadeout {
+    opacity: 0;
+    transition: opacity 3s ease;
+  }
+
+  /* Flag WebGL — escapes card bounds with flag-colored energy */
+  .grid-flag-gl {
+    position: absolute;
+    top: -60px;
+    left: -80px;
+    right: -80px;
+    bottom: -60px;
+    width: calc(100% + 160px);
+    height: calc(100% + 120px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 1.0s ease;
+  }
+  .grid-module.grid-visible .grid-flag-gl {
+    opacity: 1;
+  }
+
+  /* Pre-race info card */
+  .grid-info {
+    position: relative;
+    z-index: 1;
+    background: hsla(220, 25%, 6%, 0.96);
+    border: 1px solid hsla(220, 60%, 40%, 0.25);
+    border-radius: 14px;
+    padding: 28px 48px;
+    min-width: 340px;
+    transition: opacity 0.6s ease, transform 0.5s ease, background 1.0s ease;
+  }
+  /* When flag is active, let it show through as the card background */
+  .grid-info:has(.grid-flag.flag-active) {
+    background: transparent;
+  }
+  /* All direct text children sit above the flag + dark bg panel */
+  .grid-info > *:not(.grid-flag):not(.grid-bg) {
+    position: relative;
+    z-index: 2;
+  }
+  .grid-info.info-hidden {
+    opacity: 0;
+    transform: scale(0.92);
+    pointer-events: none;
+    position: absolute;
+  }
+  .grid-title {
+    font-family: var(--ff);
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: hsla(220, 60%, 65%, 0.60);
+    margin-bottom: 14px;
+  }
+  .grid-countdown {
+    position: relative;
+    z-index: 1;
+    font-size: 64px;
+    font-weight: var(--fw-black);
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: 16px;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 30px hsla(220, 80%, 60%, 0.15);
+  }
+  .grid-cars {
+    font-size: 22px;
+    font-weight: var(--fw-bold);
+    color: hsla(0, 0%, 100%, 0.85);
+    margin-bottom: 8px;
+  }
+  .grid-cars-total {
+    color: hsla(0, 0%, 100%, 0.35);
+    font-weight: var(--fw-medium);
+  }
+  /* Mini grid strip — dot per car, player in blue */
+  .grid-strip {
+    display: flex;
+    gap: 3px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    max-width: 260px;
+    margin: 10px auto 4px;
+    min-height: 10px;
+  }
+  .grid-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: hsla(0, 0%, 30%, 0.45);
+    transition: background 0.4s ease, box-shadow 0.4s ease, transform 0.3s ease;
+  }
+  .grid-dot.gridded {
+    background: hsla(0, 0%, 45%, 0.6);
+  }
+  .grid-dot.player {
+    background: hsla(210, 80%, 55%, 1);
+    box-shadow: 0 0 6px hsla(210, 90%, 60%, 0.7), 0 0 14px hsla(210, 80%, 50%, 0.3);
+    transform: scale(1.3);
+    border-radius: 2px;
+  }
+
+  .grid-start-type {
+    font-size: 14px;
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: hsla(220, 50%, 65%, 0.70);
+    margin-top: 6px;
+  }
+  .grid-start-type.standing { color: hsla(35, 80%, 60%, 0.85); }
+  .grid-start-type.rolling  { color: hsla(145, 60%, 55%, 0.75); }
+
+  /* ── F1-STYLE START LIGHTS ───────────────────── */
+  .start-lights {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 18px;
+    justify-content: center;
+    align-items: center;
+    padding: 20px 0;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  .start-lights.lights-active {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .light-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+  .light-bulb {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: hsla(0, 0%, 15%, 0.95);
+    border: 3px solid hsla(0, 0%, 25%, 0.60);
+    transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    position: relative;
+  }
+  .light-bulb::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 16px;
+    height: 12px;
+    border-radius: 50%;
+    background: hsla(0, 0%, 100%, 0.06);
+  }
+  .light-bulb.lit-red {
+    background: hsl(0, 85%, 48%);
+    border-color: hsl(0, 90%, 55%);
+    box-shadow: 0 0 24px 8px hsla(0, 90%, 50%, 0.50),
+                0 0 60px 16px hsla(0, 90%, 50%, 0.20),
+                inset 0 0 12px hsla(0, 100%, 70%, 0.40);
+    animation: light-pulse-red 0.6s ease-in-out infinite alternate;
+  }
+  .light-bulb.lit-green {
+    background: hsl(130, 85%, 42%);
+    border-color: hsl(130, 90%, 50%);
+    box-shadow: 0 0 32px 12px hsla(130, 90%, 45%, 0.55),
+                0 0 80px 24px hsla(130, 90%, 45%, 0.25),
+                inset 0 0 16px hsla(130, 100%, 65%, 0.45);
+    animation: light-pulse-green 0.3s ease-in-out infinite alternate;
+  }
+  @keyframes light-pulse-red {
+    0%   { box-shadow: 0 0 20px 6px hsla(0, 90%, 50%, 0.45), 0 0 50px 14px hsla(0, 90%, 50%, 0.15), inset 0 0 10px hsla(0, 100%, 70%, 0.35); }
+    100% { box-shadow: 0 0 30px 10px hsla(0, 90%, 50%, 0.60), 0 0 70px 20px hsla(0, 90%, 50%, 0.25), inset 0 0 14px hsla(0, 100%, 70%, 0.50); }
+  }
+  @keyframes light-pulse-green {
+    0%   { box-shadow: 0 0 28px 10px hsla(130, 90%, 45%, 0.50), 0 0 70px 20px hsla(130, 90%, 45%, 0.20), inset 0 0 14px hsla(130, 100%, 65%, 0.40); }
+    100% { box-shadow: 0 0 40px 16px hsla(130, 90%, 45%, 0.65), 0 0 100px 30px hsla(130, 90%, 45%, 0.30), inset 0 0 18px hsla(130, 100%, 65%, 0.55); }
+  }
+
+  /* Light housing plate */
+  .lights-housing {
+    background: hsla(0, 0%, 4%, 0.98);
+    border: 2px solid hsla(0, 0%, 20%, 0.50);
+    border-radius: 16px;
+    padding: 22px 30px;
+    display: flex;
+    gap: 18px;
+    box-shadow: 0 8px 40px hsla(0, 0%, 0%, 0.60);
+  }
+
+  /* GO! flash text */
+  .lights-go {
+    position: absolute;
+    bottom: -52px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 48px;
+    font-weight: var(--fw-black);
+    color: hsl(130, 85%, 50%);
+    text-shadow: 0 0 30px hsla(130, 90%, 50%, 0.60), 0 0 60px hsla(130, 90%, 50%, 0.30);
+    letter-spacing: 0.08em;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .lights-go.go-visible { opacity: 1; animation: go-flash 0.4s ease-in-out 3 alternate; }
+  @keyframes go-flash {
+    0%   { transform: translateX(-50%) scale(1); }
+    100% { transform: translateX(-50%) scale(1.12); }
+  }
+
+  /* ── Country flag — fills grid-info card as background ────────── */
+  .grid-flag {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: 14px;
+    background: hsl(0, 0%, 0%);
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+  .grid-flag.flag-active {
+    opacity: 1;
+  }
+  .grid-flag-stripe {
+    position: absolute;
+    left: -20%;
+    width: 140%;
+    height: 34%;
+  }
+  .grid-flag-stripe:nth-child(1) { top: 0; }
+  .grid-flag-stripe:nth-child(2) { top: 33%; }
+  .grid-flag-stripe:nth-child(3) { top: 66%; }
+
+  /* Slow majestic wave — wider period, gentler amplitude than warning flags */
+  .grid-flag-stripe {
+    animation: flag-wave-majestic 6s ease-in-out infinite;
+    transform-origin: left center;
+  }
+  .grid-flag-stripe:nth-child(2) {
+    animation-delay: -1.2s;
+  }
+  .grid-flag-stripe:nth-child(3) {
+    animation-delay: -2.4s;
+  }
+  @keyframes flag-wave-majestic {
+    0%   { transform: skewY(0deg) scaleX(1); }
+    25%  { transform: skewY(1.5deg) scaleX(1.02); }
+    50%  { transform: skewY(0deg) scaleX(1); }
+    75%  { transform: skewY(-1.5deg) scaleX(1.02); }
+    100% { transform: skewY(0deg) scaleX(1); }
+  }
+  /* Remove the old full-coverage darkener — replaced by inset .grid-bg */
+  .grid-flag::after { display: none; }
+
+  /* ── Dark panel: sits above the flag, below text ──
+     Inset so flag colors bleed around all edges */
+  .grid-bg {
+    position: absolute;
+    top: 6px; left: 6px; right: 6px; bottom: 6px;
+    z-index: 1;
+    background: hsla(0, 0%, 0%, 0.80);
+    border-radius: 10px;
+    pointer-events: none;
+  }
+
+  /* Dim other modules during grid/lights */
+  body.grid-active .panel,
+  body.grid-active .leaderboard-panel,
+  body.grid-active .datastream-panel,
+  body.grid-active .pitbox-panel,
+  body.grid-active .incidents-panel,
+  body.grid-active .spotter-panel {
+    transition: opacity 1.0s ease;
+    opacity: 0.15;
+  }
+  body.grid-active .grid-module {
+    opacity: 1;
+  }
+
+  /* ═══════════════════════════════════════════════
+     ═══════════════════════════════════════════════ */

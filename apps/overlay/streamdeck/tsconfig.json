@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "declaration": false,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "./com.racecor.overlay.sdPlugin/bin",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*.ts"]
+}

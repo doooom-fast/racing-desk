@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "prodrive": {
+      "source": {
+        "source": "directory",
+        "path": "./agents"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "prodrive-knowledge@prodrive": true
+  }
+}

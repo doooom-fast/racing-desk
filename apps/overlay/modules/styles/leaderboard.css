@@ -1,0 +1,510 @@
+  /* ═══════════════════════════════════════════════
+     CONTROLS + LAYERED PEDALS
+     ═══════════════════════════════════════════════ */
+  .controls-pedals-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    flex-shrink: 0;
+    width: 240px;
+  }
+
+  .car-controls {
+    display: flex;
+    gap: var(--gap);
+    flex: 1;
+    min-height: 0;
+  }
+  .ctrl-item {
+    flex: 1;
+    text-align: center;
+    padding: 4px;
+    border-radius: var(--corner-r-sm);
+    background: hsla(0,0%,100%,0.03);
+    border: 1px solid transparent;
+    transition: all var(--t-med);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  .ctrl-item::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ctrl-item.changed::after { animation: value-flash 1.4s ease-out forwards; }
+  @keyframes value-flash {
+    0%   { background: var(--flash-color, hsla(45,100%,60%,0.22)); }
+    100% { background: transparent; }
+  }
+  .ctrl-item { --flash-color: hsla(45, 80%, 55%, 0.18); --ctrl-pct: 0%; }
+  .ctrl-item::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--ctrl-pct);
+    background: hsla(0,0%,100%,0.04);
+    pointer-events: none;
+    transition: height var(--t-med);
+  }
+  .ctrl-label {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semi);
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    position: relative;
+    z-index: 1;
+  }
+  .ctrl-value {
+    font-family: var(--ff-mono);
+    font-size: 22px;
+    font-weight: var(--fw-black);
+    position: relative;
+    z-index: 1;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* Per-control bar colors */
+  #ctrlBB::before  { background: hsla(355, 75%, 33%, 0.12); }
+  #ctrlTC::before  { background: hsla(215, 75%, 33%, 0.12); }
+  #ctrlABS::before { background: hsla(48, 80%, 33%, 0.12); }
+  #ctrlBB .ctrl-value  { color: hsl(355, 80%, 65%); }
+  #ctrlTC .ctrl-value  { color: hsl(215, 80%, 68%); }
+  #ctrlABS .ctrl-value { color: hsl(48, 85%, 62%); }
+  #ctrlBB .ctrl-label  { color: hsl(355, 50%, 55%); }
+  #ctrlTC .ctrl-label  { color: hsl(215, 50%, 58%); }
+  #ctrlABS .ctrl-label { color: hsl(48, 55%, 52%); }
+
+  /* Control bar change flash — brightens the fill bar and value */
+  .ctrl-item.ctrl-changed::before {
+    background: hsla(0, 0%, 100%, 0.14) !important;
+    transition: none !important;
+  }
+  .ctrl-item.ctrl-changed .ctrl-value {
+    filter: brightness(1.4);
+  }
+  @keyframes ctrl-bar-flash {
+    0%   { filter: brightness(1.4); }
+    100% { filter: brightness(1.0); }
+  }
+  .ctrl-item.ctrl-flash-out::before {
+    transition: background 1.2s ease !important;
+  }
+  .ctrl-item.ctrl-flash-out .ctrl-value {
+    animation: ctrl-bar-flash 1.2s ease forwards;
+  }
+
+  /* ABS/TC system activity glow — background pulse on the adjustments bar */
+  .ctrl-item.ctrl-active::after {
+    opacity: 1 !important;
+  }
+  #ctrlABS.ctrl-active { background: hsla(48, 80%, 55%, 0.23); }
+  #ctrlTC.ctrl-active  { background: hsla(215, 75%, 55%, 0.23); }
+  #ctrlBB.ctrl-active  { background: hsla(355, 75%, 55%, 0.23); }
+
+  /* Hidden controls (car doesn't have TC/ABS) */
+  .ctrl-item.ctrl-hidden { display: none; }
+  .ctrl-value-fixed {
+    opacity: 0.5 !important;
+    font-size: 14px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* "No Adjustments" fallback when all controls are hidden */
+  .ctrl-no-adj {
+    display: none;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 14px;
+    font-weight: var(--fw-bold);
+    letter-spacing: 0.08em;
+    color: hsla(0, 0%, 100%, 0.25);
+    text-transform: uppercase;
+  }
+  .car-controls.no-adj .ctrl-no-adj {
+    display: flex;
+  }
+
+  /* Layered pedals — all three histograms overlaid */
+  .pedals-area {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+  .pedal-labels-row {
+    display: flex;
+    gap: 6px;
+    justify-content: space-around;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 6;
+    pointer-events: none;
+    padding: 3px 0;
+  }
+  .pedal-label-group {
+    text-align: center;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  }
+  .pedal-channel-label {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .pedal-channel-label.throttle { color: hsla(0, 0%, 100%, 0.9); }
+  .pedal-channel-label.brake { color: hsla(0, 0%, 100%, 0.9); }
+  .pedal-channel-label.clutch { color: hsla(0, 0%, 100%, 0.9); }
+  .pedal-pct {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .pedal-viz-stack {
+    flex: 1;
+    position: relative;
+  }
+  .pedal-viz-layer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    gap: 1px;
+    align-items: stretch;
+  }
+  .pedal-viz-layer.throttle-layer { z-index: 1; }
+  .pedal-viz-layer.brake-layer { z-index: 2; flex-direction: row-reverse; }
+  .pedal-viz-layer.clutch-layer { z-index: 3; }
+  .pedal-hist-bar {
+    flex: 1;
+    height: 100%;
+    border-radius: 1px 1px 0 0;
+    transform-origin: bottom;
+    transform: scaleY(0.01);
+    transition: transform 33ms linear;
+    will-change: transform;
+  }
+  .pedal-hist-bar.throttle { background: var(--green); opacity: 0.54; }
+  .pedal-hist-bar.brake { background: var(--red); opacity: 0.66; }
+  .pedal-hist-bar.clutch { background: var(--blue); opacity: 0.54; }
+  .pedal-hist-bar.live { opacity: 1; flex: 0 0 4px; border-radius: 2px; }
+
+  /* Pedal trace — smooth waveform overlay on histograms */
+  .pedal-trace-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 4;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+
+  /* ── Pedal curve overlay (response curves fill histogram area) ── */
+  .pedal-curve-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0.55;
+    transition: opacity 300ms ease;
+  }
+  .pedal-curve-canvas.no-profile { display: none; }
+  .pedal-trace-canvas.no-profile { display: none; }
+  .pedals-area:hover .pedal-curve-canvas {
+    opacity: 0.85;
+  }
+  .pedal-profile-label {
+    position: absolute;
+    bottom: 1px;
+    right: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: hsla(0, 0%, 100%, 0.3);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  /* ═══════════════════════════════════════════════
+     FUEL + TYRES (separate stacked panels)
+     ═══════════════════════════════════════════════ */
+  .fuel-tyres-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    flex-shrink: 0;
+    width: 160px;
+  }
+  .fuel-block, .tyres-block {
+    flex: 1;
+  }
+
+  .fuel-remaining {
+    font-size: 22px;
+    font-weight: var(--fw-black);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    margin-bottom: 2px;
+  }
+  .fuel-remaining .unit {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semi);
+    color: var(--text-secondary);
+  }
+  .fuel-bar-outer {
+    height: 8px;
+    border-radius: 2px;
+    background: hsla(0,0%,100%,0.06);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 3px;
+  }
+  .fuel-bar-inner {
+    height: 100%;
+    border-radius: 2px;
+    transition: width var(--t-med), background var(--t-med);
+  }
+  .fuel-bar-inner.healthy { background: linear-gradient(90deg, hsl(123,45%,35%), hsl(123,50%,45%)); }
+  .fuel-bar-inner.caution { background: linear-gradient(90deg, hsl(35,90%,40%), hsl(45,100%,50%)); }
+  .fuel-bar-inner.critical { background: linear-gradient(90deg, hsl(0,70%,35%), hsl(0,70%,50%)); animation: fuel-warn 1s ease-in-out infinite alternate; }
+  @keyframes fuel-warn { 0%{opacity:.84} 100%{opacity:1} }
+  .fuel-bar-pit-marker {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: var(--text-primary);
+    opacity: 0.84;
+  }
+  .fuel-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    justify-content: center;
+  }
+  .fuel-stats .val { font-weight: var(--fw-bold); color: var(--text-primary); }
+  .fuel-pit-suggest {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+    color: var(--amber);
+    margin-top: 2px;
+    text-align: center;
+  }
+
+  .tyre-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+  }
+  .tyre-cell {
+    font-size: 14px;
+    font-weight: var(--fw-black);
+    text-align: center;
+    padding: 3px 2px;
+    border-radius: 4px;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid hsla(0,0%,100%,0.05);
+  }
+  .tyre-cell.cold { color: hsl(200,70%,60%); border-color: hsla(200,70%,60%,0.15); }
+  .tyre-cell.optimal { color: var(--green); border-color: hsla(123,40%,50%,0.15); }
+  .tyre-cell.hot { color: var(--amber); border-color: hsla(45,100%,50%,0.12); }
+  .tyre-cell.danger { color: var(--red); border-color: hsla(0,70%,50%,0.15); }
+  .tyre-label {
+    font-size: 14px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+  .tyre-wear-bar {
+    height: 5px;
+    border-radius: 3px;
+    background: hsla(0,0%,100%,0.08);
+    margin-top: 2px;
+  }
+  .tyre-wear-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--green);
+  }
+
+  /* ═══════════════════════════════════════════════
+     LEADERBOARD PANEL
+     ═══════════════════════════════════════════════ */
+  .leaderboard-panel {
+    width: 240px;
+    transition: opacity 0.4s ease;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .leaderboard-panel.section-hidden { display: none; }
+  /* Position offsets removed — now handled by .sec-container flex layout */
+
+  .lb-inner {
+    background: hsla(0, 0%, 5%, 0.90);
+    border: 1px solid hsla(0, 0%, 100%, 0.14);
+    border-radius: 8px;
+    padding: 6px 0;
+    overflow: hidden;
+  }
+  .lb-header {
+    font-family: var(--ff);
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: hsla(0, 0%, 100%, 0.35);
+    padding: 2px 10px 5px;
+    border-bottom: 1px solid hsla(0, 0%, 100%, 0.12);
+  }
+  .lb-row {
+    display: grid;
+    grid-template-columns: 22px 1fr 48px 42px 1fr;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    border-bottom: 1px solid hsla(0, 0%, 100%, 0.06);
+    transition: background 0.3s ease;
+    position: relative;
+    min-height: 18px;
+  }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-row.lb-player {
+    background: hsla(195, 80%, 30%, 0.20);
+    border-left: 2px solid var(--cyan);
+    padding-left: 8px;
+    transition: background 0.6s ease, border-color 0.6s ease;
+  }
+  .lb-row.lb-player.lb-p1 {
+    background: hsla(42, 70%, 27%, 0.24);
+    border-left-color: hsla(42, 80%, 55%, 1.0);
+  }
+  .lb-row.lb-player.lb-ahead {
+    background: hsla(145, 70%, 25%, 0.20);
+    border-left-color: hsla(145, 75%, 50%, 1.0);
+  }
+  .lb-row.lb-player.lb-behind {
+    background: hsla(0, 70%, 30%, 0.20);
+    border-left-color: hsla(0, 75%, 50%, 1.0);
+  }
+  .lb-row.lb-player.lb-same {
+    background: hsla(210, 70%, 30%, 0.20);
+    border-left-color: hsla(210, 75%, 55%, 1.0);
+  }
+  .lb-row.lb-start-pos {
+    background: hsla(0, 0%, 100%, 0.10);
+    border-left: 2px solid hsla(0, 0%, 100%, 0.20);
+    padding-left: 8px;
+    border-top: 1px solid hsla(0, 0%, 100%, 0.10);
+    border-bottom: 1px solid hsla(0, 0%, 100%, 0.10);
+  }
+  .lb-row.lb-pit { opacity: 0.45; }
+  .lb-pos {
+    font-weight: var(--fw-black);
+    color: var(--text-dim);
+    text-align: center;
+    font-size: 10px;
+  }
+  .lb-row.lb-player .lb-pos { color: var(--cyan); }
+  .lb-row.lb-player.lb-p1 .lb-pos { color: hsla(42, 80%, 60%, 1.0); }
+  .lb-row.lb-player.lb-ahead .lb-pos { color: hsla(145, 75%, 55%, 1.0); }
+  .lb-row.lb-player.lb-behind .lb-pos { color: hsla(0, 75%, 55%, 1.0); }
+  .lb-row.lb-player.lb-same .lb-pos { color: hsla(210, 75%, 60%, 1.0); }
+  .lb-brand {
+    display: none;
+  }
+  .lb-brand-icon {
+    display: none;
+  }
+  .lb-brand-icon svg {
+    display: none;
+  }
+  .lb-name {
+    font-weight: var(--fw-semi);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    min-width: 0;
+    flex: 1;
+  }
+  .lb-row.lb-player .lb-name { color: var(--text-primary); font-weight: var(--fw-bold); }
+  .lb-ir {
+    display: none;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: right;
+  }
+  .lb-gap {
+    font-family: var(--ff-mono);
+    font-size: 9px;
+    text-align: right;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  .lb-gap.gap-ahead { color: var(--green); }
+  .lb-gap.gap-behind { color: var(--red); }
+  .lb-gap.gap-player { color: var(--cyan); }
+  .lb-lap {
+    font-family: var(--ff-mono);
+    font-size: 9px;
+    text-align: right;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: -0.03em;
+  }
+  .lb-lap.lap-pb { color: hsla(270, 80%, 65%, 1.0); font-weight: 700; }
+  .lb-lap.lap-fast { color: hsla(145, 75%, 50%, 1.0); }
+  .lb-lap.lap-slow { color: hsla(45, 90%, 55%, 1.0); }
+  .lb-lap.lap-invalid { color: hsla(0, 70%, 55%, 1.0); }
+  /* WebGL player highlight canvas */
+  .lb-gl {
+    position: absolute;
+    left: 0; right: 0;
+    top: 0; bottom: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    border-radius: inherit;
+  }
+  .lb-inner { position: relative; }
+  /* Sparkline canvas */
+  .lb-spark {
+    width: 100%;
+    height: 12px;
+    opacity: 0.6;
+    min-width: 44px;
+    grid-column: 5;
+  }
+
+  /* ═══════════════════════════════════════════════
+     ═══════════════════════════════════════════════ */

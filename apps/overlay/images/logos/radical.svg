@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" style="filter: drop-shadow(0 0 1.5px rgba(234,190,55,0.3)) drop-shadow(0 0 3px rgba(234,190,55,0.15))">
+  <g transform="translate(8,4) scale(0.8)">
+    <!-- Radical "R" track ribbon — white outer edge, black road, red center stripe -->
+    <!-- Outer white edge -->
+    <path d="M28,78 L28,32 C28,18 34,10 44,10 C54,10 62,14 66,22 C70,30 66,38 56,42 L72,78"
+      fill="none" stroke="hsla(0,0%,85%,0.9)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Black road surface -->
+    <path d="M28,78 L28,32 C28,18 34,10 44,10 C54,10 62,14 66,22 C70,30 66,38 56,42 L72,78"
+      fill="none" stroke="#1a1a1a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Red center stripe -->
+    <path d="M28,78 L28,32 C28,18 34,10 44,10 C54,10 62,14 66,22 C70,30 66,38 56,42 L72,78"
+      fill="none" stroke="#cc2a2a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
