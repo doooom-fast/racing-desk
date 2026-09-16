@@ -1,0 +1,20 @@
+{
+  "name": "prodrive",
+  "private": true,
+  "description": "Pro Drive — single-user, rig-local HUD and desk app for iRacing",
+  "workspaces": [
+    "apps/overlay",
+    "apps/edit",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "record": "node packages/replay/cli.mjs record",
+    "replay": "node packages/replay/cli.mjs play",
+    "recordings": "node packages/replay/cli.mjs list",
+    "test": "npm test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

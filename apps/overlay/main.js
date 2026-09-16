@@ -13,6 +13,8 @@ const https  = require('https');
 const crypto = require('crypto');
 const remoteServer = require('./remote-server');
 const updater      = require('./modules/js/auto-updater');
+const isDev        = process.argv.includes('--dev');
+const devMode      = isDev ? require('./dev-mode') : null;
 const ffmpegEncoder  = require('./modules/js/ffmpeg-encoder');
 const bundleWriter   = require('./modules/js/bundle-writer');
 const replayDirector = require('./modules/js/replay-director');
@@ -174,8 +176,9 @@ async function createOverlay() {
   });
 
   overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-  loadDashboard();
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  if (devMode) devMode.attach(overlayWindow, { rootDir: __dirname, log: logToFile });
+  loadDashboard();
   logToFile('[K10] Overlay created hidden — awaiting live car data (isInRace)');
 
   overlayWindow.webContents.on('did-finish-load', () => {
@@ -345,11 +348,11 @@ app.whenReady().then(() => {
     });
 
     maybeStartRemoteServer();
-    updater.initAutoUpdater(overlayWindow, logToFile);
+    if (!isDev) updater.initAutoUpdater(overlayWindow, logToFile);
     startSettingsWatcher();
 
     // ── Auto-install Stream Deck plugin on first run ──
-    autoInstallStreamDeckPlugin();
+    if (!isDev) autoInstallStreamDeckPlugin();
   } catch (err) {
     logToFile(`[K10] FATAL: createOverlay() threw: ${err.stack || err.message}`);
     app.quit();
@@ -610,6 +613,7 @@ ipcMain.handle('notify-in-race-state', async (_event, inRace) => {
   if (inRace === isInRace) return;   // no change
   isInRace = !!inRace;
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  if (isDev) return;   // dev mode: window stays visible + interactive
 
   if (isInRace) {
     // Reveal the overlay without stealing focus from the game.
@@ -1148,7 +1152,6 @@ ipcMain.handle('parse-sidecar-moments', async (_event, sidecarPath) => {
   }
 });
 
-const isDev = process.argv.includes('--dev');
 
 // Settings popout / Moza manager windows + the settings-changed relay
 // were removed alongside the in-overlay settings UI. Settings live in

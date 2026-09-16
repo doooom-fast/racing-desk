@@ -1,0 +1,17 @@
+{
+  "name": "@prodrive/replay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Record the plugin's localhost:8889 payload and replay it on the same contract",
+  "type": "module",
+  "bin": {
+    "prodrive-replay": "cli.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./cli": "./cli.mjs"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}
