@@ -1,0 +1,123 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "k10-motorsports": {
+    "color": {
+      "background": {
+        "base": { "$value": "hsla(0, 0%, 8%, 1.0)", "$description": "Main dashboard bg, near-black not true black" },
+        "panel": { "$value": "hsla(0, 0%, 6%, 1.0)", "$description": "Panel interiors" },
+        "logo": { "$value": "hsla(0, 0%, 12%, 1.0)", "$description": "Logo squares, elevated surface" },
+        "overlay": { "$value": "hsla(220, 25%, 6%, 0.96)", "$description": "Modal overlays (grid, settings)" }
+      },
+      "text": {
+        "primary": { "$value": "hsla(0, 0%, 100%, 1.0)", "$description": "Full white, 19.5:1 contrast" },
+        "secondary": { "$value": "hsla(0, 0%, 100%, 0.69)", "$description": "Labels, 13.5:1 contrast" },
+        "dim": { "$value": "hsla(0, 0%, 100%, 0.55)", "$description": "Tertiary, units, 8.5:1 contrast" }
+      },
+      "border": {
+        "default": { "$value": "hsla(0, 0%, 100%, 0.14)", "$description": "Subtle panel borders" },
+        "active": { "$value": "hsla(0, 0%, 100%, 0.25)", "$description": "Highlighted borders" }
+      },
+      "semantic": {
+        "red": { "$value": "#e53935", "$description": "Danger, brake, behind, incidents" },
+        "green": { "$value": "#43a047", "$description": "Optimal, throttle, ahead, clear" },
+        "blue": { "$value": "#1e88e5", "$description": "Clutch, info, neutral state" },
+        "amber": { "$value": "#ffb300", "$description": "Caution, warning, yellow flag" },
+        "orange": { "$value": "#fb8c00", "$description": "Close proximity, alert" },
+        "cyan": { "$value": "#00acc1", "$description": "Player highlight, primary action" },
+        "purple": { "$value": "hsl(280, 80%, 70%)", "$description": "Session best lap time" }
+      },
+      "flag": {
+        "yellow": { "$value": "hsl(48, 95%, 55%)" },
+        "red": { "$value": "hsl(0, 85%, 55%)" },
+        "blue": { "$value": "hsl(220, 80%, 60%)" },
+        "green-flag": { "$value": "hsl(130, 75%, 58%)" },
+        "white": { "$value": "hsl(0, 0%, 92%)" },
+        "debris": { "$value": "hsl(45, 90%, 65%)" }
+      },
+      "pit-limiter": {
+        "bg": { "$value": "hsla(200, 60%, 8%, 1.0)" },
+        "border": { "$value": "hsla(200, 80%, 60%, 0.60)" },
+        "accent": { "$value": "hsl(200, 80%, 60%)" }
+      },
+      "start-lights": {
+        "red-lit": { "$value": "hsl(0, 85%, 48%)" },
+        "green-lit": { "$value": "hsl(130, 85%, 42%)" },
+        "housing": { "$value": "hsla(0, 0%, 4%, 0.98)" }
+      },
+      "manufacturer-brands": {
+        "$description": "Car manufacturer brand colors at 0.85 opacity, tripled lightness from original",
+        "bmw": { "$value": "hsla(204, 100%, 45%, 0.85)" },
+        "mclaren": { "$value": "hsla(24, 100%, 52%, 0.85)" },
+        "ferrari": { "$value": "hsla(0, 90%, 48%, 0.85)" }
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "display": { "$value": "'Barlow Condensed', 'Corbel', 'Segoe UI', system-ui, sans-serif" },
+        "mono": { "$value": "'JetBrains Mono', 'Consolas', 'SF Mono', monospace" }
+      },
+      "fontSize": {
+        "gear": { "$value": "96px", "$description": "Gear indicator, largest element" },
+        "grid-countdown": { "$value": "64px", "$description": "Formation lap countdown" },
+        "incident-count": { "$value": "56px" },
+        "go-text": { "$value": "48px", "$description": "Start lights GO! flash" },
+        "position": { "$value": "44px", "$description": "Race position P#" },
+        "speed": { "$value": "28px", "$description": "Speed readout" },
+        "rc-title": { "$value": "28px", "$description": "Race control banner title" },
+        "best-lap": { "$value": "27px", "$description": "Best lap time in position box" },
+        "controls": { "$value": "22px", "$description": "BB/TC/ABS values" },
+        "fuel": { "$value": "22px", "$description": "Fuel level" },
+        "cars-gridded": { "$value": "22px" },
+        "gap-time": { "$value": "17px", "$description": "Gap ahead/behind" },
+        "xl": { "$value": "20px" },
+        "lg": { "$value": "13px" },
+        "md": { "$value": "11px" },
+        "sm": { "$value": "11px" },
+        "xs": { "$value": "10px" }
+      },
+      "fontWeight": {
+        "black": { "$value": 800, "$description": "Position, gear, speed, fuel — maximum prominence" },
+        "bold": { "$value": 700, "$description": "Gap times, ratings, RPM" },
+        "semi": { "$value": 600, "$description": "Labels, secondary emphasis" },
+        "medium": { "$value": 500, "$description": "Body text, metadata" },
+        "regular": { "$value": 400, "$description": "Baseline" }
+      }
+    },
+    "spacing": {
+      "gap": { "$value": "4px", "$description": "Universal inter-panel gap" },
+      "pad": { "$value": "6px", "$description": "Standard internal padding" },
+      "edge-margin": { "$value": "10px", "$description": "Screen edge offset" }
+    },
+    "radius": {
+      "default": { "$value": "8px", "$description": "Main panel corners" },
+      "small": { "$value": "5px", "$description": "Internal elements" },
+      "overlay": { "$value": "14px", "$description": "Modal overlays" },
+      "lights-housing": { "$value": "16px" }
+    },
+    "animation": {
+      "fast": { "$value": "180ms ease", "$description": "Quick state changes" },
+      "medium": { "$value": "350ms ease", "$description": "Standard transitions" },
+      "slow": { "$value": "600ms ease-out", "$description": "Major layout changes" },
+      "commentary-slide": { "$value": "cubic-bezier(0.22, 1, 0.36, 1)", "$description": "Bouncy arrival" },
+      "value-flash": { "$value": "1.4s ease-out forwards" },
+      "flag-glow": { "$value": "3.5s ease-in-out infinite alternate" },
+      "pit-glow": { "$value": "2.5s ease-in-out infinite alternate" },
+      "redline-pulse": { "$value": "0.3s ease-in-out infinite alternate" }
+    },
+    "layout": {
+      "dash-height": { "$value": "200px" },
+      "row-height": { "$value": "calc((200px - 4px) / 2)", "$description": "98px per logo square" },
+      "tacho-width": { "$value": "140px" },
+      "leaderboard-width": { "$value": "310px" },
+      "datastream-width": { "$value": "200px" },
+      "commentary-width": { "$value": "280px" }
+    },
+    "opacity": {
+      "dimming": {
+        "pit-mode": { "$value": 0.25, "$description": "Other panels during pit limiter" },
+        "grid-active": { "$value": 0.15, "$description": "Other panels during formation/lights" },
+        "rc-active": { "$value": 0.50, "$description": "Other panels during race control" }
+      }
+    }
+  }
+}
