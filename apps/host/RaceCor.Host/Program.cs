@@ -40,6 +40,8 @@ Data options:
   --dir <dir>          ingest: telemetry folder (default Documents\iRacing\telemetry)
   --limit <n>          ingest: at most n files; sessions: rows to show (default 20)
   --step <n>           ingest: read every nth frame (default 3 = 20 Hz)
+  --force              ingest: re-read files already stored
+  --now                ingest: don't wait for iRacing to close first
   --type <t>           sessions: filter by session type, e.g. Race
   --laps <id>          sessions: show laps for a session id";
 
@@ -161,7 +163,7 @@ Data options:
             {
                 using var store = new ProDriveStore(o.Db ?? ProDriveStore.DefaultPath);
                 var summary = new IbtIngest(store, m => Log.Info("[RaceCor.Host] ingest: " + m))
-                    .Run(o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory, o.Step, int.MaxValue, cts.Token);
+                    .Run(o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory, o.Step, int.MaxValue, cts.Token, pause: BackgroundIo.SimRunning);
                 if (summary.FilesIngested > 0 || summary.FilesFailed > 0)
                     Log.Info($"[RaceCor.Host] ingest: {summary.FilesIngested} new files, {summary.Sessions} sessions, {summary.FilesFailed} unreadable, {summary.Elapsed.TotalSeconds:F0}s");
             }
@@ -177,7 +179,7 @@ Data options:
             var raw = new IbtRawTelemetry(file);
             var source = new IRacingTelemetrySource(raw);
             var recorder = store != null
-                ? new LiveRecorder(store, "replay", t => file.SessionStartUtc.AddSeconds(Math.Max(0, t - file.SessionStartTime)), m => Log.Info("[RaceCor.Host] " + m))
+                ? new LiveRecorder(store, "replay", t => IbtIngest.SessionClock(file, t), m => Log.Info("[RaceCor.Host] " + m))
                 : null;
             var wi = file.SessionInfo?.WeekendInfo;
             Log.Info($"[RaceCor.Host] replaying {Path.GetFileName(file.Path)} — {wi?.TrackDisplayName} {wi?.TrackConfigName}, " +
@@ -218,7 +220,7 @@ Data options:
             using var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
             Log.Info($"[ingest] {dir} → {store.Path} (every {o.Step} frames)");
-            var s = new IbtIngest(store, m => Log.Info("[ingest] " + m)).Run(dir, o.Step, o.Limit ?? int.MaxValue, cts.Token);
+            var s = new IbtIngest(store, m => Log.Info("[ingest] " + m)).Run(dir, o.Step, o.Limit ?? int.MaxValue, cts.Token, o.Force, o.Now ? null : BackgroundIo.SimRunning);
             Log.Info($"[ingest] done: {s.FilesIngested} ingested, {s.FilesSkipped} already stored, {s.FilesFailed} unreadable; " +
                      $"{s.Sessions} sessions, {s.Laps} laps, {s.GeometryUpdates} track outlines; {s.BytesRead / 1e9:F1} GB in {s.Elapsed.TotalSeconds:F0}s");
             return 0;
@@ -237,7 +239,7 @@ Data options:
                               $"{store.Scalar<long>("SELECT COUNT(*) FROM track_geometry")} track outlines in {store.Path}");
             foreach (var s in store.RecentSessions(o.Limit ?? 20, o.Type))
             {
-                string result = s.SessionType == "Race" && s.FinishPosition > 0 ? $"P{s.StartPosition}→P{s.FinishPosition}/{s.FieldSize} SoF {s.StrengthOfField}" : $"{s.FieldSize} cars";
+                string result = s.SessionType == "Race" && s.FinishPosition > 0 ? $"P{s.StartPosition}->P{s.FinishPosition}/{s.FieldSize} SoF {s.StrengthOfField}" : $"{s.FieldSize} cars";
                 Console.WriteLine($"{s.Id,6}  {s.StartedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}  {s.Source,-6} {s.SessionType,-12} {Trim(s.TrackDisplayName, 28),-28} " +
                                   $"{Trim(s.CarScreenName, 24),-24} {s.LapsCompleted,3} laps  best {Fmt(s.BestLapSeconds)}  {s.Incidents,2}x  {result}");
             }
@@ -245,7 +247,7 @@ Data options:
         }
 
         private static string Fmt(double seconds) =>
-            seconds > 0 ? TimeSpan.FromSeconds(seconds).ToString(seconds >= 60 ? @"m\:ss\.fff" : @"ss\.fff", CultureInfo.InvariantCulture) : "   —    ";
+            seconds > 0 && seconds < 86400 ? TimeSpan.FromSeconds(seconds).ToString(seconds >= 60 ? @"m\:ss\.fff" : @"ss\.fff", CultureInfo.InvariantCulture) : "   —    ";
 
         private static string Trim(string s, int n) => string.IsNullOrEmpty(s) ? "" : s.Length <= n ? s : s.Substring(0, n - 1) + "…";
 
@@ -298,6 +300,8 @@ Data options:
         public int? Limit;
         public int Step = 3;
         public string Type;
+        public bool Force;
+        public bool Now;
         public long? LapsFor;
         public bool Help;
 
@@ -335,6 +339,8 @@ Data options:
                     case "--limit": o.Limit = (int)Num(); break;
                     case "--step": o.Step = Math.Max(1, (int)Num()); break;
                     case "--type": o.Type = Next(); break;
+                    case "--force": o.Force = true; break;
+                    case "--now": o.Now = true; break;
                     case "--laps": o.LapsFor = (long)Num(); break;
                     case "-h": case "--help": o.Help = true; break;
                     default: throw new ArgumentException($"unknown argument {a}");

@@ -58,7 +58,10 @@ namespace RaceCorProDrive.Plugin.IRacing
                 int varHeaderOffset = BitConverter.ToInt32(h, 28);
                 BufferLength = BitConverter.ToInt32(h, 36);
                 BufferOffset = BitConverter.ToInt32(h, 52);
-                SessionStartUtc = DateTimeOffset.FromUnixTimeSeconds(BitConverter.ToInt64(h, 112)).UtcDateTime;
+                long startUnix = BitConverter.ToInt64(h, 112);
+                SessionStartUtc = startUnix > 946684800 && startUnix < 32503680000 // 2000..3000
+                    ? DateTimeOffset.FromUnixTimeSeconds(startUnix).UtcDateTime
+                    : File.GetLastWriteTimeUtc(path);
                 SessionStartTime = BitConverter.ToDouble(h, 120);
                 SessionEndTime = BitConverter.ToDouble(h, 128);
                 LapCount = BitConverter.ToInt32(h, 136);

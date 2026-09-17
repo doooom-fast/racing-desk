@@ -33,9 +33,14 @@ namespace RaceCor.Data
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "iRacing", "telemetry");
 
         /// <param name="frameStep">Read every Nth frame (3 = 20 Hz; enough for laps, incidents and geometry).</param>
-        public IngestSummary Run(string directory, int frameStep = 3, int limit = int.MaxValue, CancellationToken ct = default)
+        /// <param name="force">Re-read files already stored (after an accumulator change).</param>
+        /// <param name="pause">Checked before each file; while it returns true, ingest waits (e.g. while iRacing runs).</param>
+        public IngestSummary Run(string directory, int frameStep = 3, int limit = int.MaxValue, CancellationToken ct = default,
+            bool force = false, Func<bool> pause = null)
         {
             var summary = new IngestSummary();
+            // Backfill reads ~100 GB; never let it compete with the sim for the disk.
+            using var lowIo = BackgroundIo.Enter();
             var clock = Stopwatch.StartNew();
             var files = Directory.Exists(directory)
                 ? new DirectoryInfo(directory).EnumerateFiles("*.ibt").OrderBy(f => f.LastWriteTimeUtc).ToList()
@@ -44,9 +49,16 @@ namespace RaceCor.Data
             foreach (var f in files)
             {
                 if (ct.IsCancellationRequested || summary.FilesIngested >= limit) break;
+                if (pause != null && pause())
+                {
+                    _log("paused while iRacing is running");
+                    while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+                    if (ct.IsCancellationRequested) break;
+                    _log("resumed");
+                }
                 summary.FilesSeen++;
                 // A file still being written by iRacing changes size; leave it for the next run.
-                if (DateTime.UtcNow - f.LastWriteTimeUtc < TimeSpan.FromMinutes(2) || _store.IsIngested(f.FullName, f.Length, f.LastWriteTimeUtc))
+                if (DateTime.UtcNow - f.LastWriteTimeUtc < TimeSpan.FromMinutes(2) || (!force && _store.IsIngested(f.FullName, f.Length, f.LastWriteTimeUtc)))
                 {
                     summary.FilesSkipped++;
                     continue;
@@ -63,7 +75,7 @@ namespace RaceCor.Data
                     summary.Laps += result.Sessions.Sum(s => s.Laps.Count);
                     summary.BytesRead += f.Length;
                 }
-                catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is YamlDotNet.Core.YamlException || ex is ArgumentException)
+                catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
                     summary.FilesFailed++;
                     _log($"skip {f.Name}: {ex.GetType().Name}: {ex.Message}");
@@ -90,7 +102,7 @@ namespace RaceCor.Data
             using var ibt = new IbtFile(path);
             var info = ibt.SessionInfo;
             var wi = info?.WeekendInfo;
-            DateTime Clock(double sessionTime) => ibt.SessionStartUtc.AddSeconds(Math.Max(0, sessionTime - ibt.SessionStartTime));
+            DateTime Clock(double sessionTime) => SessionClock(ibt, sessionTime);
 
             var sessions = new SessionAccumulator("ibt", path, Clock);
             var geometry = wi != null && wi.TrackID > 0
@@ -111,6 +123,14 @@ namespace RaceCor.Data
             var sectors = info?.SplitTimeInfo?.Sectors?.OrderBy(s => s.SectorNum).Select(s => (double)s.SectorStartPct).ToArray();
             result.Geometry = geometry?.Result(path, sectors);
             return result;
+        }
+
+        /// <summary>Wall-clock time of a frame; corrupt headers can carry nonsense session times.</summary>
+        public static DateTime SessionClock(IbtFile ibt, double sessionTime)
+        {
+            double offset = sessionTime - ibt.SessionStartTime;
+            if (double.IsNaN(offset) || offset < 0 || offset > TimeSpan.FromDays(7).TotalSeconds) offset = 0;
+            return ibt.SessionStartUtc.AddSeconds(offset);
         }
 
         private static double ParseMeters(string trackLength)

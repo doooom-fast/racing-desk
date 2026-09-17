@@ -82,7 +82,11 @@ SplitTimeInfo:
                 {
                     using var ibt = new IbtFile(f.FullName);
                     var sessions = ibt.SessionInfo?.SessionInfo?.Sessions;
-                    if (ibt.LapCount >= 3 && sessions != null && sessions.Any(s => s.SessionType == "Race")) return f;
+                    // A full race on a normal-length track: enough clean laps for timing and outline checks,
+                    // and stable as new (often short) sessions land in the history.
+                    string length = ibt.SessionInfo?.WeekendInfo?.TrackLength ?? "";
+                    double km = double.TryParse(length.Split(' ')[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var k) ? k : 99;
+                    if (ibt.LapCount >= 8 && km < 7 && sessions != null && sessions.Any(s => s.SessionType == "Race")) return f;
                 }
                 catch { /* try the next one */ }
             }

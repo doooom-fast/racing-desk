@@ -15,7 +15,10 @@
     "test": "npm test --workspaces --if-present",
     "test:golden": "npm run test:golden -w racecor-overlay --",
     "host": "dotnet run --project apps/host/RaceCor.Host -c Release --",
-    "test:dotnet": "dotnet test prodrive.sln -c Release"
+    "test:dotnet": "dotnet test prodrive.sln -c Release",
+    "parity": "node scripts/parity.mjs",
+    "ingest": "dotnet run --project apps/host/RaceCor.Host -c Release -- ingest",
+    "sessions": "dotnet run --project apps/host/RaceCor.Host -c Release -- sessions"
   },
   "engines": {
     "node": ">=22"

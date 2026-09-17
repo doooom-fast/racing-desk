@@ -178,7 +178,7 @@ SELECT last_insert_rowid();", tx))
 
         public bool IsIngested(string path, long length, DateTime mtimeUtc)
         {
-            using var cmd = Cmd("SELECT 1 FROM ingested_files WHERE path = $p AND length = $l AND mtime = $m");
+            using var cmd = Cmd("SELECT 1 FROM ingested_files WHERE path = $p AND length = $l AND mtime = $m AND error IS NULL");
             P(cmd, "$p", path); P(cmd, "$l", length); P(cmd, "$m", Iso(mtimeUtc));
             return cmd.ExecuteScalar() != null;
         }
@@ -187,6 +187,8 @@ SELECT last_insert_rowid();", tx))
         public void SaveIngestedFile(string path, long length, DateTime mtimeUtc, IReadOnlyList<SessionRecord> sessions, string error)
         {
             using var tx = _db.BeginTransaction();
+            // Replace everything previously read from this file, including sessions it no longer yields.
+            Exec("DELETE FROM sessions WHERE source = 'ibt' AND ibt_path = $p", tx, ("$p", path));
             foreach (var s in sessions) SaveSession(s, tx);
             Exec("INSERT OR REPLACE INTO ingested_files VALUES ($p, $l, $m, $n, $e, $at)", tx,
                 ("$p", path), ("$l", length), ("$m", Iso(mtimeUtc)), ("$n", sessions.Count), ("$e", error), ("$at", Iso(DateTime.UtcNow)));
@@ -290,11 +292,18 @@ FROM sessions WHERE ($type IS NULL OR session_type = $type) ORDER BY started_at 
             cmd.ExecuteNonQuery();
         }
 
-        private static void P(SqliteCommand cmd, string name, object value) => cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
+        private static void P(SqliteCommand cmd, string name, object value) => cmd.Parameters.AddWithValue(name, Db(value));
+
+        // SQLite rejects NaN / Infinity, which corrupt telemetry can produce; store them as NULL.
+        private static object Db(object value) =>
+            value == null ? DBNull.Value
+            : value is double d && !double.IsFinite(d) ? DBNull.Value
+            : value is float f && !float.IsFinite(f) ? DBNull.Value
+            : value;
 
         private static void Set(SqliteCommand cmd, params object[] values)
         {
-            for (int i = 0; i < values.Length; i++) cmd.Parameters[i].Value = values[i] ?? DBNull.Value;
+            for (int i = 0; i < values.Length; i++) cmd.Parameters[i].Value = Db(values[i]);
         }
     }
 }

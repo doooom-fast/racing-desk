@@ -16,6 +16,8 @@ namespace RaceCor.Data
         private const int OffTrack = 0;          // irsdk_TrkLoc
         private const int RacingState = 4;       // irsdk_SessionState.Racing
         private const double LapTimeSettleSeconds = 3.0;
+        private const int MaxIncidentPoints = 25;
+        private const float MaxLapSeconds = 3600;
 
         private readonly string _source;
         private readonly string _ibtPath;
@@ -50,6 +52,10 @@ namespace RaceCor.Data
 
             int sessionNum = I(raw, "SessionNum");
             double t = D(raw, "SessionTime");
+            // Corrupt frames carry garbage; only accept a session the YAML knows about at a sane time.
+            if (double.IsNaN(t) || double.IsInfinity(t) || t < 0) return null;
+            var known = info.SessionInfo?.Sessions;
+            if (known != null && known.Count > 0 && !known.Any(x => x.SessionNum == sessionNum)) return null;
             SessionRecord finished = null;
             if (_cur == null || sessionNum != _cur.SessionNum || t < _lastTime - 1)
             {
@@ -71,12 +77,12 @@ namespace RaceCor.Data
             if (_cur.StartPosition == 0 && state == RacingState && position > 0) _cur.StartPosition = position;
             if (position > 0) _lastPosition = position;
             float best = F(raw, "LapBestLapTime");
-            if (best > 0) _lastBestLap = best;
+            if (best > 0 && best < MaxLapSeconds) _lastBestLap = best;
 
             // A lap posted at the line may get its official time a few frames later.
             if (_pending != null && (lastLap != _pending.LastLapAtCrossing || t - _pending.CrossedAt >= LapTimeSettleSeconds))
             {
-                _pending.Record.LapTimeSeconds = lastLap > 0 ? lastLap : _pending.Record.LapTimeSeconds;
+                _pending.Record.LapTimeSeconds = lastLap > 0 && lastLap < MaxLapSeconds ? lastLap : _pending.Record.LapTimeSeconds;
                 _pending = null;
             }
 
@@ -87,14 +93,15 @@ namespace RaceCor.Data
                 _lastIncidents = incidents;
             }
 
-            if (incidents > _lastIncidents)
+            // Corrupt frames can carry garbage counters; a real incident is at most a few points.
+            if (incidents > _lastIncidents && incidents - _lastIncidents <= MaxIncidentPoints)
             {
                 int points = incidents - _lastIncidents;
                 _cur.IncidentEvents.Add(new IncidentRecord { SessionTime = t, Lap = I(raw, "Lap"), LapDistPct = F(raw, "LapDistPct"), Points = points });
                 _lap.Incidents += points;
                 _lap.Dirty = true;
             }
-            _lastIncidents = Math.Max(_lastIncidents, incidents);
+            if (incidents >= _lastIncidents && incidents - _lastIncidents <= MaxIncidentPoints) _lastIncidents = incidents;
             if (surface == OffTrack) _lap.Dirty = true;
             if (onPit) { _lap.Pitted = true; _lap.Dirty = true; }
 
@@ -263,7 +270,7 @@ namespace RaceCor.Data
         /// <summary>iRacing's strength-of-field estimate over the ratings in a split / class.</summary>
         internal static int StrengthOfField(IEnumerable<int> ratings)
         {
-            var rs = ratings.Where(r => r > 0).ToList();
+            var rs = ratings.Where(r => r > 1).ToList(); // unrated / AI entries report 0 or 1
             if (rs.Count == 0) return 0;
             double k = 1600.0 / Math.Log(2);
             double sum = rs.Sum(r => Math.Exp(-r / k));

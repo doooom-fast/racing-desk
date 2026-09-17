@@ -450,7 +450,9 @@ add golden-frame tests. **No feature work.**
 **Done when:** you can change a CSS value and see it on a replayed race in under 3 seconds, with no
 sim running.
 
-> **Status 2026-09-16 — built, one step short of done.** Local monorepo at `Documents\GitHub\prodrive`
+> **Status 2026-09-16 — monorepo done; replay loop parked.** The replay harness, overlay dev mode and golden
+> frames below were built, then deferred to Phase 5 (design work) — no further investment until then.
+> Details as built: Local monorepo at `Documents\GitHub\prodrive`
 > (overlay, plugin, edit, agents imported with history). `packages/replay` records and replays the
 > `:8889` payload (verified against live SimHub: all 328 keys match). Overlay dev mode hot-swaps CSS
 > ~80 ms after save and redirects `:8889` to replay so SimHub can keep running. Golden frames run
@@ -462,6 +464,28 @@ sim running.
 **Phase 2 — Local data spine.** Multi-target core (`net48;net8.0-windows`), add the .NET 8 host, SQLite schema,
 `.ibt` backfill ingest, session capture writing locally.
 **Done when:** a full race is captured, stored and re-readable with the network cable unplugged.
+
+> **Status 2026-09-17 — done.**
+> - `apps/core/RaceCor.Core` (net48 + net8.0-windows): engine, `ProDriveRuntime` (per-frame orchestration, `:8889` /
+>   `:8890`), `TelemetryCapture` over an `ITelemetrySource`, and `IRacing/` — live SDK and `.ibt` readers plus
+>   `IRacingTelemetrySource`, which speaks SimHub's vocabulary so capture runs unchanged. The SimHub plugin is
+>   a 242-line adapter.
+> - `apps/host/RaceCor.Host` (net8): serves the same contract without SimHub, live or from an `.ibt`. Contract
+>   parity with the installed plugin is a test (keys match bar hardware and per-track sector keys).
+> - `apps/core/RaceCor.Data` (net8, host only): `%LOCALAPPDATA%RaceCorprodrive.db` — sessions, laps, incidents,
+>   grids, track outlines. Full backfill of the rig: 3,031 files / 104.6 GB in ~110 s → 3,019 sessions (598 races),
+>   6,808 laps, 68 track outlines; 3 truncated files skipped. Live capture uses the same accumulator and is
+>   tested lap-for-lap against backfill of the same race.
+> - Ingest pauses while iRacing runs and reads at background I/O priority.
+>
+> **Live parity check** (2026-09-17, a Nordschleife race, host beside SimHub, `npm run parity`): core telemetry,
+> lap times, iRating/SR, car, session and leaderboard names agree. Four convention mismatches were found and
+> fixed — SimHub's iRacing `TrackName` is the internal track name (which also fed the track map and sectors);
+> normalized fuel and tyre temperatures follow display units (gallons, °F); tyre wear is percent remaining; the
+> IRacingExtraProperties gap keys don't exist in a stock SimHub. Remaining differences are expected: engine
+> history when the host starts mid-race (strategy, stint, start position, sector bests), commentary timing, SimHub
+> button counters and hardware keys. Disk `.ibt` has no `CarIdx` arrays, so leaderboard, gaps and nearest-car
+> are empty when replaying a file. The SimHub plugin build is not installed.
 
 **Phase 3 — Cut the cord.** Port calc engines into Electron main. Stand up the schedule fetch. Delete
 `calc-client.js`, `session-sync.js`, `IRacingDataClient.cs`, the entire track apparatus (§3), and

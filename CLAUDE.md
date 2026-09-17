@@ -12,7 +12,10 @@ no account, no cloud and no distribution. This machine *is* the rig — iRacing,
 | Path | What | Instructions |
 |---|---|---|
 | `apps/overlay/` | Electron HUD (consumer of `localhost:8889`) | [`apps/overlay/CLAUDE.md`](apps/overlay/CLAUDE.md) |
-| `apps/plugin/` | C# SimHub plugin — engine + `localhost:8889` producer. Splits into `core` / `host` / `simhub-plugin` in Phase 2 | [`apps/plugin/CLAUDE.md`](apps/plugin/CLAUDE.md) |
+| `apps/core/RaceCor.Core/` | The engine, runtime and `:8889` / `:8890` servers, host-agnostic (`net48` + `net8.0-windows`). `IRacing/` reads the SDK or `.ibt` directly | — |
+| `apps/core/RaceCor.Data/` | Local SQLite store (`%LOCALAPPDATA%RaceCorprodrive.db`), session capture, `.ibt` backfill, track outlines from Lat/Lon (`net8`, host only) | — |
+| `apps/host/RaceCor.Host/` | Standalone host: live iRacing or `.ibt` replay → same `:8889` contract, records sessions | — |
+| `apps/plugin/` | SimHub plugin — now a thin adapter over RaceCor.Core (SimHub dashes, actions, events). `prodrive.sln` at the root builds all .NET projects | [`apps/plugin/CLAUDE.md`](apps/plugin/CLAUDE.md) |
 | `apps/edit/` | Node CLI for `.rcpdv` bundle editing | [`apps/edit/CLAUDE.md`](apps/edit/CLAUDE.md) |
 | `docs/` | Cross-app context; `docs/archive/` is superseded | [`docs/README.md`](docs/README.md) |
 | `.claude/skills/` | Project skills (overlay, plugin, racing domain, bundle format) | — |
@@ -21,7 +24,21 @@ Imported 2026-09-16 from `prodrive-overlay`, `prodrive-plugin`, `prodrive-edit` 
 with history (subtree merges). Those repos, plus `prodrive-server` and `prodrive-windows`, still exist
 and are archived in Phase 6 — nothing is deleted before its replacement works.
 
-## Dev loop
+## .NET
+
+```bash
+npm run test:dotnet                 # dotnet test prodrive.sln (5 WsTelemetryPublisher failures are pre-existing)
+npm run host                        # live iRacing → :8889/:8890, records sessions, backfills new .ibt
+npm run host -- --ibt <file> --http-port 18889 --ws-port 18890   # replay an .ibt beside SimHub
+npm run ingest                      # backfill prodrive.db from DocumentsiRacing	elemetry
+npm run sessions -- --type Race     # read back stored sessions (--laps <id> for laps)
+npm run parity -- --seconds 120     # live session: diff SimHub's :8889 with the host's :18889
+```
+
+The SimHub plugin build stages into `apps/plugin/racecor-plugin/simhub-plugin/build/`; `apps/plugin/scripts/windows/install.bat`
+copies it into SimHub — **ask before running it**, it replaces the installed plugin.
+
+## Dev loop (overlay design work — parked until Phase 5)
 
 ```bash
 npm install

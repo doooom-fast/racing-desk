@@ -13,8 +13,9 @@ namespace RaceCorProDrive.Plugin.IRacing
     ///
     /// Call <see cref="Update"/> once per frame before handing the source to the runtime.
     ///
-    /// Where SimHub's exact convention for iRacing is unverified the choice is marked "parity:" — confirm by
-    /// running the standalone host beside SimHub during a live session and diffing the :8889 payloads.
+    /// Conventions were checked against SimHub 9.12 during a live session (npm run parity, 2026-09-17): TrackName
+    /// is iRacing's internal track name; normalized fuel and tyre temperatures follow the display units (gallons
+    /// and °F when imperial) while Computed.Fuel_LitersPerLap stays in litres; tyre wear is percent remaining.
     /// </summary>
     public sealed class IRacingTelemetrySource : ITelemetrySource
     {
@@ -27,7 +28,6 @@ namespace RaceCorProDrive.Plugin.IRacing
         private IRacingSdkSessionInfo _indexedSession;
         private readonly Dictionary<int, IRacingSdkSessionInfo.DriverInfoModel.DriverModel> _driversByCarIdx = new Dictionary<int, IRacingSdkSessionInfo.DriverInfoModel.DriverModel>();
         private IRacingSdkSessionInfo.DriverInfoModel.DriverModel _me;
-        private double _gapAhead, _gapBehind;
 
         public IRacingTelemetrySource(IRawTelemetry raw)
         {
@@ -48,6 +48,7 @@ namespace RaceCorProDrive.Plugin.IRacing
             int myIdx = si.DriverInfo?.DriverCarIdx ?? -1;
             int gear = Int("Gear");
             float fuel = Float("FuelLevel");
+            bool imperial = Int("DisplayUnits") == 0;
             int lapCompleted = Int("LapCompleted");
             int sessionNum = Int("SessionNum");
 
@@ -58,7 +59,7 @@ namespace RaceCorProDrive.Plugin.IRacing
             _data.Throttle = Float("Throttle") * 100.0;
             _data.Brake = Float("Brake") * 100.0;
             _data.Clutch = (1.0 - Float("Clutch")) * 100.0; // iRacing: 1 = pedal up; SimHub: 0 = pedal up
-            _data.Fuel = fuel;
+            _data.Fuel = imperial ? fuel * LitresToGallons : fuel;
             _data.FuelPercent = Float("FuelLevelPct") * 100.0;
             _data.CurrentLap = Int("Lap");
             _data.CompletedLaps = lapCompleted;
@@ -67,9 +68,12 @@ namespace RaceCorProDrive.Plugin.IRacing
             _data.IsInPit = Int("PlayerTrackSurface") == (int)IRacingSdkEnum.TrkLoc.InPitStall ? 1 : 0;
             _data.IsInPitLane = Bool("OnPitRoad") ? 1 : 0;
             _data.SessionTypeName = SessionType(si, sessionNum);
-            _data.CarModel = _me?.CarScreenName ?? ""; // parity: SimHub may use CarPath or a friendlier name
+            _data.CarModel = _me?.CarScreenName ?? "";
             _data.PlayerName = _me?.UserName ?? "";
-            // Tyre wear is left at 0 so capture uses its raw per-zone iRacing wear fallback.
+            _data.TyreWearFrontLeft = WearRemainingPercent("LF");
+            _data.TyreWearFrontRight = WearRemainingPercent("RF");
+            _data.TyreWearRearLeft = WearRemainingPercent("LR");
+            _data.TyreWearRearRight = WearRemainingPercent("RR");
 
             _data.BestLapTime = Float("LapBestLapTime");
             _data.LastLapTime = Float("LapLastLapTime");
@@ -83,10 +87,10 @@ namespace RaceCorProDrive.Plugin.IRacing
             _data.VelocityZ = Float("VelocityZ");
             _data.Yaw = Float("Yaw");
             _data.YawVelocity = Float("YawRate");
-            _data.TyreTempFrontLeft = Float("LFtempCM");
-            _data.TyreTempFrontRight = Float("RFtempCM");
-            _data.TyreTempRearLeft = Float("LRtempCM");
-            _data.TyreTempRearRight = Float("RRtempCM");
+            _data.TyreTempFrontLeft = Temp(Float("LFtempCM"), imperial);
+            _data.TyreTempFrontRight = Temp(Float("RFtempCM"), imperial);
+            _data.TyreTempRearLeft = Temp(Float("LRtempCM"), imperial);
+            _data.TyreTempRearRight = Temp(Float("RRtempCM"), imperial);
 
             BuildOpponents(myIdx);
             _fuel.Update(lapCompleted, fuel, Bool("OnPitRoad"));
@@ -101,8 +105,7 @@ namespace RaceCorProDrive.Plugin.IRacing
             var si = _raw.SessionInfo;
             switch (fullName)
             {
-                // parity: SimHub's iRacing TrackName is assumed to be the display name, TrackId the internal name.
-                case "DataCorePlugin.GameData.TrackName": return si.WeekendInfo?.TrackDisplayName;
+                case "DataCorePlugin.GameData.TrackName": return si.WeekendInfo?.TrackName;
                 case "DataCorePlugin.GameData.TrackId": return si.WeekendInfo?.TrackName;
                 case "DataCorePlugin.GameData.TrackConfig": return si.WeekendInfo?.TrackConfigName;
                 case "DataCorePlugin.GameData.TrackCountry": return si.WeekendInfo?.TrackCountry;
@@ -115,12 +118,12 @@ namespace RaceCorProDrive.Plugin.IRacing
                 case "IRacingExtraProperties.iRacing_DriverInfo_SafetyRating":
                     return ParseSafetyRating(_me?.LicString);
 
-                case "IRacingExtraProperties.iRacing_Opponent_Ahead_Gap": return _gapAhead;
-                case "IRacingExtraProperties.iRacing_Opponent_Behind_Gap": return _gapBehind;
+                // The IRacingExtraProperties plugin isn't part of a SimHub install, so these read as absent there too;
+                // capture then falls back to the opponents' gap-to-player.
 
                 case "DataCorePlugin.Computed.Fuel_LitersPerLap": return _fuel.LitersPerLap;
                 case "DataCorePlugin.GameData.RemainingLaps":
-                    return _fuel.LitersPerLap > 0 ? _data.Fuel / _fuel.LitersPerLap : 0.0;
+                    return _fuel.LitersPerLap > 0 ? Float("FuelLevel") / _fuel.LitersPerLap : 0.0;
                 case "DataCorePlugin.GameData.TotalLaps":
                 {
                     int total = Int("SessionLapsTotal");
@@ -152,10 +155,8 @@ namespace RaceCorProDrive.Plugin.IRacing
             var onPit = _raw.GetValue("CarIdxOnPitRoad") as bool[];
 
             _data.Opponents.Clear();
-            _gapAhead = _gapBehind = 0;
             if (positions == null) return;
 
-            int myPos = _data.Position;
             float myF2 = f2 != null && myIdx >= 0 && myIdx < f2.Length ? f2[myIdx] : 0;
 
             foreach (var kv in _driversByCarIdx)
@@ -181,9 +182,18 @@ namespace RaceCorProDrive.Plugin.IRacing
                     IsPlayer = idx == myIdx,
                 };
                 _data.Opponents.Add(opp);
-                if (myPos > 0 && pos == myPos - 1) _gapAhead = gap;
-                if (myPos > 0 && pos == myPos + 1) _gapBehind = gap;
             }
+        }
+
+        private const double LitresToGallons = 0.264172;
+
+        private static float Temp(float celsius, bool imperial) => imperial ? celsius * 9f / 5f + 32f : celsius;
+
+        /// <summary>Average of the inner / middle / outer wear readings, as percent remaining.</summary>
+        private double WearRemainingPercent(string corner)
+        {
+            float l = Float(corner + "wearL"), m = Float(corner + "wearM"), r = Float(corner + "wearR");
+            return l + m + r > 0 ? (l + m + r) / 3.0 * 100.0 : 0.0;
         }
 
         private static TimeSpan Seconds(float[] arr, int idx) =>
