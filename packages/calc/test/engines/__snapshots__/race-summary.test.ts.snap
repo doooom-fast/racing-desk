@@ -1,0 +1,632 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`race-summary — branches > DNF 1`] = `
+{
+  "headline": "Race Ended Early",
+  "improvements": [
+    {
+      "detail": "The race ended early. Focus on survival — finishing races is the fastest way to gain both rating and experience.",
+      "icon": "AlertTriangle",
+      "title": "Did Not Finish",
+    },
+    {
+      "detail": "6 incidents — a reduction here would significantly boost your Safety Rating.",
+      "icon": "ShieldAlert",
+      "metric": "6x",
+      "title": "Incident Rate",
+    },
+  ],
+  "lapAnalysis": {
+    "avgLapTime": 111.1,
+    "bestLap": 5,
+    "bestLapTime": 110.5,
+    "consistency": 92.3624830114864,
+    "fastestSector": {
+      "sector": 1,
+      "time": 30.5,
+    },
+    "lapTimeProgression": "unknown",
+    "slowestSector": {
+      "sector": 3,
+      "time": 40.6,
+    },
+    "worstLapTime": 111.7,
+  },
+  "overallVerdict": "tough",
+  "ratingImpact": {
+    "irDelta": -45,
+    "narrative": "A tough one — both iRating (-45) and Safety Rating (-0.18) took a hit. Review the incident data below and focus on one area to improve next time.",
+    "srDelta": -0.18,
+  },
+  "strengths": [
+    {
+      "detail": "Your lap times were exceptionally consistent — the mark of a well-controlled race.",
+      "icon": "Activity",
+      "metric": "92%",
+      "title": "Metronomic Pace",
+    },
+  ],
+  "subheadline": "DNF at Spa — but every race teaches something.",
+  "temperReport": null,
+  "trackContext": null,
+}
+`;
+
+exports[`race-summary — branches > clean podium (P3, 1 incident) 1`] = `
+{
+  "headline": "Clean Podium",
+  "improvements": [],
+  "lapAnalysis": {
+    "avgLapTime": 111.1,
+    "bestLap": 5,
+    "bestLapTime": 110.5,
+    "consistency": 92.3624830114864,
+    "fastestSector": {
+      "sector": 1,
+      "time": 30.5,
+    },
+    "lapTimeProgression": "stable",
+    "slowestSector": {
+      "sector": 3,
+      "time": 40.60000000000001,
+    },
+    "worstLapTime": 111.7,
+  },
+  "overallVerdict": "excellent",
+  "ratingImpact": {
+    "irDelta": 25,
+    "narrative": "A rewarding race — you gained +25 iRating and +0.05 Safety Rating. Both metrics moved in the right direction.",
+    "srDelta": 0.05,
+  },
+  "strengths": [
+    {
+      "detail": "A strong 3rd place out of 24.",
+      "icon": "Medal",
+      "metric": "P3",
+      "title": "Podium Finish",
+    },
+    {
+      "detail": "Only 1 incident in 20 laps — well-managed risk.",
+      "icon": "ShieldCheck",
+      "metric": "1x",
+      "title": "Clean Racing",
+    },
+    {
+      "detail": "Your lap times were exceptionally consistent — the mark of a well-controlled race.",
+      "icon": "Activity",
+      "metric": "92%",
+      "title": "Metronomic Pace",
+    },
+    {
+      "detail": "100% of your laps were incident-free — outstanding discipline.",
+      "icon": "Sparkles",
+      "metric": "100%",
+      "title": "Clean Lap Rate",
+    },
+    {
+      "detail": "Your composure was excellent throughout — frustration never took the wheel.",
+      "icon": "Heart",
+      "title": "Cool Head",
+    },
+  ],
+  "subheadline": "3rd place with tight, clean racing — a quality result.",
+  "temperReport": {
+    "avgTemper": 8,
+    "calmestStretch": {
+      "from": 1,
+      "to": 20,
+    },
+    "peakLap": 20,
+    "peakTemper": 18,
+    "temperTrigger": null,
+    "verdict": "Exceptional composure throughout — you stayed cool under pressure.",
+  },
+  "trackContext": null,
+}
+`;
+
+exports[`race-summary — branches > composure: high peak rage triggers improvement bullet 1`] = `
+{
+  "headline": "Solid Race",
+  "improvements": [
+    {
+      "detail": "Peak rage hit 82 — when frustration peaks, incident risk follows. Consider a cooldown strategy.",
+      "icon": "Flame",
+      "metric": "82",
+      "title": "Composure Spike",
+    },
+  ],
+  "lapAnalysis": {
+    "avgLapTime": 111.1,
+    "bestLap": 5,
+    "bestLapTime": 110.5,
+    "consistency": 92.3624830114864,
+    "fastestSector": {
+      "sector": 1,
+      "time": 30.5,
+    },
+    "lapTimeProgression": "stable",
+    "slowestSector": {
+      "sector": 3,
+      "time": 40.60000000000001,
+    },
+    "worstLapTime": 111.7,
+  },
+  "overallVerdict": "good",
+  "ratingImpact": null,
+  "strengths": [
+    {
+      "detail": "Your lap times were exceptionally consistent — the mark of a well-controlled race.",
+      "icon": "Activity",
+      "metric": "92%",
+      "title": "Metronomic Pace",
+    },
+    {
+      "detail": "100% of your laps were incident-free — outstanding discipline.",
+      "icon": "Sparkles",
+      "metric": "100%",
+      "title": "Clean Lap Rate",
+    },
+  ],
+  "subheadline": "A positive outing at Spa with more things going right than wrong.",
+  "temperReport": {
+    "avgTemper": 42,
+    "calmestStretch": {
+      "from": 1,
+      "to": 20,
+    },
+    "peakLap": 20,
+    "peakTemper": 82,
+    "temperTrigger": null,
+    "verdict": "Mixed composure — you had moments of frustration but recovered.",
+  },
+  "trackContext": null,
+}
+`;
+
+exports[`race-summary — branches > dominant P1 victory with zero incidents 1`] = `
+{
+  "headline": "Dominant Victory",
+  "improvements": [],
+  "lapAnalysis": {
+    "avgLapTime": 111.1,
+    "bestLap": 5,
+    "bestLapTime": 110.5,
+    "consistency": 92.3624830114864,
+    "fastestSector": {
+      "sector": 1,
+      "time": 30.5,
+    },
+    "lapTimeProgression": "stable",
+    "slowestSector": {
+      "sector": 3,
+      "time": 40.60000000000001,
+    },
+    "worstLapTime": 111.7,
+  },
+  "overallVerdict": "excellent",
+  "ratingImpact": {
+    "irDelta": 65,
+    "narrative": "A rewarding race — you gained +65 iRating and +0.15 Safety Rating. Both metrics moved in the right direction.",
+    "srDelta": 0.15,
+  },
+  "strengths": [
+    {
+      "detail": "Took the top step in a field of 24.",
+      "icon": "Trophy",
+      "metric": "P1",
+      "title": "Race Winner",
+    },
+    {
+      "detail": "Zero incidents across 20 laps — exceptional awareness and car control.",
+      "icon": "Shield",
+      "metric": "0x",
+      "title": "Incident-Free",
+    },
+    {
+      "detail": "Your lap times were exceptionally consistent — the mark of a well-controlled race.",
+      "icon": "Activity",
+      "metric": "92%",
+      "title": "Metronomic Pace",
+    },
+    {
+      "detail": "100% of your laps were incident-free — outstanding discipline.",
+      "icon": "Sparkles",
+      "metric": "100%",
+      "title": "Clean Lap Rate",
+    },
+    {
+      "detail": "Your composure was excellent throughout — frustration never took the wheel.",
+      "icon": "Heart",
+      "title": "Cool Head",
+    },
+    {
+      "detail": "+65 iRating — a significant step up from this single race.",
+      "icon": "Zap",
+      "metric": "+65",
+      "title": "Big iRating Gain",
+    },
+    {
+      "detail": "+0.15 Safety Rating — clean racing pays dividends.",
+      "icon": "ShieldPlus",
+      "metric": "+0.15",
+      "title": "SR Boost",
+    },
+  ],
+  "subheadline": "P1 with zero incidents — a textbook race.",
+  "temperReport": {
+    "avgTemper": 8,
+    "calmestStretch": {
+      "from": 1,
+      "to": 20,
+    },
+    "peakLap": 20,
+    "peakTemper": 18,
+    "temperTrigger": null,
+    "verdict": "Exceptional composure throughout — you stayed cool under pressure.",
+  },
+  "trackContext": null,
+}
+`;
+
+exports[`race-summary — branches > first-time-at-track narrative (positionTrend: first_time) 1`] = `
+{
+  "headline": "Solid Race",
+  "improvements": [],
+  "lapAnalysis": {
+    "avgLapTime": 111.1,
+    "bestLap": 5,
+    "bestLapTime": 110.5,
+    "consistency": 92.3624830114864,
+    "fastestSector": {
+      "sector": 1,
+      "time": 30.5,
+    },
+    "lapTimeProgression": "stable",
+    "slowestSector": {
+      "sector": 3,
+      "time": 40.60000000000001,
+    },
+    "worstLapTime": 111.7,
+  },
+  "overallVerdict": "good",
+  "ratingImpact": null,
+  "strengths": [
+    {
+      "detail": "Only 1 incident in 20 laps — well-managed risk.",
+      "icon": "ShieldCheck",
+      "metric": "1x",
+      "title": "Clean Racing",
+    },
+    {
+      "detail": "Your lap times were exceptionally consistent — the mark of a well-controlled race.",
+      "icon": "Activity",
+      "metric": "92%",
+      "title": "Metronomic Pace",
+    },
+    {
+      "detail": "100% of your laps were incident-free — outstanding discipline.",
+      "icon": "Sparkles",
+      "metric": "100%",
+      "title": "Clean Lap Rate",
+    },
+    {
+      "detail": "Your composure was excellent throughout — frustration never took the wheel.",
+      "icon": "Heart",
+      "title": "Cool Head",
+    },
+    {
+      "detail": "This was your first race at this track. Learning a new track takes time. The data from this run will accelerate your next visit.",
+      "icon": "Star",
+      "title": "Personal Best",
+    },
+    {
+      "detail": "Clean first outing at a new track with a P8 finish.",
+      "icon": "MapPin",
+      "title": "Strong Debut",
+    },
+  ],
+  "subheadline": "A positive outing at Spa with more things going right than wrong.",
+  "temperReport": {
+    "avgTemper": 8,
+    "calmestStretch": {
+      "from": 1,
+      "to": 20,
+    },
+    "peakLap": 20,
+    "peakTemper": 18,
+    "temperTrigger": null,
+    "verdict": "Exceptional composure throughout — you stayed cool under pressure.",
+  },
+  "trackContext": {
+    "historicalAvgPosition": null,
+    "historicalBestPosition": null,
+    "isPersonalBest": true,
+    "narrativeLine": "This was your first race at this track. Learning a new track takes time. The data from this run will accelerate your next visit.",
+    "positionTrend": "first_time",
+    "trackRaceCount": 1,
+  },
+}
+`;
+
+exports[`race-summary — branches > high-incident race (≥8 incidents) 1`] = `
+{
+  "headline": "Difficult Race",
+  "improvements": [
+    {
+      "detail": "9 incidents in 20 laps is above target. Review the incident heatmap below to find patterns.",
+      "icon": "ShieldAlert",
+      "metric": "9x",
+      "title": "High Incidents",
+    },
+    {
+      "detail": "4 off-track excursions. Dial back entry speed at the corners where these occurred.",
+      "icon": "MapPinOff",
+      "metric": "4",
+      "title": "Track Limits",
+    },
+    {
+      "detail": "2 spins this session. Reduce throttle aggression on exit or check your setup for oversteer.",
+      "icon": "RotateCcw",
+      "metric": "2",
+      "title": "Car Control",
+    },
+    {
+      "detail": "Peak rage hit 78 — when frustration peaks, incident risk follows. Consider a cooldown strategy.",
+      "icon": "Flame",
+      "metric": "78",
+      "title": "Composure Spike",
+    },
+    {
+      "detail": "Most incidents happened early. Be more conservative in the opening phase — positions gained cleanly in the second half stick.",
+      "icon": "FastForward",
+      "title": "Lap-1 Incidents",
+    },
+  ],
+  "lapAnalysis": {
+    "avgLapTime": 111.1,
+    "bestLap": 5,
+    "bestLapTime": 110.5,
+    "consistency": 92.3624830114864,
+    "fastestSector": {
+      "sector": 1,
+      "time": 30.5,
+    },
+    "lapTimeProgression": "stable",
+    "slowestSector": {
+      "sector": 3,
+      "time": 40.60000000000001,
+    },
+    "worstLapTime": 111.7,
+  },
+  "overallVerdict": "tough",
+  "ratingImpact": {
+    "irDelta": -70,
+    "narrative": "A tough one — both iRating (-70) and Safety Rating (-0.22) took a hit. Review the incident data below and focus on one area to improve next time.",
+    "srDelta": -0.22,
+  },
+  "strengths": [
+    {
+      "detail": "Your lap times were exceptionally consistent — the mark of a well-controlled race.",
+      "icon": "Activity",
+      "metric": "92%",
+      "title": "Metronomic Pace",
+    },
+  ],
+  "subheadline": "9 incidents made this a rough one. The data below shows exactly where things went wrong.",
+  "temperReport": {
+    "avgTemper": 45,
+    "calmestStretch": {
+      "from": 1,
+      "to": 20,
+    },
+    "peakLap": 20,
+    "peakTemper": 78,
+    "temperTrigger": null,
+    "verdict": "Mixed composure — you had moments of frustration but recovered.",
+  },
+  "trackContext": null,
+}
+`;
+
+exports[`race-summary — branches > lap progression: late-race pace drop 1`] = `
+{
+  "headline": "Solid Race",
+  "improvements": [
+    {
+      "detail": "Your lap times got slower toward the end. This could be fatigue, tire degradation, or loss of concentration. Practice longer stints.",
+      "icon": "TrendingUp",
+      "title": "Late-Race Pace Drop",
+    },
+  ],
+  "lapAnalysis": {
+    "avgLapTime": 109.275,
+    "bestLap": 1,
+    "bestLapTime": 108,
+    "consistency": 85.75668504573473,
+    "fastestSector": {
+      "sector": 1,
+      "time": 30.5,
+    },
+    "lapTimeProgression": "degrading",
+    "slowestSector": {
+      "sector": 3,
+      "time": 40.6,
+    },
+    "worstLapTime": 110.55,
+  },
+  "overallVerdict": "good",
+  "ratingImpact": null,
+  "strengths": [
+    {
+      "detail": "6th of 24 — in the top 25% of the field.",
+      "icon": "ChevronUp",
+      "metric": "P6",
+      "title": "Top Quarter",
+    },
+    {
+      "detail": "Only 1 incident in 20 laps — well-managed risk.",
+      "icon": "ShieldCheck",
+      "metric": "1x",
+      "title": "Clean Racing",
+    },
+    {
+      "detail": "Your lap times were exceptionally consistent — the mark of a well-controlled race.",
+      "icon": "Activity",
+      "metric": "86%",
+      "title": "Metronomic Pace",
+    },
+    {
+      "detail": "100% of your laps were incident-free — outstanding discipline.",
+      "icon": "Sparkles",
+      "metric": "100%",
+      "title": "Clean Lap Rate",
+    },
+    {
+      "detail": "Your composure was excellent throughout — frustration never took the wheel.",
+      "icon": "Heart",
+      "title": "Cool Head",
+    },
+  ],
+  "subheadline": "A positive outing at Spa with more things going right than wrong.",
+  "temperReport": {
+    "avgTemper": 8,
+    "calmestStretch": {
+      "from": 1,
+      "to": 18,
+    },
+    "peakLap": 18,
+    "peakTemper": 18,
+    "temperTrigger": null,
+    "verdict": "Exceptional composure throughout — you stayed cool under pressure.",
+  },
+  "trackContext": null,
+}
+`;
+
+exports[`race-summary — branches > personal best at track 1`] = `
+{
+  "headline": "Clean Podium",
+  "improvements": [],
+  "lapAnalysis": {
+    "avgLapTime": 111.1,
+    "bestLap": 5,
+    "bestLapTime": 110.5,
+    "consistency": 92.3624830114864,
+    "fastestSector": {
+      "sector": 1,
+      "time": 30.5,
+    },
+    "lapTimeProgression": "stable",
+    "slowestSector": {
+      "sector": 3,
+      "time": 40.60000000000001,
+    },
+    "worstLapTime": 111.7,
+  },
+  "overallVerdict": "excellent",
+  "ratingImpact": {
+    "irDelta": 38,
+    "narrative": "A rewarding race — you gained +38 iRating and +0.08 Safety Rating. Both metrics moved in the right direction.",
+    "srDelta": 0.08,
+  },
+  "strengths": [
+    {
+      "detail": "A strong 2nd place out of 24.",
+      "icon": "Medal",
+      "metric": "P2",
+      "title": "Podium Finish",
+    },
+    {
+      "detail": "Zero incidents across 20 laps — exceptional awareness and car control.",
+      "icon": "Shield",
+      "metric": "0x",
+      "title": "Incident-Free",
+    },
+    {
+      "detail": "Your lap times were exceptionally consistent — the mark of a well-controlled race.",
+      "icon": "Activity",
+      "metric": "92%",
+      "title": "Metronomic Pace",
+    },
+    {
+      "detail": "100% of your laps were incident-free — outstanding discipline.",
+      "icon": "Sparkles",
+      "metric": "100%",
+      "title": "Clean Lap Rate",
+    },
+    {
+      "detail": "Your composure was excellent throughout — frustration never took the wheel.",
+      "icon": "Heart",
+      "title": "Cool Head",
+    },
+    {
+      "detail": "New personal best at this track — 2nd place! You have raced here 5 times and this is your strongest result.",
+      "icon": "Star",
+      "title": "Personal Best",
+    },
+  ],
+  "subheadline": "2nd place with tight, clean racing — a quality result.",
+  "temperReport": {
+    "avgTemper": 8,
+    "calmestStretch": {
+      "from": 1,
+      "to": 20,
+    },
+    "peakLap": 20,
+    "peakTemper": 18,
+    "temperTrigger": null,
+    "verdict": "Exceptional composure throughout — you stayed cool under pressure.",
+  },
+  "trackContext": {
+    "historicalAvgPosition": 6,
+    "historicalBestPosition": 5,
+    "isPersonalBest": true,
+    "narrativeLine": "New personal best at this track — 2nd place! You have raced here 5 times and this is your strongest result.",
+    "positionTrend": "stable",
+    "trackRaceCount": 5,
+  },
+}
+`;
+
+exports[`race-summary — branches > practice session 1`] = `
+{
+  "headline": "Practice Session Complete",
+  "improvements": [],
+  "lapAnalysis": {
+    "avgLapTime": 111.1,
+    "bestLap": 5,
+    "bestLapTime": 110.5,
+    "consistency": 92.3624830114864,
+    "fastestSector": {
+      "sector": 1,
+      "time": 30.5,
+    },
+    "lapTimeProgression": "stable",
+    "slowestSector": {
+      "sector": 3,
+      "time": 40.60000000000001,
+    },
+    "worstLapTime": 111.7,
+  },
+  "overallVerdict": "good",
+  "ratingImpact": null,
+  "strengths": [
+    {
+      "detail": "Zero incidents across 20 laps — exceptional awareness and car control.",
+      "icon": "Shield",
+      "metric": "0x",
+      "title": "Incident-Free",
+    },
+    {
+      "detail": "Your lap times were exceptionally consistent — the mark of a well-controlled race.",
+      "icon": "Activity",
+      "metric": "92%",
+      "title": "Metronomic Pace",
+    },
+  ],
+  "subheadline": "20 laps logged at Spa in the BMW M4 GT3.",
+  "temperReport": null,
+  "trackContext": null,
+}
+`;

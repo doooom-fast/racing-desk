@@ -109,6 +109,40 @@ function saveRatingData(data) {
 // apply via modules/js/settings.js, render. No popout windows, no
 // settings mode, no in-overlay editors.
 let overlayWindow = null;
+let deskWindow = null;
+
+// ═══════════════════════════════════════════════════════════════
+// DESK WINDOW — career, form and race history from the local store
+// ═══════════════════════════════════════════════════════════════
+
+function localHostUrl() {
+  const settings = loadSettingsSync();
+  return settings.simhubUrl
+    ? settings.simhubUrl.replace(/\/racecor-io-pro-drive\/?$/, '')
+    : 'http://localhost:8889';
+}
+
+function showDesk() {
+  if (deskWindow && !deskWindow.isDestroyed()) {
+    if (deskWindow.isMinimized()) deskWindow.restore();
+    deskWindow.show();
+    deskWindow.focus();
+    return;
+  }
+  deskWindow = new BrowserWindow({
+    width: 1480,
+    height: 940,
+    minWidth: 1024,
+    minHeight: 680,
+    title: 'Pro Drive',
+    icon: path.join(__dirname, 'images', 'branding', 'icon.png'),
+    backgroundColor: '#0b0b0d',
+    autoHideMenuBar: true,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+  deskWindow.loadFile(path.join(__dirname, 'desk.html'), { query: { host: localHostUrl() } });
+  deskWindow.on('closed', () => { deskWindow = null; });
+}
 let isInRace = false;            // true when poll-engine reports live car data (drives overlay visibility)
 let rendererCrashCount = 0;
 
@@ -301,10 +335,11 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
 
   logToFile(`[K10] Platform: ${os.platform()} ${os.arch()} | Electron ${process.versions.electron}`);
-  logToFile('[K10] Hotkeys: Ctrl+Shift+H/R/D/M/Q');
+  logToFile('[K10] Hotkeys: Ctrl+Shift+H/R/D/M/Q, Ctrl+Shift+O desk');
   try {
     createOverlay();
     logToFile('[K10] Overlay window created OK');
+    if (!process.argv.includes('--no-desk')) showDesk();
 
     // ── Display media handler for screen recording ──
     // Electron 33+ requires this to allow getDisplayMedia() in the renderer.
@@ -387,6 +422,8 @@ app.whenReady().then(() => {
     app.relaunch();
     app.exit(0);
   });
+
+  globalShortcut.register('CommandOrControl+Shift+O', () => showDesk());
 
   globalShortcut.register('CommandOrControl+Shift+Q', () => {
     app.quit();

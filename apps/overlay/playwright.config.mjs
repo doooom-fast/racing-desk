@@ -47,6 +47,12 @@ export default defineConfig({
       timeout: 60000,
       use: { viewport: { width: 1920, height: 1080 } },
     },
+    // Desk window — desk.html over a mock local data API
+    {
+      name: 'desk',
+      testDir: './tests/desk',
+      timeout: 30000,
+    },
     // Legacy: original dashboard.html (opt-in, not run by default)
     {
       name: 'original',

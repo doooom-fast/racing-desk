@@ -1,0 +1,260 @@
+:root {
+  --ground: #0b0b0d;
+  --panel: #131316;
+  --panel-raised: #1a1a1e;
+  --hairline: hsla(0, 0%, 100%, 0.08);
+  --hairline-strong: hsla(0, 0%, 100%, 0.16);
+  --text: hsla(0, 0%, 100%, 0.94);
+  --text-2: hsla(0, 0%, 100%, 0.64);
+  --text-3: hsla(0, 0%, 100%, 0.42);
+
+  --gain: #54d483;
+  --loss: #e46767;
+  --caution: #f5b547;
+  --info: #70b8db;
+  --gold: #f5ca47;
+  --silver: #c7c7c7;
+  --bronze: #da944e;
+
+  --ff: sofia-pro-comp, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --ff-display: stolzl, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --ff-mono: "JetBrains Mono", Consolas, monospace;
+
+  --r: 10px;
+  --gap: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--ground);
+  color: var(--text);
+  font: 14px/1.4 var(--ff);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+button {
+  font: inherit;
+  color: var(--text-2);
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+button:hover { color: var(--text); border-color: hsla(0, 0%, 100%, 0.3); }
+
+h2 {
+  font: 600 11px/1 var(--ff);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 12px;
+}
+
+.num { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+.gain { color: var(--gain); }
+.loss { color: var(--loss); }
+.dim { color: var(--text-3); }
+.empty { color: var(--text-3); font-size: 13px; }
+
+/* ── Masthead ───────────────────────────────────────────── */
+
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--hairline);
+  flex: none;
+}
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 22px; height: 22px; }
+.brand-name { font: 700 16px/1 var(--ff-display); letter-spacing: 0.02em; }
+
+.ratings { display: flex; gap: 10px; }
+.rating {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 8px;
+  align-items: baseline;
+  padding: 6px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.rating .cat { grid-column: 1 / -1; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
+.rating .ir { font: 600 18px/1.1 var(--ff-mono); }
+.rating .lic { font: 500 12px/1 var(--ff-mono); padding: 2px 5px; border-radius: 4px; }
+.lic-R { background: #5c1f1f; } .lic-D { background: #6b3d12; } .lic-C { background: #6b5a12; }
+.lic-B { background: #1f5c2e; } .lic-A { background: #1f3f6b; } .lic-P { background: #3a3a3a; }
+
+.stats { display: flex; gap: 20px; margin-left: auto; }
+.stat { display: flex; flex-direction: column; align-items: flex-end; }
+.stat b { font: 600 17px/1.1 var(--ff-mono); }
+.stat span { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
+
+.freshness { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 12px; }
+
+/* ── Grid ───────────────────────────────────────────────── */
+
+.desk {
+  flex: 1;
+  overflow: auto;
+  padding: var(--gap);
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: min-content;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  padding: 16px 18px;
+  min-width: 0;
+}
+
+.verdict { grid-column: span 5; }
+.composure { grid-column: span 3; }
+.when { grid-column: span 4; }
+.races { grid-column: span 7; }
+.detail { grid-column: span 5; }
+.heatmap { grid-column: span 7; }
+.next-race { grid-column: span 5; }
+.mastery { grid-column: span 3; }
+.dna { grid-column: span 3; }
+.moments { grid-column: span 3; }
+
+@media (max-width: 1280px) {
+  .verdict, .races, .heatmap { grid-column: span 12; }
+  .composure, .when, .detail, .next-race { grid-column: span 6; }
+  .mastery, .dna, .moments { grid-column: span 6; }
+}
+
+/* ── Race Now ───────────────────────────────────────────── */
+
+.verdict { position: relative; overflow: hidden; }
+.verdict::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--tier, var(--text-3));
+}
+.verdict .headline { font: 700 34px/1.05 var(--ff-display); margin: 2px 0 8px; color: var(--tier, var(--text)); }
+.verdict .detail-line { color: var(--text-2); font-size: 14px; }
+.verdict .figures { display: flex; gap: 26px; margin-top: 16px; }
+.figure b { display: block; font: 600 20px/1.1 var(--ff-mono); }
+.figure span { font-size: 11px; color: var(--text-3); }
+.tier-best, .tier-good { --tier: var(--gain); }
+.tier-clean-side { --tier: #a5d98a; }
+.tier-messy-side { --tier: var(--caution); }
+.tier-risky { --tier: var(--loss); }
+.tier-insufficient { --tier: var(--text-3); }
+
+/* ── Composure ──────────────────────────────────────────── */
+
+.composure .score { display: flex; align-items: baseline; gap: 10px; }
+.composure .score b { font: 700 44px/1 var(--ff-mono); }
+.composure .band { font: 600 13px/1 var(--ff); text-transform: capitalize; color: var(--text-2); }
+.meter { height: 4px; border-radius: 2px; background: var(--panel-raised); margin: 12px 0 14px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--info); }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 13px; }
+.kv dt { color: var(--text-3); }
+.kv dd { font-family: var(--ff-mono); text-align: right; }
+
+/* ── When ───────────────────────────────────────────────── */
+
+.when .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.when h3 { font: 600 12px/1 var(--ff); margin-bottom: 8px; }
+.when .window { font: 600 18px/1.15 var(--ff-display); margin-bottom: 6px; }
+.when p { color: var(--text-2); font-size: 12.5px; }
+.when .strengths h3 { color: var(--gain); }
+.when .watch h3 { color: var(--caution); }
+
+/* ── Races ──────────────────────────────────────────────── */
+
+.race-list { max-height: 460px; overflow: auto; margin: 0 -18px -16px; }
+.race-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1.6fr) minmax(0, 1fr) 62px 54px 64px 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 18px;
+  border-top: 1px solid var(--hairline);
+  cursor: pointer;
+}
+.race-row:hover { background: var(--panel-raised); }
+.race-row.selected { background: hsla(200, 60%, 65%, 0.08); box-shadow: inset 3px 0 var(--info); }
+.race-row .pos { font: 700 18px/1 var(--ff-mono); }
+.race-row .pos small { display: block; font: 400 10px/1.3 var(--ff); color: var(--text-3); }
+.race-row .track { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.race-row .sub, .race-row .car { color: var(--text-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.race-row .cell { font-family: var(--ff-mono); font-size: 13px; text-align: right; }
+
+/* ── Detail ─────────────────────────────────────────────── */
+
+.detail .title { font: 700 20px/1.15 var(--ff-display); }
+.detail .meta { color: var(--text-3); font-size: 12px; margin: 4px 0 14px; }
+.lap-chart { width: 100%; height: 140px; display: block; margin-bottom: 10px; }
+.lap-chart .bar-clean { fill: var(--info); }
+.lap-chart .bar-dirty { fill: var(--loss); }
+.lap-chart .bar-pit { fill: var(--text-3); }
+.lap-chart .best { stroke: var(--gain); stroke-dasharray: 3 3; }
+.lap-chart text { fill: var(--text-3); font: 10px var(--ff-mono); }
+.incident-strip { position: relative; height: 22px; border-radius: 4px; background: var(--panel-raised); margin: 6px 0 14px; }
+.incident-strip i { position: absolute; top: 3px; bottom: 3px; width: 3px; margin-left: -1px; border-radius: 2px; background: var(--loss); opacity: 0.85; }
+.laps-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.laps-table th { text-align: right; font: 500 10px/1 var(--ff); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); padding: 0 6px 6px; }
+.laps-table td { text-align: right; font-family: var(--ff-mono); padding: 3px 6px; border-top: 1px solid var(--hairline); }
+.laps-table th:first-child, .laps-table td:first-child { text-align: left; }
+.laps-table tr.best td { color: var(--gain); }
+.laps-scroll { max-height: 220px; overflow: auto; }
+
+/* ── Heatmap ────────────────────────────────────────────── */
+
+.heat-grid { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); gap: 3px; align-items: center; }
+.heat-grid .lbl { font: 10px var(--ff-mono); color: var(--text-3); }
+.heat-grid .hr { text-align: center; }
+.heat-cell { aspect-ratio: 1.3; border-radius: 3px; background: var(--panel-raised); }
+.heat-legend { display: flex; gap: 16px; margin-top: 12px; font-size: 11px; color: var(--text-3); }
+.heat-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+/* ── Lists ──────────────────────────────────────────────── */
+
+.rank { list-style: none; }
+.rank li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 7px 0; border-top: 1px solid var(--hairline); }
+.rank li:first-child { border-top: 0; }
+.rank .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank .score { font: 600 15px/1.2 var(--ff-mono); text-align: right; }
+.rank .sub { grid-column: 1 / -1; color: var(--text-3); font-size: 12px; }
+.tier-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.tier-bronze { background: var(--bronze); } .tier-silver { background: var(--silver); }
+.tier-gold { background: var(--gold); } .tier-diamond { background: #9fe3f5; }
+
+.dna .archetype { font: 700 18px/1.2 var(--ff-display); }
+.dna .variant { color: var(--text-2); font-size: 13px; margin-bottom: 12px; }
+.bars { display: grid; grid-template-columns: 96px minmax(0, 1fr) 30px; gap: 7px 10px; align-items: center; font-size: 12px; }
+.bars .bar { height: 5px; border-radius: 3px; background: var(--panel-raised); overflow: hidden; }
+.bars .bar i { display: block; height: 100%; background: var(--info); }
+.bars .v { font-family: var(--ff-mono); text-align: right; color: var(--text-2); }
+
+.moments .rank .name { white-space: normal; }
+
+.next-race p { color: var(--text-2); font-size: 13px; }
+
+/* ── Offline ────────────────────────────────────────────── */
+
+.offline { position: fixed; inset: 64px 0 0; display: grid; place-content: center; text-align: center; gap: 10px; background: var(--ground); }
+.offline h1 { font: 700 26px/1 var(--ff-display); }
+.offline p { color: var(--text-2); }
+.offline code { font-family: var(--ff-mono); font-size: 13px; color: var(--text); }
+.offline[hidden] { display: none; }

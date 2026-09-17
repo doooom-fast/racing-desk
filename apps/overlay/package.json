@@ -6,7 +6,9 @@
   "author": "Kevin Conboy",
   "license": "MIT",
   "scripts": {
+    "prestart": "node ../../packages/calc/build.mjs",
     "start": "electron .",
+    "predev": "node ../../packages/calc/build.mjs",
     "dev": "electron . --dev",
     "start:safe": "cross-env K10_FORCE_SOFTWARE=1 electron .",
     "rebuild": "echo 'Dashboard uses vanilla JS — no build step needed'",
@@ -17,7 +19,8 @@
     "test": "npx playwright test --project=unit",
     "test:contract": "node --test tests/layout-contract.test.mjs",
     "test:dashboard": "npx playwright test",
-    "test:golden": "playwright test --project=golden"
+    "test:golden": "playwright test --project=golden",
+    "test:desk": "playwright test --project=desk"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
@@ -27,6 +30,7 @@
   "dependencies": {
     "@playwright/test": "^1.58.2",
     "ffmpeg-static": "^5.2.0",
-    "@prodrive/replay": "*"
+    "@prodrive/replay": "*",
+    "@prodrive/calc": "*"
   }
 }

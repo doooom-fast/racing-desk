@@ -15,3 +15,4 @@ obj/
 apps/plugin/racecor-plugin/simhub-plugin/build/
 apps/plugin/racecor-plugin/simhub-plugin/RaceCorProDrive.dll
 apps/plugin/racecor-plugin/simhub-plugin/RaceCorProDrive.pdb
+apps/overlay/modules/desk/calc.bundle.js

@@ -1,0 +1,218 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`driver-dna — real admin fixture > DNA scores match snapshot 1`] = `
+{
+  "adaptability": 100,
+  "cleanness": 17.976190476190478,
+  "consistency": 0,
+  "endurance": 3.7037037037037033,
+  "experience": 72.68022770801824,
+  "improvement": 33.87822538799,
+  "racecraft": 8.878504672897195,
+  "wetWeather": 50,
+}
+`;
+
+exports[`driver-dna — real admin fixture > archetype matches snapshot 1`] = `
+{
+  "major": "The Chameleon",
+  "majorDescription": "Any car will do
+equally at home on all
+versatile and quick",
+  "variant": "The Renaissance Driver",
+  "variantDescription": "Mastered through volume
+adaptable and seasoned
+variety speaks",
+}
+`;
+
+exports[`driver-dna — real admin fixture > insights match snapshot 1`] = `
+[
+  {
+    "description": "Results vary quite a bit",
+    "dimension": "consistency",
+    "label": "Consistency",
+    "trend": "stable",
+    "value": 0,
+  },
+  {
+    "description": "Room to grow in racecraft",
+    "dimension": "racecraft",
+    "label": "Racecraft",
+    "trend": "improving",
+    "value": 8.878504672897195,
+  },
+  {
+    "description": "Above-average incidents",
+    "dimension": "cleanness",
+    "label": "Cleanness",
+    "trend": "declining",
+    "value": 17.976190476190478,
+  },
+  {
+    "description": "Mostly shorter formats",
+    "dimension": "endurance",
+    "label": "Endurance",
+    "trend": "stable",
+    "value": 3.7037037037037033,
+  },
+  {
+    "description": "True all-rounder",
+    "dimension": "adaptability",
+    "label": "Adaptability",
+    "trend": "stable",
+    "value": 100,
+  },
+  {
+    "description": "Declining trend",
+    "dimension": "improvement",
+    "label": "Improvement",
+    "trend": "declining",
+    "value": 33.87822538799,
+  },
+  {
+    "description": "Wet weather data coming soon",
+    "dimension": "wetWeather",
+    "label": "Wet Weather",
+    "trend": "stable",
+    "value": 50,
+  },
+  {
+    "description": "Hundreds of laps",
+    "dimension": "experience",
+    "label": "Experience",
+    "trend": "stable",
+    "value": 72.68022770801824,
+  },
+]
+`;
+
+exports[`driver-dna — synthetic edge cases > allRounder: even spread, flat rating 1`] = `
+{
+  "adaptability": 72.42322808748766,
+  "cleanness": 68.75,
+  "consistency": 43.431457505076196,
+  "endurance": 100,
+  "experience": 81.11539358151431,
+  "improvement": 50,
+  "racecraft": 5,
+  "wetWeather": 50,
+}
+`;
+
+exports[`driver-dna — synthetic edge cases > allRounder: even spread, flat rating 2`] = `
+{
+  "major": "The Marathoner",
+  "majorDescription": "Built for the long haul
+stronger when the others fade
+miles are your ally",
+  "variant": "The Nomad",
+  "variantDescription": "Distance knows no bounds
+any car at any track
+no borders for you",
+}
+`;
+
+exports[`driver-dna — synthetic edge cases > emptyDriver: no sessions, no ratings → all defaults 1`] = `
+{
+  "adaptability": 0,
+  "cleanness": 50,
+  "consistency": 50,
+  "endurance": 50,
+  "experience": 0,
+  "improvement": 50,
+  "racecraft": 50,
+  "wetWeather": 50,
+}
+`;
+
+exports[`driver-dna — synthetic edge cases > emptyDriver: no sessions, no ratings → all defaults 2`] = `
+{
+  "major": "The Professor",
+  "majorDescription": "Precise and measured
+performance through repeating
+methodical craft",
+  "variant": "The Calibrator",
+  "variantDescription": "Fine-tuning it all
+consistency the anchor
+building from this base",
+}
+`;
+
+exports[`driver-dna — synthetic edge cases > rookie: 5 sessions, no rating history 1`] = `
+{
+  "adaptability": 35.436764027111586,
+  "cleanness": 40,
+  "consistency": 70,
+  "endurance": 0,
+  "experience": 43.60089037838081,
+  "improvement": 50,
+  "racecraft": 0,
+  "wetWeather": 50,
+}
+`;
+
+exports[`driver-dna — synthetic edge cases > rookie: 5 sessions, no rating history 2`] = `
+{
+  "major": "The Professor",
+  "majorDescription": "Precise and measured
+performance through repeating
+methodical craft",
+  "variant": "The Calibrator",
+  "variantDescription": "Fine-tuning it all
+consistency the anchor
+building from this base",
+}
+`;
+
+exports[`driver-dna — synthetic edge cases > singleTrackSpecialist: 30 races at one track 1`] = `
+{
+  "adaptability": 17.718382013555793,
+  "cleanness": 87.5,
+  "consistency": 65.84349744680134,
+  "endurance": 0,
+  "experience": 73.89076585921627,
+  "improvement": 75,
+  "racecraft": 16.666666666666664,
+  "wetWeather": 50,
+}
+`;
+
+exports[`driver-dna — synthetic edge cases > singleTrackSpecialist: 30 races at one track 2`] = `
+{
+  "major": "The Guardian",
+  "majorDescription": "Clean lines every lap
+safety is your sacred vow
+not a wheel set wrong",
+  "variant": "The Disciplined Learner",
+  "variantDescription": "Clean and getting fast
+building speed without the cost
+discipline pays off",
+}
+`;
+
+exports[`driver-dna — synthetic edge cases > veteran: 80 sessions, long rating history 1`] = `
+{
+  "adaptability": 100,
+  "cleanness": 75,
+  "consistency": 44.57339755658572,
+  "endurance": 100,
+  "experience": 93.28010451857472,
+  "improvement": 63.749413970932956,
+  "racecraft": 80,
+  "wetWeather": 50,
+}
+`;
+
+exports[`driver-dna — synthetic edge cases > veteran: 80 sessions, long rating history 2`] = `
+{
+  "major": "The Marathoner",
+  "majorDescription": "Built for the long haul
+stronger when the others fade
+miles are your ally",
+  "variant": "The Last-Lap Specialist",
+  "variantDescription": "Make your move late on
+endurance fuels the racecraft
+when it matters most",
+}
+`;
