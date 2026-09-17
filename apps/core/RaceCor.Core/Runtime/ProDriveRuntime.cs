@@ -39,6 +39,8 @@ namespace RaceCorProDrive.Plugin
             public bool EnableHardware { get; set; } = true;
             /// <summary>The direct iRacing SDK bridge used for iRating / SR / delta. Off when replaying a file.</summary>
             public bool EnableSdkBridge { get; set; } = true;
+            /// <summary>Track outlines from local telemetry, by track id (see TrackMapProvider.LocalOutlineSource).</summary>
+            public Func<string, IReadOnlyList<(double X, double Z, double Pct)>> TrackOutline { get; set; }
         }
 
         private readonly Options _options;
@@ -64,9 +66,6 @@ namespace RaceCorProDrive.Plugin
 
         // Moza direct serial hardware manager — bypasses Pit House
         internal MozaSerialManager _mozaSerial;
-
-        // iRacing Data API client — reads local cookies / credentials to fetch career data
-        internal readonly Engine.IRacingDataClient _iracingData = new Engine.IRacingDataClient();
 
         // Car change detection for pedal profile auto-switch
         internal string _lastCarModel = "";
@@ -120,10 +119,6 @@ namespace RaceCorProDrive.Plugin
         // Screen color sampler — replaces Electron desktopCapturer for ambient light
         internal readonly ScreenColorSampler _screenColorSampler = new ScreenColorSampler();
 
-        // Week Planner cache — season schedule for next-race-ideas
-        internal JToken _weekPlannerCache = null;
-        internal DateTime _weekPlannerCacheTime = DateTime.MinValue;
-        private static readonly TimeSpan WeekPlannerCacheDuration = TimeSpan.FromHours(6);
 
         /// <summary>Loads datasets and starts hardware, samplers and the :8889 / :8890 servers.</summary>
         public void Start()
@@ -182,6 +177,7 @@ namespace RaceCorProDrive.Plugin
             // (SimHub: the SimHub root, where the plugin DLL is installed).
             string simhubDir = _options.AssemblyDirectory ?? "";
             _trackMap.SetSimHubDirectory(simhubDir);
+            _trackMap.LocalOutlineSource = _options.TrackOutline;
             if (!string.IsNullOrEmpty(_options.PluginsDataDirectory))
                 _trackMap.SetCacheDirectory(Path.Combine(_options.PluginsDataDirectory, "TrackMaps"));
 

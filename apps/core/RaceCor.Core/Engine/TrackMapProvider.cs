@@ -126,6 +126,13 @@ namespace RaceCorProDrive.Plugin.Engine
             _drLastTick = DateTime.MinValue;
             _lastYaw = double.NaN;
 
+            // Prefer the outline derived from the driver's own telemetry (GPS-accurate, north-up)
+            if (TryLoadFromLocalOutline(trackId))
+            {
+                Log.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from local telemetry outline");
+                return;
+            }
+
             // Try to load from SimHub's map cache
             if (TryLoadFromSimHub(trackId))
             {
@@ -143,15 +150,7 @@ namespace RaceCorProDrive.Plugin.Engine
             // Try to load from our own cache
             if (TryLoadFromOwnCache(trackId))
             {
-                Log.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from K10 cache");
-                return;
-            }
-
-            // Try to fetch from the K10 web app (track management database)
-            if (TryLoadFromWebApi(trackId))
-            {
-                // Also save locally so we don't hit the network next time
-                SaveToOwnCache(trackId);
+                Log.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from local cache");
                 return;
             }
 
@@ -964,71 +963,36 @@ namespace RaceCorProDrive.Plugin.Engine
             return count;
         }
 
-        // ── Web API: K10 cloud track map ───────────────────────────────────
-
-        private const string CloudApiBase = "https://prodrive.racecor.io/api/tracks";
+        // ── Local outline (from the host's telemetry store) ─────────────────
 
         /// <summary>
-        /// Fetch track map CSV from the K10 web app and load it.
-        /// Called during OnTrackChanged when no local map is found.
-        /// The API returns rawCsv (WorldX,WorldZ,LapDistPct lines) in the same
-        /// format used by bundled and own-cache CSV files.
+        /// Supplies an outline for a track id as (X east, Z, LapDistPct) points in metres, or null. Set by the host;
+        /// RaceCor.Host reads it from outlines derived from the driver's .ibt Lat/Lon.
         /// </summary>
-        private bool TryLoadFromWebApi(string trackId)
-        {
-            if (string.IsNullOrEmpty(trackId)) return false;
+        public Func<string, IReadOnlyList<(double X, double Z, double Pct)>> LocalOutlineSource { get; set; }
 
+        private bool TryLoadFromLocalOutline(string trackId)
+        {
+            if (LocalOutlineSource == null || string.IsNullOrEmpty(trackId)) return false;
             try
             {
-                string url = CloudApiBase + "?trackName=" + Uri.EscapeDataString(trackId.Trim());
-                var request = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
-                request.Method = "GET";
-                request.Timeout = 5000;
-                request.UserAgent = "RaceCorProDrive-Plugin";
-
-                string json;
-                using (var response = (System.Net.HttpWebResponse)request.GetResponse())
-                using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
-                    json = reader.ReadToEnd();
-
-                // Extract rawCsv field — look for "rawCsv":"<value>" (value may be null or a multiline string)
-                var csvMatch = System.Text.RegularExpressions.Regex.Match(
-                    json, "\"rawCsv\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"",
-                    System.Text.RegularExpressions.RegexOptions.Singleline);
-
-                if (!csvMatch.Success) return false;
-
-                // Unescape JSON string escapes (\n → newline, \r → carriage return)
-                string rawCsv = csvMatch.Groups[1].Value
-                    .Replace("\\n", "\n")
-                    .Replace("\\r", "\r")
-                    .Replace("\\\"", "\"")
-                    .Replace("\\\\", "\\");
-
-                if (string.IsNullOrWhiteSpace(rawCsv)) return false;
-
-                // Parse as a CSV and load
-                string tmpPath = Path.Combine(Path.GetTempPath(), "racecor_trackmap_" + Guid.NewGuid().ToString("N") + ".csv");
-                File.WriteAllText(tmpPath, rawCsv);
-                bool loaded = TryLoadCsvMap(tmpPath);
-                try { File.Delete(tmpPath); } catch { }
-
-                if (loaded)
-                    Log.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from K10 web API");
-                else
-                    Log.Warn($"[RaceCorProDrive] K10 web API returned rawCsv for '{trackId}' but it failed to parse");
-
-                return loaded;
+                var outline = LocalOutlineSource(trackId);
+                if (outline == null || outline.Count < 10) return false;
+                var points = new List<TrackPoint>(outline.Count);
+                foreach (var p in outline) points.Add(new TrackPoint { WorldX = p.X, WorldZ = p.Z, LapDistPct = p.Pct });
+                NormaliseAndBuild(points);
+                return true;
             }
             catch (Exception ex)
             {
-                Log.Warn($"[RaceCorProDrive] Web API track map fetch failed for '{trackId}': {ex.Message}");
+                Log.Warn($"[RaceCorProDrive] Local outline for '{trackId}' unusable: {ex.Message}");
                 return false;
             }
         }
 
-        // ── File I/O: SimHub map cache ─────────────────────────────────────
-
+        /// <summary>
+        /// Try to load from SimHub's built-in track map storage.
+        /// </summary>
         private bool TryLoadFromSimHub(string trackId)
         {
             if (string.IsNullOrEmpty(_simhubDir) || string.IsNullOrEmpty(trackId))

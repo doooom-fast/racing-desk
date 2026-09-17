@@ -53,6 +53,10 @@ namespace RaceCorProDrive.Plugin.Engine
         // ── iRating estimator (legacy shared memory reader, kept as fallback) ────
         private static IRatingEstimator _irEstimator;
         private static SectorTracker _sectorTracker = new SectorTracker();
+        private static bool _sectorsFromSession;
+
+        /// <summary>Sector start percentages (excluding 0) a source may expose from its session info.</summary>
+        public const string SectorBoundariesProperty = "RaceCor.SplitTimeInfo.SectorBoundaries";
         private static string _lastSectorTrackId = "";
 
         // ── Fix #2: Caching for iRating / SR / license string ──────────────────
@@ -196,33 +200,30 @@ namespace RaceCorProDrive.Plugin.Engine
             if (s.SessionLapsTotal == 0)
                 s.SessionLapsTotal = (int)GetPluginProp<double>(pm, "DataCorePlugin.GameData.TotalLaps");
 
-            // ── Sector splits (cloud-configured count, equal fractions) ──
-            // Reset sector tracker when the track changes and fetch cloud sector count
+            // ── Sector splits (iRacing SplitTimeInfo) ──
+            // Boundaries come from the session: the source's own session info first (standalone host, .ibt
+            // replay), else the SDK bridge (SimHub). Session info can arrive after the first frames, so keep
+            // looking until real boundaries are found for this track.
             string trackIdForSectors = GetPluginProp<string>(pm, "DataCorePlugin.GameData.TrackName") ?? "";
             if (!string.IsNullOrEmpty(trackIdForSectors) && trackIdForSectors != _lastSectorTrackId)
             {
                 _lastSectorTrackId = trackIdForSectors;
                 _sectorTracker.Reset();
-                // Fetch cloud-configured sector count for this track
-                var (cloudSectors, customBoundaries) = FetchCloudSectorConfig(trackIdForSectors);
-                if (cloudSectors >= 2)
+                _sectorsFromSession = false;
+            }
+            if (!_sectorsFromSession)
+            {
+                var sessionBoundaries = pm.GetPropertyValue(SectorBoundariesProperty) as double[];
+                if ((sessionBoundaries == null || sessionBoundaries.Length == 0) && _sdkBridge != null && _sdkBridge.HasSectorBoundaries)
+                    sessionBoundaries = _sdkBridge.SectorBoundaries;
+                if (sessionBoundaries != null && sessionBoundaries.Length > 0)
                 {
-                    if (customBoundaries != null && customBoundaries.Length == cloudSectors - 1)
-                    {
-                        // Use custom boundary percentages from database
-                        _sectorTracker.SetBoundaries(customBoundaries, cloudSectors);
-                    }
-                    else
-                    {
-                        // Fall back to equal-fraction boundaries
-                        var boundaries = new double[cloudSectors - 1];
-                        for (int bi = 0; bi < cloudSectors - 1; bi++)
-                            boundaries[bi] = (double)(bi + 1) / cloudSectors;
-                        _sectorTracker.SetBoundaries(boundaries, cloudSectors);
-                    }
+                    _sectorTracker.Reset();
+                    _sectorTracker.SetBoundaries(sessionBoundaries, sessionBoundaries.Length + 1);
+                    _sectorsFromSession = _sectorTracker.HasNativeBoundaries;
                 }
             }
-            // Fallback: if no cloud config resolved, use equal thirds
+            // Fallback until the session's boundaries arrive: equal thirds
             if (!_sectorTracker.HasNativeBoundaries)
             {
                 _sectorTracker.SetBoundaries(1.0 / 3.0, 2.0 / 3.0);
@@ -982,73 +983,6 @@ namespace RaceCorProDrive.Plugin.Engine
             }
             catch { }
             return default(T);
-        }
-
-        // ── Cloud sector config cache ──
-        private static readonly Dictionary<string, (int count, double[] boundaries)> _cloudSectorCache
-            = new Dictionary<string, (int, double[])>();
-        private static readonly object _cloudSectorLock = new object();
-
-        /// <summary>
-        /// Fetch sector config (count + optional custom boundaries) from the K10 cloud API.
-        /// Caches results to avoid repeated HTTP calls.
-        /// Returns (sectorCount, boundaries) where boundaries may be null for equal-fraction splits.
-        /// </summary>
-        private static (int count, double[] boundaries) FetchCloudSectorConfig(string trackName)
-        {
-            if (string.IsNullOrEmpty(trackName)) return (0, null);
-
-            lock (_cloudSectorLock)
-            {
-                if (_cloudSectorCache.TryGetValue(trackName, out var cached))
-                    return cached;
-            }
-
-            try
-            {
-                string url = "https://prodrive.racecor.io/api/tracks?trackName=" +
-                    Uri.EscapeDataString(trackName.Trim());
-                var request = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
-                request.Method = "GET";
-                request.Timeout = 3000;
-                request.UserAgent = "RaceCorProDrive-Plugin";
-
-                using (var response = (System.Net.HttpWebResponse)request.GetResponse())
-                using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
-                {
-                    string json = reader.ReadToEnd();
-
-                    // Parse sectorCount
-                    var countMatch = Regex.Match(json, @"""sectorCount""\s*:\s*(\d+)");
-                    int count = countMatch.Success ? int.Parse(countMatch.Groups[1].Value) : 0;
-
-                    // Parse sectorBoundaries (JSON array of doubles, e.g. [0.14, 0.28, ...])
-                    double[] boundaries = null;
-                    var boundMatch = Regex.Match(json, @"""sectorBoundaries""\s*:\s*\[([^\]]+)\]");
-                    if (boundMatch.Success)
-                    {
-                        var parts = boundMatch.Groups[1].Value.Split(',');
-                        var parsed = new List<double>();
-                        foreach (var part in parts)
-                        {
-                            if (double.TryParse(part.Trim(),
-                                System.Globalization.NumberStyles.Float,
-                                System.Globalization.CultureInfo.InvariantCulture, out double val))
-                                parsed.Add(val);
-                        }
-                        if (parsed.Count > 0) boundaries = parsed.ToArray();
-                    }
-
-                    var result = (count, boundaries);
-                    lock (_cloudSectorLock) { _cloudSectorCache[trackName] = result; }
-                    return result;
-                }
-            }
-            catch
-            {
-                lock (_cloudSectorLock) { _cloudSectorCache[trackName] = (0, null); }
-                return (0, null);
-            }
         }
     }
 }

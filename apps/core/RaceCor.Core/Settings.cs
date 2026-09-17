@@ -44,17 +44,6 @@ namespace RaceCorProDrive.Plugin
         /// </summary>
         public string DriverLastName { get; set; } = "";
 
-        /// <summary>
-        /// iRacing account email for Data API access.
-        /// Used to authenticate with members-ng.iracing.com when local cookies aren't available.
-        /// </summary>
-        public string IRacingEmail { get; set; } = "";
-
-        /// <summary>
-        /// iRacing account password for Data API access.
-        /// Stored locally in SimHub settings (never transmitted except to iRacing's auth endpoint).
-        /// </summary>
-        public string IRacingPassword { get; set; } = "";
 
         // ── Incident Coach ────────────────────────────────────────────────
 

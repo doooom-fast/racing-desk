@@ -215,6 +215,16 @@ SELECT last_insert_rowid();", tx))
             };
         }
 
+        /// <summary>The stored outline for a track, found by iRacing's internal track name (e.g. "virginia 2022 full").</summary>
+        public TrackGeometryRecord GetGeometryByTrackName(string trackName)
+        {
+            if (string.IsNullOrEmpty(trackName)) return null;
+            using var cmd = Cmd("SELECT track_id FROM sessions WHERE track_name = $n ORDER BY started_at DESC LIMIT 1");
+            P(cmd, "$n", trackName);
+            var id = cmd.ExecuteScalar();
+            return id is long trackId && trackId > 0 ? GetGeometry((int)trackId) : null;
+        }
+
         /// <summary>Keeps the outline built from the most clean laps.</summary>
         public bool SaveGeometryIfBetter(TrackGeometryRecord g)
         {

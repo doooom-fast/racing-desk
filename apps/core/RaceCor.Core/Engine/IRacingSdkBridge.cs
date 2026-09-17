@@ -259,6 +259,21 @@ namespace RaceCorProDrive.Plugin.Engine
 
             var si = _sdk.Data.SessionInfo;
 
+            // ── Sector boundaries (SplitTimeInfo) ──
+            var sectors = si.SplitTimeInfo?.Sectors;
+            if (sectors != null && sectors.Count >= 2)
+            {
+                var starts = new List<double>();
+                foreach (var sector in sectors)
+                    if (sector.SectorStartPct > 0 && sector.SectorStartPct < 1) starts.Add(sector.SectorStartPct);
+                starts.Sort();
+                SectorBoundaries = starts.ToArray();
+                SectorCount = starts.Count + 1;
+                SectorS2StartPct = starts.Count > 0 ? starts[0] : 0;
+                SectorS3StartPct = starts.Count > 1 ? starts[1] : 0;
+                HasSectorBoundaries = starts.Count > 0;
+            }
+
             // ── Player car index ──
             if (si.DriverInfo != null)
             {

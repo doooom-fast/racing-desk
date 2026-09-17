@@ -84,6 +84,9 @@ Data options:
                 WsPort = o.WsPort,
                 EnableHardware = !replay && !o.NoHardware,
                 EnableSdkBridge = !replay,
+                TrackOutline = File.Exists(o.Db ?? ProDriveStore.DefaultPath)
+                    ? new TrackOutlines(o.Db ?? ProDriveStore.DefaultPath).ForTrack
+                    : null,
             });
 
             bool record = replay ? o.Record : !o.NoRecord;
