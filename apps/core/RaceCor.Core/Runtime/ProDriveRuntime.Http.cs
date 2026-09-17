@@ -23,8 +23,8 @@ namespace RaceCorProDrive.Plugin
             // 2. localhost only — always works without admin, sufficient for local overlays
             string[] prefixes = new[]
             {
-                "http://*:8889/racecor-io-pro-drive/",
-                "http://localhost:8889/racecor-io-pro-drive/"
+                $"http://*:{_options.HttpPort}/racecor-io-pro-drive/",
+                $"http://localhost:{_options.HttpPort}/racecor-io-pro-drive/"
             };
 
             foreach (var prefix in prefixes)
@@ -36,7 +36,7 @@ namespace RaceCorProDrive.Plugin
                     _httpListener.Start();
                     _httpThread = new Thread(HttpServerLoop) { IsBackground = true, Name = "RaceCorProDrive-HTTP" };
                     _httpThread.Start();
-                    Log.Info($"[RaceCorProDrive] HTTP state server listening on port 8889 (prefix: {prefix})");
+                    Log.Info($"[RaceCorProDrive] HTTP state server listening on port {_options.HttpPort} (prefix: {prefix})");
                     return;
                 }
                 catch (Exception ex)

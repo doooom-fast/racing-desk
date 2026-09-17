@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using GameReaderCommon;
-using SimHub.Plugins;
 
 namespace RaceCorProDrive.Plugin.Engine
 {
@@ -12,8 +10,8 @@ namespace RaceCorProDrive.Plugin.Engine
     /// Kept separate so the data class can be shared with the test runner.
     /// </summary>
     /// <summary>
-    /// SimHub adapter: builds a <see cref="TelemetrySnapshot"/> from SimHub's GameData and property
-    /// manager. Lives in the plugin (not RaceCor.Core) because it depends on SimHub types.
+    /// Builds a <see cref="TelemetrySnapshot"/> from any <see cref="ITelemetrySource"/> — SimHub's
+    /// PluginManager + GameData, or the standalone host's direct iRacing SDK reader.
     /// </summary>
     public static class TelemetryCapture
     {
@@ -73,40 +71,40 @@ namespace RaceCorProDrive.Plugin.Engine
         private static int _prevLapForValidity = 0;
         private static int _lapStartIncidentCount = 0;
 
-        public static TelemetrySnapshot Capture(PluginManager pm, ref GameData data)
+        public static TelemetrySnapshot Capture(ITelemetrySource pm)
         {
             var s = new TelemetrySnapshot();
-            s.GameRunning = data.GameRunning;
-            s.GameName    = data.GameName ?? "";
+            s.GameRunning = pm.GameRunning;
+            s.GameName    = pm.GameName ?? "";
 
-            if (!data.GameRunning || data.NewData == null)
+            if (!pm.GameRunning || pm.NewData == null)
                 return s;
 
-            var d = data.NewData;
+            var d = pm.NewData;
 
             // ── Normalized fields (all games) ────────────────────────────────
-            s.SpeedKmh         = d.SpeedKmh;
-            s.Rpms             = d.Rpms;
-            s.MaxRpm           = d.MaxRpm;
-            s.Gear             = d.Gear ?? "N";
-            s.Throttle         = d.Throttle;
-            s.Brake            = d.Brake;
-            s.Clutch           = d.Clutch;
-            s.FuelLevel        = d.Fuel;
-            s.FuelPercent      = d.FuelPercent;
-            s.CurrentLap       = d.CurrentLap;
-            s.CompletedLaps    = d.CompletedLaps;
-            s.TrackPositionPct = d.TrackPositionPercent;
-            s.Position         = d.Position;
-            s.IsInPit          = d.IsInPit != 0;
-            s.IsInPitLane      = d.IsInPitLane != 0;
-            s.SessionTypeName  = d.SessionTypeName ?? "";
-            s.CarModel         = d.CarModel ?? "";
+            s.SpeedKmh         = GetNorm<double>(d, "SpeedKmh");
+            s.Rpms             = GetNorm<double>(d, "Rpms");
+            s.MaxRpm           = GetNorm<double>(d, "MaxRpm");
+            s.Gear             = GetNorm<string>(d, "Gear") ?? "N";
+            s.Throttle         = GetNorm<double>(d, "Throttle");
+            s.Brake            = GetNorm<double>(d, "Brake");
+            s.Clutch           = GetNorm<double>(d, "Clutch");
+            s.FuelLevel        = GetNorm<double>(d, "Fuel");
+            s.FuelPercent      = GetNorm<double>(d, "FuelPercent");
+            s.CurrentLap       = GetNorm<int>(d, "CurrentLap");
+            s.CompletedLaps    = GetNorm<int>(d, "CompletedLaps");
+            s.TrackPositionPct = GetNorm<double>(d, "TrackPositionPercent");
+            s.Position         = GetNorm<int>(d, "Position");
+            s.IsInPit          = GetNorm<int>(d, "IsInPit") != 0;
+            s.IsInPitLane      = GetNorm<int>(d, "IsInPitLane") != 0;
+            s.SessionTypeName  = GetNorm<string>(d, "SessionTypeName") ?? "";
+            s.CarModel         = GetNorm<string>(d, "CarModel") ?? "";
             s.TrackName        = GetPluginProp<string>(pm, "DataCorePlugin.GameData.TrackName") ?? "";
-            s.TyreWearFL       = d.TyreWearFrontLeft;
-            s.TyreWearFR       = d.TyreWearFrontRight;
-            s.TyreWearRL       = d.TyreWearRearLeft;
-            s.TyreWearRR       = d.TyreWearRearRight;
+            s.TyreWearFL       = GetNorm<double>(d, "TyreWearFrontLeft");
+            s.TyreWearFR       = GetNorm<double>(d, "TyreWearFrontRight");
+            s.TyreWearRL       = GetNorm<double>(d, "TyreWearRearLeft");
+            s.TyreWearRR       = GetNorm<double>(d, "TyreWearRearRight");
 
             // Fallback for iRacing: GameData.TyreWear* is only updated after a
             // full lap, so the bars stay at 0 until then. Fall back to the raw
@@ -268,7 +266,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Player name extraction failed: {ex.Message}");
+                Log.Warn($"[RaceCorProDrive] Player name extraction failed: {ex.Message}");
             }
 
             // ── Nearest opponents (by race position) ─────────────────────────
@@ -314,7 +312,7 @@ namespace RaceCorProDrive.Plugin.Engine
                         }
                         catch (Exception ex)
                         {
-                            SimHub.Logging.Current.Warn($"[RaceCorProDrive] Gap data extraction failed: {ex.Message}");
+                            Log.Warn($"[RaceCorProDrive] Gap data extraction failed: {ex.Message}");
                         }
 
                         if (pos == s.Position - 1)
@@ -342,7 +340,7 @@ namespace RaceCorProDrive.Plugin.Engine
                         }
                         catch (Exception ex)
                         {
-                            SimHub.Logging.Current.Warn($"[RaceCorProDrive] IsPlayer detection failed: {ex.Message}");
+                            Log.Warn($"[RaceCorProDrive] IsPlayer detection failed: {ex.Message}");
                         }
 
                         if (isPlayer && irating > 0)
@@ -362,7 +360,7 @@ namespace RaceCorProDrive.Plugin.Engine
                             }
                             catch (Exception ex)
                             {
-                                SimHub.Logging.Current.Warn($"[RaceCorProDrive] SafetyRating extraction failed: {ex.Message}");
+                                Log.Warn($"[RaceCorProDrive] SafetyRating extraction failed: {ex.Message}");
                             }
                         }
                     }
@@ -370,7 +368,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Opponent extraction failed: {ex.Message}");
+                Log.Warn($"[RaceCorProDrive] Opponent extraction failed: {ex.Message}");
             }
 
             // ── World velocity (for track map dead reckoning) ─────────────────
@@ -668,7 +666,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 }
                 catch (Exception ex)
                 {
-                    SimHub.Logging.Current.Warn($"[RaceCorProDrive] Track country lookup failed: {ex.Message}");
+                    Log.Warn($"[RaceCorProDrive] Track country lookup failed: {ex.Message}");
                 }
             }
 
@@ -782,7 +780,7 @@ namespace RaceCorProDrive.Plugin.Engine
         }
 
         // ── Game-specific raw data helpers ──────────────────────────────────────
-        private static float GetGameBrakeBias(PluginManager pm, GameId game)
+        private static float GetGameBrakeBias(ITelemetrySource pm, GameId game)
         {
             switch (game)
             {
@@ -799,7 +797,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
         }
 
-        private static float GetGameTC(PluginManager pm, GameId game)
+        private static float GetGameTC(ITelemetrySource pm, GameId game)
         {
             switch (game)
             {
@@ -816,7 +814,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
         }
 
-        private static float GetGameABS(PluginManager pm, GameId game)
+        private static float GetGameABS(ITelemetrySource pm, GameId game)
         {
             switch (game)
             {
@@ -833,7 +831,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
         }
 
-        private static int GetGameSessionFlags(PluginManager pm, GameId game)
+        private static int GetGameSessionFlags(ITelemetrySource pm, GameId game)
         {
             switch (game)
             {
@@ -868,7 +866,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
         }
 
-        private static int GetGameIncidentCount(PluginManager pm, GameId game)
+        private static int GetGameIncidentCount(ITelemetrySource pm, GameId game)
         {
             switch (game)
             {
@@ -885,7 +883,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
         }
 
-        private static float GetGameErsBattery(PluginManager pm, GameId game)
+        private static float GetGameErsBattery(ITelemetrySource pm, GameId game)
         {
             switch (game)
             {
@@ -898,7 +896,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
         }
 
-        private static bool GetGamePitLimiter(PluginManager pm, GameId game)
+        private static bool GetGamePitLimiter(ITelemetrySource pm, GameId game)
         {
             switch (game)
             {
@@ -916,7 +914,7 @@ namespace RaceCorProDrive.Plugin.Engine
         private static T Coalesce<T>(T primary, T fallback) where T : IComparable<T>
             => primary.CompareTo(default(T)) != 0 ? primary : fallback;
 
-        private static T GetRaw<T>(PluginManager pm, string name, string prefix = null)
+        private static T GetRaw<T>(ITelemetrySource pm, string name, string prefix = null)
         {
             try
             {
@@ -938,7 +936,7 @@ namespace RaceCorProDrive.Plugin.Engine
         }
 
         /// <summary>Read a SimHub plugin property by its full name (e.g. IRacingExtraProperties.*).</summary>
-        private static T GetPluginProp<T>(PluginManager pm, string fullName)
+        private static T GetPluginProp<T>(ITelemetrySource pm, string fullName)
         {
             try
             {
@@ -950,7 +948,7 @@ namespace RaceCorProDrive.Plugin.Engine
             return default(T);
         }
 
-        private static T[] GetRawArray<T>(PluginManager pm, string name)
+        private static T[] GetRawArray<T>(ITelemetrySource pm, string name)
         {
             try
             {

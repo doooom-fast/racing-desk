@@ -37,6 +37,7 @@ namespace RaceCorProDrive.Plugin
 
         // Host-agnostic engine + :8889/:8890 servers (RaceCor.Core). This class adapts SimHub to it.
         private ProDriveRuntime _rt;
+        private readonly SimHubTelemetrySource _source = new SimHubTelemetrySource();
 
         // ── Track map queries (for settings UI) ─────────────────────────────
 
@@ -74,7 +75,6 @@ namespace RaceCorProDrive.Plugin
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                     "SimHub", "PluginsData", "RaceCorProDrive"),
             });
-            TelemetryCapture._sdkBridge = _rt._sdkBridge;
             _rt.NewCommentaryPrompt += () => this.TriggerEvent("NewCommentaryPrompt");
 
             // ── Register dashboard properties ─────────────────────────────────
@@ -268,12 +268,9 @@ namespace RaceCorProDrive.Plugin
 
         public void DataUpdate(PluginManager pluginManager, ref GameData data)
         {
-            var next = TelemetryCapture.Capture(pluginManager, ref data);
-            var newData = data.NewData;
-            _rt.Tick(
-                next,
-                () => GetTrackId(pluginManager),
-                newData != null ? (Func<int, string>)(position => BuildLeaderboard(newData, position)) : null);
+            _source.PluginManager = pluginManager;
+            _source.Data = data;
+            _rt.Tick(_source);
         }
 
         public void End(PluginManager pluginManager)
@@ -285,100 +282,5 @@ namespace RaceCorProDrive.Plugin
 
         public void ApplySettings() => _rt?.ApplySettings();
 
-        private string GetTrackId(PluginManager pm)
-        {
-            try
-            {
-                // iRacing: SessionInfo contains track name
-                var val = pm.GetPropertyValue("DataCorePlugin.GameData.TrackName")
-                       ?? pm.GetPropertyValue("DataCorePlugin.GameData.TrackId");
-                // Also capture the raw TrackId (includes config info, e.g. "nurburgring gp")
-                // Used by the overlay to pass config hints to the track map API.
-                var rawId = pm.GetPropertyValue("DataCorePlugin.GameData.TrackId");
-                if (rawId != null)
-                {
-                    string slug = rawId.ToString().Trim();
-                    if (!string.IsNullOrEmpty(slug)) _rt._lastRawTrackSlug = slug;
-                }
-                if (val != null)
-                {
-                    string id = val.ToString().Trim();
-                    if (!string.IsNullOrEmpty(id)) return id;
-                }
-            }
-            catch (Exception ex)
-            {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Track ID lookup failed: {ex.Message}");
-            }
-            return _rt._current.GameName ?? "";
-        }
-
-        /// <summary>
-        /// Build leaderboard JSON from SimHub's Opponents list.
-        /// Returns a window of drivers centred on the player, compact JSON array.
-        /// Each entry: [pos, name, irating, bestLap, lastLap, gapToPlayer, inPit]
-        /// </summary>
-        private string BuildLeaderboard(object newData, int playerPos)
-        {
-            var ic = System.Globalization.CultureInfo.InvariantCulture;
-            try
-            {
-                var oppsProp = newData.GetType().GetProperty("Opponents",
-                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
-                var opps = oppsProp?.GetValue(newData) as System.Collections.IList;
-                if (opps == null || opps.Count == 0) return "[]";
-
-                // Collect all opponent data
-                var entries = new System.Collections.Generic.List<string>(opps.Count + 1);
-                foreach (var opp in opps)
-                {
-                    var t = opp.GetType();
-                    int pos = Convert.ToInt32(t.GetProperty("Position")?.GetValue(opp) ?? 0);
-                    string name = (t.GetProperty("Name")?.GetValue(opp) as string) ?? "";
-                    int irating = 0;
-                    var irProp = t.GetProperty("IRating") ?? t.GetProperty("Irating");
-                    if (irProp != null) { var v = irProp.GetValue(opp); if (v != null) irating = Convert.ToInt32(v); }
-                    double best = 0, last = 0;
-                    var bestProp = t.GetProperty("BestLapTime");
-                    if (bestProp != null) { var v = bestProp.GetValue(opp); if (v is TimeSpan ts && ts.TotalSeconds > 0) best = ts.TotalSeconds; }
-                    var lastProp = t.GetProperty("LastLapTime");
-                    if (lastProp != null) { var v = lastProp.GetValue(opp); if (v is TimeSpan ts2 && ts2.TotalSeconds > 0) last = ts2.TotalSeconds; }
-                    double gapToPlayer = 0;
-                    var gapProp = t.GetProperty("GapToPlayer");
-                    if (gapProp != null) { var v = gapProp.GetValue(opp); if (v != null) gapToPlayer = Convert.ToDouble(v); }
-                    bool inPit = false;
-                    var pitProp = t.GetProperty("IsInPit") ?? t.GetProperty("IsInPitLane");
-                    if (pitProp != null) { var v = pitProp.GetValue(opp); if (v is bool b) inPit = b; else if (v is int iv) inPit = iv != 0; }
-                    bool isPlayer = (pos == playerPos);
-
-                    if (pos <= 0) continue;
-
-                    // Compact: [pos,"name",irating,bestLap,lastLap,gap,inPit,isPlayer]
-                    entries.Add(string.Format(ic,
-                        "[{0},\"{1}\",{2},{3:F3},{4:F3},{5:F2},{6},{7}]",
-                        pos, ProDriveRuntime.Escape(name), irating, best, last, gapToPlayer, inPit ? 1 : 0, isPlayer ? 1 : 0));
-                }
-
-                // Sort by position
-                entries.Sort((a, b) =>
-                {
-                    // Extract position number from "[pos,..."
-                    int pa = int.Parse(a.Substring(1, a.IndexOf(',') - 1));
-                    int pb = int.Parse(b.Substring(1, b.IndexOf(',') - 1));
-                    return pa.CompareTo(pb);
-                });
-
-                // Send all drivers (no windowing — let the JS decide what to display)
-                // Limit to a reasonable max (60 drivers) to avoid excessive data transfer
-                if (entries.Count > 60) entries = entries.GetRange(0, 60);
-
-                return "[" + string.Join(",", entries) + "]";
-            }
-            catch (Exception ex)
-            {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Opponent parsing failed: {ex.Message}");
-                return "[]";
-            }
-        }
     }
 }

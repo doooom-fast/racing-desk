@@ -28,6 +28,10 @@ namespace RaceCorProDrive.Plugin
             public string AssemblyDirectory { get; set; }
             /// <summary>Writable per-machine data directory (SimHub: ProgramData\SimHub\PluginsData\RaceCorProDrive).</summary>
             public string PluginsDataDirectory { get; set; }
+            /// <summary>Port for the JSON state contract (the overlay polls :8889).</summary>
+            public int HttpPort { get; set; } = 8889;
+            /// <summary>Port for the MessagePack WebSocket feed.</summary>
+            public int WsPort { get; set; } = 8890;
         }
 
         private readonly Options _options;
@@ -140,6 +144,7 @@ namespace RaceCorProDrive.Plugin
             _engine.LoadCarData(carDataPath);
 
             // Initialise iRacing SDK bridge (direct shared memory via IRSDKSharper)
+            TelemetryCapture._sdkBridge = _sdkBridge;
             _sdkBridge.Start();
 
             // Start screen color sampler for ambient lighting
@@ -181,10 +186,10 @@ namespace RaceCorProDrive.Plugin
             // Start WebSocket server for overlay (port 8890, PR 5 migrates to 8889)
             try
             {
-                _wsServer = new Transport.WsServer(8890, "/racecor");
+                _wsServer = new Transport.WsServer(_options.WsPort, "/racecor");
                 _wsServer.Start();
                 _wsPublisher = new Transport.WsTelemetryPublisher(_wsServer);
-                Log.Info("[RaceCorProDrive] WebSocket telemetry server started on port 8890");
+                Log.Info($"[RaceCorProDrive] WebSocket telemetry server started on port {_options.WsPort}");
             }
             catch (Exception ex)
             {
@@ -194,13 +199,21 @@ namespace RaceCorProDrive.Plugin
             }
         }
 
-        /// <summary>
-        /// Advances the runtime by one telemetry frame.
-        /// </summary>
+        /// <summary>Advances the runtime by one telemetry frame read from <paramref name="source"/>.</summary>
+        public void Tick(ITelemetrySource source)
+        {
+            var next = TelemetryCapture.Capture(source);
+            var newData = source.NewData;
+            Advance(
+                next,
+                () => GetTrackId(source),
+                newData != null ? (Func<int, string>)(position => BuildLeaderboard(newData, position)) : null);
+        }
+
         /// <param name="next">This frame's snapshot.</param>
         /// <param name="trackIdProvider">Returns the current track id; called only while the game is running.</param>
         /// <param name="liveLeaderboard">Builds the leaderboard JSON for the player's position, or null when unavailable.</param>
-        public void Tick(TelemetrySnapshot next, Func<string> trackIdProvider, Func<int, string> liveLeaderboard)
+        private void Advance(TelemetrySnapshot next, Func<string> trackIdProvider, Func<int, string> liveLeaderboard)
         {
             // Capture current telemetry every frame (cheap snapshot)
             _previous = _current;
@@ -553,6 +566,102 @@ namespace RaceCorProDrive.Plugin
             }
             sb.Append("]");
             return sb.ToString();
+        }
+
+        private string GetTrackId(ITelemetrySource pm)
+        {
+            try
+            {
+                // iRacing: SessionInfo contains track name
+                var val = pm.GetPropertyValue("DataCorePlugin.GameData.TrackName")
+                       ?? pm.GetPropertyValue("DataCorePlugin.GameData.TrackId");
+                // Also capture the raw TrackId (includes config info, e.g. "nurburgring gp")
+                // Used by the overlay to pass config hints to the track map API.
+                var rawId = pm.GetPropertyValue("DataCorePlugin.GameData.TrackId");
+                if (rawId != null)
+                {
+                    string slug = rawId.ToString().Trim();
+                    if (!string.IsNullOrEmpty(slug)) _lastRawTrackSlug = slug;
+                }
+                if (val != null)
+                {
+                    string id = val.ToString().Trim();
+                    if (!string.IsNullOrEmpty(id)) return id;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[RaceCorProDrive] Track ID lookup failed: {ex.Message}");
+            }
+            return _current.GameName ?? "";
+        }
+
+        /// <summary>
+        /// Build leaderboard JSON from the source's Opponents list (read by property name).
+        /// Returns a window of drivers centred on the player, compact JSON array.
+        /// Each entry: [pos, name, irating, bestLap, lastLap, gapToPlayer, inPit]
+        /// </summary>
+        private string BuildLeaderboard(object newData, int playerPos)
+        {
+            var ic = System.Globalization.CultureInfo.InvariantCulture;
+            try
+            {
+                var oppsProp = newData.GetType().GetProperty("Opponents",
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+                var opps = oppsProp?.GetValue(newData) as System.Collections.IList;
+                if (opps == null || opps.Count == 0) return "[]";
+
+                // Collect all opponent data
+                var entries = new System.Collections.Generic.List<string>(opps.Count + 1);
+                foreach (var opp in opps)
+                {
+                    var t = opp.GetType();
+                    int pos = Convert.ToInt32(t.GetProperty("Position")?.GetValue(opp) ?? 0);
+                    string name = (t.GetProperty("Name")?.GetValue(opp) as string) ?? "";
+                    int irating = 0;
+                    var irProp = t.GetProperty("IRating") ?? t.GetProperty("Irating");
+                    if (irProp != null) { var v = irProp.GetValue(opp); if (v != null) irating = Convert.ToInt32(v); }
+                    double best = 0, last = 0;
+                    var bestProp = t.GetProperty("BestLapTime");
+                    if (bestProp != null) { var v = bestProp.GetValue(opp); if (v is TimeSpan ts && ts.TotalSeconds > 0) best = ts.TotalSeconds; }
+                    var lastProp = t.GetProperty("LastLapTime");
+                    if (lastProp != null) { var v = lastProp.GetValue(opp); if (v is TimeSpan ts2 && ts2.TotalSeconds > 0) last = ts2.TotalSeconds; }
+                    double gapToPlayer = 0;
+                    var gapProp = t.GetProperty("GapToPlayer");
+                    if (gapProp != null) { var v = gapProp.GetValue(opp); if (v != null) gapToPlayer = Convert.ToDouble(v); }
+                    bool inPit = false;
+                    var pitProp = t.GetProperty("IsInPit") ?? t.GetProperty("IsInPitLane");
+                    if (pitProp != null) { var v = pitProp.GetValue(opp); if (v is bool b) inPit = b; else if (v is int iv) inPit = iv != 0; }
+                    bool isPlayer = (pos == playerPos);
+
+                    if (pos <= 0) continue;
+
+                    // Compact: [pos,"name",irating,bestLap,lastLap,gap,inPit,isPlayer]
+                    entries.Add(string.Format(ic,
+                        "[{0},\"{1}\",{2},{3:F3},{4:F3},{5:F2},{6},{7}]",
+                        pos, Escape(name), irating, best, last, gapToPlayer, inPit ? 1 : 0, isPlayer ? 1 : 0));
+                }
+
+                // Sort by position
+                entries.Sort((a, b) =>
+                {
+                    // Extract position number from "[pos,..."
+                    int pa = int.Parse(a.Substring(1, a.IndexOf(',') - 1));
+                    int pb = int.Parse(b.Substring(1, b.IndexOf(',') - 1));
+                    return pa.CompareTo(pb);
+                });
+
+                // Send all drivers (no windowing — let the JS decide what to display)
+                // Limit to a reasonable max (60 drivers) to avoid excessive data transfer
+                if (entries.Count > 60) entries = entries.GetRange(0, 60);
+
+                return "[" + string.Join(",", entries) + "]";
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[RaceCorProDrive] Opponent parsing failed: {ex.Message}");
+                return "[]";
+            }
         }
     }
 }
