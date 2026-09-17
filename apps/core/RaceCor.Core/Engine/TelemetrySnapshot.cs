@@ -33,6 +33,8 @@ namespace RaceCorProDrive.Plugin.Engine
         public string SessionTypeName   { get; set; }
         public string CarModel          { get; set; } = "";
         public string TrackName         { get; set; } = "";
+        /// <summary>iRacing's human-readable track name (WeekendInfo.TrackDisplayName), when known.</summary>
+        public string TrackDisplayName  { get; set; } = "";
         public double TyreWearFL        { get; set; }
         public double TyreWearFR        { get; set; }
         public double TyreWearRL        { get; set; }

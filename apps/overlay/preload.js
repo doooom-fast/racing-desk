@@ -30,16 +30,6 @@ contextBridge.exposeInMainWorld('k10', {
   onToggleDriveMode: (callback) => {
     ipcRenderer.on('toggle-drive-mode', () => callback());
   },
-  // Discord OAuth2 (legacy — still works for community features)
-  discordConnect: () => ipcRenderer.invoke('discord-connect'),
-  discordDisconnect: () => ipcRenderer.invoke('discord-disconnect'),
-  getDiscordUser: () => ipcRenderer.invoke('get-discord-user'),
-  // K10 Pro Drive OAuth2 (website account → pro features)
-  k10Connect: () => ipcRenderer.invoke('k10-connect'),
-  k10Disconnect: () => ipcRenderer.invoke('k10-disconnect'),
-  getK10User: () => ipcRenderer.invoke('get-k10-user'),
-  getK10Token: () => ipcRenderer.invoke('get-k10-token'),
-  verifyK10Token: () => ipcRenderer.invoke('verify-k10-token'),
   // Remote dashboard server (iPad/tablet access)
   getRemoteServerInfo: () => ipcRenderer.invoke('get-remote-server-info'),
   startRemoteServer: (opts) => ipcRenderer.invoke('start-remote-server', opts),

@@ -1,39 +1,12 @@
 // CAR MANUFACTURER LOGOS
 
-  // ═══ CAR MANUFACTURER LOGOS (fetched from cloud API, local fallback) ═══
+  // ═══ CAR MANUFACTURER LOGOS (bundled SVGs in images/logos) ═══
   const CAR_LOGO_KEYS = ['bmw','mclaren','mazda','nissan','dallara','ferrari','porsche','audi',
     'mercedes','lamborghini','chevrolet','ford','toyota','hyundai','cadillac','astonmartin',
-    'lotus','honda','honda_white','ligier','fia','radical','generic','none'];
+    'lotus','honda','honda_white','ligier','fia','radical','generic','none','iracing'];
   window.carLogos = {};
   window.carBrandColors = {};
   async function loadCarLogos() {
-    // Try cloud API first (prodrive.racecor.io)
-    try {
-      const apiBase = (window._settings && window._settings.apiBase) || 'https://prodrive.racecor.io';
-      const resp = await fetch(apiBase + '/api/logos');
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.logos && data.logos.length > 0) {
-          for (const logo of data.logos) {
-            if (logo.logoSvg) window.carLogos[logo.brandKey] = logo.logoSvg;
-            if (logo.brandColorHex) window.carBrandColors[logo.brandKey] = logo.brandColorHex;
-          }
-          console.log('[RaceCor] Loaded', data.logos.length, 'logos from cloud');
-          // Still load special local-only logos (generic, none, honda_white, iracing)
-          const localOnly = ['generic', 'none', 'honda_white', 'iracing'];
-          await Promise.allSettled(localOnly.map(async key => {
-            if (!window.carLogos[key]) {
-              const r = await fetch('images/logos/' + key + '.svg');
-              if (r.ok) window.carLogos[key] = await r.text();
-            }
-          }));
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('[RaceCor] Cloud logo fetch failed, using local fallback:', e.message);
-    }
-    // Fallback: load all from local files
     await Promise.allSettled(
       CAR_LOGO_KEYS.map(async key => {
         const resp = await fetch('images/logos/' + key + '.svg');

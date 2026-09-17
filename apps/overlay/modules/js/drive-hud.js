@@ -194,12 +194,7 @@
     if (mapReady) {
       var _dhTrackName = (p['RaceCorProDrive.Plugin.TrackMap.TrackName']
                        || p['DataCorePlugin.GameData.TrackName'] || '');
-      // Prefer web API SVG (curated), fall back to the plugin's local SvgPath
-      // when the API cache is empty so the track still draws while we wait
-      // for (or if we never get) the override.
-      var _apiSvg = (window._trackApiSvgCache && window._trackApiSvgCache[_dhTrackName]) || '';
-      var _pluginSvg = (p['RaceCorProDrive.Plugin.TrackMap.SvgPath'] || '');
-      var svgPath = _apiSvg || _pluginSvg || '';
+      var svgPath = p['RaceCorProDrive.Plugin.TrackMap.SvgPath'] || '';
       var dhTrack = document.getElementById('dhMapTrack');
       if (dhTrack && svgPath && dhTrack.getAttribute('d') !== svgPath) {
         dhTrack.setAttribute('d', svgPath);
@@ -223,29 +218,9 @@
         }
       }
 
-      // Player position. When the API SVG is in use AND we have its points,
-      // walk them by LapDistPct so the dot lands on the API's path. The
-      // plugin's PlayerX/Y is normalized against the plugin's local CSV
-      // recording — when that CSV is corrupt or out of date with the API,
-      // those coordinates put the dot off the track. Plugin coords are
-      // only correct paired with the plugin's own SvgPath.
-      var px, py;
-      var apiPts = _apiSvg && window._trackApiPointsCache
-        ? window._trackApiPointsCache[_dhTrackName]
-        : null;
-      if (apiPts && apiPts.length >= 2 && typeof window._lapDistToApiXY === 'function') {
-        var pct = +v('RaceCorProDrive.Plugin.DS.TrackPct');
-        if (!isFinite(pct)) pct = 0;
-        var pos = window._lapDistToApiXY(apiPts, pct);
-        if (pos) {
-          px = Math.max(0, Math.min(100, pos.x));
-          py = Math.max(0, Math.min(100, pos.y));
-        }
-      }
-      if (px === undefined) {
-        px = Math.max(0, Math.min(100, +v('RaceCorProDrive.Plugin.TrackMap.PlayerX') || 50));
-        py = Math.max(0, Math.min(100, +v('RaceCorProDrive.Plugin.TrackMap.PlayerY') || 50));
-      }
+      // Player position, in the same normalization as the plugin's outline.
+      var px = Math.max(0, Math.min(100, +v('RaceCorProDrive.Plugin.TrackMap.PlayerX') || 50));
+      var py = Math.max(0, Math.min(100, +v('RaceCorProDrive.Plugin.TrackMap.PlayerY') || 50));
 
       // Update player dot
       var dhPlayer = document.getElementById('dhMapPlayer');
@@ -296,14 +271,8 @@
         dhSvg.style.transformOrigin = '';
       }
 
-      // Opponents. When the API outline is in use, reproject the plugin's
-      // raw coords into its space (same remap the player dot gets above) so
-      // cars sit on the track instead of floating off it.
+      // Opponents, in the same normalization as the plugin's outline.
       var opponentStr = p['RaceCorProDrive.Plugin.TrackMap.Opponents'] || '';
-      if (_apiSvg && apiPts && apiPts.length >= 2 && _pluginSvg
-          && typeof window._reprojectOpponentsToApi === 'function') {
-        opponentStr = window._reprojectOpponentsToApi(opponentStr, _pluginSvg, apiPts);
-      }
       var dhOppG = document.getElementById('dhMapOpponents');
       if (dhOppG) {
         var parts = opponentStr ? opponentStr.split(';').filter(function(s) { return s.length > 0; }) : [];
@@ -348,14 +317,12 @@
       }
     }
 
-    // Track name — prefer K10 display name, fall back to game name
+    // Track name — iRacing's display name, falling back to the game's track name
     var nameEl = document.getElementById('dhMapName');
     var trackName = p['RaceCorProDrive.Plugin.TrackMap.TrackName']
                  || p['DataCorePlugin.GameData.TrackName'] || '';
     if (nameEl && trackName) {
-      var resolved = typeof _trackDisplayNameCache !== 'undefined' && _trackDisplayNameCache[trackName];
-      nameEl.textContent = resolved || trackName;
-      if (!resolved && typeof resolveTrackDisplayName === 'function') resolveTrackDisplayName(trackName);
+      nameEl.textContent = p['RaceCorProDrive.Plugin.TrackMap.TrackDisplayName'] || trackName;
     }
   }
   window.updateDriveHud = updateDriveHud;

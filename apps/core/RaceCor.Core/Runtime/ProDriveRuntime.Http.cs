@@ -855,6 +855,7 @@ namespace RaceCorProDrive.Plugin
                     Jp(sb, "RaceCorProDrive.Plugin.TrackMap.Ready", _trackMap.IsReady ? 1 : 0);
                     Jp(sb, "RaceCorProDrive.Plugin.TrackMap.TrackName", Escape(_trackMap.TrackName ?? ""));
                     Jp(sb, "RaceCorProDrive.Plugin.TrackMap.TrackSlug", Escape(_lastRawTrackSlug ?? ""));
+                    Jp(sb, "RaceCorProDrive.Plugin.TrackMap.TrackDisplayName", Escape(s.TrackDisplayName ?? ""));
                     Jp(sb, "RaceCorProDrive.Plugin.TrackMap.SvgPath", Escape(_trackMap.SvgPath ?? ""));
                     Jp(sb, "RaceCorProDrive.Plugin.TrackMap.PlayerX", _trackMap.PlayerX, ic);
                     Jp(sb, "RaceCorProDrive.Plugin.TrackMap.PlayerY", _trackMap.PlayerY, ic);

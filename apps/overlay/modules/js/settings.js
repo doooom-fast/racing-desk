@@ -411,10 +411,6 @@
   function updateTheme(value) {
     _settings.theme = value || 'dark';
     document.body.setAttribute('data-theme', _settings.theme);
-    // Notify token loader to update (if loaded)
-    if (window.tokenLoader && typeof window.tokenLoader.setTheme === 'function') {
-      window.tokenLoader.setTheme(_settings.theme);
-    }
     if (typeof saveSettings === 'function') saveSettings();
   }
 

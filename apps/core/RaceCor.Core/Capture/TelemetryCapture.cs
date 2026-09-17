@@ -57,6 +57,9 @@ namespace RaceCorProDrive.Plugin.Engine
 
         /// <summary>Sector start percentages (excluding 0) a source may expose from its session info.</summary>
         public const string SectorBoundariesProperty = "RaceCor.SplitTimeInfo.SectorBoundaries";
+
+        /// <summary>iRacing's display name for the track a source may expose from its session info.</summary>
+        public const string TrackDisplayNameProperty = "RaceCor.WeekendInfo.TrackDisplayName";
         private static string _lastSectorTrackId = "";
 
         // ── Fix #2: Caching for iRating / SR / license string ──────────────────
@@ -105,6 +108,10 @@ namespace RaceCorProDrive.Plugin.Engine
             s.SessionTypeName  = GetNorm<string>(d, "SessionTypeName") ?? "";
             s.CarModel         = GetNorm<string>(d, "CarModel") ?? "";
             s.TrackName        = GetPluginProp<string>(pm, "DataCorePlugin.GameData.TrackName") ?? "";
+            s.TrackDisplayName = GetPluginProp<string>(pm, TrackDisplayNameProperty);
+            if (string.IsNullOrEmpty(s.TrackDisplayName) && _sdkBridge != null && _sdkBridge.IsConnected)
+                s.TrackDisplayName = _sdkBridge.TrackDisplayName;
+            s.TrackDisplayName = s.TrackDisplayName ?? "";
             s.TyreWearFL       = GetNorm<double>(d, "TyreWearFrontLeft");
             s.TyreWearFR       = GetNorm<double>(d, "TyreWearFrontRight");
             s.TyreWearRL       = GetNorm<double>(d, "TyreWearRearLeft");

@@ -635,11 +635,7 @@ const _defaultSettings = {
   agentKey: '',
   coachTone: 'coach',    // 'broadcast', 'coach', 'mentor'
   coachDepth: 'standard', // 'quick', 'standard', 'deep'
-  // Remote design tokens
-  useRemoteTokens: true,       // fetch CSS token builds from K10 Pro Drive API
-  theme: 'dark',               // 'dark' or 'light' — synced with web dashboard preference
-  apiBase: 'https://prodrive.racecor.io', // K10 Pro Drive API base URL
-  iracingDataSync: true, // Sync race sessions to Pro Drive by default
+  theme: 'dark',               // 'dark' or 'light'
   // Screen recording
   recordingQuality: 'high',     // 'low', 'medium', 'high'
   recordingMic: true,           // include microphone audio

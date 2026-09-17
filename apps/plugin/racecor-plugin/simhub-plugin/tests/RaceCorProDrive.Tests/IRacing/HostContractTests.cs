@@ -83,6 +83,7 @@ namespace RaceCorProDrive.Tests.IRacing
                     .ToList();
                 var extra = hostKeys.Except(pluginKeys)
                     .Where(k => !k.StartsWith("RaceCorProDrive.Plugin.DS.Sector"))
+                    .Where(k => k != "RaceCorProDrive.Plugin.TrackMap.TrackDisplayName") // added in Phase 3, after the fixture was captured
                     .ToList();
                 Assert.That(missing, Is.Empty, "keys the plugin serves that the host doesn't (hardware keys excluded)");
                 Assert.That(extra, Is.Empty, "keys the host serves that the plugin doesn't (per-track sector keys excluded)");
@@ -91,6 +92,8 @@ namespace RaceCorProDrive.Tests.IRacing
                 Assert.That((string)body["RaceCorProDrive.Plugin.GameId"], Is.EqualTo("IRacing"));
                 Assert.That((string)body["RaceCorProDrive.Plugin.TrackMap.TrackSlug"], Is.EqualTo(ibt.SessionInfo.WeekendInfo.TrackName));
                 Assert.That((int)body["DataCorePlugin.GameData.CurrentLap"], Is.GreaterThan(0));
+                Assert.That((string)body["RaceCorProDrive.Plugin.TrackMap.TrackDisplayName"], Is.EqualTo(ibt.SessionInfo.WeekendInfo.TrackDisplayName));
+                Assert.That((int)body["RaceCorProDrive.Plugin.DS.SectorCount"], Is.EqualTo(ibt.SessionInfo.SplitTimeInfo.Sectors.Count), "sectors from SplitTimeInfo");
             }
             finally
             {

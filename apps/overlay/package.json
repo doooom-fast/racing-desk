@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "@playwright/test": "^1.58.2",
-    "electron-updater": "^6.3.9",
     "ffmpeg-static": "^5.2.0",
     "@prodrive/replay": "*"
   }

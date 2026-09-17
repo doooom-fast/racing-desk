@@ -110,6 +110,7 @@ namespace RaceCorProDrive.Plugin.IRacing
                 case "DataCorePlugin.GameData.TrackConfig": return si.WeekendInfo?.TrackConfigName;
                 case "DataCorePlugin.GameData.TrackCountry": return si.WeekendInfo?.TrackCountry;
                 case "DataCorePlugin.GameData.FramesPerSecond": return (double)Float("FrameRate");
+                case TelemetryCapture.TrackDisplayNameProperty: return si.WeekendInfo?.TrackDisplayName;
                 case TelemetryCapture.SectorBoundariesProperty:
                 {
                     var sectors = si.SplitTimeInfo?.Sectors;

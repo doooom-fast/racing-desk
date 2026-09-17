@@ -475,6 +475,7 @@ namespace RaceCorProDrive.Plugin.Transport
                 dict["RaceCorProDrive.Plugin.TrackMap.Ready"] = trackMap.IsReady ? 1 : 0;
                 dict["RaceCorProDrive.Plugin.TrackMap.TrackName"] = Escape(trackMap.TrackName ?? "");
                 dict["RaceCorProDrive.Plugin.TrackMap.TrackSlug"] = Escape(trackSlug ?? "");
+                dict["RaceCorProDrive.Plugin.TrackMap.TrackDisplayName"] = Escape(s.TrackDisplayName ?? "");
                 dict["RaceCorProDrive.Plugin.TrackMap.SvgPath"] = Escape(trackMap.SvgPath ?? "");
                 dict["RaceCorProDrive.Plugin.TrackMap.PlayerX"] = trackMap.PlayerX;
                 dict["RaceCorProDrive.Plugin.TrackMap.PlayerY"] = trackMap.PlayerY;
@@ -486,6 +487,7 @@ namespace RaceCorProDrive.Plugin.Transport
                 dict["RaceCorProDrive.Plugin.TrackMap.Ready"] = 0;
                 dict["RaceCorProDrive.Plugin.TrackMap.TrackName"] = "";
                 dict["RaceCorProDrive.Plugin.TrackMap.TrackSlug"] = Escape(trackSlug ?? "");
+                dict["RaceCorProDrive.Plugin.TrackMap.TrackDisplayName"] = Escape(s.TrackDisplayName ?? "");
                 dict["RaceCorProDrive.Plugin.TrackMap.SvgPath"] = "";
                 dict["RaceCorProDrive.Plugin.TrackMap.PlayerX"] = 0.0;
                 dict["RaceCorProDrive.Plugin.TrackMap.PlayerY"] = 0.0;

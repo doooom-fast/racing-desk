@@ -62,6 +62,7 @@ namespace RaceCorProDrive.Plugin.Engine
 
         // Track info
         public string TrackCountry { get; private set; } = "";
+        public string TrackDisplayName { get; private set; } = "";
 
         // ═══════════════════════════════════════════════════════════════
         //  LIFECYCLE
@@ -360,6 +361,7 @@ namespace RaceCorProDrive.Plugin.Engine
 
                 // Track country
                 TrackCountry = TelemetrySnapshot.NormalizeCountryCode(si.WeekendInfo.TrackCountry ?? "");
+                TrackDisplayName = si.WeekendInfo.TrackDisplayName ?? "";
             }
 
             // ── Sector boundaries ──
