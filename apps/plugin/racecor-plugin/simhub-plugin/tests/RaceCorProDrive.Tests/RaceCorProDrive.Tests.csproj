@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../../../../core/RaceCor.Core/RaceCor.Core.csproj" />
+    <ProjectReference Include="../../../../../core/RaceCor.Data/RaceCor.Data.csproj" />
   </ItemGroup>
 
 </Project>
