@@ -132,7 +132,7 @@ namespace RaceCorProDrive.Plugin.Engine
         {
             _detector = new IRacingIncidentDetector();
             _sessionId = Guid.NewGuid().ToString("N").Substring(0, 8);
-            SimHub.Logging.Current.Info("[RaceCorProDrive] IncidentCoachEngine initialized (session: " + _sessionId + ")");
+            Log.Info("[RaceCorProDrive] IncidentCoachEngine initialized (session: " + _sessionId + ")");
         }
 
         /// <summary>
@@ -177,7 +177,7 @@ namespace RaceCorProDrive.Plugin.Engine
         {
             _threatLedger.Clear();
             _incidentHistory.Clear();
-            SimHub.Logging.Current.Info("[RaceCorProDrive] IncidentCoachEngine shutdown");
+            Log.Info("[RaceCorProDrive] IncidentCoachEngine shutdown");
         }
 
         /// <summary>Manually trigger cool-down mode (e.g., from keyboard shortcut).</summary>
@@ -189,7 +189,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 _cooldownActive = true;
                 _cooldownStartTime = DateTime.UtcNow;
                 _behavior.CooldownsTriggered++;
-                SimHub.Logging.Current.Info("[RaceCorProDrive] Manual cool-down triggered");
+                Log.Info("[RaceCorProDrive] Manual cool-down triggered");
             }
         }
 
@@ -229,7 +229,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
 
             _sessionId = Guid.NewGuid().ToString("N").Substring(0, 8);
-            SimHub.Logging.Current.Info("[RaceCorProDrive] IncidentCoach session reset (new: " + _sessionId + ")");
+            Log.Info("[RaceCorProDrive] IncidentCoach session reset (new: " + _sessionId + ")");
         }
 
         private void TrackLapChange(TelemetrySnapshot current)
@@ -290,14 +290,14 @@ namespace RaceCorProDrive.Plugin.Engine
             if (suspect != null && suspect.AttributionScore >= PrimarySuspectThreshold)
             {
                 UpdateThreatLedger(suspect, severity, current.CurrentLap);
-                SimHub.Logging.Current.Info(
+                Log.Info(
                     "[RaceCorProDrive] Incident attributed to " + suspect.Name +
                     " (score: " + suspect.AttributionScore.ToString("F1") +
                     ", severity: " + severity + "x, lap: " + current.CurrentLap + ")");
             }
             else
             {
-                SimHub.Logging.Current.Info(
+                Log.Info(
                     "[RaceCorProDrive] Incident detected (" + severity +
                     "x) but no driver met attribution threshold. Nearby: " +
                     snapshot.NearbyDrivers.Count);
@@ -402,7 +402,7 @@ namespace RaceCorProDrive.Plugin.Engine
             if (newLevel > entry.Level)
             {
                 entry.Level = newLevel;
-                SimHub.Logging.Current.Info(
+                Log.Info(
                     "[RaceCorProDrive] " + suspect.Name + " escalated to " + newLevel);
             }
         }
@@ -570,7 +570,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 _cooldownActive = true;
                 _cooldownStartTime = DateTime.UtcNow;
                 _behavior.CooldownsTriggered++;
-                SimHub.Logging.Current.Info(
+                Log.Info(
                     "[RaceCorProDrive] Auto cool-down triggered (rage: " +
                     _currentRageScore.ToString("F1") + ")");
             }
@@ -604,7 +604,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 if (minTimeElapsed && rageSubsided && gapEstablished)
                 {
                     _cooldownActive = false;
-                    SimHub.Logging.Current.Info("[RaceCorProDrive] Cool-down ended (rage: " +
+                    Log.Info("[RaceCorProDrive] Cool-down ended (rage: " +
                         _currentRageScore.ToString("F1") + ")");
                 }
             }
@@ -754,7 +754,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn("[RaceCorProDrive] IncidentCoach serialization error: " + ex.Message);
+                Log.Warn("[RaceCorProDrive] IncidentCoach serialization error: " + ex.Message);
             }
         }
     }

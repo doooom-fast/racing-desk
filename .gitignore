@@ -8,3 +8,10 @@ Thumbs.db
 test-results/
 playwright-report/
 k10-debug.log
+
+# .NET build output (plugin stages into build/ for install.bat)
+bin/
+obj/
+apps/plugin/racecor-plugin/simhub-plugin/build/
+apps/plugin/racecor-plugin/simhub-plugin/RaceCorProDrive.dll
+apps/plugin/racecor-plugin/simhub-plugin/RaceCorProDrive.pdb

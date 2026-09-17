@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MessagePack;
-using static SimHub.Logging;
 
 namespace RaceCorProDrive.Plugin.Transport
 {
@@ -63,7 +62,7 @@ namespace RaceCorProDrive.Plugin.Transport
                         LastFullSent = _clock(),
                     };
 
-                    Current.Info($"[RaceCorProDrive.WsTelemetryPublisher] Tracking client {conn.Id}");
+                    Log.Info($"[RaceCorProDrive.WsTelemetryPublisher] Tracking client {conn.Id}");
                 }
             }
         }
@@ -74,7 +73,7 @@ namespace RaceCorProDrive.Plugin.Transport
             lock (_clientStateLock)
             {
                 _clientState.Remove(conn.Id);
-                Current.Info($"[RaceCorProDrive.WsTelemetryPublisher] Removed client {conn.Id}");
+                Log.Info($"[RaceCorProDrive.WsTelemetryPublisher] Removed client {conn.Id}");
             }
         }
 
@@ -115,7 +114,7 @@ namespace RaceCorProDrive.Plugin.Transport
                         }
                         catch (Exception ex)
                         {
-                            Current.Warn($"[RaceCorProDrive.WsTelemetryPublisher] Failed to send snapshot to {clientId}: {ex.Message}");
+                            Log.Warn($"[RaceCorProDrive.WsTelemetryPublisher] Failed to send snapshot to {clientId}: {ex.Message}");
                         }
                     }
                     else
@@ -138,7 +137,7 @@ namespace RaceCorProDrive.Plugin.Transport
                             }
                             catch (Exception ex)
                             {
-                                Current.Warn($"[RaceCorProDrive.WsTelemetryPublisher] Failed to send delta to {clientId}: {ex.Message}");
+                                Log.Warn($"[RaceCorProDrive.WsTelemetryPublisher] Failed to send delta to {clientId}: {ex.Message}");
                             }
                         }
                         // Empty deltas are NOT sent

@@ -35,7 +35,7 @@ namespace RaceCorProDrive.Plugin.Engine
         {
             if (!File.Exists(jsonPath))
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive.FragmentAssembler] Fragments file not found: {jsonPath}");
+                Log.Warn($"[RaceCorProDrive.FragmentAssembler] Fragments file not found: {jsonPath}");
                 return;
             }
 
@@ -66,11 +66,11 @@ namespace RaceCorProDrive.Plugin.Engine
                     }
                 }
 
-                SimHub.Logging.Current.Info($"[RaceCorProDrive.FragmentAssembler] Loaded {_fragments.Count} fragment topics from {jsonPath}");
+                Log.Info($"[RaceCorProDrive.FragmentAssembler] Loaded {_fragments.Count} fragment topics from {jsonPath}");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"[RaceCorProDrive.FragmentAssembler] Failed to load fragments: {ex.Message}");
+                Log.Error($"[RaceCorProDrive.FragmentAssembler] Failed to load fragments: {ex.Message}");
             }
         }
 

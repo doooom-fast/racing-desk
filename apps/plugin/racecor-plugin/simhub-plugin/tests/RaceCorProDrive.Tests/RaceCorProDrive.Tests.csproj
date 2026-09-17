@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsTestProject>true</IsTestProject>
@@ -11,7 +11,7 @@
     <PackageReference Include="NUnit" Version="3.14.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="MessagePack" Version="2.5.187" />
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />
     <PackageReference Include="coverlet.collector" Version="6.0.2">
@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../plugin/RaceCorProDrive.Plugin/RaceCorProDrive.Plugin.csproj" />
+    <ProjectReference Include="../../../../../core/RaceCor.Core/RaceCor.Core.csproj" />
   </ItemGroup>
 
 </Project>

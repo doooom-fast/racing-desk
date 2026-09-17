@@ -129,21 +129,21 @@ namespace RaceCorProDrive.Plugin.Engine
             // Try to load from SimHub's map cache
             if (TryLoadFromSimHub(trackId))
             {
-                SimHub.Logging.Current.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from SimHub cache");
+                Log.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from SimHub cache");
                 return;
             }
 
             // Try to load from our bundled trackmaps directory (racecorprodrive-data/trackmaps/)
             if (TryLoadFromBundledMaps(trackId))
             {
-                SimHub.Logging.Current.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from bundled maps");
+                Log.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from bundled maps");
                 return;
             }
 
             // Try to load from our own cache
             if (TryLoadFromOwnCache(trackId))
             {
-                SimHub.Logging.Current.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from K10 cache");
+                Log.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from K10 cache");
                 return;
             }
 
@@ -157,7 +157,7 @@ namespace RaceCorProDrive.Plugin.Engine
 
             // No cached map — start recording
             _recording = true;
-            SimHub.Logging.Current.Info($"[RaceCorProDrive] Recording track map for '{trackId}' — drive one clean lap");
+            Log.Info($"[RaceCorProDrive] Recording track map for '{trackId}' — drive one clean lap");
         }
 
         /// <summary>
@@ -175,13 +175,13 @@ namespace RaceCorProDrive.Plugin.Engine
                 {
                     _demoUsesRealMap = true;
                     _currentTrackId = DemoDefaultTrackId;
-                    SimHub.Logging.Current.Info($"[RaceCorProDrive] Demo mode: loaded cached map '{DemoDefaultTrackId}'");
+                    Log.Info($"[RaceCorProDrive] Demo mode: loaded cached map '{DemoDefaultTrackId}'");
                 }
                 else
                 {
                     // No cached map available — use hardcoded fallback
                     EnsureDemoOutline();
-                    SimHub.Logging.Current.Info("[RaceCorProDrive] Demo mode: no cached map found, using fallback circuit");
+                    Log.Info("[RaceCorProDrive] Demo mode: no cached map found, using fallback circuit");
                 }
                 _ready = true;
             }
@@ -243,7 +243,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 bool noVelocity = Math.Abs(velocityX) < 0.5 && Math.Abs(velocityZ) < 0.5;
                 if (noVelocity)
                 {
-                    SimHub.Logging.Current.Info("[RaceCorProDrive] Car reset detected during map recording — restarting");
+                    Log.Info("[RaceCorProDrive] Car reset detected during map recording — restarting");
                     _samples.Clear();
                     _lastSampleDist = -1;
                     _drX = 0; _drZ = 0;
@@ -355,7 +355,7 @@ namespace RaceCorProDrive.Plugin.Engine
         /// </summary>
         public void ResetTrackMap()
         {
-            SimHub.Logging.Current.Info("[RaceCorProDrive] Track map reset — will re-record next clean lap");
+            Log.Info("[RaceCorProDrive] Track map reset — will re-record next clean lap");
             _samples.Clear();
             _outline = new TrackPoint[0];
             _svgPath = "";
@@ -488,7 +488,7 @@ namespace RaceCorProDrive.Plugin.Engine
 
             if (_samples.Count < 10)
             {
-                SimHub.Logging.Current.Warn("[RaceCorProDrive] Track recording too short, discarding");
+                Log.Warn("[RaceCorProDrive] Track recording too short, discarding");
                 _recording = true; // retry next lap
                 _samples.Clear();
                 return;
@@ -497,7 +497,7 @@ namespace RaceCorProDrive.Plugin.Engine
             // Validate the recording isn't degenerate (straight line)
             if (!ValidateTrackShape(_samples))
             {
-                SimHub.Logging.Current.Warn("[RaceCorProDrive] Track recording looks like a straight line (bad velocity data?), retrying next lap");
+                Log.Warn("[RaceCorProDrive] Track recording looks like a straight line (bad velocity data?), retrying next lap");
                 _recording = true;
                 _samples.Clear();
                 return;
@@ -513,7 +513,7 @@ namespace RaceCorProDrive.Plugin.Engine
             SaveToOwnCache(_currentTrackId);
             SaveToBundledMaps(_currentTrackId);
 
-            SimHub.Logging.Current.Info($"[RaceCorProDrive] Track map recorded: {_outline.Length} points");
+            Log.Info($"[RaceCorProDrive] Track map recorded: {_outline.Length} points");
         }
 
         /// <summary>
@@ -850,11 +850,11 @@ namespace RaceCorProDrive.Plugin.Engine
                 }
 
                 File.WriteAllText(path, sb.ToString());
-                SimHub.Logging.Current.Info($"[RaceCorProDrive] Track map saved to {path}");
+                Log.Info($"[RaceCorProDrive] Track map saved to {path}");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Failed to save track map to trackmaps dir: {ex.Message}");
+                Log.Warn($"[RaceCorProDrive] Failed to save track map to trackmaps dir: {ex.Message}");
             }
         }
 
@@ -1014,15 +1014,15 @@ namespace RaceCorProDrive.Plugin.Engine
                 try { File.Delete(tmpPath); } catch { }
 
                 if (loaded)
-                    SimHub.Logging.Current.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from K10 web API");
+                    Log.Info($"[RaceCorProDrive] Loaded track map for '{trackId}' from K10 web API");
                 else
-                    SimHub.Logging.Current.Warn($"[RaceCorProDrive] K10 web API returned rawCsv for '{trackId}' but it failed to parse");
+                    Log.Warn($"[RaceCorProDrive] K10 web API returned rawCsv for '{trackId}' but it failed to parse");
 
                 return loaded;
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Web API track map fetch failed for '{trackId}': {ex.Message}");
+                Log.Warn($"[RaceCorProDrive] Web API track map fetch failed for '{trackId}': {ex.Message}");
                 return false;
             }
         }
@@ -1086,7 +1086,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Failed to parse map file '{filePath}': {ex.Message}");
+                Log.Warn($"[RaceCorProDrive] Failed to parse map file '{filePath}': {ex.Message}");
                 return false;
             }
         }
@@ -1187,11 +1187,11 @@ namespace RaceCorProDrive.Plugin.Engine
                 }
 
                 File.WriteAllText(path, sb.ToString());
-                SimHub.Logging.Current.Info($"[RaceCorProDrive] Track map saved to {path}");
+                Log.Info($"[RaceCorProDrive] Track map saved to {path}");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Failed to save track map: {ex.Message}");
+                Log.Warn($"[RaceCorProDrive] Failed to save track map: {ex.Message}");
             }
         }
 

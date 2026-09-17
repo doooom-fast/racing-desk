@@ -198,7 +198,7 @@ namespace RaceCorProDrive.Plugin.Engine
         {
             if (!File.Exists(jsonPath))
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Topics file not found: {jsonPath}");
+                Log.Warn($"[RaceCorProDrive] Topics file not found: {jsonPath}");
                 LoadBuiltinTopics();
                 return;
             }
@@ -212,11 +212,11 @@ namespace RaceCorProDrive.Plugin.Engine
                 };
                 var file = JsonConvert.DeserializeObject<CommentaryTopicsFile>(json, settings);
                 _topics = file?.Topics ?? new List<CommentaryTopic>();
-                SimHub.Logging.Current.Info($"[RaceCorProDrive] Loaded {_topics.Count} topics from {jsonPath}");
+                Log.Info($"[RaceCorProDrive] Loaded {_topics.Count} topics from {jsonPath}");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"[RaceCorProDrive] Failed to load topics: {ex.Message}");
+                Log.Error($"[RaceCorProDrive] Failed to load topics: {ex.Message}");
                 LoadBuiltinTopics();
             }
         }
@@ -225,7 +225,7 @@ namespace RaceCorProDrive.Plugin.Engine
         {
             if (!File.Exists(jsonPath))
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Sentiments file not found: {jsonPath}");
+                Log.Warn($"[RaceCorProDrive] Sentiments file not found: {jsonPath}");
                 return;
             }
 
@@ -250,11 +250,11 @@ namespace RaceCorProDrive.Plugin.Engine
                             _sentimentLabels[s.Id] = s.Label;
                     }
                 }
-                SimHub.Logging.Current.Info($"[RaceCorProDrive] Loaded {_sentimentColors.Count} sentiment colors");
+                Log.Info($"[RaceCorProDrive] Loaded {_sentimentColors.Count} sentiment colors");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"[RaceCorProDrive] Failed to load sentiments: {ex.Message}");
+                Log.Error($"[RaceCorProDrive] Failed to load sentiments: {ex.Message}");
             }
         }
 
@@ -272,7 +272,7 @@ namespace RaceCorProDrive.Plugin.Engine
         {
             if (!File.Exists(jsonPath))
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Track commentary file not found: {jsonPath}");
+                Log.Warn($"[RaceCorProDrive] Track commentary file not found: {jsonPath}");
                 return;
             }
 
@@ -285,11 +285,11 @@ namespace RaceCorProDrive.Plugin.Engine
                 };
                 var file = JsonConvert.DeserializeObject<CommentaryTracksFile>(json, settings);
                 _trackData = file?.Tracks ?? new Dictionary<string, TrackCommentaryData>();
-                SimHub.Logging.Current.Info($"[RaceCorProDrive] Loaded {_trackData.Count} track commentary entries from {jsonPath}");
+                Log.Info($"[RaceCorProDrive] Loaded {_trackData.Count} track commentary entries from {jsonPath}");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"[RaceCorProDrive] Failed to load track data: {ex.Message}");
+                Log.Error($"[RaceCorProDrive] Failed to load track data: {ex.Message}");
             }
         }
 
@@ -302,7 +302,7 @@ namespace RaceCorProDrive.Plugin.Engine
         {
             if (!File.Exists(jsonPath))
             {
-                SimHub.Logging.Current.Warn($"[RaceCorProDrive] Car commentary file not found: {jsonPath}");
+                Log.Warn($"[RaceCorProDrive] Car commentary file not found: {jsonPath}");
                 return;
             }
 
@@ -316,11 +316,11 @@ namespace RaceCorProDrive.Plugin.Engine
                 var file = JsonConvert.DeserializeObject<CommentaryCarsFile>(json, settings);
                 _carData = file?.Cars ?? new Dictionary<string, CarCommentaryData>();
                 _manufacturerData = file?.Manufacturers ?? new Dictionary<string, ManufacturerCommentaryData>();
-                SimHub.Logging.Current.Info($"[RaceCorProDrive] Loaded {_carData.Count} car + {_manufacturerData.Count} manufacturer commentary entries from {jsonPath}");
+                Log.Info($"[RaceCorProDrive] Loaded {_carData.Count} car + {_manufacturerData.Count} manufacturer commentary entries from {jsonPath}");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"[RaceCorProDrive] Failed to load car data: {ex.Message}");
+                Log.Error($"[RaceCorProDrive] Failed to load car data: {ex.Message}");
             }
         }
 
@@ -438,7 +438,7 @@ namespace RaceCorProDrive.Plugin.Engine
                         continue; // skip — current prompt is same or higher severity
 
                     // Higher-severity event: interrupt immediately
-                    SimHub.Logging.Current.Info(
+                    Log.Info(
                         $"[RaceCorProDrive] Interrupting [{_currentTitle}] (sev {_currentSeverity}) with [{topic.Title}] (sev {topic.Severity})");
                 }
                 else
@@ -515,7 +515,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
 
             if (step.IsInterrupt && IsVisible)
-                SimHub.Logging.Current.Info(
+                Log.Info(
                     $"[RaceCorProDrive][Demo] Interrupting [{_currentTitle}] (sev {_currentSeverity}) with [{topic.Title}] (sev {topic.Severity})");
 
             // Sync telemetry provider with this step's event-driven state
@@ -707,7 +707,7 @@ namespace RaceCorProDrive.Plugin.Engine
             _topicLastTrigger[topic.Id] = DateTime.UtcNow;
             _lastPromptFireTime = DateTime.UtcNow;
 
-            SimHub.Logging.Current.Info($"[RaceCorProDrive] Prompt shown: [{topic.Title}] (sev {topic.Severity}) {prompt}");
+            Log.Info($"[RaceCorProDrive] Prompt shown: [{topic.Title}] (sev {topic.Severity}) {prompt}");
         }
 
         /// <summary>

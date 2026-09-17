@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using Fleck;
-using static SimHub.Logging;
 
 namespace RaceCorProDrive.Plugin.Transport
 {
@@ -48,28 +47,28 @@ namespace RaceCorProDrive.Plugin.Transport
                     var clientConn = new WsClientConnection(connId, socket);
                     _clients.TryAdd(connId, clientConn);
 
-                    Current.Info($"[RaceCorProDrive.WsServer] Client connected: {connId}");
+                    Log.Info($"[RaceCorProDrive.WsServer] Client connected: {connId}");
                     _onConnectHandler?.Invoke(clientConn);
 
                     socket.OnClose += () =>
                     {
                         _clients.TryRemove(connId, out _);
-                        Current.Info($"[RaceCorProDrive.WsServer] Client disconnected: {connId}");
+                        Log.Info($"[RaceCorProDrive.WsServer] Client disconnected: {connId}");
                         _onDisconnectHandler?.Invoke(clientConn);
                     };
 
                     socket.OnError += ex =>
                     {
-                        Current.Warn($"[RaceCorProDrive.WsServer] Client {connId} error: {ex.Message}");
+                        Log.Warn($"[RaceCorProDrive.WsServer] Client {connId} error: {ex.Message}");
                     };
                 });
 
                 _running = true;
-                Current.Info($"[RaceCorProDrive.WsServer] WebSocket server listening on {url}");
+                Log.Info($"[RaceCorProDrive.WsServer] WebSocket server listening on {url}");
             }
             catch (Exception ex)
             {
-                Current.Warn($"[RaceCorProDrive.WsServer] Failed to start: {ex.Message}");
+                Log.Warn($"[RaceCorProDrive.WsServer] Failed to start: {ex.Message}");
                 _running = false;
             }
         }
@@ -92,7 +91,7 @@ namespace RaceCorProDrive.Plugin.Transport
                     }
                     catch (Exception ex)
                     {
-                        Current.Warn($"[RaceCorProDrive.WsServer] Error closing client: {ex.Message}");
+                        Log.Warn($"[RaceCorProDrive.WsServer] Error closing client: {ex.Message}");
                     }
                 }
                 _clients.Clear();
@@ -101,11 +100,11 @@ namespace RaceCorProDrive.Plugin.Transport
                 _server?.Dispose();
                 _server = null;
 
-                Current.Info("[RaceCorProDrive.WsServer] WebSocket server stopped");
+                Log.Info("[RaceCorProDrive.WsServer] WebSocket server stopped");
             }
             catch (Exception ex)
             {
-                Current.Warn($"[RaceCorProDrive.WsServer] Error stopping server: {ex.Message}");
+                Log.Warn($"[RaceCorProDrive.WsServer] Error stopping server: {ex.Message}");
             }
         }
 
@@ -131,7 +130,7 @@ namespace RaceCorProDrive.Plugin.Transport
             }
             catch (Exception ex)
             {
-                Current.Warn($"[RaceCorProDrive.WsServer] Send failed for {connectionId}: {ex.Message}");
+                Log.Warn($"[RaceCorProDrive.WsServer] Send failed for {connectionId}: {ex.Message}");
             }
         }
 

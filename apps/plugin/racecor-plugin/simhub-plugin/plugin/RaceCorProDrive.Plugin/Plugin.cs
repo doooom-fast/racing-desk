@@ -121,6 +121,14 @@ namespace RaceCorProDrive.Plugin
 
         public void Init(PluginManager pluginManager)
         {
+            // RaceCor.Core logs through a host-agnostic facade; route it into SimHub's log.
+            Log.Sink = (level, message) =>
+            {
+                if (level == Log.Level.Error) SimHub.Logging.Current.Error(message);
+                else if (level == Log.Level.Warn) SimHub.Logging.Current.Warn(message);
+                else SimHub.Logging.Current.Info(message);
+            };
+
             SimHub.Logging.Current.Info("[RaceCorProDrive] Initialising RaceCorProDrive plugin");
 
             // Load settings
@@ -149,7 +157,7 @@ namespace RaceCorProDrive.Plugin
             _engine.LoadCarData(carDataPath);
 
             // Initialise iRacing SDK bridge (direct shared memory via IRSDKSharper)
-            TelemetrySnapshot._sdkBridge = _sdkBridge;
+            TelemetryCapture._sdkBridge = _sdkBridge;
             _sdkBridge.Start();
 
             // Start screen color sampler for ambient lighting
@@ -450,7 +458,7 @@ namespace RaceCorProDrive.Plugin
         {
             // Capture current telemetry every frame (cheap snapshot)
             _previous = _current;
-            _current = TelemetrySnapshot.Capture(pluginManager, ref data);
+            _current = TelemetryCapture.Capture(pluginManager, ref data);
 
             // ── Start position tracking ──
             // Capture the grid position once when the session goes to Racing (state 4)

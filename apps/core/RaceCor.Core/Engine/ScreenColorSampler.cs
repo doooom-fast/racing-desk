@@ -72,7 +72,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 Priority = ThreadPriority.BelowNormal
             };
             _thread.Start();
-            SimHub.Logging.Current.Info("[RaceCorProDrive] ScreenColorSampler started");
+            Log.Info("[RaceCorProDrive] ScreenColorSampler started");
         }
 
         /// <summary>
@@ -87,7 +87,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 _thread.Join(1000);
                 _thread = null;
             }
-            SimHub.Logging.Current.Info("[RaceCorProDrive] ScreenColorSampler stopped");
+            Log.Info("[RaceCorProDrive] ScreenColorSampler stopped");
         }
 
         private void CaptureLoop()
@@ -175,7 +175,7 @@ namespace RaceCorProDrive.Plugin.Engine
                     frameCount++;
                     if (frameCount <= 3 || frameCount % 100 == 0)
                     {
-                        SimHub.Logging.Current.Info(
+                        Log.Info(
                             $"[RaceCorProDrive] ScreenColor frame #{frameCount}: " +
                             $"RGB({_r},{_g},{_b}) region=({srcX},{srcY},{srcW}x{srcH})");
                     }
@@ -186,7 +186,7 @@ namespace RaceCorProDrive.Plugin.Engine
                     frameCount++;
                     if (frameCount % 100 == 0)
                     {
-                        SimHub.Logging.Current.Warn(
+                        Log.Warn(
                             $"[RaceCorProDrive] ScreenColor capture error: {ex.Message}");
                     }
                 }

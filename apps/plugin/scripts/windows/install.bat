@@ -160,7 +160,7 @@ echo        OK.
 echo  [3/4] Installing plugin files...
 :: Allow-list. Add to this set when you genuinely need a new third-
 :: party dep that SimHub doesn't ship.
-set "COPY_LIST=RaceCorProDrive.dll RaceCorProDrive.pdb IRSDKSharper.dll Fleck.dll MessagePack.dll MessagePack.Annotations.dll"
+set "COPY_LIST=RaceCorProDrive.dll RaceCorProDrive.pdb RaceCor.Core.dll RaceCor.Core.pdb IRSDKSharper.dll Fleck.dll MessagePack.dll MessagePack.Annotations.dll"
 for %%F in (%COPY_LIST%) do (
     if exist "%STAGE%\%%F" (
         copy /Y "%STAGE%\%%F" "!SH!\%%F" >NUL
@@ -194,7 +194,7 @@ echo        Dataset OK.
 :: get tagged with a Zone.Identifier NTFS stream. SimHub silently
 :: refuses to load tagged plugin DLLs.
 echo  [3b]  Unblocking plugin files (Mark-of-the-Web)...
-powershell -NoProfile -Command "Get-ChildItem '!SH!' -Filter 'RaceCorProDrive.*' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!' -Filter 'IRSDKSharper.dll','Fleck.dll','MessagePack*.dll' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!\racecorprodrive-data' -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue" 2>NUL
+powershell -NoProfile -Command "Get-ChildItem '!SH!' -Filter 'RaceCor*.*' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!' -Filter 'IRSDKSharper.dll','Fleck.dll','MessagePack*.dll' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!\racecorprodrive-data' -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue" 2>NUL
 echo        OK.
 
 :: ── 6. Restart SimHub ──────────────────────────────────────────

@@ -11,7 +11,11 @@ namespace RaceCorProDrive.Plugin.Engine
     /// SimHub-dependent capture logic for TelemetrySnapshot.
     /// Kept separate so the data class can be shared with the test runner.
     /// </summary>
-    public partial class TelemetrySnapshot
+    /// <summary>
+    /// SimHub adapter: builds a <see cref="TelemetrySnapshot"/> from SimHub's GameData and property
+    /// manager. Lives in the plugin (not RaceCor.Core) because it depends on SimHub types.
+    /// </summary>
+    public static class TelemetryCapture
     {
         // ── Game detection ───────────────────────────────────────────────────────
         private enum GameId { Unknown, IRacing, ACC, AC, ACEvo, ACRally, RaceRoom, EAWRC, Forza }
@@ -660,7 +664,7 @@ namespace RaceCorProDrive.Plugin.Engine
                     if (string.IsNullOrEmpty(country))
                         country = GetRaw<string>(pm, "WeekendInfo.TrackCountry") ?? "";
                     if (!string.IsNullOrEmpty(country))
-                        s.TrackCountry = NormalizeCountryCode(country);
+                        s.TrackCountry = TelemetrySnapshot.NormalizeCountryCode(country);
                 }
                 catch (Exception ex)
                 {

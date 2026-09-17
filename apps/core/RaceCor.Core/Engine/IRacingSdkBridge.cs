@@ -89,7 +89,7 @@ namespace RaceCorProDrive.Plugin.Engine
             _sdk.Start();
             IsStarted = true;
 
-            SimHub.Logging.Current.Info("[RaceCorProDrive] IRacingSdkBridge started");
+            Log.Info("[RaceCorProDrive] IRacingSdkBridge started");
         }
 
         /// <summary>
@@ -105,13 +105,13 @@ namespace RaceCorProDrive.Plugin.Engine
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error("[RaceCorProDrive] Error stopping SDK: " + ex.Message);
+                Log.Error("[RaceCorProDrive] Error stopping SDK: " + ex.Message);
             }
 
             IsStarted = false;
             IsConnected = false;
 
-            SimHub.Logging.Current.Info("[RaceCorProDrive] IRacingSdkBridge stopped");
+            Log.Info("[RaceCorProDrive] IRacingSdkBridge stopped");
         }
 
         public void Dispose()
@@ -228,13 +228,13 @@ namespace RaceCorProDrive.Plugin.Engine
         private void OnConnected()
         {
             IsConnected = true;
-            SimHub.Logging.Current.Info("[RaceCorProDrive] iRacing SDK connected");
+            Log.Info("[RaceCorProDrive] iRacing SDK connected");
         }
 
         private void OnDisconnected()
         {
             IsConnected = false;
-            SimHub.Logging.Current.Info("[RaceCorProDrive] iRacing SDK disconnected");
+            Log.Info("[RaceCorProDrive] iRacing SDK disconnected");
         }
 
         private void OnSessionInfo()
@@ -245,7 +245,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error("[RaceCorProDrive] Error parsing session info: " + ex.Message);
+                Log.Error("[RaceCorProDrive] Error parsing session info: " + ex.Message);
             }
         }
 

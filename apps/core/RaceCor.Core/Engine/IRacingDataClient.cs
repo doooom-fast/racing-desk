@@ -67,14 +67,14 @@ namespace RaceCorProDrive.Plugin.Engine
                         if (VerifyAuth())
                         {
                             _authenticated = true;
-                            SimHub.Logging.Current.Info($"[IRacingData] Authenticated via local cookies from {path}");
+                            Log.Info($"[IRacingData] Authenticated via local cookies from {path}");
                             return true;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    SimHub.Logging.Current.Warn($"[IRacingData] Could not read cookies from {path}: {ex.Message}");
+                    Log.Warn($"[IRacingData] Could not read cookies from {path}: {ex.Message}");
                 }
             }
 
@@ -168,7 +168,7 @@ namespace RaceCorProDrive.Plugin.Engine
                             if (!string.IsNullOrEmpty(location))
                             {
                                 authUrl = new Uri(new Uri(authUrl), location).ToString();
-                                SimHub.Logging.Current.Info($"[IRacingData] Auth redirect ({code}) → {authUrl}");
+                                Log.Info($"[IRacingData] Auth redirect ({code}) → {authUrl}");
                                 continue;
                             }
                         }
@@ -176,7 +176,7 @@ namespace RaceCorProDrive.Plugin.Engine
                         if (response.StatusCode == HttpStatusCode.OK)
                         {
                             _authenticated = true;
-                            SimHub.Logging.Current.Info("[IRacingData] Authenticated via email/password");
+                            Log.Info("[IRacingData] Authenticated via email/password");
                             return true;
                         }
 
@@ -184,7 +184,7 @@ namespace RaceCorProDrive.Plugin.Engine
                         {
                             string respBody = reader.ReadToEnd();
                             _lastError = $"Auth failed: HTTP {code}";
-                            SimHub.Logging.Current.Warn($"[IRacingData] Auth failed ({code}): {respBody.Substring(0, Math.Min(respBody.Length, 200))}");
+                            Log.Warn($"[IRacingData] Auth failed ({code}): {respBody.Substring(0, Math.Min(respBody.Length, 200))}");
                         }
                         break; // Non-redirect, non-OK — stop retrying
                     }
@@ -320,7 +320,7 @@ namespace RaceCorProDrive.Plugin.Engine
                                 }
                                 catch (Exception ex)
                                 {
-                                    SimHub.Logging.Current.Warn($"[IRacingData] Chunk fetch failed: {ex.Message}");
+                                    Log.Warn($"[IRacingData] Chunk fetch failed: {ex.Message}");
                                 }
                             }
                         }
@@ -348,10 +348,10 @@ namespace RaceCorProDrive.Plugin.Engine
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[IRacingData] SearchAllRaces failed: {ex.Message}");
+                Log.Warn($"[IRacingData] SearchAllRaces failed: {ex.Message}");
             }
 
-            SimHub.Logging.Current.Info($"[IRacingData] SearchAllRaces found {allRaces.Count} results");
+            Log.Info($"[IRacingData] SearchAllRaces found {allRaces.Count} results");
             return allRaces;
         }
 
@@ -420,7 +420,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 int custId = memberInfo.Value<int>("cust_id");
                 string displayName = memberInfo.Value<string>("display_name") ?? "";
 
-                SimHub.Logging.Current.Info($"[IRacingData] Exporting career for {displayName} (#{custId})");
+                Log.Info($"[IRacingData] Exporting career for {displayName} (#{custId})");
 
                 // 2. Fetch ALL race results via paginated search, fall back to recent
                 JArray recentRaces;
@@ -430,18 +430,18 @@ namespace RaceCorProDrive.Plugin.Engine
                     if (allRaces.Count > 0)
                     {
                         recentRaces = allRaces;
-                        SimHub.Logging.Current.Info($"[IRacingData] Full history: {allRaces.Count} races found");
+                        Log.Info($"[IRacingData] Full history: {allRaces.Count} races found");
                     }
                     else
                     {
                         // Fallback to member_recent_races (last ~25)
                         recentRaces = GetRecentRaces(custId);
-                        SimHub.Logging.Current.Info($"[IRacingData] Full search empty, falling back to recent: {recentRaces.Count} races");
+                        Log.Info($"[IRacingData] Full search empty, falling back to recent: {recentRaces.Count} races");
                     }
                 }
                 catch (Exception ex)
                 {
-                    SimHub.Logging.Current.Warn($"[IRacingData] Full history search failed, trying recent: {ex.Message}");
+                    Log.Warn($"[IRacingData] Full history search failed, trying recent: {ex.Message}");
                     try { recentRaces = GetRecentRaces(custId); }
                     catch { recentRaces = new JArray(); }
                 }
@@ -451,7 +451,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 try { careerSummary = GetMemberSummary(custId); }
                 catch (Exception ex)
                 {
-                    SimHub.Logging.Current.Warn($"[IRacingData] Career summary fetch failed: {ex.Message}");
+                    Log.Warn($"[IRacingData] Career summary fetch failed: {ex.Message}");
                     careerSummary = new JArray();
                 }
 
@@ -475,7 +475,7 @@ namespace RaceCorProDrive.Plugin.Engine
                     }
                     catch (Exception ex)
                     {
-                        SimHub.Logging.Current.Warn($"[IRacingData] Chart data ({name}) failed: {ex.Message}");
+                        Log.Warn($"[IRacingData] Chart data ({name}) failed: {ex.Message}");
                     }
                 }
 
@@ -484,7 +484,7 @@ namespace RaceCorProDrive.Plugin.Engine
                 try { yearlyStats = GetYearlyStats(custId); }
                 catch (Exception ex)
                 {
-                    SimHub.Logging.Current.Warn($"[IRacingData] Yearly stats fetch failed: {ex.Message}");
+                    Log.Warn($"[IRacingData] Yearly stats fetch failed: {ex.Message}");
                     yearlyStats = new JArray();
                 }
 
@@ -503,7 +503,7 @@ namespace RaceCorProDrive.Plugin.Engine
             catch (Exception ex)
             {
                 _lastError = $"Export failed: {ex.Message}";
-                SimHub.Logging.Current.Error($"[IRacingData] Career export error: {ex}");
+                Log.Error($"[IRacingData] Career export error: {ex}");
                 return null;
             }
         }
@@ -663,7 +663,7 @@ namespace RaceCorProDrive.Plugin.Engine
                             // Found the cookie name — the value is nearby in the binary data
                             // In Chromium's SQLite schema, encrypted_value follows the name
                             // For now, log that we found the cookie location
-                            SimHub.Logging.Current.Info($"[IRacingData] Found cookie '{name}' in store at offset {idx}");
+                            Log.Info($"[IRacingData] Found cookie '{name}' in store at offset {idx}");
                         }
                     }
                 }
@@ -674,7 +674,7 @@ namespace RaceCorProDrive.Plugin.Engine
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[IRacingData] Cookie read failed: {ex.Message}");
+                Log.Warn($"[IRacingData] Cookie read failed: {ex.Message}");
             }
 
             return result;

@@ -59,25 +59,19 @@
     <Resource Include="logo-racecor.png" />
   </ItemGroup>
 
-  <!-- NuGet packages -->
+  <!--
+    The engine lives in RaceCor.Core (apps/core), multi-targeted net48 + net8.0-windows. Its
+    third-party deps (IRSDKSharper, Fleck, MessagePack) flow through the project reference.
+  -->
   <ItemGroup>
-    <PackageReference Include="IRSDKSharper" Version="1.1.4" />
-    <!--
-      Newtonsoft.Json + log4net come from NuGet for compile-time
-      reference resolution (so CI builds without SimHub installed
-      can compile), but their runtime DLLs are EXCLUDED from output
-      (ExcludeAssets=runtime) so we don't overwrite SimHub's own
-      versions in its install directory.
+    <ProjectReference Include="../../../../../core/RaceCor.Core/RaceCor.Core.csproj" />
+  </ItemGroup>
 
-      SimHub ships these DLLs and version-checks them at startup -
-      shipping a different patch (e.g. our Newtonsoft.Json 13.0.3
-      vs SimHub's 13.0.4) trips an INVALID version error in
-      SimHub.txt and disables plugin discovery entirely. Let SimHub
-      provide them; we just compile against them.
-
-      Newtonsoft.Json bumped 13.0.3 -> 13.0.4 to match what SimHub
-      v9.11+ requires (their AssemblyVersion check is patch-strict).
-    -->
+  <!--
+    Newtonsoft.Json + log4net: compile-time only. Their runtime DLLs are EXCLUDED from output so we
+    never overwrite SimHub's own versions, which it version-checks strictly at startup.
+  -->
+  <ItemGroup>
     <PackageReference Include="log4net" Version="2.0.15">
       <ExcludeAssets>runtime</ExcludeAssets>
       <Private>false</Private>
@@ -86,10 +80,6 @@
       <ExcludeAssets>runtime</ExcludeAssets>
       <Private>false</Private>
     </PackageReference>
-    <!-- WebSocket server (pure-managed, net48 compatible) -->
-    <PackageReference Include="Fleck" Version="1.2.0" />
-    <!-- MessagePack serialization (stay on 2.5.x for net48 compatibility) -->
-    <PackageReference Include="MessagePack" Version="2.5.187" />
   </ItemGroup>
 
   <!-- WinForms — needed for FolderBrowserDialog in settings panel -->
@@ -129,26 +119,6 @@
     point at build/.
   -->
 
-  <!--
-    Post-build: export built artifacts back into the repo.
-    Local dev reads from SimHub folder; CI reads from build/ folder.
-    RepoPluginDir = racecor-plugin/ (two levels up from this .csproj).
-  -->
-  <PropertyGroup>
-    <RepoPluginDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..'))\</RepoPluginDir>
-  </PropertyGroup>
-  <Target Name="ExportToRepo" AfterTargets="Build">
-    <!-- DLL -->
-    <Copy SourceFiles="$(OutputPath)RaceCorProDrive.dll"
-          DestinationFolder="$(RepoPluginDir)"
-          SkipUnchangedFiles="true" />
-    <!-- PDB (Debug builds only) -->
-    <Copy SourceFiles="$(OutputPath)RaceCorProDrive.pdb"
-          DestinationFolder="$(RepoPluginDir)"
-          Condition="Exists('$(OutputPath)RaceCorProDrive.pdb')"
-          SkipUnchangedFiles="true" />
-  
-  </Target>
 
   <!-- Debug: launch SimHub when pressing F5 -->
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
