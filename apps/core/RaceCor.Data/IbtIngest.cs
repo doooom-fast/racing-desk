@@ -35,12 +35,39 @@ namespace RaceCor.Data
         /// <param name="frameStep">Read every Nth frame (3 = 20 Hz; enough for laps, incidents and geometry).</param>
         /// <param name="force">Re-read files already stored (after an accumulator change).</param>
         /// <param name="pause">Checked before each file; while it returns true, ingest waits (e.g. while iRacing runs).</param>
+        /// <summary>
+        /// Sessions stored before schema v2 have no category. It lives in the file's session YAML, so fill it in
+        /// from the header alone instead of re-reading every frame.
+        /// </summary>
+        public int BackfillCategories(CancellationToken ct = default)
+        {
+            int updated = 0;
+            foreach (var path in _store.IbtPathsMissingCategory())
+            {
+                if (ct.IsCancellationRequested) break;
+                try
+                {
+                    if (!File.Exists(path)) continue;
+                    using var file = new IbtFile(path);
+                    string category = file.SessionInfo?.WeekendInfo?.Category;
+                    if (!string.IsNullOrEmpty(category)) updated += _store.SetCategory(path, category);
+                }
+                catch (Exception ex) when (!(ex is OperationCanceledException))
+                {
+                    _log($"category unreadable for {Path.GetFileName(path)}: {ex.Message}");
+                }
+            }
+            if (updated > 0) _log($"filled in category for {updated} sessions");
+            return updated;
+        }
+
         public IngestSummary Run(string directory, int frameStep = 3, int limit = int.MaxValue, CancellationToken ct = default,
             bool force = false, Func<bool> pause = null)
         {
             var summary = new IngestSummary();
             // Backfill reads ~100 GB; never let it compete with the sim for the disk.
             using var lowIo = BackgroundIo.Enter();
+            BackfillCategories(ct);
             var clock = Stopwatch.StartNew();
             var files = Directory.Exists(directory)
                 ? new DirectoryInfo(directory).EnumerateFiles("*.ibt").OrderBy(f => f.LastWriteTimeUtc).ToList()

@@ -39,6 +39,11 @@ namespace RaceCorProDrive.Plugin
             public bool EnableHardware { get; set; } = true;
             /// <summary>The direct iRacing SDK bridge used for iRating / SR / delta. Off when replaying a file.</summary>
             public bool EnableSdkBridge { get; set; } = true;
+            /// <summary>
+            /// Extra HTTP routes a host serves under the contract prefix (RaceCor.Host: the local data API). Return true
+            /// when the request was handled and the response written.
+            /// </summary>
+            public Func<HttpListenerContext, bool> ExtraRoutes { get; set; }
             /// <summary>Track outlines from local telemetry, by track id (see TrackMapProvider.LocalOutlineSource).</summary>
             public Func<string, IReadOnlyList<(double X, double Z, double Pct)>> TrackOutline { get; set; }
         }

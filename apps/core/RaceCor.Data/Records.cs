@@ -16,6 +16,8 @@ namespace RaceCor.Data
         public int SeasonId { get; set; }
         public int RaceWeek { get; set; }
         public string EventType { get; set; }
+        /// <summary>iRacing's WeekendInfo.Category: Road, SportsCar, Formula, Oval, DirtRoad, DirtOval.</summary>
+        public string Category { get; set; }
         public string SessionType { get; set; }
         public bool Official { get; set; }
         public int TrackId { get; set; }
@@ -59,6 +61,8 @@ namespace RaceCor.Data
         public bool Pitted { get; set; }
         public double StartSessionTime { get; set; }
         public int Position { get; set; }
+        /// <summary>First lap after getting in the car (standing start, pit exit, tow). Not stored.</summary>
+        public bool OutLap { get; set; }
     }
 
     public sealed class IncidentRecord

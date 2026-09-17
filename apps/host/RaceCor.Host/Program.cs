@@ -16,10 +16,12 @@ namespace RaceCor.Host
         private const string Usage = @"RaceCor.Host — Pro Drive without SimHub
 
   RaceCor.Host                      follow live iRacing: serve :8889 / :8890, record sessions,
-                                    backfill new .ibt files in the background
+                                    backfill new .ibt files in the background; the local store is
+                                    readable at :8889/racecor-io-pro-drive/data/{status,sessions,session?id=}
   RaceCor.Host --ibt <file>         replay a recorded .ibt through the same pipeline
   RaceCor.Host ingest               backfill the local store from .ibt history
   RaceCor.Host sessions             list stored sessions
+  RaceCor.Host sql ""<select>""       run a read-only query against the store, print JSON
 
 Serve options:
   --http-port <n>      JSON contract port (default 8889)
@@ -64,6 +66,7 @@ Data options:
             {
                 case "ingest": return Ingest(o);
                 case "sessions": return Sessions(o);
+                case "sql": return Sql(o);
                 default: return Serve(o);
             }
         }
@@ -76,6 +79,7 @@ Data options:
             string settingsPath = Path.Combine(dataDir, "settings.json");
 
             bool replay = o.IbtPath != null;
+            string dbPath = o.Db ?? ProDriveStore.DefaultPath;
             var runtime = new ProDriveRuntime(LoadSettings(settingsPath), new ProDriveRuntime.Options
             {
                 AssemblyDirectory = AppContext.BaseDirectory,
@@ -84,13 +88,12 @@ Data options:
                 WsPort = o.WsPort,
                 EnableHardware = !replay && !o.NoHardware,
                 EnableSdkBridge = !replay,
-                TrackOutline = File.Exists(o.Db ?? ProDriveStore.DefaultPath)
-                    ? new TrackOutlines(o.Db ?? ProDriveStore.DefaultPath).ForTrack
-                    : null,
+                TrackOutline = File.Exists(dbPath) ? new TrackOutlines(dbPath).ForTrack : null,
+                ExtraRoutes = new LocalDataApi(dbPath).TryHandle,
             });
 
             bool record = replay ? o.Record : !o.NoRecord;
-            using var store = record || (!replay && !o.NoIngest) ? new ProDriveStore(o.Db ?? ProDriveStore.DefaultPath) : null;
+            using var store = record || (!replay && !o.NoIngest) ? new ProDriveStore(dbPath) : null;
 
             using var stop = new ManualResetEventSlim();
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Set(); };
@@ -249,6 +252,16 @@ Data options:
             return 0;
         }
 
+        private static int Sql(HostOptions o)
+        {
+            using var store = ProDriveStore.OpenReadOnly(o.Db ?? ProDriveStore.DefaultPath);
+            using var stdout = Console.OpenStandardOutput();
+            using (var json = new System.Text.Json.Utf8JsonWriter(stdout, new System.Text.Json.JsonWriterOptions { Indented = true }))
+                store.WriteJson(json, o.Sql);
+            Console.WriteLine();
+            return 0;
+        }
+
         private static string Fmt(double seconds) =>
             seconds > 0 && seconds < 86400 ? TimeSpan.FromSeconds(seconds).ToString(seconds >= 60 ? @"m\:ss\.fff" : @"ss\.fff", CultureInfo.InvariantCulture) : "   —    ";
 
@@ -286,6 +299,7 @@ Data options:
     internal sealed class HostOptions
     {
         public string Command;
+        public string Sql;
         public string IbtPath;
         public double Speed = 1;
         public double SeekSeconds;
@@ -316,7 +330,12 @@ Data options:
             {
                 o.Command = args[0];
                 start = 1;
-                if (o.Command != "ingest" && o.Command != "sessions") throw new ArgumentException($"unknown command {o.Command}");
+                if (o.Command != "ingest" && o.Command != "sessions" && o.Command != "sql") throw new ArgumentException($"unknown command {o.Command}");
+                if (o.Command == "sql")
+                {
+                    o.Sql = args.Length > 1 ? args[1] : throw new ArgumentException("sql needs a query");
+                    start = 2;
+                }
             }
             for (int i = start; i < args.Length; i++)
             {

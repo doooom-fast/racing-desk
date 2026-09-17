@@ -14,6 +14,7 @@ namespace RaceCor.Data
     public sealed class SessionAccumulator
     {
         private const int OffTrack = 0;          // irsdk_TrkLoc
+        private const int InPitStall = 1;
         private const int RacingState = 4;       // irsdk_SessionState.Racing
         private const double LapTimeSettleSeconds = 3.0;
         private const int MaxIncidentPoints = 25;
@@ -82,13 +83,15 @@ namespace RaceCor.Data
             // A lap posted at the line may get its official time a few frames later.
             if (_pending != null && (lastLap != _pending.LastLapAtCrossing || t - _pending.CrossedAt >= LapTimeSettleSeconds))
             {
-                _pending.Record.LapTimeSeconds = lastLap > 0 && lastLap < MaxLapSeconds ? lastLap : _pending.Record.LapTimeSeconds;
+                if (lastLap >= MinLapSeconds(info) && lastLap < MaxLapSeconds) _pending.Record.LapTimeSeconds = lastLap;
                 _pending = null;
             }
 
             if (_lap == null)
             {
-                _lap = new LapInProgress(t, fuel, outLap: true);
+                // A capture can begin mid-lap (rejoining a race writes a new .ibt): only iRacing's own lap time
+                // is trustworthy for that lap, and it's an out lap only if the car starts in the pits.
+                _lap = new LapInProgress(t, fuel, outLap: onPit || surface == InPitStall, startObserved: false);
                 _lastLapCompleted = lapCompleted;
                 _lastIncidents = incidents;
             }
@@ -110,21 +113,27 @@ namespace RaceCor.Data
                 var rec = new LapRecord
                 {
                     Lap = lapCompleted,
-                    LapTimeSeconds = t - _lap.StartTime,
-                    Clean = !_lap.Dirty && !_lap.OutLap,
+                    LapTimeSeconds = _lap.StartObserved ? t - _lap.StartTime : 0,
+                    Clean = !_lap.Dirty && !_lap.OutLap && _lap.StartObserved,
                     Incidents = _lap.Incidents,
-                    FuelUsedLiters = Math.Max(0, _lap.StartFuel - fuel),
+                    FuelUsedLiters = _lap.StartObserved ? Math.Max(0, _lap.StartFuel - fuel) : 0,
                     Pitted = _lap.Pitted,
                     StartSessionTime = _lap.StartTime,
                     Position = position,
+                    OutLap = _lap.OutLap,
                 };
                 _cur.Laps.Add(rec);
                 _pending = new PendingLap { Record = rec, CrossedAt = t, LastLapAtCrossing = lastLap };
-                _lap = new LapInProgress(t, fuel, outLap: false) { Pitted = onPit, Dirty = onPit };
+                _lap = new LapInProgress(t, fuel, outLap: false, startObserved: true) { Pitted = onPit, Dirty = onPit };
             }
-            else if (lapCompleted < _lastLapCompleted)
+            else if (lapCompleted >= 0 && _lastLapCompleted < 0)
             {
-                _lap = new LapInProgress(t, fuel, outLap: true); // reset / tow
+                // Before a race start iRacing reports -1 laps completed; the count starting is lap 1 starting.
+                _lap = new LapInProgress(t, fuel, outLap: false, startObserved: true);
+            }
+            else if (lapCompleted >= 0 && lapCompleted < _lastLapCompleted)
+            {
+                _lap = new LapInProgress(t, fuel, outLap: true, startObserved: false); // reset / tow
             }
             _lastLapCompleted = lapCompleted;
             return finished;
@@ -171,10 +180,18 @@ namespace RaceCor.Data
             s.DurationSeconds = Math.Max(0, _lastTime - _firstTime);
             // Per capture, not iRacing's session-cumulative counters: one session driven across several .ibt
             // files (leaving and re-entering the car) must not count the same laps and incidents twice.
+            ApplySessionInfo(s, _lastInfo);
+            // A lap "completed" right after a reset or tow can carry a time of a fraction of a second.
+            double minLap = MinLapSeconds(_lastInfo);
+            foreach (var lap in s.Laps)
+                if (lap.LapTimeSeconds < minLap || lap.LapTimeSeconds >= MaxLapSeconds) lap.LapTimeSeconds = 0;
             s.LapsCompleted = s.Laps.Count;
             s.Incidents = s.IncidentEvents.Sum(i => i.Points);
-            s.BestLapSeconds = _lastBestLap > 0 ? _lastBestLap : s.Laps.Where(l => l.Clean && l.LapTimeSeconds > 0).Select(l => l.LapTimeSeconds).DefaultIfEmpty(0).Min();
-            ApplySessionInfo(s, _lastInfo);
+            // Best lap: iRacing's results table, then its running best, then our own laps. Incidents don't
+            // disqualify a lap (race laps rarely count as clean); out laps and pit laps do.
+            double resultsBest = s.Grid.Where(g => g.IsPlayer).Select(g => g.FastestLapSeconds).DefaultIfEmpty(0).First();
+            double ownBest = s.Laps.Where(l => !l.OutLap && !l.Pitted && l.LapTimeSeconds > 0).Select(l => l.LapTimeSeconds).DefaultIfEmpty(0).Min();
+            s.BestLapSeconds = resultsBest >= minLap ? resultsBest : _lastBestLap >= minLap ? _lastBestLap : ownBest;
             if (s.FinishPosition == 0 && IsRace(s)) s.FinishPosition = _lastPosition;
         }
 
@@ -186,6 +203,10 @@ namespace RaceCor.Data
             _lap = null;
             _pending = null;
         }
+
+        /// <summary>Nothing laps a kilometre in under ten seconds.</summary>
+        private static double MinLapSeconds(IRacingSdkSessionInfo info) =>
+            Math.Max(10, ParseKm(info?.WeekendInfo?.TrackLength) * 10);
 
         private static bool IsRace(SessionRecord s) => string.Equals(s.SessionType, "Race", StringComparison.OrdinalIgnoreCase);
 
@@ -201,6 +222,7 @@ namespace RaceCor.Data
                 s.SeasonId = w.SeasonID;
                 s.RaceWeek = w.RaceWeek;
                 s.EventType = w.EventType;
+                s.Category = w.Category;
                 s.Official = w.Official != 0;
                 s.TrackId = w.TrackID;
                 s.TrackName = w.TrackName;
@@ -298,12 +320,15 @@ namespace RaceCor.Data
 
         private sealed class LapInProgress
         {
-            public LapInProgress(double startTime, double startFuel, bool outLap)
+            public LapInProgress(double startTime, double startFuel, bool outLap, bool startObserved)
             {
                 StartTime = startTime;
                 StartFuel = startFuel;
                 OutLap = outLap;
+                StartObserved = startObserved;
             }
+            /// <summary>The lap began at the line while we were watching, so its measured time is whole.</summary>
+            public bool StartObserved { get; }
             public double StartTime { get; }
             public double StartFuel { get; }
             public bool OutLap { get; }

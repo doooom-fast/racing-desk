@@ -77,6 +77,7 @@ namespace RaceCorProDrive.Plugin
                     break;
                 }
 
+                bool responseHandedOff = false;
                 try
                 {
                     // Handle CORS preflight
@@ -91,6 +92,15 @@ namespace RaceCorProDrive.Plugin
                         ctx.Response.StatusCode = 204;
                         ctx.Response.OutputStream.Close();
                         continue;
+                    }
+
+                    // ── Host-provided routes (e.g. RaceCor.Host's local data API) ──
+                    if (_options.ExtraRoutes != null)
+                    {
+                        bool handled = false;
+                        try { handled = _options.ExtraRoutes(ctx); }
+                        catch (Exception ex) { Log.Warn($"[RaceCorProDrive] Extra route failed: {ex.Message}"); }
+                        if (handled) { responseHandedOff = true; continue; }
                     }
 
                     // ── Handle action endpoints ──────────────────────────────
@@ -906,10 +916,14 @@ namespace RaceCorProDrive.Plugin
                 }
                 finally
                 {
-                    try { ctx.Response.OutputStream.Close(); }
-                    catch (Exception ex)
+                    // A host route that answers asynchronously owns the response and closes it itself.
+                    if (!responseHandedOff)
                     {
-                        Log.Warn($"[RaceCorProDrive] Response output stream close failed: {ex.Message}");
+                        try { ctx.Response.OutputStream.Close(); }
+                        catch (Exception ex)
+                        {
+                            Log.Warn($"[RaceCorProDrive] Response output stream close failed: {ex.Message}");
+                        }
                     }
                 }
             }

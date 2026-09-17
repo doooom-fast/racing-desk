@@ -60,6 +60,45 @@ namespace RaceCorProDrive.Tests.IRacing
         }
 
         [Test]
+        public void ShortAndInterruptedRacesStillGetABestLapAndNoImpossibleLapTimes()
+        {
+            // Recent race files of any length: stints cut by a tow or a rejoin, one- and two-lap captures.
+            var races = IbtFileTests.NewestIbt(60)
+                .Where(f =>
+                {
+                    try
+                    {
+                        using var ibt = new IbtFile(f.FullName);
+                        return ibt.SessionInfo?.WeekendInfo?.EventType == "Race" && ibt.SessionInfo.WeekendInfo.Official == 1;
+                    }
+                    catch { return false; }
+                })
+                .Take(12)
+                .ToList();
+            Assume.That(races, Is.Not.Empty, "no recent official race files on this machine");
+
+            int checkedSessions = 0;
+            foreach (var file in races)
+            {
+                foreach (var s in IbtIngest.IngestFile(file.FullName, frameStep: 3).Sessions.Where(x => x.SessionType == "Race"))
+                {
+                    double minLap = Math.Max(10, s.TrackLengthKm * 10);
+                    foreach (var lap in s.Laps)
+                    {
+                        Assert.That(lap.LapTimeSeconds == 0 || lap.LapTimeSeconds >= minLap, $"{file.Name} lap {lap.Lap}: {lap.LapTimeSeconds:F2}s");
+                        // A partial lap (capture started mid-lap) would show up as faster than the session's best.
+                        if (s.BestLapSeconds > 0 && lap.LapTimeSeconds > 0)
+                            Assert.That(lap.LapTimeSeconds, Is.GreaterThanOrEqualTo(s.BestLapSeconds - 0.01), $"{file.Name} lap {lap.Lap} beats the best lap");
+                    }
+                    if (s.Laps.Any(l => !l.OutLap && !l.Pitted && l.LapTimeSeconds > 0))
+                        Assert.That(s.BestLapSeconds, Is.GreaterThanOrEqualTo(minLap), $"{file.Name}: timed laps but no best lap");
+                    checkedSessions++;
+                }
+            }
+            Assert.That(checkedSessions, Is.GreaterThan(0));
+        }
+
+        [Test]
         public void StoreRoundTripsAndReplacesInsteadOfDuplicating()
         {
             var race = IbtFileTests.NewestRace();

@@ -14,7 +14,7 @@ namespace RaceCor.Data
     /// </summary>
     public sealed class ProDriveStore : IDisposable
     {
-        public const int SchemaVersion = 1;
+        public const int SchemaVersion = 2;
 
         private readonly SqliteConnection _db;
 
@@ -23,15 +23,25 @@ namespace RaceCor.Data
         public static string DefaultPath => System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RaceCor", "prodrive.db");
 
-        public ProDriveStore(string path)
+        public ProDriveStore(string path) : this(path, readOnly: false) { }
+
+        private ProDriveStore(string path, bool readOnly)
         {
             Path = path;
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
-            _db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Mode = SqliteOpenMode.ReadWriteCreate }.ToString());
+            if (!readOnly) Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+            _db = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = path,
+                Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate,
+            }.ToString());
             _db.Open();
+            if (readOnly) return;
             Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;");
             Migrate();
         }
+
+        /// <summary>A reader for queries (the data API); never migrates or writes.</summary>
+        public static ProDriveStore OpenReadOnly(string path) => new ProDriveStore(path, readOnly: true);
 
         public void Dispose() => _db.Dispose();
 
@@ -40,6 +50,15 @@ namespace RaceCor.Data
             Exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)");
             long current = Scalar<long>("SELECT COALESCE(MAX(version), 0) FROM schema_version");
             if (current >= SchemaVersion) return;
+            if (current == 1)
+            {
+                // v2: session category. Rows ingested under v1 get it on the next 'ingest --force'.
+                using var v2 = _db.BeginTransaction();
+                Exec("ALTER TABLE sessions ADD COLUMN category TEXT", v2);
+                Exec("INSERT INTO schema_version(version) VALUES (2)", v2);
+                v2.Commit();
+                return;
+            }
 
             using var tx = _db.BeginTransaction();
             Exec(@"
@@ -50,7 +69,7 @@ CREATE TABLE sessions (
   ibt_path                  TEXT,
   session_num               INTEGER NOT NULL,
   subsession_id             INTEGER, session_id INTEGER, series_id INTEGER, season_id INTEGER, race_week INTEGER,
-  event_type                TEXT, session_type TEXT, official INTEGER,
+  event_type                TEXT, session_type TEXT, official INTEGER, category TEXT,
   track_id                  INTEGER, track_name TEXT, track_display_name TEXT, track_config TEXT, track_length_km REAL,
   car_path                  TEXT, car_id INTEGER, car_screen_name TEXT, car_class_id INTEGER,
   started_at                TEXT NOT NULL,
@@ -123,18 +142,18 @@ CREATE TABLE ingested_files (
 
             using (var cmd = Cmd(@"
 INSERT INTO sessions (source_key, source, ibt_path, session_num, subsession_id, session_id, series_id, season_id, race_week,
-  event_type, session_type, official, track_id, track_name, track_display_name, track_config, track_length_km,
+  event_type, session_type, official, category, track_id, track_name, track_display_name, track_config, track_length_km,
   car_path, car_id, car_screen_name, car_class_id, started_at, duration_s, driver_cust_id, driver_name, irating, license,
   safety_rating, laps_completed, best_lap_s, incidents, start_position, finish_position, finish_position_in_class,
   field_size, sof, saved_at)
-VALUES ($key, $source, $ibt, $num, $sub, $sid, $series, $season, $week, $event, $stype, $official, $track, $tname, $tdisp,
+VALUES ($key, $source, $ibt, $num, $sub, $sid, $series, $season, $week, $event, $stype, $official, $category, $track, $tname, $tdisp,
   $tconf, $tlen, $carpath, $carid, $carname, $carclass, $started, $dur, $cust, $driver, $ir, $lic, $sr, $laps, $best,
   $inc, $startpos, $finpos, $finclass, $field, $sof, $saved);
 SELECT last_insert_rowid();", tx))
             {
                 P(cmd, "$key", key); P(cmd, "$source", s.Source); P(cmd, "$ibt", s.IbtPath); P(cmd, "$num", s.SessionNum);
                 P(cmd, "$sub", s.SubsessionId); P(cmd, "$sid", s.SessionId); P(cmd, "$series", s.SeriesId); P(cmd, "$season", s.SeasonId);
-                P(cmd, "$week", s.RaceWeek); P(cmd, "$event", s.EventType); P(cmd, "$stype", s.SessionType); P(cmd, "$official", s.Official ? 1 : 0);
+                P(cmd, "$week", s.RaceWeek); P(cmd, "$event", s.EventType); P(cmd, "$stype", s.SessionType); P(cmd, "$official", s.Official ? 1 : 0); P(cmd, "$category", s.Category);
                 P(cmd, "$track", s.TrackId); P(cmd, "$tname", s.TrackName); P(cmd, "$tdisp", s.TrackDisplayName); P(cmd, "$tconf", s.TrackConfig);
                 P(cmd, "$tlen", s.TrackLengthKm); P(cmd, "$carpath", s.CarPath); P(cmd, "$carid", s.CarId); P(cmd, "$carname", s.CarScreenName);
                 P(cmd, "$carclass", s.CarClassId); P(cmd, "$started", Iso(s.StartedAtUtc)); P(cmd, "$dur", s.DurationSeconds);
@@ -193,6 +212,22 @@ SELECT last_insert_rowid();", tx))
             Exec("INSERT OR REPLACE INTO ingested_files VALUES ($p, $l, $m, $n, $e, $at)", tx,
                 ("$p", path), ("$l", length), ("$m", Iso(mtimeUtc)), ("$n", sessions.Count), ("$e", error), ("$at", Iso(DateTime.UtcNow)));
             tx.Commit();
+        }
+
+        public IReadOnlyList<string> IbtPathsMissingCategory()
+        {
+            using var cmd = Cmd("SELECT DISTINCT ibt_path FROM sessions WHERE source = 'ibt' AND category IS NULL AND ibt_path IS NOT NULL");
+            using var r = cmd.ExecuteReader();
+            var list = new List<string>();
+            while (r.Read()) list.Add(r.GetString(0));
+            return list;
+        }
+
+        public int SetCategory(string ibtPath, string category)
+        {
+            using var cmd = Cmd("UPDATE sessions SET category = $c WHERE source = 'ibt' AND ibt_path = $p AND category IS NULL");
+            P(cmd, "$c", category); P(cmd, "$p", ibtPath);
+            return cmd.ExecuteNonQuery();
         }
 
         public TrackGeometryRecord GetGeometry(int trackId)
@@ -275,6 +310,36 @@ FROM sessions WHERE ($type IS NULL OR session_type = $type) ORDER BY started_at 
                 list.Add(new LapRecord { Lap = r.GetInt32(0), LapTimeSeconds = r.GetDouble(1), Clean = r.GetInt32(2) != 0, Incidents = r.GetInt32(3),
                     FuelUsedLiters = r.GetDouble(4), Pitted = r.GetInt32(5) != 0, StartSessionTime = r.GetDouble(6), Position = r.GetInt32(7) });
             return list;
+        }
+
+        /// <summary>
+        /// Runs a read-only query and writes the rows as a JSON array of objects keyed by column name.
+        /// </summary>
+        public void WriteJson(System.Text.Json.Utf8JsonWriter json, string sql, params (string Name, object Value)[] args)
+        {
+            using var cmd = Cmd(sql);
+            foreach (var (n, v) in args) P(cmd, n, v);
+            using var r = cmd.ExecuteReader();
+            json.WriteStartArray();
+            while (r.Read())
+            {
+                json.WriteStartObject();
+                for (int i = 0; i < r.FieldCount; i++)
+                {
+                    string name = r.GetName(i);
+                    if (r.IsDBNull(i)) { json.WriteNull(name); continue; }
+                    switch (r.GetValue(i))
+                    {
+                        case long l: json.WriteNumber(name, l); break;
+                        case double d: if (double.IsFinite(d)) json.WriteNumber(name, d); else json.WriteNull(name); break;
+                        case string str: json.WriteString(name, str); break;
+                        case byte[] bytes: json.WriteBase64String(name, bytes); break;
+                        default: json.WriteString(name, Convert.ToString(r.GetValue(i), CultureInfo.InvariantCulture)); break;
+                    }
+                }
+                json.WriteEndObject();
+            }
+            json.WriteEndArray();
         }
 
         public T Scalar<T>(string sql)
