@@ -14,7 +14,7 @@ namespace RaceCor.Data
     /// </summary>
     public sealed class ProDriveStore : IDisposable
     {
-        public const int SchemaVersion = 2;
+        public const int SchemaVersion = 3;
 
         private readonly SqliteConnection _db;
 
@@ -50,15 +50,27 @@ namespace RaceCor.Data
             Exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)");
             long current = Scalar<long>("SELECT COALESCE(MAX(version), 0) FROM schema_version");
             if (current >= SchemaVersion) return;
-            if (current == 1)
+
+            // One step per version, so a store from any earlier version catches up in one open.
+            while (current > 0 && current < SchemaVersion)
             {
-                // v2: session category. Rows ingested under v1 get it on the next 'ingest --force'.
-                using var v2 = _db.BeginTransaction();
-                Exec("ALTER TABLE sessions ADD COLUMN category TEXT", v2);
-                Exec("INSERT INTO schema_version(version) VALUES (2)", v2);
-                v2.Commit();
-                return;
+                using var step = _db.BeginTransaction();
+                switch (current)
+                {
+                    case 1:
+                        // Session category. Rows ingested under v1 get it on the next 'ingest'.
+                        Exec("ALTER TABLE sessions ADD COLUMN category TEXT", step);
+                        break;
+                    case 2:
+                        // The season schedule, parsed from iRacing's published PDF.
+                        Exec(Schedule.ScheduleStore.Schema, step);
+                        break;
+                }
+                current++;
+                Exec("INSERT INTO schema_version(version) VALUES (" + current + ")", step);
+                step.Commit();
             }
+            if (current >= SchemaVersion) return;
 
             using var tx = _db.BeginTransaction();
             Exec(@"
@@ -117,9 +129,13 @@ CREATE TABLE ingested_files (
   path TEXT PRIMARY KEY, length INTEGER, mtime TEXT, sessions INTEGER, error TEXT, ingested_at TEXT NOT NULL
 );
 ", tx);
+            Exec(Schedule.ScheduleStore.Schema, tx);
             Exec("INSERT INTO schema_version(version) VALUES (" + SchemaVersion + ")", tx);
             tx.Commit();
         }
+
+        /// <summary>The stored season schedule as JSON (see RaceCor.Data.Schedule.ScheduleStore).</summary>
+        public void WriteScheduleJson(System.Text.Json.Utf8JsonWriter json) => Schedule.ScheduleStore.WriteJson(this, json);
 
         public static string SourceKey(SessionRecord s) =>
             s.Source == "ibt"
@@ -352,6 +368,11 @@ FROM sessions WHERE ($type IS NULL OR session_type = $type) ORDER BY started_at 
         private static string Iso(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);
         private static string Str(SqliteDataReader r, int i) => r.IsDBNull(i) ? null : r.GetString(i);
 
+        // ── For the schedule tables, which live in RaceCor.Data.Schedule ──
+        internal SqliteTransaction Begin() => _db.BeginTransaction();
+        internal SqliteCommand Command(string sql, SqliteTransaction tx = null) => Cmd(sql, tx);
+        internal static void Bind(SqliteCommand cmd, string name, object value) => P(cmd, name, value);
+
         private SqliteCommand Cmd(string sql, SqliteTransaction tx = null)
         {
             var cmd = _db.CreateCommand();
@@ -360,7 +381,7 @@ FROM sessions WHERE ($type IS NULL OR session_type = $type) ORDER BY started_at 
             return cmd;
         }
 
-        private void Exec(string sql, SqliteTransaction tx = null, params (string, object)[] args)
+        internal void Exec(string sql, SqliteTransaction tx = null, params (string, object)[] args)
         {
             using var cmd = Cmd(sql, tx);
             foreach (var (n, v) in args) P(cmd, n, v);

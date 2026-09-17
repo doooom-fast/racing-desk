@@ -35,10 +35,27 @@ npm run ingest                      # backfill prodrive.db from Documents\iRacin
 npm run sessions -- --type Race     # read back stored sessions (--laps <id> for laps)
 npm run parity -- --seconds 120     # live session: diff SimHub's :8889 with the host's :18889
 npm run host -- sql "SELECT ..."    # read-only query against the store, JSON out
+npm run host -- schedule --fetch    # download the season PDF if it changed, parse it, store it
+npm run host -- schedule            # parse the stored PDF and report what the parser found
+npm run host -- schedule --series "Caterham"   # what one series parsed to, week by week
 ```
 
 The host also serves the store read-only at `:8889/racecor-io-pro-drive/data/{status,sessions,session?id=}`
 — that's what the desk reads. If SimHub's plugin holds `:8889`, the desk says so instead of loading.
+
+## Season schedule
+
+The only thing Pro Drive fetches. iRacing publishes a ~200-page PDF per season; `RaceCor.Data/Schedule` reads it
+with PdfPig (laid out as fixed-pitch text, like `pdftotext -layout`), parses every series and week, and stores it
+(schema v3). The live host refreshes it once a day, never while the sim is running.
+
+- The PDF is **not linked from iracing.com's season page HTML** — it's posted on iRacing's forum file host. The URL
+  is `settings.json`'s `scheduleUrl` (`--url` overrides it). When a season's URL changes, set it there, or just
+  drop the PDF into `%LOCALAPPDATA%\RaceCor\schedule\` — the newest PDF in that folder is used.
+- The parse checks itself against the PDF's own contents pages: every series listed has to come out of the body
+  (2026 S4: 151 of 151, 1,989 series-weeks, all with a race length).
+- Track and car names come out as iRacing writes them in the PDF, which is not always how it writes them in
+  telemetry; the engines fuzzy-match (`packages/calc/src/engines/fuzzy-match.ts`).
 
 ## Desk
 
@@ -50,7 +67,8 @@ npm run test:desk                   # desk.html over a mock host, headless, off-
 
 `modules/desk/calc.bundle.js` is generated from `packages/calc` on overlay start and by the desk tests — don't edit
 or commit it. Rating changes aren't in telemetry: a race's iRating/SR change is read from the driver's next
-session in the same licence category.
+session in the same licence category. Next-race suggestions are limited to the disciplines the driver actually
+races (3+ races in the last year) and to what their licence can enter.
 
 The SimHub plugin build stages into `apps/plugin/racecor-plugin/simhub-plugin/build/`; `apps/plugin/scripts/windows/install.bat`
 copies it into SimHub — **ask before running it**, it replaces the installed plugin.

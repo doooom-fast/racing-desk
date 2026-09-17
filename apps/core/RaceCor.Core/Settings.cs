@@ -4,6 +4,12 @@ namespace RaceCorProDrive.Plugin
 {
     public class Settings
     {
+        /// <summary>
+        /// Where iRacing published this season's schedule PDF. The only thing Pro Drive fetches, and never at
+        /// race time. A PDF dropped into %LOCALAPPDATA%\RaceCor\schedule by hand is used just the same.
+        /// </summary>
+        public string ScheduleUrl { get; set; } = "https://us.v-cdn.net/6034148/uploads/597LPPDHT83M/2026s4.pdf";
+
         /// <summary>How long (seconds) each prompt stays on screen before auto-clearing.</summary>
         public double PromptDisplaySeconds { get; set; } = 15.0;
 

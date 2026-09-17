@@ -493,7 +493,7 @@ every cloud fetch in the overlay and plugin.
 **Done when:** with the server switched off and the network cable unplugged, the rig reaches a
 working HUD and a populated dashboard.
 
-> **Status 2026-09-17 — in progress: cloud calls gone, desk populated locally; schedule fetch not started.**
+> **Status 2026-09-17 — done.**
 > - Deleted: `IRacingDataClient.cs`, the week planner, the web track-map/sector/display-name fetches in core and
 >   overlay, `calc-client.js`, `session-sync.js`, `token-loader.js`, accounts and the auto-updater. Track maps come
 >   from the driver's own `.ibt` Lat/Lon; sectors from `SplitTimeInfo`.
@@ -509,8 +509,20 @@ working HUD and a populated dashboard.
 >   → 23 of 371 races, all broken up by tows.
 > - Verified: desk over the real store (screenshots), and headless over a mock host with every off-machine
 >   request blocked. Not yet verified: the Electron window itself with the network cable out.
-> - **Remaining:** the schedule fetch (next-race ideas are empty without it). The PDF isn't linked from
->   iracing.com's season page HTML; S4 is `2026s4.pdf` on iRacing's forum CDN (`us.v-cdn.net`).
+> - **Schedule.** iRacing's published season PDF is read with PdfPig, parsed into the store (schema v3) and served
+>   at `/data/schedule`; `packages/calc` turns it into what `next-race-ideas` wants. The live host refreshes it
+>   daily, never while the sim runs. 2026 S4 parses to 151 series (every series its own contents pages list) and
+>   1,989 series-weeks, each with a track, a race length and a start pattern — including the awkward shapes: dirt
+>   heat racing (`H:8L C:10L F:50L`), endurance durations whose number and unit land on different lines, configs
+>   that wrap, cars that rotate weekly, and 40-odd hand-written variants of "Races every 2 hours at :15 past".
+>   Suggestions are filtered to the disciplines he races and the licence he holds; on the rig they read as
+>   formula and sports-car races starting within the hour, with scores, lengths, cars and reasoning.
+> - **Discovery caveat:** the PDF is not linked from iracing.com's season-page HTML (it sits on iRacing's forum
+>   file host, and the forum needs a login to browse). The URL is a setting, and any PDF dropped into
+>   `%LOCALAPPDATA%\RaceCor\schedule\` is picked up — that is the manual override the plan called for.
+> - Found while verifying the parse against the PDF series by series (a fan-out of checking agents): configs lost
+>   to column wrapping, sim-time stamps missed when the conditions column pushed them along the line, and two
+>   incident-rule wordings read wrong. All fixed, with the PDF-shaped fixture as a regression test.
 
 **Phase 4 — Race Now.** Suggestion engine with S1–S7 and the designed explanation surface.
 **Done when:** the verdict card is something you'd actually act on before your own race.

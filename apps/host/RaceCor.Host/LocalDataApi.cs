@@ -11,7 +11,7 @@ namespace RaceCor.Host
 {
     /// <summary>
     /// Read-only views of the local store for the desk window, served next to the telemetry contract:
-    /// <c>GET /racecor-io-pro-drive/data/{status,sessions,session?id=}</c>. Rows go out as stored; the desk's
+    /// <c>GET /racecor-io-pro-drive/data/{status,sessions,session?id=,schedule}</c>. Rows go out as stored; the desk's
     /// calc layer (packages/calc) does the merging and derivation.
     /// </summary>
     internal sealed class LocalDataApi
@@ -70,6 +70,11 @@ namespace RaceCor.Host
                             json.WriteString("lastIngestAt", store.Scalar<string>("SELECT MAX(ingested_at) FROM ingested_files"));
                             json.WriteEndObject();
                         });
+                        return;
+
+                    case "schedule":
+                        // The season schedule as parsed from iRacing's PDF; the desk's calc layer shapes it.
+                        Write(res, 200, json => store.WriteScheduleJson(json));
                         return;
 
                     case "sessions":

@@ -73,9 +73,12 @@
       return;
     }
     lastStatus = status;
-    const rows = await getJson('sessions');
+    const [rows, schedule] = await Promise.all([
+      getJson('sessions'),
+      getJson('schedule').catch(() => null),
+    ]);
     const t0 = performance.now();
-    desk = Calc.buildDesk(rows, {});
+    desk = Calc.buildDesk(rows, { schedule: schedule && schedule.series && schedule.series.length ? schedule : null });
     const ms = Math.round(performance.now() - t0);
     if (Object.keys(desk.errors).length) console.warn('[desk] engine errors', desk.errors);
     $('offline').hidden = true;
@@ -325,14 +328,29 @@
   function renderNextRace() {
     const el = $('next-race');
     const ideas = desk.nextRaceIdeas;
-    if (!ideas) {
+    const season = desk.schedule;
+    if (!season) {
       el.innerHTML = `<h2>Next race ideas</h2>
-        <p>Suggestions need this season's schedule, which comes from iRacing's official season schedule PDF. It hasn't been fetched yet.</p>`;
+        <p>Suggestions need this season's schedule, which comes from iRacing's official season schedule PDF.
+        Fetch and store it with <code>npm run host -- schedule --store</code>.</p>`;
       return;
     }
-    el.innerHTML = `<h2>Next race ideas</h2><ul class="rank">${ideas.slice(0, 6).map((s) => `
-      <li><span class="name">${esc(s.seriesName)}</span><span class="score">${Math.round(s.score)}</span>
-      <span class="sub">${esc(s.trackName)}${s.trackConfig ? ' — ' + esc(s.trackConfig) : ''}</span></li>`).join('')}</ul>`;
+    if (!ideas || !ideas.length) {
+      el.innerHTML = `<h2>Next race ideas · ${esc(season.season || '')}</h2>
+        <p>${season.series} series are loaded, but none of them has a race you could join in the next few hours.</p>`;
+      return;
+    }
+    el.innerHTML = `<h2>Next race ideas · ${esc(season.season || '')}</h2>
+      <ul class="suggestions">${ideas.slice(0, 5).map((s) => `
+        <li>
+          <span class="when" style="color:${esc(s.viewModel.scoreColorHex)}">${esc(s.viewModel.startsInShortLabel)}</span>
+          <span class="score" style="background:${esc(s.viewModel.scoreColorHex)}22;color:${esc(s.viewModel.scoreColorHex)}">${Math.round(s.score)}</span>
+          <span class="name">${esc(s.seriesName)}</span>
+          <span class="sub">${esc(s.trackName)}${s.trackConfig ? ' — ' + esc(s.trackConfig) : ''}
+            · ${esc(s.viewModel.durationLabel || (s.sessionMinutes + ' min'))}${s.isFixed ? ' · fixed' : ''}
+            ${s.carClassNames && s.carClassNames.length ? ' · ' + esc(s.carClassNames.slice(0, 2).join(', ')) : ''}</span>
+          <span class="why">${esc(s.strategy ? s.strategy.text : s.commentary || '')}</span>
+        </li>`).join('')}</ul>`;
   }
 
   function renderTracks() {

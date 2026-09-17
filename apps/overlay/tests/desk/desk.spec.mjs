@@ -75,7 +75,50 @@ function buildHistory() {
   return { sessions, details };
 }
 
-function startMockHost(history) {
+// One sports-car series racing every hour, in the week the fixed clock sits in.
+const SCHEDULE = {
+  season: '2026 Season 4',
+  sourceFile: 'C:\\RaceCor\\schedule\\2026s4.pdf',
+  parsedAt: '2026-09-16T10:00:00Z',
+  series: [{
+    id: 1,
+    season: '2026 Season 4',
+    name: 'Caterham Academy Challenge',
+    category: 'sports_car',
+    licenseClass: 'D',
+    minLicenseClass: 'Rookie',
+    minLicenseLevel: 4,
+    fixedSetup: false,
+    multiclass: false,
+    carsVaryByWeek: false,
+    cars: ['Caterham Academy'],
+    timingText: 'Races every hour at :00',
+    repeatMinutes: 60,
+    minuteOffsets: [0],
+    hourParity: null,
+    weeklySlots: [],
+    alternateWeeks: false,
+    minEntries: 6,
+    splitAt: 24,
+    drops: 4,
+    incidentLimit: 17,
+    driveThroughPenalties: false,
+    weeks: [{
+      week: 1,
+      startsOn: '2026-09-15',
+      trackName: 'Oulton Park Circuit',
+      trackConfig: 'Fosters',
+      raceMinutes: 15,
+      raceLaps: 0,
+      heatFormat: null,
+      cars: [],
+      simTimeOfDay: '2026-09-19 12:00 1x',
+      conditions: '69°F/20°C, Rain chance None, Standing start.',
+    }],
+  }],
+};
+
+function startMockHost(history, schedule = SCHEDULE) {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     const send = (status, body) => {
@@ -85,6 +128,7 @@ function startMockHost(history) {
     const route = url.pathname.replace('/racecor-io-pro-drive/data/', '');
     if (route === 'status') return send(200, { schemaVersion: 2, sessions: history.sessions.length, laps: 120, lastSessionAt: history.sessions.at(-1).started_at });
     if (route === 'sessions') return send(200, history.sessions);
+    if (route === 'schedule') return send(200, schedule ?? { season: null, series: [] });
     if (route === 'session') {
       const row = Number(url.searchParams.get('id'));
       const d = history.details.get(row) ?? { laps: [], incidents: [] };
@@ -136,7 +180,12 @@ test('populates every panel from the local store', async ({ page }) => {
   await expect(page.locator('#cars .name')).toHaveCount(2);
   expect((await page.locator('#cars .name').allTextContents()).sort()).toEqual(['Caterham', 'McLaren']); // brand casing folded
   await expect(page.locator('#dna .archetype')).not.toBeEmpty();
-  await expect(page.locator('#next-race')).toContainText("hasn't been fetched");
+  // The schedule is stored, so the suggestion reads out of it: countdown, score, series, track and reasoning.
+  await expect(page.locator('#next-race')).toContainText('2026 Season 4');
+  await expect(page.locator('.suggestions li')).toHaveCount(1);
+  await expect(page.locator('.suggestions .name')).toHaveText('Caterham Academy Challenge');
+  await expect(page.locator('.suggestions .sub')).toContainText('Oulton Park Circuit — Fosters');
+  await expect(page.locator('.suggestions .when')).toHaveText(/\d/);
 
   // Newest race is selected; its two stints come back as one lap table.
   await expect(page.locator('.race-row.selected')).toHaveCount(1);
@@ -146,6 +195,18 @@ test('populates every panel from the local store', async ({ page }) => {
   await expect(page.locator('.lap-chart rect')).toHaveCount(8);
 
   expect(errors).toEqual([]);
+});
+
+test('says how to fetch the schedule when there is none', async ({ page }) => {
+  const bare = await startMockHost(buildHistory(), null);
+  try {
+    await openDesk(page, `http://127.0.0.1:${bare.address().port}`);
+    await expect(page.locator('.race-row')).toHaveCount(30);
+    await expect(page.locator('#next-race')).toContainText('official season schedule PDF');
+    await expect(page.locator('.suggestions li')).toHaveCount(0);
+  } finally {
+    await new Promise((resolve) => bare.close(resolve));
+  }
 });
 
 test('says so when no local host is running', async ({ page }) => {

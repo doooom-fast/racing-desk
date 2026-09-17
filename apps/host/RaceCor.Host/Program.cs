@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Newtonsoft.Json;
 using RaceCor.Data;
+using RaceCor.Data.Schedule;
 using RaceCorProDrive.Plugin;
 using RaceCorProDrive.Plugin.IRacing;
 
@@ -22,6 +23,8 @@ namespace RaceCor.Host
   RaceCor.Host ingest               backfill the local store from .ibt history
   RaceCor.Host sessions             list stored sessions
   RaceCor.Host sql ""<select>""       run a read-only query against the store, print JSON
+  RaceCor.Host schedule             parse iRacing's season schedule PDF (--store to save it, --fetch to
+                                    download it first)
 
 Serve options:
   --http-port <n>      JSON contract port (default 8889)
@@ -44,6 +47,15 @@ Data options:
   --step <n>           ingest: read every nth frame (default 3 = 20 Hz)
   --force              ingest: re-read files already stored
   --now                ingest: don't wait for iRacing to close first
+  --pdf <file>         schedule: read this PDF instead of the newest in %LOCALAPPDATA%\RaceCor\schedule
+  --dump               schedule: print the PDF's laid-out text
+  --series <text>      schedule: print the parsed detail of series matching this text
+  --json <file>        schedule: write the parsed schedule as JSON
+  --store              schedule: save the parsed schedule into the local store
+  --fetch              schedule: download the season PDF if it changed, then parse and store it
+  --url <url>          schedule: the PDF to fetch (default: settings.json's scheduleUrl)
+  --json <file>        schedule: write the parsed schedule as JSON
+  --out <file>         schedule: write output to a file instead of stdout
   --type <t>           sessions: filter by session type, e.g. Race
   --laps <id>          sessions: show laps for a session id";
 
@@ -59,6 +71,8 @@ Data options:
             }
             if (o.Help) { Console.WriteLine(Usage); return 0; }
 
+            try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { /* redirected output */ }
+
             Log.Sink = (level, message) =>
                 Console.WriteLine($"{DateTime.Now:HH:mm:ss.fff} {level,-5} {message}");
 
@@ -67,6 +81,7 @@ Data options:
                 case "ingest": return Ingest(o);
                 case "sessions": return Sessions(o);
                 case "sql": return Sql(o);
+                case "schedule": return ScheduleCommand.Run(o);
                 default: return Serve(o);
             }
         }
@@ -144,6 +159,15 @@ Data options:
             raw.Start();
             Log.Info("[RaceCor.Host] waiting for iRacing (Ctrl+C to stop)");
 
+            if (store != null && !o.NoIngest)
+            {
+                var schedule = new Thread(() => BackgroundSchedule(o, runtime.Settings, stop))
+                {
+                    IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = "schedule",
+                };
+                schedule.Start();
+            }
+
             Thread ingest = null;
             if (store != null && !o.NoIngest)
             {
@@ -176,6 +200,30 @@ Data options:
             catch (Exception ex)
             {
                 Log.Warn("[RaceCor.Host] background ingest stopped: " + ex.Message);
+            }
+        }
+
+        // The season schedule changes once a quarter and gets revised a few times; a daily look is plenty, and
+        // it waits for the sim to close so a fetch and parse never competes with a race.
+        private static void BackgroundSchedule(HostOptions o, Settings settings, ManualResetEventSlim stop)
+        {
+            string url = o.ScheduleUrl ?? settings.ScheduleUrl ?? ScheduleCommand.DefaultUrl;
+            string directory = o.ScheduleDir ?? ScheduleCommand.DefaultDirectory;
+            while (!stop.IsSet)
+            {
+                try
+                {
+                    while (BackgroundIo.SimRunning() && !stop.IsSet) stop.Wait(TimeSpan.FromMinutes(5));
+                    if (stop.IsSet) return;
+                    using var store = new ProDriveStore(o.Db ?? ProDriveStore.DefaultPath);
+                    using var lowIo = BackgroundIo.Enter();
+                    Log.Info("[RaceCor.Host] schedule: " + ScheduleFetcher.Refresh(store, url, directory, m => Log.Info("[RaceCor.Host] " + m)));
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("[RaceCor.Host] schedule refresh failed: " + ex.Message);
+                }
+                stop.Wait(TimeSpan.FromHours(24));
             }
         }
 
@@ -317,6 +365,15 @@ Data options:
         public int? Limit;
         public int Step = 3;
         public string Type;
+        public string Pdf;
+        public string ScheduleDir;
+        public string Out;
+        public bool Dump;
+        public string Series;
+        public string Json;
+        public bool Store;
+        public bool Fetch;
+        public string ScheduleUrl;
         public bool Force;
         public bool Now;
         public long? LapsFor;
@@ -330,7 +387,7 @@ Data options:
             {
                 o.Command = args[0];
                 start = 1;
-                if (o.Command != "ingest" && o.Command != "sessions" && o.Command != "sql") throw new ArgumentException($"unknown command {o.Command}");
+                if (o.Command != "ingest" && o.Command != "sessions" && o.Command != "sql" && o.Command != "schedule") throw new ArgumentException($"unknown command {o.Command}");
                 if (o.Command == "sql")
                 {
                     o.Sql = args.Length > 1 ? args[1] : throw new ArgumentException("sql needs a query");
@@ -361,6 +418,15 @@ Data options:
                     case "--limit": o.Limit = (int)Num(); break;
                     case "--step": o.Step = Math.Max(1, (int)Num()); break;
                     case "--type": o.Type = Next(); break;
+                    case "--pdf": o.Pdf = Next(); break;
+                    case "--schedule-dir": o.ScheduleDir = Next(); break;
+                    case "--out": o.Out = Next(); break;
+                    case "--dump": o.Dump = true; break;
+                    case "--series": o.Series = Next(); break;
+                    case "--json": o.Json = Next(); break;
+                    case "--store": o.Store = true; break;
+                    case "--fetch": o.Fetch = true; break;
+                    case "--url": o.ScheduleUrl = Next(); break;
                     case "--force": o.Force = true; break;
                     case "--now": o.Now = true; break;
                     case "--laps": o.LapsFor = (long)Num(); break;
