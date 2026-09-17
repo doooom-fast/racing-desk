@@ -26,6 +26,11 @@
     <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
 
+  <!-- The SimHub adapter reads runtime state directly for its dash properties. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="RaceCorProDrive" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="IRSDKSharper" Version="1.1.4" />
     <PackageReference Include="Fleck" Version="1.2.0" />
