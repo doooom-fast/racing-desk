@@ -1145,9 +1145,17 @@ namespace RaceCorProDrive.Plugin.Engine
 
         // ── File I/O: our own cache ────────────────────────────────────────
 
+        private string _cacheDir;
+
+        /// <summary>
+        /// Where recorded / fetched outlines are cached. The host sets this from its data directory
+        /// (SimHub: ProgramDataSimHubPluginsDataRaceCorProDriveTrackMaps).
+        /// </summary>
+        public void SetCacheDirectory(string dir) => _cacheDir = dir;
+
         private string GetOwnCacheDir()
         {
-            return Path.Combine(
+            return _cacheDir ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "SimHub", "PluginsData", "RaceCorProDrive", "TrackMaps");
         }

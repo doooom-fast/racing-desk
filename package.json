@@ -13,7 +13,9 @@
     "replay": "node packages/replay/cli.mjs play",
     "recordings": "node packages/replay/cli.mjs list",
     "test": "npm test --workspaces --if-present",
-    "test:golden": "npm run test:golden -w racecor-overlay --"
+    "test:golden": "npm run test:golden -w racecor-overlay --",
+    "host": "dotnet run --project apps/host/RaceCor.Host -c Release --",
+    "test:dotnet": "dotnet test prodrive.sln -c Release"
   },
   "engines": {
     "node": ">=22"

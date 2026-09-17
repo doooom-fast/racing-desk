@@ -29,6 +29,7 @@
   <!-- The SimHub adapter reads runtime state directly for its dash properties. -->
   <ItemGroup>
     <InternalsVisibleTo Include="RaceCorProDrive" />
+    <InternalsVisibleTo Include="RaceCorProDrive.Tests" />
   </ItemGroup>
 
   <ItemGroup>

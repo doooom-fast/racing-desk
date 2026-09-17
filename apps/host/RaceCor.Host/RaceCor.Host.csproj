@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    RaceCor.Host — runs Pro Drive without SimHub: reads iRacing directly (or replays an .ibt) and serves
+    the same localhost:8889 contract the SimHub plugin does.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>RaceCor.Host</AssemblyName>
+    <RootNamespace>RaceCor.Host</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../core/RaceCor.Core/RaceCor.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Commentary topics, sentiments, fragments, car/track notes — resolved next to the executable. -->
+  <ItemGroup>
+    <None Include="../../plugin/racecor-plugin/simhub-plugin/racecorprodrive-data/**/*.json"
+          Link="racecorprodrive-data/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -32,6 +32,13 @@ namespace RaceCorProDrive.Plugin
             public int HttpPort { get; set; } = 8889;
             /// <summary>Port for the MessagePack WebSocket feed.</summary>
             public int WsPort { get; set; } = 8890;
+            /// <summary>
+            /// Moza serial, pedal profiles and screen colour sampling. Off for test hosts that must never touch
+            /// the rig's hardware (e.g. replaying an .ibt beside a running SimHub).
+            /// </summary>
+            public bool EnableHardware { get; set; } = true;
+            /// <summary>The direct iRacing SDK bridge used for iRating / SR / delta. Off when replaying a file.</summary>
+            public bool EnableSdkBridge { get; set; } = true;
         }
 
         private readonly Options _options;
@@ -145,29 +152,38 @@ namespace RaceCorProDrive.Plugin
 
             // Initialise iRacing SDK bridge (direct shared memory via IRSDKSharper)
             TelemetryCapture._sdkBridge = _sdkBridge;
-            _sdkBridge.Start();
+            if (_options.EnableSdkBridge) _sdkBridge.Start();
 
             // Start screen color sampler for ambient lighting
             // (runs at ~4fps on a background thread — zero impact on main loop)
-            _screenColorSampler.Start();
+            if (_options.EnableHardware)
+            {
+                _screenColorSampler.Start();
 
-            // Initialise pedal profile manager (per-car curves + Moza integration)
-            string pedalDataDir = _options.PluginsDataDirectory;
-            _pedalProfiles = new PedalProfileManager(pedalDataDir);
-            _pedalProfiles.Load();
-            Log.Info($"[RaceCorProDrive] Pedal profiles loaded — Moza detected: {_pedalProfiles.MozaDetected}, active: {_pedalProfiles.ActiveProfile?.Name ?? "(none)"}, profiles: {_pedalProfiles.Profiles.Count}");
+                // Initialise pedal profile manager (per-car curves + Moza integration)
+                string pedalDataDir = _options.PluginsDataDirectory;
+                _pedalProfiles = new PedalProfileManager(pedalDataDir);
+                _pedalProfiles.Load();
+                Log.Info($"[RaceCorProDrive] Pedal profiles loaded — Moza detected: {_pedalProfiles.MozaDetected}, active: {_pedalProfiles.ActiveProfile?.Name ?? "(none)"}, profiles: {_pedalProfiles.Profiles.Count}");
 
-            // Initialise Moza direct serial hardware manager (bypasses Pit House)
-            _mozaSerial = new MozaSerialManager(
-                msg => Log.Info(msg),
-                msg => Log.Warn(msg));
-            _mozaSerial.Start();
-            Log.Info("[RaceCorProDrive] Moza serial manager started");
+                // Initialise Moza direct serial hardware manager (bypasses Pit House)
+                _mozaSerial = new MozaSerialManager(
+                    msg => Log.Info(msg),
+                    msg => Log.Warn(msg));
+                _mozaSerial.Start();
+                Log.Info("[RaceCorProDrive] Moza serial manager started");
+            }
+            else
+            {
+                Log.Info("[RaceCorProDrive] Hardware disabled — no Moza serial, pedal profiles or screen sampling");
+            }
 
             // Initialise track map provider — the host says where the track-map dataset lives
             // (SimHub: the SimHub root, where the plugin DLL is installed).
             string simhubDir = _options.AssemblyDirectory ?? "";
             _trackMap.SetSimHubDirectory(simhubDir);
+            if (!string.IsNullOrEmpty(_options.PluginsDataDirectory))
+                _trackMap.SetCacheDirectory(Path.Combine(_options.PluginsDataDirectory, "TrackMaps"));
 
             // Initialise Incident Coach engine
             _incidentCoach = new IncidentCoachEngine();
