@@ -11,11 +11,12 @@ no account, no cloud and no distribution. This machine *is* the rig — iRacing,
 
 | Path | What | Instructions |
 |---|---|---|
-| `apps/overlay/` | Electron HUD (consumer of `localhost:8889`) | [`apps/overlay/CLAUDE.md`](apps/overlay/CLAUDE.md) |
+| `apps/overlay/` | Electron app: the HUD (`dashboard.html`) and the desk window (`desk.html`), both consumers of `localhost:8889` | [`apps/overlay/CLAUDE.md`](apps/overlay/CLAUDE.md) |
 | `apps/core/RaceCor.Core/` | The engine, runtime and `:8889` / `:8890` servers, host-agnostic (`net48` + `net8.0-windows`). `IRacing/` reads the SDK or `.ibt` directly | — |
-| `apps/core/RaceCor.Data/` | Local SQLite store (`%LOCALAPPDATA%RaceCorprodrive.db`), session capture, `.ibt` backfill, track outlines from Lat/Lon (`net8`, host only) | — |
+| `apps/core/RaceCor.Data/` | Local SQLite store (`%LOCALAPPDATA%\RaceCor\prodrive.db`), session capture, `.ibt` backfill, track outlines from Lat/Lon (`net8`, host only) | — |
 | `apps/host/RaceCor.Host/` | Standalone host: live iRacing or `.ibt` replay → same `:8889` contract, records sessions | — |
 | `apps/plugin/` | SimHub plugin — now a thin adapter over RaceCor.Core (SimHub dashes, actions, events). `prodrive.sln` at the root builds all .NET projects | [`apps/plugin/CLAUDE.md`](apps/plugin/CLAUDE.md) |
+| `packages/calc/` | Calc engines ported from prodrive-server (verbatim, with their tests) plus the local model that turns stored sessions into their inputs; bundled into the desk | — |
 | `apps/edit/` | Node CLI for `.rcpdv` bundle editing | [`apps/edit/CLAUDE.md`](apps/edit/CLAUDE.md) |
 | `docs/` | Cross-app context; `docs/archive/` is superseded | [`docs/README.md`](docs/README.md) |
 | `.claude/skills/` | Project skills (overlay, plugin, racing domain, bundle format) | — |
@@ -30,10 +31,26 @@ and are archived in Phase 6 — nothing is deleted before its replacement works.
 npm run test:dotnet                 # dotnet test prodrive.sln (5 WsTelemetryPublisher failures are pre-existing)
 npm run host                        # live iRacing → :8889/:8890, records sessions, backfills new .ibt
 npm run host -- --ibt <file> --http-port 18889 --ws-port 18890   # replay an .ibt beside SimHub
-npm run ingest                      # backfill prodrive.db from DocumentsiRacing	elemetry
+npm run ingest                      # backfill prodrive.db from Documents\iRacing\telemetry
 npm run sessions -- --type Race     # read back stored sessions (--laps <id> for laps)
 npm run parity -- --seconds 120     # live session: diff SimHub's :8889 with the host's :18889
+npm run host -- sql "SELECT ..."    # read-only query against the store, JSON out
 ```
+
+The host also serves the store read-only at `:8889/racecor-io-pro-drive/data/{status,sessions,session?id=}`
+— that's what the desk reads. If SimHub's plugin holds `:8889`, the desk says so instead of loading.
+
+## Desk
+
+```bash
+npm start -w racecor-overlay        # HUD + desk (desk opens at launch; --no-desk to skip, Ctrl+Shift+O to reopen)
+npm test -w @prodrive/calc          # engines + local model (vitest)
+npm run test:desk                   # desk.html over a mock host, headless, off-machine requests blocked
+```
+
+`modules/desk/calc.bundle.js` is generated from `packages/calc` on overlay start and by the desk tests — don't edit
+or commit it. Rating changes aren't in telemetry: a race's iRating/SR change is read from the driver's next
+session in the same licence category.
 
 The SimHub plugin build stages into `apps/plugin/racecor-plugin/simhub-plugin/build/`; `apps/plugin/scripts/windows/install.bat`
 copies it into SimHub — **ask before running it**, it replaces the installed plugin.

@@ -18,7 +18,8 @@
     "test:dotnet": "dotnet test prodrive.sln -c Release",
     "parity": "node scripts/parity.mjs",
     "ingest": "dotnet run --project apps/host/RaceCor.Host -c Release -- ingest",
-    "sessions": "dotnet run --project apps/host/RaceCor.Host -c Release -- sessions"
+    "sessions": "dotnet run --project apps/host/RaceCor.Host -c Release -- sessions",
+    "test:desk": "npm run test:desk -w racecor-overlay --"
   },
   "engines": {
     "node": ">=22"

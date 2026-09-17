@@ -472,7 +472,7 @@ sim running.
 >   a 242-line adapter.
 > - `apps/host/RaceCor.Host` (net8): serves the same contract without SimHub, live or from an `.ibt`. Contract
 >   parity with the installed plugin is a test (keys match bar hardware and per-track sector keys).
-> - `apps/core/RaceCor.Data` (net8, host only): `%LOCALAPPDATA%RaceCorprodrive.db` — sessions, laps, incidents,
+> - `apps/core/RaceCor.Data` (net8, host only): `%LOCALAPPDATA%\RaceCor\prodrive.db` — sessions, laps, incidents,
 >   grids, track outlines. Full backfill of the rig: 3,031 files / 104.6 GB in ~110 s → 3,019 sessions (598 races),
 >   6,808 laps, 68 track outlines; 3 truncated files skipped. Live capture uses the same accumulator and is
 >   tested lap-for-lap against backfill of the same race.
@@ -492,6 +492,25 @@ sim running.
 every cloud fetch in the overlay and plugin.
 **Done when:** with the server switched off and the network cable unplugged, the rig reaches a
 working HUD and a populated dashboard.
+
+> **Status 2026-09-17 — in progress: cloud calls gone, desk populated locally; schedule fetch not started.**
+> - Deleted: `IRacingDataClient.cs`, the week planner, the web track-map/sector/display-name fetches in core and
+>   overlay, `calc-client.js`, `session-sync.js`, `token-loader.js`, accounts and the auto-updater. Track maps come
+>   from the driver's own `.ibt` Lat/Lon; sectors from `SplitTimeInfo`.
+> - **Deviation — engines run in the desk renderer, not Electron main, and read SQLite through the host.**
+>   `RaceCor.Host` serves the store read-only at `:8889/racecor-io-pro-drive/data/`; `packages/calc` (the 14 engines,
+>   verbatim, 178 tests passing) is bundled into `desk.html`. No native Node module (better-sqlite3) to rebuild
+>   against Electron. Cost: the desk needs the host running, not the SimHub plugin, on `:8889`.
+> - The local model merges an event's stints (a tow or rejoin writes a new `.ibt`), and derives iRating/SR change
+>   from the next session in the same licence category — estimates, since a race run with disk logging off would
+>   be folded in. Over the rig's history: 371 official races, all with engine output in ~130 ms.
+> - Ingest fixes found on the way: best lap no longer requires a clean lap; lap 1 of a race and laps of a
+>   capture that starts mid-lap are timed from iRacing's own lap time. Races with no best lap: 270 of 589 stints
+>   → 23 of 371 races, all broken up by tows.
+> - Verified: desk over the real store (screenshots), and headless over a mock host with every off-machine
+>   request blocked. Not yet verified: the Electron window itself with the network cable out.
+> - **Remaining:** the schedule fetch (next-race ideas are empty without it). The PDF isn't linked from
+>   iracing.com's season page HTML; S4 is `2026s4.pdf` on iRacing's forum CDN (`us.v-cdn.net`).
 
 **Phase 4 — Race Now.** Suggestion engine with S1–S7 and the designed explanation surface.
 **Done when:** the verdict card is something you'd actually act on before your own race.
