@@ -1,7 +1,7 @@
 {
   "name": "racecor-overlay",
   "version": "0.9.42",
-  "description": "RaceCor.io — broadcast-grade transparent HUD overlay for sim racing with WebGL effects, real-time strategy, and AI commentary",
+  "description": "Racing Desk — HUD and desk over iRacing, for one driver on one rig",
   "main": "main.js",
   "author": "Kevin Conboy",
   "license": "MIT",
@@ -22,12 +22,12 @@
   "devDependencies": {
     "cross-env": "^7.0.3",
     "electron": "33.4.11",
-    "electron-builder": "^25.1.8"
-  },
-  "dependencies": {
+    "electron-builder": "^25.1.8",
     "@playwright/test": "^1.58.2",
-    "ffmpeg-static": "^5.2.0",
     "@prodrive/replay": "*",
     "@prodrive/calc": "*"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0"
   }
 }

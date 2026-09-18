@@ -4,6 +4,11 @@ appId: org.racecor.broadcaster
 productName: Racing Desk
 copyright: Copyright (c) 2026 Kevin Conboy
 
+# Don't let electron-builder "install production dependencies": in this npm workspace that is an
+# `npm install --omit=dev` on the shared root node_modules, which deletes electron-builder, Playwright and
+# every other dev package mid-build. Nothing here has a native module to rebuild.
+npmRebuild: false
+
 files:
   - main.js
   - preload.js

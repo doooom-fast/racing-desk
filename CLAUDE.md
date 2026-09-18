@@ -69,6 +69,11 @@ with PdfPig (laid out as fixed-pitch text, like `pdftotext -layout`), parses eve
 ```bash
 npm run build                       # THE APP: apps/overlay/dist/win-unpacked/Racing Desk.exe (calc bundle + host + overlay)
 npm run build:host                  # just RaceCor.Host → apps/host/publish (dev: once, then npm start below)
+# electron-builder here: npmRebuild is off (its "install production dependencies" step would prune the workspace's
+# shared node_modules of every dev package, itself included), and its winCodeSign tools archive can't be unpacked
+# by it on this machine (macOS symlinks inside need a privilege Windows doesn't grant by default) — if the cache
+# is ever cleared, unpack the .7z it downloads into %LOCALAPPDATA%\electron-builder\Cache\winCodeSign\winCodeSign-2.6.0
+# with 7za and `-xr!darwin`, then build again.
 npm start -w racecor-overlay        # overlay from source: HUD + desk, starts the host too (--no-desk skips the desk,
                                     # Ctrl+Shift+O reopens it; --desk-host=http://localhost:18889 uses a host you ran by hand)
 npm test -w @prodrive/calc          # engines + local model (vitest)
