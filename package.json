@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "app": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/racing-desk.ps1",
     "dev": "node scripts/dev.mjs",
     "record": "node packages/replay/cli.mjs record",
     "replay": "node packages/replay/cli.mjs play",

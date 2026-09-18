@@ -67,7 +67,9 @@ with PdfPig (laid out as fixed-pitch text, like `pdftotext -layout`), parses eve
 ## Desk
 
 ```bash
-npm start -w racecor-overlay        # HUD + desk (desk opens at launch; --no-desk to skip, Ctrl+Shift+O to reopen)
+npm run app                         # THE APP: host + overlay (HUD + desk) — same as the "Racing Desk" Desktop shortcut
+npm run app -- -Stop                # stop both
+npm start -w racecor-overlay        # overlay only (desk opens at launch; --no-desk to skip, Ctrl+Shift+O to reopen)
 npm test -w @prodrive/calc          # engines + local model (vitest)
 npm run test:desk                   # desk.html over a mock host, headless, off-machine requests blocked
 ```
