@@ -16,6 +16,9 @@ namespace RaceCorProDrive.Plugin
     // The localhost:8889 HTTP contract: action endpoints and the flat JSON state map.
     public sealed partial class ProDriveRuntime
     {
+        /// <summary>Whether :HttpPort is bound and served — false when another host or SimHub got there first.</summary>
+        public bool HttpListening => _httpListener != null && _httpListener.IsListening;
+
         private void StartHttpServer()
         {
             // Try binding in order of preference:

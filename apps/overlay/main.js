@@ -4,7 +4,7 @@
 // that renders the HTML dashboard over the sim
 // ═══════════════════════════════════════════════════════════════
 
-const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Menu, desktopCapturer, session, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Menu, Tray, desktopCapturer, session, powerMonitor } = require('electron');
 const path   = require('path');
 const fs     = require('fs');
 const os     = require('os');
@@ -18,6 +18,7 @@ const ffmpegEncoder  = require('./modules/js/ffmpeg-encoder');
 const bundleWriter   = require('./modules/js/bundle-writer');
 const replayDirector = require('./modules/js/replay-director');
 const { isAllowedExternalUrl } = require('./modules/js/external-links');
+const hostLauncher = require('./modules/js/host-launcher');
 
 // ── Crash log ───────────────────────────────────────────────
 // Write a log file next to the app so crash info is visible
@@ -39,6 +40,14 @@ process.on('unhandledRejection', (reason) => {
 
 // ── App name ──────────────────────────────────────────────────
 app.setName('K10 Motorsports');
+
+// ── One instance ──────────────────────────────────────────────
+// The app's only visible presence is a tray icon, so a second double-click on the shortcut must open the desk
+// in the running instance — not a second HUD, tray icon and host. The lock lives under userData, hence after
+// setName.
+const isFirstInstance = app.requestSingleInstanceLock();
+if (!isFirstInstance) app.quit();
+else app.on('second-instance', () => showDesk());
 
 // ── GPU / sandbox flags ─────────────────────────────────────
 app.commandLine.appendSwitch('disable-gpu-sandbox');
@@ -111,24 +120,46 @@ function saveRatingData(data) {
 // settings mode, no in-overlay editors.
 let overlayWindow = null;
 let deskWindow = null;
+let tray = null;                 // module-level so the icon isn't garbage-collected
+let hostUrl = null;              // where startLocalHost() found or started RaceCor.Host
+let hostChild = null;            // the RaceCor.Host process this app started, killed on quit
+let hostNote = null;             // why there is no host of our own, shown by the desk when nothing answers
+let deskHost = null;             // the host URL the desk window was loaded with
 
 // ═══════════════════════════════════════════════════════════════
 // DESK WINDOW — career, form and race history from the local store
 // ═══════════════════════════════════════════════════════════════
 
-function localHostUrl() {
-  // --desk-host=http://localhost:18889 points the desk at a RaceCor.Host running beside SimHub, which holds
-  // the usual :8889 when it is running.
+function deskHostFlag() {
+  // --desk-host=http://localhost:18889 points the desk at a RaceCor.Host you run by hand (and skips
+  // starting one).
   const flag = process.argv.find((a) => a.startsWith('--desk-host='));
-  if (flag) return flag.slice('--desk-host='.length).replace(/\/+$/, '');
+  return flag ? flag.slice('--desk-host='.length).replace(/\/+$/, '') : null;
+}
+
+function localHostUrl() {
+  const flag = deskHostFlag();
+  if (flag) return flag;
+  if (hostUrl) return hostUrl;
   const settings = loadSettingsSync();
   return settings.simhubUrl
     ? settings.simhubUrl.replace(/\/racecor-io-pro-drive\/?$/, '')
     : 'http://localhost:8889';
 }
 
+// desk.html reads its host from the query once, at load: reload it if the host has changed since — a desk
+// opened from the tray or Ctrl+Shift+O while startLocalHost() was still deciding would otherwise stay pointed
+// at SimHub.
+function loadDesk() {
+  deskHost = localHostUrl();
+  const query = { host: deskHost };
+  if (hostNote) query.note = hostNote;
+  deskWindow.loadFile(path.join(__dirname, 'desk.html'), { query });
+}
+
 function showDesk() {
   if (deskWindow && !deskWindow.isDestroyed()) {
+    if (localHostUrl() !== deskHost) loadDesk();
     if (deskWindow.isMinimized()) deskWindow.restore();
     deskWindow.show();
     deskWindow.focus();
@@ -145,8 +176,63 @@ function showDesk() {
     autoHideMenuBar: true,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
   });
-  deskWindow.loadFile(path.join(__dirname, 'desk.html'), { query: { host: localHostUrl() } });
+  loadDesk();
   deskWindow.on('closed', () => { deskWindow = null; });
+}
+
+// The desk reads the local store from RaceCor.Host, so the app starts one — beside SimHub on :18889 when
+// SimHub holds :8889, in its place otherwise — or uses the one already running. The wait is bounded; the
+// desk retries by itself if the host takes longer. Not in dev mode: `npm run dev` is the HUD over a replay,
+// and a live host beside it would open the hardware and record for nothing.
+async function startLocalHost() {
+  if (deskHostFlag() || isDev) {
+    logToFile(isDev ? '[K10] Host: dev mode, not starting one' : `[K10] Host: --desk-host=${deskHostFlag()}, not starting one`);
+    return;
+  }
+  try {
+    const result = await hostLauncher.startHost({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      appDir: __dirname,
+      log: (msg) => logToFile(`[K10] Host: ${msg}`),
+    });
+    logToFile(`[K10] Host: ${result.reason}`);
+    hostUrl = result.url;
+    hostChild = result.child;
+    if (!hostUrl) hostNote = result.reason;
+    if (hostChild) {
+      const up = await hostLauncher.waitForHost(hostUrl, { timeoutMs: 10000, child: hostChild });
+      if (up) {
+        logToFile(`[K10] Host: answering at ${hostUrl}`);
+      } else if (hostChild.exitCode !== null) {
+        // The host stops itself when its port turns out to be taken (see Program.cs); whatever took it is
+        // what the desk will find there.
+        hostNote = `RaceCor.Host exited (${hostChild.exitCode}) — see ${hostLauncher.hostLogPath()}`;
+        logToFile(`[K10] Host: ${hostNote}`);
+      } else {
+        logToFile(`[K10] Host: no answer at ${hostUrl} after 10 s — the desk keeps trying`);
+      }
+    }
+  } catch (err) {
+    logToFile(`[K10] Host: start failed: ${err.stack || err.message}`);
+  }
+}
+
+// ── Tray icon ─────────────────────────────────────────────────
+// The HUD is hidden until the driver is in the car and the desk can be closed without quitting, so the
+// tray icon is what shows the app is running, and where it is quit from.
+function createTray() {
+  const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  tray = new Tray(path.join(__dirname, 'images', 'branding', iconFile));
+  tray.setToolTip('Racing Desk');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open desk', click: () => showDesk() },
+    { label: 'HUD on/off', click: () => dispatchAction('toggle-overlay') },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() },
+  ]));
+  tray.on('click', () => showDesk());          // a single click is what people try first on Windows
+  tray.on('double-click', () => showDesk());
 }
 let isInRace = false;            // true when poll-engine reports live car data (drives overlay visibility)
 let rendererCrashCount = 0;
@@ -335,7 +421,9 @@ async function maybeStartRemoteServer() {
 
 logToFile('[K10] App starting...');
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (!isFirstInstance) return;   // quitting: the running instance opens its desk instead
+
   // Remove the default Electron menu bar (File/Edit/View/etc) from all windows
   Menu.setApplicationMenu(null);
 
@@ -344,7 +432,7 @@ app.whenReady().then(() => {
   try {
     createOverlay();
     logToFile('[K10] Overlay window created OK');
-    if (!process.argv.includes('--no-desk')) showDesk();
+    createTray();
 
     // ── Display media handler for screen recording ──
     // Electron 33+ requires this to allow getDisplayMedia() in the renderer.
@@ -461,10 +549,16 @@ app.whenReady().then(() => {
   globalShortcut.register('CommandOrControl+Shift+P', () => {
     if (overlayWindow) overlayWindow.webContents.send('toggle-replay-director');
   });
+
+  await startLocalHost();
+  if (!process.argv.includes('--no-desk')) showDesk();
 });
 
 app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
+  if (app.isReady()) globalShortcut.unregisterAll();   // a second instance quits before ready
+  // The host watches this process (--parent-pid) and stops by itself once we're gone, flushing the lap it
+  // was recording; a kill now would cut that short. The 3 s backstop only fires if the app is still here.
+  hostLauncher.stopHost(hostChild, { graceMs: 3000 });
 });
 
 // ═══════════════════════════════════════════════════════════════

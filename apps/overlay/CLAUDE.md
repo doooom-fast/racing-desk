@@ -1,6 +1,6 @@
 # prodrive-overlay — Electron HUD
 
-Standalone Electron overlay that renders real-time sim racing telemetry as a transparent always-on-top HUD. Bundled inside the [`prodrive-windows`](https://github.com/k10-motorsports/prodrive-windows) installer; auto-launched by the desktop app's iRacing detector.
+Standalone Electron overlay that renders real-time sim racing telemetry as a transparent always-on-top HUD. Built by `npm run build` at the monorepo root into `dist/win-unpacked/Racing Desk.exe`, which starts its own RaceCor.Host (`modules/js/host-launcher.js`) — no installer; see the root CLAUDE.md, Desk.
 
 A sibling repo, [`prodrive-overlay-showcase`](https://github.com/k10-motorsports/prodrive-overlay-showcase), holds the same code with a `showcase-bootstrap.js` that drives it from synthesized data — used in the marketing-site iframe.
 
@@ -109,6 +109,10 @@ npm start                         # normal HUD mode (from apps/overlay)
 npm run start:safe                # ARM/software rendering mode
 ```
 
+`npm start` also starts RaceCor.Host (or uses one already on :8889/:18889; `--desk-host=<url>` to use one you ran
+by hand) and puts a tray icon up — quit from it or with Ctrl+Shift+Q; see the root CLAUDE.md, Desk. Dev mode
+starts no host.
+
 ## Testing
 
 ```bash
@@ -131,6 +135,7 @@ No CI — run locally.
 | `Ctrl+Shift+G` | Toggle green-screen mode |
 | `Ctrl+Shift+R` | Reset position and size |
 | `Ctrl+Shift+D` | Restart demo sequence |
+| `Ctrl+Shift+O` | Open the desk |
 | `Ctrl+Shift+Q` | Quit |
 
 ## What this repo does NOT do anymore

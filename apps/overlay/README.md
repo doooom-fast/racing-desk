@@ -31,11 +31,6 @@ npm install
 npm start
 ```
 
-**Platform launchers** (double-click to run — auto-install dependencies):
-
-- **macOS:** `scripts/mac/RaceCorProDrive.command`
-- **Windows:** `scripts/windows/start.bat`
-
 The overlay appears in the top-right corner of your primary display. For ARM hardware, use safe mode: `npm run start:safe`
 
 ### Hotkeys

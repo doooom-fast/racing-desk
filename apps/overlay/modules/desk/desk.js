@@ -7,6 +7,9 @@
   const params = new URLSearchParams(location.search);
   const HOST = (params.get('host') || 'http://localhost:8889').replace(/\/+$/, '');
   const DATA = HOST + '/racecor-io-pro-drive/data/';
+  // main.js says why it has no host of its own (no exe built, something else on the port) — shown with the
+  // offline message, since that is the window the person is looking at.
+  const NOTE = params.get('note');
   const STATUS_POLL_MS = 30000;
   const Calc = window.RaceCorCalc;
 
@@ -148,7 +151,7 @@
   }
 
   function showOffline(reason) {
-    $('offline-reason').textContent = reason;
+    $('offline-reason').textContent = NOTE ? `${reason} ${NOTE}` : reason;
     $('offline').hidden = false;
     $('freshness').textContent = 'Local host not running';
   }

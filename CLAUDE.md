@@ -48,7 +48,7 @@ npm run host -- schedule --series "Caterham"   # what one series parsed to, week
 ```
 
 The host also serves the store read-only at `:8889/racecor-io-pro-drive/data/{status,sessions,session?id=}`
-— that's what the desk reads. If SimHub's plugin holds `:8889`, the desk says so instead of loading.
+— that's what the desk reads. If SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk).
 
 ## Season schedule
 
@@ -67,12 +67,21 @@ with PdfPig (laid out as fixed-pitch text, like `pdftotext -layout`), parses eve
 ## Desk
 
 ```bash
-npm run app                         # THE APP: host + overlay (HUD + desk) — same as the "Racing Desk" Desktop shortcut
-npm run app -- -Stop                # stop both
-npm start -w racecor-overlay        # overlay only (desk opens at launch; --no-desk to skip, Ctrl+Shift+O to reopen)
+npm run build                       # THE APP: apps/overlay/dist/win-unpacked/Racing Desk.exe (calc bundle + host + overlay)
+npm run build:host                  # just RaceCor.Host → apps/host/publish (dev: once, then npm start below)
+npm start -w racecor-overlay        # overlay from source: HUD + desk, starts the host too (--no-desk skips the desk,
+                                    # Ctrl+Shift+O reopens it; --desk-host=http://localhost:18889 uses a host you ran by hand)
 npm test -w @prodrive/calc          # engines + local model (vitest)
 npm run test:desk                   # desk.html over a mock host, headless, off-machine requests blocked
 ```
+
+Build once with `npm run build`, then the app is `apps/overlay/dist/win-unpacked/Racing Desk.exe` — the Start menu and
+Desktop "Racing Desk" shortcuts point there; "shipping" is `git pull && npm run build`. It starts its own RaceCor.Host
+(`modules/js/host-launcher.js`): beside SimHub on `:18889`/`:18890` with `--no-hardware` while SimHub holds `:8889`,
+on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\RaceCor\host.log`.
+There is no console window — the tray icon (open desk, HUD on/off, quit) is the app; Ctrl+Shift+Q quits too, and
+the host stops itself when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again opens the
+desk in the running app.
 
 `modules/desk/calc.bundle.js` is generated from `packages/calc` on overlay start and by the desk tests — don't edit
 or commit it. Rating changes aren't in telemetry: a race's iRating/SR change is read from the driver's next

@@ -150,7 +150,7 @@ test.afterAll(async () => {
   await new Promise((resolve) => host?.close(resolve));
 });
 
-async function openDesk(page, hostUrl) {
+async function openDesk(page, hostUrl, query = '') {
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
   page.on('console', (msg) => {
@@ -161,7 +161,7 @@ async function openDesk(page, hostUrl) {
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort()); // Typekit and anything else off-machine
   await page.clock.setFixedTime(NOW);
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto(`${DESK}?host=${encodeURIComponent(hostUrl)}`);
+  await page.goto(`${DESK}?host=${encodeURIComponent(hostUrl)}${query}`);
   return errors;
 }
 
@@ -218,6 +218,19 @@ test('says so when no local host is running', async ({ page }) => {
   await openDesk(page, `http://127.0.0.1:${port}`);
   await expect(page.locator('#offline')).toBeVisible();
   await expect(page.locator('#offline-reason')).toContainText(`127.0.0.1:${port}`);
+});
+
+test('passes on why the app has no host of its own', async ({ page }) => {
+  const closed = http.createServer();
+  await new Promise((resolve) => closed.listen(0, '127.0.0.1', resolve));
+  const port = closed.address().port;
+  await new Promise((resolve) => closed.close(resolve));
+
+  const note = 'no host exe at C:\\Racing Desk\\resources\\host\\RaceCor.Host.exe; run npm run build:host';
+  await openDesk(page, `http://127.0.0.1:${port}`, `&note=${encodeURIComponent(note)}`);
+  await expect(page.locator('#offline')).toBeVisible();
+  await expect(page.locator('#offline-reason')).toContainText(`127.0.0.1:${port}`);
+  await expect(page.locator('#offline-reason')).toContainText(note);
 });
 
 test('tells a telemetry-only server (the SimHub plugin) apart from the local host', async ({ page }) => {

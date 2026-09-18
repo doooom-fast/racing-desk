@@ -13,9 +13,7 @@
     "start:safe": "cross-env K10_FORCE_SOFTWARE=1 electron .",
     "rebuild": "echo 'Dashboard uses vanilla JS — no build step needed'",
     "build:win": "electron-builder --win --config electron-builder.yml",
-    "build:mac": "electron-builder --mac --config electron-builder.yml",
     "build": "electron-builder --config electron-builder.yml",
-    "dist": "electron-builder --mac --win --config electron-builder.yml",
     "test": "npx playwright test --project=unit",
     "test:dashboard": "npx playwright test",
     "test:golden": "playwright test --project=golden",
@@ -23,7 +21,7 @@
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
-    "electron": "^33.0.0",
+    "electron": "33.4.11",
     "electron-builder": "^25.1.8"
   },
   "dependencies": {

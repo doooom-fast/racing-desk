@@ -420,9 +420,11 @@ not weeks.
 
 ### Build and run
 
-`npm run build` on the rig produces the Electron app, the standalone host and the optional SimHub plugin
-in place; a start-at-login shortcut points at the build output. No installer, no code signing, no
-GitHub Release, no version lockstep. "Shipping" is `git pull && npm run build`.
+`npm run build` on the rig produces `apps/overlay/dist/win-unpacked/Racing Desk.exe` with RaceCor.Host
+published inside it (`resources/host`); the SimHub plugin is built from `prodrive.sln` and installed with
+`apps/plugin/scripts/windows/install.bat` separately. The Start menu / Desktop shortcuts point at the exe.
+No installer, no code signing, no GitHub Release, no version lockstep. "Shipping" is
+`git pull && npm run build`.
 
 ---
 

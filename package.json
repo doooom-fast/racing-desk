@@ -8,7 +8,8 @@
     "packages/*"
   ],
   "scripts": {
-    "app": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/racing-desk.ps1",
+    "build": "node packages/calc/build.mjs && npm run build:host && npm run build:win -w racecor-overlay",
+    "build:host": "dotnet publish apps/host/RaceCor.Host -c Release -r win-x64 --self-contained false -o apps/host/publish",
     "dev": "node scripts/dev.mjs",
     "record": "node packages/replay/cli.mjs record",
     "replay": "node packages/replay/cli.mjs play",

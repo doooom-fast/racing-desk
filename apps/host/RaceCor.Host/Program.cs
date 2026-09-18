@@ -38,6 +38,7 @@ Serve options:
   --exit-after <s>     stop after this many seconds (for scripted checks)
   --no-hardware        don't open Moza serial, pedal profiles or screen sampling
                        (always off in --ibt mode)
+  --parent-pid <n>     stop when that process exits (the app that started this host)
 
 Data options:
   --db <path>          store (default %LOCALAPPDATA%\RaceCor\prodrive.db)
@@ -114,10 +115,22 @@ Data options:
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Set(); };
             if (o.ExitAfterSeconds > 0)
                 new Timer(_ => stop.Set(), null, TimeSpan.FromSeconds(o.ExitAfterSeconds), Timeout.InfiniteTimeSpan);
+            // Started by the app, with no console to send Ctrl+C to: stop when it goes away, however it went, so the
+            // orderly shutdown below (flush the lap being recorded, release the serial port) still runs.
+            if (o.ParentPid > 0)
+                new Thread(() => { try { Process.GetProcessById(o.ParentPid).WaitForExit(); } catch { } stop.Set(); })
+                    { IsBackground = true, Name = "parent-watch" }.Start();
 
             runtime.Start();
             try
             {
+                // Another host, or SimHub, got the port first. A host that serves nothing must not sit on the
+                // hardware and record beside it; exiting lets the app see that instead of a silent process.
+                if (!runtime.HttpListening)
+                {
+                    Log.Warn($"[RaceCor.Host] :{o.HttpPort} is taken — stopping");
+                    return 1;
+                }
                 if (replay) PlayIbt(o, runtime, record ? store : null, stop);
                 else RunLive(o, runtime, store, stop);
             }
@@ -358,6 +371,7 @@ Data options:
         public int HttpPort = 8889;
         public int WsPort = 8890;
         public bool NoHardware;
+        public int ParentPid;
         public string DataDir;
         public double ExitAfterSeconds;
         public string Db;
@@ -411,6 +425,7 @@ Data options:
                     case "--http-port": o.HttpPort = (int)Num(); break;
                     case "--ws-port": o.WsPort = (int)Num(); break;
                     case "--no-hardware": o.NoHardware = true; break;
+                    case "--parent-pid": o.ParentPid = (int)Num(); break;
                     case "--data-dir": o.DataDir = Next(); break;
                     case "--exit-after": o.ExitAfterSeconds = Num(); break;
                     case "--db": o.Db = Next(); break;
