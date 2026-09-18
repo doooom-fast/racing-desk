@@ -16,6 +16,9 @@
   let desk = null;
   let lastStatus = null;
   let selectedRaceId = null;
+  // iRacing series-page ids for "Open in iRacing", keyed by series name: pasted by the driver from the iRacing
+  // UI once per season and kept in the overlay settings (docs/race-join-findings.md §4).
+  let raceLinks = {};
 
   // ── Formatting ───────────────────────────────────────────
 
@@ -82,8 +85,58 @@
     const ms = Math.round(performance.now() - t0);
     if (Object.keys(desk.errors).length) console.warn('[desk] engine errors', desk.errors);
     $('offline').hidden = true;
+    raceLinks = await loadRaceLinks();
     render();
     $('freshness').textContent = `${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)} · ${ms} ms`;
+  }
+
+  // ── Open in iRacing ──────────────────────────────────────
+  // The iRacing UI registers iracing:// and takes its own routes under web/ (docs/race-join-findings.md §1):
+  // running, it switches to the page; not running, it starts and lands there after login. The schedule PDF
+  // carries no iRacing ids, so a series' page is whatever the driver pasted; without one, the Official page.
+
+  const OFFICIAL = 'iracing://web/racing/official/';
+  const SERIES_LIST = /\/web\/racing\/official\/series-list\/(\d+)\/?/;
+
+  function raceLinkUrl(series) {
+    const id = raceLinks[series];
+    return id ? `${OFFICIAL}series-list/${id}/` : OFFICIAL;
+  }
+
+  // A pasted series page link — https://members-ng.iracing.com/web/racing/official/series-list/6273/, the
+  // iracing:// form, or just the id — to the id, or null.
+  function parseRaceLink(text) {
+    const s = String(text || '').trim();
+    if (/^\d+$/.test(s)) return s;
+    const m = s.match(SERIES_LIST);
+    return m ? m[1] : null;
+  }
+
+  function openExternal(url) {
+    if (window.k10 && window.k10.openExternal) window.k10.openExternal(url);
+    else location.href = url; // outside Electron the browser asks the OS for the scheme's handler
+  }
+
+  async function loadRaceLinks() {
+    if (!window.k10 || !window.k10.getSettings) return {};
+    try {
+      const settings = await window.k10.getSettings();
+      return (settings && settings.raceLinks) || {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  // The HUD shares overlay-settings.json and saveSettings replaces the file whole: read, set one key, write.
+  async function saveRaceLink(series, id) {
+    if (window.k10 && window.k10.getSettings && window.k10.saveSettings) {
+      const settings = (await window.k10.getSettings()) || {};
+      settings.raceLinks = { ...(settings.raceLinks || {}), [series]: id };
+      await window.k10.saveSettings(settings);
+      raceLinks = settings.raceLinks;
+    } else {
+      raceLinks = { ...raceLinks, [series]: id };
+    }
   }
 
   async function pollStatus() {
@@ -350,6 +403,15 @@
             · ${esc(s.viewModel.durationLabel || (s.sessionMinutes + ' min'))}${s.isFixed ? ' · fixed' : ''}
             ${s.carClassNames && s.carClassNames.length ? ' · ' + esc(s.carClassNames.slice(0, 2).join(', ')) : ''}</span>
           <span class="why">${esc(s.strategy ? s.strategy.text : s.commentary || '')}</span>
+          <span class="actions">
+            <button type="button" class="open-iracing" data-series="${esc(s.seriesName)}">Open in iRacing</button>
+            <button type="button" class="link-toggle" title="Paste this series' page link from the iRacing UI, so the button lands on it">${raceLinks[s.seriesName] ? 'linked' : 'link…'}</button>
+          </span>
+          <form class="link-form" data-series="${esc(s.seriesName)}" hidden>
+            <input type="text" placeholder="paste the series page link from the iRacing UI" aria-label="series page link">
+            <button type="submit">Save</button>
+            <span class="link-note"></span>
+          </form>
         </li>`).join('')}</ul>`;
   }
 
@@ -401,6 +463,28 @@
     if (row) selectRace(row.dataset.id);
   });
   $('refresh').addEventListener('click', () => load());
+  $('next-race').addEventListener('click', (ev) => {
+    const open = ev.target.closest('.open-iracing');
+    if (open) { openExternal(raceLinkUrl(open.dataset.series)); return; }
+    const toggle = ev.target.closest('.link-toggle');
+    if (toggle) {
+      const form = toggle.closest('li').querySelector('.link-form');
+      form.hidden = !form.hidden;
+      if (!form.hidden) form.querySelector('input').focus();
+    }
+  });
+  $('next-race').addEventListener('submit', async (ev) => {
+    const form = ev.target.closest('.link-form');
+    if (!form) return;
+    ev.preventDefault();
+    const id = parseRaceLink(form.querySelector('input').value);
+    if (!id) {
+      form.querySelector('.link-note').textContent = 'Not a series link — copy it from the series page in the iRacing UI (…/racing/official/series-list/<id>/).';
+      return;
+    }
+    await saveRaceLink(form.dataset.series, id);
+    renderNextRace();
+  });
 
   if (!Calc) {
     showOffline('The calc bundle is missing — run `npm run build -w @prodrive/calc`.');

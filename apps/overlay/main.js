@@ -17,6 +17,7 @@ const devMode      = isDev ? require('./dev-mode') : null;
 const ffmpegEncoder  = require('./modules/js/ffmpeg-encoder');
 const bundleWriter   = require('./modules/js/bundle-writer');
 const replayDirector = require('./modules/js/replay-director');
+const { isAllowedExternalUrl } = require('./modules/js/external-links');
 
 // ── Crash log ───────────────────────────────────────────────
 // Write a log file next to the app so crash info is visible
@@ -1268,12 +1269,9 @@ ipcMain.handle('quit-app', () => {
 // ── IPC: Open external URL in user's default browser ──
 ipcMain.handle('open-external', async (event, urlStr) => {
   try {
-    const url = new URL(urlStr);
-    if (url.protocol === 'http:' || url.protocol === 'https:') {
-      await shell.openExternal(urlStr);
-    }
+    if (isAllowedExternalUrl(urlStr)) await shell.openExternal(urlStr);
   } catch (e) {
-    // invalid URL — silently reject
+    // no handler for the scheme (the iRacing UI not installed) — silently reject
   }
 });
 

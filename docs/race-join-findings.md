@@ -80,6 +80,13 @@ Ruled out by the ground rules, and it wouldn't close the join gap anyway.
 
 ## 4. Recommendation — first slice
 
+> **Built 2026-09-18** (items 1–3): the desk's next-race suggestions each carry "Open in iRacing", which hands
+> `iracing://web/racing/official/series-list/<id>/` — or `iracing://web/racing/official/` while no id is known —
+> to the OS through the overlay's `open-external` (allowlisted in `apps/overlay/modules/js/external-links.js`).
+> Ids come from a pasted series page link, kept in `overlay-settings.json` under `raceLinks`. The route with an
+> id is unverified until a real link is pasted. The id-less route was tried on the rig with the UI closed: the
+> link cold-started `iRacingUI.exe`, which logged in and accepted the route (no "invalid route" in `main-ui.log`).
+
 1. **List**: upcoming official starts for the next few hours from the stored schedule (option 1),
    reusing the discipline/licence filters. Label them as "scheduled" — no registered counts, no SOF.
 2. **Act**: per row an "Open in iRacing" action that ShellExecutes `iracing://web/racing/official/…`;

@@ -234,3 +234,58 @@ test('tells a telemetry-only server (the SimHub plugin) apart from the local hos
     await new Promise((resolve) => plugin.close(resolve));
   }
 });
+
+// ── Open in iRacing ──────────────────────────────────────────
+// window.k10 is the preload bridge; outside Electron there is none, so these stand one in and record what
+// the desk asks of it.
+async function stubBridge(page, settings) {
+  await page.addInitScript((initial) => {
+    window.__k10 = { opened: [], saved: [], settings: initial };
+    window.k10 = {
+      getSettings: async () => JSON.parse(JSON.stringify(window.__k10.settings)),
+      saveSettings: async (s) => { window.__k10.saved.push(s); window.__k10.settings = s; return true; },
+      openExternal: async (url) => { window.__k10.opened.push(url); },
+    };
+  }, settings);
+}
+
+test('"Open in iRacing" hands the suggestion to the iRacing UI, on the Official page while no link is known', async ({ page }) => {
+  await stubBridge(page, { zoom: 100 });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`);
+  await expect(page.locator('.suggestions li')).toHaveCount(1);
+  await expect(page.locator('.suggestions .link-toggle')).toHaveText('link…');
+  await page.locator('.suggestions .open-iracing').click();
+  expect(await page.evaluate(() => window.__k10.opened)).toEqual(['iracing://web/racing/official/']);
+  expect(errors).toEqual([]);
+});
+
+test('a pasted series link is kept in the overlay settings, beside everything else in them', async ({ page }) => {
+  await stubBridge(page, { zoom: 100, showSpotter: false });
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`);
+  await expect(page.locator('.suggestions li')).toHaveCount(1);
+  await page.locator('.suggestions .link-toggle').click();
+  const input = page.locator('.suggestions .link-form input');
+  await expect(input).toBeFocused();
+
+  await input.fill('https://members-ng.iracing.com/web/racing/results-stats/');
+  await input.press('Enter');
+  await expect(page.locator('.suggestions .link-note')).toContainText('Not a series link');
+  expect(await page.evaluate(() => window.__k10.saved)).toEqual([]);
+
+  await input.fill('https://members-ng.iracing.com/web/racing/official/series-list/6273/');
+  await input.press('Enter');
+  await expect(page.locator('.suggestions .link-toggle')).toHaveText('linked');
+  expect(await page.evaluate(() => window.__k10.saved)).toEqual([
+    { zoom: 100, showSpotter: false, raceLinks: { 'Caterham Academy Challenge': '6273' } },
+  ]);
+  await page.locator('.suggestions .open-iracing').click();
+  expect(await page.evaluate(() => window.__k10.opened)).toEqual(['iracing://web/racing/official/series-list/6273/']);
+});
+
+test('a link already in the settings is used from the first click', async ({ page }) => {
+  await stubBridge(page, { raceLinks: { 'Caterham Academy Challenge': '6273' } });
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`);
+  await expect(page.locator('.suggestions .link-toggle')).toHaveText('linked');
+  await page.locator('.suggestions .open-iracing').click();
+  expect(await page.evaluate(() => window.__k10.opened)).toEqual(['iracing://web/racing/official/series-list/6273/']);
+});

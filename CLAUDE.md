@@ -77,7 +77,11 @@ npm run test:desk                   # desk.html over a mock host, headless, off-
 `modules/desk/calc.bundle.js` is generated from `packages/calc` on overlay start and by the desk tests — don't edit
 or commit it. Rating changes aren't in telemetry: a race's iRating/SR change is read from the driver's next
 session in the same licence category. Next-race suggestions are limited to the disciplines the driver actually
-races (3+ races in the last year) and to what their licence can enter.
+races (3+ races in the last year) and to what their licence can enter. Each suggestion has **Open in iRacing**: an
+`iracing://web/racing/official/...` link the logged-in iRacing UI accepts (it starts the UI if needed) — the whole of
+what a local app can do about joining, see `docs/race-join-findings.md`. The PDF carries no iRacing ids, so the
+button lands on the Official page until the driver pastes that series' page link once (the row's "link…"); ids are
+kept in `overlay-settings.json` under `raceLinks`.
 
 The SimHub plugin build stages into `apps/plugin/racecor-plugin/simhub-plugin/build/`; `apps/plugin/scripts/windows/install.bat`
 copies it into SimHub — **ask before running it**, it replaces the installed plugin.

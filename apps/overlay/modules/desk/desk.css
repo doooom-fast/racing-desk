@@ -275,3 +275,14 @@ h2 {
 .suggestions .name { grid-column: 3; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .suggestions .sub { grid-column: 3; color: var(--text-3); font-size: 12px; }
 .suggestions .why { grid-column: 3; color: var(--text-2); font-size: 12px; margin-top: 3px; }
+.suggestions .actions { grid-column: 3; display: flex; gap: 6px; margin-top: 6px; }
+.suggestions .actions button { font-size: 12px; padding: 2px 8px; }
+.suggestions .link-toggle { color: var(--text-3); }
+.suggestions .link-form { grid-column: 3; display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.suggestions .link-form[hidden] { display: none; }
+.suggestions .link-form input {
+  flex: 1; min-width: 0; font: inherit; font-size: 12px; color: var(--text);
+  background: var(--panel-raised); border: 1px solid var(--hairline-strong); border-radius: 6px; padding: 3px 8px;
+}
+.suggestions .link-form button { font-size: 12px; padding: 2px 8px; }
+.suggestions .link-note { color: var(--text-3); font-size: 12px; }
