@@ -13,7 +13,7 @@ livery build liveries/demo-night-runner.yaml --customer-id 123456 --preview --in
 ## Install
 
 ```bash
-pip install -e ".[dev]"          # add [templates] for PSD bootstrap, [api] is not needed
+python -m venv .venv && .venv/Scripts/python -m pip install -e ".[dev]"   # add [templates] for PSD bootstrap
 livery doctor                    # checks paths, deps, customer id, Blender
 ```
 
@@ -28,7 +28,7 @@ blender: "C:/Program Files/Blender Foundation/Blender 4.2/blender.exe"
 ## A first livery
 
 ```bash
-livery cars scan                          # learn your installed cars' folder names
+livery cars scan                          # learn your installed cars' folder names (no login)
 livery profile bootstrap ferrari296gt3 --psd templates/ferrari296gt3/ferrari296gt3.psd
 livery new ferrari296gt3 "Night Runner"   # scaffolds liveries/night-runner.yaml
 livery build liveries/night-runner.yaml --preview
@@ -87,7 +87,7 @@ spec_overrides:
 | `livery preview <spec>` | contact sheet: albedo · zones+orientation · materials · alpha |
 | `livery doctor [car]` | paths, deps, customer id, Blender, stale mips, profile confidence |
 | `livery new <car> <name>` | scaffold a spec |
-| `livery cars sync/scan/list/coverage` | the roster, and how much of it can be painted |
+| `livery cars scan/list/coverage` | the roster (from the install, no login), and how much of it can be painted |
 | `livery profile list/show/bootstrap/from-bake` | the flat model |
 | `livery art list/import/palette` | the sponsor library and palettes from reference art |
 | `livery bake <car> --mesh <file>` | UV-space bake in Blender (`--check` to verify one) |
@@ -116,11 +116,10 @@ The mirroring rules, the bake analyser, the spec grammar and the output files ar
 covered. The Blender-side bake script is not (no Blender in CI) — run it once at
 `--resolution 512` and check it with `livery bake --check`.
 
-## This lives in prodrive-agents for now
+## In the monorepo
 
-It is written as a standalone repo (its own `pyproject.toml`, tests and docs) and is meant to
-become `k10-motorsports/prodrive-livery`. To split it out with its history intact:
-
-```bash
-./scripts/split-to-own-repo.sh          # prints the git subtree commands, runs nothing
-```
+Imported from prodrive-agents#19 into `apps/livery/`; the agent-facing half is
+`.claude/skills/livery-pipeline/`. It keeps its own `pyproject.toml`, venv and tests — Python
+sits beside the npm workspaces and the .NET solution rather than inside either. The monorepo's
+ground rules apply: nothing here talks to an authenticated iRacing endpoint, so the car roster
+comes from the install (`livery cars scan`), not the Data API.

@@ -213,8 +213,7 @@ finished paints get loaded into the sim — not to replace looking at the car.
 "Every car in iRacing" is a coverage problem, so it is tracked like one.
 
 ```
-livery cars sync        # roster from the iRacing Data API — car_dirpath is the paint folder
-livery cars scan        # or from local folders, no login
+livery cars scan        # roster from the install's cars/ folder — car_dirpath is the paint folder
 livery cars coverage    # how many cars have a profile, and how good it is
 ```
 

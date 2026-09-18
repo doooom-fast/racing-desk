@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
+.venv/
 
 # Real sponsor artwork stays out of git by default — it is usually not ours to
 # publish. The sample-* placeholders are committed so a fresh clone can build the

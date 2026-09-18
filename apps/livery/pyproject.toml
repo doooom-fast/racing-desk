@@ -15,7 +15,6 @@ dependencies = [
 
 [project.optional-dependencies]
 templates = ["psd-tools>=1.9"]
-api = ["requests>=2.31"]
 dev = ["pytest>=7.4"]
 
 [project.scripts]

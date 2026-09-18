@@ -17,9 +17,9 @@ description: |
 
 # iRacing livery pipeline
 
-The tool lives in **`prodrive-livery/`** (staged in prodrive-agents; destined for its own
-repo). Read `prodrive-livery/docs/DESIGN.md` before changing the pipeline itself. This skill
-is about *using* it to design liveries.
+The tool lives in **`apps/livery/`** (Python, its own venv: `apps/livery/.venv`). Read
+`apps/livery/docs/DESIGN.md` before changing the pipeline itself. This skill is about
+*using* it to design liveries.
 
 ## The loop
 
@@ -147,7 +147,7 @@ with.
 ## New car, no profile
 
 ```bash
-livery cars scan                                   # or `cars sync` for the full roster
+livery cars scan                                   # the cars installed on the rig
 livery profile bootstrap <car> --psd <template.psd>   # layer names → draft zones
 livery preview <a spec on that car>                # check the zone overlay, fix the yaml
 ```

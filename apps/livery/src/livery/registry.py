@@ -1,12 +1,10 @@
 """The car registry — which cars exist, what their paint folder is called, and
 how far along their profile is.
 
-Two sources, both useful:
-
-* the iRacing Data API (``livery cars sync``), which is authoritative and knows
-  every car on the service including ones you do not own;
-* the local disk (``livery cars scan``), which knows exactly what this machine
-  has installed and needs no login.
+It is learned from the rig (``livery cars scan``): the iRacing install's
+``cars/`` folder, one folder per car owned, plus the paint folder. Pro Drive uses
+no authenticated iRacing endpoint, so cars you do not own are not listed — and
+you cannot race them anyway.
 
 The registry is also the production tracker: ``livery cars coverage`` joins it
 against ``profiles/`` so "all cars in iRacing" is a number you can watch go up
@@ -18,7 +16,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .profile import CONFIDENCE, CarProfile
 
@@ -32,7 +30,7 @@ class CarEntry:
     categories: list[str] = field(default_factory=list)
     package_id: int | None = None
     owned: bool | None = None
-    source: str = "api"
+    source: str = "disk"
 
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in self.__dict__.items() if v not in (None, [], "")}
@@ -61,28 +59,12 @@ class CarRegistry:
 
     # ---------------------------------------------------------------- sources
 
-    def sync_from_api(self, cars: Iterable[dict[str, Any]]) -> int:
-        added = 0
-        for car in cars:
-            dirpath = car.get("car_dirpath")
-            if not dirpath:
-                continue
-            if dirpath not in self.cars:
-                added += 1
-            self.cars[dirpath] = CarEntry(
-                car_dirpath=dirpath,
-                car_name=car.get("car_name", ""),
-                car_id=car.get("car_id"),
-                abbrev=car.get("car_name_abbreviated", ""),
-                categories=list(car.get("categories") or car.get("car_types") or []),
-                package_id=car.get("package_id"),
-                owned=car.get("free_with_subscription") or None,
-                source="api",
-            )
-        return added
+    def scan_disk(self, *directories: Path | None, owned: bool | None = None) -> int:
+        """Pick up car folders from the paint directory or an iRacing install's ``cars/``.
 
-    def scan_disk(self, *directories: Path | None) -> int:
-        """Pick up car folders from the paint directory or an iRacing install."""
+        ``owned=True`` for the install: a car folder there means the car is installed,
+        which on this rig means owned.
+        """
         found = 0
         for directory in directories:
             if not directory:
@@ -94,10 +76,13 @@ class CarRegistry:
                 if not entry.is_dir() or entry.name.startswith("."):
                     continue
                 if entry.name in self.cars:
+                    if owned:
+                        self.cars[entry.name].owned = True
                     continue
                 self.cars[entry.name] = CarEntry(
                     car_dirpath=entry.name,
                     car_name=entry.name,
+                    owned=owned,
                     source=f"disk:{root.name}",
                 )
                 found += 1

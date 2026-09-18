@@ -18,6 +18,7 @@ no account, no cloud and no distribution. This machine *is* the rig — iRacing,
 | `apps/plugin/` | SimHub plugin — now a thin adapter over RaceCor.Core (SimHub dashes, actions, events). `prodrive.sln` at the root builds all .NET projects | [`apps/plugin/CLAUDE.md`](apps/plugin/CLAUDE.md) |
 | `packages/calc/` | Calc engines ported from prodrive-server (verbatim, with their tests) plus the local model that turns stored sessions into their inputs; bundled into the desk | — |
 | `apps/edit/` | Node CLI for `.rcpdv` bundle editing | [`apps/edit/CLAUDE.md`](apps/edit/CLAUDE.md) |
+| `apps/livery/` | Python CLI: livery spec (YAML, car space) → the TGA paint + spec map iRacing loads, self-checked, installed into `Documents\iRacing\paint` | [`apps/livery/docs/DESIGN.md`](apps/livery/docs/DESIGN.md), skill `livery-pipeline` |
 | `docs/` | Cross-app context; `docs/archive/` is superseded | [`docs/README.md`](docs/README.md) |
 | `.claude/skills/` | Project skills (overlay, plugin, racing domain, bundle format) | — |
 
@@ -72,6 +73,21 @@ races (3+ races in the last year) and to what their licence can enter.
 
 The SimHub plugin build stages into `apps/plugin/racecor-plugin/simhub-plugin/build/`; `apps/plugin/scripts/windows/install.bat`
 copies it into SimHub — **ask before running it**, it replaces the installed plugin.
+
+## Liveries
+
+```bash
+cd apps/livery
+python -m venv .venv && .venv/Scripts/python -m pip install -e ".[dev,templates]"
+.venv/Scripts/livery doctor         # paths, customer id, Blender, stale mips
+.venv/Scripts/livery cars scan      # the cars installed on the rig — folder names are paint folder names
+.venv/Scripts/python -m pytest -q
+```
+
+Imported from prodrive-agents#19. Use the real Python (`%LOCALAPPDATA%\Python\bin\python.exe`), not the
+WindowsApps `python.exe` stub, which opens the Store and hangs. `livery.yaml` names the rig's install and Blender
+4.2. Builds stage in `apps/livery/build/`; `--install` copies into the paint folder, keeping a `.bak-` of what it
+replaces. Sponsor art beyond the two `sample-*` placeholders, paint templates and `data/cars.json` stay out of git.
 
 ## Dev loop (overlay design work — parked until Phase 5)
 

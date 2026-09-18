@@ -98,10 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     cars_sub = cars.add_subparsers(dest="cars_command")
     c_list = cars_sub.add_parser("list"); c_list.add_argument("filter", nargs="?", default=None)
     c_list.set_defaults(func=cmd_cars_list)
-    c_sync = cars_sub.add_parser("sync", help="pull the roster from the iRacing Data API")
-    c_sync.add_argument("--email", default=None)
-    c_sync.set_defaults(func=cmd_cars_sync)
-    c_scan = cars_sub.add_parser("scan", help="find cars from local folders, no login")
+    c_scan = cars_sub.add_parser("scan", help="learn the cars from the iRacing install and paint folder")
     c_scan.set_defaults(func=cmd_cars_scan)
     c_cov = cars_sub.add_parser("coverage", help="which cars have profiles")
     c_cov.add_argument("--json", action="store_true")
@@ -336,7 +333,7 @@ def cmd_cars_list(args) -> int:
         registry.cars.values(), key=lambda c: c.car_dirpath
     )
     if not cars:
-        print("no cars — run `livery cars sync` (Data API) or `livery cars scan` (local folders)")
+        print("no cars — run `livery cars scan`")
         return 0
     for car in cars:
         print(f"{car.car_dirpath:28s} {car.car_name}")
@@ -344,22 +341,14 @@ def cmd_cars_list(args) -> int:
     return 0
 
 
-def cmd_cars_sync(args) -> int:
-    from .iracing_api import DataApi
-
-    config = _config(args)
-    registry = _registry(config)
-    api = DataApi(email=args.email)
-    added = registry.sync_from_api(api.cars())
-    path = registry.save()
-    print(f"synced {len(registry.cars)} cars ({added} new) → {path}")
-    return 0
-
-
 def cmd_cars_scan(args) -> int:
     config = _config(args)
     registry = _registry(config)
-    found = registry.scan_disk(config.iracing_paint_dir, config.iracing_install_dir)
+    # The install's cars\ folder holds one folder per car you own, named by car_dirpath — the paint folder
+    # name. The paint folder adds cars you have paints for (Trading Paints fills it for every car it has
+    # downloaded for).
+    install_cars = config.iracing_install_dir / "cars" if config.iracing_install_dir else None
+    found = registry.scan_disk(install_cars, owned=True) + registry.scan_disk(config.iracing_paint_dir)
     path = registry.save()
     print(f"found {found} new car folder(s); {len(registry.cars)} known → {path}")
     return 0
