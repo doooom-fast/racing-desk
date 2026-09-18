@@ -1,0 +1,9 @@
+brand: Sample Associate
+tier: associate
+clear_space: 0.2
+min_height_mm: 55
+affinity:
+- rocker
+- rear_wing
+- front_fender
+notes: "Placeholder artwork \u2014 replace with the real logo."

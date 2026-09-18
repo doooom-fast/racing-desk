@@ -1,0 +1,9 @@
+brand: Sample Primary Sponsor
+tier: primary
+clear_space: 0.3
+min_height_mm: 110
+affinity:
+- door
+- rear_quarter
+- hood
+notes: "Placeholder artwork \u2014 replace with the real logo."

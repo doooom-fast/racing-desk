@@ -1,0 +1,112 @@
+# Demo livery — builds against profiles/_demo_gt3.yaml with no extra setup.
+# It is also the worked example of the spec grammar: every layer kind, sponsor
+# placement, baked numbers, materials, and a wheel colour the sim has to apply.
+version: 1
+car: _demo_gt3
+name: Night Runner
+number_mode: custom
+
+art_direction: >
+  Dark satin body so the car reads as a silhouette at night. One hot orange band
+  rakes up from the front wheel to the rear quarter — the only loud element.
+  Matte rocker to kill reflections low down, carbon on the aero, gloss where the
+  light should catch. Numbers in bone with a thin ink outline so they hold up
+  against the band.
+
+palette:
+  ink: "#0B0D10"
+  signal: "#FF3B1F"
+  bone: "#F2EFE8"
+  steel: "#7D858F"
+
+base:
+  color: palette.ink
+  material: satin
+
+layers:
+  - id: flank-band
+    kind: band
+    zones: [side]
+    rect: [0.10, 0.50, 0.80, 0.28]
+    color: palette.signal
+    angle: 5
+    taper: 0.25
+    material: gloss
+    note: Rakes up toward the tail; mirrored across the car automatically.
+
+  - id: rocker-block
+    kind: fill
+    zones: [rocker]
+    color: "#15181C"
+    material: matte
+
+  - id: deck-stripes
+    kind: stripes
+    zones: [hood, decklid]
+    rect: [0.0, 0.34, 1.0, 0.32]
+    colors: [palette.signal, palette.bone]
+    count: 2
+    weight: 0.55
+    gap: 0.12
+    material: gloss
+
+  - id: roof-fade
+    kind: gradient
+    zones: [roof]
+    colors: [palette.ink, palette.steel]
+    angle: 90
+
+  - id: aero-carbon
+    kind: pattern
+    zones: [splitter, rear_wing]
+    pattern: carbon
+    colors: ["#22252A", "#14161A"]
+    scale: 0.05
+    material: carbon
+
+  - id: nose-flash
+    kind: band
+    zones: [front]
+    rect: [0.3, 0.0, 0.4, 1.0]
+    color: palette.signal
+    material: gloss
+
+sponsors:
+  - logo: sample-primary
+    zones: [door]
+    at: {u: 0.5, v: 0.14}
+    size: {w: 0.78}
+    variant: light
+
+  - logo: sample-primary
+    zones: [rear_quarter]
+    at: {u: 0.5, v: 0.34}
+    size: {w: 0.80}
+
+  - logo: sample-associate
+    zones: [rocker]
+    at: {u: 0.5, v: 0.5}
+    size: {h: 0.70}
+
+numbers:
+  value: "10"
+  zones: [door.left, door.right, roof]
+  color: palette.bone
+  outline: {color: palette.ink, width: 0.05}
+  size: {h: 0.50}
+  at: {u: 0.5, v: 0.62}
+  slant: 6
+  per_zone:
+    roof:
+      size: {h: 0.8}
+      at: {u: 0.5, v: 0.5}
+      slant: 0
+
+wheels:
+  color: "#C8A200"
+  material: metallic
+  note: Gold rims, satin not mirror.
+
+spec_overrides:
+  - zones: [glass]
+    material: unlit

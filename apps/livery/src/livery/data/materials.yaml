@@ -1,0 +1,106 @@
+# Material presets → iRacing spec-map channel values.
+#
+# iRacing's PBR spec map packs three maps plus a mask into one TGA:
+#   R = metallic      G = roughness      B = clear coat      A = specular mask
+#
+# The numbers below are a sane starting point, NOT gospel — channel response
+# differs between car generations and iRacing has retuned it over the years.
+# Calibrate on your own eyes: `livery swatches <car>` builds a paint whose
+# panels are a labelled grid of these presets, so you can look at it in the
+# iRacing 3D viewer and edit this file until the names mean what you expect.
+#
+# albedo_value is the HSV value the base color is nudged to when a material
+# needs it. Metals read far darker in-sim than on the flat, so metallic and
+# chrome paint must be laid down much lighter than the colour you "want".
+
+presets:
+  gloss:
+    metallic: 0
+    roughness: 25
+    clearcoat: 255
+    spec_mask: 255
+    description: Standard clear-coated automotive paint. The default.
+
+  satin:
+    metallic: 0
+    roughness: 95
+    clearcoat: 170
+    spec_mask: 255
+    description: Satin/semi-gloss wrap. Reads rich without a mirror highlight.
+
+  matte:
+    metallic: 0
+    roughness: 205
+    clearcoat: 20
+    spec_mask: 255
+    description: Flat matte wrap. Hides body lines — use sparingly on curves.
+
+  vinyl:
+    metallic: 0
+    roughness: 130
+    clearcoat: 60
+    spec_mask: 255
+    description: Printed vinyl decal over paint — slightly duller than the panel.
+
+  metallic:
+    metallic: 255
+    roughness: 70
+    clearcoat: 255
+    spec_mask: 255
+    albedo_value: 0.86
+    description: Metallic flake paint. Albedo is lifted — metal needs a light base.
+
+  chrome:
+    metallic: 255
+    roughness: 10
+    clearcoat: 255
+    spec_mask: 255
+    albedo_value: 0.97
+    description: Mirror chrome. Albedo must be near white or it turns to mud.
+
+  brushed_metal:
+    metallic: 255
+    roughness: 110
+    clearcoat: 40
+    spec_mask: 255
+    albedo_value: 0.8
+    description: Brushed/anodised metal — gunmetal, titanium, exhaust surrounds.
+
+  carbon:
+    metallic: 0
+    roughness: 45
+    clearcoat: 255
+    spec_mask: 255
+    description: Lacquered carbon fibre. Pair with a carbon weave pattern fill.
+
+  carbon_matte:
+    metallic: 0
+    roughness: 165
+    clearcoat: 0
+    spec_mask: 255
+    description: Dry/matte carbon — splitters, diffusers, undertrays.
+
+  rubber:
+    metallic: 0
+    roughness: 230
+    clearcoat: 0
+    spec_mask: 255
+    description: Tyre-black trim, seals, mud flaps.
+
+  fluoro:
+    metallic: 0
+    roughness: 145
+    clearcoat: 90
+    spec_mask: 255
+    description: Fluorescent/day-glo vinyl. Keep it as an accent; it blooms on stream.
+
+  unlit:
+    metallic: 0
+    roughness: 255
+    clearcoat: 0
+    spec_mask: 0
+    description: Excluded from the lighting model — self-lit signage, light lenses.
+
+# Materials that must never be applied over lettering: chrome and mirror finishes
+# destroy legibility at broadcast distance.
+legibility_warn: [chrome, brushed_metal]
