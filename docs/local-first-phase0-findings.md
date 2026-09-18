@@ -168,9 +168,23 @@ that's accepted as-is.
 Relevant `app.ini [Telemetry]` on this rig: `irsdkEnableDisk=1`, `irsdkAutoLogDisk=1`,
 `irsdkLogAllCars=1`, `irsdkLog360Hz=0`, `irsdkLimitFileSize=0`, `irsdkLogSetup=1`.
 
-**Not a threat to history, but worth knowing:** the iRacing UI runs a separate research-upload program
-— `ibtv1_<n>_<n>_Members_<hash> <date>.ibt` files uploaded to an iRacing S3 bucket, then deleted locally
-(9 such deletions in the current UI log). Those are separate files; nothing in `telemetry\` is removed.
+### The research upload (re-checked 2026-09-18)
+
+Not a threat to history: the sim writes a second, smaller
+disk-telemetry file per session — its "internalHelper", beside the normal logger — into
+`%LOCALAPPDATA%\iRacing\internal\` as `ibtv1_<trackId>_<carId>_Members_<hash> <date>.ibt` (the format string
+is in `iRacingSim64DX11.exe`; no `app.ini` key governs it). The iRacing UI's "MSR telemetry" routine MD5s each
+one, uploads it with a presigned URL to `research-driver-training-data.s3.amazonaws.com/ibtv1/<date>/<trackId>/<carId>/Members/`,
+records it in `internal\telemetry_status.json`, then deletes it. iRacing calls this its anonymised race-data
+collection "to power future improvements and features", on in select official series, with an opt-out under
+**Settings > Preferences** in the iRacing UI
+([2025 S1 telemetry update](https://support.iracing.com/support/solutions/articles/31000175681)). On this rig
+the ledger holds 778 uploads since 2025-08-26 (5.3 GB), all `completed`; the 765 matched to `telemetry\` are all
+official-series sessions (436 races, 328 practices, 1 qualify) — no Test, Time Attack or unofficial session, and
+only some official series. Each is 23–26% of the matching `telemetry\` file, near-constant
+per car, which fits a fixed subset of channels at the same rate rather than a copy — but none survive
+locally, so which channels is unverified; copy one out of `internal\` during a session to see. Nothing in
+`telemetry\` is touched.
 
 ---
 

@@ -108,11 +108,12 @@ Ruled out by the ground rules, and it wouldn't close the join gap anyway.
 
 ## 6. Side finding
 
-`main-ui.log` shows the iRacing UI uploading renamed copies of this rig's `.ibt` files (matching the
-2026-09-17 Nordschleife runs) to an iRacing S3 bucket named for driver-training research, then
-deleting its staged copies. The originals are intact. It's iRacing's opt-in telemetry program
-(`stopMsrTelemetryUpload` in the UI; `%LOCALAPPDATA%\iRacing\internal\telemetry_status.json`), not
-Racing Desk — but it is on.
+`main-ui.log` shows the iRacing UI uploading a second, smaller per-session `.ibt` that the sim writes to
+`%LOCALAPPDATA%\iRacing\internal\` (not a copy of `Documents\iRacing\telemetry\`, which is untouched) to an
+iRacing S3 bucket named for driver-training research, then deleting it. It is iRacing's anonymised race-data
+collection — on in select official series unless turned off under **Settings > Preferences** in the UI — not
+Racing Desk. Details and the ledger on this rig:
+[`local-first-phase0-findings.md`](local-first-phase0-findings.md) §3, "The research upload".
 
 ## Sources
 
