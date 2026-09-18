@@ -95,11 +95,6 @@ WindowsApps `python.exe` stub, which opens the Store and hangs. `livery.yaml` na
 4.2. Builds stage in `apps/livery/build/`; `--install` copies into the paint folder, keeping a `.bak-` of what it
 replaces. Sponsor art beyond the two `sample-*` placeholders, paint templates and `data/cars.json` stay out of git.
 
-Trading Paints runs on the rig with "Update my own paints" on, so an installed paint is replaced in session by
-whatever is assigned on the account. `livery tp <spec>` stages the paint and the sim-made spec `.mip` and opens the
-upload form (there is no API); the Downloader's `config.xml` is read for its options only — it also holds the
-account id, which nothing prints.
-
 ## Dev loop (overlay design work — parked until Phase 5)
 
 ```bash

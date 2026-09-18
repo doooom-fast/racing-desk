@@ -84,7 +84,6 @@ spec_overrides:
 |---|---|
 | `livery build <spec>` | render → `build/<car>/<livery>/` (`--install`, `--preview`, `--strict`, `--json`) |
 | `livery install <spec>` | copy into the paint folder, snapshot what it replaces, bust the mip |
-| `livery tp <spec>` | stage the paint + the sim's spec `.mip` for Trading Paints and open the upload form |
 | `livery preview <spec>` | contact sheet: albedo · zones+orientation · materials · alpha |
 | `livery doctor [car]` | paths, deps, customer id, Blender, stale mips, profile confidence |
 | `livery new <car> <name>` | scaffold a spec |
@@ -106,24 +105,6 @@ art/sources/                     reference art to remix — no metadata needed
 variants and writes the metadata. `sample-primary` and `sample-associate` are placeholder
 artwork for the demo — replace them with real logos; regenerate with
 `python scripts/make_sample_art.py`.
-
-## Trading Paints
-
-A paint that only lives in the paint folder does not survive a race: the Trading Paints Downloader,
-with "Update my own paints" on, deletes the paint files of every driver in the session and downloads
-what each has assigned on tradingpaints.com — yours included. `livery doctor` says whether that is
-how the Downloader is set here, and `livery install` reminds you after each install.
-
-There is no API, so the upload is the website's form. `livery tp <spec>` gets everything the form
-takes into `build/<car>/<livery>/tradingpaints/` and opens it:
-
-1. `livery build <spec> --install`
-2. load the car in the sim once (the paint viewer under My Content is enough) — that's what turns
-   `car_spec_<id>.tga` into the `.mip` Trading Paints wants
-3. `livery tp <spec>` — checks the `.mip` is this build's, stages the paint and the `.mip` with the
-   number type to pick, then opens the upload page and the folder
-
-Custom Number paints (`number_mode: custom`) need a Trading Paints Pro membership to assign.
 
 ## Tests
 
