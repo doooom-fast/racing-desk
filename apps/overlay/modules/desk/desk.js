@@ -1,4 +1,4 @@
-// Pro Drive desk — career, form and race history from the local store.
+// Racing Desk — career, form and race history from the local store.
 // Rows come from RaceCor.Host (:8889/racecor-io-pro-drive/data/); window.RaceCorCalc (packages/calc) turns
 // them into everything shown here. No network beyond localhost.
 (function () {

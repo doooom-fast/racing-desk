@@ -138,7 +138,7 @@ function showDesk() {
     height: 940,
     minWidth: 1024,
     minHeight: 680,
-    title: 'Pro Drive',
+    title: 'Racing Desk',
     icon: path.join(__dirname, 'images', 'branding', 'icon.png'),
     backgroundColor: '#0b0b0d',
     autoHideMenuBar: true,

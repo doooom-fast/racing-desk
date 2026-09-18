@@ -2,7 +2,7 @@
   "name": "@prodrive/calc",
   "private": true,
   "version": "0.1.0",
-  "description": "Pro Drive's calc engines (ported from prodrive-server) and the local-data model that feeds them",
+  "description": "Racing Desk's calc engines (ported from prodrive-server) and the local-data model that feeds them",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {

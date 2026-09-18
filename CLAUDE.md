@@ -1,8 +1,14 @@
-# prodrive
+# racing-desk
 
-Pro Drive for one driver on one rig: a transparent HUD and desk app over live iRacing telemetry, with
+Racing Desk for one driver on one rig: a transparent HUD and desk app over live iRacing telemetry, with
 no account, no cloud and no distribution. This machine *is* the rig — iRacing, SimHub and the full
 `.ibt` history are local, so verify against real data rather than assuming.
+
+Renamed from Pro Drive on 2026-09-18. The old names stay where renaming would break something or lose
+data: `RaceCor.*` namespaces and projects, the SimHub plugin's identity (`RaceCorProDrive.Plugin.*`
+properties are part of the payload), the `:8889/racecor-io-pro-drive/` route (byte-identical contract),
+the store at `%LOCALAPPDATA%\RaceCor` and the overlay settings at `%APPDATA%\K10 Motorsports`. The plan
+docs were written under the old name. Don't rename any of those for tidiness.
 
 **The plan:** [`docs/local-first-refactor-plan.md`](docs/local-first-refactor-plan.md) (phases in §8).
 **What the rig actually looks like:** [`docs/local-first-phase0-findings.md`](docs/local-first-phase0-findings.md).
@@ -89,17 +95,17 @@ WindowsApps `python.exe` stub, which opens the Store and hangs. `livery.yaml` na
 4.2. Builds stage in `apps/livery/build/`; `--install` copies into the paint folder, keeping a `.bak-` of what it
 replaces. Sponsor art beyond the two `sample-*` placeholders, paint templates and `data/cars.json` stay out of git.
 
+Trading Paints runs on the rig with "Update my own paints" on, so an installed paint is replaced in session by
+whatever is assigned on the account. `livery tp <spec>` stages the paint and the sim-made spec `.mip` and opens the
+upload form (there is no API); the Downloader's `config.xml` is read for its options only — it also holds the
+account id, which nothing prints.
+
 ## Dev loop (overlay design work — parked until Phase 5)
 
 ```bash
 npm install
 npm run dev                       # replay newest recording + overlay dev mode (CSS hot reload)
 npm run dev -- --live             # overlay dev mode against live SimHub
-Trading Paints runs on the rig with "Update my own paints" on, so an installed paint is replaced in session by
-whatever is assigned on the account. `livery tp <spec>` stages the paint and the sim-made spec `.mip` and opens the
-upload form (there is no API); the Downloader's `config.xml` is read for its options only — it also holds the
-account id, which nothing prints.
-
 npm run record -- --only-in-car   # record the :8889 payload while driving or in SimHub demo mode
 npm run replay                    # serve a recording on :8889 (SimHub must be closed)
 npm run recordings                # list recordings in %LOCALAPPDATA%\RaceCor\recordings

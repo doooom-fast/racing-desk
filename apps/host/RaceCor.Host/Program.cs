@@ -14,7 +14,7 @@ namespace RaceCor.Host
 {
     internal static class Program
     {
-        private const string Usage = @"RaceCor.Host — Pro Drive without SimHub
+        private const string Usage = @"RaceCor.Host — Racing Desk without SimHub
 
   RaceCor.Host                      follow live iRacing: serve :8889 / :8890, record sessions,
                                     backfill new .ibt files in the background; the local store is

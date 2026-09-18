@@ -1,7 +1,7 @@
 {
-  "name": "prodrive",
+  "name": "racing-desk",
   "private": true,
-  "description": "Pro Drive — single-user, rig-local HUD and desk app for iRacing",
+  "description": "Racing Desk — single-user, rig-local HUD and desk app for iRacing",
   "workspaces": [
     "apps/overlay",
     "apps/edit",
