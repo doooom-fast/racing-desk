@@ -196,7 +196,17 @@ agent reads the report                         ← warnings are specific and act
 livery install                                 ← paint folder + mip busted
  ↓
 you look at it in the sim's 3D viewer          ← the only real arbiter
+ ↓
+livery tp                                      ← paint + the sim's spec .mip, staged; the upload form opens
 ```
+
+The last step exists because of the Trading Paints Downloader: with "Update my own paints" on
+it deletes and re-downloads the paint files of everyone in the session, you included, so a paint
+that only lives in the paint folder is gone the moment a race loads. Trading Paints has no API.
+What `livery tp` does is make the form's fussiness someone else's problem: the paint must be
+1024² or 2048², the spec map must be the `.mip` only the sim writes (from the installed
+`car_spec_<id>.tga`, when it loads the car), and the number type must match the file. It checks
+the `.mip` really came from this build — same TGA bytes installed, `.mip` newer — before staging.
 
 The build report is the feedback channel, and it is written for a reader who will act on it:
 every warning names the layer, the zone, the measurement, and the fix. The spec digest hashes

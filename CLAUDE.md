@@ -95,6 +95,11 @@ replaces. Sponsor art beyond the two `sample-*` placeholders, paint templates an
 npm install
 npm run dev                       # replay newest recording + overlay dev mode (CSS hot reload)
 npm run dev -- --live             # overlay dev mode against live SimHub
+Trading Paints runs on the rig with "Update my own paints" on, so an installed paint is replaced in session by
+whatever is assigned on the account. `livery tp <spec>` stages the paint and the sim-made spec `.mip` and opens the
+upload form (there is no API); the Downloader's `config.xml` is read for its options only — it also holds the
+account id, which nothing prints.
+
 npm run record -- --only-in-car   # record the :8889 payload while driving or in SimHub demo mode
 npm run replay                    # serve a recording on :8889 (SimHub must be closed)
 npm run recordings                # list recordings in %LOCALAPPDATA%\RaceCor\recordings

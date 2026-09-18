@@ -16,6 +16,7 @@ from . import bake as bakemod
 from . import doctor as doctormod
 from . import preview as previewmod
 from . import templates as templatemod
+from . import tradingpaints as tpmod
 from .art import ArtLibrary
 from .config import Config
 from .errors import LiveryError
@@ -29,6 +30,10 @@ from .spec import LiverySpec
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows gives a piped stdout the ANSI code page, which has no ✓ or ✗; the output is UTF-8 everywhere.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):
@@ -71,6 +76,13 @@ def build_parser() -> argparse.ArgumentParser:
     inst.add_argument("--dry-run", action="store_true")
     inst.add_argument("--no-backup", action="store_true")
     inst.set_defaults(func=cmd_install)
+
+    tp = sub.add_parser("tp", help="stage a built paint for Trading Paints and open the upload form")
+    tp.add_argument("spec")
+    tp.add_argument("--customer-id", default=None)
+    tp.add_argument("--no-open", action="store_true", help="stage only; leave the browser and Explorer alone")
+    tp.add_argument("--json", action="store_true")
+    tp.set_defaults(func=cmd_tp)
 
     prev = sub.add_parser("preview", help="build and write a flat contact sheet")
     prev.add_argument("spec")
@@ -212,6 +224,9 @@ def cmd_build(args) -> int:
             print(f"  installed {path}")
         for path in actions["mips_removed"]:
             print(f"  cleared cached {path}")
+        note = tpmod.session_warning(tpmod.downloader_settings(), args.spec)
+        if note:
+            print(f"! {note}")
     if args.strict and result.report.warnings:
         return 2
     return 0
@@ -231,6 +246,29 @@ def cmd_install(args) -> int:
     for path in actions["mips_removed"]:
         print(f"cleared cached {path}")
     _print_report(result.report, verbose=False)
+    note = None if args.dry_run else tpmod.session_warning(tpmod.downloader_settings(), args.spec)
+    if note:
+        print(f"! {note}")
+    return 0
+
+
+def cmd_tp(args) -> int:
+    config = _config(args)
+    spec = LiverySpec.load(args.spec)
+    ident = config.require_customer_id(args.customer_id)
+    package = tpmod.stage_for_upload(spec, config, ident)
+    if args.json:
+        print(json.dumps(package.to_dict(), indent=2))
+    else:
+        for line in package.instructions():
+            print(line)
+        for problem in package.problems:
+            print(f"! {problem}")
+    if not package.ready:
+        return 1
+    if not args.no_open:
+        tpmod.open_upload(package)
+        print(f"opened {tpmod.UPLOAD_URL} — pick the vehicle, the files and the number type above")
     return 0
 
 

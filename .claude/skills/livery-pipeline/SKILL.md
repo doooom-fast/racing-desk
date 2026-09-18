@@ -165,3 +165,22 @@ instead of the new TGA. `livery install` busts the mip itself.
 
 Rim colour is a paint-shop setting in the iRacing UI on most cars, not pixels — the build
 report emits it as a manual step. Pass it on rather than assuming the wheels came out gold.
+
+## Getting it onto Trading Paints
+
+An installed paint does not survive a race on this rig: the Trading Paints Downloader has
+"Update my own paints" on, so in session it deletes the local files and downloads what the
+account has assigned. `livery install` says so after every install. The fix is to upload the
+build — there is no API, so it is the website's form, and `livery tp` does everything but the
+clicking:
+
+```bash
+livery build liveries/<slug>.yaml --install
+# the user loads the car in the sim once (My Content → paint viewer) — that writes car_spec_<id>.mip
+livery tp liveries/<slug>.yaml                # stages paint + .mip in build/<car>/<slug>/tradingpaints/, opens the form
+```
+
+`livery tp` refuses a `.mip` that is not this build's (different installed TGA, or older than
+it) and says what to do; run it again after the sim has loaded the car. Tell the user what it
+printed — vehicle, files, number type — and that a Custom Number paint needs Trading Paints Pro
+to assign. Never fill in or submit the form for them.

@@ -13,6 +13,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import tradingpaints
 from .config import Config
 from .profile import CarProfile
 from .tga import describe
@@ -36,6 +37,7 @@ def run(config: Config, car: str | None = None) -> list[Check]:
     checks.extend(_dependencies())
     checks.extend(_paths(config))
     checks.extend(_tools(config))
+    checks.append(_tradingpaints())
     if car:
         checks.extend(_car(config, car))
     return checks
@@ -129,6 +131,23 @@ def _tools(config: Config) -> list[Check]:
     return out
 
 
+def _tradingpaints(settings_path: Path | None = None) -> Check:
+    settings = tradingpaints.downloader_settings(settings_path)
+    if settings is None:
+        return Check("trading paints", OK, "downloader not installed — installed paints stay put")
+    if settings.replaces_local_paints:
+        detail = (
+            "'Update my own paints' is on, so in session the Downloader replaces your paint with "
+            "the one assigned on your account — upload each build (livery tp <spec>) or turn it off"
+        )
+        if settings.deletes_before_download:
+            detail += "; it deletes the local files first"
+        return Check("trading paints", WARN, detail)
+    return Check(
+        "trading paints", OK, "downloader installed; 'Update my own paints' is off, so installed paints survive sessions"
+    )
+
+
 def _car(config: Config, car: str) -> list[Check]:
     out = []
     profile_path = Path(config.profiles_dir) / f"{car}.yaml"
@@ -169,7 +188,10 @@ def _car(config: Config, car: str) -> list[Check]:
         mip = tga.with_suffix(".mip")
         info = describe(tga)
         detail = f"{info['size'][0]}×{info['size'][1]} {info['bits']}-bit {info['compression']}"
-        if mip.exists() and mip.stat().st_mtime >= tga.stat().st_mtime:
+        if mip.exists() and mip.stat().st_mtime >= tga.stat().st_mtime and tga.name.startswith("car_spec_"):
+            # For the spec map a fresh .mip is the point: it's what Trading Paints takes.
+            out.append(Check(f"  {tga.name}", OK, f"{detail} — the sim has written {mip.name}"))
+        elif mip.exists() and mip.stat().st_mtime >= tga.stat().st_mtime:
             out.append(
                 Check(
                     f"  {tga.name}",
