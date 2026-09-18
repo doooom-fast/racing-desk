@@ -6,13 +6,12 @@
     'lotus','honda','honda_white','ligier','fia','radical','generic','none','iracing'];
   window.carLogos = {};
   window.carBrandColors = {};
+  // The dashboard runs from file://, where fetch() can't read local files — so the logos are referenced, not
+  // read: each entry is markup for the bundled SVG, dropped into #carLogoIcon as before.
   async function loadCarLogos() {
-    await Promise.allSettled(
-      CAR_LOGO_KEYS.map(async key => {
-        const resp = await fetch('images/logos/' + key + '.svg');
-        if (resp.ok) window.carLogos[key] = await resp.text();
-      })
-    );
+    for (const key of CAR_LOGO_KEYS) {
+      window.carLogos[key] = '<img class="car-logo-img" src="images/logos/' + key + '.svg" alt="">';
+    }
   }
 
 

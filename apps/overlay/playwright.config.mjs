@@ -29,12 +29,6 @@ export default defineConfig({
       name: 'unit',
       testDir: './tests/unit',
     },
-    // Layout v2 engine — data-driven group placement (layout-v2.js)
-    {
-      name: 'layout-v2',
-      testDir: './tests',
-      testMatch: /layout-v2\.spec\.mjs$/,
-    },
     // Visual-regression tests — screenshot diffs against committed baselines
     {
       name: 'visual',

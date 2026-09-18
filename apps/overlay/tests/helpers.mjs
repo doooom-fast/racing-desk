@@ -6,7 +6,6 @@
  */
 
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -140,28 +139,6 @@ export async function loadDashboard(page, data, opts = {}) {
   });
 
   await page.goto(dashPath, { waitUntil: 'load' });
-
-  // Inject car logo SVGs — Chromium blocks fetch() on file:// protocol,
-  // so loadCarLogos() silently fails. Load them from disk and inject directly.
-  // Must happen before polls so setCarLogo() finds the SVG content.
-  const logosDir = path.resolve(APP_DIR, 'images', 'logos');
-  try {
-    const logoFiles = fs.readdirSync(logosDir).filter(f => f.endsWith('.svg'));
-    const logoMap = {};
-    for (const f of logoFiles) {
-      logoMap[f.replace('.svg', '')] = fs.readFileSync(path.resolve(logosDir, f), 'utf-8');
-    }
-    await page.evaluate((logos) => {
-      if (typeof carLogos !== 'undefined') {
-        Object.assign(carLogos, logos);
-        // Reset last-car tracking so the next poll cycle re-applies the logo
-        if (typeof _lastCarModel !== 'undefined') _lastCarModel = null;
-        if (typeof _currentCarLogo !== 'undefined') _currentCarLogo = '';
-      }
-    }, logoMap);
-  } catch {
-    // logos dir may not exist for all dashboard variants — that's fine
-  }
 
   // Wait for at least 2 poll cycles to populate data
   await page.waitForTimeout(200);

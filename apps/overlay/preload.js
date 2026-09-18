@@ -41,12 +41,6 @@ contextBridge.exposeInMainWorld('k10', {
   onSettingsSync: (callback) => {
     ipcRenderer.on('settings-sync', (event, settings) => callback(settings));
   },
-  // Layout v2 — canonical module registry (ids → DOM selectors) and
-  // measured-geometry reporting for the host editor's pixel-exact
-  // proxies (written to the overlay-metrics.json sidecar, never into
-  // overlay-settings.json). See prodrive-windows/docs/overlay-layout-v2.md.
-  getLayoutRegistry: () => ipcRenderer.invoke('get-layout-registry'),
-  reportLayoutMetrics: (metrics) => ipcRenderer.invoke('report-layout-metrics', metrics),
   // Ambient light — screen capture moved to C# plugin (ScreenColorSampler).
   // Color data now arrives via poll JSON (DS.AmbientR/G/B), no IPC needed.
   // Moza hardware manager window

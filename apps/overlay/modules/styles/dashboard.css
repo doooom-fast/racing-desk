@@ -427,11 +427,13 @@
     width: 100%;
     flex-shrink: 0;
   }
-  .car-logo-icon svg {
+  .car-logo-icon svg,
+  .car-logo-icon img {
     width: 64px;
     height: 64px;
     opacity: 0.96;
   }
+  .car-logo-icon img { object-fit: contain; }
   .car-model-label {
     font-size: var(--fs-xs);
     font-weight: 600;
@@ -1464,38 +1466,3 @@
     top: auto; bottom: auto; left: auto; right: auto;
     margin: 0;
   }
-
-/* ═══════════════════════════════════════════════════════════════
-   Layout v2 — data-driven groups (modules/js/layout-v2.js)
-   Containers are positioned inline by the engine (left/top/transform/
-   zoom/flex-direction/gap are all data-driven); these rules cover only
-   what is static. Contract: prodrive-windows/docs/overlay-layout-v2.md.
-   ═══════════════════════════════════════════════════════════════ */
-
-.layout-group {
-  position: fixed;
-  display: flex;
-  z-index: 40;
-}
-.layout-group > .layout-slot { display: flex; }
-
-/* Adopted module roots become plain flex children. Legacy rules pin
-   several of them (commentary cmt-*, incidents inc-*, spotter, the
-   sec-* panel classes) with position:fixed + edge offsets — neutralize
-   all of that, including inline leftovers, without enumerating every
-   legacy class. zoom is owned by the group container. */
-.layout-group .lv2-module {
-  position: static !important;
-  inset: auto !important;
-  margin: 0 !important;
-  zoom: 1 !important;
-}
-
-/* While v2 owns placement, the legacy shells that modules were lifted
-   out of must not render ghost boxes. conn-status stays visible (it is
-   a direct .dashboard child, not inside these wrappers). */
-body.layout-v2-active .dashboard .main-row,
-body.layout-v2-active .dashboard .timer-row,
-body.layout-v2-active .sec-container {
-  display: none;
-}

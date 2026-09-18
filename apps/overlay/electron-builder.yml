@@ -11,7 +11,6 @@ files:
   - preload.js
   - remote-server.js
   - dashboard.html
-  - layout-registry.json
   - modules/**/*
   - images/**/*
   - data/**/*
@@ -25,14 +24,6 @@ files:
 
 asarUnpack:
   - node_modules/ffmpeg-static/**/*
-
-# Layout v2 module registry — shipped OUTSIDE the asar (resources/
-# layout-registry.json) so the WinUI host can read module identity at
-# runtime from the bundled overlay tree. Also listed in `files:` above
-# so the overlay's own main/renderer can read it in dev and packaged
-# runs alike. Contract: prodrive-windows/docs/overlay-layout-v2.md.
-extraResources:
-  - layout-registry.json
 
 icon: images/branding/icon.png
 
