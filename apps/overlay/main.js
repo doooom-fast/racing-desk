@@ -1246,6 +1246,11 @@ ipcMain.handle('get-settings', async () => {
 });
 
 ipcMain.handle('save-settings', async (event, settings) => {
+  // The file is replaced whole (no merge), so a null or non-object would wipe it
+  if (typeof settings !== 'object' || settings === null) {
+    logToFile('[K10] Warning: save-settings received invalid data');
+    return false;
+  }
   saveSettingsSync(settings);
   return true;
 });
