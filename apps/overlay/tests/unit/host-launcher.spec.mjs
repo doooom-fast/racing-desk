@@ -128,7 +128,7 @@ test.describe('startHost', () => {
     expect(f.spawned).toHaveLength(1);
     expect(f.spawned[0].file).toBe(exe);
     expect(f.spawned[0].args).toEqual(['--http-port', '8889', '--ws-port', '8890', '--parent-pid', '777']);
-    expect(f.spawned[0].opts).toMatchObject({ cwd: path.dirname(exe), windowsHide: true, detached: false });
+    expect(f.spawned[0].opts).toMatchObject({ cwd: path.dirname(exe), windowsHide: true, detached: true });
     expect(lastLogLine()).toMatch(/^==== \d{4}-\d\d-\d\dT\S+ host on :8889: .*RaceCor\.Host\.exe --http-port 8889 --ws-port 8890 --parent-pid 777$/);
   });
 

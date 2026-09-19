@@ -125,6 +125,8 @@ let hostUrl = null;              // where startLocalHost() found or started Race
 let hostChild = null;            // the RaceCor.Host process this app started, killed on quit
 let hostNote = null;             // why there is no host of our own, shown by the desk when nothing answers
 let deskHost = null;             // the host URL the desk window was loaded with
+let quitting = false;            // set by before-quit, so closing the desk during a quit doesn't quit again
+app.on('before-quit', () => { quitting = true; });
 
 // ═══════════════════════════════════════════════════════════════
 // DESK WINDOW — career, form and race history from the local store
@@ -177,6 +179,10 @@ function showDesk() {
     webPreferences: { nodeIntegration: false, contextIsolation: true },
   });
   loadDesk();
+  // Closing the desk quits the app, as closing any program's window does: the HUD's window is hidden and the
+  // tray icon sits behind Windows' overflow arrow, so otherwise the app would carry on with nothing on screen.
+  // Minimise the desk to keep the HUD while racing.
+  deskWindow.on('close', () => { if (!quitting) app.quit(); });
   deskWindow.on('closed', () => { deskWindow = null; });
 }
 

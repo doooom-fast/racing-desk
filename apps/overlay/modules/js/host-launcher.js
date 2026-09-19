@@ -150,10 +150,13 @@ async function startHost({
   const what = `${beside}host on :${ports.http}${ports.noHardware ? ' without hardware' : ''}`;
   const logFd = openLog(logPath, `${what}: ${exe} ${args.join(' ')}`, log);
   const out = logFd === null ? 'ignore' : logFd;
+  // detached: on Windows, Node puts an attached child in a job object that is killed outright the moment this
+  // process ends — so on every quit the host was terminated mid-write, never reaching its own orderly stop.
+  // Detached, it outlives us for the second it takes to see --parent-pid go, flush and exit. No console either way.
   const child = spawnFn(exe, args, {
     cwd: path.dirname(exe),
     windowsHide: true,
-    detached: false,
+    detached: true,
     stdio: ['ignore', out, out],
   });
   if (logFd !== null) fs.closeSync(logFd);   // the child holds its own handle

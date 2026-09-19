@@ -84,9 +84,12 @@ Build once with `npm run build`, then the app is `apps/overlay/dist/win-unpacked
 Desktop "Racing Desk" shortcuts point there; "shipping" is `git pull && npm run build`. It starts its own RaceCor.Host
 (`modules/js/host-launcher.js`): beside SimHub on `:18889`/`:18890` with `--no-hardware` while SimHub holds `:8889`,
 on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\RaceCor\host.log`.
-There is no console window — the tray icon (open desk, HUD on/off, quit) is the app; Ctrl+Shift+Q quits too, and
-the host stops itself when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again opens the
-desk in the running app.
+There is no console window. **Closing the desk window quits the app** (minimise it to keep the HUD while racing) — the
+HUD's window is hidden and Windows 11 tucks the tray icon behind its overflow arrow, so an app that outlived its window
+would run with nothing on screen. The tray icon (open desk, HUD on/off, quit) and Ctrl+Shift+Q quit too. The host is
+spawned detached — Node otherwise puts it in a job object Windows kills with the app, mid-write — and stops itself,
+flushing what it was recording, when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again
+opens the desk in the running app.
 
 `modules/desk/calc.bundle.js` is generated from `packages/calc` on overlay start and by the desk tests — don't edit
 or commit it. Rating changes aren't in telemetry: a race's iRating/SR change is read from the driver's next
