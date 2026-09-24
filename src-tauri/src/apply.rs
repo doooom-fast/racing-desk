@@ -244,6 +244,11 @@ fn back_up(
 }
 
 /// Clear the read-only flag so a write can land. Missing files are not an error.
+///
+/// clippy dislikes `set_readonly(false)` because on Unix it opens the file to everyone.
+/// This app is Windows-only, where it clears exactly one attribute — the one that would
+/// otherwise make the copy fail — and leaves the ACL alone.
+#[allow(clippy::permissions_set_readonly_false)]
 fn clear_read_only(path: &Path) -> Result<bool> {
     let Ok(md) = std::fs::metadata(path) else {
         return Ok(false);

@@ -62,7 +62,7 @@ fn detects_a_customer_id_and_says_how_sure_it_is() {
     }
     println!("  top candidates by the plan's own heuristic (most paints wins):");
     let mut by_paints = report.candidates.clone();
-    by_paints.sort_by(|a, b| b.paints.cmp(&a.paints));
+    by_paints.sort_by_key(|c| std::cmp::Reverse(c.paints));
     for c in by_paints.iter().take(5) {
         println!(
             "    {:<10} {:>4} paints  {:>3} local spec maps  {:>3} car folders",
@@ -104,7 +104,7 @@ fn frequency_alone_would_pick_the_wrong_id() {
     } else {
         let rank = {
             let mut sorted = report.candidates.clone();
-            sorted.sort_by(|a, b| b.paints.cmp(&a.paints));
+            sorted.sort_by_key(|c| std::cmp::Reverse(c.paints));
             sorted.iter().position(|c| c.id == detected).map(|i| i + 1)
         };
         println!(
