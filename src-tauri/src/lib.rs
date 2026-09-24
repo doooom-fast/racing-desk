@@ -15,6 +15,7 @@ pub mod process;
 pub mod repo;
 pub mod roles;
 pub mod settings;
+pub mod tga;
 pub mod tradingpaints;
 
 use base64::Engine;
@@ -159,24 +160,34 @@ fn save_settings(settings: settings::Settings) -> Result<()> {
     settings::save(&settings)
 }
 
-/// Read a preview PNG as a data URL.
+/// Any image a card can show, as a data URL.
+///
+/// PNG and JPEG are passed through as they are; a `.tga` is decoded and scaled down, because
+/// the paints are 2048x2048 and the card is a few hundred pixels wide.
 #[tauri::command]
-fn load_preview(path: String) -> Result<String> {
+fn preview_image(path: String, max_edge: Option<u32>) -> Result<String> {
     let p = PathBuf::from(&path);
-    let md = std::fs::metadata(&p)?;
-    if md.len() > MAX_PREVIEW_BYTES {
-        return Err(AppError::other("Preview image is too large to show."));
-    }
     let ext = p
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
+
+    if ext == "tga" {
+        let png = tga::render_file(&p, max_edge.unwrap_or(640))?;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(png);
+        return Ok(format!("data:image/png;base64,{b64}"));
+    }
+
+    let md = std::fs::metadata(&p)?;
+    if md.len() > MAX_PREVIEW_BYTES {
+        return Err(AppError::other("Preview image is too large to show."));
+    }
     let mime = match ext.as_str() {
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
         "webp" => "image/webp",
-        _ => return Err(AppError::other("Previews must be PNG, JPEG or WebP.")),
+        _ => return Err(AppError::other("Previews must be PNG, JPEG, WebP or TGA.")),
     };
     let bytes = std::fs::read(&p)?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
@@ -205,7 +216,7 @@ pub fn run() {
             suggest_libraries,
             load_settings,
             save_settings,
-            load_preview,
+            preview_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running doooom paints");

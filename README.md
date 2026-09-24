@@ -61,6 +61,22 @@ Updating cannot lose work:
 Usually they do not need it: `mx5-mx52016` is matched to the sim's `mx5 mx52016` automatically,
 and the UI says when a match was made loosely rather than exactly.
 
+## Seeing the paint
+
+A card shows the pipeline's rendered previews when a version has them, and the textures
+themselves either way. The tabs under each card switch between them — `topview nose up`,
+`paint`, `spec` — so you can look at the actual file that is about to be installed rather
+than a render of an earlier one.
+
+The `.tga` decoding is built in: uncompressed and run-length encoded, 16-, 24- and 32-bit
+colour and greyscale, either vertical origin. Colour-mapped files are refused by name rather
+than drawn as noise. A 2048x2048 paint decodes and scales down in well under a tenth of a
+second, and the result is cached against the file's size and modification time.
+
+It is a flat UV sheet, not a car. iRacing packs each car as a single encrypted archive and
+only downloads the ones you drive, so there are no local models to render onto — previewing on
+the car still means loading the sim.
+
 ## What an apply does
 
 1. **Backs up** every file belonging to your customer id in the car's sim folder, `.tga` and
@@ -129,7 +145,7 @@ Tests:
 cd src-tauri && cargo test
 ```
 
-The suite is 57 unit tests over the parts that touch disk — role parsing, path detection, the
+The suite is 67 unit tests over the parts that touch disk — role parsing, path detection, the
 id cascade, library scanning, applied-version hashing, apply/revert including rollback, and a
 real clone-push-fetch-pull cycle against a local git remote.
 
@@ -155,6 +171,7 @@ src-tauri/src/
   tradingpaints.rs the downloader's config and what it means
   process.rs       is the sim running
   repo.rs          the library as a git checkout, and finding one
+  tga.rs           decoding paints so the cards can show them
   library.rs       scanning the library, matching car folders to the sim's
   digest.rs        hashing, for "which version is applied"
   installed.rs     what is in the sim's folder now

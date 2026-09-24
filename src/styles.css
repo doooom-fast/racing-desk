@@ -518,3 +518,30 @@ code,
   color: var(--text);
   line-height: 1.5;
 }
+
+/* ---- switching between a card's images ---- */
+
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 12px 0;
+}
+.view {
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 0 6px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+  text-transform: lowercase;
+}
+.view:hover {
+  color: var(--text);
+  border-color: var(--line);
+}
+.view.on {
+  color: var(--orange);
+  border-color: var(--orange-dim);
+}

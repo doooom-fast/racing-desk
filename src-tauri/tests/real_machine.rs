@@ -12,7 +12,57 @@
 //! cargo test --test real_machine -- --ignored --nocapture
 //! ```
 
-use doooom_paints_lib::{customer, library, paths, process, repo, tradingpaints};
+use doooom_paints_lib::{customer, library, paths, process, repo, tga, tradingpaints};
+
+#[test]
+#[ignore = "reads the real iRacing install"]
+fn renders_a_real_paint_to_png() {
+    // Decoding is where a silent mistake hides: a BGR swap or a missed vertical flip both
+    // produce a perfectly valid image that happens to be wrong. Writing real paints out lets
+    // them be looked at rather than assumed.
+    let Some(paint) = paths::detect().chosen else {
+        return;
+    };
+    let cars = std::path::PathBuf::from(&paint)
+        .join("doooom-iRacing-liveries")
+        .join("cars");
+    if !cars.is_dir() {
+        println!("no liveries repo; skipping");
+        return;
+    }
+
+    let out = std::env::temp_dir().join("doooom-tga-render");
+    std::fs::create_dir_all(&out).unwrap();
+
+    let lib = library::scan(&cars, None).unwrap();
+    let mut written = 0;
+    println!("\n-- rendering real paints --");
+    for car in lib.cars.iter() {
+        let Some(version) = car.versions.first() else {
+            continue;
+        };
+        for file in &version.files {
+            let started = std::time::Instant::now();
+            let png = match tga::render_file(std::path::Path::new(&file.path), 640) {
+                Ok(p) => p,
+                Err(e) => {
+                    println!("  {} {} FAILED: {e}", car.folder, file.file_name);
+                    continue;
+                }
+            };
+            let name = format!("{}-{}-{}.png", car.folder, version.id, file.role);
+            std::fs::write(out.join(&name), &png).unwrap();
+            println!(
+                "  {name}  {} KB  in {} ms",
+                png.len() / 1024,
+                started.elapsed().as_millis()
+            );
+            written += 1;
+        }
+    }
+    println!("  written to {}", out.display());
+    assert!(written > 0, "nothing rendered");
+}
 
 #[test]
 #[ignore = "reads the real iRacing install"]

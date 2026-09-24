@@ -69,7 +69,8 @@ export const loadSettings = () => invoke<Settings>("load_settings");
 export const saveSettings = (settings: Settings) =>
   invoke<void>("save_settings", { settings });
 
-export const loadPreview = (path: string) => invoke<string>("load_preview", { path });
+export const previewImage = (path: string, maxEdge?: number) =>
+  invoke<string>("preview_image", { path, maxEdge });
 
 /// Rust errors arrive as plain strings; anything else is a bug worth showing verbatim.
 export function errorText(e: unknown): string {
