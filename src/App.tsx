@@ -4,6 +4,7 @@ import * as api from "./api";
 import { errorText } from "./api";
 import { ApplyDialog, type ApplyOptions } from "./components/ApplyDialog";
 import { Guards, TradingPaintsPanel } from "./components/Guards";
+import { RepoPanel } from "./components/RepoPanel";
 import { SetupBar } from "./components/SetupBar";
 import { VersionCard } from "./components/VersionCard";
 import type {
@@ -12,7 +13,9 @@ import type {
   CustomerReport,
   InstalledState,
   Library,
+  LibrarySuggestion,
   PathReport,
+  RepoStatus,
   Settings,
   SimState,
   TradingPaints,
@@ -49,6 +52,10 @@ export default function App() {
   const [backups, setBackups] = useState<BackupEntry[]>([]);
   const [tp, setTp] = useState<TradingPaints | null>(null);
   const [sim, setSim] = useState<SimState | null>(null);
+  const [suggestions, setSuggestions] = useState<LibrarySuggestion[]>([]);
+  const [repo, setRepo] = useState<RepoStatus | null>(null);
+  const [autoUpdate, setAutoUpdate] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   const [applying, setApplying] = useState<Version | null>(null);
   const [busy, setBusy] = useState(false);
@@ -89,10 +96,29 @@ export default function App() {
         setReadOnlyAfter: saved.setReadOnlyAfter ?? false,
         clearOtherCooked: saved.clearOtherCooked ?? false,
       });
+      setAutoUpdate(saved.autoUpdateOnLaunch ?? false);
       for (const note of detected?.notes ?? []) say("info", note);
       ready.current = true;
     })();
   }, [say]);
+
+  // --- find a library near the sim, so the common case needs no browsing ---------------
+  useEffect(() => {
+    if (!paintDir) return;
+    let live = true;
+    api
+      .suggestLibraries(paintDir)
+      .then((found) => {
+        if (!live) return;
+        setSuggestions(found);
+        // Adopt the best one only when nothing is set; a chosen path is the user's.
+        setLibraryRoot((current) => current || found[0]?.path || "");
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [paintDir]);
 
   // --- persist, once the initial load has settled --------------------------------------
   useEffect(() => {
@@ -106,11 +132,12 @@ export default function App() {
           includeSpec: options.includeSpec,
           setReadOnlyAfter: options.setReadOnlyAfter,
           clearOtherCooked: options.clearOtherCooked,
+          autoUpdateOnLaunch: autoUpdate,
         })
         .catch(() => {});
     }, 400);
     return () => clearTimeout(t);
-  }, [paintDir, libraryRoot, customerId, options]);
+  }, [paintDir, libraryRoot, customerId, options, autoUpdate]);
 
   // --- customer id detection ------------------------------------------------------------
   useEffect(() => {
@@ -153,6 +180,87 @@ export default function App() {
   useEffect(() => {
     void refreshLibrary();
   }, [refreshLibrary]);
+
+  // --- the library as a git checkout ----------------------------------------------------
+  const refreshRepo = useCallback(async () => {
+    if (!libraryRoot) {
+      setRepo(null);
+      return;
+    }
+    try {
+      setRepo(await api.repoStatus(libraryRoot));
+    } catch {
+      setRepo(null);
+    }
+  }, [libraryRoot]);
+
+  useEffect(() => {
+    void refreshRepo();
+  }, [refreshRepo]);
+
+  /// Ask the remote what it has. Read-only — it never touches the working tree.
+  const checkForUpdates = useCallback(async () => {
+    if (!libraryRoot) return null;
+    setChecking(true);
+    try {
+      const status = await api.repoCheck(libraryRoot);
+      setRepo(status);
+      return status;
+    } catch (e) {
+      say("bad", "Could not reach the library repo", [errorText(e)]);
+      return null;
+    } finally {
+      setChecking(false);
+    }
+  }, [libraryRoot, say]);
+
+  const updateLibrary = useCallback(async () => {
+    if (!libraryRoot) return;
+    setBusy(true);
+    try {
+      const report = await api.repoPull(libraryRoot);
+      setRepo(report.status);
+      if (report.updated) {
+        say(
+          "ok",
+          `Library updated — ${report.commits.length} new commit${
+            report.commits.length === 1 ? "" : "s"
+          }`,
+          report.commits,
+        );
+        await refreshLibrary();
+      } else {
+        say("info", "The library is already up to date.");
+      }
+    } catch (e) {
+      say("bad", "Could not update the library", [errorText(e)]);
+    } finally {
+      setBusy(false);
+    }
+  }, [libraryRoot, refreshLibrary, say]);
+
+  // Check once per library on launch, and pull only if asked to.
+  const checkedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ready.current || !libraryRoot || checkedFor.current === libraryRoot) return;
+    checkedFor.current = libraryRoot;
+    (async () => {
+      const status = await checkForUpdates();
+      if (!status?.isRepo || !status.updatesAvailable) return;
+      if (autoUpdate) {
+        await updateLibrary();
+      } else {
+        // The count is only known when the commits are already downloaded.
+        say(
+          "info",
+          status.behind > 0
+            ? `${status.behind} library update${status.behind === 1 ? "" : "s"} waiting`
+            : "New liveries are waiting in the library repo",
+          ["Use Update under Library source to take them."],
+        );
+      }
+    })();
+  }, [libraryRoot, autoUpdate, checkForUpdates, updateLibrary, say]);
 
   const car: Car | null = useMemo(
     () => library?.cars.find((c) => c.folder === selectedFolder) ?? null,
@@ -278,6 +386,7 @@ export default function App() {
         libraryRoot={libraryRoot}
         customerId={customerId}
         customerReport={customerReport}
+        suggestions={suggestions}
         onPaintDir={setPaintDir}
         onLibraryRoot={setLibraryRoot}
         onCustomerId={setCustomerId}
@@ -310,6 +419,16 @@ export default function App() {
 
         <div className="main">
           <Guards tp={tp} sim={sim} />
+
+          <RepoPanel
+            repo={repo}
+            busy={busy}
+            checking={checking}
+            autoUpdate={autoUpdate}
+            onAutoUpdate={setAutoUpdate}
+            onCheck={() => void checkForUpdates()}
+            onUpdate={() => void updateLibrary()}
+          />
 
           {!idValid && (
             <div className="banner bad">

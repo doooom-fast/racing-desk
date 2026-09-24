@@ -6,9 +6,12 @@ import type {
   CustomerReport,
   InstalledState,
   Library,
+  LibrarySuggestion,
   PathReport,
+  PullReport,
   Preflight,
   Settings,
+  RepoStatus,
   SimState,
   TradingPaints,
 } from "./types";
@@ -51,6 +54,15 @@ export const revertCar = (args: {
   backupId: string | null;
   force: boolean;
 }) => invoke<ApplyReport>("revert_car", args);
+
+export const repoStatus = (path: string) => invoke<RepoStatus>("repo_status", { path });
+
+export const repoCheck = (path: string) => invoke<RepoStatus>("repo_check", { path });
+
+export const repoPull = (path: string) => invoke<PullReport>("repo_pull", { path });
+
+export const suggestLibraries = (paintDir: string) =>
+  invoke<LibrarySuggestion[]>("suggest_libraries", { paintDir });
 
 export const loadSettings = () => invoke<Settings>("load_settings");
 

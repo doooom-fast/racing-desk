@@ -12,7 +12,51 @@
 //! cargo test --test real_machine -- --ignored --nocapture
 //! ```
 
-use doooom_paints_lib::{customer, library, paths, process, tradingpaints};
+use doooom_paints_lib::{customer, library, paths, process, repo, tradingpaints};
+
+#[test]
+#[ignore = "reads the real iRacing install"]
+fn finds_the_liveries_checkout_without_being_told() {
+    let Some(paint) = paths::detect().chosen else {
+        return;
+    };
+    let found = repo::suggest_libraries(std::path::Path::new(&paint));
+
+    println!("\n-- libraries found near the sim --");
+    for s in &found {
+        println!("  {} ({} cars)", s.path, s.cars);
+        if s.repo.is_repo {
+            println!(
+                "      git: {} on {}{}{}",
+                s.repo.remote_url.as_deref().unwrap_or("no remote"),
+                s.repo.branch.as_deref().unwrap_or("?"),
+                if s.repo.behind > 0 {
+                    format!(", {} behind", s.repo.behind)
+                } else {
+                    ", up to date".to_string()
+                },
+                if s.repo.dirty { ", dirty" } else { "" },
+            );
+        } else {
+            println!("      not a git checkout");
+        }
+    }
+
+    // Whatever is offered has to actually be a library, or the app would point itself at a
+    // folder it cannot read.
+    for s in &found {
+        assert!(
+            repo::looks_like_library(std::path::Path::new(&s.path)),
+            "{} was suggested but does not scan as a library",
+            s.path
+        );
+    }
+    // And the sim's own paint folder must never be offered as its own library.
+    assert!(
+        !found.iter().any(|s| s.path.eq_ignore_ascii_case(&paint)),
+        "the paint folder itself was offered as a library"
+    );
+}
 
 #[test]
 #[ignore = "reads the real iRacing install"]

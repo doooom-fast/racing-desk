@@ -21,7 +21,7 @@ Versions live outside the sim's folders, one folder per version:
 ```
 
 Both filename shapes are read. The plan called for role-only names; the design pipeline in
-[doooom-iRacing-liveries](https://github.com/k10-motorsports/doooom-iRacing-liveries) already
+[doooom-iRacing-liveries](https://github.com/alternatekev/doooom-iRacing-liveries) already
 writes `car_1159839.tga`, so that repo's `cars/` folder works as a library with no changes.
 
 `meta.json` is all optional:
@@ -35,6 +35,27 @@ writes `car_1159839.tga`, so that repo's `cars/` folder works as a library with 
   "simFolder": "mx5 mx52016"
 }
 ```
+
+### Keeping it current
+
+If the library is a git checkout, the app treats the repo as the source of truth and says when
+new liveries are waiting. It finds the checkout itself — any folder in or beside the paint
+directory, or under `Documents\GitHub`, whose nesting looks like a library — so the usual case
+needs no browsing at all. The sim's own paint folder can never be mistaken for one, because a
+car folder there holds textures directly rather than a layer of version folders.
+
+**Library source** in the UI shows the remote, the branch, the commit you are on, and whether
+you are behind. **Check** fetches; **Update** fast-forwards. There is a checkbox to update
+automatically on launch.
+
+Updating cannot lose work:
+
+- The only write is `git pull --ff-only`. If the branch has diverged, git stops rather than
+  inventing a merge.
+- A dirty working tree is refused before git is asked, with a message about your changes rather
+  than about git.
+- `git` is driven as a command, not linked in, so it already knows your credentials through
+  your credential helper and never has to ask again.
 
 `simFolder` is the escape hatch for when the library folder and the sim's folder disagree.
 Usually they do not need it: `mx5-mx52016` is matched to the sim's `mx5 mx52016` automatically,
@@ -67,7 +88,7 @@ resolved path is on screen at all times with the alternatives one click away.
 **Which customer id is yours.** Not by frequency. Trading Paints fills the paint folder with
 every driver you have shared a session with; on the machine this was built against that is 3,204
 car textures across 85 cars, and the most frequent id belongs to a stranger. The owner's own id
-appeared three times and ranked eighteenth. So detection is a cascade:
+appeared three times and ranked seventh of 2,977. So detection is a cascade:
 
 | | Signal | Confidence |
 |---|---|---|
@@ -108,8 +129,9 @@ Tests:
 cd src-tauri && cargo test
 ```
 
-The suite is 51 unit tests over the parts that touch disk — role parsing, path detection, the
-id cascade, library scanning, applied-version hashing, and apply/revert including rollback.
+The suite is 57 unit tests over the parts that touch disk — role parsing, path detection, the
+id cascade, library scanning, applied-version hashing, apply/revert including rollback, and a
+real clone-push-fetch-pull cycle against a local git remote.
 
 There is also a set of smoke tests that read the real install on the machine you are on, which
 is where every path, lock and process question is actually settled:
@@ -128,6 +150,7 @@ src-tauri/src/
   customer.rs      the customer id cascade
   tradingpaints.rs the downloader's config and what it means
   process.rs       is the sim running
+  repo.rs          the library as a git checkout, and finding one
   library.rs       scanning the library, matching car folders to the sim's
   digest.rs        hashing, for "which version is applied"
   installed.rs     what is in the sim's folder now

@@ -163,4 +163,34 @@ export interface Settings {
   includeSpec?: boolean | null;
   setReadOnlyAfter?: boolean | null;
   clearOtherCooked?: boolean | null;
+  autoUpdateOnLaunch?: boolean | null;
+}
+
+export interface RepoStatus {
+  gitAvailable: boolean;
+  isRepo: boolean;
+  root: string | null;
+  branch: string | null;
+  upstream: string | null;
+  remoteUrl: string | null;
+  head: string | null;
+  subject: string | null;
+  dirty: boolean;
+  behind: number;
+  ahead: number;
+  checkedRemote: boolean;
+  updatesAvailable: boolean;
+  notes: string[];
+}
+
+export interface PullReport {
+  updated: boolean;
+  commits: string[];
+  status: RepoStatus;
+}
+
+export interface LibrarySuggestion {
+  path: string;
+  cars: number;
+  repo: RepoStatus;
 }

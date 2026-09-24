@@ -12,6 +12,7 @@ pub mod installed;
 pub mod library;
 pub mod paths;
 pub mod process;
+pub mod repo;
 pub mod roles;
 pub mod settings;
 pub mod tradingpaints;
@@ -124,6 +125,30 @@ fn revert_car(
     )
 }
 
+/// Read the library's git checkout without touching the network.
+#[tauri::command]
+fn repo_status(path: String) -> repo::RepoStatus {
+    repo::status(Path::new(&path))
+}
+
+/// Ask the remote whether anything is waiting. Transfers no objects.
+#[tauri::command]
+fn repo_check(path: String) -> Result<repo::RepoStatus> {
+    repo::check(Path::new(&path))
+}
+
+/// Fast-forward the library to the remote.
+#[tauri::command]
+fn repo_pull(path: String) -> Result<repo::PullReport> {
+    repo::pull(Path::new(&path))
+}
+
+/// Libraries findable near the sim, so the common case needs no browsing.
+#[tauri::command]
+fn suggest_libraries(paint_dir: String) -> Vec<repo::LibrarySuggestion> {
+    repo::suggest_libraries(Path::new(&paint_dir))
+}
+
 #[tauri::command]
 fn load_settings() -> settings::Settings {
     settings::load()
@@ -174,6 +199,10 @@ pub fn run() {
             apply_version,
             list_backups,
             revert_car,
+            repo_status,
+            repo_check,
+            repo_pull,
+            suggest_libraries,
             load_settings,
             save_settings,
             load_preview,

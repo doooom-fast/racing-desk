@@ -16,6 +16,8 @@ pub struct Settings {
     pub include_spec: Option<bool>,
     pub set_read_only_after: Option<bool>,
     pub clear_other_cooked: Option<bool>,
+    /// Pull the library repo on launch, rather than only checking and offering.
+    pub auto_update_on_launch: Option<bool>,
 }
 
 fn settings_path() -> Result<PathBuf> {

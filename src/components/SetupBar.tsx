@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import type { CustomerReport, PathReport } from "../types";
+import type { CustomerReport, LibrarySuggestion, PathReport } from "../types";
 
 async function pickFolder(title: string, current: string): Promise<string | null> {
   const picked = await open({
@@ -22,6 +22,7 @@ export function SetupBar({
   libraryRoot,
   customerId,
   customerReport,
+  suggestions,
   onPaintDir,
   onLibraryRoot,
   onCustomerId,
@@ -31,6 +32,7 @@ export function SetupBar({
   libraryRoot: string;
   customerId: string;
   customerReport: CustomerReport | null;
+  suggestions: LibrarySuggestion[];
   onPaintDir: (v: string) => void;
   onLibraryRoot: (v: string) => void;
   onCustomerId: (v: string) => void;
@@ -39,6 +41,7 @@ export function SetupBar({
     (c) => c.exists && c.path !== paintDir,
   );
   const idValid = /^\d+$/.test(customerId);
+  const others = suggestions.filter((s) => s.path !== libraryRoot);
   const confidence = customerReport?.confidence;
 
   return (
@@ -99,7 +102,26 @@ export function SetupBar({
             Browse
           </button>
         </div>
-        <span className="note">A folder of car folders, each holding version folders.</span>
+        {others.length > 0 ? (
+          <span className="note">
+            Also found:{" "}
+            {others.map((s) => (
+              <button
+                key={s.path}
+                className="link"
+                onClick={() => onLibraryRoot(s.path)}
+                title={`${s.path} — ${s.cars} car folder(s)${
+                  s.repo.isRepo ? ", a git checkout" : ""
+                }`}
+                style={{ marginRight: 8 }}
+              >
+                {s.path.split(/[\\/]/).slice(-2).join("/")}
+              </button>
+            ))}
+          </span>
+        ) : (
+          <span className="note">A folder of car folders, each holding version folders.</span>
+        )}
       </div>
 
       <div className="field">
