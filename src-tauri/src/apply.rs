@@ -14,7 +14,7 @@
 
 use crate::digest;
 use crate::error::{AppError, Result};
-use crate::library::{self, Version};
+use crate::library::Version;
 use crate::process;
 use crate::roles;
 use crate::tradingpaints;
@@ -159,8 +159,24 @@ fn timestamp() -> String {
         .to_string()
 }
 
-fn backup_root(library_root: &Path, car_folder: &str) -> PathBuf {
-    library_root.join(library::BACKUP_DIR).join(car_folder)
+/// Where this machine keeps backups.
+///
+/// The plan put them at `<library>/.backups`, which was right until the library became a git
+/// checkout. After that every apply left hundreds of megabytes of untracked files inside the
+/// user's repo, made `git status` permanently dirty, and — worst of all — the app's own update
+/// check then refused to pull because of files the app itself had written. Backups are the
+/// app's data, so the app keeps them.
+pub fn backups_base() -> Result<PathBuf> {
+    let base = std::env::var_os("LOCALAPPDATA")
+        .or_else(|| std::env::var_os("APPDATA"))
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+        .ok_or_else(|| AppError::other("Nowhere to store backups on this machine."))?;
+    Ok(base.join("doooom-paints").join("backups"))
+}
+
+fn backup_root(backups_base: &Path, car_folder: &str) -> PathBuf {
+    backups_base.join(car_folder)
 }
 
 /// Create a backup directory that is certainly new.
@@ -194,14 +210,14 @@ fn new_backup_dir(root: &Path) -> Result<PathBuf> {
 /// that restored the source but not the cache would leave the sim showing the wrong texture.
 fn back_up(
     paint_dir: &Path,
-    library_root: &Path,
+    backups_base: &Path,
     car_folder: &str,
     sim_folder: &str,
     customer_id: &str,
     reason: &str,
 ) -> Result<(PathBuf, Vec<String>)> {
     let source_dir = paint_dir.join(sim_folder);
-    let dest = new_backup_dir(&backup_root(library_root, car_folder))?;
+    let dest = new_backup_dir(&backup_root(backups_base, car_folder))?;
 
     let mut files = Vec::new();
     let mut names = Vec::new();
@@ -305,9 +321,8 @@ fn restore_from(backup_dir: &Path, target_dir: &Path, names: &[String]) -> Vec<S
 }
 
 /// Apply a version to the sim's folder.
-pub fn apply(req: &ApplyRequest, version: &Version) -> Result<ApplyReport> {
+pub fn apply(req: &ApplyRequest, version: &Version, backups_base: &Path) -> Result<ApplyReport> {
     let paint_dir = PathBuf::from(&req.paint_dir);
-    let library_root = PathBuf::from(&req.library_root);
     let target_dir = paint_dir.join(&req.sim_folder);
 
     if !crate::customer::is_valid(&req.customer_id) {
@@ -350,7 +365,7 @@ pub fn apply(req: &ApplyRequest, version: &Version) -> Result<ApplyReport> {
     // 1. Back up before anything is touched.
     let (backup_dir, backed_up) = back_up(
         &paint_dir,
-        &library_root,
+        backups_base,
         &req.car_folder,
         &req.sim_folder,
         &req.customer_id,
@@ -472,8 +487,8 @@ pub fn apply(req: &ApplyRequest, version: &Version) -> Result<ApplyReport> {
 }
 
 /// Backups for one car, newest first.
-pub fn list_backups(library_root: &Path, car_folder: &str) -> Result<Vec<BackupEntry>> {
-    let root = backup_root(library_root, car_folder);
+pub fn list_backups(backups_base: &Path, car_folder: &str) -> Result<Vec<BackupEntry>> {
+    let root = backup_root(backups_base, car_folder);
     if !root.is_dir() {
         return Ok(Vec::new());
     }
@@ -511,14 +526,14 @@ pub fn list_backups(library_root: &Path, car_folder: &str) -> Result<Vec<BackupE
 /// a revert undoable in its own right.
 pub fn revert(
     paint_dir: &Path,
-    library_root: &Path,
+    backups_base: &Path,
     car_folder: &str,
     sim_folder: &str,
     customer_id: &str,
     backup_id: Option<&str>,
     force: bool,
 ) -> Result<ApplyReport> {
-    let backups = list_backups(library_root, car_folder)?;
+    let backups = list_backups(backups_base, car_folder)?;
     let chosen = match backup_id {
         Some(id) => backups.iter().find(|b| b.id == id),
         None => backups.first(),
@@ -538,7 +553,7 @@ pub fn revert(
     // Reverting overwrites the current state, so take a backup of that first.
     let (safety_dir, _) = back_up(
         paint_dir,
-        library_root,
+        backups_base,
         car_folder,
         sim_folder,
         customer_id,
@@ -613,6 +628,8 @@ mod tests {
         root: PathBuf,
         paint: PathBuf,
         library: PathBuf,
+        /// Aimed at a temp dir, never the real app data directory.
+        backups: PathBuf,
     }
 
     fn fixture(tag: &str) -> Fixture {
@@ -620,12 +637,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         let paint = root.join("paint");
         let library = root.join("library");
+        let backups = root.join("backups");
         std::fs::create_dir_all(paint.join("lotus79")).unwrap();
         std::fs::create_dir_all(library.join("lotus79").join("v13")).unwrap();
         Fixture {
             root,
             paint,
             library,
+            backups,
         }
     }
 
@@ -690,7 +709,7 @@ mod tests {
         std::fs::write(car.join("car_1159839.tga"), b"OLD PAINT").unwrap();
 
         let version = make_version(&fx, b"NEW PAINT", Some(b"NEW SPEC"));
-        let report = apply(&request(&fx), &version).unwrap();
+        let report = apply(&request(&fx), &version, &fx.backups).unwrap();
         assert!(report.applied);
 
         // Installed under the customer id, both roles.
@@ -725,7 +744,7 @@ mod tests {
         std::fs::write(car.join("car_999000.mip"), b"someone else").unwrap();
 
         let version = make_version(&fx, b"NEW", None);
-        apply(&request(&fx), &version).unwrap();
+        apply(&request(&fx), &version, &fx.backups).unwrap();
 
         assert!(!car.join("car_1159839.mip").exists());
         assert!(!car.join("car_spec_1159839.mip").exists());
@@ -746,7 +765,7 @@ mod tests {
         let mut req = request(&fx);
         req.clear_other_cooked = true;
         let version = make_version(&fx, b"NEW", None);
-        apply(&req, &version).unwrap();
+        apply(&req, &version, &fx.backups).unwrap();
 
         assert!(!car.join("car_999000.mip").exists());
         std::fs::remove_dir_all(&fx.root).ok();
@@ -761,7 +780,7 @@ mod tests {
         set_read_only(&target).unwrap();
 
         let version = make_version(&fx, b"NEW", None);
-        apply(&request(&fx), &version).unwrap();
+        apply(&request(&fx), &version, &fx.backups).unwrap();
         assert_eq!(std::fs::read(&target).unwrap(), b"NEW");
 
         std::fs::remove_dir_all(&fx.root).ok();
@@ -773,14 +792,14 @@ mod tests {
         let mut req = request(&fx);
         req.set_read_only_after = true;
         let version = make_version(&fx, b"NEW", None);
-        apply(&req, &version).unwrap();
+        apply(&req, &version, &fx.backups).unwrap();
 
         let target = fx.paint.join("lotus79").join("car_1159839.tga");
         assert!(std::fs::metadata(&target).unwrap().permissions().readonly());
 
         // And a later apply must still be able to write over it.
         let version2 = make_version(&fx, b"NEWER", None);
-        apply(&request(&fx), &version2).unwrap();
+        apply(&request(&fx), &version2, &fx.backups).unwrap();
         assert_eq!(std::fs::read(&target).unwrap(), b"NEWER");
 
         std::fs::remove_dir_all(&fx.root).ok();
@@ -795,7 +814,7 @@ mod tests {
         let mut req = request(&fx);
         req.include_spec = false;
         let version = make_version(&fx, b"NEW", Some(b"NEW SPEC"));
-        let report = apply(&req, &version).unwrap();
+        let report = apply(&req, &version, &fx.backups).unwrap();
 
         assert_eq!(
             std::fs::read(car.join("car_spec_1159839.tga")).unwrap(),
@@ -812,7 +831,7 @@ mod tests {
         req.customer_id = "not-digits".into();
         let version = make_version(&fx, b"NEW", None);
 
-        assert!(apply(&req, &version).is_err());
+        assert!(apply(&req, &version, &fx.backups).is_err());
         assert!(!fx.paint.join("lotus79").join("car_not-digits.tga").exists());
         std::fs::remove_dir_all(&fx.root).ok();
     }
@@ -825,12 +844,12 @@ mod tests {
 
         // Apply adds a spec map that was not there before.
         let version = make_version(&fx, b"NEW PAINT", Some(b"NEW SPEC"));
-        apply(&request(&fx), &version).unwrap();
+        apply(&request(&fx), &version, &fx.backups).unwrap();
         assert!(car.join("car_spec_1159839.tga").exists());
 
         let report = revert(
             &fx.paint,
-            &fx.library,
+            &fx.backups,
             "lotus79",
             "lotus79",
             "1159839",
@@ -859,15 +878,74 @@ mod tests {
         std::fs::write(car.join("car_1159839.tga"), b"ORIGINAL").unwrap();
 
         let version = make_version(&fx, b"NEW", None);
-        apply(&request(&fx), &version).unwrap();
-        revert(&fx.paint, &fx.library, "lotus79", "lotus79", "1159839", None, true).unwrap();
+        apply(&request(&fx), &version, &fx.backups).unwrap();
+        revert(&fx.paint, &fx.backups, "lotus79", "lotus79", "1159839", None, true).unwrap();
 
         // Two backups now: the apply's, and the one the revert took first.
-        let backups = list_backups(&fx.library, "lotus79").unwrap();
+        let backups = list_backups(&fx.backups, "lotus79").unwrap();
         assert!(backups.len() >= 2);
         assert!(backups[0].reason.starts_with("before revert"));
 
         std::fs::remove_dir_all(&fx.root).ok();
+    }
+
+    #[test]
+    fn backups_never_land_inside_the_library() {
+        // They used to. The library is usually a git checkout, so every apply left untracked
+        // files in the user's repo, and the app's own update check then refused to pull
+        // because of them — applying a paint once switched updating off for good.
+        let fx = fixture("outside");
+        std::fs::write(fx.paint.join("lotus79").join("car_1159839.tga"), b"OLD").unwrap();
+
+        let before: Vec<_> = walk(&fx.library);
+        let version = make_version(&fx, b"NEW", Some(b"SPEC"));
+        let report = apply(&request(&fx), &version, &fx.backups).unwrap();
+
+        let backup_dir = PathBuf::from(report.backup_dir.unwrap());
+        assert!(
+            backup_dir.starts_with(&fx.backups),
+            "backup landed at {backup_dir:?}, outside the backups directory"
+        );
+        assert!(
+            !backup_dir.starts_with(&fx.library),
+            "backup landed inside the library"
+        );
+        assert!(
+            !fx.library.join(".backups").exists(),
+            "a .backups folder appeared in the library"
+        );
+
+        // The version's own files are the only things the library should still hold.
+        let after: Vec<_> = walk(&fx.library);
+        assert_eq!(
+            before.len() + version.files.len(),
+            after.len(),
+            "apply added files to the library: {:?}",
+            after.iter().filter(|p| !before.contains(p)).collect::<Vec<_>>()
+        );
+
+        std::fs::remove_dir_all(&fx.root).ok();
+    }
+
+    /// Every file under a directory, for comparing before and after.
+    fn walk(dir: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(d) = stack.pop() {
+            let Ok(entries) = std::fs::read_dir(&d) else {
+                continue;
+            };
+            for e in entries.flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                } else {
+                    out.push(p);
+                }
+            }
+        }
+        out.sort();
+        out
     }
 
     #[test]
@@ -879,12 +957,12 @@ mod tests {
         let car = fx.paint.join("lotus79");
         std::fs::write(car.join("car_1159839.tga"), b"ORIGINAL").unwrap();
 
-        let root = fx.library.join(library::BACKUP_DIR).join("lotus79");
+        let root = fx.backups.join("lotus79");
         let mut seen = std::collections::BTreeSet::new();
         for _ in 0..20 {
             let (dir, _) = back_up(
                 &fx.paint,
-                &fx.library,
+                &fx.backups,
                 "lotus79",
                 "lotus79",
                 "1159839",
@@ -905,7 +983,7 @@ mod tests {
         for i in 0..5 {
             back_up(
                 &fx.paint,
-                &fx.library,
+                &fx.backups,
                 "lotus79",
                 "lotus79",
                 "1159839",
@@ -913,7 +991,7 @@ mod tests {
             )
             .unwrap();
         }
-        let listed = list_backups(&fx.library, "lotus79").unwrap();
+        let listed = list_backups(&fx.backups, "lotus79").unwrap();
         assert_eq!(listed.len(), 5);
         assert_eq!(listed[0].reason, "run 4", "newest backup must come first");
         std::fs::remove_dir_all(&fx.root).ok();
@@ -924,7 +1002,7 @@ mod tests {
         let fx = fixture("norevert");
         let err = revert(
             &fx.paint,
-            &fx.library,
+            &fx.backups,
             "lotus79",
             "lotus79",
             "1159839",
@@ -945,7 +1023,7 @@ mod tests {
         let mut version = make_version(&fx, b"NEW PAINT", Some(b"NEW SPEC"));
         version.files[1].path = fx.root.join("gone.tga").to_string_lossy().to_string();
 
-        let err = apply(&request(&fx), &version).unwrap_err();
+        let err = apply(&request(&fx), &version, &fx.backups).unwrap_err();
         assert!(matches!(err, AppError::Refused(_)));
 
         // The paint that was already swapped must be back to what it was.
@@ -966,7 +1044,7 @@ mod tests {
 
         let mut version = make_version(&fx, b"NEW", Some(b"SPEC"));
         version.files[1].path = fx.root.join("gone.tga").to_string_lossy().to_string();
-        let _ = apply(&request(&fx), &version);
+        let _ = apply(&request(&fx), &version, &fx.backups);
 
         let leftovers: Vec<_> = std::fs::read_dir(&car)
             .unwrap()

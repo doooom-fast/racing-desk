@@ -42,12 +42,11 @@ export const preflight = (paintDir: string, simFolder: string) =>
 export const applyVersion = (request: ApplyRequest) =>
   invoke<ApplyReport>("apply_version", { request });
 
-export const listBackups = (libraryRoot: string, carFolder: string) =>
-  invoke<BackupEntry[]>("list_backups", { libraryRoot, carFolder });
+export const listBackups = (carFolder: string) =>
+  invoke<BackupEntry[]>("list_backups", { carFolder });
 
 export const revertCar = (args: {
   paintDir: string;
-  libraryRoot: string;
   carFolder: string;
   simFolder: string;
   customerId: string;

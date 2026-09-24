@@ -284,7 +284,7 @@ export default function App() {
           simFolder: car.simFolder,
           customerId,
         }),
-        api.listBackups(libraryRoot, car.folder),
+        api.listBackups(car.folder),
       ]);
       setInstalled(state);
       setBackups(list);
@@ -349,7 +349,6 @@ export default function App() {
     try {
       const report = await api.revertCar({
         paintDir,
-        libraryRoot,
         carFolder: car.folder,
         simFolder: car.simFolder,
         customerId,

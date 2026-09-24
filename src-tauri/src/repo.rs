@@ -115,7 +115,11 @@ pub fn status(path: &Path) -> RepoStatus {
     st.branch = git_opt(&root, &["rev-parse", "--abbrev-ref", "HEAD"]);
     st.head = git_opt(&root, &["rev-parse", "--short", "HEAD"]);
     st.subject = git_opt(&root, &["log", "-1", "--pretty=%s"]);
-    st.dirty = git_opt(&root, &["status", "--porcelain"]).is_some();
+    // Tracked changes only. An untracked file cannot be lost to a fast-forward: git refuses
+    // the pull itself if an incoming file would overwrite one, and reporting them as dirty
+    // meant anything sitting in the working tree — including, at one point, this app's own
+    // backups — silently switched updating off for good.
+    st.dirty = git_opt(&root, &["status", "--porcelain", "--untracked-files=no"]).is_some();
 
     st.upstream = git_opt(&root, &["rev-parse", "--abbrev-ref", "@{upstream}"]);
     if let Some(upstream) = &st.upstream {
@@ -490,6 +494,65 @@ mod tests {
         assert!(dirty.notes.iter().any(|n| n.contains("uncommitted")));
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn untracked_files_do_not_block_updating() {
+        // This app writes backups, and other tools drop files in too. None of that can be
+        // lost to a fast-forward — git refuses the pull itself if an incoming file would
+        // overwrite an untracked one. Counting them as dirty meant a single apply switched
+        // updating off permanently, which is how this was found.
+        let origin = fixture("untracked-origin");
+        git(&origin, &["init", "--quiet", "--bare"]).unwrap();
+
+        let work = fixture("untracked-work");
+        git(&work, &["clone", "--quiet", &origin.to_string_lossy(), "."]).unwrap();
+        git(&work, &["config", "user.email", "t@example.com"]).unwrap();
+        git(&work, &["config", "user.name", "Test"]).unwrap();
+        make_library(&work);
+        git(&work, &["add", "-A"]).unwrap();
+        git(&work, &["commit", "--quiet", "-m", "first livery"]).unwrap();
+        git(&work, &["push", "--quiet", "-u", "origin", "HEAD"]).unwrap();
+
+        let clone = fixture("untracked-clone");
+        git(&clone, &["clone", "--quiet", &origin.to_string_lossy(), "."]).unwrap();
+
+        // Something the app left behind, of the shape that caused the bug.
+        let junk = clone.join(".backups").join("lotus79").join("2026-09-24_1200");
+        std::fs::create_dir_all(&junk).unwrap();
+        std::fs::write(junk.join("car_1159839.tga"), b"a backup").unwrap();
+
+        assert!(
+            !status(&clone).dirty,
+            "untracked files must not count as dirty"
+        );
+
+        // A new livery upstream must still arrive.
+        let v = work.join("nissangtpzxt").join("v10");
+        std::fs::create_dir_all(&v).unwrap();
+        std::fs::write(v.join("car_1159839.tga"), b"paint").unwrap();
+        git(&work, &["add", "-A"]).unwrap();
+        git(&work, &["commit", "--quiet", "-m", "add the Nissan"]).unwrap();
+        git(&work, &["push", "--quiet"]).unwrap();
+
+        let report = pull(&clone).unwrap();
+        assert!(report.updated, "the pull should have gone through");
+        assert!(clone.join("nissangtpzxt").join("v10").is_dir());
+        // And the untracked file is still sitting there, untouched.
+        assert!(junk.join("car_1159839.tga").is_file());
+
+        // A modified *tracked* file is a real reason to hold back, and still does.
+        std::fs::write(
+            clone.join("lotus79").join("v13").join("car_1159839.tga"),
+            b"edited by hand",
+        )
+        .unwrap();
+        assert!(status(&clone).dirty);
+        assert!(pull(&clone).is_err());
+
+        for d in [origin, work, clone] {
+            std::fs::remove_dir_all(&d).ok();
+        }
     }
 
     #[test]

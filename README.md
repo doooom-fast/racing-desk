@@ -80,7 +80,9 @@ the car still means loading the sim.
 ## What an apply does
 
 1. **Backs up** every file belonging to your customer id in the car's sim folder, `.tga` and
-   `.mip`, into `<library>/.backups/<car>/<timestamp>/` with a manifest.
+   `.mip`, into `%LOCALAPPDATA%\doooom-paints\backups\<car>\<timestamp>\` with a manifest.
+   Not into the library: the library is usually a git checkout, and backups written there make
+   the repo permanently dirty, which in turn stops the app updating it.
 2. **Copies** the version's textures in, renamed for your customer id. Each one is written to a
    temporary name and renamed into place, so a failed copy leaves the old file intact rather
    than half of a new one.
@@ -145,7 +147,7 @@ Tests:
 cd src-tauri && cargo test
 ```
 
-The suite is 67 unit tests over the parts that touch disk — role parsing, path detection, the
+The suite is 69 unit tests over the parts that touch disk — role parsing, path detection, the
 id cascade, library scanning, applied-version hashing, apply/revert including rollback, and a
 real clone-push-fetch-pull cycle against a local git remote.
 

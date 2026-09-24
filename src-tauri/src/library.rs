@@ -18,8 +18,10 @@ use crate::roles;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-/// Where backups live, inside the library so a version and its backups travel together.
-pub const BACKUP_DIR: &str = ".backups";
+/// The library folder older versions of this app wrote backups into. Backups now live in the
+/// app's own data directory — inside a git checkout they made the repo permanently dirty — but
+/// a library may still carry one, and it is not a car.
+pub const LEGACY_BACKUP_DIR: &str = ".backups";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -252,7 +254,7 @@ pub fn scan(root: &Path, paint_dir: Option<&Path>) -> Result<Library> {
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
         .map(|e| e.path())
         .filter(|p| {
-            // .backups is ours, and dotfolders are never cars.
+            // LEGACY_BACKUP_DIR is ours, and dotfolders are never cars.
             !p.file_name()
                 .and_then(|s| s.to_str())
                 .map(|s| s.starts_with('.'))
@@ -398,7 +400,7 @@ mod tests {
     fn backups_folder_is_not_a_car() {
         let root = std::env::temp_dir().join("doooom-lib-backups");
         let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(root.join(BACKUP_DIR).join("lotus79").join("x")).unwrap();
+        std::fs::create_dir_all(root.join(LEGACY_BACKUP_DIR).join("lotus79").join("x")).unwrap();
         let v = root.join("lotus79").join("v1");
         std::fs::create_dir_all(&v).unwrap();
         std::fs::write(v.join("car.tga"), b"paint").unwrap();

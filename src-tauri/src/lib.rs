@@ -96,19 +96,18 @@ fn apply_version(request: apply::ApplyRequest) -> Result<apply::ApplyReport> {
                 request.car_folder, request.version_id
             ))
         })?;
-    apply::apply(&request, version)
+    apply::apply(&request, version, &apply::backups_base()?)
 }
 
 #[tauri::command]
-fn list_backups(library_root: String, car_folder: String) -> Result<Vec<apply::BackupEntry>> {
-    apply::list_backups(Path::new(&library_root), &car_folder)
+fn list_backups(car_folder: String) -> Result<Vec<apply::BackupEntry>> {
+    apply::list_backups(&apply::backups_base()?, &car_folder)
 }
 
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 fn revert_car(
     paint_dir: String,
-    library_root: String,
     car_folder: String,
     sim_folder: String,
     customer_id: String,
@@ -117,7 +116,7 @@ fn revert_car(
 ) -> Result<apply::ApplyReport> {
     apply::revert(
         Path::new(&paint_dir),
-        Path::new(&library_root),
+        &apply::backups_base()?,
         &car_folder,
         &sim_folder,
         &customer_id,
