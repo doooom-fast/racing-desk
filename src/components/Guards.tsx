@@ -1,46 +1,8 @@
-import type { SimState, TradingPaints } from "../types";
+import type { TradingPaints } from "../types";
 
-/// What Trading Paints and the sim are about to do to the paint folder.
-///
-/// The plan asks for "is the downloader running". The downloader's own config says more than
-/// that, so the banner names the specific setting that can undo an apply rather than making
-/// the user go and look.
-export function Guards({ tp, sim }: { tp: TradingPaints | null; sim: SimState | null }) {
-  const lines: { text: string; bad: boolean }[] = [];
-
-  if (sim?.simRunning) {
-    lines.push({
-      text: "iRacing is running. It holds paint files open, so a swap can fail halfway.",
-      bad: true,
-    });
-  } else if (sim?.uiRunning) {
-    lines.push({
-      text: "The iRacing launcher is open. Starting a session will lock these files.",
-      bad: false,
-    });
-  }
-
-  for (const w of tp?.warnings ?? []) {
-    lines.push({ text: w, bad: !!tp?.running });
-  }
-
-  if (lines.length === 0) return null;
-  const anyBad = lines.some((l) => l.bad);
-
-  return (
-    <div className={`banner ${anyBad ? "bad" : "warn"}`}>
-      <span className="mark">!</span>
-      <div>
-        <strong>{anyBad ? "Worth stopping for" : "Worth knowing"}</strong>
-        <ul>
-          {lines.map((l) => (
-            <li key={l.text}>{l.text}</li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
+// The warnings these settings produce are surfaced as chips in the header — see
+// StatusChips. This panel is the detail behind them: the actual switches, with their
+// current values, so a warning can be acted on rather than only read.
 
 /// The downloader's settings, laid out so the risky ones are obvious.
 export function TradingPaintsPanel({ tp }: { tp: TradingPaints | null }) {

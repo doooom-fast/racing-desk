@@ -444,3 +444,77 @@ code,
   justify-content: flex-end;
   margin-top: 16px;
 }
+
+/* ---- header status chips ---- */
+/* These replace the stack of banners that used to sit above the version cards. The
+   warnings are the same; they just no longer cost half the window to say. */
+
+.titlebar {
+  position: relative;
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+  background: currentColor;
+}
+.chip.bad {
+  color: #ffb9ac;
+  border-color: var(--bad);
+}
+.chip.warn {
+  color: #f0c97a;
+  border-color: var(--warn);
+}
+.chip.info {
+  color: #f0a58c;
+  border-color: var(--orange-dim);
+}
+.chip.ok {
+  color: var(--ok);
+  border-color: transparent;
+  background: none;
+  cursor: default;
+}
+.chip:hover:not(.ok),
+.chip.open {
+  background: var(--line);
+}
+
+.chip-detail {
+  position: absolute;
+  top: calc(100% - 4px);
+  right: 16px;
+  z-index: 20;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  line-height: 1.5;
+}

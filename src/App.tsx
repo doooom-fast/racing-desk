@@ -3,9 +3,10 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import * as api from "./api";
 import { errorText } from "./api";
 import { ApplyDialog, type ApplyOptions } from "./components/ApplyDialog";
-import { Guards, TradingPaintsPanel } from "./components/Guards";
+import { TradingPaintsPanel } from "./components/Guards";
 import { RepoPanel } from "./components/RepoPanel";
 import { SetupBar } from "./components/SetupBar";
+import { collectStatus, StatusChips } from "./components/StatusChips";
 import { VersionCard } from "./components/VersionCard";
 import type {
   BackupEntry,
@@ -31,7 +32,7 @@ interface LogEntry {
 }
 
 /// How often the guards re-check. The downloader can be started while the app is open, and a
-/// banner that went stale would be worse than none.
+/// status chip that went stale would be worse than none.
 const GUARD_POLL_MS = 8000;
 
 export default function App() {
@@ -368,6 +369,10 @@ export default function App() {
   };
 
   const idValid = /^\d+$/.test(customerId);
+  const status = useMemo(
+    () => collectStatus({ sim, tp, repo, car, idValid }),
+    [sim, tp, repo, car, idValid],
+  );
 
   return (
     <div className="app">
@@ -375,6 +380,7 @@ export default function App() {
         <span className="wordmark">DOOOOM</span>
         <span className="sub">paints</span>
         <span className="spacer" />
+        <StatusChips items={status} />
         <button onClick={() => void refreshLibrary().then(refreshCar)} disabled={busy}>
           Refresh
         </button>
@@ -418,8 +424,6 @@ export default function App() {
         </div>
 
         <div className="main">
-          <Guards tp={tp} sim={sim} />
-
           <RepoPanel
             repo={repo}
             busy={busy}
@@ -429,23 +433,6 @@ export default function App() {
             onCheck={() => void checkForUpdates()}
             onUpdate={() => void updateLibrary()}
           />
-
-          {!idValid && (
-            <div className="banner bad">
-              <span className="mark">!</span>
-              <div>Set a customer ID above before applying anything.</div>
-            </div>
-          )}
-
-          {car && !car.simFolder && (
-            <div className="banner warn">
-              <span className="mark">!</span>
-              <div>
-                There is no <code>{car.folder}</code> folder in the paint directory. iRacing
-                creates a car&apos;s folder the first time you drive it.
-              </div>
-            </div>
-          )}
 
           {car ? (
             <>

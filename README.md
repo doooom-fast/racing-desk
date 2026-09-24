@@ -140,6 +140,10 @@ is where every path, lock and process question is actually settled:
 cd src-tauri && cargo test --test real_machine -- --ignored --nocapture
 ```
 
+For the interface there is `dev-preview.html`, a harness that stands in for the Rust side with
+canned data so the UI can be worked on without iRacing, a library or the sim being present.
+`npm run dev` and open `/dev-preview.html`. It is not part of the build — only `index.html` is.
+
 ## Layout
 
 ```

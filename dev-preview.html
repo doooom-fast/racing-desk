@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>doooom paints — UI harness</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      // Dev-only harness: stands in for the Tauri backend with canned data so the UI can be
+      // looked at without the sim, the library or iRacing being present. Mirrors the shape of
+      // a real machine, warnings and all. Never shipped — the real app entry is index.html.
+      const versions = (car, names) =>
+        names.map((id) => ({
+          id,
+          name: id,
+          path: `C:\\library\\${car}\\${id}`,
+          files: [
+            { role: "car", roleLabel: "Paint", fileName: "car_1159839.tga", path: "", size: 12582956, sha256: `${car}-${id}-a` },
+            { role: "car_spec", roleLabel: "Spec map", fileName: "car_spec_1159839.tga", path: "", size: 12582956, sha256: `${car}-${id}-b` },
+          ],
+          previews: [],
+          meta: {},
+          hasPaint: true,
+          hasSpec: true,
+          problems: [],
+        }));
+
+      const RESPONSES = {
+        load_settings: () => ({}),
+        save_settings: () => null,
+        detect_paths: () => ({
+          candidates: [
+            { path: "C:\\Users\\Owner\\Documents\\iRacing\\paint", source: "registry Shell Folders", exists: true, isOneDrive: false, carFolders: 85, textureFiles: 120 },
+            { path: "C:\\Users\\Owner\\OneDrive\\Documents\\iRacing\\paint", source: "%OneDrive%", exists: false, isOneDrive: true, carFolders: 0, textureFiles: 0 },
+          ],
+          chosen: "C:\\Users\\Owner\\Documents\\iRacing\\paint",
+          ambiguous: false,
+          notes: [],
+        }),
+        suggest_libraries: () => [
+          { path: "C:\\Users\\Owner\\Documents\\iRacing\\paint\\doooom-iRacing-liveries\\cars", cars: 3, repo: { isRepo: true } },
+        ],
+        detect_customer: () => ({
+          id: "1159839",
+          confidence: "certain",
+          source: "Trading Paints downloader config",
+          candidates: [],
+          notes: [],
+        }),
+        scan_library: () => ({
+          root: "C:\\library",
+          cars: [
+            { folder: "lotus79", simFolder: "lotus79", simFolderInferred: false, versions: versions("lotus79", ["v10", "v10-inverted", "v13-shatter", "v13-shatter-nose-dense"]) },
+            { folder: "mx5-mx52016", simFolder: "mx5 mx52016", simFolderInferred: true, versions: versions("mx5", ["mclaren570", "orange-white", "white-orange"]) },
+            { folder: "nissangtpzxt", simFolder: null, simFolderInferred: false, versions: versions("nissan", ["v10", "v10-inverted"]) },
+          ],
+          notes: [],
+        }),
+        car_state: () => ({
+          simFolder: "lotus79",
+          folderExists: true,
+          files: [
+            { role: "car", roleLabel: "Paint", fileName: "car_1159839.tga", path: "C:\\x\\car_1159839.tga", size: 12582956, sha256: "lotus79-v13-shatter-a", readOnly: false },
+            { role: "car_spec", roleLabel: "Spec map", fileName: "car_spec_1159839.tga", path: "", size: 12582956, sha256: "lotus79-v13-shatter-b", readOnly: true },
+          ],
+          cooked: ["car_1159839.mip"],
+          cookedOtherDrivers: 41,
+          appliedVersionId: "v13-shatter",
+          matchKind: "exact",
+          anyReadOnly: true,
+        }),
+        list_backups: () => [
+          { id: "2026-09-24_114233_120", path: "C:\\library\\.backups\\lotus79\\x", created: "", reason: "apply v13-shatter", fileCount: 3 },
+          { id: "2026-09-24_101902_004", path: "", created: "", reason: "before revert to 2026-09-23", fileCount: 2 },
+        ],
+        trading_paints_status: () => ({
+          configFound: true,
+          configPath: "C:\\Users\\Owner\\AppData\\Roaming\\TradingPaints Downloader\\config.xml",
+          running: false,
+          userId: "1159839",
+          downloadMySchemes: false,
+          deleteBeforeDownloading: true,
+          deleteAfterSession: false,
+          keepSynced: false,
+          // One warning so the header shows a busy state rather than the quiet one.
+          warnings: [
+            "Trading Paints deletes paints before downloading, and the downloader is running now. Applied files can disappear when the next session starts.",
+          ],
+        }),
+        sim_status: () => ({ simRunning: false, uiRunning: true, matched: ["iRacingUI.exe"] }),
+        repo_status: () => ({
+          gitAvailable: true, isRepo: true,
+          root: "C:\\Users\\Owner\\Documents\\iRacing\\paint\\doooom-iRacing-liveries",
+          branch: "main", upstream: "origin/main",
+          remoteUrl: "https://github.com/alternatekev/doooom-iRacing-liveries.git",
+          head: "78a5b20", subject: "Add the v13 shatter livery for the Lotus 79",
+          dirty: false, behind: 3, ahead: 0,
+          checkedRemote: false, updatesAvailable: true, notes: [],
+        }),
+        repo_check: () => RESPONSES.repo_status(),
+        load_preview: () => { throw "no preview in the harness"; },
+      };
+
+      window.__TAURI_INTERNALS__ = {
+        invoke: (cmd) => {
+          const fn = RESPONSES[cmd];
+          if (!fn) return Promise.reject(`harness has no answer for ${cmd}`);
+          try {
+            return Promise.resolve(fn());
+          } catch (e) {
+            return Promise.reject(e);
+          }
+        },
+        transformCallback: (cb) => cb,
+      };
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
