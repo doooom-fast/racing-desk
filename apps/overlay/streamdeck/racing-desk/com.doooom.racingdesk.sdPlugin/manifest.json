@@ -307,7 +307,7 @@
 	"Category": "RacingDesk Overlay",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
-	"Description": "Key controls for The Racing Desk ProDrive",
+	"Description": "Key controls for The Racing Desk",
 	"Icon": "imgs/plugin/marketplace",
 	"SDKVersion": 2,
 	"Software": {

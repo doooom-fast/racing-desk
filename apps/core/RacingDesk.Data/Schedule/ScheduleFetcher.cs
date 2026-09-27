@@ -35,7 +35,7 @@ namespace RacingDesk.Data.Schedule
             var local = new FileInfo(path);
 
             using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
-            http.DefaultRequestHeaders.Add("User-Agent", "RacingDesk.ProDrive/1.0 (local schedule fetch)");
+            http.DefaultRequestHeaders.Add("User-Agent", "RacingDesk/1.0 (local schedule fetch)");
             try
             {
                 using var head = http.Send(new HttpRequestMessage(HttpMethod.Head, uri), ct);

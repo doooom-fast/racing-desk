@@ -1,11 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
-title RacingDesk ProDrive — Build Installer
+title The Racing Desk — Build Installer
 
 echo.
 echo  ============================================
-echo   RacingDesk ProDrive — Build Installer
+echo   The Racing Desk — Build Installer
 echo  ============================================
 echo.
 echo  Builds the SimHub plugin, packages the Electron

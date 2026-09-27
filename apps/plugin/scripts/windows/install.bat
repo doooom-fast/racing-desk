@@ -1,9 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: ════════════════════════════════════════════════════════════════
-::  RacingDesk ProDrive - SimHub Plugin Build & Install
-:: ════════════════════════════════════════════════════════════════
+:: ================================================================
+::  The Racing Desk - SimHub Plugin Build & Install
+:: ================================================================
 ::
 ::  Stops SimHub, builds the plugin, copies the build output + the
 ::  racingdesk-data dataset folder into SimHub's install
@@ -23,7 +23,7 @@ setlocal enabledelayedexpansion
 ::  Requires:
 ::    - .NET SDK on PATH (dotnet --version)
 ::    - SimHub installed at default location, or SIMHUB_PATH set
-:: ════════════════════════════════════════════════════════════════
+:: ================================================================
 
 set CONFIG=%~1
 if "%CONFIG%"=="" set CONFIG=Release
@@ -37,10 +37,10 @@ set "DATA_DIR=%PLUGIN_REPO%\simhub-plugin\racingdesk-data"
 
 echo.
 echo  ============================================
-echo   RacingDesk ProDrive - SimHub Plugin Install
+echo   The Racing Desk - SimHub Plugin Install
 echo  ============================================
 
-:: ── 1. Resolve SimHub path ──────────────────────────────────────
+:: -- 1. Resolve SimHub path --------------------------------------
 set "SH="
 if defined SIMHUB_PATH (
     if exist "!SIMHUB_PATH!\SimHubWPF.exe" set "SH=!SIMHUB_PATH!"
@@ -71,7 +71,7 @@ echo  Project:   %PLUGIN_PROJ%
 echo  Data:      %DATA_DIR%
 echo.
 
-:: ── 2. Verify project + data exist ─────────────────────────────
+:: -- 2. Verify project + data exist -----------------------------
 if not exist "%PLUGIN_PROJ%" (
     echo  ERROR: Plugin project not found at:
     echo         %PLUGIN_PROJ%
@@ -85,11 +85,15 @@ if not exist "%DATA_DIR%\" (
     exit /b 1
 )
 
-:: ── 3. Stop SimHub ─────────────────────────────────────────────
+:: -- 3. Stop SimHub ---------------------------------------------
 :: Order: PowerShell Stop-Process first (works in Parallels VMs
 :: where taskkill may lack perms), then taskkill as fallback.
 echo  [1/4] Stopping SimHub (if running)...
+:: Remember whether it was up BEFORE stopping it: only then is it started again at the end. Installing
+:: while SimHub is closed must not open it - nothing starts on this rig that the user didn't start.
 set "WAS_RUNNING=0"
+powershell -NoProfile -Command "if (Get-Process -Name 'SimHubWPF' -ErrorAction SilentlyContinue) { exit 1 } else { exit 0 }" 2>NUL
+if !ERRORLEVEL! NEQ 0 set "WAS_RUNNING=1"
 for %%P in (SimHubWPF SimHub SimHubElectron) do (
     powershell -NoProfile -Command "if (Get-Process -Name '%%P' -ErrorAction SilentlyContinue) { Stop-Process -Name '%%P' -Force -ErrorAction SilentlyContinue }" 2>NUL
 )
@@ -118,7 +122,7 @@ powershell -NoProfile -Command "$self = $PID; Get-Process powershell, pwsh -Erro
 
 echo        OK.
 
-:: ── 4. Build plugin ────────────────────────────────────────────
+:: -- 4. Build plugin --------------------------------------------
 :: Set SIMHUB_PATH for the csproj so OutputPath points at SimHub
 :: (it already does this when SimHub is detected; we're explicit
 :: so the build is deterministic regardless of how SimHub was found).
@@ -150,7 +154,7 @@ if not exist "%STAGE%\RacingDesk.dll" (
 )
 echo        OK.
 
-:: ── 4b. Surgical copy into SimHub ──────────────────────────────
+:: -- 4b. Surgical copy into SimHub ------------------------------
 :: Copy ONLY the files we own + clearly-third-party deps SimHub
 :: doesn't ship. NEVER copy BCL polyfills (System.Buffers, System.
 :: Memory, System.Threading.Tasks.Extensions, Microsoft.NET.StringTools,
@@ -158,6 +162,18 @@ echo        OK.
 :: SimHub does strict patch-version checks at startup and a single
 :: mismatch silently disables its entire plugin manager.
 echo  [3/4] Installing plugin files...
+:: The plugin was RaceCorProDrive.dll (with RaceCor.Core.dll beside it) until
+:: 2026-09-27; SimHub would load both. Clear the old files first.
+for %%F in (RaceCorProDrive.dll RaceCorProDrive.pdb RaceCor.Core.dll RaceCor.Core.pdb) do (
+    if exist "!SH!\%%F" (
+        del /F /Q "!SH!\%%F" 2>NUL
+        echo        Removed the old %%F
+    )
+)
+if exist "!SH!\racecorprodrive-data\" (
+    rmdir /S /Q "!SH!\racecorprodrive-data"
+    echo        Removed the old racecorprodrive-data
+)
 :: Allow-list. Add to this set when you genuinely need a new third-
 :: party dep that SimHub doesn't ship.
 set "COPY_LIST=RacingDesk.dll RacingDesk.pdb RacingDesk.Core.dll RacingDesk.Core.pdb IRSDKSharper.dll Fleck.dll MessagePack.dll MessagePack.Annotations.dll"
@@ -189,7 +205,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo        Dataset OK.
 
-:: ── 4c. Unblock files (Mark-of-the-Web) ───────────────────────
+:: -- 4c. Unblock files (Mark-of-the-Web) -----------------------
 :: Files copied from a network share or downloaded over the internet
 :: get tagged with a Zone.Identifier NTFS stream. SimHub silently
 :: refuses to load tagged plugin DLLs.
@@ -197,7 +213,11 @@ echo  [3b]  Unblocking plugin files (Mark-of-the-Web)...
 powershell -NoProfile -Command "Get-ChildItem '!SH!' -Filter 'RacingDesk*.*' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!' -Filter 'IRSDKSharper.dll','Fleck.dll','MessagePack*.dll' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!\racingdesk-data' -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue" 2>NUL
 echo        OK.
 
-:: ── 6. Restart SimHub ──────────────────────────────────────────
+:: -- 6. Restart SimHub ------------------------------------------
+if "!WAS_RUNNING!"=="0" (
+    echo  [4/4] SimHub wasn't running, so it isn't started. The plugin loads next time it is.
+    goto :finished
+)
 echo  [4/4] Launching SimHub...
 echo        Path: !SH_EXE!
 :: Reset ERRORLEVEL so the if-exist check below is clean.
@@ -214,9 +234,10 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo        OK.
 
+:finished
 echo.
 echo  ============================================
-echo   Done. RacingDesk ProDrive plugin installed.
+echo   Done. The Racing Desk plugin installed.
 echo  ============================================
 echo.
 
