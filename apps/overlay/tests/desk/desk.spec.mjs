@@ -302,3 +302,92 @@ test('a link already in the settings is used from the first click', async ({ pag
   await page.locator('.suggestions .open-iracing').click();
   expect(await page.evaluate(() => window.__k10.opened)).toEqual(['iracing://web/racing/official/series-list/6273/']);
 });
+
+// ── Pages ────────────────────────────────────────────────────
+
+test('the masthead nav switches pages and the hash follows', async ({ page }) => {
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`);
+  await expect(page.locator('#desk')).toBeVisible();
+  await expect(page.locator('#paints')).toBeHidden();
+  await expect(page.locator('#settings')).toBeHidden();
+  await expect(page.locator('.nav a[aria-current="page"]')).toHaveText('Desk');
+
+  await page.locator('.nav a', { hasText: 'Paints' }).click();
+  await expect(page.locator('#paints')).toBeVisible();
+  await expect(page.locator('#paints')).toContainText('livery manager');
+  await expect(page.locator('#desk')).toBeHidden();
+  expect(new URL(page.url()).hash).toBe('#paints');
+
+  await page.locator('.nav a', { hasText: 'Settings' }).click();
+  await expect(page.locator('#settings')).toBeVisible();
+  await expect(page.locator('#paints')).toBeHidden();
+  await expect(page.locator('.nav a[aria-current="page"]')).toHaveText('Settings');
+  expect(new URL(page.url()).hash).toBe('#settings');
+
+  await page.locator('.nav a', { hasText: 'Desk' }).click();
+  await expect(page.locator('#desk')).toBeVisible();
+  await expect(page.locator('.race-row')).toHaveCount(30);
+  expect(errors).toEqual([]);
+});
+
+test('?page=settings opens on Settings', async ({ page }) => {
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  await expect(page.locator('#settings')).toBeVisible();
+  await expect(page.locator('#desk')).toBeHidden();
+  await expect(page.locator('.nav a[aria-current="page"]')).toHaveText('Settings');
+  expect(new URL(page.url()).hash).toBe('#settings');
+});
+
+// ── Settings ─────────────────────────────────────────────────
+
+test('the Settings page shows what the HUD has, and the HUD default for what the file leaves out', async ({ page }) => {
+  await stubBridge(page, { zoom: 120, showSpotter: false, layoutPosition: 'bottom-left', visualPreset: 'minimal-plus', commentaryEventOnlyMode: true });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  await expect(page.locator('#settings-note')).toBeHidden();
+  await expect(page.locator('#setting-zoom')).toHaveValue('120');
+  await expect(page.locator('output[for="setting-zoom"]')).toHaveText('120%');
+  await expect(page.locator('#setting-showSpotter')).not.toBeChecked();
+  await expect(page.locator('#setting-showLeaderboard')).toBeChecked();
+  await expect(page.locator('#setting-layoutPosition')).toHaveValue('bottom-left');
+  await expect(page.locator('#setting-visualPreset')).toHaveValue('minimal+'); // the older spelling, read as the HUD reads it
+  await expect(page.locator('#setting-commentaryEventOnlyMode')).toBeChecked();
+  await expect(page.locator('#setting-commentaryPromptDuration')).toHaveValue('15');
+  await expect(page.locator('#setting-coachTone')).toHaveValue('coach');
+  await expect(page.locator('#settings-sections .card h2')).toHaveText(['Layout', 'Modules', 'Look', 'Commentary']);
+  expect(await page.locator('#settings-sections [data-key]:disabled').count()).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('a change writes the whole settings file back with that one key changed', async ({ page }) => {
+  const seed = { zoom: 120, showSpotter: true, raceLinks: { 'Caterham Academy Challenge': '6273' }, recordingQuality: 'high' };
+  await stubBridge(page, seed);
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+
+  await page.locator('#setting-showSpotter').uncheck();
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(1);
+  expect(await page.evaluate(() => window.__k10.saved)).toEqual([{ ...seed, showSpotter: false }]);
+  await expect(page.locator('#settings-status')).toHaveText(/Saved/);
+
+  await page.locator('#setting-layoutPosition').selectOption('bottom-left');
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(2);
+  expect(await page.evaluate(() => window.__k10.saved[1])).toEqual({ ...seed, showSpotter: false, layoutPosition: 'bottom-left' });
+
+  // A number is clamped to what the HUD accepts before it is written.
+  await page.locator('#setting-commentaryPromptDuration').fill('900');
+  await page.locator('#setting-commentaryPromptDuration').press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(3);
+  expect(await page.evaluate(() => window.__k10.saved[2].commentaryPromptDuration)).toBe(120);
+  await expect(page.locator('#setting-commentaryPromptDuration')).toHaveValue('120');
+});
+
+test('without the app the Settings page is read-only and says so', async ({ page }) => {
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  await expect(page.locator('#settings-note')).toBeVisible();
+  await expect(page.locator('#settings-note')).toContainText('needs the Racing Desk app');
+  await expect(page.locator('#setting-zoom')).toBeDisabled();
+  await expect(page.locator('#setting-zoom')).toHaveValue('165'); // the HUD's default
+  await expect(page.locator('#setting-showSpotter')).toBeChecked();
+  expect(await page.locator('#settings-sections [data-key]:not(:disabled)').count()).toBe(0);
+  await expect(page.locator('.race-row')).toHaveCount(30); // the desk page loaded behind it all the same
+  expect(errors).toEqual([]);
+});

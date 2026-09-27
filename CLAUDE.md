@@ -8,8 +8,9 @@ It was Pro Drive (RaceCor, K10 Motorsports) until 2026-09-27, when everything to
 projects and namespaces, the SimHub plugin (`RacingDesk.dll`, publishing `RacingDesk.Plugin.*`), the
 `:8889/racing-desk/` route, the store at `%LOCALAPPDATA%\Racing Desk` and the settings at `%APPDATA%\Racing Desk`.
 The app and the host move the old folders across on first run (`RacingDesk.Data/DataFolder.cs`, `main.js`). The
-SimHub plugin must be reinstalled after the rename (`apps/plugin/racing-desk-plugin/scripts/windows/install.bat`,
-which also removes the old DLL — **ask before running it**); until then SimHub's copy publishes the old property
+SimHub plugin must be reinstalled after the rename (`apps/plugin/scripts/windows/install.bat`, which stops
+SimHub, builds, removes the old DLL and copies the new one in, and restarts SimHub only if it was running —
+**ask before running it**); until then SimHub's copy publishes the old property
 names and the HUD reads nothing from it. The plan docs in `docs/` were written under the old name and say so. The
 repo's home is `DOOOOM/racing-desk`.
 
@@ -89,10 +90,16 @@ Desktop "Racing Desk" shortcuts point there; "shipping" is `git pull && npm run 
 on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\RacingDesk\host.log`.
 There is no console window. **Closing the desk window quits the app** (minimise it to keep the HUD while racing) — the
 HUD's window is hidden and Windows 11 tucks the tray icon behind its overflow arrow, so an app that outlived its window
-would run with nothing on screen. The tray icon (open desk, HUD on/off, quit) and Ctrl+Shift+Q quit too. The host is
+would run with nothing on screen. The tray menu (Open desk / Paints / Settings, HUD on/off, Quit) and Ctrl+Shift+Q quit too. The host is
 spawned detached — Node otherwise puts it in a job object Windows kills with the app, mid-write — and stops itself,
 flushing what it was recording, when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again
 opens the desk in the running app.
+
+The desk window has three pages — **Desk**, **Paints** (a placeholder until the livery manager lands there) and
+**Settings** — switched from the masthead nav, the tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js`
+`showPage`). Settings edits the HUD's `%APPDATA%\Racing Desk\overlay-settings.json` through the preload bridge
+(`modules/desk/settings-model.js` lists the keys) and each change applies live: `save-settings` writes the file whole
+and sends `settings-sync` to the HUD window. The old WinUI settings app is no longer the way to change the HUD.
 
 `modules/desk/calc.bundle.js` is generated from `packages/calc` on overlay start and by the desk tests — don't edit
 or commit it. Rating changes aren't in telemetry: a race's iRating/SR change is read from the driver's next

@@ -14,6 +14,11 @@
     <img src="images/branding/racing-desk-logomark-white.svg" alt="" class="brand-mark">
     <span class="brand-name">Racing Desk</span>
   </div>
+  <nav class="nav" aria-label="Pages">
+    <a href="#desk" data-page-link="desk">Desk</a>
+    <a href="#paints" data-page-link="paints">Paints</a>
+    <a href="#settings" data-page-link="settings">Settings</a>
+  </nav>
   <div class="ratings" id="ratings"></div>
   <div class="stats" id="stats"></div>
   <div class="freshness">
@@ -22,7 +27,7 @@
   </div>
 </header>
 
-<main class="desk" id="desk">
+<main class="desk page" id="desk" data-page="desk">
   <section class="card verdict" id="race-now"></section>
   <section class="card composure" id="composure"></section>
   <section class="card when" id="when"></section>
@@ -44,6 +49,16 @@
   <section class="card moments" id="moments"></section>
 </main>
 
+<main class="page paints" id="paints" data-page="paints" hidden>
+  <section class="card"><h2>Paints</h2><p>The livery manager is coming here.</p></section>
+</main>
+
+<main class="page settings" id="settings" data-page="settings" hidden>
+  <p class="settings-note" id="settings-note" hidden>This page needs the Racing Desk app. In a browser it only shows the HUD's defaults.</p>
+  <p class="settings-intro">The HUD's settings, kept in <code>%APPDATA%\Racing Desk\overlay-settings.json</code>. A change reaches the HUD as you make it.<span id="settings-status" role="status"></span></p>
+  <div class="settings-sections" id="settings-sections"></div>
+</main>
+
 <div class="offline" id="offline" hidden>
   <h1>No local data</h1>
   <p id="offline-reason"></p>
@@ -51,6 +66,7 @@
 </div>
 
 <script src="modules/desk/calc.bundle.js"></script>
+<script src="modules/desk/settings-model.js"></script>
 <script src="modules/desk/desk.js"></script>
 </body>
 </html>

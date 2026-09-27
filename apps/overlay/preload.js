@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
 // The Racing Desk — Preload Script
-// Exposes safe IPC bridge to the HTML dashboard
+// Exposes safe IPC bridge to the HUD (dashboard.html) and the desk (desk.html)
 // ═══════════════════════════════════════════════════════════════
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('k10', {
+contextBridge.exposeInMainWorld('racingDesk', {
   // App version (read from package.json by Electron)
   getVersion: () => ipcRenderer.invoke('get-version'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
@@ -34,12 +34,18 @@ contextBridge.exposeInMainWorld('k10', {
   getRemoteServerInfo: () => ipcRenderer.invoke('get-remote-server-info'),
   startRemoteServer: (opts) => ipcRenderer.invoke('start-remote-server', opts),
   stopRemoteServer: () => ipcRenderer.invoke('stop-remote-server'),
-  // (Dashboard + settings popout windows removed — the WinUI host owns
-  // that surface. The renderer just listens for settings-sync to pick
-  // up live changes the host writes to overlay-settings.json.)
+  // (Dashboard + settings popout windows removed — the desk's Settings
+  // page owns that surface. The renderer just listens for settings-sync
+  // to pick up changes to overlay-settings.json: the desk's saves, sent
+  // on by main.js's save-settings handler, and anything else the file
+  // watcher sees.)
   notifySettingsChanged: (settings) => ipcRenderer.invoke('settings-changed', settings),
   onSettingsSync: (callback) => {
     ipcRenderer.on('settings-sync', (event, settings) => callback(settings));
+  },
+  // Desk window: main.js asks for a page (tray menu → Paints / Settings) while the window is already open.
+  onShowPage: (callback) => {
+    ipcRenderer.on('show-page', (_event, page) => callback(page));
   },
   // Ambient light — screen capture moved to C# plugin (ScreenColorSampler).
   // Color data now arrives via poll JSON (DS.AmbientR/G/B), no IPC needed.

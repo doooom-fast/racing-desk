@@ -104,7 +104,8 @@ function loadSettingsSync() {
 
 // Stamp the timestamp of the last write originating from this process so the
 // settings-file watcher can ignore its own writes (it only re-broadcasts
-// changes made by the WinUI host).
+// changes made by something else; the desk's saves reach the HUD from the
+// save-settings handler itself).
 let _lastSelfSettingsWriteAt = 0;
 function saveSettingsSync(settings) {
   fs.writeFileSync(getSettingsPath(), JSON.stringify(settings, null, 2));
@@ -169,16 +170,20 @@ function localHostUrl() {
 // desk.html reads its host from the query once, at load: reload it if the host has changed since — a desk
 // opened from the tray or Ctrl+Shift+O while startLocalHost() was still deciding would otherwise stay pointed
 // at SimHub.
-function loadDesk() {
+// `page` is one of the desk's pages — desk, paints, settings (desk.js showPage); without one, the desk opens
+// where it was.
+function loadDesk(page) {
   deskHost = localHostUrl();
   const query = { host: deskHost };
   if (hostNote) query.note = hostNote;
+  if (page) query.page = page;
   deskWindow.loadFile(path.join(__dirname, 'desk.html'), { query });
 }
 
-function showDesk() {
+function showDesk(page) {
   if (deskWindow && !deskWindow.isDestroyed()) {
-    if (localHostUrl() !== deskHost) loadDesk();
+    if (localHostUrl() !== deskHost) loadDesk(page);
+    else if (page) deskWindow.webContents.send('show-page', page);
     if (deskWindow.isMinimized()) deskWindow.restore();
     deskWindow.show();
     deskWindow.focus();
@@ -193,9 +198,9 @@ function showDesk() {
     icon: path.join(__dirname, 'images', 'branding', 'icon.png'),
     backgroundColor: '#0b0b0d',
     autoHideMenuBar: true,
-    webPreferences: { nodeIntegration: false, contextIsolation: true },
+    webPreferences: { nodeIntegration: false, contextIsolation: true, preload: path.join(__dirname, 'preload.js') },
   });
-  loadDesk();
+  loadDesk(page);
   // Closing the desk quits the app, as closing any program's window does: the HUD's window is hidden and the
   // tray icon sits behind Windows' overflow arrow, so otherwise the app would carry on with nothing on screen.
   // Minimise the desk to keep the HUD while racing.
@@ -249,7 +254,10 @@ function createTray() {
   tray = new Tray(path.join(__dirname, 'images', 'branding', iconFile));
   tray.setToolTip('Racing Desk');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open desk', click: () => showDesk() },
+    { label: 'Open desk', click: () => showDesk('desk') },
+    { label: 'Paints', click: () => showDesk('paints') },
+    { label: 'Settings', click: () => showDesk('settings') },
+    { type: 'separator' },
     { label: 'HUD on/off', click: () => dispatchAction('toggle-overlay') },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
@@ -539,7 +547,7 @@ app.whenReady().then(async () => {
     app.exit(0);
   });
 
-  globalShortcut.register('CommandOrControl+Shift+O', () => showDesk());
+  globalShortcut.register('CommandOrControl+Shift+O', () => showDesk('desk'));
 
   globalShortcut.register('CommandOrControl+Shift+Q', () => {
     app.quit();
@@ -1322,9 +1330,10 @@ ipcMain.handle('parse-sidecar-moments', async (_event, sidecarPath) => {
 
 
 // Settings popout / Moza manager windows + the settings-changed relay
-// were removed alongside the in-overlay settings UI. Settings live in
-// the WinUI host now — the host writes overlay-settings.json directly,
-// and the watcher below picks up the change and broadcasts it to the
+// were removed alongside the in-overlay settings UI. Settings are edited
+// on the desk's Settings page now, which saves through 'save-settings'
+// below and reaches the HUD from there; the watcher picks up anything
+// else that writes overlay-settings.json and broadcasts it to the
 // renderer. No secondary BrowserWindow lives here.
 
 // fs.watchFile is polling-based, which is what we want: the WinUI host
@@ -1381,6 +1390,11 @@ ipcMain.handle('save-settings', async (event, settings) => {
     return false;
   }
   saveSettingsSync(settings);
+  // The desk's Settings page saves through here, and the watcher below ignores our own writes — so tell the
+  // HUD directly; it re-applies on settings-sync (modules/js/settings.js).
+  if (overlayWindow && !overlayWindow.isDestroyed() && event.sender !== overlayWindow.webContents) {
+    overlayWindow.webContents.send('settings-sync', settings);
+  }
   return true;
 });
 

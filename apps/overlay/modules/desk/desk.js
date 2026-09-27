@@ -12,6 +12,7 @@
   const NOTE = params.get('note');
   const STATUS_POLL_MS = 30000;
   const Calc = window.RaceCorCalc;
+  const SettingsModel = window.RacingDeskSettingsModel;
 
   const $ = (id) => document.getElementById(id);
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -459,6 +460,117 @@
       <span class="sub">${esc(m.description)}</span></li>`).join('') || '<li class="empty">Nothing yet.</li>'}</ul>`;
   }
 
+  // ── Pages ────────────────────────────────────────────────
+  // Desk, Paints and Settings are sections of this one window, shown one at a time. The hash remembers which;
+  // main.js asks for one with ?page= (tray menu, first open) or 'show-page' (the window is already up).
+
+  const PAGES = ['desk', 'paints', 'settings'];
+
+  function pageFromHash() {
+    const page = location.hash.replace(/^#/, '');
+    return PAGES.includes(page) ? page : 'desk';
+  }
+
+  function showPage(page) {
+    if (!PAGES.includes(page)) page = 'desk';
+    for (const el of document.querySelectorAll('[data-page]')) el.hidden = el.dataset.page !== page;
+    for (const a of document.querySelectorAll('.nav a')) {
+      if (a.dataset.pageLink === page) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    }
+    $('offline').classList.toggle('off-page', page !== 'desk'); // the "no local data" notice is the desk page's
+    if (location.hash !== '#' + page) {
+      try { history.replaceState(null, '', '#' + page); } catch (_) { location.hash = page; }
+    }
+    if (page === 'settings') renderSettings();
+  }
+
+  // ── Settings ─────────────────────────────────────────────
+  // The HUD's settings — modules/js/settings.js reads them from overlay-settings.json — edited through the
+  // preload bridge. modules/desk/settings-model.js says which keys, how they group and what each control
+  // shows. A change is a read-modify-write of the whole file (the HUD shares it; save-settings replaces it
+  // whole), after which main.js sends the HUD settings-sync and it re-applies. Outside Electron there is no
+  // bridge: the page shows the HUD's defaults, disabled, and says so.
+
+  const SETTINGS_COLUMNS = [['layout', 'modules'], ['look', 'commentary']];
+
+  function settingsBridge() {
+    const bridge = window.racingDesk;
+    return bridge && bridge.getSettings && bridge.saveSettings ? bridge : null;
+  }
+
+  async function renderSettings() {
+    const bridge = settingsBridge();
+    let saved = null;
+    if (bridge) {
+      try { saved = await bridge.getSettings(); } catch (_) { saved = null; }
+    }
+    const sections = SettingsModel.settingsView(saved || {});
+    $('settings-note').hidden = !!bridge;
+    $('settings-sections').innerHTML = SETTINGS_COLUMNS.map((ids) => `<div class="settings-col">${ids.map((id) => {
+      const section = sections.find((s) => s.id === id);
+      return `<section class="card" id="settings-${esc(id)}"><h2>${esc(section.title)}</h2>${section.fields.map((f) => fieldHtml(f, !bridge)).join('')}</section>`;
+    }).join('')}</div>`).join('');
+  }
+
+  function fieldHtml(f, disabled) {
+    const id = 'setting-' + f.key;
+    const attrs = `id="${id}" data-key="${esc(f.key)}"${disabled ? ' disabled' : ''}`;
+    let control;
+    switch (f.type) {
+      case 'switch':
+        control = `<input type="checkbox" class="switch" ${attrs}${f.value ? ' checked' : ''}>`;
+        break;
+      case 'select':
+        control = `<select ${attrs}>${f.options.map(([v, label]) => `<option value="${esc(v)}"${v === f.value ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select>`;
+        break;
+      case 'range':
+        control = `<input type="range" ${attrs} min="${f.min}" max="${f.max}" step="${f.step}" value="${f.value}"><output for="${id}" class="num">${f.value}${esc(f.unit)}</output>`;
+        break;
+      case 'number':
+        control = `<input type="number" ${attrs} min="${f.min}" max="${f.max}" step="${f.step}" value="${f.value}"><span class="unit">${esc(f.unit)}</span>`;
+        break;
+      default:
+        control = `<input type="text" ${attrs} value="${esc(f.value)}" placeholder="${esc(f.placeholder || '')}">`;
+    }
+    return `<div class="field">
+      <label class="name" for="${id}">${esc(f.label)}</label>
+      ${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}
+      <span class="control">${control}</span>
+    </div>`;
+  }
+
+  // Saves run one after another: two quick changes would otherwise both read the file before either wrote it.
+  let settingsSave = Promise.resolve();
+  let settingsStatusTimer = null;
+
+  function saveSetting(key, value) {
+    settingsSave = settingsSave.then(async () => {
+      const bridge = settingsBridge();
+      if (!bridge) return;
+      const settings = (await bridge.getSettings()) || {};
+      settings[key] = value;
+      await bridge.saveSettings(settings);
+      settingsStatus('Saved — the HUD has it.');
+    }).catch((err) => settingsStatus(`Not saved: ${err.message}`));
+    return settingsSave;
+  }
+
+  function settingsStatus(text) {
+    $('settings-status').textContent = text;
+    clearTimeout(settingsStatusTimer);
+    settingsStatusTimer = setTimeout(() => { $('settings-status').textContent = ''; }, 2500);
+  }
+
+  function onSettingChange(ev) {
+    const el = ev.target.closest('[data-key]');
+    const field = el && SettingsModel.fieldFor(el.dataset.key);
+    if (!field) return;
+    const value = SettingsModel.parseControlValue(field, field.type === 'switch' ? el.checked : el.value);
+    if (field.type === 'number' || field.type === 'range') el.value = value; // what was typed, clamped
+    saveSetting(field.key, value);
+  }
+
   // ── Wiring ───────────────────────────────────────────────
 
   $('race-list').addEventListener('click', (ev) => {
@@ -488,6 +600,17 @@
     await saveRaceLink(form.dataset.series, id);
     renderNextRace();
   });
+
+  window.addEventListener('hashchange', () => showPage(pageFromHash()));
+  if (window.racingDesk && window.racingDesk.onShowPage) window.racingDesk.onShowPage((page) => showPage(page));
+  $('settings-sections').addEventListener('change', onSettingChange);
+  $('settings-sections').addEventListener('input', (ev) => {
+    // A slider's readout follows the thumb; the file is written when it is let go (change).
+    const el = ev.target;
+    const field = el.type === 'range' && SettingsModel.fieldFor(el.dataset.key);
+    if (field) el.parentNode.querySelector('output').textContent = el.value + field.unit;
+  });
+  showPage(params.get('page') || pageFromHash());
 
   if (!Calc) {
     showOffline('The calc bundle is missing — run `npm run build -w @racing-desk/calc`.');

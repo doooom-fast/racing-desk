@@ -286,3 +286,106 @@ h2 {
 }
 .suggestions .link-form button { font-size: 12px; padding: 2px 8px; }
 .suggestions .link-note { color: var(--text-3); font-size: 12px; }
+
+/* ── Pages ──────────────────────────────────────────────── */
+
+.page[hidden] { display: none; }
+
+.nav { display: flex; gap: 2px; }
+.nav a {
+  color: var(--text-3);
+  text-decoration: none;
+  font: 600 12px/1 var(--ff);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.nav a:hover { color: var(--text); }
+.nav a[aria-current="page"] { color: var(--text); background: var(--panel-raised); }
+.nav a:focus-visible { outline: 1px solid var(--info); outline-offset: 1px; }
+
+.offline.off-page { display: none; }   /* the "no local data" notice belongs to the desk page */
+
+.paints { flex: 1; overflow: auto; padding: var(--gap); }
+.paints .card { max-width: 520px; }
+.paints p { color: var(--text-2); font-size: 13px; }
+
+/* ── Settings ───────────────────────────────────────────── */
+
+.settings { flex: 1; overflow: auto; padding: var(--gap); color-scheme: dark; }
+.settings-note {
+  margin-bottom: var(--gap);
+  padding: 10px 14px;
+  border: 1px solid hsla(40, 80%, 60%, 0.35);
+  border-radius: var(--r);
+  background: hsla(40, 80%, 60%, 0.08);
+  color: var(--text-2);
+  font-size: 13px;
+}
+.settings-note[hidden] { display: none; }
+.settings-intro { color: var(--text-3); font-size: 12.5px; margin: 2px 4px 14px; }
+.settings-intro code { font-family: var(--ff-mono); font-size: 12px; color: var(--text-2); }
+.settings-intro #settings-status { color: var(--gain); margin-left: 8px; }
+.settings-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
+.settings-col { display: grid; gap: var(--gap); }
+@media (max-width: 1100px) { .settings-sections { grid-template-columns: minmax(0, 1fr); } }
+
+.field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1px 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--hairline);
+}
+.field:first-of-type { border-top: 0; }
+.field .name { font-weight: 600; font-size: 13.5px; }
+.field .hint { grid-column: 1; color: var(--text-3); font-size: 12px; }
+.field .control { grid-column: 2; grid-row: 1 / span 2; display: flex; align-items: center; gap: 8px; }
+.field .unit { color: var(--text-3); font-size: 12px; }
+.field output { min-width: 42px; text-align: right; font-size: 13px; color: var(--text-2); }
+
+.settings select, .settings input[type="text"], .settings input[type="number"] {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+.settings select:hover, .settings input:hover { border-color: hsla(0, 0%, 100%, 0.3); }
+.settings select:focus-visible, .settings input:focus-visible { outline: 1px solid var(--info); outline-offset: 1px; }
+.settings select { min-width: 150px; }
+.settings input[type="text"] { width: 200px; }
+.settings input[type="number"] { width: 68px; font-family: var(--ff-mono); text-align: right; }
+.settings input[type="range"] { width: 170px; accent-color: var(--info); }
+.settings :disabled { opacity: 0.5; cursor: not-allowed; }
+
+.switch {
+  appearance: none;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border-radius: 10px;
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline-strong);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transition: transform 0.15s, background 0.15s;
+}
+.switch:checked { background: hsla(200, 60%, 65%, 0.3); border-color: var(--info); }
+.switch:checked::before { transform: translateX(14px); background: var(--text); }
+.switch:focus-visible { outline: 1px solid var(--info); outline-offset: 2px; }
