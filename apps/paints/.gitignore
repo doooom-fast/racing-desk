@@ -1,0 +1,9 @@
+node_modules/
+dist/
+src-tauri/target/
+*.local
+.DS_Store
+.vite/
+
+# Tauri regenerates these from tauri.conf.json and the capabilities.
+src-tauri/gen/schemas/
