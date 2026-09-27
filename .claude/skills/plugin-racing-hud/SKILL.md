@@ -22,11 +22,11 @@ plugin-component-architecture skill                    # Component tree and data
 docs/STYLEGUIDE.md                                    # Visual style guide
 
 # Current overlay implementation
-racecor-overlay/dashboard.html                        # Panel structure
-racecor-overlay/modules/styles/base.css               # Theme variables, spacing
-racecor-overlay/modules/styles/dashboard.css           # Layout system
-racecor-overlay/modules/styles/effects.css             # Visual effects
-racecor-overlay/modules/js/config.js                  # Available telemetry properties
+racing-desk-overlay/dashboard.html                        # Panel structure
+racing-desk-overlay/modules/styles/base.css               # Theme variables, spacing
+racing-desk-overlay/modules/styles/dashboard.css           # Layout system
+racing-desk-overlay/modules/styles/effects.css             # Visual effects
+racing-desk-overlay/modules/js/config.js                  # Available telemetry properties
 ```
 
 ## HUD Design Principles

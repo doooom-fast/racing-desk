@@ -1,5 +1,5 @@
 /**
- * RaceCor Web Components Library
+ * RacingDesk Web Components Library
  *
  * Barrel export for all web components used in the overlay and web app.
  * Import this file to auto-register all components.
@@ -11,8 +11,8 @@
  * </script>
  *
  * // Now use components
- * <racecor-fuel-gauge></racecor-fuel-gauge>
- * <racecor-leaderboard></racecor-leaderboard>
+ * <racing-desk-fuel-gauge></racing-desk-fuel-gauge>
+ * <racing-desk-leaderboard></racing-desk-leaderboard>
  */
 
 // ══════════════════════════════════════════════════════════════
@@ -98,84 +98,84 @@ import './commentary-viz.js';
  * @type {Object<string, {componentClass: Function, type: string, phase: number}>}
  */
 window._componentRegistry = window._componentRegistry || {
-  'racecor-fuel-gauge': {
-    componentClass: customElements.get('racecor-fuel-gauge'),
+  'racing-desk-fuel-gauge': {
+    componentClass: customElements.get('racing-desk-fuel-gauge'),
     type: 'dom',
     phase: 1,
     description: 'Fuel level display with consumption and pit window'
   },
 
   // Phase 2: Canvas & Moderate Complexity
-  'racecor-leaderboard': {
-    componentClass: customElements.get('racecor-leaderboard'),
+  'racing-desk-leaderboard': {
+    componentClass: customElements.get('racing-desk-leaderboard'),
     type: 'canvas',
     phase: 2,
     description: 'Driver leaderboard table with sparkline history'
   },
-  'racecor-datastream': {
-    componentClass: customElements.get('racecor-datastream'),
+  'racing-desk-datastream': {
+    componentClass: customElements.get('racing-desk-datastream'),
     type: 'canvas',
     phase: 2,
     description: 'G-force circle, yaw waveform, telemetry readouts'
   },
-  'racecor-pedal-curves': {
-    componentClass: customElements.get('racecor-pedal-curves'),
+  'racing-desk-pedal-curves': {
+    componentClass: customElements.get('racing-desk-pedal-curves'),
     type: 'canvas',
     phase: 2,
     description: 'Pedal input visualization with curves overlay'
   },
-  'racecor-pitbox': {
-    componentClass: customElements.get('racecor-pitbox'),
+  'racing-desk-pitbox': {
+    componentClass: customElements.get('racing-desk-pitbox'),
     type: 'dom',
     phase: 2,
     description: 'Tabbed pit strategy panel (fuel, tires, strategy)'
   },
-  'racecor-spotter': {
-    componentClass: customElements.get('racecor-spotter'),
+  'racing-desk-spotter': {
+    componentClass: customElements.get('racing-desk-spotter'),
     type: 'dom',
     phase: 2,
     description: 'Proximity/spotter directional indicators'
   },
-  'racecor-sector-hud': {
-    componentClass: customElements.get('racecor-sector-hud'),
+  'racing-desk-sector-hud': {
+    componentClass: customElements.get('racing-desk-sector-hud'),
     type: 'dom',
     phase: 2,
     description: 'Sector timing display with color-coded splits'
   },
-  'racecor-commentary': {
-    componentClass: customElements.get('racecor-commentary'),
+  'racing-desk-commentary': {
+    componentClass: customElements.get('racing-desk-commentary'),
     type: 'dom',
     phase: 2,
     description: 'AI commentary panel with sentiment coloring'
   },
-  'racecor-rating-editor': {
-    componentClass: customElements.get('racecor-rating-editor'),
+  'racing-desk-rating-editor': {
+    componentClass: customElements.get('racing-desk-rating-editor'),
     type: 'dom',
     phase: 2,
     description: 'iRating/Safety Rating editing interface'
   },
 
   // Phase 3: Complex & WebGL Components
-  'racecor-tachometer': {
-    componentClass: customElements.get('racecor-tachometer'),
+  'racing-desk-tachometer': {
+    componentClass: customElements.get('racing-desk-tachometer'),
     type: 'dom',
     phase: 3,
     description: 'RPM gauge with segmented color bar, gear display, speed readout'
   },
-  'racecor-webgl-fx': {
-    componentClass: customElements.get('racecor-webgl-fx'),
+  'racing-desk-webgl-fx': {
+    componentClass: customElements.get('racing-desk-webgl-fx'),
     type: 'webgl2',
     phase: 3,
     description: 'WebGL2 post-processing effects (tachometer bloom, heat distortion)'
   },
-  'racecor-drive-hud': {
-    componentClass: customElements.get('racecor-drive-hud'),
+  'racing-desk-drive-hud': {
+    componentClass: customElements.get('racing-desk-drive-hud'),
     type: 'svg',
     phase: 3,
     description: 'Full-screen driving HUD with track map, position, sectors, incidents'
   },
-  'racecor-commentary-viz': {
-    componentClass: customElements.get('racecor-commentary-viz'),
+  'racing-desk-commentary-viz': {
+    componentClass: customElements.get('racing-desk-commentary-viz'),
     type: 'canvas',
     phase: 3,
     description: 'Commentary panel with Canvas visualizations and track image'
@@ -187,7 +187,7 @@ window._componentRegistry = window._componentRegistry || {
  * @example window._logComponents()
  */
 window._logComponents = function() {
-  console.group('[K10] Registered Web Components');
+  console.group('[RacingDesk] Registered Web Components');
   Object.entries(window._componentRegistry).forEach(([tag, info]) => {
     console.log(`  ${tag} (${info.type}, phase ${info.phase})`);
   });

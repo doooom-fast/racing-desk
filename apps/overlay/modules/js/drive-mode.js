@@ -1,5 +1,5 @@
 /**
- * K10 MOTORSPORTS — DRIVE MODE MODULE
+ * THE RACING DESK — DRIVE MODE MODULE
  *
  * iPad-optimized full-screen racing dashboard for in-cockpit glanceability.
  * Completely self-contained: creates all DOM dynamically, integrates with telemetry pipeline.
@@ -240,7 +240,7 @@
     const ua = navigator.userAgent;
     const isApple = ua.includes('iPad') || ua.includes('iPhone') ||
                     (navigator.maxTouchPoints > 1 && ua.includes('Macintosh'));
-    const isStandalone = navigator.standalone === true || !window.k10;
+    const isStandalone = navigator.standalone === true || !window.racingDesk;
     return isApple || isStandalone;
   }
 
@@ -575,8 +575,8 @@
     // Helper extractors
     const v = (k) => props[k] != null ? props[k] : 0;
     const vs = (k) => props[k] != null ? '' + props[k] : '';
-    const pre = isDemo ? 'RaceCorProDrive.Plugin.Demo.' : '';
-    const dsPre = isDemo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+    const pre = isDemo ? 'RacingDesk.Plugin.Demo.' : '';
+    const dsPre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
 
     // ─── GEAR & SPEED ───
     const gear = v(pre + 'Gear') || 0;

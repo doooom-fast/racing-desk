@@ -5,7 +5,7 @@ import { readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-const DEFAULT_URL = 'http://localhost:8889/racecor-io-pro-drive/';
+const DEFAULT_URL = 'http://localhost:8889/racing-desk/';
 
 // Cache latest telemetry for list_telemetry_fields
 let lastTelemetry: Record<string, any> = {};
@@ -128,7 +128,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           url: {
             type: 'string',
             description:
-              'SimHub API URL (default: http://localhost:8889/racecor-io-pro-drive/)',
+              'SimHub API URL (default: http://localhost:8889/racing-desk/)',
           },
         },
       },
@@ -147,7 +147,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           url: {
             type: 'string',
             description:
-              'SimHub API URL (default: http://localhost:8889/racecor-io-pro-drive/)',
+              'SimHub API URL (default: http://localhost:8889/racing-desk/)',
           },
         },
         required: ['field'],
@@ -177,7 +177,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           url: {
             type: 'string',
             description:
-              'SimHub API URL (default: http://localhost:8889/racecor-io-pro-drive/)',
+              'SimHub API URL (default: http://localhost:8889/racing-desk/)',
           },
         },
       },

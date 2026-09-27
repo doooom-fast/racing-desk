@@ -6,7 +6,7 @@ description: |
 
 # `.rcpdv` Portable Bundle Format
 
-A `.rcpdv` (RaceCor Pro Drive Video) is a standard MP4 file with telemetry attached as a private `uuid` box. The bytes underneath are valid ISO-BMFF — QuickTime, VLC, ffmpeg, and AVPlayer can all open and play a `.rcpdv` if explicitly pointed at it (the user has to choose "Open With" since `.rcpdv` defaults to the Pro Drive editor). The telemetry rides along invisibly. YouTube and other public sinks ignore the box on upload — the public copy is a clean MP4, the local archive keeps the data.
+A `.rcpdv` (The Racing Desk Video) is a standard MP4 file with telemetry attached as a private `uuid` box. The bytes underneath are valid ISO-BMFF — QuickTime, VLC, ffmpeg, and AVPlayer can all open and play a `.rcpdv` if explicitly pointed at it (the user has to choose "Open With" since `.rcpdv` defaults to the The Racing Desk editor). The telemetry rides along invisibly. YouTube and other public sinks ignore the box on upload — the public copy is a clean MP4, the local archive keeps the data.
 
 This skill captures the spec. Anyone reading or writing bundles needs to follow it exactly so all platforms agree.
 
@@ -25,11 +25,11 @@ This skill captures the spec. Anyone reading or writing bundles needs to follow 
 | Sidecar pair convention | Two files drift. Users move/rename one, lose the other. Email/AirDrop loses the pair. |
 | Custom track in MP4 | Possible (TTML metadata track) but heavyweight, requires every player to grok the codec, harder to author. |
 | Plain `.mp4` extension with embedded `uuid` box | Considered, but loses brand identity — `.mp4` files are indistinguishable in Finder/Explorer from any other video. Default-open behavior cannot be set without affecting all MP4 files on the system. |
-| **`.rcpdv` extension over MP4 + `uuid` box** ✓ | Standard ISO-BMFF mechanism for private data. Unknown UUIDs are silently ignored by every conformant parser. Single-file. Custom extension means custom file icon + default app handler (Pro Drive editor) without disturbing user's MP4 associations. Bytes still play in any video tool when explicitly opened. |
+| **`.rcpdv` extension over MP4 + `uuid` box** ✓ | Standard ISO-BMFF mechanism for private data. Unknown UUIDs are silently ignored by every conformant parser. Single-file. Custom extension means custom file icon + default app handler (The Racing Desk editor) without disturbing user's MP4 associations. Bytes still play in any video tool when explicitly opened. |
 
 ## File extension and OS registration
 
-The `.rcpdv` extension is what users see in Finder, Explorer, and AirDrop dialogs. The bytes are still ISO-BMFF / MP4 underneath — every video tool that can open `.mp4` can open `.rcpdv` if pointed at the file directly. The custom extension exists for branding, custom icons, and to make Pro Drive the default open-with handler without touching the user's `.mp4` file associations.
+The `.rcpdv` extension is what users see in Finder, Explorer, and AirDrop dialogs. The bytes are still ISO-BMFF / MP4 underneath — every video tool that can open `.mp4` can open `.rcpdv` if pointed at the file directly. The custom extension exists for branding, custom icons, and to make The Racing Desk the default open-with handler without touching the user's `.mp4` file associations.
 
 ### macOS — UTI
 
@@ -40,9 +40,9 @@ Each app that handles `.rcpdv` declares the UTI in its `Info.plist` under `UTExp
 <array>
   <dict>
     <key>UTTypeIdentifier</key>
-    <string>racing.k10motorsports.prodrive.rcpdv</string>
+    <string>racing.doooom.prodrive.rcpdv</string>
     <key>UTTypeDescription</key>
-    <string>RaceCor Pro Drive Bundle</string>
+    <string>The Racing Desk Bundle</string>
     <key>UTTypeConformsTo</key>
     <array>
       <string>public.mpeg-4</string>
@@ -71,18 +71,18 @@ Add `CFBundleDocumentTypes` to register the editor as a handler:
 <array>
   <dict>
     <key>CFBundleTypeName</key>
-    <string>RaceCor Pro Drive Bundle</string>
+    <string>The Racing Desk Bundle</string>
     <key>CFBundleTypeRole</key>
     <string>Editor</string>
     <key>LSHandlerRank</key>
     <string>Owner</string>
     <key>LSItemContentTypes</key>
-    <array><string>racing.k10motorsports.prodrive.rcpdv</string></array>
+    <array><string>racing.doooom.prodrive.rcpdv</string></array>
   </dict>
 </array>
 ```
 
-`LSHandlerRank=Owner` means Pro Drive is the canonical default; users can still override per-file via "Get Info → Open With".
+`LSHandlerRank=Owner` means The Racing Desk is the canonical default; users can still override per-file via "Get Info → Open With".
 
 ### Windows — File association
 
@@ -93,9 +93,9 @@ Inno Setup snippet (matches the existing installer pattern in `prodrive-windows`
 Root: HKCR; Subkey: ".rcpdv"; ValueType: string; ValueName: ""; ValueData: "ProDrive.Bundle"
 Root: HKCR; Subkey: ".rcpdv"; ValueType: string; ValueName: "PerceivedType"; ValueData: "video"
 Root: HKCR; Subkey: ".rcpdv"; ValueType: string; ValueName: "Content Type"; ValueData: "video/mp4"
-Root: HKCR; Subkey: "ProDrive.Bundle"; ValueType: string; ValueName: ""; ValueData: "RaceCor Pro Drive Bundle"
-Root: HKCR; Subkey: "ProDrive.Bundle\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\RaceCorProDrive.exe,1"
-Root: HKCR; Subkey: "ProDrive.Bundle\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\RaceCorProDrive.exe"" ""%1"""
+Root: HKCR; Subkey: "ProDrive.Bundle"; ValueType: string; ValueName: ""; ValueData: "The Racing Desk Bundle"
+Root: HKCR; Subkey: "ProDrive.Bundle\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\RacingDesk.exe,1"
+Root: HKCR; Subkey: "ProDrive.Bundle\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\RacingDesk.exe"" ""%1"""
 ```
 
 `PerceivedType=video` means Windows treats the file as video for indexing, the file picker's "Videos" filter, and Photos app integration. `Content Type=video/mp4` ensures HTTP servers (and any tool reading the registry to determine MIME) report the right type.
@@ -110,7 +110,7 @@ A custom 1024×1024 icon (with @1x, @2x, @3x variants on Apple, multi-size .ico 
 - macOS: `Resources/Assets.xcassets/RcpdvDocument.iconset/`
 - Windows: `Resources/RcpdvDocument.ico`
 
-Design constraint: the icon should clearly indicate "video file" (frame motif, play triangle) plus the Pro Drive accent (k10 red). Falling back to the generic video icon is acceptable in dev but not in shipped builds.
+Design constraint: the icon should clearly indicate "video file" (frame motif, play triangle) plus the The Racing Desk accent (k10 red). Falling back to the generic video icon is acceptable in dev but not in shipped builds.
 
 ## The byte layout
 
@@ -163,7 +163,7 @@ Header schema (`headerLen` bytes of UTF-8 JSON):
     "series": "iRacing 24 Heures du Mans",
     "sessionType": "race",                    // "practice"|"qualify"|"race"
     "sessionId": "iracing:2026:24h-spa:3",   // canonical ID for cross-system join
-    "userId": "discord:123456789"             // Pro Drive user
+    "userId": "discord:123456789"             // The Racing Desk user
   },
   "video": {
     "duration": 5400.123,                     // seconds (matches MP4 mvhd duration)

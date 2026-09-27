@@ -10,7 +10,7 @@
  *
  * These tests lock in the fallback ordering:
  *   1. _trackApiSvgCache[trackName] (curated override)
- *   2. RaceCorProDrive.Plugin.TrackMap.SvgPath (plugin recording)
+ *   2. RacingDesk.Plugin.TrackMap.SvgPath (plugin recording)
  *   3. '' (neither available)
  */
 
@@ -19,7 +19,7 @@ import { test, expect } from '@playwright/test';
 // Mirrors the mapPath selection in poll-engine.js and drive-hud.js
 function resolveMapPath(apiCache, trackName, props) {
   const apiSvg = (apiCache && apiCache[trackName]) || '';
-  const pluginSvg = (props && props['RaceCorProDrive.Plugin.TrackMap.SvgPath']) || '';
+  const pluginSvg = (props && props['RacingDesk.Plugin.TrackMap.SvgPath']) || '';
   return apiSvg || pluginSvg || '';
 }
 
@@ -29,7 +29,7 @@ test.describe('Track SVG source selection', () => {
     const mapPath = resolveMapPath(
       { 'Spa-Francorchamps': 'M0,0 L100,100 Z' },
       'Spa-Francorchamps',
-      { 'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M50,50 L60,60' }
+      { 'RacingDesk.Plugin.TrackMap.SvgPath': 'M50,50 L60,60' }
     );
     expect(mapPath).toBe('M0,0 L100,100 Z');
   });
@@ -38,7 +38,7 @@ test.describe('Track SVG source selection', () => {
     const mapPath = resolveMapPath(
       {},
       'Spa-Francorchamps',
-      { 'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M10,10 L90,90 Z' }
+      { 'RacingDesk.Plugin.TrackMap.SvgPath': 'M10,10 L90,90 Z' }
     );
     expect(mapPath).toBe('M10,10 L90,90 Z');
   });
@@ -47,7 +47,7 @@ test.describe('Track SVG source selection', () => {
     const mapPath = resolveMapPath(
       { 'Monza': 'M0,0 L50,50' },
       'Spa-Francorchamps',
-      { 'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M10,10 L90,90 Z' }
+      { 'RacingDesk.Plugin.TrackMap.SvgPath': 'M10,10 L90,90 Z' }
     );
     expect(mapPath).toBe('M10,10 L90,90 Z');
   });
@@ -61,7 +61,7 @@ test.describe('Track SVG source selection', () => {
     const mapPath = resolveMapPath(
       { 'Spa-Francorchamps': '' },
       'Spa-Francorchamps',
-      { 'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M10,10 L90,90' }
+      { 'RacingDesk.Plugin.TrackMap.SvgPath': 'M10,10 L90,90' }
     );
     expect(mapPath).toBe('M10,10 L90,90');
   });
@@ -75,7 +75,7 @@ test.describe('Track SVG source selection', () => {
     const mapPath = resolveMapPath(
       { 'Spa-Francorchamps': 'curated' },
       null,
-      { 'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'recording' }
+      { 'RacingDesk.Plugin.TrackMap.SvgPath': 'recording' }
     );
     expect(mapPath).toBe('recording');
   });
@@ -84,7 +84,7 @@ test.describe('Track SVG source selection', () => {
     const mapPath = resolveMapPath(
       null,
       'Spa-Francorchamps',
-      { 'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'recording' }
+      { 'RacingDesk.Plugin.TrackMap.SvgPath': 'recording' }
     );
     expect(mapPath).toBe('recording');
   });

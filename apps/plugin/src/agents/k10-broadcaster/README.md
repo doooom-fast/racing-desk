@@ -1,6 +1,6 @@
-# RaceCor Broadcaster MCP Server
+# RacingDesk Broadcaster MCP Server
 
-Part of the [RaceCorProDrive](https://github.com/alternatekev/media-coach-simhub-plugin) sim racing platform. A Model Context Protocol (MCP) server providing structured access to the RaceCorProDrive dashboard overlay source code — 28+ JavaScript modules, 10 CSS modules, WebGL shaders, and the Electron main process. Enables Claude to understand the overlay's architecture, module relationships, and styling without parsing raw HTML or manually reading files.
+Part of the [RacingDesk](https://github.com/alternatekev/media-coach-simhub-plugin) sim racing platform. A Model Context Protocol (MCP) server providing structured access to the RacingDesk dashboard overlay source code — 28+ JavaScript modules, 10 CSS modules, WebGL shaders, and the Electron main process. Enables Claude to understand the overlay's architecture, module relationships, and styling without parsing raw HTML or manually reading files.
 
 ## Location
 
@@ -17,7 +17,7 @@ mcp/k10-broadcaster/
 
 ## Features
 
-The MCP provides 12 specialized tools for exploring the RaceCor Broadcaster dashboard codebase:
+The MCP provides 12 specialized tools for exploring the RacingDesk Broadcaster dashboard codebase:
 
 ### Dashboard Module Management
 - **`list_components`** - Lists all dashboard modules with categories (HUD, panels, overlays, settings, layout)
@@ -47,10 +47,10 @@ The MCP provides 12 specialized tools for exploring the RaceCor Broadcaster dash
 
 ## Source Structure
 
-The MCP reads from the RaceCorProDrive dashboard source:
+The MCP reads from the RacingDesk dashboard source:
 
 ```
-racecor-overlay/
+racing-desk-overlay/
 ├── modules/
 │   ├── js/                # Dashboard modules
 │   │   ├── config.js
@@ -259,8 +259,8 @@ The server will start on stdio and begin accepting MCP calls.
 
 ### Environment Variables
 
-- `K10_BROADCASTER_ROOT` - Path to racecor-overlay modules directory
-  - Default: `racecor-overlay/`
+- `K10_BROADCASTER_ROOT` - Path to racing-desk-overlay modules directory
+  - Default: `racing-desk-overlay/`
 
 ## Component Architecture
 
@@ -280,7 +280,7 @@ Dashboard (Main Layout)
 │   │   ├── PositionPanel
 │   │   └── GapsPanel
 │   ├── Tachometer Column
-│   └── Logo Column (RaceCor + Car)
+│   └── Logo Column (RacingDesk + Car)
 ├── Timer Row (placeholder)
 ├── Commentary Column (right side)
 ├── Secondary Panels (opposite side)

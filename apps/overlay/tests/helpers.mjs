@@ -1,5 +1,5 @@
 /**
- * Test helpers for K10 Motorsports dashboard tests.
+ * Test helpers for The Racing Desk dashboard tests.
  *
  * Provides mock telemetry data and a page-setup utility that loads
  * dashboard.html with fetch() intercepted so no real HTTP server is needed.
@@ -23,7 +23,7 @@ export const DASHBOARD_PATH = DASHBOARD_PATHS.original;
 /** Realistic mid-race telemetry snapshot */
 export const MOCK_TELEMETRY = {
   'DataCorePlugin.GameRunning': 1,
-  'RaceCorProDrive.Plugin.DemoMode': 0,
+  'RacingDesk.Plugin.DemoMode': 0,
   'DataCorePlugin.GameData.Gear': '4',
   'DataCorePlugin.GameData.Rpms': 6842,
   'DataCorePlugin.GameData.CarSettings_MaxRPM': 8500,
@@ -58,60 +58,60 @@ export const MOCK_TELEMETRY = {
   'IRacingExtraProperties.iRacing_Opponent_Behind_Name': 'S. Leclerc',
   'IRacingExtraProperties.iRacing_Opponent_Ahead_IRating': 3210,
   'IRacingExtraProperties.iRacing_Opponent_Behind_IRating': 2530,
-  'RaceCorProDrive.Plugin.CommentaryVisible': 0,
-  'RaceCorProDrive.Plugin.CommentaryText': '',
-  'RaceCorProDrive.Plugin.CommentaryTopicTitle': '',
-  'RaceCorProDrive.Plugin.CommentaryTopicId': '',
-  'RaceCorProDrive.Plugin.CommentaryCategory': '',
-  'RaceCorProDrive.Plugin.CommentarySentimentColor': '',
-  'RaceCorProDrive.Plugin.CommentarySeverity': 0,
-  'RaceCorProDrive.Plugin.TrackMap.Ready': 0,
-  'RaceCorProDrive.Plugin.Grid.SessionState': 4,
-  'RaceCorProDrive.Plugin.GameId': 'iracing',
-  'RaceCorProDrive.Plugin.SessionTypeName': 'Race',
-  'RaceCorProDrive.Plugin.DS.FuelPct': 47.3,
-  'RaceCorProDrive.Plugin.DS.FuelLapsRemaining': 9.1,
+  'RacingDesk.Plugin.CommentaryVisible': 0,
+  'RacingDesk.Plugin.CommentaryText': '',
+  'RacingDesk.Plugin.CommentaryTopicTitle': '',
+  'RacingDesk.Plugin.CommentaryTopicId': '',
+  'RacingDesk.Plugin.CommentaryCategory': '',
+  'RacingDesk.Plugin.CommentarySentimentColor': '',
+  'RacingDesk.Plugin.CommentarySeverity': 0,
+  'RacingDesk.Plugin.TrackMap.Ready': 0,
+  'RacingDesk.Plugin.Grid.SessionState': 4,
+  'RacingDesk.Plugin.GameId': 'iracing',
+  'RacingDesk.Plugin.SessionTypeName': 'Race',
+  'RacingDesk.Plugin.DS.FuelPct': 47.3,
+  'RacingDesk.Plugin.DS.FuelLapsRemaining': 9.1,
 };
 
 /** Demo mode telemetry — uses Demo.* keys instead */
 export const MOCK_DEMO = {
   ...MOCK_TELEMETRY,
-  'RaceCorProDrive.Plugin.DemoMode': 1,
-  'RaceCorProDrive.Plugin.Demo.Gear': '3',
-  'RaceCorProDrive.Plugin.Demo.Rpm': 5400,
-  'RaceCorProDrive.Plugin.Demo.MaxRpm': 7500,
-  'RaceCorProDrive.Plugin.Demo.SpeedMph': 98,
-  'RaceCorProDrive.Plugin.Demo.Throttle': 0.65,
-  'RaceCorProDrive.Plugin.Demo.Brake': 0.12,
-  'RaceCorProDrive.Plugin.Demo.Clutch': 0.0,
-  'RaceCorProDrive.Plugin.Demo.Fuel': 18.0,
-  'RaceCorProDrive.Plugin.Demo.MaxFuel': 60.0,
-  'RaceCorProDrive.Plugin.Demo.FuelPerLap': 3.5,
-  'RaceCorProDrive.Plugin.Demo.RemainingLaps': 10,
-  'RaceCorProDrive.Plugin.Demo.TyreTempFL': 210,
-  'RaceCorProDrive.Plugin.Demo.TyreTempFR': 215,
-  'RaceCorProDrive.Plugin.Demo.TyreTempRL': 195,
-  'RaceCorProDrive.Plugin.Demo.TyreTempRR': 198,
-  'RaceCorProDrive.Plugin.Demo.TyreWearFL': 0.80,
-  'RaceCorProDrive.Plugin.Demo.TyreWearFR': 0.75,
-  'RaceCorProDrive.Plugin.Demo.TyreWearRL': 0.85,
-  'RaceCorProDrive.Plugin.Demo.TyreWearRR': 0.83,
-  'RaceCorProDrive.Plugin.Demo.BrakeBias': 54.0,
-  'RaceCorProDrive.Plugin.Demo.TC': 6,
-  'RaceCorProDrive.Plugin.Demo.ABS': 2,
-  'RaceCorProDrive.Plugin.Demo.Position': 3,
-  'RaceCorProDrive.Plugin.Demo.CurrentLap': 12,
-  'RaceCorProDrive.Plugin.Demo.BestLapTime': 88.921,
-  'RaceCorProDrive.Plugin.Demo.CarModel': 'BMW M4 GT3',
-  'RaceCorProDrive.Plugin.Demo.IRating': 3150,
-  'RaceCorProDrive.Plugin.Demo.SafetyRating': 3.88,
-  'RaceCorProDrive.Plugin.Demo.GapAhead': 0.8,
-  'RaceCorProDrive.Plugin.Demo.GapBehind': 3.5,
-  'RaceCorProDrive.Plugin.Demo.DriverAhead': 'J. Smith',
-  'RaceCorProDrive.Plugin.Demo.DriverBehind': 'A. Johnson',
-  'RaceCorProDrive.Plugin.Demo.IRAhead': 3500,
-  'RaceCorProDrive.Plugin.Demo.IRBehind': 2100,
-  'RaceCorProDrive.Plugin.Demo.Grid.SessionState': 4,
+  'RacingDesk.Plugin.DemoMode': 1,
+  'RacingDesk.Plugin.Demo.Gear': '3',
+  'RacingDesk.Plugin.Demo.Rpm': 5400,
+  'RacingDesk.Plugin.Demo.MaxRpm': 7500,
+  'RacingDesk.Plugin.Demo.SpeedMph': 98,
+  'RacingDesk.Plugin.Demo.Throttle': 0.65,
+  'RacingDesk.Plugin.Demo.Brake': 0.12,
+  'RacingDesk.Plugin.Demo.Clutch': 0.0,
+  'RacingDesk.Plugin.Demo.Fuel': 18.0,
+  'RacingDesk.Plugin.Demo.MaxFuel': 60.0,
+  'RacingDesk.Plugin.Demo.FuelPerLap': 3.5,
+  'RacingDesk.Plugin.Demo.RemainingLaps': 10,
+  'RacingDesk.Plugin.Demo.TyreTempFL': 210,
+  'RacingDesk.Plugin.Demo.TyreTempFR': 215,
+  'RacingDesk.Plugin.Demo.TyreTempRL': 195,
+  'RacingDesk.Plugin.Demo.TyreTempRR': 198,
+  'RacingDesk.Plugin.Demo.TyreWearFL': 0.80,
+  'RacingDesk.Plugin.Demo.TyreWearFR': 0.75,
+  'RacingDesk.Plugin.Demo.TyreWearRL': 0.85,
+  'RacingDesk.Plugin.Demo.TyreWearRR': 0.83,
+  'RacingDesk.Plugin.Demo.BrakeBias': 54.0,
+  'RacingDesk.Plugin.Demo.TC': 6,
+  'RacingDesk.Plugin.Demo.ABS': 2,
+  'RacingDesk.Plugin.Demo.Position': 3,
+  'RacingDesk.Plugin.Demo.CurrentLap': 12,
+  'RacingDesk.Plugin.Demo.BestLapTime': 88.921,
+  'RacingDesk.Plugin.Demo.CarModel': 'BMW M4 GT3',
+  'RacingDesk.Plugin.Demo.IRating': 3150,
+  'RacingDesk.Plugin.Demo.SafetyRating': 3.88,
+  'RacingDesk.Plugin.Demo.GapAhead': 0.8,
+  'RacingDesk.Plugin.Demo.GapBehind': 3.5,
+  'RacingDesk.Plugin.Demo.DriverAhead': 'J. Smith',
+  'RacingDesk.Plugin.Demo.DriverBehind': 'A. Johnson',
+  'RacingDesk.Plugin.Demo.IRAhead': 3500,
+  'RacingDesk.Plugin.Demo.IRBehind': 2100,
+  'RacingDesk.Plugin.Demo.Grid.SessionState': 4,
 };
 
 /**
@@ -130,7 +130,7 @@ export async function loadDashboard(page, data, opts = {}) {
   const dashPath = opts.dashboardPath || DASHBOARD_PATH;
 
   // Intercept all fetch requests to the plugin server and serve mock data
-  await page.route(/k10motorsports/, async (route) => {
+  await page.route(/doooom/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -148,8 +148,8 @@ export async function loadDashboard(page, data, opts = {}) {
  * Update mock data mid-test by re-routing fetch.
  */
 export async function updateMockData(page, data) {
-  await page.unroute(/k10motorsports/);
-  await page.route(/k10motorsports/, async (route) => {
+  await page.unroute(/doooom/);
+  await page.route(/doooom/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

@@ -50,8 +50,8 @@
     _headerWritten = false;
 
     // Create the file (empty) via IPC
-    if (window.k10 && window.k10.sidecarStart) {
-      window.k10.sidecarStart(_sidecarPath);
+    if (window.racingDesk && window.racingDesk.sidecarStart) {
+      window.racingDesk.sidecarStart(_sidecarPath);
     }
 
     console.log('[Sidecar] Started → ' + _sidecarPath);
@@ -66,11 +66,11 @@
     _headerWritten = true;
 
     var carModel =
-      (p && (p['DataCorePlugin.GameData.CarModel'] || p['RaceCorProDrive.Plugin.Demo.CarModel'])) ||
+      (p && (p['DataCorePlugin.GameData.CarModel'] || p['RacingDesk.Plugin.Demo.CarModel'])) ||
       window._currentCarModel ||
       null;
     var trackName =
-      (p && (p['DataCorePlugin.GameData.TrackName'] || p['RaceCorProDrive.Plugin.Demo.TrackName'])) ||
+      (p && (p['DataCorePlugin.GameData.TrackName'] || p['RacingDesk.Plugin.Demo.TrackName'])) ||
       window._currentTrackName ||
       null;
 
@@ -84,8 +84,8 @@
       isDemo: !!isDemo,
     };
 
-    if (window.k10 && window.k10.sidecarWrite) {
-      window.k10.sidecarWrite(_sidecarPath, JSON.stringify(header) + '\n');
+    if (window.racingDesk && window.racingDesk.sidecarWrite) {
+      window.racingDesk.sidecarWrite(_sidecarPath, JSON.stringify(header) + '\n');
     }
   }
 
@@ -102,12 +102,12 @@
       durationMs: Date.now() - _startTime,
       markers: _markers,
     };
-    if (window.k10 && window.k10.sidecarWrite) {
-      window.k10.sidecarWrite(_sidecarPath, JSON.stringify(summary) + '\n');
+    if (window.racingDesk && window.racingDesk.sidecarWrite) {
+      window.racingDesk.sidecarWrite(_sidecarPath, JSON.stringify(summary) + '\n');
     }
 
-    if (window.k10 && window.k10.sidecarStop) {
-      window.k10.sidecarStop(_sidecarPath);
+    if (window.racingDesk && window.racingDesk.sidecarStop) {
+      window.racingDesk.sidecarStop(_sidecarPath);
     }
 
     console.log('[Sidecar] Stopped — ' + _frameIndex + ' frames, ' + _markers.length + ' markers');
@@ -126,24 +126,24 @@
     // car/track/game match whatever the per-frame rows will reflect.
     if (!_headerWritten) writeHeader(p, isDemo);
 
-    var dsPre = isDemo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
-    var sessionPre = isDemo ? 'RaceCorProDrive.Plugin.Demo.Grid.' : 'RaceCorProDrive.Plugin.Grid.';
-    var pre = isDemo ? 'RaceCorProDrive.Plugin.Demo.' : '';
+    var dsPre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
+    var sessionPre = isDemo ? 'RacingDesk.Plugin.Demo.Grid.' : 'RacingDesk.Plugin.Grid.';
+    var pre = isDemo ? 'RacingDesk.Plugin.Demo.' : '';
 
     var v = function (k) { return p[k] != null ? p[k] : 0; };
     var vs = function (k) { return p[k] != null ? '' + p[k] : ''; };
 
     var elapsedMs = Date.now() - _startTime;
     var pos = isDemo
-      ? +(v('RaceCorProDrive.Plugin.Demo.Position')) || 0
+      ? +(v('RacingDesk.Plugin.Demo.Position')) || 0
       : +(v('DataCorePlugin.GameData.Position')) || 0;
     var incidents = +(v(dsPre + 'IncidentCount')) || 0;
     var lap = isDemo
-      ? +(v('RaceCorProDrive.Plugin.Demo.CurrentLap')) || 0
+      ? +(v('RacingDesk.Plugin.Demo.CurrentLap')) || 0
       : +(v('DataCorePlugin.GameData.CurrentLap')) || 0;
     var inPit = +(v(dsPre + 'IsInPitLane')) > 0;
     var speed = isDemo
-      ? +(v('RaceCorProDrive.Plugin.Demo.SpeedMph')) || 0
+      ? +(v('RacingDesk.Plugin.Demo.SpeedMph')) || 0
       : +(v('DataCorePlugin.GameData.SpeedMph')) || 0;
 
     // ── Detect events (markers) ─────────────────────────────
@@ -208,10 +208,10 @@
       pos: pos,
       totalCars: +(v(sessionPre + 'TotalCars')) || 0,
       gapAhead: isDemo
-        ? +(v('RaceCorProDrive.Plugin.Demo.GapAhead')) || 0
+        ? +(v('RacingDesk.Plugin.Demo.GapAhead')) || 0
         : +(v('IRacingExtraProperties.iRacing_Opponent_Ahead_Gap')) || 0,
       gapBehind: isDemo
-        ? +(v('RaceCorProDrive.Plugin.Demo.GapBehind')) || 0
+        ? +(v('RacingDesk.Plugin.Demo.GapBehind')) || 0
         : +(v('IRacingExtraProperties.iRacing_Opponent_Behind_Gap')) || 0,
       // Lap & sector
       lap: lap,
@@ -219,9 +219,9 @@
       lapDelta: +(v(dsPre + 'LapDelta')) || 0,
       // Speed & inputs
       speed: speed,
-      throttle: +(v(isDemo ? 'RaceCorProDrive.Plugin.Demo.Throttle' : 'DataCorePlugin.GameData.Throttle')) || 0,
-      brake: +(v(isDemo ? 'RaceCorProDrive.Plugin.Demo.Brake' : 'DataCorePlugin.GameData.Brake')) || 0,
-      gear: +(v(isDemo ? 'RaceCorProDrive.Plugin.Demo.Gear' : 'DataCorePlugin.GameData.Gear')) || 0,
+      throttle: +(v(isDemo ? 'RacingDesk.Plugin.Demo.Throttle' : 'DataCorePlugin.GameData.Throttle')) || 0,
+      brake: +(v(isDemo ? 'RacingDesk.Plugin.Demo.Brake' : 'DataCorePlugin.GameData.Brake')) || 0,
+      gear: +(v(isDemo ? 'RacingDesk.Plugin.Demo.Gear' : 'DataCorePlugin.GameData.Gear')) || 0,
       steer: +(v('DataCorePlugin.GameRawData.Telemetry.SteeringWheelAngle')) || 0,
       // G-forces
       latG: +(v(dsPre + 'LatG')) || 0,
@@ -232,29 +232,29 @@
       // Pit status
       pit: inPit,
       // Fuel
-      fuel: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.Fuel')) || 0 : +(v('DataCorePlugin.GameData.Fuel')) || 0,
-      maxFuel: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.MaxFuel')) || 0 : +(v('DataCorePlugin.GameData.MaxFuel')) || 0,
+      fuel: isDemo ? +(v('RacingDesk.Plugin.Demo.Fuel')) || 0 : +(v('DataCorePlugin.GameData.Fuel')) || 0,
+      maxFuel: isDemo ? +(v('RacingDesk.Plugin.Demo.MaxFuel')) || 0 : +(v('DataCorePlugin.GameData.MaxFuel')) || 0,
       // Fuel consumption (added 2026-04-26)
       fuelLap: isDemo
-        ? +(v('RaceCorProDrive.Plugin.Demo.FuelPerLap')) || 0
+        ? +(v('RacingDesk.Plugin.Demo.FuelPerLap')) || 0
         : +(v('DataCorePlugin.Computed.Fuel_LitersPerLap')) || 0,
       remLaps: isDemo
-        ? +(v('RaceCorProDrive.Plugin.Demo.RemainingLaps')) || 0
+        ? +(v('RacingDesk.Plugin.Demo.RemainingLaps')) || 0
         : +(v('DataCorePlugin.GameData.RemainingLaps')) || 0,
       // Tire temps °C (added 2026-04-26)
-      tFL: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.TyreTempFL')) || 0 : +(v('DataCorePlugin.GameData.TyreTempFrontLeft')) || 0,
-      tFR: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.TyreTempFR')) || 0 : +(v('DataCorePlugin.GameData.TyreTempFrontRight')) || 0,
-      tRL: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.TyreTempRL')) || 0 : +(v('DataCorePlugin.GameData.TyreTempRearLeft')) || 0,
-      tRR: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.TyreTempRR')) || 0 : +(v('DataCorePlugin.GameData.TyreTempRearRight')) || 0,
+      tFL: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreTempFL')) || 0 : +(v('DataCorePlugin.GameData.TyreTempFrontLeft')) || 0,
+      tFR: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreTempFR')) || 0 : +(v('DataCorePlugin.GameData.TyreTempFrontRight')) || 0,
+      tRL: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreTempRL')) || 0 : +(v('DataCorePlugin.GameData.TyreTempRearLeft')) || 0,
+      tRR: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreTempRR')) || 0 : +(v('DataCorePlugin.GameData.TyreTempRearRight')) || 0,
       // Tire wear 0..1 (added 2026-04-26)
-      wFL: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.TyreWearFL')) || 0 : +(v('DataCorePlugin.GameData.TyreWearFrontLeft')) || 0,
-      wFR: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.TyreWearFR')) || 0 : +(v('DataCorePlugin.GameData.TyreWearFrontRight')) || 0,
-      wRL: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.TyreWearRL')) || 0 : +(v('DataCorePlugin.GameData.TyreWearRearLeft')) || 0,
-      wRR: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.TyreWearRR')) || 0 : +(v('DataCorePlugin.GameData.TyreWearRearRight')) || 0,
+      wFL: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreWearFL')) || 0 : +(v('DataCorePlugin.GameData.TyreWearFrontLeft')) || 0,
+      wFR: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreWearFR')) || 0 : +(v('DataCorePlugin.GameData.TyreWearFrontRight')) || 0,
+      wRL: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreWearRL')) || 0 : +(v('DataCorePlugin.GameData.TyreWearRearLeft')) || 0,
+      wRR: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreWearRR')) || 0 : +(v('DataCorePlugin.GameData.TyreWearRearRight')) || 0,
       // In-car adjustments (added 2026-04-26)
-      bb: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.BrakeBias')) || 0 : +(v('DataCorePlugin.GameRawData.Telemetry.dcBrakeBias')) || 0,
-      tc: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.TC')) || 0 : +(v('DataCorePlugin.GameRawData.Telemetry.dcTractionControl')) || 0,
-      abs: isDemo ? +(v('RaceCorProDrive.Plugin.Demo.ABS')) || 0 : +(v('DataCorePlugin.GameRawData.Telemetry.dcABS')) || 0,
+      bb: isDemo ? +(v('RacingDesk.Plugin.Demo.BrakeBias')) || 0 : +(v('DataCorePlugin.GameRawData.Telemetry.dcBrakeBias')) || 0,
+      tc: isDemo ? +(v('RacingDesk.Plugin.Demo.TC')) || 0 : +(v('DataCorePlugin.GameRawData.Telemetry.dcTractionControl')) || 0,
+      abs: isDemo ? +(v('RacingDesk.Plugin.Demo.ABS')) || 0 : +(v('DataCorePlugin.GameRawData.Telemetry.dcABS')) || 0,
       // Proximity
       closestCar: +(v(dsPre + 'ClosestCarDistance')) || 0,
       // Session
@@ -276,8 +276,8 @@
     if (_buffer.length === 0 || !_sidecarPath) return;
     var chunk = _buffer.join('\n') + '\n';
     _buffer = [];
-    if (window.k10 && window.k10.sidecarWrite) {
-      window.k10.sidecarWrite(_sidecarPath, chunk);
+    if (window.racingDesk && window.racingDesk.sidecarWrite) {
+      window.racingDesk.sidecarWrite(_sidecarPath, chunk);
     }
   }
 

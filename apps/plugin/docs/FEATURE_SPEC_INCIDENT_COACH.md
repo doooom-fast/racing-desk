@@ -178,13 +178,13 @@ Every poll cycle, check if a flagged driver is within engagement range:
 Exposed via the HTTP API alongside existing telemetry:
 
 ```
-RaceCorProDrive.Plugin.DS.IncidentCoach.Active           // bool — master toggle
-RaceCorProDrive.Plugin.DS.IncidentCoach.LastIncidentAt    // lap number of last incident
-RaceCorProDrive.Plugin.DS.IncidentCoach.ThreatDrivers     // JSON array of threat entries
-RaceCorProDrive.Plugin.DS.IncidentCoach.ActiveAlert       // current alert state JSON
-RaceCorProDrive.Plugin.DS.IncidentCoach.RageScore         // 0-100 composite score
-RaceCorProDrive.Plugin.DS.IncidentCoach.CooldownActive    // bool
-RaceCorProDrive.Plugin.DS.IncidentCoach.SessionBehavior   // JSON behavior summary
+RacingDesk.Plugin.DS.IncidentCoach.Active           // bool — master toggle
+RacingDesk.Plugin.DS.IncidentCoach.LastIncidentAt    // lap number of last incident
+RacingDesk.Plugin.DS.IncidentCoach.ThreatDrivers     // JSON array of threat entries
+RacingDesk.Plugin.DS.IncidentCoach.ActiveAlert       // current alert state JSON
+RacingDesk.Plugin.DS.IncidentCoach.RageScore         // 0-100 composite score
+RacingDesk.Plugin.DS.IncidentCoach.CooldownActive    // bool
+RacingDesk.Plugin.DS.IncidentCoach.SessionBehavior   // JSON behavior summary
 ```
 
 ---
@@ -390,7 +390,7 @@ Based on live behavior metrics, the system offers proactive coaching (not just r
 After the session ends (checkered flag + cooldown), generate a **Behavior Report**:
 
 ```
-RaceCorProDrive.Plugin.DS.IncidentCoach.SessionReport  // JSON
+RacingDesk.Plugin.DS.IncidentCoach.SessionReport  // JSON
 ```
 
 **Report Structure:**

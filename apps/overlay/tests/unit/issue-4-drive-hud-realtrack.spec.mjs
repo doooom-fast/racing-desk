@@ -2,7 +2,7 @@
  * Issue #4 — Drive-HUD map rotation: real-track heading sequences
  *
  * These tests replay heading data derived from the actual Bathurst
- * (Mt Panorama) track map CSV at racecor-plugin/simhub-plugin/racecorprodrive-data/
+ * (Mt Panorama) track map CSV at racing-desk-plugin/simhub-plugin/racingdesk-data/
  * trackmaps/bathurst.csv. Headings are computed from consecutive GPS
  * coordinates (atan2 of dx/dy, stride=30 points ≈ one telemetry frame
  * at typical recording density), giving 82 samples covering the full
@@ -39,7 +39,7 @@ function lerpHeading(current, target, alpha) {
 // ─────────────────────────────────────────────────────────────
 
 // Generated track-map CSVs are not committed; tests that read them skip when absent.
-const TRACKMAPS_REL = '../../../../plugin/racecor-plugin/simhub-plugin/racecorprodrive-data/trackmaps';
+const TRACKMAPS_REL = '../../../../plugin/racing-desk-plugin/simhub-plugin/racingdesk-data/trackmaps';
 const hasTrackmaps = () => fs.existsSync(path.resolve(fileURLToPath(import.meta.url), TRACKMAPS_REL, 'bathurst.csv'));
 
 function loadTrackHeadings(csvRelPath, stride = 30) {
@@ -69,7 +69,7 @@ function loadTrackHeadings(csvRelPath, stride = 30) {
 // Pre-computed from bathurst.csv at stride=30 — kept as snapshot for
 // regression detection if the CSV changes.
 // These tests replay heading data derived from the actual Bathurst
-// (Mt Panorama) track map CSV at racecor-plugin/simhub-plugin/racecorprodrive-data/trackmaps/bathurst.csv.
+// (Mt Panorama) track map CSV at racing-desk-plugin/simhub-plugin/racingdesk-data/trackmaps/bathurst.csv.
 const BATHURST_HEADING_SNAPSHOT = [
   271.8, 336.1, 345.2, 348.6, 348.7, 349.1, 349.2, 348.4,
   348.6, 348.2, 349.0, 349.5, 348.8, 348.4, 349.2, 348.7,

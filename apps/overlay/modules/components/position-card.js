@@ -1,5 +1,5 @@
 /**
- * @element racecor-position-card
+ * @element racing-desk-position-card
  * @description Position, iRating, and Safety Rating display with cycling pages.
  *
  * Shows current position (large), iRating with horizontal progress bar, and Safety Rating with pie.
@@ -20,7 +20,7 @@
  * @slot default (not used, Shadow DOM only)
  *
  * @example
- * <racecor-position-card></racecor-position-card>
+ * <racing-desk-position-card></racing-desk-position-card>
  */
 
 (function() {
@@ -122,15 +122,15 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const _demo = snapshot._demo || +(snapshot['RaceCorProDrive.Plugin.DemoMode'] || 0);
+      const _demo = snapshot._demo || +(snapshot['RacingDesk.Plugin.DemoMode'] || 0);
 
       // Extract position and ratings
       if (_demo) {
-        this._position = +(snapshot['RaceCorProDrive.Plugin.Demo.Position'] || 0);
-        this._totalCars = +(snapshot['RaceCorProDrive.Plugin.Demo.TotalCars'] || 0);
-        this._irating = +(snapshot['RaceCorProDrive.Plugin.Demo.IRating'] || 0);
-        this._safetyRating = +(snapshot['RaceCorProDrive.Plugin.Demo.SafetyRating'] || 0);
-        this._licenseClass = String(snapshot['RaceCorProDrive.Plugin.Demo.LicenseClass'] || '—');
+        this._position = +(snapshot['RacingDesk.Plugin.Demo.Position'] || 0);
+        this._totalCars = +(snapshot['RacingDesk.Plugin.Demo.TotalCars'] || 0);
+        this._irating = +(snapshot['RacingDesk.Plugin.Demo.IRating'] || 0);
+        this._safetyRating = +(snapshot['RacingDesk.Plugin.Demo.SafetyRating'] || 0);
+        this._licenseClass = String(snapshot['RacingDesk.Plugin.Demo.LicenseClass'] || '—');
       } else {
         this._position = +(snapshot['DataCorePlugin.GameData.Position'] || 0);
         this._totalCars = +(snapshot['DataCorePlugin.GameData.TotalCars'] || 0);
@@ -456,7 +456,7 @@
   // ══════════════════════════════════════════════════════════════
 
   if (window && window.customElements) {
-    customElements.define('racecor-position-card', RaceCorPositionCard);
+    customElements.define('racing-desk-position-card', RaceCorPositionCard);
   }
 
   if (typeof module !== 'undefined' && module.exports) {

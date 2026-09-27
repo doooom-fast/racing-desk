@@ -1,7 +1,7 @@
 /**
  * Issue #5 — Track name fallback logic
  *
- * The track name should use RaceCorProDrive.Plugin.TrackMap.TrackName
+ * The track name should use RacingDesk.Plugin.TrackMap.TrackName
  * (guaranteed to match the saved map) and fall back to
  * DataCorePlugin.GameData.TrackName when the plugin property is absent.
  */
@@ -10,7 +10,7 @@ import { test, expect } from '@playwright/test';
 
 // Re-implementation of the track name resolution from poll-engine.js
 function resolveTrackName(props) {
-  return props['RaceCorProDrive.Plugin.TrackMap.TrackName']
+  return props['RacingDesk.Plugin.TrackMap.TrackName']
       || props['DataCorePlugin.GameData.TrackName']
       || '';
 }
@@ -19,7 +19,7 @@ test.describe('Issue #5 — Track name resolution', () => {
 
   test('uses plugin TrackMap.TrackName when available', () => {
     const name = resolveTrackName({
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'Spa-Francorchamps',
+      'RacingDesk.Plugin.TrackMap.TrackName': 'Spa-Francorchamps',
       'DataCorePlugin.GameData.TrackName': 'spa',
     });
     expect(name).toBe('Spa-Francorchamps');
@@ -27,7 +27,7 @@ test.describe('Issue #5 — Track name resolution', () => {
 
   test('falls back to GameData.TrackName when plugin property is empty string', () => {
     const name = resolveTrackName({
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': '',
+      'RacingDesk.Plugin.TrackMap.TrackName': '',
       'DataCorePlugin.GameData.TrackName': 'spa',
     });
     expect(name).toBe('spa');
@@ -46,7 +46,7 @@ test.describe('Issue #5 — Track name resolution', () => {
 
   test('returns empty string when both properties are empty', () => {
     const name = resolveTrackName({
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': '',
+      'RacingDesk.Plugin.TrackMap.TrackName': '',
       'DataCorePlugin.GameData.TrackName': '',
     });
     expect(name).toBe('');
@@ -54,7 +54,7 @@ test.describe('Issue #5 — Track name resolution', () => {
 
   test('plugin property wins over GameData even with unusual track names', () => {
     const name = resolveTrackName({
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'Road America - Full Course',
+      'RacingDesk.Plugin.TrackMap.TrackName': 'Road America - Full Course',
       'DataCorePlugin.GameData.TrackName': 'roadamerica',
     });
     expect(name).toBe('Road America - Full Course');
@@ -62,7 +62,7 @@ test.describe('Issue #5 — Track name resolution', () => {
 
   test('null plugin property falls through to GameData', () => {
     const name = resolveTrackName({
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': null,
+      'RacingDesk.Plugin.TrackMap.TrackName': null,
       'DataCorePlugin.GameData.TrackName': 'monza',
     });
     expect(name).toBe('monza');

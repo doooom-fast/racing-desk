@@ -127,7 +127,7 @@
     if (_chunks.length === 0) {
       return { error: 'Replay buffer is empty' };
     }
-    if (!window.k10 || !window.k10.saveReplayBuffer) {
+    if (!window.racingDesk || !window.racingDesk.saveReplayBuffer) {
       return { error: 'IPC not available' };
     }
 
@@ -145,7 +145,7 @@
       // Same car/track plumbing as full recording start — main.js
       // embeds slugs in the filename so replay clips are groupable
       // by venue/car alongside long-form recordings.
-      var result = await window.k10.saveReplayBuffer({
+      var result = await window.racingDesk.saveReplayBuffer({
         data: arrayBuf,
         car: window._currentCarModel || null,
         track: window._currentTrackName || null,
@@ -176,8 +176,8 @@
 
   // ── Auto-transcode saved replay clips ─────────────────────
   async function autoTranscodeClip(webmPath) {
-    if (!window.k10 || !window.k10.getFfmpegInfo || !window.k10.transcodeRecording) return;
-    var info = await window.k10.getFfmpegInfo();
+    if (!window.racingDesk || !window.racingDesk.getFfmpegInfo || !window.racingDesk.transcodeRecording) return;
+    var info = await window.racingDesk.getFfmpegInfo();
     if (!info.available) return;
 
     var settings = window._settings || {};
@@ -188,7 +188,7 @@
     };
 
     try {
-      await window.k10.transcodeRecording(webmPath, opts);
+      await window.racingDesk.transcodeRecording(webmPath, opts);
       console.log('[ReplayBuffer] Clip transcoded to MP4');
     } catch (err) {
       console.warn('[ReplayBuffer] Clip transcode failed:', err);
@@ -228,8 +228,8 @@
 
   // ── Hotkey handler ────────────────────────────────────────
   // Wired up in main.js, forwarded via preload.js
-  if (window.k10 && window.k10.onSaveReplayBuffer) {
-    window.k10.onSaveReplayBuffer(function () {
+  if (window.racingDesk && window.racingDesk.onSaveReplayBuffer) {
+    window.racingDesk.onSaveReplayBuffer(function () {
       save();
     });
   }

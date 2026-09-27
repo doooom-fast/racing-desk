@@ -6,8 +6,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Mirrors the overlay's visibility rule (poll-engine.js): demo mode, or game running with a session.
 export const inCar = (p) =>
-  Number(p['RaceCorProDrive.Plugin.DemoMode']) === 1 ||
-  (Number(p['DataCorePlugin.GameRunning']) === 1 && Number(p['RaceCorProDrive.Plugin.Grid.SessionState']) > 0);
+  Number(p['RacingDesk.Plugin.DemoMode']) === 1 ||
+  (Number(p['DataCorePlugin.GameRunning']) === 1 && Number(p['RacingDesk.Plugin.Grid.SessionState']) > 0);
 
 export async function record({ url, out, hz = 30, durationSec = 0, onlyInCar = false, signal, log = () => {}, onFrame = () => {} }) {
   const writer = createRecordingWriter(out, { source: url, startedAt: new Date().toISOString(), hz, onlyInCar });

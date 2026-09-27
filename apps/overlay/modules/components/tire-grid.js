@@ -1,5 +1,5 @@
 /**
- * @element racecor-tire-grid
+ * @element racing-desk-tire-grid
  * @description 2x2 tire temperature and wear display grid showing all four wheels.
  *
  * Displays tire temperature with color-coded gradient (blue → green → yellow → red),
@@ -19,10 +19,10 @@
  * @slot default (not used, Shadow DOM only)
  *
  * @example
- * <racecor-tire-grid></racecor-tire-grid>
+ * <racing-desk-tire-grid></racing-desk-tire-grid>
  *
  * <script>
- *   const grid = document.querySelector('racecor-tire-grid');
+ *   const grid = document.querySelector('racing-desk-tire-grid');
  *   grid.updateData(snapshot);
  * </script>
  */
@@ -86,22 +86,22 @@
     updateData(snapshot, isImperial = false) {
       if (!snapshot) return;
 
-      const _demo = snapshot._demo || +(snapshot['RaceCorProDrive.Plugin.DemoMode'] || 0);
+      const _demo = snapshot._demo || +(snapshot['RacingDesk.Plugin.DemoMode'] || 0);
       this._unit = isImperial ? 'F' : 'C';
 
       // Extract tire temps and wear
       if (_demo) {
         this._temps = {
-          fl: +(snapshot['RaceCorProDrive.Plugin.Demo.TyreTempFL'] || 0),
-          fr: +(snapshot['RaceCorProDrive.Plugin.Demo.TyreTempFR'] || 0),
-          rl: +(snapshot['RaceCorProDrive.Plugin.Demo.TyreTempRL'] || 0),
-          rr: +(snapshot['RaceCorProDrive.Plugin.Demo.TyreTempRR'] || 0)
+          fl: +(snapshot['RacingDesk.Plugin.Demo.TyreTempFL'] || 0),
+          fr: +(snapshot['RacingDesk.Plugin.Demo.TyreTempFR'] || 0),
+          rl: +(snapshot['RacingDesk.Plugin.Demo.TyreTempRL'] || 0),
+          rr: +(snapshot['RacingDesk.Plugin.Demo.TyreTempRR'] || 0)
         };
         this._wear = {
-          fl: (1 - +(snapshot['RaceCorProDrive.Plugin.Demo.TyreWearFL'] || 0)) * 100,
-          fr: (1 - +(snapshot['RaceCorProDrive.Plugin.Demo.TyreWearFR'] || 0)) * 100,
-          rl: (1 - +(snapshot['RaceCorProDrive.Plugin.Demo.TyreWearRL'] || 0)) * 100,
-          rr: (1 - +(snapshot['RaceCorProDrive.Plugin.Demo.TyreWearRR'] || 0)) * 100
+          fl: (1 - +(snapshot['RacingDesk.Plugin.Demo.TyreWearFL'] || 0)) * 100,
+          fr: (1 - +(snapshot['RacingDesk.Plugin.Demo.TyreWearFR'] || 0)) * 100,
+          rl: (1 - +(snapshot['RacingDesk.Plugin.Demo.TyreWearRL'] || 0)) * 100,
+          rr: (1 - +(snapshot['RacingDesk.Plugin.Demo.TyreWearRR'] || 0)) * 100
         };
       } else {
         this._temps = {
@@ -369,7 +369,7 @@
   // ══════════════════════════════════════════════════════════════
 
   if (window && window.customElements) {
-    customElements.define('racecor-tire-grid', RaceCorTireGrid);
+    customElements.define('racing-desk-tire-grid', RaceCorTireGrid);
   }
 
   if (typeof module !== 'undefined' && module.exports) {

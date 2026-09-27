@@ -24,7 +24,7 @@
   function cycleCarLogo() {
     currentCarLogoIdx = (currentCarLogoIdx + 1) % carLogoOrder.length;
     const key = carLogoOrder[currentCarLogoIdx];
-    console.log('[K10] Logo cycle:', key);
+    console.log('[RacingDesk] Logo cycle:', key);
     // Honda special case: use white-fill logo on red bg
     const svg = (key === 'honda') ? window.carLogos.honda_white : window.carLogos[key];
     document.getElementById('carLogoIcon').innerHTML = svg;

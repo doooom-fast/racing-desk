@@ -1,11 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
-title RaceCor ProDrive — Build Installer
+title RacingDesk ProDrive — Build Installer
 
 echo.
 echo  ============================================
-echo   RaceCor ProDrive — Build Installer
+echo   RacingDesk ProDrive — Build Installer
 echo  ============================================
 echo.
 echo  Builds the SimHub plugin, packages the Electron
@@ -19,8 +19,8 @@ echo.
 set "SCRIPTS_DIR=%~dp0"
 if "%SCRIPTS_DIR:~-1%"=="\" set "SCRIPTS_DIR=%SCRIPTS_DIR:~0,-1%"
 for %%I in ("%SCRIPTS_DIR%\..\..") do set "REPO_DIR=%%~fI"
-set "PLUGIN_DIR=%REPO_DIR%\racecor-plugin\plugin\RaceCorProDrive.Plugin"
-set "OVERLAY_DIR=%REPO_DIR%\racecor-overlay"
+set "PLUGIN_DIR=%REPO_DIR%\racing-desk-plugin\plugin\RacingDesk.Plugin"
+set "OVERLAY_DIR=%REPO_DIR%\racing-desk-overlay"
 set "INSTALLER_DIR=%REPO_DIR%\installer"
 
 echo  Repo root:    %REPO_DIR%
@@ -39,7 +39,7 @@ echo  [1/4] Building SimHub plugin (dotnet build Release)...
 set "STAGING=%REPO_DIR%\installer\staging"
 if not exist "%STAGING%" mkdir "%STAGING%"
 
-dotnet build "%PLUGIN_DIR%\RaceCorProDrive.Plugin.csproj" ^
+dotnet build "%PLUGIN_DIR%\RacingDesk.Plugin.csproj" ^
   -c Release ^
   -p:OutputPath="%STAGING%" ^
   -p:AppendTargetFrameworkToOutputPath=false ^
@@ -54,9 +54,9 @@ if !ERRORLEVEL! NEQ 0 (
 )
 
 :: Copy the DLL and PDB to the expected location for Inno Setup
-copy /Y "%STAGING%\RaceCorProDrive.dll" "%REPO_DIR%\racecor-plugin\RaceCorProDrive.dll" >NUL
-if exist "%STAGING%\RaceCorProDrive.pdb" (
-    copy /Y "%STAGING%\RaceCorProDrive.pdb" "%REPO_DIR%\racecor-plugin\RaceCorProDrive.pdb" >NUL
+copy /Y "%STAGING%\RacingDesk.dll" "%REPO_DIR%\racing-desk-plugin\RacingDesk.dll" >NUL
+if exist "%STAGING%\RacingDesk.pdb" (
+    copy /Y "%STAGING%\RacingDesk.pdb" "%REPO_DIR%\racing-desk-plugin\RacingDesk.pdb" >NUL
 )
 
 echo        OK — Plugin built successfully.
@@ -156,7 +156,7 @@ echo  Overlay (portable):
 echo    %OVERLAY_DIR%\dist\win-unpacked\
 echo.
 echo  Plugin DLL:
-echo    %REPO_DIR%\racecor-plugin\RaceCorProDrive.dll
+echo    %REPO_DIR%\racing-desk-plugin\RacingDesk.dll
 echo.
 pause
 exit /b 0

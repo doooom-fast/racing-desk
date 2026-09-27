@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// K10 Motorsports — Electron Overlay
+// The Racing Desk — Electron Overlay
 // Transparent, always-on-top, click-through overlay window
 // that renders the HTML dashboard over the sim
 // ═══════════════════════════════════════════════════════════════
@@ -22,7 +22,7 @@ const hostLauncher = require('./modules/js/host-launcher');
 
 // ── Crash log ───────────────────────────────────────────────
 // Write a log file next to the app so crash info is visible
-const LOG_PATH = path.join(__dirname, 'k10-debug.log');
+const LOG_PATH = path.join(__dirname, 'racing-desk-debug.log');
 function logToFile(msg) {
   const ts = new Date().toISOString();
   const line = `[${ts}] ${msg}\n`;
@@ -39,7 +39,24 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // ── App name ──────────────────────────────────────────────────
-app.setName('K10 Motorsports');
+app.setName('Racing Desk');
+
+// ── Settings folder ───────────────────────────────────────────
+// The app was "K10 Motorsports" until 2026-09-27, and Electron keeps its settings under the app's name. The old
+// folder moves across whole, the first time this name runs and only while the new one doesn't exist — a
+// half-and-half state would be worse than the old name. Before the single-instance lock, which lives in there.
+(function migrateSettingsFolder() {
+  const appData = app.getPath('appData');
+  const current = path.join(appData, 'Racing Desk');
+  const old = path.join(appData, 'K10 Motorsports');
+  if (fs.existsSync(current) || !fs.existsSync(old)) return;
+  try {
+    fs.renameSync(old, current);
+    logToFile(`[RacingDesk] Settings moved from ${old} to ${current}`);
+  } catch (err) {
+    logToFile(`[RacingDesk] Settings could not be moved from ${old}: ${err.message}`);
+  }
+})();
 
 // ── One instance ──────────────────────────────────────────────
 // The app's only visible presence is a tray icon, so a second double-click on the shortcut must open the desk
@@ -68,7 +85,7 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
-if (process.env.K10_FORCE_SOFTWARE === '1') {
+if (process.env.RACING_DESK_FORCE_SOFTWARE === '1') {
   app.disableHardwareAcceleration();
 }
 
@@ -121,8 +138,8 @@ function saveRatingData(data) {
 let overlayWindow = null;
 let deskWindow = null;
 let tray = null;                 // module-level so the icon isn't garbage-collected
-let hostUrl = null;              // where startLocalHost() found or started RaceCor.Host
-let hostChild = null;            // the RaceCor.Host process this app started, killed on quit
+let hostUrl = null;              // where startLocalHost() found or started RacingDesk.Host
+let hostChild = null;            // the RacingDesk.Host process this app started, killed on quit
 let hostNote = null;             // why there is no host of our own, shown by the desk when nothing answers
 let deskHost = null;             // the host URL the desk window was loaded with
 let quitting = false;            // set by before-quit, so closing the desk during a quit doesn't quit again
@@ -133,7 +150,7 @@ app.on('before-quit', () => { quitting = true; });
 // ═══════════════════════════════════════════════════════════════
 
 function deskHostFlag() {
-  // --desk-host=http://localhost:18889 points the desk at a RaceCor.Host you run by hand (and skips
+  // --desk-host=http://localhost:18889 points the desk at a RacingDesk.Host you run by hand (and skips
   // starting one).
   const flag = process.argv.find((a) => a.startsWith('--desk-host='));
   return flag ? flag.slice('--desk-host='.length).replace(/\/+$/, '') : null;
@@ -145,7 +162,7 @@ function localHostUrl() {
   if (hostUrl) return hostUrl;
   const settings = loadSettingsSync();
   return settings.simhubUrl
-    ? settings.simhubUrl.replace(/\/racecor-io-pro-drive\/?$/, '')
+    ? settings.simhubUrl.replace(/\/racing-desk\/?$/, '')
     : 'http://localhost:8889';
 }
 
@@ -186,13 +203,13 @@ function showDesk() {
   deskWindow.on('closed', () => { deskWindow = null; });
 }
 
-// The desk reads the local store from RaceCor.Host, so the app starts one — beside SimHub on :18889 when
+// The desk reads the local store from RacingDesk.Host, so the app starts one — beside SimHub on :18889 when
 // SimHub holds :8889, in its place otherwise — or uses the one already running. The wait is bounded; the
 // desk retries by itself if the host takes longer. Not in dev mode: `npm run dev` is the HUD over a replay,
 // and a live host beside it would open the hardware and record for nothing.
 async function startLocalHost() {
   if (deskHostFlag() || isDev) {
-    logToFile(isDev ? '[K10] Host: dev mode, not starting one' : `[K10] Host: --desk-host=${deskHostFlag()}, not starting one`);
+    logToFile(isDev ? '[RacingDesk] Host: dev mode, not starting one' : `[RacingDesk] Host: --desk-host=${deskHostFlag()}, not starting one`);
     return;
   }
   try {
@@ -200,27 +217,27 @@ async function startLocalHost() {
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
       appDir: __dirname,
-      log: (msg) => logToFile(`[K10] Host: ${msg}`),
+      log: (msg) => logToFile(`[RacingDesk] Host: ${msg}`),
     });
-    logToFile(`[K10] Host: ${result.reason}`);
+    logToFile(`[RacingDesk] Host: ${result.reason}`);
     hostUrl = result.url;
     hostChild = result.child;
     if (!hostUrl) hostNote = result.reason;
     if (hostChild) {
       const up = await hostLauncher.waitForHost(hostUrl, { timeoutMs: 10000, child: hostChild });
       if (up) {
-        logToFile(`[K10] Host: answering at ${hostUrl}`);
+        logToFile(`[RacingDesk] Host: answering at ${hostUrl}`);
       } else if (hostChild.exitCode !== null) {
         // The host stops itself when its port turns out to be taken (see Program.cs); whatever took it is
         // what the desk will find there.
-        hostNote = `RaceCor.Host exited (${hostChild.exitCode}) — see ${hostLauncher.hostLogPath()}`;
-        logToFile(`[K10] Host: ${hostNote}`);
+        hostNote = `RacingDesk.Host exited (${hostChild.exitCode}) — see ${hostLauncher.hostLogPath()}`;
+        logToFile(`[RacingDesk] Host: ${hostNote}`);
       } else {
-        logToFile(`[K10] Host: no answer at ${hostUrl} after 10 s — the desk keeps trying`);
+        logToFile(`[RacingDesk] Host: no answer at ${hostUrl} after 10 s — the desk keeps trying`);
       }
     }
   } catch (err) {
-    logToFile(`[K10] Host: start failed: ${err.stack || err.message}`);
+    logToFile(`[RacingDesk] Host: start failed: ${err.stack || err.message}`);
   }
 }
 
@@ -262,12 +279,12 @@ async function createOverlay() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenW, height: screenH } = primaryDisplay.bounds;
 
-  logToFile(`[K10] Dashboard: ${getDashboardFile()}`);
-  logToFile(`[K10] Primary display: ${screenW}x${screenH} at (${primaryDisplay.bounds.x}, ${primaryDisplay.bounds.y})`);
+  logToFile(`[RacingDesk] Dashboard: ${getDashboardFile()}`);
+  logToFile(`[RacingDesk] Primary display: ${screenW}x${screenH} at (${primaryDisplay.bounds.x}, ${primaryDisplay.bounds.y})`);
 
   /** Load the dashboard into the overlay window via file:// (all assets inlined). */
   function loadDashboard() {
-    logToFile('[K10] Loading dashboard via file://');
+    logToFile('[RacingDesk] Loading dashboard via file://');
     overlayWindow.loadFile(path.join(__dirname, getDashboardFile()));
   }
 
@@ -309,7 +326,7 @@ async function createOverlay() {
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   if (devMode) devMode.attach(overlayWindow, { rootDir: __dirname, log: logToFile });
   loadDashboard();
-  logToFile('[K10] Overlay created hidden — awaiting live car data (isInRace)');
+  logToFile('[RacingDesk] Overlay created hidden — awaiting live car data (isInRace)');
 
   overlayWindow.webContents.on('did-finish-load', () => {
     rendererCrashCount = 0;
@@ -332,7 +349,7 @@ async function createOverlay() {
     const cur = overlayWindow.getBounds();
     if (cur.x === target.x && cur.y === target.y && cur.width === target.width && cur.height === target.height) return;
 
-    logToFile(`[K10] Display metrics changed (${changedMetrics.join(', ')}), reflowing overlay to ${target.width}x${target.height}`);
+    logToFile(`[RacingDesk] Display metrics changed (${changedMetrics.join(', ')}), reflowing overlay to ${target.width}x${target.height}`);
     overlayWindow.setBounds({ x: target.x, y: target.y, width: target.width, height: target.height });
   });
 
@@ -352,11 +369,11 @@ async function createOverlay() {
 
   // ── Crash recovery ──────────────────────────────────────────
   overlayWindow.webContents.on('render-process-gone', (_event, details) => {
-    logToFile(`[K10] Renderer crashed: ${details.reason}`);
+    logToFile(`[RacingDesk] Renderer crashed: ${details.reason}`);
     if (details.reason === 'crashed' || details.reason === 'killed') {
       rendererCrashCount++;
       if (rendererCrashCount > 3) {
-        logToFile('[K10] Renderer crash limit reached (3) — giving up');
+        logToFile('[RacingDesk] Renderer crash limit reached (3) — giving up');
         return;
       }
       setTimeout(() => {
@@ -368,7 +385,7 @@ async function createOverlay() {
   });
 
   overlayWindow.webContents.on('unresponsive', () => {
-    logToFile('[K10] Renderer unresponsive — reloading');
+    logToFile('[RacingDesk] Renderer unresponsive — reloading');
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       loadDashboard();
     }
@@ -376,10 +393,10 @@ async function createOverlay() {
 
   // ── GPU process crash handler ───────────────────────────────
   app.on('child-process-gone', (_event, details) => {
-    logToFile(`[K10] Child process gone: type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`);
+    logToFile(`[RacingDesk] Child process gone: type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`);
     if (details.type === 'GPU') {
       if (overlayWindow && !overlayWindow.isDestroyed()) {
-        logToFile('[K10] GPU process crashed — reloading dashboard');
+        logToFile('[RacingDesk] GPU process crashed — reloading dashboard');
         setTimeout(() => {
           if (overlayWindow && !overlayWindow.isDestroyed()) {
             loadDashboard();
@@ -395,7 +412,7 @@ async function createOverlay() {
   // state the user otherwise clears with a manual restart.
   // Reload the dashboard on resume so the overlay self-heals.
   powerMonitor.on('resume', () => {
-    logToFile('[K10] System resumed — reloading dashboard');
+    logToFile('[RacingDesk] System resumed — reloading dashboard');
     setTimeout(() => {
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         loadDashboard();
@@ -411,7 +428,7 @@ async function maybeStartRemoteServer() {
   if (settings.remoteServer !== true) return;
   try {
     const simhubUrl = settings.simhubUrl
-      ? settings.simhubUrl.replace(/\/racecor-io-pro-drive\/?$/, '')
+      ? settings.simhubUrl.replace(/\/racing-desk\/?$/, '')
       : 'http://localhost:8889';
     const info = await remoteServer.start({
       port: settings.remoteServerPort || remoteServer.DEFAULT_PORT,
@@ -419,13 +436,13 @@ async function maybeStartRemoteServer() {
       simhubUrl: simhubUrl,
       log: logToFile,
     });
-    logToFile(`[K10] Remote dashboard: ${info.url} (iPad/tablet access)`);
+    logToFile(`[RacingDesk] Remote dashboard: ${info.url} (iPad/tablet access)`);
   } catch (err) {
-    logToFile(`[K10] Remote server failed to start: ${err.message}`);
+    logToFile(`[RacingDesk] Remote server failed to start: ${err.message}`);
   }
 }
 
-logToFile('[K10] App starting...');
+logToFile('[RacingDesk] App starting...');
 
 app.whenReady().then(async () => {
   if (!isFirstInstance) return;   // quitting: the running instance opens its desk instead
@@ -433,11 +450,11 @@ app.whenReady().then(async () => {
   // Remove the default Electron menu bar (File/Edit/View/etc) from all windows
   Menu.setApplicationMenu(null);
 
-  logToFile(`[K10] Platform: ${os.platform()} ${os.arch()} | Electron ${process.versions.electron}`);
-  logToFile('[K10] Hotkeys: Ctrl+Shift+H/R/D/M/Q, Ctrl+Shift+O desk');
+  logToFile(`[RacingDesk] Platform: ${os.platform()} ${os.arch()} | Electron ${process.versions.electron}`);
+  logToFile('[RacingDesk] Hotkeys: Ctrl+Shift+H/R/D/M/Q, Ctrl+Shift+O desk');
   try {
     createOverlay();
-    logToFile('[K10] Overlay window created OK');
+    logToFile('[RacingDesk] Overlay window created OK');
     createTray();
 
     // ── Display media handler for screen recording ──
@@ -452,7 +469,7 @@ app.whenReady().then(async () => {
           callback({ video: null });
         }
       } catch (err) {
-        logToFile(`[K10] Display media handler error: ${err.message}`);
+        logToFile(`[RacingDesk] Display media handler error: ${err.message}`);
         callback({ video: null });
       }
     });
@@ -486,7 +503,7 @@ app.whenReady().then(async () => {
     // ── Auto-install Stream Deck plugin on first run ──
     if (!isDev) autoInstallStreamDeckPlugin();
   } catch (err) {
-    logToFile(`[K10] FATAL: createOverlay() threw: ${err.stack || err.message}`);
+    logToFile(`[RacingDesk] FATAL: createOverlay() threw: ${err.stack || err.message}`);
     app.quit();
     return;
   }
@@ -508,7 +525,7 @@ app.whenReady().then(async () => {
     if (!overlayWindow) return;
     const { width: sw, height: sh } = screen.getPrimaryDisplay().bounds;
     overlayWindow.setBounds({ x: 0, y: 0, width: sw, height: sh });
-    console.log('[K10] Window position/size reset');
+    console.log('[RacingDesk] Window position/size reset');
   });
 
   globalShortcut.register('CommandOrControl+Shift+G', () => {
@@ -517,7 +534,7 @@ app.whenReady().then(async () => {
     settings.greenScreen = !settings.greenScreen;
     saveSettingsSync(settings);
     const mode = settings.greenScreen ? 'green-screen' : 'transparent';
-    console.log(`[K10] Toggling to ${mode} mode — restarting...`);
+    console.log(`[RacingDesk] Toggling to ${mode} mode — restarting...`);
     app.relaunch();
     app.exit(0);
   });
@@ -584,15 +601,15 @@ const _actionHandlers = {
   },
   'toggle-settings': () => {
     // Settings UI lives in the WinUI host now. Deep-link via the
-    // racecor-native:// protocol scheme the host registers — activating
+    // racing-desk-native:// protocol scheme the host registers — activating
     // the URI brings the host window to the front (single-instance
     // behavior) and the host's protocol handler can route to Settings.
     // Falls back gracefully if the host isn't installed.
     try {
-      shell.openExternal('racecor-native://settings');
+      shell.openExternal('racing-desk-native://settings');
       return { ok: true };
     } catch (err) {
-      logToFile(`[K10] toggle-settings failed: ${err.message}`);
+      logToFile(`[RacingDesk] toggle-settings failed: ${err.message}`);
       return { ok: false, reason: err.message };
     }
   },
@@ -649,7 +666,7 @@ function dispatchAction(name) {
   try {
     return handler();
   } catch (err) {
-    logToFile(`[K10] Action error (${name}): ${err.message}`);
+    logToFile(`[RacingDesk] Action error (${name}): ${err.message}`);
     return { ok: false, reason: err.message };
   }
 }
@@ -677,29 +694,40 @@ function autoInstallStreamDeckPlugin() {
         'com.elgato.StreamDeck', 'Plugins');
 
   if (!fs.existsSync(sdPluginsDir)) {
-    logToFile('[K10] StreamDeck install: plugins dir not found at ' + sdPluginsDir + ' — Stream Deck app likely not installed; skipping');
+    logToFile('[RacingDesk] StreamDeck install: plugins dir not found at ' + sdPluginsDir + ' — Stream Deck app likely not installed; skipping');
     return;
   }
 
-  const installedDir = path.join(sdPluginsDir, 'com.k10motorsports.racecor.overlay.sdPlugin');
+  // The plugin was com.k10motorsports.racecor.overlay until 2026-09-27; Stream Deck would show both.
+  const oldDir = path.join(sdPluginsDir, 'com.k10motorsports.racecor.overlay.sdPlugin');
+  if (fs.existsSync(oldDir)) {
+    try {
+      fs.rmSync(oldDir, { recursive: true, force: true });
+      logToFile('[RacingDesk] StreamDeck install: removed the old plugin at ' + oldDir);
+    } catch (err) {
+      logToFile('[RacingDesk] StreamDeck install: old plugin at ' + oldDir + ' could not be removed: ' + err.message);
+    }
+  }
+
+  const installedDir = path.join(sdPluginsDir, 'com.doooom.racingdesk.sdPlugin');
   const installedManifest = path.join(installedDir, 'manifest.json');
   if (fs.existsSync(installedManifest)) {
-    logToFile('[K10] StreamDeck install: already present at ' + installedDir);
+    logToFile('[RacingDesk] StreamDeck install: already present at ' + installedDir);
     return;
   }
 
-  const srcDir = path.join(__dirname, 'streamdeck', 'racecor',
-    'com.k10motorsports.racecor.overlay.sdPlugin');
+  const srcDir = path.join(__dirname, 'streamdeck', 'racing-desk',
+    'com.doooom.racingdesk.sdPlugin');
   if (!fs.existsSync(path.join(srcDir, 'manifest.json'))) {
-    logToFile('[K10] StreamDeck install: source not bundled at ' + srcDir + ' — check electron-builder files list');
+    logToFile('[RacingDesk] StreamDeck install: source not bundled at ' + srcDir + ' — check electron-builder files list');
     return;
   }
 
   try {
     fs.cpSync(srcDir, installedDir, { recursive: true });
-    logToFile('[K10] StreamDeck install: copied to ' + installedDir);
+    logToFile('[RacingDesk] StreamDeck install: copied to ' + installedDir);
   } catch (err) {
-    logToFile('[K10] Stream Deck plugin install failed: ' + err.message);
+    logToFile('[RacingDesk] Stream Deck plugin install failed: ' + err.message);
   }
 }
 
@@ -710,16 +738,16 @@ ipcMain.handle('install-streamdeck-plugin', async () => {
   const fs = require('fs');
   const os = require('os');
   const { execSync } = require('child_process');
-  const sdPluginDir = path.join(__dirname, 'streamdeck', 'racecor',
-    'com.k10motorsports.racecor.overlay.sdPlugin');
+  const sdPluginDir = path.join(__dirname, 'streamdeck', 'racing-desk',
+    'com.doooom.racingdesk.sdPlugin');
 
   if (!fs.existsSync(sdPluginDir)) {
-    logToFile('[K10] Stream Deck plugin not found at: ' + sdPluginDir);
+    logToFile('[RacingDesk] Stream Deck plugin not found at: ' + sdPluginDir);
     return { ok: false, reason: 'Plugin files not found in app bundle' };
   }
 
   const tmpFile = path.join(os.tmpdir(),
-    'com.k10motorsports.racecor.overlay.streamDeckPlugin');
+    'com.doooom.racingdesk.streamDeckPlugin');
 
   try {
     if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
@@ -736,10 +764,10 @@ ipcMain.handle('install-streamdeck-plugin', async () => {
     }
 
     await shell.openPath(tmpFile);
-    logToFile('[K10] Stream Deck plugin install triggered');
+    logToFile('[RacingDesk] Stream Deck plugin install triggered');
     return { ok: true };
   } catch (err) {
-    logToFile('[K10] Stream Deck plugin install error: ' + err.message);
+    logToFile('[RacingDesk] Stream Deck plugin install error: ' + err.message);
     return { ok: false, reason: err.message };
   }
 });
@@ -761,10 +789,10 @@ ipcMain.handle('notify-in-race-state', async (_event, inRace) => {
     overlayWindow.setAlwaysOnTop(true, 'screen-saver');
     overlayWindow.setIgnoreMouseEvents(true, { forward: true });
     overlayWindow.setFocusable(false);
-    logToFile('[K10] In-car → overlay revealed');
+    logToFile('[RacingDesk] In-car → overlay revealed');
   } else {
     overlayWindow.hide();
-    logToFile('[K10] Out of car → overlay hidden');
+    logToFile('[RacingDesk] Out of car → overlay hidden');
   }
 });
 
@@ -834,7 +862,7 @@ ipcMain.handle('start-recording', async (_event, options = {}) => {
     _recordingChunkCount = 0;
     _lastChunkDebugAt = 0;
 
-    const logMsg = `[K10] Recording started: ${_recordingPath} (from ${dirSource})`;
+    const logMsg = `[RacingDesk] Recording started: ${_recordingPath} (from ${dirSource})`;
     logToFile(logMsg);
     console.log(logMsg);
 
@@ -851,7 +879,7 @@ ipcMain.handle('start-recording', async (_event, options = {}) => {
 
     return { success: true, path: _recordingPath, filename };
   } catch (err) {
-    logToFile(`[K10] Recording start error: ${err.message}`);
+    logToFile(`[RacingDesk] Recording start error: ${err.message}`);
     return { error: err.message };
   }
 });
@@ -876,7 +904,7 @@ ipcMain.handle('write-recording-chunk', async (_event, arrayBuffer) => {
       }
     }
   } catch (err) {
-    logToFile(`[K10] Recording write error: ${err.message}`);
+    logToFile(`[RacingDesk] Recording write error: ${err.message}`);
   }
 });
 
@@ -892,7 +920,7 @@ ipcMain.handle('stop-recording', async () => {
       try { fileSize = fs.statSync(filePath).size; } catch (e) { /* ok */ }
       const sizeStr = (fileSize / 1024 / 1024).toFixed(1);
       const durationStr = (duration / 1000).toFixed(1);
-      const logMsg = `[K10] Recording stopped: ${filePath} (${sizeStr} MB, ${durationStr}s)`;
+      const logMsg = `[RacingDesk] Recording stopped: ${filePath} (${sizeStr} MB, ${durationStr}s)`;
       logToFile(logMsg);
       console.log(logMsg);
 
@@ -985,9 +1013,9 @@ ipcMain.handle('start-native-recording', async (_event, options = {}) => {
     outputDirectory: options.outputDirectory || null,
   });
   if (!result.error) {
-    logToFile(`[K10] Native recording started via host → ${result.path || '(no path)'}`);
+    logToFile(`[RacingDesk] Native recording started via host → ${result.path || '(no path)'}`);
   } else {
-    logToFile(`[K10] Native recording start failed: ${result.error}`);
+    logToFile(`[RacingDesk] Native recording start failed: ${result.error}`);
   }
   return result;
 });
@@ -995,9 +1023,9 @@ ipcMain.handle('start-native-recording', async (_event, options = {}) => {
 ipcMain.handle('stop-native-recording', async () => {
   const result = await hostControlRequest('POST', '/v1/recording/stop', null);
   if (!result.error) {
-    logToFile(`[K10] Native recording stopped via host → ${result.path || '(no path)'} (${result.fileSize || 0} bytes)`);
+    logToFile(`[RacingDesk] Native recording stopped via host → ${result.path || '(no path)'} (${result.fileSize || 0} bytes)`);
   } else {
-    logToFile(`[K10] Native recording stop failed: ${result.error}`);
+    logToFile(`[RacingDesk] Native recording stop failed: ${result.error}`);
   }
   return result;
 });
@@ -1017,10 +1045,10 @@ ipcMain.handle('sidecar-start', async (_event, filePath) => {
       _sidecarStreams[filePath].end();
     }
     _sidecarStreams[filePath] = fs.createWriteStream(filePath, { flags: 'w' });
-    logToFile(`[K10] Sidecar started: ${filePath}`);
+    logToFile(`[RacingDesk] Sidecar started: ${filePath}`);
     return { success: true, path: filePath };
   } catch (err) {
-    logToFile(`[K10] Sidecar start error: ${err.message}`);
+    logToFile(`[RacingDesk] Sidecar start error: ${err.message}`);
     return { error: err.message };
   }
 });
@@ -1033,7 +1061,7 @@ ipcMain.on('sidecar-write', (_event, filePath, chunk) => {
   if (stream && !stream.destroyed) {
     var canWrite = stream.write(chunk);
     if (!canWrite) {
-      logToFile(`[K10] Sidecar write backpressure on ${filePath} — waiting for drain`);
+      logToFile(`[RacingDesk] Sidecar write backpressure on ${filePath} — waiting for drain`);
       // The renderer will eventually retry or the stream will emit 'drain'
       // and automatically resume. Log this edge case for monitoring.
     }
@@ -1045,7 +1073,7 @@ ipcMain.handle('sidecar-stop', async (_event, filePath) => {
   if (stream) {
     stream.end();
     delete _sidecarStreams[filePath];
-    logToFile(`[K10] Sidecar stopped: ${filePath}`);
+    logToFile(`[RacingDesk] Sidecar stopped: ${filePath}`);
   }
   return { success: true };
 });
@@ -1069,10 +1097,10 @@ ipcMain.handle('save-replay-buffer', async (_event, options) => {
     const buf = Buffer.from(options.data);
     fs.writeFileSync(filePath, buf);
     const fileSize = fs.statSync(filePath).size;
-    logToFile(`[K10] Replay buffer saved: ${filePath} (${(fileSize / 1024 / 1024).toFixed(1)} MB)`);
+    logToFile(`[RacingDesk] Replay buffer saved: ${filePath} (${(fileSize / 1024 / 1024).toFixed(1)} MB)`);
     return { success: true, path: filePath, filename, fileSize };
   } catch (err) {
-    logToFile(`[K10] Replay buffer save error: ${err.message}`);
+    logToFile(`[RacingDesk] Replay buffer save error: ${err.message}`);
     return { error: err.message };
   }
 });
@@ -1102,7 +1130,7 @@ ipcMain.handle('transcode-recording', async (_event, webmPath, options) => {
   }
 
   _transcoding = true;
-  logToFile(`[K10] Transcode starting: ${webmPath}`);
+  logToFile(`[RacingDesk] Transcode starting: ${webmPath}`);
 
   try {
     var result = await ffmpegEncoder.transcode(webmPath, options, function (progress) {
@@ -1112,7 +1140,7 @@ ipcMain.handle('transcode-recording', async (_event, webmPath, options) => {
       }
     });
 
-    logToFile(`[K10] Transcode complete: ${result.outputPath} (${(result.fileSize / 1024 / 1024).toFixed(1)} MB, encoder: ${result.encoder})`);
+    logToFile(`[RacingDesk] Transcode complete: ${result.outputPath} (${(result.fileSize / 1024 / 1024).toFixed(1)} MB, encoder: ${result.encoder})`);
 
     // Bundle into .rcpdv if a paired sidecar exists. Default behavior is on;
     // caller can set options.bundle === false to keep producing loose mp4+jsonl.
@@ -1121,7 +1149,7 @@ ipcMain.handle('transcode-recording', async (_event, webmPath, options) => {
       var sidecarPath = result.outputPath.replace(/\.(mp4|mov|m4v)$/i, '.telemetry.jsonl');
       if (!fs.existsSync(sidecarPath)) {
         // Loose recordings (no sidecar) skip bundling silently.
-        logToFile(`[K10] Bundle skipped — no sidecar at ${sidecarPath}`);
+        logToFile(`[RacingDesk] Bundle skipped — no sidecar at ${sidecarPath}`);
       } else {
         try {
           var bundleResult = bundleWriter.writeBundle({
@@ -1140,7 +1168,7 @@ ipcMain.handle('transcode-recording', async (_event, webmPath, options) => {
             },
           });
           logToFile(
-            `[K10] Bundle written: ${bundleResult.outputPath} ` +
+            `[RacingDesk] Bundle written: ${bundleResult.outputPath} ` +
             `(id=${bundleResult.bundleId}, ` +
             `${(bundleResult.totalBytes / 1024 / 1024).toFixed(1)} MB, ` +
             `${bundleResult.frameCount} frames)`
@@ -1162,11 +1190,11 @@ ipcMain.handle('transcode-recording', async (_event, webmPath, options) => {
           if (options && options.deleteIntermediatesOnBundle === true) {
             try { fs.unlinkSync(result.outputPath); } catch (_) {}
             try { fs.unlinkSync(sidecarPath); } catch (_) {}
-            logToFile(`[K10] Deleted intermediates after bundle: mp4 + jsonl`);
+            logToFile(`[RacingDesk] Deleted intermediates after bundle: mp4 + jsonl`);
           }
         } catch (bundleErr) {
           // Bundling failure must NOT lose the recording. Log + carry on.
-          logToFile(`[K10] Bundle error (recording preserved): ${bundleErr.message}`);
+          logToFile(`[RacingDesk] Bundle error (recording preserved): ${bundleErr.message}`);
         }
       }
     }
@@ -1174,14 +1202,14 @@ ipcMain.handle('transcode-recording', async (_event, webmPath, options) => {
     // Delete source .webm if transcode succeeded and setting allows
     if (options && options.deleteSource !== false) {
       ffmpegEncoder.cleanupSource(webmPath);
-      logToFile(`[K10] Deleted source .webm: ${webmPath}`);
+      logToFile(`[RacingDesk] Deleted source .webm: ${webmPath}`);
     }
 
     _transcoding = false;
     return result;
   } catch (err) {
     _transcoding = false;
-    logToFile(`[K10] Transcode error: ${err.message}`);
+    logToFile(`[RacingDesk] Transcode error: ${err.message}`);
     return { error: err.message };
   }
 });
@@ -1209,10 +1237,10 @@ ipcMain.handle('bundle-recording', async (_event, mp4Path, options) => {
         platform: process.platform,
       },
     });
-    logToFile(`[K10] Bundle written (manual): ${result.outputPath}`);
+    logToFile(`[RacingDesk] Bundle written (manual): ${result.outputPath}`);
     return result;
   } catch (err) {
-    logToFile(`[K10] Bundle error (manual): ${err.message}`);
+    logToFile(`[RacingDesk] Bundle error (manual): ${err.message}`);
     return { error: err.message };
   }
 });
@@ -1243,7 +1271,7 @@ ipcMain.handle('start-replay-director', async (_event, sidecarPath) => {
     return { error: 'Sidecar file not found: ' + sidecarPath };
   }
 
-  logToFile(`[K10] Replay director starting: ${sidecarPath}`);
+  logToFile(`[RacingDesk] Replay director starting: ${sidecarPath}`);
 
   // Run in background — don't await (it takes minutes)
   replayDirector.run(sidecarPath, {
@@ -1262,12 +1290,12 @@ ipcMain.handle('start-replay-director', async (_event, sidecarPath) => {
           overlayWindow.webContents.send('replay-director-record', { action: 'stop' });
         }
       }
-      logToFile(`[K10] Replay director: ${progress.status} — ${progress.message || ''}`);
+      logToFile(`[RacingDesk] Replay director: ${progress.status} — ${progress.message || ''}`);
     },
   }).then(function (result) {
-    logToFile(`[K10] Replay director finished: ${JSON.stringify(result)}`);
+    logToFile(`[RacingDesk] Replay director finished: ${JSON.stringify(result)}`);
   }).catch(function (err) {
-    logToFile(`[K10] Replay director error: ${err.message}`);
+    logToFile(`[RacingDesk] Replay director error: ${err.message}`);
   });
 
   return { success: true, message: 'Replay director started' };
@@ -1313,11 +1341,11 @@ function startSettingsWatcher() {
     try {
       settings = loadSettingsSync();
     } catch (e) {
-      logToFile('[K10] settings watcher: load failed: ' + e.message);
+      logToFile('[RacingDesk] settings watcher: load failed: ' + e.message);
       return;
     }
     overlayWindow.webContents.send('settings-sync', settings);
-    logToFile('[K10] settings-sync broadcast (file changed)');
+    logToFile('[RacingDesk] settings-sync broadcast (file changed)');
   });
 }
 
@@ -1328,7 +1356,7 @@ ipcMain.handle('get-rating-data', async () => {
 
 ipcMain.handle('save-rating-data', async (event, data) => {
   if (typeof data !== 'object' || data === null) {
-    logToFile('[K10] Warning: save-rating-data received invalid data');
+    logToFile('[RacingDesk] Warning: save-rating-data received invalid data');
     return;
   }
   saveRatingData(data);
@@ -1349,7 +1377,7 @@ ipcMain.handle('get-settings', async () => {
 ipcMain.handle('save-settings', async (event, settings) => {
   // The file is replaced whole (no merge), so a null or non-object would wipe it
   if (typeof settings !== 'object' || settings === null) {
-    logToFile('[K10] Warning: save-settings received invalid data');
+    logToFile('[RacingDesk] Warning: save-settings received invalid data');
     return false;
   }
   saveSettingsSync(settings);
@@ -1384,8 +1412,8 @@ ipcMain.handle('get-remote-server-info', async () => {
 ipcMain.handle('start-remote-server', async (event, opts = {}) => {
   try {
     const settings = loadSettingsSync();
-    const simhubUrl = (settings.simhubUrl || 'http://localhost:8889/racecor-io-pro-drive/')
-      .replace(/\/racecor-io-pro-drive\/?$/, '');
+    const simhubUrl = (settings.simhubUrl || 'http://localhost:8889/racing-desk/')
+      .replace(/\/racing-desk\/?$/, '');
     const info = await remoteServer.start({
       port: opts.port || settings.remoteServerPort || remoteServer.DEFAULT_PORT,
       appDir: __dirname,

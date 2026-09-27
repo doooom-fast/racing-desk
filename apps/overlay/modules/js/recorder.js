@@ -213,10 +213,10 @@
       console.warn('[Recorder] Already recording (native)');
       return { error: 'Already recording' };
     }
-    if (!window.k10 || typeof window.k10.startNativeRecording !== 'function') {
+    if (!window.racingDesk || typeof window.racingDesk.startNativeRecording !== 'function') {
       return { error: 'Native recording bridge unavailable — preload missing IPC' };
     }
-    var result = await window.k10.startNativeRecording({
+    var result = await window.racingDesk.startNativeRecording({
       car: window._currentCarModel || null,
       track: window._currentTrackName || null,
       outputDirectory: (options && options.outputDirectory) || null,
@@ -243,7 +243,7 @@
       return { error: 'Not recording (native)' };
     }
     stopNativeStatePolling();
-    var result = await window.k10.stopNativeRecording();
+    var result = await window.racingDesk.stopNativeRecording();
     _nativeRecording = false;
     _recording = false;
     window.dispatchEvent(new CustomEvent('recording-state-change', {
@@ -260,7 +260,7 @@
     stopNativeStatePolling();
     _nativeStatePoller = setInterval(async function () {
       try {
-        var state = await window.k10.getNativeRecordingState();
+        var state = await window.racingDesk.getNativeRecordingState();
         if (!state || state.error) return;
         if (_nativeRecording && state.recording === false) {
           // Host stopped without us asking — sync UI state.
@@ -470,7 +470,7 @@
       // filename. Both come from poll-engine's per-frame state via
       // window._currentCarModel / _currentTrackName. The sidecar
       // header also stamps them; this is the file-system surfacing.
-      var result = await window.k10.startRecording({
+      var result = await window.racingDesk.startRecording({
         ext: 'webm',
         car: window._currentCarModel || null,
         track: window._currentTrackName || null,
@@ -484,7 +484,7 @@
         if (e.data && e.data.size > 0) {
           console.log('[Recorder] Chunk available:', e.data.size, 'bytes');
           e.data.arrayBuffer().then(function (buf) {
-            window.k10.writeRecordingChunk(buf);
+            window.racingDesk.writeRecordingChunk(buf);
           }).catch(function (err) {
             console.error('[Recorder] Failed to convert blob to arrayBuffer:', err);
           });
@@ -633,7 +633,7 @@
 
     return new Promise(function (resolve) {
       _mediaRecorder.onstop = async function () {
-        var result = await window.k10.stopRecording();
+        var result = await window.racingDesk.stopRecording();
         cleanup();
 
         window.dispatchEvent(new CustomEvent('recording-state-change', {
@@ -672,9 +672,9 @@
       return;
     }
 
-    if (!window.k10 || !window.k10.getFfmpegInfo) return;
+    if (!window.racingDesk || !window.racingDesk.getFfmpegInfo) return;
 
-    var info = await window.k10.getFfmpegInfo();
+    var info = await window.racingDesk.getFfmpegInfo();
     if (!info.available) {
       console.log('[Recorder] FFmpeg not available — keeping .webm');
       return;
@@ -692,7 +692,7 @@
     };
 
     try {
-      var result = await window.k10.transcodeRecording(webmPath, opts);
+      var result = await window.racingDesk.transcodeRecording(webmPath, opts);
       if (result.error) {
         console.warn('[Recorder] Transcode failed:', result.error);
       } else {
@@ -765,8 +765,8 @@
 
   // ── Wire up hotkey from main process ───────────────────────
   document.addEventListener('DOMContentLoaded', function () {
-    if (window.k10 && window.k10.onToggleRecording) {
-      window.k10.onToggleRecording(function () {
+    if (window.racingDesk && window.racingDesk.onToggleRecording) {
+      window.racingDesk.onToggleRecording(function () {
         toggleRecording();
       });
     }

@@ -464,7 +464,7 @@ Boxflat uses YAML presets for saving/loading complete device configurations. Our
 {
   "name": "Sprint Race Setup",
   "version": 1,
-  "source": "racecor",
+  "source": "racing-desk",
   "linkedProcess": "iRacingSim64DX11.exe",
   "timestamp": "2026-04-15T12:00:00Z",
   "base": {

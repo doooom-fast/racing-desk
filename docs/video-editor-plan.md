@@ -1,4 +1,4 @@
-# RaceCor Pro Drive — Video Editor Plan
+# The Racing Desk — Video Editor Plan
 
 *Drafted 2026-04-27. Supersedes ad-hoc notes in `prodrive-edit/` and `prodrive-designer/`.*
 
@@ -55,7 +55,7 @@ Both tiers wrap the same `.rcpdv` payload. No compression beyond what's already 
 - Embedded YouTube iframe (the rendered/uploaded edit)
 - Race details, telemetry charts, lap timeline
 - Reviewer reactions / comments
-- Link to "open in editor" → deep-link to native app via `racecor-native://session/<id>`
+- Link to "open in editor" → deep-link to native app via `racing-desk-native://session/<id>`
 
 No video upload UI on web. No editor on web. The "view a previous race" path is YouTube embed + DB-backed race details. Lightweight.
 
@@ -96,7 +96,7 @@ The timeline UI is the prodrive-designer layout: video stage with overlay compos
 
 ## Phasing
 
-1. **Phase 1 — `.rcpdv` writer in `prodrive-overlay`.** Existing recording becomes a bundle producer. No editor yet. Bundles written to `~/Documents/RaceCor/sessions/`.
+1. **Phase 1 — `.rcpdv` writer in `prodrive-overlay`.** Existing recording becomes a bundle producer. No editor yet. Bundles written to `~/Documents/RacingDesk/sessions/`.
 2. **Phase 2 — Mac editor MVP.** Open a `.rcpdv`, view the heuristic EDL, scrub timeline, render via bundled ffmpeg. No Claude. No transfer. Validates the editor UX.
 3. **Phase 3 — Server Claude broker.** `/api/v1/director` shipped on prodrive-server. Mac editor gets a "Refine with Claude" button.
 4. **Phase 4 — Bonjour transfer.** Windows sends to Mac over LAN.
@@ -110,7 +110,7 @@ The timeline UI is the prodrive-designer layout: video stage with overlay compos
 ## Open questions
 
 - **Recording relocation: overlay → Windows native app.** Today the overlay records via Chromium's `desktopCapturer` + `MediaRecorder` (a video-call API repurposed). Long-term the recorder belongs in the WinUI 3 native app using Media Foundation directly — better encode quality, App Loopback per-game audio, HDR/10-bit, no WebM→MP4 transcode step, and the overlay shrinks back to pure HUD. The bundle format is the abstraction that makes the move clean (consumers don't care which producer wrote the bytes). Deferred — too disruptive to mix with the rest of Phase 1-7. Planned as a dedicated arc once the editor is shipping. Until then, the overlay is the producer.
-- **Historical race library.** The native apps need to load *previous* races for editing/review, not just the live one. Where do bundles live, how does the editor browse them? Options: per-device library scanning `~/Documents/RaceCor/sessions/`, server-indexed library with bundles transferred on demand, or a hybrid (server tracks the manifest, device holds the bytes). Decision deferred until Phase 2 is shipped — empirical use of one device first will tell us whether multi-device sync is worth the complexity.
+- **Historical race library.** The native apps need to load *previous* races for editing/review, not just the live one. Where do bundles live, how does the editor browse them? Options: per-device library scanning `~/Documents/RacingDesk/sessions/`, server-indexed library with bundles transferred on demand, or a hybrid (server tracks the manifest, device holds the bytes). Decision deferred until Phase 2 is shipped — empirical use of one device first will tell us whether multi-device sync is worth the complexity.
 - **EDL portability across editor versions.** If the editor's analysis algorithm changes between releases, do old `edit-decisions.json` files still produce a faithful render? Probably want the EDL to embed the editor version it was authored with, and refuse to load on mismatch (or offer a "re-analyze" button).
 - **Reviewer round-trip.** When an iOS reviewer leaves a reaction at timestamp X, does that flow back into the editor for a v2 cut? Out of scope for now; revisit after Phase 9.
 

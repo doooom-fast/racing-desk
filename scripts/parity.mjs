@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // npm run parity [-- --host-port 18889 --seconds 120]
 //
-// During a live iRacing session, compares the SimHub plugin's :8889 payload with RaceCor.Host's, started
+// During a live iRacing session, compares the SimHub plugin's :8889 payload with RacingDesk.Host's, started
 // beside it with:  npm run host -- --http-port 18889 --ws-port 18890 --no-hardware --no-record
 //
 // Samples both once a second and reports, per key, how often the values disagree and an example. Numbers
@@ -10,7 +10,7 @@
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => a.startsWith('--') ? [a.slice(2), all[i + 1]?.startsWith('--') ? true : all[i + 1] ?? true] : null).filter(Boolean));
 const HOST_PORT = Number(args['host-port'] ?? 18889);
 const SECONDS = Number(args.seconds ?? 60);
-const PATH = '/racecor-io-pro-drive/';
+const PATH = '/racing-desk/';
 
 const get = async (port) => (await fetch(`http://localhost:${port}${PATH}`, { signal: AbortSignal.timeout(1500) })).json();
 
@@ -25,7 +25,7 @@ const close = (a, b) => {
 const stats = new Map();
 let samples = 0, inCar = 0;
 const end = Date.now() + SECONDS * 1000;
-console.log(`comparing :8889 (SimHub) with :${HOST_PORT} (RaceCor.Host) for ${SECONDS}s…`);
+console.log(`comparing :8889 (SimHub) with :${HOST_PORT} (RacingDesk.Host) for ${SECONDS}s…`);
 
 while (Date.now() < end) {
   let simhub, host;

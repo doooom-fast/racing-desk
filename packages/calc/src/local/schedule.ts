@@ -1,5 +1,5 @@
 /**
- * The stored season schedule (as `RaceCor.Host` serves it at /data/schedule, parsed from iRacing's published
+ * The stored season schedule (as `RacingDesk.Host` serves it at /data/schedule, parsed from iRacing's published
  * PDF) → the `IRacingSchedule` shape next-race-ideas was written against. iRacing's own ids aren't in the PDF,
  * so series, season, track and car-class ids are derived from their names: stable across parses, and only ever
  * compared with each other.

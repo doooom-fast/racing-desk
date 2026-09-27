@@ -1,4 +1,4 @@
-# RaceCor Recording Pipeline
+# RacingDesk Recording Pipeline
 
 **Status:** Implemented  
 **Date:** April 15, 2026

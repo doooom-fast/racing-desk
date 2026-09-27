@@ -1,5 +1,5 @@
 /**
- * @element racecor-gap-display
+ * @element racing-desk-gap-display
  * @description Gap ahead/behind display with driver name and iRating.
  *
  * Shows time gap, driver name, and iRating for car directly ahead and directly behind.
@@ -22,7 +22,7 @@
  * @slot default (not used, Shadow DOM only)
  *
  * @example
- * <racecor-gap-display></racecor-gap-display>
+ * <racing-desk-gap-display></racing-desk-gap-display>
  */
 
 (function() {
@@ -133,8 +133,8 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const _demo = snapshot._demo || +(snapshot['RaceCorProDrive.Plugin.DemoMode'] || 0);
-      const dsPre = _demo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+      const _demo = snapshot._demo || +(snapshot['RacingDesk.Plugin.DemoMode'] || 0);
+      const dsPre = _demo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
 
       // Parse gap data
       this._aheadGap = +(snapshot[dsPre + 'GapAhead'] || 0);
@@ -409,7 +409,7 @@
   // ══════════════════════════════════════════════════════════════
 
   if (window && window.customElements) {
-    customElements.define('racecor-gap-display', RaceCorGapDisplay);
+    customElements.define('racing-desk-gap-display', RaceCorGapDisplay);
   }
 
   if (typeof module !== 'undefined' && module.exports) {

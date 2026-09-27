@@ -1,5 +1,5 @@
 /**
- * @element racecor-rating-editor
+ * @element racing-desk-rating-editor
  * @description iRating/Safety Rating editing interface.
  *
  * Provides UI for manual editing of:
@@ -281,5 +281,5 @@
     }
   }
 
-  customElements.define('racecor-rating-editor', RaceCorRatingEditor);
+  customElements.define('racing-desk-rating-editor', RaceCorRatingEditor);
 })();

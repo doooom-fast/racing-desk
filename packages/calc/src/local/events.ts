@@ -1,14 +1,14 @@
 /**
  * Local store rows → drive events.
  *
- * RaceCor.Host serves `sessions` rows as stored (one per .ibt file × YAML session). iRacing writes a new
+ * RacingDesk.Host serves `sessions` rows as stored (one per .ibt file × YAML session). iRacing writes a new
  * .ibt every time the driver gets in the car, so one race with a tow or a rejoin is several rows. Events
  * merge those stints back into the session the driver actually took part in, then derive what telemetry
  * can't say directly: how iRating and Safety Rating moved, read from the next session in the same
  * licence category.
  */
 
-/** One row of `GET /racecor-io-pro-drive/data/sessions`. */
+/** One row of `GET /racing-desk/data/sessions`. */
 export interface LocalSessionRow {
   id: number
   source: string

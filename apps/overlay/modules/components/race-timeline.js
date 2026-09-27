@@ -1,5 +1,5 @@
 /**
- * @element racecor-race-timeline
+ * @element racing-desk-race-timeline
  * @description Canvas-based heat-mapped position history strip.
  *
  * Shows position changes over race duration as a color strip:
@@ -24,10 +24,10 @@
  * @slot default (not used, Shadow DOM only)
  *
  * @example
- * <racecor-race-timeline></racecor-race-timeline>
+ * <racing-desk-race-timeline></racing-desk-race-timeline>
  *
  * <script>
- *   const timeline = document.querySelector('racecor-race-timeline');
+ *   const timeline = document.querySelector('racing-desk-race-timeline');
  *   timeline.addSample(position, lap, flagState, incidents, inPit);
  * </script>
  */
@@ -131,10 +131,10 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const _demo = snapshot._demo || +(snapshot['RaceCorProDrive.Plugin.DemoMode'] || 0);
-      const dsPre = _demo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+      const _demo = snapshot._demo || +(snapshot['RacingDesk.Plugin.DemoMode'] || 0);
+      const dsPre = _demo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
 
-      const position = _demo ? +(snapshot['RaceCorProDrive.Plugin.Demo.Position'] || 0) : +(snapshot['DataCorePlugin.GameData.Position'] || 0);
+      const position = _demo ? +(snapshot['RacingDesk.Plugin.Demo.Position'] || 0) : +(snapshot['DataCorePlugin.GameData.Position'] || 0);
       const currentLap = +(snapshot[dsPre + 'CompletedLaps'] || 0);
       const flagState = String(snapshot[dsPre + 'FlagState'] || '');
       const incidentCount = +(snapshot[dsPre + 'IncidentCount'] || 0);
@@ -322,7 +322,7 @@
   // ══════════════════════════════════════════════════════════════
 
   if (window && window.customElements) {
-    customElements.define('racecor-race-timeline', RaceCorRaceTimeline);
+    customElements.define('racing-desk-race-timeline', RaceCorRaceTimeline);
   }
 
   if (typeof module !== 'undefined' && module.exports) {

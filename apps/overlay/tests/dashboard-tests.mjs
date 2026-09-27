@@ -1,5 +1,5 @@
 /**
- * K10 Motorsports — Dashboard Test Suite
+ * The Racing Desk — Dashboard Test Suite
  *
  * Playwright tests for the HTML dashboard overlay. Covers:
  *   - Initial page structure and element presence
@@ -71,7 +71,7 @@ test.describe('Page structure', () => {
 
   test('K10 logo image is present', async ({ page }) => {
     await load(page);
-    const logo = page.locator('#k10LogoSquare img');
+    const logo = page.locator('#brandLogoSquare img');
     await expect(logo).toHaveAttribute('src', 'images/branding/logomark.png');
   });
 
@@ -296,7 +296,7 @@ test.describe('Fuel bar states', () => {
     await load(page, {
       'DataCorePlugin.GameData.Fuel': 40,
       'DataCorePlugin.GameData.MaxFuel': 60,
-      'RaceCorProDrive.Plugin.DS.FuelPct': 66.7,
+      'RacingDesk.Plugin.DS.FuelPct': 66.7,
     });
     await expect(page.locator('.fuel-bar-inner')).toHaveClass(/healthy/);
   });
@@ -305,7 +305,7 @@ test.describe('Fuel bar states', () => {
     await load(page, {
       'DataCorePlugin.GameData.Fuel': 12,
       'DataCorePlugin.GameData.MaxFuel': 60,
-      'RaceCorProDrive.Plugin.DS.FuelPct': 20,
+      'RacingDesk.Plugin.DS.FuelPct': 20,
     });
     await expect(page.locator('.fuel-bar-inner')).toHaveClass(/caution/);
   });
@@ -314,7 +314,7 @@ test.describe('Fuel bar states', () => {
     await load(page, {
       'DataCorePlugin.GameData.Fuel': 4,
       'DataCorePlugin.GameData.MaxFuel': 60,
-      'RaceCorProDrive.Plugin.DS.FuelPct': 6.7,
+      'RacingDesk.Plugin.DS.FuelPct': 6.7,
     });
     await expect(page.locator('.fuel-bar-inner')).toHaveClass(/critical/);
   });
@@ -325,8 +325,8 @@ test.describe('Fuel bar states', () => {
       'DataCorePlugin.GameData.MaxFuel': 60,
       'DataCorePlugin.Computed.Fuel_LitersPerLap': 3.0,
       'DataCorePlugin.GameData.RemainingLaps': 14,
-      'RaceCorProDrive.Plugin.DS.FuelPct': 16.7,
-      'RaceCorProDrive.Plugin.DS.FuelLapsRemaining': 3.3,
+      'RacingDesk.Plugin.DS.FuelPct': 16.7,
+      'RacingDesk.Plugin.DS.FuelLapsRemaining': 3.3,
     });
     const pitSug = page.locator('.fuel-pit-suggest');
     const text = await pitSug.textContent();
@@ -339,8 +339,8 @@ test.describe('Fuel bar states', () => {
       'DataCorePlugin.GameData.MaxFuel': 60,
       'DataCorePlugin.Computed.Fuel_LitersPerLap': 3.0,
       'DataCorePlugin.GameData.RemainingLaps': 10,
-      'RaceCorProDrive.Plugin.DS.FuelPct': 83.3,
-      'RaceCorProDrive.Plugin.DS.FuelLapsRemaining': 16.7,
+      'RacingDesk.Plugin.DS.FuelPct': 83.3,
+      'RacingDesk.Plugin.DS.FuelLapsRemaining': 16.7,
     });
     const pitSug = page.locator('.fuel-pit-suggest');
     const text = await pitSug.textContent();
@@ -403,12 +403,12 @@ test.describe('Commentary panel', () => {
 
   test('commentary shows when CommentaryVisible is 1', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.CommentaryVisible': 1,
-      'RaceCorProDrive.Plugin.CommentaryText': 'Watch the rear end through turn 3.',
-      'RaceCorProDrive.Plugin.CommentaryTopicTitle': 'Oversteer',
-      'RaceCorProDrive.Plugin.CommentaryTopicId': 'car_balance_sustained',
-      'RaceCorProDrive.Plugin.CommentaryCategory': 'car_response',
-      'RaceCorProDrive.Plugin.CommentarySentimentColor': '#FFFF6F00',
+      'RacingDesk.Plugin.CommentaryVisible': 1,
+      'RacingDesk.Plugin.CommentaryText': 'Watch the rear end through turn 3.',
+      'RacingDesk.Plugin.CommentaryTopicTitle': 'Oversteer',
+      'RacingDesk.Plugin.CommentaryTopicId': 'car_balance_sustained',
+      'RacingDesk.Plugin.CommentaryCategory': 'car_response',
+      'RacingDesk.Plugin.CommentarySentimentColor': '#FFFF6F00',
     });
     const col = page.locator('#commentaryCol');
     await expect(col).toHaveClass(/visible/);
@@ -416,11 +416,11 @@ test.describe('Commentary panel', () => {
 
   test('commentary title and text populate correctly', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.CommentaryVisible': 1,
-      'RaceCorProDrive.Plugin.CommentaryText': 'Massive lockup into T1.',
-      'RaceCorProDrive.Plugin.CommentaryTopicTitle': 'Brake Lock',
-      'RaceCorProDrive.Plugin.CommentaryTopicId': 'heavy_braking',
-      'RaceCorProDrive.Plugin.CommentaryCategory': 'hardware',
+      'RacingDesk.Plugin.CommentaryVisible': 1,
+      'RacingDesk.Plugin.CommentaryText': 'Massive lockup into T1.',
+      'RacingDesk.Plugin.CommentaryTopicTitle': 'Brake Lock',
+      'RacingDesk.Plugin.CommentaryTopicId': 'heavy_braking',
+      'RacingDesk.Plugin.CommentaryCategory': 'hardware',
     });
     await expect(page.locator('#commentaryTitle')).toHaveText('Brake Lock');
     await expect(page.locator('#commentaryText')).toHaveText('Massive lockup into T1.');
@@ -430,18 +430,18 @@ test.describe('Commentary panel', () => {
   test('commentary hides after data clears', async ({ page }) => {
     // First show commentary
     await load(page, {
-      'RaceCorProDrive.Plugin.CommentaryVisible': 1,
-      'RaceCorProDrive.Plugin.CommentaryText': 'Test',
-      'RaceCorProDrive.Plugin.CommentaryTopicTitle': 'Test',
-      'RaceCorProDrive.Plugin.CommentaryTopicId': 'spin_catch',
-      'RaceCorProDrive.Plugin.CommentaryCategory': 'test',
-      'RaceCorProDrive.Plugin.CommentarySentimentColor': '#FF00FF00',
+      'RacingDesk.Plugin.CommentaryVisible': 1,
+      'RacingDesk.Plugin.CommentaryText': 'Test',
+      'RacingDesk.Plugin.CommentaryTopicTitle': 'Test',
+      'RacingDesk.Plugin.CommentaryTopicId': 'spin_catch',
+      'RacingDesk.Plugin.CommentaryCategory': 'test',
+      'RacingDesk.Plugin.CommentarySentimentColor': '#FF00FF00',
     });
     await expect(page.locator('#commentaryCol')).toHaveClass(/visible/);
 
     // Then hide it
     await updateMockData(page, {
-      'RaceCorProDrive.Plugin.CommentaryVisible': 0,
+      'RacingDesk.Plugin.CommentaryVisible': 0,
     });
     await page.waitForTimeout(500);
     await expect(page.locator('#commentaryCol')).not.toHaveClass(/visible/);
@@ -573,11 +573,11 @@ test.describe('Rating/Position cycling', () => {
 test.describe('Track map', () => {
   test('track map updates when data arrives', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M10 10 L 90 10 L 90 90 L 10 90 Z',
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
-      'RaceCorProDrive.Plugin.TrackMap.Opponents': '30,30,0;70,70,0',
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.SvgPath': 'M10 10 L 90 10 L 90 90 L 10 90 Z',
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Opponents': '30,30,0;70,70,0',
     });
     const path = await page.locator('#fullMapTrack').getAttribute('d');
     expect(path).toContain('M10 10');
@@ -587,11 +587,11 @@ test.describe('Track map', () => {
 
   test('opponents render as circles', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M10 10 L 90 90',
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
-      'RaceCorProDrive.Plugin.TrackMap.Opponents': '20,20,0;80,80,0;50,10,1',
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.SvgPath': 'M10 10 L 90 90',
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Opponents': '20,20,0;80,80,0;50,10,1',
     });
     const fullOpponents = page.locator('#fullMapOpponents circle');
     // 3 opponents (including one in pit)
@@ -608,11 +608,11 @@ test.describe('Track map', () => {
   // API hasn't supplied a curated override.
   test('track renders from plugin SvgPath when API cache is empty', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'Unknown Track Not In API',
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M5 5 L 95 5 L 95 95 L 5 95 Z',
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.TrackName': 'Unknown Track Not In API',
+      'RacingDesk.Plugin.TrackMap.SvgPath': 'M5 5 L 95 5 L 95 95 L 5 95 Z',
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
     });
 
     // The API cache should be empty for this fictional track name
@@ -635,11 +635,11 @@ test.describe('Track map', () => {
 
   test('API cache override wins over plugin SvgPath', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'Override Track',
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M0 0 L 50 50',
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.TrackName': 'Override Track',
+      'RacingDesk.Plugin.TrackMap.SvgPath': 'M0 0 L 50 50',
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
     });
 
     // Inject a curated path into the API cache as if the K10 API returned it
@@ -698,11 +698,11 @@ test.describe('Track map visibility', () => {
 
   test('rendered path has non-zero bounding box on every layer', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'BBox Test Track',
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.TrackName': 'BBox Test Track',
+      'RacingDesk.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
     });
 
     const layerIds = [
@@ -727,11 +727,11 @@ test.describe('Track map visibility', () => {
 
   test('rendered path bbox sits inside the SVG viewBox', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'ViewBox Test Track',
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.TrackName': 'ViewBox Test Track',
+      'RacingDesk.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
     });
 
     const overlap = await page.evaluate(() => {
@@ -751,11 +751,11 @@ test.describe('Track map visibility', () => {
 
   test('rendered path layers have visible (non-transparent) computed strokes', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'Stroke Test Track',
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.TrackName': 'Stroke Test Track',
+      'RacingDesk.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
     });
 
     // Outer layer must have a visible stroke (it's the dominant track edge).
@@ -780,11 +780,11 @@ test.describe('Track map visibility', () => {
     });
 
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'No Warn Track',
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.TrackName': 'No Warn Track',
+      'RacingDesk.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
     });
     await page.waitForTimeout(200);
 
@@ -803,11 +803,11 @@ test.describe('Track map visibility', () => {
     // Coordinate pairs only — no M/L/C verbs. _parsePathCoords picks
     // them up but the browser refuses to render them as a path.
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'Malformed Track',
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': '20,10 50,8 80,12 90,35 70,75',
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.TrackName': 'Malformed Track',
+      'RacingDesk.Plugin.TrackMap.SvgPath': '20,10 50,8 80,12 90,35 70,75',
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
     });
     await page.waitForTimeout(200);
 
@@ -817,11 +817,11 @@ test.describe('Track map visibility', () => {
 
   test('trail polylines attach to both maps once track data is loaded', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'Trail Test Track',
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.TrackName': 'Trail Test Track',
+      'RacingDesk.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
     });
     // Trail polylines are created lazily on the first frame after the
     // track path lands, so wait an extra cycle.
@@ -833,11 +833,11 @@ test.describe('Track map visibility', () => {
 
   test('player dot is inside the rendered track bbox after position update', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.TrackName': 'Dot Position Track',
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.TrackName': 'Dot Position Track',
+      'RacingDesk.Plugin.TrackMap.SvgPath': bathurstShapedPath(),
+      'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 50,
     });
 
     // The dot should snap onto the track. Without a track render, snapping
@@ -972,12 +972,12 @@ test.describe('Settings panel', () => {
 
   test('toggling commentary off hides commentary column', async ({ page }) => {
     await load(page, {
-      'RaceCorProDrive.Plugin.CommentaryVisible': 1,
-      'RaceCorProDrive.Plugin.CommentaryText': 'Test',
-      'RaceCorProDrive.Plugin.CommentaryTopicTitle': 'Test',
-      'RaceCorProDrive.Plugin.CommentaryTopicId': 'spin_catch',
-      'RaceCorProDrive.Plugin.CommentaryCategory': 'test',
-      'RaceCorProDrive.Plugin.CommentarySentimentColor': '#FF00FF00',
+      'RacingDesk.Plugin.CommentaryVisible': 1,
+      'RacingDesk.Plugin.CommentaryText': 'Test',
+      'RacingDesk.Plugin.CommentaryTopicTitle': 'Test',
+      'RacingDesk.Plugin.CommentaryTopicId': 'spin_catch',
+      'RacingDesk.Plugin.CommentaryCategory': 'test',
+      'RacingDesk.Plugin.CommentarySentimentColor': '#FF00FF00',
     });
     await page.evaluate(() => {
       _settings.showCommentary = false;
@@ -1014,7 +1014,7 @@ test.describe('Settings panel', () => {
 test.describe('Connection backoff', () => {
   test('backoff counter increments on fetch failure', async ({ page }) => {
     // Route to fail
-    await page.route(/racecor-io-pro-drive/, (route) => route.abort());
+    await page.route(/racing-desk/, (route) => route.abort());
     await page.goto(dashboardPath, { waitUntil: 'load' });
     await page.waitForTimeout(300);
 
@@ -1024,13 +1024,13 @@ test.describe('Connection backoff', () => {
 
   test('backoff resets on successful fetch', async ({ page }) => {
     // Start with failures
-    await page.route(/racecor-io-pro-drive/, (route) => route.abort());
+    await page.route(/racing-desk/, (route) => route.abort());
     await page.goto(dashboardPath, { waitUntil: 'load' });
     await page.waitForTimeout(200);
 
     // Now succeed
-    await page.unroute(/racecor-io-pro-drive/);
-    await page.route(/racecor-io-pro-drive/, async (route) => {
+    await page.unroute(/racing-desk/);
+    await page.route(/racing-desk/, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

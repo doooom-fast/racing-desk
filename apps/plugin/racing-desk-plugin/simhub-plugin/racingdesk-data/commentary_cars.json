@@ -1,0 +1,1307 @@
+{
+  "version": "1.0",
+  "description": "Car and manufacturer commentary data for Media Broadcaster. Keyed by lowercase car model substring for fuzzy matching against SimHub's CarModel string.",
+  "cars": {
+    "bmw m4 gt3": {
+      "displayName": "BMW M4 GT3 EVO",
+      "manufacturer": "BMW",
+      "class": "GT3",
+      "engineLayout": "front-engine",
+      "engineSpec": "3.0L twin-turbo straight-six",
+      "talkingPoints": [
+        "Evolved from the dominant M6 GT3",
+        "The M4 brings refined turbo technology to the formula",
+        "Most forgiving GT3 on the grid",
+        "Exceptional all-rounder with balanced front and rear grip",
+        "Twin-turbo straight-six delivers smooth, predictable power",
+        "Power delivery is consistent across the rev range"
+      ],
+      "drivingCharacter": [
+        "accessible to master but fast in the right hands",
+        "forgiving mid-corner stability",
+        "turbo lag manageable with precise throttle control"
+      ],
+      "nickname": "The Bavarian Workhorse",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/bmw-m4-gt3/random?w=1280"
+      ]
+    },
+    "ferrari 296 gt3": {
+      "displayName": "Ferrari 296 GT3",
+      "manufacturer": "Ferrari",
+      "class": "GT3",
+      "engineLayout": "mid-engine",
+      "engineSpec": "2.9L twin-turbo V6",
+      "talkingPoints": [
+        "Turbos sit inside the V-angle for a compact, low-slung package",
+        "Truly mid-mounted power in its purest form",
+        "Replaced the 488 GT3, which dominated with 429 wins from 770 starts",
+        "Won the Nürburgring 24H on debut year",
+        "Set a new distance record — 410 laps of the Green Hell"
+      ],
+      "drivingCharacter": [
+        "responsive mid-engine balance",
+        "explosive turbo delivery demanding smooth inputs",
+        "playful rear-end requiring confidence to extract full potential"
+      ],
+      "nickname": "The Turbo Revolution",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/ferrari-296-gt3/random?w=1280"
+      ]
+    },
+    "porsche 911 gt3 r": {
+      "displayName": "Porsche 911 GT3 R (992)",
+      "manufacturer": "Porsche",
+      "class": "GT3",
+      "engineLayout": "rear-engine",
+      "engineSpec": "4.2L naturally aspirated flat-six",
+      "talkingPoints": [
+        "Rare naturally aspirated GT3 with a 4.2L flat-six",
+        "Demands precision and high rev confidence",
+        "Prone to lift-off oversteer — separates masters from the rest",
+        "Rewards absolute commitment through every corner",
+        "New 992-gen front suspension with swan-neck rear wing mount",
+        "Unequal-length control arms deliver aerodynamic elegance"
+      ],
+      "drivingCharacter": [
+        "sharp, edgy handling balance",
+        "requires commitment to brake late and turn-in hard",
+        "rewarding for drivers who embrace its naturally aspirated soul"
+      ],
+      "nickname": "The Purist's Choice",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/porsche-911-gt3-r/random?w=1280"
+      ]
+    },
+    "mercedes-amg gt3": {
+      "displayName": "Mercedes-AMG GT3 2020",
+      "manufacturer": "Mercedes-AMG",
+      "class": "GT3",
+      "engineLayout": "front-engine",
+      "engineSpec": "6.3L naturally aspirated V8",
+      "talkingPoints": [
+        "Powered by the M159 V8 lineage from the SLS AMG",
+        "Natural aspiration in its most luxurious form",
+        "Understeer-focused setup encourages methodical driving",
+        "Rewards a flowing, patient approach to each corner",
+        "Exceptional stability breeds confidence",
+        "One of the most planted front-engine GT3s at high speed"
+      ],
+      "drivingCharacter": [
+        "methodical, high-speed stability",
+        "confidence-inspiring front-end grip",
+        "rewards smooth, flowing inputs over aggressive inputs"
+      ],
+      "nickname": "The German Precision Machine",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/mercedes-amg-gt3-2020/random?w=1280"
+      ]
+    },
+    "mclaren 720s gt3": {
+      "displayName": "McLaren 720S GT3 EVO",
+      "manufacturer": "McLaren",
+      "class": "GT3",
+      "engineLayout": "mid-engine",
+      "engineSpec": "4.0L twin-turbo V8 (M840T), ~680hp GT3-restricted",
+      "nickname": "The Aero Scalpel",
+      "designer": "Ian Morgan (McLaren Motorsport Director, ex-Red Bull F1)",
+      "talkingPoints": [
+        "Carbon fibre MonoCage II chassis — 18 kg lighter than its predecessor",
+        "Inherits structural principles from the McLaren P1",
+        "90% of components redesigned from the road car",
+        "A purpose-built racing machine wearing 720S clothes",
+        "Proactive aero heritage from the road car",
+        "CFD-optimized splitter and floor deliver planted confidence in traffic",
+        "Gulf 12 Hours outright victory with Ben Barnicoat in 2021",
+        "First major endurance win for the 720S GT3 programme",
+        "2025 Spa 24H pole by Kirchhöfer — McLaren's first ever at the classic",
+        "2:15.113 around Spa — a statement of intent",
+        "Around 100 customer cars delivered globally",
+        "Competing in IMSA, GT World Challenge, British GT, and WEC",
+        "The 2023 EVO brought all-new Öhlins TTX40 dampers",
+        "Revised wishbone geometry improves tyre life in endurance traffic"
+      ],
+      "drivingCharacter": [
+        "aero-balanced precision — planted confidence mid-corner despite GT3 weight penalties",
+        "mid-engine reflexes with immediate turn-in and minimal understeer offset",
+        "broad torque band enables clean corner exits with minimal wheelspin",
+        "MonoCage rigidity transmits every load change — the car talks to the driver"
+      ],
+      "notableDrivers": [
+        "Ben Barnicoat (McLaren Factory Driver, Gulf 12H winner, Bathurst development ace)",
+        "Marvin Kirchhöfer (2025 Spa 24H pole, GT World Challenge Sprint Cup winner)",
+        "Rob Bell (McLaren Factory Driver since 2012, 720S GT3 debut winner at Donington 2019)",
+        "Tom Blomqvist (Bathurst 12H podium, Daytona 24H champion)",
+        "Alvaro Parente (McLaren endurance ace, Bathurst 12H champion in the 650S GT3)"
+      ],
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/mclaren-720s-gt3-evo/random?w=1280"
+      ]
+    },
+    "lamborghini huracán gt3": {
+      "displayName": "Lamborghini Huracán GT3 EVO",
+      "manufacturer": "Lamborghini",
+      "class": "GT3",
+      "engineLayout": "mid-engine",
+      "engineSpec": "5.2L naturally aspirated V10",
+      "talkingPoints": [
+        "One of the last naturally aspirated V10s in GT racing",
+        "580hp of Italian symphonic theatre",
+        "The Huracán proves VW Group engineering translates to GT competition",
+        "Mid-engine V10 delivers dramatic mid-corner pace",
+        "Mechanical grip rarely seen in modern GT3"
+      ],
+      "drivingCharacter": [
+        "wild, high-revving V10 character",
+        "mid-engine agility with supercar attitude",
+        "demands respect and rewards aggression"
+      ],
+      "nickname": "The Raging Bull",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/lamborghini-huracan-gt3-evo/random?w=1280"
+      ]
+    },
+    "audi r8 lms": {
+      "displayName": "Audi R8 LMS EVO II GT3",
+      "manufacturer": "Audi",
+      "class": "GT3",
+      "engineLayout": "mid-engine",
+      "engineSpec": "5.2L naturally aspirated V10",
+      "talkingPoints": [
+        "Shares the 5.2L V10 platform with Lamborghini",
+        "Audi tunes for reliability and consistency over outright speed",
+        "VW Group efficiency philosophy applied to racing",
+        "Fewer DNFs, more podiums over race distance",
+        "Known as the grid's reliability benchmark",
+        "Engineering discipline that wins long-distance races"
+      ],
+      "drivingCharacter": [
+        "precise, predictable mid-engine handling",
+        "trusting V10 power delivery",
+        "methodical pace that accumulates over race distance"
+      ],
+      "nickname": "The German Engineer's Answer",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/audi-r8-lms-evo-ii-gt3/random?w=1280"
+      ]
+    },
+    "aston martin vantage gt3": {
+      "displayName": "Aston Martin Vantage GT3 EVO",
+      "manufacturer": "Aston Martin",
+      "class": "GT3",
+      "engineLayout": "front-engine",
+      "engineSpec": "4.0L twin-turbo V8",
+      "talkingPoints": [
+        "Newest GT3 on iRacing, arriving in Season 4 2025",
+        "Fresh competition shaking up the established order",
+        "AMG-sourced 4.0L twin-turbo V8 under the bonnet",
+        "Mercedes-Benz engineering pedigree in a British chassis",
+        "British engineering meets German turbocharged power",
+        "A formidable combination still being explored"
+      ],
+      "drivingCharacter": [
+        "fresh, modern turbo character",
+        "front-engine balance with AMG reliability",
+        "still being discovered by the community"
+      ],
+      "nickname": "The British Newcomer",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/aston-martin-vantage-gt3-evo/random?w=1280"
+      ]
+    },
+    "chevrolet corvette z06 gt3": {
+      "displayName": "Chevrolet Corvette Z06 GT3.R",
+      "manufacturer": "Chevrolet",
+      "class": "GT3",
+      "engineLayout": "mid-engine",
+      "engineSpec": "5.5L naturally aspirated flat-plane crank V8",
+      "talkingPoints": [
+        "LT6-based flat-plane crank V8 — American NA technology at its finest",
+        "9,100 rpm scream from 5.5 litres of displacement",
+        "Derived from the championship-winning C8.R GTE platform",
+        "Proven at Le Mans and IMSA before ever reaching GT3",
+        "Double podium at Bahrain in its inaugural 2024 season",
+        "Immediately competitive against established European names"
+      ],
+      "drivingCharacter": [
+        "raw American V8 pace",
+        "high-revving flat-plane crank character",
+        "mid-engine balance with muscle-car attitude"
+      ],
+      "nickname": "The American Thunder",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/chevrolet-corvette-z06-gt3r/random?w=1280"
+      ]
+    },
+    "ford mustang gt3": {
+      "displayName": "Ford Mustang GT3",
+      "manufacturer": "Ford",
+      "class": "GT3",
+      "engineLayout": "front-engine",
+      "engineSpec": "5.2L naturally aspirated V8",
+      "talkingPoints": [
+        "One of the newest GT3 entries on the grid",
+        "Bringing iconic Mustang heritage into modern GT racing",
+        "Front-engine V8 layout — a bold choice against the mid-engine trend",
+        "Mustang nameplate carries continuous racing tradition since the 1960s"
+      ],
+      "drivingCharacter": [
+        "classic American front-engine balance",
+        "V8 character with modern efficiency",
+        "still establishing its competitive identity"
+      ],
+      "nickname": "The Iconic Pony Car",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/ford-mustang-gt3/random?w=1280"
+      ]
+    },
+    "acura nsx gt3": {
+      "displayName": "Acura NSX GT3 EVO 22",
+      "manufacturer": "Acura",
+      "class": "GT3",
+      "engineLayout": "mid-engine",
+      "engineSpec": "3.5L twin-turbo V6",
+      "talkingPoints": [
+        "Honda's GT3 program bringing JDM engineering to world GT grids",
+        "3.5L twin-turbo V6 delivers exceptional mid-range torque",
+        "Reliability is baked into the Honda DNA",
+        "Acura badge represents Honda's luxury performance commitment",
+        "International motorsport at its most refined"
+      ],
+      "drivingCharacter": [
+        "smooth mid-range torque delivery",
+        "mid-engine agility with Honda refinement",
+        "predictable and approachable for talented drivers"
+      ],
+      "nickname": "The Japanese Craftsman",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/acura-nsx-gt3-evo-22/random?w=1280"
+      ]
+    },
+    "ferrari 488 gt3": {
+      "displayName": "Ferrari 488 GT3",
+      "manufacturer": "Ferrari",
+      "class": "GT3",
+      "engineLayout": "mid-engine",
+      "engineSpec": "3.9L twin-turbo V8",
+      "talkingPoints": [
+        "The most successful Ferrari GT car ever",
+        "429 wins from 770 starts, plus 107 titles across all series",
+        "3.9L twin-turbo V8 became the blueprint for modern Ferrari GT power",
+        "Replaced by the 296 GT3",
+        "Its legacy of dominance remains unmatched in Ferrari history"
+      ],
+      "drivingCharacter": [
+        "legendary mid-engine balance",
+        "proven race-winning formula",
+        "respect for a car that defined an era"
+      ],
+      "nickname": "The Legend",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/ferrari-488-gt3/random?w=1280"
+      ]
+    },
+    "bmw m4 gt4": {
+      "displayName": "BMW M4 GT4",
+      "manufacturer": "BMW",
+      "class": "GT4",
+      "engineLayout": "front-engine",
+      "engineSpec": "3.0L twin-turbo straight-six",
+      "talkingPoints": [
+        "Entry-level GT racing through BMW's proven M4 platform",
+        "Twin-turbo straight-six with progressive power delivery",
+        "Ideal for amateur drivers stepping up",
+        "Shared engineering DNA with the GT3",
+        "A familiar learning curve for GT4 competitors"
+      ],
+      "drivingCharacter": [
+        "forgiving entry-level dynamics",
+        "approachable turbo power",
+        "ideal for drivers stepping into serious motorsport"
+      ],
+      "nickname": "The Gateway Drug",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/bmw-m4-gt4/random?w=1280"
+      ]
+    },
+    "mclaren 570s gt4": {
+      "displayName": "McLaren 570S GT4",
+      "manufacturer": "McLaren",
+      "class": "GT4",
+      "engineLayout": "mid-engine",
+      "engineSpec": "3.8L twin-turbo V8 (M838TE), ~430hp GT4-restricted",
+      "nickname": "The Carbon Scalpel",
+      "designer": "Robert Melville (Chief Designer) / Ian Morgan (GT Racing Director)",
+      "talkingPoints": [
+        "First carbon fibre chassis ever homologated in GT4",
+        "The MonoCell II tub gives McLaren a weight and rigidity advantage",
+        "Eight championship titles and 44 wins in its 2017 debut season",
+        "Dominant from the very first customer deliveries",
+        "George Kurtz won the PWC GTSA Championship as a rookie",
+        "Nine wins, twelve podiums in the CrowdStrike-liveried 570S GT4",
+        "Mid-engine 50/50 weight distribution is rare at GT4 level",
+        "Most competitors run front-engine platforms like the Cayman or M4",
+        "Retains 95% of the road car's drivetrain",
+        "Keeping running costs accessible for customer teams",
+        "Customer car pricing from around $247K new",
+        "The most accessible mid-engine race car entry point in GT4"
+      ],
+      "drivingCharacter": [
+        "mid-engine balance rewards late-apex, rotation-focused driving",
+        "carbon tub gives unusually precise feedback through the seat — confidence in wet and bumpy conditions",
+        "nimble through chicanes but unforgiving on big kerbs — the compact wheelbase is a double-edged sword",
+        "wickedly positive steering response — earlier turn-in and tighter line commitment than front-engine rivals"
+      ],
+      "notableDrivers": [
+        "George Kurtz (2017 PWC GTSA Champion, GMG Racing — rookie season domination)",
+        "Joe Osborne (British GT race winner, elevated to McLaren Factory Driver)",
+        "Ben Barnicoat (McLaren Factory, Track-Club British GT campaign)",
+        "Michael O'Brien (McLaren Development Programme, Tolman Motorsport Silver Cup contender)"
+      ],
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/mclaren-570s-gt4/random?w=1280"
+      ]
+    },
+    "mercedes-amg gt4": {
+      "displayName": "Mercedes-AMG GT4",
+      "manufacturer": "Mercedes-AMG",
+      "class": "GT4",
+      "engineLayout": "front-engine",
+      "engineSpec": "4.0L twin-turbo V8",
+      "talkingPoints": [
+        "Front-engine 4.0L twin-turbo V8 brings AMG power to affordable GT racing",
+        "Mercedes engineering discipline applied to entry-level competition",
+        "Accessible alternative to mid-engine rivals in the GT4 market"
+      ],
+      "drivingCharacter": [
+        "predictable front-engine dynamics",
+        "smooth turbo power delivery",
+        "confidence-inspiring for amateur drivers"
+      ],
+      "nickname": "The Accessible Premium",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/mercedes-amg-gt4/random?w=1280"
+      ]
+    },
+    "porsche 718 cayman gt4": {
+      "displayName": "Porsche 718 Cayman GT4 Clubsport",
+      "manufacturer": "Porsche",
+      "class": "GT4",
+      "engineLayout": "mid-engine",
+      "engineSpec": "3.8L naturally aspirated flat-six",
+      "talkingPoints": [
+        "Closest GT4 to a pure sports car",
+        "Mid-engine Cayman platform emphasizes driver interaction",
+        "3.8L naturally aspirated flat-six screams up to 9,000 rpm",
+        "No turbo assistance — just pure mechanical connection",
+        "Porsche's commitment to flat-six engineering even at GT4 level"
+      ],
+      "drivingCharacter": [
+        "pure, unassisted flat-six character",
+        "mid-engine sports car feedback",
+        "rewards driver skill above all else"
+      ],
+      "nickname": "The Purist's GT4",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/porsche-718-cayman-gt4-clubsport/random?w=1280"
+      ]
+    },
+    "aston martin vantage gt4": {
+      "displayName": "Aston Martin Vantage GT4",
+      "manufacturer": "Aston Martin",
+      "class": "GT4",
+      "engineLayout": "front-engine",
+      "engineSpec": "4.0L twin-turbo V8",
+      "talkingPoints": [
+        "Brings British GT-racing heritage into the GT4 category",
+        "AMG 4.0L twin-turbo V8 ensures genuine performance credentials",
+        "Accessible entry point to Aston Martin's racing program"
+      ],
+      "drivingCharacter": [
+        "British character with German power",
+        "front-engine stability",
+        "accessible luxury motorsport"
+      ],
+      "nickname": "The British Entry Point",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/aston-martin-vantage-gt4/random?w=1280"
+      ]
+    },
+    "ford mustang gt4": {
+      "displayName": "Ford Mustang GT4",
+      "manufacturer": "Ford",
+      "class": "GT4",
+      "engineLayout": "front-engine",
+      "engineSpec": "5.2L naturally aspirated V8",
+      "talkingPoints": [
+        "Newest GT4 addition — American muscle meets club racing",
+        "Front-engine naturally aspirated V8 — traditional pony-car engineering",
+        "Mustang nameplate extends decades of racing heritage into GT4"
+      ],
+      "drivingCharacter": [
+        "raw American V8 character",
+        "front-engine traditional balance",
+        "still being discovered by amateur racers"
+      ],
+      "nickname": "The American Club Racer",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/ford-mustang-gt4/random?w=1280"
+      ]
+    },
+    "ferrari 499p": {
+      "displayName": "Ferrari 499P",
+      "manufacturer": "Ferrari",
+      "class": "Hypercar",
+      "engineLayout": "mid-engine",
+      "engineSpec": "3.0L twin-turbo V6 hybrid",
+      "talkingPoints": [
+        "Won Le Mans 2023 on debut — Ferrari's first overall victory since 1965",
+        "A 58-year drought ended in a single night",
+        "3.0L twin-turbo V6 hybrid — Ferrari's commitment to hypercar technology",
+        "A stunning return to the top of endurance racing",
+        "Validated hybrid-era engineering at the highest level"
+      ],
+      "drivingCharacter": [
+        "modern hybrid energy management",
+        "explosive turbo-hybrid acceleration",
+        "championship-winning composure"
+      ],
+      "nickname": "The Redemption",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/ferrari-499p/random?w=1280"
+      ]
+    },
+    "porsche 963 gtp": {
+      "displayName": "Porsche 963 GTP",
+      "manufacturer": "Porsche",
+      "class": "Hypercar",
+      "engineLayout": "mid-engine",
+      "engineSpec": "4.6L twin-turbo V8 hybrid",
+      "talkingPoints": [
+        "Based on the 918 Spyder hypercar powertrain concept",
+        "Translating road-car innovation directly to Le Mans",
+        "4.6L twin-turbo V8 hybrid — endurance philosophy in the hybrid era",
+        "Competing against Ferrari 499P in the ultimate prototype battle"
+      ],
+      "drivingCharacter": [
+        "sophisticated hybrid power delivery",
+        "8,000+ rpm flat-six heritage in V8 form",
+        "endurance-racing precision"
+      ],
+      "nickname": "The Hypercar Vision",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/porsche-963-gtp/random?w=1280"
+      ]
+    },
+    "cadillac v-series.r gtp": {
+      "displayName": "Cadillac V-Series.R GTP",
+      "manufacturer": "Cadillac",
+      "class": "Hypercar",
+      "engineLayout": "mid-engine",
+      "engineSpec": "5.5L V8 hybrid",
+      "talkingPoints": [
+        "Largest engine in the GTP class",
+        "American displacement versus European efficiency",
+        "Successor to the DPi-V.R — five consecutive Daytona 24H wins",
+        "Proven American racing DNA at the highest level of endurance"
+      ],
+      "drivingCharacter": [
+        "American V8 power with hybrid efficiency",
+        "brute-force approach to hybrid competition",
+        "legacy of proven reliability"
+      ],
+      "nickname": "The American Muscle Hypercar",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/cadillac-v-series-r-gtp/random?w=1280"
+      ]
+    },
+    "acura arx-06 gtp": {
+      "displayName": "Acura ARX-06 GTP",
+      "manufacturer": "Acura",
+      "class": "Hypercar",
+      "engineLayout": "mid-engine",
+      "engineSpec": "2.4L twin-turbo V6 hybrid",
+      "talkingPoints": [
+        "Only GTP manufacturer to design a clean-sheet engine",
+        "No carry-over from previous platforms — all new",
+        "2.4L twin-turbo V6 hybrid — cutting-edge Japanese engineering",
+        "Won 1st and 2nd at 2023 Daytona 24H on debut",
+        "Immediately proved its competitive mettle"
+      ],
+      "drivingCharacter": [
+        "innovative Japanese engineering",
+        "modern efficiency-focused hybrid power",
+        "immediate competitive results"
+      ],
+      "nickname": "The Japanese Innovation",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/acura-arx-06-gtp/random?w=1280"
+      ]
+    },
+    "bmw m hybrid v8": {
+      "displayName": "BMW M Hybrid V8",
+      "manufacturer": "BMW",
+      "class": "Hypercar",
+      "engineLayout": "mid-engine",
+      "engineSpec": "Twin-turbo V8 hybrid",
+      "talkingPoints": [
+        "BMW's first top-flight prototype since the V12 LMR in 1999",
+        "A 25-year gap between Le Mans campaigns",
+        "Engine carries DNA from the M4 DTM era",
+        "Racing engineering translating to hypercars",
+        "BMW's renewed commitment to endurance racing's highest level"
+      ],
+      "drivingCharacter": [
+        "DTM-proven engine reliability",
+        "return to racing pedigree",
+        "modern hybrid integration with heritage power"
+      ],
+      "nickname": "The Bavarian Return",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/bmw-m-hybrid-v8/random?w=1280"
+      ]
+    },
+    "bmw m8 gte": {
+      "displayName": "BMW M8 GTE",
+      "manufacturer": "BMW",
+      "class": "GTE",
+      "engineLayout": "front-engine",
+      "engineSpec": "Twin-turbo V8",
+      "talkingPoints": [
+        "Front-engine GTE formula pushed BMW to extreme aero solutions",
+        "Twin-turbo V8 delivers accessible power across Le Mans and IMSA",
+        "Represented BMW in GTE-Pro during the 2019-2021 golden era"
+      ],
+      "drivingCharacter": [
+        "front-engine turbo balance",
+        "aero-dependent handling",
+        "competitive race-winning character"
+      ],
+      "nickname": "The Aero Warrior",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/bmw-m8-gte/random?w=1280"
+      ]
+    },
+    "ferrari 488 gte": {
+      "displayName": "Ferrari 488 GTE",
+      "manufacturer": "Ferrari",
+      "class": "GTE",
+      "engineLayout": "mid-engine",
+      "engineSpec": "3.9L twin-turbo V8",
+      "talkingPoints": [
+        "GTE version of the legendary 488 GT3",
+        "Sharing the same 3.9L twin-turbo V8",
+        "Proved versatile across road-course and street-circuit racing",
+        "Carried Ferrari's turbo-era technology through GTE-Pro's final years"
+      ],
+      "drivingCharacter": [
+        "proven mid-engine V8 character",
+        "race-proven reliability",
+        "legendary Ferrari balance"
+      ],
+      "nickname": "The GTE Evolution",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/ferrari-488-gte/random?w=1280"
+      ]
+    },
+    "porsche 911 rsr": {
+      "displayName": "Porsche 911 RSR",
+      "manufacturer": "Porsche",
+      "class": "GTE",
+      "engineLayout": "mid-engine",
+      "engineSpec": "4.2L naturally aspirated flat-six",
+      "talkingPoints": [
+        "The RSR moved the engine ahead of the rear axle",
+        "Mid-mounting a 911 for the first time in competition",
+        "4.2L naturally aspirated flat-six screams at 9,100+ rpm",
+        "No turbo assistance — pure mechanical response",
+        "Mid-mounting solved the rear-weight bias",
+        "A genuine competitor to purpose-built mid-engine rivals"
+      ],
+      "drivingCharacter": [
+        "unconventional 911 mid-engine balance",
+        "screaming naturally aspirated flat-six",
+        "boundary-pushing engineering"
+      ],
+      "nickname": "The Boundary Pusher",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/porsche-911-rsr/random?w=1280"
+      ]
+    },
+    "ford gt gte": {
+      "displayName": "Ford GT GTE",
+      "manufacturer": "Ford",
+      "class": "GTE",
+      "engineLayout": "mid-engine",
+      "engineSpec": "3.5L twin-turbo EcoBoost V6",
+      "talkingPoints": [
+        "Won Le Mans GTE-Pro in 2016 on the 50th anniversary",
+        "Ford's 1966 GT40 victory mirrored half a century later",
+        "3.5L twin-turbo EcoBoost V6 — efficiency in endurance racing",
+        "Symmetry spanning five decades of Ford at La Sarthe"
+      ],
+      "drivingCharacter": [
+        "efficient turbo-EcoBoost character",
+        "mid-engine American engineering",
+        "legacy-honoring performance"
+      ],
+      "nickname": "The Poetic Justice",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/ford-gt-gte/random?w=1280"
+      ]
+    },
+    "chevrolet corvette c8.r": {
+      "displayName": "Chevrolet Corvette C8.R",
+      "manufacturer": "Chevrolet",
+      "class": "GTE",
+      "engineLayout": "mid-engine",
+      "engineSpec": "5.5L flat-plane crank V8",
+      "talkingPoints": [
+        "First mid-engine Corvette in history",
+        "Breaking 70 years of front-engine tradition",
+        "5.5L flat-plane crank V8 screams with American NA purity",
+        "No turbos needed — just displacement and engineering",
+        "Corvette's evolution from front-engine dominance to mid-engine innovation"
+      ],
+      "drivingCharacter": [
+        "revolutionary mid-engine Corvette dynamics",
+        "raw American V8 scream",
+        "breaking with tradition"
+      ],
+      "nickname": "The American Revolution",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/chevrolet-corvette-c8r/random?w=1280"
+      ]
+    },
+    "porsche 919 lmp1": {
+      "displayName": "Porsche 919 LMP1",
+      "manufacturer": "Porsche",
+      "class": "LMP1",
+      "engineLayout": "mid-engine",
+      "engineSpec": "2.0L turbocharged V4 hybrid",
+      "talkingPoints": [
+        "Won Le Mans three consecutive years — 2015, 2016, 2017",
+        "Porsche's return to LMP1 dominance was absolute",
+        "2.0L turbocharged V4 hybrid — pinnacle of downsized racing",
+        "Set the all-time Nürburgring Nordschleife lap record",
+        "Still standing as proof of engineering brilliance"
+      ],
+      "drivingCharacter": [
+        "ultra-precise hybrid energy management",
+        "explosive turbo acceleration",
+        "championship-proven consistency"
+      ],
+      "nickname": "The Dynasty Builder",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/porsche-919-lmp1/random?w=1280"
+      ]
+    },
+    "audi r18 lmp1": {
+      "displayName": "Audi R18 LMP1",
+      "manufacturer": "Audi",
+      "class": "LMP1",
+      "engineLayout": "mid-engine",
+      "engineSpec": "4.0L TDI V6 diesel hybrid",
+      "talkingPoints": [
+        "Audi dominated Le Mans with diesel when others ran petrol",
+        "Technical audacity defined the entire program",
+        "4.0L TDI V6 diesel hybrid proved diesel could win at the highest level",
+        "Multiple Le Mans victories from pursuing a different path"
+      ],
+      "drivingCharacter": [
+        "innovative diesel-hybrid philosophy",
+        "torque-rich power delivery",
+        "technical courage proven by results"
+      ],
+      "nickname": "The Diesel Pioneer",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/audi-r8-lms-gt3/random?w=1280"
+      ]
+    },
+    "dallara p217 lmp2": {
+      "displayName": "Dallara P217 LMP2",
+      "manufacturer": "Dallara",
+      "class": "LMP2",
+      "engineLayout": "mid-engine",
+      "engineSpec": "Gibson GK428 4.2L naturally aspirated V8, ~600hp",
+      "nickname": "The Gibson Warhorse",
+      "designer": "Gian Paolo Dallara (founder) / Bill Gibson (engine, ex-Zytek Engineering)",
+      "talkingPoints": [
+        "Gibson GK428 is the exclusive one-make engine for all LMP2",
+        "Spec supply removes engineering variance — pure driver skill and strategy",
+        "Gibson engine costs around $1,400/hour to run",
+        "Rated for 50-hour durability cycles — built for privateers",
+        "LMP2 produces substantially more downforce than GT3",
+        "Full carbon underbody and diffusers — corner speeds in a different league",
+        "P217 competed against ORECA 07 dominance",
+        "Proved Dallara's prototype engineering credibility",
+        "Racing Team Nederland ran Rubens Barrichello and Jan Lammers",
+        "Ex-F1 and Le Mans winners in a privateer effort",
+        "P217 architecture became the foundation for LMDh",
+        "Cadillac V-Series.R and BMW M Hybrid V8 evolved from this platform",
+        "LMP2 annual budget runs around €8-12M",
+        "Cost-capped formula enabling 40+ car grid diversity"
+      ],
+      "drivingCharacter": [
+        "extreme downforce demands severe trail-braking — pilots dive deeper into corners than any GT car",
+        "ground effect monster — small ride-height changes produce massive grip variations, sensitivity to bumps is unforgiving",
+        "600 naturally aspirated horses with no turbo kick — rewards smooth throttle application and weight transfer management",
+        "prototype precision in the braking zones — full aero grip only available in steady-state, mid-corner transitions demand finesse"
+      ],
+      "notableDrivers": [
+        "Rubens Barrichello (ex-Ferrari/Brawn F1, 2017 Le Mans debut in the P217)",
+        "Jan Lammers (1988 Le Mans winner, Racing Team Nederland founder, campaigned P217 at age 56)",
+        "Giedo van der Garde (ex-F1 Caterham, 2016 ELMS champion, RTN P217 driver)",
+        "Frits van Eerd (RTN co-founder and driver, consistent LMP2 podium threat)"
+      ],
+      "images": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/2019_4_Hours_of_Silverstone_%2848664669456%29.jpg/1280px-2019_4_Hours_of_Silverstone_%2848664669456%29.jpg"
+      ]
+    },
+    "mercedes-amg f1 w12": {
+      "displayName": "Mercedes-AMG F1 W12",
+      "manufacturer": "Mercedes-AMG",
+      "class": "Formula 1",
+      "engineLayout": "mid-engine",
+      "engineSpec": "1.6L turbocharged V6 hybrid",
+      "talkingPoints": [
+        "Dominated F1 during the eight-championship Mercedes era",
+        "2014 to 2020 — unprecedented sustained dominance",
+        "1.6L turbocharged V6 hybrid — efficiency matching speed",
+        "W12 was nearly unbeatable through that season"
+      ],
+      "drivingCharacter": [
+        "championship-proven dominance",
+        "efficient turbo-hybrid power",
+        "technological supremacy"
+      ],
+      "nickname": "The Era Definer",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/mercedes-amg-w13/random?w=1280"
+      ]
+    },
+    "dallara ir18 indycar": {
+      "displayName": "Dallara IR18 IndyCar",
+      "manufacturer": "Dallara",
+      "class": "IndyCar",
+      "engineLayout": "mid-engine",
+      "engineSpec": "2.2L twin-turbo V6 (Honda or Chevy)",
+      "talkingPoints": [
+        "Universal spec chassis used by all IndyCar teams",
+        "Engineering parity enforces competitive equality",
+        "2.2L twin-turbo V6 produces 700+ hp",
+        "Decades of open-wheel experience translated to American racing"
+      ],
+      "drivingCharacter": [
+        "spec-racing equality",
+        "high-power accessibility",
+        "proven open-wheel formula"
+      ],
+      "nickname": "The American Spec",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/dallara-ir-18/random?w=1280"
+      ]
+    },
+    "dallara f3": {
+      "displayName": "Dallara F3",
+      "manufacturer": "Dallara",
+      "class": "Formula 3",
+      "engineLayout": "mid-engine",
+      "engineSpec": "3.4L naturally aspirated V6",
+      "talkingPoints": [
+        "Spec Formula 3 platform used globally",
+        "Eliminating engineering variance — pure driver development",
+        "3.4L naturally aspirated V6 emphasizes mechanical grip",
+        "Pathway formula for young drivers stepping toward higher categories"
+      ],
+      "drivingCharacter": [
+        "pure driver-development platform",
+        "mechanical grip rewards",
+        "equal competitive opportunity"
+      ],
+      "nickname": "The Development Spec",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/dallara-f3/random?w=1280"
+      ]
+    },
+    "nextgen chevrolet camaro": {
+      "displayName": "Next Gen Chevrolet Camaro ZL1",
+      "manufacturer": "Chevrolet",
+      "class": "NASCAR",
+      "engineLayout": "front-engine",
+      "engineSpec": "5.8L V8",
+      "talkingPoints": [
+        "First NASCAR generation with sequential manual gearbox",
+        "Ending the automatic transmission era",
+        "Independent rear suspension — revolutionary departure from solid-axle tradition",
+        "Composite body panels reduce weight and damage impact"
+      ],
+      "drivingCharacter": [
+        "manual gearbox precision",
+        "independent rear suspension agility",
+        "new-generation technology"
+      ],
+      "nickname": "The Modern Chevy",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/nascar-cup-chevrolet-camaro-zl1/random?w=1280"
+      ]
+    },
+    "nextgen ford mustang": {
+      "displayName": "Next Gen Ford Mustang",
+      "manufacturer": "Ford",
+      "class": "NASCAR",
+      "engineLayout": "front-engine",
+      "engineSpec": "5.8L V8",
+      "talkingPoints": [
+        "First sequential-gearbox NASCAR Mustang",
+        "Breaking tradition with modern technology",
+        "Independent rear suspension — handling never seen in classic solid-axle Mustangs",
+        "Iconic nameplate in the Next Gen era"
+      ],
+      "drivingCharacter": [
+        "iconic Mustang in modern form",
+        "sequential manual control",
+        "independent suspension capability"
+      ],
+      "nickname": "The Modern Pony Car",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/nascar-cup-ford-mustang/random?w=1280"
+      ]
+    },
+    "nextgen toyota camry": {
+      "displayName": "Next Gen Toyota Camry",
+      "manufacturer": "Toyota",
+      "class": "NASCAR",
+      "engineLayout": "front-engine",
+      "engineSpec": "5.8L V8",
+      "talkingPoints": [
+        "Toyota's NASCAR representation in the Next Gen era",
+        "Japanese engineering discipline in American oval racing",
+        "Sequential manual gearbox puts Toyota on equal footing",
+        "Same technological leap as all Next Gen competitors"
+      ],
+      "drivingCharacter": [
+        "Japanese engineering philosophy",
+        "modern sequential control",
+        "equal-technology competition"
+      ],
+      "nickname": "The Japanese Competitor",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/nascar-cup-toyota-camry/random?w=1280"
+      ]
+    },
+    "porsche 911 cup": {
+      "displayName": "Porsche 911 Cup (992)",
+      "manufacturer": "Porsche",
+      "class": "Porsche Cup",
+      "engineLayout": "rear-engine",
+      "engineSpec": "4.0L naturally aspirated flat-six",
+      "talkingPoints": [
+        "One-make spec racing — all cars identically prepared",
+        "Separating driver skill from engineering budgets",
+        "4.0L naturally aspirated flat-six screams to 9,100 rpm",
+        "510 hp from a platform committed to purity in privateer racing"
+      ],
+      "drivingCharacter": [
+        "pure spec-racing equality",
+        "naturally aspirated flat-six character",
+        "driver-skill determiner"
+      ],
+      "nickname": "The Spec Purist",
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/porsche-911-cup-992-2/random?w=1280"
+      ]
+    },
+    "mazda mx-5 cup": {
+      "displayName": "Global Mazda MX-5 Cup (ND)",
+      "manufacturer": "Mazda",
+      "class": "MX-5 Cup",
+      "engineLayout": "front-engine",
+      "engineSpec": "2.0L SKYACTIV-G naturally aspirated inline-4, 181hp",
+      "nickname": "The Great Equalizer",
+      "designer": "Mazda Motorsports (sealed spec platform)",
+      "talkingPoints": [
+        "Sealed spec series — engine, ECU, transmission all identical",
+        "Guaranteeing pure driver competition",
+        "Grassroots career launchpad with $1.2M+ in annual prizes",
+        "$250K to the season champion through the Mazda Shootout",
+        "Under 2,000 lbs with only 181hp",
+        "Extreme power deficit forces momentum preservation and smooth inputs",
+        "Famous 50:50 weight distribution",
+        "Controllable lift-off oversteer — rotation on demand",
+        "SCCA Spec Miata lineage — 25+ years of equal-competition racing",
+        "The most popular club racing class in America",
+        "Most popular Rookie series in iRacing",
+        "The universal car that millions have learned to race in",
+        "Around $100K for the car and $7K per weekend",
+        "Most accessible path into IMSA competition"
+      ],
+      "drivingCharacter": [
+        "rewards trail-braking and momentum conservation — smooth, progressive inputs unlock speed",
+        "punishes lazy corner entry and throttle abuse — lift-off oversteer waits for mistakes",
+        "rotation on demand with throttle modulation — responsive, willing mid-corner pivot from 50:50 balance",
+        "driver skill differentiator — lightweight and low-power amplify technique, no power to mask mistakes"
+      ],
+      "notableDrivers": [
+        "Countless iRacing alumni — nearly every professional sim racer started here",
+        "MX-5 Cup champions regularly graduate to IMSA and SCCA professional series",
+        "The Mazda Road to 24 scholarship programme has launched dozens of professional careers"
+      ],
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/global-mazda-mx-5-cup/random?w=1280"
+      ]
+    },
+    "honda civic type r": {
+      "displayName": "Honda Civic Type R TCR (FK8)",
+      "manufacturer": "Honda",
+      "class": "TCR",
+      "engineLayout": "front-engine",
+      "engineSpec": "2.0L turbocharged VTEC inline-4, 350hp",
+      "nickname": "The Red Storm",
+      "designer": "Hideki Kakinuma (Honda R&D Chief Engineer) / JAS Motorsport (TCR conversion, Italy)",
+      "talkingPoints": [
+        "534 race wins and 113 championships across global TCR series",
+        "The most successful touring car platform in the modern era",
+        "JAS Motorsport partnership since 2015",
+        "Italian specialists engineering the TCR conversion",
+        "350hp through front wheels only",
+        "FWD demands patience — a masterclass in throttle discipline",
+        "Type R badge traces to the 1992 NSX Type R",
+        "'R' for Racing — red H badge inspired by Honda's 1965 Mexican GP win",
+        "FK8 set the Nürburgring FWD production car record at 7:43.8",
+        "Race-car DNA proven in the road platform",
+        "Only car to win in every WTCR season from 2015 to 2022",
+        "Eight consecutive years of world-class victories",
+        "Soichiro Honda's ethos: 'Racing improves the breed'",
+        "The TCR car is a direct descendant of Honda's F1 culture"
+      ],
+      "drivingCharacter": [
+        "FWD demands patience — smooth throttle application separates clean drivers from throttle-happy ones",
+        "trail-brake into the apex, wait for mid-corner stability before feeding power — classical FWD technique rewards precision",
+        "traction master on corner exit — front tyres plant all 350 horses when the geometry straightens",
+        "the front end will push if you're impatient — understeer is the penalty for premature acceleration"
+      ],
+      "notableDrivers": [
+        "Esteban Guerrieri (10 WTCR wins — most in series history, Macau Guia Circuit winner 2018)",
+        "Néstor Girolami (11 wins across WTCR/TCR International, 2022 WTCR runner-up)",
+        "Tiago Monteiro (11+ WTCR seasons with Honda, Nürburgring 24H TCR class winner)",
+        "Attila Tassi (2021 WTCR maiden victory at Estoril, 2017 TCR International runner-up)"
+      ]
+    },
+    "fia f4": {
+      "displayName": "FIA Formula 4 (Tatuus F4-T421)",
+      "manufacturer": "Tatuus",
+      "class": "FIA Formula 4",
+      "engineLayout": "mid-engine",
+      "engineSpec": "Abarth 1.4L turbocharged inline-4, 160-180hp",
+      "nickname": "The Talent Forge",
+      "designer": "Artico Sandonà (Tatuus founder) / Giovanni Delfino (CEO)",
+      "talkingPoints": [
+        "FIA's globally unified entry-level single-seater",
+        "Created in 2013 as the first rung of the F4-to-F1 ladder",
+        "19 of 20 current F1 drivers raced in Tatuus-built cars",
+        "This is where champions are forged",
+        "Spec chassis removes engineering variables",
+        "570 kg with 160hp means car control determines results",
+        "Annual budget target of €100K",
+        "The most affordable professional single-seater series",
+        "Gen2 Tatuus F4-T421 integrates a titanium halo",
+        "Rated for 250 kN impact force — latest FIA safety at grassroots level",
+        "Global championships span Italy, Germany, Britain, Japan, and more",
+        "Italian F4 is the most prestigious and competitive",
+        "Formula König legacy — Tatuus built Schumacher's 1988 car",
+        "His first single-seater championship in a Tatuus chassis"
+      ],
+      "drivingCharacter": [
+        "rear-end loose and throttle-sensitive — low downforce teaches oversteer management from the very first lap",
+        "aero-dependent and precision-rewarding — small wing angle changes dramatically shift the balance",
+        "low-grip training ground — 240 km/h top speed with modest power forces smooth hands and racecraft over machinery",
+        "spec-car meritocracy — identical chassis means every tenth gained is pure driver improvement"
+      ],
+      "notableDrivers": [
+        "Lance Stroll (Italian F4 Champion 2014, Prema Racing — now Aston Martin F1)",
+        "Lando Norris (British F4 Champion 2015, Carlin — now McLaren F1)",
+        "George Russell (BRDC F4 Champion 2014 — now Mercedes F1)",
+        "Oscar Piastri (FIA F4 UAE podiums 2019 — now McLaren F1)",
+        "Andrea Kimi Antonelli (Italian & German F4 Champion 2024 — Mercedes F1 junior)"
+      ],
+      "images": [
+        "https://images.racing-desk.io/api/v1/cars/fia-f4/random?w=1280"
+      ]
+    }
+  },
+  "manufacturers": {
+    "ferrari": {
+      "displayName": "Ferrari",
+      "talkingPoints": [
+        "Enzo Ferrari founded Scuderia Ferrari in 1929",
+        "The Prancing Horse has been racing longer than most manufacturers have existed",
+        "Most successful F1 constructor in history — 16 Constructors' Championships",
+        "Drivers including Schumacher, Lauda, and Leclerc's modern era",
+        "The 499P won Le Mans overall in 2023",
+        "Ferrari's first Hypercar victory — 50 years after their last outright Le Mans triumph",
+        "Mauro Forghieri designed the legendary flat-12 engines",
+        "Ground-effect cars that defined Ferrari's 1970s-80s F1 dominance"
+      ],
+      "racingPhilosophy": "Pure speed through mechanical perfection and driver bravery",
+      "countryCode": "IT",
+      "founder": "Enzo Ferrari (1939)"
+    },
+    "porsche": {
+      "displayName": "Porsche",
+      "talkingPoints": [
+        "19 overall Le Mans 24H victories — more than any other manufacturer",
+        "From the 917's first win in 1970 to the 919 Hybrid's hat-trick",
+        "Ferdinand Porsche designed the original Volkswagen Beetle",
+        "His son Ferry created the first 356 — founding a rear-engine dynasty",
+        "Norbert Singer engineered the 956/962 Group C programme",
+        "The most successful endurance racing cars ever built",
+        "The 911 has been racing continuously since 1965",
+        "No other sports car has a longer unbroken competition history"
+      ],
+      "racingPhilosophy": "Relentless innovation balanced with unwavering engineering discipline",
+      "countryCode": "DE",
+      "founder": "Ferdinand Porsche (1931) / Ferry Porsche (sports cars, 1948)"
+    },
+    "bmw": {
+      "displayName": "BMW",
+      "talkingPoints": [
+        "Jochen Neerpasch founded BMW Motorsport in 1972",
+        "Creating the M division and the legendary 3.0 CSL 'Batmobile'",
+        "Gordon Murray's Brabham BT52 with BMW's 1.5L turbo-4",
+        "Won the 1983 F1 championship with Nelson Piquet",
+        "Paul Rosche engineered the S14 for the original M3",
+        "The E30 M3 became the most successful touring car of all time",
+        "Le Mans class winner across multiple eras",
+        "From the M1 Procar to the M8 GTE and now the M Hybrid V8"
+      ],
+      "racingPhilosophy": "Engineering as art; technology serves the driver's vision",
+      "countryCode": "DE",
+      "founder": "Bayerische Motoren Werke (1916) / BMW Motorsport by Jochen Neerpasch (1972)"
+    },
+    "mercedes-amg": {
+      "displayName": "Mercedes-AMG",
+      "talkingPoints": [
+        "AMG founded by Aufrecht and Melcher in a former mill in Burgstall",
+        "The initials A-M-G: their names plus Aufrecht's birthplace Großaspach",
+        "Silver Arrows legacy dates to 1934",
+        "The W25 was stripped of white paint to meet weight limits — revealing bare silver",
+        "Lewis Hamilton's seven World Championships with Mercedes",
+        "The most dominant era in modern F1 history",
+        "AMG GT3 customer racing spans 30+ teams globally",
+        "One of the largest GT3 customer operations in the world"
+      ],
+      "racingPhilosophy": "Precision engineering meeting luxury; performance without compromise",
+      "countryCode": "DE",
+      "founder": "Hans Werner Aufrecht & Erhard Melcher (AMG, 1967) / Karl Benz & Gottlieb Daimler (Mercedes, 1886)"
+    },
+    "mclaren": {
+      "displayName": "McLaren",
+      "talkingPoints": [
+        "Founded by Bruce McLaren — a fearless New Zealand driver-engineer",
+        "Won Le Mans, Can-Am, and F1 — killed at Goodwood in 1970, aged 32",
+        "Carbon-fibre chassis pioneered in 1981 with the MP4/1",
+        "John Barnard's revolution now defines modern racing car construction",
+        "Won the 1988 F1 championship with Senna and Prost",
+        "The MP4/4 won 15 of 16 races — the most dominant F1 season",
+        "Ron Dennis transformed McLaren from small team to technology empire",
+        "Obsessive attention to detail became the company's signature"
+      ],
+      "racingPhilosophy": "Fearless innovation — Bruce McLaren's belief that lightweight engineering is the answer to every problem, carried forward through six decades",
+      "countryCode": "GB",
+      "founder": "Bruce McLaren (1963)"
+    },
+    "lamborghini": {
+      "displayName": "Lamborghini",
+      "talkingPoints": [
+        "Ferruccio Lamborghini founded the company after a dispute with Enzo Ferrari",
+        "A tractor magnate's grudge turned into a supercar empire",
+        "Huracán GT3 EVO2 is Squadra Corse's most successful racing car",
+        "Multiple GT World Challenge and Super Trofeo championships",
+        "Maurizio Reggiani led Lamborghini's motorsport return",
+        "From zero racing presence to a factory GT3 programme in under a decade",
+        "The Super Trofeo is the fastest one-make series in the world",
+        "A dedicated feeder championship for GT3 and professional endurance"
+      ],
+      "racingPhilosophy": "Unbridled passion channeled through engineering; emotion as design driver",
+      "countryCode": "IT",
+      "founder": "Ferruccio Lamborghini (1963)"
+    },
+    "audi": {
+      "displayName": "Audi",
+      "talkingPoints": [
+        "Ferdinand Piëch drove Audi from rally stages to Le Mans",
+        "The R8 and R10 TDI won 13 Le Mans victories between 2000-2014",
+        "The original quattro revolutionized rallying in 1981",
+        "Michèle Mouton became the first woman to win a WRC round",
+        "Dr. Wolfgang Ullrich led Audi Sport for over two decades",
+        "Masterminding the transition from IMSA GTO to DTM to Le Mans",
+        "Tom Kristensen won nine Le Mans 24H races, six with Audi",
+        "Earning the title 'Mr. Le Mans' in the R8 and R18 programmes"
+      ],
+      "racingPhilosophy": "Technological innovation as competitive advantage; efficiency engineered to excellence",
+      "countryCode": "DE",
+      "founder": "August Horch (1909) / Ferdinand Piëch (modern motorsport era)"
+    },
+    "chevrolet": {
+      "displayName": "Chevrolet",
+      "talkingPoints": [
+        "Louis Chevrolet was a Swiss-born racing driver who co-founded the company",
+        "His racing pedigree is literally in the brand's DNA",
+        "The Corvette has been racing since 1956",
+        "From Sebring to Le Mans to IMSA — America's longest-running production racing",
+        "Doug Fehan managed Corvette Racing for 24 years",
+        "Eight Le Mans class victories — most successful American team at Le Mans",
+        "The C8.R moved the engine behind the driver for the first time",
+        "A historic mid-engine revolution after 67 years of front-engine tradition"
+      ],
+      "racingPhilosophy": "American muscle channeled through precision engineering; displacement solving complexity",
+      "countryCode": "US",
+      "founder": "Louis Chevrolet & William C. Durant (1911)"
+    },
+    "ford": {
+      "displayName": "Ford",
+      "talkingPoints": [
+        "Henry Ford II's vendetta against Enzo Ferrari produced the GT40",
+        "Four consecutive Le Mans wins after Ferrari rejected Ford's buyout",
+        "Carroll Shelby turned Ford's ambition into reality",
+        "The 1966 1-2-3 finish is the most famous result in endurance racing",
+        "The Ford GT returned to Le Mans in 2016",
+        "Won GTE Pro on the 50th anniversary of the original victory",
+        "The Mustang GT3 marks Ford's return to global GT racing",
+        "The most iconic American muscle car nameplate on international circuits"
+      ],
+      "racingPhilosophy": "American determination driven by pride; competition as conquest",
+      "countryCode": "US",
+      "founder": "Henry Ford (1903)"
+    },
+    "cadillac": {
+      "displayName": "Cadillac",
+      "talkingPoints": [
+        "Cadillac V-Series.R GTP — Dallara chassis with a 5.5L DOHC V8",
+        "American luxury meets Italian racing engineering",
+        "Chip Ganassi and Action Express dominated IMSA prototype racing",
+        "The DPi programme delivered from 2017-2023",
+        "Wayne Taylor Racing won the Daytona 24H in 2017",
+        "Jeff Gordon, Jordan Taylor, Angelelli, and Ricky Taylor in a fairytale finish",
+        "V-Series badge connects road car performance",
+        "To the highest level of endurance competition"
+      ],
+      "racingPhilosophy": "American luxury marque proving credibility through relentless performance and reliability",
+      "countryCode": "US",
+      "founder": "Henry Leland (1902, named after Antoine de la Mothe Cadillac)"
+    },
+    "acura": {
+      "displayName": "Acura",
+      "talkingPoints": [
+        "Acura extends Honda's racing DNA into luxury categories",
+        "Soichiro Honda's 'racing improves the breed' at the top class",
+        "ARX-06 won the 2023 Daytona 24H with Wayne Taylor Racing",
+        "Ricky Taylor, Albuquerque, and Hartley delivered Acura's greatest IMSA result",
+        "HPD in Santa Clarita engineers all Acura racing programmes",
+        "Bridging Japanese precision with American racing culture",
+        "The NSX GT3 brought mid-engine philosophy to GT racing",
+        "Ayrton Senna helped develop the original road car's chassis dynamics"
+      ],
+      "racingPhilosophy": "Japanese precision applied to global competition; innovation uncompromised by tradition",
+      "countryCode": "JP",
+      "founder": "Honda luxury division (1986) / Soichiro Honda (parent company)"
+    },
+    "toyota": {
+      "displayName": "Toyota",
+      "talkingPoints": [
+        "Toyota's Le Mans heartbreak became triumph",
+        "The TS050 Hybrid finally won in 2018 with Alonso, Buemi, and Nakajima",
+        "Akio Toyoda races the Nürburgring 24H under the pseudonym 'Morizo'",
+        "The boss who races his own cars",
+        "Gazoo Racing was born from Akio Toyoda's grassroots passion",
+        "Now the factory brand behind Le Mans Hypercars and WRC",
+        "The Toyota 2000GT from 1967 proved Japan could build world-class sports cars",
+        "Designed by Albrecht von Goertz in collaboration with Yamaha"
+      ],
+      "racingPhilosophy": "Relentless efficiency; winning through engineering discipline and long-term commitment",
+      "countryCode": "JP",
+      "founder": "Kiichiro Toyoda (1937)"
+    },
+    "dallara": {
+      "displayName": "Dallara",
+      "talkingPoints": [
+        "Gian Paolo Dallara co-designed the Lamborghini Miura in 1966",
+        "The world's first mid-engine supercar — before founding his own company",
+        "Spec-chassis empire: sole supplier for IndyCar, F2, F3, and Super Formula",
+        "The competitive equalizer across global motorsport",
+        "Designed every Haas F1 Team chassis since their 2016 debut",
+        "The longest-standing F1 chassis partnership of its kind",
+        "Career path: Ferrari, Maserati, Lamborghini, De Tomaso, Frank Williams",
+        "Before founding his own legacy in Parma"
+      ],
+      "racingPhilosophy": "Engineering equality as the path to pure motorsport — Gian Paolo Dallara's conviction that specification racing creates the best competition",
+      "countryCode": "IT",
+      "founder": "Gian Paolo Dallara (1972)"
+    },
+    "aston martin": {
+      "displayName": "Aston Martin",
+      "talkingPoints": [
+        "Founded by Lionel Martin and Robert Bamford in a London workshop in 1913",
+        "'Aston' from the Aston Clinton hillclimb where Martin competed",
+        "The DBR1 won Le Mans in 1959 with Carroll Shelby and Roy Salvadori",
+        "Aston Martin's only overall victory — achieved on their first serious attempt",
+        "David Brown acquired the company in 1947",
+        "The 'DB' prefix honours his name and commitment to racing",
+        "Vantage GT3 programme represents Aston Martin's strongest-ever commitment",
+        "Factory-backed customer GT racing at the highest level"
+      ],
+      "racingPhilosophy": "British elegance meeting technological innovation; craftsmanship at racing speeds",
+      "countryCode": "GB",
+      "founder": "Lionel Martin & Robert Bamford (1913)"
+    },
+    "honda": {
+      "displayName": "Honda",
+      "talkingPoints": [
+        "Soichiro Honda declared 'one day we will win world championships'",
+        "Two years later Honda swept the Isle of Man TT",
+        "Senna-McLaren-Honda dynasty: 30 wins, 3 titles in 80 races",
+        "The MP4/4 won 15 of 16 — Honda turbine reliability under maximum demand",
+        "Honda pioneered rotating engineers through motorsport programmes",
+        "F1 and MotoGP skills directly inform production Type R development",
+        "From motorcycle dominance to the Civic Type R TCR's 534 wins",
+        "'Racing improves the breed' governs Honda vehicle development to this day"
+      ],
+      "racingPhilosophy": "Racing is Honda's DNA, not a marketing department — Soichiro Honda's belief that the track is a rolling laboratory for production innovation",
+      "countryCode": "JP",
+      "founder": "Soichiro Honda (1948)"
+    },
+    "mazda": {
+      "displayName": "Mazda",
+      "countryCode": "JP",
+      "founder": "Jujiro Matsuda (1920)",
+      "racingPhilosophy": "Grassroots-first, driver-focused — Jinba Ittai (unity of horse and rider) applied to every car from MX-5 Cup to Le Mans",
+      "talkingPoints": [
+        "1991 Le Mans 24H winner with the 787B",
+        "The only rotary-engined car to ever win — the legendary R26B four-rotor",
+        "Jinba Ittai philosophy — 'unity between horse and rider'",
+        "Engineers study cognitive psychology to make the car an extension of the driver",
+        "9,000+ racing customers and $8M+ in annual parts support",
+        "From $100 autocross contingency to $250K championship prizes",
+        "Soichiro Matsuda founded the company in 1920",
+        "The rotary obsession began under Tsuneji Matsuda in the 1960s"
+      ]
+    },
+    "tatuus": {
+      "displayName": "Tatuus Racing",
+      "countryCode": "IT",
+      "founder": "Artico Sandonà (1980)",
+      "racingPhilosophy": "Spec racing as meritocracy — identical cars for all competitors, so talent alone determines the result",
+      "talkingPoints": [
+        "19 of 20 current F1 drivers raced Tatuus cars on their way up",
+        "The de facto gatekeeper of the junior single-seater ladder",
+        "Formula König legacy — the 1988 season won by young Michael Schumacher",
+        "In a Tatuus chassis no less",
+        "Vertical integration since 2017",
+        "Acquired ATM-Autotecnica Motori to bring engine supply in-house",
+        "Founded by Artico Sandonà in Concorezzo, Italy in 1980",
+        "From a small fabrication shop to the dominant junior chassis supplier"
+      ]
+    }
+  }
+}

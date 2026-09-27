@@ -15,35 +15,35 @@ All project documentation on GitHub. Links go to the `main` branch.
 
 ## Dashboard Overlay (Electron HUD)
 
-- [README](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-overlay/README.md) — overlay overview and Electron architecture
-- [Dashboard MCP Reference](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-overlay/docs/DASHBOARD_MCP.md) — CSS/JS module structure and module loading
-- [Modularization Summary](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-overlay/docs/MODULARIZATION_SUMMARY.md) — how the monolithic dashboard was refactored into modules
-- [CrewChief TTS Research](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-overlay/docs/crewchief-tts-research.md) — research on voice systems and text-to-speech commentary
+- [README](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-overlay/README.md) — overlay overview and Electron architecture
+- [Dashboard MCP Reference](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-overlay/docs/DASHBOARD_MCP.md) — CSS/JS module structure and module loading
+- [Modularization Summary](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-overlay/docs/MODULARIZATION_SUMMARY.md) — how the monolithic dashboard was refactored into modules
+- [CrewChief TTS Research](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-overlay/docs/crewchief-tts-research.md) — research on voice systems and text-to-speech commentary
 
 ---
 
 ## SimHub Plugin (.NET)
 
-- [Plugin Architecture](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-plugin/simhub-plugin/docs/SIMHUB_PLUGIN.md) — .NET Framework 4.8 WPF plugin structure
-- [Commentary Engine](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-plugin/simhub-plugin/docs/COMMENTARY_ENGINE.md) — trigger evaluation, prompt assembly, color resolution pipeline
-- [Datasets](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-plugin/simhub-plugin/docs/DATASETS.md) — data files powering commentary (topics, fragments, sentiments)
-- [Development Guide](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-plugin/simhub-plugin/docs/DEVELOPMENT.md) — building from source and contributor workflow
-- [Testing](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-plugin/simhub-plugin/docs/TESTING.md) — test suite: C# unit tests, Python validation, Homebridge tests
-- [Screenshot Testing Spec](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-plugin/simhub-plugin/docs/SCREENSHOT_TESTING_SPEC.md) — automated visual regression testing
-- [Plugin Feedback](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-plugin/simhub-plugin/docs/PLUGIN_FEEDBACK.md) — behavior observations and improvement notes
-- [SimHub SDK References](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-plugin/simhub-plugin/lib/simhub-refs/README.md) — committed SDK DLLs for compilation
-- [Test Project](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racecor-plugin/simhub-plugin/tests/RaceCorProDrive.Tests/README.md) — NUnit test project for triggers, fragments, and datasets
+- [Plugin Architecture](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-plugin/simhub-plugin/docs/SIMHUB_PLUGIN.md) — .NET Framework 4.8 WPF plugin structure
+- [Commentary Engine](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-plugin/simhub-plugin/docs/COMMENTARY_ENGINE.md) — trigger evaluation, prompt assembly, color resolution pipeline
+- [Datasets](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-plugin/simhub-plugin/docs/DATASETS.md) — data files powering commentary (topics, fragments, sentiments)
+- [Development Guide](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-plugin/simhub-plugin/docs/DEVELOPMENT.md) — building from source and contributor workflow
+- [Testing](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-plugin/simhub-plugin/docs/TESTING.md) — test suite: C# unit tests, Python validation, Homebridge tests
+- [Screenshot Testing Spec](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-plugin/simhub-plugin/docs/SCREENSHOT_TESTING_SPEC.md) — automated visual regression testing
+- [Plugin Feedback](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-plugin/simhub-plugin/docs/PLUGIN_FEEDBACK.md) — behavior observations and improvement notes
+- [SimHub SDK References](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-plugin/simhub-plugin/lib/simhub-refs/README.md) — committed SDK DLLs for compilation
+- [Test Project](https://github.com/alternatekev/media-coach-simhub-plugin/blob/main/racing-desk-plugin/simhub-plugin/tests/RacingDesk.Tests/README.md) — NUnit test project for triggers, fragments, and datasets
 
 ---
 
 ## Homebridge Plugin (HomeKit Lighting)
 
-The Homebridge plugin lives in its own repo: **[k10-motorsports/prodrive-homebridge](https://github.com/k10-motorsports/prodrive-homebridge)**.
+The Homebridge plugin lives in its own repo: **[k10-motorsports/prodrive-homebridge](https://github.com/DOOOOM/prodrive-homebridge)**.
 
-- [README](https://github.com/k10-motorsports/prodrive-homebridge/blob/main/README.md) — telemetry-to-HomeKit smart light mapping
-- [Implementation Summary](https://github.com/k10-motorsports/prodrive-homebridge/blob/main/docs/HOMEBRIDGE_IMPLEMENTATION.md) — platform plugin architecture and TypeScript structure
-- [Plugin Architecture](https://github.com/k10-motorsports/prodrive-homebridge/blob/main/docs/HOMEBRIDGE_PLUGIN.md) — detailed architecture with source file layout
-- [HomeKit Setup Guide](https://github.com/k10-motorsports/prodrive-homebridge/blob/main/docs/HOMEKIT.md) — connecting HomeKit lights with prerequisites and setup
+- [README](https://github.com/DOOOOM/prodrive-homebridge/blob/main/README.md) — telemetry-to-HomeKit smart light mapping
+- [Implementation Summary](https://github.com/DOOOOM/prodrive-homebridge/blob/main/docs/HOMEBRIDGE_IMPLEMENTATION.md) — platform plugin architecture and TypeScript structure
+- [Plugin Architecture](https://github.com/DOOOOM/prodrive-homebridge/blob/main/docs/HOMEBRIDGE_PLUGIN.md) — detailed architecture with source file layout
+- [HomeKit Setup Guide](https://github.com/DOOOOM/prodrive-homebridge/blob/main/docs/HOMEKIT.md) — connecting HomeKit lights with prerequisites and setup
 
 ---
 

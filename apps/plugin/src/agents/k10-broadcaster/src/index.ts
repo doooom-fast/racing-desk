@@ -11,7 +11,7 @@ import { readdir, readFile } from 'fs/promises';
 
 // Resolve the K10 broadcaster root path
 const K10_ROOT = process.env.K10_BROADCASTER_ROOT ||
-  path.resolve(__dirname, '../../../..', 'racecor-overlay');
+  path.resolve(__dirname, '../../../..', 'racing-desk-overlay');
 
 interface ComponentInfo {
   name: string;

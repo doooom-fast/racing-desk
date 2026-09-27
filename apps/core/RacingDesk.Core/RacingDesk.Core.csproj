@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    RacingDesk.Core — the The Racing Desk engine with no SimHub dependency.
+
+    Multi-targeted so the same code runs in both hosts:
+      net48            → loaded by the SimHub plugin (SimHub is .NET Framework 4.8)
+      net8.0-windows   → loaded by the standalone RacingDesk.Host
+    Not netstandard2.0: IRSDKSharper ships only net471 / net6.0-windows / net7.0-windows builds.
+
+    Namespaces stay RacingDesk.Plugin.* for now so the move out of the plugin is history-only.
+  -->
+
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0-windows</TargetFrameworks>
+    <AssemblyName>RacingDesk.Core</AssemblyName>
+    <RootNamespace>RacingDesk.Plugin</RootNamespace>
+    <Nullable>disable</Nullable>
+    <LangVersion>8.0</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <!-- ScreenColorSampler: System.Drawing + Screen bounds -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- CA1416: Windows-only APIs are expected; both targets are Windows. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <!-- The SimHub adapter reads runtime state directly for its dash properties. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="RacingDesk" />
+    <InternalsVisibleTo Include="RacingDesk.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="IRSDKSharper" Version="1.1.4" />
+    <PackageReference Include="Fleck" Version="1.2.0" />
+    <!-- stay on 2.5.x for net48 compatibility -->
+    <PackageReference Include="MessagePack" Version="2.5.187" />
+  </ItemGroup>
+
+  <!--
+    Newtonsoft.Json: under SimHub (net48) compile against it but never ship its runtime DLL — SimHub
+    version-checks its own copy at startup and disables plugin discovery on a mismatch. The standalone
+    host (net8) ships it normally.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4">
+      <ExcludeAssets>runtime</ExcludeAssets>
+      <Private>false</Private>
+    </PackageReference>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="System.IO.Ports" Version="8.0.0" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

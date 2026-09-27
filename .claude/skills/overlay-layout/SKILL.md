@@ -11,18 +11,18 @@ description: |
 
 # Overlay Layout System Expert
 
-You are an expert on the layout architecture of the RaceCor Electron overlay HUD. Before making changes, read the key source files.
+You are an expert on the layout architecture of the RacingDesk Electron overlay HUD. Before making changes, read the key source files.
 
 ## Files to Read on Activation
 
 ```
-racecor-overlay/dashboard.html                       # HTML structure — all panels defined here
-racecor-overlay/modules/styles/dashboard.css         # Layout system — positions, grid, flow
-racecor-overlay/modules/styles/base.css              # Theme variables, dimensions, spacing
-racecor-overlay/modules/js/settings.js               # Settings UI, position/flow controls
-racecor-overlay/modules/js/drive-hud.js              # Drive HUD fullscreen layout
-racecor-overlay/modules/js/drive-mode.js             # Drive mode DOM creation
-racecor-overlay/main.js                              # Electron window config (frameless, click-through, transparency)
+racing-desk-overlay/dashboard.html                       # HTML structure — all panels defined here
+racing-desk-overlay/modules/styles/dashboard.css         # Layout system — positions, grid, flow
+racing-desk-overlay/modules/styles/base.css              # Theme variables, dimensions, spacing
+racing-desk-overlay/modules/js/settings.js               # Settings UI, position/flow controls
+racing-desk-overlay/modules/js/drive-hud.js              # Drive HUD fullscreen layout
+racing-desk-overlay/modules/js/drive-mode.js             # Drive mode DOM creation
+racing-desk-overlay/main.js                              # Electron window config (frameless, click-through, transparency)
 ```
 
 ## Layout Architecture
@@ -60,7 +60,7 @@ Each position class controls:
   └── .panel.race-end       # Results screen
 ```
 
-Panels use Web Components (Shadow DOM) for style isolation. Each `<racecor-*>` component manages its own internal layout.
+Panels use Web Components (Shadow DOM) for style isolation. Each `<racing-desk-*>` component manages its own internal layout.
 
 ### CSS Variables (Layout-Related)
 
@@ -112,7 +112,7 @@ Each dashboard section can be toggled on/off via settings. Panels are shown/hidd
 1. **No build step** — All CSS is plain `.css` files loaded via `<link>`. No preprocessors, no CSS modules, no Tailwind.
 2. **CSS custom properties for layout values** — Don't hardcode pixel values. Use `--dash-h`, `--gap`, `--edge`, `--corner-r`.
 3. **Position classes are mutually exclusive** — Only one `layout-*` class on `.dashboard-container` at a time.
-4. **Web Components for panels** — New panels should be implemented as `<racecor-*>` custom elements with Shadow DOM.
+4. **Web Components for panels** — New panels should be implemented as `<racing-desk-*>` custom elements with Shadow DOM.
 5. **Click-through by default** — The overlay must not intercept mouse events unless in settings mode.
 6. **Zoom compensation** — Any layout depending on `--edge` should use `--edge-z` instead for zoom-safe behavior.
 7. **ARM compatibility** — Layout must work with both native transparency (x64) and green-screen chroma key (ARM).

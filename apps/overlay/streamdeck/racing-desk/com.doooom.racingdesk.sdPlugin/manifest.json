@@ -1,0 +1,331 @@
+{
+	"Name": "RacingDesk Overlay",
+	"Version": "0.1.0.0",
+	"Author": "Kevin Conboy",
+	"Actions": [
+		{
+			"Name": "Open Settings",
+			"UUID": "com.doooom.racingdesk.toggle-settings",
+			"Icon": "imgs/actions/toggle-settings/icon",
+			"Tooltip": "Bring the The Racing Desk (Windows) settings page to the front",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-settings/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Show / Hide",
+			"UUID": "com.doooom.racingdesk.toggle-overlay",
+			"Icon": "imgs/actions/toggle-overlay/icon",
+			"Tooltip": "Show or hide the overlay",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-overlay/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Drive Mode",
+			"UUID": "com.doooom.racingdesk.toggle-drive-mode",
+			"Icon": "imgs/actions/toggle-drive-mode/icon",
+			"Tooltip": "Toggle fullscreen driving HUD",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-drive-mode/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Rating Editor",
+			"UUID": "com.doooom.racingdesk.toggle-rating-editor",
+			"Icon": "imgs/actions/toggle-rating-editor/icon",
+			"Tooltip": "Open/close iRating/SR editor",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-rating-editor/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Zoom In",
+			"UUID": "com.doooom.racingdesk.zoom-in",
+			"Icon": "imgs/actions/zoom-in/icon",
+			"Tooltip": "Zoom the overlay in",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/zoom-in/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Zoom Out",
+			"UUID": "com.doooom.racingdesk.zoom-out",
+			"Icon": "imgs/actions/zoom-out/icon",
+			"Tooltip": "Zoom the overlay out",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/zoom-out/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Reset Track Map",
+			"UUID": "com.doooom.racingdesk.reset-trackmap",
+			"Icon": "imgs/actions/reset-trackmap/icon",
+			"Tooltip": "Reset the track map position and zoom",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/reset-trackmap/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Restart Demo",
+			"UUID": "com.doooom.racingdesk.restart-demo",
+			"Icon": "imgs/actions/restart-demo/icon",
+			"Tooltip": "Restart the demo data sequence",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/restart-demo/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Cycle Rating / Pos",
+			"UUID": "com.doooom.racingdesk.cycle-rating",
+			"Icon": "imgs/actions/cycle-rating/icon",
+			"Tooltip": "Cycle between iRating, SR, and position pages",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/cycle-rating/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Cycle Car Logo",
+			"UUID": "com.doooom.racingdesk.cycle-car-logo",
+			"Icon": "imgs/actions/cycle-car-logo/icon",
+			"Tooltip": "Cycle through manufacturer logo display modes",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/cycle-car-logo/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Toggle Leaderboard",
+			"UUID": "com.doooom.racingdesk.toggle-leaderboard",
+			"Icon": "imgs/actions/toggle-leaderboard/icon",
+			"Tooltip": "Show/hide the leaderboard panel",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-leaderboard/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Toggle Recording",
+			"UUID": "com.doooom.racingdesk.toggle-recording",
+			"Icon": "imgs/actions/toggle-recording/icon",
+			"Tooltip": "Start/stop screen recording",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-recording/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Save Replay",
+			"UUID": "com.doooom.racingdesk.save-replay-buffer",
+			"Icon": "imgs/actions/save-replay-buffer/icon",
+			"Tooltip": "Save the replay buffer to disk",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/save-replay-buffer/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Pitbox Next Tab",
+			"UUID": "com.doooom.racingdesk.pitbox-next-tab",
+			"Icon": "imgs/actions/pitbox-next-tab/icon",
+			"Tooltip": "Cycle to the next pitbox tab",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/pitbox-next-tab/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Pitbox Prev Tab",
+			"UUID": "com.doooom.racingdesk.pitbox-prev-tab",
+			"Icon": "imgs/actions/pitbox-prev-tab/icon",
+			"Tooltip": "Cycle to the previous pitbox tab",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/pitbox-prev-tab/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Dismiss Commentary",
+			"UUID": "com.doooom.racingdesk.dismiss-commentary",
+			"Icon": "imgs/actions/dismiss-commentary/icon",
+			"Tooltip": "Dismiss the current commentary card",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/dismiss-commentary/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Broadcast Mode",
+			"UUID": "com.doooom.racingdesk.preset-broadcast",
+			"Icon": "imgs/actions/preset-broadcast/icon",
+			"Tooltip": "Apply broadcast production preset",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/preset-broadcast/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Practice Mode",
+			"UUID": "com.doooom.racingdesk.preset-practice",
+			"Icon": "imgs/actions/preset-practice/icon",
+			"Tooltip": "Apply practice session preset",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/preset-practice/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Qualifying Mode",
+			"UUID": "com.doooom.racingdesk.preset-qualifying",
+			"Icon": "imgs/actions/preset-qualifying/icon",
+			"Tooltip": "Apply qualifying session preset",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/preset-qualifying/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Quit Overlay",
+			"UUID": "com.doooom.racingdesk.quit",
+			"Icon": "imgs/actions/quit/icon",
+			"Tooltip": "Quit the RacingDesk overlay application",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/quit/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		}
+	],
+	"Category": "RacingDesk Overlay",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"CodePath": "bin/plugin.js",
+	"Description": "Key controls for The Racing Desk ProDrive",
+	"Icon": "imgs/plugin/marketplace",
+	"SDKVersion": 2,
+	"Software": {
+		"MinimumVersion": "6.5"
+	},
+	"OS": [
+		{
+			"Platform": "mac",
+			"MinimumVersion": "12"
+		},
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		}
+	],
+	"Nodejs": {
+		"Version": "20",
+		"Debug": "enabled"
+	},
+	"UUID": "com.doooom.racingdesk"
+}

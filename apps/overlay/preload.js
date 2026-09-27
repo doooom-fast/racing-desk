@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// K10 Motorsports — Preload Script
+// The Racing Desk — Preload Script
 // Exposes safe IPC bridge to the HTML dashboard
 // ═══════════════════════════════════════════════════════════════
 

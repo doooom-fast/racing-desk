@@ -1,7 +1,7 @@
 ---
 name: plugin-component-architecture
 description: |
-  Component architecture reference for the racecor-overlay dashboard — full component tree
+  Component architecture reference for the racing-desk-overlay dashboard — full component tree
   (Dashboard root through panels and modules), DOM class collision rules, scoped selector
   patterns, shared extraction patterns (TabularNums, PanelBase, FlashAnimation), and the data
   flow from SimHub HTTP polling to DOM updates. Use when refactoring overlay modules, planning
@@ -11,7 +11,7 @@ description: |
   React migration, component extraction.
 ---
 
-# K10 Motorsports — Component Architecture (React/TS Migration Reference)
+# The Racing Desk — Component Architecture (React/TS Migration Reference)
 
 ## Component Tree
 ```
@@ -78,7 +78,7 @@ the parent panel class to avoid writing data into the wrong module.
 - `DimOnMode`: opacity transition for pit/grid/RC dimming states
 
 ## State Management (Current)
-- `_settings` object: persisted via window.k10.saveSettings()
+- `_settings` object: persisted via window.racingDesk.saveSettings()
 - `_demo` flag: switches property prefix between live and Demo.*
 - `_pollFrame` counter: drives animation and cycling
 - Module-specific state: `_gridActive`, `_wasInPit`, `_rcVisible`, etc.

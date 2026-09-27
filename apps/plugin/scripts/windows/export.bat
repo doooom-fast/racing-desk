@@ -1,11 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
-title K10 Motorsports - Export Built Files to Repo
+title The Racing Desk - Export Built Files to Repo
 
 echo.
 echo  ============================================
-echo   K10 Motorsports - Export Built Files to Repo
+echo   The Racing Desk - Export Built Files to Repo
 echo  ============================================
 echo.
 echo  Copies the built DLL, PDB, and dashboard
@@ -56,7 +56,7 @@ echo.
 set "TOOLS_DIR=%~dp0"
 if "%TOOLS_DIR:~-1%"=="\" set "TOOLS_DIR=%TOOLS_DIR:~0,-1%"
 for %%I in ("%TOOLS_DIR%\..") do set "REPO_DIR=%%~fI"
-set "PLUGIN_DIR=%REPO_DIR%\racecor-plugin"
+set "PLUGIN_DIR=%REPO_DIR%\racing-desk-plugin"
 
 :: -------------------------------------------------------------------
 :: 3. Export DLL + PDB
@@ -64,24 +64,24 @@ set "PLUGIN_DIR=%REPO_DIR%\racecor-plugin"
 
 echo  [1/3] Exporting plugin binaries...
 
-if exist "%SIMHUB_DIR%\RaceCorProDrive.dll" (
-    copy /Y "%SIMHUB_DIR%\RaceCorProDrive.dll" "%PLUGIN_DIR%\RaceCorProDrive.dll" >NUL
+if exist "%SIMHUB_DIR%\RacingDesk.dll" (
+    copy /Y "%SIMHUB_DIR%\RacingDesk.dll" "%PLUGIN_DIR%\RacingDesk.dll" >NUL
     if !ERRORLEVEL! NEQ 0 (
         echo        FAILED - could not copy DLL. Is SimHub running?
         goto :error
     )
-    echo        OK - RaceCorProDrive.dll
+    echo        OK - RacingDesk.dll
 ) else (
-    echo        SKIPPED - RaceCorProDrive.dll not found in SimHub directory.
+    echo        SKIPPED - RacingDesk.dll not found in SimHub directory.
     echo        Build the plugin first (dotnet build).
     goto :error
 )
 
-if exist "%SIMHUB_DIR%\RaceCorProDrive.pdb" (
-    copy /Y "%SIMHUB_DIR%\RaceCorProDrive.pdb" "%PLUGIN_DIR%\RaceCorProDrive.pdb" >NUL
-    echo        OK - RaceCorProDrive.pdb
+if exist "%SIMHUB_DIR%\RacingDesk.pdb" (
+    copy /Y "%SIMHUB_DIR%\RacingDesk.pdb" "%PLUGIN_DIR%\RacingDesk.pdb" >NUL
+    echo        OK - RacingDesk.pdb
 ) else (
-    echo        SKIPPED - RaceCorProDrive.pdb not found (Release build?)
+    echo        SKIPPED - RacingDesk.pdb not found (Release build?)
 )
 
 :: -------------------------------------------------------------------
@@ -154,11 +154,11 @@ if exist "%DASH2_SRC%" (
     echo        OK - DashTemplates\k10 motorsports\
 
     :: Also update the Electron overlay's local copy
-    set "ELECTRON_DIR=%REPO_DIR%\racecor-overlay"
+    set "ELECTRON_DIR=%REPO_DIR%\racing-desk-overlay"
     if exist "!ELECTRON_DIR!" (
         if exist "%DASH2_SRC%\k10 motorsports.html" (
             copy /Y "%DASH2_SRC%\k10 motorsports.html" "!ELECTRON_DIR!\dashboard.html" >NUL
-            echo        OK - K10 Motorsports\dashboard.html (synced)
+            echo        OK - The Racing Desk\dashboard.html (synced)
         )
     )
 ) else (
@@ -175,20 +175,20 @@ echo   Export complete.
 echo  ============================================
 echo.
 echo  Exported files:
-echo    %PLUGIN_DIR%\RaceCorProDrive.dll
-if exist "%PLUGIN_DIR%\RaceCorProDrive.pdb" (
-    echo    %PLUGIN_DIR%\RaceCorProDrive.pdb
+echo    %PLUGIN_DIR%\RacingDesk.dll
+if exist "%PLUGIN_DIR%\RacingDesk.pdb" (
+    echo    %PLUGIN_DIR%\RacingDesk.pdb
 )
 echo    %PLUGIN_DIR%\DashTemplates\k10 motorsports\
 echo    %PLUGIN_DIR%\DashTemplates\k10 motorsports\
 echo.
 echo  NOTE: Dataset files are NOT exported from SimHub.
-echo  The racecorprodrive-data/ folder in the repo is the source of
+echo  The racingdesk-data/ folder in the repo is the source of
 echo  truth. Edit dataset files in the repo, then use
 echo  install.bat or rebuild.bat to push them to SimHub.
 echo.
 echo  Ready to commit. Run:
-echo    git add racecor-plugin/
+echo    git add racing-desk-plugin/
 echo    git commit -m "Update built plugin and dashboards"
 echo.
 pause

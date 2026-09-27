@@ -1,7 +1,7 @@
 # External Data Source Adoption Plan
 
 **Sources:** Lovely Sim Racing repos, TUMFTM racetrack-database, racing-data.org
-**Consumers:** RaceCor Overlay (Electron HUD) + Pro Drive Web App
+**Consumers:** RacingDesk Overlay (Electron HUD) + Pro Drive Web App
 
 ---
 
@@ -45,7 +45,7 @@
 
 ## What We Already Have (Gap Analysis)
 
-### Overlay (`racecor-overlay/data/`)
+### Overlay (`racing-desk-overlay/data/`)
 | Data | Current Source | Gap |
 |------|---------------|-----|
 | Track name, location, history | `tracks.json` (hand-curated, ~50 tracks) | No corner names, no pit positions, no track length in meters |
@@ -116,7 +116,7 @@ The overlay gets track data from the plugin HTTP API (SimHub properties) and the
 
 1. **Web API enrichment**: When `/api/tracks?trackName=X` is called, return the new corner/pit/length fields alongside existing SVG and sector data. The overlay's `track-map.js` can then render corner name labels on the minimap.
 
-2. **Plugin-side enrichment**: Bundle the lovely-track-data JSON for iRacing into the SimHub plugin's resources. The plugin can emit corner names as a new property (e.g., `RaceCorProDrive.CurrentCorner`) by cross-referencing the driver's track position percentage against the corner start/end ranges. This enables the commentary engine to reference corners by name.
+2. **Plugin-side enrichment**: Bundle the lovely-track-data JSON for iRacing into the SimHub plugin's resources. The plugin can emit corner names as a new property (e.g., `RacingDesk.CurrentCorner`) by cross-referencing the driver's track position percentage against the corner start/end ranges. This enables the commentary engine to reference corners by name.
 
 #### 1c. Corner name overlay feature
 

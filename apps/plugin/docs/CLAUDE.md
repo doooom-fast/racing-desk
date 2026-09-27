@@ -1,6 +1,6 @@
 # Documentation
 
-Architecture docs, design specs, and reference materials for the K10 Motorsports platform.
+Architecture docs, design specs, and reference materials for the The Racing Desk platform.
 
 ## Document Index
 

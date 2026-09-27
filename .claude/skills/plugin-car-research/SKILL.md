@@ -1,7 +1,7 @@
 ---
 name: plugin-car-research
 description: >
-  Research, document, and maintain car data for the RaceCor overlay.
+  Research, document, and maintain car data for the RacingDesk overlay.
   Use this skill whenever someone asks about car facts, manufacturer history,
   engine specs, driving characteristics, or commentary material for any racing
   car — especially iRacing cars. Also use when adding a new car to the system,
@@ -13,7 +13,7 @@ description: >
 
 # Car Research Skill
 
-This skill manages the authoritative car and manufacturer database for the RaceCor
+This skill manages the authoritative car and manufacturer database for the RacingDesk
 project. The database powers two things:
 
 1. **The commentary engine** — rich facts, driving character descriptions,
@@ -36,7 +36,7 @@ Car data comes from several places, in priority order:
 
 ## Database location
 
-`racecor-plugin/simhub-plugin/racecorprodrive-data/commentary_cars.json` — the master
+`racing-desk-plugin/simhub-plugin/racingdesk-data/commentary_cars.json` — the master
 reference file. Contains both `cars` (individual car entries) and
 `manufacturers` (brand-level commentary data).
 

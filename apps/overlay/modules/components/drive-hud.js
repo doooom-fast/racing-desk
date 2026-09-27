@@ -1,5 +1,5 @@
 /**
- * @element racecor-drive-hud
+ * @element racing-desk-drive-hud
  * @description Full-screen driving-focused display with track map, position, lap times, and incidents.
  *
  * Three-column layout:
@@ -112,7 +112,7 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const dsPre = 'RaceCorProDrive.Plugin.DS.';
+      const dsPre = 'RacingDesk.Plugin.DS.';
       const gameDataPre = 'DataCorePlugin.GameData.';
 
       this._position = +snapshot[gameDataPre + 'Position'] || 0;
@@ -121,19 +121,19 @@
       this._bestLap = +snapshot[gameDataPre + 'BestLapTime'] || 0;
       this._incidents = +(snapshot[dsPre + 'IncidentCount']) || 0;
 
-      const mapReady = +snapshot['RaceCorProDrive.Plugin.TrackMap.Ready'] || 0;
+      const mapReady = +snapshot['RacingDesk.Plugin.TrackMap.Ready'] || 0;
       if (mapReady) {
-        const svgPath = snapshot['RaceCorProDrive.Plugin.TrackMap.SvgPath'] || '';
+        const svgPath = snapshot['RacingDesk.Plugin.TrackMap.SvgPath'] || '';
         if (svgPath && svgPath !== this._trackMapSvg) {
           this._trackMapSvg = svgPath;
           this._updateTrackMap();
         }
 
-        const px = Math.max(0, Math.min(100, +snapshot['RaceCorProDrive.Plugin.TrackMap.PlayerX'] || 50));
-        const py = Math.max(0, Math.min(100, +snapshot['RaceCorProDrive.Plugin.TrackMap.PlayerY'] || 50));
+        const px = Math.max(0, Math.min(100, +snapshot['RacingDesk.Plugin.TrackMap.PlayerX'] || 50));
+        const py = Math.max(0, Math.min(100, +snapshot['RacingDesk.Plugin.TrackMap.PlayerY'] || 50));
         this._playerPos = { x: px, y: py };
 
-        const heading = +(snapshot['RaceCorProDrive.Plugin.TrackMap.PlayerHeading']) || 0;
+        const heading = +(snapshot['RacingDesk.Plugin.TrackMap.PlayerHeading']) || 0;
         this._heading = heading % 360;
       }
 
@@ -520,5 +520,5 @@
     }
   }
 
-  customElements.define('racecor-drive-hud', RaceCorDriveHud);
+  customElements.define('racing-desk-drive-hud', RaceCorDriveHud);
 })();

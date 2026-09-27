@@ -2,11 +2,11 @@
 
 ## What this repo is
 
-The **Pro Drive SimHub plugin** — C# .NET 4.8 plugin that runs inside [SimHub](https://www.simhubdash.com), reads iRacing SDK telemetry, and exposes it on `localhost:8889` for in-machine consumers (overlay, Pro Drive desktop app, Homebridge plugin).
+The **The Racing Desk SimHub plugin** — C# .NET 4.8 plugin that runs inside [SimHub](https://www.simhubdash.com), reads iRacing SDK telemetry, and exposes it on `localhost:8889` for in-machine consumers (overlay, The Racing Desk desktop app, Homebridge plugin).
 
 It's also a **cloud client** today — fetches track configuration from the server at track change, and pushes session data to the server at session end via Bearer auth.
 
-The plugin is **distributed separately** from the Pro Drive Windows installer; the installer bundles the overlay only, not this plugin.
+The plugin is **distributed separately** from the The Racing Desk Windows installer; the installer bundles the overlay only, not this plugin.
 
 ## Tech stack
 
@@ -22,7 +22,7 @@ The plugin is **distributed separately** from the Pro Drive Windows installer; t
 
 ### `localhost:8889` — the contract
 
-`GET http://localhost:8889/racecor-io-pro-drive/` returns a flat JSON object with 100+ properties:
+`GET http://localhost:8889/racing-desk/` returns a flat JSON object with 100+ properties:
 
 - `telemetry.*` — speed, RPM, gear, throttle / brake / clutch / steering, fuel, tyres
 - `lap.*` — current lap, lap time, sector deltas, optimal lap target
@@ -32,12 +32,12 @@ The plugin is **distributed separately** from the Pro Drive Windows installer; t
 - `commentary.*` — derived event commentary (incidents, position changes, fuel calls)
 - `strategy.*` — pit window, fuel projection, tyre wear projection
 
-WebSocket variant at `ws://localhost:8889/racecor-io-pro-drive/ws` for push-style consumption.
+WebSocket variant at `ws://localhost:8889/racing-desk/ws` for push-style consumption.
 
 Polled by:
 
 - [`prodrive-overlay`](../overlay/CLAUDE.md) at ~30 fps
-- [`prodrive-windows`](https://github.com/k10-motorsports/prodrive-windows) for Dashboard HUD-status indicator
+- [`prodrive-windows`](https://github.com/DOOOOM/prodrive-windows) for Dashboard HUD-status indicator
 - Any third-party tool
 
 (`prodrive-homebridge` polls SimHub directly on port **8888** — not this plugin's port.)
@@ -46,15 +46,15 @@ Polled by:
 
 ### 1. Track config — plugin → server
 
-At every track change, the plugin GETs `https://prodrive.racecor.io/api/tracks?trackName=...` to load custom sector boundaries. Cached in-memory until track changes again.
+At every track change, the plugin GETs `https://prodrive.racing-desk.io/api/tracks?trackName=...` to load custom sector boundaries. Cached in-memory until track changes again.
 
-Implementation: `racecor-plugin/.../Engine/TelemetrySnapshot.Capture.cs:~1007`.
+Implementation: `racing-desk-plugin/.../Engine/TelemetrySnapshot.Capture.cs:~1007`.
 
 ### 2. Session push — plugin → server
 
-After each session ends, the plugin packages captured telemetry and POSTs to `https://prodrive.racecor.io/api/iracing/import` with a Bearer token.
+After each session ends, the plugin packages captured telemetry and POSTs to `https://prodrive.racing-desk.io/api/iracing/import` with a Bearer token.
 
-Auth via `/api/plugin-auth/{authorize, token}` PKCE flow. Token stored in `%APPDATA%\RaceCor\plugin\auth.json`. Refreshes automatically.
+Auth via `/api/plugin-auth/{authorize, token}` PKCE flow. Token stored in `%APPDATA%\RacingDesk\plugin\auth.json`. Refreshes automatically.
 
 This is the only path that captures **per-frame telemetry traces** (the Chrome extension scrape only sees what iRacing exposes on the website).
 
@@ -66,7 +66,7 @@ This is **separate from the Chrome extension's scraping path** in `prodrive-serv
 
 ## Distribution
 
-GitHub release zip from [k10-motorsports/prodrive-plugin](https://github.com/k10-motorsports/prodrive-plugin) → user drops into `%PROGRAMFILES%\SimHub\PluginsData\Common\RaceCor\` → restart SimHub → enable in **Additional plugins**.
+GitHub release zip from [k10-motorsports/prodrive-plugin](https://github.com/DOOOOM/prodrive-plugin) → user drops into `%PROGRAMFILES%\SimHub\PluginsData\Common\RacingDesk\` → restart SimHub → enable in **Additional plugins**.
 
 CI: `simhub-ci.yml` runs C# NUnit (~147 tests), Python dataset validation (28), Python installer tests (34).
 
@@ -86,5 +86,5 @@ All agent-spawned work MUST use `isolation: "worktree"`. Exceptions: read-only e
 
 - Cross-repo orchestration: [`../../docs/archive/monorepo-orchestration.md`](../../docs/archive/monorepo-orchestration.md)
 - Overlay (consumer): [`../overlay/CLAUDE.md`](../overlay/CLAUDE.md)
-- Server (cloud target): [`prodrive-server`](https://github.com/k10-motorsports/prodrive-server)
+- Server (cloud target): [`prodrive-server`](https://github.com/DOOOOM/prodrive-server)
 - Telemetry sidecar schema: [`../../docs/telemetry-sidecar-schema.md`](../../docs/telemetry-sidecar-schema.md)

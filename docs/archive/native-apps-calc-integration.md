@@ -1,6 +1,6 @@
 # Native apps — calc API integration
 
-> **Audience:** the chat / agent picking up the iOS / macOS / tvOS / Windows native apps and wiring them up to the post-Phase-9 server. Sibling to [`native-apps-api-contract.md`](native-apps-api-contract.md) (per-screen REST) and the Phase 9 spec at [`prodrive-server/docs/native-app-integration.md`](https://github.com/k10-motorsports/prodrive-server/blob/main/docs/native-app-integration.md) (calc engines).
+> **Audience:** the chat / agent picking up the iOS / macOS / tvOS / Windows native apps and wiring them up to the post-Phase-9 server. Sibling to [`native-apps-api-contract.md`](native-apps-api-contract.md) (per-screen REST) and the Phase 9 spec at [`prodrive-server/docs/native-app-integration.md`](https://github.com/DOOOOM/prodrive-server/blob/main/docs/native-app-integration.md) (calc engines).
 >
 > **Repos in scope:** `prodrive-ios` (SwiftUI + RN), `prodrive-macos` (SwiftUI), `prodrive-tvos` (SwiftUI), `prodrive-windows` (WinUI 3 / .NET 8).
 >
@@ -12,14 +12,14 @@ After Phase 9 (PRs #10–#17 in `prodrive-server`), every dashboard analytic —
 
 This doc defines how the four native apps should fetch data so that what they show is **byte-identical** to what the web dashboard shows. It supersedes any pre-Phase-9 assumptions about per-app calc reimplementation.
 
-> **Note on the SimHub plugin:** the plugin is a *data producer* (telemetry → port 8889 → consumers), not a calc consumer. The overlay (today) and the native apps (target) hold the user's Bearer token and call `/api/v1/calc/*` directly. The plugin's [`Calc/CalcClient.cs`](https://github.com/k10-motorsports/prodrive-plugin/blob/main/racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/Calc/CalcClient.cs) (merged in PR #186) is dormant scaffolding — keep, but no current consumer. If a future plugin feature wants derived analytics, the right path is to ask the consumer (overlay/native app) over the existing port-8889 channel, not to mint a parallel auth path in the plugin.
+> **Note on the SimHub plugin:** the plugin is a *data producer* (telemetry → port 8889 → consumers), not a calc consumer. The overlay (today) and the native apps (target) hold the user's Bearer token and call `/api/v1/calc/*` directly. The plugin's [`Calc/CalcClient.cs`](https://github.com/DOOOOM/prodrive-plugin/blob/main/racing-desk-plugin/simhub-plugin/plugin/RacingDesk.Plugin/Calc/CalcClient.cs) (merged in PR #186) is dormant scaffolding — keep, but no current consumer. If a future plugin feature wants derived analytics, the right path is to ask the consumer (overlay/native app) over the existing port-8889 channel, not to mint a parallel auth path in the plugin.
 
 ## Two API surfaces — when to use which
 
 | Surface | Base URL | Auth | Method | When to use |
 |---|---|---|---|---|
-| **Per-screen REST** (the screen contract) | `https://prodrive.racecor.io/api/v1/*` | Bearer required | GET | Default. One call per screen. Server aggregates the user's data + runs calc internally + returns a finalized, screen-shaped blob. Cache 60s. |
-| **Calc engines** (the Phase 9 API) | `https://api.prodrive.racecor.io/api/v1/calc/*` | None today; Bearer planned (Phase 9b) | POST | What-if flows where the client wants to feed in a synthetic or scoped subset (e.g. "score only the last 10 sessions", "what's my DNA if I exclude practice sessions"). Also: any client that already has session data in memory and doesn't want to round-trip. |
+| **Per-screen REST** (the screen contract) | `https://prodrive.racing-desk.io/api/v1/*` | Bearer required | GET | Default. One call per screen. Server aggregates the user's data + runs calc internally + returns a finalized, screen-shaped blob. Cache 60s. |
+| **Calc engines** (the Phase 9 API) | `https://api.prodrive.racing-desk.io/api/v1/calc/*` | None today; Bearer planned (Phase 9b) | POST | What-if flows where the client wants to feed in a synthetic or scoped subset (e.g. "score only the last 10 sessions", "what's my DNA if I exclude practice sessions"). Also: any client that already has session data in memory and doesn't want to round-trip. |
 
 **Native-app default: per-screen REST.** The four native apps are user-scoped surfaces showing the user's own data on app launch. They don't want to ship 500KB of session JSON to a calc POST endpoint just to render a DNA panel. The per-screen endpoints already do that aggregation server-side.
 
@@ -39,7 +39,7 @@ The server-side query functions internally call the calc engines, so the per-scr
 
 ## Calc POST endpoints — the eight
 
-All eight are documented in [`prodrive-server/docs/native-app-integration.md`](https://github.com/k10-motorsports/prodrive-server/blob/main/docs/native-app-integration.md). Quick reference:
+All eight are documented in [`prodrive-server/docs/native-app-integration.md`](https://github.com/DOOOOM/prodrive-server/blob/main/docs/native-app-integration.md). Quick reference:
 
 | Endpoint | Body | Response highlight | Native cadence |
 |---|---|---|---|
@@ -70,7 +70,7 @@ All eight are documented in [`prodrive-server/docs/native-app-integration.md`](h
 The token store layouts already exist:
 
 - iOS / macOS / tvOS: `Sources/Auth/TokenStore.swift` (Keychain-backed)
-- Windows: `src/RaceCorProDrive/Auth/` (Credential Manager)
+- Windows: `src/RacingDesk/Auth/` (Credential Manager)
 - iOS RN: `expo-secure-store`
 
 ## How the SimHub plugin fits (it doesn't, directly)
@@ -81,7 +81,7 @@ The plugin **never** calls `/api/v1/calc/*` directly. It has no user identity, n
 
 If a future plugin feature actually needs a derived value (e.g. CommentaryEngine wants to mention "you're consistent with this car" mid-race), the plugin should request that value from the consumer over the existing port-8889 channel — the consumer already has the token and the cached calc result. Don't reach for HTTP-to-web-api from inside the plugin.
 
-This is why the plugin's [`Calc/CalcClient.cs`](https://github.com/k10-motorsports/prodrive-plugin/blob/main/racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/Calc/CalcClient.cs) (PR #186) is dormant. It's not wrong; it's just unused. Revert it if it bitrots; otherwise leave it alone.
+This is why the plugin's [`Calc/CalcClient.cs`](https://github.com/DOOOOM/prodrive-plugin/blob/main/racing-desk-plugin/simhub-plugin/plugin/RacingDesk.Plugin/Calc/CalcClient.cs) (PR #186) is dormant. It's not wrong; it's just unused. Revert it if it bitrots; otherwise leave it alone.
 
 ## Recommended client shape per platform
 
@@ -91,9 +91,9 @@ Each app already has an `APIClient` (or equivalent) targeting the per-screen sur
 
 ```
 Sources/API/
-├── APIClient.swift              // existing — per-screen GETs against prodrive.racecor.io
+├── APIClient.swift              // existing — per-screen GETs against prodrive.racing-desk.io
 ├── APIClient+Moments.swift      // existing — domain-grouped extensions
-├── CalcClient.swift             // NEW — POSTs against api.prodrive.racecor.io
+├── CalcClient.swift             // NEW — POSTs against api.prodrive.racing-desk.io
 ├── CalcModels.swift             // NEW — Codable DTOs for the 8 endpoints
 └── Models.swift                 // existing — shared DTOs
 ```
@@ -105,7 +105,7 @@ public actor CalcClient {
     private let tokenStore: TokenStore   // shared with APIClient
 
     public init(
-        baseURL: URL = URL(string: "https://api.prodrive.racecor.io")!,
+        baseURL: URL = URL(string: "https://api.prodrive.racing-desk.io")!,
         session: URLSession = .shared,
         tokenStore: TokenStore
     ) {
@@ -127,13 +127,13 @@ Reuse the JSON encoder/decoder pair already configured in `APIClient` (ISO-8601 
 ### C# / .NET 8 (Windows WinUI 3)
 
 ```
-src/RaceCorProDrive/Api/
+src/RacingDesk/Api/
 ├── ApiClient.cs                 // existing — per-screen GETs
 ├── CalcClient.cs                // NEW — POSTs
 └── CalcModels.cs                // NEW — DTOs
 ```
 
-The Windows app is .NET 8 (not net48 like the SimHub plugin), so `System.Net.Http.Json` and `System.Text.Json` are available — prefer those over Newtonsoft. Pattern matches the plugin's `RaceCorProDrive.Plugin.Calc.CalcClient` but with `JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = WhenWritingNull }`.
+The Windows app is .NET 8 (not net48 like the SimHub plugin), so `System.Net.Http.Json` and `System.Text.Json` are available — prefer those over Newtonsoft. Pattern matches the plugin's `RacingDesk.Plugin.Calc.CalcClient` but with `JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = WhenWritingNull }`.
 
 Long-lived `HttpClient` (one per app via DI), `Timeout = TimeSpan.FromSeconds(10)`. Bearer header from the same Credential Manager token the per-screen client uses.
 
@@ -178,7 +178,7 @@ If anything matches, delete the implementation and replace call sites with the a
 
 ## Verifying parity
 
-Same fixtures the web app uses: [`apps/web/__fixtures__/real/`](https://github.com/k10-motorsports/prodrive-server/tree/main/apps/web/__fixtures__/real). The "best parity check before shipping" workflow:
+Same fixtures the web app uses: [`apps/web/__fixtures__/real/`](https://github.com/DOOOOM/prodrive-server/tree/main/apps/web/__fixtures__/real). The "best parity check before shipping" workflow:
 
 1. Pick one calc endpoint per app at a time (start with DNA — smallest payload).
 2. Sign in to the native app as the admin user (whose 108 sessions are in the fixture set).
@@ -196,7 +196,7 @@ For each of `prodrive-ios`, `prodrive-macos`, `prodrive-tvos`, `prodrive-windows
 - [ ] Configurable base URLs for both surfaces via env var or settings file (dev/staging/prod can differ).
 - [ ] No local code reimplements any of the 8 calc engines.
 - [ ] Race-Now polls on hour boundaries, not on a fixed 5-minute interval.
-- [ ] Driver DNA, Mastery, Moments, Scatter, When-Engine, Race-Now, Race Summary, NRI panels render strings and numbers byte-identical to `prodrive.racecor.io` for the same user.
+- [ ] Driver DNA, Mastery, Moments, Scatter, When-Engine, Race-Now, Race Summary, NRI panels render strings and numbers byte-identical to `prodrive.racing-desk.io` for the same user.
 - [ ] Offline: every screen reads from cache without a network round-trip.
 - [ ] Parity dump CLI / debug menu item exists.
 

@@ -1,4 +1,4 @@
-# RaceCor Dashboard Modularization
+# The Racing Desk Modularization
 
 ## Overview
 
@@ -182,7 +182,7 @@ All original functionality is preserved:
 ## File System Layout
 
 ```
-RaceCor/
+RacingDesk/
 ├── dashboard.html                    (435 lines, thin assembly)
 ├── modules/
 │   ├── styles/                       (95 KB, 8 files)

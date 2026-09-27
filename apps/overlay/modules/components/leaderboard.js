@@ -1,5 +1,5 @@
 /**
- * @element racecor-leaderboard
+ * @element racing-desk-leaderboard
  * @description Full leaderboard table with Canvas sparkline history and color-coded gaps.
  *
  * Displays driver rankings with position, name, gap, iRating, and lap time.
@@ -75,7 +75,7 @@
       if (!snapshot) return;
 
       // Parse leaderboard from plugin (raw JSON array)
-      let raw = snapshot['RaceCorProDrive.Plugin.Leaderboard'];
+      let raw = snapshot['RacingDesk.Plugin.Leaderboard'];
       if (typeof raw === 'string') {
         try { raw = JSON.parse(raw); } catch(e) { raw = null; }
       }
@@ -423,5 +423,5 @@
     }
   }
 
-  customElements.define('racecor-leaderboard', RaceCorLeaderboard);
+  customElements.define('racing-desk-leaderboard', RaceCorLeaderboard);
 })();

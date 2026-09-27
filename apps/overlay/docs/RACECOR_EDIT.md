@@ -1,14 +1,14 @@
-# racecor-edit — AI Race Editing Pipeline
+# racing-desk-edit — AI Race Editing Pipeline
 
 **Status:** Implemented  
-**Location:** `racecor-edit/` (monorepo root)  
+**Location:** `racing-desk-edit/` (monorepo root)  
 **Date:** April 15, 2026
 
 ---
 
 ## Overview
 
-Standalone Node.js ESM command-line tool that replaces the manual video editing workflow. Takes raw recordings from the RaceCor overlay — cockpit video, TV-view video, and `.telemetry.jsonl` sidecar — and produces broadcast-quality race edits, condensed highlights, and social media clips.
+Standalone Node.js ESM command-line tool that replaces the manual video editing workflow. Takes raw recordings from the RacingDesk overlay — cockpit video, TV-view video, and `.telemetry.jsonl` sidecar — and produces broadcast-quality race edits, condensed highlights, and social media clips.
 
 Requires Node ≥ 20 and FFmpeg on PATH. Claude integration is optional.
 
@@ -19,7 +19,7 @@ See also: [premiere-replacement-plan.md](premiere-replacement-plan.md) (original
 ## Installation
 
 ```bash
-cd racecor-edit
+cd racing-desk-edit
 npm install
 ```
 
@@ -30,7 +30,7 @@ The Anthropic SDK (`@anthropic-ai/sdk`) is in `optionalDependencies` — it inst
 ## Commands
 
 ```
-racecor-edit <command> <session-dir> [options]
+racing-desk-edit <command> <session-dir> [options]
 ```
 
 | Command | Description |
@@ -58,18 +58,18 @@ racecor-edit <command> <session-dir> [options]
 
 ```bash
 # Full pipeline
-racecor-edit ingest ./race-2026-04-15/
-racecor-edit analyze ./race-2026-04-15/
-racecor-edit render ./race-2026-04-15/ -o final.mp4
+racing-desk-edit ingest ./race-2026-04-15/
+racing-desk-edit analyze ./race-2026-04-15/
+racing-desk-edit render ./race-2026-04-15/ -o final.mp4
 
 # Quick preview
-racecor-edit preview ./race-2026-04-15/
+racing-desk-edit preview ./race-2026-04-15/
 
 # 5-minute condensed highlight with social vertical
-racecor-edit condense ./race-2026-04-15/ --target 5:00 --social
+racing-desk-edit condense ./race-2026-04-15/ --target 5:00 --social
 
 # Social clips only
-racecor-edit clips ./race-2026-04-15/ --social
+racing-desk-edit clips ./race-2026-04-15/ --social
 ```
 
 ---
@@ -228,7 +228,7 @@ The final line is a summary with all event markers collected during the recordin
 
 | Module | Purpose |
 |--------|---------|
-| `bin/racecor-edit.js` | CLI entry point, command routing, arg parsing |
+| `bin/racing-desk-edit.js` | CLI entry point, command routing, arg parsing |
 | `src/ingest/parse-telemetry.js` | JSONL parsing, video classification, `session.json` generation |
 | `src/ingest/detect-events.js` | Frame-by-frame event detection |
 | `src/analyze/scoring-engine.js` | TV Score + Interest Score with configurable weights |

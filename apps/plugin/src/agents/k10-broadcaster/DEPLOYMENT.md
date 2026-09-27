@@ -1,8 +1,8 @@
-# RaceCorProDrive MCP - Deployment Guide
+# RacingDesk MCP - Deployment Guide
 
 ## Overview
 
-This MCP server provides structured access to the RaceCorProDrive dashboard overlay source code. It replaces the need to manually read from dashboard.html or parse raw files.
+This MCP server provides structured access to the RacingDesk dashboard overlay source code. It replaces the need to manually read from dashboard.html or parse raw files.
 
 ## Files Created
 
@@ -45,7 +45,7 @@ mcp/k10-broadcaster/
 
 ## Architecture
 
-The MCP reads from the RaceCorProDrive source at:
+The MCP reads from the RacingDesk source at:
 
 ```
 k10-motorsports/src/src/
@@ -222,4 +222,4 @@ Expected: JSON response with all 12 tools listed.
 - ✅ File reads return correct content
 - ✅ Search functionality operational
 
-This MCP is production-ready and replaces manual file reading for RaceCor Broadcaster source exploration.
+This MCP is production-ready and replaces manual file reading for RacingDesk Broadcaster source exploration.

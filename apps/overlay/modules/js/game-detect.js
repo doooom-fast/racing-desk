@@ -67,7 +67,7 @@
     const el = document.getElementById('connStatus');
     if (!el) return;
     el.className = 'conn-status ' + state;
-    const titles = { connected: 'Connected to plugin server', disconnected: 'Cannot reach plugin server — is the K10 Motorsports plugin loaded in SimHub?', connecting: 'Connecting to plugin server...' };
+    const titles = { connected: 'Connected to plugin server', disconnected: 'Cannot reach plugin server — is the The Racing Desk plugin loaded in SimHub?', connecting: 'Connecting to plugin server...' };
     el.title = titles[state] || '';
 
     // Settings-embedded warning banner
@@ -102,7 +102,7 @@
         if (banner) {
           banner.classList.add('visible');
           _connBannerShown = true;
-          if (window.k10?.requestInteractive) window.k10.requestInteractive();
+          if (window.racingDesk?.requestInteractive) window.racingDesk.requestInteractive();
         }
       }
     }
@@ -118,7 +118,7 @@
     if (!host) return;
     // Strip protocol/path if user pasted a full URL
     host = host.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:.*$/, '');
-    const newUrl = `http://${host}:8889/racecor-io-pro-drive/`;
+    const newUrl = `http://${host}:8889/racing-desk/`;
     window._simhubUrlOverride = newUrl;
     _settings.simhubUrl = newUrl;
     // saveSettings() is defined in connections.js which loads after game-detect.js
@@ -144,15 +144,15 @@
     // Hide banner and release Electron focus
     const banner = document.getElementById('connBanner');
     if (banner) banner.classList.remove('visible');
-    if (window.k10?.releaseInteractive) window.k10.releaseInteractive();
-    console.log('[K10 Motorsports] SimHub URL changed to ' + newUrl);
+    if (window.racingDesk?.releaseInteractive) window.racingDesk.releaseInteractive();
+    console.log('[The Racing Desk] SimHub URL changed to ' + newUrl);
   }
 
   function dismissConnBanner() {
     _connBannerDismissed = true;
     const banner = document.getElementById('connBanner');
     if (banner) banner.classList.remove('visible');
-    if (window.k10?.releaseInteractive) window.k10.releaseInteractive();
+    if (window.racingDesk?.releaseInteractive) window.racingDesk.releaseInteractive();
   }
 
   // Expose for onclick handlers
@@ -190,7 +190,7 @@
     _connFails++;
     _backoffUntil = Date.now() + Math.min(1000 * Math.pow(2, _connFails - 1), 10000);
     _updateConnStatus('disconnected');
-    if (_connFails <= 3) console.warn(`[K10 Motorsports] Plugin server unreachable at ${window._simhubUrlOverride || SIMHUB_URL} — fail #${_connFails}`);
+    if (_connFails <= 3) console.warn(`[The Racing Desk] Plugin server unreachable at ${window._simhubUrlOverride || SIMHUB_URL} — fail #${_connFails}`);
     return null;
   }
 

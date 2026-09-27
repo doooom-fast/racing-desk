@@ -9,13 +9,13 @@ Cross-project scripts for building, installing, launching, and maintaining the p
 | `parse-shtl.js` | Node.js | Parses SimHub template language (SHTL) files. |
 | `stamp-version.sh` | Bash | Stamps version numbers across the monorepo (installer `.iss`, package.json files, etc.). |
 
-> **Moved to closed repo:** `build-web-demo.mjs` and `generate-screenshots.py` served the web app and marketing site, which now live in [`alternatekev/racecor-prodrive-server`](https://github.com/alternatekev/racecor-prodrive-server).
+> **Moved to closed repo:** `build-web-demo.mjs` and `generate-screenshots.py` served the web app and marketing site, which now live in [`alternatekev/racing-desk-prodrive-server`](https://github.com/alternatekev/racing-desk-prodrive-server).
 
 ## Platform Launchers (macOS)
 
 | Script | Purpose |
 |--------|---------|
-| `mac/RaceCor.command` | Double-click launcher for the overlay |
+| `mac/RacingDesk.command` | Double-click launcher for the overlay |
 | `mac/install.command` | Dependency installer |
 | `mac/launch.sh` | Shell launch script |
 
@@ -29,5 +29,5 @@ Cross-project scripts for building, installing, launching, and maintaining the p
 
 ## Relationship to Other Projects
 
-- `stamp-version.sh` updates version strings in `installer/racecor-prodrive.iss` and other files
-- macOS launchers start the `racecor-overlay/` Electron app
+- `stamp-version.sh` updates version strings in `installer/racing-desk-prodrive.iss` and other files
+- macOS launchers start the `racing-desk-overlay/` Electron app

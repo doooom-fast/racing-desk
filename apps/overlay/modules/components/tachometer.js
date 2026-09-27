@@ -1,5 +1,5 @@
 /**
- * @element racecor-tachometer
+ * @element racing-desk-tachometer
  * @description RPM gauge with segmented color bar, gear display, and speed readout.
  *
  * Shows RPM as a horizontal bar filled left-to-right with color zones:
@@ -80,7 +80,7 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const dsPre = 'RaceCorProDrive.Plugin.DS.';
+      const dsPre = 'RacingDesk.Plugin.DS.';
       const gameDataPre = 'DataCorePlugin.GameData.';
 
       // RPM ratio: server-computed preferred, fallback to client math
@@ -456,5 +456,5 @@
     }
   }
 
-  customElements.define('racecor-tachometer', RaceCorTachometer);
+  customElements.define('racing-desk-tachometer', RaceCorTachometer);
 })();

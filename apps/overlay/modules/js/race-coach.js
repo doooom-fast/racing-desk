@@ -67,7 +67,7 @@
       '',
       '## Context',
       'You are analyzing a sim racing session (iRacing, Assetto Corsa Competizione, or similar).',
-      'The driver uses a broadcast overlay called RaceCor by K10 Motorsports.',
+      'The driver uses a broadcast overlay called RacingDesk by The Racing Desk.',
       'Your analysis will be displayed directly in the post-race results screen,',
       'so format it for on-screen reading — short paragraphs, no markdown headers.',
       '',
@@ -119,8 +119,8 @@
   // ═══════════════════════════════════════════════════════════════
 
   function _packageRaceData(raceData, commentaryLog, p, isDemo) {
-    var pre = isDemo ? 'RaceCorProDrive.Plugin.Demo.' : '';
-    var dsPre = isDemo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+    var pre = isDemo ? 'RacingDesk.Plugin.Demo.' : '';
+    var dsPre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
 
     return {
       position: isDemo ? +(p[pre + 'Position']) || 0 : +(p['DataCorePlugin.GameData.Position']) || 0,

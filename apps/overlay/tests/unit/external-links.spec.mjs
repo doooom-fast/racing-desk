@@ -12,7 +12,7 @@ test.describe('open-external allowlist', () => {
   test('lets web links and the iRacing UI racing routes through', () => {
     for (const url of [
       'https://example.com/x',
-      'http://localhost:8889/racecor-io-pro-drive/',
+      'http://localhost:8889/racing-desk/',
       'iracing://web/racing/official/',
       'iracing://web/racing/official/series-list/6273/',
     ]) {
@@ -32,7 +32,7 @@ test.describe('open-external allowlist', () => {
       'file:///C:/Windows/notepad.exe',
       'javascript:alert(1)',
       'data:text/html,hi',
-      'racecor-native://settings',
+      'racing-desk-native://settings',
       '',
       null,
       42,

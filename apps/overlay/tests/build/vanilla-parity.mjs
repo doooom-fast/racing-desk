@@ -31,30 +31,30 @@ async function loadBuild(page, data, opts = {}) {
 // Extended mock data with DS prefix values for datastream/incidents
 const DS_TELEMETRY = {
   ...MOCK_TELEMETRY,
-  'RaceCorProDrive.Plugin.DS.LatG': 0.85,
-  'RaceCorProDrive.Plugin.DS.LongG': -0.42,
-  'RaceCorProDrive.Plugin.DS.YawRate': 0.35,
-  'RaceCorProDrive.Plugin.DS.SteerTorque': 12.4,
-  'RaceCorProDrive.Plugin.DS.TrackTemp': 38.5,
-  'RaceCorProDrive.Plugin.DS.IncidentCount': 4,
-  'RaceCorProDrive.Plugin.DS.IncidentLimitPenalty': 17,
-  'RaceCorProDrive.Plugin.DS.IncidentLimitDQ': 25,
-  'RaceCorProDrive.Plugin.DS.AbsActive': 0,
-  'RaceCorProDrive.Plugin.DS.TcActive': 0,
-  'RaceCorProDrive.Plugin.DS.LapDelta': -0.234,
-  'RaceCorProDrive.Plugin.DS.IsInPitLane': 0,
-  'RaceCorProDrive.Plugin.DS.SpeedKmh': 204,
-  'RaceCorProDrive.Plugin.DS.PitLimiterOn': 0,
-  'RaceCorProDrive.Plugin.DS.PitSpeedLimitKmh': 60,
-  'RaceCorProDrive.Plugin.DS.ThrottleNorm': 0.82,
-  'RaceCorProDrive.Plugin.DS.BrakeNorm': 0.0,
-  'RaceCorProDrive.Plugin.DS.ClutchNorm': 0.0,
-  'RaceCorProDrive.Plugin.DS.RpmRatio': 0.80,
-  'RaceCorProDrive.Plugin.DS.FuelPct': 47.3,
-  'RaceCorProDrive.Plugin.DS.FuelLapsRemaining': 9.1,
-  'RaceCorProDrive.Plugin.DS.SpeedMph': 127,
-  'RaceCorProDrive.Plugin.DS.IsNonRaceSession': 0,
-  'RaceCorProDrive.Plugin.DS.StartPosition': 7,
+  'RacingDesk.Plugin.DS.LatG': 0.85,
+  'RacingDesk.Plugin.DS.LongG': -0.42,
+  'RacingDesk.Plugin.DS.YawRate': 0.35,
+  'RacingDesk.Plugin.DS.SteerTorque': 12.4,
+  'RacingDesk.Plugin.DS.TrackTemp': 38.5,
+  'RacingDesk.Plugin.DS.IncidentCount': 4,
+  'RacingDesk.Plugin.DS.IncidentLimitPenalty': 17,
+  'RacingDesk.Plugin.DS.IncidentLimitDQ': 25,
+  'RacingDesk.Plugin.DS.AbsActive': 0,
+  'RacingDesk.Plugin.DS.TcActive': 0,
+  'RacingDesk.Plugin.DS.LapDelta': -0.234,
+  'RacingDesk.Plugin.DS.IsInPitLane': 0,
+  'RacingDesk.Plugin.DS.SpeedKmh': 204,
+  'RacingDesk.Plugin.DS.PitLimiterOn': 0,
+  'RacingDesk.Plugin.DS.PitSpeedLimitKmh': 60,
+  'RacingDesk.Plugin.DS.ThrottleNorm': 0.82,
+  'RacingDesk.Plugin.DS.BrakeNorm': 0.0,
+  'RacingDesk.Plugin.DS.ClutchNorm': 0.0,
+  'RacingDesk.Plugin.DS.RpmRatio': 0.80,
+  'RacingDesk.Plugin.DS.FuelPct': 47.3,
+  'RacingDesk.Plugin.DS.FuelLapsRemaining': 9.1,
+  'RacingDesk.Plugin.DS.SpeedMph': 127,
+  'RacingDesk.Plugin.DS.IsNonRaceSession': 0,
+  'RacingDesk.Plugin.DS.StartPosition': 7,
   'currentFlagState': 'none',
 };
 
@@ -100,7 +100,7 @@ test.describe('Tachometer', () => {
   });
 
   test('adds tacho-redline class at high RPM', async ({ page }) => {
-    await loadBuild(page, { ...DS_TELEMETRY, 'RaceCorProDrive.Plugin.DS.RpmRatio': 0.95 });
+    await loadBuild(page, { ...DS_TELEMETRY, 'RacingDesk.Plugin.DS.RpmRatio': 0.95 });
     await page.waitForTimeout(200);
     const hasRedline = await page.locator('.tacho-block.tacho-redline').count();
     expect(hasRedline).toBe(1);
@@ -232,8 +232,8 @@ test.describe('Controls', () => {
   test('applies ctrl-active class when ABS/TC firing', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.DS.AbsActive': 1,
-      'RaceCorProDrive.Plugin.DS.TcActive': 1,
+      'RacingDesk.Plugin.DS.AbsActive': 1,
+      'RacingDesk.Plugin.DS.TcActive': 1,
     });
     await page.waitForTimeout(200);
     const absActive = await page.locator('#ctrlABS.ctrl-active').count();
@@ -271,8 +271,8 @@ test.describe('Position & Gaps', () => {
   test('clears gaps block during practice/qualifying', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.DS.IsNonRaceSession': 1,
-      'RaceCorProDrive.Plugin.SessionTypeName': 'Practice',
+      'RacingDesk.Plugin.DS.IsNonRaceSession': 1,
+      'RacingDesk.Plugin.SessionTypeName': 'Practice',
     });
     await page.waitForTimeout(200);
     const labels = await page.locator('.panel-label').allTextContents();
@@ -413,7 +413,7 @@ test.describe('Incidents', () => {
 test.describe('Leaderboard', () => {
   const LB_TELEMETRY = {
     ...DS_TELEMETRY,
-    'RaceCorProDrive.Plugin.Leaderboard': JSON.stringify(LEADERBOARD_DATA),
+    'RacingDesk.Plugin.Leaderboard': JSON.stringify(LEADERBOARD_DATA),
   };
 
   test('renders correct number of rows', async ({ page }) => {
@@ -459,7 +459,7 @@ test.describe('Leaderboard', () => {
     lb2[0][4] = 91.8; // slightly different last lap
     await updateMockData(page, {
       ...LB_TELEMETRY,
-      'RaceCorProDrive.Plugin.Leaderboard': JSON.stringify(lb2),
+      'RacingDesk.Plugin.Leaderboard': JSON.stringify(lb2),
     });
     await page.waitForTimeout(200);
 
@@ -467,7 +467,7 @@ test.describe('Leaderboard', () => {
     lb3[0][4] = 92.3;
     await updateMockData(page, {
       ...LB_TELEMETRY,
-      'RaceCorProDrive.Plugin.Leaderboard': JSON.stringify(lb3),
+      'RacingDesk.Plugin.Leaderboard': JSON.stringify(lb3),
     });
     await page.waitForTimeout(200);
 
@@ -484,10 +484,10 @@ test.describe('Pit Limiter', () => {
   test('shows pit banner when in pit lane', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.DS.IsInPitLane': 1,
-      'RaceCorProDrive.Plugin.DS.PitLimiterOn': 1,
-      'RaceCorProDrive.Plugin.DS.SpeedKmh': 55,
-      'RaceCorProDrive.Plugin.DS.SpeedMph': 34,
+      'RacingDesk.Plugin.DS.IsInPitLane': 1,
+      'RacingDesk.Plugin.DS.PitLimiterOn': 1,
+      'RacingDesk.Plugin.DS.SpeedKmh': 55,
+      'RacingDesk.Plugin.DS.SpeedMph': 34,
     });
     const banner = page.locator('#pitBanner.pit-visible');
     await expect(banner).toBeVisible();
@@ -496,9 +496,9 @@ test.describe('Pit Limiter', () => {
   test('shows normal state with limiter on', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.DS.IsInPitLane': 1,
-      'RaceCorProDrive.Plugin.DS.PitLimiterOn': 1,
-      'RaceCorProDrive.Plugin.DS.SpeedKmh': 55,
+      'RacingDesk.Plugin.DS.IsInPitLane': 1,
+      'RacingDesk.Plugin.DS.PitLimiterOn': 1,
+      'RacingDesk.Plugin.DS.SpeedKmh': 55,
     });
     const label = await page.locator('.pit-label').textContent();
     expect(label).toBe('Pit Limiter');
@@ -511,9 +511,9 @@ test.describe('Pit Limiter', () => {
   test('shows warning when limiter off', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.DS.IsInPitLane': 1,
-      'RaceCorProDrive.Plugin.DS.PitLimiterOn': 0,
-      'RaceCorProDrive.Plugin.DS.SpeedKmh': 55,
+      'RacingDesk.Plugin.DS.IsInPitLane': 1,
+      'RacingDesk.Plugin.DS.PitLimiterOn': 0,
+      'RacingDesk.Plugin.DS.SpeedKmh': 55,
     });
     await page.waitForTimeout(200);
     const label = await page.locator('.pit-label').textContent();
@@ -523,10 +523,10 @@ test.describe('Pit Limiter', () => {
   test('shows bonkers/speeding state', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.DS.IsInPitLane': 1,
-      'RaceCorProDrive.Plugin.DS.PitLimiterOn': 0,
-      'RaceCorProDrive.Plugin.DS.IsPitSpeeding': 1,
-      'RaceCorProDrive.Plugin.DS.SpeedKmh': 80,
+      'RacingDesk.Plugin.DS.IsInPitLane': 1,
+      'RacingDesk.Plugin.DS.PitLimiterOn': 0,
+      'RacingDesk.Plugin.DS.IsPitSpeeding': 1,
+      'RacingDesk.Plugin.DS.SpeedKmh': 80,
     });
     await page.waitForTimeout(200);
     const label = await page.locator('.pit-label').textContent();
@@ -550,12 +550,12 @@ test.describe('Formation / Grid', () => {
   test('shows grid module during formation lap', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.Grid.SessionState': 3,
-      'RaceCorProDrive.Plugin.Grid.GriddedCars': 20,
-      'RaceCorProDrive.Plugin.Grid.TotalCars': 24,
-      'RaceCorProDrive.Plugin.Grid.PaceMode': 2,
-      'RaceCorProDrive.Plugin.Grid.StartType': 'rolling',
-      'RaceCorProDrive.Plugin.Grid.TrackCountry': 'AU',
+      'RacingDesk.Plugin.Grid.SessionState': 3,
+      'RacingDesk.Plugin.Grid.GriddedCars': 20,
+      'RacingDesk.Plugin.Grid.TotalCars': 24,
+      'RacingDesk.Plugin.Grid.PaceMode': 2,
+      'RacingDesk.Plugin.Grid.StartType': 'rolling',
+      'RacingDesk.Plugin.Grid.TrackCountry': 'AU',
     });
     await page.waitForTimeout(300);
     const visible = await page.locator('#gridModule.grid-visible').count();
@@ -565,9 +565,9 @@ test.describe('Formation / Grid', () => {
   test('shows gridded/total cars count', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.Grid.SessionState': 3,
-      'RaceCorProDrive.Plugin.Grid.GriddedCars': 20,
-      'RaceCorProDrive.Plugin.Grid.TotalCars': 24,
+      'RacingDesk.Plugin.Grid.SessionState': 3,
+      'RacingDesk.Plugin.Grid.GriddedCars': 20,
+      'RacingDesk.Plugin.Grid.TotalCars': 24,
     });
     await page.waitForTimeout(200);
     const gridded = await page.locator('#gridCarsGridded').textContent();
@@ -579,8 +579,8 @@ test.describe('Formation / Grid', () => {
   test('shows start lights during active phase', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.Grid.SessionState': 3,
-      'RaceCorProDrive.Plugin.Grid.LightsPhase': 3,
+      'RacingDesk.Plugin.Grid.SessionState': 3,
+      'RacingDesk.Plugin.Grid.LightsPhase': 3,
     });
     await page.waitForTimeout(200);
     // Phase 3: first 3 columns lit red
@@ -591,8 +591,8 @@ test.describe('Formation / Grid', () => {
   test('does not show during idle state (sessionState <= 1 but no formation)', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.Grid.SessionState': 0,
-      'RaceCorProDrive.Plugin.Grid.LightsPhase': 0,
+      'RacingDesk.Plugin.Grid.SessionState': 0,
+      'RacingDesk.Plugin.Grid.LightsPhase': 0,
     });
     await page.waitForTimeout(200);
     const visible = await page.locator('#gridModule.grid-visible').count();
@@ -608,12 +608,12 @@ test.describe('Commentary', () => {
   test('shows commentary when CommentaryVisible is 1', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.CommentaryVisible': 1,
-      'RaceCorProDrive.Plugin.CommentaryTopicTitle': 'Heavy Braking',
-      'RaceCorProDrive.Plugin.CommentaryText': 'Strong braking into turn 1',
-      'RaceCorProDrive.Plugin.CommentaryTopicId': 'heavy_braking',
-      'RaceCorProDrive.Plugin.CommentarySentimentColor': '#448aff',
-      'RaceCorProDrive.Plugin.CommentarySeverity': 1,
+      'RacingDesk.Plugin.CommentaryVisible': 1,
+      'RacingDesk.Plugin.CommentaryTopicTitle': 'Heavy Braking',
+      'RacingDesk.Plugin.CommentaryText': 'Strong braking into turn 1',
+      'RacingDesk.Plugin.CommentaryTopicId': 'heavy_braking',
+      'RacingDesk.Plugin.CommentarySentimentColor': '#448aff',
+      'RacingDesk.Plugin.CommentarySeverity': 1,
     });
     await page.waitForTimeout(200);
     const visible = await page.locator('#commentaryCol.visible').count();
@@ -625,11 +625,11 @@ test.describe('Commentary', () => {
   test('commentary viz canvas is activated for known topics', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.CommentaryVisible': 1,
-      'RaceCorProDrive.Plugin.CommentaryTopicTitle': 'Heavy Braking',
-      'RaceCorProDrive.Plugin.CommentaryText': 'Test',
-      'RaceCorProDrive.Plugin.CommentaryTopicId': 'heavy_braking',
-      'RaceCorProDrive.Plugin.CommentarySentimentColor': '#448aff',
+      'RacingDesk.Plugin.CommentaryVisible': 1,
+      'RacingDesk.Plugin.CommentaryTopicTitle': 'Heavy Braking',
+      'RacingDesk.Plugin.CommentaryText': 'Test',
+      'RacingDesk.Plugin.CommentaryTopicId': 'heavy_braking',
+      'RacingDesk.Plugin.CommentarySentimentColor': '#448aff',
     });
     await page.waitForTimeout(400);
     // The commentary viz container should be visible
@@ -716,10 +716,10 @@ test.describe('Track Map', () => {
   test('renders track path when data available', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M 10 50 C 20 20, 40 20, 50 50 C 60 80, 80 80, 90 50',
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 30,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 40,
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.SvgPath': 'M 10 50 C 20 20, 40 20, 50 50 C 60 80, 80 80, 90 50',
+      'RacingDesk.Plugin.TrackMap.PlayerX': 30,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 40,
     });
     await page.waitForTimeout(300);
     const path = await page.locator('#fullMapTrack').getAttribute('d');
@@ -729,11 +729,11 @@ test.describe('Track Map', () => {
   test('renders opponent dots', async ({ page }) => {
     await loadBuild(page, {
       ...DS_TELEMETRY,
-      'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M 10 50 C 20 20, 40 20, 50 50',
-      'RaceCorProDrive.Plugin.TrackMap.PlayerX': 30,
-      'RaceCorProDrive.Plugin.TrackMap.PlayerY': 40,
-      'RaceCorProDrive.Plugin.TrackMap.Opponents': '20,30,0;60,70,0;80,20,1',
+      'RacingDesk.Plugin.TrackMap.Ready': 1,
+      'RacingDesk.Plugin.TrackMap.SvgPath': 'M 10 50 C 20 20, 40 20, 50 50',
+      'RacingDesk.Plugin.TrackMap.PlayerX': 30,
+      'RacingDesk.Plugin.TrackMap.PlayerY': 40,
+      'RacingDesk.Plugin.TrackMap.Opponents': '20,30,0;60,70,0;80,20,1',
     });
     await page.waitForTimeout(300);
     const opponentDots = await page.locator('#fullMapOpponents circle').count();

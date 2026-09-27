@@ -1,5 +1,5 @@
 /**
- * @element racecor-pedal-curves
+ * @element racing-desk-pedal-curves
  * @description Canvas-based pedal input visualization with curves overlay and histograms.
  *
  * Displays throttle/brake/clutch pedal positions with:
@@ -67,7 +67,7 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const pre = snapshot._demo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+      const pre = snapshot._demo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
       const v = (key) => Math.max(0, Math.min(100, +snapshot[pre + key] || 0));
 
       this._throttle = v('Throttle');
@@ -281,5 +281,5 @@
     }
   }
 
-  customElements.define('racecor-pedal-curves', RaceCorPedalCurves);
+  customElements.define('racing-desk-pedal-curves', RaceCorPedalCurves);
 })();

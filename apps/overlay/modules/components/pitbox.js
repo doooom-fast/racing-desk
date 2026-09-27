@@ -1,5 +1,5 @@
 /**
- * @element racecor-pitbox
+ * @element racing-desk-pitbox
  * @description Tabbed pit strategy panel (Fuel, Tires, Strategy).
  *
  * Displays pit-stop information:
@@ -60,7 +60,7 @@
 
     updateData(snapshot) {
       if (!snapshot) return;
-      const pre = 'RaceCorProDrive.Plugin.';
+      const pre = 'RacingDesk.Plugin.';
       const v = (key) => snapshot[pre + key];
 
       this._fuelData = {
@@ -326,5 +326,5 @@
     }
   }
 
-  customElements.define('racecor-pitbox', RaceCorPitbox);
+  customElements.define('racing-desk-pitbox', RaceCorPitbox);
 })();

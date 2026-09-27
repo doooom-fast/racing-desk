@@ -16,7 +16,7 @@ Add a small set of clickable buttons to the overlay that launch external windows
 
 Right now, every feature is accessed through keyboard shortcuts or the settings panel. That works for racing, but for pre-race or post-race tasks (opening the web dashboard, launching Moza manager, starting the replay director), you're either memorizing hotkeys or opening settings just to find a button.
 
-The idle logo — the 98px RaceCor logomark fixed at `top: 10px; right: 10px` that appears when you're not in a car — is the natural home for these buttons. It's already the only UI element visible between sessions, it's already interactive (`pointer-events: auto` when idle), and it represents the moment when you'd actually want to launch tools.
+The idle logo — the 98px RacingDesk logomark fixed at `top: 10px; right: 10px` that appears when you're not in a car — is the natural home for these buttons. It's already the only UI element visible between sessions, it's already interactive (`pointer-events: auto` when idle), and it represents the moment when you'd actually want to launch tools.
 
 **Key constraint: buttons are idle-state only.** During a race, the dashboard's in-race logo column stays exactly as it is — no buttons, no extra elements, no accidental clicks. The action bar only exists on the idle logo.
 
@@ -35,7 +35,7 @@ Idle state — buttons expanded:
 
                 ┌─────┬─────┬─────┬─────┐ ┌──────────┐
                 │ ⚙   │ 🌐  │ 🎡  │ 🎬  │─│          │
-                │     │     │     │     │ │  RaceCor  │
+                │     │     │     │     │ │  RacingDesk  │
                 │ Set │ Web │Moza │ Rec │ │          │
                 └─────┴─────┴─────┴─────┘ └──────────┘
                 ← buttons slide out left    ↑ idle logo (98px)
@@ -45,7 +45,7 @@ Idle state — buttons collapsed:
 
                                            ┌──────────┐
                                            │          │
-                                           │  RaceCor  │  (click to expand)
+                                           │  RacingDesk  │  (click to expand)
                                            │          │
                                            └──────────┘
 ```
@@ -241,13 +241,13 @@ function handleNavClick(action) {
   switch (action) {
     case 'settings':
       // Settings needs interactive mode — toggle it via existing flow
-      window.k10.requestInteractive();
+      window.racingDesk.requestInteractive();
       toggleSettings();
       return;
-    case 'webapp':    window.k10.openDashboard(); break;
-    case 'moza':      window.k10.openMozaManager(); break;
-    case 'recorder':  window.k10.openRecorderPanel(); break;
-    case 'replay':    window.k10.startReplayDirector(); break;
+    case 'webapp':    window.racingDesk.openDashboard(); break;
+    case 'moza':      window.racingDesk.openMozaManager(); break;
+    case 'recorder':  window.racingDesk.openRecorderPanel(); break;
+    case 'replay':    window.racingDesk.startReplayDirector(); break;
   }
   // No need to call releaseInteractive() — overlay was already click-through,
   // only the logo/buttons had pointer-events: auto
@@ -265,16 +265,16 @@ Key point: clicking a nav button does NOT toggle the overlay's global interactiv
 | Button | Icon | Label | Action | IPC |
 |--------|------|-------|--------|-----|
 | Settings | gear | Settings | Open settings panel | `toggleSettings()` (existing) |
-| Web App | globe | ProDrive | Open web dashboard window | `k10.openDashboard()` (existing) |
-| Moza | wheel icon | Moza | Open Moza manager window | `k10.openMozaManager()` (new) |
+| Web App | globe | ProDrive | Open web dashboard window | `racingDesk.openDashboard()` (existing) |
+| Moza | wheel icon | Moza | Open Moza manager window | `racingDesk.openMozaManager()` (new) |
 
 ### Future Buttons (added with recording features)
 
 | Button | Icon | Label | Action | IPC |
 |--------|------|-------|--------|-----|
-| Record | red circle | Record | Toggle recording on/off | `k10.startRecording()` / `k10.stopRecording()` |
-| Replay Director | play+camera | Replay | Start automated replay director | `k10.startReplayDirector()` |
-| Export | share arrow | Export | Open export/clip panel | `k10.openExportPanel()` |
+| Record | red circle | Record | Toggle recording on/off | `racingDesk.startRecording()` / `racingDesk.stopRecording()` |
+| Replay Director | play+camera | Replay | Start automated replay director | `racingDesk.startReplayDirector()` |
+| Export | share arrow | Export | Open export/clip panel | `racingDesk.openExportPanel()` |
 
 ### Maximum Button Count
 
@@ -294,7 +294,7 @@ Currently the overlay runs as a frameless, always-on-top, click-through, `skipTa
 | `skipTaskbar` | `true` | `false` — **visible in taskbar** |
 | `setIgnoreMouseEvents` | `true, { forward: true }` | `true, { forward: true }` (only idle logo is interactive) |
 | `focusable` | `false` | `true` |
-| Taskbar icon | Hidden | **RaceCor icon visible** |
+| Taskbar icon | Hidden | **RacingDesk icon visible** |
 
 The transition happens when the driver enters/exits the car:
 
@@ -322,7 +322,7 @@ Without a taskbar icon, the overlay is invisible to Windows when you're not raci
 
 ### Taskbar Icon
 
-Use the existing RaceCor logomark (`images/branding/logomark.png`) or an `.ico` version of it. This is already configured in `electron-builder.yml` for the app icon — the taskbar picks it up automatically when `skipTaskbar` is `false`.
+Use the existing RacingDesk logomark (`images/branding/logomark.png`) or an `.ico` version of it. This is already configured in `electron-builder.yml` for the app icon — the taskbar picks it up automatically when `skipTaskbar` is `false`.
 
 ### System Tray (Optional Enhancement)
 
@@ -337,7 +337,7 @@ The action bar is a sibling of the idle logo, placed directly after it in the DO
 ```html
 <!-- COMPONENT: Idle State Logo (visible when driver is not in-car) -->
 <div class="idle-logo" id="idleLogo">
-  <img src="images/branding/logomark.png" alt="RaceCor">
+  <img src="images/branding/logomark.png" alt="RacingDesk">
 </div>
 
 <!-- NEW: Idle Navigation Bar (visible when idle + expanded via logo click) -->
@@ -407,7 +407,7 @@ Start Recording (Ctrl+Shift+V)
 | `dashboard.html` | Add `<link>` for idle-nav.css, add `<script>` for idle-nav.js, add `.idle-nav-bar` DOM after `#idleLogo` |
 | `effects.css` | Add `.idle-logo.nav-active` rule (remove bottom radius when expanded) |
 | `main.js` | Add `enterIdleMode()` / `enterRaceMode()` window behavior switching (always-on-top, skipTaskbar, focusable). Add IPC handler for `openMozaManager`. |
-| `preload.js` | Expose `k10.openMozaManager()` |
+| `preload.js` | Expose `racingDesk.openMozaManager()` |
 | `keyboard.js` | No changes — existing hotkeys still work, buttons are a visual alternative |
 
 ---

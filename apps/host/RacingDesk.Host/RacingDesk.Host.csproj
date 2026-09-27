@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    RacingDesk.Host — runs The Racing Desk without SimHub: reads iRacing directly (or replays an .ibt) and serves
+    the same localhost:8889 contract the SimHub plugin does.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>RacingDesk.Host</AssemblyName>
+    <RootNamespace>RacingDesk.Host</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../core/RacingDesk.Core/RacingDesk.Core.csproj" />
+    <ProjectReference Include="../../core/RacingDesk.Data/RacingDesk.Data.csproj" />
+  </ItemGroup>
+
+  <!-- Commentary topics, sentiments, fragments, car/track notes — resolved next to the executable. -->
+  <ItemGroup>
+    <None Include="../../plugin/racing-desk-plugin/simhub-plugin/racingdesk-data/**/*.json"
+          Link="racingdesk-data/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
+

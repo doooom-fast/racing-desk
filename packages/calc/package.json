@@ -1,5 +1,5 @@
 {
-  "name": "@prodrive/calc",
+  "name": "@racing-desk/calc",
   "private": true,
   "version": "0.1.0",
   "description": "Racing Desk's calc engines (ported from prodrive-server) and the local-data model that feeds them",

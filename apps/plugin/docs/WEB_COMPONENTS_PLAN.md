@@ -1,5 +1,5 @@
 # Web Components Conversion Plan
-## RaceCor Dashboard Overlay Modularization & Reusability
+## The Racing Desk Overlay Modularization & Reusability
 
 **Status:** Investigation & Proof-of-Concept
 **Date:** March 2026
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The RaceCor overlay currently consists of 28+ vanilla JavaScript modules that directly manipulate the DOM, maintain closure-based state, and rely on CSS modules for styling. This architecture works well for performance (~30fps polling, zero build step), but creates barriers to code reuse with the Next.js web app.
+The RacingDesk overlay currently consists of 28+ vanilla JavaScript modules that directly manipulate the DOM, maintain closure-based state, and rely on CSS modules for styling. This architecture works well for performance (~30fps polling, zero build step), but creates barriers to code reuse with the Next.js web app.
 
 This plan outlines a **zero-friction migration path** to Web Components that:
 - **Preserves every pixel of visual fidelity** — no layout, color, or animation changes
@@ -39,12 +39,12 @@ This plan outlines a **zero-friction migration path** to Web Components that:
 4. **Build & Delivery:**
    - **Overlay:** Components load as plain ES modules, no build step. Optional bundling for production performance.
    - **Web App:** Components import via npm/path alias, wrapped in React `<Suspense>` with `ssr: false`
-   - **Package:** Components live in `racecor-overlay/modules/components/` and are re-exported from a barrel file for easy import
+   - **Package:** Components live in `racing-desk-overlay/modules/components/` and are re-exported from a barrel file for easy import
 
 5. **Lifecycle & Performance:**
    - `connectedCallback()` — initialize DOM, bind event listeners, subscribe to data bus
    - `disconnectedCallback()` — cleanup subscriptions, cancel rAF loops, clear canvases
-   - Canvas-based components (`<racecor-pedal-trace>`, `<racecor-datastream>`) manage their own animation loops via `requestAnimationFrame`
+   - Canvas-based components (`<racing-desk-pedal-trace>`, `<racing-desk-datastream>`) manage their own animation loops via `requestAnimationFrame`
    - No impact on 30fps polling loop — components are passive receivers
 
 ---
@@ -99,9 +99,9 @@ Instead of polluting global scope with 28 functions, we define a component regis
 ```javascript
 // In config.js or new registry.js
 window._componentRegistry = {
-  'racecor-fuel-gauge': { componentClass: RaceCorFuelGauge, type: 'dom' },
-  'racecor-leaderboard': { componentClass: RaceCorLeaderboard, type: 'dom' },
-  'racecor-webgl-fx': { componentClass: RaceCorWebGLFX, type: 'webgl' },
+  'racing-desk-fuel-gauge': { componentClass: RaceCorFuelGauge, type: 'dom' },
+  'racing-desk-leaderboard': { componentClass: RaceCorLeaderboard, type: 'dom' },
+  'racing-desk-webgl-fx': { componentClass: RaceCorWebGLFX, type: 'webgl' },
   // ... 28 entries
 };
 
@@ -149,37 +149,37 @@ Example:
 | Module | Component Tag | Type | Complexity | Status |
 |--------|---|---|---|---|
 | **Core Gauges** |
-| Fuel gauge | `<racecor-fuel-gauge>` | DOM | Simple | Planned |
-| Tire grid | `<racecor-tire-grid>` | DOM | Simple | Planned |
-| Tachometer | `<racecor-tachometer>` | Canvas/WebGL | Complex | Phase 2 |
+| Fuel gauge | `<racing-desk-fuel-gauge>` | DOM | Simple | Planned |
+| Tire grid | `<racing-desk-tire-grid>` | DOM | Simple | Planned |
+| Tachometer | `<racing-desk-tachometer>` | Canvas/WebGL | Complex | Phase 2 |
 | **Data & Visualization** |
-| Leaderboard | `<racecor-leaderboard>` | DOM + Canvas sparklines | Moderate | Phase 1 |
-| Datastream | `<racecor-datastream>` | DOM + Canvas (g-force, yaw trail) | Moderate | Phase 2 |
-| Race Timeline | `<racecor-race-timeline>` | Canvas | Simple | Phase 1 |
-| Pedal Curves | `<racecor-pedal-curves>` | Canvas | Moderate | Phase 2 |
-| Commentary Viz | `<racecor-commentary-viz>` | Canvas + DOM | Moderate | Phase 3 |
+| Leaderboard | `<racing-desk-leaderboard>` | DOM + Canvas sparklines | Moderate | Phase 1 |
+| Datastream | `<racing-desk-datastream>` | DOM + Canvas (g-force, yaw trail) | Moderate | Phase 2 |
+| Race Timeline | `<racing-desk-race-timeline>` | Canvas | Simple | Phase 1 |
+| Pedal Curves | `<racing-desk-pedal-curves>` | Canvas | Moderate | Phase 2 |
+| Commentary Viz | `<racing-desk-commentary-viz>` | Canvas + DOM | Moderate | Phase 3 |
 | **Layout & Position** |
-| Position/Rating Card | `<racecor-position-card>` | DOM | Simple | Phase 1 |
-| Gap Display | `<racecor-gap-display>` | DOM | Simple | Phase 1 |
-| Sector Indicator | `<racecor-sector-indicator>` | DOM | Simple | Phase 1 |
+| Position/Rating Card | `<racing-desk-position-card>` | DOM | Simple | Phase 1 |
+| Gap Display | `<racing-desk-gap-display>` | DOM | Simple | Phase 1 |
+| Sector Indicator | `<racing-desk-sector-indicator>` | DOM | Simple | Phase 1 |
 | **Secondary Panels** |
-| Pitbox Panel | `<racecor-pitbox>` | DOM (tabbed) | Moderate | Phase 2 |
-| Incidents Panel | `<racecor-incidents>` | DOM + Canvas | Simple | Phase 1 |
-| Spotter Panel | `<racecor-spotter>` | DOM + Canvas | Moderate | Phase 2 |
-| Drive HUD | `<racecor-drive-hud>` | DOM + SVG maps | Complex | Phase 3 |
+| Pitbox Panel | `<racing-desk-pitbox>` | DOM (tabbed) | Moderate | Phase 2 |
+| Incidents Panel | `<racing-desk-incidents>` | DOM + Canvas | Simple | Phase 1 |
+| Spotter Panel | `<racing-desk-spotter>` | DOM + Canvas | Moderate | Phase 2 |
+| Drive HUD | `<racing-desk-drive-hud>` | DOM + SVG maps | Complex | Phase 3 |
 | **Effects & Ambient** |
-| WebGL FX Engine | `<racecor-webgl-fx>` | WebGL2 | Complex | Phase 3 |
-| Ambient Light | `<racecor-ambient-light>` | CSS variables | Simple | Phase 1 |
+| WebGL FX Engine | `<racing-desk-webgl-fx>` | WebGL2 | Complex | Phase 3 |
+| Ambient Light | `<racing-desk-ambient-light>` | CSS variables | Simple | Phase 1 |
 | **Layout System** |
-| Main Dashboard | `<racecor-dashboard>` | DOM (grid layout) | Moderate | Phase 2 |
-| Secondary Container | `<racecor-panel-container>` | DOM (flex layout) | Simple | Phase 1 |
+| Main Dashboard | `<racing-desk-dashboard>` | DOM (grid layout) | Moderate | Phase 2 |
+| Secondary Container | `<racing-desk-panel-container>` | DOM (flex layout) | Simple | Phase 1 |
 | **Support Modules** |
-| Commentary Panel | `<racecor-commentary>` | DOM + Canvas | Moderate | Phase 2 |
-| Grid/Start Lights | `<racecor-grid-module>` | DOM + CSS animations | Simple | Phase 1 |
-| Race Control Banner | `<racecor-race-control>` | DOM | Simple | Phase 1 |
-| Race End Screen | `<racecor-race-end>` | DOM + confetti | Simple | Phase 1 |
-| Pit Limiter Banner | `<racecor-pit-limiter>` | DOM | Simple | Phase 1 |
-| Driver Profile | `<racecor-driver-profile>` | DOM + Canvas (charts) | Moderate | Phase 3 |
+| Commentary Panel | `<racing-desk-commentary>` | DOM + Canvas | Moderate | Phase 2 |
+| Grid/Start Lights | `<racing-desk-grid-module>` | DOM + CSS animations | Simple | Phase 1 |
+| Race Control Banner | `<racing-desk-race-control>` | DOM | Simple | Phase 1 |
+| Race End Screen | `<racing-desk-race-end>` | DOM + confetti | Simple | Phase 1 |
+| Pit Limiter Banner | `<racing-desk-pit-limiter>` | DOM | Simple | Phase 1 |
+| Driver Profile | `<racing-desk-driver-profile>` | DOM + Canvas (charts) | Moderate | Phase 3 |
 | **System Modules** |
 | Poll Engine | N/A (stays vanilla) | Data flow | Core | Keep as-is |
 | Config | N/A (stays vanilla) | State mgmt | Core | Extend slightly |
@@ -207,7 +207,7 @@ Example:
 
 ## Conversion Strategy Per Module
 
-### `<racecor-fuel-gauge>` (Simple DOM Component)
+### `<racing-desk-fuel-gauge>` (Simple DOM Component)
 
 **Inputs (properties):**
 ```javascript
@@ -299,7 +299,7 @@ class RaceCorFuelGauge extends HTMLElement {
 
 ---
 
-### `<racecor-leaderboard>` (Moderate DOM + Canvas)
+### `<racing-desk-leaderboard>` (Moderate DOM + Canvas)
 
 **Inputs (properties):**
 ```javascript
@@ -335,7 +335,7 @@ component.maxRows = 5;
 
 ---
 
-### `<racecor-webgl-fx>` (Complex WebGL Component)
+### `<racing-desk-webgl-fx>` (Complex WebGL Component)
 
 **Challenge:** Shared GL context across multiple canvases (tachometer, glare, post-FX).
 
@@ -359,7 +359,7 @@ function getSharedGLContext() {
 ```
 
 **Component approach:**
-- `<racecor-webgl-fx>` manages a single canvas (the glare overlay canvas)
+- `<racing-desk-webgl-fx>` manages a single canvas (the glare overlay canvas)
 - Requests frames from the singleton context
 - Initializes shader programs on first use
 - Shares program objects with other WebGL components via `window._glPrograms`
@@ -468,21 +468,21 @@ disconnectedCallback() {
 ### Proposed Web Component Layout
 
 ```html
-<racecor-dashboard position="tr">
-  <racecor-fuel-gauge></racecor-fuel-gauge>
-  <racecor-tire-grid></racecor-tire-grid>
-  <racecor-tachometer></racecor-tachometer>
+<racing-desk-dashboard position="tr">
+  <racing-desk-fuel-gauge></racing-desk-fuel-gauge>
+  <racing-desk-tire-grid></racing-desk-tire-grid>
+  <racing-desk-tachometer></racing-desk-tachometer>
   <!-- ... all 5 main columns -->
-</racecor-dashboard>
+</racing-desk-dashboard>
 
-<racecor-panel-container position="bottom right">
-  <racecor-leaderboard></racecor-leaderboard>
-  <racecor-datastream></racecor-datastream>
+<racing-desk-panel-container position="bottom right">
+  <racing-desk-leaderboard></racing-desk-leaderboard>
+  <racing-desk-datastream></racing-desk-datastream>
   <!-- ... secondary panels -->
-</racecor-panel-container>
+</racing-desk-panel-container>
 ```
 
-### `<racecor-dashboard>` Component
+### `<racing-desk-dashboard>` Component
 
 **Attributes:**
 - `position` — "tr", "tl", "br", "bl", "ac" (enum, default "tr")
@@ -538,7 +538,7 @@ connectedCallback() {
 }
 ```
 
-### `<racecor-panel-container>` Component
+### `<racing-desk-panel-container>` Component
 
 Similar pattern for secondary panels — flex container with positioning attributes.
 
@@ -549,7 +549,7 @@ Similar pattern for secondary panels — flex container with positioning attribu
 ### Package Structure
 
 ```
-racecor-overlay/
+racing-desk-overlay/
   modules/
     components/           ← NEW: Web component source
       fuel-gauge.js
@@ -568,8 +568,8 @@ racecor-overlay/
       ... [5 core modules kept as-is]
 
       # Deprecated (logic moved to components):
-      # leaderboard.js → <racecor-leaderboard>
-      # datastream.js → <racecor-datastream>
+      # leaderboard.js → <racing-desk-leaderboard>
+      # datastream.js → <racing-desk-datastream>
       # [etc.]
 ```
 
@@ -582,11 +582,11 @@ racecor-overlay/
   <link rel="stylesheet" href="modules/styles/base.css">
 </head>
 <body>
-  <racecor-dashboard position="tr">
-    <racecor-fuel-gauge></racecor-fuel-gauge>
-    <racecor-tire-grid></racecor-tire-grid>
+  <racing-desk-dashboard position="tr">
+    <racing-desk-fuel-gauge></racing-desk-fuel-gauge>
+    <racing-desk-tire-grid></racing-desk-tire-grid>
     <!-- ... -->
-  </racecor-dashboard>
+  </racing-desk-dashboard>
 
   <script type="module">
     // Import all components
@@ -633,8 +633,8 @@ export function DashboardEmbed() {
 'use client';
 
 import { useEffect, useRef } from 'react';
-import '../../../racecor-overlay/modules/styles/base.css';
-import '../../../racecor-overlay/modules/components/index.js';
+import '../../../racing-desk-overlay/modules/styles/base.css';
+import '../../../racing-desk-overlay/modules/components/index.js';
 
 export default function RaceCorDashboard() {
   const ref = useRef<HTMLDivElement>(null);
@@ -643,10 +643,10 @@ export default function RaceCorDashboard() {
     if (!ref.current) return;
 
     // Create web component tree in ref
-    const dashboard = document.createElement('racecor-dashboard');
+    const dashboard = document.createElement('racing-desk-dashboard');
     dashboard.setAttribute('position', 'tr');
 
-    const fuelGauge = document.createElement('racecor-fuel-gauge');
+    const fuelGauge = document.createElement('racing-desk-fuel-gauge');
     dashboard.appendChild(fuelGauge);
 
     ref.current.appendChild(dashboard);
@@ -668,7 +668,7 @@ export default function RaceCorDashboard() {
 {
   "compilerOptions": {
     "paths": {
-      "@/overlay/*": ["../../racecor-overlay/*"]
+      "@/overlay/*": ["../../racing-desk-overlay/*"]
     }
   }
 }
@@ -679,7 +679,7 @@ import '@/overlay/modules/components/index.js';
 
 **For future (Phase 2):** Extract to npm package:
 ```bash
-npm publish @k10motorsports/racecor-components
+npm publish @doooom/racing-desk-components
 ```
 
 ---
@@ -698,7 +698,7 @@ npm publish @k10motorsports/racecor-components
 7. Race timeline (basic Canvas)
 
 **Testing:** Side-by-side rendering
-- New component: `<racecor-fuel-gauge id="new-fuel">`
+- New component: `<racing-desk-fuel-gauge id="new-fuel">`
 - Old code: `<div id="fuel-remaining">` (from vanilla module)
 - Compare pixel-perfect at same telemetry snapshot
 - Disable old code, verify new code works
@@ -707,10 +707,10 @@ npm publish @k10motorsports/racecor-components
 ```html
 <!-- During migration: run both -->
 <div id="fuel-remaining" style="display: none;"><!-- Old --></div>
-<racecor-fuel-gauge></racecor-fuel-gauge><!-- New -->
+<racing-desk-fuel-gauge></racing-desk-fuel-gauge><!-- New -->
 
 <!-- After verification -->
-<racecor-fuel-gauge></racecor-fuel-gauge><!-- Remove old -->
+<racing-desk-fuel-gauge></racing-desk-fuel-gauge><!-- Remove old -->
 ```
 
 ### Phase 2: Canvas & Moderate Components (Weeks 3-4)
@@ -827,7 +827,7 @@ window.removeEventListener('telemetry-update', this._updateHandler);
 
 ## Proof of Concept
 
-### First Component: `<racecor-fuel-gauge>`
+### First Component: `<racing-desk-fuel-gauge>`
 
 **Why this component?**
 - Self-contained (no dependencies on other components)
@@ -838,11 +838,11 @@ window.removeEventListener('telemetry-update', this._updateHandler);
 
 ### Implementation
 
-**File:** `/racecor-overlay/modules/components/fuel-gauge.js`
+**File:** `/racing-desk-overlay/modules/components/fuel-gauge.js`
 
 ```javascript
 /**
- * @element racecor-fuel-gauge
+ * @element racing-desk-fuel-gauge
  * @description Fuel level display with bar and consumption stats
  *
  * @attribute none
@@ -857,9 +857,9 @@ window.removeEventListener('telemetry-update', this._updateHandler);
  * @slot default (not used, Shadow DOM)
  *
  * @example
- * <racecor-fuel-gauge></racecor-fuel-gauge>
+ * <racing-desk-fuel-gauge></racing-desk-fuel-gauge>
  * <script>
- *   const gauge = document.querySelector('racecor-fuel-gauge');
+ *   const gauge = document.querySelector('racing-desk-fuel-gauge');
  *   window.addEventListener('telemetry-update', (e) => {
  *     gauge.fuelLevel = e.detail.fuel;
  *     gauge.maxFuel = e.detail.maxFuel;
@@ -907,7 +907,7 @@ class RaceCorFuelGauge extends HTMLElement {
   // ─── Data update (called from poll-engine via event) ─────
 
   updateData(snapshot, isImperial = false) {
-    const dsPre = snapshot._demo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+    const dsPre = snapshot._demo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
     const fuel = +(snapshot['DataCorePlugin.GameData.Fuel'] || 0);
     const maxFuel = +(snapshot['DataCorePlugin.GameData.MaxFuel'] || 0);
 
@@ -1057,7 +1057,7 @@ class RaceCorFuelGauge extends HTMLElement {
   }
 }
 
-customElements.define('racecor-fuel-gauge', RaceCorFuelGauge);
+customElements.define('racing-desk-fuel-gauge', RaceCorFuelGauge);
 ```
 
 **Integration with poll-engine:**
@@ -1069,7 +1069,7 @@ customElements.define('racecor-fuel-gauge', RaceCorFuelGauge);
 // updateFuelBar(fuelPct, 0);
 
 // With this:
-const fuelComp = document.querySelector('racecor-fuel-gauge');
+const fuelComp = document.querySelector('racing-desk-fuel-gauge');
 if (fuelComp) {
   fuelComp.updateData(p);
 }
@@ -1085,7 +1085,7 @@ window.dispatchEvent(new CustomEvent('telemetry-update', {
 **Testing:**
 ```html
 <!-- dashboard.html -->
-<racecor-fuel-gauge></racecor-fuel-gauge>
+<racing-desk-fuel-gauge></racing-desk-fuel-gauge>
 
 <!-- Check side-by-side with original -->
 <style>
@@ -1116,7 +1116,7 @@ window.dispatchEvent(new CustomEvent('telemetry-update', {
 
 ```javascript
 /**
- * @element racecor-component-name
+ * @element racing-desk-component-name
  * @description Brief description
  */
 
@@ -1156,7 +1156,7 @@ class RaceCorComponentName extends HTMLElement {
   }
 }
 
-customElements.define('racecor-component-name', RaceCorComponentName);
+customElements.define('racing-desk-component-name', RaceCorComponentName);
 ```
 
 ### CSS Variables Checklist

@@ -1,14 +1,14 @@
 {
   "name": "k10-motorsports",
   "version": "0.1.4",
-  "description": "K10 Motorsports — broadcast-grade transparent HUD overlay for sim racing with WebGL effects, real-time strategy, and AI commentary",
+  "description": "The Racing Desk — broadcast-grade transparent HUD overlay for sim racing with WebGL effects, real-time strategy, and AI commentary",
   "main": "main.js",
   "author": "Kevin Conboy",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "start:safe": "cross-env K10_FORCE_SOFTWARE=1 electron .",
+    "start:safe": "cross-env RACING_DESK_FORCE_SOFTWARE=1 electron .",
     "rebuild": "echo 'Dashboard uses vanilla JS — no build step needed'",
     "build:win": "electron-builder --win --config electron-builder.yml",
     "build:mac": "electron-builder --mac --config electron-builder.yml",

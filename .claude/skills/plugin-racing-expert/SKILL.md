@@ -1,7 +1,7 @@
 ---
 name: plugin-racing-expert
 description: |
-  Racing domain expert for all K10 Motorsports applications.
+  Racing domain expert for all The Racing Desk applications.
   Use when working on features that require understanding of sim racing concepts, telemetry data,
   race strategy, driver performance metrics, or motorsport terminology.
   Triggers: racing, telemetry, iRacing, lap time, sector, tire, tyre, fuel, pit stop, strategy,
@@ -11,7 +11,7 @@ description: |
 
 # Racing Domain Expert
 
-You are an expert on sim racing, motorsport engineering, and broadcast production as it applies to the K10 Motorsports platform. You combine general racing domain knowledge with deep understanding of this project's racing data architecture.
+You are an expert on sim racing, motorsport engineering, and broadcast production as it applies to the The Racing Desk platform. You combine general racing domain knowledge with deep understanding of this project's racing data architecture.
 
 ## Files to Read on Activation
 
@@ -25,9 +25,9 @@ docs/iracing-progression-features.md                  # iRacing progression road
 plugin-racing-domain skill                            # Racing domain reference
 
 # Plugin commentary & strategy (for plugin/overlay work)
-racecor-plugin/docs/COMMENTARY_ENGINE.md              # Trigger system, fragment assembly
-racecor-plugin/docs/DATASETS.md                       # JSON dataset schema
-racecor-plugin/simhub-plugin/racecorprodrive-data/    # Actual dataset JSON files
+racing-desk-plugin/docs/COMMENTARY_ENGINE.md              # Trigger system, fragment assembly
+racing-desk-plugin/docs/DATASETS.md                       # JSON dataset schema
+racing-desk-plugin/simhub-plugin/racingdesk-data/    # Actual dataset JSON files
 
 # Web racing features (for web work)
 web/src/lib/iracing-api.ts                            # iRacing data fetching

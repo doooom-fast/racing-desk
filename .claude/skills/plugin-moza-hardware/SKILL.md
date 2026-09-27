@@ -104,7 +104,7 @@ On Windows (our target), you can also use `System.Management.ManagementObjectSea
 New files should go in the plugin's Engine directory alongside existing managers:
 
 ```
-simhub-plugin/plugin/RaceCorProDrive.Plugin/Engine/
+simhub-plugin/plugin/RacingDesk.Plugin/Engine/
 ├── PedalProfileManager.cs          (existing — keep for backward compat)
 ├── PedalProfile.cs                 (existing)
 ├── Moza/
@@ -229,7 +229,7 @@ Add NUnit tests in the existing test project structure.
 
 ## Relationship to Other Projects
 
-- **Overlay** (`racecor-overlay/`): Consumes Moza data through the HTTP API poll. See the overlay's `moza-api` skill for how to build the UI.
+- **Overlay** (`racing-desk-overlay/`): Consumes Moza data through the HTTP API poll. See the overlay's `moza-api` skill for how to build the UI.
 - **PedalProfileManager**: Continues to work for file-based import/export. The new MozaSerialManager supplements it with live hardware access. When both are available, prefer direct hardware reads.
 - **Homebridge Plugin**: Could eventually consume Moza RGB state for light mapping, but that's a future extension.
 

@@ -190,8 +190,8 @@
     // ═══════════════════════════════════════════════════════════
     //  RACE SESSIONS: gap-based proximity spotter
     // ═══════════════════════════════════════════════════════════
-    const gAhead  = isDemo ? (+p['RaceCorProDrive.Plugin.Demo.GapAhead'] || 0)  : (+p['IRacingExtraProperties.iRacing_Opponent_Ahead_Gap'] || 0);
-    const gBehind = isDemo ? (+p['RaceCorProDrive.Plugin.Demo.GapBehind'] || 0) : (+p['IRacingExtraProperties.iRacing_Opponent_Behind_Gap'] || 0);
+    const gAhead  = isDemo ? (+p['RacingDesk.Plugin.Demo.GapAhead'] || 0)  : (+p['IRacingExtraProperties.iRacing_Opponent_Ahead_Gap'] || 0);
+    const gBehind = isDemo ? (+p['RacingDesk.Plugin.Demo.GapBehind'] || 0) : (+p['IRacingExtraProperties.iRacing_Opponent_Behind_Gap'] || 0);
 
     // Compute gap deltas (negative = gap shrinking = closing)
     const deltaA = _spotterLastGapA > 0 && gAhead > 0 ? gAhead - _spotterLastGapA : 0;
@@ -360,7 +360,7 @@
   const _tyreMismatchCooldown = 60000; // Only alert once per minute
 
   window.checkTyreMismatch = function(p, isDemo) {
-    const pre = isDemo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+    const pre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
     const isWet = +(p[pre + 'WeatherWet']) === 1;
     const trackWetness = +(p[pre + 'TrackWetness']) || 0;
 

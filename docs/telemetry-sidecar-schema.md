@@ -7,7 +7,7 @@
 ## Files
 
 - **Producer:** [`prodrive-overlay/modules/js/telemetry-sidecar.js`](../apps/overlay) — `captureFrame()` writes one line per ~30fps poll.
-- **Consumer:** [`prodrive-designer/replayer/sidecar-mapper.js`](https://github.com/k10-motorsports/prodrive-designer/blob/main/replayer/sidecar-mapper.js) — `frameToPropBag()` inverts each line back into the flat plugin-shape prop bag the dashboard polls.
+- **Consumer:** [`prodrive-designer/replayer/sidecar-mapper.js`](https://github.com/DOOOOM/prodrive-designer/blob/main/replayer/sidecar-mapper.js) — `frameToPropBag()` inverts each line back into the flat plugin-shape prop bag the dashboard polls.
 
 ## Layout
 
@@ -47,12 +47,12 @@ Field names are intentionally short to keep file size down — at 30fps this acc
 | `frame` | `number` | — | Monotonic counter from 0 |
 | **Position & race state** | | | |
 | `pos` | `number` | `DataCorePlugin.GameData.Position` | Race position |
-| `totalCars` | `number` | `RaceCorProDrive.Plugin.Grid.TotalCars` | |
+| `totalCars` | `number` | `RacingDesk.Plugin.Grid.TotalCars` | |
 | `gapAhead` | `number` | `IRacingExtraProperties.iRacing_Opponent_Ahead_Gap` | Seconds |
 | `gapBehind` | `number` | `IRacingExtraProperties.iRacing_Opponent_Behind_Gap` | Seconds |
 | `lap` | `number` | `DataCorePlugin.GameData.CurrentLap` | |
-| `sector` | `number` | `RaceCorProDrive.Plugin.DS.CurrentSector` | 1-based |
-| `lapDelta` | `number` | `RaceCorProDrive.Plugin.DS.LapDelta` | Seconds |
+| `sector` | `number` | `RacingDesk.Plugin.DS.CurrentSector` | 1-based |
+| `lapDelta` | `number` | `RacingDesk.Plugin.DS.LapDelta` | Seconds |
 | **Speed & inputs** | | | |
 | `speed` | `number` | `DataCorePlugin.GameData.SpeedMph` | mph |
 | `throttle` | `number` | `DataCorePlugin.GameData.Throttle` | 0..1 (or 0..10000% — normalized downstream) |
@@ -60,12 +60,12 @@ Field names are intentionally short to keep file size down — at 30fps this acc
 | `gear` | `number` | `DataCorePlugin.GameData.Gear` | -1=R, 0=N, 1+=fwd |
 | `steer` | `number` | `DataCorePlugin.GameRawData.Telemetry.SteeringWheelAngle` | Radians |
 | **G-forces** | | | |
-| `latG` | `number` | `RaceCorProDrive.Plugin.DS.LatG` | g |
-| `longG` | `number` | `RaceCorProDrive.Plugin.DS.LongG` | g |
+| `latG` | `number` | `RacingDesk.Plugin.DS.LatG` | g |
+| `longG` | `number` | `RacingDesk.Plugin.DS.LongG` | g |
 | **Incidents & flags** | | | |
-| `incidents` | `number` | `RaceCorProDrive.Plugin.DS.IncidentCount` | |
-| `flag` | `string` | `RaceCorProDrive.Plugin.DS.FlagState` | `green`, `yellow`, `red`, `blue`, `white`, `checkered`, `none` |
-| `pit` | `boolean` | `RaceCorProDrive.Plugin.DS.IsInPitLane` | |
+| `incidents` | `number` | `RacingDesk.Plugin.DS.IncidentCount` | |
+| `flag` | `string` | `RacingDesk.Plugin.DS.FlagState` | `green`, `yellow`, `red`, `blue`, `white`, `checkered`, `none` |
+| `pit` | `boolean` | `RacingDesk.Plugin.DS.IsInPitLane` | |
 | **Fuel** | | | |
 | `fuel` | `number` | `DataCorePlugin.GameData.Fuel` | Litres |
 | `maxFuel` | `number` | `DataCorePlugin.GameData.MaxFuel` | Litres |
@@ -79,13 +79,13 @@ Field names are intentionally short to keep file size down — at 30fps this acc
 | `tc` | `number` | `dcTractionControl` | 0..12 typical |
 | `abs` | `number` | `dcABS` | 0..12 typical |
 | **Track position** (added 2026-04-26) | | | |
-| `px` | `number` | `RaceCorProDrive.Plugin.TrackMap.PlayerX` | 0..100 viewBox coords |
-| `py` | `number` | `RaceCorProDrive.Plugin.TrackMap.PlayerY` | 0..100 viewBox coords |
-| `hdg` | `number` | `RaceCorProDrive.Plugin.TrackMap.PlayerHeading` | Radians |
+| `px` | `number` | `RacingDesk.Plugin.TrackMap.PlayerX` | 0..100 viewBox coords |
+| `py` | `number` | `RacingDesk.Plugin.TrackMap.PlayerY` | 0..100 viewBox coords |
+| `hdg` | `number` | `RacingDesk.Plugin.TrackMap.PlayerHeading` | Radians |
 | **Proximity & session** | | | |
-| `closestCar` | `number` | `RaceCorProDrive.Plugin.DS.ClosestCarDistance` | Metres |
-| `sessionState` | `number` | `RaceCorProDrive.Plugin.Grid.SessionState` | |
-| `endOfRace` | `boolean` | `RaceCorProDrive.Plugin.DS.IsEndOfRace` | |
+| `closestCar` | `number` | `RacingDesk.Plugin.DS.ClosestCarDistance` | Metres |
+| `sessionState` | `number` | `RacingDesk.Plugin.Grid.SessionState` | |
+| `endOfRace` | `boolean` | `RacingDesk.Plugin.DS.IsEndOfRace` | |
 
 ## Summary line (`_type: "summary"`)
 

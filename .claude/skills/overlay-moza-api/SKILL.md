@@ -1,6 +1,6 @@
 ---
 name: overlay-moza-api
-description: Moza hardware UI and API consumption for the RaceCor overlay. Use this skill when building, modifying, or debugging the overlay's Moza hardware panels — settings display, pedal curve visualization, wheelbase FFB controls, handbrake calibration, shifter config, dashboard settings, or device connection status. Trigger on any mention of Moza UI in the overlay, Moza settings panel, hardware settings visualization, device management screen, or consuming the Moza HTTP endpoints from the overlay. Also trigger when working on pedal-curves.js Moza features, Moza settings in dashboard.html, or any new Moza-related overlay module.
+description: Moza hardware UI and API consumption for the RacingDesk overlay. Use this skill when building, modifying, or debugging the overlay's Moza hardware panels — settings display, pedal curve visualization, wheelbase FFB controls, handbrake calibration, shifter config, dashboard settings, or device connection status. Trigger on any mention of Moza UI in the overlay, Moza settings panel, hardware settings visualization, device management screen, or consuming the Moza HTTP endpoints from the overlay. Also trigger when working on pedal-curves.js Moza features, Moza settings in dashboard.html, or any new Moza-related overlay module.
 ---
 
 # Moza Hardware API — Overlay Consumer Skill
@@ -66,8 +66,8 @@ The overlay follows its established polling pattern (no WebSocket, no push). Moz
 
 2. **On-demand action fetches** — when the user opens settings or changes a value:
    ```
-   GET http://localhost:8889/racecor-io-pro-drive/?action=getMozaWheelbaseSettings
-   GET http://localhost:8889/racecor-io-pro-drive/?action=setMozaWheelbaseSetting&key=ffbStrength&value=90
+   GET http://localhost:8889/racing-desk/?action=getMozaWheelbaseSettings
+   GET http://localhost:8889/racing-desk/?action=setMozaWheelbaseSetting&key=ffbStrength&value=90
    ```
 
 ## Implementation Guidance
@@ -133,7 +133,7 @@ Use the overlay's existing HTTP fetch pattern:
 
 ```javascript
 async function fetchAction(action, params = {}) {
-    const url = new URL('http://localhost:8889/racecor-io-pro-drive/');
+    const url = new URL('http://localhost:8889/racing-desk/');
     url.searchParams.set('action', action);
     for (const [k, v] of Object.entries(params)) {
         url.searchParams.set(k, v);
@@ -286,7 +286,7 @@ export function updatePedalCurves(p) {
     if (p.MozaConnected && p.MozaPedalsConnected) {
         // Direct hardware curves — more accurate, real-time
         renderCurvesFromHardware(p);
-    } else if (p.RaceCorProDrive?.Plugin?.DS?.PedalProfile) {
+    } else if (p.RacingDesk?.Plugin?.DS?.PedalProfile) {
         // Fall back to existing Pit House file-based profiles
         renderCurvesFromProfile(p);
     }

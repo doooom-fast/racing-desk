@@ -1,8 +1,8 @@
-# RaceCorProDrive MCP - Quick Start Guide
+# RacingDesk MCP - Quick Start Guide
 
 ## What is this?
 
-A Model Context Protocol (MCP) server that lets Claude understand the RaceCor dashboard overlay code without reading raw HTML files.
+A Model Context Protocol (MCP) server that lets Claude understand the RacingDesk dashboard overlay code without reading raw HTML files.
 
 ## Location
 
@@ -127,7 +127,7 @@ search_source <pattern>
 
 The MCP reads from:
 ```
-racecor-overlay/
+racing-desk-overlay/
 ├── modules/        (Dashboard modules)
 │   ├── js/         (JavaScript modules)
 │   └── styles/     (CSS modules)
@@ -173,7 +173,7 @@ Expected output: All tests pass ✓
 If the MCP doesn't start:
 
 1. Check Node.js version: `node --version` (should be 16+)
-2. Verify source exists: `ls racecor-overlay/modules/`
+2. Verify source exists: `ls racing-desk-overlay/modules/`
 3. Rebuild: `npm run build`
 4. Run test: `bash test-mcp.sh`
 
@@ -187,6 +187,6 @@ If the MCP doesn't start:
 
 ## That's It!
 
-Your RaceCor Broadcaster MCP is built, tested, and ready to use with Claude. It replaces the need to manually read and parse source files, giving Claude structured access to your entire overlay codebase.
+Your RacingDesk Broadcaster MCP is built, tested, and ready to use with Claude. It replaces the need to manually read and parse source files, giving Claude structured access to your entire overlay codebase.
 
 Happy coding!

@@ -1,12 +1,12 @@
 ---
 name: server-design-system
 description: |
-  The complete RaceCor.io Pro Drive design system — tokens, component patterns, typography, layout conventions, and visual language. Use this skill whenever building, modifying, or reviewing ANY UI component in the Pro Drive app (src/app/drive/**). This includes: creating new pages or sections, adding cards/lists/badges, designing hero banners, building data visualizations, styling empty states, or touching anything visual. Also trigger when the user mentions "design system", "styling", "theme", "component", "card", "badge", "layout", or asks to match the existing look-and-feel. If in doubt about how something should look in Pro Drive, use this skill.
+  The complete The Racing Desk design system — tokens, component patterns, typography, layout conventions, and visual language. Use this skill whenever building, modifying, or reviewing ANY UI component in the The Racing Desk app (src/app/drive/**). This includes: creating new pages or sections, adding cards/lists/badges, designing hero banners, building data visualizations, styling empty states, or touching anything visual. Also trigger when the user mentions "design system", "styling", "theme", "component", "card", "badge", "layout", or asks to match the existing look-and-feel. If in doubt about how something should look in The Racing Desk, use this skill.
 ---
 
-# RaceCor.io Pro Drive — Design System
+# The Racing Desk — Design System
 
-This skill captures the full visual language of the Pro Drive sim racing dashboard. Every new component should feel like it belongs alongside the existing pages. The goal is consistency — not uniformity. Each page has character, but they all share the same DNA.
+This skill captures the full visual language of the The Racing Desk sim racing dashboard. Every new component should feel like it belongs alongside the existing pages. The goal is consistency — not uniformity. Each page has character, but they all share the same DNA.
 
 ## How to Use This Skill
 
@@ -18,7 +18,7 @@ This skill captures the full visual language of the Pro Drive sim racing dashboa
 
 ## Label Conventions
 
-Three rules govern user-facing labels in Pro Drive. **Codes / file
+Three rules govern user-facing labels in The Racing Desk. **Codes / file
 names / DB columns / wire formats stay legacy** — only the rendered
 string changes. Never search-and-replace; touch labels surgically.
 
@@ -146,9 +146,9 @@ Use `--text` for headings and primary content, step down through the hierarchy f
 
 ### Brand Colors
 ```
---k10-red:      #e53935  — Primary brand red (buttons, accents)
---k10-red-mid:  #b02020  — Mid-tone (large decorative elements only)
---k10-red-dark: #700010  — Dark (backgrounds/borders only, never text)
+--rd-red:      #e53935  — Primary brand red (buttons, accents)
+--rd-red-mid:  #b02020  — Mid-tone (large decorative elements only)
+--rd-red-dark: #700010  — Dark (backgrounds/borders only, never text)
 ```
 
 ### Semantic Colors
@@ -204,7 +204,7 @@ The standard card:
 - **Padding**: `p-5` for full cards, `p-3` for compact list items
 
 ### Hero Banners (Page Headers)
-Every Pro Drive page uses a full-width hero:
+Every The Racing Desk page uses a full-width hero:
 ```jsx
 <div className="relative overflow-hidden bg-[var(--bg-panel)]">
   {/* Gradient overlays — ALWAYS include both */}
@@ -368,7 +368,7 @@ Track location data (country, flag emoji, city) is available via `getTrackLocati
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | `GameBadge` | `@/components/GameBadge` | Inline game logo (iRacing SVG, text fallback) |
-| `LogoMark` | `@/components/LogoMark` | RaceCor logomark (theme-aware) |
+| `LogoMark` | `@/components/LogoMark` | RacingDesk logomark (theme-aware) |
 | `DriveHeader` | `@/components/DriveHeader` | Fixed nav header with auth |
 | `DataStrip` | `drive/dashboard/DataStrip` | Rating sparklines strip |
 | `DashboardBackground` | `@/components/DashboardBackground` | Animated background |

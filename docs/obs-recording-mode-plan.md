@@ -1,16 +1,16 @@
-# RaceCor Pro Drive — OBS Recording Mode Plan
+# The Racing Desk — OBS Recording Mode Plan
 
 *Drafted 2026-06-05. Companion to [`video-editor-plan.md`](video-editor-plan.md) — adds a third recording **producer** alongside the overlay's built-in recorder and the future Windows-native recorder.*
 
 Today the overlay owns the whole recording stack: it screen-captures via Chromium's `getDisplayMedia`, composites the HUD + facecam onto a canvas, encodes with `MediaRecorder`, transcodes WebM→MP4 with ffmpeg, and emits a `.rcpdv` bundle (MP4 + telemetry sidecar). That is great for one-click capture but it is a closed pipeline — no scene composition, no multi-source mixing, no per-app audio, no streaming, and the encode quality is whatever Chromium gives us.
 
-This plan adds an **OBS recording mode**: the user records and composes the video in OBS (scenes, sources, facecam, audio mixing, hardware encoder, streaming), while RaceCor still captures the **telemetry sidecar** in the exact format [`prodrive-edit`](video-editor-plan.md) ingests — so the "edit it down later" path is preserved untouched. The overlay is piped **into OBS only** (never onto the driving display) as a browser source that conforms to 16:9 or any custom canvas size.
+This plan adds an **OBS recording mode**: the user records and composes the video in OBS (scenes, sources, facecam, audio mixing, hardware encoder, streaming), while RacingDesk still captures the **telemetry sidecar** in the exact format [`prodrive-edit`](video-editor-plan.md) ingests — so the "edit it down later" path is preserved untouched. The overlay is piped **into OBS only** (never onto the driving display) as a browser source that conforms to 16:9 or any custom canvas size.
 
 ## How this answers the brief
 
 | Ask | Answer in this plan |
 |-----|---------------------|
-| Use OBS for video recording **and composition** | OBS owns the MP4 and the scene. RaceCor stops owning video in this mode. → [The split](#the-split) |
+| Use OBS for video recording **and composition** | OBS owns the MP4 and the scene. RacingDesk stops owning video in this mode. → [The split](#the-split) |
 | **Telemetry still recorded** for later editing-down | A headless **telemetry companion** writes the same `.telemetry.jsonl` schema `prodrive-edit` already consumes, time-synced to OBS's record start/stop. → [Telemetry companion](#telemetry-companion--obs-sync) |
 | "This might be an OBS plugin?" | A native plugin is **not** needed for the MVP — an OBS **Browser Source + obs-websocket companion** does everything you described with zero native code. A native plugin is a later UX/precision upgrade, weighed below. → [Do we need a native plugin?](#do-we-need-a-native-obs-plugin) |
 | Pipe the overlay **just to OBS**, not on my main screen | The overlay renders inside OBS's embedded browser (CEF) as a scene layer. There is no window on the desktop. The companion runs headless. → [Broadcast overlay](#broadcast-overlay-169--custom-dimensions) |
@@ -18,10 +18,10 @@ This plan adds an **OBS recording mode**: the user records and composes the vide
 
 ## The split
 
-The core idea: **OBS owns pixels and audio; RaceCor owns telemetry and the broadcast overlay.** They meet at two seams — a browser source (visual) and a record-state trigger (sync).
+The core idea: **OBS owns pixels and audio; RacingDesk owns telemetry and the broadcast overlay.** They meet at two seams — a browser source (visual) and a record-state trigger (sync).
 
 ```
-   SimHub + RaceCor plugin            ┌──────────────────── OBS ────────────────────┐
+   SimHub + RacingDesk plugin            ┌──────────────────── OBS ────────────────────┐
    http://localhost:8889   ──────────┼─► Browser Source                             │
    (telemetry JSON / WS)         │    │     http://localhost:9090/?mode=broadcast    │
                                  │    │     &w=1920&h=1080   (transparent CEF layer) │
@@ -53,7 +53,7 @@ Default to (a). Ship (b) only if users ask for OBS-quality encode *with* post-fl
 
 The live overlay is a **corner-anchored HUD on a full-display transparent window** — `main.js` sizes the `BrowserWindow` to the physical display (e.g. 3440×1440 ultrawide) and reflows to it on `display-metrics-changed`. Layout is tied to the monitor, not to a video canvas. A 16:9 OBS scene needs the opposite: a **fixed logical canvas** the HUD lays out against, independent of whatever monitor the rig has.
 
-Good news — the overlay is already a single self-contained web page (`dashboard.html`, all CSS/JS inlined) and `remote-server.js` already serves it over HTTP on **:9090**, already proxies the plugin at `:9090/racecor-io-pro-drive/*`, and already injects a `<script>` override block per request. OBS can load it as a Browser Source **today**; what's missing is a layout mode that targets a canvas instead of a screen.
+Good news — the overlay is already a single self-contained web page (`dashboard.html`, all CSS/JS inlined) and `remote-server.js` already serves it over HTTP on **:9090**, already proxies the plugin at `:9090/racing-desk/*`, and already injects a `<script>` override block per request. OBS can load it as a Browser Source **today**; what's missing is a layout mode that targets a canvas instead of a screen.
 
 ### Broadcast layout mode
 
@@ -130,7 +130,7 @@ You asked specifically. Short answer: **no — not for anything in the brief.** 
 |----------|---------------|------|---------|
 | **Browser Source + obs-websocket companion** | Overlay in OBS at any canvas size; headless telemetry sidecar synced to record start/stop; reuses 100% of existing overlay + sidecar code | Layout mode in `dashboard.html`; small companion entry path; obs-websocket dependency (built into OBS, user enables once) | ✅ **Recommended MVP.** Everything in the brief, zero native code, ships fast. |
 | **OBS Lua/Python script** | In-OBS record-start/stop hook (`obs_frontend_add_event_callback`) that launches/stops the companion and hands it the output path — no external WebSocket | Script per-platform; OBS-Python version-matching is famously fragile; still needs the companion for fs + telemetry decode | ⚖️ Marginal. Only removes the obs-websocket setup step; the script is just a *trigger* handing off to the same companion. Consider as packaging sugar, not architecture. |
-| **Native C/C++ plugin (libobs)** | First-class OBS UI ("RaceCor Telemetry" output/dock), frame-accurate sync to the encoder timeline, single-install UX, could embed telemetry as a timed metadata track | C/C++ build + sign + notarize **per platform** (Win + Mac); tracks OBS API churn; still must talk to `:8889` for data; **rendering the HUD natively would mean re-implementing the entire web overlay in C++/GL — not worth it** | 🅿️ **Deferred.** Its only real wins are UX packaging and frame-accurate sync — both reachable incrementally (Phase 4/6) without it. Revisit if the companion's sync or setup friction proves inadequate in practice. |
+| **Native C/C++ plugin (libobs)** | First-class OBS UI ("RacingDesk Telemetry" output/dock), frame-accurate sync to the encoder timeline, single-install UX, could embed telemetry as a timed metadata track | C/C++ build + sign + notarize **per platform** (Win + Mac); tracks OBS API churn; still must talk to `:8889` for data; **rendering the HUD natively would mean re-implementing the entire web overlay in C++/GL — not worth it** | 🅿️ **Deferred.** Its only real wins are UX packaging and frame-accurate sync — both reachable incrementally (Phase 4/6) without it. Revisit if the companion's sync or setup friction proves inadequate in practice. |
 
 The instinct that "this might be a plugin" is reasonable, but the overlay is *already a web app*, and OBS's Browser Source is *built to host web apps*. Rendering is solved for free; the only thing a plugin would add is a tighter sync clock and a nicer install — neither blocks the brief.
 
@@ -141,7 +141,7 @@ The instinct that "this might be a plugin" is reasonable, but the overlay is *al
 3. **Phase 3 — Edit-pairing validation.** Drop an OBS-produced `mp4` + companion `telemetry.jsonl` into `prodrive-edit`; confirm ingest, event detection, and a rendered highlight. *Deliverable: the "edit it down" path works end-to-end from an OBS recording.*
 4. **Phase 4 — Offset-aware sync.** Add `videoStartUtc` + `videoOffsetMs` to the sidecar header (additive, see [schema addendum](#schema-addendum)); derive the offset from obs-websocket `outputTimecode`/`outputDuration`; teach `prodrive-edit` to apply it. *Deliverable: frame-accurate alignment, unlocking sub-mode (b) and burned-in re-composites.*
 5. **Phase 5 — Optional `.rcpdv` re-bundle.** A finalize step wraps OBS's mp4 + the sidecar into a `.rcpdv` using the existing [`race-bundle-format`](../.claude/skills/race-bundle-format/SKILL.md) writer (it just appends a `uuid` box to any MP4), so OBS recordings archive identically to built-in ones. *Deliverable: OBS sessions are first-class `.rcpdv` bundles too.*
-6. **Phase 6 — Packaging / UX.** An OBS scene-collection + profile template ("RaceCor 1080p"), a one-click "Set up OBS" action (auto-enable obs-websocket, add the browser source, import the scene), and companion autostart alongside the overlay's iRacing detector. *Deliverable: a non-technical setup.*
+6. **Phase 6 — Packaging / UX.** An OBS scene-collection + profile template ("RacingDesk 1080p"), a one-click "Set up OBS" action (auto-enable obs-websocket, add the browser source, import the scene), and companion autostart alongside the overlay's iRacing detector. *Deliverable: a non-technical setup.*
 7. **Phase 7 — Clean-plate sub-mode (b).** Document/template the HUD-on-stream-only-scene arrangement; rely on Phase 4 sync so the editor composites the HUD post-hoc. *Deliverable: OBS-quality encode with post-flexible overlays.*
 8. **Phase 8 (optional, deferred) — Native OBS plugin or Lua/Python script.** Only if Phase 6 packaging or Phase 4 sync proves insufficient. Scope: in-OBS dock + encoder-timeline sync. Not rendering.
 

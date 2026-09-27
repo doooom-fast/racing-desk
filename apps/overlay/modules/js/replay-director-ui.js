@@ -71,8 +71,8 @@
       'margin-top: 4px',
     ].join(';');
     _cancelBtn.onclick = function () {
-      if (window.k10 && window.k10.cancelReplayDirector) {
-        window.k10.cancelReplayDirector();
+      if (window.racingDesk && window.racingDesk.cancelReplayDirector) {
+        window.racingDesk.cancelReplayDirector();
       }
     };
 
@@ -108,8 +108,8 @@
   async function startDirector() {
     if (_running) {
       // Already running — cancel instead
-      if (window.k10 && window.k10.cancelReplayDirector) {
-        window.k10.cancelReplayDirector();
+      if (window.racingDesk && window.racingDesk.cancelReplayDirector) {
+        window.racingDesk.cancelReplayDirector();
       }
       return;
     }
@@ -125,8 +125,8 @@
     updateStatus('Analyzing telemetry...');
 
     // Preview the moments before starting
-    if (window.k10 && window.k10.parseSidecarMoments) {
-      var preview = await window.k10.parseSidecarMoments(sidecarPath);
+    if (window.racingDesk && window.racingDesk.parseSidecarMoments) {
+      var preview = await window.racingDesk.parseSidecarMoments(sidecarPath);
       if (preview.error) {
         updateStatus('Error: ' + preview.error);
         setTimeout(hide, 3000);
@@ -143,8 +143,8 @@
     }
 
     // Start the director
-    if (window.k10 && window.k10.startReplayDirector) {
-      var result = await window.k10.startReplayDirector(sidecarPath);
+    if (window.racingDesk && window.racingDesk.startReplayDirector) {
+      var result = await window.racingDesk.startReplayDirector(sidecarPath);
       if (result && result.error) {
         updateStatus('Error: ' + result.error);
         setTimeout(hide, 3000);
@@ -188,15 +188,15 @@
   // ── Event wiring ──────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
     // Hotkey toggle
-    if (window.k10 && window.k10.onToggleReplayDirector) {
-      window.k10.onToggleReplayDirector(function () {
+    if (window.racingDesk && window.racingDesk.onToggleReplayDirector) {
+      window.racingDesk.onToggleReplayDirector(function () {
         startDirector();
       });
     }
 
     // Progress updates from main process
-    if (window.k10 && window.k10.onReplayDirectorProgress) {
-      window.k10.onReplayDirectorProgress(function (progress) {
+    if (window.racingDesk && window.racingDesk.onReplayDirectorProgress) {
+      window.racingDesk.onReplayDirectorProgress(function (progress) {
         switch (progress.status) {
           case 'starting':
             show();
@@ -250,8 +250,8 @@
     }
 
     // Recording commands from director (start/stop the actual screen capture)
-    if (window.k10 && window.k10.onReplayDirectorRecord) {
-      window.k10.onReplayDirectorRecord(function (data) {
+    if (window.racingDesk && window.racingDesk.onReplayDirectorRecord) {
+      window.racingDesk.onReplayDirectorRecord(function (data) {
         if (data.action === 'start') {
           if (typeof window.recorderStart === 'function') {
             window.recorderStart();

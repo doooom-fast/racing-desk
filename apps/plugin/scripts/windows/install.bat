@@ -2,11 +2,11 @@
 setlocal enabledelayedexpansion
 
 :: ════════════════════════════════════════════════════════════════
-::  RaceCor ProDrive - SimHub Plugin Build & Install
+::  RacingDesk ProDrive - SimHub Plugin Build & Install
 :: ════════════════════════════════════════════════════════════════
 ::
 ::  Stops SimHub, builds the plugin, copies the build output + the
-::  racecorprodrive-data dataset folder into SimHub's install
+::  racingdesk-data dataset folder into SimHub's install
 ::  directory, and relaunches SimHub.
 ::
 ::  The csproj is already wired so that when SimHub is detected on
@@ -31,13 +31,13 @@ if "%CONFIG%"=="" set CONFIG=Release
 set "SCRIPT_DIR=%~dp0"
 :: This script lives in <repo>/scripts/windows/. Repo root is two up.
 set "REPO_ROOT=%SCRIPT_DIR%..\.."
-set "PLUGIN_REPO=%REPO_ROOT%\racecor-plugin"
-set "PLUGIN_PROJ=%PLUGIN_REPO%\simhub-plugin\plugin\RaceCorProDrive.Plugin\RaceCorProDrive.Plugin.csproj"
-set "DATA_DIR=%PLUGIN_REPO%\simhub-plugin\racecorprodrive-data"
+set "PLUGIN_REPO=%REPO_ROOT%\racing-desk-plugin"
+set "PLUGIN_PROJ=%PLUGIN_REPO%\simhub-plugin\plugin\RacingDesk.Plugin\RacingDesk.Plugin.csproj"
+set "DATA_DIR=%PLUGIN_REPO%\simhub-plugin\racingdesk-data"
 
 echo.
 echo  ============================================
-echo   RaceCor ProDrive - SimHub Plugin Install
+echo   RacingDesk ProDrive - SimHub Plugin Install
 echo  ============================================
 
 :: ── 1. Resolve SimHub path ──────────────────────────────────────
@@ -114,7 +114,7 @@ timeout /t 1 /nobreak >NUL
 :: this script's own parent shell so we don't terminate ourselves.
 :: The DLL stays loaded for the AppDomain lifetime, blocking the
 :: build's overwrite step with MSB3021 / MSB3027.
-powershell -NoProfile -Command "$self = $PID; Get-Process powershell, pwsh -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $self -and $_.Id -ne $env:PROCESSOR_ID } | ForEach-Object { try { if ($_.Modules | Where-Object { $_.FileName -eq '!SH!\RaceCorProDrive.dll' }) { Write-Host (\"       Releasing DLL lock held by PowerShell PID \" + $_.Id); Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } } catch {} }" 2>NUL
+powershell -NoProfile -Command "$self = $PID; Get-Process powershell, pwsh -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $self -and $_.Id -ne $env:PROCESSOR_ID } | ForEach-Object { try { if ($_.Modules | Where-Object { $_.FileName -eq '!SH!\RacingDesk.dll' }) { Write-Host (\"       Releasing DLL lock held by PowerShell PID \" + $_.Id); Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } } catch {} }" 2>NUL
 
 echo        OK.
 
@@ -143,8 +143,8 @@ if %ERRORLEVEL% NEQ 0 (
     pause
     exit /b 1
 )
-if not exist "%STAGE%\RaceCorProDrive.dll" (
-    echo  ERROR: Build did not produce RaceCorProDrive.dll at %STAGE%
+if not exist "%STAGE%\RacingDesk.dll" (
+    echo  ERROR: Build did not produce RacingDesk.dll at %STAGE%
     pause
     exit /b 1
 )
@@ -160,7 +160,7 @@ echo        OK.
 echo  [3/4] Installing plugin files...
 :: Allow-list. Add to this set when you genuinely need a new third-
 :: party dep that SimHub doesn't ship.
-set "COPY_LIST=RaceCorProDrive.dll RaceCorProDrive.pdb RaceCor.Core.dll RaceCor.Core.pdb IRSDKSharper.dll Fleck.dll MessagePack.dll MessagePack.Annotations.dll"
+set "COPY_LIST=RacingDesk.dll RacingDesk.pdb RacingDesk.Core.dll RacingDesk.Core.pdb IRSDKSharper.dll Fleck.dll MessagePack.dll MessagePack.Annotations.dll"
 for %%F in (%COPY_LIST%) do (
     if exist "%STAGE%\%%F" (
         copy /Y "%STAGE%\%%F" "!SH!\%%F" >NUL
@@ -173,15 +173,15 @@ for %%F in (%COPY_LIST%) do (
     )
 )
 :: Sanity-check the must-have files landed.
-if not exist "!SH!\RaceCorProDrive.dll" (
-    echo  ERROR: RaceCorProDrive.dll didn't land in !SH! after copy.
+if not exist "!SH!\RacingDesk.dll" (
+    echo  ERROR: RacingDesk.dll didn't land in !SH! after copy.
     pause
     exit /b 1
 )
 
 :: Dataset.
-if not exist "!SH!\racecorprodrive-data\" mkdir "!SH!\racecorprodrive-data"
-xcopy /E /Y /Q "%DATA_DIR%\*" "!SH!\racecorprodrive-data\" >NUL
+if not exist "!SH!\racingdesk-data\" mkdir "!SH!\racingdesk-data"
+xcopy /E /Y /Q "%DATA_DIR%\*" "!SH!\racingdesk-data\" >NUL
 if %ERRORLEVEL% NEQ 0 (
     echo  ERROR: Dataset copy failed.
     pause
@@ -194,7 +194,7 @@ echo        Dataset OK.
 :: get tagged with a Zone.Identifier NTFS stream. SimHub silently
 :: refuses to load tagged plugin DLLs.
 echo  [3b]  Unblocking plugin files (Mark-of-the-Web)...
-powershell -NoProfile -Command "Get-ChildItem '!SH!' -Filter 'RaceCor*.*' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!' -Filter 'IRSDKSharper.dll','Fleck.dll','MessagePack*.dll' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!\racecorprodrive-data' -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue" 2>NUL
+powershell -NoProfile -Command "Get-ChildItem '!SH!' -Filter 'RacingDesk*.*' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!' -Filter 'IRSDKSharper.dll','Fleck.dll','MessagePack*.dll' -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue; Get-ChildItem '!SH!\racingdesk-data' -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue" 2>NUL
 echo        OK.
 
 :: ── 6. Restart SimHub ──────────────────────────────────────────
@@ -216,7 +216,7 @@ echo        OK.
 
 echo.
 echo  ============================================
-echo   Done. RaceCor ProDrive plugin installed.
+echo   Done. RacingDesk ProDrive plugin installed.
 echo  ============================================
 echo.
 

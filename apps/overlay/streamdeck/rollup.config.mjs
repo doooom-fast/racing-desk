@@ -6,7 +6,7 @@ import path from "node:path";
 export default {
   input: "src/plugin.ts",
   output: {
-    file: "com.racecor.overlay.sdPlugin/bin/plugin.js",
+    file: "com.racing-desk.overlay.sdPlugin/bin/plugin.js",
     format: "cjs",
     sourcemap: true,
     sourcemapPathTransform: (relativeSourcePath, sourcemapPath) => {

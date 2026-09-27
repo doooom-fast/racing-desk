@@ -1,5 +1,5 @@
 /**
- * @element racecor-commentary-viz
+ * @element racing-desk-commentary-viz
  * @description Advanced commentary visualization with Canvas-based telemetry charts.
  *
  * Displays sentiment-colored commentary panel with track image backdrop,
@@ -131,7 +131,7 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const dsPre = 'RaceCorProDrive.Plugin.DS.';
+      const dsPre = 'RacingDesk.Plugin.DS.';
       const gameDataPre = 'DataCorePlugin.GameData.';
 
       this._telemetryData = {
@@ -449,5 +449,5 @@
     }
   }
 
-  customElements.define('racecor-commentary-viz', RaceCorCommentaryViz);
+  customElements.define('racing-desk-commentary-viz', RaceCorCommentaryViz);
 })();

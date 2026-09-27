@@ -1,4 +1,4 @@
-# RaceCorProDrive MCP - Complete Index
+# RacingDesk MCP - Complete Index
 
 ## Quick Links
 
@@ -30,7 +30,7 @@ src/agents/k10-broadcaster/
 
 ## What This MCP Does
 
-The RaceCorProDrive MCP provides 12 specialized tools for understanding the RaceCorProDrive dashboard overlay source code. Instead of manually reading files or parsing HTML, Claude can use structured MCP tools to:
+The RacingDesk MCP provides 12 specialized tools for understanding the RacingDesk dashboard overlay source code. Instead of manually reading files or parsing HTML, Claude can use structured MCP tools to:
 
 - Discover and read dashboard modules
 - Understand configuration and data definitions
@@ -71,7 +71,7 @@ The RaceCorProDrive MCP provides 12 specialized tools for understanding the Race
 
 ## Source Code Organization
 
-The MCP reads from: `racecor-overlay/`
+The MCP reads from: `racing-desk-overlay/`
 
 ```
 modules/            Dashboard modules
@@ -245,4 +245,4 @@ FOR REFERENCE:
 
 ---
 
-**RaceCor Broadcaster MCP v1.0.0** - Structured access to dashboard overlay source code for Claude
+**RacingDesk Broadcaster MCP v1.0.0** - Structured access to dashboard overlay source code for Claude

@@ -1,7 +1,7 @@
 ---
 name: plugin-theming
 description: |
-  Theme system architecture for K10 Motorsports — dark/light themes, modes (standard/minimal/minimal+),
+  Theme system architecture for The Racing Desk — dark/light themes, modes (standard/minimal/minimal+),
   remote CSS token delivery via Vercel Blob, and the cascade model that lets the overlay update
   themes without redownloading. Use when working on theme switching, the data-theme attribute,
   the body.mode-* class system, remote CSS token loading, theme cascade, light theme implementation,
@@ -14,7 +14,7 @@ description: |
 
 ## Overview
 
-RaceCor supports multiple themes (dark, light, future custom) across both the web app and the overlay. Themes are CSS variable overrides layered on top of a base token set. The overlay fetches theme CSS remotely so users get updates without downloading new versions.
+RacingDesk supports multiple themes (dark, light, future custom) across both the web app and the overlay. Themes are CSS variable overrides layered on top of a base token set. The overlay fetches theme CSS remotely so users get updates without downloading new versions.
 
 ## Key Concepts
 
@@ -36,13 +36,13 @@ The current token values (defined in the `designTokens` database table) are the 
 ## Web App Theming
 
 ### How It Works
-1. Root layout reads theme preference from cookie (`racecor-theme`)
+1. Root layout reads theme preference from cookie (`racing-desk-theme`)
 2. Sets `<html data-theme="dark|light">` during SSR (no flash)
 3. Blob CSS `<link>` in `<head>` provides all tokens including `[data-theme="light"]` block
 4. Client-side toggle updates cookie + `data-theme` attribute
 
 ### Theme Preference Storage
-- **Cookie:** `racecor-theme=dark|light` — SSR-readable, set on toggle
+- **Cookie:** `racing-desk-theme=dark|light` — SSR-readable, set on toggle
 - **Database:** `users.themePreference` column — persisted for authenticated users
 - **Sync:** Overlay reads user preference from API
 
@@ -53,7 +53,7 @@ function toggleTheme() {
   const current = document.documentElement.dataset.theme
   const next = current === 'dark' ? 'light' : 'dark'
   document.documentElement.dataset.theme = next
-  document.cookie = `racecor-theme=${next};path=/;max-age=31536000`
+  document.cookie = `racing-desk-theme=${next};path=/;max-age=31536000`
 }
 ```
 
@@ -63,7 +63,7 @@ function toggleTheme() {
 The overlay fetches token CSS from the web API on startup and polls for updates.
 
 ```
-Module: racecor-overlay/modules/js/token-loader.js
+Module: racing-desk-overlay/modules/js/token-loader.js
 
 Startup:
   1. Apply bundled fallback CSS (local file)
@@ -141,9 +141,9 @@ Dynamic vars (ambient light, sentiment, control bars) are set via JS and always 
 
 ```
 Overlay:
-  racecor-overlay/modules/js/token-loader.js  — Remote fetch + fallback + polling
-  racecor-overlay/modules/styles/base.css     — Bundled fallback tokens in :root
-  racecor-overlay/modules/styles/modes.css    — Mode overrides (unchanged)
+  racing-desk-overlay/modules/js/token-loader.js  — Remote fetch + fallback + polling
+  racing-desk-overlay/modules/styles/base.css     — Bundled fallback tokens in :root
+  racing-desk-overlay/modules/styles/modes.css    — Mode overrides (unchanged)
 
 Web:
   web/src/app/layout.tsx                      — SSR theme attribute + blob CSS link

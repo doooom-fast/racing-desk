@@ -56,8 +56,8 @@
     });
 
     // Transcode progress (from main process via IPC)
-    if (window.k10 && window.k10.onTranscodeProgress) {
-      window.k10.onTranscodeProgress(function (progress) {
+    if (window.racingDesk && window.racingDesk.onTranscodeProgress) {
+      window.racingDesk.onTranscodeProgress(function (progress) {
         updateTranscodeProgress(progress);
       });
     }
@@ -94,8 +94,8 @@
     });
 
     // Recording debug events (lifecycle logging)
-    if (window.k10 && window.k10.onRecordingDebug) {
-      window.k10.onRecordingDebug(function (data) {
+    if (window.racingDesk && window.racingDesk.onRecordingDebug) {
+      window.racingDesk.onRecordingDebug(function (data) {
         if (data.kind === 'start') {
           showPathToast('REC → ' + data.filename, 'hsl(140, 70%, 50%)', 4000);
         } else if (data.kind === 'chunk') {

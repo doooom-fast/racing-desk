@@ -1,7 +1,7 @@
 ---
 name: plugin-racing-domain
 description: |
-  Racing domain knowledge for the K10 Motorsports overlay — driver information hierarchy
+  Racing domain knowledge for the The Racing Desk overlay — driver information hierarchy
   (Tier 1-4), iRacing telemetry architecture (SessionState, SessionFlags, PaceMode, CarIdx*
   arrays), track map CSV data quality issues (interleaved recordings, zero-pct clusters),
   and demo sequence design. Use when deciding what data to display where, working with iRacing
@@ -11,7 +11,7 @@ description: |
   formation lap, start lights.
 ---
 
-# K10 Motorsports — Racing Domain Knowledge
+# The Racing Desk — Racing Domain Knowledge
 
 ## Driver Priorities (Information Hierarchy)
 
@@ -60,7 +60,7 @@ description: |
 
 ## Track Map CSV Data Quality
 
-Track map CSVs (in `racecor-plugin/.../TrackMaps/`) contain WorldX, WorldZ,
+Track map CSVs (in `racing-desk-plugin/.../TrackMaps/`) contain WorldX, WorldZ,
 LapDistPct columns recorded from iRacing telemetry. **Not all CSVs are clean.**
 
 Known issues:

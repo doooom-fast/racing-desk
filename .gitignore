@@ -7,13 +7,13 @@ out/
 Thumbs.db
 test-results/
 playwright-report/
-k10-debug.log
+racing-desk-debug.log
 
 # .NET build output (plugin stages into build/ for install.bat)
 bin/
 obj/
 apps/host/publish/
-apps/plugin/racecor-plugin/simhub-plugin/build/
-apps/plugin/racecor-plugin/simhub-plugin/RaceCorProDrive.dll
-apps/plugin/racecor-plugin/simhub-plugin/RaceCorProDrive.pdb
+apps/plugin/racing-desk-plugin/simhub-plugin/build/
+apps/plugin/racing-desk-plugin/simhub-plugin/RacingDesk.dll
+apps/plugin/racing-desk-plugin/simhub-plugin/RacingDesk.pdb
 apps/overlay/modules/desk/calc.bundle.js

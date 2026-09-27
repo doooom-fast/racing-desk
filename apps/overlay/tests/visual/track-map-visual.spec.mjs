@@ -63,12 +63,12 @@ test.describe('Track map visual regression', () => {
     await loadDashboard(
       page,
       {
-        'RaceCorProDrive.Plugin.TrackMap.Ready': 1,
-        'RaceCorProDrive.Plugin.TrackMap.TrackName': 'Visual Test Track',
-        'RaceCorProDrive.Plugin.TrackMap.SvgPath': stableTrackPath(),
-        'RaceCorProDrive.Plugin.TrackMap.PlayerX': 50,
-        'RaceCorProDrive.Plugin.TrackMap.PlayerY': 50,
-        'RaceCorProDrive.Plugin.TrackMap.PlayerHeading': 0,
+        'RacingDesk.Plugin.TrackMap.Ready': 1,
+        'RacingDesk.Plugin.TrackMap.TrackName': 'Visual Test Track',
+        'RacingDesk.Plugin.TrackMap.SvgPath': stableTrackPath(),
+        'RacingDesk.Plugin.TrackMap.PlayerX': 50,
+        'RacingDesk.Plugin.TrackMap.PlayerY': 50,
+        'RacingDesk.Plugin.TrackMap.PlayerHeading': 0,
         'DataCorePlugin.GameData.SpeedMph': 0,   // tight zoom for stable framing
       },
       { dashboardPath: DASHBOARD_PATHS.original }
@@ -91,7 +91,7 @@ test.describe('Track map visual regression', () => {
     await loadDashboard(
       page,
       {
-        'RaceCorProDrive.Plugin.TrackMap.Ready': 0,
+        'RacingDesk.Plugin.TrackMap.Ready': 0,
       },
       { dashboardPath: DASHBOARD_PATHS.original }
     );

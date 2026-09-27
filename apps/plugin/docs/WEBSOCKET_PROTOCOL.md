@@ -1,6 +1,6 @@
 # WebSocket Telemetry Protocol (v1)
 
-This document specifies the binary WebSocket protocol between the RaceCor Pro Drive C# SimHub plugin (server) and the Electron overlay client.
+This document specifies the binary WebSocket protocol between the The Racing Desk C# SimHub plugin (server) and the Electron overlay client.
 
 ## Overview
 
@@ -10,7 +10,7 @@ The protocol replaces the HTTP polling mechanism for real-time telemetry deliver
 
 ## Connection Details
 
-- **Server URL**: `ws://0.0.0.0:8890/racecor` (PR 1; PR 5 migrates to port 8889 after HTTP retires)
+- **Server URL**: `ws://0.0.0.0:8890/racing-desk` (PR 1; PR 5 migrates to port 8889 after HTTP retires)
 - **Protocol**: Binary MessagePack encoding
 - **Polling Rate**: ~60fps on SimHub data thread
 - **Client Limit**: No hard limit; each client maintains its own state
@@ -58,9 +58,9 @@ Dictionary<string, object> {
 - `DataCorePlugin.GameData.Position` (int)
 - `DataCorePlugin.GameData.CurrentLap` (int)
 - `DataCorePlugin.GameData.BestLapTime` (double, seconds)
-- `RaceCorProDrive.Plugin.CommentaryText` (string)
-- `RaceCorProDrive.Plugin.CommentarySentimentColor` (string, hex)
-- `RaceCorProDrive.Plugin.Strategy.Visible` (int: 0|1)
+- `RacingDesk.Plugin.CommentaryText` (string)
+- `RacingDesk.Plugin.CommentarySentimentColor` (string, hex)
+- `RacingDesk.Plugin.Strategy.Visible` (int: 0|1)
 - ... (see Plugin.HttpServerLoop() for the authoritative list)
 
 The set of wire keys **MUST match the HTTP JSON keys exactly**. This is the contract between the overlay and the plugin.
@@ -182,6 +182,6 @@ The `v` field is currently `1`. If the wire format changes in a future PR (e.g.,
 
 ## References
 
-- Plugin code: `racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/Transport/`
-- Tests: `racecor-plugin/simhub-plugin/tests/RaceCorProDrive.Tests/Transport/`
+- Plugin code: `racing-desk-plugin/simhub-plugin/plugin/RacingDesk.Plugin/Transport/`
+- Tests: `racing-desk-plugin/simhub-plugin/tests/RacingDesk.Tests/Transport/`
 - MessagePack spec: https://msgpack.org/

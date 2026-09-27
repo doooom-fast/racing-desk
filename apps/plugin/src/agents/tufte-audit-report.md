@@ -1,6 +1,6 @@
-# Tufte Audit Report — RaceCor SimHub Dashboard
+# Tufte Audit Report — RacingDesk SimHub Dashboard
 
-**Visualization:** RaceCor SimHub Dashboard — broadcast-grade sim racing HUD
+**Visualization:** RacingDesk SimHub Dashboard — broadcast-grade sim racing HUD
 **Overall Tufte Score: 72/100**
 **Summary:** This is a well-designed, information-dense real-time HUD that already follows several Tufte principles — particularly its use of sparklines, direct labeling, and high data density. The biggest opportunities are in reducing decorative chrome (WebGL glow effects, panel borders, gradient fills) and improving the data-ink ratio on secondary panels. The pedal histogram and race timeline are standout components.
 

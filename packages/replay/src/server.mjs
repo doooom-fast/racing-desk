@@ -1,11 +1,11 @@
-// Serves a recording on the plugin's live contract: GET /racecor-io-pro-drive/ returns the frame at
+// Serves a recording on the plugin's live contract: GET /racing-desk/ returns the frame at
 // the playhead, `?action=` calls are acknowledged, OPTIONS gets the plugin's CORS preflight answer.
 // /__replay/state and /__replay/control let tests and tools pin the playhead.
 
 import http from 'node:http';
 import { Player } from './format.mjs';
 
-export const CONTRACT_PATH = '/racecor-io-pro-drive/';
+export const CONTRACT_PATH = '/racing-desk/';
 
 export function createClock({ speed = 1, paused = false, startMs = 0 } = {}) {
   let base = startMs, wallStart = performance.now();

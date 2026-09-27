@@ -37,12 +37,12 @@
   function updateDriveHud(p, isDemo) {
     if (!_active) return;
 
-    const dsPre = isDemo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+    const dsPre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
     const v = function(k) { return p[k] != null ? p[k] : 0; };
 
     // Position
     const pos = isDemo
-      ? (+v('RaceCorProDrive.Plugin.Demo.Position') || 0)
+      ? (+v('RacingDesk.Plugin.Demo.Position') || 0)
       : (+v('DataCorePlugin.GameData.Position') || 0);
     const posEl = document.getElementById('dhPosition');
     if (posEl) posEl.textContent = pos > 0 ? 'P' + pos : 'P—';
@@ -59,9 +59,9 @@
     }
 
     // Last / Current lap number
-    var bestLap = isDemo ? (+v('RaceCorProDrive.Plugin.Demo.BestLapTime') || 0) : (+v('DataCorePlugin.GameData.BestLapTime') || 0);
-    var lastLap = isDemo ? (+v('RaceCorProDrive.Plugin.Demo.LastLapTime') || 0) : (+v('DataCorePlugin.GameData.LastLapTime') || 0);
-    var curLap = isDemo ? (+v('RaceCorProDrive.Plugin.Demo.CurrentLap') || 0) : (+v('DataCorePlugin.GameData.CurrentLap') || 0);
+    var bestLap = isDemo ? (+v('RacingDesk.Plugin.Demo.BestLapTime') || 0) : (+v('DataCorePlugin.GameData.BestLapTime') || 0);
+    var lastLap = isDemo ? (+v('RacingDesk.Plugin.Demo.LastLapTime') || 0) : (+v('DataCorePlugin.GameData.LastLapTime') || 0);
+    var curLap = isDemo ? (+v('RacingDesk.Plugin.Demo.CurrentLap') || 0) : (+v('DataCorePlugin.GameData.CurrentLap') || 0);
     var lastEl = document.getElementById('dhLastLap');
     var lapEl = document.getElementById('dhCurrentLap');
     if (lastEl) lastEl.textContent = lastLap > 0 ? _fmtLapTime(lastLap) : '—';
@@ -69,7 +69,7 @@
 
     // Live lap time + delta to best (absolutely positioned, centered)
     var liveCurrentTime = isDemo
-      ? (+(p['RaceCorProDrive.Plugin.Demo.CurrentLapTime']) || 0)
+      ? (+(p['RacingDesk.Plugin.Demo.CurrentLapTime']) || 0)
       : (+(p['DataCorePlugin.GameData.CurrentLapTime']) || 0);
     var liveTimeEl = document.getElementById('dhLiveTime');
     var liveDeltaEl = document.getElementById('dhLiveDelta');
@@ -190,11 +190,11 @@
     }
 
     // Track map — local zoom view centered on player + opponents
-    var mapReady = +v('RaceCorProDrive.Plugin.TrackMap.Ready') || 0;
+    var mapReady = +v('RacingDesk.Plugin.TrackMap.Ready') || 0;
     if (mapReady) {
-      var _dhTrackName = (p['RaceCorProDrive.Plugin.TrackMap.TrackName']
+      var _dhTrackName = (p['RacingDesk.Plugin.TrackMap.TrackName']
                        || p['DataCorePlugin.GameData.TrackName'] || '');
-      var svgPath = p['RaceCorProDrive.Plugin.TrackMap.SvgPath'] || '';
+      var svgPath = p['RacingDesk.Plugin.TrackMap.SvgPath'] || '';
       var dhTrack = document.getElementById('dhMapTrack');
       if (dhTrack && svgPath && dhTrack.getAttribute('d') !== svgPath) {
         dhTrack.setAttribute('d', svgPath);
@@ -219,8 +219,8 @@
       }
 
       // Player position, in the same normalization as the plugin's outline.
-      var px = Math.max(0, Math.min(100, +v('RaceCorProDrive.Plugin.TrackMap.PlayerX') || 50));
-      var py = Math.max(0, Math.min(100, +v('RaceCorProDrive.Plugin.TrackMap.PlayerY') || 50));
+      var px = Math.max(0, Math.min(100, +v('RacingDesk.Plugin.TrackMap.PlayerX') || 50));
+      var py = Math.max(0, Math.min(100, +v('RacingDesk.Plugin.TrackMap.PlayerY') || 50));
 
       // Update player dot
       var dhPlayer = document.getElementById('dhMapPlayer');
@@ -243,7 +243,7 @@
         // Rotate map so driving direction always points up.
         // Time-based LERP smoothing eliminates heading judder regardless
         // of poll rate. Dead-zone ignores sub-degree noise.
-        var rawHeading = +(p['RaceCorProDrive.Plugin.TrackMap.PlayerHeading']) || 0;
+        var rawHeading = +(p['RacingDesk.Plugin.TrackMap.PlayerHeading']) || 0;
         var diff = rawHeading - _dhHeadingSmooth;
         // Normalise diff to [-180, 180] to pick the shortest rotation arc
         while (diff > 180) diff -= 360;
@@ -272,7 +272,7 @@
       }
 
       // Opponents, in the same normalization as the plugin's outline.
-      var opponentStr = p['RaceCorProDrive.Plugin.TrackMap.Opponents'] || '';
+      var opponentStr = p['RacingDesk.Plugin.TrackMap.Opponents'] || '';
       var dhOppG = document.getElementById('dhMapOpponents');
       if (dhOppG) {
         var parts = opponentStr ? opponentStr.split(';').filter(function(s) { return s.length > 0; }) : [];
@@ -319,10 +319,10 @@
 
     // Track name — iRacing's display name, falling back to the game's track name
     var nameEl = document.getElementById('dhMapName');
-    var trackName = p['RaceCorProDrive.Plugin.TrackMap.TrackName']
+    var trackName = p['RacingDesk.Plugin.TrackMap.TrackName']
                  || p['DataCorePlugin.GameData.TrackName'] || '';
     if (nameEl && trackName) {
-      nameEl.textContent = p['RaceCorProDrive.Plugin.TrackMap.TrackDisplayName'] || trackName;
+      nameEl.textContent = p['RacingDesk.Plugin.TrackMap.TrackDisplayName'] || trackName;
     }
   }
   window.updateDriveHud = updateDriveHud;
@@ -333,8 +333,8 @@
   // ── Init ──
   function initDriveHud() {
     // Listen for Ctrl+Shift+F via Electron
-    if (window.k10 && window.k10.onToggleDriveMode) {
-      window.k10.onToggleDriveMode(toggleDriveMode);
+    if (window.racingDesk && window.racingDesk.onToggleDriveMode) {
+      window.racingDesk.onToggleDriveMode(toggleDriveMode);
     }
 
     // Auto-activate on remote server connections

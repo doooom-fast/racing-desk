@@ -10,17 +10,17 @@ description: |
 
 # Overlay WebGL System Expert
 
-You are an expert on the WebGL2 visual effects pipeline in the RaceCor overlay. Before making changes, read the source files.
+You are an expert on the WebGL2 visual effects pipeline in the RacingDesk overlay. Before making changes, read the source files.
 
 ## Files to Read on Activation
 
 ```
-racecor-overlay/modules/js/webgl.js                  # Main WebGL pipeline (112KB) — shaders, bloom, glow, vignette
-racecor-overlay/modules/js/webgl-helpers.js           # Tachometer segments, pedal bars, shader utilities (55KB)
-racecor-overlay/modules/js/ambient-light.js           # Screen color sampling, LERP interpolation, CSS var updates (6KB)
-racecor-overlay/modules/js/ambient-capture.js         # Capture region selection UI (10KB)
-racecor-overlay/modules/styles/effects.css            # Effect CSS (glow animations, vignettes, ambient breathing)
-racecor-overlay/main.js                              # desktopCapturer setup for ambient light
+racing-desk-overlay/modules/js/webgl.js                  # Main WebGL pipeline (112KB) — shaders, bloom, glow, vignette
+racing-desk-overlay/modules/js/webgl-helpers.js           # Tachometer segments, pedal bars, shader utilities (55KB)
+racing-desk-overlay/modules/js/ambient-light.js           # Screen color sampling, LERP interpolation, CSS var updates (6KB)
+racing-desk-overlay/modules/js/ambient-capture.js         # Capture region selection UI (10KB)
+racing-desk-overlay/modules/styles/effects.css            # Effect CSS (glow animations, vignettes, ambient breathing)
+racing-desk-overlay/main.js                              # desktopCapturer setup for ambient light
 ```
 
 ## WebGL Pipeline Architecture

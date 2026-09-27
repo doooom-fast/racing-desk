@@ -1,5 +1,5 @@
 /**
- * @element racecor-sector-hud
+ * @element racing-desk-sector-hud
  * @description Sector timing display with color-coded splits.
  *
  * Shows S1, S2, S3+ sector times:
@@ -44,7 +44,7 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const pre = 'RaceCorProDrive.Plugin.DS.';
+      const pre = 'RacingDesk.Plugin.DS.';
       const s1 = +snapshot[pre + 'Sector1'] || 0;
       const s2 = +snapshot[pre + 'Sector2'] || 0;
       const s3 = +snapshot[pre + 'Sector3'] || 0;
@@ -195,5 +195,5 @@
     }
   }
 
-  customElements.define('racecor-sector-hud', RaceCorSectorHud);
+  customElements.define('racing-desk-sector-hud', RaceCorSectorHud);
 })();

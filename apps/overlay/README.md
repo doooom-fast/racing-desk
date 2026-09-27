@@ -1,16 +1,16 @@
-# RaceCorProDrive — Dashboard Overlay
+# RacingDesk — Dashboard Overlay
 
 A standalone Electron overlay that renders real-time sim racing telemetry as a transparent HUD on top of your sim. Designed for stream overlays and broadcast production — it composites directly over the game window with no capture card or secondary monitor required. Also functions as a dedicated driving display in fullscreen Drive HUD mode.
 
-The overlay is bundled inside the [`prodrive-windows`](https://github.com/k10-motorsports/prodrive-windows) installer and auto-launched by the desktop app's iRacing detector. A sibling repo, [`prodrive-overlay-showcase`](https://github.com/k10-motorsports/prodrive-overlay-showcase), holds the same code with a `showcase-bootstrap.js` that drives it from synthesized data — used in the marketing-site iframe.
+The overlay is bundled inside the [`prodrive-windows`](https://github.com/DOOOOM/prodrive-windows) installer and auto-launched by the desktop app's iRacing detector. A sibling repo, [`prodrive-overlay-showcase`](https://github.com/DOOOOM/prodrive-overlay-showcase), holds the same code with a `showcase-bootstrap.js` that drives it from synthesized data — used in the marketing-site iframe.
 
 **Beyond the live HUD,** today's overlay also handles **race recording** (produces `.rcpdv` bundles = MP4 + telemetry sidecar via `recorder.js` + `ffmpeg-encoder.js`), **in-overlay replay** (`replay-director.js` for scrubbing the captured race), **Race Coach** (live Claude AI commentary via direct calls to `api.anthropic.com` from `race-coach.js` — uses your own Anthropic API key), **voice commentary** (`voice-coach.js`), and **incident coaching** (`incident-coach.js`). 51 modules in `modules/js/` total — the table below covers the live-HUD subset.
 
-![Dashboard Screenshot](../racecor-plugin/docs/dashboard-screenshot.png)
+![Dashboard Screenshot](../racing-desk-plugin/docs/dashboard-screenshot.png)
 
 ## Overview
 
-The dashboard connects to the RaceCorProDrive SimHub plugin's HTTP API and renders telemetry data at ~30fps. It runs as a frameless, always-on-top, click-through window so the game receives all mouse and keyboard input normally. On systems that support native transparency (x64 Windows), the window background is fully transparent. On ARM devices (Surface Pro, Snapdragon laptops), it uses a green chroma key background for OBS Color Key compositing.
+The dashboard connects to the RacingDesk SimHub plugin's HTTP API and renders telemetry data at ~30fps. It runs as a frameless, always-on-top, click-through window so the game receives all mouse and keyboard input normally. On systems that support native transparency (x64 Windows), the window background is fully transparent. On ARM devices (Surface Pro, Snapdragon laptops), it uses a green chroma key background for OBS Color Key compositing.
 
 The `dashboard.html` file powers three deployment modes: the Electron overlay (this app), the SimHub built-in dashboard template, and direct browser access via the plugin's HTTP server.
 
@@ -19,14 +19,14 @@ The `dashboard.html` file powers three deployment modes: the Electron overlay (t
 ### Prerequisites
 
 - Node.js 18+
-- SimHub running with the RaceCorProDrive plugin enabled
+- SimHub running with the RacingDesk plugin enabled
 - The plugin's HTTP server active on port 8889 (starts automatically with the plugin)
 - **iRacing users:** The [iRacing Extra Properties](https://drive.google.com/drive/folders/1AiIWHviD4j-_D-zgRrjJU1AFhJ_xmass) plugin by RomainRob (required for iRating and Safety Rating display)
 
 ### Install and Run
 
 ```bash
-cd racecor-overlay
+cd racing-desk-overlay
 npm install
 npm start
 ```
@@ -67,7 +67,7 @@ The overlay appears in the top-right corner of your primary display. For ARM har
 
 **Tyres** — 2×2 grid of tyre temperatures in °F with heat-map background coloring (blue → green → red). Wear percentage drives cell opacity — worn tyres appear muted.
 
-**Logo Column** — RaceCorProDrive logomark (top) and auto-detected manufacturer logo (bottom). Supports Porsche, BMW, Ferrari, McLaren, Mazda, Nissan, Dallara, and more. The game logo is placed in the diagonally opposite corner from the dashboard to avoid overlapping secondary panels.
+**Logo Column** — RacingDesk logomark (top) and auto-detected manufacturer logo (bottom). Supports Porsche, BMW, Ferrari, McLaren, Mazda, Nissan, Dallara, and more. The game logo is placed in the diagonally opposite corner from the dashboard to avoid overlapping secondary panels.
 
 ### Secondary Panels
 
@@ -120,17 +120,17 @@ The Electron main process captures a configurable screen region at ~4fps using `
 
 ```
 ┌──────────────────────────────────────────┐
-│  SimHub + RaceCorProDrive Plugin         │
+│  SimHub + RacingDesk Plugin         │
 │  ┌─────────────────────────────────────┐ │
 │  │ HTTP Server (port 8889)             │ │
-│  │ GET /racecor-io-pro-drive/           │ │
+│  │ GET /racing-desk/           │ │
 │  │ → flat JSON: 100+ properties        │ │
 │  │   (telemetry, commentary, strategy) │ │
 │  └─────────────────────────────────────┘ │
 └───────────────────┬──────────────────────┘
                     │ HTTP GET (~30fps)
 ┌───────────────────▼──────────────────────┐
-│  RaceCorProDrive (Electron)              │
+│  RacingDesk (Electron)              │
 │  ┌─────────────────────────────────────┐ │
 │  │ main.js         (main process)      │ │
 │  │ • Window management + transparency  │ │
@@ -160,9 +160,9 @@ The Electron main process captures a configurable screen region at ~4fps using `
 
 ### Data Flow
 
-1. The SimHub plugin serves all telemetry, commentary, and strategy state as a flat JSON object at `/racecor-io-pro-drive/` over HTTP on port 8889.
+1. The SimHub plugin serves all telemetry, commentary, and strategy state as a flat JSON object at `/racing-desk/` over HTTP on port 8889.
 
-2. The dashboard's `fetchProps()` function issues a single HTTP GET every 33ms (~30fps). In demo mode, the dashboard reads from `RaceCorProDrive.Plugin.Demo.*` properties instead — the switching is transparent.
+2. The dashboard's `fetchProps()` function issues a single HTTP GET every 33ms (~30fps). In demo mode, the dashboard reads from `RacingDesk.Plugin.Demo.*` properties instead — the switching is transparent.
 
 3. Each poll cycle, `pollUpdate()` routes JSON values to the appropriate module: updating DOM elements, CSS custom properties, SVG transforms, class toggles, and WebGL shader uniforms. Animations are driven by CSS transitions triggered by class changes.
 
@@ -199,7 +199,7 @@ Additional modules in `modules/js/`, not represented in the live-HUD table above
 
 | Module | Purpose |
 |--------|---------|
-| `race-coach.js` | **Live Claude API integration.** POSTs to `https://api.anthropic.com/v1/messages` with rolling race context (lap times, position, incidents, fuel/tyre state, commentary log). Configurable model (Haiku 4.5 / Sonnet 4.6), tone, depth. **User supplies their own Anthropic API key**; Pro Drive does not proxy. |
+| `race-coach.js` | **Live Claude API integration.** POSTs to `https://api.anthropic.com/v1/messages` with rolling race context (lap times, position, incidents, fuel/tyre state, commentary log). Configurable model (Haiku 4.5 / Sonnet 4.6), tone, depth. **User supplies their own Anthropic API key**; The Racing Desk does not proxy. |
 | `voice-coach.js` | Synthesized voice prompts for in-race coaching at quiet moments |
 | `incident-coach.js` | Highlights what just went wrong and how to recover |
 | `recorder.js` | Screen capture for `.rcpdv` race bundles |
@@ -214,13 +214,13 @@ Additional modules in `modules/js/`, not represented in the live-HUD table above
 | `idle-nav.js` | Carousel of stats during idle moments |
 | `qr-code.js` | QR for pairing to native apps / sharing |
 
-Race-bundle (`.rcpdv`) format: folder containing `video.mp4` + `telemetry.jsonl` + `metadata.json`. Recording is opt-in via overlay settings → Recording. Bundles land in `%APPDATA%\RaceCor\overlay\bundles\` (Windows). Consumed by [`prodrive-windows`](https://github.com/k10-motorsports/prodrive-windows) Library + Editor pages, [`prodrive-macos`](https://github.com/k10-motorsports/prodrive-macos) Library + Editor (basic playback live), and [`prodrive-edit`](https://github.com/k10-motorsports/prodrive-edit) CLI for AI-driven highlight reels.
+Race-bundle (`.rcpdv`) format: folder containing `video.mp4` + `telemetry.jsonl` + `metadata.json`. Recording is opt-in via overlay settings → Recording. Bundles land in `%APPDATA%\RacingDesk\overlay\bundles\` (Windows). Consumed by [`prodrive-windows`](https://github.com/DOOOOM/prodrive-windows) Library + Editor pages, [`prodrive-macos`](https://github.com/DOOOOM/prodrive-macos) Library + Editor (basic playback live), and [`prodrive-edit`](https://github.com/DOOOOM/prodrive-edit) CLI for AI-driven highlight reels.
 
 ### iRacing data sync — moved out
 
 Earlier versions of the overlay hosted an `iracing-client.js` Electron BrowserWindow that scraped iRacing's member site. **That responsibility moved out** — iRacing data sync now happens via two paths owned by other parts of the stack:
 
-1. **Chrome extension** in [`prodrive-server/apps/web/browser-extension/`](https://github.com/k10-motorsports/prodrive-server) — scrapes members-ng.iracing.com and posts to `/api/iracing/extension-sync`
+1. **Chrome extension** in [`prodrive-server/apps/web/browser-extension/`](https://github.com/DOOOOM/prodrive-server) — scrapes members-ng.iracing.com and posts to `/api/iracing/extension-sync`
 2. **Plugin push** — the SimHub plugin posts session data to `/api/iracing/import` after each race via Bearer auth
 
 The overlay is back to being purely the live-HUD-and-recording client.
@@ -229,9 +229,9 @@ The overlay is back to being purely the live-HUD-and-recording client.
 
 ### In-App Settings
 
-Press `Ctrl+Shift+S` to enter settings mode, then click the gear icon to open the settings panel. Toggle individual dashboard sections on or off: fuel, tyres, controls, pedal traces, track map, position/gaps, tachometer, commentary, RaceCorProDrive logo, car logo, leaderboard, datastream, incidents, and spotter.
+Press `Ctrl+Shift+S` to enter settings mode, then click the gear icon to open the settings panel. Toggle individual dashboard sections on or off: fuel, tyres, controls, pedal traces, track map, position/gaps, tachometer, commentary, RacingDesk logo, car logo, leaderboard, datastream, incidents, and spotter.
 
-You can also change the SimHub API URL for remote setups (e.g., `http://playbox.local:8889/racecor-io-pro-drive`).
+You can also change the SimHub API URL for remote setups (e.g., `http://playbox.local:8889/racing-desk`).
 
 Settings persist between sessions via Electron IPC to a JSON file, with localStorage fallback in browser mode.
 
@@ -261,7 +261,7 @@ On x64 systems, native transparency composites directly — no OBS filter needed
 
 ## Troubleshooting
 
-**Dashboard shows no data:** Open `http://localhost:8889/racecor-io-pro-drive/` in a browser. You should see a JSON blob with 100+ properties. If not, verify the RaceCorProDrive plugin is enabled in SimHub.
+**Dashboard shows no data:** Open `http://localhost:8889/racing-desk/` in a browser. You should see a JSON blob with 100+ properties. If not, verify the RacingDesk plugin is enabled in SimHub.
 
 **Overlay crashes on launch (ARM):** Use `npm run start:safe` for software rendering. Requires Electron 33+.
 

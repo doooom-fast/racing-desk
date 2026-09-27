@@ -1,4 +1,4 @@
-// The desk window (desk.html) over a mock RaceCor.Host data API: synthetic history, headless, no network.
+// The desk window (desk.html) over a mock RacingDesk.Host data API: synthetic history, headless, no network.
 //
 //   npx playwright test --project=desk
 
@@ -78,7 +78,7 @@ function buildHistory() {
 // One sports-car series racing every hour, in the week the fixed clock sits in.
 const SCHEDULE = {
   season: '2026 Season 4',
-  sourceFile: 'C:\\RaceCor\\schedule\\2026s4.pdf',
+  sourceFile: 'C:\\RacingDesk\\schedule\\2026s4.pdf',
   parsedAt: '2026-09-16T10:00:00Z',
   series: [{
     id: 1,
@@ -125,7 +125,7 @@ function startMockHost(history, schedule = SCHEDULE) {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(JSON.stringify(body));
     };
-    const route = url.pathname.replace('/racecor-io-pro-drive/data/', '');
+    const route = url.pathname.replace('/racing-desk/data/', '');
     if (route === 'status') return send(200, { schemaVersion: 2, sessions: history.sessions.length, laps: 120, lastSessionAt: history.sessions.at(-1).started_at });
     if (route === 'sessions') return send(200, history.sessions);
     if (route === 'schedule') return send(200, schedule ?? { season: null, series: [] });
@@ -226,7 +226,7 @@ test('passes on why the app has no host of its own', async ({ page }) => {
   const port = closed.address().port;
   await new Promise((resolve) => closed.close(resolve));
 
-  const note = 'no host exe at C:\\Racing Desk\\resources\\host\\RaceCor.Host.exe; run npm run build:host';
+  const note = 'no host exe at C:\\Racing Desk\\resources\\host\\RacingDesk.Host.exe; run npm run build:host';
   await openDesk(page, `http://127.0.0.1:${port}`, `&note=${encodeURIComponent(note)}`);
   await expect(page.locator('#offline')).toBeVisible();
   await expect(page.locator('#offline-reason')).toContainText(`127.0.0.1:${port}`);
@@ -249,12 +249,12 @@ test('tells a telemetry-only server (the SimHub plugin) apart from the local hos
 });
 
 // ── Open in iRacing ──────────────────────────────────────────
-// window.k10 is the preload bridge; outside Electron there is none, so these stand one in and record what
+// window.racingDesk is the preload bridge; outside Electron there is none, so these stand one in and record what
 // the desk asks of it.
 async function stubBridge(page, settings) {
   await page.addInitScript((initial) => {
     window.__k10 = { opened: [], saved: [], settings: initial };
-    window.k10 = {
+    window.racingDesk = {
       getSettings: async () => JSON.parse(JSON.stringify(window.__k10.settings)),
       saveSettings: async (s) => { window.__k10.saved.push(s); window.__k10.settings = s; return true; },
       openExternal: async (url) => { window.__k10.opened.push(url); },

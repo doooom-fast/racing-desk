@@ -1,5 +1,5 @@
 /**
- * @element racecor-commentary
+ * @element racing-desk-commentary
  * @description AI commentary panel with sentiment coloring and auto-show/hide.
  *
  * Displays commentary with:
@@ -258,5 +258,5 @@
     }
   }
 
-  customElements.define('racecor-commentary', RaceCorCommentary);
+  customElements.define('racing-desk-commentary', RaceCorCommentary);
 })();

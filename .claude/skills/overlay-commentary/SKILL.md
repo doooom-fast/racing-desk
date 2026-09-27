@@ -12,35 +12,35 @@ description: |
 
 # Overlay Commentary & Coaching System Expert
 
-You are an expert on the AI commentary, coaching, and real-time analysis systems in the RaceCor overlay. These systems provide live race commentary, post-race AI analysis, incident coaching, and voice feedback during racing.
+You are an expert on the AI commentary, coaching, and real-time analysis systems in the RacingDesk overlay. These systems provide live race commentary, post-race AI analysis, incident coaching, and voice feedback during racing.
 
 ## Files to Read on Activation
 
 ```
 # Commentary engine (plugin side — triggers & fragments)
-racecor-plugin/docs/COMMENTARY_ENGINE.md               # Trigger system architecture
-racecor-plugin/simhub-plugin/racecorprodrive-data/commentary_topics.json     # Trigger definitions
-racecor-plugin/simhub-plugin/racecorprodrive-data/commentary_fragments.json  # Sentence fragments
-racecor-plugin/simhub-plugin/racecorprodrive-data/sentiments.json            # Sentiment colors
+racing-desk-plugin/docs/COMMENTARY_ENGINE.md               # Trigger system architecture
+racing-desk-plugin/simhub-plugin/racingdesk-data/commentary_topics.json     # Trigger definitions
+racing-desk-plugin/simhub-plugin/racingdesk-data/commentary_fragments.json  # Sentence fragments
+racing-desk-plugin/simhub-plugin/racingdesk-data/sentiments.json            # Sentiment colors
 
 # AI Race Coach (Claude API integration)
-racecor-overlay/modules/js/race-coach.js               # Post-race Anthropic API calls (16KB)
+racing-desk-overlay/modules/js/race-coach.js               # Post-race Anthropic API calls (16KB)
 
 # Incident Coach (real-time threat detection + coaching)
-racecor-overlay/modules/js/incident-coach.js           # Threat parsing, composure, vignette (26KB)
-racecor-overlay/modules/js/voice-coach.js              # TTS engine, priority queue (8KB)
+racing-desk-overlay/modules/js/incident-coach.js           # Threat parsing, composure, vignette (26KB)
+racing-desk-overlay/modules/js/voice-coach.js              # TTS engine, priority queue (8KB)
 docs/FEATURE_SPEC_INCIDENT_COACH.md                    # Full incident coach spec
 docs/AI_STRATEGIST_DESIGN.md                           # AI strategy system design
 
 # Commentary visualization
-racecor-overlay/modules/js/commentary-viz.js           # Telemetry charts for commentary events (35KB)
+racing-desk-overlay/modules/js/commentary-viz.js           # Telemetry charts for commentary events (35KB)
 
 # Commentary UI
-racecor-overlay/modules/styles/effects.css             # Commentary panel animation CSS
+racing-desk-overlay/modules/styles/effects.css             # Commentary panel animation CSS
 
 # Data flow
-racecor-overlay/modules/js/poll-engine.js              # Commentary data routing from API
-racecor-overlay/modules/js/config.js                   # Commentary property keys
+racing-desk-overlay/modules/js/poll-engine.js              # Commentary data routing from API
+racing-desk-overlay/modules/js/config.js                   # Commentary property keys
 ```
 
 ## System Architecture
@@ -69,7 +69,7 @@ Layer 3: INCIDENT COACH (Real-Time, Local Processing)
 
 ### Layer 1: Commentary Engine
 
-**Producer**: C# plugin (`racecor-plugin/simhub-plugin/`)
+**Producer**: C# plugin (`racing-desk-plugin/simhub-plugin/`)
 **Consumer**: Overlay poll-engine routes commentary properties to the UI
 
 **Trigger System**:
@@ -80,12 +80,12 @@ Layer 3: INCIDENT COACH (Real-Time, Local Processing)
 
 **Commentary Properties** (from HTTP API):
 ```
-RaceCorProDrive.Plugin.Commentary.Active     → bool
-RaceCorProDrive.Plugin.Commentary.TopicId    → string (e.g., "heavy_braking")
-RaceCorProDrive.Plugin.Commentary.Text       → assembled sentence
-RaceCorProDrive.Plugin.Commentary.Category   → trigger category
-RaceCorProDrive.Plugin.Commentary.Severity   → 1-5
-RaceCorProDrive.Plugin.Commentary.Sentiment  → sentiment ID → color mapping
+RacingDesk.Plugin.Commentary.Active     → bool
+RacingDesk.Plugin.Commentary.TopicId    → string (e.g., "heavy_braking")
+RacingDesk.Plugin.Commentary.Text       → assembled sentence
+RacingDesk.Plugin.Commentary.Category   → trigger category
+RacingDesk.Plugin.Commentary.Severity   → 1-5
+RacingDesk.Plugin.Commentary.Sentiment  → sentiment ID → color mapping
 ```
 
 **UI**: Commentary panel slides in from the edge, shows topic title + text + category label. Border and background tint match the sentiment color (orange=warning, red=critical, blue=info, amber=strategy). Auto-dismisses when the event expires.
@@ -161,7 +161,7 @@ Sentiment colors are defined in `sentiments.json` and validated by the Python da
 ## Rules
 
 1. **Three layers are independent** — Commentary engine, race coach, and incident coach operate on separate data paths and UI elements. Don't merge them.
-2. **Commentary is plugin-driven** — The overlay doesn't evaluate triggers. It just renders what the plugin sends. Trigger logic changes go in `racecor-plugin/`.
+2. **Commentary is plugin-driven** — The overlay doesn't evaluate triggers. It just renders what the plugin sends. Trigger logic changes go in `racing-desk-plugin/`.
 3. **Race coach requires API key** — The Claude API call is made directly from the overlay. `ANTHROPIC_API_KEY` must be configured.
 4. **No hostile attribution in voice** — Voice prompts MUST NOT imply intent from other drivers ("he hit you", "that was dirty"). Always use neutral language ("contact occurred", "incident at T4").
 5. **Sentiment colors are validated** — Adding a new sentiment requires passing the 15° flag hue collision test. Run `python3 tests/validate_datasets.py`.

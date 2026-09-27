@@ -1,13 +1,13 @@
 {
-  "name": "racecor-edit",
+  "name": "racing-desk-edit",
   "version": "0.1.0",
   "description": "AI-powered race editing pipeline — telemetry-driven camera switching and race condensing",
   "type": "module",
   "bin": {
-    "racecor-edit": "./bin/racecor-edit.js"
+    "racing-desk-edit": "./bin/racing-desk-edit.js"
   },
   "scripts": {
-    "start": "node bin/racecor-edit.js",
+    "start": "node bin/racing-desk-edit.js",
     "test": "node --test tests/*.test.js"
   },
   "engines": {

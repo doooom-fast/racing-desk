@@ -29,8 +29,8 @@ Both repos get a matching `feat/overlay-settings-migration` branch.
 
 | Repo | Role |
 |------|------|
-| `alternatekev/k10-motorsports` (`racecor.io/racecorio-prodrive`) | Overlay sources + monorepo `racecor-overlay/` |
-| `alternatekev/racecor-prodrive-server` (`racecor.io/racecor-prodrive-server`) | Next.js web app at `apps/web` |
+| `alternatekev/k10-motorsports` (`racing-desk.io/racecorio-prodrive`) | Overlay sources + monorepo `racing-desk-overlay/` |
+| `alternatekev/racing-desk-prodrive-server` (`racing-desk.io/racing-desk-prodrive-server`) | Next.js web app at `apps/web` |
 
 ## Implementation plan — checklist
 
@@ -44,7 +44,7 @@ Both repos get a matching `feat/overlay-settings-migration` branch.
 - [x] **Web hooks** — `useElectronBridge.ts` + `useOverlaySettings.ts` (closed repo)
 - [x] **Web route skeleton** — `/drive/settings/overlay/page.tsx` + `OverlaySettingsForm` container (closed repo)
 - [x] **AdminNav** — conditional "Overlay" tab when `hasBridge` (closed repo)
-- [x] **Dashboard-window preload + UA tag** — `main.js` dashboard BrowserWindow now loads `preload.js` and tags its UA with `RaceCor/<version>` so `useElectronBridge` flips `hasBridge` true. Without this the tab was hidden even when Phase B was fully shipped.
+- [x] **Dashboard-window preload + UA tag** — `main.js` dashboard BrowserWindow now loads `preload.js` and tags its UA with `RacingDesk/<version>` so `useElectronBridge` flips `hasBridge` true. Without this the tab was hidden even when Phase B was fully shipped.
 
 ### Phase B — Section components ✅
 
@@ -69,7 +69,7 @@ overlay becomes a pure race view with zero configuration UI. Sections previously
 scoped to stay in the overlay (Connections/Moza/Recording/Keys) now move too —
 see "Architecture notes → Electron-only sections" for why this works.
 
-New sections to land in the closed repo (`racecor-prodrive-server`):
+New sections to land in the closed repo (`racing-desk-prodrive-server`):
 
 - [ ] **SimHub** — URL field + live connection status indicator (replaces the Connections card's SimHub row). Electron-only.
 - [ ] **Moza** — full hardware control UI (ported from `settingsTabMozaHardware` in `dashboard.html`). Talks to SimHub HTTP action endpoints, so no extra preload plumbing needed — just bridge-gated. Electron-only.
@@ -91,7 +91,7 @@ users can fall back if the web admin surface has rough edges. Migration of the
 actual cleanup is deferred to Phase C′.
 
 - [x] Add "Settings have moved" banner at the top of the overlay settings panel
-- [x] Banner "Open web admin" button calls `k10.openDashboard('/drive/settings/overlay')`
+- [x] Banner "Open web admin" button calls `racingDesk.openDashboard('/drive/settings/overlay')`
 - [x] `openDashboard(path)` accepts an optional route so we can deep-link into the new settings page
 - [ ] Collect beta feedback on web admin UX (naming, grouping, missing fields)
 
@@ -125,7 +125,7 @@ Derived from existing idle-detection logic in `poll-engine.js` (lines ~215–298
 ```javascript
 // Existing:
 const gameRunning = +v('DataCorePlugin.GameRunning') || 0;
-const realSessNum = parseInt(vs('RaceCorProDrive.Plugin.Grid.SessionState')) || 0;
+const realSessNum = parseInt(vs('RacingDesk.Plugin.Grid.SessionState')) || 0;
 const nowIdle = !_demo && (!gameRunning || realSessNum === 0);
 
 // New (semantically the inverse, with explicit demo-mode handling):
@@ -140,7 +140,7 @@ Emitted via new IPC channel `notify-in-race-state` on every flip (not every fram
 
 ```
 App start
-  ├─ createWebAppWindow()     ← default/visible — loads prodrive.racecor.io or http://localhost:3000
+  ├─ createWebAppWindow()     ← default/visible — loads prodrive.racing-desk.io or http://localhost:3000
   └─ createOverlayWindow()    ← created but hidden (show:false)
 
 poll-engine runs in the overlay renderer (even while hidden)

@@ -1,7 +1,7 @@
 ---
 name: plugin-style-dictionary
 description: |
-  Style Dictionary token build pipeline for K10 Motorsports — PostgreSQL designTokens to per-platform
+  Style Dictionary token build pipeline for The Racing Desk — PostgreSQL designTokens to per-platform
   CSS via SD transforms, uploaded to Vercel Blob. Use when working on the token build orchestrator,
   custom SD transforms, the platform filter, alias resolution, the database schema for tokens
   (designTokens, themeOverrides, tokenBuilds), or debugging missing/wrong token values.
@@ -13,7 +13,7 @@ description: |
 
 ## Overview
 
-RaceCor uses [Style Dictionary](https://amzn.github.io/style-dictionary/) to transform design tokens stored in PostgreSQL into platform-specific CSS files. This skill covers the entire pipeline from database to delivered CSS.
+RacingDesk uses [Style Dictionary](https://amzn.github.io/style-dictionary/) to transform design tokens stored in PostgreSQL into platform-specific CSS files. This skill covers the entire pipeline from database to delivered CSS.
 
 ## Architecture
 
@@ -81,7 +81,7 @@ Tokens with `platforms: 'overlay'` are excluded from the web build, and vice ver
 Background tokens in the overlay use semi-transparent values (for the transparent Electron window). The web transform forces alpha to 1.0 for solid page backgrounds.
 
 ### Alias Resolution
-Some tokens reference others (e.g. `--k10-red` aliases `--red`). The SD build resolves these at build time.
+Some tokens reference others (e.g. `--rd-red` aliases `--red`). The SD build resolves these at build time.
 
 ## Build Process
 

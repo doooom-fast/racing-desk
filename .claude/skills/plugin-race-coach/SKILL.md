@@ -14,12 +14,12 @@ Post-race AI analysis in the overlay results screen.
 
 | File | Role |
 |------|------|
-| `racecor-overlay/modules/js/race-coach.js` | Runtime module (IIFE): system prompt builder, tone/depth configs, API call, renderer |
-| `racecor-overlay/modules/js/race-results.js` | Calls `generateRaceAnalysis()` on button click (line ~535) |
-| `racecor-overlay/modules/js/config.js` | `_defaultSettings`: `agentKey`, `coachTone: 'coach'`, `coachDepth: 'standard'` |
-| `racecor-overlay/modules/js/connections.js` | `updateAgentKey()`, `_populateCoachSettings()` |
-| `racecor-overlay/dashboard.html` | Agent key input + tone/depth selectors in K10 connections panel |
-| `racecor-overlay/modules/styles/race-results.css` | `.rr-ai-*` classes (lines 368–442) |
+| `racing-desk-overlay/modules/js/race-coach.js` | Runtime module (IIFE): system prompt builder, tone/depth configs, API call, renderer |
+| `racing-desk-overlay/modules/js/race-results.js` | Calls `generateRaceAnalysis()` on button click (line ~535) |
+| `racing-desk-overlay/modules/js/config.js` | `_defaultSettings`: `agentKey`, `coachTone: 'coach'`, `coachDepth: 'standard'` |
+| `racing-desk-overlay/modules/js/connections.js` | `updateAgentKey()`, `_populateCoachSettings()` |
+| `racing-desk-overlay/dashboard.html` | Agent key input + tone/depth selectors in K10 connections panel |
+| `racing-desk-overlay/modules/styles/race-results.css` | `.rr-ai-*` classes (lines 368–442) |
 
 Note: `updateCoachTone()` and `updateCoachDepth()` live in **race-coach.js** (lines 332–340), not connections.js.
 

@@ -1,5 +1,5 @@
 {
-  "name": "@prodrive/replay",
+  "name": "@racing-desk/replay",
   "version": "0.1.0",
   "private": true,
   "description": "Record the plugin's localhost:8889 payload and replay it on the same contract",

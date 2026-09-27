@@ -1,5 +1,5 @@
 {
-  "name": "racecor-overlay",
+  "name": "racing-desk-overlay",
   "version": "0.9.42",
   "description": "Racing Desk — HUD and desk over iRacing, for one driver on one rig",
   "main": "main.js",
@@ -10,7 +10,7 @@
     "start": "electron .",
     "predev": "node ../../packages/calc/build.mjs",
     "dev": "electron . --dev",
-    "start:safe": "cross-env K10_FORCE_SOFTWARE=1 electron .",
+    "start:safe": "cross-env RACING_DESK_FORCE_SOFTWARE=1 electron .",
     "rebuild": "echo 'Dashboard uses vanilla JS — no build step needed'",
     "build:win": "electron-builder --win --config electron-builder.yml",
     "build": "electron-builder --config electron-builder.yml",
@@ -24,8 +24,8 @@
     "electron": "33.4.11",
     "electron-builder": "^25.1.8",
     "@playwright/test": "^1.58.2",
-    "@prodrive/replay": "*",
-    "@prodrive/calc": "*"
+    "@racing-desk/replay": "*",
+    "@racing-desk/calc": "*"
   },
   "dependencies": {
     "ffmpeg-static": "^5.2.0"

@@ -1,12 +1,12 @@
 # Getting Started with Recording
 
-A step-by-step guide to recording your first race with RaceCor's built-in recording pipeline and producing an edited highlight from it.
+A step-by-step guide to recording your first race with RacingDesk's built-in recording pipeline and producing an edited highlight from it.
 
 ---
 
 ## Prerequisites
 
-- RaceCor overlay installed and running
+- RacingDesk overlay installed and running
 - FFmpeg on your system PATH (or `ffmpeg-static` in the overlay's node_modules)
 - iRacing (or any supported sim) running
 - For MP4 output: NVIDIA, Intel, or AMD GPU recommended (CPU fallback available)
@@ -94,12 +94,12 @@ my-race/
 
 ---
 
-## Step 6: Edit with racecor-edit
+## Step 6: Edit with racing-desk-edit
 
 Install the CLI tool (from the monorepo root):
 
 ```bash
-cd racecor-edit
+cd racing-desk-edit
 npm install
 ```
 
@@ -108,7 +108,7 @@ npm install
 Parse the telemetry sidecar, detect racing events, and build a session manifest:
 
 ```bash
-node bin/racecor-edit.js ingest ./my-race/
+node bin/racing-desk-edit.js ingest ./my-race/
 ```
 
 This reads the `.telemetry.jsonl`, classifies video files as cockpit or TV-view, probes durations, runs event detection, and writes `session.json`.
@@ -118,7 +118,7 @@ This reads the `.telemetry.jsonl`, classifies video files as cockpit or TV-view,
 Score every second of footage and generate an edit decision list:
 
 ```bash
-node bin/racecor-edit.js analyze ./my-race/
+node bin/racing-desk-edit.js analyze ./my-race/
 ```
 
 The analyzer computes two scores per second:
@@ -135,7 +135,7 @@ Output: `edit-decisions.json` with cut points, camera sources, and a highlight r
 Render a fast low-res draft with burn-in timecodes to check the edit:
 
 ```bash
-node bin/racecor-edit.js preview ./my-race/
+node bin/racing-desk-edit.js preview ./my-race/
 ```
 
 ### Render
@@ -143,7 +143,7 @@ node bin/racecor-edit.js preview ./my-race/
 Assemble the full-resolution final edit:
 
 ```bash
-node bin/racecor-edit.js render ./my-race/
+node bin/racing-desk-edit.js render ./my-race/
 ```
 
 ### Condense
@@ -151,7 +151,7 @@ node bin/racecor-edit.js render ./my-race/
 Produce a condensed highlight at a target duration:
 
 ```bash
-node bin/racecor-edit.js condense ./my-race/ --target 5:00
+node bin/racing-desk-edit.js condense ./my-race/ --target 5:00
 ```
 
 The condenser uses Interest Scores and silence detection to decide what to keep and what to cut, adjusting the threshold iteratively until it hits the target. Claude adds context bridges (title cards like "Lap 4 — Pit Window") for cut sections when available.
@@ -161,7 +161,7 @@ The condenser uses Interest Scores and silence detection to decide what to keep 
 Generate social media clips with optional 9:16 vertical exports:
 
 ```bash
-node bin/racecor-edit.js clips ./my-race/ --social
+node bin/racing-desk-edit.js clips ./my-race/ --social
 ```
 
 ---

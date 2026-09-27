@@ -1,4 +1,4 @@
-appId: org.racecor.broadcaster
+appId: org.doooom.racingdesk
 # productName is the exe's name: dist/win-unpacked/Racing Desk.exe. One machine, one build, no installer —
 # `npm run build` at the root, and the Start menu / Desktop shortcuts point at that exe.
 productName: Racing Desk
@@ -19,15 +19,15 @@ files:
   - images/**/*
   - fonts/**/*
   - data/**/*
-  - streamdeck/racecor/com.k10motorsports.racecor.overlay.sdPlugin/**/*
-  - "!streamdeck/racecor/com.k10motorsports.racecor.overlay.sdPlugin/logs/**/*"
+  - streamdeck/racing-desk/com.doooom.racingdesk.sdPlugin/**/*
+  - "!streamdeck/racing-desk/com.doooom.racingdesk.sdPlugin/logs/**/*"
   - "!**/node_modules/**/*"
   - node_modules/ffmpeg-static/**/*
   - "!**/tests/**/*"
   - "!**/test-results/**/*"
   - "!playwright.config.*"
 
-# RaceCor.Host as `npm run build:host` publishes it; the app starts it from resources/host (modules/js/host-launcher.js).
+# RacingDesk.Host as `npm run build:host` publishes it; the app starts it from resources/host (modules/js/host-launcher.js).
 extraResources:
   - from: ../host/publish
     to: host

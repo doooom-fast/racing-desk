@@ -33,7 +33,7 @@ const SETTINGS = {
 async function openWith(page, settings) {
   await page.addInitScript((s) => {
     const known = { getSettings: async () => s };
-    window.k10 = new Proxy(known, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) });
+    window.racingDesk = new Proxy(known, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) });
   }, settings);
   await page.route(/^https?:\/\//, (route) => {
     if (/:8889\//.test(route.request().url())) {

@@ -1,7 +1,7 @@
 ---
 name: plugin-track-research
 description: >
-  Research, document, and maintain track data for the RaceCor overlay.
+  Research, document, and maintain track data for the RacingDesk overlay.
   Use this skill whenever someone asks about track facts, sector counts, track
   history, corner names, or commentary material for any racing circuit —
   especially iRacing tracks. Also use when adding a new track to the system,
@@ -13,7 +13,7 @@ description: >
 
 # Track Research Skill
 
-This skill manages the authoritative track database for the RaceCor overlay
+This skill manages the authoritative track database for the RacingDesk overlay
 project. The database powers two things:
 
 1. **The HUD** — sector counts, boundary percentages, track lengths, and
@@ -30,13 +30,13 @@ Track data comes from several places, in priority order:
    boundary percentages and native sector counts. These are only available
    at runtime when connected to the sim. If the user provides observed values,
    treat them as authoritative and update the database.
-2. **The existing `racecor-overlay/data/tracks.json`** — contains curated
+2. **The existing `racing-desk-overlay/data/tracks.json`** — contains curated
    info for ~10 key tracks. Already referenced by the overlay.
 3. **Web research** — for history, notable races, corner names, and
    commentary-grade facts. Wikipedia, official circuit sites, F1/WEC/IMSA
    results pages.
 4. **The bundled track map CSVs** in
-   `racecor-plugin/simhub-plugin/racecorprodrive-data/trackmaps/` — waypoint data for the
+   `racing-desk-plugin/simhub-plugin/racingdesk-data/trackmaps/` — waypoint data for the
    map visualization. If a CSV exists for a track, it's a "bundled" track
    with first-class support.
 

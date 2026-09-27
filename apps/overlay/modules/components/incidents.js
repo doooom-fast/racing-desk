@@ -1,5 +1,5 @@
 /**
- * @element racecor-incidents
+ * @element racing-desk-incidents
  * @description Incident counter with penalty and DQ threshold indicators.
  *
  * Shows incident count with color progression (0 green → 5+ red),
@@ -18,7 +18,7 @@
  * @slot default (not used, Shadow DOM only)
  *
  * @example
- * <racecor-incidents></racecor-incidents>
+ * <racing-desk-incidents></racing-desk-incidents>
  */
 
 (function() {
@@ -99,8 +99,8 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const _demo = snapshot._demo || +(snapshot['RaceCorProDrive.Plugin.DemoMode'] || 0);
-      const dsPre = _demo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+      const _demo = snapshot._demo || +(snapshot['RacingDesk.Plugin.DemoMode'] || 0);
+      const dsPre = _demo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
 
       this._count = +(snapshot[dsPre + 'IncidentCount'] || 0);
       this._penaltyThreshold = +(snapshot[dsPre + 'IncidentLimitPenalty'] || 0);
@@ -422,7 +422,7 @@
   // ══════════════════════════════════════════════════════════════
 
   if (window && window.customElements) {
-    customElements.define('racecor-incidents', RaceCorIncidents);
+    customElements.define('racing-desk-incidents', RaceCorIncidents);
   }
 
   if (typeof module !== 'undefined' && module.exports) {

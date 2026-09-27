@@ -8,20 +8,20 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "node packages/calc/build.mjs && npm run build:host && npm run build:win -w racecor-overlay",
-    "build:host": "dotnet publish apps/host/RaceCor.Host -c Release -r win-x64 --self-contained false -o apps/host/publish",
+    "build": "node packages/calc/build.mjs && npm run build:host && npm run build:win -w racing-desk-overlay",
+    "build:host": "dotnet publish apps/host/RacingDesk.Host -c Release -r win-x64 --self-contained false -o apps/host/publish",
     "dev": "node scripts/dev.mjs",
     "record": "node packages/replay/cli.mjs record",
     "replay": "node packages/replay/cli.mjs play",
     "recordings": "node packages/replay/cli.mjs list",
     "test": "npm test --workspaces --if-present",
-    "test:golden": "npm run test:golden -w racecor-overlay --",
-    "host": "dotnet run --project apps/host/RaceCor.Host -c Release --",
-    "test:dotnet": "dotnet test prodrive.sln -c Release",
+    "test:golden": "npm run test:golden -w racing-desk-overlay --",
+    "host": "dotnet run --project apps/host/RacingDesk.Host -c Release --",
+    "test:dotnet": "dotnet test racing-desk.sln -c Release",
     "parity": "node scripts/parity.mjs",
-    "ingest": "dotnet run --project apps/host/RaceCor.Host -c Release -- ingest",
-    "sessions": "dotnet run --project apps/host/RaceCor.Host -c Release -- sessions",
-    "test:desk": "npm run test:desk -w racecor-overlay --"
+    "ingest": "dotnet run --project apps/host/RacingDesk.Host -c Release -- ingest",
+    "sessions": "dotnet run --project apps/host/RacingDesk.Host -c Release -- sessions",
+    "test:desk": "npm run test:desk -w racing-desk-overlay --"
   },
   "engines": {
     "node": ">=22"

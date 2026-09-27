@@ -1,8 +1,8 @@
-# RaceCor Overlay — Visual Style Guide
+# RacingDesk Overlay — Visual Style Guide
 
 ## Overview
 
-The RaceCor overlay supports three visual styles, each optimized for different viewing contexts:
+The RacingDesk overlay supports three visual styles, each optimized for different viewing contexts:
 - **Standard** — full broadcasting aesthetic with effects and branding
 - **Minimal** — Tufte-pure data visualization, maximum clarity
 - **Minimal+** — racing-educated Tufte with essential data-reactive effects
@@ -108,7 +108,7 @@ Each mode represents a different balance between visual fidelity and cognitive l
 - Animated stripe patterns on race control banner
 - Track map player dot glow with drop shadow
 - Car manufacturer logo visible (branding)
-- RaceCor logo visible (branding)
+- RacingDesk logo visible (branding)
 - Game logo visible (branding)
 - Fuel bar: gradient green → amber → red
 - iRating: segmented bar + numeric value
@@ -144,7 +144,7 @@ Each mode represents a different balance between visual fidelity and cognitive l
 | **G-force vignette** | Full intensity (edge darkening) | Hidden | `opacity: 0` |
 | **Sentiment halo** | Full color around dashboard | Hidden | `.dashboard::before { opacity: 0 }` |
 | **Commentary panel** | Visible with 14px padding | Hidden entirely | `display: none` on `.commentary-col` |
-| **Logos** | All visible (RaceCor, car, game) | All hidden | `display: none` on `#k10LogoSquare`, `#carLogoSquare`, etc. |
+| **Logos** | All visible (RacingDesk, car, game) | All hidden | `display: none` on `#brandLogoSquare`, `#carLogoSquare`, etc. |
 
 **CSS Variable Overrides:**
 ```css

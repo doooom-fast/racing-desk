@@ -1,5 +1,5 @@
 /**
- * @element racecor-spotter
+ * @element racing-desk-spotter
  * @description Proximity/spotter overlay with directional indicators.
  *
  * Shows nearby cars with directional proximity indicators:
@@ -218,5 +218,5 @@
     }
   }
 
-  customElements.define('racecor-spotter', RaceCorSpotter);
+  customElements.define('racing-desk-spotter', RaceCorSpotter);
 })();

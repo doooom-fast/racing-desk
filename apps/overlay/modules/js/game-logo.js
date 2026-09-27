@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// K10 Motorsports — Game Logo Overlay
+// The Racing Desk — Game Logo Overlay
 // Shows the current game's logo (iRacing, etc.) in the
 // corner opposite the main dashboard layout position.
 // ═══════════════════════════════════════════════════════════════

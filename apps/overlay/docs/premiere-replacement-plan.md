@@ -1,4 +1,4 @@
-# RaceCor Editor — AI-Powered Race Edit Pipeline
+# RacingDesk Editor — AI-Powered Race Edit Pipeline
 
 **Status:** Implemented  
 **Author:** kevin  
@@ -34,7 +34,7 @@ Real racing broadcasts (F1, IndyCar, IMSA) have a team of directors making split
 ```
 WINDOWS (Recording)                    MAC (Editing)
 ┌──────────────────────┐              ┌──────────────────────────────┐
-│  RaceCor Overlay     │              │  RaceCor Editor CLI          │
+│  RacingDesk Overlay     │              │  RacingDesk Editor CLI          │
 │                      │              │                              │
 │  Records:            │   transfer   │  1. Ingest                   │
 │  • Cockpit video     │ ──────────►  │     Parse telemetry JSON     │
@@ -230,7 +230,7 @@ Output format:
 
 ---
 
-## The Editor CLI: `racecor-edit`
+## The Editor CLI: `racing-desk-edit`
 
 A Node.js command-line tool that runs on macOS. Not a GUI editor — it's a pipeline that takes raw recordings and produces finished edits.
 
@@ -238,45 +238,45 @@ A Node.js command-line tool that runs on macOS. Not a GUI editor — it's a pipe
 
 ```bash
 # Ingest a recording session
-racecor-edit ingest ./race-2026-04-15/
+racing-desk-edit ingest ./race-2026-04-15/
   # Reads: cockpit.mp4, tv-view.mp4, telemetry.jsonl, audio.aac
   # Outputs: session.json (metadata + event summary)
 
 # Generate edit decisions using Claude
-racecor-edit analyze ./race-2026-04-15/
+racing-desk-edit analyze ./race-2026-04-15/
   # Calls Claude API with event stream
   # Outputs: edit-decisions.json
   # Interactive: shows proposed cuts, lets you approve/modify
 
 # Preview the edit (low-res, fast)
-racecor-edit preview ./race-2026-04-15/
+racing-desk-edit preview ./race-2026-04-15/
   # FFmpeg generates 480p preview with burn-in timecodes
   # Opens in default video player
 
 # Render the final edit
-racecor-edit render ./race-2026-04-15/ --output final.mp4
+racing-desk-edit render ./race-2026-04-15/ --output final.mp4
   # FFmpeg assembles full-res edit with transitions
   # Options: --quality [draft|final], --resolution [1080|4k]
 
 # Condense a race to a target duration (the magic command)
-racecor-edit condense ./race-2026-04-15/ --target 5:00
+racing-desk-edit condense ./race-2026-04-15/ --target 5:00
   # Scores every second for "interest" using telemetry + audio
   # Cuts boring stretches (clean air, no commentary, no battles)
   # Claude adds context bridges between kept segments
   # FFmpeg renders the condensed edit
 
-racecor-edit condense ./race-2026-04-15/ --target 3:00 --social
+racing-desk-edit condense ./race-2026-04-15/ --target 3:00 --social
   # Even tighter, with captions + position badge
   # Exports both 16:9 and 9:16
 
 # Generate social media clips
-racecor-edit clips ./race-2026-04-15/
+racing-desk-edit clips ./race-2026-04-15/
   # Uses highlight_reel from edit decisions
   # Outputs: highlights-16x9.mp4, highlights-9x16.mp4
   # Auto-adds captions, position badge, track name
 
 # Manual override: open in DaVinci Resolve
-racecor-edit export-timeline ./race-2026-04-15/ --format fcpxml
+racing-desk-edit export-timeline ./race-2026-04-15/ --format fcpxml
   # Exports the EDL as a Final Cut/DaVinci Resolve timeline
   # All cuts pre-made, you just polish in the GUI editor
 ```
@@ -409,13 +409,13 @@ Telemetry + Audio ──► Interest Score per second ──► Segment classifi
 **Target duration mode:** You tell the pipeline "give me 5 minutes" and it adjusts the score threshold until the total KEEP segments hit the target. Higher bar = tighter edit.
 
 ```bash
-racecor-edit condense ./race-2026-04-15/ --target 5:00
+racing-desk-edit condense ./race-2026-04-15/ --target 5:00
   # Interest-scores every second
   # Classifies segments as keep/cut
   # Claude refines for narrative flow
   # FFmpeg renders condensed edit
 
-racecor-edit condense ./race-2026-04-15/ --target 3:00 --social
+racing-desk-edit condense ./race-2026-04-15/ --target 3:00 --social
   # Even tighter cut for social media
   # Adds captions, position badge
   # Exports 16:9 and 9:16 versions
@@ -480,10 +480,10 @@ The cruising segments are gone entirely. Claude adds a brief context bridge ("La
 ## Project Structure
 
 ```
-racecor-edit/
+racing-desk-edit/
 ├── package.json
 ├── bin/
-│   └── racecor-edit.js          # CLI entry point
+│   └── racing-desk-edit.js          # CLI entry point
 ├── src/
 │   ├── ingest/
 │   │   ├── parse-telemetry.js   # JSONL → event stream
@@ -584,7 +584,7 @@ After everything is built, here's what a race night looks like:
    - Jumps to each moment → records TV-view footage via NVENC
    - Finishes in ~4 minutes for a 20-minute race
 6. Transfer files to Mac (LAN server, network share, or USB)
-7. Run: racecor-edit condense ./race-tonight/ --target 5:00
+7. Run: racing-desk-edit condense ./race-tonight/ --target 5:00
    - Scores every second for interest (telemetry + mic audio + overlay commentary)
    - Claude generates camera switching decisions + narrative polish
    - FFmpeg assembles the final edit with TV-view cuts

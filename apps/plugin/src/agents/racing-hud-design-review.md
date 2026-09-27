@@ -1,6 +1,6 @@
-# Racing HUD Design Review — RaceCor SimHub Dashboard
+# Racing HUD Design Review — RacingDesk SimHub Dashboard
 
-**Interface:** RaceCor SimHub Dashboard — broadcast-grade sim racing HUD (1200×280px overlay)
+**Interface:** RacingDesk SimHub Dashboard — broadcast-grade sim racing HUD (1200×280px overlay)
 **Overall Racing HUD Score: 79/100**
 **Summary:** This is a strong racing HUD with excellent information density and smart use of direct labeling. The layout respects the driver's glance budget well, and several components (sparklines, pedal traces, race timeline) are best-in-class. The main opportunities are in tightening the glanceability of tertiary panels, resolving tension between broadcast aesthetics and driver readability, and adding context-adaptive behavior.
 

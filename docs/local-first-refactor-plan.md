@@ -46,7 +46,7 @@ happens on one machine, with no account, no upload, and no network dependency at
 | 83 API routes | *(gone)* |
 | Vercel Blob telemetry storage | *(gone)* |
 | Stored track maps + SVGs, alias/resolution tooling, 13 track routes | *(gone — track data is read locally, never stored, never shipped; §3)* |
-| Calc engines on `api.prodrive.racecor.io` | Ported into the Electron main process |
+| Calc engines on `api.prodrive.racing-desk.io` | Ported into the Electron main process |
 | Chrome extension scraping members-ng | *(gone — auth path is retired anyway)* |
 | Marketing site | *(gone — single user)* |
 | Six-repo lockstep release pipeline | *(gone — built and run on the rig; §7)* |
@@ -93,7 +93,7 @@ If OAuth reopens, treat it as an optional enhancement, never a dependency.
 │                            │                        │                  │
 │                            ▼                        ▼                  │
 │              ┌──────────────────────────────────────────────┐          │
-│              │  RaceCor.Core  (net48 + net8.0)              │          │
+│              │  RacingDesk.Core  (net48 + net8.0)              │          │
 │              │  · IRSDKSharper live reader                   │          │
 │              │  · session YAML → sectors, ratings, grid      │          │
 │              │  · fuel / incident / commentary engines       │          │
@@ -103,7 +103,7 @@ If OAuth reopens, treat it as an optional enhancement, never a dependency.
 │              └───────┬──────────────────────────┬────────────┘          │
 │                      │ hosted by                │ hosted by             │
 │         ┌────────────▼───────────┐   ┌──────────▼──────────────┐        │
-│         │ RaceCor.Host.exe (.NET8)│   │ SimHub plugin (net48)   │        │
+│         │ RacingDesk.Host.exe (.NET8)│   │ SimHub plugin (net48)   │        │
 │         │  default, no SimHub     │   │  optional — dashes,     │        │
 │         │                         │   │  Arduino/LED devices    │        │
 │         └────────────┬───────────┘   └──────────┬──────────────┘        │
@@ -118,7 +118,7 @@ If OAuth reopens, treat it as an optional enhancement, never a dependency.
 │                      │  · recorder / replay        │                     │
 │                      └─────────────┬──────────────┘                     │
 │                                    │                                     │
-│ %LOCALAPPDATA%\RaceCor\ prodrive.db · telemetry\ · bundles\ · schedule\ │
+│ %LOCALAPPDATA%\RacingDesk\ racing-desk.db · telemetry\ · bundles\ · schedule\ │
 └────────────────────────────────────┼───────────────────────────────────┘
                                      │ background, off race-time, optional
                           iRacing's public season schedule
@@ -126,7 +126,7 @@ If OAuth reopens, treat it as an optional enhancement, never a dependency.
 
 ### Two processes, not five
 
-- **`RaceCor.Core`** — the existing plugin engine, multi-targeted **`net48;net8.0-windows`** so the
+- **`RacingDesk.Core`** — the existing plugin engine, multi-targeted **`net48;net8.0-windows`** so the
   same code builds for both SimHub's .NET Framework 4.8 host *and* a .NET 8 standalone host.
   (Not netstandard2.0: IRSDKSharper ships no netstandard build — Phase 0 §6.) This is
   the key structural change in the C# side and should be done first; everything else follows.
@@ -148,10 +148,10 @@ when SimHub dashes, Arduino output or LED devices are wanted.
 
 | Path | Contents |
 |---|---|
-| `%LOCALAPPDATA%\RaceCor\prodrive.db` | SQLite — sessions, laps, sectors, incidents, ratings, opponents/grids, mastery, suggestion cache |
-| `%LOCALAPPDATA%\RaceCor\telemetry\<sessionId>.jsonl.zst` | Per-frame traces (same schema as [`telemetry-sidecar-schema.md`](telemetry-sidecar-schema.md)) |
-| `%LOCALAPPDATA%\RaceCor\bundles\` | `.rcpdv` race bundles (unchanged) |
-| `%LOCALAPPDATA%\RaceCor\schedule\` | Last-fetched season schedule source + parsed result (§3) |
+| `%LOCALAPPDATA%\RacingDesk\racing-desk.db` | SQLite — sessions, laps, sectors, incidents, ratings, opponents/grids, mastery, suggestion cache |
+| `%LOCALAPPDATA%\RacingDesk\telemetry\<sessionId>.jsonl.zst` | Per-frame traces (same schema as [`telemetry-sidecar-schema.md`](telemetry-sidecar-schema.md)) |
+| `%LOCALAPPDATA%\RacingDesk\bundles\` | `.rcpdv` race bundles (unchanged) |
+| `%LOCALAPPDATA%\RacingDesk\schedule\` | Last-fetched season schedule source + parsed result (§3) |
 
 SQLite via `Microsoft.Data.Sqlite` (writer, C#) and `better-sqlite3` (reader, Electron). Single
 writer, many readers, WAL mode. The existing Drizzle schema maps over almost one-to-one minus the
@@ -420,8 +420,8 @@ not weeks.
 
 ### Build and run
 
-`npm run build` on the rig produces `apps/overlay/dist/win-unpacked/Racing Desk.exe` with RaceCor.Host
-published inside it (`resources/host`); the SimHub plugin is built from `prodrive.sln` and installed with
+`npm run build` on the rig produces `apps/overlay/dist/win-unpacked/Racing Desk.exe` with RacingDesk.Host
+published inside it (`resources/host`); the SimHub plugin is built from `racing-desk.sln` and installed with
 `apps/plugin/scripts/windows/install.bat` separately. The Start menu / Desktop shortcuts point at the exe.
 No installer, no code signing, no GitHub Release, no version lockstep. "Shipping" is
 `git pull && npm run build`.
@@ -468,13 +468,13 @@ sim running.
 **Done when:** a full race is captured, stored and re-readable with the network cable unplugged.
 
 > **Status 2026-09-17 — done.**
-> - `apps/core/RaceCor.Core` (net48 + net8.0-windows): engine, `ProDriveRuntime` (per-frame orchestration, `:8889` /
+> - `apps/core/RacingDesk.Core` (net48 + net8.0-windows): engine, `RacingDeskRuntime` (per-frame orchestration, `:8889` /
 >   `:8890`), `TelemetryCapture` over an `ITelemetrySource`, and `IRacing/` — live SDK and `.ibt` readers plus
 >   `IRacingTelemetrySource`, which speaks SimHub's vocabulary so capture runs unchanged. The SimHub plugin is
 >   a 242-line adapter.
-> - `apps/host/RaceCor.Host` (net8): serves the same contract without SimHub, live or from an `.ibt`. Contract
+> - `apps/host/RacingDesk.Host` (net8): serves the same contract without SimHub, live or from an `.ibt`. Contract
 >   parity with the installed plugin is a test (keys match bar hardware and per-track sector keys).
-> - `apps/core/RaceCor.Data` (net8, host only): `%LOCALAPPDATA%\RaceCor\prodrive.db` — sessions, laps, incidents,
+> - `apps/core/RacingDesk.Data` (net8, host only): `%LOCALAPPDATA%\RacingDesk\racing-desk.db` — sessions, laps, incidents,
 >   grids, track outlines. Full backfill of the rig: 3,031 files / 104.6 GB in ~110 s → 3,019 sessions (598 races),
 >   6,808 laps, 68 track outlines; 3 truncated files skipped. Live capture uses the same accumulator and is
 >   tested lap-for-lap against backfill of the same race.
@@ -500,7 +500,7 @@ working HUD and a populated dashboard.
 >   overlay, `calc-client.js`, `session-sync.js`, `token-loader.js`, accounts and the auto-updater. Track maps come
 >   from the driver's own `.ibt` Lat/Lon; sectors from `SplitTimeInfo`.
 > - **Deviation — engines run in the desk renderer, not Electron main, and read SQLite through the host.**
->   `RaceCor.Host` serves the store read-only at `:8889/racecor-io-pro-drive/data/`; `packages/calc` (the 14 engines,
+>   `RacingDesk.Host` serves the store read-only at `:8889/racing-desk/data/`; `packages/calc` (the 14 engines,
 >   verbatim, 178 tests passing) is bundled into `desk.html`. No native Node module (better-sqlite3) to rebuild
 >   against Electron. Cost: the desk needs the host running, not the SimHub plugin, on `:8889`.
 > - The local model merges an event's stints (a tow or rejoin writes a new `.ibt`), and derives iRating/SR change
@@ -521,7 +521,7 @@ working HUD and a populated dashboard.
 >   formula and sports-car races starting within the hour, with scores, lengths, cars and reasoning.
 > - **Discovery caveat:** the PDF is not linked from iracing.com's season-page HTML (it sits on iRacing's forum
 >   file host, and the forum needs a login to browse). The URL is a setting, and any PDF dropped into
->   `%LOCALAPPDATA%\RaceCor\schedule\` is picked up — that is the manual override the plan called for.
+>   `%LOCALAPPDATA%\RacingDesk\schedule\` is picked up — that is the manual override the plan called for.
 > - Found while verifying the parse against the PDF series by series (a fan-out of checking agents): configs lost
 >   to column wrapping, sim-time stamps missed when the conditions column pushed them along the line, and two
 >   incident-rule wordings read wrong. All fixed, with the PDF-shaped fixture as a regression test.

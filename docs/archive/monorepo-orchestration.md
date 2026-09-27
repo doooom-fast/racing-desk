@@ -1,6 +1,6 @@
-# K10 Motorsports — Monorepo Orchestration
+# The Racing Desk — Monorepo Orchestration
 
-> **Cross-repo context.** This doc covers contracts and conventions that span multiple repos in the K10 Motorsports org. For day-to-day work in a single repo, prefer that repo's own context under [`../<repo-name>/CLAUDE.md`](..).
+> **Cross-repo context.** This doc covers contracts and conventions that span multiple repos in the The Racing Desk org. For day-to-day work in a single repo, prefer that repo's own context under [`../<repo-name>/CLAUDE.md`](..).
 
 ## Agent Work — Always Use Worktrees
 
@@ -10,22 +10,22 @@ All agent-spawned work MUST use `isolation: "worktree"`. Exceptions: read-only e
 
 | Repo | Stack | Purpose | Per-repo context |
 |------|-------|---------|------------------|
-| [`prodrive-plugin`](https://github.com/k10-motorsports/prodrive-plugin) | C# .NET 4.8, NUnit | SimHub plugin — reads iRacing SDK, exposes `localhost:8889`, fetches track config from server, pushes session data to cloud via Bearer auth | [agents/prodrive-plugin/CLAUDE.md](../prodrive-plugin/CLAUDE.md) |
-| [`prodrive-overlay`](https://github.com/k10-motorsports/prodrive-overlay) | Electron, vanilla JS, WebGL2, Canvas 2D, ffmpeg | In-game HUD — 51 modules: live widgets, recording (`.rcpdv` bundles), replay director, Race Coach (Anthropic Claude), voice commentary | [agents/prodrive-overlay/CLAUDE.md](../prodrive-overlay/CLAUDE.md) |
-| [`prodrive-overlay-showcase`](https://github.com/k10-motorsports/prodrive-overlay-showcase) | Same as overlay | Same code with `showcase-bootstrap.js` driving from synthesized data — used in marketing-site iframe | (consult overlay docs) |
-| [`prodrive-server`](https://github.com/k10-motorsports/prodrive-server) | Next.js 16, React 19, Tailwind 4, Drizzle, Neon Postgres, NextAuth (Discord), Vercel Blob | Marketing site, members dashboard at `/drive`, calc engines (web-api), Chrome extension at `apps/web/browser-extension/`, 65 API routes | [agents/prodrive-server/CLAUDE.md](../prodrive-server/CLAUDE.md) |
-| [`prodrive-server-showcase`](https://github.com/k10-motorsports/prodrive-server-showcase) | Same as server | Read-only public demo — `denyIfDemo()` removed from 3 write routes | (consult server docs) |
-| [`prodrive-windows`](https://github.com/k10-motorsports/prodrive-windows) | WinUI 3, .NET 8, Inno Setup, Zeroconf | Full desktop app — 9 pages (Login, Dashboard, Sessions, SessionDetail, Library, Editor, Settings × 5 tabs incl. Moza hardware), iRacing detector, overlay auto-launch, LAN sharing via Bonjour | [agents/prodrive-windows/CLAUDE.md](../prodrive-windows/CLAUDE.md) |
-| [`prodrive-ios`](https://github.com/k10-motorsports/prodrive-ios) | Pure SwiftUI (iOS 17+), Swift 5.9 | Universal iPhone + iPad app — Dashboard, Sessions, Tracks, Moments, Profile. **No React Native** ever shipped. **No watchOS** built yet (design doc only). | [agents/prodrive-ios/CLAUDE.md](../prodrive-ios/CLAUDE.md) |
-| [`prodrive-macos`](https://github.com/k10-motorsports/prodrive-macos) | SwiftUI + AppKit (macOS 14+), Swift 5.9 | Native desktop client — rail-nav UI, Dashboard + Sessions live (4 stub destinations), Library + Editor for clip prep | [agents/prodrive-macos/CLAUDE.md](../prodrive-macos/CLAUDE.md) |
-| [`prodrive-tvos`](https://github.com/k10-motorsports/prodrive-tvos) | Pure SwiftUI (tvOS 17+), Swift 5.9, SwiftDraw | Minimal 3-tab dashboard — device-link OAuth, animated DataStrip ticker | [agents/prodrive-tvos/CLAUDE.md](../prodrive-tvos/CLAUDE.md) |
-| [`prodrive-homebridge`](https://github.com/k10-motorsports/prodrive-homebridge) | TypeScript, Homebridge platform | HomeKit smart-light mapping — polls SimHub on **port 8888** (NOT 8889), three modes: `flags_only` / `events_only` / `all_colors` | [agents/prodrive-homebridge/CLAUDE.md](../prodrive-homebridge/CLAUDE.md) |
-| [`prodrive-designer`](https://github.com/k10-motorsports/prodrive-designer) | Electron, vanilla JS, Claude Agent SDK | Live prototyping shell — composites the overlay over recorded race video with telemetry replay + element picker + Claude attached. Phase 0 scaffold | [agents/prodrive-designer/CLAUDE.md](../prodrive-designer/CLAUDE.md) |
-| [`prodrive-edit`](https://github.com/k10-motorsports/prodrive-edit) | Node.js CLI, ffmpeg | AI-powered race editing pipeline — ingests `.mp4` + `.telemetry.jsonl` pairs, detects events, generates edit lists, assembles condensed video | [agents/prodrive-edit/CLAUDE.md](../prodrive-edit/CLAUDE.md) |
-| [`prodrive-narrative`](https://github.com/k10-motorsports/prodrive-narrative) | Markdown only | Internal strategic & design narrative — 5 threads: collaboration, differentiation, visual, technical, design-systems mirror | (read 00-README.md) |
-| [`prodrive-telemetry`](https://github.com/k10-motorsports/prodrive-telemetry) | Data corpus | Sample `.mp4` + `.telemetry.jsonl` race recordings used by designer + edit for testing | (no docs needed) |
-| [`prodrive-support`](https://github.com/k10-motorsports/prodrive-support) | Next.js 16, Fumadocs 16, Tailwind 4, Biome | User-facing help center at support.racecor.io | [agents/prodrive-support/CLAUDE.md](../prodrive-support/CLAUDE.md) |
-| [`prodrive-agents`](https://github.com/k10-motorsports/prodrive-agents) | Markdown | This repo — central agent instructions and skills | (you are here) |
+| [`prodrive-plugin`](https://github.com/DOOOOM/prodrive-plugin) | C# .NET 4.8, NUnit | SimHub plugin — reads iRacing SDK, exposes `localhost:8889`, fetches track config from server, pushes session data to cloud via Bearer auth | [agents/prodrive-plugin/CLAUDE.md](../prodrive-plugin/CLAUDE.md) |
+| [`prodrive-overlay`](https://github.com/DOOOOM/prodrive-overlay) | Electron, vanilla JS, WebGL2, Canvas 2D, ffmpeg | In-game HUD — 51 modules: live widgets, recording (`.rcpdv` bundles), replay director, Race Coach (Anthropic Claude), voice commentary | [agents/prodrive-overlay/CLAUDE.md](../prodrive-overlay/CLAUDE.md) |
+| [`prodrive-overlay-showcase`](https://github.com/DOOOOM/prodrive-overlay-showcase) | Same as overlay | Same code with `showcase-bootstrap.js` driving from synthesized data — used in marketing-site iframe | (consult overlay docs) |
+| [`prodrive-server`](https://github.com/DOOOOM/prodrive-server) | Next.js 16, React 19, Tailwind 4, Drizzle, Neon Postgres, NextAuth (Discord), Vercel Blob | Marketing site, members dashboard at `/drive`, calc engines (web-api), Chrome extension at `apps/web/browser-extension/`, 65 API routes | [agents/prodrive-server/CLAUDE.md](../prodrive-server/CLAUDE.md) |
+| [`prodrive-server-showcase`](https://github.com/DOOOOM/prodrive-server-showcase) | Same as server | Read-only public demo — `denyIfDemo()` removed from 3 write routes | (consult server docs) |
+| [`prodrive-windows`](https://github.com/DOOOOM/prodrive-windows) | WinUI 3, .NET 8, Inno Setup, Zeroconf | Full desktop app — 9 pages (Login, Dashboard, Sessions, SessionDetail, Library, Editor, Settings × 5 tabs incl. Moza hardware), iRacing detector, overlay auto-launch, LAN sharing via Bonjour | [agents/prodrive-windows/CLAUDE.md](../prodrive-windows/CLAUDE.md) |
+| [`prodrive-ios`](https://github.com/DOOOOM/prodrive-ios) | Pure SwiftUI (iOS 17+), Swift 5.9 | Universal iPhone + iPad app — Dashboard, Sessions, Tracks, Moments, Profile. **No React Native** ever shipped. **No watchOS** built yet (design doc only). | [agents/prodrive-ios/CLAUDE.md](../prodrive-ios/CLAUDE.md) |
+| [`prodrive-macos`](https://github.com/DOOOOM/prodrive-macos) | SwiftUI + AppKit (macOS 14+), Swift 5.9 | Native desktop client — rail-nav UI, Dashboard + Sessions live (4 stub destinations), Library + Editor for clip prep | [agents/prodrive-macos/CLAUDE.md](../prodrive-macos/CLAUDE.md) |
+| [`prodrive-tvos`](https://github.com/DOOOOM/prodrive-tvos) | Pure SwiftUI (tvOS 17+), Swift 5.9, SwiftDraw | Minimal 3-tab dashboard — device-link OAuth, animated DataStrip ticker | [agents/prodrive-tvos/CLAUDE.md](../prodrive-tvos/CLAUDE.md) |
+| [`prodrive-homebridge`](https://github.com/DOOOOM/prodrive-homebridge) | TypeScript, Homebridge platform | HomeKit smart-light mapping — polls SimHub on **port 8888** (NOT 8889), three modes: `flags_only` / `events_only` / `all_colors` | [agents/prodrive-homebridge/CLAUDE.md](../prodrive-homebridge/CLAUDE.md) |
+| [`prodrive-designer`](https://github.com/DOOOOM/prodrive-designer) | Electron, vanilla JS, Claude Agent SDK | Live prototyping shell — composites the overlay over recorded race video with telemetry replay + element picker + Claude attached. Phase 0 scaffold | [agents/prodrive-designer/CLAUDE.md](../prodrive-designer/CLAUDE.md) |
+| [`prodrive-edit`](https://github.com/DOOOOM/prodrive-edit) | Node.js CLI, ffmpeg | AI-powered race editing pipeline — ingests `.mp4` + `.telemetry.jsonl` pairs, detects events, generates edit lists, assembles condensed video | [agents/prodrive-edit/CLAUDE.md](../prodrive-edit/CLAUDE.md) |
+| [`prodrive-narrative`](https://github.com/DOOOOM/prodrive-narrative) | Markdown only | Internal strategic & design narrative — 5 threads: collaboration, differentiation, visual, technical, design-systems mirror | (read 00-README.md) |
+| [`prodrive-telemetry`](https://github.com/DOOOOM/prodrive-telemetry) | Data corpus | Sample `.mp4` + `.telemetry.jsonl` race recordings used by designer + edit for testing | (no docs needed) |
+| [`prodrive-support`](https://github.com/DOOOOM/prodrive-support) | Next.js 16, Fumadocs 16, Tailwind 4, Biome | User-facing help center at support.racing-desk.io | [agents/prodrive-support/CLAUDE.md](../prodrive-support/CLAUDE.md) |
+| [`prodrive-agents`](https://github.com/DOOOOM/prodrive-agents) | Markdown | This repo — central agent instructions and skills | (you are here) |
 
 ## End-to-End Data Flow (Integration Contract)
 
@@ -87,17 +87,17 @@ prodrive-server is the **consumer hub** — collects from both producers, serves
 |------|--------|----------|----------|
 | **A — Chrome extension** | Scrape members-ng.iracing.com | `POST /api/iracing/extension-sync` and `/api/iracing/upload` | iRating + ttRating history, license progression, race results, S3 result archive (intercepted) |
 | **B — Plugin push** | Live SDK telemetry, packaged at session end | `POST /api/iracing/import` (Bearer-authed) | Per-frame telemetry traces, sectors, incidents, fuel/tyre state — stored in Vercel Blob |
-| **C — Manual upload** | User pastes/drops JSON at racecor.io/drive/iracing | `POST /api/iracing/upload` | Same as A but via UI; multiple input shapes accepted |
+| **C — Manual upload** | User pastes/drops JSON at racing-desk.io/drive/iracing | `POST /api/iracing/upload` | Same as A but via UI; multiple input shapes accepted |
 
 All three land in the same Postgres tables and run the same import pipeline (track-name resolution, dedup by `subsession_id`, rating deltas, driver_ratings update, track auto-consolidation).
 
 ## Auth model
 
 - **Web app** — NextAuth v5 + Discord provider, JWT sessions
-- **Chrome extension** — reuses the racecor.io browser session (no separate auth)
+- **Chrome extension** — reuses the racing-desk.io browser session (no separate auth)
 - **Native apps + Windows desktop** — Discord PKCE OAuth via ASWebAuthenticationSession (Apple) or browser handoff (Windows). Token in Keychain / Credential Manager
-- **tvOS** — device-link flow via `/api/plugin-auth/device/{start, poll, authorize}`. User enters 6-char code at racecor.io/link
-- **SimHub plugin** — Bearer token issued via `/api/plugin-auth/{authorize, token}`. Stored in `%APPDATA%\RaceCor\plugin\auth.json`. Refreshes automatically.
+- **tvOS** — device-link flow via `/api/plugin-auth/device/{start, poll, authorize}`. User enters 6-char code at racing-desk.io/link
+- **SimHub plugin** — Bearer token issued via `/api/plugin-auth/{authorize, token}`. Stored in `%APPDATA%\RacingDesk\plugin\auth.json`. Refreshes automatically.
 
 **No Stripe / no billing** today — there's no payment flow in the codebase yet. Whether Pro Drive is invite-gated, paid, or open is a product decision; this doc only documents what the code does.
 
@@ -116,14 +116,14 @@ Race Coach uses BYO key because long races burn enough tokens that proxying woul
 
 ### 1. Plugin → server: track config + session push
 
-- `GET https://prodrive.racecor.io/api/tracks?trackName=...` — plugin fetches sector boundaries on track change. Cached in-memory until track changes again.
-- `POST https://prodrive.racecor.io/api/iracing/import` — plugin packages session telemetry on session end and pushes via Bearer auth.
+- `GET https://prodrive.racing-desk.io/api/tracks?trackName=...` — plugin fetches sector boundaries on track change. Cached in-memory until track changes again.
+- `POST https://prodrive.racing-desk.io/api/iracing/import` — plugin packages session telemetry on session end and pushes via Bearer auth.
 
 Auth via `/api/plugin-auth/{authorize, token}` flow.
 
 ### 2. Chrome extension → server
 
-Lives in `prodrive-server/apps/web/browser-extension/`. Manifest V3. Hosts: `https://members-ng.iracing.com/*`, `https://prodrive.racecor.io/*`, plus localhost / dev for development.
+Lives in `prodrive-server/apps/web/browser-extension/`. Manifest V3. Hosts: `https://members-ng.iracing.com/*`, `https://prodrive.racing-desk.io/*`, plus localhost / dev for development.
 
 Two POST endpoints:
 
@@ -152,8 +152,8 @@ Build wiring: `installer/build.ps1` defaults `$OverlayRepo` to `../../prodrive-o
 
 Native apps consume two API surfaces from prodrive-server:
 
-- **Per-screen REST** (`prodrive.racecor.io/api/v1/*`, Bearer-authed GET) — server aggregates and runs calc internally; one call per screen.
-- **Calc engines** (`api.prodrive.racecor.io/api/v1/calc/*`, POST) — Phase 9 layer; escape hatch for what-if flows.
+- **Per-screen REST** (`prodrive.racing-desk.io/api/v1/*`, Bearer-authed GET) — server aggregates and runs calc internally; one call per screen.
+- **Calc engines** (`api.prodrive.racing-desk.io/api/v1/calc/*`, POST) — Phase 9 layer; escape hatch for what-if flows.
 
 Reference docs:
 
@@ -177,7 +177,7 @@ Schema documented in [`telemetry-sidecar-schema.md`](telemetry-sidecar-schema.md
 
 ### 9. Support site — public consumer of all the above
 
-`prodrive-support` (Fumadocs at support.racecor.io) is the user-facing help center. Content under `content/docs/` mirrors the ecosystem layout one-to-one. Updates triggered by the `support-app-coverage` skill when features ship across the producer / consumer repos.
+`prodrive-support` (Fumadocs at support.racing-desk.io) is the user-facing help center. Content under `content/docs/` mirrors the ecosystem layout one-to-one. Updates triggered by the `support-app-coverage` skill when features ship across the producer / consumer repos.
 
 ## iRacing Web Scraping — HARD CONSTRAINTS
 

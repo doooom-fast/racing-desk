@@ -1,11 +1,11 @@
 {
-  "name": "com.racecor.overlay",
+  "name": "com.racing-desk.overlay",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "rollup -c",
-    "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.racecor.overlay\""
+    "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.racing-desk.overlay\""
   },
   "dependencies": {
     "@elgato/streamdeck": "^1.3.0"

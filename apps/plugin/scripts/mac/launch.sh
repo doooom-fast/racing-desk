@@ -1,10 +1,10 @@
 #!/bin/bash
-# RaceCor — Silent Launcher
+# RacingDesk — Silent Launcher
 # Runs the Electron overlay without keeping a terminal window open.
 
-# Navigate to app root (racecor-overlay/)
+# Navigate to app root (racing-desk-overlay/)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_DIR="$SCRIPT_DIR/../../racecor-overlay"
+APP_DIR="$SCRIPT_DIR/../../racing-desk-overlay"
 cd "$APP_DIR"
 
 # Auto-install if needed

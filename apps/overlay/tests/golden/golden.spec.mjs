@@ -1,8 +1,8 @@
 // Golden frames: the real dashboard.html, fed by the replay harness pinned to a frame, compared
 // against committed screenshots. Runs headless — no sim, no SimHub, no network, no window on screen.
 //
-//   npm run test:golden -w racecor-overlay                     compare
-//   npm run test:golden -w racecor-overlay -- --update-snapshots   accept new baselines
+//   npm run test:golden -w racing-desk-overlay                     compare
+//   npm run test:golden -w racing-desk-overlay -- --update-snapshots   accept new baselines
 //
 // Fixture: base-payload.json is a full 328-key payload captured from the live plugin (driver name
 // neutralised), with the unit tests' MOCK_TELEMETRY layered on top to put the car on track. Swap in
@@ -13,7 +13,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createRecordingWriter, readRecording, startReplayServer, CONTRACT_PATH } from '@prodrive/replay';
+import { createRecordingWriter, readRecording, startReplayServer, CONTRACT_PATH } from '@racing-desk/replay';
 import { MOCK_TELEMETRY } from '../helpers.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -69,6 +69,6 @@ test('in car — synthetic frame', async ({ page }) => {
 test('replayed payload reaches the page unchanged', async ({ page }) => {
   await openAtFrame(page, 0);
   const expected = await (await fetch(`http://127.0.0.1:${replay.port}${CONTRACT_PATH}`)).json();
-  const seen = await page.evaluate(async () => (await fetch('http://localhost:8889/racecor-io-pro-drive/')).json());
+  const seen = await page.evaluate(async () => (await fetch('http://localhost:8889/racing-desk/')).json());
   expect(seen).toEqual(expected);
 });

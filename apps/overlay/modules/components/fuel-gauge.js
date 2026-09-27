@@ -1,5 +1,5 @@
 /**
- * @element racecor-fuel-gauge
+ * @element racing-desk-fuel-gauge
  * @description Fuel level display with consumption rate and pit window estimate.
  *
  * Shows current fuel level, consumption per lap, and estimated laps remaining.
@@ -56,7 +56,7 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const pre = 'RaceCorProDrive.Plugin.DS.';
+      const pre = 'RacingDesk.Plugin.DS.';
       this._fuelLevel = +snapshot[pre + 'FuelPct'] || 0;
       this._fuelPerLap = +snapshot[pre + 'FuelPerLapFormatted'] || 0;
       this._fuelLapsRemaining = +snapshot[pre + 'FuelLapsRemaining'] || 0;
@@ -241,5 +241,5 @@
     }
   }
 
-  customElements.define('racecor-fuel-gauge', RaceCorFuelGauge);
+  customElements.define('racing-desk-fuel-gauge', RaceCorFuelGauge);
 })();

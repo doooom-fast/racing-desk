@@ -6,7 +6,7 @@
   function updateIncidents(p, isDemo) {
     const panel = document.getElementById('incidentsPanel');
     if (!panel || panel.classList.contains('section-hidden')) return;
-    const pre = isDemo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+    const pre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
     const incidentCount = +(p[pre + 'IncidentCount']) || 0;
 
     const countEl = document.getElementById('incCount');

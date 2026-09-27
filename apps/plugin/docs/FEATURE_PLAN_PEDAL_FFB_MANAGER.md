@@ -121,7 +121,7 @@ CarSetupProfile
 **File:** `Engine/CarSetupManager.cs` (new, replaces PedalProfileManager)
 
 Responsibilities:
-- CRUD for `CarSetupProfile` objects (stored as `{id}.json` in `PluginsData/RaceCorProDrive/CarSetups/`)
+- CRUD for `CarSetupProfile` objects (stored as `{id}.json` in `PluginsData/RacingDesk/CarSetups/`)
 - Car binding: `Dictionary<string, string>` mapping `carModel → profileId` (in `_bindings.json`)
 - Auto-switch on car change (called from `Plugin.cs DataUpdate()`)
 - Auto-suggest when no profile exists for a car (calls CarClassHeuristics)

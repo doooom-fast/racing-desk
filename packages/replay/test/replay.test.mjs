@@ -15,14 +15,14 @@ function syntheticFrames(n) {
   for (let i = 0; i < n; i++) {
     const p = {
       'DataCorePlugin.GameRunning': 1,
-      'RaceCorProDrive.Plugin.DemoMode': 0,
-      'RaceCorProDrive.Plugin.Grid.SessionState': 2,
+      'RacingDesk.Plugin.DemoMode': 0,
+      'RacingDesk.Plugin.Grid.SessionState': 2,
       'DataCorePlugin.GameData.SpeedKmh': Math.round(120 + 40 * Math.sin(i / 10)),
       'DataCorePlugin.GameData.Gear': String(3 + (i % 3)),
-      'RaceCorProDrive.Plugin.Leaderboard': [{ pos: 1, name: 'A', gap: i % 7 }],
-      'RaceCorProDrive.Plugin.TrackMap.SvgPath': 'M0,0L10,10Z',
+      'RacingDesk.Plugin.Leaderboard': [{ pos: 1, name: 'A', gap: i % 7 }],
+      'RacingDesk.Plugin.TrackMap.SvgPath': 'M0,0L10,10Z',
     };
-    if (i % 25 >= 20) p['RaceCorProDrive.Plugin.DS.Transient'] = i;
+    if (i % 25 >= 20) p['RacingDesk.Plugin.DS.Transient'] = i;
     frames.push({ t: i * 33, p });
   }
   return frames;
@@ -145,7 +145,7 @@ test('recorder captures a live source and collapses out-of-car gaps', async () =
   const source = http.createServer((req, res) => {
     n++;
     const inCar = n <= 8 || n > 20; // polls 9..20 are "at the menus"
-    const body = JSON.stringify({ 'DataCorePlugin.GameRunning': inCar ? 1 : 0, 'RaceCorProDrive.Plugin.Grid.SessionState': inCar ? 2 : 0, 'RaceCorProDrive.Plugin.DemoMode': 0, n });
+    const body = JSON.stringify({ 'DataCorePlugin.GameRunning': inCar ? 1 : 0, 'RacingDesk.Plugin.Grid.SessionState': inCar ? 2 : 0, 'RacingDesk.Plugin.DemoMode': 0, n });
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(body);
   }).listen(0, '127.0.0.1');

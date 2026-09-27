@@ -55,7 +55,7 @@ Current state: ~60 tokens split across two CSS files with different values for t
 | `--text-muted` | `rgba(255,255,255,0.45)` | — | `rgba(255,255,255,0.45)` | Web-only, keep |
 | `--border-subtle` | `rgba(255,255,255,0.06)` | — | `rgba(255,255,255,0.06)` | Web-only, keep |
 | `--border-accent` | `rgba(229,57,53,0.35)` | — | `rgba(229,57,53,0.35)` | Web-only, keep |
-| `--k10-red` / `--red` | `#e53935` | `#e53935` | `#e53935` | Same value, merge to `--red`; alias `--k10-red` |
+| `--rd-red` / `--red` | `#e53935` | `#e53935` | `#e53935` | Same value, merge to `--red`; alias `--rd-red` |
 | `--purple` | `#7c6cf0` | `hsl(280,80%,70%)` | `hsl(280,80%,70%)` | Overlay wins |
 | `--corner-r` | `12px` | `8px` | `8px` | Overlay wins; web can override via platform transform |
 | `--corner-r-sm` | `6px` | `5px` | `5px` | Overlay wins |
@@ -255,7 +255,7 @@ Replace the hardcoded `:root` block in `globals.css` with a dynamic approach:
 
 ### 4b. Theme Preference Storage
 
-- Cookie: `racecor-theme=dark|light` (readable by SSR + client)
+- Cookie: `racing-desk-theme=dark|light` (readable by SSR + client)
 - For authenticated users: store preference in a new `themePreference` column on the `users` table
 - The overlay reads the user's preference from the API and applies the matching theme
 
@@ -271,7 +271,7 @@ Strip the `:root` token block from `globals.css`. Keep only structural rules (Ta
 
 ### 5a. Remote-First with Local Fallback
 
-New module: `racecor-overlay/modules/js/token-loader.js`
+New module: `racing-desk-overlay/modules/js/token-loader.js`
 
 ```
 Startup:

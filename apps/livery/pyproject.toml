@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "prodrive-livery"
 version = "0.1.0"
-description = "Agentic iRacing livery design and build pipeline (K10 Motorsports, personal tool)"
+description = "Agentic iRacing livery design and build pipeline (The Racing Desk, personal tool)"
 requires-python = ">=3.10"
 dependencies = [
     "pillow>=10.0",

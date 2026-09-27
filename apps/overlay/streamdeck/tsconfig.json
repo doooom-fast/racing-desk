@@ -7,7 +7,7 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "./com.racecor.overlay.sdPlugin/bin",
+    "outDir": "./com.racing-desk.overlay.sdPlugin/bin",
     "rootDir": "./src"
   },
   "include": ["src/**/*.ts"]

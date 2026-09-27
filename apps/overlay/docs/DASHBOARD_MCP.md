@@ -1,4 +1,4 @@
-# RaceCorProDrive — Dashboard Architecture MCP
+# RacingDesk — Dashboard Architecture MCP
 
 ## Quick Reference
 
@@ -9,7 +9,7 @@
 **Tests**: `tests/*.spec.mjs` (Playwright)
 **Test helpers**: `tests/helpers.mjs`
 **Electron main**: `main.js` (IPC handlers, window management, Discord OAuth, three-mode switching)
-**Electron preload**: `preload.js` (IPC bridge -> `window.k10`)
+**Electron preload**: `preload.js` (IPC bridge -> `window.racingDesk`)
 
 The dashboard has no bundler — all modules load via `<link>` and `<script src>` tags with **global scope** (duplicate `let`/`const` declarations crash modules).
 
@@ -20,10 +20,10 @@ The dashboard has no bundler — all modules load via `<link>` and `<script src>
 ### File Layout
 
 ```
-RaceCor Overlay/
+RacingDesk Overlay/
 +-- dashboard.html          <- Main dashboard file: HTML structure + module includes
 +-- main.js                 <- Electron main process
-+-- preload.js              <- IPC bridge (window.k10)
++-- preload.js              <- IPC bridge (window.racingDesk)
 +-- modules/
 |   +-- styles/
 |   |   +-- base.css        <- CSS variables, reset, fonts, shared utilities
@@ -57,7 +57,7 @@ RaceCor Overlay/
 |       +-- poll-engine.js  <- (632 lines) Main orchestrator: polling loop, game detection, applyGameMode(), session-aware gaps
 +-- scripts/
 |   +-- mac/
-|   |   +-- RaceCor.command  <- macOS launcher (double-click to run)
+|   |   +-- RacingDesk.command  <- macOS launcher (double-click to run)
 |   |   +-- install.command                <- Install dependencies
 |   |   +-- launch.sh                      <- Silent launcher (no terminal window)
 |   +-- windows/
@@ -260,7 +260,7 @@ Commentary data visualization engine with multiple renderer types.
 ### config.js (~330+ lines)
 
 Central configuration file. Defines:
-- `SIMHUB_URL` -- plugin HTTP endpoint (`http://localhost:8889/racecor-io-pro-drive/`)
+- `SIMHUB_URL` -- plugin HTTP endpoint (`http://localhost:8889/racing-desk/`)
 - `POLL_MS` -- polling interval (33ms ~ 30fps)
 - `PROP_KEYS` -- array of telemetry property keys to request
 - `DEMO_PROP_KEYS` -- array of demo mode property keys
@@ -273,11 +273,11 @@ Central configuration file. Defines:
 - `DataCorePlugin.GameData.*` -- standard SimHub properties
 - `DataCorePlugin.GameRawData.Telemetry.*` -- raw game telemetry
 - `IRacingExtraProperties.iRacing_*` -- iRacing-specific
-- `RaceCorProDrive.Plugin.*` -- custom plugin properties
-- `RaceCorProDrive.Plugin.Demo.*` -- demo mode equivalents
-- `RaceCorProDrive.Plugin.DS.*` -- derived/computed values (speed, pit limiter, physics, etc.)
-- `RaceCorProDrive.Plugin.Demo.DS.*` -- demo derived values
-- `RaceCorProDrive.Plugin.SessionTypeName` -- session type (Race/Practice/Qualifying/Test)
+- `RacingDesk.Plugin.*` -- custom plugin properties
+- `RacingDesk.Plugin.Demo.*` -- demo mode equivalents
+- `RacingDesk.Plugin.DS.*` -- derived/computed values (speed, pit limiter, physics, etc.)
+- `RacingDesk.Plugin.Demo.DS.*` -- demo derived values
+- `RacingDesk.Plugin.SessionTypeName` -- session type (Race/Practice/Qualifying/Test)
 
 ### Server-Computed DS.* Properties (added to reduce client-side JS overhead)
 - `DS.ThrottleNorm` / `DS.BrakeNorm` / `DS.ClutchNorm` -- pedals normalized 0–1
@@ -413,14 +413,14 @@ window.setGridGL(active)           // grid border glow
 
 ### Demo Mode
 
-When `RaceCorProDrive.Plugin.DemoMode` is 1, the dashboard reads from `RaceCorProDrive.Plugin.Demo.*` keys. The demo prefix pattern:
-- Live: `RaceCorProDrive.Plugin.DS.SpeedKmh`
-- Demo: `RaceCorProDrive.Plugin.Demo.DS.SpeedKmh`
+When `RacingDesk.Plugin.DemoMode` is 1, the dashboard reads from `RacingDesk.Plugin.Demo.*` keys. The demo prefix pattern:
+- Live: `RacingDesk.Plugin.DS.SpeedKmh`
+- Demo: `RacingDesk.Plugin.Demo.DS.SpeedKmh`
 
 ### SimHub Telemetry Flow
 
 ```
-SimHub -> Plugin.cs (C#) -> TelemetrySnapshot -> HTTP JSON at :8889/racecor-io-pro-drive/
+SimHub -> Plugin.cs (C#) -> TelemetrySnapshot -> HTTP JSON at :8889/racing-desk/
   -> fetchProps() (JS) -> pollUpdate() -> update DOM elements
 ```
 
@@ -443,7 +443,7 @@ Applied to `<body>` by `applyGameMode()`:
 ### Key Files
 
 ```
-racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/
+racing-desk-plugin/simhub-plugin/plugin/RacingDesk.Plugin/
 +-- Plugin.cs                    <- Main plugin, HTTP server, JSON output
 +-- Engine/
 |   +-- TelemetrySnapshot.cs     <- Data model for all telemetry values
@@ -455,10 +455,10 @@ racecor-plugin/simhub-plugin/plugin/RaceCorProDrive.Plugin/
 
 The plugin serves a flat JSON map. Key output sections:
 - Standard telemetry (position, laps, fuel, tires, etc.)
-- `RaceCorProDrive.Plugin.SessionTypeName` -- session type string
-- `RaceCorProDrive.Plugin.DS.*` -- derived values (speed, pit limiter, etc.)
-- `RaceCorProDrive.Plugin.Demo.*` -- demo mode equivalents
-- `RaceCorProDrive.Plugin.Grid.*` -- grid/formation data
+- `RacingDesk.Plugin.SessionTypeName` -- session type string
+- `RacingDesk.Plugin.DS.*` -- derived values (speed, pit limiter, etc.)
+- `RacingDesk.Plugin.Demo.*` -- demo mode equivalents
+- `RacingDesk.Plugin.Grid.*` -- grid/formation data
 
 ### DemoTelemetryProvider.cs
 

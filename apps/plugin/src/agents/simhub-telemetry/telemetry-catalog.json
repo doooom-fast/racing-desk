@@ -1,11 +1,11 @@
 {
   "version": "2.0.0",
-  "description": "Complete telemetry data catalog for the K10 Motorsports — all iRacing SDK variables, SimHub GameData properties, SimHub plugin outputs, commentary triggers, and computed fields.",
+  "description": "Complete telemetry data catalog for the The Racing Desk — all iRacing SDK variables, SimHub GameData properties, SimHub plugin outputs, commentary triggers, and computed fields.",
   "sources": {
     "iracing-sdk": "Raw iRacing SDK shared memory variables (via DataCorePlugin.GameRawData.Telemetry.*)",
     "simhub-gamedata": "SimHub normalised cross-game properties (DataCorePlugin.GameData.*)",
     "simhub-computed": "SimHub computed/derived properties (DataCorePlugin.Computed.*)",
-    "k10-plugin": "RaceCorProDrive.Plugin.* output properties",
+    "k10-plugin": "RacingDesk.Plugin.* output properties",
     "commentary": "Commentary engine trigger conditions"
   },
   "sections": [
@@ -514,25 +514,25 @@
       "title": "K10 Plugin Output Properties",
       "source": "k10-plugin",
       "fields": [
-        {"name": "RaceCorProDrive.Plugin.CommentaryText", "type": "string", "wired": true, "desc": "Current assembled commentary prompt text"},
-        {"name": "RaceCorProDrive.Plugin.CommentaryVisible", "type": "int", "range": "0|1", "wired": true, "desc": "Whether commentary is active (1) or idle (0)"},
-        {"name": "RaceCorProDrive.Plugin.CommentaryCategory", "type": "string", "wired": true, "desc": "Category+sentiment label (e.g. 'car_response:positive')"},
-        {"name": "RaceCorProDrive.Plugin.CommentaryTitle", "type": "string", "wired": true, "desc": "Topic display title (e.g. 'Big Save')"},
-        {"name": "RaceCorProDrive.Plugin.CommentarySeverity", "type": "int", "range": "0–5", "wired": true, "desc": "Event severity level"},
-        {"name": "RaceCorProDrive.Plugin.CommentarySentimentColor", "type": "string", "wired": true, "desc": "Background colour (#AARRGGBB hex)"},
-        {"name": "RaceCorProDrive.Plugin.CommentaryTextColor", "type": "string", "wired": true, "desc": "Foreground text colour for contrast"},
-        {"name": "RaceCorProDrive.Plugin.CurrentEventExposition", "type": "string", "wired": true, "desc": "Short factual event description for HUD"},
-        {"name": "RaceCorProDrive.Plugin.CurrentFlagState", "type": "string", "wired": true, "desc": "Human-readable flag: green, yellow, red, checkered, black, debris, white"},
-        {"name": "RaceCorProDrive.Plugin.NearestCarDistance", "type": "float", "range": "0–1", "wired": true, "desc": "Nearest car proximity distance (track fraction)"},
-        {"name": "RaceCorProDrive.Plugin.IsInPitLane", "type": "int", "range": "0|1", "wired": true, "desc": "Pit lane flag"},
-        {"name": "RaceCorProDrive.Plugin.DS.LatG", "type": "float", "unit": "G", "wired": true, "desc": "Lateral G in HTTP API snapshot"},
-        {"name": "RaceCorProDrive.Plugin.DS.LongG", "type": "float", "unit": "G", "wired": true, "desc": "Longitudinal G in HTTP API snapshot"},
-        {"name": "RaceCorProDrive.Plugin.DS.VertG", "type": "float", "unit": "G", "wired": true, "desc": "Vertical G in HTTP API snapshot"},
-        {"name": "RaceCorProDrive.Plugin.DS.YawRate", "type": "float", "unit": "rad/s", "wired": true, "desc": "Yaw rate in HTTP API snapshot"},
-        {"name": "RaceCorProDrive.Plugin.DS.SteerTorque", "type": "float", "unit": "Nm", "wired": true, "desc": "Steering torque in HTTP API snapshot"},
-        {"name": "RaceCorProDrive.Plugin.DS.RpmRatio", "type": "float", "range": "0–1", "wired": true, "desc": "Normalised RPM fraction in HTTP API snapshot"},
-        {"name": "RaceCorProDrive.Plugin.DS.FuelLapsRemaining", "type": "float", "unit": "laps", "wired": true, "desc": "Estimated fuel laps remaining"},
-        {"name": "RaceCorProDrive.Plugin.DS.EstimatedIRatingDelta", "type": "int", "wired": true, "desc": "Projected iRating change at current position"}
+        {"name": "RacingDesk.Plugin.CommentaryText", "type": "string", "wired": true, "desc": "Current assembled commentary prompt text"},
+        {"name": "RacingDesk.Plugin.CommentaryVisible", "type": "int", "range": "0|1", "wired": true, "desc": "Whether commentary is active (1) or idle (0)"},
+        {"name": "RacingDesk.Plugin.CommentaryCategory", "type": "string", "wired": true, "desc": "Category+sentiment label (e.g. 'car_response:positive')"},
+        {"name": "RacingDesk.Plugin.CommentaryTitle", "type": "string", "wired": true, "desc": "Topic display title (e.g. 'Big Save')"},
+        {"name": "RacingDesk.Plugin.CommentarySeverity", "type": "int", "range": "0–5", "wired": true, "desc": "Event severity level"},
+        {"name": "RacingDesk.Plugin.CommentarySentimentColor", "type": "string", "wired": true, "desc": "Background colour (#AARRGGBB hex)"},
+        {"name": "RacingDesk.Plugin.CommentaryTextColor", "type": "string", "wired": true, "desc": "Foreground text colour for contrast"},
+        {"name": "RacingDesk.Plugin.CurrentEventExposition", "type": "string", "wired": true, "desc": "Short factual event description for HUD"},
+        {"name": "RacingDesk.Plugin.CurrentFlagState", "type": "string", "wired": true, "desc": "Human-readable flag: green, yellow, red, checkered, black, debris, white"},
+        {"name": "RacingDesk.Plugin.NearestCarDistance", "type": "float", "range": "0–1", "wired": true, "desc": "Nearest car proximity distance (track fraction)"},
+        {"name": "RacingDesk.Plugin.IsInPitLane", "type": "int", "range": "0|1", "wired": true, "desc": "Pit lane flag"},
+        {"name": "RacingDesk.Plugin.DS.LatG", "type": "float", "unit": "G", "wired": true, "desc": "Lateral G in HTTP API snapshot"},
+        {"name": "RacingDesk.Plugin.DS.LongG", "type": "float", "unit": "G", "wired": true, "desc": "Longitudinal G in HTTP API snapshot"},
+        {"name": "RacingDesk.Plugin.DS.VertG", "type": "float", "unit": "G", "wired": true, "desc": "Vertical G in HTTP API snapshot"},
+        {"name": "RacingDesk.Plugin.DS.YawRate", "type": "float", "unit": "rad/s", "wired": true, "desc": "Yaw rate in HTTP API snapshot"},
+        {"name": "RacingDesk.Plugin.DS.SteerTorque", "type": "float", "unit": "Nm", "wired": true, "desc": "Steering torque in HTTP API snapshot"},
+        {"name": "RacingDesk.Plugin.DS.RpmRatio", "type": "float", "range": "0–1", "wired": true, "desc": "Normalised RPM fraction in HTTP API snapshot"},
+        {"name": "RacingDesk.Plugin.DS.FuelLapsRemaining", "type": "float", "unit": "laps", "wired": true, "desc": "Estimated fuel laps remaining"},
+        {"name": "RacingDesk.Plugin.DS.EstimatedIRatingDelta", "type": "int", "wired": true, "desc": "Projected iRating change at current position"}
       ]
     },
     {

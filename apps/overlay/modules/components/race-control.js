@@ -1,5 +1,5 @@
 /**
- * @element racecor-race-control
+ * @element racing-desk-race-control
  * @description Race control flag banner with animated stripe and auto-hide.
  *
  * Shows critical race control messages (yellow, red, checkered, black, meatball)
@@ -20,10 +20,10 @@
  * @slot default (not used, Shadow DOM only)
  *
  * @example
- * <racecor-race-control></racecor-race-control>
+ * <racing-desk-race-control></racing-desk-race-control>
  *
  * <script>
- *   const banner = document.querySelector('racecor-race-control');
+ *   const banner = document.querySelector('racing-desk-race-control');
  *   banner.show('red');  // Show red flag
  * </script>
  */
@@ -429,7 +429,7 @@
   // ══════════════════════════════════════════════════════════════
 
   if (window && window.customElements) {
-    customElements.define('racecor-race-control', RaceCorRaceControl);
+    customElements.define('racing-desk-race-control', RaceCorRaceControl);
   }
 
   if (typeof module !== 'undefined' && module.exports) {

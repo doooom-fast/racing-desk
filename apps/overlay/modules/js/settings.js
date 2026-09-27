@@ -130,17 +130,17 @@
   // ships from the host but no DOM was wired before; insert lazily so
   // the logo column doesn't grow when the subtitle is empty.
   function applyLogoSubtitle() {
-    var k10 = document.getElementById('k10LogoSquare');
+    var k10 = document.getElementById('brandLogoSquare');
     if (!k10) return;
     var subtitle = (_settings.logoSubtitle || '').trim();
-    var el = document.getElementById('k10LogoSubtitle');
+    var el = document.getElementById('brandLogoSubtitle');
     if (!subtitle) {
       if (el) el.remove();
       return;
     }
     if (!el) {
       el = document.createElement('div');
-      el.id = 'k10LogoSubtitle';
+      el.id = 'brandLogoSubtitle';
       el.className = 'logo-subtitle';
       k10.parentNode.insertBefore(el, k10.nextSibling);
     }
@@ -175,7 +175,7 @@
     showPitBox:      '#pitBoxPanel',
     showIncidents:   '#incidentsPanel',
     showSpotter:     '#spotterPanel',
-    showK10Logo:     '#k10LogoSquare',
+    showK10Logo:     '#brandLogoSquare',
     showCarLogo:     '#carLogoSquare',
     showGameLogo:    '#gameLogoOverlay',
   };
@@ -214,7 +214,7 @@
     // back to the canonical SIMHUB_URL when the saved value is bare.
     if (_settings.simhubUrl
         && _settings.simhubUrl !== SIMHUB_URL
-        && /\/racecor-io-pro-drive\/?$/.test(_settings.simhubUrl)) {
+        && /\/racing-desk\/?$/.test(_settings.simhubUrl)) {
       window._simhubUrlOverride = _settings.simhubUrl;
     } else {
       window._simhubUrlOverride = null;
@@ -442,12 +442,12 @@
   // the watcher fires settings-sync. Run on DOMContentLoaded so the
   // panels applySettings() touches actually exist in the DOM.
   function _loadInitialSettings() {
-    if (!window.k10 || !window.k10.getSettings) {
+    if (!window.racingDesk || !window.racingDesk.getSettings) {
       // No bridge (running in a browser tab for dev) — apply defaults.
       try { applySettings(); } catch (e) { console.warn('[settings] initial apply failed:', e); }
       return;
     }
-    window.k10.getSettings().then(function(saved) {
+    window.racingDesk.getSettings().then(function(saved) {
       if (saved && typeof saved === 'object') {
         Object.assign(_settings, saved);
       }
@@ -467,8 +467,8 @@
   // ── Cross-window settings sync ──
   // When the host changes settings on disk, apply them here, and relay
   // any commentary keys to the SimHub plugin so its filtering stays in sync.
-  if (window.k10 && window.k10.onSettingsSync) {
-    window.k10.onSettingsSync(function(newSettings) {
+  if (window.racingDesk && window.racingDesk.onSettingsSync) {
+    window.racingDesk.onSettingsSync(function(newSettings) {
       if (newSettings && typeof newSettings === 'object') {
         Object.assign(_settings, newSettings);
         applySettings();

@@ -257,7 +257,7 @@
     // Skip entirely if panel is not visible
     if (_dsPanel && _dsPanel.offsetParent === null) return;
 
-    const pre = isDemo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+    const pre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
     const vd = (key) => +p[pre + key] || 0;
 
     const latG = vd('LatG');

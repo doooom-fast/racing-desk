@@ -6,7 +6,7 @@
 //   info   [<file>]
 //   list
 //
-// <file> defaults to the newest recording in %LOCALAPPDATA%\RaceCor\recordings.
+// <file> defaults to the newest recording in %LOCALAPPDATA%\RacingDesk\recordings.
 
 import { mkdirSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -17,7 +17,7 @@ import { record, inCar } from './src/record.mjs';
 import { startReplayServer, CONTRACT_PATH } from './src/server.mjs';
 import { attachTerminalControls, fmtTime } from './src/terminal.mjs';
 
-export const RECORDINGS_DIR = join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'RaceCor', 'recordings');
+export const RECORDINGS_DIR = join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'RacingDesk', 'recordings');
 const LIVE_URL = `http://localhost:8889${CONTRACT_PATH}`;
 
 export function parseArgs(argv) {
@@ -104,8 +104,8 @@ function cmdInfo(args) {
   console.log(JSON.stringify({
     file: recording.path, header: recording.header, frames: recording.frames.length,
     keyframes: player.keyframes.length, duration: fmtTime(recording.duration), keys: Object.keys(first).length,
-    inCarFrames, demoMode: Number(first['RaceCorProDrive.Plugin.DemoMode']) === 1,
-    track: first['DataCorePlugin.GameData.TrackName'] ?? first['RaceCorProDrive.Plugin.Demo.TrackName'] ?? null,
+    inCarFrames, demoMode: Number(first['RacingDesk.Plugin.DemoMode']) === 1,
+    track: first['DataCorePlugin.GameData.TrackName'] ?? first['RacingDesk.Plugin.Demo.TrackName'] ?? null,
   }, null, 2));
 }
 

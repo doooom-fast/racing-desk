@@ -4,13 +4,13 @@
 
 ## Purpose
 
-The web app at `prodrive.racecor.io` does almost all its data loading in React Server Components that read Drizzle directly. Native apps sit across the network and can't do that. This doc lists the JSON endpoints under `/api/v1/*` that the native apps consume, what each one returns, and which Server Component query it replaces.
+The web app at `prodrive.racing-desk.io` does almost all its data loading in React Server Components that read Drizzle directly. Native apps sit across the network and can't do that. This doc lists the JSON endpoints under `/api/v1/*` that the native apps consume, what each one returns, and which Server Component query it replaces.
 
 Everything here is **additive**. No existing route moves. No existing Server Component query changes. The only refactor is extracting inline Drizzle queries into `src/lib/queries/*` pure functions so both the Server Component and the new route handler can call the same thing.
 
 ## Conventions
 
-- **Base**: `https://prodrive.racecor.io/api/v1/`
+- **Base**: `https://prodrive.racing-desk.io/api/v1/`
 - **Auth**: `Authorization: Bearer <access_token>` from the `/api/plugin-auth/token` flow. Missing/invalid → `401`. Expired → `401` with `WWW-Authenticate: Bearer error="invalid_token"` and the app refreshes via `/api/plugin-auth/token` with `grant_type=refresh_token`.
 - **User scoping**: the access token resolves to a `userId` on the server. Every query is implicitly user-scoped. Native clients never pass a userId.
 - **Date serialization**: all `Date` → ISO 8601 string.

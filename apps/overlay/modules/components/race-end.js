@@ -1,5 +1,5 @@
 /**
- * @element racecor-race-end
+ * @element racing-desk-race-end
  * @description Race end results screen with finishing position and rating deltas.
  *
  * Shows finishing position, best lap time, incident count, and iRating/SR delta.
@@ -25,7 +25,7 @@
  * @slot default (not used, Shadow DOM only)
  *
  * @example
- * <racecor-race-end></racecor-race-end>
+ * <racing-desk-race-end></racing-desk-race-end>
  */
 
 (function() {
@@ -82,14 +82,14 @@
     show(snapshot, isDemo = false) {
       if (!snapshot) return;
 
-      const pre = isDemo ? 'RaceCorProDrive.Plugin.Demo.' : '';
-      const dsPre = isDemo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+      const pre = isDemo ? 'RacingDesk.Plugin.Demo.' : '';
+      const dsPre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
 
       // Extract data
-      const pos = isDemo ? +(snapshot['RaceCorProDrive.Plugin.Demo.Position'] || 0) : +(snapshot['DataCorePlugin.GameData.Position'] || 0);
+      const pos = isDemo ? +(snapshot['RacingDesk.Plugin.Demo.Position'] || 0) : +(snapshot['DataCorePlugin.GameData.Position'] || 0);
       const completedLaps = +(snapshot[dsPre + 'CompletedLaps'] || 0);
-      const totalLaps = isDemo ? +(snapshot['RaceCorProDrive.Plugin.Demo.TotalLaps'] || 0) : +(snapshot['DataCorePlugin.GameData.TotalLaps'] || 0);
-      const bestLap = isDemo ? +(snapshot['RaceCorProDrive.Plugin.Demo.BestLapTime'] || 0) : +(snapshot['DataCorePlugin.GameData.BestLapTime'] || 0);
+      const totalLaps = isDemo ? +(snapshot['RacingDesk.Plugin.Demo.TotalLaps'] || 0) : +(snapshot['DataCorePlugin.GameData.TotalLaps'] || 0);
+      const bestLap = isDemo ? +(snapshot['RacingDesk.Plugin.Demo.BestLapTime'] || 0) : +(snapshot['DataCorePlugin.GameData.BestLapTime'] || 0);
       const incidents = +(snapshot[dsPre + 'IncidentCount'] || 0);
 
       this._position = pos;
@@ -323,7 +323,7 @@
   // ══════════════════════════════════════════════════════════════
 
   if (window && window.customElements) {
-    customElements.define('racecor-race-end', RaceCorRaceEnd);
+    customElements.define('racing-desk-race-end', RaceCorRaceEnd);
   }
 
   if (typeof module !== 'undefined' && module.exports) {

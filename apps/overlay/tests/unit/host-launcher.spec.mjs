@@ -1,5 +1,5 @@
 /**
- * How the app finds or starts RaceCor.Host: what an answer on :8889 means, which ports follow, the argv, where
+ * How the app finds or starts RacingDesk.Host: what an answer on :8889 means, which ports follow, the argv, where
  * the exe is — and the start decision itself, with fake probes and a fake spawn (no ports, no processes).
  */
 
@@ -68,7 +68,7 @@ test.describe('hostExePath', () => {
     const resourcesPath = 'C:\\Users\\Kevin Conboy\\Racing Desk\\resources';
     const where = { isPackaged: true, resourcesPath, appDir: 'C:\\ignored' };
     const exe = hostExePath(where);
-    expect(exe).toBe(path.join(resourcesPath, 'host', 'RaceCor.Host.exe'));
+    expect(exe).toBe(path.join(resourcesPath, 'host', 'RacingDesk.Host.exe'));
     expect(exe.startsWith(resourcesPath)).toBe(true);
     expect(hostExeCandidates(where)).toEqual([exe]);
   });
@@ -77,8 +77,8 @@ test.describe('hostExePath', () => {
     const appDir = path.join('C:\\Users\\Kevin Conboy\\Documents\\GitHub\\prodrive', 'apps', 'overlay');
     const hostDir = path.join(appDir, '..', 'host');
     const [built, published] = hostExeCandidates({ isPackaged: false, appDir });
-    expect(built).toBe(path.join(hostDir, 'RaceCor.Host', 'bin', 'Release', 'net8.0-windows', 'RaceCor.Host.exe'));
-    expect(published).toBe(path.join(hostDir, 'publish', 'RaceCor.Host.exe'));
+    expect(built).toBe(path.join(hostDir, 'RacingDesk.Host', 'bin', 'Release', 'net8.0-windows', 'RacingDesk.Host.exe'));
+    expect(published).toBe(path.join(hostDir, 'publish', 'RacingDesk.Host.exe'));
     expect(built).not.toContain('..');
     expect(built).toContain('Kevin Conboy');
     expect(hostExePath({ isPackaged: false, appDir })).toBe(built);
@@ -88,7 +88,7 @@ test.describe('hostExePath', () => {
 test.describe('startHost', () => {
   const logPath = path.join(os.tmpdir(), `racing-desk-host-launcher-${process.pid}.log`);
   const where = { isPackaged: true, resourcesPath: 'C:\\Racing Desk\\resources', appDir: 'C:\\ignored' };
-  const exe = path.join(where.resourcesPath, 'host', 'RaceCor.Host.exe');
+  const exe = path.join(where.resourcesPath, 'host', 'RacingDesk.Host.exe');
 
   function fakeChild() {
     const child = new EventEmitter();
@@ -124,12 +124,12 @@ test.describe('startHost', () => {
     expect(result.url).toBe('http://localhost:8889');
     expect(result.child).not.toBeNull();
     expect(result.reason).toContain('host on :8889');
-    expect(f.probed).toEqual(['http://localhost:8889/racecor-io-pro-drive/data/status']);
+    expect(f.probed).toEqual(['http://localhost:8889/racing-desk/data/status']);
     expect(f.spawned).toHaveLength(1);
     expect(f.spawned[0].file).toBe(exe);
     expect(f.spawned[0].args).toEqual(['--http-port', '8889', '--ws-port', '8890', '--parent-pid', '777']);
     expect(f.spawned[0].opts).toMatchObject({ cwd: path.dirname(exe), windowsHide: true, detached: true });
-    expect(lastLogLine()).toMatch(/^==== \d{4}-\d\d-\d\dT\S+ host on :8889: .*RaceCor\.Host\.exe --http-port 8889 --ws-port 8890 --parent-pid 777$/);
+    expect(lastLogLine()).toMatch(/^==== \d{4}-\d\d-\d\dT\S+ host on :8889: .*RacingDesk\.Host\.exe --http-port 8889 --ws-port 8890 --parent-pid 777$/);
   });
 
   test('SimHub on :8889: beside it on :18889, without hardware', async () => {
@@ -168,12 +168,12 @@ test.describe('startHost', () => {
     const result = await startHost({ ...where, ...f, exists: () => false });
     expect(result).toEqual({ url: null, child: null, reason: `no host exe at ${exe}; run npm run build:host` });
     expect(f.spawned).toHaveLength(0);
-    expect(lastLogLine()).toMatch(/^==== \d{4}-\d\d-\d\dT\S+ no host exe at .*RaceCor\.Host\.exe; run npm run build:host$/);
+    expect(lastLogLine()).toMatch(/^==== \d{4}-\d\d-\d\dT\S+ no host exe at .*RacingDesk\.Host\.exe; run npm run build:host$/);
   });
 
   test('in dev the published exe is used when the project build is missing', async () => {
     const appDir = path.join('C:\\dev', 'prodrive', 'apps', 'overlay');
-    const published = path.join(appDir, '..', 'host', 'publish', 'RaceCor.Host.exe');
+    const published = path.join(appDir, '..', 'host', 'publish', 'RacingDesk.Host.exe');
     const f = fakes({});
     const result = await startHost({ isPackaged: false, appDir, ...f, exists: (p) => p === published });
     expect(result.child).not.toBeNull();

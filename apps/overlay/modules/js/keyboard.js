@@ -5,7 +5,7 @@
 
 (function initKeyboardActions() {
   'use strict';
-  var k = window.k10;
+  var k = window.racingDesk;
   if (!k) return;
 
   // ── Restart demo ──
@@ -14,8 +14,8 @@
       var baseUrl = window._simhubUrlOverride || SIMHUB_URL;
       var sep = baseUrl.indexOf('?') === -1 ? '?' : '&';
       fetch(baseUrl + sep + 'action=restartdemo')
-        .then(function(r) { if (r.ok) console.log('[K10] Demo restarted'); else console.warn('[K10] Demo restart failed:', r.status); })
-        .catch(function(err) { console.warn('[K10] Demo restart error:', err); });
+        .then(function(r) { if (r.ok) console.log('[RacingDesk] Demo restarted'); else console.warn('[RacingDesk] Demo restart failed:', r.status); })
+        .catch(function(err) { console.warn('[RacingDesk] Demo restart error:', err); });
     });
   }
 
@@ -96,7 +96,7 @@
     _currentZoom = Math.max(0.5, Math.min(2.0, _currentZoom + delta));
     document.body.style.transform = _currentZoom === 1.0 ? '' : 'scale(' + _currentZoom + ')';
     document.body.style.transformOrigin = 'top left';
-    console.log('[K10] Zoom: ' + (_currentZoom * 100).toFixed(0) + '%');
+    console.log('[RacingDesk] Zoom: ' + (_currentZoom * 100).toFixed(0) + '%');
   }
 
   // ── Mode preset definitions ──
@@ -157,7 +157,7 @@
     if (typeof saveSettings === 'function') saveSettings();
     if (typeof applyLayout === 'function') applyLayout();
     if (typeof _collapseParentColumns === 'function') _collapseParentColumns();
-    console.log('[K10] Applied preset: ' + name);
+    console.log('[RacingDesk] Applied preset: ' + name);
   }
 
 })();

@@ -1343,11 +1343,11 @@
        barely perceptible at 3-4% opacity, drifting so slowly
        you only notice after 4-5 minutes of watching.
        ════════════════════════════════════════════ */
-    const k10LogoCtx = initGL('k10LogoGlCanvas');
-    let _k10LogoTime = 0;
+    const brandLogoCtx = initGL('brandLogoGlCanvas');
+    let _brandLogoTime = 0;
 
-    if (k10LogoCtx) {
-      const { canvas: kC, gl: kGL } = k10LogoCtx;
+    if (brandLogoCtx) {
+      const { canvas: kC, gl: kGL } = brandLogoCtx;
 
       const quadVS = `#version 300 es
         in vec2 aPos;
@@ -1486,9 +1486,9 @@
         kGL.enable(kGL.BLEND);
         kGL.blendFunc(kGL.ONE, kGL.ONE_MINUS_SRC_ALPHA);
 
-        window._k10LogoFXFrame = function(dt) {
+        window._brandLogoFXFrame = function(dt) {
           resizeCanvas(kC, kGL);
-          _k10LogoTime += dt;
+          _brandLogoTime += dt;
 
           kGL.clearColor(0, 0, 0, 0);
           kGL.clear(kGL.COLOR_BUFFER_BIT);
@@ -1498,7 +1498,7 @@
           kGL.enableVertexAttribArray(aPos);
           kGL.vertexAttribPointer(aPos, 2, kGL.FLOAT, false, 0, 0);
 
-          kGL.uniform1f(uTime, _k10LogoTime);
+          kGL.uniform1f(uTime, _brandLogoTime);
           kGL.uniform2f(uRes, kC.width, kC.height);
 
           kGL.drawArrays(kGL.TRIANGLE_STRIP, 0, 4);
@@ -2767,7 +2767,7 @@
       if (window._flagFXFrame) window._flagFXFrame(dt);
       if (window._lbFXFrame) window._lbFXFrame(dt);
       if (window._lbEvtFXFrame) window._lbEvtFXFrame(dt);
-      if (window._k10LogoFXFrame) window._k10LogoFXFrame(dt);
+      if (window._brandLogoFXFrame) window._brandLogoFXFrame(dt);
       if (window._spotterFXFrame) window._spotterFXFrame(dt);
       if (window._bonkersFXFrame) window._bonkersFXFrame(dt);
       if (window._incidentsFXFrame) window._incidentsFXFrame(dt);

@@ -1,8 +1,8 @@
-// Starts RaceCor.Host beside the overlay so the app is one double-click: probe :8889, decide where the host
+// Starts RacingDesk.Host beside the overlay so the app is one double-click: probe :8889, decide where the host
 // goes, spawn it with no console window, and hand main.js the URL the desk should read. The port rule:
 // SimHub's plugin holds :8889 while SimHub runs, so beside it the host serves :18889/:18890 and leaves the
 // Moza serial port alone; otherwise it takes :8889/:8890 itself. The host's stdout goes to
-// %LOCALAPPDATA%\RaceCor\host.log, since there is no window to read it in, and every start attempt writes
+// %LOCALAPPDATA%\RacingDesk\host.log, since there is no window to read it in, and every start attempt writes
 // its one-line outcome there too — the packaged app has nowhere else a person can read it.
 //
 // The host is told our pid (--parent-pid) and shuts itself down, flushing what it was recording, when this
@@ -13,7 +13,7 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const STATUS_PATH = '/racecor-io-pro-drive/data/status';
+const STATUS_PATH = '/racing-desk/data/status';
 const HOST_PORTS = { http: 8889, ws: 8890 };
 const BESIDE_SIMHUB_PORTS = { http: 18889, ws: 18890 };
 
@@ -49,11 +49,11 @@ function hostArgs(ports, { parentPid } = {}) {
 // Packaged: electron-builder copies apps/host/publish into resources/host. Dev: what `npm run host` builds,
 // falling back to what `npm run build:host` publishes.
 function hostExeCandidates({ isPackaged, resourcesPath, appDir }) {
-  if (isPackaged) return [path.join(resourcesPath, 'host', 'RaceCor.Host.exe')];
+  if (isPackaged) return [path.join(resourcesPath, 'host', 'RacingDesk.Host.exe')];
   const hostDir = path.join(appDir, '..', 'host');
   return [
-    path.join(hostDir, 'RaceCor.Host', 'bin', 'Release', 'net8.0-windows', 'RaceCor.Host.exe'),
-    path.join(hostDir, 'publish', 'RaceCor.Host.exe'),
+    path.join(hostDir, 'RacingDesk.Host', 'bin', 'Release', 'net8.0-windows', 'RacingDesk.Host.exe'),
+    path.join(hostDir, 'publish', 'RacingDesk.Host.exe'),
   ];
 }
 
@@ -63,7 +63,7 @@ function hostExePath(where) {
 
 function hostLogPath() {
   const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-  return path.join(local, 'RaceCor', 'host.log');
+  return path.join(local, 'Racing Desk', 'host.log');   // the host's data folder (RacingDesk.Data/DataFolder.cs)
 }
 
 // Append one dated launcher line to host.log and hand back the open descriptor (null when the file can't be

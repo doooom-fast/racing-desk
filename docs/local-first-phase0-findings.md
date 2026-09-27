@@ -227,7 +227,7 @@ race lengths, frequency, incident limits) on its
 ## 6. SimHub-optional; OAuth
 
 **SimHub coupling is small.** SimHub/GameReader types appear in 3 of 46 `.cs` files in
-`RaceCorProDrive.Plugin`: `Plugin.cs` (2,098 lines), `Engine/TelemetrySnapshot.Capture.cs` (1,052),
+`RacingDesk.Plugin`: `Plugin.cs` (2,098 lines), `Engine/TelemetrySnapshot.Capture.cs` (1,052),
 `Transport/TelemetryFrame.cs` (566). The only other net48-only API use is `System.Drawing` /
 `System.Windows.Forms` in `Engine/ScreenColorSampler.cs`. `Fleck`, `MessagePack`, `Newtonsoft.Json`
 and `log4net` all have modern targets.

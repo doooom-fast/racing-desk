@@ -1,5 +1,5 @@
 /**
- * @element racecor-datastream
+ * @element racing-desk-datastream
  * @description G-force circle, yaw rate waveform, telemetry readouts (steering torque, track temp).
  *
  * Canvas-based visualization combining:
@@ -107,7 +107,7 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const pre = snapshot._demo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+      const pre = snapshot._demo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
       const v = (key) => +snapshot[pre + key] || 0;
 
       this._lateralG = v('LatG');
@@ -501,5 +501,5 @@
     }
   }
 
-  customElements.define('racecor-datastream', RaceCorDatastream);
+  customElements.define('racing-desk-datastream', RaceCorDatastream);
 })();

@@ -1,4 +1,4 @@
-# RaceCorProDrive MCP - Implementation Checklist
+# RacingDesk MCP - Implementation Checklist
 
 ## Project Structure
 - [x] Created `/mcp/k10-broadcaster/` directory
@@ -37,7 +37,7 @@
 - [x] Follows JSON-RPC 2.0 protocol
 
 ## Source Code Access
-- [x] Reads from correct location (racecor-overlay/)
+- [x] Reads from correct location (racing-desk-overlay/)
 - [x] Discovers modules in modules/ directory
 - [x] Accesses JS utilities
 - [x] Reads configuration in modules/ directory
@@ -131,6 +131,6 @@
 ## Final Status
 **✓ COMPLETE & PRODUCTION READY**
 
-The RaceCorProDrive MCP is fully implemented, tested, and ready for 
+The RacingDesk MCP is fully implemented, tested, and ready for 
 integration with Claude. It provides comprehensive structured access to the 
 dashboard overlay source code without requiring manual file reading.

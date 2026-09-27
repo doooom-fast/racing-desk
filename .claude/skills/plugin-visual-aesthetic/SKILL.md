@@ -1,7 +1,7 @@
 ---
 name: plugin-visual-aesthetic
 description: |
-  Visual aesthetic profile for K10 Motorsports — core design principles (dark-but-not-black,
+  Visual aesthetic profile for The Racing Desk — core design principles (dark-but-not-black,
   high contrast, selective glow, condensed typography), color coding system, animation philosophy,
   and module dimming hierarchy. Use when making any visual/styling decision in the overlay or
   web app — choosing colors, deciding when to add glow effects, picking transition timings,
@@ -10,7 +10,7 @@ description: |
   animation, breathing pulse, dim, opacity hierarchy, condensed typography, brand visual.
 ---
 
-# K10 Motorsports — Visual Aesthetic Profile
+# The Racing Desk — Visual Aesthetic Profile
 
 ## Core Principles
 1. **Dark-but-not-black**: 8% luminance base, never true black (avoids OLED ghosting, adds warmth)

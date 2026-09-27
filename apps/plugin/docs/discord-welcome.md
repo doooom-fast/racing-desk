@@ -1,18 +1,18 @@
-# Welcome to RaceCor
+# Welcome to RacingDesk
 
 Broadcast-grade sim racing HUD with real-time telemetry, AI commentary, race strategy, WebGL effects, and HomeKit smart lighting. Built for iRacing.
 
 ## Get Started
 
-**1.** Sign in with Discord at **[prodrive.racecor.io](https://prodrive.racecor.io)** to create your RaceCorProDrive account
+**1.** Sign in with Discord at **[prodrive.racing-desk.io](https://prodrive.racing-desk.io)** to create your RacingDesk account
 
 **2.** Download the Windows installer from your Pro Drive dashboard — it bundles the SimHub plugin and overlay, auto-detects your SimHub installation, and handles all file placement
 
-**3.** Launch the overlay, open Settings (**Ctrl+Shift+S**), go to **Connections**, and click **Connect to RaceCorProDrive**
+**3.** Launch the overlay, open Settings (**Ctrl+Shift+S**), go to **Connections**, and click **Connect to RacingDesk**
 
 **4.** Race. Your telemetry syncs automatically — performance charts appear after a few sessions.
 
-## Pro Features (unlocked with RaceCorProDrive)
+## Pro Features (unlocked with RacingDesk)
 
 - AI Commentary — real-time race narration powered by LLM
 - Incidents Panel — contact and off-track detection
@@ -25,8 +25,8 @@ Broadcast-grade sim racing HUD with real-time telemetry, AI commentary, race str
 
 ## Links
 
-- **Website:** [racecor.io](https://k10motorsports.racing)
-- **Pro Drive:** [prodrive.racecor.io](https://prodrive.racecor.io)
+- **Website:** [racing-desk.io](https://doooom.racing)
+- **Pro Drive:** [prodrive.racing-desk.io](https://prodrive.racing-desk.io)
 - **GitHub:** [github.com/alternatekev/media-coach-simhub-plugin](https://github.com/alternatekev/media-coach-simhub-plugin)
 
 ## Channels

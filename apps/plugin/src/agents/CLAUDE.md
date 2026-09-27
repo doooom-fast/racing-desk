@@ -1,6 +1,6 @@
 # MCP Servers
 
-Three Model Context Protocol servers that provide Claude agents with access to K10 Motorsports platform data and capabilities.
+Three Model Context Protocol servers that provide Claude agents with access to The Racing Desk platform data and capabilities.
 
 ## Servers
 
@@ -20,7 +20,7 @@ Three Model Context Protocol servers that provide Claude agents with access to K
 
 - Design skill: `racing-hud-design-skill/` — HUD design system reference for agents
 - Tufte audit skill: `tufte-audit-skill/` and `skills/tufte-audit/` — data visualization quality audits
-- MCP spec: `racecor-io-pro-drive-mcp.md` (in parent `src/` directory)
+- MCP spec: `racing-desk-mcp.md` (in parent `src/` directory)
 
 ## Documentation
 

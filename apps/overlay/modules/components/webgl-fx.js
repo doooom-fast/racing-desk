@@ -1,5 +1,5 @@
 /**
- * @element racecor-webgl-fx
+ * @element racing-desk-webgl-fx
  * @description WebGL2 post-processing effects engine for tachometer and telemetry visualization.
  *
  * Singleton WebGL2 context for full-screen post-processing effects including:
@@ -87,7 +87,7 @@
     updateData(snapshot) {
       if (!snapshot) return;
 
-      const dsPre = 'RaceCorProDrive.Plugin.DS.';
+      const dsPre = 'RacingDesk.Plugin.DS.';
       const gameDataPre = 'DataCorePlugin.GameData.';
 
       const maxRpm = +snapshot[gameDataPre + 'CarSettings_MaxRPM'] || 1;
@@ -409,5 +409,5 @@
     }
   }
 
-  customElements.define('racecor-webgl-fx', RaceCorWebGLFX);
+  customElements.define('racing-desk-webgl-fx', RaceCorWebGLFX);
 })();

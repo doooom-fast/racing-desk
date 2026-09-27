@@ -6,7 +6,7 @@ A CLI tool. Not user-facing today; consumed by internal workflows + future overl
 
 ## Where this fits
 
-This pipeline consumes the **`.rcpdv` race-bundle** format produced by the [`prodrive-overlay`](https://github.com/k10-motorsports/prodrive-overlay) when recording is enabled. A bundle is a folder containing `video.mp4` + `telemetry.jsonl` + `metadata.json` — see the bundle/sidecar schemas in the [agents](https://github.com/k10-motorsports/prodrive-agents) submodule.
+This pipeline consumes the **`.rcpdv` race-bundle** format produced by the [`prodrive-overlay`](https://github.com/DOOOOM/prodrive-overlay) when recording is enabled. A bundle is a folder containing `video.mp4` + `telemetry.jsonl` + `metadata.json` — see the bundle/sidecar schemas in the [agents](https://github.com/DOOOOM/prodrive-agents) submodule.
 
 ```
 prodrive-overlay → records → .rcpdv (mp4 + jsonl + meta)
@@ -66,7 +66,7 @@ If you want the Claude direction step, set `ANTHROPIC_API_KEY` in your environme
 npm start -- <bundle-dir> [--mode=condense|highlight] [--out=path.mp4]
 ```
 
-Today the steps are run individually as Node scripts; a unified `bin/racecor-edit.js` is the next step (referenced in `package.json:bin` but not yet present).
+Today the steps are run individually as Node scripts; a unified `bin/racing-desk-edit.js` is the next step (referenced in `package.json:bin` but not yet present).
 
 ## Tests
 
@@ -81,7 +81,7 @@ Tests live in `tests/` (using Node's built-in test runner):
 - `scoring-engine.test.js` — significance scoring shape
 - `time.test.js` — frame/time conversion math
 
-The fixtures under `tests/` use sample telemetry from [`prodrive-telemetry`](https://github.com/k10-motorsports/prodrive-telemetry) (a sibling repo of `.mp4` + `.telemetry.jsonl` pairs from real iRacing sessions).
+The fixtures under `tests/` use sample telemetry from [`prodrive-telemetry`](https://github.com/DOOOOM/prodrive-telemetry) (a sibling repo of `.mp4` + `.telemetry.jsonl` pairs from real iRacing sessions).
 
 ## Context
 

@@ -1,26 +1,26 @@
-# RaceCor Pro Drive — Native Apps Plan
+# The Racing Desk — Native Apps Plan
 
 *Drafted overnight 2026-04-22 → 2026-04-23. Revised 2026-04-25 — Electron shells removed; native-only roster.*
 
-The web app at `prodrive.racecor.io` becomes four shipping native apps. This doc is the map: what got built, what remains, and the decisions behind the architecture.
+The web app at `prodrive.racing-desk.io` becomes four shipping native apps. This doc is the map: what got built, what remains, and the decisions behind the architecture.
 
 ## The roster — 4 apps grouped into 3 OS monorepos
 
 Each operating system gets one private GitHub repo that houses every app targeting it. Inside each repo, apps live under `apps/<name>/`.
 
-### `racecor-prodrive-macos/` — macOS
+### `racing-desk-prodrive-macos/` — macOS
 
 | App | Path | Stack | Login |
 |---|---|---|---|
 | Native | `apps/native/` | SwiftUI + AppKit, macOS 14+ | PKCE + Discord via ASWebAuthenticationSession |
 
-### `racecor-prodrive-windows/` — Windows
+### `racing-desk-prodrive-windows/` — Windows
 
 | App | Path | Stack | Login |
 |---|---|---|---|
 | Native | `apps/native/` | WinUI 3 + C# .NET 8 | PKCE + Discord via system browser + URL scheme |
 
-### `racecor-prodrive-ios/` — iOS + iPadOS (universal apps)
+### `racing-desk-prodrive-ios/` — iOS + iPadOS (universal apps)
 
 | App | Path | Stack | Login |
 |---|---|---|---|
@@ -44,13 +44,13 @@ Each operating system gets one private GitHub repo that houses every app targeti
 
 The Electron/WKWebView shells were dropped — they were a bridge while native ramped up, not a long-term surface. Native apps deliver the better experience (real navigation, haptics, widgets, Live Activities, keyboard shortcuts, menu bars, smaller install size, offline cache, push notifications) and the shells were always going to be retired once native reached parity. We're skipping the bridge.
 
-## Server-side changes in `racecor-prodrive-server`
+## Server-side changes in `racing-desk-prodrive-server`
 
 **All additive. Nothing existing breaks.** Changes land as separate commits on a branch; review in the morning.
 
 1. **`src/lib/queries/*`** — every Drizzle query currently inlined in a Server Component gets lifted into a pure function here. The Server Component imports it; a new `/api/v1/*` route handler also imports it. Zero user-visible change to the web app.
 2. **`/api/v1/*`** — JSON REST endpoints for every screen the native apps need (`/dashboard`, `/races`, `/races/:id`, `/moments`, `/tracks`, `/cars`, `/dna`, `/when`, `/safety`, `/composure`, `/next-race-ideas`, `/should-i-race-now`). Bearer auth via the existing `plugin-auth` verify logic.
-3. **Extend `/api/plugin-auth/authorize`** — currently validates `redirect_uri` is localhost only. Widen to accept a known-client list where each native app has a registered `client_id` and allowed redirect set (e.g. `racecor-native://auth` for custom schemes). Stays backwards-compatible with the SimHub plugin.
+3. **Extend `/api/plugin-auth/authorize`** — currently validates `redirect_uri` is localhost only. Widen to accept a known-client list where each native app has a registered `client_id` and allowed redirect set (e.g. `racing-desk-native://auth` for custom schemes). Stays backwards-compatible with the SimHub plugin.
 4. **Style Dictionary native targets** — extend `apps/web/src/lib/tokens/build.ts` with `tokens.swift` (SwiftUI Color extensions), `tokens.cs` (WinUI ResourceDictionary), `tokens.json` (for RN). Served from `/api/tokens/native?format=swift|cs|json`. Native apps fetch on launch, cache to disk, rebuild UI on change. Same live-token pipeline the overlay uses.
 
 ## Auth — how Discord login works across platforms
@@ -60,14 +60,14 @@ All apps use the PKCE flow against the same `/api/plugin-auth/*` endpoints (shar
 ```
 1. App generates random code_verifier → SHA256 → code_challenge
 2. App opens SYSTEM BROWSER (not in-app WebView — Apple/Google require this)
-   → https://prodrive.racecor.io/api/plugin-auth/authorize
-      ?client_id=racecor-prodrive-ios
+   → https://prodrive.racing-desk.io/api/plugin-auth/authorize
+      ?client_id=racing-desk-prodrive-ios
       &code_challenge=...
-      &redirect_uri=racecor-native://auth
+      &redirect_uri=racing-desk-native://auth
       &state=<random>
 3. Server redirects user through the normal Discord OAuth (same as the web)
 4. Discord redirects back to server
-5. Server issues one-time code, redirects to racecor-native://auth?code=XXX&state=...
+5. Server issues one-time code, redirects to racing-desk-native://auth?code=XXX&state=...
 6. OS hands the URL to the native app via registered URL scheme
 7. App POSTs { code, code_verifier } to /api/plugin-auth/token → Bearer token
 8. App stores Bearer token in Keychain / Credential Manager / SecureStore
@@ -108,35 +108,35 @@ No CI workflows in the first pass — your call whether to use GitHub Actions, E
 
 ## What I actually shipped tonight
 
-See the individual `next-steps.md` files in each repo for a precise status, and the commit log in `racecor-prodrive-server` for the backend work. Summary at the end of this doc gets filled in before I hand off.
+See the individual `next-steps.md` files in each repo for a precise status, and the commit log in `racing-desk-prodrive-server` for the backend work. Summary at the end of this doc gets filled in before I hand off.
 
 ## Open questions for you to answer in the morning
 
-1. **Bundle IDs** — I've used `racing.k10motorsports.prodrive.racecor.*` (e.g. `racing.k10motorsports.prodrive.racecor.mac`, `racing.k10motorsports.prodrive.racecor.ios`). Swap to whatever your Apple Developer team / Microsoft Partner Center is actually registered under. Grep-replaceable.
-2. **App name** — "RaceCor Pro Drive" everywhere. If the App Store fights you on length, "Pro Drive" alone is the fallback.
+1. **Bundle IDs** — I've used `racing.doooom.prodrive.racing-desk.*` (e.g. `racing.doooom.prodrive.racing-desk.mac`, `racing.doooom.prodrive.racing-desk.ios`). Swap to whatever your Apple Developer team / Microsoft Partner Center is actually registered under. Grep-replaceable.
+2. **App name** — "The Racing Desk" everywhere. If the App Store fights you on length, "Pro Drive" alone is the fallback.
 3. **Signing** — every app has placeholder signing config. You mentioned you'll generate/download certs. For Windows the MSIX route needs Partner Center.
-4. **Icon art** — placeholder PNGs. You have a logomark (`--k10-red` chevron) but I don't have a print-quality 1024×1024 source. Drop one in `assets/icon-source.png` per repo and the build scripts pick it up.
+4. **Icon art** — placeholder PNGs. You have a logomark (`--rd-red` chevron) but I don't have a print-quality 1024×1024 source. Drop one in `assets/icon-source.png` per repo and the build scripts pick it up.
 5. **RN vs SwiftUI iOS** — eventually you'll pick one. Ship both to TestFlight as separate apps (different bundle IDs, different product names in App Store Connect e.g. "Pro Drive" and "Pro Drive (RN preview)") for a month, decide based on what actually feels better.
 6. **Android on the RN app** — trivial to add later, just `eas build -p android`. Gated on whether enough of your audience is on Android to justify the polish tax.
-7. **Overlay token publishing** — unrelated but still open per `racecor-prodrive-server/CLAUDE.md`. The new `tokens-native` target doesn't solve it.
+7. **Overlay token publishing** — unrelated but still open per `racing-desk-prodrive-server/CLAUDE.md`. The new `tokens-native` target doesn't solve it.
 
 ## Where things live
 
 ```
-/Users/kevinconboy/Documents/K10/racecor.io/
-├── racecor-prodrive-server/           (existing — web + API + now the v1 endpoints)
+/Users/kevinconboy/Documents/K10/racing-desk.io/
+├── racing-desk-prodrive-server/           (existing — web + API + now the v1 endpoints)
 ├── racecorio-prodrive/                (existing — overlay + plugin + SimHub stuff)
-├── racecor-prodrive-macos/            NEW monorepo (1 app)
+├── racing-desk-prodrive-macos/            NEW monorepo (1 app)
 │   ├── apps/
 │   │   └── native/                    SwiftUI/AppKit mac
 │   ├── README.md
 │   └── CLAUDE.md
-├── racecor-prodrive-windows/          NEW monorepo (1 app)
+├── racing-desk-prodrive-windows/          NEW monorepo (1 app)
 │   ├── apps/
 │   │   └── native/                    WinUI 3
 │   ├── README.md
 │   └── CLAUDE.md
-├── racecor-prodrive-ios/              NEW monorepo (2 apps — pick a winner)
+├── racing-desk-prodrive-ios/              NEW monorepo (2 apps — pick a winner)
 │   ├── apps/
 │   │   ├── native/                    SwiftUI iOS/iPadOS
 │   │   └── rn/                        Expo React Native
@@ -146,4 +146,4 @@ See the individual `next-steps.md` files in each repo for a precise status, and 
 └── native-apps-api-contract.md        (sibling — endpoint catalogue)
 ```
 
-Three private GitHub repos, `alternatekev/racecor-prodrive-{macos,windows,ios}`.
+Three private GitHub repos, `alternatekev/racing-desk-prodrive-{macos,windows,ios}`.

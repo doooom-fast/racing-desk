@@ -1,7 +1,7 @@
 {
   "name": "@k10/simhub-telemetry-mcp",
   "version": "1.0.0",
-  "description": "MCP server for reading live SimHub telemetry via the K10 Motorsports plugin HTTP API — 100+ telemetry, commentary, and strategy properties",
+  "description": "MCP server for reading live SimHub telemetry via the The Racing Desk plugin HTTP API — 100+ telemetry, commentary, and strategy properties",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

@@ -12,7 +12,7 @@ description: |
 
 # Overlay Data Visualization Expert
 
-You are an expert on the data visualization components in the RaceCor overlay HUD. All viz runs at 30fps with no framework — vanilla JS, Canvas 2D, SVG, and DOM manipulation.
+You are an expert on the data visualization components in the RacingDesk overlay HUD. All viz runs at 30fps with no framework — vanilla JS, Canvas 2D, SVG, and DOM manipulation.
 
 ## Files to Read on Activation
 
@@ -20,38 +20,38 @@ Read the specific visualization module you're working on:
 
 ```
 # Canvas-based visualizations
-racecor-overlay/modules/js/commentary-viz.js         # Multi-type telemetry charts (35KB)
-racecor-overlay/modules/js/datastream.js             # G-force circle + yaw waveform (12KB)
-racecor-overlay/modules/js/pedal-curves.js           # Pedal response curves + histograms (19KB)
+racing-desk-overlay/modules/js/commentary-viz.js         # Multi-type telemetry charts (35KB)
+racing-desk-overlay/modules/js/datastream.js             # G-force circle + yaw waveform (12KB)
+racing-desk-overlay/modules/js/pedal-curves.js           # Pedal response curves + histograms (19KB)
 
 # DOM-based visualizations
-racecor-overlay/modules/js/leaderboard.js            # Position table + sparklines (14KB)
-racecor-overlay/modules/js/race-timeline.js          # Position history heatmap strip (6KB)
-racecor-overlay/modules/js/spotter.js                # Gap messages + stacking (17KB)
+racing-desk-overlay/modules/js/leaderboard.js            # Position table + sparklines (14KB)
+racing-desk-overlay/modules/js/race-timeline.js          # Position history heatmap strip (6KB)
+racing-desk-overlay/modules/js/spotter.js                # Gap messages + stacking (17KB)
 
 # SVG-based visualizations
-racecor-overlay/modules/js/track-map.js              # SVG minimap with heading-up rotation
-racecor-overlay/modules/js/sector-hud.js             # Sector timing display
+racing-desk-overlay/modules/js/track-map.js              # SVG minimap with heading-up rotation
+racing-desk-overlay/modules/js/sector-hud.js             # Sector timing display
 
 # Hybrid (DOM + Canvas)
-racecor-overlay/modules/js/webgl-helpers.js          # Tachometer segments, pedal bars (55KB)
-racecor-overlay/modules/js/drive-mode.js             # Drive mode tacho SVG + spotter gaps (28KB)
+racing-desk-overlay/modules/js/webgl-helpers.js          # Tachometer segments, pedal bars (55KB)
+racing-desk-overlay/modules/js/drive-mode.js             # Drive mode tacho SVG + spotter gaps (28KB)
 
 # Web Components (Shadow DOM encapsulated)
-racecor-overlay/modules/components/tachometer.js
-racecor-overlay/modules/components/tire-grid.js
-racecor-overlay/modules/components/fuel-gauge.js
-racecor-overlay/modules/components/gap-display.js
-racecor-overlay/modules/components/position-card.js
-racecor-overlay/modules/components/leaderboard.js
-racecor-overlay/modules/components/datastream.js
-racecor-overlay/modules/components/commentary-viz.js
-racecor-overlay/modules/components/pedal-curves.js
-racecor-overlay/modules/components/race-timeline.js
+racing-desk-overlay/modules/components/tachometer.js
+racing-desk-overlay/modules/components/tire-grid.js
+racing-desk-overlay/modules/components/fuel-gauge.js
+racing-desk-overlay/modules/components/gap-display.js
+racing-desk-overlay/modules/components/position-card.js
+racing-desk-overlay/modules/components/leaderboard.js
+racing-desk-overlay/modules/components/datastream.js
+racing-desk-overlay/modules/components/commentary-viz.js
+racing-desk-overlay/modules/components/pedal-curves.js
+racing-desk-overlay/modules/components/race-timeline.js
 
 # Data flow
-racecor-overlay/modules/js/poll-engine.js            # Data routing from API to modules (66KB)
-racecor-overlay/modules/js/config.js                 # Property keys, state (30KB)
+racing-desk-overlay/modules/js/poll-engine.js            # Data routing from API to modules (66KB)
+racing-desk-overlay/modules/js/config.js                 # Property keys, state (30KB)
 ```
 
 ## Visualization Inventory
@@ -132,7 +132,7 @@ Topic-based config maps each commentary event ID to a viz type and data binding.
 
 ### Position Card
 
-**Rating Gauges** (`position-card.js` / `<racecor-position-card>`):
+**Rating Gauges** (`position-card.js` / `<racing-desk-position-card>`):
 - iRating: horizontal fill bar (0-5000 scale)
 - Safety Rating: circular progress indicator (0-4.00)
 - Cycling display: alternates between ratings and gap pages every 45s
@@ -154,7 +154,7 @@ class RacecorTachometer extends HTMLElement {
     // Update DOM/canvas/SVG
   }
 }
-customElements.define('racecor-tachometer', RacecorTachometer);
+customElements.define('racing-desk-tachometer', RacecorTachometer);
 ```
 
 Data flow: `poll-engine.js → _renderFrame(snapshot) → component.updateData(snapshot)`

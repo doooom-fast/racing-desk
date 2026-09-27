@@ -171,7 +171,7 @@ KEY FEATURES:
 
 SOURCE ACCESSIBILITY:
 
-Reads from: /sessions/quirky-optimistic-faraday/mnt/media-coach-simhub-plugin/racecor-overlay/
+Reads from: /sessions/quirky-optimistic-faraday/mnt/media-coach-simhub-plugin/racing-desk-overlay/
 
 ✓ components/ - All 20+ React components
 ✓ hooks/ - useTelemetry, useSettings
@@ -220,7 +220,7 @@ Test installation:
 ENVIRONMENT:
 
 K10_BROADCASTER_ROOT environment variable:
-  Default: /sessions/quirky-optimistic-faraday/mnt/media-coach-simhub-plugin/racecor-overlay
+  Default: /sessions/quirky-optimistic-faraday/mnt/media-coach-simhub-plugin/racing-desk-overlay
   Can be overridden: export K10_BROADCASTER_ROOT=/path/to/source
 
 Node.js requirement: 16+ (ES2022 support)
@@ -251,7 +251,7 @@ Claude no longer needs to:
 
 STATUS: ✓ PRODUCTION READY
 
-The K10 Motorsports MCP is fully implemented, tested, and ready for
+The The Racing Desk MCP is fully implemented, tested, and ready for
 integration with Claude. It provides comprehensive structured access to the
 React overlay source code, replacing manual file reading and HTML parsing.
 

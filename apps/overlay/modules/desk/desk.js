@@ -1,12 +1,12 @@
 // Racing Desk — career, form and race history from the local store.
-// Rows come from RaceCor.Host (:8889/racecor-io-pro-drive/data/); window.RaceCorCalc (packages/calc) turns
+// Rows come from RacingDesk.Host (:8889/racing-desk/data/); window.RaceCorCalc (packages/calc) turns
 // them into everything shown here. No network beyond localhost.
 (function () {
   'use strict';
 
   const params = new URLSearchParams(location.search);
   const HOST = (params.get('host') || 'http://localhost:8889').replace(/\/+$/, '');
-  const DATA = HOST + '/racecor-io-pro-drive/data/';
+  const DATA = HOST + '/racing-desk/data/';
   // main.js says why it has no host of its own (no exe built, something else on the port) — shown with the
   // offline message, since that is the window the person is looking at.
   const NOTE = params.get('note');
@@ -74,7 +74,7 @@
     }
     if (!status || typeof status.schemaVersion !== 'number') {
       // Something else holds the port — typically the SimHub plugin, which serves telemetry but has no store.
-      showOffline(`${HOST} is answering, but not with RaceCor.Host's data API (is SimHub's plugin on that port?).`);
+      showOffline(`${HOST} is answering, but not with RacingDesk.Host's data API (is SimHub's plugin on that port?).`);
       setTimeout(load, 15000);
       return;
     }
@@ -116,14 +116,14 @@
   }
 
   function openExternal(url) {
-    if (window.k10 && window.k10.openExternal) window.k10.openExternal(url);
+    if (window.racingDesk && window.racingDesk.openExternal) window.racingDesk.openExternal(url);
     else location.href = url; // outside Electron the browser asks the OS for the scheme's handler
   }
 
   async function loadRaceLinks() {
-    if (!window.k10 || !window.k10.getSettings) return {};
+    if (!window.racingDesk || !window.racingDesk.getSettings) return {};
     try {
-      const settings = await window.k10.getSettings();
+      const settings = await window.racingDesk.getSettings();
       return (settings && settings.raceLinks) || {};
     } catch (err) {
       return {};
@@ -132,10 +132,10 @@
 
   // The HUD shares overlay-settings.json and saveSettings replaces the file whole: read, set one key, write.
   async function saveRaceLink(series, id) {
-    if (window.k10 && window.k10.getSettings && window.k10.saveSettings) {
-      const settings = (await window.k10.getSettings()) || {};
+    if (window.racingDesk && window.racingDesk.getSettings && window.racingDesk.saveSettings) {
+      const settings = (await window.racingDesk.getSettings()) || {};
       settings.raceLinks = { ...(settings.raceLinks || {}), [series]: id };
-      await window.k10.saveSettings(settings);
+      await window.racingDesk.saveSettings(settings);
       raceLinks = settings.raceLinks;
     } else {
       raceLinks = { ...raceLinks, [series]: id };
@@ -490,7 +490,7 @@
   });
 
   if (!Calc) {
-    showOffline('The calc bundle is missing — run `npm run build -w @prodrive/calc`.');
+    showOffline('The calc bundle is missing — run `npm run build -w @racing-desk/calc`.');
     return;
   }
   load();

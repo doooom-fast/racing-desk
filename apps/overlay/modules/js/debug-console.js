@@ -204,7 +204,7 @@
 
       if (url.includes('/api/sessions') || url.includes('/api/ratings') || url.includes('/api/iracing') || url.includes('/api/plugin-auth')) {
         isIRacingSync = true;
-      } else if (url.includes('prodrive.racecor.io')) {
+      } else if (url.includes('prodrive.racing-desk.io')) {
         isNetworkSync = true;
       }
 

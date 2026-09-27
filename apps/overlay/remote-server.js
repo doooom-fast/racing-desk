@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// K10 Motorsports — Remote Dashboard Server
+// The Racing Desk — Remote Dashboard Server
 // LAN-accessible HTTP server that serves dashboard.html and
 // proxies SimHub telemetry so any browser on the network can
 // view the dashboard with a single URL.
@@ -96,7 +96,7 @@ function serveFile(filePath, res) {
 // and adds a floating touch menu for settings/fullscreen.
 function injectRemoteOverrides(html, req) {
   const host = req.headers.host || `${getLanAddress()}:${_port}`;
-  const proxyUrl = `http://${host}/racecor-io-pro-drive/`;
+  const proxyUrl = `http://${host}/racing-desk/`;
 
   const injection = `<script>
 // ── K10 Remote Server Injection ──
@@ -105,7 +105,7 @@ window._k10RemoteMode = true;
 </script>
 <style>
 /* ── Touch Menu ── */
-#k10-remote-menu-fab {
+#rd-remote-menu-fab {
   position: fixed; bottom: 20px; right: 20px; z-index: 99999;
   width: 48px; height: 48px; border-radius: 50%;
   background: rgba(108,92,231,0.85); border: 2px solid rgba(255,255,255,0.2);
@@ -116,10 +116,10 @@ window._k10RemoteMode = true;
   transition: transform 0.2s, background 0.2s;
   -webkit-tap-highlight-color: transparent;
 }
-#k10-remote-menu-fab:active { transform: scale(0.9); }
-#k10-remote-menu-fab.open { background: rgba(108,92,231,1); transform: rotate(45deg); }
+#rd-remote-menu-fab:active { transform: scale(0.9); }
+#rd-remote-menu-fab.open { background: rgba(108,92,231,1); transform: rotate(45deg); }
 
-#k10-remote-menu-panel {
+#rd-remote-menu-panel {
   position: fixed; bottom: 80px; right: 20px; z-index: 99998;
   background: rgba(16,16,30,0.95); border: 1px solid rgba(108,92,231,0.4);
   border-radius: 14px; padding: 8px; min-width: 200px;
@@ -128,11 +128,11 @@ window._k10RemoteMode = true;
   transform: translateY(10px) scale(0.95); opacity: 0;
   pointer-events: none; transition: all 0.2s ease;
 }
-#k10-remote-menu-panel.open {
+#rd-remote-menu-panel.open {
   transform: translateY(0) scale(1); opacity: 1; pointer-events: auto;
 }
 
-.k10-rm-btn {
+.rd-rm-btn {
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 12px 14px; margin: 0;
   background: transparent; border: none; border-radius: 10px;
@@ -140,14 +140,14 @@ window._k10RemoteMode = true;
   cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
-.k10-rm-btn:active { background: rgba(108,92,231,0.3); }
-.k10-rm-btn .k10-rm-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
-.k10-rm-btn .k10-rm-label { flex: 1; }
+.rd-rm-btn:active { background: rgba(108,92,231,0.3); }
+.rd-rm-btn .k10-rm-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+.rd-rm-btn .k10-rm-label { flex: 1; }
 .k10-rm-sep { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 8px; }
 
 @media (display-mode: fullscreen) {
-  #k10-remote-menu-fab { opacity: 0.3; }
-  #k10-remote-menu-fab:hover, #k10-remote-menu-fab.open { opacity: 1; }
+  #rd-remote-menu-fab { opacity: 0.3; }
+  #rd-remote-menu-fab:hover, #rd-remote-menu-fab.open { opacity: 1; }
 }
 
 html, body { overscroll-behavior: none; touch-action: manipulation; }
@@ -155,11 +155,11 @@ html, body { overscroll-behavior: none; touch-action: manipulation; }
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const fab = document.createElement('div');
-  fab.id = 'k10-remote-menu-fab';
+  fab.id = 'rd-remote-menu-fab';
   fab.textContent = '+';
 
   const panel = document.createElement('div');
-  panel.id = 'k10-remote-menu-panel';
+  panel.id = 'rd-remote-menu-panel';
 
   const actions = [
     { icon: '\\uD83D\\uDD04', label: 'Cycle Rating/Pos', fn: () => { if (typeof cycleRatingPos === 'function') cycleRatingPos(); } },
@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const btn = document.createElement('button');
-    btn.className = 'k10-rm-btn';
+    btn.className = 'rd-rm-btn';
     btn.innerHTML = '<span class="k10-rm-icon">' + a.icon + '</span><span class="k10-rm-label">' + a.label + '</span>';
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -234,8 +234,8 @@ function handleRequest(req, res) {
     return;
   }
 
-  // ── Telemetry proxy: /racecor-io-pro-drive/*
-  if (urlPath.startsWith('/racecor-io-pro-drive')) {
+  // ── Telemetry proxy: /racing-desk/*
+  if (urlPath.startsWith('/racing-desk')) {
     proxyToSimhub(req, res);
     return;
   }
@@ -300,7 +300,7 @@ function handleRequest(req, res) {
   if (urlPath === '/api/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify({
-      app: 'K10 Motorsports',
+      app: 'The Racing Desk',
       remoteServer: true,
       port: _port,
       lanAddress: getLanAddress(),
@@ -354,12 +354,12 @@ function start(opts = {}) {
 
     _server.listen(_port, '0.0.0.0', () => {
       const info = getInfo();
-      _logFn(`[K10 Motorsports] Remote dashboard server started: ${info.url}`);
+      _logFn(`[The Racing Desk] Remote dashboard server started: ${info.url}`);
       resolve(info);
     });
 
     _server.on('error', (err) => {
-      _logFn(`[K10 Motorsports] Remote server error: ${err.message}`);
+      _logFn(`[The Racing Desk] Remote server error: ${err.message}`);
       _server = null;
       reject(err);
     });
@@ -370,7 +370,7 @@ function stop() {
   return new Promise((resolve) => {
     if (!_server) { resolve(); return; }
     _server.close(() => {
-      _logFn('[K10 Motorsports] Remote dashboard server stopped');
+      _logFn('[The Racing Desk] Remote dashboard server stopped');
       _server = null;
       resolve();
     });

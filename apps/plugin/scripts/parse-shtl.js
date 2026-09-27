@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * parse-shtl.js — Convert SimHub .shtl track layout files to racecor CSV format
+ * parse-shtl.js — Convert SimHub .shtl track layout files to racing-desk CSV format
  *
  * Usage:
  *   node scripts/parse-shtl.js <input.shtl> [output-dir]

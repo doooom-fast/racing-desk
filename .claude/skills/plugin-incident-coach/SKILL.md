@@ -15,9 +15,9 @@ Research-backed driver behavior system. All modules are **fully implemented**.
 ### Overlay (JS)
 | File | Lines | Purpose |
 |------|-------|---------|
-| `racecor-overlay/modules/js/incident-coach.js` | 650 | Threat parsing, leaderboard highlighting (◉/△/⚠), composure indicator, cool-down vignette, voice triggers |
-| `racecor-overlay/modules/js/voice-coach.js` | 254 | Web Speech API TTS, priority queue (1-5), 3s min gap, rate 0.9 / pitch 0.85 |
-| `racecor-overlay/modules/styles/incident-coach.css` | — | Vignette, composure states, threat badges |
+| `racing-desk-overlay/modules/js/incident-coach.js` | 650 | Threat parsing, leaderboard highlighting (◉/△/⚠), composure indicator, cool-down vignette, voice triggers |
+| `racing-desk-overlay/modules/js/voice-coach.js` | 254 | Web Speech API TTS, priority queue (1-5), 3s min gap, rate 0.9 / pitch 0.85 |
+| `racing-desk-overlay/modules/styles/incident-coach.css` | — | Vignette, composure states, threat badges |
 
 ### Extends existing modules
 | Module | Integration |
@@ -34,7 +34,7 @@ Research-backed driver behavior system. All modules are **fully implemented**.
 | `IIncidentDetector.cs` | 35 | Sim-agnostic interface + `IRacingIncidentDetector` |
 | `IncidentCoachModels.cs` | 80+ | ThreatLevel enum (None/Watch/Caution/Danger), NearbyDriver, ProximitySnapshot, BehaviorMetrics |
 
-### HTTP API Properties (`RaceCorProDrive.Plugin.DS.IncidentCoach.*`)
+### HTTP API Properties (`RacingDesk.Plugin.DS.IncidentCoach.*`)
 `Active` (0/1), `LastIncidentLap` (int), `ThreatDrivers` (JSON[]), `ActiveAlert` (JSON), `RageScore` (0-100), `CooldownActive` (0/1), `SessionBehavior` (JSON)
 
 ### Settings (Settings.cs)

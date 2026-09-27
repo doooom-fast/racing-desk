@@ -2,7 +2,7 @@
 how far along their profile is.
 
 It is learned from the rig (``livery cars scan``): the iRacing install's
-``cars/`` folder, one folder per car owned, plus the paint folder. Pro Drive uses
+``cars/`` folder, one folder per car owned, plus the paint folder. The Racing Desk uses
 no authenticated iRacing endpoint, so cars you do not own are not listed — and
 you cannot race them anyway.
 

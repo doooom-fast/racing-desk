@@ -348,16 +348,16 @@
     }
     if (!hasPitData) return;
 
-    var _demo = +d['RaceCorProDrive.Plugin.DemoMode'] || 0;
-    var pb = function(key) { return d['RaceCorProDrive.Plugin.PitBox.' + key]; };
+    var _demo = +d['RacingDesk.Plugin.DemoMode'] || 0;
+    var pb = function(key) { return d['RacingDesk.Plugin.PitBox.' + key]; };
     var dc = function(key) { return d['DataCorePlugin.GameRawData.Telemetry.' + key]; };
     var ds = function(key) {
-      return _demo ? d['RaceCorProDrive.Plugin.Demo.DS.' + key]
-                   : d['RaceCorProDrive.Plugin.DS.' + key];
+      return _demo ? d['RacingDesk.Plugin.Demo.DS.' + key]
+                   : d['RacingDesk.Plugin.DS.' + key];
     };
     var gd = function(key) { return d['DataCorePlugin.GameData.' + key]; };
     // Demo-aware tire data: demo mode uses different property names
-    var demoTyre = function(key) { return d['RaceCorProDrive.Plugin.Demo.' + key]; };
+    var demoTyre = function(key) { return d['RacingDesk.Plugin.Demo.' + key]; };
 
     // 0=imperial, 1=metric. Cannot use `|| 1` fallback here because 0 is a
     // valid value (imperial) — `0 || 1` would incorrectly evaluate to metric.
@@ -376,7 +376,7 @@
     // Show the "accept" button when the strategy engine flags tire health
     // as needing attention (TireHealthState >= 2 means "change recommended").
     // In demo mode, simulate strategy suggestion when any tire drops below 50% wear.
-    var st = function(key) { return d['RaceCorProDrive.Plugin.Strategy.' + key]; };
+    var st = function(key) { return d['RacingDesk.Plugin.Strategy.' + key]; };
     var tireHealth = parseInt(st('TireHealthState')) || 0;
     var tireLapsLeft = st('TireLapsRemaining');
     var shouldSuggest = tireHealth >= 2;
@@ -513,7 +513,7 @@
     // Tank capacity — read from GameData.MaxFuel (liters), convert if imperial.
     // Hold the last known value: MaxFuel can momentarily drop to 0 during pit service.
     var maxFuelRawLive = _demo
-      ? parseFloat(d['RaceCorProDrive.Plugin.Demo.MaxFuel']) || 0
+      ? parseFloat(d['RacingDesk.Plugin.Demo.MaxFuel']) || 0
       : parseFloat(d['DataCorePlugin.GameData.MaxFuel']) || 0;
     if (maxFuelRawLive > 0) _lastMaxFuelRaw = maxFuelRawLive;
     var maxFuelRaw = _lastMaxFuelRaw;

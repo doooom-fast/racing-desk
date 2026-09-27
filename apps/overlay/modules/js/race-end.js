@@ -20,14 +20,14 @@
     if (!screen || _raceEndVisible) return;
 
     // Gather data
-    const pre = isDemo ? 'RaceCorProDrive.Plugin.Demo.' : '';
-    const pos = isDemo ? +(p['RaceCorProDrive.Plugin.Demo.Position']) || 0 : +(p['DataCorePlugin.GameData.Position']) || 0;
-    const dsPre = isDemo ? 'RaceCorProDrive.Plugin.Demo.DS.' : 'RaceCorProDrive.Plugin.DS.';
+    const pre = isDemo ? 'RacingDesk.Plugin.Demo.' : '';
+    const pos = isDemo ? +(p['RacingDesk.Plugin.Demo.Position']) || 0 : +(p['DataCorePlugin.GameData.Position']) || 0;
+    const dsPre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
     const incidents = +(p[dsPre + 'IncidentCount']) || 0;
     const completedLaps = +(p[dsPre + 'CompletedLaps']) || 0;
-    const totalLaps = isDemo ? +(p['RaceCorProDrive.Plugin.Demo.TotalLaps']) || 0 : +(p['DataCorePlugin.GameData.TotalLaps']) || 0;
-    const bestLap = isDemo ? +(p['RaceCorProDrive.Plugin.Demo.BestLapTime']) || 0 : +(p['DataCorePlugin.GameData.BestLapTime']) || 0;
-    const iRating = isDemo ? +(p['RaceCorProDrive.Plugin.Demo.IRating']) || 0 : +(p['IRacingExtraProperties.iRacing_DriverInfo_IRating']) || 0;
+    const totalLaps = isDemo ? +(p['RacingDesk.Plugin.Demo.TotalLaps']) || 0 : +(p['DataCorePlugin.GameData.TotalLaps']) || 0;
+    const bestLap = isDemo ? +(p['RacingDesk.Plugin.Demo.BestLapTime']) || 0 : +(p['DataCorePlugin.GameData.BestLapTime']) || 0;
+    const iRating = isDemo ? +(p['RacingDesk.Plugin.Demo.IRating']) || 0 : +(p['IRacingExtraProperties.iRacing_DriverInfo_IRating']) || 0;
 
     // DNF detection
     const isDNF = pos === 0 || (completedLaps > 0 && totalLaps > 0 && completedLaps < Math.max(1, Math.floor(totalLaps * 0.5)));

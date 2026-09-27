@@ -1,4 +1,4 @@
-# RaceCor Recorder — Replacing OBS with Built-In Capture
+# RacingDesk Recorder — Replacing OBS with Built-In Capture
 
 **Status:** Implemented  
 **Author:** kevin  
@@ -9,7 +9,7 @@
 
 ## Goal
 
-Eliminate OBS from the sim racing recording workflow by building capture and recording directly into the RaceCor Electron overlay. The overlay already runs as a transparent always-on-top window on the game — it's the ideal place to own the recording pipeline.
+Eliminate OBS from the sim racing recording workflow by building capture and recording directly into the RacingDesk Electron overlay. The overlay already runs as a transparent always-on-top window on the game — it's the ideal place to own the recording pipeline.
 
 ## Why This Makes Sense
 

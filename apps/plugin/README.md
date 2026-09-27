@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="src/images/logomark.png" alt="RaceCorProDrive" width="200">
+  <img src="src/images/logomark.png" alt="RacingDesk" width="200">
 </p>
 
-# prodrive-plugin — RaceCor.io SimHub plugin
+# prodrive-plugin — The Racing Desk SimHub plugin
 
-The **SimHub plugin** for RaceCor.io Pro Drive — written in C# (.NET Framework 4.8). Reads iRacing SDK telemetry, normalizes ~100 properties, runs them through commentary triggers and strategy modules, and exposes the result as a flat JSON API on **`http://localhost:8889/racecor-io-pro-drive/`**.
+The **SimHub plugin** for The Racing Desk — written in C# (.NET Framework 4.8). Reads iRacing SDK telemetry, normalizes ~100 properties, runs them through commentary triggers and strategy modules, and exposes the result as a flat JSON API on **`http://localhost:8889/racing-desk/`**.
 
-It also pushes session data to the Pro Drive cloud after each race (Bearer-authed `POST /api/iracing/import`) and fetches custom track / sector configuration from the cloud at track change.
+It also pushes session data to the The Racing Desk cloud after each race (Bearer-authed `POST /api/iracing/import`) and fetches custom track / sector configuration from the cloud at track change.
 
-![Dashboard](racecor-plugin/simhub-plugin/docs/dashboard-screenshot.png)
+![Dashboard](racing-desk-plugin/simhub-plugin/docs/dashboard-screenshot.png)
 
 ## Where this fits in the wider ecosystem
 
@@ -17,12 +17,12 @@ This repo is the **producer** of live telemetry. The consumers and adjacent surf
 | Repo | Role |
 |------|------|
 | **`prodrive-plugin`** (this repo) | SimHub plugin (telemetry producer) — opens `localhost:8889`, pushes sessions to cloud |
-| [`prodrive-overlay`](https://github.com/k10-motorsports/prodrive-overlay) | Electron HUD that polls `localhost:8889` at ~30fps. Records `.rcpdv` race bundles. Race Coach (Claude) for live AI commentary. |
-| [`prodrive-windows`](https://github.com/k10-motorsports/prodrive-windows) | Pro Drive Windows desktop app — Library, Editor, Hardware (Moza). Auto-launches the overlay when iRacing starts. |
-| [`prodrive-server`](https://github.com/k10-motorsports/prodrive-server) | racecor.io marketing + Pro Drive members dashboard + Chrome extension + calc engines. The cloud target for plugin's session push. |
-| [`prodrive-homebridge`](https://github.com/k10-motorsports/prodrive-homebridge) | HomeKit smart-light mapping (polls SimHub on port 8888 — not this plugin's port 8889) |
-| [`prodrive-edit`](https://github.com/k10-motorsports/prodrive-edit) | AI-powered race editing pipeline — ingests `.mp4` + `.telemetry.jsonl` pairs |
-| [`prodrive-macos`](https://github.com/k10-motorsports/prodrive-macos) / [`-ios`](https://github.com/k10-motorsports/prodrive-ios) / [`-tvos`](https://github.com/k10-motorsports/prodrive-tvos) | Native Apple clients — read-only viewers over the Pro Drive API |
+| [`prodrive-overlay`](https://github.com/DOOOOM/prodrive-overlay) | Electron HUD that polls `localhost:8889` at ~30fps. Records `.rcpdv` race bundles. Race Coach (Claude) for live AI commentary. |
+| [`prodrive-windows`](https://github.com/DOOOOM/prodrive-windows) | The Racing Desk Windows desktop app — Library, Editor, Hardware (Moza). Auto-launches the overlay when iRacing starts. |
+| [`prodrive-server`](https://github.com/DOOOOM/prodrive-server) | racing-desk.io marketing + The Racing Desk members dashboard + Chrome extension + calc engines. The cloud target for plugin's session push. |
+| [`prodrive-homebridge`](https://github.com/DOOOOM/prodrive-homebridge) | HomeKit smart-light mapping (polls SimHub on port 8888 — not this plugin's port 8889) |
+| [`prodrive-edit`](https://github.com/DOOOOM/prodrive-edit) | AI-powered race editing pipeline — ingests `.mp4` + `.telemetry.jsonl` pairs |
+| [`prodrive-macos`](https://github.com/DOOOOM/prodrive-macos) / [`-ios`](https://github.com/DOOOOM/prodrive-ios) / [`-tvos`](https://github.com/DOOOOM/prodrive-tvos) | Native Apple clients — read-only viewers over the The Racing Desk API |
 
 This README covers only the plugin in this repo.
 
@@ -34,58 +34,58 @@ Key systems:
 
 - **Commentary engine** — composable sentence fragments (opener + body + closer), severity-based interruption, cooldown management across 33 topics and 240+ prompt combinations. Fragments are pre-generated offline; **the live AI commentary lives in the overlay's `race-coach.js`**, not in this plugin.
 - **Strategy engine** — real-time tire lifecycle tracking (grip degradation scoring, wear estimation, temp state), fuel computation (burn variance, pit window, fuel-saving detection), stint-aware evaluation with severity-graded coaching calls.
-- **Sector tracker** — auto-detects native iRacing track boundaries, falls back to equidistant sectors. **Cloud-augmented**: at track change, the plugin GETs `https://prodrive.racecor.io/api/tracks?trackName=...` to load custom sector boundaries, cached in-memory until track changes.
+- **Sector tracker** — auto-detects native iRacing track boundaries, falls back to equidistant sectors. **Cloud-augmented**: at track change, the plugin GETs `https://prodrive.racing-desk.io/api/tracks?trackName=...` to load custom sector boundaries, cached in-memory until track changes.
 - **iRating estimator** — pre-qualifying iRating display.
 - **Direct iRacing API client** (`IRacingDataClient.cs`) — authenticates against `members-ng.iracing.com/auth` with stored local credentials to fetch the user's live iRating + Safety Rating for the overlay's display.
 - **Country flag normalization** — iRacing's full country names → ISO 2-letter codes for the flag sprite system.
 - **Moza serial control** (`MozaSerialManager.cs`) — direct serial control of Moza wheels for force-feedback events triggered by telemetry.
-- **Plugin actions** — 10 configurable actions (prefixed `RaceCorProDrive.*`) for wheel button and Stream Deck mapping (dismiss prompts, cycle pitbox tabs, navigate pit strategy options, commentary feedback).
+- **Plugin actions** — 10 configurable actions (prefixed `RacingDesk.*`) for wheel button and Stream Deck mapping (dismiss prompts, cycle pitbox tabs, navigate pit strategy options, commentary feedback).
 
 ## Cloud surface
 
-The plugin is a cloud client, not just a local server. After authenticating via PKCE through `/api/plugin-auth/{authorize, token}`, it stores a Bearer token in `%APPDATA%\RaceCor\plugin\auth.json` and uses it for:
+The plugin is a cloud client, not just a local server. After authenticating via PKCE through `/api/plugin-auth/{authorize, token}`, it stores a Bearer token in `%APPDATA%\RacingDesk\plugin\auth.json` and uses it for:
 
-- `GET https://prodrive.racecor.io/api/tracks?trackName=...` — track config fetch on track change
-- `POST https://prodrive.racecor.io/api/iracing/import` — session telemetry push at session end
+- `GET https://prodrive.racing-desk.io/api/tracks?trackName=...` — track config fetch on track change
+- `POST https://prodrive.racing-desk.io/api/iracing/import` — session telemetry push at session end
 
 This is the only path that captures **per-frame telemetry traces** for the cloud (the Chrome extension scrape only sees what iRacing exposes on the website). Telemetry traces land in Vercel Blob; metadata in Postgres.
 
-To pair: open the plugin's settings page in SimHub → "Connect to Pro Drive" → browser handoff → Discord OAuth → token comes back to the plugin.
+To pair: open the plugin's settings page in SimHub → "Connect to The Racing Desk" → browser handoff → Discord OAuth → token comes back to the plugin.
 
 ## Install
 
 ### Windows Installer (Recommended)
 
-The Pro Drive Windows desktop app's installer bundles the **overlay only** — not this plugin. To install the plugin:
+The The Racing Desk Windows desktop app's installer bundles the **overlay only** — not this plugin. To install the plugin:
 
 1. Install [SimHub](https://www.simhubdash.com/) (free).
-2. Download the latest plugin zip from this repo's [releases](https://github.com/k10-motorsports/prodrive-plugin/releases).
-3. Extract into `%PROGRAMFILES%\SimHub\PluginsData\Common\RaceCor\`.
+2. Download the latest plugin zip from this repo's [releases](https://github.com/DOOOOM/prodrive-plugin/releases).
+3. Extract into `%PROGRAMFILES%\SimHub\PluginsData\Common\RacingDesk\`.
 4. Restart SimHub. Accept the unsigned-plugin warning the first time.
-5. Open SimHub → **Additional plugins** → enable **RaceCorProDrive**.
-6. (Optional, for cloud sync) Open the plugin's settings panel → **Connect to Pro Drive** → sign in with Discord.
+5. Open SimHub → **Additional plugins** → enable **RacingDesk**.
+6. (Optional, for cloud sync) Open the plugin's settings panel → **Connect to The Racing Desk** → sign in with Discord.
 
 Verify the local server with:
 
 ```
-http://localhost:8889/racecor-io-pro-drive/
+http://localhost:8889/racing-desk/
 ```
 
 You should see a JSON blob with 100+ properties.
 
 **iRacing users:** Install the [iRacing Extra Properties](https://drive.google.com/drive/folders/1AiIWHviD4j-_D-zgRrjJU1AFhJ_xmass) plugin by RomainRob for iRating and Safety Rating display. Copy `RSC.iRacingExtraProperties.dll` into your SimHub folder while SimHub is closed.
 
-The plugin exposes all data as SimHub properties (prefixed `RaceCorProDrive.Plugin.*`), so you can build your own dashboard layout or integrate the properties into an existing one.
+The plugin exposes all data as SimHub properties (prefixed `RacingDesk.Plugin.*`), so you can build your own dashboard layout or integrate the properties into an existing one.
 
-Build from source: [racecor-plugin/simhub-plugin/docs/DEVELOPMENT.md](racecor-plugin/simhub-plugin/docs/DEVELOPMENT.md)
+Build from source: [racing-desk-plugin/simhub-plugin/docs/DEVELOPMENT.md](racing-desk-plugin/simhub-plugin/docs/DEVELOPMENT.md)
 
 ## Repository Structure
 
 ```
 prodrive-plugin/
-├── racecor-plugin/                       SimHub C# plugin
+├── racing-desk-plugin/                       SimHub C# plugin
 │   ├── simhub-plugin/                    SimHub plugin + data
-│   │   ├── plugin/RaceCorProDrive.Plugin/ C# source (.NET Framework 4.8, WPF)
+│   │   ├── plugin/RacingDesk.Plugin/ C# source (.NET Framework 4.8, WPF)
 │   │   │   ├── Plugin.cs                 Entry point, HTTP server, action registration
 │   │   │   └── Engine/                   Core systems
 │   │   │       ├── CommentaryEngine.cs   Trigger evaluation + prompt assembly
@@ -102,7 +102,7 @@ prodrive-plugin/
 │   │   │           ├── TireTracker.cs          Grip scoring, wear estimation, temp monitoring
 │   │   │           ├── FuelComputer.cs         Burn stats, pit window, fuel saving detection
 │   │   │           └── StintData.cs            Per-stint telemetry history
-│   │   ├── racecorprodrive-data/         Commentary topics, fragments, sentiments (JSON)
+│   │   ├── racingdesk-data/         Commentary topics, fragments, sentiments (JSON)
 │   │   ├── tests/                        C# unit tests + Python dataset validation
 │   │   ├── tools/                        Telemetry replay, fragment generation
 │   │   └── DashTemplates/                SimHub dashboard templates
@@ -121,14 +121,14 @@ prodrive-plugin/
 
 | Document | Covers |
 | --- | --- |
-| [SIMHUB_PLUGIN.md](racecor-plugin/simhub-plugin/docs/SIMHUB_PLUGIN.md) | Plugin architecture, cross-game support, settings, dashboard properties |
-| [COMMENTARY_ENGINE.md](racecor-plugin/simhub-plugin/docs/COMMENTARY_ENGINE.md) | Trigger evaluation pipeline, severity interruption, fragment assembly, cooldowns |
+| [SIMHUB_PLUGIN.md](racing-desk-plugin/simhub-plugin/docs/SIMHUB_PLUGIN.md) | Plugin architecture, cross-game support, settings, dashboard properties |
+| [COMMENTARY_ENGINE.md](racing-desk-plugin/simhub-plugin/docs/COMMENTARY_ENGINE.md) | Trigger evaluation pipeline, severity interruption, fragment assembly, cooldowns |
 | [AI_STRATEGIST_DESIGN.md](AI_STRATEGIST_DESIGN.md) | Strategy engine design — tire lifecycle, fuel strategy, pit optimizer, opponent intelligence |
-| [DATASETS.md](racecor-plugin/simhub-plugin/docs/DATASETS.md) | Topic schema, trigger conditions, fragment format, how to add new topics |
-| [TESTING.md](racecor-plugin/simhub-plugin/docs/TESTING.md) | Test suites, CI integration |
-| [DEVELOPMENT.md](racecor-plugin/simhub-plugin/docs/DEVELOPMENT.md) | Building from source, project setup, contributor workflow |
+| [DATASETS.md](racing-desk-plugin/simhub-plugin/docs/DATASETS.md) | Topic schema, trigger conditions, fragment format, how to add new topics |
+| [TESTING.md](racing-desk-plugin/simhub-plugin/docs/TESTING.md) | Test suites, CI integration |
+| [DEVELOPMENT.md](racing-desk-plugin/simhub-plugin/docs/DEVELOPMENT.md) | Building from source, project setup, contributor workflow |
 
-For overlay docs see [prodrive-overlay's README](https://github.com/k10-motorsports/prodrive-overlay). For the Pro Drive Windows app see [prodrive-windows](https://github.com/k10-motorsports/prodrive-windows).
+For overlay docs see [prodrive-overlay's README](https://github.com/DOOOOM/prodrive-overlay). For the The Racing Desk Windows app see [prodrive-windows](https://github.com/DOOOOM/prodrive-windows).
 
 ## Testing
 
@@ -136,21 +136,21 @@ Three test suites run without SimHub, iRacing, or any external service:
 
 ```bash
 # C# unit tests (200+ tests, NUnit)
-cd racecor-plugin/simhub-plugin/tests/RaceCorProDrive.Tests && dotnet test
+cd racing-desk-plugin/simhub-plugin/tests/RacingDesk.Tests && dotnet test
 
 # Python dataset validation (28 tests)
-python3 racecor-plugin/simhub-plugin/tests/validate_datasets.py
+python3 racing-desk-plugin/simhub-plugin/tests/validate_datasets.py
 ```
 
-The Homebridge plugin's Jest test suite lives in [k10-motorsports/prodrive-homebridge](https://github.com/k10-motorsports/prodrive-homebridge).
+The Homebridge plugin's Jest test suite lives in [k10-motorsports/prodrive-homebridge](https://github.com/DOOOOM/prodrive-homebridge).
 
 The C# test project uses standalone reimplementations of the plugin's engine logic (no SimHub dependencies), so it runs on any platform with the .NET 6.0 SDK.
 
-Full testing documentation: [racecor-plugin/simhub-plugin/docs/TESTING.md](racecor-plugin/simhub-plugin/docs/TESTING.md)
+Full testing documentation: [racing-desk-plugin/simhub-plugin/docs/TESTING.md](racing-desk-plugin/simhub-plugin/docs/TESTING.md)
 
 ## AI use in this repo (and elsewhere)
 
-**This plugin uses Claude offline only.** The 240+ commentary fragments in `racecor-plugin/simhub-plugin/racecorprodrive-data/commentary_fragments.json` were generated using [Claude](https://claude.ai) (Anthropic's `claude-haiku-4-5` model) with the commentary topics, sentiment vocabulary, and channel style profiles as input. The generation is a one-time offline process — **the plugin makes no Anthropic API calls at runtime**.
+**This plugin uses Claude offline only.** The 240+ commentary fragments in `racing-desk-plugin/simhub-plugin/racingdesk-data/commentary_fragments.json` were generated using [Claude](https://claude.ai) (Anthropic's `claude-haiku-4-5` model) with the commentary topics, sentiment vocabulary, and channel style profiles as input. The generation is a one-time offline process — **the plugin makes no Anthropic API calls at runtime**.
 
 **Live AI commentary lives in the overlay**, not here. `prodrive-overlay/modules/js/race-coach.js` calls the Anthropic Messages API directly with rolling race context. It uses the user's own Anthropic API key. See the overlay README for details.
 
@@ -158,7 +158,7 @@ The codebase, test suites, dataset structures, and documentation in this repo we
 
 ## Release
 
-Wave 1 of the lockstep release (parallel with overlay), per the orchestrator at `agents/.claude/commands/release.md` in the [prodrive-agents](https://github.com/k10-motorsports/prodrive-agents) submodule.
+Wave 1 of the lockstep release (parallel with overlay), per the orchestrator at `agents/.claude/commands/release.md` in the [prodrive-agents](https://github.com/DOOOOM/prodrive-agents) submodule.
 
 ## Data Sources and Attribution
 

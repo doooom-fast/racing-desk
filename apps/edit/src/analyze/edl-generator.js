@@ -26,7 +26,7 @@ export async function analyze(dir, opts = {}) {
   // ── Load session ──────────────────────────────────────────
   const sessionPath = join(dir, 'session.json');
   if (!existsSync(sessionPath)) {
-    throw new Error('session.json not found. Run `racecor-edit ingest` first.');
+    throw new Error('session.json not found. Run `racing-desk-edit ingest` first.');
   }
   const session = JSON.parse(readFileSync(sessionPath, 'utf8'));
 

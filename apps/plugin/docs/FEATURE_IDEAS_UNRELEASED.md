@@ -1,4 +1,4 @@
-# RaceCor ProDrive — Feature Ideation: The Uncharted Stuff
+# RacingDesk ProDrive — Feature Ideation: The Uncharted Stuff
 
 > Nobody else is doing any of this. That's the point.
 

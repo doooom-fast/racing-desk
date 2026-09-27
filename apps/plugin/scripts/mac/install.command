@@ -1,15 +1,15 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════
-#  K10 Motorsports — Install Dependencies
+#  The Racing Desk — Install Dependencies
 # ═══════════════════════════════════════════════
 
-# Navigate to app root (K10 Motorsports/)
+# Navigate to app root (The Racing Desk/)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_DIR="$SCRIPT_DIR/../../racecor-overlay"
+APP_DIR="$SCRIPT_DIR/../../racing-desk-overlay"
 cd "$APP_DIR"
 
 echo "═══════════════════════════════════════════════"
-echo " K10 Motorsports — Install Dependencies"
+echo " The Racing Desk — Install Dependencies"
 echo "═══════════════════════════════════════════════"
 echo ""
 
@@ -52,6 +52,6 @@ else
 fi
 
 echo ""
-echo "Done! Double-click 'K10 Motorsports.command' to launch the overlay."
+echo "Done! Double-click 'The Racing Desk.command' to launch the overlay."
 echo ""
 read -p "Press Enter to close..."

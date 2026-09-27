@@ -156,8 +156,8 @@ body.mode-minimal .commentary-gl-canvas {
 }
 
 /* ── Logo visibility: Hide all logos ── */
-body.mode-minimal #k10LogoSquare,
-body.mode-minimal [data-section="k10LogoSquare"],
+body.mode-minimal #brandLogoSquare,
+body.mode-minimal [data-section="brandLogoSquare"],
 body.mode-minimal .k10-logo,
 body.mode-minimal .k10-branding {
   display: none !important;
@@ -397,8 +397,8 @@ body.mode-minimal-plus .manufacturer-logo {
   display: block !important;
 }
 
-body.mode-minimal-plus #k10LogoSquare,
-body.mode-minimal-plus [data-section="k10LogoSquare"],
+body.mode-minimal-plus #brandLogoSquare,
+body.mode-minimal-plus [data-section="brandLogoSquare"],
 body.mode-minimal-plus .k10-logo,
 body.mode-minimal-plus .k10-branding {
   display: none !important;

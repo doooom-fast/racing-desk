@@ -298,7 +298,7 @@
 
   function updateIncidentCoach(p) {
     // Read master toggle
-    _ic.active = +(p['RaceCorProDrive.Plugin.DS.IncidentCoach.Active']) === 1;
+    _ic.active = +(p['RacingDesk.Plugin.DS.IncidentCoach.Active']) === 1;
     if (!_ic.active) {
       // Hide UI elements when disabled
       if (_ic.composureEl) _ic.composureEl.style.display = 'none';
@@ -307,24 +307,24 @@
     }
 
     // ── Parse plugin data ────────────────────────────────────────
-    _ic.rageScore = +(p['RaceCorProDrive.Plugin.DS.IncidentCoach.RageScore']) || 0;
-    _ic.cooldownActive = +(p['RaceCorProDrive.Plugin.DS.IncidentCoach.CooldownActive']) === 1;
-    _ic.lastIncidentLap = +(p['RaceCorProDrive.Plugin.DS.IncidentCoach.LastIncidentLap']) || 0;
+    _ic.rageScore = +(p['RacingDesk.Plugin.DS.IncidentCoach.RageScore']) || 0;
+    _ic.cooldownActive = +(p['RacingDesk.Plugin.DS.IncidentCoach.CooldownActive']) === 1;
+    _ic.lastIncidentLap = +(p['RacingDesk.Plugin.DS.IncidentCoach.LastIncidentLap']) || 0;
 
     // Parse JSON fields (with try/catch for safety)
-    const threatsRaw = p['RaceCorProDrive.Plugin.DS.IncidentCoach.ThreatDrivers'];
+    const threatsRaw = p['RacingDesk.Plugin.DS.IncidentCoach.ThreatDrivers'];
     if (threatsRaw && typeof threatsRaw === 'string' && threatsRaw !== '[]') {
       try { _ic.threats = JSON.parse(threatsRaw); } catch(e) { /* keep last */ }
     } else if (threatsRaw === '[]') {
       _ic.threats = [];
     }
 
-    const alertRaw = p['RaceCorProDrive.Plugin.DS.IncidentCoach.ActiveAlert'];
+    const alertRaw = p['RacingDesk.Plugin.DS.IncidentCoach.ActiveAlert'];
     if (alertRaw && typeof alertRaw === 'string' && alertRaw !== '{}') {
       try { _ic.alert = JSON.parse(alertRaw); } catch(e) { /* keep last */ }
     }
 
-    const behaviorRaw = p['RaceCorProDrive.Plugin.DS.IncidentCoach.SessionBehavior'];
+    const behaviorRaw = p['RacingDesk.Plugin.DS.IncidentCoach.SessionBehavior'];
     if (behaviorRaw && typeof behaviorRaw === 'string' && behaviorRaw !== '{}') {
       try { _ic.behavior = JSON.parse(behaviorRaw); } catch(e) { /* keep last */ }
     }
@@ -493,7 +493,7 @@
 
   function _triggerIncidentFlash(p) {
     // Get physics data at moment of incident
-    const dsPre = 'RaceCorProDrive.Plugin.DS.';
+    const dsPre = 'RacingDesk.Plugin.DS.';
     const latG = +(p[dsPre + 'LatAccel']) || 0;
     const longG = +(p[dsPre + 'LongAccel']) || 0;
 
