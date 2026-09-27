@@ -74,7 +74,7 @@ test.describe('hostExePath', () => {
   });
 
   test('dev: the host project build beside apps/overlay, then what build:host publishes', () => {
-    const appDir = path.join('C:\\Users\\Kevin Conboy\\Documents\\GitHub\\prodrive', 'apps', 'overlay');
+    const appDir = path.join('C:\\Users\\Kevin Conboy\\Documents\\GitHub\\racing-desk', 'apps', 'overlay');
     const hostDir = path.join(appDir, '..', 'host');
     const [built, published] = hostExeCandidates({ isPackaged: false, appDir });
     expect(built).toBe(path.join(hostDir, 'RacingDesk.Host', 'bin', 'Release', 'net8.0-windows', 'RacingDesk.Host.exe'));

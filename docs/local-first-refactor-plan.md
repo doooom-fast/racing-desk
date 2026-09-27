@@ -361,7 +361,7 @@ driving, no install, no network.**
 git, Node 22+, .NET 8 SDK, VS Build Tools 2022 (C++ + .NET desktop),
 Claude Code (native Windows — needs PowerShell, dotnet,
 and Documents\iRacing access)
-Documents\GitHub\prodrive   ← single monorepo (next to the old repos)
+Documents\GitHub\racing-desk   ← single monorepo (next to the old repos; was `prodrive` until 2026-09-27)
 ```
 
 Native Windows Claude Code, not WSL — the agent needs to build .NET, launch Electron, read
