@@ -21,6 +21,10 @@ declare global {
 
 const desk = (): DeskPaints | undefined => window.racingDesk?.paints;
 
+/// Whether the host is The Racing Desk. A few commands are the desk's alone — the Rust never had them — and
+/// api.ts has to know which answer to expect.
+export const inDesk = (): boolean => desk() !== undefined;
+
 /// `detectPaths` -> `detect_paths`: the Rust command's name for the same call.
 const snake = (name: string) => name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 

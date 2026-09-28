@@ -1,11 +1,15 @@
+import type { ReactNode } from "react";
 import { pickFolder } from "../bridge";
 import type { CustomerReport, LibrarySuggestion, PathReport } from "../types";
 
-/// The three things every swap depends on, always on screen.
+/// The three things every swap depends on, always on screen, and what stands in a swap's way.
 ///
 /// The plan is explicit that the resolved paint path must always be visible, because the
 /// failure it prevents — editing one Documents folder while the sim reads another — looks
 /// exactly like the app doing nothing at all.
+///
+/// `children` are the status chips and Refresh, at the right-hand end. They had a bar of their own
+/// with the app's name in it; the host's window says where you are, and the bar went.
 export function SetupBar({
   paintDir,
   paintReport,
@@ -16,7 +20,9 @@ export function SetupBar({
   onPaintDir,
   onLibraryRoot,
   onCustomerId,
+  children,
 }: {
+  children?: ReactNode;
   paintDir: string;
   paintReport: PathReport | null;
   libraryRoot: string;
@@ -114,7 +120,7 @@ export function SetupBar({
         )}
       </div>
 
-      <div className="field">
+      <div className="field narrow">
         <span className="label">Customer ID</span>
         <div className="row">
           <input
@@ -133,6 +139,13 @@ export function SetupBar({
             : (customerReport?.source ?? "set by hand")}
         </span>
       </div>
+
+      {children && (
+        <div className="field narrow status">
+          <span className="label">Status</span>
+          <div className="row">{children}</div>
+        </div>
+      )}
     </div>
   );
 }

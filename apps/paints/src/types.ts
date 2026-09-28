@@ -77,6 +77,19 @@ export interface Library {
   notes: string[];
 }
 
+/// A car as the list shows it: any car the rig knows, in the library or not. Built by the desk's
+/// `carCatalogue` (apps/overlay/modules/js/paints/catalogue.js); the Rust has no such command, and
+/// api.ts makes these from the library's cars there.
+export interface CatalogueCar extends Car {
+  /// What the sim calls the car — "Mazda MX-5 Cup". Null for a car that has never been in a session.
+  name: string | null;
+  shortName: string | null;
+  /// In the iRacing install.
+  installed: boolean;
+  /// The driver's own sessions in it.
+  driven: number;
+}
+
 export type MatchKind = "exact" | "paint-only" | "none";
 
 export interface InstalledFile {

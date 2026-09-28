@@ -1,12 +1,14 @@
 // The livery manager's command surface: the 17 Tauri commands from apps/paints/src-tauri/src/lib.rs, in camelCase,
 // with the argument shapes of apps/paints/src/api.ts and the return shapes of src/types.ts, so the React UI can be
-// reused unchanged over an IPC bridge. Everything here runs under plain Node — no Electron imports — and every
-// command returns a Promise; main.js wires each key to an ipcMain.handle and awaits it.
+// reused unchanged over an IPC bridge — and one the Rust never had, carCatalogue, which needs the install and the
+// local store. Everything here runs under plain Node — no Electron imports — and every command returns a Promise;
+// main.js wires each key to an ipcMain.handle and awaits it.
 //
 // The Rust side owned every decision that touches the disk, and so does this: the UI asks for things to happen
 // and renders what comes back; it never builds a path or a filename of its own, so the rules about backups,
 // renaming and cooked files live in exactly one place.
 const apply = require('./apply');
+const catalogue = require('./catalogue');
 const customer = require('./customer');
 const digest = require('./digest');
 const error = require('./error');
@@ -22,7 +24,9 @@ const tradingpaints = require('./tradingpaints');
 
 // `overrides` lets the host (or a test) swap in its environment: `backupsBase` (a path or a function returning
 // one; default %LOCALAPPDATA%\Racing Desk\paints\backups), `simState` and `tradingPaints` (async inspectors),
-// `env`, `exec` (how commands are run) and `registry` (how Documents is looked up).
+// `env`, `exec` (how commands are run) and `registry` (how Documents is looked up); for the catalogue, `carNames`
+// (async, the store's rows — see car-names.js; none by default) and `installRoot` (the iRacing install set by
+// hand: a path, or a function returning one or nothing; detection fills in when it does not hold a cars folder).
 function createCommands(overrides = {}) {
   const env = overrides.env || process.env;
   const exec = overrides.exec;
@@ -36,6 +40,20 @@ function createCommands(overrides = {}) {
     if (typeof overrides.backupsBase === 'string') return overrides.backupsBase;
     return apply.backupsBase({ env });
   };
+  const carNames = async () => {
+    if (typeof overrides.carNames !== 'function') return [];
+    try {
+      const rows = await overrides.carNames();
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+      return [];   // names are a nicety: the list falls back to folder names
+    }
+  };
+  const findInstall = () => {
+    let override = typeof overrides.installRoot === 'function' ? overrides.installRoot() : overrides.installRoot;
+    if (typeof override !== 'string') override = null;
+    return catalogue.installRoot({ override, env, exec });
+  };
 
   return {
     detectPaths: async () => paths.detect({ env, exec, registry: overrides.registry }),
@@ -44,14 +62,16 @@ function createCommands(overrides = {}) {
 
     scanLibrary: async (libraryRoot, paintDir) => library.scan(libraryRoot, paintDir || null),
 
-    // The installed state of one car, with the applied version worked out by hashing.
+    // The installed state of one car, with the applied version worked out by hashing. A car outside the library —
+    // one the catalogue listed from the install or the paint directory — has an installed state like any other,
+    // and no versions for it to match.
     carState: async ({ paintDir, libraryRoot, carFolder, simFolder, customerId }) => {
       const lib = library.scan(libraryRoot, paintDir);
       const car = lib.cars.find((c) => c.folder === carFolder);
-      if (!car) throw error.other(`${carFolder} is not in the library.`);
-      const sim = simFolder != null ? simFolder : car.simFolder;
+      let sim = simFolder != null ? simFolder : null;
+      if (sim === null) sim = car ? car.simFolder : library.resolveSimFolder(carFolder, null, paintDir).simFolder;
       const state = installed.read(paintDir, sim, customerId);
-      installed.identify(state, car.versions);
+      installed.identify(state, car ? car.versions : []);
       return state;
     },
 
@@ -96,12 +116,20 @@ function createCommands(overrides = {}) {
     },
 
     previewImage: async (p, maxEdge) => tga.previewImage(p, maxEdge),
+
+    // Every car the rig knows, named: the library's, the install's and the paint directory's. Not in lib.rs.
+    carCatalogue: async ({ libraryRoot, paintDir } = {}) => {
+      const lib = libraryRoot ? library.scan(libraryRoot, paintDir || null) : null;
+      const [root, names] = await Promise.all([findInstall(), carNames()]);
+      return catalogue.catalogue({ library: lib, paintDir: paintDir || null, installRoot: root, names });
+    },
   };
 }
 
 const commands = createCommands();
 
-// Every command name, in the order lib.rs registers them — handy for wiring IPC handlers in a loop.
+// Every command name, in the order lib.rs registers them, then the desk's own — handy for wiring IPC handlers in
+// a loop.
 const COMMAND_NAMES = Object.freeze(Object.keys(commands));
 
 module.exports = {
@@ -109,6 +137,7 @@ module.exports = {
   createCommands,
   COMMAND_NAMES,
   apply,
+  catalogue,
   customer,
   digest,
   error,

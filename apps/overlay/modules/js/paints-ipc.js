@@ -28,6 +28,7 @@ const CALLS = Object.freeze({
     return c.saveSettings(settings, store);
   },
   previewImage: (c, { path, maxEdge }) => c.previewImage(path, maxEdge),
+  carCatalogue: (c, { libraryRoot, paintDir }) => c.carCatalogue({ libraryRoot, paintDir }),
 });
 
 const NAMES = Object.freeze(Object.keys(CALLS));

@@ -193,6 +193,38 @@ commands when it isn't, so the components never know which host they are in. In 
 Node port of `src-tauri/src`, module for module, in `apps/overlay/modules/js/paints/`. Backups move to
 `%LOCALAPPDATA%\Racing Desk\paints\backups`, and the two folders and the id are remembered in the app's settings.
 
+There the page has no name of its own on it — the desk's masthead says where you are — and the status chips and
+Refresh sit at the end of the setup row.
+
+### Every car, by name
+
+In the app the list is not only the library. It is every car the rig knows, called what the sim calls it
+("Mazda MX-5 Cup", not `mx5-mx52016`), in two groups — **Liveries**, the cars with at least one version, then
+**No livery yet** — with a filter over both that matches the name or the folder. Picking a car with no livery shows
+where a version would go (`<library>\<car folder>\<version name>\`), what is installed for it in the sim, and its
+backups; there is nothing to apply, so nothing offers to.
+
+One command does it, `carCatalogue` (`apps/overlay/modules/js/paints/catalogue.js`), which the Rust does not have:
+`src/api.ts` falls back to the library's cars under their folder names when the host is the Tauri shell, so this app
+shows what it always did. The command merges three lists on the sim's car path:
+
+| From | What counts as a car |
+|---|---|
+| the library | every car folder with a version in it, exactly as the library scan describes it |
+| the iRacing install | a folder under `cars\` holding a `.dat`, named by its folders joined with spaces: `cars\mx5\mx52016` is `mx5 mx52016` |
+| the paint folder | a folder the install also has, or one holding `car_*.tga` / `car_*.mip` itself — never `helmets`, `suits` or `cars` |
+
+`-`, `_` and case fold away when two are compared, which is how the library's `mx5-mx52016` and the sim's
+`mx5 mx52016` come out as one car. A folder in the install that holds a `.dat` *and* has cars beneath it (`mx5`,
+`fordgt`) may be a car or may only be what its cars are built on; it is listed when something else knows it as a
+car — a name, a paint folder, a livery.
+
+Names come from The Racing Desk's local store, which keeps the name the sim gave every car that has been in one of
+your sessions; the app asks its host for them (`GET /racing-desk/data/cars`) and shows folder names when there is no
+answer. The install is the one the iRacing UI registered for `iracing://` links
+(`HKCU\Software\Classes\iracing\shell\open\command`), then the usual Steam and default paths;
+`paints.installDir` in the app's `overlay-settings.json` names another by hand.
+
 The Tauri shell here still builds from the same source. It stays until the page has done a few real swaps, then goes.
 
 ## Still to come

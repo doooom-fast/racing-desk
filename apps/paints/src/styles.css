@@ -28,7 +28,7 @@
   --gap: 12px;
 
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto 1fr;
   height: 100%;
   min-height: 0;
   background: var(--bg);
@@ -132,47 +132,40 @@
   font-size: 12px;
 }
 
-/* ---- shell ---- */
-
-.paints-app .titlebar {
-  position: relative;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 10px 16px 8px;
-  border-bottom: 1px solid var(--line);
-}
-.paints-app .wordmark {
-  font: 700 14px/1 var(--font-display);
-  letter-spacing: 0.14em;
-  color: var(--orange);
-}
-.paints-app .titlebar .sub {
-  color: var(--muted);
-  font-size: 13px;
-}
-.paints-app .titlebar .spacer {
-  flex: 1;
-}
-
 /* ---- setup ---- */
+/* The top of the page: the two folders, the customer id and, at the right-hand end, the status chips and Refresh.
+   The folders share what width is left; the other two are as wide as what is in them. */
 
 .paints-app .setup {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: var(--gap);
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--gap) 20px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
 .paints-app .field {
   display: flex;
+  flex: 1 1 240px;   /* all four on one row in the desk's narrowest window */
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
   min-width: 0;
   padding: 0;
   border-top: 0;
+}
+.paints-app .field.narrow {
+  flex: 0 0 auto;
+}
+.paints-app .field.status {
+  margin-left: auto;
+  align-items: flex-end;
+}
+.paints-app .field.status .row {
+  gap: 10px;
+  min-height: 28px;
 }
 .paints-app .field .label {
   font: 600 10px/1.4 var(--font);
@@ -258,21 +251,58 @@
 
 .paints-app .body {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 264px 1fr;
   min-height: 0;
 }
 
+/* The filter stays put and the list scrolls under it. */
 .paints-app .sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border-right: 1px solid var(--line);
-  overflow-y: auto;
   background: var(--surface);
 }
+.paints-app .sidebar .filter {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.paints-app .sidebar .filter input {
+  width: 100%;
+}
+.paints-app .sidebar .list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+.paints-app .sidebar .empty {
+  padding: 12px 14px;
+  text-align: left;
+}
 .paints-app .sidebar .heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   padding: 12px 14px 6px;
+  background: var(--surface);
   font: 600 11px/1 var(--font);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--faint);
+}
+.paints-app .sidebar .heading .count {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.paints-app .sidebar .group + .group {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
 }
 .paints-app .sidebar .car,
 .paints-app .sidebar .car:hover {
@@ -283,9 +313,18 @@
   border-left: 3px solid transparent;
   border-radius: 0;
   background: none;
-  padding: 8px 14px;
+  padding: 6px 14px 6px 11px;
   font-size: 14px;
   color: var(--fg);
+}
+.paints-app .sidebar .car:focus-visible {
+  outline: 1px solid var(--orange);
+  outline-offset: -1px;
+}
+/* A car with nothing to apply is quieter than one with a livery, until it is the one being looked at. */
+.paints-app .sidebar .group:last-child .car:not(.active) .name {
+  font-weight: 400;
+  color: var(--muted);
 }
 .paints-app .sidebar .car:hover {
   background: var(--surface-2);
@@ -302,6 +341,23 @@
   display: block;
   color: var(--faint);
   font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* The car being looked at, above its versions. */
+.paints-app .car-head h2 {
+  margin: 0 0 2px;
+  font: 700 20px/1.2 var(--font-display);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
+}
+.paints-app .no-livery code {
+  overflow-wrap: anywhere;
+  color: var(--fg);
+}
+.paints-app .no-livery .note {
+  margin-top: 6px;
 }
 
 .paints-app .main {
@@ -481,6 +537,9 @@
   font-size: 13px;
   margin-bottom: 12px;
 }
+.paints-app .modal .sub .car {
+  color: var(--fg);
+}
 .paints-app .modal .foot {
   display: flex;
   gap: 8px;
@@ -488,13 +547,14 @@
   margin-top: 16px;
 }
 
-/* ---- header status chips ---- */
+/* ---- status chips ---- */
 /* These replace the stack of banners that used to sit above the version cards. The warnings are the same; they
    just no longer cost half the window to say. */
 
 .paints-app .chips {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   flex-wrap: wrap;
 }
@@ -545,6 +605,7 @@
   background: hsla(0, 0%, 100%, 0.12);
 }
 
+/* Hangs from the setup row's bottom edge, under the chips. */
 .paints-app .chip-detail {
   position: absolute;
   top: calc(100% - 4px);

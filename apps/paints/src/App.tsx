@@ -3,6 +3,7 @@ import * as api from "./api";
 import { reveal } from "./bridge";
 import { errorText } from "./api";
 import { ApplyDialog, type ApplyOptions } from "./components/ApplyDialog";
+import { CarList, carLabel, groupCars } from "./components/CarList";
 import { TradingPaintsPanel } from "./components/Guards";
 import { RepoPanel } from "./components/RepoPanel";
 import { SetupBar } from "./components/SetupBar";
@@ -10,10 +11,9 @@ import { collectStatus, StatusChips } from "./components/StatusChips";
 import { VersionCard } from "./components/VersionCard";
 import type {
   BackupEntry,
-  Car,
+  CatalogueCar,
   CustomerReport,
   InstalledState,
-  Library,
   LibrarySuggestion,
   PathReport,
   RepoStatus,
@@ -29,6 +29,12 @@ interface LogEntry {
   kind: "ok" | "bad" | "info";
   title: string;
   lines: string[];
+}
+
+/// Where a new version of a car goes, for showing: `<library>\<car folder>\<version name>\`. Nothing is
+/// made of it but text — the folders are the user's to create.
+function versionHome(libraryRoot: string, folder: string): string {
+  return `${libraryRoot.replace(/[\\/]+$/, "")}\\${folder}\\<version name>\\`;
 }
 
 /// How often the guards re-check. The downloader can be started while the app is open, and a
@@ -47,7 +53,7 @@ export default function App() {
 
   const [pathReport, setPathReport] = useState<PathReport | null>(null);
   const [customerReport, setCustomerReport] = useState<CustomerReport | null>(null);
-  const [library, setLibrary] = useState<Library | null>(null);
+  const [cars, setCars] = useState<CatalogueCar[] | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [installed, setInstalled] = useState<InstalledState | null>(null);
   const [backups, setBackups] = useState<BackupEntry[]>([]);
@@ -158,22 +164,29 @@ export default function App() {
     };
   }, [paintDir, say]);
 
-  // --- library --------------------------------------------------------------------------
+  // --- the cars: the library's, and every other car the rig knows ------------------------
+  // Each answer is numbered, because the folders can change while one is on its way — every keystroke in
+  // a path asks again — and the list has to be the last one asked for, not the last one to arrive.
+  const asked = useRef(0);
   const refreshLibrary = useCallback(async () => {
+    const mine = ++asked.current;
     if (!libraryRoot) {
-      setLibrary(null);
+      setCars(null);
       return;
     }
     try {
-      const lib = await api.scanLibrary(libraryRoot, paintDir || null);
-      setLibrary(lib);
-      setSelectedFolder((current) =>
-        current && lib.cars.some((c) => c.folder === current)
-          ? current
-          : (lib.cars[0]?.folder ?? null),
-      );
+      const found = await api.carCatalogue(libraryRoot, paintDir || null);
+      if (mine !== asked.current) return;
+      setCars(found);
+      // A car that is still there stays selected; otherwise the first with a livery, as the list shows it.
+      setSelectedFolder((current) => {
+        if (current && found.some((c) => c.folder === current)) return current;
+        const { liveries, rest } = groupCars(found);
+        return (liveries[0] ?? rest[0])?.folder ?? null;
+      });
     } catch (e) {
-      setLibrary(null);
+      if (mine !== asked.current) return;
+      setCars(null);
       say("bad", "Could not read the library", [errorText(e)]);
     }
   }, [libraryRoot, paintDir, say]);
@@ -263,10 +276,11 @@ export default function App() {
     })();
   }, [libraryRoot, autoUpdate, checkForUpdates, updateLibrary, say]);
 
-  const car: Car | null = useMemo(
-    () => library?.cars.find((c) => c.folder === selectedFolder) ?? null,
-    [library, selectedFolder],
+  const car: CatalogueCar | null = useMemo(
+    () => cars?.find((c) => c.folder === selectedFolder) ?? null,
+    [cars, selectedFolder],
   );
+  const carName = car ? carLabel(car) : "";
 
   // --- installed state for the selected car ---------------------------------------------
   const refreshCar = useCallback(async () => {
@@ -341,7 +355,7 @@ export default function App() {
         clearOtherCooked: options.clearOtherCooked,
         force,
       });
-      say("ok", `Applied ${version.name} to ${car.simFolder}`, [
+      say("ok", `Applied ${version.name} to ${carName}`, [
         ...report.actions.map((a) => a.detail),
         ...report.warnings,
       ]);
@@ -365,12 +379,12 @@ export default function App() {
         backupId,
         force: false,
       });
-      say("ok", `Reverted ${car.folder}`, [
+      say("ok", `Reverted ${carName}`, [
         ...report.actions.map((a) => a.detail),
         ...report.warnings,
       ]);
     } catch (e) {
-      say("bad", `Did not revert ${car.folder}`, [errorText(e)]);
+      say("bad", `Did not revert ${carName}`, [errorText(e)]);
     } finally {
       setBusy(false);
       await refreshCar();
@@ -385,16 +399,6 @@ export default function App() {
 
   return (
     <div className="paints-app">
-      <div className="titlebar">
-        <span className="wordmark">DOOOOM</span>
-        <span className="sub">paints</span>
-        <span className="spacer" />
-        <StatusChips items={status} />
-        <button onClick={() => void refreshLibrary().then(refreshCar)} disabled={busy}>
-          Refresh
-        </button>
-      </div>
-
       <SetupBar
         paintDir={paintDir}
         paintReport={pathReport}
@@ -405,32 +409,20 @@ export default function App() {
         onPaintDir={setPaintDir}
         onLibraryRoot={setLibraryRoot}
         onCustomerId={setCustomerId}
-      />
+      >
+        <StatusChips items={status} />
+        <button onClick={() => void refreshLibrary().then(refreshCar)} disabled={busy}>
+          Refresh
+        </button>
+      </SetupBar>
 
       <div className="body">
-        <div className="sidebar">
-          <div className="heading">Cars</div>
-          {!library || library.cars.length === 0 ? (
-            <div className="empty" style={{ padding: "12px 14px", textAlign: "left" }}>
-              {libraryRoot ? "No cars in this folder." : "Pick a library folder above."}
-            </div>
-          ) : (
-            library.cars.map((c) => (
-              <button
-                key={c.folder}
-                className={`car ${c.folder === selectedFolder ? "active" : ""}`}
-                onClick={() => setSelectedFolder(c.folder)}
-              >
-                <span className="name">{c.folder}</span>
-                <span className="meta">
-                  {c.versions.length} version{c.versions.length === 1 ? "" : "s"}
-                  {!c.simFolder && " · not in the sim"}
-                  {c.simFolderInferred && ` · installs to ${c.simFolder}`}
-                </span>
-              </button>
-            ))
-          )}
-        </div>
+        <CarList
+          cars={cars ?? []}
+          selected={selectedFolder}
+          onSelect={setSelectedFolder}
+          empty={libraryRoot ? "No cars in this folder." : "Pick a library folder above."}
+        />
 
         <div className="main">
           <RepoPanel
@@ -445,22 +437,55 @@ export default function App() {
 
           {car ? (
             <>
-              <div className="versions">
-                {car.versions.map((v) => (
-                  <VersionCard
-                    key={v.id}
-                    version={v}
-                    installed={installed}
-                    busy={busy || !idValid || !car.simFolder}
-                    onApply={() => setApplying(v)}
-                  />
-                ))}
+              <div className="car-head">
+                <h2>{carName}</h2>
+                <div className="note">
+                  <span className="mono">{car.folder}</span>
+                  {car.simFolder !== null && car.simFolder !== car.folder && (
+                    <>
+                      {" "}
+                      · installs to <span className="mono">{car.simFolder}</span>
+                    </>
+                  )}
+                  {car.driven > 0 &&
+                    ` · driven in ${car.driven} session${car.driven === 1 ? "" : "s"}`}
+                </div>
               </div>
+
+              {car.versions.length > 0 ? (
+                <div className="versions">
+                  {car.versions.map((v) => (
+                    <VersionCard
+                      key={v.id}
+                      version={v}
+                      installed={installed}
+                      busy={busy || !idValid || !car.simFolder}
+                      onApply={() => setApplying(v)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="panel no-livery">
+                  <h3>No livery yet</h3>
+                  <div>
+                    There is no livery for this car in the library. A version goes in{" "}
+                    <code>{versionHome(libraryRoot, car.folder)}</code>
+                  </div>
+                  <div className="note">
+                    It holds the paint as <code>car.tga</code> and, if there is one, the spec map as{" "}
+                    <code>car_spec.tga</code>.
+                  </div>
+                </div>
+              )}
 
               <div className="panel">
                 <h3>Installed in the sim</h3>
                 {!installed?.folderExists ? (
-                  <div className="note">Nothing to read yet.</div>
+                  <div className="note">
+                    {car.simFolder || !idValid
+                      ? "Nothing to read yet."
+                      : "This car has no folder in the paint directory yet. The sim creates it the first time you drive the car."}
+                  </div>
                 ) : installed.files.length === 0 ? (
                   <div className="note">
                     No files for customer {customerId} in {installed.simFolder}.
@@ -557,6 +582,7 @@ export default function App() {
       {applying && car?.simFolder && (
         <ApplyDialog
           version={applying}
+          carName={carName}
           simFolder={car.simFolder}
           paintDir={paintDir}
           customerId={customerId}

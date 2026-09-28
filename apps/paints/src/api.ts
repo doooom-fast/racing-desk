@@ -1,8 +1,9 @@
-import { invoke } from "./bridge";
+import { inDesk, invoke } from "./bridge";
 import type {
   ApplyReport,
   ApplyRequest,
   BackupEntry,
+  CatalogueCar,
   CustomerReport,
   InstalledState,
   Library,
@@ -26,6 +27,28 @@ export const detectCustomer = (paintDir: string) =>
 
 export const scanLibrary = (libraryRoot: string, paintDir: string | null) =>
   invoke<Library>("scanLibrary", { libraryRoot, paintDir });
+
+/// Every car the rig knows, named: the library's, the iRacing install's and the paint folder's. The desk's
+/// alone — it needs the install and the local store. The Tauri shell has no such command, so there the list
+/// is the library's cars under their folder names, which is what it always showed.
+export async function carCatalogue(
+  libraryRoot: string,
+  paintDir: string | null,
+): Promise<CatalogueCar[]> {
+  try {
+    return await invoke<CatalogueCar[]>("carCatalogue", { libraryRoot, paintDir });
+  } catch (e) {
+    if (inDesk()) throw e;
+    const library = await scanLibrary(libraryRoot, paintDir);
+    return library.cars.map((car) => ({
+      ...car,
+      name: null,
+      shortName: null,
+      installed: false,
+      driven: 0,
+    }));
+  }
+}
 
 export const carState = (args: {
   paintDir: string;

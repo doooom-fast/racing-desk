@@ -76,3 +76,29 @@ test('load and save through a store', () => {
   expect(settings.load(undefined)).toEqual(ALL_NULL);
   expect(() => settings.save(null, {})).toThrow('No settings store to save into.');
 });
+
+test('the host\'s own keys ride along in the store: kept by a save, never loaded or saved as Settings', () => {
+  expect(settings.HOST_KEYS).toEqual(['installDir']);
+  let held = { customerId: '424242', installDir: 'D:\\Sims\\iRacing', stale: true };
+  const store = { get: () => held, set: (obj) => { held = obj; } };
+  expect(settings.load(store)).toEqual({ ...ALL_NULL, customerId: '424242' });
+  expect(settings.hostValues(store)).toEqual({ installDir: 'D:\\Sims\\iRacing' });
+
+  // The page cannot set one, or clear one, by sending it.
+  const saved = settings.save(store, { paintDir: 'P', installDir: 'C:\\elsewhere' });
+  expect(saved).toEqual({ ...ALL_NULL, paintDir: 'P' });
+  expect(held).toEqual({ ...ALL_NULL, paintDir: 'P', installDir: 'D:\\Sims\\iRacing' });
+  settings.save(store, { paintDir: 'P', installDir: null });
+  expect(held.installDir).toBe('D:\\Sims\\iRacing');
+
+  // One that is not a path is not kept, and a store that cannot be read has none.
+  for (const bad of [42, '', '   ', null, ['x']]) {
+    held = { installDir: bad };
+    expect(settings.hostValues(store), String(bad)).toEqual({});
+    settings.save(store, { customerId: '7' });
+    expect(held).toEqual({ ...ALL_NULL, customerId: '7' });
+  }
+  expect(settings.hostValues({ get: () => { throw new Error('disk'); } })).toEqual({});
+  expect(settings.hostValues({ get: () => 'rubbish' })).toEqual({});
+  expect(settings.hostValues(undefined)).toEqual({});
+});

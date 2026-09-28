@@ -14,6 +14,7 @@ export interface ApplyOptions {
 /// keep going" — but going ahead over one is a separate, explicit click.
 export function ApplyDialog({
   version,
+  carName,
   simFolder,
   paintDir,
   customerId,
@@ -23,6 +24,8 @@ export function ApplyDialog({
   onConfirm,
 }: {
   version: Version;
+  /// The car as the list names it.
+  carName: string;
   simFolder: string;
   paintDir: string;
   customerId: string;
@@ -55,7 +58,8 @@ export function ApplyDialog({
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Apply {version.name}</h2>
         <div className="sub">
-          into <code>{simFolder}</code> as customer <code>{customerId}</code>
+          to <span className="car">{carName}</span>, into <code>{simFolder}</code> as customer{" "}
+          <code>{customerId}</code>
         </div>
 
         <div className="panel" style={{ marginBottom: 12 }}>

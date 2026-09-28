@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Car, RepoStatus, SimState, TradingPaints } from "../types";
+import type { CatalogueCar, RepoStatus, SimState, TradingPaints } from "../types";
 
 export type Level = "bad" | "warn" | "info";
 
@@ -21,7 +21,7 @@ export function collectStatus(args: {
   sim: SimState | null;
   tp: TradingPaints | null;
   repo: RepoStatus | null;
-  car: Car | null;
+  car: CatalogueCar | null;
   idValid: boolean;
 }): StatusItem[] {
   const { sim, tp, repo, car, idValid } = args;
@@ -64,11 +64,13 @@ export function collectStatus(args: {
     });
   }
 
-  if (car && !car.simFolder) {
+  // Only for a car with something to apply: most cars in the list have no livery, and a warning about
+  // where one would go is noise until there is one.
+  if (car && car.versions.length > 0 && !car.simFolder) {
     items.push({
       id: "no-sim-folder",
       level: "warn",
-      short: "Car not in sim",
+      short: car.installed ? "No paint folder" : "Car not in sim",
       detail: `There is no ${car.folder} folder in the paint directory. iRacing creates a car's folder the first time you drive it.`,
     });
   }

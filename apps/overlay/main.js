@@ -22,6 +22,7 @@ const hostLauncher = require('./modules/js/host-launcher');
 const settingsFile = require('./modules/js/settings-file');
 const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
+const { createCarNames } = require('./modules/js/paints/car-names');
 
 // ── Crash log ───────────────────────────────────────────────
 // Write a log file next to the app so crash info is visible
@@ -1417,7 +1418,14 @@ ipcMain.handle('get-dashboard-mode', async () => {
 // may be called and how their arguments are passed on. The handler answers { value } or { error } rather than
 // throwing, because Electron would otherwise wrap a thrown error's message in its own; preload.js turns { error }
 // back into a rejection carrying the command's message, which is what the UI shows.
-const paintsCommands = paints.createCommands();
+// The page's list of cars is every car the rig knows (modules/js/paints/catalogue.js), named from the local store:
+// the host the app found or started serves the names at /racing-desk/data/cars. Asked with a 3 s limit and kept
+// for a minute; with no host answering the list shows folder names. The install is the one the iracing://
+// registration points at, unless `paints.installDir` in overlay-settings.json names another.
+const paintsCommands = paints.createCommands({
+  carNames: createCarNames({ host: () => hostUrl || localHostUrl() }),
+  installRoot: () => (loadSettingsSync().paints || {}).installDir,
+});
 // What the manager remembers (the two folders, the customer id, the apply options) is the `paints` key of
 // overlay-settings.json, beside the HUD's settings. The file is rewritten whole; every other key is kept, and the
 // HUD ignores the write (the watcher skips this process's own writes, and nothing of the HUD's changed).

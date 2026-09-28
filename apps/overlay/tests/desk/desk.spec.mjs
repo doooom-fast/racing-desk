@@ -406,8 +406,8 @@ const PLAIN_FOLDER = {
   dirty: false, behind: 0, ahead: 0, checkedRemote: false, updatesAvailable: false, notes: [],
 };
 
-function version(id, name) {
-  const dir = `${LIBRARY}\\lotus79\\${id}`;
+function version(id, name, car = 'lotus79') {
+  const dir = `${LIBRARY}\\${car}\\${id}`;
   return {
     id, name, path: dir,
     files: [
@@ -418,6 +418,21 @@ function version(id, name) {
   };
 }
 
+// What the rig knows, as modules/js/paints/catalogue.js answers: three cars with a livery — one the library
+// files under another name than the sim, one the rig has never had — and four without: two the sim has named, one
+// of them by the name another car goes by, and a paint folder left behind by a car that is no longer installed.
+const car = (folder, simFolder, versions, name, shortName, installed, driven, simFolderInferred = false) =>
+  ({ folder, simFolder, simFolderInferred, versions, name, shortName, installed, driven });
+const CATALOGUE = [
+  car('caterham caterham420r', 'caterham caterham420r', [], 'Caterham Seven 420R', 'Seven 420R', true, 120),
+  car('lotus79', 'lotus79', [version('v12', 'v12 Shatter'), version('v13', 'v13 Shatter')], 'Lotus 79', 'Lotus 79', true, 41),
+  car('mx5 cup', null, [], 'Mazda MX-5 Cup', 'MX-5 Cup', true, 0),
+  car('mx5-mx52016', 'mx5 mx52016', [version('orange', 'Orange', 'mx5-mx52016')], 'Mazda MX-5 Cup', 'MX-5 Cup', true, 668, true),
+  car('mclaren570sgt4', 'mclaren570sgt4', [], 'McLaren 570S GT4', '570S GT4', true, 0),
+  car('nissangtpzxt', null, [version('v1', 'v1', 'nissangtpzxt')], null, null, false, 0),
+  car('oldcar', 'oldcar', [], null, null, false, 0),
+];
+
 const PAINTS = {
   loadSettings: {},
   saveSettings: null,
@@ -426,12 +441,8 @@ const PAINTS = {
     chosen: PAINT_DIR, ambiguous: false, notes: [],
   },
   detectCustomer: { id: CUSTOMER, confidence: 'certain', source: 'Trading Paints downloader config', candidates: [], notes: [] },
-  suggestLibraries: [{ path: LIBRARY, cars: 1, repo: PLAIN_FOLDER }],
-  scanLibrary: {
-    root: LIBRARY,
-    cars: [{ folder: 'lotus79', simFolder: 'lotus79', simFolderInferred: false, versions: [version('v12', 'v12 Shatter'), version('v13', 'v13 Shatter')] }],
-    notes: [],
-  },
+  suggestLibraries: [{ path: LIBRARY, cars: 3, repo: PLAIN_FOLDER }],
+  carCatalogue: CATALOGUE,
   carState: {
     simFolder: 'lotus79', folderExists: true,
     files: [{ role: 'car', roleLabel: 'Paint', fileName: `car_${CUSTOMER}.tga`, path: `${PAINT_DIR}\\lotus79\\car_${CUSTOMER}.tga`, size: 12582956, sha256: 'v12-paint', readOnly: false }],
@@ -478,7 +489,7 @@ async function stubPaintsBridge(page, answers) {
 
 const paintsCalls = (page, name) => page.evaluate((n) => window.__paints.calls.filter((c) => c.name === n).map((c) => c.args), name);
 
-test('the Paints page is the livery manager: the paint folder it found, the library car and its versions', async ({ page }) => {
+test('the Paints page is the livery manager: the paint folder it found, the cars by name and the first one\'s versions', async ({ page }) => {
   await stubPaintsBridge(page, PAINTS);
   const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
   await expect(page.locator('#paints')).toBeVisible();
@@ -494,14 +505,30 @@ test('the Paints page is the livery manager: the paint folder it found, the libr
   await expect(setup.nth(1)).toHaveValue(LIBRARY);
   await expect(setup.nth(2)).toHaveValue(CUSTOMER);
   await expect(app.locator('.setup .badge')).toHaveText('certain');
-  await expect(app.locator('.sidebar .car .name')).toHaveText(['lotus79']);
-  await expect(app.locator('.sidebar .car .meta')).toContainText('2 versions');
+
+  // The desk's masthead says where you are: no wordmark and no bar for one — what stands in a swap's way, and
+  // Refresh, are at the end of the setup row.
+  await expect(app.locator('.titlebar, .wordmark')).toHaveCount(0);
+  await expect(app).not.toContainText('DOOOOM');
+  expect(await app.evaluate((el) => el.firstElementChild.className)).toBe('setup');
+  await expect(app.locator('.setup .status .chips .chip')).toHaveText('ready');
+  await expect(app.locator('.setup .status button', { hasText: 'Refresh' })).toBeEnabled();
+
+  // Cars are called what the sim calls them; the first with a livery is the one shown.
+  await expect(app.locator('.sidebar .car .name')).toHaveText([
+    'Lotus 79', 'Mazda MX-5 Cup', 'nissangtpzxt', 'Caterham Seven 420R', 'Mazda MX-5 Cup', 'McLaren 570S GT4', 'oldcar',
+  ]);
+  await expect(app.locator('.sidebar .car.active .name')).toHaveText('Lotus 79');
+  await expect(app.locator('.sidebar .car.active .meta')).toHaveText('2 versions');
+  await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+  await expect(app.locator('.car-head .note')).toHaveText('lotus79 · driven in 41 sessions');
   await expect(app.locator('.versions .card .head .name')).toHaveText(['v12 Shatter', 'v13 Shatter']);
   await expect(app.locator('.versions .card .badge.partial')).toHaveText('paint only'); // carState: v12's paint, not its spec
   await expect(app.locator('.versions .card .preview img')).toHaveCount(2);
   await expect(app.locator('.chips .chip')).toHaveText('ready');
   await expect(app.locator('.panel', { hasText: 'Installed in the sim' })).toContainText('41 belonging to other drivers');
-  expect(await paintsCalls(page, 'scanLibrary')).toEqual([{ libraryRoot: LIBRARY, paintDir: PAINT_DIR }]);
+  expect(await paintsCalls(page, 'carCatalogue')).toEqual([{ libraryRoot: LIBRARY, paintDir: PAINT_DIR }]);
+  expect(await paintsCalls(page, 'scanLibrary')).toEqual([]);   // the catalogue reads the library itself
   expect(await paintsCalls(page, 'carState')).toEqual([{ paintDir: PAINT_DIR, libraryRoot: LIBRARY, carFolder: 'lotus79', simFolder: 'lotus79', customerId: CUSTOMER }]);
 
   // What it worked out is remembered through the bridge, in the Settings shape.
@@ -515,6 +542,147 @@ test('the Paints page is the livery manager: the paint folder it found, the libr
   await page.locator('.nav a', { hasText: 'Paints' }).click();
   await expect(app.locator('.versions .card')).toHaveCount(2);
   expect(await page.locator('.paints-app').count()).toBe(1);
+
+  // Refresh asks for the cars again, and the car being looked at stays the one being looked at.
+  await app.locator('.setup .status button', { hasText: 'Refresh' }).click();
+  await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
+  await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+  expect(errors).toEqual([]);
+});
+
+test('the Paints sidebar: cars with a livery, then the rest, each by name, and a filter over both', async ({ page }) => {
+  await stubPaintsBridge(page, PAINTS);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  const groups = app.locator('.sidebar .group');
+  await expect(groups).toHaveCount(2);
+  await expect(groups.nth(0).locator('.heading')).toHaveText('Liveries 3');
+  await expect(groups.nth(1).locator('.heading')).toHaveText('No livery yet 4');
+  await expect(groups.nth(0).locator('.car .name')).toHaveText(['Lotus 79', 'Mazda MX-5 Cup', 'nissangtpzxt']);
+  await expect(groups.nth(1).locator('.car .name')).toHaveText(['Caterham Seven 420R', 'Mazda MX-5 Cup', 'McLaren 570S GT4', 'oldcar']);
+
+  // The folder is under the name only where it says something the name does not: the library and the sim
+  // disagree about it, or two cars go by one name. A car with no name is listed by its folder.
+  const line = (group, n) => groups.nth(group).locator('.car').nth(n);
+  await expect(line(0, 0).locator('.meta')).toHaveText('2 versions');
+  await expect(line(0, 1).locator('.meta')).toHaveText('1 version · mx5-mx52016 · installs to mx5 mx52016');
+  await expect(line(0, 2).locator('.meta')).toHaveText('1 version · not in the sim');
+  await expect(line(1, 0).locator('.meta')).toHaveCount(0);
+  await expect(line(1, 1).locator('.meta')).toHaveText('mx5 cup');
+  await expect(line(1, 2).locator('.meta')).toHaveCount(0);
+  await expect(line(1, 3).locator('.meta')).toHaveText('not installed');
+  await expect(line(1, 0)).toHaveAttribute('title', 'caterham caterham420r');
+
+  // Every one of them is a button: reachable by Tab, chosen with Enter.
+  expect(await app.locator('.sidebar .car').evaluateAll((els) => els.map((el) => el.tagName))).toEqual(Array(7).fill('BUTTON'));
+  const filter = app.locator('.sidebar .filter input');
+  await filter.focus();
+  await page.keyboard.press('Tab');
+  await expect(line(0, 0)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(line(0, 1)).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(line(0, 1)).toHaveAttribute('aria-current', 'true');
+  await expect(app.locator('.car-head h2')).toHaveText('Mazda MX-5 Cup');
+  await expect(app.locator('.car-head .note')).toHaveText('mx5-mx52016 · installs to mx5 mx52016 · driven in 668 sessions');
+  await expect(app.locator('.versions .card .head .name')).toHaveText(['Orange']);
+
+  // By name, in any case, across both groups; the counts are of what is showing.
+  await filter.fill('MAZDA');
+  await expect(app.locator('.sidebar .car .name')).toHaveText(['Mazda MX-5 Cup', 'Mazda MX-5 Cup']);
+  await expect(groups.nth(0).locator('.heading')).toHaveText('Liveries 1');
+  await expect(groups.nth(1).locator('.heading')).toHaveText('No livery yet 1');
+  // By folder — the library's or the sim's — though the name is what is shown.
+  await filter.fill('mx52016');
+  await expect(app.locator('.sidebar .car .name')).toHaveText(['Mazda MX-5 Cup']);
+  await expect(groups).toHaveCount(1);
+  await expect(groups.locator('.heading')).toHaveText('Liveries 1');
+  await filter.fill('Caterham420');
+  await expect(app.locator('.sidebar .car .name')).toHaveText(['Caterham Seven 420R']);
+  await expect(groups.locator('.heading')).toHaveText('No livery yet 1');
+  await filter.fill('  570s ');
+  await expect(app.locator('.sidebar .car .name')).toHaveText(['McLaren 570S GT4']);
+  await filter.fill('trabant');
+  await expect(app.locator('.sidebar .car')).toHaveCount(0);
+  await expect(app.locator('.sidebar .list .empty')).toHaveText('No car matches “trabant”.');
+  // The car being shown is still shown; the filter is over the list, not the page.
+  await expect(app.locator('.car-head h2')).toHaveText('Mazda MX-5 Cup');
+
+  // Escape clears it.
+  await filter.press('Escape');
+  await expect(filter).toHaveValue('');
+  await expect(filter).toBeFocused();
+  await expect(app.locator('.sidebar .car')).toHaveCount(7);
+  await expect(groups.nth(1).locator('.heading')).toHaveText('No livery yet 4');
+  await expect(app.locator('.sidebar .car.active .name')).toHaveText('Mazda MX-5 Cup');
+  expect(errors).toEqual([]);
+});
+
+test('a car with no livery says where one would go, shows what is installed, and offers nothing to apply', async ({ page }) => {
+  const installed = {
+    simFolder: 'caterham caterham420r', folderExists: true,
+    files: [{ role: 'car', roleLabel: 'Paint', fileName: `car_${CUSTOMER}.tga`, path: `${PAINT_DIR}\\caterham caterham420r\\car_${CUSTOMER}.tga`, size: 12582956, sha256: 'someone-elses-work', readOnly: false }],
+    cooked: [], cookedOtherDrivers: 203, appliedVersionId: null, matchKind: 'none', anyReadOnly: false,
+  };
+  const backup = { id: '2026-09-16_221500_000', path: 'C:\\backups\\caterham caterham420r\\2026-09-16_221500_000', created: '2026-09-16T22:15:00.000+01:00', reason: 'before revert to 2026-09-10_101010_000', fileCount: 1 };
+  await stubPaintsBridge(page, { ...PAINTS, carState: installed, listBackups: [backup] });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.sidebar .car', { hasText: 'Caterham Seven 420R' }).click();
+
+  await expect(app.locator('.car-head h2')).toHaveText('Caterham Seven 420R');
+  await expect(app.locator('.car-head .note')).toHaveText('caterham caterham420r · driven in 120 sessions');
+  const note = app.locator('.panel.no-livery');
+  await expect(note).toContainText('There is no livery for this car in the library.');
+  await expect(note.locator('code').first()).toHaveText(`${LIBRARY}\\caterham caterham420r\\<version name>\\`);
+  await expect(app.locator('.versions')).toHaveCount(0);
+  await expect(app.locator('.card')).toHaveCount(0);
+
+  // What is in the sim's folder, and the backups, are the car's whether the library knows it or not.
+  const inSim = app.locator('.panel', { hasText: 'Installed in the sim' });
+  await expect(inSim).toContainText(`car_${CUSTOMER}.tga`);
+  await expect(inSim).toContainText('203 belonging to other drivers');
+  await expect(app.locator('.panel', { hasText: 'Backups' })).toContainText(backup.id);
+  expect((await paintsCalls(page, 'carState')).at(-1)).toEqual({
+    paintDir: PAINT_DIR, libraryRoot: LIBRARY, carFolder: 'caterham caterham420r', simFolder: 'caterham caterham420r', customerId: CUSTOMER,
+  });
+  expect((await paintsCalls(page, 'listBackups')).at(-1)).toEqual({ carFolder: 'caterham caterham420r' });
+
+  // No Apply anywhere, and nothing warning about where a paint would land.
+  await expect(app.getByRole('button', { name: /apply/i })).toHaveCount(0);
+  await expect(app.locator('.modal')).toHaveCount(0);
+  await expect(app.locator('.chips .chip')).toHaveText('ready');
+  expect(await paintsCalls(page, 'preflight')).toEqual([]);
+  expect(await paintsCalls(page, 'applyVersion')).toEqual([]);
+
+  // A car the sim has made no paint folder for has nothing installed, and the page says why.
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    carState: { simFolder: null, folderExists: false, files: [], cooked: [], cookedOtherDrivers: 0, appliedVersionId: null, matchKind: 'none', anyReadOnly: false },
+  });
+  await page.reload();
+  const again = page.locator('#paints-root > .paints-app');
+  await again.locator('.sidebar .group').nth(1).locator('.car', { hasText: 'Mazda MX-5 Cup' }).click();
+  await expect(again.locator('.car-head .note')).toHaveText('mx5 cup');
+  await expect(again.locator('.panel.no-livery code').first()).toHaveText(`${LIBRARY}\\mx5 cup\\<version name>\\`);
+  await expect(again.locator('.panel', { hasText: 'Installed in the sim' })).toContainText('no folder in the paint directory yet');
+  await expect(again.getByRole('button', { name: /apply/i })).toHaveCount(0);
+  await expect(again.locator('.chips .chip')).toHaveText('ready');
+  expect(errors).toEqual([]);
+});
+
+test('a livery for a car with no paint folder is shown, warned about, and cannot be applied yet', async ({ page }) => {
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    carState: { simFolder: null, folderExists: false, files: [], cooked: [], cookedOtherDrivers: 0, appliedVersionId: null, matchKind: 'none', anyReadOnly: false },
+  });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.sidebar .car', { hasText: 'nissangtpzxt' }).click();
+  await expect(app.locator('.car-head h2')).toHaveText('nissangtpzxt');
+  await expect(app.locator('.versions .card .head .name')).toHaveText(['v1']);
+  await expect(app.locator('.versions .card .actions button.primary')).toBeDisabled();
+  await expect(app.locator('.chips .chip')).toHaveText('Car not in sim');
   expect(errors).toEqual([]);
 });
 
@@ -528,6 +696,7 @@ test('Apply on a version runs the manager\'s applyVersion with the request src/t
   // The dialog says what it is about to do, then Apply (enabled once preflight has answered) does it.
   const modal = app.locator('.modal');
   await expect(modal.locator('h2')).toHaveText('Apply v13 Shatter');
+  await expect(modal.locator('.sub')).toHaveText(`to Lotus 79, into lotus79 as customer ${CUSTOMER}`);
   await expect(modal).toContainText(`car_${CUSTOMER}.tga`);
   await expect(modal).toContainText(`car_spec_${CUSTOMER}.tga`);
   await expect(modal.locator('.banner')).toHaveCount(0);
@@ -542,7 +711,7 @@ test('Apply on a version runs the manager\'s applyVersion with the request src/t
     },
   }]);
   const entry = app.locator('.log .entry.ok');
-  await expect(entry).toContainText('Applied v13 Shatter to lotus79');
+  await expect(entry).toContainText('Applied v13 Shatter to Lotus 79');
   await expect(entry).toContainText(`car_${CUSTOMER}.tga installed`);
   expect((await paintsCalls(page, 'carState')).length).toBeGreaterThanOrEqual(2); // re-read after the apply
   expect(errors).toEqual([]);
@@ -567,6 +736,57 @@ test('what the manager refuses is shown in its own words', async ({ page }) => {
   await again.locator('.versions .card', { hasText: 'v12 Shatter' }).locator('.actions button.primary').click();
   await expect(again.locator('.modal .banner.bad')).toContainText('The paint folder could not be read.');
   await expect(again.locator('.modal .foot button.primary')).toBeDisabled();
+});
+
+// The same bundle outside the desk, as the Tauri shell runs the same source: no window.racingDesk, the Rust
+// commands under their snake_case names — and no car_catalogue among them.
+test('in the Tauri shell there is no catalogue: the list is the library\'s cars, by folder', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+  await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
+  const rust = {
+    load_settings: {}, save_settings: null, detect_paths: PAINTS.detectPaths, detect_customer: PAINTS.detectCustomer,
+    suggest_libraries: PAINTS.suggestLibraries, car_state: PAINTS.carState, list_backups: [],
+    trading_paints_status: PAINTS.tradingPaintsStatus, sim_status: PAINTS.simStatus, repo_status: PLAIN_FOLDER, repo_check: PLAIN_FOLDER,
+    preview_image: PAINTS.previewImage,
+    scan_library: {
+      root: LIBRARY,
+      cars: CATALOGUE.filter((c) => c.versions.length > 0).map(({ folder, simFolder, simFolderInferred, versions }) => ({ folder, simFolder, simFolderInferred, versions })),
+      notes: [],
+    },
+  };
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('about:blank');
+  await page.evaluate((canned) => {
+    window.__rust = [];
+    window.__TAURI_INTERNALS__ = {
+      invoke: (cmd, args) => {
+        window.__rust.push({ cmd, args });
+        return cmd in canned ? Promise.resolve(JSON.parse(JSON.stringify(canned[cmd]))) : Promise.reject(`Command ${cmd} not found`);
+      },
+      transformCallback: (cb) => cb,
+    };
+    document.body.style.cssText = 'margin:0;height:100vh';
+    const root = document.createElement('div');
+    root.id = 'root';
+    root.style.height = '100%';
+    document.body.append(root);
+  }, rust);
+  await page.addStyleTag({ path: join(here, '..', '..', 'modules', 'desk', 'paints.bundle.css') });
+  await page.addScriptTag({ path: join(here, '..', '..', 'modules', 'desk', 'paints.bundle.js') });
+  await page.evaluate(() => window.RacingDeskPaints.mount(document.getElementById('root')));
+
+  const app = page.locator('#root > .paints-app');
+  await expect(app.locator('.sidebar .group .heading')).toHaveText(['Liveries 3']);
+  await expect(app.locator('.sidebar .car .name')).toHaveText(['lotus79', 'mx5-mx52016', 'nissangtpzxt']);
+  await expect(app.locator('.sidebar .car .meta')).toHaveText(['2 versions', '1 version · installs to mx5 mx52016', '1 version · not in the sim']);
+  await expect(app.locator('.car-head h2')).toHaveText('lotus79');
+  await expect(app.locator('.versions .card .head .name')).toHaveText(['v12 Shatter', 'v13 Shatter']);
+  const asked = await page.evaluate(() => window.__rust.map((c) => c.cmd));
+  expect(asked.filter((c) => c === 'car_catalogue')).toHaveLength(1);
+  expect(await page.evaluate(() => window.__rust.filter((c) => c.cmd === 'scan_library').map((c) => c.args)))
+    .toEqual([{ libraryRoot: LIBRARY, paintDir: PAINT_DIR }]);
+  expect(errors).toEqual([]);
 });
 
 test('without the app the Paints page says so instead of mounting the manager', async ({ page }) => {

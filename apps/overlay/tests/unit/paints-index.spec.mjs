@@ -1,7 +1,7 @@
 /**
- * The command surface: the 17 Tauri command names in camelCase, each taking src/api.ts's arguments and returning
- * src/types.ts's shapes, driven end to end over temp folders with the machine checks faked quiet — including the
- * lib.rs-level errors and the settings store hand-off.
+ * The command surface: the 17 Tauri command names in camelCase and the desk's own carCatalogue, each taking
+ * src/api.ts's arguments and returning src/types.ts's shapes, driven end to end over temp folders with the machine
+ * checks faked quiet — including the lib.rs-level errors and the settings store hand-off.
  */
 
 import { test, expect } from '@playwright/test';
@@ -18,7 +18,7 @@ const CUSTOMER = '424242';
 const NAMES = [
   'detectPaths', 'detectCustomer', 'scanLibrary', 'carState', 'tradingPaintsStatus', 'simStatus', 'preflight',
   'applyVersion', 'listBackups', 'revertCar', 'repoStatus', 'repoCheck', 'repoPull', 'suggestLibraries',
-  'loadSettings', 'saveSettings', 'previewImage',
+  'loadSettings', 'saveSettings', 'previewImage', 'carCatalogue',
 ];
 
 const quietSim = async () => ({ simRunning: false, uiRunning: false, matched: [] });
@@ -58,13 +58,13 @@ test.beforeAll(() => {
 });
 test.afterAll(() => { fs.rmSync(root, { recursive: true, force: true }); });
 
-test('exactly the 17 commands, named as the Tauri ones in camelCase, every one async', () => {
+test('exactly the 18 commands — the Tauri ones in camelCase, then carCatalogue — every one async', () => {
   expect(Object.keys(commands)).toEqual(NAMES);
   expect(COMMAND_NAMES).toEqual(NAMES);
   expect(Object.keys(cmd)).toEqual(NAMES);
   for (const name of NAMES) expect(typeof cmd[name], name).toBe('function');
   // No Electron in any of it: everything loaded under plain Node.
-  for (const mod of ['apply', 'customer', 'digest', 'installed', 'library', 'paths', 'process', 'repo', 'roles', 'settings', 'tga', 'tradingpaints']) {
+  for (const mod of ['apply', 'catalogue', 'customer', 'digest', 'installed', 'library', 'paths', 'process', 'repo', 'roles', 'settings', 'tga', 'tradingpaints']) {
     expect(typeof paints[mod], mod).toBe('object');
   }
 });
@@ -82,7 +82,7 @@ test('detectPaths and detectCustomer use the injected environment', async () => 
   expect(await certain.detectCustomer(fx.paint)).toMatchObject({ id: '42', confidence: 'certain' });
 });
 
-test('scanLibrary, carState and the lib.rs error for a car that is not there', async () => {
+test('scanLibrary and carState, in the library and out of it', async () => {
   const lib = await cmd.scanLibrary(fx.library, fx.paint);
   expect(lib.cars.map((c) => c.folder)).toEqual(['lotus79']);
   expect(lib.cars[0].simFolder).toBe('lotus79');
@@ -96,8 +96,14 @@ test('scanLibrary, carState and the lib.rs error for a car that is not there', a
   const elsewhere = await cmd.carState({ paintDir: fx.paint, libraryRoot: fx.library, carFolder: 'lotus79', simFolder: 'nissangtpzxt', customerId: CUSTOMER });
   expect(elsewhere).toMatchObject({ simFolder: 'nissangtpzxt', folderExists: false, appliedVersionId: null });
 
-  await expect(cmd.carState({ paintDir: fx.paint, libraryRoot: fx.library, carFolder: 'mx5', simFolder: null, customerId: CUSTOMER }))
-    .rejects.toThrow('mx5 is not in the library.');
+  // A car the library has no folder for is not an error — the list holds every car on the rig — it has no
+  // versions to be one of. (lib.rs refused it: "mx5 is not in the library.")
+  expect(await cmd.carState({ paintDir: fx.paint, libraryRoot: fx.library, carFolder: 'mx5', simFolder: null, customerId: CUSTOMER }))
+    .toMatchObject({ simFolder: null, folderExists: false, files: [], appliedVersionId: null, matchKind: 'none' });
+  // Nor is no library at all: the Lotus's files are read, and nothing claims them.
+  const unmatched = await cmd.carState({ paintDir: fx.paint, libraryRoot: '', carFolder: 'lotus79', simFolder: null, customerId: CUSTOMER });
+  expect(unmatched).toMatchObject({ simFolder: 'lotus79', folderExists: true, appliedVersionId: null, matchKind: 'none' });
+  expect(unmatched.files.map((f) => f.fileName)).toEqual([`car_${CUSTOMER}.tga`]);
 });
 
 test('tradingPaintsStatus, simStatus and preflight come from the injected checks', async () => {

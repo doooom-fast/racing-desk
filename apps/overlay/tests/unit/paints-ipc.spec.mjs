@@ -23,8 +23,9 @@ function recorder() {
 
 const store = { get: () => ({}), set: () => {} };
 
-test('exactly the 17 commands, in the order the port lists them', () => {
+test('exactly the 18 commands, in the order the port lists them', () => {
   expect(paintsIpc.NAMES).toEqual(COMMAND_NAMES);
+  expect(paintsIpc.NAMES).toHaveLength(18);
 });
 
 test('names outside the list are refused before anything runs — including Object.prototype\'s and non-strings', async () => {
@@ -65,6 +66,7 @@ test('named arguments become the positional ones each command takes', async () =
   await paintsIpc.invoke(commands, store, 'loadSettings');
   await paintsIpc.invoke(commands, store, 'saveSettings', { settings: { customerId: '1' } });
   await paintsIpc.invoke(commands, store, 'previewImage', { path: 'car.tga', maxEdge: 640 });
+  await paintsIpc.invoke(commands, store, 'carCatalogue', { libraryRoot: 'L', paintDir: 'P', installRoot: 'not the page\'s to say' });
 
   expect(calls).toEqual([
     ['detectPaths'],
@@ -84,6 +86,7 @@ test('named arguments become the positional ones each command takes', async () =
     ['loadSettings', store],
     ['saveSettings', { customerId: '1' }, store],
     ['previewImage', 'car.tga', 640],
+    ['carCatalogue', { libraryRoot: 'L', paintDir: 'P' }],
   ]);
 });
 

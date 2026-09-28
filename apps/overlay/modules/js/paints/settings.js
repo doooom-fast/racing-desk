@@ -10,6 +10,11 @@ const STRING_KEYS = Object.freeze(['paintDir', 'libraryRoot', 'customerId']);
 const BOOL_KEYS = Object.freeze(['includeSpec', 'setReadOnlyAfter', 'clearOtherCooked', 'autoUpdateOnLaunch']);
 const KEYS = Object.freeze([...STRING_KEYS, ...BOOL_KEYS]);
 
+// Kept beside the Settings in the same store, set by hand and read by the app alone: `installDir`, the iRacing
+// install for when detection picks the wrong one (catalogue.js). They are no part of the Settings shape — the UI
+// neither loads nor saves them — so save() carries them across, or the page's first save would drop them.
+const HOST_KEYS = Object.freeze(['installDir']);
+
 // Nothing remembered: every field null, as serde wrote a default Settings.
 const DEFAULTS = Object.freeze({
   paintDir: null,
@@ -87,11 +92,27 @@ function load(store) {
   return normalise(raw);
 }
 
+// What the store holds under the host's own keys: non-empty strings only, {} from a store that throws.
+function hostValues(store) {
+  let raw;
+  try {
+    raw = store && typeof store.get === 'function' ? store.get() : undefined;
+  } catch (e) {
+    raw = undefined;
+  }
+  const out = {};
+  if (!isPlainObject(raw)) return out;
+  for (const key of HOST_KEYS) {
+    if (typeof raw[key] === 'string' && raw[key].trim().length) out[key] = raw[key];
+  }
+  return out;
+}
+
 function save(store, settings) {
   if (!store || typeof store.set !== 'function') throw new Error('No settings store to save into.');
   const clean = normalise(settings);
-  store.set(clean);
+  store.set({ ...clean, ...hostValues(store) });
   return clean;
 }
 
-module.exports = { DEFAULTS, KEYS, STRING_KEYS, BOOL_KEYS, validate, normalise, merge, load, save };
+module.exports = { DEFAULTS, KEYS, STRING_KEYS, BOOL_KEYS, HOST_KEYS, validate, normalise, merge, load, hostValues, save };
