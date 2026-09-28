@@ -396,7 +396,8 @@ test('without the app the Settings page is read-only and says so', async ({ page
 // ── Paints ───────────────────────────────────────────────────
 // The livery manager's island (apps/paints/src, bundled by build-island.mjs in beforeAll) over a stubbed
 // window.racingDesk.paints: a canned answer per command, every call recorded. An answer of { __error } rejects the
-// way preload.js does, with an Error carrying the command's own message.
+// way preload.js does, with an Error carrying the command's own message; { __after: ms, answer } answers that much
+// later; { __by: 'carFolder', answers } picks the answer by that argument ('*' for the rest).
 
 const PAINT_DIR = 'C:\\Users\\Owner\\Documents\\iRacing\\paint';
 const LIBRARY = 'C:\\Users\\Owner\\Documents\\GitHub\\liveries\\cars';
@@ -470,14 +471,25 @@ const PAINTS = {
 async function stubPaintsBridge(page, answers) {
   await page.addInitScript((canned) => {
     window.__paints = { calls: [], picked: 0, revealed: [] };
+    const give = async (answer, args) => {
+      const special = (key) => answer !== null && typeof answer === 'object' && key in answer;
+      if (special('__by')) {
+        const key = String((args ?? {})[answer.__by]);
+        return give(key in answer.answers ? answer.answers[key] : answer.answers['*'], args);
+      }
+      if (special('__after')) {
+        await new Promise((resolve) => setTimeout(resolve, answer.__after));
+        return give(answer.answer, args);
+      }
+      if (special('__error')) throw new Error(answer.__error);
+      return JSON.parse(JSON.stringify(answer));
+    };
     window.racingDesk = {
       paints: {
         invoke: async (name, args) => {
           window.__paints.calls.push({ name, args });
           if (!(name in canned)) throw new Error(`no answer for ${name}`);
-          const answer = canned[name];
-          if (answer && typeof answer === 'object' && '__error' in answer) throw new Error(answer.__error);
-          return JSON.parse(JSON.stringify(answer));
+          return give(canned[name], args);
         },
         pickFolder: async () => { window.__paints.picked += 1; return null; },
         reveal: async (p) => { window.__paints.revealed.push(p); },
@@ -505,6 +517,9 @@ test('the Paints page is the livery manager: the paint folder it found, the cars
   await expect(setup.nth(1)).toHaveValue(LIBRARY);
   await expect(setup.nth(2)).toHaveValue(CUSTOMER);
   await expect(app.locator('.setup .badge')).toHaveText('certain');
+  // A path longer than its field is whole in the field's tooltip.
+  await expect(setup.nth(0)).toHaveAttribute('title', PAINT_DIR);
+  await expect(setup.nth(1)).toHaveAttribute('title', LIBRARY);
 
   // The desk's masthead says where you are: no wordmark and no bar for one — what stands in a swap's way, and
   // Refresh, are at the end of the setup row.
@@ -736,6 +751,263 @@ test('what the manager refuses is shown in its own words', async ({ page }) => {
   await again.locator('.versions .card', { hasText: 'v12 Shatter' }).locator('.actions button.primary').click();
   await expect(again.locator('.modal .banner.bad')).toContainText('The paint folder could not be read.');
   await expect(again.locator('.modal .foot button.primary')).toBeDisabled();
+});
+
+test('choosing another car closes the Apply dialog: what it says is about the car it was opened for', async ({ page }) => {
+  await stubPaintsBridge(page, PAINTS);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
+  const modal = app.locator('.modal');
+  await expect(modal.locator('.sub')).toHaveText(`to Lotus 79, into lotus79 as customer ${CUSTOMER}`);
+
+  // The scrim keeps the mouse off the list behind the dialog; the keyboard still reaches it.
+  await app.locator('.sidebar .car', { hasText: 'McLaren 570S GT4' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+  await expect(modal).toHaveCount(0);
+
+  // And it stays closed: it does not come back for the next car chosen.
+  await app.locator('.sidebar .car', { hasText: 'Lotus 79' }).click();
+  await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+  await expect(app.locator('.versions .card')).toHaveCount(2);
+  await expect(modal).toHaveCount(0);
+  expect(await paintsCalls(page, 'applyVersion')).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+// Two cars whose folders hold different things, so that one's answer under the other's name shows.
+const MCLAREN_STATE = {
+  simFolder: 'mclaren570sgt4', folderExists: true,
+  files: [{ role: 'car', roleLabel: 'Paint', fileName: `car_${CUSTOMER}.tga`, path: `${PAINT_DIR}\\mclaren570sgt4\\car_${CUSTOMER}.tga`, size: 12582956, sha256: 'mclaren-paint', readOnly: false }],
+  cooked: [], cookedOtherDrivers: 7, appliedVersionId: null, matchKind: 'none', anyReadOnly: false,
+};
+const LOTUS_BACKUP = { id: '2026-09-16_221500_000', path: 'C:\\backups\\lotus79\\2026-09-16_221500_000', created: '2026-09-16T22:15:00.000+01:00', reason: 'before apply v12', fileCount: 2 };
+const BY_CAR = {
+  carState: { __by: 'carFolder', answers: { mclaren570sgt4: MCLAREN_STATE, '*': PAINTS.carState } },
+  listBackups: { __by: 'carFolder', answers: { lotus79: [LOTUS_BACKUP], '*': [] } },
+};
+
+test('a car just chosen is not shown the last car\'s files and backups while its own are read', async ({ page }) => {
+  await stubPaintsBridge(page, {
+    ...PAINTS, ...BY_CAR,
+    carState: { __by: 'carFolder', answers: { mclaren570sgt4: { __after: 800, answer: MCLAREN_STATE }, '*': PAINTS.carState } },
+  });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  const inSim = app.locator('.panel', { hasText: 'Installed in the sim' });
+  const backups = app.locator('.panel', { hasText: 'Backups' });
+  await expect(inSim).toContainText('41 belonging to other drivers');
+  await expect(backups).toContainText(LOTUS_BACKUP.id);
+
+  await app.locator('.sidebar .car', { hasText: 'McLaren 570S GT4' }).click();
+  await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+  // As it stands now, not as it will once the answer is in.
+  expect(await inSim.textContent()).not.toContain('belonging to other drivers');
+  expect(await backups.textContent()).not.toContain(LOTUS_BACKUP.id);
+  expect(await backups.getByRole('button').count()).toBe(0);
+
+  await expect(inSim).toContainText('7 belonging to other drivers');
+  await expect(backups).toContainText('Nothing backed up for this car yet');
+  expect(errors).toEqual([]);
+});
+
+test('a car chosen while an apply is on its way keeps its own files when the apply answers', async ({ page }) => {
+  await stubPaintsBridge(page, { ...PAINTS, ...BY_CAR, applyVersion: { __after: 500, answer: PAINTS.applyVersion } });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
+  await app.locator('.modal .foot button.primary').click();
+  await app.locator('.sidebar .car', { hasText: 'McLaren 570S GT4' }).click();
+  await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+
+  // The apply answers, and the car is read again — the one on the page, not the one the apply was for.
+  await expect(app.locator('.log .entry.ok')).toContainText('Applied v13 Shatter to Lotus 79');
+  await expect.poll(async () => (await paintsCalls(page, 'carState')).length).toBeGreaterThanOrEqual(3);
+  await page.waitForTimeout(150);
+  expect((await paintsCalls(page, 'carState')).at(-1).carFolder).toBe('mclaren570sgt4');
+  expect((await paintsCalls(page, 'listBackups')).at(-1)).toEqual({ carFolder: 'mclaren570sgt4' });
+  const inSim = app.locator('.panel', { hasText: 'Installed in the sim' });
+  expect(await inSim.textContent()).toContain('7 belonging to other drivers');
+  expect(await app.locator('.panel', { hasText: 'Backups' }).textContent()).toContain('Nothing backed up for this car yet');
+  await inSim.getByRole('button', { name: 'Show in Explorer' }).click();
+  expect(await page.evaluate(() => window.__paints.revealed)).toEqual([`${PAINT_DIR}\\mclaren570sgt4\\car_${CUSTOMER}.tga`]);
+
+  // Refresh reads the cars, and the car on the page once.
+  const before = (await paintsCalls(page, 'carState')).length;
+  await app.locator('.setup .status button', { hasText: 'Refresh' }).click();
+  await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
+  await expect.poll(async () => (await paintsCalls(page, 'carState')).length).toBeGreaterThan(before);
+  await page.waitForTimeout(150);
+  expect((await paintsCalls(page, 'carState')).slice(before).map((c) => c.carFolder)).toEqual(['mclaren570sgt4']);
+  expect(errors).toEqual([]);
+});
+
+test('while the cars are on their way the page says so, and when they cannot be read it says why', async ({ page }) => {
+  await stubPaintsBridge(page, { ...PAINTS, carCatalogue: { __after: 700, answer: CATALOGUE } });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await expect(app.locator('.sidebar .empty')).toHaveText('Reading the cars…');
+  await expect(app.locator('.main > .empty')).toHaveText('Reading the cars…');
+  await expect(app.locator('.sidebar .car')).toHaveCount(7);
+  await expect(app.locator('.sidebar .empty')).toHaveCount(0);
+  await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+  expect(errors).toEqual([]);
+
+  // A list that is here and empty is the only one that says there are no cars.
+  await stubPaintsBridge(page, { ...PAINTS, carCatalogue: [] });
+  await page.reload();
+  const empty = page.locator('#paints-root > .paints-app');
+  await expect(empty.locator('.sidebar .empty')).toHaveText('No cars in this folder.');
+  await expect(empty.locator('.main > .empty')).toHaveText('Nothing to show. Point the library at a folder of car folders.');
+
+  const refusal = 'EPERM: operation not permitted, scandir \'C:\\Users\\Owner\\Documents\\GitHub\\liveries\\cars\\locked\'';
+  const found = 'Documents is redirected to OneDrive; using the paint folder there.';
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    detectPaths: { ...PAINTS.detectPaths, notes: [found] },
+    carCatalogue: { __error: refusal },
+  });
+  await page.reload();
+  const failed = page.locator('#paints-root > .paints-app');
+  await expect(failed.locator('.sidebar .empty')).toHaveText('The cars could not be read.');
+  await expect(failed.locator('.main > .empty')).toContainText('The cars could not be read');
+  // With no car to show there is still somewhere for what went wrong, and what start-up found, to be read.
+  await expect(failed.locator('.log .entry.bad')).toContainText('Could not read the library');
+  await expect(failed.locator('.log .entry.bad')).toContainText(refusal);
+  await expect(failed.locator('.log .entry', { hasText: found })).toHaveCount(1);
+  await expect(failed).not.toContainText('No cars in this folder.');
+  await expect(failed).not.toContainText('Point the library at a folder');
+});
+
+// The rig's list: 18 cars with a livery and 171 without, far more than the window is tall.
+const pad = (n) => String(n).padStart(3, '0');
+const MANY = [
+  ...Array.from({ length: 18 }, (_, i) => car(`livery${pad(i)}`, `livery${pad(i)}`, [version('v1', 'v1', `livery${pad(i)}`)], `Livery Car ${pad(i)}`, null, true, 1)),
+  ...Array.from({ length: 171 }, (_, i) => car(`plain${pad(i)}`, `plain${pad(i)}`, [], `Plain Car ${pad(i)}`, null, true, 0)),
+];
+
+// Null when the focused row is what is on screen at its middle; its name when something else is over it.
+const focusedRowIfCovered = (page) => page.evaluate(() => {
+  const row = document.activeElement;
+  const box = row.getBoundingClientRect();
+  const onTop = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+  return row.contains(onTop) ? null : row.textContent;
+});
+
+test('a long list: a row reached by keyboard is never under a group\'s heading', async ({ page }) => {
+  await stubPaintsBridge(page, { ...PAINTS, carCatalogue: MANY });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  const rows = app.locator('.sidebar .car');
+  await expect(rows).toHaveCount(189);
+
+  // Up the list: each row scrolls into view at the top edge, which is where the heading is stuck.
+  await rows.nth(120).focus();
+  const covered = [];
+  for (let i = 0; i < 60; i++) {
+    await page.keyboard.press('Shift+Tab');
+    const name = await focusedRowIfCovered(page);
+    if (name) covered.push(name);
+  }
+  await expect(rows.nth(60)).toBeFocused();
+  expect(covered).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('a long list: the car being looked at is back in view when the filter is cleared', async ({ page }) => {
+  await stubPaintsBridge(page, { ...PAINTS, carCatalogue: MANY });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  const rows = app.locator('.sidebar .car');
+  const active = app.locator('.sidebar .car.active');
+  const filter = app.locator('.sidebar .filter input');
+  await expect(rows).toHaveCount(189);
+  const inView = () => active.evaluate((row) => {
+    const box = row.getBoundingClientRect();
+    return row.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+  });
+
+  await rows.nth(150).click();
+  await expect(active.locator('.name')).toHaveText('Plain Car 132');
+  await filter.fill('trabant');
+  await expect(rows).toHaveCount(0);
+  await filter.press('Escape');
+  await expect(rows).toHaveCount(189);
+  await expect(active.locator('.name')).toHaveText('Plain Car 132');
+  await expect(active).toBeInViewport();
+  expect(await inView()).toBe(true);
+
+  // Emptied by hand, from a filter the car was one of the matches of.
+  await filter.fill('plain13');
+  await expect(rows).toHaveCount(10);
+  await filter.fill('');
+  await expect(rows).toHaveCount(189);
+  await expect(active).toBeInViewport();
+  expect(await inView()).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('the filter takes words in any order, and an accent need not be typed', async ({ page }) => {
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    carCatalogue: [
+      ...CATALOGUE,
+      car('lamborghinievogt3', 'lamborghinievogt3', [], 'Lamborghini Huracán GT3 EVO', 'Huracán GT3 EVO', true, 3),
+      car('citroenc3wrx', null, [], 'Citroën C3 WRX', 'C3 WRX', true, 0),
+    ],
+  });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  const names = app.locator('.sidebar .car .name');
+  const filter = app.locator('.sidebar .filter input');
+  await expect(names).toHaveCount(9);
+
+  await filter.fill('huracan');
+  await expect(names).toHaveText(['Lamborghini Huracán GT3 EVO']);
+  await filter.fill('HURACÁN');
+  await expect(names).toHaveText(['Lamborghini Huracán GT3 EVO']);
+  await filter.fill('evo lambo');
+  await expect(names).toHaveText(['Lamborghini Huracán GT3 EVO']);
+  await filter.fill('Citroën wrx');
+  await expect(names).toHaveText(['Citroën C3 WRX']);
+  await filter.fill('mazda cup');
+  await expect(names).toHaveText(['Mazda MX-5 Cup', 'Mazda MX-5 Cup']);
+  // A word may be in the name and another in the folder.
+  await filter.fill('cup  mx52016');
+  await expect(names).toHaveText(['Mazda MX-5 Cup']);
+  await expect(app.locator('.sidebar .car .meta')).toHaveText('1 version · mx5-mx52016 · installs to mx5 mx52016');
+  // Every word has to be there.
+  await filter.fill('mazda trabant');
+  await expect(names).toHaveCount(0);
+  await expect(app.locator('.sidebar .list .empty')).toHaveText('No car matches “mazda trabant”.');
+  expect(errors).toEqual([]);
+});
+
+test('a car with a livery is as bold when the filter leaves only cars with one', async ({ page }) => {
+  await stubPaintsBridge(page, PAINTS);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  const groups = app.locator('.sidebar .group');
+  const filter = app.locator('.sidebar .filter input');
+  const look = (name) => app.locator('.sidebar .car:not(.active) .name', { hasText: name })
+    .evaluate((el) => { const s = getComputedStyle(el); return [s.fontWeight, s.color]; });
+  await expect(groups).toHaveCount(2);
+  const livery = await look('nissangtpzxt');
+  const plain = await look('oldcar');
+  expect(livery[0]).toBe('600');
+  expect(plain[0]).toBe('400');
+  expect(plain[1]).not.toBe(livery[1]);
+
+  // Its group is now the last in the list, and it is still a car with a livery.
+  await filter.fill('nissan');
+  await expect(groups.locator('.heading')).toHaveText(['Liveries 1']);
+  expect(await look('nissangtpzxt')).toEqual(livery);
+  // And a car without one is as quiet when its group is the only one.
+  await filter.fill('oldcar');
+  await expect(groups.locator('.heading')).toHaveText(['No livery yet 1']);
+  expect(await look('oldcar')).toEqual(plain);
+  expect(errors).toEqual([]);
 });
 
 // The same bundle outside the desk, as the Tauri shell runs the same source: no window.racingDesk, the Rust

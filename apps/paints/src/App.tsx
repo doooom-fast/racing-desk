@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as api from "./api";
 import { reveal } from "./bridge";
 import { errorText } from "./api";
@@ -54,6 +54,8 @@ export default function App() {
   const [pathReport, setPathReport] = useState<PathReport | null>(null);
   const [customerReport, setCustomerReport] = useState<CustomerReport | null>(null);
   const [cars, setCars] = useState<CatalogueCar[] | null>(null);
+  /// Where the list of cars stands. No cars is only "there are none" once the list is here.
+  const [listing, setListing] = useState<"reading" | "read" | "failed">("reading");
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [installed, setInstalled] = useState<InstalledState | null>(null);
   const [backups, setBackups] = useState<BackupEntry[]>([]);
@@ -174,10 +176,12 @@ export default function App() {
       setCars(null);
       return;
     }
+    setListing("reading");
     try {
       const found = await api.carCatalogue(libraryRoot, paintDir || null);
       if (mine !== asked.current) return;
       setCars(found);
+      setListing("read");
       // A car that is still there stays selected; otherwise the first with a livery, as the list shows it.
       setSelectedFolder((current) => {
         if (current && found.some((c) => c.folder === current)) return current;
@@ -187,6 +191,7 @@ export default function App() {
     } catch (e) {
       if (mine !== asked.current) return;
       setCars(null);
+      setListing("failed");
       say("bad", "Could not read the library", [errorText(e)]);
     }
   }, [libraryRoot, paintDir, say]);
@@ -283,7 +288,11 @@ export default function App() {
   const carName = car ? carLabel(car) : "";
 
   // --- installed state for the selected car ---------------------------------------------
+  // Numbered like the list: what is shown is the answer for the last car asked about, however late
+  // another's arrives.
+  const carAsked = useRef(0);
   const refreshCar = useCallback(async () => {
+    const mine = ++carAsked.current;
     if (!car || !paintDir || !libraryRoot || !/^\d+$/.test(customerId)) {
       setInstalled(null);
       setBackups([]);
@@ -300,17 +309,32 @@ export default function App() {
         }),
         api.listBackups(car.folder),
       ]);
+      if (mine !== carAsked.current) return;
       setInstalled(state);
       setBackups(list);
     } catch (e) {
+      if (mine !== carAsked.current) return;
       setInstalled(null);
+      setBackups([]);
       say("bad", "Could not read the car's folder", [errorText(e)]);
     }
   }, [car, paintDir, libraryRoot, customerId, say]);
 
+  // An apply or a revert reads the car again when it is done, and by then another car may be the one on
+  // the page: what they call is the refreshCar of now, not of the render they began in.
+  const latestRefreshCar = useRef(refreshCar);
   useEffect(() => {
+    latestRefreshCar.current = refreshCar;
     void refreshCar();
   }, [refreshCar]);
+
+  // What was read, and a dialog opened, for the last car are not this one's. Before the page is painted,
+  // so that they are never seen under this one's name.
+  useLayoutEffect(() => {
+    setInstalled(null);
+    setBackups([]);
+    setApplying(null);
+  }, [selectedFolder]);
 
   // --- guards ---------------------------------------------------------------------------
   useEffect(() => {
@@ -363,7 +387,7 @@ export default function App() {
       say("bad", `Did not apply ${version.name}`, [errorText(e)]);
     } finally {
       setBusy(false);
-      await refreshCar();
+      await latestRefreshCar.current();
     }
   };
 
@@ -387,7 +411,7 @@ export default function App() {
       say("bad", `Did not revert ${carName}`, [errorText(e)]);
     } finally {
       setBusy(false);
-      await refreshCar();
+      await latestRefreshCar.current();
     }
   };
 
@@ -396,6 +420,21 @@ export default function App() {
     () => collectStatus({ sim, tp, repo, car, idValid }),
     [sim, tp, repo, car, idValid],
   );
+
+  /// What stands where the cars would be while there are none to show.
+  const noCars = !libraryRoot
+    ? { list: "Pick a library folder above.", page: "Pick a library folder to get started." }
+    : listing === "reading"
+      ? { list: "Reading the cars…", page: "Reading the cars…" }
+      : listing === "failed"
+        ? {
+            list: "The cars could not be read.",
+            page: "The cars could not be read. What went wrong is below.",
+          }
+        : {
+            list: "No cars in this folder.",
+            page: "Nothing to show. Point the library at a folder of car folders.",
+          };
 
   return (
     <div className="paints-app">
@@ -411,7 +450,8 @@ export default function App() {
         onCustomerId={setCustomerId}
       >
         <StatusChips items={status} />
-        <button onClick={() => void refreshLibrary().then(refreshCar)} disabled={busy}>
+        {/* The cars only: a new list is a new car to read, which the effect on it does. */}
+        <button onClick={() => void refreshLibrary()} disabled={busy}>
           Refresh
         </button>
       </SetupBar>
@@ -421,7 +461,7 @@ export default function App() {
           cars={cars ?? []}
           selected={selectedFolder}
           onSelect={setSelectedFolder}
-          empty={libraryRoot ? "No cars in this folder." : "Pick a library folder above."}
+          empty={noCars.list}
         />
 
         <div className="main">
@@ -548,32 +588,29 @@ export default function App() {
               </div>
 
               <TradingPaintsPanel tp={tp} />
+            </>
+          ) : (
+            <div className="empty">{noCars.page}</div>
+          )}
 
-              {log.length > 0 && (
-                <div className="panel">
-                  <h3>Activity</h3>
-                  <div className="log">
-                    {log.map((e) => (
-                      <div className={`entry ${e.kind}`} key={e.id}>
-                        <div>
-                          <span className="when">{e.when}</span> {e.title}
-                        </div>
-                        {e.lines.map((l, i) => (
-                          <div className="note" key={i}>
-                            {l}
-                          </div>
-                        ))}
+          {/* Whether or not there is a car to show: what went wrong reading the cars is said here. */}
+          {log.length > 0 && (
+            <div className="panel">
+              <h3>Activity</h3>
+              <div className="log">
+                {log.map((e) => (
+                  <div className={`entry ${e.kind}`} key={e.id}>
+                    <div>
+                      <span className="when">{e.when}</span> {e.title}
+                    </div>
+                    {e.lines.map((l, i) => (
+                      <div className="note" key={i}>
+                        {l}
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="empty">
-              {libraryRoot
-                ? "Nothing to show. Point the library at a folder of car folders."
-                : "Pick a library folder to get started."}
+                ))}
+              </div>
             </div>
           )}
         </div>

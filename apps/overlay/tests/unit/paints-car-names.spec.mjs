@@ -94,6 +94,33 @@ test('anything but a list of rows is an empty list, and is not kept', async () =
   expect(await carNames()).toEqual(ROWS);
 });
 
+test('an empty list is an answer, and is not kept: a store that has met no car yet is asked again', async () => {
+  const carNames = createCarNames({ host: host.url });
+  host.state.answer = { status: 200, body: '[]' };
+  expect(await carNames()).toEqual([]);
+  host.state.answer = { status: 200, body: JSON.stringify(ROWS) };
+  expect(await carNames()).toEqual(ROWS);
+  expect(host.state.asked).toHaveLength(2);
+});
+
+test('calls made while one is on its way share its answer: a path being typed asks the host once', async () => {
+  host.state.answer = { status: 200, body: JSON.stringify(ROWS), delayMs: 200 };
+  const carNames = createCarNames({ host: host.url });
+  const answers = await Promise.all(Array.from({ length: 12 }, () => carNames()));
+  for (const rows of answers) expect(rows).toEqual(ROWS);
+  expect(host.state.asked).toHaveLength(1);
+
+  // A failure is shared the same way, and the call after it asks again.
+  const other = createCarNames({ host: host.url, timeoutMs: 100 });
+  host.state.asked.length = 0;
+  host.state.answer = { status: 200, body: JSON.stringify(ROWS), delayMs: 2000 };
+  expect(await Promise.all([other(), other(), other()])).toEqual([[], [], []]);
+  expect(host.state.asked).toHaveLength(1);
+  host.state.answer = { status: 200, body: JSON.stringify(ROWS) };
+  expect(await other()).toEqual(ROWS);
+  expect(host.state.asked).toHaveLength(2);
+});
+
 test('rows that are not rows are dropped from a list that is one', async () => {
   host.state.answer = { status: 200, body: JSON.stringify([ROWS[0], null, 'lotus79', { name: 'No path' }, { car_path: 7 }, ROWS[1]]) };
   expect(await createCarNames({ host: host.url })()).toEqual(ROWS);

@@ -60,7 +60,9 @@ The host also serves the store read-only at `:8889/racing-desk/data/{status,sess
 Car names (`cars`, schema v4) come from the session YAML of the driver's own sessions, which lists every entrant's
 `CarPath` and `CarScreenName` — nothing of iRacing's is bundled, so a car that has never been in one of those sessions
 has no name. The host reads them on ingest and live capture, and once, in the background, from the headers of the
-files ingested before v4 (`ingested_files.cars_scanned`). `seen` is the number of stored sessions a car was entered in
+files ingested before v4 (`ingested_files.cars_scanned`) — a file cut short or gone is marked read all the same, one
+that could not be reached (held by another program, its folder not there) is tried again at the next start, and a
+header pass that fails does not stop the ingest after it. `seen` is the number of stored sessions a car was entered in
 (`session_cars`), `driven` those the driver drove it in. An older host still records sessions in a v4 store but can
 no longer mark a file ingested, so rebuild the app before opening the real store with a newer host.
 
@@ -132,18 +134,19 @@ is also the name of its paint folder and the store's `car_path`; `-`, `_` and ca
 - **A car in the install** is a folder holding a `.dat` (that it is there is all that is read). 29 folders on this rig
   hold one *and* have cars beneath them — `mx5\mx5.dat` beside `mx5\mx52016`, `fordgt` beside `fordgt\gt3`. Some are
   cars themselves (`fordgt`), some only what their cars are built on (`mx5`), and the disk doesn't say which, so one
-  is listed only when the store has a name for it, the paint directory a folder, or the library a livery.
+  is listed only when the store has a name for it, the paint directory a folder, or the library a livery. Nothing
+  under `cars\safety` is listed: the 7 pace cars, which the store never names.
 - **A car in the paint directory** is a folder the install has, or one holding `car_*.tga` / `car_*.mip` itself — and
-  never `helmets`, `suits` or `cars`, where Trading Paints leaves `car_spec_*.mip` files too. A library checked out in
-  there is not one either.
+  never `helmets`, `suits` or `cars`, where Trading Paints leaves `car_spec_*.mip` files too, nor the folder the
+  library is in, whatever is lying at the top of a checkout.
 - **Names** come from the local store through the host, `GET /racing-desk/data/cars` →
   `[{ car_path, name, short_name, car_id, driven, seen }]` (`modules/js/paints/car-names.js`: 3 s, a good answer kept
-  for a minute, an empty list on any failure). A car that has never been in one of the driver's sessions has no name
-  and is listed by its folder.
+  for a minute, an empty list on any failure, one request however many callers are waiting). A car that has never
+  been in one of the driver's sessions has no name and is listed by its folder.
 - **The install** is found from `HKCU\Software\Classes\iracing\shell\open\command`, which the iRacing UI rewrites
   every time it starts — the install is two folders above that exe — then the usual Steam and default paths; it must
-  hold a `cars` folder. `paints.installDir` in `overlay-settings.json` names another by hand, and the page's saves
-  keep it.
+  be a whole path and hold a `cars` folder, and `reg` gets 3 s to answer. `paints.installDir` in
+  `overlay-settings.json` names another by hand, and the page's saves keep it.
 
 `modules/desk/calc.bundle.js` is generated from `packages/calc` on overlay start and by the desk tests — don't edit
 or commit it. Rating changes aren't in telemetry: a race's iRating/SR change is read from the driver's next

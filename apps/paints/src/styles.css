@@ -275,6 +275,9 @@
   min-height: 0;
   overflow-y: auto;
   padding-bottom: 12px;
+  /* A row scrolled into view — by Tab, or as the car being looked at — stops below the heading stuck to the top
+     (30px), not under it. */
+  scroll-padding-top: 32px;
 }
 .paints-app .sidebar .empty {
   padding: 12px 14px;
@@ -322,7 +325,7 @@
   outline-offset: -1px;
 }
 /* A car with nothing to apply is quieter than one with a livery, until it is the one being looked at. */
-.paints-app .sidebar .group:last-child .car:not(.active) .name {
+.paints-app .sidebar .group.rest .car:not(.active) .name {
   font-weight: 400;
   color: var(--muted);
 }

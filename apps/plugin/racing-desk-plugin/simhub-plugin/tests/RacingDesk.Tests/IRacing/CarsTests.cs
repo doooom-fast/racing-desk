@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using IRSDKSharper;
 using Microsoft.Data.Sqlite;
@@ -502,6 +503,61 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             Assert.That(CarsJson(store), Is.EqualTo("[]"));
         }
 
+        private static void Sql(SqliteConnection db, string sql)
+        {
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.ExecuteNonQuery();
+        }
+
+        [Test]
+        public void TwoOpenersMeetingAVersion3StoreBothOpenIt()
+        {
+            using (var v3 = new Version3Store(Db))
+            {
+                v3.Session("ibt", @"C:\telemetry\a.ibt", 0, "2026-02-01T10:00:00.000Z", Mx5, 67, "Mazda MX-5 Cup");
+                v3.Ingested(@"C:\telemetry\a.ibt", 1);
+            }
+            SqliteConnection.ClearAllPools();
+
+            // The host, and a `cars` or `ingest` run started beside it. The store is in WAL mode, as the real one
+            // is, where a writer holds no reader up: both read version 3 and queue behind it for the write lock.
+            Task<long>[] openers;
+            using (var writer = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Db, Pooling = false }.ToString()))
+            {
+                writer.Open();
+                Sql(writer, "PRAGMA journal_mode=WAL");
+                Sql(writer, "BEGIN IMMEDIATE");
+                openers = Enumerable.Range(0, 2).Select(_ => Task.Run(() =>
+                {
+                    using var store = new RacingDeskStore(Db);
+                    return store.Scalar<long>("SELECT MAX(version) FROM schema_version");
+                })).ToArray();
+                Thread.Sleep(600);
+                Assert.That(openers.Any(o => o.IsCompleted), Is.False, "both wait for the writer");
+                Sql(writer, "COMMIT");
+            }
+
+            Assert.That(() => Task.WaitAll(openers), Throws.Nothing, "the one that waited finds the step taken, and takes none");
+            Assert.That(openers.Select(o => o.Result), Is.EqualTo(new[] { 4L, 4L }));
+
+            using var after = new RacingDeskStore(Db);
+            Assert.That(after.Scalar<long>("SELECT COUNT(*) FROM schema_version WHERE version = 4"), Is.EqualTo(1));
+            Assert.That(after.Cars().Select(c => (c.CarPath, c.Seen)), Is.EqualTo(new[] { (Mx5, 1) }));
+        }
+
+        [Test]
+        public void AStoreThatCannotBeOpenedLetsGoOfItsFile()
+        {
+            File.WriteAllText(Db, "Not a database, and longer than the header of one: " + new string('x', 200));
+
+            Assert.That(() => new RacingDeskStore(Db), Throws.InstanceOf<SqliteException>());
+
+            SqliteConnection.ClearAllPools();
+            Assert.That(() => File.Delete(Db), Throws.Nothing, "nothing of the failed open still holds the file");
+            Assert.That(File.Exists(Db), Is.False);
+        }
+
         // ── The header pass ──
 
         [Test]
@@ -599,6 +655,51 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             Assert.That(scan.FilesScanned, Is.EqualTo(1));
         }
 
+        [Test]
+        public void HeaderPassComesBackToAFileItCouldNotReach()
+        {
+            string held = new SyntheticIbt(SyntheticIbt.Yaml(1, PaceCar(), Mazda(1), Porsche(2)), February).Write(Path.Combine(_dir, "held.ibt"));
+            string away = Path.Combine(_dir, "another-drive", "away.ibt");
+            string gone = Path.Combine(_dir, "gone.ibt");
+            using (var v3 = new Version3Store(Db))
+            {
+                v3.Session("ibt", held, 0, "2026-02-01T10:00:00.000Z", Mx5, 67, "Mazda MX-5 Cup");
+                v3.Ingested(held, 1);
+                v3.Ingested(away, 0);
+                v3.Ingested(gone, 0);
+            }
+
+            using var store = new RacingDeskStore(Db);
+            var log = new List<string>();
+            var ingest = new IbtIngest(store, log.Add);
+
+            // Another program has the first file to itself, and the folder the second was in is not there. Neither
+            // says anything about the file, where a file gone from a folder that is there is gone.
+            CarScanSummary first;
+            using (new FileStream(held, FileMode.Open, FileAccess.Read, FileShare.None))
+                first = ingest.ScanCars();
+
+            Assert.That(first.FilesScanned, Is.Zero);
+            Assert.That(first.FilesFailed, Is.Zero);
+            Assert.That(first.FilesMissing, Is.EqualTo(1));
+            Assert.That(first.FilesLeft, Is.EqualTo(2));
+            Assert.That(store.FilesNeedingCarScan(), Is.EquivalentTo(new[] { held, away }), "only the file that is gone is marked");
+            Assert.That(log, Has.Count.EqualTo(1), "one line for the pass, not one for every file");
+            Assert.That(log[0], Does.StartWith("car names: 2 files left for the next pass").And.Contain("held.ibt").And.Contain("IOException"));
+            Assert.That(store.Cars().Select(c => c.CarPath), Is.EqualTo(new[] { Mx5 }), "what the migration knew");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(away)!);
+            new SyntheticIbt(SyntheticIbt.Yaml(1, Lotus(1)), May).Write(away);
+            log.Clear();
+            var second = ingest.ScanCars();
+
+            Assert.That(second.FilesScanned, Is.EqualTo(2));
+            Assert.That(second.FilesLeft, Is.Zero);
+            Assert.That(log, Is.Empty);
+            Assert.That(store.FilesNeedingCarScan(), Is.Empty);
+            Assert.That(store.Cars().Select(c => (c.CarPath, c.Seen)), Is.EquivalentTo(new[] { (Mx5, 1), ("porsche992cup", 1), ("lotus79", 0) }));
+        }
+
         // ── Ingest and live capture ──
 
         [Test]
@@ -651,6 +752,35 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
 
             store.SaveIngestedFile(path, info.Length + 1, info.LastWriteTimeUtc, Array.Empty<SessionRecord>(), "YamlException: boom");
             Assert.That(store.FilesNeedingCarScan(), Is.EqualTo(new[] { path }), "a different file under the same name is read again");
+        }
+
+        [Test]
+        public void TheHostIngestsNewFilesThoughTheHeaderPassFails()
+        {
+            Assume.That(BackgroundIo.SimRunning(), Is.False, "the host's background thread waits while the sim runs");
+
+            string telemetry = Path.Combine(_dir, "telemetry");
+            Directory.CreateDirectory(telemetry);
+            string before = new SyntheticIbt(SyntheticIbt.Yaml(1, PaceCar(), Mazda(1)), February).Write(Path.Combine(_dir, "before.ibt"));
+            new SyntheticIbt(SyntheticIbt.Yaml(1, PaceCar(), Lotus(1), Mazda(2)), May).Write(Path.Combine(telemetry, "new.ibt"));
+            using (var v3 = new Version3Store(Db)) v3.Ingested(before, 0);
+            SqliteConnection.ClearAllPools();
+            using (new RacingDeskStore(Db)) { }
+
+            // The store refuses what the header pass writes, and nothing else.
+            using (var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Db, Pooling = false }.ToString()))
+            {
+                db.Open();
+                Sql(db, "CREATE TRIGGER refuse_the_header_pass BEFORE UPDATE OF cars_scanned ON ingested_files BEGIN SELECT RAISE(ABORT, 'refused'); END");
+            }
+
+            using var stop = new ManualResetEventSlim();
+            RacingDesk.Host.Program.BackgroundIngest(HostOptions.Parse(new[] { "--db", Db, "--dir", telemetry }), stop);
+
+            using var store = RacingDeskStore.OpenReadOnly(Db);
+            Assert.That(store.Scalar<long>("SELECT cars_scanned FROM ingested_files WHERE path LIKE '%before.ibt'"), Is.Zero, "the header pass did fail");
+            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM sessions WHERE ibt_path LIKE '%new.ibt'"), Is.EqualTo(1));
+            Assert.That(store.Cars().Select(c => c.CarPath), Is.EquivalentTo(new[] { "lotus79", Mx5 }));
         }
 
         [Test]

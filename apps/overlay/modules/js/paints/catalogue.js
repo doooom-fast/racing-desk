@@ -20,6 +20,13 @@ const { run } = require('./exec');
 // on another drive that is no longer the one that runs.
 const URL_HANDLER_KEY = 'HKCU\\Software\\Classes\\iracing\\shell\\open\\command';
 
+// How long reg may take to answer. It answers in milliseconds; one that never does must not hold the list up.
+const REG_TIMEOUT_MS = 3000;
+
+// Folders of cars\ itself whose cars are not the driver's to paint: the pace cars. The store never has a name for
+// one — the host leaves the pace car out of a session's cars — so they would be listed by folder for good.
+const INSTALL_NOT_CARS = Object.freeze(['safety']);
+
 // How deep under cars\ a car can be. The install goes three folders down (dirtsprint\winged\410); one more is
 // slack, and a bound at all is so that a stray folder tree cannot turn the walk into a crawl.
 const MAX_DEPTH = 4;
@@ -61,13 +68,17 @@ function programOf(command) {
 }
 
 // The install the iracing:// registration points at: <root>\ui\iRacingUI.exe, so two folders above the program.
+// Null for a registration that is not the whole path of a program — a bare command, a value that was never set —
+// which has no folders above it but the working directory's.
 async function installFromRegistry({ exec = run, env = process.env, platform = process.platform } = {}) {
   if (platform !== 'win32') return null;
-  const res = await exec('reg', ['query', URL_HANDLER_KEY, '/ve']);
+  const res = await exec('reg', ['query', URL_HANDLER_KEY, '/ve'], { timeoutMs: REG_TIMEOUT_MS });
   if (!res || res.error || res.status !== 0) return null;
   const program = programOf(parseDefaultValue(res.stdout));
   if (!program) return null;
-  return path.dirname(path.dirname(expandEnv(program, env)));
+  const expanded = expandEnv(program, env);
+  if (!path.isAbsolute(expanded) || !/\.exe$/i.test(expanded)) return null;
+  return path.dirname(path.dirname(expanded));
 }
 
 // Where installs usually are, for a machine whose iRacing UI has never registered itself.
@@ -84,8 +95,8 @@ function usualInstalls(env = process.env) {
 }
 
 // The iRacing install: the folder set by hand, then the one the iracing:// registration points at, then the usual
-// places — the first of them that holds a `cars` folder. Null when none does; the list is then the library and
-// the paint directory alone.
+// places — the first of them that is a whole path and holds a `cars` folder. Null when none does; the list is then
+// the library and the paint directory alone.
 async function installRoot({ override, env = process.env, exec = run, platform = process.platform } = {}) {
   const candidates = [];
   if (typeof override === 'string' && override.trim().length) candidates.push(override.trim());
@@ -93,7 +104,8 @@ async function installRoot({ override, env = process.env, exec = run, platform =
   if (registered) candidates.push(registered);
   candidates.push(...usualInstalls(env));
   for (const candidate of candidates) {
-    if (isDir(path.join(candidate, 'cars'))) return candidate;
+    // Anything less than a whole path would be looked for in the working directory.
+    if (path.isAbsolute(candidate) && isDir(path.join(candidate, 'cars'))) return candidate;
   }
   return null;
 }
@@ -106,7 +118,7 @@ async function installRoot({ override, env = process.env, exec = run, platform =
 // A family folder's .dat is what the cars beneath it are built on, and the disk does not say whether the folder is
 // a car in its own right as well: fordgt is (beside fordgt gt3), mx5 is not (cup, roadster and mx52016 are). So
 // catalogue() lists a family only when something else knows it as a car. A folder with no .dat is never a car,
-// whatever is beneath it (caterham, astonmartin).
+// whatever is beneath it (caterham, astonmartin), and cars\safety is not walked at all (INSTALL_NOT_CARS).
 function walkInstall(root) {
   const cars = [];
   const families = [];
@@ -117,7 +129,9 @@ function walkInstall(root) {
     let beneath = false;
     if (parts.length < MAX_DEPTH) {
       for (const e of entries) {
-        if (e.isDirectory() && visit(path.join(dir, e.name), [...parts, e.name])) beneath = true;
+        if (!e.isDirectory()) continue;
+        if (parts.length === 0 && INSTALL_NOT_CARS.includes(e.name.toLowerCase())) continue;
+        if (visit(path.join(dir, e.name), [...parts, e.name])) beneath = true;
       }
     }
     if (own) (beneath ? families : cars).push(parts.join(' '));
@@ -156,8 +170,8 @@ function text(v) {
 //   driven             the driver's own sessions in it, 0 when unknown
 //
 // A library car is kept exactly as the library described it. A folder in the paint directory is a car when the
-// install has it or it holds car_*.tga / car_*.mip files itself, which leaves out helmets, suits and a library
-// checked out in there.
+// install has it or it holds car_*.tga / car_*.mip files itself, which leaves out helmets and suits by name
+// (NOT_CARS), and the folder the library is in — a checkout in the paint directory — whatever is lying in it.
 function catalogue({ library = null, paintDir = null, installRoot: root = null, names = [] } = {}) {
   const named = new Map();
   for (const row of Array.isArray(names) ? names : []) {
@@ -219,9 +233,16 @@ function catalogue({ library = null, paintDir = null, installRoot: root = null, 
   for (const [key, carPath] of families) {
     if (named.has(key) || paint.has(key)) add(key, carPath);
   }
+  const libraryRoot = library && typeof library.root === 'string' && library.root.length ? path.resolve(library.root) : null;
+  const holdsLibrary = (dir) => {
+    if (libraryRoot === null) return false;
+    const within = path.relative(path.resolve(dir), libraryRoot);
+    return within !== '..' && !within.startsWith(`..${path.sep}`) && !path.isAbsolute(within);
+  };
   for (const [key, folder] of paint) {
     if (listed.has(key) || NOT_CARS.includes(key)) continue;
-    if (holdsCarFiles(path.join(paintDir, folder))) add(key, folder);
+    const dir = path.join(paintDir, folder);
+    if (!holdsLibrary(dir) && holdsCarFiles(dir)) add(key, folder);
   }
 
   const label = (car) => (car.name || car.folder).toLowerCase();
@@ -229,6 +250,6 @@ function catalogue({ library = null, paintDir = null, installRoot: root = null, 
 }
 
 module.exports = {
-  URL_HANDLER_KEY, NOT_CARS, parseDefaultValue, programOf, installFromRegistry, usualInstalls, installRoot,
-  walkInstall, installedCars, catalogue,
+  URL_HANDLER_KEY, REG_TIMEOUT_MS, NOT_CARS, INSTALL_NOT_CARS, parseDefaultValue, programOf, installFromRegistry,
+  usualInstalls, installRoot, walkInstall, installedCars, catalogue,
 };

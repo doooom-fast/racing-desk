@@ -9,7 +9,9 @@
 // never been in a session is not there and has no name; the Paints page shows its folder instead.
 //
 // Names are a nicety. Anything going wrong — no host, a host from before this route, a slow answer — is an empty
-// list, never an error, and only a good answer is kept: a host that was still starting is asked again next time.
+// list, never an error, and only a good answer is kept: a host that was still starting is asked again next time,
+// and so is a store that has no car yet. Calls made while one is on its way wait for its answer instead of asking
+// again — the page asks at every keystroke in a path — so a host that is slow costs one wait, not one each.
 const http = require('http');
 
 const CARS_PATH = '/racing-desk/data/cars';
@@ -47,7 +49,19 @@ function getJson(url, timeoutMs) {
 // `host` returns where the host is now (it can move while the app runs: :8889, or :18889 beside SimHub). Returns
 // an async function answering the store's rows. `get` and `now` are injectable for the tests.
 function createCarNames({ host, get = getJson, now = Date.now, timeoutMs = TIMEOUT_MS, keepMs = KEEP_MS } = {}) {
-  let kept = null;   // { url, at, rows }
+  let kept = null;     // { url, at, rows }
+  let asking = null;   // { url, rows: a promise }
+  const ask = async (url) => {
+    try {
+      const body = await get(url, timeoutMs);
+      if (!Array.isArray(body)) return [];
+      const rows = body.filter((r) => r !== null && typeof r === 'object' && typeof r.car_path === 'string');
+      if (rows.length) kept = { url, at: now(), rows };
+      return rows;
+    } catch (e) {
+      return [];
+    }
+  };
   return async function carNames() {
     let url;
     try {
@@ -58,14 +72,13 @@ function createCarNames({ host, get = getJson, now = Date.now, timeoutMs = TIMEO
       return [];
     }
     if (kept && kept.url === url && now() - kept.at < keepMs) return kept.rows;
+    if (asking && asking.url === url) return asking.rows;
+    const mine = { url, rows: ask(url) };
+    asking = mine;
     try {
-      const body = await get(url, timeoutMs);
-      if (!Array.isArray(body)) return [];
-      const rows = body.filter((r) => r !== null && typeof r === 'object' && typeof r.car_path === 'string');
-      kept = { url, at: now(), rows };
-      return rows;
-    } catch (e) {
-      return [];
+      return await mine.rows;
+    } finally {
+      if (asking === mine) asking = null;
     }
   };
 }

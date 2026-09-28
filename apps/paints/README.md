@@ -200,7 +200,8 @@ Refresh sit at the end of the setup row.
 
 In the app the list is not only the library. It is every car the rig knows, called what the sim calls it
 ("Mazda MX-5 Cup", not `mx5-mx52016`), in two groups — **Liveries**, the cars with at least one version, then
-**No livery yet** — with a filter over both that matches the name or the folder. Picking a car with no livery shows
+**No livery yet** — with a filter over both that matches the name or the folder, its words in any order and accents
+optional ("huracan evo" finds the Huracán). Picking a car with no livery shows
 where a version would go (`<library>\<car folder>\<version name>\`), what is installed for it in the sim, and its
 backups; there is nothing to apply, so nothing offers to.
 
@@ -211,8 +212,8 @@ shows what it always did. The command merges three lists on the sim's car path:
 | From | What counts as a car |
 |---|---|
 | the library | every car folder with a version in it, exactly as the library scan describes it |
-| the iRacing install | a folder under `cars\` holding a `.dat`, named by its folders joined with spaces: `cars\mx5\mx52016` is `mx5 mx52016` |
-| the paint folder | a folder the install also has, or one holding `car_*.tga` / `car_*.mip` itself — never `helmets`, `suits` or `cars` |
+| the iRacing install | a folder under `cars\` holding a `.dat`, named by its folders joined with spaces: `cars\mx5\mx52016` is `mx5 mx52016` — but nothing under `cars\safety`, the pace cars |
+| the paint folder | a folder the install also has, or one holding `car_*.tga` / `car_*.mip` itself — never `helmets`, `suits` or `cars`, nor the folder the library is in |
 
 `-`, `_` and case fold away when two are compared, which is how the library's `mx5-mx52016` and the sim's
 `mx5 mx52016` come out as one car. A folder in the install that holds a `.dat` *and* has cars beneath it (`mx5`,

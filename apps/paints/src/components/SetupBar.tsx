@@ -6,7 +6,8 @@ import type { CustomerReport, LibrarySuggestion, PathReport } from "../types";
 ///
 /// The plan is explicit that the resolved paint path must always be visible, because the
 /// failure it prevents — editing one Documents folder while the sim reads another — looks
-/// exactly like the app doing nothing at all.
+/// exactly like the app doing nothing at all. A narrow window can cut a long path short in its
+/// field, so each folder's field carries the whole of it as its tooltip.
 ///
 /// `children` are the status chips and Refresh, at the right-hand end. They had a bar of their own
 /// with the app's name in it; the host's window says where you are, and the bar went.
@@ -49,6 +50,7 @@ export function SetupBar({
             type="text"
             className="mono"
             value={paintDir}
+            title={paintDir}
             spellCheck={false}
             onChange={(e) => onPaintDir(e.target.value)}
           />
@@ -86,6 +88,7 @@ export function SetupBar({
             type="text"
             className="mono"
             value={libraryRoot}
+            title={libraryRoot}
             spellCheck={false}
             onChange={(e) => onLibraryRoot(e.target.value)}
           />

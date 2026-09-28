@@ -80,10 +80,20 @@ ORDER BY c.name COLLATE NOCASE, c.car_path";
                 DataSource = path,
                 Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate,
             }.ToString());
-            _db.Open();
-            if (readOnly) return;
-            Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;");
-            Migrate();
+            try
+            {
+                _db.Open();
+                if (readOnly) return;
+                Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;");
+                Migrate();
+            }
+            catch
+            {
+                // Nobody gets a store to dispose of, so the connection would hold the file for as long as the
+                // process lives.
+                _db.Dispose();
+                throw;
+            }
         }
 
         /// <summary>A reader for queries (the data API); never migrates or writes.</summary>
@@ -96,16 +106,26 @@ ORDER BY c.name COLLATE NOCASE, c.car_path";
             _db.Dispose();
         }
 
+        private const string StoredVersion = "SELECT COALESCE(MAX(version), 0) FROM schema_version";
+
         private void Migrate()
         {
             Exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)");
-            long current = Scalar<long>("SELECT COALESCE(MAX(version), 0) FROM schema_version");
+            long current = Scalar<long>(StoredVersion);
             if (current >= SchemaVersion) return;
 
             // One step per version, so a store from any earlier version catches up in one open.
             while (current > 0 && current < SchemaVersion)
             {
                 using var step = _db.BeginTransaction();
+                // The version is only certain once the write lock is held: another opener — a `cars` or `ingest`
+                // run beside the host — may have taken this step while this one waited for the lock.
+                long held = Scalar<long>(StoredVersion, step);
+                if (held != current)
+                {
+                    current = held;
+                    continue;
+                }
                 switch (current)
                 {
                     case 1:
@@ -131,6 +151,13 @@ ORDER BY c.name COLLATE NOCASE, c.car_path";
             if (current >= SchemaVersion) return;
 
             using var tx = _db.BeginTransaction();
+            if (Scalar<long>(StoredVersion, tx) > 0)
+            {
+                // Created by another opener in the meantime; whatever version it made, carry on from there.
+                tx.Rollback();
+                Migrate();
+                return;
+            }
             Exec(@"
 CREATE TABLE sessions (
   id                        INTEGER PRIMARY KEY,
@@ -574,9 +601,11 @@ FROM sessions WHERE ($type IS NULL OR session_type = $type) ORDER BY started_at 
             json.WriteEndArray();
         }
 
-        public T Scalar<T>(string sql)
+        public T Scalar<T>(string sql) => Scalar<T>(sql, null);
+
+        private T Scalar<T>(string sql, SqliteTransaction tx)
         {
-            using var cmd = Cmd(sql);
+            using var cmd = Cmd(sql, tx);
             var v = cmd.ExecuteScalar();
             return v == null || v is DBNull ? default : (T)Convert.ChangeType(v, typeof(T), CultureInfo.InvariantCulture);
         }

@@ -122,6 +122,41 @@ test.describe('installRoot', () => {
     expect(await catalogue.installRoot({ env: {}, exec: async () => { asked += 1; return noReg(); }, platform: 'linux' })).toBeNull();
     expect(asked).toBe(0);
   });
+
+  test('a registration that is not the path of a program points at no install, whatever the working directory holds', async () => {
+    // What reg prints for a key with no default value, a bare command, and a handler that is not an .exe. Two
+    // folders above any of them is `.`, and the working directory is nobody's install.
+    const cwd = process.cwd();
+    const here = path.join(root, 'cwd');
+    touch(path.join(here, 'cars', 'notiracing', 'notiracing.dat'));
+    touch(path.join(here, 'iRacing', 'cars', 'notiracing', 'notiracing.dat'));
+    process.chdir(here);
+    try {
+      for (const value of ['(value not set)', 'launcher --url %1', 'rundll32 url.dll,FileProtocolHandler %1', '"iRacingUI.exe" "%1"', '"ui\\iRacingUI.exe" "%1"']) {
+        const exec = async () => regAnswer(value);
+        expect(await catalogue.installFromRegistry({ env: {}, exec, platform: 'win32' }), value).toBeNull();
+        expect(await catalogue.installRoot({ env: {}, exec, platform: 'win32' }), value).toBeNull();
+      }
+      // The same for a folder set by hand, or a usual place, that is not a whole path.
+      expect(await catalogue.installRoot({ override: '.', env: {}, exec: noReg, platform: 'win32' })).toBeNull();
+      expect(await catalogue.installRoot({ env: { ProgramFiles: '.' }, exec: noReg, platform: 'win32' })).toBeNull();
+      expect(await catalogue.installRoot({ override: here, env: {}, exec: noReg, platform: 'win32' })).toBe(here);
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+
+  test('reg is given three seconds, and one that takes longer is no registration', async () => {
+    const dir = install('slow-reg', ['lotus79']);
+    const limits = [];
+    const exec = async (file, args, options) => {
+      limits.push(options && options.timeoutMs);
+      return { status: null, signal: 'SIGTERM', stdout: '', stderr: '', error: new Error('reg took longer than 3000 ms') };
+    };
+    expect(await catalogue.installRoot({ override: dir, env: {}, exec, platform: 'win32' })).toBe(dir);
+    expect(await catalogue.installRoot({ env: {}, exec, platform: 'win32' })).toBeNull();
+    expect(limits).toEqual([3000, 3000]);
+  });
 });
 
 test.describe('the walk', () => {
@@ -156,6 +191,15 @@ test.describe('the walk', () => {
     touch(path.join(dir, 'cars', 'a', 'b', 'c', 'd', 'd.dat'));
     touch(path.join(dir, 'cars', 'a', 'b', 'c', 'd', 'e', 'e.dat'));
     expect(catalogue.installedCars(dir)).toEqual(['Lotus79', 'a b c d']);
+  });
+
+  test('the pace cars under cars\\safety are not cars to paint', () => {
+    // The store never names them — the session YAML's pace car is left out — so they would be listed for good
+    // under their folder names.
+    const dir = install('pace-cars', ['lotus79', 'safety/pcporsche911cup', 'safety/pcsedan', 'trucks/safety']);
+    touch(path.join(dir, 'cars', 'safety', 'version.txt'));
+    expect(catalogue.walkInstall(dir)).toEqual({ cars: ['lotus79', 'trucks safety'], families: [] });
+    expect(catalogue.catalogue({ installRoot: dir }).map((c) => c.folder)).toEqual(['lotus79', 'trucks safety']);
   });
 
   test('no install, or one with no cars folder, is no cars', () => {
@@ -308,6 +352,26 @@ test.describe('catalogue', () => {
     expect(paintOnly.map((c) => [c.folder, c.name, c.installed])).toEqual([
       ['lotus79', 'Lotus 79', false], ['mx5 mx52016', 'Mazda MX-5 Cup', false], ['oldcar', null, false],
     ]);
+  });
+
+  test('the folder the library is in is not a car, whatever is lying in it', () => {
+    // A texture at the top of the checkout, and the library itself a folder of the paint directory.
+    const paint = path.join(root, 'library-inside', 'paint');
+    touch(path.join(paint, 'lotus79', `car_${CUSTOMER}.tga`), 'paint');
+    touch(path.join(paint, 'doooom-liveries', `car_${CUSTOMER}.tga`), 'left at the top of the checkout');
+    touch(path.join(paint, 'doooom-liveries', 'cars', 'lotus79', 'v1', 'car.tga'), 'v1 paint');
+    touch(path.join(paint, 'Liveries', 'car_spec.tga'), 'a template beside the car folders');
+    touch(path.join(paint, 'Liveries', 'lotus79', 'v2', 'car.tga'), 'v2 paint');
+    touch(path.join(paint, 'Liveries', 'oldcar', `car_${CUSTOMER}.mip`), 'theirs');
+
+    const folders = (libraryPath) => catalogue
+      .catalogue({ library: library.scan(libraryPath, paint), paintDir: paint, installRoot: null, names: [] })
+      .map((c) => c.folder);
+    expect(folders(path.join(paint, 'doooom-liveries', 'cars'))).toEqual(['Liveries', 'lotus79']);
+    expect(folders(path.join(paint, 'liveries'))).toEqual(['doooom-liveries', 'lotus79']);   // whatever its case
+    expect(folders(`${path.join(paint, 'Liveries')}${path.sep}`)).toEqual(['doooom-liveries', 'lotus79']);
+    // A library that is not a folder at all takes nothing out of the list.
+    expect(folders(path.join(paint, 'no-such-library'))).toEqual(['doooom-liveries', 'Liveries', 'lotus79']);
   });
 
   test('a name for a car the rig does not have adds nothing, and rubbish among the names is passed over', () => {

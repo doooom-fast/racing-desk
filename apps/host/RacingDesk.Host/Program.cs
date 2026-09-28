@@ -206,7 +206,7 @@ Data options:
         }
 
         // Its own connection: SQLite serialises writers, and ingest must never stall the telemetry thread for long.
-        private static void BackgroundIngest(HostOptions o, ManualResetEventSlim stop)
+        internal static void BackgroundIngest(HostOptions o, ManualResetEventSlim stop)
         {
             using var cts = new CancellationTokenSource();
             using var reg = new Timer(_ => { if (stop.IsSet) cts.Cancel(); }, null, 500, 500);
@@ -214,10 +214,18 @@ Data options:
             {
                 using var store = new RacingDeskStore(o.Db ?? RacingDeskStore.DefaultPath);
                 var ingest = new IbtIngest(store, m => Log.Info("[RacingDesk.Host] ingest: " + m));
-                // Car names first: seconds, once, and the Paints page is waiting for them.
-                var scan = ingest.ScanCars(cts.Token, BackgroundIo.SimRunning);
-                if (scan.FilesScanned > 0 || scan.FilesFailed > 0 || scan.FilesMissing > 0)
-                    Log.Info("[RacingDesk.Host] ingest: " + CarsCommand.Describe(scan));
+                // Car names first: seconds, once, and the Paints page is waiting for them. They are a nicety, though:
+                // whatever goes wrong with them, the new files are still ingested.
+                try
+                {
+                    var scan = ingest.ScanCars(cts.Token, BackgroundIo.SimRunning);
+                    if (scan.FilesScanned > 0 || scan.FilesFailed > 0 || scan.FilesMissing > 0)
+                        Log.Info("[RacingDesk.Host] ingest: " + CarsCommand.Describe(scan));
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("[RacingDesk.Host] car names not read: " + ex.Message);
+                }
                 var summary = ingest
                     .Run(o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory, o.Step, int.MaxValue, cts.Token, pause: BackgroundIo.SimRunning);
                 if (summary.FilesIngested > 0 || summary.FilesFailed > 0)

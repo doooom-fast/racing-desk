@@ -72,7 +72,8 @@ namespace RacingDesk.Data
         /// <summary>
         /// Files ingested before the store kept cars carry every entrant's car in their session YAML. Reads each
         /// one's header and YAML — no frames, so the whole history takes seconds, not the ingest's forty minutes —
-        /// and marks it, so this happens once per file. A file that can't be read, or is gone, is marked too.
+        /// and marks it, so this happens once per file. A file that is cut short, or gone, is marked too; one that
+        /// could not be reached — held by another program, its folder not there — is left for the next pass.
         /// </summary>
         /// <param name="pause">While it returns true the pass waits (e.g. while iRacing runs).</param>
         public CarScanSummary ScanCars(CancellationToken ct = default, Func<bool> pause = null)
@@ -90,6 +91,22 @@ namespace RacingDesk.Data
             {
                 if (batch.Count > 0) _store.SaveScannedCars(batch);
                 batch.Clear();
+            }
+            // Not reaching a file says nothing about it, and marking it would make a passing failure — a drive that
+            // was off, a program holding the file — as final as a corrupt file. One line for the pass, not one a file.
+            int unreached = 0;
+            var reasons = new List<string>();
+            void LeaveForNextPass(string path, string why)
+            {
+                unreached++;
+                if (reasons.Count < 3) reasons.Add($"{Path.GetFileName(path)}: {why}");
+            }
+            var folders = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            bool FolderIsThere(string path)
+            {
+                string folder = Path.GetDirectoryName(path) ?? "";
+                if (!folders.TryGetValue(folder, out bool there)) folders[folder] = there = Directory.Exists(folder);
+                return there;
             }
             // Asking Windows for its processes costs more than reading a header, so not before every file.
             TimeSpan nextPauseCheck = TimeSpan.Zero;
@@ -122,10 +139,20 @@ namespace RacingDesk.Data
                         foreach (var car in file.Cars) found.Add(car.CarPath);
                         summary.FilesScanned++;
                     }
-                    else
+                    else if (FolderIsThere(path))
                     {
                         summary.FilesMissing++;
                     }
+                    else
+                    {
+                        LeaveForNextPass(path, "its folder is not there");
+                        continue;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    LeaveForNextPass(path, $"{ex.GetType().Name}: {ex.Message}");
+                    continue;
                 }
                 catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
@@ -136,8 +163,10 @@ namespace RacingDesk.Data
                 if (batch.Count >= CarScanBatch) Store();
             }
             Store();
+            if (unreached > 0)
+                _log($"car names: {unreached} files left for the next pass ({string.Join("; ", reasons)}{(unreached > reasons.Count ? "; …" : "")})");
 
-            summary.FilesLeft = files.Count - done;
+            summary.FilesLeft = files.Count - done + unreached;
             summary.Cars = found.Count;
             summary.Elapsed = clock.Elapsed;
             return summary;

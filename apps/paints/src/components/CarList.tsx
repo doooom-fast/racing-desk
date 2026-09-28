@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogueCar } from "../types";
 
 /// What a car is called on screen: the sim's name for it, or its folder when it has none.
@@ -18,10 +18,16 @@ export function groupCars(cars: CatalogueCar[]): { liveries: CatalogueCar[]; res
   };
 }
 
-function matches(car: CatalogueCar, query: string): boolean {
-  return [car.name, car.shortName, car.folder, car.simFolder].some(
-    (text) => !!text && text.toLowerCase().includes(query),
-  );
+/// Case and accents folded away, as the list's order already takes them: "huracan" is "Huracán".
+const fold = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+/// Every word typed has to be somewhere in the car's names or folders, in whatever order:
+/// "mazda cup" is the Mazda MX-5 Cup.
+function matches(car: CatalogueCar, words: string[]): boolean {
+  const texts = [car.name, car.shortName, car.folder, car.simFolder]
+    .filter((text): text is string => !!text)
+    .map(fold);
+  return words.every((word) => texts.some((text) => text.includes(word)));
 }
 
 /// The line under a car's name, or nothing. The name says which car it is; the folder is only worth the
@@ -45,16 +51,20 @@ function Group({
   shared,
   selected,
   onSelect,
+  quiet = false,
 }: {
   title: string;
   cars: CatalogueCar[];
   shared: Set<string>;
   selected: string | null;
   onSelect: (folder: string) => void;
+  /// The cars with nothing to apply. Said, not worked out from where the group is in the list: the
+  /// filter can leave either group the only one.
+  quiet?: boolean;
 }) {
   if (cars.length === 0) return null;
   return (
-    <div className="group" role="group" aria-label={title}>
+    <div className={quiet ? "group rest" : "group"} role="group" aria-label={title}>
       <div className="heading">
         {title} <span className="count">{cars.length}</span>
       </div>
@@ -91,7 +101,16 @@ export function CarList({
   empty: string;
 }) {
   const [filter, setFilter] = useState("");
-  const query = filter.trim().toLowerCase();
+  const query = fold(filter).trim().replace(/\s+/g, " ");
+  const list = useRef<HTMLDivElement>(null);
+
+  // The car being looked at stays in sight: a filter cleared, or a refresh that chose another car, would
+  // leave the list at its top and the car thousands of pixels down. Not while a filter is typed — what
+  // it finds starts at the top.
+  useEffect(() => {
+    if (query) return;
+    list.current?.querySelector(".car.active")?.scrollIntoView({ block: "nearest" });
+  }, [query, selected]);
 
   const shared = useMemo(() => {
     const seen = new Set<string>();
@@ -104,10 +123,10 @@ export function CarList({
     return twice;
   }, [cars]);
 
-  const { liveries, rest } = useMemo(
-    () => groupCars(query ? cars.filter((c) => matches(c, query)) : cars),
-    [cars, query],
-  );
+  const { liveries, rest } = useMemo(() => {
+    const words = query ? query.split(" ") : [];
+    return groupCars(words.length ? cars.filter((c) => matches(c, words)) : cars);
+  }, [cars, query]);
 
   if (cars.length === 0) {
     return (
@@ -135,7 +154,7 @@ export function CarList({
           }}
         />
       </div>
-      <div className="list">
+      <div className="list" ref={list}>
         <Group
           title="Liveries"
           cars={liveries}
@@ -149,6 +168,7 @@ export function CarList({
           shared={shared}
           selected={selected}
           onSelect={onSelect}
+          quiet
         />
         {liveries.length + rest.length === 0 && (
           <div className="empty">No car matches “{filter.trim()}”.</div>
