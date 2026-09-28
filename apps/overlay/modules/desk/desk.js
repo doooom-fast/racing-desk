@@ -479,6 +479,7 @@
       else a.removeAttribute('aria-current');
     }
     $('offline').classList.toggle('off-page', page !== 'desk'); // the "no local data" notice is the desk page's
+    document.dispatchEvent(new CustomEvent('racingdesk:page', { detail: page }));   // a page that paused its checks resumes
     if (location.hash !== '#' + page) {
       try { history.replaceState(null, '', '#' + page); } catch (_) { location.hash = page; }
     }

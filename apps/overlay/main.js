@@ -19,6 +19,7 @@ const bundleWriter   = require('./modules/js/bundle-writer');
 const replayDirector = require('./modules/js/replay-director');
 const { isAllowedExternalUrl } = require('./modules/js/external-links');
 const hostLauncher = require('./modules/js/host-launcher');
+const settingsFile = require('./modules/js/settings-file');
 const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
 
@@ -96,12 +97,10 @@ function getSettingsPath() {
   return path.join(app.getPath('userData'), 'overlay-settings.json');
 }
 
+// modules/js/settings-file.js has the rules: atomic writes, a BOM is fine, and a file that is there but won't
+// parse is copied aside before anything replaces it.
 function loadSettingsSync() {
-  try {
-    return JSON.parse(fs.readFileSync(getSettingsPath(), 'utf8'));
-  } catch (e) {
-    return {};
-  }
+  return settingsFile.load(getSettingsPath());
 }
 
 // Stamp the timestamp of the last write originating from this process so the
@@ -110,7 +109,14 @@ function loadSettingsSync() {
 // save-settings handler itself).
 let _lastSelfSettingsWriteAt = 0;
 function saveSettingsSync(settings) {
-  fs.writeFileSync(getSettingsPath(), JSON.stringify(settings, null, 2));
+  const { kept } = settingsFile.save(getSettingsPath(), settings);
+  if (kept) logToFile(`[RacingDesk] Settings file couldn't be read; the old one is kept at ${kept}`);
+  _lastSelfSettingsWriteAt = Date.now();
+}
+
+// One key of the file, every other kept. Throws rather than write over a file it couldn't read.
+function saveSettingsKeySync(key, value) {
+  settingsFile.setKey(getSettingsPath(), key, value);
   _lastSelfSettingsWriteAt = Date.now();
 }
 
@@ -1417,14 +1423,15 @@ const paintsCommands = paints.createCommands();
 // HUD ignores the write (the watcher skips this process's own writes, and nothing of the HUD's changed).
 const paintsStore = {
   get: () => loadSettingsSync().paints || {},
-  set: (obj) => {
-    const settings = loadSettingsSync();
-    settings.paints = obj;
-    saveSettingsSync(settings);
-  },
+  // Refuses when the file is there but unreadable, rather than replace the HUD's settings with { paints }.
+  set: (obj) => saveSettingsKeySync('paints', obj),
 };
 
-ipcMain.handle('paints:invoke', async (_event, name, args) => {
+// These are the desk window's. The HUD shares the preload, and has no business with the paint folder.
+const fromDesk = (event) => !!deskWindow && !deskWindow.isDestroyed() && event.sender === deskWindow.webContents;
+
+ipcMain.handle('paints:invoke', async (event, name, args) => {
+  if (!fromDesk(event)) return { error: 'Paints belongs to the desk window.' };
   try {
     return { value: await paintsIpc.invoke(paintsCommands, paintsStore, name, args) };
   } catch (err) {
@@ -1433,7 +1440,8 @@ ipcMain.handle('paints:invoke', async (_event, name, args) => {
 });
 
 // The folder picker for the paint folder and the library; null when it is cancelled.
-ipcMain.handle('paints:pickFolder', async (_event, options) => {
+ipcMain.handle('paints:pickFolder', async (event, options) => {
+  if (!fromDesk(event)) return null;
   const dialogOptions = { properties: ['openDirectory'] };
   if (options && typeof options.title === 'string') dialogOptions.title = options.title;
   if (options && typeof options.defaultPath === 'string') dialogOptions.defaultPath = options.defaultPath;
@@ -1442,13 +1450,17 @@ ipcMain.handle('paints:pickFolder', async (_event, options) => {
   return result.canceled || !result.filePaths.length ? null : result.filePaths[0];
 });
 
-// Show a file in Explorer, or open a path — only for paths that exist.
-ipcMain.handle('paints:reveal', async (_event, p) => {
-  if (typeof p === 'string' && fs.existsSync(p)) shell.showItemInFolder(p);
+// Show a file in Explorer, or open a folder — only for paths that exist. Opening is for folders alone:
+// shell.openPath on a file runs it, and nothing the manager does calls for that.
+ipcMain.handle('paints:reveal', async (event, p) => {
+  if (fromDesk(event) && typeof p === 'string' && fs.existsSync(p)) shell.showItemInFolder(p);
 });
 
-ipcMain.handle('paints:openPath', async (_event, p) => {
-  if (typeof p === 'string' && fs.existsSync(p)) await shell.openPath(p);
+ipcMain.handle('paints:openPath', async (event, p) => {
+  if (!fromDesk(event) || typeof p !== 'string') return;
+  let isFolder = false;
+  try { isFolder = fs.statSync(p).isDirectory(); } catch (e) { /* not there */ }
+  if (isFolder) await shell.openPath(p);
 });
 
 // ── IPC: Quit app ──

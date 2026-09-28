@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { previewImage } from "../api";
+import { errorText, previewImage } from "../api";
 import type { InstalledState, Version, VersionFile } from "../types";
 
 interface Source {
@@ -51,7 +51,7 @@ function Preview({ source }: { source: Source | undefined }) {
     if (!source) return;
     previewImage(source.path, 640)
       .then((d) => live && setSrc(d))
-      .catch((e) => live && setError(typeof e === "string" ? e : "unreadable"));
+      .catch((e) => live && setError(errorText(e)));
     return () => {
       live = false;
     };

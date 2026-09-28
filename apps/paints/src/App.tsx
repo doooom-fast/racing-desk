@@ -301,15 +301,25 @@ export default function App() {
   // --- guards ---------------------------------------------------------------------------
   useEffect(() => {
     let live = true;
+    // Inside The Racing Desk the page stays mounted while another page is up, or the window is minimised behind
+    // a race. Nobody is looking at the chips then, and each check starts a process — so it waits until somebody
+    // is. Apply does not depend on this: its preflight asks again, itself.
+    const watched = () =>
+      !document.hidden && (document.querySelector(".paints-app")?.getClientRects().length ?? 0) > 0;
     const tick = () => {
+      if (!watched()) return;
       api.tradingPaintsStatus().then((v) => live && setTp(v)).catch(() => {});
       api.simStatus().then((v) => live && setSim(v)).catch(() => {});
     };
     tick();
     const h = setInterval(tick, GUARD_POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    document.addEventListener("racingdesk:page", tick);   // the desk, on showing a page
     return () => {
       live = false;
       clearInterval(h);
+      document.removeEventListener("visibilitychange", tick);
+      document.removeEventListener("racingdesk:page", tick);
     };
   }, []);
 

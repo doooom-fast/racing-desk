@@ -22,7 +22,11 @@ const CALLS = Object.freeze({
   repoPull: (c, { path }) => c.repoPull(path),
   suggestLibraries: (c, { paintDir }) => c.suggestLibraries(paintDir),
   loadSettings: (c, _args, store) => c.loadSettings(store),
-  saveSettings: (c, { settings }, store) => c.saveSettings(settings, store),
+  saveSettings: (c, { settings }, store) => {
+    // Without them the port would save its defaults over what is remembered; the Rust refused the call.
+    if (settings === null || typeof settings !== 'object') throw new Error('saveSettings needs the settings.');
+    return c.saveSettings(settings, store);
+  },
   previewImage: (c, { path, maxEdge }) => c.previewImage(path, maxEdge),
 });
 

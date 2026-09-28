@@ -24,11 +24,21 @@ function parseTasklist(text) {
   return names;
 }
 
+// The UI asks about the sim and about the downloader in the same breath, every few seconds; one `tasklist`
+// answers both. Only the real one is shared — an injected `exec` (the tests) is asked every time.
+const SHARE_MS = 2000;
+let recent = null;   // { at, names }: the last real tasklist, as a promise
+
 async function runningImageNames({ exec = run, platform = process.platform } = {}) {
   if (platform !== 'win32') return new Set();
-  const res = await exec('tasklist', ['/FO', 'CSV', '/NH']);
-  if (!res || res.error) return new Set();
-  return parseTasklist(res.stdout);
+  const list = async () => {
+    const res = await exec('tasklist', ['/FO', 'CSV', '/NH']);
+    if (!res || res.error) return new Set();
+    return parseTasklist(res.stdout);
+  };
+  if (exec !== run) return list();
+  if (!recent || Date.now() - recent.at >= SHARE_MS) recent = { at: Date.now(), names: list() };
+  return recent.names;
 }
 
 // Whether a named executable is running. Case-insensitive, exact image name.
