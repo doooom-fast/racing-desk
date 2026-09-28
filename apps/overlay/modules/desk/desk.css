@@ -407,6 +407,18 @@ h2 {
 .settings-intro { color: var(--text-3); font-size: 12.5px; margin: 2px 4px 14px; }
 .settings-intro code { font-family: var(--ff-mono); font-size: 12px; color: var(--text-2); }
 .settings-intro #settings-status { color: var(--gain); margin-left: 8px; }
+/* The HUD on an iPad: a card of its own under the rest, the address beside its code. */
+.settings .remote { margin-top: var(--gap); }
+.remote-say { color: var(--text-3); font-size: 12.5px; margin: 10px 0 0; max-width: 72ch; }
+.remote-error { color: var(--loss); font-size: 12.5px; margin: 10px 0 0; }
+.remote-address { display: flex; gap: 18px; align-items: flex-start; margin-top: 14px; }
+.remote-address canvas { border-radius: 6px; flex: none; }
+.remote-address p { margin: 0 0 8px; }
+.remote-url code { font-family: var(--ff-mono); font-size: 15px; color: var(--text); user-select: all; }
+.remote-others { color: var(--text-3); font-size: 12.5px; }
+.remote-others code { font-family: var(--ff-mono); font-size: 12px; color: var(--text-2); user-select: all; }
+.remote button { font: inherit; font-size: 12.5px; }
+
 .settings-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
 .settings-col { display: grid; gap: var(--gap); }
 @media (max-width: 1100px) { .settings-sections { grid-template-columns: minmax(0, 1fr); } }

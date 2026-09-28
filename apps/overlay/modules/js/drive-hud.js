@@ -15,7 +15,8 @@
     _active = !_active;
     _applyDriveMode();
     _settings.driveMode = _active;
-    saveSettings();
+    // saveSettings went with the HUD's own settings panel; the desk is where settings are kept now.
+    if (typeof saveSettings === 'function') saveSettings();
   }
   window.toggleDriveMode = toggleDriveMode;
 
@@ -338,7 +339,7 @@
     }
 
     // Auto-activate on remote server connections
-    if (window._k10RemoteMode) {
+    if (window._remoteMode) {
       setDriveMode(true);
     }
 

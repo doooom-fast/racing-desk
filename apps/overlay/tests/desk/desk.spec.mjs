@@ -761,7 +761,167 @@ test('without the app the Settings page is read-only and says so', async ({ page
   await expect(page.locator('#setting-zoom')).toHaveValue('165'); // the HUD's default
   await expect(page.locator('#setting-showSpotter')).toBeChecked();
   expect(await page.locator('#settings-sections [data-key]:not(:disabled)').count()).toBe(0);
+  // The iPad view is the app's to switch, too.
+  await expect(page.locator('#remote-on')).toBeDisabled();
+  await expect(page.locator('#remote-port')).toBeDisabled();
+  await expect(page.locator('#settings-remote')).toContainText('This is switched from the Racing Desk app.');
   await expect(page.locator('.race-row')).toHaveCount(30); // the desk page loaded behind it all the same
+  expect(errors).toEqual([]);
+});
+
+// ── Settings: the HUD on an iPad ─────────────────────────────
+// main.js starts and stops remote-server.js and answers with the server as it then stands. Here a stand-in keeps
+// that state in the page and records what was asked of it. `fail` is what start answers instead, once.
+
+const RIG_ADDRESSES = [
+  { name: 'Ethernet', address: '192.168.1.20' },
+  { name: 'vEthernet (WSL)', address: '172.29.64.1' },
+];
+
+async function stubRemote(page, { running = false, port = 9090, key = 'abcd2345', addresses = RIG_ADDRESSES, fail = null } = {}) {
+  await page.addInitScript((start) => {
+    const state = { running: start.running, port: start.port, key: start.key, error: null };
+    const keys = ['wxyz6789', 'mnpq4567'];
+    window.__remote = { asked: [], fail: start.fail };
+    const info = () => {
+      const at = (a) => `http://${a.address}:${state.port}/?k=${state.key}`;
+      return {
+        running: state.running, enabled: state.running, port: state.port, error: state.error,
+        lanAddress: start.addresses.length ? start.addresses[0].address : null,
+        url: start.addresses.length ? at(start.addresses[0]) : null,
+        addresses: start.addresses.map((a) => ({ ...a, url: at(a) })),
+      };
+    };
+    Object.assign(window.racingDesk, {
+      getRemoteServerInfo: async () => { window.__remote.asked.push(['info']); return { success: true, ...info() }; },
+      startRemoteServer: async (opts) => {
+        window.__remote.asked.push(['start', opts]);
+        if (window.__remote.fail) {
+          const error = window.__remote.fail;
+          window.__remote.fail = null;
+          state.running = false;
+          return { success: false, ...info(), error };
+        }
+        state.running = true;
+        state.port = opts.port;
+        return { success: true, ...info() };
+      },
+      stopRemoteServer: async () => { window.__remote.asked.push(['stop']); state.running = false; return { success: true, ...info() }; },
+      renewRemoteServerKey: async () => { window.__remote.asked.push(['renew']); state.key = keys.shift(); return { success: true, ...info() }; },
+    });
+  }, { running, port, key, addresses, fail });
+}
+
+const remoteAsked = (page) => page.evaluate(() => window.__remote.asked.filter(([what]) => what !== 'info'));
+// How much of the code's canvas is ink: a code that was drawn is a fair part black, a blank one none.
+const inkOf = (page) => page.evaluate(() => {
+  const canvas = document.getElementById('remote-qr');
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  let dark = 0;
+  for (let i = 0; i < data.length; i += 4) if (data[i] < 128) dark += 1;
+  return dark / (data.length / 4);
+});
+
+test('the iPad view is off until it is switched on, and says what Windows will ask', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRemote(page);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-remote');
+  await expect(card.locator('h2')).toHaveText('iPad');
+  await expect(card.locator('#remote-on')).not.toBeChecked();
+  await expect(card.locator('#remote-on')).toBeEnabled();
+  await expect(card.locator('#remote-port')).toHaveValue('9090');
+  await expect(card).toContainText('never a picture of the game');
+  await expect(card).toContainText('Windows asks whether Racing Desk may be reached from your network');
+  await expect(card.locator('.remote-address')).toHaveCount(0);
+  await expect(card.locator('.remote-error')).toHaveCount(0);
+  expect(await remoteAsked(page)).toEqual([]);   // looking at the page starts nothing
+  expect(await page.evaluate(() => window.__k10.saved)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('switched on, it shows the address to open with its key, as text and as a code to scan', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRemote(page);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-remote');
+  await card.locator('#remote-on').check();
+
+  await expect(card.locator('.remote-url code')).toHaveText('http://192.168.1.20:9090/?k=abcd2345');
+  await expect(card.locator('#remote-on')).toBeChecked();
+  expect(await remoteAsked(page)).toEqual([['start', { port: 9090 }]]);
+  const ink = await inkOf(page);
+  expect(ink).toBeGreaterThan(0.2);
+  expect(ink).toBeLessThan(0.8);
+  // The rig's other address, for when the first is not the one the iPad can reach.
+  await expect(card.locator('.remote-others code')).toHaveText(['http://172.29.64.1:9090/?k=abcd2345']);
+  await expect(card.locator('.remote-others code')).toHaveAttribute('title', 'vEthernet (WSL)');
+  await expect(card).not.toContainText('Windows asks');
+
+  // A new key is another address, and the code is of that one.
+  await card.locator('#remote-renew').click();
+  await expect(card.locator('.remote-url code')).toHaveText('http://192.168.1.20:9090/?k=wxyz6789');
+  expect(await inkOf(page)).toBeGreaterThan(0.2);
+
+  // Another port is the server started again on it.
+  await card.locator('#remote-port').fill('9191');
+  await card.locator('#remote-port').press('Enter');
+  await expect(card.locator('.remote-url code')).toHaveText('http://192.168.1.20:9191/?k=wxyz6789');
+
+  await card.locator('#remote-on').uncheck();
+  await expect(card.locator('.remote-address')).toHaveCount(0);
+  await expect(card.locator('#remote-on')).not.toBeChecked();
+  expect(await remoteAsked(page)).toEqual([['start', { port: 9090 }], ['renew'], ['start', { port: 9191 }], ['stop']]);
+  // None of it is the settings file's: main.js keeps what it needs itself.
+  expect(await page.evaluate(() => window.__k10.saved)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('already on when the page opens, the address is there without asking for anything', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRemote(page, { running: true, port: 9191, addresses: [{ name: 'Wi-Fi', address: '10.0.0.5' }] });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-remote');
+  await expect(card.locator('#remote-on')).toBeChecked();
+  await expect(card.locator('#remote-port')).toHaveValue('9191');
+  await expect(card.locator('.remote-url code')).toHaveText('http://10.0.0.5:9191/?k=abcd2345');
+  await expect(card.locator('.remote-others')).toHaveCount(0);
+  expect(await remoteAsked(page)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('a port another program has is said, and the switch goes back to off', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRemote(page, { fail: 'Port 9090 is in use by another program. Choose another port.' });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-remote');
+  // A click, as a hand makes it: check() would click again on finding the switch still off.
+  await card.locator('#remote-on').click();
+
+  await expect(card.locator('.remote-error')).toHaveText('Port 9090 is in use by another program. Choose another port.');
+  await expect(card.locator('#remote-on')).not.toBeChecked();
+  await expect(card.locator('.remote-address')).toHaveCount(0);
+
+  // With the port changed while it is off nothing starts; switching on then uses it.
+  await card.locator('#remote-port').fill('9292');
+  await card.locator('#remote-port').press('Enter');
+  expect(await remoteAsked(page)).toEqual([['start', { port: 9090 }]]);
+  await card.locator('#remote-on').check();
+  await expect(card.locator('.remote-url code')).toHaveText('http://192.168.1.20:9292/?k=abcd2345');
+  await expect(card.locator('.remote-error')).toHaveCount(0);
+  expect(await remoteAsked(page)).toEqual([['start', { port: 9090 }], ['start', { port: 9292 }]]);
+  expect(errors).toEqual([]);
+});
+
+test('a rig on no network is switched on all the same, and says there is no address yet', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRemote(page, { addresses: [] });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-remote');
+  await card.locator('#remote-on').check();
+  await expect(card.locator('#remote-on')).toBeChecked();
+  await expect(card.locator('.remote-error')).toHaveText('The rig is not on a network, so there is no address to open yet.');
+  await expect(card.locator('.remote-address')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

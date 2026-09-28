@@ -64,6 +64,8 @@
   let _connBannerShown = false;
 
   function _updateConnStatus(state) {
+    // For the page on an iPad (remote-server.js styles it): numbers that have stopped arriving look like numbers.
+    if (document.body) document.body.classList.toggle('rd-no-data', state === 'disconnected');
     const el = document.getElementById('connStatus');
     if (!el) return;
     el.className = 'conn-status ' + state;

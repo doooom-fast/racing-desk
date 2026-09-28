@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('racingDesk', {
   getRemoteServerInfo: () => ipcRenderer.invoke('get-remote-server-info'),
   startRemoteServer: (opts) => ipcRenderer.invoke('start-remote-server', opts),
   stopRemoteServer: () => ipcRenderer.invoke('stop-remote-server'),
+  renewRemoteServerKey: () => ipcRenderer.invoke('renew-remote-server-key'),
   // (Dashboard + settings popout windows removed — the desk's Settings
   // page owns that surface. The renderer just listens for settings-sync
   // to pick up changes to overlay-settings.json: the desk's saves, sent

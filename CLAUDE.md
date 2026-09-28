@@ -131,6 +131,38 @@ tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js` `showPage`).
 (`modules/desk/settings-model.js` lists the keys) and each change applies live: `save-settings` writes the file whole
 and sends `settings-sync` to the HUD window. The old WinUI settings app is no longer the way to change the HUD.
 
+**The HUD on an iPad** (`remote-server.js`; the "iPad" card at the foot of the Settings page). Off unless the driver
+switches it on; then the main process listens on the home network (port 9090) and serves `dashboard.html` to a
+browser, which shows the drive view (`#driveHud`, `modules/js/drive-hud.js`). It sends the numbers the HUD reads,
+never a picture of the game. The rules it is built on, each with tests in `tests/unit/remote-server.spec.mjs`:
+- **Read-only from the network.** GET and HEAD only. `/racing-desk/` is proxied to the telemetry the HUD itself
+  reads (`localhost:8889`, or a saved `simhubUrl` that ends in `/racing-desk/`) and a request carrying a query is
+  refused — the plugin and host take `?action=…` on that same path, wheel-base settings among them, and none of it
+  can be reached through here. Files are served from `modules/`, `images/` and `fonts/` only.
+- **A key in the address.** `http://<rig>:9090/?k=<8 characters>`; the page hands it back as a cookie. Made the
+  first time the server starts and kept in `overlay-settings.json` (`remoteServerKey`, with `remoteServer` and
+  `remoteServerPort`). Those three are the main process's own: `save-settings` keeps what is on disk for them
+  whatever a page sends, and no window is given the key (`get-settings` and `settings-sync` leave it out). "New
+  key" on the card cuts off every address handed out before.
+- **The request has to name the rig** — localhost, one of its addresses, or its hostname — which is what stops a
+  site from pointing a name of its own at the rig and reading through a browser at home.
+- **The actions (`/api/action/<name>`) are for a program on the rig** that says it is one with the header
+  `X-Racing-Desk: 1` (the Stream Deck plugin does). A browser cannot put that header on a link, an image or a
+  form, and anything carrying a browser's own headers is refused too: otherwise any page open on the rig could
+  quit the app.
+- **The page waits for nothing from the internet**: the Typekit stylesheet is taken out of what is served, because
+  a stylesheet that cannot be fetched holds the whole page back.
+- **What the page is told, not what it works out**: `window._remoteMode` and `window._simhubUrlOverride` are set
+  before any of the HUD's scripts run, and `settings.js` leaves the address alone in remote mode. (It used to reset
+  it, which had the iPad asking itself for telemetry.) In remote mode there is no voice coach, no WebGL effects and
+  no ambient light, and a strip says "No data from the rig" when the numbers stop arriving.
+
+Tests listen on 127.0.0.1 only. A listener on the network makes Windows ask about the firewall, in a window, over
+whatever the driver is doing — so nothing but the driver's own switch ever starts one. The code on the card is
+`modules/js/qr-code.js` (version 3-M, 42 bytes at most); `tests/unit/qr-code.spec.mjs` reads it back by the
+standard's rules, since no reader is on hand. A page cannot keep an iPad awake over plain http, so the card says to
+set Auto-Lock to Never.
+
 **Cars** is what the host remembers per car, for the cars the driver has driven (`driven > 0` in
 `/racing-desk/data/cars`), the one driven last first — worked out from the session rows the desk already has. Two
 things. The **view** each was last driven with: driver height, horizon, head horizon, FOV and the seat's three

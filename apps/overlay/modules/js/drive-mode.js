@@ -236,7 +236,7 @@
    * iOS Safari detection
    */
   function _isIosSafari() {
-    if (!window._k10RemoteMode) return false;
+    if (!window._remoteMode) return false;
     const ua = navigator.userAgent;
     const isApple = ua.includes('iPad') || ua.includes('iPhone') ||
                     (navigator.maxTouchPoints > 1 && ua.includes('Macintosh'));
@@ -253,7 +253,7 @@
     // Only initialize once
     if (_dmInitialized) return;
     // Activate if remote mode flag is set (no UA detection — iPad build always activates)
-    if (!window._k10RemoteMode) return;
+    if (!window._remoteMode) return;
     _dmInitialized = true;
 
     // Create main layout container

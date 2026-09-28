@@ -440,22 +440,61 @@ async function createOverlay() {
   });
 }
 
-// ── Remote Dashboard Server ──────────────────────────────────
-// Auto-start the LAN server if enabled in settings
-async function maybeStartRemoteServer() {
+// ── The HUD on an iPad (remote-server.js) ────────────────────
+// Off unless the driver switched it on in the desk's Settings; then it starts with the app. What it is reached
+// by — the key in its address — is made the first time and kept in the settings, so an address opened once on
+// the iPad goes on working.
+let remoteServerError = null;
+
+// The keys of the settings file that are this process's own: written one at a time, as the switch is thrown.
+const REMOTE_SETTINGS = ['remoteServer', 'remoteServerPort', 'remoteServerKey'];
+
+// The settings as a window is given them: without the key in the iPad's address, which no page has a use for.
+function withoutRemoteKey(settings) {
+  if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) return settings;
+  const { remoteServerKey, ...rest } = settings;
+  return rest;
+}
+
+function remoteServerKey(renew = false) {
+  const saved = loadSettingsSync().remoteServerKey;
+  if (!renew && remoteServer.isKey(saved)) return saved;
+  const key = remoteServer.newKey();
+  saveSettingsKeySync('remoteServerKey', key);
+  return key;
+}
+
+async function startRemoteServer(port) {
   const settings = loadSettingsSync();
-  if (settings.remoteServer !== true) return;
+  remoteServerError = null;
   try {
-    const simhubUrl = settings.simhubUrl
-      ? settings.simhubUrl.replace(/\/racing-desk\/?$/, '')
-      : 'http://localhost:8889';
-    const info = await remoteServer.start({
-      port: settings.remoteServerPort || remoteServer.DEFAULT_PORT,
+    return await remoteServer.start({
+      port: port || settings.remoteServerPort || remoteServer.DEFAULT_PORT,
       appDir: __dirname,
-      simhubUrl: simhubUrl,
+      telemetryUrl: settings.simhubUrl,
+      key: remoteServerKey(),
       log: logToFile,
     });
-    logToFile(`[RacingDesk] Remote dashboard: ${info.url} (iPad/tablet access)`);
+  } catch (err) {
+    remoteServerError = err.message;
+    throw err;
+  }
+}
+
+function remoteServerInfo() {
+  const settings = loadSettingsSync();
+  return {
+    ...remoteServer.getInfo(),
+    enabled: settings.remoteServer === true,
+    port: remoteServer.isRunning() ? remoteServer.getInfo().port : (settings.remoteServerPort || remoteServer.DEFAULT_PORT),
+    error: remoteServerError,
+  };
+}
+
+async function maybeStartRemoteServer() {
+  if (loadSettingsSync().remoteServer !== true) return;
+  try {
+    await startRemoteServer();
   } catch (err) {
     logToFile(`[RacingDesk] Remote server failed to start: ${err.message}`);
   }
@@ -1364,7 +1403,7 @@ function startSettingsWatcher() {
       logToFile('[RacingDesk] settings watcher: load failed: ' + e.message);
       return;
     }
-    overlayWindow.webContents.send('settings-sync', settings);
+    overlayWindow.webContents.send('settings-sync', withoutRemoteKey(settings));
     logToFile('[RacingDesk] settings-sync broadcast (file changed)');
   });
 }
@@ -1388,7 +1427,7 @@ ipcMain.handle('get-version', () => app.getVersion());
 // ── IPC: Settings persistence ──
 ipcMain.handle('get-settings', async () => {
   try {
-    return JSON.parse(fs.readFileSync(getSettingsPath(), 'utf8'));
+    return withoutRemoteKey(JSON.parse(fs.readFileSync(getSettingsPath(), 'utf8')));
   } catch (e) {
     return null;
   }
@@ -1400,11 +1439,18 @@ ipcMain.handle('save-settings', async (event, settings) => {
     logToFile('[RacingDesk] Warning: save-settings received invalid data');
     return false;
   }
+  // A page saves the file whole, from the copy it read a moment before. The iPad view's keys are not a page's to
+  // set, and one changed in that moment — a new key for the address — must not be put back as it was.
+  const onDisk = loadSettingsSync();
+  for (const key of REMOTE_SETTINGS) {
+    if (key in onDisk) settings[key] = onDisk[key];
+    else delete settings[key];
+  }
   saveSettingsSync(settings);
   // The desk's Settings page saves through here, and the watcher below ignores our own writes — so tell the
   // HUD directly; it re-applies on settings-sync (modules/js/settings.js).
   if (overlayWindow && !overlayWindow.isDestroyed() && event.sender !== overlayWindow.webContents) {
-    overlayWindow.webContents.send('settings-sync', settings);
+    overlayWindow.webContents.send('settings-sync', withoutRemoteKey(settings));
   }
   return true;
 });
@@ -1505,37 +1551,59 @@ ipcMain.handle('open-external', async (event, urlStr) => {
 
 // ═══════════════════════════════════════════════════════════════
 // ── IPC: Remote Dashboard Server ──
-ipcMain.handle('get-remote-server-info', async () => {
-  return remoteServer.getInfo();
+// The desk's Settings page switches it on and off, and shows the address. Each answers with the server as it
+// now stands — { running, enabled, port, url, addresses, error } — and `success`; what went wrong is in `error`,
+// in words, not a rejection. Only the desk window may ask: the address holds the key.
+const REMOTE_NOT_DESK = { success: false, error: 'The iPad view is switched from the desk window.' };
+const validPort = (port) => Number.isInteger(port) && port >= 1024 && port <= 65535;
+
+ipcMain.handle('get-remote-server-info', async (event) => {
+  if (!fromDesk(event)) return REMOTE_NOT_DESK;
+  return { success: true, ...remoteServerInfo() };
 });
 
-ipcMain.handle('start-remote-server', async (event, opts = {}) => {
+ipcMain.handle('start-remote-server', async (event, opts) => {
+  if (!fromDesk(event)) return REMOTE_NOT_DESK;
+  const port = opts && opts.port !== undefined ? opts.port : undefined;
+  if (port !== undefined && !validPort(port)) {
+    return { success: false, ...remoteServerInfo(), error: 'A port is a whole number from 1024 to 65535.' };
+  }
   try {
-    const settings = loadSettingsSync();
-    const simhubUrl = (settings.simhubUrl || 'http://localhost:8889/racing-desk/')
-      .replace(/\/racing-desk\/?$/, '');
-    const info = await remoteServer.start({
-      port: opts.port || settings.remoteServerPort || remoteServer.DEFAULT_PORT,
-      appDir: __dirname,
-      simhubUrl: simhubUrl,
-      log: logToFile,
-    });
-    // Persist the enabled state
-    settings.remoteServer = true;
-    if (opts.port) settings.remoteServerPort = opts.port;
-    saveSettingsSync(settings);
-    return { success: true, ...info };
+    // Another port is another server: the one that is up goes first.
+    if (port !== undefined && remoteServer.isRunning() && remoteServer.getInfo().port !== port) await remoteServer.stop();
+    await startRemoteServer(port);
+    saveSettingsKeySync('remoteServer', true);
+    if (port !== undefined) saveSettingsKeySync('remoteServerPort', port);
+    return { success: true, ...remoteServerInfo() };
   } catch (err) {
-    return { success: false, error: err.message };
+    return { success: false, ...remoteServerInfo(), error: err.message };
   }
 });
 
-ipcMain.handle('stop-remote-server', async () => {
-  await remoteServer.stop();
-  const settings = loadSettingsSync();
-  settings.remoteServer = false;
-  saveSettingsSync(settings);
-  return { success: true };
+ipcMain.handle('stop-remote-server', async (event) => {
+  if (!fromDesk(event)) return REMOTE_NOT_DESK;
+  try {
+    await remoteServer.stop();
+    remoteServerError = null;
+    saveSettingsKeySync('remoteServer', false);
+    return { success: true, ...remoteServerInfo() };
+  } catch (err) {
+    return { success: false, ...remoteServerInfo(), error: err.message };
+  }
+});
+
+// A new key: every address handed out before stops working, on every device that had one.
+ipcMain.handle('renew-remote-server-key', async (event) => {
+  if (!fromDesk(event)) return REMOTE_NOT_DESK;
+  try {
+    const running = remoteServer.isRunning();
+    if (running) await remoteServer.stop();
+    remoteServerKey(true);
+    if (running) await startRemoteServer();
+    return { success: true, ...remoteServerInfo() };
+  } catch (err) {
+    return { success: false, ...remoteServerInfo(), error: err.message };
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════

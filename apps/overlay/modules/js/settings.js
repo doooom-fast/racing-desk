@@ -212,7 +212,13 @@
     // produces empty-but-shaped responses — every panel sits at zero
     // and the HUD looks dead even though poll-engine "succeeds". Fall
     // back to the canonical SIMHUB_URL when the saved value is bare.
-    if (_settings.simhubUrl
+    //
+    // Not on a page served over the network (remote-server.js): there the telemetry is wherever the page came
+    // from, which the server said before any of this ran. SIMHUB_URL is this machine's localhost — on an iPad,
+    // the iPad.
+    if (window._remoteMode) {
+      // keep what the server gave
+    } else if (_settings.simhubUrl
         && _settings.simhubUrl !== SIMHUB_URL
         && /\/racing-desk\/?$/.test(_settings.simhubUrl)) {
       window._simhubUrlOverride = _settings.simhubUrl;

@@ -115,9 +115,12 @@
 
   function setOverlayActive(active) {
     setPollRate(active ? POLL_MS : IDLE_POLL_MS);
-    if (typeof window.setGLFXActive === 'function') window.setGLFXActive(active);
+    // The page on an iPad shows the drive view, which has none of the effects: drawing them where nobody sees
+    // them costs it its frame rate.
+    var effects = active && !window._remoteMode;
+    if (typeof window.setGLFXActive === 'function') window.setGLFXActive(effects);
     var ambMode = (_settings && _settings.ambientMode) || 'auto';
-    if (active && ambMode !== 'off') {
+    if (effects && ambMode !== 'off') {
       if (typeof window.startAmbientLight === 'function') window.startAmbientLight();
     } else {
       if (typeof window.stopAmbientLight === 'function') window.stopAmbientLight();

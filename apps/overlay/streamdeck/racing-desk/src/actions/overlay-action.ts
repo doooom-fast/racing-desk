@@ -9,7 +9,9 @@ type OverlaySettings = {
 async function fireAction(actionName: string, port: number): Promise<boolean> {
 	const url = `http://127.0.0.1:${port}/api/action/${actionName}`;
 	try {
-		const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+		// The app runs actions only for a program on this machine that says it is one (remote-server.js): a page
+		// in a browser cannot send this header with a link, so no page can press these buttons.
+		const res = await fetch(url, { headers: { 'X-Racing-Desk': '1' }, signal: AbortSignal.timeout(3000) });
 		return res.ok;
 	} catch {
 		return false;

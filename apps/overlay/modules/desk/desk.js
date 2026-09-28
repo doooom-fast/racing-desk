@@ -851,6 +851,114 @@
       const section = sections.find((s) => s.id === id);
       return `<section class="card" id="settings-${esc(id)}"><h2>${esc(section.title)}</h2>${section.fields.map((f) => fieldHtml(f, !bridge)).join('')}</section>`;
     }).join('')}</div>`).join('');
+    await renderRemote();
+  }
+
+  // ── The HUD on an iPad ───────────────────────────────────
+  // remote-server.js, switched from here: main.js starts and stops it (start-remote-server, stop-remote-server)
+  // and answers with the server as it then stands. It is not a key of the settings file like the rest of the
+  // page — switching it starts something listening on the network — so it has a card and handlers of its own.
+  // The address holds the key, and the code beside it is that address: scanned once, the iPad remembers.
+
+  // The QR code is a version 3: 42 characters and no more (modules/js/qr-code.js). Its canvas is 37 modules of 5
+  // pixels: the 29 of the code and the four of white a camera needs on every side.
+  const QR_MAX = 42;
+
+  function remoteBridge() {
+    const bridge = window.racingDesk;
+    return bridge && bridge.getRemoteServerInfo && bridge.startRemoteServer && bridge.stopRemoteServer ? bridge : null;
+  }
+
+  let remoteBusy = false;
+  // Each rendering is numbered: the page can be shown again while the server is being asked how it stands, and
+  // what is on the card has to be the last thing asked for, not the last to arrive.
+  let remoteAsked = 0;
+  // What went wrong the last time the driver changed something here, until something goes right.
+  let remoteError = null;
+
+  async function renderRemote(answer) {
+    const mine = ++remoteAsked;
+    const el = $('settings-remote');
+    const bridge = remoteBridge();
+    let info = answer || null;
+    if (!info && bridge) {
+      try { info = await bridge.getRemoteServerInfo(); } catch (err) { info = { success: false, error: err.message }; }
+      if (mine !== remoteAsked) return;
+    }
+    info = { ...(info || {}) };
+    info.error = info.error || remoteError;
+    const on = info.running === true;
+    const port = Number.isInteger(info.port) ? info.port : 9090;
+    const others = (info.addresses || []).filter((a) => a.url && a.url !== info.url);
+    const off = !bridge || remoteBusy ? ' disabled' : '';
+
+    el.innerHTML = `
+      <h2>iPad</h2>
+      <div class="field">
+        <label class="name" for="remote-on">Show the HUD on an iPad or tablet</label>
+        <span class="hint">The drive view, in a browser on your home network. It is sent the numbers the HUD reads, never a picture of the game, and nothing can be changed from there.</span>
+        <span class="control"><input type="checkbox" class="switch" id="remote-on"${on ? ' checked' : ''}${off}></span>
+      </div>
+      <div class="field">
+        <label class="name" for="remote-port">Port</label>
+        <span class="hint">Only worth changing if another program has this one.</span>
+        <span class="control"><input type="number" id="remote-port" min="1024" max="65535" step="1" value="${port}"${off}></span>
+      </div>
+      ${info.error ? `<p class="remote-error" role="alert">${esc(info.error)}</p>` : ''}
+      ${on && info.url ? `
+        <div class="remote-address">
+          ${info.url.length <= QR_MAX ? '<canvas id="remote-qr" width="185" height="185" aria-label="The address, as a code to scan"></canvas>' : ''}
+          <div>
+            <p class="remote-say">Open this on the iPad, or scan the code with its camera:</p>
+            <p class="remote-url"><code>${esc(info.url)}</code></p>
+            ${others.length ? `<p class="remote-others">This rig has other addresses. If that one does not answer: ${others.map((a) => `<code title="${esc(a.name)}">${esc(a.url)}</code>`).join(', ')}</p>` : ''}
+            <p class="remote-say">The end of the address is its key: anything on your network without it is refused. Add the page to the iPad's home screen and it opens full screen.</p>
+            <p class="remote-say">Set the iPad's Auto-Lock to Never while you race, or it will sleep: a page cannot keep it awake.</p>
+            <p><button type="button" id="remote-renew"${off}>New key</button> <span class="hint">Every address handed out before stops working.</span></p>
+          </div>
+        </div>` : ''}
+      ${on && !info.url ? '<p class="remote-error" role="alert">The rig is not on a network, so there is no address to open yet.</p>' : ''}
+      ${!on && bridge ? '<p class="remote-say">The first time it is switched on, Windows asks whether Racing Desk may be reached from your network. Allow it for the kind of network Windows has this one down as, private or public; without that the iPad gets no answer.</p>' : ''}
+      ${!bridge ? '<p class="remote-say">This is switched from the Racing Desk app.</p>' : ''}`;
+
+    if (on && info.url && info.url.length <= QR_MAX && typeof window.renderQRCode === 'function') window.renderQRCode('remote-qr', info.url);
+  }
+
+  async function changeRemote(ask) {
+    if (remoteBusy) return;
+    remoteBusy = true;
+    let answer;
+    try {
+      answer = await ask(remoteBridge());
+    } catch (err) {
+      answer = { success: false, error: err.message };
+    }
+    remoteBusy = false;
+    const stands = answer !== null && typeof answer === 'object';
+    remoteError = stands && answer.success === true ? null : (stands && answer.error) || 'The app did not answer.';
+    // What could not be done is said with the server as it now stands, which is what the switch then shows.
+    await renderRemote(stands && 'running' in answer ? answer : undefined);
+  }
+
+  function remotePort() {
+    const n = Number($('remote-port').value);
+    return Number.isInteger(n) ? n : NaN;
+  }
+
+  function onRemoteChange(ev) {
+    if (!remoteBridge()) return;
+    if (ev.target.id === 'remote-on') {
+      const on = ev.target.checked;
+      changeRemote((bridge) => (on ? bridge.startRemoteServer({ port: remotePort() }) : bridge.stopRemoteServer()));
+    } else if (ev.target.id === 'remote-port' && $('remote-on').checked) {
+      // Running: another port is the server started again on it.
+      changeRemote((bridge) => bridge.startRemoteServer({ port: remotePort() }));
+    }
+  }
+
+  function onRemoteClick(ev) {
+    if (ev.target.id !== 'remote-renew' || !remoteBridge()) return;
+    changeRemote((bridge) => bridge.renewRemoteServerKey());
   }
 
   function fieldHtml(f, disabled) {
@@ -957,6 +1065,8 @@
   window.addEventListener('hashchange', () => showPage(pageFromHash()));
   if (window.racingDesk && window.racingDesk.onShowPage) window.racingDesk.onShowPage((page) => showPage(page));
   $('settings-sections').addEventListener('change', onSettingChange);
+  $('settings-remote').addEventListener('change', onRemoteChange);
+  $('settings-remote').addEventListener('click', onRemoteClick);
   $('settings-sections').addEventListener('input', (ev) => {
     // A slider's readout follows the thumb; the file is written when it is let go (change).
     const el = ev.target;

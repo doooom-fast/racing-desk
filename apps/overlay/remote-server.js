@@ -1,379 +1,531 @@
-// ═══════════════════════════════════════════════════════════════
-// The Racing Desk — Remote Dashboard Server
-// LAN-accessible HTTP server that serves dashboard.html and
-// proxies SimHub telemetry so any browser on the network can
-// view the dashboard with a single URL.
-// ═══════════════════════════════════════════════════════════════
-
+// The HUD on an iPad: a small web server on the home network that serves the HUD's drive view to a browser and
+// passes it the telemetry the HUD itself reads. Off unless the driver switches it on (Settings, in the desk).
+//
+// It sends numbers, never pictures of the game, and it is read-only from the network:
+//
+//   GET /                   the HUD page, told to ask this server for its telemetry
+//   GET /racing-desk/       the telemetry, fetched from the plugin or host on this machine — and nothing else of
+//                           theirs: a request carrying a query (?action=…) is refused, so nothing on the network
+//                           can change a setting, a pedal profile or the wheel base through here
+//   GET /modules/… /images/… /fonts/…   what the page is made of, and no other file of the app's
+//   GET /api/action/<name>  the HUD's actions, for a program on this machine (a Stream Deck button), which says so
+//                           with the header X-Racing-Desk: 1. Refused to anything that comes over the network, and
+//                           to anything a browser sends: a page cannot put that header on a link, an image or a
+//                           form, so no page the driver happens to have open can quit the app
+//
+// Anything from the network has to know the key — eight characters, in the address the Settings page shows and its
+// QR code holds. The page hands it back as a cookie, so the address is typed, or scanned, once. A request has to
+// name this machine by one of its own addresses, too, which is what stops a web page elsewhere from pointing a
+// name of its own at the rig and reading through the browser of somebody at home.
 const http = require('http');
 const path = require('path');
-const fs   = require('fs');
-const os   = require('os');
+const fs = require('fs');
+const os = require('os');
+const crypto = require('crypto');
 
-// ── Constants ────────────────────────────────────────────────
 const DEFAULT_PORT = 9090;
-const SIMHUB_DEFAULT = 'http://localhost:8889';
+const TELEMETRY_DEFAULT = 'http://localhost:8889';
+const TELEMETRY_PATH = '/racing-desk/';
 const DASHBOARD_FILE = 'dashboard.html';
+const PROXY_TIMEOUT_MS = 3000;
+const ACTION_HEADER = 'x-racing-desk';
+// Asking Windows for its adapters takes a couple of milliseconds of the main process; the answer keeps.
+const ADDRESSES_KEPT_MS = 5000;
 
-const MIME = {
-  '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript',
-  '.mjs': 'application/javascript', '.json': 'application/json',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif', '.svg': 'image/svg+xml', '.webp': 'image/webp',
-  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff',
-  '.ttf': 'font/ttf', '.map': 'application/json',
-};
+// What the page is made of. Everything else in the app's folder — main.js, the settings, logs — stays home.
+const STATIC_FOLDERS = Object.freeze(['modules', 'images', 'fonts']);
+const MIME = Object.freeze({
+  '.css': 'text/css', '.js': 'application/javascript', '.mjs': 'application/javascript', '.json': 'application/json',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml',
+  '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf',
+});
 
-// ── State ────────────────────────────────────────────────────
-let _server      = null;
-let _port        = DEFAULT_PORT;
-let _appDir      = __dirname;
-let _simhubBase  = SIMHUB_DEFAULT;
-let _logFn       = console.log;
-let _dispatchAction = null;  // set by main.js via setActionDispatcher()
+// Keys are typed by nobody but fit in a QR code with the address: no 0, 1, l or o to mistake.
+const KEY_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
+const KEY_LENGTH = 8;
+const KEY_COOKIE = 'rdk';
+const KEY_PARAM = 'k';
 
-// ── LAN IP helper ────────────────────────────────────────────
-function getLanAddress() {
-  const nets = os.networkInterfaces();
-  for (const iface of Object.values(nets)) {
-    for (const info of iface) {
-      if (info.family === 'IPv4' && !info.internal) return info.address;
+// Adapters that are not the home network: a virtual switch answers to an address nothing in the house can reach.
+const VIRTUAL_ADAPTER = /vEthernet|WSL|Hyper-V|VirtualBox|VMware|Loopback|Tailscale|ZeroTier|WireGuard|VPN|TAP-|Bluetooth|Docker/i;
+
+function newKey() {
+  let key = '';
+  for (const byte of crypto.randomBytes(KEY_LENGTH)) key += KEY_ALPHABET[byte % KEY_ALPHABET.length];
+  return key;
+}
+
+function isKey(value) {
+  return typeof value === 'string' && value.length === KEY_LENGTH && [...value].every((c) => KEY_ALPHABET.includes(c));
+}
+
+function sameKey(given, key) {
+  if (!isKey(given) || !isKey(key)) return false;
+  return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key));
+}
+
+function isPrivateAddress(address) {
+  const [a, b] = String(address).split('.').map(Number);
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+
+// This machine's addresses on a network, the likeliest first: a home network's on a real adapter, then the rest.
+function lanAddresses(nets = os.networkInterfaces()) {
+  const found = [];
+  for (const [name, list] of Object.entries(nets || {})) {
+    for (const info of list || []) {
+      if (!info || info.internal || (info.family !== 'IPv4' && info.family !== 4)) continue;
+      if (String(info.address).startsWith('169.254.')) continue;   // no network answered: nothing is there
+      found.push({ name, address: info.address, virtual: VIRTUAL_ADAPTER.test(name), home: isPrivateAddress(info.address) });
     }
   }
-  return '0.0.0.0';
+  const rank = (a) => (a.virtual ? 2 : 0) + (a.home ? 0 : 1);
+  return found.sort((a, b) => rank(a) - rank(b) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
-// ── Proxy a request to the SimHub plugin ─────────────────────
-function proxyToSimhub(req, res) {
-  const target = `${_simhubBase}${req.url}`;
-
-  const proxyReq = http.get(target, { timeout: 3000 }, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, {
-      'Content-Type': proxyRes.headers['content-type'] || 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    });
-    proxyRes.pipe(res);
-  });
-
-  proxyReq.on('error', (err) => {
-    res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({ error: 'SimHub unreachable', detail: err.message }));
-  });
-
-  proxyReq.on('timeout', () => {
-    proxyReq.destroy();
-    res.writeHead(504, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({ error: 'SimHub timeout' }));
-  });
+function getLanAddress(nets) {
+  const first = lanAddresses(nets)[0];
+  return first ? first.address : null;
 }
 
-// ── Serve a static file ──────────────────────────────────────
-function serveFile(filePath, res) {
-  const resolved = path.resolve(filePath);
-  const resolvedBase = path.resolve(_appDir);
-  const relative = path.relative(resolvedBase, resolved);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    res.writeHead(403); res.end('Forbidden'); return;
+// Where the telemetry is, from the address the settings hold. Only an address that ends in the plugin's path is
+// the driver's own choice; one from before the rename, or a bare host, is not, and the HUD ignores it likewise
+// (modules/js/settings.js).
+function telemetryBase(saved) {
+  if (typeof saved !== 'string' || !/\/racing-desk\/?$/.test(saved)) return TELEMETRY_DEFAULT;
+  try {
+    const url = new URL(saved);
+    if (url.protocol !== 'http:') return TELEMETRY_DEFAULT;
+    return `${url.protocol}//${url.host}`;
+  } catch (e) {
+    return TELEMETRY_DEFAULT;
   }
-
-  fs.readFile(resolved, (err, data) => {
-    if (err) {
-      res.writeHead(404); res.end('Not found'); return;
-    }
-    const ext = path.extname(resolved).toLowerCase();
-    res.writeHead(200, {
-      'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': 'no-cache',
-      'Access-Control-Allow-Origin': '*',
-    });
-    res.end(data);
-  });
 }
 
-// ── Inject remote-mode overrides + touch menu ────────────────
-// Rewrites the dashboard's SimHub URL to proxy through this server
-// (so remote browsers don't need direct access to localhost:8889)
-// and adds a floating touch menu for settings/fullscreen.
-function injectRemoteOverrides(html, req) {
-  const host = req.headers.host || `${getLanAddress()}:${_port}`;
-  const proxyUrl = `http://${host}/racing-desk/`;
+function isLoopback(address) {
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
 
-  const injection = `<script>
-// ── K10 Remote Server Injection ──
-window._simhubUrlOverride = '${proxyUrl}';
-window._k10RemoteMode = true;
+// From this machine itself — and not handed on by something on it that takes requests from elsewhere.
+function isLocal(req) {
+  if (!isLoopback(req.socket && req.socket.remoteAddress)) return false;
+  const h = req.headers;
+  return h['x-forwarded-for'] === undefined && h.forwarded === undefined && h['x-forwarded-host'] === undefined
+    && h['x-real-ip'] === undefined;
+}
+
+// Whether a browser sent it. A browser says where a request came from and what it is for (Sec-Fetch-Site and
+// -Dest, on every request it makes); a program says neither. Node's own fetch sends Sec-Fetch-Mode and no more,
+// so that one alone is not a browser.
+function fromBrowser(req) {
+  const h = req.headers;
+  return h.origin !== undefined || h.referer !== undefined
+    || h['sec-fetch-site'] !== undefined || h['sec-fetch-dest'] !== undefined || h['sec-fetch-user'] !== undefined;
+}
+
+const HOST_SHAPE = /^([a-z0-9]([a-z0-9.-]*[a-z0-9])?|\[[0-9a-f:]+\])(:\d{1,5})?$/i;
+
+// Whether the request names this machine: by localhost, by one of its own addresses, or by its own name.
+function namesThisMachine(hostHeader, addresses, names = []) {
+  if (typeof hostHeader !== 'string' || !HOST_SHAPE.test(hostHeader)) return false;
+  const hostname = hostHeader.replace(/:\d{1,5}$/, '').toLowerCase();
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') return true;
+  if (addresses.some((a) => a.address === hostname)) return true;
+  return names.some((name) => typeof name === 'string' && name.length > 0
+    && (hostname === name.toLowerCase() || hostname === `${name.toLowerCase()}.local`));
+}
+
+function cookieOf(req, name) {
+  const header = req.headers.cookie;
+  if (typeof header !== 'string') return null;
+  for (const part of header.split(';')) {
+    const at = part.indexOf('=');
+    if (at > 0 && part.slice(0, at).trim() === name) return part.slice(at + 1).trim();
+  }
+  return null;
+}
+
+const ACTIONS = Object.freeze([
+  { name: 'toggle-overlay', label: 'Show / Hide', category: 'app' },
+  { name: 'toggle-settings', label: 'Open Settings', category: 'app' },
+  { name: 'reset-window', label: 'Reset Window', category: 'app' },
+  { name: 'quit', label: 'Quit', category: 'app' },
+  { name: 'toggle-drive-mode', label: 'Drive Mode', category: 'hud' },
+  { name: 'toggle-leaderboard', label: 'Leaderboard', category: 'hud' },
+  { name: 'cycle-rating', label: 'Cycle Rating/Pos', category: 'hud' },
+  { name: 'cycle-car-logo', label: 'Cycle Logo', category: 'hud' },
+  { name: 'zoom-in', label: 'Zoom In', category: 'hud' },
+  { name: 'zoom-out', label: 'Zoom Out', category: 'hud' },
+  { name: 'pitbox-next-tab', label: 'Pit Box Next', category: 'pitbox' },
+  { name: 'pitbox-prev-tab', label: 'Pit Box Prev', category: 'pitbox' },
+  { name: 'dismiss-commentary', label: 'Dismiss Commentary', category: 'commentary' },
+  { name: 'toggle-recording', label: 'Record', category: 'recording' },
+  { name: 'save-replay-buffer', label: 'Save Replay', category: 'recording' },
+  { name: 'toggle-replay-director', label: 'Replay Director', category: 'recording' },
+  { name: 'restart-demo', label: 'Restart Demo', category: 'demo' },
+  { name: 'reset-trackmap', label: 'Reset Track Map', category: 'demo' },
+  { name: 'toggle-rating-editor', label: 'Rating Editor', category: 'editor' },
+  { name: 'preset-broadcast', label: 'Broadcast Mode', category: 'preset' },
+  { name: 'preset-practice', label: 'Practice Mode', category: 'preset' },
+  { name: 'preset-qualifying', label: 'Qualifying Mode', category: 'preset' },
+]);
+
+// What the page is given before anything of its own runs: that it is the remote one, and that its telemetry is
+// here, at whatever address it was reached by. Worked out in the page, from its own address: nothing the request
+// said is written into it.
+const INJECTION = `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="referrer" content="no-referrer">
+<script>
+window._remoteMode = true;
+window._simhubUrlOverride = location.origin + '${TELEMETRY_PATH}';
 </script>
 <style>
-/* ── Touch Menu ── */
+/* The app's window is see-through, over the game. A browser's is not: there is nothing behind it but white. */
+html { background: #000; }
+/* Numbers that have stopped arriving look like numbers: say that they have (game-detect.js sets the class). */
+body.rd-no-data::after {
+  content: 'No data from the rig';
+  position: fixed; top: 0; left: 0; right: 0; z-index: 99997;
+  padding: 10px 16px; text-align: center;
+  background: #e46767; color: #0b0b0d; font: 600 15px system-ui, sans-serif;
+}
 #rd-remote-menu-fab {
   position: fixed; bottom: 20px; right: 20px; z-index: 99999;
-  width: 48px; height: 48px; border-radius: 50%;
-  background: rgba(108,92,231,0.85); border: 2px solid rgba(255,255,255,0.2);
-  color: #fff; font-size: 22px; line-height: 48px; text-align: center;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(19,19,22,0.85); border: 1px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.64); font: 22px/42px system-ui, sans-serif; text-align: center;
   cursor: pointer; user-select: none; -webkit-user-select: none;
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-  transition: transform 0.2s, background 0.2s;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent; opacity: 0.4; transition: opacity 0.2s;
 }
-#rd-remote-menu-fab:active { transform: scale(0.9); }
-#rd-remote-menu-fab.open { background: rgba(108,92,231,1); transform: rotate(45deg); }
-
+#rd-remote-menu-fab.open { opacity: 1; color: #dc3714; }
 #rd-remote-menu-panel {
-  position: fixed; bottom: 80px; right: 20px; z-index: 99998;
-  background: rgba(16,16,30,0.95); border: 1px solid rgba(108,92,231,0.4);
-  border-radius: 14px; padding: 8px; min-width: 200px;
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-  transform: translateY(10px) scale(0.95); opacity: 0;
-  pointer-events: none; transition: all 0.2s ease;
+  position: fixed; bottom: 74px; right: 20px; z-index: 99998;
+  background: rgba(19,19,22,0.96); border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px; padding: 6px; min-width: 190px; display: none;
 }
-#rd-remote-menu-panel.open {
-  transform: translateY(0) scale(1); opacity: 1; pointer-events: auto;
-}
-
+#rd-remote-menu-panel.open { display: block; }
 .rd-rm-btn {
-  display: flex; align-items: center; gap: 10px;
-  width: 100%; padding: 12px 14px; margin: 0;
-  background: transparent; border: none; border-radius: 10px;
-  color: #e0e0e0; font-size: 14px; font-family: system-ui, sans-serif;
+  display: block; width: 100%; padding: 12px 14px; margin: 0;
+  background: transparent; border: none; border-radius: 6px;
+  color: rgba(255,255,255,0.94); font: 14px system-ui, sans-serif;
   cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s;
 }
-.rd-rm-btn:active { background: rgba(108,92,231,0.3); }
-.rd-rm-btn .k10-rm-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
-.rd-rm-btn .k10-rm-label { flex: 1; }
-.k10-rm-sep { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 8px; }
-
-@media (display-mode: fullscreen) {
-  #rd-remote-menu-fab { opacity: 0.3; }
-  #rd-remote-menu-fab:hover, #rd-remote-menu-fab.open { opacity: 1; }
-}
-
+.rd-rm-btn:active { background: rgba(255,255,255,0.08); }
 html, body { overscroll-behavior: none; touch-action: manipulation; }
 </style>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const fab = document.createElement('div');
+document.addEventListener('DOMContentLoaded', function () {
+  var fab = document.createElement('div');
   fab.id = 'rd-remote-menu-fab';
-  fab.textContent = '+';
-
-  const panel = document.createElement('div');
+  fab.textContent = '\\u2261';
+  var panel = document.createElement('div');
   panel.id = 'rd-remote-menu-panel';
 
-  const actions = [
-    { icon: '\\uD83D\\uDD04', label: 'Cycle Rating/Pos', fn: () => { if (typeof cycleRatingPos === 'function') cycleRatingPos(); } },
-    { icon: '\\uD83D\\uDE97', label: 'Cycle Car Logo',   fn: () => { if (typeof cycleCarLogo === 'function') cycleCarLogo(); } },
-    { sep: true },
-    { icon: '\\uD83D\\uDCFA', label: 'Fullscreen',       fn: () => {
-        if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-        else document.exitFullscreen?.();
-      }
-    },
-    { icon: '\\uD83D\\uDD17', label: 'Reconnect',        fn: () => {
+  // The whole HUD is laid out for the rig's screen, over the game; on an iPad it is the drive view or nothing.
+  var actions = [
+    { label: 'Full screen', keep: true, fn: function () {
+        var el = document.documentElement;
+        if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        else if (el.requestFullscreen || el.webkitRequestFullscreen) (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } },
+    { label: 'Reconnect', keep: false, fn: function () {
         if (typeof _connFails !== 'undefined') { _connFails = 0; _backoffUntil = 0; }
-      }
-    },
+      } },
   ];
-
-  actions.forEach(a => {
-    if (a.sep) {
-      const sep = document.createElement('div');
-      sep.className = 'k10-rm-sep';
-      panel.appendChild(sep);
-      return;
-    }
-    const btn = document.createElement('button');
+  actions.forEach(function (a) {
+    var btn = document.createElement('button');
     btn.className = 'rd-rm-btn';
-    btn.innerHTML = '<span class="k10-rm-icon">' + a.icon + '</span><span class="k10-rm-label">' + a.label + '</span>';
-    btn.addEventListener('click', (e) => {
+    btn.textContent = a.label;
+    btn.addEventListener('click', function (e) {
       e.stopPropagation();
       a.fn();
-      if (a.label !== 'Fullscreen') {
-        fab.classList.remove('open');
-        panel.classList.remove('open');
-      }
+      if (!a.keep) { fab.classList.remove('open'); panel.classList.remove('open'); }
     });
     panel.appendChild(btn);
   });
-
   document.body.appendChild(panel);
   document.body.appendChild(fab);
-
-  fab.addEventListener('click', (e) => {
+  fab.addEventListener('click', function (e) {
     e.stopPropagation();
-    const isOpen = fab.classList.toggle('open');
-    panel.classList.toggle('open', isOpen);
+    panel.classList.toggle('open', fab.classList.toggle('open'));
   });
-
-  document.addEventListener('click', () => {
+  document.addEventListener('click', function () {
     fab.classList.remove('open');
     panel.classList.remove('open');
   });
 });
 </script>`;
 
-  if (html.includes('<head>')) {
-    return html.replace('<head>', '<head>' + injection);
-  }
-  return html.replace('<body', injection + '<body');
+function injectRemoteOverrides(html) {
+  // A stylesheet from the internet holds the whole page back until it arrives — for as long as it takes to give
+  // up, when the iPad has the rig and no internet. The page is drawn in the fonts it has.
+  const local = html.replace(/<link\b[^>]*\bhref=["']https?:\/\/[^"']*["'][^>]*>\s*/gi, '');
+  if (local.includes('<head>')) return local.replace('<head>', () => `<head>${INJECTION}`);
+  return local.replace('<body', () => `${INJECTION}<body`);
 }
 
-// ── Request handler ──────────────────────────────────────────
-function handleRequest(req, res) {
-  const urlPath = decodeURIComponent(req.url.split('?')[0]);
+const NO_STORE = Object.freeze({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
 
-  // CORS preflight
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    });
-    res.end();
-    return;
-  }
+function sendJson(res, status, body) {
+  res.writeHead(status, { ...NO_STORE, 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(body));
+}
 
-  // ── Telemetry proxy: /racing-desk/*
-  if (urlPath.startsWith('/racing-desk')) {
-    proxyToSimhub(req, res);
-    return;
-  }
+function sendText(res, status, text) {
+  res.writeHead(status, { ...NO_STORE, 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end(text);
+}
 
-  // ── Stream Deck Action API: /api/action/:name ──
-  // Simple GET request triggers an overlay action and returns JSON result.
-  // Example: GET http://192.168.1.100:9090/api/action/toggle-settings
-  if (urlPath.startsWith('/api/action/')) {
-    const actionName = urlPath.replace('/api/action/', '').replace(/\/$/, '');
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    if (!_dispatchAction) {
-      res.end(JSON.stringify({ ok: false, reason: 'action dispatcher not initialized' }));
-    } else {
-      const result = _dispatchAction(actionName);
-      res.end(JSON.stringify(result));
-    }
-    return;
-  }
+// The file for a path of the page's, or null for anything that is not one of the page's files.
+function staticFile(appDir, pathname) {
+  const parts = pathname.split('/').filter((p) => p.length);
+  if (parts.length < 2 || !STATIC_FOLDERS.includes(parts[0])) return null;
+  if (parts.some((p) => p === '.' || p === '..' || p.includes('\\') || p.includes(':') || p.includes('\0'))) return null;
+  const ext = path.extname(parts[parts.length - 1]).toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(MIME, ext)) return null;
+  const base = path.resolve(appDir);
+  const resolved = path.resolve(base, ...parts);
+  const relative = path.relative(base, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return null;
+  return { file: resolved, type: MIME[ext] };
+}
 
-  // ── Stream Deck Action List: /api/actions ──
-  // Returns all available action names for discovery/configuration.
-  if (urlPath === '/api/actions') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({
-      actions: [
-        // Window / App
-        { name: 'toggle-overlay',     label: 'Show / Hide',       category: 'app' },
-        { name: 'toggle-settings',    label: 'Open Settings',     category: 'app' },
-        { name: 'reset-window',       label: 'Reset Window',      category: 'app' },
-        { name: 'quit',               label: 'Quit',              category: 'app' },
-        // HUD
-        { name: 'toggle-drive-mode',  label: 'Drive Mode',        category: 'hud' },
-        { name: 'toggle-leaderboard', label: 'Leaderboard',       category: 'hud' },
-        { name: 'cycle-rating',       label: 'Cycle Rating/Pos',  category: 'hud' },
-        { name: 'cycle-car-logo',     label: 'Cycle Logo',        category: 'hud' },
-        { name: 'zoom-in',            label: 'Zoom In',           category: 'hud' },
-        { name: 'zoom-out',           label: 'Zoom Out',          category: 'hud' },
-        // Pit Box
-        { name: 'pitbox-next-tab',    label: 'Pit Box Next',      category: 'pitbox' },
-        { name: 'pitbox-prev-tab',    label: 'Pit Box Prev',      category: 'pitbox' },
-        // Commentary
-        { name: 'dismiss-commentary', label: 'Dismiss Commentary', category: 'commentary' },
-        // Recording
-        { name: 'toggle-recording',       label: 'Record',            category: 'recording' },
-        { name: 'save-replay-buffer',     label: 'Save Replay',       category: 'recording' },
-        { name: 'toggle-replay-director', label: 'Replay Director',   category: 'recording' },
-        // Demo
-        { name: 'restart-demo',       label: 'Restart Demo',      category: 'demo' },
-        { name: 'reset-trackmap',     label: 'Reset Track Map',   category: 'demo' },
-        // Editors
-        { name: 'toggle-rating-editor',  label: 'Rating Editor',  category: 'editor' },
-        // Presets
-        { name: 'preset-broadcast',  label: 'Broadcast Mode',     category: 'preset' },
-        { name: 'preset-practice',   label: 'Practice Mode',      category: 'preset' },
-        { name: 'preset-qualifying', label: 'Qualifying Mode',    category: 'preset' },
-      ]
-    }));
-    return;
-  }
-
-  // ── Health/info endpoint
-  if (urlPath === '/api/status') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({
-      app: 'The Racing Desk',
-      remoteServer: true,
-      port: _port,
-      lanAddress: getLanAddress(),
-    }));
-    return;
-  }
-
-  // ── Root: serve dashboard.html with injected proxy URL
-  if (urlPath === '/' || urlPath === '') {
-    const htmlPath = path.join(_appDir, DASHBOARD_FILE);
-    fs.readFile(htmlPath, 'utf8', (err, html) => {
-      if (err) {
-        res.writeHead(404); res.end(`${DASHBOARD_FILE} not found`); return;
+function proxyTelemetry(config, res) {
+  const target = `${config.telemetryBase}${TELEMETRY_PATH}`;
+  const failed = (detail) => {
+    if (!res.headersSent) sendJson(res, 502, { error: 'The telemetry is not answering on the rig.', detail });
+    else if (!res.writableEnded) res.end();
+  };
+  const upstream = (config.get || http.get)(target, { timeout: PROXY_TIMEOUT_MS }, (answer) => {
+    try {
+      // Telemetry is JSON whatever the rig calls it, and a status is one a browser knows.
+      const status = Number.isInteger(answer.statusCode) && answer.statusCode >= 200 && answer.statusCode <= 599 ? answer.statusCode : 502;
+      res.writeHead(status, { ...NO_STORE, 'Content-Type': 'application/json; charset=utf-8' });
+      if (typeof answer.on === 'function') {
+        answer.on('error', () => failed('the answer broke off'));
+        answer.on('close', () => { if (!res.writableEnded) res.end(); });
       }
-      const patched = injectRemoteOverrides(html, req);
-      res.writeHead(200, {
-        'Content-Type': 'text/html',
-        'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': '*',
-      });
-      res.end(patched);
-    });
+      answer.pipe(res);
+    } catch (err) {
+      failed(err.message);
+    }
+  });
+  upstream.on('error', (err) => failed(err.message));
+  upstream.on('timeout', () => upstream.destroy(new Error('timeout')));
+  upstream.on('upgrade', (_answer, socket) => { socket.destroy(); failed('the rig answered with something that is not telemetry'); });
+}
+
+// The whole of what the server does with a request. `config` is { appDir, telemetryBase, key, dispatchAction,
+// addresses() } — and `get`, for the tests, in place of http.get.
+function handleRequest(config, req, res) {
+  let url;
+  let pathname;
+  try {
+    url = new URL(req.url, 'http://rig');
+    pathname = decodeURIComponent(url.pathname);
+  } catch (e) {
+    sendText(res, 400, 'Not an address.');
+    return;
+  }
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    sendText(res, 405, 'This server is read-only.');
     return;
   }
 
-  // ── Fallback: serve static files from app directory
-  const filePath = path.join(_appDir, urlPath);
-  serveFile(filePath, res);
-}
+  const local = isLocal(req);
+  const NEEDS_KEY = 'This address needs its key. Open the address the Racing Desk shows under Settings, or scan its code.';
+  if (!namesThisMachine(req.headers.host, config.addresses(), config.names ? config.names() : [])) {
+    // The network is told no more than it is about a missing key: not which names are the rig's.
+    sendText(res, 403, local ? 'That is not this machine\'s name.' : NEEDS_KEY);
+    return;
+  }
 
-// ═══════════════════════════════════════════════════════════════
-// PUBLIC API
-// ═══════════════════════════════════════════════════════════════
-
-function start(opts = {}) {
-  return new Promise((resolve, reject) => {
-    if (_server) {
-      const info = getInfo();
-      resolve(info);
+  // The actions are for a program on this machine that says it is one, never for the network and never for a
+  // browser — not a page's script, and not a link, an image or a form in one either.
+  if (pathname === '/api/actions' || pathname.startsWith('/api/action/')) {
+    if (!local || fromBrowser(req) || req.headers[ACTION_HEADER] !== '1' || req.method !== 'GET') {
+      sendJson(res, 403, { ok: false, reason: 'actions are for programs on the rig itself' });
       return;
     }
+    if (pathname === '/api/actions') {
+      sendJson(res, 200, { actions: ACTIONS });
+      return;
+    }
+    const name = pathname.slice('/api/action/'.length).replace(/\/$/, '');
+    if (!ACTIONS.some((a) => a.name === name)) sendJson(res, 404, { ok: false, reason: `unknown action: ${name}` });
+    else if (typeof config.dispatchAction !== 'function') sendJson(res, 503, { ok: false, reason: 'action dispatcher not initialized' });
+    else sendJson(res, 200, config.dispatchAction(name));
+    return;
+  }
 
-    _port      = opts.port     || DEFAULT_PORT;
-    _appDir    = opts.appDir   || __dirname;
-    _simhubBase = opts.simhubUrl || SIMHUB_DEFAULT;
-    _logFn     = opts.log      || console.log;
+  const given = url.searchParams.get(KEY_PARAM);
+  if (!local && !sameKey(given, config.key) && !sameKey(cookieOf(req, KEY_COOKIE), config.key)) {
+    sendText(res, 403, NEEDS_KEY);
+    return;
+  }
 
-    _simhubBase = _simhubBase.replace(/\/+$/, '');
+  if (pathname === '/api/status') {
+    sendJson(res, 200, { app: 'The Racing Desk', remoteServer: true });
+    return;
+  }
 
-    _server = http.createServer(handleRequest);
+  if (pathname === '/racing-desk' || pathname === TELEMETRY_PATH) {
+    if (url.search.length) {
+      sendJson(res, 403, { error: 'Read-only from here: the telemetry, and nothing that changes anything.' });
+      return;
+    }
+    proxyTelemetry(config, res);
+    return;
+  }
 
-    _server.listen(_port, '0.0.0.0', () => {
-      const info = getInfo();
-      _logFn(`[The Racing Desk] Remote dashboard server started: ${info.url}`);
-      resolve(info);
+  if (pathname === '/') {
+    fs.readFile(path.join(config.appDir, DASHBOARD_FILE), 'utf8', (err, html) => {
+      if (err) {
+        sendText(res, 404, `${DASHBOARD_FILE} not found`);
+        return;
+      }
+      const headers = {
+        ...NO_STORE,
+        'Content-Type': 'text/html; charset=utf-8',
+        'Referrer-Policy': 'no-referrer',
+        // Nobody else's page gets to hold this one inside it.
+        'Content-Security-Policy': "frame-ancestors 'none'",
+        'X-Frame-Options': 'DENY',
+      };
+      // The key came in the address: from here on the browser carries it, and the address can lose it.
+      if (sameKey(given, config.key)) {
+        headers['Set-Cookie'] = `${KEY_COOKIE}=${config.key}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Strict`;
+      }
+      res.writeHead(200, headers);
+      res.end(injectRemoteOverrides(html));
     });
+    return;
+  }
 
-    _server.on('error', (err) => {
-      _logFn(`[The Racing Desk] Remote server error: ${err.message}`);
-      _server = null;
-      reject(err);
+  const found = staticFile(config.appDir, pathname);
+  if (!found) {
+    sendText(res, 404, 'Not found');
+    return;
+  }
+  fs.readFile(found.file, (err, data) => {
+    if (err) {
+      sendText(res, 404, 'Not found');
+      return;
+    }
+    res.writeHead(200, { 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Content-Type': found.type });
+    res.end(data);
+  });
+}
+
+// ── The one server the app runs ──
+
+let _server = null;
+let _starting = null;
+let _port = DEFAULT_PORT;
+let _key = null;
+let _logFn = console.log;
+let _dispatchAction = null;   // main.js's, handed over with setActionDispatcher()
+
+function addressFor(address, port, key) {
+  return `http://${address}:${port}/${key ? `?${KEY_PARAM}=${key}` : ''}`;
+}
+
+let _addresses = { at: 0, list: [] };
+function keptAddresses(now = Date.now()) {
+  if (now - _addresses.at >= ADDRESSES_KEPT_MS) _addresses = { at: now, list: lanAddresses() };
+  return _addresses.list;
+}
+
+function getInfo() {
+  const addresses = lanAddresses();
+  const lanAddress = addresses.length ? addresses[0].address : null;
+  return {
+    running: _server !== null,
+    port: _port,
+    lanAddress,
+    // The address to open on the iPad, key and all; null when the rig is on no network.
+    url: lanAddress && _key ? addressFor(lanAddress, _port, _key) : null,
+    addresses: addresses.map((a) => ({ name: a.name, address: a.address, url: _key ? addressFor(a.address, _port, _key) : null })),
+  };
+}
+
+// opts: { port, appDir, telemetryUrl (as the settings hold it), key, log, host (the tests' — 127.0.0.1) }
+function start(opts = {}) {
+  if (_server) return Promise.resolve(getInfo());
+  // Two starts at once are one start: the second would otherwise leave a listener nothing could stop.
+  if (_starting) return _starting;
+  _starting = listen(opts).finally(() => { _starting = null; });
+  return _starting;
+}
+
+function listen(opts) {
+  return new Promise((resolve, reject) => {
+    if (!isKey(opts.key)) {
+      reject(new Error('The server needs a key before it is reachable from the network.'));
+      return;
+    }
+    const port = Number.isInteger(opts.port) && opts.port >= 1024 && opts.port <= 65535 ? opts.port : DEFAULT_PORT;
+    const log = opts.log || console.log;
+    const base = telemetryBase(opts.telemetryUrl);
+    // Telemetry fetched from this very server would be fetched from this very server, and so on.
+    if (new RegExp(`^http://(localhost|127\\.0\\.0\\.1|\\[::1\\]):${port}$`, 'i').test(base)) {
+      reject(new Error(`Port ${port} is where the telemetry is read from. Choose another port.`));
+      return;
+    }
+    const config = {
+      appDir: opts.appDir || __dirname,
+      telemetryBase: base,
+      key: opts.key,
+      get dispatchAction() { return _dispatchAction; },
+      addresses: () => keptAddresses(),
+      names: () => [os.hostname()],
+    };
+    const server = http.createServer((req, res) => {
+      try {
+        handleRequest(config, req, res);
+      } catch (err) {
+        log(`[RacingDesk] Remote server: ${req.method} ${String(req.url).split('?')[0]} failed: ${err.message}`);
+        if (!res.headersSent) sendText(res, 500, 'The rig could not answer that.');
+        else res.end();
+      }
+    });
+    server.once('error', (err) => {
+      log(`[RacingDesk] Remote server did not start: ${err.message}`);
+      reject(err.code === 'EADDRINUSE' ? new Error(`Port ${port} is in use by another program. Choose another port.`) : err);
+    });
+    // An iPad is one connection, or a few. Whatever opens hundreds and says nothing is not one.
+    server.maxConnections = 64;
+    server.headersTimeout = 10000;
+    server.requestTimeout = 15000;
+    server.listen(port, opts.host || '0.0.0.0', () => {
+      _server = server;
+      _port = server.address().port;
+      _key = opts.key;
+      _logFn = log;
+      const info = getInfo();
+      // The key stays out of the log: the address without it is enough to say the server is up.
+      _logFn(`[RacingDesk] Remote server listening on port ${_port}${info.lanAddress ? ` (${info.lanAddress})` : ''}, telemetry from ${config.telemetryBase}`);
+      resolve(info);
     });
   });
 }
 
 function stop() {
   return new Promise((resolve) => {
-    if (!_server) { resolve(); return; }
-    _server.close(() => {
-      _logFn('[The Racing Desk] Remote dashboard server stopped');
-      _server = null;
+    if (!_server) {
+      resolve();
+      return;
+    }
+    const server = _server;
+    _server = null;
+    server.close(() => {
+      _logFn('[RacingDesk] Remote server stopped');
       resolve();
     });
+    // A browser holds its connection open between polls; closing them is what lets the port go now.
+    if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
   });
 }
 
@@ -381,18 +533,14 @@ function isRunning() {
   return _server !== null;
 }
 
-function getInfo() {
-  const lanAddress = getLanAddress();
-  return {
-    running: _server !== null,
-    port: _port,
-    lanAddress,
-    url: `http://${lanAddress}:${_port}`,
-  };
-}
-
 function setActionDispatcher(fn) {
   _dispatchAction = fn;
 }
 
-module.exports = { start, stop, isRunning, getInfo, getLanAddress, DEFAULT_PORT, setActionDispatcher };
+module.exports = {
+  DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM,
+  start, stop, isRunning, getInfo, getLanAddress, setActionDispatcher,
+  // The parts, for the tests.
+  newKey, isKey, lanAddresses, telemetryBase, namesThisMachine, isLocal, fromBrowser, staticFile, injectRemoteOverrides,
+  handleRequest,
+};
