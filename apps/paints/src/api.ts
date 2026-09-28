@@ -5,9 +5,12 @@ import type {
   BackupEntry,
   CatalogueCar,
   CustomerReport,
+  GroupReport,
+  GroupRequest,
   InstalledState,
   Library,
   LibrarySuggestion,
+  LiveryGroup,
   PathReport,
   PullReport,
   Preflight,
@@ -45,6 +48,7 @@ export async function carCatalogue(
       name: null,
       shortName: null,
       installed: false,
+      installPath: null,
       driven: 0,
     }));
   }
@@ -96,6 +100,28 @@ export const saveSettings = (settings: Settings) =>
 
 export const previewImage = (path: string, maxEdge?: number) =>
   invoke<string>("previewImage", { path, maxEdge });
+
+/// Livery groups are the desk's alone. In the Tauri shell there are none, which is what it always had.
+export async function liveryGroups(
+  libraryRoot: string,
+  paintDir: string | null,
+): Promise<LiveryGroup[]> {
+  if (!inDesk()) return [];
+  const found = await invoke<LiveryGroup[]>("liveryGroups", { libraryRoot, paintDir });
+  return Array.isArray(found) ? found : [];
+}
+
+export const saveGroup = (args: {
+  libraryRoot: string;
+  paintDir: string | null;
+  id: string | null;
+  name: string;
+  cars: Record<string, string | null>;
+}) => invoke<LiveryGroup>("saveGroup", args);
+
+export const deleteGroup = (id: string) => invoke<boolean>("deleteGroup", { id });
+
+export const setGroup = (request: GroupRequest) => invoke<GroupReport>("setGroup", { request });
 
 /// Errors arrive as plain strings from Rust and as Errors carrying the command's own message from the desk's
 /// bridge; anything else is a bug worth showing verbatim.

@@ -22,7 +22,7 @@ Versions live outside the sim's folders, one folder per version:
 
 Both filename shapes are read. The plan called for role-only names; the design pipeline in
 [doooom-iRacing-liveries](https://github.com/alternatekev/doooom-iRacing-liveries) already
-writes `car_1159839.tga`, so that repo's `cars/` folder works as a library with no changes.
+writes `car_424242.tga`, so that repo's `cars/` folder works as a library with no changes.
 
 `meta.json` is all optional:
 
@@ -128,8 +128,9 @@ ones that decide whether your work survives:
 - **Delete schemes before downloading** and **Delete schemes once session ends** — both can take
   your applied files with them.
 
-Each one is named in the UI with its current value, and an apply that would land into a risky
-setup asks before going ahead rather than after.
+Each one is named in the UI with its current value. An apply that would land into a risky setup —
+the downloader running, the sim holding the files — is refused with the reason, where the click
+was, and going ahead regardless is a second click offered only then.
 
 ## Building
 
@@ -227,6 +228,24 @@ answer. The install is the one the iRacing UI registered for `iracing://` links
 `paints.installDir` in the app's `overlay-settings.json` names another by hand.
 
 The Tauri shell here still builds from the same source. It stays until the page has done a few real swaps, then goes.
+
+### One click, and groups
+
+In the app an apply is one click: there is no dialog. How a livery is applied — the spec map too, read-only
+afterwards, other drivers' cooked files — is set once, under **When a livery is applied**, remembered, and used by
+every apply after it. What stands in the way is said where the click was.
+
+A **group** is one name for a livery across cars, listed above the cars. The library makes its own: a version more
+than one car has (`shatter` under seventeen cars) is a group, and a car joins it the moment a folder of that name
+appears under it. **New** makes one of your own — a name and, for each car with a livery, the version it wears;
+"every car in" fills them from a version the cars share — kept under `paints.liveryGroups` in the app's settings.
+**Set** applies each car's version, car by car, so each is backed up exactly as a single apply backs it up. A car
+already wearing its version is left alone, one car failing does not stop the rest, and what became of each is said
+beside it (`apps/overlay/modules/js/paints/groups.js`).
+
+A car that has never been driven has no paint folder. An apply makes it, under the install's name for the car —
+which is what the sim would call it — so the paint is there the first time the car is driven. Whether a folder may
+be made is decided in the app's main process, whatever the page sent.
 
 ## Still to come
 

@@ -86,6 +86,8 @@ export interface CatalogueCar extends Car {
   shortName: string | null;
   /// In the iRacing install.
   installed: boolean;
+  /// The install's name for the car — what the sim calls its paint folder. Null outside the install.
+  installPath: string | null;
   /// The driver's own sessions in it.
   driven: number;
 }
@@ -167,6 +169,56 @@ export interface ApplyRequest {
   setReadOnlyAfter: boolean;
   clearOtherCooked: boolean;
   force: boolean;
+}
+
+/// A car in a livery group, and the version it wears there.
+export interface GroupCar {
+  folder: string;
+  versionId: string;
+  versionName: string;
+  /// The version has left the library since the group was made.
+  missing: boolean;
+}
+
+/// One name for a livery across cars. The library makes its own — a version more than one car has —
+/// and the driver makes others (apps/overlay/modules/js/paints/groups.js).
+export interface LiveryGroup {
+  id: string;
+  name: string;
+  kind: "library" | "mine";
+  cars: GroupCar[];
+}
+
+export interface GroupRequest {
+  paintDir: string;
+  libraryRoot: string;
+  customerId: string;
+  groupId: string;
+  includeSpec: boolean;
+  setReadOnlyAfter: boolean;
+  clearOtherCooked: boolean;
+  force: boolean;
+}
+
+export interface GroupResult {
+  folder: string;
+  simFolder: string | null;
+  versionId: string;
+  outcome: "applied" | "already" | "skipped" | "failed";
+  detail: string;
+  backupDir: string | null;
+  warnings: string[];
+}
+
+export interface GroupReport {
+  groupId: string;
+  name: string;
+  results: GroupResult[];
+  applied: number;
+  already: number;
+  skipped: number;
+  failed: number;
+  warnings: string[];
 }
 
 export interface Settings {

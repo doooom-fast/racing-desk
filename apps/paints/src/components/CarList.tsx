@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CatalogueCar } from "../types";
+import type { CatalogueCar, LiveryGroup } from "../types";
 
 /// What a car is called on screen: the sim's name for it, or its folder when it has none.
 export function carLabel(car: CatalogueCar): string {
@@ -87,18 +87,70 @@ function Group({
   );
 }
 
-/// The sidebar: every car the rig knows, the ones with a livery first, and a filter over both.
+/// The groups, above the cars: each sets a livery on every car in it.
+function Groups({
+  groups,
+  selected,
+  onSelect,
+  onNew,
+}: {
+  groups: LiveryGroup[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+  onNew: (() => void) | null;
+}) {
+  if (groups.length === 0 && !onNew) return null;
+  return (
+    <div className="groups" role="group" aria-label="Groups">
+      <div className="heading">
+        Groups <span className="count">{groups.length}</span>
+        {onNew && (
+          <button className="link new" onClick={onNew}>
+            New
+          </button>
+        )}
+      </div>
+      {groups.map((g) => (
+        <button
+          key={g.id}
+          className={`car livery-group ${g.id === selected ? "active" : ""}`}
+          aria-current={g.id === selected ? "true" : undefined}
+          onClick={() => onSelect(g.id)}
+        >
+          <span className="name">{g.name}</span>
+          <span className="meta">
+            {g.cars.length} car{g.cars.length === 1 ? "" : "s"}
+            {g.kind === "mine" ? " · yours" : ""}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/// The sidebar: the livery groups, then every car the rig knows, the ones with a livery first, and a
+/// filter over the cars.
 export function CarList({
   cars,
   selected,
   onSelect,
   empty,
+  groups = [],
+  selectedGroup = null,
+  onSelectGroup = () => {},
+  onNewGroup = null,
 }: {
   cars: CatalogueCar[];
+  /// The car being looked at; none while a group is.
   selected: string | null;
   onSelect: (folder: string) => void;
   /// What to say when there are no cars at all.
   empty: string;
+  groups?: LiveryGroup[];
+  selectedGroup?: string | null;
+  onSelectGroup?: (id: string) => void;
+  /// Null where groups cannot be made: outside the desk, or with no livery to make one of.
+  onNewGroup?: (() => void) | null;
 }) {
   const [filter, setFilter] = useState("");
   const query = fold(filter).trim().replace(/\s+/g, " ");
@@ -155,6 +207,14 @@ export function CarList({
         />
       </div>
       <div className="list" ref={list}>
+        {!query && (
+          <Groups
+            groups={groups}
+            selected={selectedGroup}
+            onSelect={onSelectGroup}
+            onNew={onNewGroup}
+          />
+        )}
         <Group
           title="Liveries"
           cars={liveries}

@@ -795,7 +795,7 @@ function version(id, name, car = 'lotus79') {
 // files under another name than the sim, one the rig has never had — and four without: two the sim has named, one
 // of them by the name another car goes by, and a paint folder left behind by a car that is no longer installed.
 const car = (folder, simFolder, versions, name, shortName, installed, driven, simFolderInferred = false) =>
-  ({ folder, simFolder, simFolderInferred, versions, name, shortName, installed, driven });
+  ({ folder, simFolder, simFolderInferred, versions, name, shortName, installed, installPath: installed ? (simFolder ?? folder) : null, driven });
 const CATALOGUE = [
   car('caterham caterham420r', 'caterham caterham420r', [], 'Caterham Seven 420R', 'Seven 420R', true, 120),
   car('lotus79', 'lotus79', [version('v12', 'v12 Shatter'), version('v13', 'v13 Shatter')], 'Lotus 79', 'Lotus 79', true, 41),
@@ -965,6 +965,8 @@ test('the Paints sidebar: cars with a livery, then the rest, each by name, and a
   const filter = app.locator('.sidebar .filter input');
   await filter.focus();
   await page.keyboard.press('Tab');
+  await expect(app.locator('.sidebar .groups .heading button')).toBeFocused();   // New, for a group
+  await page.keyboard.press('Tab');
   await expect(line(0, 0)).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(line(0, 1)).toBeFocused();
@@ -1073,78 +1075,139 @@ test('a livery for a car with no paint folder is shown, warned about, and cannot
   expect(errors).toEqual([]);
 });
 
-test('Apply on a version runs the manager\'s applyVersion with the request src/types.ts describes', async ({ page }) => {
+const applyRequest = (extra = {}) => ({
+  request: {
+    paintDir: PAINT_DIR, libraryRoot: LIBRARY, carFolder: 'lotus79', simFolder: 'lotus79', versionId: 'v13', customerId: CUSTOMER,
+    includeSpec: true, setReadOnlyAfter: false, clearOtherCooked: false, force: false, ...extra,
+  },
+});
+
+test('Apply is one click: no dialog, the request src/types.ts describes, and what was done in the activity', async ({ page }) => {
   await stubPaintsBridge(page, PAINTS);
   const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
   const app = page.locator('#paints-root > .paints-app');
-  const v13 = app.locator('.versions .card', { hasText: 'v13 Shatter' });
-  await v13.locator('.actions button.primary').click();
+  await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
 
-  // The dialog says what it is about to do, then Apply (enabled once preflight has answered) does it.
-  const modal = app.locator('.modal');
-  await expect(modal.locator('h2')).toHaveText('Apply v13 Shatter');
-  await expect(modal.locator('.sub')).toHaveText(`to Lotus 79, into lotus79 as customer ${CUSTOMER}`);
-  await expect(modal).toContainText(`car_${CUSTOMER}.tga`);
-  await expect(modal).toContainText(`car_spec_${CUSTOMER}.tga`);
-  await expect(modal.locator('.banner')).toHaveCount(0);
-  await modal.locator('.foot button.primary').click();
-  await expect(modal).toBeHidden();
-
-  expect(await paintsCalls(page, 'preflight')).toEqual([{ paintDir: PAINT_DIR, simFolder: 'lotus79' }]);
-  expect(await paintsCalls(page, 'applyVersion')).toEqual([{
-    request: {
-      paintDir: PAINT_DIR, libraryRoot: LIBRARY, carFolder: 'lotus79', simFolder: 'lotus79', versionId: 'v13', customerId: CUSTOMER,
-      includeSpec: true, setReadOnlyAfter: false, clearOtherCooked: false, force: false,
-    },
-  }]);
   const entry = app.locator('.log .entry.ok');
   await expect(entry).toContainText('Applied v13 Shatter to Lotus 79');
   await expect(entry).toContainText(`car_${CUSTOMER}.tga installed`);
+  expect(await paintsCalls(page, 'applyVersion')).toEqual([applyRequest()]);
+  // Nothing was asked of the driver on the way, and nothing stands where the click was.
+  await expect(app.locator('.modal, .scrim')).toHaveCount(0);
+  await expect(app.locator('.refusal')).toHaveCount(0);
+  expect(await paintsCalls(page, 'preflight')).toEqual([]);
   expect((await paintsCalls(page, 'carState')).length).toBeGreaterThanOrEqual(2); // re-read after the apply
   expect(errors).toEqual([]);
 });
 
-test('what the manager refuses is shown in its own words', async ({ page }) => {
-  const refusal = 'iRacing is running. It holds paint files open, so a swap can fail halfway. Close the sim first.';
-  await stubPaintsBridge(page, { ...PAINTS, applyVersion: { __error: refusal } });
+test('how a livery is applied is set once, remembered, and used by the next apply', async ({ page }) => {
+  await stubPaintsBridge(page, { ...PAINTS, loadSettings: { setReadOnlyAfter: true } });
   const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
   const app = page.locator('#paints-root > .paints-app');
-  await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
-  await app.locator('.modal .foot button.primary').click();
-  const entry = app.locator('.log .entry.bad');
-  await expect(entry).toContainText('Did not apply v13 Shatter');
-  await expect(entry).toContainText(refusal);
-  expect(errors).toEqual([]);
+  const options = app.locator('.apply-options');
+  await expect(options.locator('h3')).toHaveText('When a livery is applied');
+  const boxes = options.getByRole('checkbox');
+  await expect(boxes).toHaveCount(3);
+  await expect(options.getByLabel('Install the spec map')).toBeChecked();
+  await expect(options.getByLabel('Set read-only afterwards')).toBeChecked();   // as remembered
+  await expect(options.getByLabel('Also clear other drivers\' cooked files')).not.toBeChecked();
 
-  // A preflight that fails outright is shown in the dialog itself, and Apply stays off.
-  await stubPaintsBridge(page, { ...PAINTS, preflight: { __error: 'The paint folder could not be read.' } });
-  await page.reload();
-  const again = page.locator('#paints-root > .paints-app');
-  await again.locator('.versions .card', { hasText: 'v12 Shatter' }).locator('.actions button.primary').click();
-  await expect(again.locator('.modal .banner.bad')).toContainText('The paint folder could not be read.');
-  await expect(again.locator('.modal .foot button.primary')).toBeDisabled();
+  await options.getByLabel('Install the spec map').uncheck();
+  await options.getByLabel('Also clear other drivers\' cooked files').check();
+  await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
+  await expect(app.locator('.log .entry.ok')).toContainText('Applied v13 Shatter to Lotus 79');
+
+  expect(await paintsCalls(page, 'applyVersion')).toEqual([applyRequest({ includeSpec: false, setReadOnlyAfter: true, clearOtherCooked: true })]);
+  await expect.poll(async () => (await paintsCalls(page, 'saveSettings')).at(-1)?.settings).toMatchObject({
+    includeSpec: false, setReadOnlyAfter: true, clearOtherCooked: true,
+  });
+  expect(errors).toEqual([]);
 });
 
-test('choosing another car closes the Apply dialog: what it says is about the car it was opened for', async ({ page }) => {
-  await stubPaintsBridge(page, PAINTS);
+const SIM_RUNNING = 'iRacing is running. It holds paint files open, so a swap can fail halfway. Close the sim first.';
+
+test('what stands in the way is said where the click was, and going on regardless is a second click', async ({ page }) => {
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    simStatus: { simRunning: true, uiRunning: true, matched: ['iRacingSim64DX11.exe'] },
+    applyVersion: { __by: 'force', answers: { true: PAINTS.applyVersion, '*': { __error: SIM_RUNNING } } },
+  });
+  // The stub picks its answer by an argument of the call; the request is one level down.
+  await page.addInitScript(() => {
+    const invoke = window.racingDesk.paints.invoke;
+    window.racingDesk.paints.invoke = (name, args) =>
+      invoke(name, name === 'applyVersion' ? { ...args, force: String(args.request.force) } : args);
+  });
   const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
   const app = page.locator('#paints-root > .paints-app');
   await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
-  const modal = app.locator('.modal');
-  await expect(modal.locator('.sub')).toHaveText(`to Lotus 79, into lotus79 as customer ${CUSTOMER}`);
 
-  // The scrim keeps the mouse off the list behind the dialog; the keyboard still reaches it.
-  await app.locator('.sidebar .car', { hasText: 'McLaren 570S GT4' }).focus();
-  await page.keyboard.press('Enter');
+  const refusal = app.locator('.refusal');
+  await expect(refusal).toContainText(SIM_RUNNING);
+  await expect(app.locator('.log .entry.bad')).toContainText('Did not apply v13 Shatter to Lotus 79');
+  await expect(refusal.getByRole('button')).toHaveText(['Apply v13 Shatter anyway', 'Dismiss']);
+
+  await refusal.getByRole('button', { name: 'Apply v13 Shatter anyway' }).click();
+  await expect(app.locator('.log .entry.ok')).toContainText('Applied v13 Shatter to Lotus 79');
+  await expect(refusal).toHaveCount(0);
+  expect((await paintsCalls(page, 'applyVersion')).map((c) => c.request.force)).toEqual([false, true]);
+  expect(errors).toEqual([]);
+});
+
+test('a failure that insisting would not mend offers no way to insist', async ({ page }) => {
+  const failure = `Could not write car_${CUSTOMER}.tga (EBUSY). Everything this apply had changed was put back.`;
+  await stubPaintsBridge(page, { ...PAINTS, applyVersion: { __error: failure } });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
+
+  const refusal = app.locator('.refusal');
+  await expect(refusal).toContainText(failure);
+  await expect(refusal.getByRole('button')).toHaveText(['Dismiss']);
+  await refusal.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(refusal).toHaveCount(0);
+  expect(await paintsCalls(page, 'applyVersion')).toHaveLength(1);
+  expect(errors).toEqual([]);
+});
+
+test('choosing another car takes the refusal with it: what it says is about the car it was for', async ({ page }) => {
+  await stubPaintsBridge(page, { ...PAINTS, applyVersion: { __error: SIM_RUNNING } });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
+  const refusal = app.locator('.refusal');
+  await expect(refusal).toContainText(SIM_RUNNING);
+
+  await app.locator('.sidebar .car', { hasText: 'McLaren 570S GT4' }).click();
   await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
-  await expect(modal).toHaveCount(0);
+  await expect(refusal).toHaveCount(0);
 
-  // And it stays closed: it does not come back for the next car chosen.
+  // And it stays gone: it does not come back with the car it was for.
   await app.locator('.sidebar .car', { hasText: 'Lotus 79' }).click();
   await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
   await expect(app.locator('.versions .card')).toHaveCount(2);
-  await expect(modal).toHaveCount(0);
-  expect(await paintsCalls(page, 'applyVersion')).toEqual([]);
+  await expect(refusal).toHaveCount(0);
+  expect(await paintsCalls(page, 'applyVersion')).toHaveLength(1);
+  expect(errors).toEqual([]);
+});
+
+test('a car never driven has no paint folder, and its livery is applied into the one the sim would make', async ({ page }) => {
+  const NEVER_DRIVEN = car('porsche992cup', null, [version('shatter', 'shatter', 'porsche992cup')], 'Porsche 911 GT3 Cup (992)', '911 Cup', true, 0);
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    carCatalogue: [...CATALOGUE, NEVER_DRIVEN],
+    carState: { simFolder: 'porsche992cup', folderExists: false, files: [], cooked: [], cookedOtherDrivers: 0, appliedVersionId: null, matchKind: 'none', anyReadOnly: false },
+  });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.sidebar .car', { hasText: 'Porsche 911 GT3 Cup (992)' }).click();
+  await expect(app.locator('.panel', { hasText: 'Installed in the sim' })).toContainText('Applying a livery makes it');
+
+  await app.locator('.versions .card .actions button.primary').click();
+  await expect(app.locator('.log .entry.ok')).toContainText('Applied shatter to Porsche 911 GT3 Cup (992)');
+  expect(await paintsCalls(page, 'applyVersion')).toEqual([
+    applyRequest({ carFolder: 'porsche992cup', simFolder: 'porsche992cup', versionId: 'shatter' }),
+  ]);
   expect(errors).toEqual([]);
 });
 
@@ -1189,7 +1252,6 @@ test('a car chosen while an apply is on its way keeps its own files when the app
   const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
   const app = page.locator('#paints-root > .paints-app');
   await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
-  await app.locator('.modal .foot button.primary').click();
   await app.locator('.sidebar .car', { hasText: 'McLaren 570S GT4' }).click();
   await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
 
@@ -1384,6 +1446,250 @@ test('a car with a livery is as bold when the filter leaves only cars with one',
 
 // The same bundle outside the desk, as the Tauri shell runs the same source: no window.racingDesk, the Rust
 // commands under their snake_case names — and no car_catalogue among them.
+// ── Livery groups ──
+// liveryGroups, saveGroup and deleteGroup keep their groups in the page, as the manager keeps them in the settings;
+// setGroup answers as canned. Every call is recorded with the rest.
+
+const group = (id, name, kind, cars) => ({
+  id, name, kind, cars: cars.map(([folder, versionId, versionName = versionId, missing = false]) => ({ folder, versionId, versionName, missing })),
+});
+const SHATTER = group('library:shatter', 'shatter', 'library', [['lotus79', 'v13', 'v13 Shatter'], ['nissangtpzxt', 'v1']]);
+const RACE_DAY = group('mine:race-day', 'Race day', 'mine', [['lotus79', 'v12', 'v12 Shatter'], ['mx5-mx52016', 'orange', 'Orange']]);
+
+const SET_REPORT = {
+  groupId: 'library:shatter', name: 'shatter', applied: 1, already: 0, skipped: 1, failed: 0, warnings: [],
+  results: [
+    { folder: 'lotus79', simFolder: 'lotus79', versionId: 'v13', outcome: 'applied', detail: `car_${CUSTOMER}.tga -> car_${CUSTOMER}.tga`, backupDir: 'C:\\backups\\lotus79\\2026-09-28_120000_000', warnings: [] },
+    { folder: 'nissangtpzxt', simFolder: null, versionId: 'v1', outcome: 'skipped', detail: 'The car has no folder in the paint directory and is not in the iRacing install.', backupDir: null, warnings: [] },
+  ],
+};
+
+async function stubGroups(page, initial) {
+  await page.addInitScript((groups) => {
+    const held = JSON.parse(JSON.stringify(groups));
+    const copy = (v) => JSON.parse(JSON.stringify(v));
+    const invoke = window.racingDesk.paints.invoke;
+    window.racingDesk.paints.invoke = async (name, args) => {
+      if (!['liveryGroups', 'saveGroup', 'deleteGroup'].includes(name)) return invoke(name, args);
+      window.__paints.calls.push({ name, args });
+      if (name === 'liveryGroups') return copy(held);
+      if (name === 'deleteGroup') {
+        const at = held.findIndex((g) => g.id === args.id);
+        if (at < 0) return false;
+        held.splice(at, 1);
+        return true;
+      }
+      if (held.some((g) => g.id !== args.id && g.name.toLowerCase() === args.name.toLowerCase())) {
+        throw new Error(`There is a group called ${args.name} already.`);
+      }
+      const cars = Object.entries(args.cars).filter(([, v]) => v).map(([folder, versionId]) => ({ folder, versionId, versionName: versionId, missing: false }));
+      let saved = held.find((g) => g.id === args.id);
+      if (saved) Object.assign(saved, { name: args.name, cars });
+      else {
+        saved = { id: `mine:${args.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, name: args.name, kind: 'mine', cars };
+        held.unshift(saved);
+      }
+      return copy(saved);
+    };
+  }, initial);
+}
+
+const groupRequest = (groupId, extra = {}) => ({
+  request: {
+    paintDir: PAINT_DIR, libraryRoot: LIBRARY, customerId: CUSTOMER, groupId,
+    includeSpec: true, setReadOnlyAfter: false, clearOtherCooked: false, force: false, ...extra,
+  },
+});
+
+test('groups are listed above the cars, and one is looked at where a car would be', async ({ page }) => {
+  await stubPaintsBridge(page, PAINTS);
+  await stubGroups(page, [RACE_DAY, SHATTER]);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+
+  await expect(app.locator('.sidebar .groups .heading')).toContainText('Groups 2');
+  await expect(app.locator('.sidebar .groups .car .name')).toHaveText(['Race day', 'shatter']);
+  await expect(app.locator('.sidebar .groups .car .meta')).toHaveText(['2 cars · yours', '2 cars']);
+  // The cars are as they were, and a car is still what the page opens on.
+  await expect(app.locator('.sidebar .group .heading')).toHaveText(['Liveries 3', 'No livery yet 4']);
+  await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+
+  await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
+  await expect(app.locator('.group-head h2')).toHaveText('shatter');
+  await expect(app.locator('.group-head .note')).toHaveText('Every car with a version called shatter in the library · 2 cars');
+  await expect(app.locator('.sidebar .car.active .name')).toHaveText(['shatter']);
+  await expect(app.locator('.versions')).toHaveCount(0);
+
+  const rows = app.locator('.panel', { hasText: 'Cars in this group' }).locator('tbody tr');
+  await expect(rows.locator('.name')).toHaveText(['Lotus 79', 'nissangtpzxt']);
+  await expect(rows.locator('.version')).toHaveText(['v13 Shatter', 'v1']);
+  await expect(rows.locator('.standing')).toHaveText(['', 'not in the sim']);
+  // One of the two can be set, and nothing about a library's group is the driver's to change.
+  await expect(app.locator('.group-actions button')).toHaveText(['Set on 1 car']);
+  const leftOut = app.locator('.panel', { hasText: 'Not in this group' });
+  await expect(leftOut).toContainText('No version called shatter for Mazda MX-5 Cup.');
+  await expect(leftOut).toContainText('3 more cars on the rig have no livery in the library at all.');
+  await expect(app.locator('.apply-options')).toBeVisible();
+
+  // From a car in the group to that car, and the list follows.
+  await rows.locator('.name button', { hasText: 'Lotus 79' }).click();
+  await expect(app.locator('.car-head:not(.group-head) h2')).toHaveText('Lotus 79');
+  await expect(app.locator('.sidebar .car.active .name')).toHaveText(['Lotus 79']);
+
+  // While the cars are filtered the groups are out of the way.
+  await app.locator('.sidebar .filter input').fill('mazda');
+  await expect(app.locator('.sidebar .groups')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('setting a group is one click, and what became of each car is said beside it', async ({ page }) => {
+  await stubPaintsBridge(page, { ...PAINTS, setGroup: SET_REPORT });
+  await stubGroups(page, [SHATTER]);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
+  await app.locator('.group-actions button.primary').click();
+
+  const rows = app.locator('.panel', { hasText: 'Cars in this group' }).locator('tbody tr');
+  await expect(rows.locator('.outcome')).toHaveText([
+    'applied', 'skipped — The car has no folder in the paint directory and is not in the iRacing install.',
+  ]);
+  const entry = app.locator('.log .entry.ok');
+  await expect(entry).toContainText('Set shatter: 1 applied, 1 skipped');
+  await expect(entry).toContainText('nissangtpzxt: The car has no folder in the paint directory and is not in the iRacing install.');
+  expect(await paintsCalls(page, 'setGroup')).toEqual([groupRequest('library:shatter')]);
+  expect(await paintsCalls(page, 'applyVersion')).toEqual([]);
+  await expect(app.locator('.modal, .scrim, .refusal')).toHaveCount(0);
+
+  // Another group's page does not show this one's outcomes.
+  await app.locator('.sidebar .car:not(.livery-group)', { hasText: 'Lotus 79' }).click();
+  await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
+  await expect(rows.locator('.outcome')).toHaveText(['', '']);
+  expect(errors).toEqual([]);
+});
+
+test('a group that cannot be set while the sim runs says so, and can be set anyway', async ({ page }) => {
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    simStatus: { simRunning: true, uiRunning: true, matched: ['iRacingSim64DX11.exe'] },
+    setGroup: { __by: 'force', answers: { true: { ...SET_REPORT, warnings: [`Set anyway, over a warning: ${SIM_RUNNING}`] }, '*': { __error: SIM_RUNNING } } },
+  });
+  await page.addInitScript(() => {
+    const invoke = window.racingDesk.paints.invoke;
+    window.racingDesk.paints.invoke = (name, args) =>
+      invoke(name, name === 'setGroup' ? { ...args, force: String(args.request.force) } : args);
+  });
+  await stubGroups(page, [SHATTER]);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
+  await app.locator('.group-actions button.primary').click();
+
+  const refusal = app.locator('.refusal');
+  await expect(refusal).toContainText(SIM_RUNNING);
+  await expect(refusal.getByRole('button')).toHaveText(['Set anyway', 'Dismiss']);
+  await expect(app.locator('.log .entry.bad')).toContainText('Did not set shatter');
+
+  await refusal.getByRole('button', { name: 'Set anyway' }).click();
+  await expect(app.locator('.log .entry.ok')).toContainText('Set shatter: 1 applied, 1 skipped');
+  await expect(app.locator('.log .entry.ok')).toContainText(`Set anyway, over a warning: ${SIM_RUNNING}`);
+  await expect(refusal).toHaveCount(0);
+  expect((await paintsCalls(page, 'setGroup')).map((c) => c.request.force)).toEqual([false, true]);
+  expect(errors).toEqual([]);
+});
+
+test('a group of the driver\'s own is made from the cars\' versions, changed, and forgotten', async ({ page }) => {
+  await stubPaintsBridge(page, PAINTS);
+  await stubGroups(page, [SHATTER]);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+
+  await app.locator('.sidebar .groups .heading button', { hasText: 'New' }).click();
+  await expect(app.locator('.group-head h2')).toHaveText('New group');
+  const editor = app.locator('.group-editor');
+  // Every car with a livery, by name, and none of them in the group yet.
+  await expect(editor.locator('tbody .name')).toHaveText(['Lotus 79', 'Mazda MX-5 Cup', 'nissangtpzxt']);
+  for (const name of ['Lotus 79', 'Mazda MX-5 Cup', 'nissangtpzxt']) await expect(editor.getByLabel(name)).toHaveValue('');
+  const make = editor.getByRole('button', { name: 'Make the group' });
+  await expect(make).toBeDisabled();
+
+  await editor.getByLabel('Name').fill('Race day');
+  await expect(make).toBeDisabled();   // a name, and no car
+  await editor.getByLabel('Lotus 79').selectOption('v12');
+  await editor.getByLabel('Mazda MX-5 Cup').selectOption('orange');
+  await expect(editor.locator('.group-actions .note')).toHaveText('2 cars in it');
+  await make.click();
+
+  expect(await paintsCalls(page, 'saveGroup')).toEqual([{
+    libraryRoot: LIBRARY, paintDir: PAINT_DIR, id: null, name: 'Race day',
+    cars: { lotus79: 'v12', 'mx5-mx52016': 'orange', nissangtpzxt: null },
+  }]);
+  await expect(app.locator('.group-head h2')).toHaveText('Race day');
+  await expect(app.locator('.group-head .note')).toHaveText('A group of yours · 2 cars');
+  await expect(app.locator('.sidebar .groups .car .name')).toHaveText(['Race day', 'shatter']);
+  await expect(app.locator('.group-actions button')).toHaveText(['Set on 2 cars', 'Change', 'Forget this group']);
+  await expect(app.locator('.log .entry.ok')).toContainText('Made the group Race day');
+
+  // Changed: the editor opens on what the group has.
+  await app.locator('.group-actions button', { hasText: 'Change' }).click();
+  await expect(app.locator('.group-head h2')).toHaveText('Change Race day');
+  await expect(editor.getByLabel('Name')).toHaveValue('Race day');
+  await expect(editor.getByLabel('Lotus 79')).toHaveValue('v12');
+  await editor.getByLabel('Lotus 79').selectOption('v13');
+  await editor.getByLabel('Mazda MX-5 Cup').selectOption('');
+  await editor.getByRole('button', { name: 'Save' }).click();
+  expect((await paintsCalls(page, 'saveGroup')).at(-1)).toEqual({
+    libraryRoot: LIBRARY, paintDir: PAINT_DIR, id: 'mine:race-day', name: 'Race day',
+    cars: { lotus79: 'v13', 'mx5-mx52016': null, nissangtpzxt: null },
+  });
+  await expect(app.locator('.group-head .note')).toHaveText('A group of yours · 1 car');
+
+  // A name another group has is refused where it was typed, and the editor stays.
+  await app.locator('.sidebar .groups .heading button', { hasText: 'New' }).click();
+  await editor.getByLabel('Name').fill('SHATTER');
+  await editor.getByLabel('Lotus 79').selectOption('v12');
+  await editor.getByRole('button', { name: 'Make the group' }).click();
+  await expect(editor.locator('.banner.bad')).toContainText('There is a group called SHATTER already.');
+  await editor.getByRole('button', { name: 'Cancel' }).click();
+  await expect(app.locator('.group-head h2')).toHaveText('Race day');
+
+  await app.locator('.group-actions button', { hasText: 'Forget this group' }).click();
+  expect(await paintsCalls(page, 'deleteGroup')).toEqual([{ id: 'mine:race-day' }]);
+  await expect(app.locator('.sidebar .groups .car .name')).toHaveText(['shatter']);
+  await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');   // back to the car that was being looked at
+  expect(errors).toEqual([]);
+});
+
+test('"every car in" fills the group from a version the cars share', async ({ page }) => {
+  const shared = (folder, name, extra) => car(folder, folder, [version('shatter', 'shatter', folder), version('shatter-inverted', 'shatter-inverted', folder), ...extra], name, name, true, 1);
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    carCatalogue: [shared('lotus79', 'Lotus 79', [version('v14', 'v14')]), shared('dallarair18', 'Dallara IR18', []), car('audi90gto', 'audi90gto', [version('v1', 'v1', 'audi90gto')], 'Audi 90 GTO', 'Audi 90', true, 3)],
+  });
+  await stubGroups(page, []);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await expect(app.locator('.sidebar .groups .heading')).toContainText('Groups 0');
+  await app.locator('.sidebar .groups .heading button', { hasText: 'New' }).click();
+  const editor = app.locator('.group-editor');
+
+  await expect(editor.getByLabel('Every car in').locator('option')).toHaveText(['choose a version…', 'shatter (2 cars)', 'shatter-inverted (2 cars)']);
+  await editor.getByLabel('Audi 90 GTO').selectOption('v1');
+  await editor.getByLabel('Every car in').selectOption('shatter-inverted');
+  await expect(editor.getByLabel('Dallara IR18')).toHaveValue('shatter-inverted');
+  await expect(editor.getByLabel('Lotus 79')).toHaveValue('shatter-inverted');
+  await expect(editor.getByLabel('Audi 90 GTO')).toHaveValue('v1');   // it has no such version, and keeps what it had
+  await editor.getByLabel('Lotus 79').selectOption('v14');
+  await editor.getByLabel('Name').fill('Inverted');
+  await editor.getByRole('button', { name: 'Make the group' }).click();
+
+  expect(await paintsCalls(page, 'saveGroup')).toEqual([{
+    libraryRoot: LIBRARY, paintDir: PAINT_DIR, id: null, name: 'Inverted',
+    cars: { audi90gto: 'v1', dallarair18: 'shatter-inverted', lotus79: 'v14' },
+  }]);
+  expect(errors).toEqual([]);
+});
+
 test('in the Tauri shell there is no catalogue: the list is the library\'s cars, by folder', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
@@ -1422,6 +1728,7 @@ test('in the Tauri shell there is no catalogue: the list is the library\'s cars,
 
   const app = page.locator('#root > .paints-app');
   await expect(app.locator('.sidebar .group .heading')).toHaveText(['Liveries 3']);
+  await expect(app.locator('.sidebar .groups')).toHaveCount(0);   // groups are the desk's
   await expect(app.locator('.sidebar .car .name')).toHaveText(['lotus79', 'mx5-mx52016', 'nissangtpzxt']);
   await expect(app.locator('.sidebar .car .meta')).toHaveText(['2 versions', '1 version · installs to mx5 mx52016', '1 version · not in the sim']);
   await expect(app.locator('.car-head h2')).toHaveText('lotus79');

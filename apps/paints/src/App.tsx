@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as api from "./api";
-import { reveal } from "./bridge";
+import { inDesk, reveal } from "./bridge";
 import { errorText } from "./api";
-import { ApplyDialog, type ApplyOptions } from "./components/ApplyDialog";
+import { ApplyOptionsPanel, Refusal, type ApplyOptions } from "./components/ApplyOptions";
 import { CarList, carLabel, groupCars } from "./components/CarList";
+import { GroupEditor } from "./components/GroupEditor";
+import { GroupPage } from "./components/GroupPage";
 import { TradingPaintsPanel } from "./components/Guards";
 import { RepoPanel } from "./components/RepoPanel";
 import { SetupBar } from "./components/SetupBar";
@@ -13,8 +15,10 @@ import type {
   BackupEntry,
   CatalogueCar,
   CustomerReport,
+  GroupReport,
   InstalledState,
   LibrarySuggestion,
+  LiveryGroup,
   PathReport,
   RepoStatus,
   Settings,
@@ -30,6 +34,11 @@ interface LogEntry {
   title: string;
   lines: string[];
 }
+
+/// An apply that was refused: what was asked for, why not, and whether going on regardless is on offer.
+type Refused =
+  | { what: "version"; carFolder: string; version: Version; reason: string; canForce: boolean }
+  | { what: "group"; groupId: string; reason: string; canForce: boolean };
 
 /// Where a new version of a car goes, for showing: `<library>\<car folder>\<version name>\`. Nothing is
 /// made of it but text — the folders are the user's to create.
@@ -66,7 +75,15 @@ export default function App() {
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [checking, setChecking] = useState(false);
 
-  const [applying, setApplying] = useState<Version | null>(null);
+  const [groups, setGroups] = useState<LiveryGroup[]>([]);
+  /// The group on the page, in place of a car.
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  /// A group being made (`group` null) or changed, in place of either.
+  const [editing, setEditing] = useState<{ group: LiveryGroup | null } | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [groupReport, setGroupReport] = useState<GroupReport | null>(null);
+
+  const [refused, setRefused] = useState<Refused | null>(null);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const logId = useRef(0);
@@ -168,19 +185,26 @@ export default function App() {
 
   // --- the cars: the library's, and every other car the rig knows ------------------------
   // Each answer is numbered, because the folders can change while one is on its way — every keystroke in
-  // a path asks again — and the list has to be the last one asked for, not the last one to arrive.
+  // a path asks again — and the list has to be the last one asked for, not the last one to arrive. The
+  // groups are read with the cars: they are made of the same library.
   const asked = useRef(0);
   const refreshLibrary = useCallback(async () => {
     const mine = ++asked.current;
     if (!libraryRoot) {
       setCars(null);
+      setGroups([]);
       return;
     }
     setListing("reading");
     try {
-      const found = await api.carCatalogue(libraryRoot, paintDir || null);
+      const [found, grouped] = await Promise.all([
+        api.carCatalogue(libraryRoot, paintDir || null),
+        // Groups are a nicety: a list of cars is not held up by them, nor lost with them.
+        api.liveryGroups(libraryRoot, paintDir || null).catch((): LiveryGroup[] => []),
+      ]);
       if (mine !== asked.current) return;
       setCars(found);
+      setGroups(grouped);
       setListing("read");
       // A car that is still there stays selected; otherwise the first with a livery, as the list shows it.
       setSelectedFolder((current) => {
@@ -188,9 +212,11 @@ export default function App() {
         const { liveries, rest } = groupCars(found);
         return (liveries[0] ?? rest[0])?.folder ?? null;
       });
+      setSelectedGroup((current) => (current && grouped.some((g) => g.id === current) ? current : null));
     } catch (e) {
       if (mine !== asked.current) return;
       setCars(null);
+      setGroups([]);
       setListing("failed");
       say("bad", "Could not read the library", [errorText(e)]);
     }
@@ -286,6 +312,13 @@ export default function App() {
     [cars, selectedFolder],
   );
   const carName = car ? carLabel(car) : "";
+  /// Where the car's paint goes: its folder in the paint directory, or, for a car never driven, the
+  /// folder the sim would make for it — which an apply makes. Null for a car the sim does not have.
+  const target = car ? (car.simFolder ?? car.installPath) : null;
+  const group = useMemo(
+    () => groups.find((g) => g.id === selectedGroup) ?? null,
+    [groups, selectedGroup],
+  );
 
   // --- installed state for the selected car ---------------------------------------------
   // Numbered like the list: what is shown is the answer for the last car asked about, however late
@@ -304,7 +337,7 @@ export default function App() {
           paintDir,
           libraryRoot,
           carFolder: car.folder,
-          simFolder: car.simFolder,
+          simFolder: car.simFolder ?? car.installPath,
           customerId,
         }),
         api.listBackups(car.folder),
@@ -328,20 +361,34 @@ export default function App() {
     void refreshCar();
   }, [refreshCar]);
 
-  // What was read, and a dialog opened, for the last car are not this one's. Before the page is painted,
-  // so that they are never seen under this one's name.
+  // What was read, and what was refused, for the last car or group are not this one's. Before the page is
+  // painted, so that they are never seen under this one's name.
   useLayoutEffect(() => {
     setInstalled(null);
     setBackups([]);
-    setApplying(null);
-  }, [selectedFolder]);
+    setRefused(null);
+  }, [selectedFolder, selectedGroup]);
+
+  useLayoutEffect(() => {
+    setGroupReport(null);
+  }, [selectedGroup]);
+
+  const selectCar = (folder: string) => {
+    setEditing(null);
+    setSelectedGroup(null);
+    setSelectedFolder(folder);
+  };
+  const selectGroup = (id: string) => {
+    setEditing(null);
+    setSelectedGroup(id);
+  };
 
   // --- guards ---------------------------------------------------------------------------
   useEffect(() => {
     let live = true;
     // Inside The Racing Desk the page stays mounted while another page is up, or the window is minimised behind
     // a race. Nobody is looking at the chips then, and each check starts a process — so it waits until somebody
-    // is. Apply does not depend on this: its preflight asks again, itself.
+    // is. Apply does not depend on this: it asks again, itself.
     const watched = () =>
       !document.hidden && (document.querySelector(".paints-app")?.getClientRects().length ?? 0) > 0;
     const tick = () => {
@@ -361,17 +408,35 @@ export default function App() {
     };
   }, []);
 
+  /// Whether something stands in every apply's way right now — the sim running, the downloader — asked
+  /// afresh. Only then is going on regardless worth offering: a file that could not be written is not
+  /// made writable by insisting.
+  const standsInTheWay = async (): Promise<boolean> => {
+    try {
+      const [s, t] = await Promise.all([api.simStatus(), api.tradingPaintsStatus()]);
+      setSim(s);
+      setTp(t);
+      return s.simRunning || t.running;
+    } catch {
+      return false;
+    }
+  };
+
   // --- actions --------------------------------------------------------------------------
+  // One click applies: how is set once, under "When a livery is applied", and what stands in the way is
+  // said where the click was, with going on regardless as a second one.
   const doApply = async (version: Version, force: boolean) => {
-    if (!car?.simFolder) return;
-    setApplying(null);
+    if (!car || !target) return;
+    const applyingTo = car.folder;
+    const name = carName;
+    setRefused(null);
     setBusy(true);
     try {
       const report = await api.applyVersion({
         paintDir,
         libraryRoot,
         carFolder: car.folder,
-        simFolder: car.simFolder,
+        simFolder: target,
         versionId: version.id,
         customerId,
         includeSpec: options.includeSpec,
@@ -379,12 +444,15 @@ export default function App() {
         clearOtherCooked: options.clearOtherCooked,
         force,
       });
-      say("ok", `Applied ${version.name} to ${carName}`, [
+      say("ok", `Applied ${version.name} to ${name}`, [
         ...report.actions.map((a) => a.detail),
         ...report.warnings,
       ]);
     } catch (e) {
-      say("bad", `Did not apply ${version.name}`, [errorText(e)]);
+      const reason = errorText(e);
+      say("bad", `Did not apply ${version.name} to ${name}`, [reason]);
+      const canForce = !force && (await standsInTheWay());
+      setRefused({ what: "version", carFolder: applyingTo, version, reason, canForce });
     } finally {
       setBusy(false);
       await latestRefreshCar.current();
@@ -415,11 +483,99 @@ export default function App() {
     }
   };
 
+  const nameOf = (folder: string) => {
+    const found = cars?.find((c) => c.folder === folder);
+    return found ? carLabel(found) : folder;
+  };
+
+  const doSetGroup = async (which: LiveryGroup, force: boolean) => {
+    setRefused(null);
+    setGroupReport(null);
+    setBusy(true);
+    try {
+      const report = await api.setGroup({
+        paintDir,
+        libraryRoot,
+        customerId,
+        groupId: which.id,
+        includeSpec: options.includeSpec,
+        setReadOnlyAfter: options.setReadOnlyAfter,
+        clearOtherCooked: options.clearOtherCooked,
+        force,
+      });
+      setGroupReport(report);
+      const counts = [
+        report.applied > 0 && `${report.applied} applied`,
+        report.already > 0 && `${report.already} already on`,
+        report.skipped > 0 && `${report.skipped} skipped`,
+        report.failed > 0 && `${report.failed} failed`,
+      ].filter(Boolean);
+      say(
+        report.failed > 0 ? "bad" : "ok",
+        `Set ${report.name}: ${counts.join(", ") || "no cars"}`,
+        [
+          ...report.results
+            .filter((r) => r.outcome === "skipped" || r.outcome === "failed")
+            .map((r) => `${nameOf(r.folder)}: ${r.detail}`),
+          ...report.results.flatMap((r) => r.warnings.map((w) => `${nameOf(r.folder)}: ${w}`)),
+          ...report.warnings,
+        ],
+      );
+    } catch (e) {
+      const reason = errorText(e);
+      say("bad", `Did not set ${which.name}`, [reason]);
+      const canForce = !force && (await standsInTheWay());
+      setRefused({ what: "group", groupId: which.id, reason, canForce });
+    } finally {
+      setBusy(false);
+      await latestRefreshCar.current();
+    }
+  };
+
+  const doSaveGroup = async (name: string, chosen: Record<string, string | null>) => {
+    setEditError(null);
+    setBusy(true);
+    try {
+      const saved = await api.saveGroup({
+        libraryRoot,
+        paintDir: paintDir || null,
+        id: editing?.group?.id ?? null,
+        name,
+        cars: chosen,
+      });
+      setGroups(await api.liveryGroups(libraryRoot, paintDir || null));
+      setEditing(null);
+      setSelectedGroup(saved.id);
+      say("ok", `${editing?.group ? "Changed" : "Made"} the group ${saved.name}`, [
+        `${saved.cars.length} car${saved.cars.length === 1 ? "" : "s"} in it`,
+      ]);
+    } catch (e) {
+      setEditError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doDeleteGroup = async (which: LiveryGroup) => {
+    setBusy(true);
+    try {
+      await api.deleteGroup(which.id);
+      setGroups(await api.liveryGroups(libraryRoot, paintDir || null));
+      setSelectedGroup(null);
+      say("info", `Forgot the group ${which.name}`, ["The liveries are in the library as they were."]);
+    } catch (e) {
+      say("bad", `Could not forget ${which.name}`, [errorText(e)]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const idValid = /^\d+$/.test(customerId);
   const status = useMemo(
     () => collectStatus({ sim, tp, repo, car, idValid }),
     [sim, tp, repo, car, idValid],
   );
+  const painted = (cars ?? []).some((c) => c.versions.length > 0);
 
   /// What stands where the cars would be while there are none to show.
   const noCars = !libraryRoot
@@ -459,9 +615,20 @@ export default function App() {
       <div className="body">
         <CarList
           cars={cars ?? []}
-          selected={selectedFolder}
-          onSelect={setSelectedFolder}
+          selected={selectedGroup || editing ? null : selectedFolder}
+          onSelect={selectCar}
           empty={noCars.list}
+          groups={groups}
+          selectedGroup={editing ? null : selectedGroup}
+          onSelectGroup={selectGroup}
+          onNewGroup={
+            inDesk() && painted
+              ? () => {
+                  setEditError(null);
+                  setEditing({ group: null });
+                }
+              : null
+          }
         />
 
         <div className="main">
@@ -475,7 +642,45 @@ export default function App() {
             onUpdate={() => void updateLibrary()}
           />
 
-          {car ? (
+          {editing ? (
+            <GroupEditor
+              key={editing.group?.id ?? "new"}
+              group={editing.group}
+              cars={cars ?? []}
+              busy={busy}
+              error={editError}
+              onSave={(name, chosen) => void doSaveGroup(name, chosen)}
+              onCancel={() => setEditing(null)}
+            />
+          ) : group ? (
+            <>
+              {refused?.what === "group" && refused.groupId === group.id && (
+                <Refusal
+                  reason={refused.reason}
+                  canForce={refused.canForce}
+                  busy={busy}
+                  forceLabel="Set anyway"
+                  onForce={() => void doSetGroup(group, true)}
+                  onDismiss={() => setRefused(null)}
+                />
+              )}
+              <GroupPage
+                group={group}
+                cars={cars ?? []}
+                busy={busy}
+                ready={idValid && !!paintDir && !!libraryRoot}
+                report={groupReport?.groupId === group.id ? groupReport : null}
+                onSet={() => void doSetGroup(group, false)}
+                onEdit={() => {
+                  setEditError(null);
+                  setEditing({ group });
+                }}
+                onDelete={() => void doDeleteGroup(group)}
+                onSelectCar={selectCar}
+              />
+              <ApplyOptionsPanel options={options} onOptions={setOptions} />
+            </>
+          ) : car ? (
             <>
               <div className="car-head">
                 <h2>{carName}</h2>
@@ -492,18 +697,38 @@ export default function App() {
                 </div>
               </div>
 
+              {refused?.what === "version" && refused.carFolder === car.folder && (
+                <Refusal
+                  reason={refused.reason}
+                  canForce={refused.canForce}
+                  busy={busy}
+                  forceLabel={`Apply ${refused.version.name} anyway`}
+                  onForce={() => void doApply(refused.version, true)}
+                  onDismiss={() => setRefused(null)}
+                />
+              )}
+
               {car.versions.length > 0 ? (
-                <div className="versions">
-                  {car.versions.map((v) => (
-                    <VersionCard
-                      key={v.id}
-                      version={v}
-                      installed={installed}
-                      busy={busy || !idValid || !car.simFolder}
-                      onApply={() => setApplying(v)}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="versions">
+                    {car.versions.map((v) => (
+                      <VersionCard
+                        key={v.id}
+                        version={v}
+                        installed={installed}
+                        busy={busy || !idValid || !target}
+                        onApply={() => void doApply(v, false)}
+                      />
+                    ))}
+                  </div>
+                  {!target && (
+                    <div className="note">
+                      This car is not in the sim: it has no folder in the paint directory and is not
+                      in the iRacing install, so there is nowhere to apply a livery to.
+                    </div>
+                  )}
+                  <ApplyOptionsPanel options={options} onOptions={setOptions} />
+                </>
               ) : (
                 <div className="panel no-livery">
                   <h3>No livery yet</h3>
@@ -524,7 +749,9 @@ export default function App() {
                   <div className="note">
                     {car.simFolder || !idValid
                       ? "Nothing to read yet."
-                      : "This car has no folder in the paint directory yet. The sim creates it the first time you drive the car."}
+                      : car.installPath
+                        ? "This car has no folder in the paint directory yet. Applying a livery makes it; so does the sim, the first time you drive the car."
+                        : "This car has no folder in the paint directory yet. The sim creates it the first time you drive the car."}
                   </div>
                 ) : installed.files.length === 0 ? (
                   <div className="note">
@@ -615,20 +842,6 @@ export default function App() {
           )}
         </div>
       </div>
-
-      {applying && car?.simFolder && (
-        <ApplyDialog
-          version={applying}
-          carName={carName}
-          simFolder={car.simFolder}
-          paintDir={paintDir}
-          customerId={customerId}
-          options={options}
-          onOptions={setOptions}
-          onCancel={() => setApplying(null)}
-          onConfirm={(force) => void doApply(applying, force)}
-        />
-      )}
     </div>
   );
 }

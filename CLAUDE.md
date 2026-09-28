@@ -159,6 +159,16 @@ mounted the first time the page is shown. Its calls go through `apps/paints/src/
 Tauri shell in `apps/paints` still builds from the same source and goes once the page has proved itself. Use made-up
 customer ids in fixtures.
 
+Applying is one click — there is no dialog. The three options (spec map, read-only afterwards, other drivers' cooked
+files) are set once under "When a livery is applied" and remembered; an apply that is refused says why where the
+click was, and offers to go on regardless only when something stands in every apply's way (the sim running, the
+downloader). **Groups** (`modules/js/paints/groups.js`; commands `liveryGroups`, `saveGroup`, `deleteGroup`,
+`setGroup`) are one name for a livery across cars: a version id more than one car has in the library is a group by
+itself, and the driver's own — a name and a version per car — are kept under `paints.liveryGroups`. Setting one
+applies each car's version through `apply.js`, skips a car already wearing it, and carries on past a car that
+fails. A car never driven has no paint folder: an apply makes it under the install's name for the car
+(`installPath` in the catalogue), and only `index.js` decides that it may.
+
 The page lists every car the rig knows, by the sim's name for it — cars with a livery first, then the rest, with a
 filter over both — and a car with no livery still shows what is installed for it and its backups. The list is the
 `carCatalogue` command (`modules/js/paints/catalogue.js`; the desk's own — the Rust has none, so the Tauri shell lists
