@@ -194,8 +194,8 @@ test('what the manager remembers goes through the store, and needs the settings 
   expect(await invoke('loadSettings')).toEqual({ ...settings, customerId: STRANGER });
 });
 
-test('only the 18 commands can be called', async () => {
-  expect(paintsIpc.NAMES).toHaveLength(18);
+test('only the 22 commands can be called', async () => {
+  expect(paintsIpc.NAMES).toHaveLength(22);
   for (const name of ['__proto__', 'constructor', 'toString', 'createCommands', '', 42, null, undefined]) {
     await expect(invoke(name, {}), String(name)).rejects.toThrow(/Not a paints command/);
   }

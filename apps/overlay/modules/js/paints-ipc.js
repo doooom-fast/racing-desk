@@ -29,6 +29,11 @@ const CALLS = Object.freeze({
   },
   previewImage: (c, { path, maxEdge }) => c.previewImage(path, maxEdge),
   carCatalogue: (c, { libraryRoot, paintDir }) => c.carCatalogue({ libraryRoot, paintDir }),
+  liveryGroups: (c, { libraryRoot, paintDir }, store) => c.liveryGroups({ libraryRoot, paintDir }, store),
+  saveGroup: (c, { libraryRoot, paintDir, id, name, cars }, store) =>
+    c.saveGroup({ libraryRoot, paintDir, id, name, cars }, store),
+  deleteGroup: (c, { id }, store) => c.deleteGroup(id, store),
+  setGroup: (c, { request }, store) => c.setGroup(request, store),
 });
 
 const NAMES = Object.freeze(Object.keys(CALLS));

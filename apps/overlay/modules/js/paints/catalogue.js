@@ -167,6 +167,7 @@ function text(v) {
 //   versions           the library's, [] outside it
 //   name, shortName    from the store, null when the car has never been in a session
 //   installed          in the install
+//   installPath        the install's name for it — what the sim calls its paint folder — null outside the install
 //   driven             the driver's own sessions in it, 0 when unknown
 //
 // A library car is kept exactly as the library described it. A folder in the paint directory is a car when the
@@ -198,6 +199,7 @@ function catalogue({ library = null, paintDir = null, installRoot: root = null, 
       name: row ? text(row.name) : null,
       shortName: row ? text(row.short_name) : null,
       installed: certain.has(key) || families.has(key),
+      installPath: certain.get(key) || families.get(key) || null,
       driven: Number.isFinite(driven) && driven > 0 ? driven : 0,
     };
   };

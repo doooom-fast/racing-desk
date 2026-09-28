@@ -273,7 +273,7 @@ test.describe('catalogue', () => {
       ['solstice rookie', 'solstice rookie'],
     ]);
     for (const car of cars) {
-      expect(Object.keys(car), car.folder).toEqual(['folder', 'simFolder', 'simFolderInferred', 'versions', 'name', 'shortName', 'installed', 'driven']);
+      expect(Object.keys(car), car.folder).toEqual(['folder', 'simFolder', 'simFolderInferred', 'versions', 'name', 'shortName', 'installed', 'installPath', 'driven']);
     }
   });
 
@@ -282,14 +282,15 @@ test.describe('catalogue', () => {
     const scanned = library.scan(libraryRoot, paintDir).cars;
     expect(find(cars, 'lotus79')).toEqual({
       folder: 'lotus79', simFolder: 'lotus79', simFolderInferred: false, versions: scanned.find((c) => c.folder === 'lotus79').versions,
-      name: 'Lotus 79', shortName: 'Lotus 79', installed: true, driven: 41,
+      name: 'Lotus 79', shortName: 'Lotus 79', installed: true, installPath: 'lotus79', driven: 41,
     });
     expect(find(cars, 'lotus79').versions.map((v) => v.id)).toEqual(['v12', 'v13']);
     // In the library and in the install, with no paint folder yet: the library's null stands.
-    expect(find(cars, 'dallarair18')).toMatchObject({ simFolder: null, installed: true, name: null, shortName: null, driven: 0 });
+    // The install's name for it is where its paint would go.
+    expect(find(cars, 'dallarair18')).toMatchObject({ simFolder: null, installed: true, installPath: 'dallarair18', name: null, shortName: null, driven: 0 });
     expect(find(cars, 'dallarair18').versions).toHaveLength(1);
     // In the library and nowhere else.
-    expect(find(cars, 'nissangtpzxt')).toMatchObject({ simFolder: null, simFolderInferred: false, installed: false, name: null, driven: 0 });
+    expect(find(cars, 'nissangtpzxt')).toMatchObject({ simFolder: null, simFolderInferred: false, installed: false, installPath: null, name: null, driven: 0 });
   });
 
   test('mx5-mx52016 in the library and mx5 mx52016 in the sim are one car', () => {
@@ -306,18 +307,18 @@ test.describe('catalogue', () => {
     // still the install's mx5 mx52016 and still has its name.
     const unpainted = catalogue.catalogue({ library: library.scan(libraryRoot, null), paintDir: null, installRoot: dir, names: NAMES });
     expect(find(unpainted, 'mx5 mx52016')).toBeUndefined();
-    expect(find(unpainted, 'mx5-mx52016')).toMatchObject({ simFolder: null, name: 'Mazda MX-5 Cup', installed: true, driven: 668 });
+    expect(find(unpainted, 'mx5-mx52016')).toMatchObject({ simFolder: null, name: 'Mazda MX-5 Cup', installed: true, installPath: 'mx5 mx52016', driven: 668 });
   });
 
   test('a car outside the library is its car path, with its paint folder when it has one', () => {
     const cars = list();
     expect(find(cars, 'mclaren570sgt4')).toEqual({
       folder: 'mclaren570sgt4', simFolder: 'mclaren570sgt4', simFolderInferred: false, versions: [],
-      name: 'McLaren 570S GT4', shortName: '570S GT4', installed: true, driven: 0,
+      name: 'McLaren 570S GT4', shortName: '570S GT4', installed: true, installPath: 'mclaren570sgt4', driven: 0,
     });
     expect(find(cars, 'caterham caterham420r')).toEqual({
       folder: 'caterham caterham420r', simFolder: null, simFolderInferred: false, versions: [],
-      name: null, shortName: null, installed: true, driven: 0,
+      name: null, shortName: null, installed: true, installPath: 'caterham caterham420r', driven: 0,
     });
     // `caterham` holds no .dat of its own: a folder of cars, never a car.
     expect(find(cars, 'caterham')).toBeUndefined();
@@ -325,7 +326,7 @@ test.describe('catalogue', () => {
 
   test('a family is listed when something knows it as a car: a name, or a paint folder', () => {
     const cars = list();
-    expect(find(cars, 'fordgt')).toMatchObject({ name: 'Ford GT', simFolder: null, installed: true });      // named
+    expect(find(cars, 'fordgt')).toMatchObject({ name: 'Ford GT', simFolder: null, installed: true, installPath: 'fordgt' });   // named
     expect(find(cars, 'solstice')).toMatchObject({ name: null, simFolder: 'solstice', installed: true });   // a paint folder
     expect(find(cars, 'mx5')).toBeUndefined();                                                              // neither
     // The cars beneath a family are cars whatever becomes of it.
@@ -345,7 +346,8 @@ test.describe('catalogue', () => {
     for (const not of ['helmets', 'suits', 'cars', 'doooom-liveries', 'emptyoldcar']) expect(folders, not).not.toContain(not);
     // No longer installed, but its paint folder still holds car files.
     expect(find(cars, 'oldcar')).toEqual({
-      folder: 'oldcar', simFolder: 'oldcar', simFolderInferred: false, versions: [], name: null, shortName: null, installed: false, driven: 0,
+      folder: 'oldcar', simFolder: 'oldcar', simFolderInferred: false, versions: [], name: null, shortName: null, installed: false,
+      installPath: null, driven: 0,
     });
     // The paint directory alone: the folders with car files in, and nothing else.
     const paintOnly = catalogue.catalogue({ library: null, paintDir, installRoot: null, names: NAMES });

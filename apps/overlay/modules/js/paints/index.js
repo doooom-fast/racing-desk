@@ -1,17 +1,20 @@
 // The livery manager's command surface: the 17 Tauri commands from apps/paints/src-tauri/src/lib.rs, in camelCase,
 // with the argument shapes of apps/paints/src/api.ts and the return shapes of src/types.ts, so the React UI can be
-// reused unchanged over an IPC bridge — and one the Rust never had, carCatalogue, which needs the install and the
-// local store. Everything here runs under plain Node — no Electron imports — and every command returns a Promise;
+// reused unchanged over an IPC bridge — and those the Rust never had: carCatalogue, which needs the install and the
+// local store, and the four for livery groups (groups.js). Everything here runs under plain Node — no Electron imports — and every command returns a Promise;
 // main.js wires each key to an ipcMain.handle and awaits it.
 //
 // The Rust side owned every decision that touches the disk, and so does this: the UI asks for things to happen
 // and renders what comes back; it never builds a path or a filename of its own, so the rules about backups,
 // renaming and cooked files live in exactly one place.
+const fs = require('fs');
+const path = require('path');
 const apply = require('./apply');
 const catalogue = require('./catalogue');
 const customer = require('./customer');
 const digest = require('./digest');
 const error = require('./error');
+const groups = require('./groups');
 const installed = require('./installed');
 const library = require('./library');
 const paths = require('./paths');
@@ -54,6 +57,14 @@ function createCommands(overrides = {}) {
     if (typeof override !== 'string') override = null;
     return catalogue.installRoot({ override, env, exec });
   };
+  // The install's names for its cars, families among them: what a car's paint folder is called before there is one.
+  const installPaths = async () => {
+    const walked = catalogue.walkInstall(await findInstall());
+    return [...walked.cars, ...walked.families];
+  };
+  const isDir = (p) => {
+    try { return fs.statSync(p).isDirectory(); } catch (e) { return false; }
+  };
 
   return {
     detectPaths: async () => paths.detect({ env, exec, registry: overrides.registry }),
@@ -86,7 +97,11 @@ function createCommands(overrides = {}) {
       const car = lib.cars.find((c) => c.folder === request.carFolder);
       const version = car ? car.versions.find((v) => v.id === request.versionId) : undefined;
       if (!version) throw error.other(`${request.carFolder} / ${request.versionId} is no longer in the library.`);
-      return apply.apply(request, version, base(), applyDeps);
+      // Whether a folder may be made is decided here, whatever the page sent: only where there is none, and only
+      // under a name the install has for one of its cars.
+      const missing = !isDir(path.join(String(request.paintDir), String(request.simFolder)));
+      const createFolder = missing && (await installPaths()).includes(String(request.simFolder));
+      return apply.apply({ ...request, createFolder }, version, base(), applyDeps);
     },
 
     listBackups: async (carFolder) => apply.listBackups(base(), carFolder),
@@ -123,6 +138,21 @@ function createCommands(overrides = {}) {
       const [root, names] = await Promise.all([findInstall(), carNames()]);
       return catalogue.catalogue({ library: lib, paintDir: paintDir || null, installRoot: root, names });
     },
+
+    // Livery groups: the library's own and the driver's. Not in lib.rs.
+    liveryGroups: async ({ libraryRoot, paintDir } = {}, store) =>
+      groups.list(libraryRoot ? library.scan(libraryRoot, paintDir || null) : null, store),
+
+    saveGroup: async ({ libraryRoot, paintDir, id, name, cars } = {}, store) =>
+      groups.save(store, library.scan(libraryRoot, paintDir || null), { id: id == null ? null : id, name, cars }),
+
+    deleteGroup: async (id, store) => groups.remove(store, id),
+
+    setGroup: async (request, store) => {
+      if (request === null || typeof request !== 'object') throw error.other('setGroup needs the request.');
+      const lib = library.scan(request.libraryRoot, request.paintDir);
+      return groups.set(request, { lib, store, installedCars: await installPaths(), base: base(), deps: applyDeps });
+    },
   };
 }
 
@@ -141,6 +171,7 @@ module.exports = {
   customer,
   digest,
   error,
+  groups,
   installed,
   library,
   paths,

@@ -44,8 +44,9 @@ function withDefaults(deps = {}) {
   };
 }
 
-// What stands between the user and a safe apply, right now. Returned to the UI so it can offer "keep going".
-async function preflight(paintDir, simFolder, deps) {
+// What stands in the way of any apply on this machine right now, whichever the car: the sim holding paint files
+// open, the downloader about to write its own.
+async function preflightAll(deps) {
   const d = withDefaults(deps);
   const blockers = [];
   const warnings = [];
@@ -61,11 +62,18 @@ async function preflight(paintDir, simFolder, deps) {
   const tp = await d.tradingPaints();
   if (tp.running) blockers.push(...tp.warnings);
   else warnings.push(...tp.warnings);
+  return { blockers, warnings };
+}
 
-  if (!isDir(path.join(paintDir, simFolder))) {
-    blockers.push(`There is no ${simFolder} folder in the paint directory. The sim creates it the first time you `
-      + 'drive the car.');
-  }
+function noFolder(simFolder) {
+  return `There is no ${simFolder} folder in the paint directory. The sim creates it the first time you `
+    + 'drive the car.';
+}
+
+// What stands between the user and a safe apply to one car, right now. Returned to the UI so it can say so.
+async function preflight(paintDir, simFolder, deps) {
+  const { blockers, warnings } = await preflightAll(deps);
+  if (!isDir(path.join(paintDir, simFolder))) blockers.push(noFolder(simFolder));
   return { blockers, warnings };
 }
 
@@ -219,7 +227,7 @@ function restoreFrom(backupDir, targetDir, names) {
 }
 
 // The request as the UI sends it (src/types.ts ApplyRequest), with serde's defaults: includeSpec true, the rest
-// false.
+// false. createFolder is not the UI's to send: index.js says whether the car's folder may be made.
 function normaliseRequest(req) {
   return {
     paintDir: String(req.paintDir),
@@ -232,6 +240,7 @@ function normaliseRequest(req) {
     setReadOnlyAfter: Boolean(req.setReadOnlyAfter),
     clearOtherCooked: Boolean(req.clearOtherCooked),
     force: Boolean(req.force),
+    createFolder: Boolean(req.createFolder),
   };
 }
 
@@ -246,7 +255,11 @@ async function apply(req, version, base, deps) {
     throw refused('The customer id must be digits only. Nothing was changed.');
   }
 
-  const pre = await preflight(paintDir, request.simFolder, d);
+  // A car never driven has no folder yet. The sim would make one the first time the car is driven; making it now,
+  // under the install's name for the car, is what has the paint there when that happens.
+  const pre = await preflightAll(d);
+  const make = !isDir(targetDir) && request.createFolder;
+  if (!isDir(targetDir) && !make) pre.blockers.push(noFolder(request.simFolder));
   if (pre.blockers.length && !request.force) throw refused(pre.blockers.join(' '));
 
   const toInstall = version.files.filter((f) => request.includeSpec || f.role !== 'car_spec');
@@ -256,6 +269,10 @@ async function apply(req, version, base, deps) {
   const actions = [];
   const warnings = [...pre.warnings];
   if (pre.blockers.length) warnings.push(...pre.blockers.map((b) => `Applied anyway, over a warning: ${b}`));
+  if (make) {
+    fs.mkdirSync(targetDir, { recursive: true });
+    actions.push({ kind: 'folder', detail: `${request.simFolder} folder made in the paint directory` });
+  }
 
   // 1. Back up before anything is touched.
   const { dir: backupDir, names: backedUp } = backUp(
@@ -433,6 +450,6 @@ async function revert(paintDir, base, carFolder, simFolder, customerId, backupId
 }
 
 module.exports = {
-  TMP_EXT, preflight, timestamp, rfc3339Local, backupsBase, backupRoot, newBackupDir, backUp, clearReadOnly,
+  TMP_EXT, preflight, preflightAll, timestamp, rfc3339Local, backupsBase, backupRoot, newBackupDir, backUp, clearReadOnly,
   setReadOnly, isReadOnly, installFile, restoreFrom, normaliseRequest, apply, listBackups, readManifest, revert,
 };

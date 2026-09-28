@@ -23,9 +23,9 @@ function recorder() {
 
 const store = { get: () => ({}), set: () => {} };
 
-test('exactly the 18 commands, in the order the port lists them', () => {
+test('exactly the 22 commands, in the order the port lists them', () => {
   expect(paintsIpc.NAMES).toEqual(COMMAND_NAMES);
-  expect(paintsIpc.NAMES).toHaveLength(18);
+  expect(paintsIpc.NAMES).toHaveLength(22);
 });
 
 test('names outside the list are refused before anything runs — including Object.prototype\'s and non-strings', async () => {

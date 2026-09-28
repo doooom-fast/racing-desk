@@ -19,6 +19,7 @@ const NAMES = [
   'detectPaths', 'detectCustomer', 'scanLibrary', 'carState', 'tradingPaintsStatus', 'simStatus', 'preflight',
   'applyVersion', 'listBackups', 'revertCar', 'repoStatus', 'repoCheck', 'repoPull', 'suggestLibraries',
   'loadSettings', 'saveSettings', 'previewImage', 'carCatalogue',
+  'liveryGroups', 'saveGroup', 'deleteGroup', 'setGroup',
 ];
 
 const quietSim = async () => ({ simRunning: false, uiRunning: false, matched: [] });
@@ -58,13 +59,13 @@ test.beforeAll(() => {
 });
 test.afterAll(() => { fs.rmSync(root, { recursive: true, force: true }); });
 
-test('exactly the 18 commands — the Tauri ones in camelCase, then carCatalogue — every one async', () => {
+test('exactly the 22 commands — the Tauri ones in camelCase, then the desk\'s own — every one async', () => {
   expect(Object.keys(commands)).toEqual(NAMES);
   expect(COMMAND_NAMES).toEqual(NAMES);
   expect(Object.keys(cmd)).toEqual(NAMES);
   for (const name of NAMES) expect(typeof cmd[name], name).toBe('function');
   // No Electron in any of it: everything loaded under plain Node.
-  for (const mod of ['apply', 'catalogue', 'customer', 'digest', 'installed', 'library', 'paths', 'process', 'repo', 'roles', 'settings', 'tga', 'tradingpaints']) {
+  for (const mod of ['apply', 'catalogue', 'customer', 'digest', 'groups', 'installed', 'library', 'paths', 'process', 'repo', 'roles', 'settings', 'tga', 'tradingpaints']) {
     expect(typeof paints[mod], mod).toBe('object');
   }
 });

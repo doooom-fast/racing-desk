@@ -15,6 +15,9 @@ const KEYS = Object.freeze([...STRING_KEYS, ...BOOL_KEYS]);
 // neither loads nor saves them — so save() carries them across, or the page's first save would drop them.
 const HOST_KEYS = Object.freeze(['installDir']);
 
+// And the livery groups (groups.js), which are a list: carried across as they are, and checked where they are read.
+const LIST_KEYS = Object.freeze(['liveryGroups']);
+
 // Nothing remembered: every field null, as serde wrote a default Settings.
 const DEFAULTS = Object.freeze({
   paintDir: null,
@@ -92,7 +95,7 @@ function load(store) {
   return normalise(raw);
 }
 
-// What the store holds under the host's own keys: non-empty strings only, {} from a store that throws.
+// What the store holds under the host's own keys: non-empty strings and lists only, {} from a store that throws.
 function hostValues(store) {
   let raw;
   try {
@@ -105,6 +108,9 @@ function hostValues(store) {
   for (const key of HOST_KEYS) {
     if (typeof raw[key] === 'string' && raw[key].trim().length) out[key] = raw[key];
   }
+  for (const key of LIST_KEYS) {
+    if (Array.isArray(raw[key])) out[key] = raw[key];
+  }
   return out;
 }
 
@@ -115,4 +121,4 @@ function save(store, settings) {
   return clean;
 }
 
-module.exports = { DEFAULTS, KEYS, STRING_KEYS, BOOL_KEYS, HOST_KEYS, validate, normalise, merge, load, hostValues, save };
+module.exports = { DEFAULTS, KEYS, STRING_KEYS, BOOL_KEYS, HOST_KEYS, LIST_KEYS, validate, normalise, merge, load, hostValues, save };
