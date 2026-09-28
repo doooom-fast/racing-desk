@@ -4,7 +4,7 @@
 // that renders the HTML dashboard over the sim
 // ═══════════════════════════════════════════════════════════════
 
-const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Menu, Tray, desktopCapturer, session, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Menu, Tray, desktopCapturer, session, powerMonitor, dialog } = require('electron');
 const path   = require('path');
 const fs     = require('fs');
 const os     = require('os');
@@ -19,6 +19,8 @@ const bundleWriter   = require('./modules/js/bundle-writer');
 const replayDirector = require('./modules/js/replay-director');
 const { isAllowedExternalUrl } = require('./modules/js/external-links');
 const hostLauncher = require('./modules/js/host-launcher');
+const paints       = require('./modules/js/paints');
+const paintsIpc    = require('./modules/js/paints-ipc');
 
 // ── Crash log ───────────────────────────────────────────────
 // Write a log file next to the app so crash info is visible
@@ -1401,6 +1403,52 @@ ipcMain.handle('save-settings', async (event, settings) => {
 // ── IPC: Dashboard mode query (legacy, returns 'build') ──
 ipcMain.handle('get-dashboard-mode', async () => {
   return 'build';
+});
+
+// ── IPC: Paints — the livery manager on the desk's Paints page ──
+// The UI (apps/paints/src, bundled into the desk by apps/paints/build-island.mjs) asks for everything over
+// paints:invoke; modules/js/paints does the file work, in this process. modules/js/paints-ipc.js says which names
+// may be called and how their arguments are passed on. The handler answers { value } or { error } rather than
+// throwing, because Electron would otherwise wrap a thrown error's message in its own; preload.js turns { error }
+// back into a rejection carrying the command's message, which is what the UI shows.
+const paintsCommands = paints.createCommands();
+// What the manager remembers (the two folders, the customer id, the apply options) is the `paints` key of
+// overlay-settings.json, beside the HUD's settings. The file is rewritten whole; every other key is kept, and the
+// HUD ignores the write (the watcher skips this process's own writes, and nothing of the HUD's changed).
+const paintsStore = {
+  get: () => loadSettingsSync().paints || {},
+  set: (obj) => {
+    const settings = loadSettingsSync();
+    settings.paints = obj;
+    saveSettingsSync(settings);
+  },
+};
+
+ipcMain.handle('paints:invoke', async (_event, name, args) => {
+  try {
+    return { value: await paintsIpc.invoke(paintsCommands, paintsStore, name, args) };
+  } catch (err) {
+    return { error: paints.error.messageOf(err) };
+  }
+});
+
+// The folder picker for the paint folder and the library; null when it is cancelled.
+ipcMain.handle('paints:pickFolder', async (_event, options) => {
+  const dialogOptions = { properties: ['openDirectory'] };
+  if (options && typeof options.title === 'string') dialogOptions.title = options.title;
+  if (options && typeof options.defaultPath === 'string') dialogOptions.defaultPath = options.defaultPath;
+  const owner = deskWindow && !deskWindow.isDestroyed() ? deskWindow : null;
+  const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
+  return result.canceled || !result.filePaths.length ? null : result.filePaths[0];
+});
+
+// Show a file in Explorer, or open a path — only for paths that exist.
+ipcMain.handle('paints:reveal', async (_event, p) => {
+  if (typeof p === 'string' && fs.existsSync(p)) shell.showItemInFolder(p);
+});
+
+ipcMain.handle('paints:openPath', async (_event, p) => {
+  if (typeof p === 'string' && fs.existsSync(p)) await shell.openPath(p);
 });
 
 // ── IPC: Quit app ──

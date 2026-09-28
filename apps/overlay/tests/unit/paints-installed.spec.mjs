@@ -18,7 +18,7 @@ const { roleLabel } = require('../../modules/js/paints/roles.js');
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 const inst = (role, sha256) => ({
-  role, roleLabel: roleLabel(role), fileName: `${role}_1159839.tga`, path: '', size: 1, sha256, readOnly: false,
+  role, roleLabel: roleLabel(role), fileName: `${role}_424242.tga`, path: '', size: 1, sha256, readOnly: false,
 });
 const vfile = (role, sha256) => ({ role, roleLabel: roleLabel(role), fileName: `${role}.tga`, path: '', size: 1, sha256 });
 const version = (id, files) => ({
@@ -78,33 +78,33 @@ test.describe('read', () => {
     paint = fs.mkdtempSync(path.join(os.tmpdir(), 'racing-desk-paints-installed-'));
     const car = path.join(paint, 'lotus79');
     fs.mkdirSync(car);
-    fs.writeFileSync(path.join(car, 'car_spec_1159839.tga'), 'SPEC');
-    fs.writeFileSync(path.join(car, 'car_1159839.tga'), 'PAINT');
-    fs.writeFileSync(path.join(car, 'car_1159839.mip'), 'cooked mine');
-    fs.writeFileSync(path.join(car, 'car_spec_1159839.mip'), 'cooked mine too');
+    fs.writeFileSync(path.join(car, 'car_spec_424242.tga'), 'SPEC');
+    fs.writeFileSync(path.join(car, 'car_424242.tga'), 'PAINT');
+    fs.writeFileSync(path.join(car, 'car_424242.mip'), 'cooked mine');
+    fs.writeFileSync(path.join(car, 'car_spec_424242.mip'), 'cooked mine too');
     fs.writeFileSync(path.join(car, 'car_999000.tga'), 'someone else');
     fs.writeFileSync(path.join(car, 'car_999000.mip'), 'someone else cooked');
     fs.writeFileSync(path.join(car, 'car_888.mip'), 'another stranger');
-    fs.writeFileSync(path.join(car, 'helmet_1159839.tga'), 'not a car role');
+    fs.writeFileSync(path.join(car, 'helmet_424242.tga'), 'not a car role');
     fs.writeFileSync(path.join(car, 'readme.txt'), 'x');
-    fs.mkdirSync(path.join(car, 'car_1159839.tga.d'));   // a directory is never a texture
-    fs.chmodSync(path.join(car, 'car_1159839.tga'), 0o444);
+    fs.mkdirSync(path.join(car, 'car_424242.tga.d'));   // a directory is never a texture
+    fs.chmodSync(path.join(car, 'car_424242.tga'), 0o444);
   });
   test.afterAll(() => {
-    fs.chmodSync(path.join(paint, 'lotus79', 'car_1159839.tga'), 0o666);
+    fs.chmodSync(path.join(paint, 'lotus79', 'car_424242.tga'), 0o666);
     fs.rmSync(paint, { recursive: true, force: true });
   });
 
   test('this customer\'s textures, sorted, hashed, with the read-only flag; cooked files split mine/theirs', () => {
-    const s = installed.read(paint, 'lotus79', '1159839');
+    const s = installed.read(paint, 'lotus79', '424242');
     const car = path.join(paint, 'lotus79');
     expect(s.simFolder).toBe('lotus79');
     expect(s.folderExists).toBe(true);
     expect(s.files).toEqual([
-      { role: 'car', roleLabel: 'Paint', fileName: 'car_1159839.tga', path: path.join(car, 'car_1159839.tga'), size: 5, sha256: sha('PAINT'), readOnly: true },
-      { role: 'car_spec', roleLabel: 'Spec map', fileName: 'car_spec_1159839.tga', path: path.join(car, 'car_spec_1159839.tga'), size: 4, sha256: sha('SPEC'), readOnly: false },
+      { role: 'car', roleLabel: 'Paint', fileName: 'car_424242.tga', path: path.join(car, 'car_424242.tga'), size: 5, sha256: sha('PAINT'), readOnly: true },
+      { role: 'car_spec', roleLabel: 'Spec map', fileName: 'car_spec_424242.tga', path: path.join(car, 'car_spec_424242.tga'), size: 4, sha256: sha('SPEC'), readOnly: false },
     ]);
-    expect(s.cooked).toEqual([path.join(car, 'car_1159839.mip'), path.join(car, 'car_spec_1159839.mip')]);
+    expect(s.cooked).toEqual([path.join(car, 'car_424242.mip'), path.join(car, 'car_spec_424242.mip')]);
     expect(s.cookedOtherDrivers).toBe(2);
     expect(s.anyReadOnly).toBe(true);
     expect(s.appliedVersionId).toBeNull();
@@ -113,7 +113,7 @@ test.describe('read', () => {
   });
 
   test('read then identify against a scanned-looking version', () => {
-    const s = installed.read(paint, 'lotus79', '1159839');
+    const s = installed.read(paint, 'lotus79', '424242');
     installed.identify(s, [version('v13', [vfile('car', sha('PAINT')), vfile('car_spec', sha('SPEC'))])]);
     expect(s.appliedVersionId).toBe('v13');
     expect(s.matchKind).toBe('exact');
@@ -128,10 +128,10 @@ test.describe('read', () => {
   });
 
   test('no sim folder known, or the folder not there yet', () => {
-    expect(installed.read(paint, null, '1159839')).toEqual({
+    expect(installed.read(paint, null, '424242')).toEqual({
       simFolder: null, folderExists: false, files: [], cooked: [], cookedOtherDrivers: 0,
       appliedVersionId: null, matchKind: 'none', anyReadOnly: false,
     });
-    expect(installed.read(paint, 'nissangtpzxt', '1159839')).toMatchObject({ simFolder: 'nissangtpzxt', folderExists: false, files: [] });
+    expect(installed.read(paint, 'nissangtpzxt', '424242')).toMatchObject({ simFolder: 'nissangtpzxt', folderExists: false, files: [] });
   });
 });

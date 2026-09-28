@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "./bridge";
 import type {
   ApplyReport,
   ApplyRequest,
@@ -16,13 +16,16 @@ import type {
   TradingPaints,
 } from "./types";
 
-export const detectPaths = () => invoke<PathReport>("detect_paths");
+// One function per command, named as the manager's Node port names them (apps/overlay/modules/js/paints/index.js);
+// bridge.ts turns the name into the Rust command's when the Tauri shell is the host.
+
+export const detectPaths = () => invoke<PathReport>("detectPaths");
 
 export const detectCustomer = (paintDir: string) =>
-  invoke<CustomerReport>("detect_customer", { paintDir });
+  invoke<CustomerReport>("detectCustomer", { paintDir });
 
 export const scanLibrary = (libraryRoot: string, paintDir: string | null) =>
-  invoke<Library>("scan_library", { libraryRoot, paintDir });
+  invoke<Library>("scanLibrary", { libraryRoot, paintDir });
 
 export const carState = (args: {
   paintDir: string;
@@ -30,20 +33,20 @@ export const carState = (args: {
   carFolder: string;
   simFolder: string | null;
   customerId: string;
-}) => invoke<InstalledState>("car_state", args);
+}) => invoke<InstalledState>("carState", args);
 
-export const tradingPaintsStatus = () => invoke<TradingPaints>("trading_paints_status");
+export const tradingPaintsStatus = () => invoke<TradingPaints>("tradingPaintsStatus");
 
-export const simStatus = () => invoke<SimState>("sim_status");
+export const simStatus = () => invoke<SimState>("simStatus");
 
 export const preflight = (paintDir: string, simFolder: string) =>
   invoke<Preflight>("preflight", { paintDir, simFolder });
 
 export const applyVersion = (request: ApplyRequest) =>
-  invoke<ApplyReport>("apply_version", { request });
+  invoke<ApplyReport>("applyVersion", { request });
 
 export const listBackups = (carFolder: string) =>
-  invoke<BackupEntry[]>("list_backups", { carFolder });
+  invoke<BackupEntry[]>("listBackups", { carFolder });
 
 export const revertCar = (args: {
   paintDir: string;
@@ -52,26 +55,27 @@ export const revertCar = (args: {
   customerId: string;
   backupId: string | null;
   force: boolean;
-}) => invoke<ApplyReport>("revert_car", args);
+}) => invoke<ApplyReport>("revertCar", args);
 
-export const repoStatus = (path: string) => invoke<RepoStatus>("repo_status", { path });
+export const repoStatus = (path: string) => invoke<RepoStatus>("repoStatus", { path });
 
-export const repoCheck = (path: string) => invoke<RepoStatus>("repo_check", { path });
+export const repoCheck = (path: string) => invoke<RepoStatus>("repoCheck", { path });
 
-export const repoPull = (path: string) => invoke<PullReport>("repo_pull", { path });
+export const repoPull = (path: string) => invoke<PullReport>("repoPull", { path });
 
 export const suggestLibraries = (paintDir: string) =>
-  invoke<LibrarySuggestion[]>("suggest_libraries", { paintDir });
+  invoke<LibrarySuggestion[]>("suggestLibraries", { paintDir });
 
-export const loadSettings = () => invoke<Settings>("load_settings");
+export const loadSettings = () => invoke<Settings>("loadSettings");
 
 export const saveSettings = (settings: Settings) =>
-  invoke<void>("save_settings", { settings });
+  invoke<void>("saveSettings", { settings });
 
 export const previewImage = (path: string, maxEdge?: number) =>
-  invoke<string>("preview_image", { path, maxEdge });
+  invoke<string>("previewImage", { path, maxEdge });
 
-/// Rust errors arrive as plain strings; anything else is a bug worth showing verbatim.
+/// Errors arrive as plain strings from Rust and as Errors carrying the command's own message from the desk's
+/// bridge; anything else is a bug worth showing verbatim.
 export function errorText(e: unknown): string {
   if (typeof e === "string") return e;
   if (e instanceof Error) return e.message;

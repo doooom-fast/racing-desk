@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const paints = require('../../modules/js/paints/index.js');
 const { createCommands, commands, COMMAND_NAMES } = paints;
 
-const CUSTOMER = '1159839';
+const CUSTOMER = '424242';
 const NAMES = [
   'detectPaths', 'detectCustomer', 'scanLibrary', 'carState', 'tradingPaintsStatus', 'simStatus', 'preflight',
   'applyVersion', 'listBackups', 'revertCar', 'repoStatus', 'repoCheck', 'repoPull', 'suggestLibraries',

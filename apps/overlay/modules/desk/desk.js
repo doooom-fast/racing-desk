@@ -482,7 +482,27 @@
     if (location.hash !== '#' + page) {
       try { history.replaceState(null, '', '#' + page); } catch (_) { location.hash = page; }
     }
+    if (page === 'paints') mountPaints();
     if (page === 'settings') renderSettings();
+  }
+
+  // ── Paints ───────────────────────────────────────────────
+  // The livery manager (apps/paints/src) runs here as an island: apps/paints/build-island.mjs bundles it into
+  // modules/desk/paints.bundle.js as window.RacingDeskPaints, mounted into the page the first time it is shown and
+  // left mounted after. Its file operations are main.js's, reached over window.racingDesk.paints (preload.js). With
+  // no bundle, or no bridge (a browser), the page says so instead.
+
+  let paintsMounted = false;
+
+  function mountPaints() {
+    if (paintsMounted) return;
+    const island = window.RacingDeskPaints;
+    const bridge = window.racingDesk && window.racingDesk.paints;
+    $('paints-unbuilt').hidden = !!island;
+    $('paints-note').hidden = !island || !!bridge;
+    if (!island || !bridge) return;
+    island.mount($('paints-root'));
+    paintsMounted = true;
   }
 
   // ── Settings ─────────────────────────────────────────────

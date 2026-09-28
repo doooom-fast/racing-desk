@@ -70,7 +70,7 @@ test.describe('scan', () => {
   test('the shape the pipeline writes', () => {
     const l = lib('pipeline');
     const v = version(l, 'lotus79', 'v13-shatter', {
-      'car_1159839.tga': 'paint', 'car_spec_1159839.tga': 'spec', 'preview_topview_nose_up.png': 'png', 'Preview_side.PNG': 'png2',
+      'car_424242.tga': 'paint', 'car_spec_424242.tga': 'spec', 'preview_topview_nose_up.png': 'png', 'Preview_side.PNG': 'png2',
       'notes.txt': 'not a role, not a preview',
     });
     const out = library.scan(l, null);
@@ -88,8 +88,8 @@ test.describe('scan', () => {
     expect(ver.problems).toEqual([]);
     expect(ver.previews).toEqual([path.join(v, 'Preview_side.PNG'), path.join(v, 'preview_topview_nose_up.png')]);
     expect(ver.files).toEqual([
-      { role: 'car', roleLabel: 'Paint', fileName: 'car_1159839.tga', path: path.join(v, 'car_1159839.tga'), size: 5, sha256: sha('paint') },
-      { role: 'car_spec', roleLabel: 'Spec map', fileName: 'car_spec_1159839.tga', path: path.join(v, 'car_spec_1159839.tga'), size: 4, sha256: sha('spec') },
+      { role: 'car', roleLabel: 'Paint', fileName: 'car_424242.tga', path: path.join(v, 'car_424242.tga'), size: 5, sha256: sha('paint') },
+      { role: 'car_spec', roleLabel: 'Spec map', fileName: 'car_spec_424242.tga', path: path.join(v, 'car_spec_424242.tga'), size: 4, sha256: sha('spec') },
     ]);
     // Meta is always the full shape, nulls for what is missing.
     expect(ver.meta).toEqual({ name: null, created: null, notes: null, source: null, seed: null, simFolder: null });
@@ -152,7 +152,7 @@ test.describe('scan', () => {
 
   test('two files claiming one role is a problem', () => {
     const l = lib('dupe');
-    version(l, 'lotus79', 'v1', { 'car.tga': 'a', 'car_1159839.tga': 'b', 'car_spec.tga': 's' });
+    version(l, 'lotus79', 'v1', { 'car.tga': 'a', 'car_424242.tga': 'b', 'car_spec.tga': 's' });
     const v = library.scan(l, null).cars[0].versions[0];
     expect(v.files).toHaveLength(3);
     expect(v.problems).toEqual(['2 files in this version claim the Paint role; only one can be installed.']);

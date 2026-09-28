@@ -22,12 +22,12 @@ test('the defaults are the Settings shape with every field null', () => {
 });
 
 test('round-trips through JSON', () => {
-  const s = settings.normalise({ paintDir: 'C:\\Users\\x\\Documents\\iRacing\\paint', customerId: '1159839', includeSpec: true });
+  const s = settings.normalise({ paintDir: 'C:\\Users\\x\\Documents\\iRacing\\paint', customerId: '424242', includeSpec: true });
   const back = settings.normalise(JSON.parse(JSON.stringify(s)));
-  expect(back.customerId).toBe('1159839');
+  expect(back.customerId).toBe('424242');
   expect(back.includeSpec).toBe(true);
   expect(back.libraryRoot).toBeNull();
-  expect(back).toEqual({ ...ALL_NULL, paintDir: 'C:\\Users\\x\\Documents\\iRacing\\paint', customerId: '1159839', includeSpec: true });
+  expect(back).toEqual({ ...ALL_NULL, paintDir: 'C:\\Users\\x\\Documents\\iRacing\\paint', customerId: '424242', includeSpec: true });
 });
 
 test('unknown and missing fields are tolerated', () => {
@@ -39,7 +39,7 @@ test('unknown and missing fields are tolerated', () => {
 });
 
 test('wrong-typed fields are dropped and named', () => {
-  const { settings: s, problems } = settings.validate({ customerId: 1159839, includeSpec: 'yes', paintDir: 'ok', autoUpdateOnLaunch: false });
+  const { settings: s, problems } = settings.validate({ customerId: 424242, includeSpec: 'yes', paintDir: 'ok', autoUpdateOnLaunch: false });
   expect(s).toEqual({ ...ALL_NULL, paintDir: 'ok', autoUpdateOnLaunch: false });
   expect(problems).toEqual(['customerId must be a string; ignoring it.', 'includeSpec must be true or false; ignoring it.']);
 });
@@ -62,9 +62,9 @@ test('merge: the patch wins where it says something, null clears, undefined keep
 });
 
 test('load and save through a store', () => {
-  let held = { customerId: '1159839', libraryRoot: 'L', stale: true };
+  let held = { customerId: '424242', libraryRoot: 'L', stale: true };
   const store = { get: () => held, set: (obj) => { held = obj; } };
-  expect(settings.load(store)).toEqual({ ...ALL_NULL, customerId: '1159839', libraryRoot: 'L' });
+  expect(settings.load(store)).toEqual({ ...ALL_NULL, customerId: '424242', libraryRoot: 'L' });
 
   const saved = settings.save(store, { paintDir: 'P', includeSpec: 'nope', extra: 1 });
   expect(saved).toEqual({ ...ALL_NULL, paintDir: 'P' });

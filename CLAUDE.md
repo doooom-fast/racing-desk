@@ -87,7 +87,7 @@ npm run test:desk                   # desk.html over a mock host, headless, off-
 Build once with `npm run build`, then the app is `apps/overlay/dist/win-unpacked/Racing Desk.exe` — the Start menu and
 Desktop "Racing Desk" shortcuts point there; "shipping" is `git pull && npm run build`. It starts its own RacingDesk.Host
 (`modules/js/host-launcher.js`): beside SimHub on `:18889`/`:18890` with `--no-hardware` while SimHub holds `:8889`,
-on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\RacingDesk\host.log`.
+on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\Racing Desk\host.log`.
 There is no console window. **Closing the desk window quits the app** (minimise it to keep the HUD while racing) — the
 HUD's window is hidden and Windows 11 tucks the tray icon behind its overflow arrow, so an app that outlived its window
 would run with nothing on screen. The tray menu (Open desk / Paints / Settings, HUD on/off, Quit) and Ctrl+Shift+Q quit too. The host is
@@ -95,11 +95,21 @@ spawned detached — Node otherwise puts it in a job object Windows kills with t
 flushing what it was recording, when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again
 opens the desk in the running app.
 
-The desk window has three pages — **Desk**, **Paints** (a placeholder until the livery manager lands there) and
-**Settings** — switched from the masthead nav, the tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js`
+The desk window has three pages — **Desk**, **Paints** and **Settings** — switched from the masthead nav, the tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js`
 `showPage`). Settings edits the HUD's `%APPDATA%\Racing Desk\overlay-settings.json` through the preload bridge
 (`modules/desk/settings-model.js` lists the keys) and each change applies live: `save-settings` writes the file whole
 and sends `settings-sync` to the HUD window. The old WinUI settings app is no longer the way to change the HUD.
+
+**Paints** is the livery manager (was doooom-paints): a library of paint versions outside the sim's folders, applied
+by copying files in under the customer id, backing up what was there, deleting the stale `.mip` files and warning
+when Trading Paints would undo it. One UI source, `apps/paints/src` (React), bundled for the desk by
+`apps/paints/build-island.mjs` into `modules/desk/paints.bundle.js` + `.css` (generated, like the calc bundle) and
+mounted the first time the page is shown. Its calls go through `apps/paints/src/bridge.ts` to
+`window.racingDesk.paints` → `paints:invoke` → `modules/js/paints-ipc.js` (the allow-list and argument mapping) →
+`modules/js/paints/` (the file operations, ported from the Rust in `apps/paints/src-tauri`). Backups live under
+`%LOCALAPPDATA%\Racing Desk\paints\backups`; what it remembers is the `paints` key of `overlay-settings.json`. The
+Tauri shell in `apps/paints` still builds from the same source and goes once the page has proved itself. Use made-up
+customer ids in fixtures.
 
 `modules/desk/calc.bundle.js` is generated from `packages/calc` on overlay start and by the desk tests — don't edit
 or commit it. Rating changes aren't in telemetry: a race's iRating/SR change is read from the driver's next

@@ -6,9 +6,9 @@
   "author": "Kevin Conboy",
   "license": "MIT",
   "scripts": {
-    "prestart": "node ../../packages/calc/build.mjs",
+    "prestart": "node ../../packages/calc/build.mjs && node ../paints/build-island.mjs",
     "start": "electron .",
-    "predev": "node ../../packages/calc/build.mjs",
+    "predev": "node ../../packages/calc/build.mjs && node ../paints/build-island.mjs",
     "dev": "electron . --dev",
     "start:safe": "cross-env RACING_DESK_FORCE_SOFTWARE=1 electron .",
     "rebuild": "echo 'Dashboard uses vanilla JS — no build step needed'",

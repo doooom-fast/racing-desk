@@ -7,7 +7,7 @@
 //       meta.json                         optional
 //
 // Both filename shapes are accepted on purpose. The plan describes role-only names; the design pipeline that
-// feeds this app already writes car_1159839.tga, and asking it to change would be the tail wagging the dog.
+// feeds this app already writes car_424242.tga, and asking it to change would be the tail wagging the dog.
 const fs = require('fs');
 const path = require('path');
 const digest = require('./digest');

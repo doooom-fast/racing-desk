@@ -143,6 +143,7 @@ let host;
 
 test.beforeAll(async () => {
   execFileSync(process.execPath, [join(here, '..', '..', '..', '..', 'packages', 'calc', 'build.mjs')], { stdio: 'pipe' });
+  execFileSync(process.execPath, [join(here, '..', '..', '..', 'paints', 'build-island.mjs')], { stdio: 'pipe' });
   host = await startMockHost(buildHistory());
 });
 
@@ -389,5 +390,190 @@ test('without the app the Settings page is read-only and says so', async ({ page
   await expect(page.locator('#setting-showSpotter')).toBeChecked();
   expect(await page.locator('#settings-sections [data-key]:not(:disabled)').count()).toBe(0);
   await expect(page.locator('.race-row')).toHaveCount(30); // the desk page loaded behind it all the same
+  expect(errors).toEqual([]);
+});
+
+// ── Paints ───────────────────────────────────────────────────
+// The livery manager's island (apps/paints/src, bundled by build-island.mjs in beforeAll) over a stubbed
+// window.racingDesk.paints: a canned answer per command, every call recorded. An answer of { __error } rejects the
+// way preload.js does, with an Error carrying the command's own message.
+
+const PAINT_DIR = 'C:\\Users\\Owner\\Documents\\iRacing\\paint';
+const LIBRARY = 'C:\\Users\\Owner\\Documents\\GitHub\\liveries\\cars';
+const CUSTOMER = '424242';
+const PLAIN_FOLDER = {
+  gitAvailable: true, isRepo: false, root: null, branch: null, upstream: null, remoteUrl: null, head: null, subject: null,
+  dirty: false, behind: 0, ahead: 0, checkedRemote: false, updatesAvailable: false, notes: [],
+};
+
+function version(id, name) {
+  const dir = `${LIBRARY}\\lotus79\\${id}`;
+  return {
+    id, name, path: dir,
+    files: [
+      { role: 'car', roleLabel: 'Paint', fileName: `car_${CUSTOMER}.tga`, path: `${dir}\\car_${CUSTOMER}.tga`, size: 12582956, sha256: `${id}-paint` },
+      { role: 'car_spec', roleLabel: 'Spec map', fileName: `car_spec_${CUSTOMER}.tga`, path: `${dir}\\car_spec_${CUSTOMER}.tga`, size: 12582956, sha256: `${id}-spec` },
+    ],
+    previews: [], meta: { name }, hasPaint: true, hasSpec: true, problems: [],
+  };
+}
+
+const PAINTS = {
+  loadSettings: {},
+  saveSettings: null,
+  detectPaths: {
+    candidates: [{ path: PAINT_DIR, source: '%USERPROFILE%', exists: true, isOneDrive: false, carFolders: 85, textureFiles: 3204 }],
+    chosen: PAINT_DIR, ambiguous: false, notes: [],
+  },
+  detectCustomer: { id: CUSTOMER, confidence: 'certain', source: 'Trading Paints downloader config', candidates: [], notes: [] },
+  suggestLibraries: [{ path: LIBRARY, cars: 1, repo: PLAIN_FOLDER }],
+  scanLibrary: {
+    root: LIBRARY,
+    cars: [{ folder: 'lotus79', simFolder: 'lotus79', simFolderInferred: false, versions: [version('v12', 'v12 Shatter'), version('v13', 'v13 Shatter')] }],
+    notes: [],
+  },
+  carState: {
+    simFolder: 'lotus79', folderExists: true,
+    files: [{ role: 'car', roleLabel: 'Paint', fileName: `car_${CUSTOMER}.tga`, path: `${PAINT_DIR}\\lotus79\\car_${CUSTOMER}.tga`, size: 12582956, sha256: 'v12-paint', readOnly: false }],
+    cooked: [`${PAINT_DIR}\\lotus79\\car_${CUSTOMER}.mip`], cookedOtherDrivers: 41, appliedVersionId: 'v12', matchKind: 'paint-only', anyReadOnly: false,
+  },
+  listBackups: [],
+  tradingPaintsStatus: {
+    configFound: false, configPath: null, running: false, userId: null, downloadMySchemes: null, deleteBeforeDownloading: null,
+    deleteAfterSession: null, keepSynced: null, warnings: [],
+  },
+  simStatus: { simRunning: false, uiRunning: false, matched: [] },
+  repoStatus: PLAIN_FOLDER,
+  repoCheck: PLAIN_FOLDER, // asked once per library on launch
+  preflight: { blockers: [], warnings: [] },
+  applyVersion: {
+    applied: true,
+    backupDir: 'C:\\Users\\Owner\\AppData\\Local\\Racing Desk\\paints\\backups\\lotus79\\2026-09-17_013000_000',
+    actions: [{ kind: 'backup', detail: 'Backed up 2 file(s)' }, { kind: 'copy', detail: `car_${CUSTOMER}.tga installed` }],
+    warnings: [],
+  },
+  // A 1x1 PNG: the real command decodes the .tga and answers with a data URL like this one.
+  previewImage: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+};
+
+async function stubPaintsBridge(page, answers) {
+  await page.addInitScript((canned) => {
+    window.__paints = { calls: [], picked: 0, revealed: [] };
+    window.racingDesk = {
+      paints: {
+        invoke: async (name, args) => {
+          window.__paints.calls.push({ name, args });
+          if (!(name in canned)) throw new Error(`no answer for ${name}`);
+          const answer = canned[name];
+          if (answer && typeof answer === 'object' && '__error' in answer) throw new Error(answer.__error);
+          return JSON.parse(JSON.stringify(answer));
+        },
+        pickFolder: async () => { window.__paints.picked += 1; return null; },
+        reveal: async (p) => { window.__paints.revealed.push(p); },
+        openPath: async () => {},
+      },
+    };
+  }, answers);
+}
+
+const paintsCalls = (page, name) => page.evaluate((n) => window.__paints.calls.filter((c) => c.name === n).map((c) => c.args), name);
+
+test('the Paints page is the livery manager: the paint folder it found, the library car and its versions', async ({ page }) => {
+  await stubPaintsBridge(page, PAINTS);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  await expect(page.locator('#paints')).toBeVisible();
+  await expect(page.locator('#paints-unbuilt')).toBeHidden();
+  await expect(page.locator('#paints-note')).toBeHidden();
+  const app = page.locator('#paints-root > .paints-app');
+  await expect(app).toBeVisible();
+
+  // The three things every swap depends on, from detection, then the car and its versions from the library.
+  const setup = app.locator('.setup input');
+  await expect(setup).toHaveCount(3);
+  await expect(setup.nth(0)).toHaveValue(PAINT_DIR);
+  await expect(setup.nth(1)).toHaveValue(LIBRARY);
+  await expect(setup.nth(2)).toHaveValue(CUSTOMER);
+  await expect(app.locator('.setup .badge')).toHaveText('certain');
+  await expect(app.locator('.sidebar .car .name')).toHaveText(['lotus79']);
+  await expect(app.locator('.sidebar .car .meta')).toContainText('2 versions');
+  await expect(app.locator('.versions .card .head .name')).toHaveText(['v12 Shatter', 'v13 Shatter']);
+  await expect(app.locator('.versions .card .badge.partial')).toHaveText('paint only'); // carState: v12's paint, not its spec
+  await expect(app.locator('.versions .card .preview img')).toHaveCount(2);
+  await expect(app.locator('.chips .chip')).toHaveText('ready');
+  await expect(app.locator('.panel', { hasText: 'Installed in the sim' })).toContainText('41 belonging to other drivers');
+  expect(await paintsCalls(page, 'scanLibrary')).toEqual([{ libraryRoot: LIBRARY, paintDir: PAINT_DIR }]);
+  expect(await paintsCalls(page, 'carState')).toEqual([{ paintDir: PAINT_DIR, libraryRoot: LIBRARY, carFolder: 'lotus79', simFolder: 'lotus79', customerId: CUSTOMER }]);
+
+  // What it worked out is remembered through the bridge, in the Settings shape.
+  await expect.poll(() => paintsCalls(page, 'saveSettings')).toEqual([{
+    settings: { paintDir: PAINT_DIR, libraryRoot: LIBRARY, customerId: CUSTOMER, includeSpec: true, setReadOnlyAfter: false, clearOtherCooked: false, autoUpdateOnLaunch: false },
+  }]);
+
+  // Leaving the page and coming back finds the same island, not a second one.
+  await page.locator('.nav a', { hasText: 'Desk' }).click();
+  await expect(page.locator('#paints')).toBeHidden();
+  await page.locator('.nav a', { hasText: 'Paints' }).click();
+  await expect(app.locator('.versions .card')).toHaveCount(2);
+  expect(await page.locator('.paints-app').count()).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('Apply on a version runs the manager\'s applyVersion with the request src/types.ts describes', async ({ page }) => {
+  await stubPaintsBridge(page, PAINTS);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  const v13 = app.locator('.versions .card', { hasText: 'v13 Shatter' });
+  await v13.locator('.actions button.primary').click();
+
+  // The dialog says what it is about to do, then Apply (enabled once preflight has answered) does it.
+  const modal = app.locator('.modal');
+  await expect(modal.locator('h2')).toHaveText('Apply v13 Shatter');
+  await expect(modal).toContainText(`car_${CUSTOMER}.tga`);
+  await expect(modal).toContainText(`car_spec_${CUSTOMER}.tga`);
+  await expect(modal.locator('.banner')).toHaveCount(0);
+  await modal.locator('.foot button.primary').click();
+  await expect(modal).toBeHidden();
+
+  expect(await paintsCalls(page, 'preflight')).toEqual([{ paintDir: PAINT_DIR, simFolder: 'lotus79' }]);
+  expect(await paintsCalls(page, 'applyVersion')).toEqual([{
+    request: {
+      paintDir: PAINT_DIR, libraryRoot: LIBRARY, carFolder: 'lotus79', simFolder: 'lotus79', versionId: 'v13', customerId: CUSTOMER,
+      includeSpec: true, setReadOnlyAfter: false, clearOtherCooked: false, force: false,
+    },
+  }]);
+  const entry = app.locator('.log .entry.ok');
+  await expect(entry).toContainText('Applied v13 Shatter to lotus79');
+  await expect(entry).toContainText(`car_${CUSTOMER}.tga installed`);
+  expect((await paintsCalls(page, 'carState')).length).toBeGreaterThanOrEqual(2); // re-read after the apply
+  expect(errors).toEqual([]);
+});
+
+test('what the manager refuses is shown in its own words', async ({ page }) => {
+  const refusal = 'iRacing is running. It holds paint files open, so a swap can fail halfway. Close the sim first.';
+  await stubPaintsBridge(page, { ...PAINTS, applyVersion: { __error: refusal } });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  const app = page.locator('#paints-root > .paints-app');
+  await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
+  await app.locator('.modal .foot button.primary').click();
+  const entry = app.locator('.log .entry.bad');
+  await expect(entry).toContainText('Did not apply v13 Shatter');
+  await expect(entry).toContainText(refusal);
+  expect(errors).toEqual([]);
+
+  // A preflight that fails outright is shown in the dialog itself, and Apply stays off.
+  await stubPaintsBridge(page, { ...PAINTS, preflight: { __error: 'The paint folder could not be read.' } });
+  await page.reload();
+  const again = page.locator('#paints-root > .paints-app');
+  await again.locator('.versions .card', { hasText: 'v12 Shatter' }).locator('.actions button.primary').click();
+  await expect(again.locator('.modal .banner.bad')).toContainText('The paint folder could not be read.');
+  await expect(again.locator('.modal .foot button.primary')).toBeDisabled();
+});
+
+test('without the app the Paints page says so instead of mounting the manager', async ({ page }) => {
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=paints');
+  await expect(page.locator('#paints-note')).toBeVisible();
+  await expect(page.locator('#paints-note')).toContainText('needs the Racing Desk app');
+  await expect(page.locator('#paints-unbuilt')).toBeHidden();
+  expect(await page.locator('.paints-app').count()).toBe(0);
   expect(errors).toEqual([]);
 });

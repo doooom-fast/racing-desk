@@ -28,7 +28,7 @@ function fixture(tag) {
 function makeLibrary(dir, car = 'lotus79', version = 'v13') {
   const v = path.join(dir, car, version);
   fs.mkdirSync(v, { recursive: true });
-  fs.writeFileSync(path.join(v, 'car_1159839.tga'), 'paint');
+  fs.writeFileSync(path.join(v, 'car_424242.tga'), 'paint');
   return v;
 }
 
@@ -70,8 +70,8 @@ test.describe('looksLikeLibrary', () => {
     // suggestions would offer the paint folder as its own library.
     const dir = fixture('simpaint');
     fs.mkdirSync(path.join(dir, 'lotus79'));
-    fs.writeFileSync(path.join(dir, 'lotus79', 'car_1159839.tga'), 'paint');
-    fs.writeFileSync(path.join(dir, 'lotus79', 'car_spec_1159839.mip'), 'cooked');
+    fs.writeFileSync(path.join(dir, 'lotus79', 'car_424242.tga'), 'paint');
+    fs.writeFileSync(path.join(dir, 'lotus79', 'car_spec_424242.mip'), 'cooked');
     expect(repo.looksLikeLibrary(dir)).toBe(false);
   });
 
@@ -148,7 +148,7 @@ test('reads a real checkout and refuses to pull a dirty one', async () => {
   await expect(repo.pull(dir)).rejects.toThrow('This branch is not tracking a remote, so there is nothing to pull.');
 
   // Dirty it, and the refusal must mention the work rather than git internals.
-  fs.writeFileSync(path.join(v, 'car_1159839.tga'), 'edited');
+  fs.writeFileSync(path.join(v, 'car_424242.tga'), 'edited');
   const dirty = await repo.status(dir);
   expect(dirty.dirty).toBe(true);
   expect(dirty.notes).toContain('The repository has uncommitted changes. Updating is held back so they are not disturbed.');
@@ -165,7 +165,7 @@ test('untracked files do not block updating; a modified tracked file does', asyn
   // Something the app left behind, of the shape that caused the bug.
   const junk = path.join(clone, '.backups', 'lotus79', '2026-09-24_1200');
   fs.mkdirSync(junk, { recursive: true });
-  fs.writeFileSync(path.join(junk, 'car_1159839.tga'), 'a backup');
+  fs.writeFileSync(path.join(junk, 'car_424242.tga'), 'a backup');
   expect((await repo.status(clone)).dirty).toBe(false);
 
   // A new livery upstream must still arrive.
@@ -174,13 +174,13 @@ test('untracked files do not block updating; a modified tracked file does', asyn
   expect(report.updated).toBe(true);
   expect(fs.existsSync(path.join(clone, 'nissangtpzxt', 'v10'))).toBe(true);
   // And the untracked file is still sitting there, untouched.
-  expect(fs.readFileSync(path.join(junk, 'car_1159839.tga'), 'utf8')).toBe('a backup');
+  expect(fs.readFileSync(path.join(junk, 'car_424242.tga'), 'utf8')).toBe('a backup');
 
   // A modified *tracked* file is a real reason to hold back, and still does.
-  fs.writeFileSync(path.join(clone, 'lotus79', 'v13', 'car_1159839.tga'), 'edited by hand');
+  fs.writeFileSync(path.join(clone, 'lotus79', 'v13', 'car_424242.tga'), 'edited by hand');
   expect((await repo.status(clone)).dirty).toBe(true);
   await expect(repo.pull(clone)).rejects.toThrow('The repository has uncommitted changes. Commit or stash them first — pulling over them could lose work.');
-  expect(fs.readFileSync(path.join(clone, 'lotus79', 'v13', 'car_1159839.tga'), 'utf8')).toBe('edited by hand');
+  expect(fs.readFileSync(path.join(clone, 'lotus79', 'v13', 'car_424242.tga'), 'utf8')).toBe('edited by hand');
 });
 
 test('counts how far behind a checkout is: check asks, fetch counts, pull fast-forwards, again is a no-op', async () => {
@@ -259,7 +259,7 @@ test('suggestLibraries finds a checkout in or beside the paint folder and under 
   const paint = path.join(home, 'Documents', 'iRacing', 'paint');
   // The sim's own folders: textures directly inside, never a library.
   fs.mkdirSync(path.join(paint, 'lotus79'), { recursive: true });
-  fs.writeFileSync(path.join(paint, 'lotus79', 'car_1159839.tga'), 'x');
+  fs.writeFileSync(path.join(paint, 'lotus79', 'car_424242.tga'), 'x');
   // A loose library dropped inside the paint folder.
   makeLibrary(path.join(paint, 'dropped-in'));
   // A checkout beside it, with the library under cars/.

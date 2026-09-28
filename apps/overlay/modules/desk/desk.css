@@ -307,14 +307,21 @@ h2 {
 
 .offline.off-page { display: none; }   /* the "no local data" notice belongs to the desk page */
 
-.paints { flex: 1; overflow: auto; padding: var(--gap); }
-.paints .card { max-width: 520px; }
-.paints p { color: var(--text-2); font-size: 13px; }
+/* ── Paints ─────────────────────────────────────────────── */
+/* The livery manager's island fills the page and scrolls its own panes (paints.bundle.css, scoped to .paints-app);
+   the notes are for when there is no bundle or no app behind it. */
+
+.paints { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.paints > .card { margin: var(--gap); max-width: 520px; }
+.paints > .card p { color: var(--text-2); font-size: 13px; }
+.paints > .card code { font-family: var(--ff-mono); font-size: 12px; color: var(--text); }
+.paints > .paints-note { margin: var(--gap); }
+.paints-root { flex: 1; min-height: 0; }
 
 /* ── Settings ───────────────────────────────────────────── */
 
 .settings { flex: 1; overflow: auto; padding: var(--gap); color-scheme: dark; }
-.settings-note {
+.settings-note, .paints-note {
   margin-bottom: var(--gap);
   padding: 10px 14px;
   border: 1px solid hsla(40, 80%, 60%, 0.35);

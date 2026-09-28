@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://use.typekit.net/pdg5yka.css">
 <link rel="stylesheet" href="fonts/jetbrains-mono/jetbrains-mono.css">
 <link rel="stylesheet" href="modules/desk/desk.css">
+<link rel="stylesheet" href="modules/desk/paints.bundle.css">
 </head>
 <body>
 <header class="masthead">
@@ -50,7 +51,9 @@
 </main>
 
 <main class="page paints" id="paints" data-page="paints" hidden>
-  <section class="card"><h2>Paints</h2><p>The livery manager is coming here.</p></section>
+  <section class="card" id="paints-unbuilt"><h2>Paints</h2><p>The livery manager isn't built yet — run <code>node apps/paints/build-island.mjs</code> (the overlay's <code>npm start</code> does).</p></section>
+  <p class="paints-note" id="paints-note" hidden>The livery manager needs the Racing Desk app. In a browser there is nothing to read the paint folder with.</p>
+  <div class="paints-root" id="paints-root"></div>
 </main>
 
 <main class="page settings" id="settings" data-page="settings" hidden>
@@ -66,6 +69,7 @@
 </div>
 
 <script src="modules/desk/calc.bundle.js"></script>
+<script src="modules/desk/paints.bundle.js"></script>
 <script src="modules/desk/settings-model.js"></script>
 <script src="modules/desk/desk.js"></script>
 </body>

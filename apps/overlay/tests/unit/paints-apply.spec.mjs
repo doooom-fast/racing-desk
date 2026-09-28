@@ -16,7 +16,7 @@ const apply = require('../../modules/js/paints/apply.js');
 const digest = require('../../modules/js/paints/digest.js');
 const installed = require('../../modules/js/paints/installed.js');
 
-const CUSTOMER = '1159839';
+const CUSTOMER = '424242';
 const STRANGER = '999000';
 
 const quietSim = async () => ({ simRunning: false, uiRunning: false, matched: [] });

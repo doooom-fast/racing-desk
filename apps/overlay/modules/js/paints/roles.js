@@ -20,7 +20,7 @@ function splitExt(fileName) {
   return [fileName.slice(0, dot), fileName.slice(dot + 1)];
 }
 
-// Split an installed filename into { role, id, ext }: `car_spec_1159839.tga` → car_spec / 1159839 / tga.
+// Split an installed filename into { role, id, ext }: `car_spec_424242.tga` → car_spec / 424242 / tga.
 // Null for anything that is not `<known role>_<digits>.<tga|mip>`, which is how helmets, suits and stray
 // files stay out of the way.
 function parseInstalled(fileName) {
@@ -40,7 +40,7 @@ function parseInstalled(fileName) {
 }
 
 // Which role a file inside a library version folder plays. Two shapes are accepted because both exist in the
-// wild: the plan's `car.tga` / `car_spec.tga` with no customer id, and `car_1159839.tga`, which is what the
+// wild: the plan's `car.tga` / `car_spec.tga` with no customer id, and `car_424242.tga`, which is what the
 // design pipeline already emits. Previews (`preview*.png`) and `meta.json` are deliberately not roles.
 function parseLibraryFile(fileName) {
   const parts = splitExt(fileName);

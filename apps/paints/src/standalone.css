@@ -1,0 +1,18 @@
+/* The Tauri shell's window: what styles.css no longer says about html, body and #root, because inside The Racing
+   Desk those are the desk's. Loaded by main.tsx only; the island (island.tsx) never loads it. */
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #0b0b0d;
+  overflow: hidden;
+}

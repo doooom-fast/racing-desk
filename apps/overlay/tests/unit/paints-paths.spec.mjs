@@ -87,7 +87,7 @@ test('documentsFromRegistry drives reg query with no window and expands what com
 test('survey counts car folders and samples textures', () => {
   const docs = path.join(root, 'survey');
   const cars = {};
-  for (let i = 0; i < 15; i++) cars[`car${String(i).padStart(2, '0')}`] = ['car_1159839.tga', 'car_spec_1159839.mip', 'readme.txt'];
+  for (let i = 0; i < 15; i++) cars[`car${String(i).padStart(2, '0')}`] = ['car_424242.tga', 'car_spec_424242.mip', 'readme.txt'];
   const paint = paintFolder(docs, cars);
   fs.writeFileSync(path.join(paint, 'helmet_1.tga'), 'x');   // a file at the top level is not a car folder
   const s = paths.survey(paint);
@@ -103,10 +103,10 @@ test.describe('detect', () => {
     const oneDrive = path.join(profile, 'OneDrive');
     // The sim reads the OneDrive one: it is full. The plain one has a single stale car.
     const busy = paintFolder(path.join(oneDrive, 'Documents'), {
-      lotus79: ['car_1159839.tga', 'car_spec_1159839.tga', 'car_999.tga'],
-      mx5: ['car_1159839.tga'],
+      lotus79: ['car_424242.tga', 'car_spec_424242.tga', 'car_999.tga'],
+      mx5: ['car_424242.tga'],
     });
-    const stale = paintFolder(path.join(profile, 'Documents'), { lotus79: ['car_1159839.tga'] });
+    const stale = paintFolder(path.join(profile, 'Documents'), { lotus79: ['car_424242.tga'] });
 
     const report = await paths.detect({
       env: { USERPROFILE: profile, OneDrive: oneDrive },
@@ -129,7 +129,7 @@ test.describe('detect', () => {
 
   test('a lone folder is chosen without fuss, and a missing one is listed but not chosen', async () => {
     const profile = path.join(root, 'lone', 'Users', 'x');
-    const paint = paintFolder(path.join(profile, 'Documents'), { lotus79: ['car_1159839.tga'] });
+    const paint = paintFolder(path.join(profile, 'Documents'), { lotus79: ['car_424242.tga'] });
     const report = await paths.detect({
       env: { USERPROFILE: profile, OneDriveConsumer: path.join(profile, 'OneDrive') },
       registry: async () => [],

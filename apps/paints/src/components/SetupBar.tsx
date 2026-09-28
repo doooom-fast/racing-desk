@@ -1,15 +1,5 @@
-import { open } from "@tauri-apps/plugin-dialog";
+import { pickFolder } from "../bridge";
 import type { CustomerReport, LibrarySuggestion, PathReport } from "../types";
-
-async function pickFolder(title: string, current: string): Promise<string | null> {
-  const picked = await open({
-    directory: true,
-    multiple: false,
-    title,
-    defaultPath: current || undefined,
-  });
-  return typeof picked === "string" ? picked : null;
-}
 
 /// The three things every swap depends on, always on screen.
 ///

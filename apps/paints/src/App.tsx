@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import * as api from "./api";
+import { reveal } from "./bridge";
 import { errorText } from "./api";
 import { ApplyDialog, type ApplyOptions } from "./components/ApplyDialog";
 import { TradingPaintsPanel } from "./components/Guards";
@@ -374,7 +374,7 @@ export default function App() {
   );
 
   return (
-    <div className="app">
+    <div className="paints-app">
       <div className="titlebar">
         <span className="wordmark">DOOOOM</span>
         <span className="sub">paints</span>
@@ -473,7 +473,7 @@ export default function App() {
                       <button
                         onClick={() =>
                           installed.files[0] &&
-                          revealItemInDir(installed.files[0].path).catch(() => {})
+                          reveal(installed.files[0].path).catch(() => {})
                         }
                       >
                         Show in Explorer

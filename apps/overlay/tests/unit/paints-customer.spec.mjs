@@ -36,12 +36,12 @@ test.describe('tally', () => {
     // The exact shape of the real machine: a stranger has more paints, the owner is the only one with a .tga
     // spec map.
     const dir = fixture('spec', {
-      lotus79: ['car_999111.tga', 'car_888222.tga', 'car_1159839.tga', 'car_spec_1159839.tga'],
+      lotus79: ['car_999111.tga', 'car_888222.tga', 'car_424242.tga', 'car_spec_424242.tga'],
       mx5: ['car_999111.tga', 'car_888222.tga'],
     });
     const ranked = customer.tally(dir);
-    expect(ranked[0]).toEqual({ id: '1159839', paints: 1, localSpecMaps: 1, carFolders: 1 });
-    expect(ranked.map((c) => c.id)).toEqual(['1159839', '888222', '999111']);   // then paints, then id
+    expect(ranked[0]).toEqual({ id: '424242', paints: 1, localSpecMaps: 1, carFolders: 1 });
+    expect(ranked.map((c) => c.id)).toEqual(['424242', '888222', '999111']);   // then paints, then id
   });
 
   test('cooked .mip files are not evidence', () => {
@@ -68,12 +68,12 @@ test.describe('tally', () => {
 });
 
 test('validates ids', () => {
-  expect(customer.isValid('1159839')).toBe(true);
+  expect(customer.isValid('424242')).toBe(true);
   expect(customer.isValid('')).toBe(false);
   expect(customer.isValid('abc')).toBe(false);
   expect(customer.isValid('115 9839')).toBe(false);
   expect(customer.isValid('1234567890123')).toBe(false);
-  expect(customer.isValid(1159839)).toBe(false);
+  expect(customer.isValid(424242)).toBe(false);
   expect(customer.isValid(null)).toBe(false);
 });
 
@@ -81,23 +81,23 @@ test.describe('detect — the cascade', () => {
   test('certain: Trading Paints says so, whatever the folder looks like', async () => {
     const dir = fixture('certain', { lotus79: ['car_999.tga', 'car_spec_999.tga'] });
     const report = await customer.detect(dir, {
-      tradingPaints: async () => ({ ...(await noTradingPaints()), configFound: true, userId: '1159839' }),
+      tradingPaints: async () => ({ ...(await noTradingPaints()), configFound: true, userId: '424242' }),
     });
-    expect(report.id).toBe('1159839');
+    expect(report.id).toBe('424242');
     expect(report.confidence).toBe('certain');
     expect(report.source).toBe('Trading Paints downloader config');
-    expect(report.notes).toEqual(['Trading Paints is configured for customer 1159839, which is where this came from.']);
+    expect(report.notes).toEqual(['Trading Paints is configured for customer 424242, which is where this came from.']);
     // The pick-list is still offered.
     expect(report.candidates.map((c) => c.id)).toEqual(['999']);
   });
 
   test('likely: the only id with a spec map in .tga form', async () => {
     const dir = fixture('likely', {
-      lotus79: ['car_999111.tga', 'car_888222.tga', 'car_1159839.tga', 'car_spec_1159839.tga', 'car_spec_888222.mip'],
+      lotus79: ['car_999111.tga', 'car_888222.tga', 'car_424242.tga', 'car_spec_424242.tga', 'car_spec_888222.mip'],
       mx5: ['car_999111.tga', 'car_888222.tga'],
     });
     const report = await customer.detect(dir, { tradingPaints: noTradingPaints });
-    expect(report).toMatchObject({ id: '1159839', confidence: 'likely', source: 'hand-installed spec maps' });
+    expect(report).toMatchObject({ id: '424242', confidence: 'likely', source: 'hand-installed spec maps' });
     expect(report.notes[0]).toContain('is the only id with spec maps in .tga form');
   });
 

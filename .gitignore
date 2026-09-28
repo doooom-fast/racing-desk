@@ -17,3 +17,5 @@ apps/plugin/racing-desk-plugin/simhub-plugin/build/
 apps/plugin/racing-desk-plugin/simhub-plugin/RacingDesk.dll
 apps/plugin/racing-desk-plugin/simhub-plugin/RacingDesk.pdb
 apps/overlay/modules/desk/calc.bundle.js
+apps/overlay/modules/desk/paints.bundle.js
+apps/overlay/modules/desk/paints.bundle.css

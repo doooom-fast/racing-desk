@@ -1,94 +1,119 @@
-/* DOOOOM SPEEDSPORTS: orange #DC3714 on matte black, same as the paints. */
+/* The livery manager, scoped to .paints-app (the App's root). The same markup runs as the desk's Paints page
+   (bundled by build-island.mjs into apps/overlay/modules/desk/) and in the Tauri shell (main.tsx); inside the
+   desk nothing here may restyle the desk, so there are no html, body or :root rules — the shell's own are in
+   standalone.css, which only main.tsx loads.
 
-:root {
+   DOOOOM orange stays the accent. Everything else is the desk's palette and type (apps/overlay/modules/desk/desk.css),
+   read from the desk's tokens when inside it, with the same values as fallbacks for the shell. */
+
+.paints-app {
   --orange: #dc3714;
   --orange-dim: #a62a0f;
-  --bg: #0e0e10;
-  --panel: #17171a;
-  --panel-2: #1f1f23;
-  --line: #2b2b31;
-  --text: #ececee;
-  --muted: #9a9aa4;
-  --ok: #4ba36b;
-  --warn: #d8a13a;
-  --bad: #d8503a;
-
+  --bg: var(--ground, #0b0b0d);
+  --surface: var(--panel, #131316);
+  --surface-2: var(--panel-raised, #1a1a1e);
+  --line: var(--hairline, hsla(0, 0%, 100%, 0.08));
+  --line-strong: var(--hairline-strong, hsla(0, 0%, 100%, 0.16));
+  --fg: var(--text, hsla(0, 0%, 100%, 0.94));
+  --muted: var(--text-2, hsla(0, 0%, 100%, 0.64));
+  --faint: var(--text-3, hsla(0, 0%, 100%, 0.42));
+  --ok: var(--gain, #54d483);
+  --warn: var(--caution, #f5b547);
+  --bad: var(--loss, #e46767);
+  --font: var(--ff, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif);
+  --font-display: var(--ff-display, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif);
+  --font-mono: var(--ff-mono, "JetBrains Mono", Consolas, monospace);
   --radius: 6px;
+  --radius-card: var(--r, 10px);
   --gap: 12px;
 
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.4 var(--font);
+  -webkit-font-smoothing: antialiased;
   color-scheme: dark;
 }
 
-* {
+.paints-app *,
+.paints-app *::before,
+.paints-app *::after {
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-}
+/* ---- controls ---- */
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font: 13px/1.5 "Segoe UI", system-ui, sans-serif;
-  overflow: hidden;
-}
-
-button {
+.paints-app button {
   font: inherit;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  padding: 6px 12px;
+  padding: 4px 10px;
   cursor: pointer;
 }
-button:hover:not(:disabled) {
-  border-color: var(--muted);
+.paints-app button:hover {
+  color: var(--fg);
+  border-color: hsla(0, 0%, 100%, 0.3);
 }
-button:disabled {
+.paints-app button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  color: var(--muted);
+  border-color: var(--line-strong);
 }
-button.primary {
+.paints-app button.primary,
+.paints-app button.primary:hover {
   background: var(--orange);
   border-color: var(--orange);
   color: #fff;
   font-weight: 600;
 }
-button.primary:hover:not(:disabled) {
+.paints-app button.primary:hover:not(:disabled) {
   background: #ef4a26;
   border-color: #ef4a26;
 }
-button.danger {
+.paints-app button.danger {
   border-color: var(--bad);
-  color: #ffb9ac;
+  color: var(--bad);
 }
-button.link {
+.paints-app button.link,
+.paints-app button.link:hover {
   background: none;
   border: none;
   color: var(--orange);
   padding: 0;
+  font-size: inherit;
   text-decoration: underline;
 }
 
-input[type="text"] {
+.paints-app input[type="text"] {
   font: inherit;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  padding: 5px 8px;
+  padding: 4px 8px;
 }
-input[type="text"]:focus {
+.paints-app input[type="text"]:hover {
+  border-color: hsla(0, 0%, 100%, 0.3);
+}
+.paints-app input[type="text"]:focus-visible {
   outline: 1px solid var(--orange);
+  outline-offset: 1px;
   border-color: var(--orange);
 }
+.paints-app input[type="checkbox"] {
+  accent-color: var(--orange);
+  margin: 0;
+}
 
-label.check {
+.paints-app label.check {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -96,157 +121,161 @@ label.check {
   user-select: none;
 }
 
-code,
-.mono {
-  font-family: "Cascadia Mono", Consolas, monospace;
+.paints-app code,
+.paints-app .mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.paints-app .note {
+  color: var(--faint);
   font-size: 12px;
 }
 
 /* ---- shell ---- */
 
-.app {
-  display: grid;
-  grid-template-rows: auto auto 1fr;
-  height: 100%;
-}
-
-.titlebar {
+.paints-app .titlebar {
+  position: relative;
   display: flex;
   align-items: baseline;
   gap: 10px;
   padding: 10px 16px 8px;
   border-bottom: 1px solid var(--line);
 }
-.wordmark {
-  font-weight: 800;
+.paints-app .wordmark {
+  font: 700 14px/1 var(--font-display);
   letter-spacing: 0.14em;
   color: var(--orange);
 }
-.titlebar .sub {
+.paints-app .titlebar .sub {
   color: var(--muted);
+  font-size: 13px;
 }
-.titlebar .spacer {
+.paints-app .titlebar .spacer {
   flex: 1;
 }
 
 /* ---- setup ---- */
 
-.setup {
+.paints-app .setup {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: var(--gap);
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--surface);
 }
-.field {
+.paints-app .field {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 4px;
   min-width: 0;
+  padding: 0;
+  border-top: 0;
 }
-.field .label {
-  color: var(--muted);
-  font-size: 11px;
+.paints-app .field .label {
+  font: 600 10px/1.4 var(--font);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  color: var(--faint);
 }
-.field .row {
+.paints-app .field .row {
   display: flex;
   gap: 6px;
   align-items: center;
   min-width: 0;
 }
-.field .row input {
+.paints-app .field .row input {
   flex: 1;
   min-width: 0;
 }
-.field .note {
-  color: var(--muted);
-  font-size: 11px;
-}
 
-.badge {
+.paints-app .badge {
   display: inline-block;
   padding: 1px 6px;
   border-radius: 999px;
   font-size: 11px;
-  border: 1px solid var(--line);
+  line-height: 1.5;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
   white-space: nowrap;
 }
-.badge.certain {
+.paints-app .badge.certain {
   color: var(--ok);
   border-color: var(--ok);
 }
-.badge.likely {
+.paints-app .badge.likely {
   color: var(--warn);
   border-color: var(--warn);
 }
-.badge.guess {
+.paints-app .badge.guess {
   color: var(--bad);
   border-color: var(--bad);
 }
-.badge.applied {
+.paints-app .badge.applied {
   color: #fff;
   background: var(--orange);
   border-color: var(--orange);
   font-weight: 600;
 }
-.badge.partial {
+.paints-app .badge.partial {
   color: var(--warn);
   border-color: var(--warn);
 }
 
 /* ---- banners ---- */
 
-.banner {
+.paints-app .banner {
   display: flex;
   gap: 10px;
   align-items: flex-start;
   padding: 8px 12px;
   border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  font-size: 13px;
 }
-.banner.warn {
+.paints-app .banner.warn {
   border-color: var(--warn);
 }
-.banner.bad {
+.paints-app .banner.bad {
   border-color: var(--bad);
 }
-.banner .mark {
+.paints-app .banner .mark {
   font-weight: 700;
   color: var(--warn);
 }
-.banner.bad .mark {
+.paints-app .banner.bad .mark {
   color: var(--bad);
 }
-.banner ul {
+.paints-app .banner ul {
   margin: 4px 0 0;
   padding-left: 18px;
 }
 
 /* ---- body ---- */
 
-.body {
+.paints-app .body {
   display: grid;
   grid-template-columns: 220px 1fr;
   min-height: 0;
 }
 
-.sidebar {
+.paints-app .sidebar {
   border-right: 1px solid var(--line);
   overflow-y: auto;
-  background: var(--panel);
+  background: var(--surface);
 }
-.sidebar .heading {
-  padding: 10px 14px 6px;
-  color: var(--muted);
-  font-size: 11px;
+.paints-app .sidebar .heading {
+  padding: 12px 14px 6px;
+  font: 600 11px/1 var(--font);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  color: var(--faint);
 }
-.car {
+.paints-app .sidebar .car,
+.paints-app .sidebar .car:hover {
   display: block;
   width: 100%;
   text-align: left;
@@ -255,24 +284,27 @@ code,
   border-radius: 0;
   background: none;
   padding: 8px 14px;
+  font-size: 14px;
+  color: var(--fg);
 }
-.car:hover {
-  background: var(--panel-2);
+.paints-app .sidebar .car:hover {
+  background: var(--surface-2);
 }
-.car.active {
-  background: var(--panel-2);
+.paints-app .sidebar .car.active {
+  background: var(--surface-2);
   border-left-color: var(--orange);
 }
-.car .name {
+.paints-app .car .name {
   display: block;
+  font-weight: 600;
 }
-.car .meta {
+.paints-app .car .meta {
   display: block;
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--faint);
+  font-size: 12px;
 }
 
-.main {
+.paints-app .main {
   overflow-y: auto;
   padding: 14px 16px 24px;
   display: flex;
@@ -280,24 +312,25 @@ code,
   gap: var(--gap);
 }
 
-.versions {
+.paints-app .versions {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--gap);
 }
 
-.card {
+.paints-app .card {
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
-.card.applied {
+.paints-app .card.applied {
   border-color: var(--orange);
 }
-.card .preview {
+.paints-app .card .preview {
   aspect-ratio: 16 / 9;
   background: #000;
   display: flex;
@@ -305,42 +338,43 @@ code,
   justify-content: center;
   border-bottom: 1px solid var(--line);
 }
-.card .preview img {
+.paints-app .card .preview img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
-.card .preview .none {
-  color: var(--muted);
-  font-size: 11px;
+.paints-app .card .preview .none {
+  color: var(--faint);
+  font-size: 12px;
 }
-.card .head {
+.paints-app .card .head {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 12px 0;
 }
-.card .head .name {
+.paints-app .card .head .name {
   font-weight: 600;
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.card .roles {
+.paints-app .card .roles {
   padding: 4px 12px 0;
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--faint);
+  font-size: 12px;
 }
-.card .notes {
+.paints-app .card .notes {
   padding: 6px 12px 0;
   color: var(--muted);
+  font-size: 13px;
 }
-.card .problems {
+.paints-app .card .problems {
   padding: 6px 12px 0;
   color: var(--bad);
-  font-size: 11px;
+  font-size: 12px;
 }
-.card .actions {
+.paints-app .card .actions {
   margin-top: auto;
   padding: 10px 12px 12px;
   display: flex;
@@ -348,97 +382,106 @@ code,
   align-items: center;
 }
 
-.panel {
+.paints-app .panel {
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
-  padding: 12px;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  padding: 14px 16px;
+  font-size: 13px;
 }
-.panel h3 {
-  margin: 0 0 8px;
-  font-size: 12px;
+.paints-app .panel h3 {
+  margin: 0 0 10px;
+  font: 600 11px/1 var(--font);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  font-weight: 600;
+  color: var(--faint);
 }
-.panel .rows {
+.paints-app .panel .rows {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-.row-line {
+.paints-app .row-line {
   display: flex;
   gap: 10px;
   align-items: baseline;
 }
-.row-line .grow {
+.paints-app .row-line .grow {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.options {
+.paints-app .options {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
+  font-size: 13px;
 }
 
-.log {
+.paints-app .log {
   max-height: 220px;
   overflow-y: auto;
 }
-.log .entry {
-  border-left: 2px solid var(--line);
+.paints-app .log .entry {
+  border-left: 2px solid var(--line-strong);
   padding-left: 8px;
   margin-bottom: 8px;
 }
-.log .entry.bad {
+.paints-app .log .entry.bad {
   border-left-color: var(--bad);
 }
-.log .entry.ok {
+.paints-app .log .entry.ok {
   border-left-color: var(--ok);
 }
-.log .when {
-  color: var(--muted);
+.paints-app .log .when {
+  color: var(--faint);
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 
-.empty {
-  color: var(--muted);
+.paints-app .empty {
+  color: var(--faint);
+  font-size: 13px;
   padding: 24px 0;
   text-align: center;
 }
 
 /* ---- modal ---- */
 
-.scrim {
+.paints-app .scrim {
   position: fixed;
   inset: 0;
+  z-index: 30;
   background: rgba(0, 0, 0, 0.66);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
 }
-.modal {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+.paints-app .modal {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
   width: min(560px, 100%);
   max-height: 100%;
   overflow-y: auto;
-  padding: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
 }
-.modal h2 {
+.paints-app .modal h2 {
   margin: 0 0 4px;
-  font-size: 15px;
+  font: 700 18px/1.2 var(--font-display);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
 }
-.modal .sub {
+.paints-app .modal .sub {
   color: var(--muted);
+  font-size: 13px;
   margin-bottom: 12px;
 }
-.modal .foot {
+.paints-app .modal .foot {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
@@ -446,32 +489,29 @@ code,
 }
 
 /* ---- header status chips ---- */
-/* These replace the stack of banners that used to sit above the version cards. The
-   warnings are the same; they just no longer cost half the window to say. */
+/* These replace the stack of banners that used to sit above the version cards. The warnings are the same; they
+   just no longer cost half the window to say. */
 
-.titlebar {
-  position: relative;
-}
-
-.chips {
+.paints-app .chips {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-.chip {
+.paints-app .chips .chip,
+.paints-app .chips .chip:hover {
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.5;
   padding: 1px 8px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
   color: var(--muted);
   cursor: pointer;
   white-space: nowrap;
 }
-.chip::before {
+.paints-app .chips .chip::before {
   content: "";
   display: inline-block;
   width: 6px;
@@ -481,67 +521,70 @@ code,
   vertical-align: 1px;
   background: currentColor;
 }
-.chip.bad {
-  color: #ffb9ac;
+.paints-app .chips .chip.bad {
+  color: var(--bad);
   border-color: var(--bad);
 }
-.chip.warn {
-  color: #f0c97a;
+.paints-app .chips .chip.warn {
+  color: var(--warn);
   border-color: var(--warn);
 }
-.chip.info {
-  color: #f0a58c;
+.paints-app .chips .chip.info {
+  color: var(--orange);
   border-color: var(--orange-dim);
 }
-.chip.ok {
+.paints-app .chips .chip.ok,
+.paints-app .chips .chip.ok:hover {
   color: var(--ok);
   border-color: transparent;
   background: none;
   cursor: default;
 }
-.chip:hover:not(.ok),
-.chip.open {
-  background: var(--line);
+.paints-app .chips .chip:hover:not(.ok),
+.paints-app .chips .chip.open {
+  background: hsla(0, 0%, 100%, 0.12);
 }
 
-.chip-detail {
+.paints-app .chip-detail {
   position: absolute;
   top: calc(100% - 4px);
   right: 16px;
   z-index: 20;
   max-width: min(520px, calc(100vw - 32px));
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  background: var(--panel-2);
+  background: var(--surface-2);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  color: var(--text);
+  color: var(--fg);
+  font-size: 13px;
   line-height: 1.5;
 }
 
 /* ---- switching between a card's images ---- */
 
-.views {
+.paints-app .views {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   padding: 6px 12px 0;
 }
-.view {
+.paints-app .views .view,
+.paints-app .views .view:hover {
   font-size: 10px;
-  line-height: 1.5;
+  line-height: 1.6;
   padding: 0 6px;
   border-radius: 3px;
   border: 1px solid transparent;
   background: none;
-  color: var(--muted);
+  color: var(--faint);
   text-transform: lowercase;
 }
-.view:hover {
-  color: var(--text);
-  border-color: var(--line);
+.paints-app .views .view:hover {
+  color: var(--fg);
+  border-color: var(--line-strong);
 }
-.view.on {
+.paints-app .views .view.on {
   color: var(--orange);
   border-color: var(--orange-dim);
 }

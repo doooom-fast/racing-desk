@@ -5,10 +5,11 @@
   "workspaces": [
     "apps/overlay",
     "apps/edit",
+    "apps/paints",
     "packages/*"
   ],
   "scripts": {
-    "build": "node packages/calc/build.mjs && npm run build:host && npm run build:win -w racing-desk-overlay",
+    "build": "node packages/calc/build.mjs && node apps/paints/build-island.mjs && npm run build:host && npm run build:win -w racing-desk-overlay",
     "build:host": "node -e \"require('fs').rmSync('apps/host/publish', { recursive: true, force: true })\" && dotnet publish apps/host/RacingDesk.Host -c Release -r win-x64 --self-contained false -o apps/host/publish",
     "dev": "node scripts/dev.mjs",
     "record": "node packages/replay/cli.mjs record",

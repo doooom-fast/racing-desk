@@ -47,6 +47,19 @@ contextBridge.exposeInMainWorld('racingDesk', {
   onShowPage: (callback) => {
     ipcRenderer.on('show-page', (_event, page) => callback(page));
   },
+  // Desk window, Paints page: the livery manager's commands (modules/js/paints, dispatched by main.js's
+  // paints:invoke) and the bits of the shell it needs. main.js answers { value } or { error } — Electron would
+  // otherwise wrap a thrown error's message in its own — so invoke rejects with the command's own message here.
+  paints: {
+    invoke: async (name, args) => {
+      const result = await ipcRenderer.invoke('paints:invoke', name, args);
+      if (result && result.error !== undefined) throw new Error(result.error);
+      return result ? result.value : undefined;
+    },
+    pickFolder: (options) => ipcRenderer.invoke('paints:pickFolder', options),
+    reveal: (p) => ipcRenderer.invoke('paints:reveal', p),
+    openPath: (p) => ipcRenderer.invoke('paints:openPath', p),
+  },
   // Ambient light — screen capture moved to C# plugin (ScreenColorSampler).
   // Color data now arrives via poll JSON (DS.AmbientR/G/B), no IPC needed.
   // Moza hardware manager window

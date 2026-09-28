@@ -185,6 +185,16 @@ Every decision that touches the disk is in Rust. The front end asks for things t
 renders what comes back, so the rules about backups, renaming and cooked files live in exactly
 one place.
 
+## Inside The Racing Desk
+
+The same UI now runs as the **Paints** page of The Racing Desk's desk window. `build-island.mjs` bundles `src/` for
+it; `src/bridge.ts` sends every call to the app when it is there (`window.racingDesk.paints`) and to the Rust
+commands when it isn't, so the components never know which host they are in. In the app the file operations are a
+Node port of `src-tauri/src`, module for module, in `apps/overlay/modules/js/paints/`. Backups move to
+`%LOCALAPPDATA%\Racing Desk\paints\backups`, and the two folders and the id are remembered in the app's settings.
+
+The Tauri shell here still builds from the same source. It stays until the page has done a few real swaps, then goes.
+
 ## Still to come
 
 Drag and drop import, a watch on the design output folder, per-version "what changed", export a
