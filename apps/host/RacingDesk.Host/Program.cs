@@ -18,10 +18,12 @@ namespace RacingDesk.Host
 
   RacingDesk.Host                      follow live iRacing: serve :8889 / :8890, record sessions,
                                     backfill new .ibt files in the background; the local store is
-                                    readable at :8889/racing-desk/data/{status,sessions,session?id=}
+                                    readable at :8889/racing-desk/data/{status,sessions,session?id=,schedule,cars}
   RacingDesk.Host --ibt <file>         replay a recorded .ibt through the same pipeline
   RacingDesk.Host ingest               backfill the local store from .ibt history
   RacingDesk.Host sessions             list stored sessions
+  RacingDesk.Host cars                 list the cars the store can name: name, folder, driven, seen (--scan to
+                                    read the names out of the .ibt files ingested before it kept them)
   RacingDesk.Host sql ""<select>""       run a read-only query against the store, print JSON
   RacingDesk.Host schedule             parse iRacing's season schedule PDF (--store to save it, --fetch to
                                     download it first)
@@ -47,7 +49,9 @@ Data options:
   --limit <n>          ingest: at most n files; sessions: rows to show (default 20)
   --step <n>           ingest: read every nth frame (default 3 = 20 Hz)
   --force              ingest: re-read files already stored
-  --now                ingest: don't wait for iRacing to close first
+  --now                ingest, cars --scan: don't wait for iRacing to close first
+  --scan               cars: read the headers of ingested .ibt files not yet read for their cars (no frames;
+                       seconds for the whole history), then list
   --pdf <file>         schedule: read this PDF instead of the newest in %LOCALAPPDATA%\RacingDesk\schedule
   --dump               schedule: print the PDF's laid-out text
   --series <text>      schedule: print the parsed detail of series matching this text
@@ -85,6 +89,7 @@ Data options:
             {
                 case "ingest": return Ingest(o);
                 case "sessions": return Sessions(o);
+                case "cars": return CarsCommand.Run(o);
                 case "sql": return Sql(o);
                 case "schedule": return ScheduleCommand.Run(o);
                 default: return Serve(o);
@@ -208,7 +213,12 @@ Data options:
             try
             {
                 using var store = new RacingDeskStore(o.Db ?? RacingDeskStore.DefaultPath);
-                var summary = new IbtIngest(store, m => Log.Info("[RacingDesk.Host] ingest: " + m))
+                var ingest = new IbtIngest(store, m => Log.Info("[RacingDesk.Host] ingest: " + m));
+                // Car names first: seconds, once, and the Paints page is waiting for them.
+                var scan = ingest.ScanCars(cts.Token, BackgroundIo.SimRunning);
+                if (scan.FilesScanned > 0 || scan.FilesFailed > 0 || scan.FilesMissing > 0)
+                    Log.Info("[RacingDesk.Host] ingest: " + CarsCommand.Describe(scan));
+                var summary = ingest
                     .Run(o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory, o.Step, int.MaxValue, cts.Token, pause: BackgroundIo.SimRunning);
                 if (summary.FilesIngested > 0 || summary.FilesFailed > 0)
                     Log.Info($"[RacingDesk.Host] ingest: {summary.FilesIngested} new files, {summary.Sessions} sessions, {summary.FilesFailed} unreadable, {summary.Elapsed.TotalSeconds:F0}s");
@@ -393,6 +403,7 @@ Data options:
         public string ScheduleUrl;
         public bool Force;
         public bool Now;
+        public bool Scan;
         public long? LapsFor;
         public bool Help;
 
@@ -404,7 +415,7 @@ Data options:
             {
                 o.Command = args[0];
                 start = 1;
-                if (o.Command != "ingest" && o.Command != "sessions" && o.Command != "sql" && o.Command != "schedule") throw new ArgumentException($"unknown command {o.Command}");
+                if (o.Command != "ingest" && o.Command != "sessions" && o.Command != "cars" && o.Command != "sql" && o.Command != "schedule") throw new ArgumentException($"unknown command {o.Command}");
                 if (o.Command == "sql")
                 {
                     o.Sql = args.Length > 1 ? args[1] : throw new ArgumentException("sql needs a query");
@@ -447,6 +458,7 @@ Data options:
                     case "--url": o.ScheduleUrl = Next(); break;
                     case "--force": o.Force = true; break;
                     case "--now": o.Now = true; break;
+                    case "--scan": o.Scan = true; break;
                     case "--laps": o.LapsFor = (long)Num(); break;
                     case "-h": case "--help": o.Help = true; break;
                     default: throw new ArgumentException($"unknown argument {a}");

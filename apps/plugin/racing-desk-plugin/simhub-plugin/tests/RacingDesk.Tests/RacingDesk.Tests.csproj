@@ -23,6 +23,8 @@
   <ItemGroup>
     <ProjectReference Include="../../../../../core/RacingDesk.Core/RacingDesk.Core.csproj" />
     <ProjectReference Include="../../../../../core/RacingDesk.Data/RacingDesk.Data.csproj" />
+    <!-- For the local data API and the CLI commands; its racingdesk-data files come along and are not used. -->
+    <ProjectReference Include="../../../../../host/RacingDesk.Host/RacingDesk.Host.csproj" />
   </ItemGroup>
 
 </Project>

@@ -17,6 +17,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="RacingDesk.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../core/RacingDesk.Core/RacingDesk.Core.csproj" />
     <ProjectReference Include="../../core/RacingDesk.Data/RacingDesk.Data.csproj" />
   </ItemGroup>

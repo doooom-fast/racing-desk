@@ -282,6 +282,9 @@ namespace RacingDesk.Data
                 }
             }
 
+            s.Cars.Clear();
+            s.Cars.AddRange(CarRecord.Distinct(SessionInfoYaml.DriverCars(info)));
+
             var field = w != null && w.NumCarClasses > 1 && me != null
                 ? s.Grid.Where(g => g.CarClassId == me.CarClassID).ToList()
                 : s.Grid;

@@ -48,6 +48,57 @@ namespace RacingDesk.Data
         public List<LapRecord> Laps { get; } = new List<LapRecord>();
         public List<IncidentRecord> IncidentEvents { get; } = new List<IncidentRecord>();
         public List<GridEntryRecord> Grid { get; } = new List<GridEntryRecord>();
+        /// <summary>Each car in the entry list once, the driver's own included. Stored in <c>cars</c>.</summary>
+        public List<CarRecord> Cars { get; } = new List<CarRecord>();
+    }
+
+    /// <summary>A car as a session's entry list names it: iRacing's folder name for it, and what it calls it.</summary>
+    public sealed class CarRecord
+    {
+        public string CarPath { get; set; }
+        public string Name { get; set; }
+        public string ShortName { get; set; }
+        public int CarId { get; set; }
+
+        /// <summary>One record per car from a list of drivers' cars; a car without a name is left out.</summary>
+        public static List<CarRecord> Distinct(IEnumerable<RacingDesk.Plugin.IRacing.DriverCar> drivers)
+        {
+            var cars = new List<CarRecord>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var d in drivers)
+            {
+                if (string.IsNullOrWhiteSpace(d.CarPath) || string.IsNullOrWhiteSpace(d.CarScreenName) || !seen.Add(d.CarPath)) continue;
+                cars.Add(new CarRecord
+                {
+                    CarPath = d.CarPath,
+                    Name = d.CarScreenName.Trim(),
+                    ShortName = string.IsNullOrWhiteSpace(d.CarScreenNameShort) ? null : d.CarScreenNameShort.Trim(),
+                    CarId = d.CarID,
+                });
+            }
+            return cars;
+        }
+    }
+
+    /// <summary>What the header pass made of one ingested .ibt file.</summary>
+    public sealed class ScannedFile
+    {
+        public string Path { get; set; }
+        /// <summary>The cars in its entry list; null for a file that could not be read or is no longer there.</summary>
+        public IReadOnlyList<CarRecord> Cars { get; set; }
+        /// <summary>When it was recorded, for the cars it names without a stored session.</summary>
+        public DateTime RecordedAtUtc { get; set; }
+    }
+
+    /// <summary>A row of the <c>cars</c> table with how often the driver's own sessions were in that car.</summary>
+    public sealed class CarSummary
+    {
+        public string CarPath { get; set; }
+        public string Name { get; set; }
+        public string ShortName { get; set; }
+        public int? CarId { get; set; }
+        public int Driven { get; set; }
+        public int Seen { get; set; }
     }
 
     public sealed class LapRecord

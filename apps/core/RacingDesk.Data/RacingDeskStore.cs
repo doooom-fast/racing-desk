@@ -14,9 +14,56 @@ namespace RacingDesk.Data
     /// </summary>
     public sealed class RacingDeskStore : IDisposable
     {
-        public const int SchemaVersion = 3;
+        public const int SchemaVersion = 4;
+
+        // Car names by iRacing's folder name for the car (schema v4). session_cars is which stored session had
+        // which car in its entry list: cars.seen is the count of those rows, so saving a session again — a live
+        // checkpoint every lap, a file re-ingested — counts it once.
+        private const string CarsSchema = @"
+CREATE TABLE cars (
+  car_path TEXT PRIMARY KEY, name TEXT NOT NULL, short_name TEXT, car_id INTEGER,
+  seen INTEGER NOT NULL DEFAULT 0, first_seen_at TEXT, last_seen_at TEXT
+);
+
+CREATE TABLE session_cars (
+  session_id                INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  car_path                  TEXT NOT NULL,
+  PRIMARY KEY (session_id, car_path)
+);
+CREATE INDEX session_cars_car ON session_cars(car_path);
+CREATE INDEX sessions_ibt_path ON sessions(ibt_path);
+";
+
+        // The cars the driver has driven are named by the sessions already stored.
+        private const string SeedCars = @"
+INSERT INTO cars (car_path, name, car_id, seen, first_seen_at, last_seen_at)
+SELECT s.car_path,
+  (SELECT TRIM(n.car_screen_name) FROM sessions n WHERE n.car_path = s.car_path AND TRIM(COALESCE(n.car_screen_name, '')) <> ''
+    ORDER BY n.started_at DESC, n.id DESC LIMIT 1),
+  (SELECT NULLIF(n.car_id, 0) FROM sessions n WHERE n.car_path = s.car_path AND TRIM(COALESCE(n.car_screen_name, '')) <> ''
+    ORDER BY n.started_at DESC, n.id DESC LIMIT 1),
+  0, NULL, NULL
+FROM sessions s
+WHERE TRIM(COALESCE(s.car_path, '')) <> '' AND TRIM(COALESCE(s.car_screen_name, '')) <> ''
+GROUP BY s.car_path;
+
+INSERT INTO session_cars (session_id, car_path)
+SELECT id, car_path FROM sessions WHERE car_path IN (SELECT car_path FROM cars);
+
+UPDATE cars SET
+  seen = (SELECT COUNT(*) FROM session_cars sc WHERE sc.car_path = cars.car_path),
+  first_seen_at = (SELECT MIN(s.started_at) FROM sessions s WHERE s.car_path = cars.car_path),
+  last_seen_at = (SELECT MAX(s.started_at) FROM sessions s WHERE s.car_path = cars.car_path);
+";
+
+        private const string CarsQuery = @"SELECT c.car_path, c.name, c.short_name, c.car_id, COALESCE(d.driven, 0) AS driven, c.seen
+FROM cars c LEFT JOIN (SELECT car_path, COUNT(*) AS driven FROM sessions GROUP BY car_path) d ON d.car_path = c.car_path
+ORDER BY c.name COLLATE NOCASE, c.car_path";
 
         private readonly SqliteConnection _db;
+
+        // Statements the header pass runs tens of thousands of times: prepared once, kept until the store closes.
+        private readonly Dictionary<string, SqliteCommand> _kept = new Dictionary<string, SqliteCommand>(StringComparer.Ordinal);
 
         public string Path { get; }
 
@@ -42,7 +89,12 @@ namespace RacingDesk.Data
         /// <summary>A reader for queries (the data API); never migrates or writes.</summary>
         public static RacingDeskStore OpenReadOnly(string path) => new RacingDeskStore(path, readOnly: true);
 
-        public void Dispose() => _db.Dispose();
+        public void Dispose()
+        {
+            foreach (var cmd in _kept.Values) cmd.Dispose();
+            _kept.Clear();
+            _db.Dispose();
+        }
 
         private void Migrate()
         {
@@ -63,6 +115,13 @@ namespace RacingDesk.Data
                     case 2:
                         // The season schedule, parsed from iRacing's published PDF.
                         Exec(Schedule.ScheduleStore.Schema, step);
+                        break;
+                    case 3:
+                        // Car names. Everyone else's cars come from the headers of the files already
+                        // ingested (IbtIngest.ScanCars), which is what cars_scanned keeps track of.
+                        Exec(CarsSchema, step);
+                        Exec("ALTER TABLE ingested_files ADD COLUMN cars_scanned INTEGER NOT NULL DEFAULT 0", step);
+                        Exec(SeedCars, step);
                         break;
                 }
                 current++;
@@ -125,10 +184,12 @@ CREATE TABLE track_geometry (
 );
 
 CREATE TABLE ingested_files (
-  path TEXT PRIMARY KEY, length INTEGER, mtime TEXT, sessions INTEGER, error TEXT, ingested_at TEXT NOT NULL
+  path TEXT PRIMARY KEY, length INTEGER, mtime TEXT, sessions INTEGER, error TEXT, ingested_at TEXT NOT NULL,
+  cars_scanned INTEGER NOT NULL DEFAULT 0
 );
 ", tx);
             Exec(Schedule.ScheduleStore.Schema, tx);
+            Exec(CarsSchema, tx);
             Exec("INSERT INTO schema_version(version) VALUES (" + SchemaVersion + ")", tx);
             tx.Commit();
         }
@@ -145,14 +206,18 @@ CREATE TABLE ingested_files (
         public long SaveSession(SessionRecord s)
         {
             using var tx = _db.BeginTransaction();
-            long id = SaveSession(s, tx);
+            var cars = new HashSet<string>(StringComparer.Ordinal);
+            long id = SaveSession(s, tx, cars);
+            RecountCars(cars, tx);
             tx.Commit();
             return id;
         }
 
-        private long SaveSession(SessionRecord s, SqliteTransaction tx)
+        /// <param name="cars">Collects the cars whose count this changes, for <see cref="RecountCars"/>.</param>
+        private long SaveSession(SessionRecord s, SqliteTransaction tx, HashSet<string> cars)
         {
             string key = SourceKey(s);
+            CarsOfSessions("s.source_key = $k", cars, tx, ("$k", key));
             Exec("DELETE FROM sessions WHERE source_key = $k", tx, ("$k", key));
 
             using (var cmd = Cmd(@"
@@ -207,7 +272,54 @@ SELECT last_insert_rowid();", tx))
                     cmd.ExecuteNonQuery();
                 }
             }
+            string startedAt = Iso(s.StartedAtUtc);
+            foreach (var car in s.Cars)
+            {
+                if (!SaveCar(car, startedAt, startedAt, tx)) continue;
+                ExecKept("INSERT OR IGNORE INTO session_cars VALUES ($s, $p)", tx, ("$s", s.Id), ("$p", car.CarPath));
+                cars.Add(car.CarPath);
+            }
             return s.Id;
+        }
+
+        /// <summary>
+        /// Names a car. The newest sighting names it — iRacing renames cars — whatever order the sessions are
+        /// stored in, and first and last seen only ever widen. False for a car with no folder name or no name.
+        /// </summary>
+        /// <param name="firstSeenAt">When the earliest of the sessions it is being stored with started.</param>
+        /// <param name="lastSeenAt">When the latest of them did.</param>
+        private bool SaveCar(CarRecord car, string firstSeenAt, string lastSeenAt, SqliteTransaction tx)
+        {
+            if (car == null || string.IsNullOrWhiteSpace(car.CarPath) || string.IsNullOrWhiteSpace(car.Name)) return false;
+            ExecKept(@"
+INSERT INTO cars (car_path, name, short_name, car_id, seen, first_seen_at, last_seen_at)
+VALUES ($path, $name, $short, $id, 0, $first, $last)
+ON CONFLICT(car_path) DO UPDATE SET
+  name = CASE WHEN excluded.last_seen_at >= COALESCE(cars.last_seen_at, '') THEN excluded.name ELSE cars.name END,
+  short_name = CASE WHEN excluded.last_seen_at >= COALESCE(cars.last_seen_at, '')
+    THEN COALESCE(excluded.short_name, cars.short_name) ELSE COALESCE(cars.short_name, excluded.short_name) END,
+  car_id = CASE WHEN excluded.last_seen_at >= COALESCE(cars.last_seen_at, '')
+    THEN COALESCE(excluded.car_id, cars.car_id) ELSE COALESCE(cars.car_id, excluded.car_id) END,
+  first_seen_at = MIN(COALESCE(cars.first_seen_at, excluded.first_seen_at), excluded.first_seen_at),
+  last_seen_at = MAX(COALESCE(cars.last_seen_at, excluded.last_seen_at), excluded.last_seen_at)", tx,
+                ("$path", car.CarPath), ("$name", car.Name), ("$short", string.IsNullOrWhiteSpace(car.ShortName) ? null : car.ShortName),
+                ("$id", car.CarId > 0 ? (object)car.CarId : null), ("$first", firstSeenAt), ("$last", lastSeenAt));
+            return true;
+        }
+
+        /// <summary>Adds the cars of the sessions matching <paramref name="where"/> (over <c>sessions s</c>).</summary>
+        private void CarsOfSessions(string where, HashSet<string> cars, SqliteTransaction tx, params (string, object)[] args)
+        {
+            using var cmd = Cmd("SELECT DISTINCT sc.car_path FROM session_cars sc JOIN sessions s ON s.id = sc.session_id WHERE " + where, tx);
+            foreach (var (n, v) in args) P(cmd, n, v);
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) cars.Add(r.GetString(0));
+        }
+
+        private void RecountCars(IEnumerable<string> carPaths, SqliteTransaction tx)
+        {
+            foreach (string path in carPaths)
+                ExecKept("UPDATE cars SET seen = (SELECT COUNT(*) FROM session_cars WHERE car_path = $p) WHERE car_path = $p", tx, ("$p", path));
         }
 
         public bool IsIngested(string path, long length, DateTime mtimeUtc)
@@ -218,15 +330,120 @@ SELECT last_insert_rowid();", tx))
         }
 
         /// <summary>Stores a file's sessions and marks it ingested, atomically.</summary>
-        public void SaveIngestedFile(string path, long length, DateTime mtimeUtc, IReadOnlyList<SessionRecord> sessions, string error)
+        /// <param name="cars">The cars in the file's header: named even when the file yields no session.</param>
+        /// <param name="recordedAtUtc">When the file was recorded, for cars it names without a session.</param>
+        public void SaveIngestedFile(string path, long length, DateTime mtimeUtc, IReadOnlyList<SessionRecord> sessions, string error,
+            IReadOnlyList<CarRecord> cars = null, DateTime? recordedAtUtc = null)
         {
             using var tx = _db.BeginTransaction();
+            var recount = new HashSet<string>(StringComparer.Ordinal);
             // Replace everything previously read from this file, including sessions it no longer yields.
+            CarsOfSessions("s.source = 'ibt' AND s.ibt_path = $p", recount, tx, ("$p", path));
             Exec("DELETE FROM sessions WHERE source = 'ibt' AND ibt_path = $p", tx, ("$p", path));
-            foreach (var s in sessions) SaveSession(s, tx);
-            Exec("INSERT OR REPLACE INTO ingested_files VALUES ($p, $l, $m, $n, $e, $at)", tx,
-                ("$p", path), ("$l", length), ("$m", Iso(mtimeUtc)), ("$n", sessions.Count), ("$e", error), ("$at", Iso(DateTime.UtcNow)));
+            foreach (var s in sessions) SaveSession(s, tx, recount);
+            if (sessions.Count == 0 && cars != null)
+            {
+                string recordedAt = Iso(recordedAtUtc ?? mtimeUtc);
+                foreach (var car in cars) SaveCar(car, recordedAt, recordedAt, tx);
+            }
+            RecountCars(recount, tx);
+            // A file that was read has its cars stored with its sessions, so the header pass has nothing to add.
+            // One that failed keeps what that pass made of it, for as long as it is the same file.
+            Exec(@"
+INSERT INTO ingested_files (path, length, mtime, sessions, error, ingested_at, cars_scanned)
+VALUES ($p, $l, $m, $n, $e, $at, $scanned)
+ON CONFLICT(path) DO UPDATE SET
+  cars_scanned = CASE WHEN excluded.cars_scanned = 1 THEN 1
+    WHEN ingested_files.length = excluded.length AND ingested_files.mtime = excluded.mtime THEN ingested_files.cars_scanned ELSE 0 END,
+  length = excluded.length, mtime = excluded.mtime, sessions = excluded.sessions, error = excluded.error,
+  ingested_at = excluded.ingested_at", tx,
+                ("$p", path), ("$l", length), ("$m", Iso(mtimeUtc)), ("$n", sessions.Count), ("$e", error), ("$at", Iso(DateTime.UtcNow)),
+                ("$scanned", error == null ? 1 : 0));
             tx.Commit();
+        }
+
+        /// <summary>Files ingested before the store kept cars, oldest first: their headers are still to be read.</summary>
+        public IReadOnlyList<string> FilesNeedingCarScan()
+        {
+            using var cmd = Cmd("SELECT path FROM ingested_files WHERE cars_scanned = 0 ORDER BY mtime, path");
+            using var r = cmd.ExecuteReader();
+            var list = new List<string>();
+            while (r.Read()) list.Add(r.GetString(0));
+            return list;
+        }
+
+        /// <summary>
+        /// What the header pass made of some files: names their cars, counts them into every session stored from
+        /// the file they were in, and marks each file scanned, read or not — atomically, and in one write, which
+        /// is what keeps the pass to seconds while its thread is at background I/O priority.
+        /// </summary>
+        public void SaveScannedCars(IReadOnlyList<ScannedFile> files)
+        {
+            using var tx = _db.BeginTransaction();
+            using var sessions = Cmd("SELECT MIN(started_at), MAX(started_at) FROM sessions WHERE ibt_path = $p AND source = 'ibt'", tx);
+            sessions.Parameters.Add(new SqliteParameter("$p", null));
+            var recount = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var file in files)
+            {
+                if (file.Cars != null && file.Cars.Count > 0)
+                {
+                    bool stored;
+                    string first, last;
+                    sessions.Parameters[0].Value = file.Path;
+                    using (var r = sessions.ExecuteReader())
+                    {
+                        stored = r.Read() && !r.IsDBNull(0);
+                        first = stored ? r.GetString(0) : Iso(file.RecordedAtUtc);
+                        last = stored ? r.GetString(1) : first;
+                    }
+                    foreach (var car in file.Cars)
+                    {
+                        if (!SaveCar(car, first, last, tx) || !stored) continue;
+                        ExecKept("INSERT OR IGNORE INTO session_cars (session_id, car_path) SELECT id, $c FROM sessions WHERE ibt_path = $p AND source = 'ibt'", tx,
+                            ("$c", car.CarPath), ("$p", file.Path));
+                        recount.Add(car.CarPath);
+                    }
+                }
+                ExecKept("UPDATE ingested_files SET cars_scanned = 1 WHERE path = $p", tx, ("$p", file.Path));
+            }
+            RecountCars(recount, tx);
+            tx.Commit();
+        }
+
+        /// <summary>False for a store last opened by a version that kept no cars (a read-only open doesn't migrate).</summary>
+        private bool HasCars => Scalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'cars'") > 0;
+
+        public long CarCount() => HasCars ? Scalar<long>("SELECT COUNT(*) FROM cars") : 0;
+
+        /// <summary>
+        /// Every car with a name, by name: <c>driven</c> is the driver's own stored sessions in it, <c>seen</c> the
+        /// stored sessions it was entered in.
+        /// </summary>
+        public IReadOnlyList<CarSummary> Cars()
+        {
+            var list = new List<CarSummary>();
+            if (!HasCars) return list;
+            using var cmd = Cmd(CarsQuery);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                list.Add(new CarSummary
+                {
+                    CarPath = r.GetString(0), Name = r.GetString(1), ShortName = Str(r, 2),
+                    CarId = r.IsDBNull(3) ? (int?)null : r.GetInt32(3), Driven = r.GetInt32(4), Seen = r.GetInt32(5),
+                });
+            return list;
+        }
+
+        /// <summary>The same rows as JSON, keyed by column name — what the desk's Paints page reads.</summary>
+        public void WriteCarsJson(System.Text.Json.Utf8JsonWriter json)
+        {
+            if (HasCars)
+            {
+                WriteJson(json, CarsQuery);
+                return;
+            }
+            json.WriteStartArray();
+            json.WriteEndArray();
         }
 
         public IReadOnlyList<string> IbtPathsMissingCategory()
@@ -384,6 +601,18 @@ FROM sessions WHERE ($type IS NULL OR session_type = $type) ORDER BY started_at 
         {
             using var cmd = Cmd(sql, tx);
             foreach (var (n, v) in args) P(cmd, n, v);
+            cmd.ExecuteNonQuery();
+        }
+
+        private void ExecKept(string sql, SqliteTransaction tx, params (string Name, object Value)[] args)
+        {
+            if (!_kept.TryGetValue(sql, out var cmd))
+            {
+                _kept[sql] = cmd = Cmd(sql);
+                foreach (var (name, _) in args) cmd.Parameters.Add(new SqliteParameter(name, null));
+            }
+            cmd.Transaction = tx;
+            for (int i = 0; i < args.Length; i++) cmd.Parameters[i].Value = Db(args[i].Value);
             cmd.ExecuteNonQuery();
         }
 

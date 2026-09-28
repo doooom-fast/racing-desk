@@ -16,6 +16,13 @@ namespace RacingDesk.Plugin.IRacing
         public string Description { get; internal set; }
     }
 
+    /// <summary>What a header-only pass takes from an .ibt: when it was recorded and its session YAML.</summary>
+    public sealed class IbtHeader
+    {
+        public DateTime SessionStartUtc { get; internal set; }
+        public string SessionInfoYamlText { get; internal set; }
+    }
+
     /// <summary>
     /// A recorded iRacing disk-telemetry file (.ibt): header, variable table, session YAML and
     /// fixed-size frames. Frames are read on demand, so opening even a 100 MB file is cheap.
@@ -24,6 +31,7 @@ namespace RacingDesk.Plugin.IRacing
     {
         private const int HeaderSize = 144;
         private const int VarHeaderSize = 144;
+        private const int MaxSessionInfoLength = 16 << 20;
 
         private readonly FileStream _stream;
         private readonly Dictionary<string, IbtVar> _vars = new Dictionary<string, IbtVar>(StringComparer.Ordinal);
@@ -58,10 +66,7 @@ namespace RacingDesk.Plugin.IRacing
                 int varHeaderOffset = BitConverter.ToInt32(h, 28);
                 BufferLength = BitConverter.ToInt32(h, 36);
                 BufferOffset = BitConverter.ToInt32(h, 52);
-                long startUnix = BitConverter.ToInt64(h, 112);
-                SessionStartUtc = startUnix > 946684800 && startUnix < 32503680000 // 2000..3000
-                    ? DateTimeOffset.FromUnixTimeSeconds(startUnix).UtcDateTime
-                    : File.GetLastWriteTimeUtc(path);
+                SessionStartUtc = StartUtc(BitConverter.ToInt64(h, 112), path);
                 SessionStartTime = BitConverter.ToDouble(h, 120);
                 SessionEndTime = BitConverter.ToDouble(h, 128);
                 LapCount = BitConverter.ToInt32(h, 136);
@@ -96,6 +101,33 @@ namespace RacingDesk.Plugin.IRacing
             {
                 _stream.Dispose();
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// The header and the session YAML, and nothing else: two reads, no variable table, no frames — so a
+        /// pass over a whole history takes seconds. Throws <see cref="InvalidDataException"/> for a file cut
+        /// short before the end of its YAML; one cut short anywhere after it reads as well as a whole one.
+        /// </summary>
+        public static IbtHeader ReadHeader(string path)
+        {
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, FileOptions.None))
+            {
+                var h = new byte[HeaderSize];
+                if (!ReadExactly(stream, h, HeaderSize)) throw new InvalidDataException($"{path}: truncated at 0");
+                int sessionInfoLen = BitConverter.ToInt32(h, 16);
+                int sessionInfoOffset = BitConverter.ToInt32(h, 20);
+                if (sessionInfoLen < 0 || sessionInfoLen > MaxSessionInfoLength || sessionInfoOffset < HeaderSize)
+                    throw new InvalidDataException($"{path}: not a valid .ibt header");
+
+                var yaml = new byte[sessionInfoLen];
+                stream.Position = sessionInfoOffset;
+                if (!ReadExactly(stream, yaml, sessionInfoLen)) throw new InvalidDataException($"{path}: truncated at {sessionInfoOffset}");
+                return new IbtHeader
+                {
+                    SessionStartUtc = StartUtc(BitConverter.ToInt64(h, 112), path),
+                    SessionInfoYamlText = CString(yaml, 0, sessionInfoLen),
+                };
             }
         }
 
@@ -140,17 +172,25 @@ namespace RacingDesk.Plugin.IRacing
             return buf;
         }
 
-        private bool ReadExactly(byte[] buffer, int length)
+        private bool ReadExactly(byte[] buffer, int length) => ReadExactly(_stream, buffer, length);
+
+        private static bool ReadExactly(Stream stream, byte[] buffer, int length)
         {
             int read = 0;
             while (read < length)
             {
-                int n = _stream.Read(buffer, read, length - read);
+                int n = stream.Read(buffer, read, length - read);
                 if (n <= 0) return false;
                 read += n;
             }
             return true;
         }
+
+        /// <summary>The header's start date; a corrupt one falls back to when the file was last written.</summary>
+        private static DateTime StartUtc(long startUnix, string path) =>
+            startUnix > 946684800 && startUnix < 32503680000 // 2000..3000
+                ? DateTimeOffset.FromUnixTimeSeconds(startUnix).UtcDateTime
+                : File.GetLastWriteTimeUtc(path);
 
         private static readonly Encoding Latin1 = Encoding.GetEncoding("ISO-8859-1");
 

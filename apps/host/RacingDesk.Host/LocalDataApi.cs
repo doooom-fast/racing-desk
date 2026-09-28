@@ -11,7 +11,7 @@ namespace RacingDesk.Host
 {
     /// <summary>
     /// Read-only views of the local store for the desk window, served next to the telemetry contract:
-    /// <c>GET /racing-desk/data/{status,sessions,session?id=,schedule}</c>. Rows go out as stored; the desk's
+    /// <c>GET /racing-desk/data/{status,sessions,session?id=,schedule,cars}</c>. Rows go out as stored; the desk's
     /// calc layer (packages/calc) does the merging and derivation.
     /// </summary>
     internal sealed class LocalDataApi
@@ -66,6 +66,7 @@ namespace RacingDesk.Host
                             json.WriteNumber("sessions", store.Scalar<long>("SELECT COUNT(*) FROM sessions"));
                             json.WriteNumber("laps", store.Scalar<long>("SELECT COUNT(*) FROM laps"));
                             json.WriteNumber("trackOutlines", store.Scalar<long>("SELECT COUNT(*) FROM track_geometry"));
+                            json.WriteNumber("cars", store.CarCount());
                             json.WriteString("lastSessionAt", store.Scalar<string>("SELECT MAX(started_at) FROM sessions"));
                             json.WriteString("lastIngestAt", store.Scalar<string>("SELECT MAX(ingested_at) FROM ingested_files"));
                             json.WriteEndObject();
@@ -75,6 +76,11 @@ namespace RacingDesk.Host
                     case "schedule":
                         // The season schedule as parsed from iRacing's PDF; the desk's calc layer shapes it.
                         Write(res, 200, json => store.WriteScheduleJson(json));
+                        return;
+
+                    case "cars":
+                        // Every car the store can name, by name: [{ car_path, name, short_name, car_id, driven, seen }].
+                        Write(res, 200, json => store.WriteCarsJson(json));
                         return;
 
                     case "sessions":

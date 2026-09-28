@@ -15,11 +15,19 @@ namespace RacingDesk.Data
         public TimeSpan Elapsed;
     }
 
+    public sealed class CarScanSummary
+    {
+        public int FilesScanned, FilesMissing, FilesFailed, FilesLeft, Cars;
+        public TimeSpan Elapsed;
+    }
+
     /// <summary>
     /// Backfills the store from .ibt history. Idempotent: a file is re-read only if its size or mtime changed.
     /// </summary>
     public sealed class IbtIngest
     {
+        private const int CarScanBatch = 100;
+
         private readonly RacingDeskStore _store;
         private readonly Action<string> _log;
 
@@ -61,6 +69,80 @@ namespace RacingDesk.Data
             return updated;
         }
 
+        /// <summary>
+        /// Files ingested before the store kept cars carry every entrant's car in their session YAML. Reads each
+        /// one's header and YAML — no frames, so the whole history takes seconds, not the ingest's forty minutes —
+        /// and marks it, so this happens once per file. A file that can't be read, or is gone, is marked too.
+        /// </summary>
+        /// <param name="pause">While it returns true the pass waits (e.g. while iRacing runs).</param>
+        public CarScanSummary ScanCars(CancellationToken ct = default, Func<bool> pause = null)
+        {
+            var summary = new CarScanSummary();
+            var files = _store.FilesNeedingCarScan();
+            if (files.Count == 0) return summary;
+
+            using var lowIo = BackgroundIo.Enter();
+            var clock = Stopwatch.StartNew();
+            var found = new HashSet<string>(StringComparer.Ordinal);
+            // Stored a batch at a time: one write for a hundred files, not a hundred.
+            var batch = new List<ScannedFile>(CarScanBatch);
+            void Store()
+            {
+                if (batch.Count > 0) _store.SaveScannedCars(batch);
+                batch.Clear();
+            }
+            // Asking Windows for its processes costs more than reading a header, so not before every file.
+            TimeSpan nextPauseCheck = TimeSpan.Zero;
+            int done = 0;
+            foreach (string path in files)
+            {
+                if (ct.IsCancellationRequested) break;
+                if (pause != null && clock.Elapsed >= nextPauseCheck)
+                {
+                    if (pause())
+                    {
+                        Store();
+                        _log("car names: paused while iRacing is running");
+                        while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+                        if (ct.IsCancellationRequested) break;
+                        _log("car names: resumed");
+                    }
+                    nextPauseCheck = clock.Elapsed + TimeSpan.FromSeconds(2);
+                }
+
+                done++;
+                var file = new ScannedFile { Path = path };
+                try
+                {
+                    if (File.Exists(path))
+                    {
+                        var header = IbtFile.ReadHeader(path);
+                        file.Cars = CarRecord.Distinct(SessionInfoYaml.ParseDriverCars(header.SessionInfoYamlText));
+                        file.RecordedAtUtc = header.SessionStartUtc;
+                        foreach (var car in file.Cars) found.Add(car.CarPath);
+                        summary.FilesScanned++;
+                    }
+                    else
+                    {
+                        summary.FilesMissing++;
+                    }
+                }
+                catch (Exception ex) when (!(ex is OperationCanceledException))
+                {
+                    summary.FilesFailed++;
+                    _log($"car names: skip {Path.GetFileName(path)}: {ex.GetType().Name}: {ex.Message}");
+                }
+                batch.Add(file);
+                if (batch.Count >= CarScanBatch) Store();
+            }
+            Store();
+
+            summary.FilesLeft = files.Count - done;
+            summary.Cars = found.Count;
+            summary.Elapsed = clock.Elapsed;
+            return summary;
+        }
+
         public IngestSummary Run(string directory, int frameStep = 3, int limit = int.MaxValue, CancellationToken ct = default,
             bool force = false, Func<bool> pause = null)
         {
@@ -95,7 +177,7 @@ namespace RacingDesk.Data
                 {
                     var result = IngestFile(f.FullName, frameStep, ct);
                     if (ct.IsCancellationRequested) break;
-                    _store.SaveIngestedFile(f.FullName, f.Length, f.LastWriteTimeUtc, result.Sessions, null);
+                    _store.SaveIngestedFile(f.FullName, f.Length, f.LastWriteTimeUtc, result.Sessions, null, result.Cars, result.RecordedAtUtc);
                     if (_store.SaveGeometryIfBetter(result.Geometry)) summary.GeometryUpdates++;
                     summary.FilesIngested++;
                     summary.Sessions += result.Sessions.Count;
@@ -121,6 +203,9 @@ namespace RacingDesk.Data
         {
             public List<SessionRecord> Sessions { get; } = new List<SessionRecord>();
             public TrackGeometryRecord Geometry { get; set; }
+            /// <summary>The cars in the file's entry list, whether or not it yields a session.</summary>
+            public List<CarRecord> Cars { get; } = new List<CarRecord>();
+            public DateTime RecordedAtUtc { get; set; }
         }
 
         public static FileResult IngestFile(string path, int frameStep = 3, CancellationToken ct = default)
@@ -129,6 +214,8 @@ namespace RacingDesk.Data
             using var ibt = new IbtFile(path);
             var info = ibt.SessionInfo;
             var wi = info?.WeekendInfo;
+            result.RecordedAtUtc = ibt.SessionStartUtc;
+            result.Cars.AddRange(CarRecord.Distinct(SessionInfoYaml.DriverCars(info)));
             DateTime Clock(double sessionTime) => SessionClock(ibt, sessionTime);
 
             var sessions = new SessionAccumulator("ibt", path, Clock);
