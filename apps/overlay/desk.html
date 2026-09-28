@@ -17,6 +17,7 @@
   </div>
   <nav class="nav" aria-label="Pages">
     <a href="#desk" data-page-link="desk">Desk</a>
+    <a href="#cars" data-page-link="cars">Cars</a>
     <a href="#paints" data-page-link="paints">Paints</a>
     <a href="#settings" data-page-link="settings">Settings</a>
   </nav>
@@ -48,6 +49,19 @@
   <section class="card mastery" id="cars"></section>
   <section class="card dna" id="dna"></section>
   <section class="card moments" id="moments"></section>
+</main>
+
+<main class="page cars-page" id="cars-page" data-page="cars" hidden>
+  <p class="cars-note" id="cars-note" hidden>Choosing a car's pedals needs the Racing Desk app. In a browser this page only shows what the host has recorded.</p>
+  <section class="card cars-card">
+    <div class="cars-head">
+      <h2>Cars you have driven <span class="num" id="cars-count"></span></h2>
+      <input type="search" id="cars-filter" placeholder="Filter by name" aria-label="Filter cars by name" autocomplete="off" spellcheck="false">
+      <span class="cars-status" id="cars-status" role="status"></span>
+    </div>
+    <div class="cars-scroll" id="cars-list"></div>
+  </section>
+  <p class="cars-keys" id="cars-keys" hidden></p>
 </main>
 
 <main class="page paints" id="paints" data-page="paints" hidden>

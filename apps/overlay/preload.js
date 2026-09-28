@@ -43,7 +43,7 @@ contextBridge.exposeInMainWorld('racingDesk', {
   onSettingsSync: (callback) => {
     ipcRenderer.on('settings-sync', (event, settings) => callback(settings));
   },
-  // Desk window: main.js asks for a page (tray menu → Paints / Settings) while the window is already open.
+  // Desk window: main.js asks for a page (tray menu → Cars / Paints / Settings) while the window is already open.
   onShowPage: (callback) => {
     ipcRenderer.on('show-page', (_event, page) => callback(page));
   },
@@ -59,6 +59,12 @@ contextBridge.exposeInMainWorld('racingDesk', {
     pickFolder: (options) => ipcRenderer.invoke('paints:pickFolder', options),
     reveal: (p) => ipcRenderer.invoke('paints:reveal', p),
     openPath: (p) => ipcRenderer.invoke('paints:openPath', p),
+  },
+  // Desk window, Cars page: give a car one of SmartControl's pedal profiles, or none (null). The host refuses
+  // writes from pages, so main.js makes the request (rig:bindPedals, modules/js/rig-api.js). It resolves to
+  // { ok: true, car } or { ok: false, error } — what went wrong is an answer, not a rejection.
+  rig: {
+    bindPedals: (carPath, profileId) => ipcRenderer.invoke('rig:bindPedals', carPath, profileId),
   },
   // Ambient light — screen capture moved to C# plugin (ScreenColorSampler).
   // Color data now arrives via poll JSON (DS.AmbientR/G/B), no IPC needed.

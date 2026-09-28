@@ -60,7 +60,8 @@
 
   async function getJson(route) {
     const res = await fetch(DATA + route, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`${route}: HTTP ${res.status}`);
+    // The status goes with the error: a 404 is how a host from before a route says so (the Cars page asks).
+    if (!res.ok) throw Object.assign(new Error(`${route}: HTTP ${res.status}`), { status: res.status });
     return res.json();
   }
 
@@ -84,6 +85,7 @@
       getJson('sessions'),
       getJson('schedule').catch(() => null),
     ]);
+    lastDriven = lastDrivenByCar(rows);   // the Cars page orders its cars by these rows
     const t0 = performance.now();
     desk = Calc.buildDesk(rows, { schedule: schedule && schedule.series && schedule.series.length ? schedule : null });
     const ms = Math.round(performance.now() - t0);
@@ -92,6 +94,10 @@
     raceLinks = await loadRaceLinks();
     render();
     $('freshness').textContent = `${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)} · ${ms} ms`;
+    // The Cars page is drawn again in its new order. One that found no host — the desk can be up before the
+    // host is — asks again now that there is one.
+    if (rig && !rig.carsError) renderCarsPage();
+    else if (currentPage === 'cars' && !rigAsking) loadCars();
   }
 
   // ── Open in iRacing ──────────────────────────────────────
@@ -461,10 +467,11 @@
   }
 
   // ── Pages ────────────────────────────────────────────────
-  // Desk, Paints and Settings are sections of this one window, shown one at a time. The hash remembers which;
-  // main.js asks for one with ?page= (tray menu, first open) or 'show-page' (the window is already up).
+  // Desk, Cars, Paints and Settings are sections of this one window, shown one at a time. The hash remembers
+  // which; main.js asks for one with ?page= (tray menu, first open) or 'show-page' (the window is already up).
 
-  const PAGES = ['desk', 'paints', 'settings'];
+  const PAGES = ['desk', 'cars', 'paints', 'settings'];
+  let currentPage = null;
 
   function pageFromHash() {
     const page = location.hash.replace(/^#/, '');
@@ -473,6 +480,7 @@
 
   function showPage(page) {
     if (!PAGES.includes(page)) page = 'desk';
+    currentPage = page;
     for (const el of document.querySelectorAll('[data-page]')) el.hidden = el.dataset.page !== page;
     for (const a of document.querySelectorAll('.nav a')) {
       if (a.dataset.pageLink === page) a.setAttribute('aria-current', 'page');
@@ -483,8 +491,319 @@
     if (location.hash !== '#' + page) {
       try { history.replaceState(null, '', '#' + page); } catch (_) { location.hash = page; }
     }
+    if (page === 'cars') loadCars();
     if (page === 'paints') mountPaints();
     if (page === 'settings') renderSettings();
+  }
+
+  // ── Cars ─────────────────────────────────────────────────
+  // What the host remembers for each car the driver has driven. The view it was last driven with: iRacing keeps
+  // one driver height and one horizon for every car, so the host records them per car when the sim closes. And
+  // its pedals: which of SmartControl's profiles it is driven with, chosen here once per car. Nothing on the page
+  // changes iRacing or the pedals.
+  //
+  // Read from the host each time the page is shown and on Refresh, not at desk start: cars, views, pedals. A host
+  // from before the page answers 404 for the last two; the cars are listed all the same and the page says which
+  // it went without. The one write is main.js's (window.racingDesk.rig → rig:bindPedals): the host refuses a
+  // write that comes from a page. In a browser there is no bridge, so the selects are off and the page says so.
+
+  let lastDriven = new Map();    // car → { at, iso }: the start of the latest session driven in it
+  let rig = null;                // what the page last read (readRig)
+  let rigLoad = 0;               // counts loadCars(): an answer that is no longer the latest is dropped
+  let rigAsking = false;
+  const pedalNotes = new Map();  // car → { kind: 'saved' | 'failed', text }, shown beside its select
+
+  const DASH = '<span class="dim">—</span>';
+  const NO_VIEW = 'not recorded yet — it will be after the next time you drive it';
+  // SmartControl Live names keys as Windows does. These are the ones seen; any other is shown as it is.
+  const KEY_NAMES = new Map([
+    ['PRIOR', 'Page Up'], ['NEXT', 'Page Down'], ['PAUSE', 'Pause'], ['RCONTROL', 'Right Ctrl'], ['UP', 'Up'], ['DOWN', 'Down'],
+  ]);
+
+  const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+  const isCarRow = (r) => r !== null && typeof r === 'object' && typeof r.car_path === 'string';
+  const carKey = (carPath) => String(carPath).toLowerCase();
+  // Case and accents fold away, so "huracan" finds the Huracán.
+  const fold = (s) => String(s).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+  // A number as the host gave it, less what a float picks up on the way: 0.05999999865889549 is 0.06.
+  const plain = (n) => String(Number(n.toFixed(4)));
+
+  // Metres as millimetres, with the sign: −0.06 is "−60 mm". Which way a sign points is the host's to say.
+  function mm(metres) {
+    if (!isNum(metres)) return DASH;
+    const v = Math.round(metres * 1000);
+    return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}<span class="unit"> mm</span>`;
+  }
+
+  function signedPlain(n) {
+    if (!isNum(n)) return DASH;
+    const text = plain(Math.abs(n));
+    return (text === '0' ? '' : n > 0 ? '+' : '−') + text;
+  }
+
+  function lastDrivenByCar(rows) {
+    const last = new Map();
+    for (const row of rows || []) {
+      if (!isCarRow(row) || !row.started_at) continue;
+      const at = Date.parse(row.started_at);
+      const known = last.get(carKey(row.car_path));
+      if (!Number.isNaN(at) && (!known || at > known.at)) last.set(carKey(row.car_path), { at, iso: row.started_at });
+    }
+    return last;
+  }
+
+  function rigBridge() {
+    const bridge = window.racingDesk && window.racingDesk.rig;
+    return bridge && bridge.bindPedals ? bridge : null;
+  }
+
+  // { value }, or { missing } for a route the host doesn't have, or { error } for anything else.
+  async function getOptional(route) {
+    try {
+      return { value: await getJson(route) };
+    } catch (err) {
+      if (err.status === 404) return { missing: true };
+      if (err.status) return { error: err.message };
+      return { error: err instanceof SyntaxError ? `${route}: the answer was not JSON` : `nothing is answering at ${HOST}` };
+    }
+  }
+
+  async function loadCars() {
+    const mine = ++rigLoad;
+    rigAsking = true;
+    $('cars-note').hidden = !!rigBridge();
+    if (!rig) $('cars-status').textContent = 'Reading the cars…';
+    const [cars, views, pedals] = await Promise.all(['cars', 'views', 'pedals'].map(getOptional));
+    if (mine !== rigLoad) return;   // asked again since: that answer is the one to show
+    rigAsking = false;
+    pedalNotes.clear();
+    rig = readRig(cars, views, pedals);
+    renderCarsPage();
+  }
+
+  // The three answers as the page uses them. `views` and `pedals` are null when the host had none to give, and
+  // `notes` says why in words; with no cars there is nothing to hang either on, and only that is said.
+  function readRig(cars, views, pedals) {
+    const out = { cars: [], carsError: null, views: null, pedals: null, notes: [] };
+    if (!Array.isArray(cars.value)) {
+      out.carsError = cars.missing ? 'this host has no list of cars' : cars.error || 'the host\'s answer was not a list of cars';
+      return out;
+    }
+    out.cars = cars.value.filter(isCarRow);
+    const older = [];
+
+    if (Array.isArray(views.value)) out.views = new Map(views.value.filter(isCarRow).map((v) => [carKey(v.car_path), v]));
+    else if (views.missing) older.push('views');
+    else out.notes.push(`The views could not be read: ${views.error || 'the answer was not a list'}.`);
+
+    const sc = pedals.value && pedals.value.smartcontrol;
+    if (sc !== null && typeof sc === 'object') {
+      const list = (v) => (Array.isArray(v) ? v.filter((x) => x !== null && typeof x === 'object') : []);
+      out.pedals = {
+        found: !!sc.found,
+        profiles: list(sc.profiles).filter((p) => typeof p.id === 'string'),
+        keys: list(sc.keys),
+        cars: new Map(list(pedals.value.cars).filter(isCarRow).map((c) => [carKey(c.car_path), c])),
+      };
+    } else if (pedals.missing) older.push('pedals');
+    else out.notes.push(`The pedals could not be read: ${pedals.error || 'the answer was not SmartControl\'s profiles'}.`);
+
+    if (older.length) out.notes.unshift(`This host is older than the page: it has no ${older.join(' or ')} to show yet.`);
+    if (out.pedals && !out.pedals.found) out.notes.push('SmartControl wasn\'t found on this rig, so there are no profiles to choose from.');
+    return out;
+  }
+
+  // Driven cars, the one driven last first. A car no stored session is in goes after those, by name.
+  function drivenCars() {
+    return rig.cars.filter((c) => c.driven > 0)
+      .map((c) => ({ ...c, label: c.name || c.car_path, last: lastDriven.get(carKey(c.car_path)) || null }))
+      .sort((a, b) => (b.last ? b.last.at : 0) - (a.last ? a.last.at : 0) || a.label.localeCompare(b.label));
+  }
+
+  function renderCarsPage() {
+    if (!rig) return;
+    $('cars-note').hidden = !!rigBridge();
+    $('cars-status').textContent = rig.notes.join(' ');
+    renderCarsList();
+    const keys = rig.pedals ? rig.pedals.keys : [];
+    $('cars-keys').hidden = !keys.length;
+    $('cars-keys').innerHTML = keys.length ? `<span class="label">SmartControl Live keys</span>${keys.map(keyLine).join('')}` : '';
+  }
+
+  function renderCarsList() {
+    const el = $('cars-list');
+    $('cars-count').textContent = '';
+    if (rig.carsError) {
+      el.innerHTML = `<p class="empty">The cars could not be read: ${esc(rig.carsError)}.</p>`;
+      return;
+    }
+    const all = drivenCars();
+    if (!all.length) {
+      el.innerHTML = '<p class="empty">No car driven yet.</p>';
+      return;
+    }
+    const typed = $('cars-filter').value.trim();
+    const words = fold(typed).split(/\s+/).filter(Boolean);
+    const shown = all.filter((c) => {
+      const hay = fold(`${c.label} ${c.car_path}`);
+      return words.every((w) => hay.includes(w));
+    });
+    $('cars-count').textContent = shown.length === all.length ? String(all.length) : `${shown.length} of ${all.length}`;
+    if (!shown.length) {
+      el.innerHTML = `<p class="empty">No car matches “${esc(typed)}”.</p>`;
+      return;
+    }
+    const noSmartControl = rig.pedals && !rig.pedals.found;
+    el.innerHTML = `<table class="cars-table">
+      <thead>
+        <tr>
+          <th class="words" rowspan="2">Car</th>
+          <th rowspan="2">Last driven</th>
+          <th class="group" colspan="4">View, as last driven</th>
+          <th class="group" colspan="3">Seat</th>
+          <th class="words" rowspan="2">The view is</th>
+          <th class="words" rowspan="2">Pedals${noSmartControl ? ' <span class="aside">SmartControl wasn\'t found</span>' : ''}</th>
+        </tr>
+        <tr>
+          <th>Height</th><th>Horizon</th><th class="wraps">Head horizon</th><th>FOV</th>
+          <th>Fore/aft</th><th>Sideways</th><th>Up/down</th>
+        </tr>
+      </thead>
+      <tbody>${shown.map(carRow).join('')}</tbody>
+    </table>`;
+  }
+
+  function carRow(car) {
+    const view = rig.views ? rig.views.get(carKey(car.car_path)) : null;
+    const viewCells = view ? `
+      <td class="n">${mm(view.driver_height)}</td>
+      <td class="n">${signedPlain(view.vanish_y)}</td>
+      <td class="n">${isNum(view.head_horizon) ? plain(view.head_horizon) : DASH}</td>
+      <td class="n">${isNum(view.fov) ? plain(view.fov) + '<span class="unit">°</span>' : DASH}</td>
+      <td class="n">${mm(view.seat_x)}</td>
+      <td class="n">${mm(view.seat_y)}</td>
+      <td class="n">${mm(view.seat_z)}</td>
+      <td class="words" title="${esc(viewTitle(view))}">${view.chosen == null ? DASH : view.chosen ? 'its own' : 'inherited'}</td>`
+      : `<td class="none" colspan="8">${rig.views ? NO_VIEW : DASH}</td>`;
+    return `<tr data-car="${esc(car.car_path)}">
+      <td class="car" title="${esc(car.car_path)}">${esc(car.label)}</td>
+      <td class="n">${car.last ? esc(ago(car.last.iso)) : DASH}</td>${viewCells}
+      <td class="pedals">${pedalsCell(car)}</td>
+    </tr>`;
+  }
+
+  function viewTitle(view) {
+    const parts = [];
+    if (view.chosen != null) parts.push(view.chosen ? 'Changed while in this car.' : 'Carried over from the car driven before it, and not changed in this one.');
+    if (!Number.isNaN(Date.parse(view.seen_at))) parts.push(`Recorded ${dateTimeFmt.format(new Date(view.seen_at))}.`);
+    return parts.join(' ');
+  }
+
+  // A car's pedals: the select, what the chosen profile's brake is, and how the last change went. A profile
+  // SmartControl no longer has stays in the car's own list, so the select says what the host has, not "none".
+  function pedalsCell(car) {
+    const pedals = rig.pedals;
+    if (!pedals) return DASH;
+    const bound = pedals.cars.get(carKey(car.car_path)) || null;
+    const boundId = bound && typeof bound.profile_id === 'string' ? bound.profile_id : null;
+    const profile = boundId === null ? null : pedals.profiles.find((p) => p.id === boundId) || null;
+    const words = pedalWords(bound, profile);
+    if (!pedals.found) {
+      if (boundId === null) return DASH;
+      return `<div class="pedals-line"><span class="kept">${esc(bound.profile_name || boundId)}</span><span class="says">${words}</span></div>`;
+    }
+
+    const option = (id, label, selected) => `<option value="${esc(id)}"${selected ? ' selected' : ''}>${esc(label)}</option>`;
+    const note = pedalNotes.get(carKey(car.car_path));
+    return `<div class="pedals-line">
+      <select data-car="${esc(car.car_path)}" aria-label="Pedal profile for ${esc(car.label)}"${rigBridge() ? '' : ' disabled'}>
+        ${option('', 'no profile of its own', boundId === null)}
+        ${pedals.profiles.map((p) => option(p.id, p.name || p.id, p.id === boundId)).join('')}
+        ${boundId !== null && !profile ? option(boundId, `${bound.profile_name || boundId} (not in SmartControl)`, true) : ''}
+      </select>
+      <span class="says">${words}<span class="pedal-note${note ? ' ' + esc(note.kind) : ''}">${note ? esc(note.text) : ''}</span></span>
+    </div>`;
+  }
+
+  // One line beside the select: the profile's brake as SmartControl has it now, whether the profile is still
+  // what the car was given, and the brake force kept for the car itself.
+  function pedalWords(bound, profile) {
+    const n = (v) => `<span class="num">${esc(plain(v))}</span>`;
+    const parts = [];
+    if (profile) {
+      const brake = profile.brake;
+      if (!brake) parts.push('no brake in this profile');
+      else {
+        if (isNum(brake.max_force_kg)) parts.push(`brake max ${n(brake.max_force_kg)} kg`);
+        if (isNum(brake.deadzone_bottom)) parts.push(`bottom deadzone ${n(brake.deadzone_bottom)}%`);
+        const shape = curveShape(brake.curve);
+        if (shape) parts.push(`${shape} curve`);
+      }
+    }
+    if (bound && bound.profile_now === 'changed') parts.push('<span class="warn">edited in SmartControl since this car was given it</span>');
+    if (bound && bound.profile_now === 'gone') parts.push('<span class="warn">deleted in SmartControl</span>');
+    if (bound && isNum(bound.brake_force_kg)) parts.push(`brake force ${n(bound.brake_force_kg)} kg in this car`);
+    return parts.length ? `<span class="brake">${parts.join(' · ')}</span>` : '';
+  }
+
+  // 'linear' when the output is the input at every point — 0, 20, 40 … 100 across six — 'shaped' when it is
+  // not, and null for a curve with too few points to say.
+  function curveShape(curve) {
+    if (!Array.isArray(curve) || curve.length < 2 || !curve.every(isNum)) return null;
+    const step = 100 / (curve.length - 1);
+    return curve.every((v, i) => Math.abs(v - i * step) < 0.5) ? 'linear' : 'shaped';
+  }
+
+  function keyLine(k) {
+    const names = (Array.isArray(k.keys) ? k.keys : []).map((name) => KEY_NAMES.get(name) || String(name)).join(' + ');
+    const kg = isNum(k.value) ? `${plain(k.value)} kg` : '';
+    const what = k.action === 'set' ? `brake force ${kg}`
+      : k.action === 'raise' ? `${kg} more`
+      : k.action === 'lower' ? `${kg} less`
+      : `${k.action == null ? 'other' : k.action}${isNum(k.value) ? ` (${plain(k.value)})` : ''}`;
+    return `<span class="key"><b>${esc(names || '?')}</b> — ${esc(what.trim())}</span>`;
+  }
+
+  // A profile chosen for a car. The select is off while main.js asks the host; then the cell is drawn again from
+  // what the host answered — or, when it refused, from what it had, which puts the select back.
+  async function onPedalsChange(ev) {
+    const select = ev.target.closest('select[data-car]');
+    const bridge = rigBridge();
+    if (!select || !bridge || !rig || !rig.pedals) return;
+    const carPath = select.dataset.car;
+    const cell = select.closest('td');
+    const focused = document.activeElement === select;
+    select.disabled = true;
+    const note = cell.querySelector('.pedal-note');
+    note.className = 'pedal-note';
+    note.textContent = 'saving…';
+
+    let result;
+    try {
+      result = await bridge.bindPedals(carPath, select.value === '' ? null : select.value);
+    } catch (err) {
+      result = { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+    if (!rig || !rig.pedals) return;   // read again meanwhile, from a host without pedals
+    if (result && result.ok) {
+      if (result.car !== null && typeof result.car === 'object') rig.pedals.cars.set(carKey(carPath), { ...result.car, car_path: carPath });
+      else rig.pedals.cars.delete(carKey(carPath));
+      pedalNotes.set(carKey(carPath), { kind: 'saved', text: 'saved' });
+    } else {
+      const why = result && typeof result.error === 'string' && result.error ? result.error : 'no reason given';
+      pedalNotes.set(carKey(carPath), { kind: 'failed', text: `not saved: ${why}` });
+    }
+    const car = drivenCars().find((c) => carKey(c.car_path) === carKey(carPath));
+    if (!car || !cell.isConnected) {
+      renderCarsList();   // drawn again while the host was asked: that list has the car as it was
+      return;
+    }
+    cell.innerHTML = pedalsCell(car);
+    // The keyboard stays where it was, unless the driver has moved on to something else meanwhile.
+    const held = document.activeElement;
+    const again = cell.querySelector('select');
+    if (again && focused && (!held || held === document.body || !held.isConnected)) again.focus();
   }
 
   // ── Paints ───────────────────────────────────────────────
@@ -598,7 +917,12 @@
     const row = ev.target.closest('.race-row');
     if (row) selectRace(row.dataset.id);
   });
-  $('refresh').addEventListener('click', () => load());
+  $('refresh').addEventListener('click', () => {
+    load();
+    if (currentPage === 'cars') loadCars();
+  });
+  $('cars-filter').addEventListener('input', () => { if (rig) renderCarsList(); });
+  $('cars-list').addEventListener('change', onPedalsChange);
   $('next-race').addEventListener('click', (ev) => {
     const open = ev.target.closest('.open-iracing');
     if (open) { openExternal(raceLinkUrl(open.dataset.series)); return; }
@@ -622,6 +946,14 @@
     renderNextRace();
   });
 
+  // A page's link is followed here, not by the browser, which would scroll to the element the hash names — and
+  // #cars names the Desk page's Car affinity card, so the desk would be left scrolled down to it.
+  document.querySelector('.nav').addEventListener('click', (ev) => {
+    const link = ev.target.closest('a[data-page-link]');
+    if (!link) return;
+    ev.preventDefault();
+    showPage(link.dataset.pageLink);
+  });
   window.addEventListener('hashchange', () => showPage(pageFromHash()));
   if (window.racingDesk && window.racingDesk.onShowPage) window.racingDesk.onShowPage((page) => showPage(page));
   $('settings-sections').addEventListener('change', onSettingChange);

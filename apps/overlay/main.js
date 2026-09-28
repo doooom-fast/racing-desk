@@ -23,6 +23,7 @@ const settingsFile = require('./modules/js/settings-file');
 const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
 const { createCarNames } = require('./modules/js/paints/car-names');
+const rigApi       = require('./modules/js/rig-api');
 
 // ── Crash log ───────────────────────────────────────────────
 // Write a log file next to the app so crash info is visible
@@ -179,8 +180,8 @@ function localHostUrl() {
 // desk.html reads its host from the query once, at load: reload it if the host has changed since — a desk
 // opened from the tray or Ctrl+Shift+O while startLocalHost() was still deciding would otherwise stay pointed
 // at SimHub.
-// `page` is one of the desk's pages — desk, paints, settings (desk.js showPage); without one, the desk opens
-// where it was.
+// `page` is one of the desk's pages — desk, cars, paints, settings (desk.js showPage); without one, the desk
+// opens where it was.
 function loadDesk(page) {
   deskHost = localHostUrl();
   const query = { host: deskHost };
@@ -264,6 +265,7 @@ function createTray() {
   tray.setToolTip('Racing Desk');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open desk', click: () => showDesk('desk') },
+    { label: 'Cars', click: () => showDesk('cars') },
     { label: 'Paints', click: () => showDesk('paints') },
     { label: 'Settings', click: () => showDesk('settings') },
     { type: 'separator' },
@@ -1469,6 +1471,22 @@ ipcMain.handle('paints:openPath', async (event, p) => {
   let isFolder = false;
   try { isFolder = fs.statSync(p).isDirectory(); } catch (e) { /* not there */ }
   if (isFolder) await shell.openPath(p);
+});
+
+// ── IPC: Rig — the desk's Cars page ──
+// The page reads what the host has recorded per car straight from the host. Its one write — which SmartControl
+// profile a car is driven with — comes through here: the host answers 403 to any request carrying an Origin
+// header, which every request from a page does, so the POST is made by this process (modules/js/rig-api.js), to
+// the host the desk reads from. It answers { ok: true, car } or { ok: false, error } and never throws; the page
+// shows either beside the car's select.
+const rig = rigApi.createRigApi({ host: () => localHostUrl() });
+
+ipcMain.handle('rig:bindPedals', async (event, carPath, profileId) => {
+  if (!fromDesk(event)) return { ok: false, error: 'The Cars page belongs to the desk window.' };
+  // A car path of 1–200 characters; a profile id of at most 200, or null for none. Nothing else is sent on.
+  const problem = rigApi.bindingProblem(carPath, profileId);
+  if (problem) return { ok: false, error: problem };
+  return rig.bindPedals(carPath, profileId);
 });
 
 // ── IPC: Quit app ──

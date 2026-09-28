@@ -121,15 +121,32 @@ Desktop "Racing Desk" shortcuts point there; "shipping" is `git pull && npm run 
 on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\Racing Desk\host.log`.
 There is no console window. **Closing the desk window quits the app** (minimise it to keep the HUD while racing) — the
 HUD's window is hidden and Windows 11 tucks the tray icon behind its overflow arrow, so an app that outlived its window
-would run with nothing on screen. The tray menu (Open desk / Paints / Settings, HUD on/off, Quit) and Ctrl+Shift+Q quit too. The host is
+would run with nothing on screen. The tray menu (Open desk / Cars / Paints / Settings, HUD on/off, Quit) and Ctrl+Shift+Q quit too. The host is
 spawned detached — Node otherwise puts it in a job object Windows kills with the app, mid-write — and stops itself,
 flushing what it was recording, when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again
 opens the desk in the running app.
 
-The desk window has three pages — **Desk**, **Paints** and **Settings** — switched from the masthead nav, the tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js`
-`showPage`). Settings edits the HUD's `%APPDATA%\Racing Desk\overlay-settings.json` through the preload bridge
+The desk window has four pages — **Desk**, **Cars**, **Paints** and **Settings** — switched from the masthead nav, the
+tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js` `showPage`). Settings edits the HUD's `%APPDATA%\Racing Desk\overlay-settings.json` through the preload bridge
 (`modules/desk/settings-model.js` lists the keys) and each change applies live: `save-settings` writes the file whole
 and sends `settings-sync` to the HUD window. The old WinUI settings app is no longer the way to change the HUD.
+
+**Cars** is what the host remembers per car, for the cars the driver has driven (`driven > 0` in
+`/racing-desk/data/cars`), the one driven last first — worked out from the session rows the desk already has. Two
+things. The **view** each was last driven with: driver height, horizon, head horizon, FOV and the seat's three
+offsets, from `GET /racing-desk/data/views`; the page says whether a car's view is its own or inherited from the car
+driven before it, and a car with none yet says so plainly, which is how every car starts. And its **pedals**: which
+SmartControl profile it is driven with, chosen from a select, with that profile's brake in a line beside it and
+SmartControl Live's keys at the foot of the page (`GET /racing-desk/data/pedals`). Nothing on the page changes
+iRacing or the pedals. The three routes are read each time the page is shown and on Refresh, not at desk start
+(`loadCars`); a host from before the page answers 404 for `views` and `pedals`, and the page lists the cars and says
+the host is older. The one write goes through main, because the host refuses a request that names an origin:
+`window.racingDesk.rig.bindPedals(carPath, profileId)` → `rig:bindPedals` (the desk window only) →
+`modules/js/rig-api.js`, which POSTs from Node with a 3 s limit, only to a host on this machine, and answers
+`{ ok: true, car }` or `{ ok: false, error }`, never a rejection. Seat offsets are signed millimetres and the page
+does not say which way is forward — that has not been verified. `id="cars"` is still the Desk page's Car affinity
+card; the page's own elements are `cars-page`, `cars-list` and so on, and the nav switches pages itself rather than
+following `#cars`, which would scroll the desk to that card.
 
 **Paints** is the livery manager (was doooom-paints): a library of paint versions outside the sim's folders, applied
 by copying files in under the customer id, backing up what was there, deleting the stale `.mip` files and warning
