@@ -160,6 +160,10 @@ Data options:
             var recorder = store != null && !o.NoRecord
                 ? new LiveRecorder(store, "live", _ => DateTime.UtcNow, m => Log.Info("[RacingDesk.Host] " + m))
                 : null;
+            // The view each car is driven with. iRacing's files are read once the sim has gone, and never written.
+            var views = store != null
+                ? new CarViewRecorder(null, BackgroundIo.SimRunning, view => SaveCarView(o, view), m => Log.Info("[RacingDesk.Host] " + m))
+                : null;
             var gate = new object();
 
             raw.TelemetryData += () =>
@@ -170,12 +174,14 @@ Data options:
                     runtime.Tick(source);
                     recorder?.Feed(raw);
                 }
+                views?.SeeCar(source.CarPath);
             };
             raw.Connected += () => Log.Info("[RacingDesk.Host] iRacing connected");
             raw.Disconnected += () =>
             {
                 Log.Info("[RacingDesk.Host] iRacing disconnected");
                 lock (gate) recorder?.Flush();
+                views?.SimGone();
             };
             raw.Start();
             Log.Info("[RacingDesk.Host] waiting for iRacing (Ctrl+C to stop)");
@@ -203,6 +209,20 @@ Data options:
             }
             raw.Stop();
             lock (gate) recorder?.Flush();
+        }
+
+        // Its own connection, as ingest has: this runs when the sim has closed, on a thread of its own.
+        private static void SaveCarView(HostOptions o, CarView view)
+        {
+            try
+            {
+                using var store = new RacingDeskStore(o.Db ?? RacingDeskStore.DefaultPath);
+                store.SaveCarView(view);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("[RacingDesk.Host] view not stored: " + ex.Message);
+            }
         }
 
         // Its own connection: SQLite serialises writers, and ingest must never stall the telemetry thread for long.

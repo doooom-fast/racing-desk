@@ -90,6 +90,21 @@ namespace RacingDesk.Data
         public DateTime RecordedAtUtc { get; set; }
     }
 
+    /// <summary>Which of SmartControl's pedal profiles a car is driven with.</summary>
+    public sealed class CarPedals
+    {
+        public string CarPath { get; set; }
+        /// <summary>What the sim calls the car, when the store has been told; read, never stored with the pedals.</summary>
+        public string CarName { get; set; }
+        public string ProfileId { get; set; }
+        public string ProfileName { get; set; }
+        /// <summary>The profile as SmartControl had it when the car was given it, byte for byte.</summary>
+        public byte[] Profile { get; set; }
+        /// <summary>The brake force the car was last driven with, when that is known; null until it is.</summary>
+        public double? BrakeForceKg { get; set; }
+        public DateTime BoundAtUtc { get; set; }
+    }
+
     /// <summary>A row of the <c>cars</c> table with how often the driver's own sessions were in that car.</summary>
     public sealed class CarSummary
     {

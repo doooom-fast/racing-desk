@@ -14,11 +14,11 @@ namespace RacingDesk.Data
     /// </summary>
     public sealed class RacingDeskStore : IDisposable
     {
-        public const int SchemaVersion = 4;
+        public const int SchemaVersion = 5;
 
         // Car names by iRacing's folder name for the car (schema v4). session_cars is which stored session had
-        // which car in its entry list: cars.seen is the count of those rows, so saving a session again — a live
-        // checkpoint every lap, a file re-ingested — counts it once.
+        // which car in its entry list. cars.seen counts the sessions among them, not the rows: a session is
+        // stored once as it is driven and once more for each .ibt file it was written to (see EventOf).
         private const string CarsSchema = @"
 CREATE TABLE cars (
   car_path TEXT PRIMARY KEY, name TEXT NOT NULL, short_name TEXT, car_id INTEGER,
@@ -56,9 +56,50 @@ UPDATE cars SET
   last_seen_at = (SELECT MAX(s.started_at) FROM sessions s WHERE s.car_path = cars.car_path);
 ";
 
+        // Which session of which event a row of `sessions s` is, as the desk's calc layer has it. A session driven
+        // live and then read from its .ibt is two rows, and one written to several files (a tow, a rejoin) is
+        // one a file: all the same session. An offline session has no subsession id, and each row stands alone.
+        private const string EventOf =
+            "CASE WHEN s.subsession_id > 0 THEN s.subsession_id || ':' || s.session_num ELSE 'row:' || s.id END";
+
+        private const string SeenCount =
+            "(SELECT COUNT(DISTINCT " + EventOf + ") FROM session_cars sc JOIN sessions s ON s.id = sc.session_id WHERE sc.car_path = ";
+
         private const string CarsQuery = @"SELECT c.car_path, c.name, c.short_name, c.car_id, COALESCE(d.driven, 0) AS driven, c.seen
-FROM cars c LEFT JOIN (SELECT car_path, COUNT(*) AS driven FROM sessions GROUP BY car_path) d ON d.car_path = c.car_path
+FROM cars c LEFT JOIN (SELECT s.car_path, COUNT(DISTINCT " + EventOf + @") AS driven FROM sessions s GROUP BY s.car_path) d
+  ON d.car_path = c.car_path
 ORDER BY c.name COLLATE NOCASE, c.car_path";
+
+        // Which files the header pass has read (schema v5), by what the file was when it did: a file that has
+        // changed since is read again. A table of its own, so ingested_files stays as every host since the first
+        // has known it, and an earlier build can still ingest into a store a later one has opened.
+        private const string CarScansSchema = @"
+CREATE TABLE car_scans (path TEXT PRIMARY KEY, length INTEGER, mtime TEXT);
+";
+
+        // What is remembered per car for the rig (schema v5).
+        //
+        // car_views: the view a car was driven with. iRacing keeps one height and horizon for every car, so a
+        // value nobody touched may only be what the last car left behind; chosen is 1 once the driver has changed
+        // the view while in this car, and a chosen view is not replaced by one that was merely inherited. The
+        // seat is the cockpit camera's offset in the car's own car.cam, which is per car already.
+        //
+        // car_pedals: which of SmartControl's profiles a car is driven with, and that profile byte for byte as
+        // it was when the car was given it.
+        private const string RigSchema = @"
+CREATE TABLE car_views (
+  car_path TEXT PRIMARY KEY,
+  driver_height REAL, vanish_y REAL, head_horizon REAL, fov REAL,
+  seat_x REAL, seat_y REAL, seat_z REAL,
+  chosen INTEGER NOT NULL DEFAULT 0, chosen_at TEXT, seen_at TEXT NOT NULL
+);
+
+CREATE TABLE car_pedals (
+  car_path TEXT PRIMARY KEY,
+  profile_id TEXT, profile_name TEXT NOT NULL, profile BLOB,
+  brake_force_kg REAL, bound_at TEXT NOT NULL
+);
+";
 
         private readonly SqliteConnection _db;
 
@@ -143,6 +184,15 @@ ORDER BY c.name COLLATE NOCASE, c.car_path";
                         Exec("ALTER TABLE ingested_files ADD COLUMN cars_scanned INTEGER NOT NULL DEFAULT 0", step);
                         Exec(SeedCars, step);
                         break;
+                    case 4:
+                        // The header pass's marks move to a table of their own and ingested_files goes back to
+                        // what it was; cars are counted by session, not by row; the view and the pedals per car.
+                        Exec(CarScansSchema, step);
+                        Exec("INSERT INTO car_scans (path, length, mtime) SELECT path, length, mtime FROM ingested_files WHERE cars_scanned = 1", step);
+                        Exec("ALTER TABLE ingested_files DROP COLUMN cars_scanned", step);
+                        Exec("UPDATE cars SET seen = " + SeenCount + "cars.car_path)", step);
+                        Exec(RigSchema, step);
+                        break;
                 }
                 current++;
                 Exec("INSERT INTO schema_version(version) VALUES (" + current + ")", step);
@@ -211,12 +261,13 @@ CREATE TABLE track_geometry (
 );
 
 CREATE TABLE ingested_files (
-  path TEXT PRIMARY KEY, length INTEGER, mtime TEXT, sessions INTEGER, error TEXT, ingested_at TEXT NOT NULL,
-  cars_scanned INTEGER NOT NULL DEFAULT 0
+  path TEXT PRIMARY KEY, length INTEGER, mtime TEXT, sessions INTEGER, error TEXT, ingested_at TEXT NOT NULL
 );
 ", tx);
             Exec(Schedule.ScheduleStore.Schema, tx);
             Exec(CarsSchema, tx);
+            Exec(CarScansSchema, tx);
+            Exec(RigSchema, tx);
             Exec("INSERT INTO schema_version(version) VALUES (" + SchemaVersion + ")", tx);
             tx.Commit();
         }
@@ -346,7 +397,7 @@ ON CONFLICT(car_path) DO UPDATE SET
         private void RecountCars(IEnumerable<string> carPaths, SqliteTransaction tx)
         {
             foreach (string path in carPaths)
-                ExecKept("UPDATE cars SET seen = (SELECT COUNT(*) FROM session_cars WHERE car_path = $p) WHERE car_path = $p", tx, ("$p", path));
+                ExecKept("UPDATE cars SET seen = " + SeenCount + "$p) WHERE car_path = $p", tx, ("$p", path));
         }
 
         public bool IsIngested(string path, long length, DateTime mtimeUtc)
@@ -374,25 +425,25 @@ ON CONFLICT(car_path) DO UPDATE SET
                 foreach (var car in cars) SaveCar(car, recordedAt, recordedAt, tx);
             }
             RecountCars(recount, tx);
+            Exec("INSERT OR REPLACE INTO ingested_files (path, length, mtime, sessions, error, ingested_at) VALUES ($p, $l, $m, $n, $e, $at)", tx,
+                ("$p", path), ("$l", length), ("$m", Iso(mtimeUtc)), ("$n", sessions.Count), ("$e", error), ("$at", Iso(DateTime.UtcNow)));
             // A file that was read has its cars stored with its sessions, so the header pass has nothing to add.
             // One that failed keeps what that pass made of it, for as long as it is the same file.
-            Exec(@"
-INSERT INTO ingested_files (path, length, mtime, sessions, error, ingested_at, cars_scanned)
-VALUES ($p, $l, $m, $n, $e, $at, $scanned)
-ON CONFLICT(path) DO UPDATE SET
-  cars_scanned = CASE WHEN excluded.cars_scanned = 1 THEN 1
-    WHEN ingested_files.length = excluded.length AND ingested_files.mtime = excluded.mtime THEN ingested_files.cars_scanned ELSE 0 END,
-  length = excluded.length, mtime = excluded.mtime, sessions = excluded.sessions, error = excluded.error,
-  ingested_at = excluded.ingested_at", tx,
-                ("$p", path), ("$l", length), ("$m", Iso(mtimeUtc)), ("$n", sessions.Count), ("$e", error), ("$at", Iso(DateTime.UtcNow)),
-                ("$scanned", error == null ? 1 : 0));
+            if (error == null)
+                Exec("INSERT OR REPLACE INTO car_scans (path, length, mtime) VALUES ($p, $l, $m)", tx,
+                    ("$p", path), ("$l", length), ("$m", Iso(mtimeUtc)));
             tx.Commit();
         }
 
-        /// <summary>Files ingested before the store kept cars, oldest first: their headers are still to be read.</summary>
+        /// <summary>
+        /// Files whose headers are still to be read, oldest first: ingested before the store kept cars, or by a
+        /// build from before it did, or changed since they were read.
+        /// </summary>
         public IReadOnlyList<string> FilesNeedingCarScan()
         {
-            using var cmd = Cmd("SELECT path FROM ingested_files WHERE cars_scanned = 0 ORDER BY mtime, path");
+            using var cmd = Cmd(@"SELECT f.path FROM ingested_files f
+LEFT JOIN car_scans c ON c.path = f.path AND c.length IS f.length AND c.mtime IS f.mtime
+WHERE c.path IS NULL ORDER BY f.mtime, f.path");
             using var r = cmd.ExecuteReader();
             var list = new List<string>();
             while (r.Read()) list.Add(r.GetString(0));
@@ -431,7 +482,8 @@ ON CONFLICT(path) DO UPDATE SET
                         recount.Add(car.CarPath);
                     }
                 }
-                ExecKept("UPDATE ingested_files SET cars_scanned = 1 WHERE path = $p", tx, ("$p", file.Path));
+                ExecKept("INSERT OR REPLACE INTO car_scans (path, length, mtime) SELECT path, length, mtime FROM ingested_files WHERE path = $p", tx,
+                    ("$p", file.Path));
             }
             RecountCars(recount, tx);
             tx.Commit();
@@ -471,6 +523,139 @@ ON CONFLICT(path) DO UPDATE SET
             }
             json.WriteStartArray();
             json.WriteEndArray();
+        }
+
+        private bool HasTable(string name)
+        {
+            using var cmd = Cmd("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $n");
+            P(cmd, "$n", name);
+            return cmd.ExecuteScalar() != null;
+        }
+
+        /// <summary>
+        /// Remembers the view a car was driven with. A view the driver chose in this car replaces what is there;
+        /// one that was only inherited fills in for a car that has none of its own, and never replaces a chosen
+        /// one. The seat is the car's own either way. False for a view with no car.
+        /// </summary>
+        public bool SaveCarView(CarView view)
+        {
+            if (view == null || string.IsNullOrWhiteSpace(view.CarPath)) return false;
+            Exec(@"
+INSERT INTO car_views (car_path, driver_height, vanish_y, head_horizon, fov, seat_x, seat_y, seat_z, chosen, chosen_at, seen_at)
+VALUES ($car, $height, $vanish, $horizon, $fov, $x, $y, $z, $chosen, CASE WHEN $chosen = 1 THEN $at END, $at)
+ON CONFLICT(car_path) DO UPDATE SET
+  driver_height = CASE WHEN excluded.chosen = 1 OR car_views.chosen = 0 THEN excluded.driver_height ELSE car_views.driver_height END,
+  vanish_y = CASE WHEN excluded.chosen = 1 OR car_views.chosen = 0 THEN excluded.vanish_y ELSE car_views.vanish_y END,
+  head_horizon = CASE WHEN excluded.chosen = 1 OR car_views.chosen = 0 THEN excluded.head_horizon ELSE car_views.head_horizon END,
+  fov = excluded.fov, seat_x = excluded.seat_x, seat_y = excluded.seat_y, seat_z = excluded.seat_z,
+  chosen = MAX(car_views.chosen, excluded.chosen),
+  chosen_at = COALESCE(excluded.chosen_at, car_views.chosen_at),
+  seen_at = excluded.seen_at", null,
+                ("$car", view.CarPath.Trim()), ("$height", view.DriverHeight), ("$vanish", view.VanishY), ("$horizon", view.HeadHorizon),
+                ("$fov", view.Fov), ("$x", view.SeatX), ("$y", view.SeatY), ("$z", view.SeatZ),
+                ("$chosen", view.Chosen ? 1 : 0), ("$at", Iso(view.SeenAtUtc)));
+            return true;
+        }
+
+        private const string CarViewsQuery = @"SELECT v.car_path, c.name, v.driver_height, v.vanish_y, v.head_horizon, v.fov,
+  v.seat_x, v.seat_y, v.seat_z, v.chosen, v.chosen_at, v.seen_at
+FROM car_views v LEFT JOIN cars c ON c.car_path = v.car_path
+ORDER BY COALESCE(c.name, v.car_path) COLLATE NOCASE, v.car_path";
+
+        /// <summary>The view remembered for each car, by the car's name; [] from a store that keeps none yet.</summary>
+        public void WriteCarViewsJson(System.Text.Json.Utf8JsonWriter json)
+        {
+            if (HasTable("car_views") && HasCars)
+            {
+                WriteJson(json, CarViewsQuery);
+                return;
+            }
+            json.WriteStartArray();
+            json.WriteEndArray();
+        }
+
+        public CarView CarViewOf(string carPath)
+        {
+            if (string.IsNullOrWhiteSpace(carPath) || !HasTable("car_views")) return null;
+            using var cmd = Cmd(@"SELECT car_path, driver_height, vanish_y, head_horizon, fov, seat_x, seat_y, seat_z, chosen, seen_at
+FROM car_views WHERE car_path = $car");
+            P(cmd, "$car", carPath.Trim());
+            using var r = cmd.ExecuteReader();
+            if (!r.Read()) return null;
+            double? Real(int i) => r.IsDBNull(i) ? (double?)null : r.GetDouble(i);
+            return new CarView
+            {
+                CarPath = r.GetString(0), DriverHeight = Real(1), VanishY = Real(2), HeadHorizon = Real(3), Fov = Real(4),
+                SeatX = Real(5), SeatY = Real(6), SeatZ = Real(7), Chosen = r.GetInt32(8) != 0,
+                SeenAtUtc = DateTime.Parse(r.GetString(9), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
+            };
+        }
+
+        /// <summary>
+        /// Gives a car one of SmartControl's profiles, kept as it is now. The brake force the car was driven with
+        /// stays: it is the car's, whichever profile it starts from. False without a car or a profile's name.
+        /// </summary>
+        public bool BindCarPedals(CarPedals pedals)
+        {
+            if (pedals == null || string.IsNullOrWhiteSpace(pedals.CarPath) || string.IsNullOrWhiteSpace(pedals.ProfileName)) return false;
+            Exec(@"
+INSERT INTO car_pedals (car_path, profile_id, profile_name, profile, brake_force_kg, bound_at)
+VALUES ($car, $id, $name, $profile, $force, $at)
+ON CONFLICT(car_path) DO UPDATE SET
+  profile_id = excluded.profile_id, profile_name = excluded.profile_name, profile = excluded.profile,
+  brake_force_kg = COALESCE(excluded.brake_force_kg, car_pedals.brake_force_kg), bound_at = excluded.bound_at", null,
+                ("$car", pedals.CarPath.Trim()), ("$id", pedals.ProfileId), ("$name", pedals.ProfileName.Trim()),
+                ("$profile", pedals.Profile), ("$force", pedals.BrakeForceKg), ("$at", Iso(pedals.BoundAtUtc)));
+            return true;
+        }
+
+        /// <summary>The car goes back to having no pedals of its own. False if it had none.</summary>
+        public bool UnbindCarPedals(string carPath)
+        {
+            if (string.IsNullOrWhiteSpace(carPath)) return false;
+            using var cmd = Cmd("DELETE FROM car_pedals WHERE car_path = $car");
+            P(cmd, "$car", carPath.Trim());
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        private const string CarPedalsQuery = @"SELECT p.car_path, c.name, p.profile_id, p.profile_name, p.profile, p.brake_force_kg, p.bound_at
+FROM car_pedals p LEFT JOIN cars c ON c.car_path = p.car_path";
+
+        /// <summary>Each car's pedal profile, by the car's name; none from a store that keeps none yet.</summary>
+        public IReadOnlyList<CarPedals> CarPedalsList()
+        {
+            var list = new List<CarPedals>();
+            if (!HasTable("car_pedals") || !HasCars) return list;
+            using var cmd = Cmd(CarPedalsQuery + " ORDER BY COALESCE(c.name, p.car_path) COLLATE NOCASE, p.car_path");
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add(ReadCarPedals(r));
+            return list;
+        }
+
+        public CarPedals CarPedalsOf(string carPath)
+        {
+            if (string.IsNullOrWhiteSpace(carPath) || !HasTable("car_pedals") || !HasCars) return null;
+            using var cmd = Cmd(CarPedalsQuery + " WHERE p.car_path = $car");
+            P(cmd, "$car", carPath.Trim());
+            using var r = cmd.ExecuteReader();
+            return r.Read() ? ReadCarPedals(r) : null;
+        }
+
+        private static CarPedals ReadCarPedals(SqliteDataReader r) => new CarPedals
+        {
+            CarPath = r.GetString(0), CarName = Str(r, 1), ProfileId = Str(r, 2), ProfileName = r.GetString(3),
+            Profile = r.IsDBNull(4) ? null : (byte[])r.GetValue(4),
+            BrakeForceKg = r.IsDBNull(5) ? (double?)null : r.GetDouble(5),
+            BoundAtUtc = DateTime.Parse(r.GetString(6), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
+        };
+
+        /// <summary>Whether the store has a name for the car — that is, whether it has ever been in a session.</summary>
+        public bool HasCar(string carPath)
+        {
+            if (string.IsNullOrWhiteSpace(carPath) || !HasCars) return false;
+            using var cmd = Cmd("SELECT 1 FROM cars WHERE car_path = $car");
+            P(cmd, "$car", carPath.Trim());
+            return cmd.ExecuteScalar() != null;
         }
 
         public IReadOnlyList<string> IbtPathsMissingCategory()

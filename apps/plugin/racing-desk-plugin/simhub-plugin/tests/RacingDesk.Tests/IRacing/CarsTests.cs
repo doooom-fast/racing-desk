@@ -347,7 +347,7 @@ namespace RacingDesk.Tests.IRacing
 
         // ── A store from before there were cars ──
 
-        private const string Version3Schema = @"
+        internal const string Version3Schema = @"
 CREATE TABLE sessions (
   id                        INTEGER PRIMARY KEY,
   source_key                TEXT NOT NULL UNIQUE,
@@ -402,7 +402,7 @@ INSERT INTO schema_version (version) VALUES (3);
 ";
 
         /// <summary>A store as version 3 of the host left it: sessions that name only the driver's own car.</summary>
-        private sealed class Version3Store : IDisposable
+        internal sealed class Version3Store : IDisposable
         {
             private readonly SqliteConnection _db;
 
@@ -426,7 +426,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
                 Run("INSERT INTO ingested_files VALUES ($p, 1024, '2026-02-01T11:00:00.000Z', $n, $e, '2026-09-01T08:00:00.000Z')",
                     ("$p", path), ("$n", sessions), ("$e", error));
 
-            private void Run(string sql, params (string Name, object? Value)[] args)
+            public void Run(string sql, params (string Name, object? Value)[] args)
             {
                 using var cmd = _db.CreateCommand();
                 cmd.CommandText = sql;
@@ -464,7 +464,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
 
             using (var store = new RacingDeskStore(Db))
             {
-                Assert.That(store.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(4));
+                Assert.That(store.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(RacingDeskStore.SchemaVersion));
                 Assert.That(store.Cars().Select(c => c.CarPath), Is.EqualTo(new[] { Mx5, "lotus79" }), "a car no session names has no row");
 
                 var mazda = Car(store, Mx5);
@@ -487,7 +487,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
 
             using (var again = new RacingDeskStore(Db))
             {
-                Assert.That(again.Scalar<long>("SELECT COUNT(*) FROM schema_version WHERE version = 4"), Is.EqualTo(1));
+                Assert.That(again.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5"));
                 Assert.That(Car(again, Mx5).Seen, Is.EqualTo(4), "opening it again seeds nothing twice");
             }
         }
@@ -498,7 +498,8 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             using var store = new RacingDeskStore(Db);
             Assert.That(store.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(RacingDeskStore.SchemaVersion));
             Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('cars', 'session_cars')"), Is.EqualTo(2));
-            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM pragma_table_info('ingested_files') WHERE name = 'cars_scanned'"), Is.EqualTo(1));
+            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('car_scans', 'car_views', 'car_pedals')"), Is.EqualTo(3));
+            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM pragma_table_info('ingested_files')"), Is.EqualTo(6), "as every host since the first has known it");
             Assert.That(store.CarCount(), Is.Zero);
             Assert.That(CarsJson(store), Is.EqualTo("[]"));
         }
@@ -539,10 +540,10 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             }
 
             Assert.That(() => Task.WaitAll(openers), Throws.Nothing, "the one that waited finds the step taken, and takes none");
-            Assert.That(openers.Select(o => o.Result), Is.EqualTo(new[] { 4L, 4L }));
+            Assert.That(openers.Select(o => o.Result), Is.EqualTo(new[] { 5L, 5L }));
 
             using var after = new RacingDeskStore(Db);
-            Assert.That(after.Scalar<long>("SELECT COUNT(*) FROM schema_version WHERE version = 4"), Is.EqualTo(1));
+            Assert.That(after.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5"));
             Assert.That(after.Cars().Select(c => (c.CarPath, c.Seen)), Is.EqualTo(new[] { (Mx5, 1) }));
         }
 
@@ -614,7 +615,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
                 "not the pace car, and nothing from the file that couldn't be read");
 
             Assert.That(store.FilesNeedingCarScan(), Is.Empty, "read or not, every file is marked");
-            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM ingested_files WHERE cars_scanned = 1"), Is.EqualTo(4));
+            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM car_scans"), Is.EqualTo(4));
             Assert.That(store.Scalar<string>("SELECT error FROM ingested_files WHERE path LIKE '%cut-short.ibt'"), Does.StartWith("InvalidDataException"),
                 "what ingest recorded about the file is left alone");
 
@@ -708,7 +709,9 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             string telemetry = Path.Combine(_dir, "telemetry");
             Directory.CreateDirectory(telemetry);
             new SyntheticIbt(SyntheticIbt.Yaml(1, PaceCar(), Mazda(1), Mazda(2), Lotus(3)), February).Write(Path.Combine(telemetry, "february.ibt"));
-            new SyntheticIbt(SyntheticIbt.Yaml(1, PaceCar(), Mazda(1, "Global Mazda MX-5 Cup", "Global MX-5")), May).Write(Path.Combine(telemetry, "may.ibt"));
+            // Another race: with February's subsession it would be February's race, written to a second file.
+            string may = SyntheticIbt.Yaml(1, PaceCar(), Mazda(1, "Global Mazda MX-5 Cup", "Global MX-5")).Replace("SubSessionID: 70010001", "SubSessionID: 70050005");
+            new SyntheticIbt(may, May).Write(Path.Combine(telemetry, "may.ibt"));
             new SyntheticIbt(SyntheticIbt.Yaml(1, PaceCar(), Porsche(1)), May, frames: 0).Write(Path.Combine(telemetry, "never-left-the-garage.ibt"));
 
             using var store = new RacingDeskStore(Db);
@@ -771,14 +774,14 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             using (var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Db, Pooling = false }.ToString()))
             {
                 db.Open();
-                Sql(db, "CREATE TRIGGER refuse_the_header_pass BEFORE UPDATE OF cars_scanned ON ingested_files BEGIN SELECT RAISE(ABORT, 'refused'); END");
+                Sql(db, "CREATE TRIGGER refuse_the_header_pass BEFORE INSERT ON car_scans WHEN NEW.path LIKE '%before.ibt' BEGIN SELECT RAISE(ABORT, 'refused'); END");
             }
 
             using var stop = new ManualResetEventSlim();
             RacingDesk.Host.Program.BackgroundIngest(HostOptions.Parse(new[] { "--db", Db, "--dir", telemetry }), stop);
 
             using var store = RacingDeskStore.OpenReadOnly(Db);
-            Assert.That(store.Scalar<long>("SELECT cars_scanned FROM ingested_files WHERE path LIKE '%before.ibt'"), Is.Zero, "the header pass did fail");
+            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM car_scans WHERE path LIKE '%before.ibt'"), Is.Zero, "the header pass did fail");
             Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM sessions WHERE ibt_path LIKE '%new.ibt'"), Is.EqualTo(1));
             Assert.That(store.Cars().Select(c => c.CarPath), Is.EquivalentTo(new[] { "lotus79", Mx5 }));
         }
@@ -893,7 +896,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             var (_, statusBody) = Get(Db, "status");
             using var statusJson = JsonDocument.Parse(statusBody);
             Assert.That(statusJson.RootElement.GetProperty("cars").GetInt32(), Is.EqualTo(6));
-            Assert.That(statusJson.RootElement.GetProperty("schemaVersion").GetInt32(), Is.EqualTo(4));
+            Assert.That(statusJson.RootElement.GetProperty("schemaVersion").GetInt32(), Is.EqualTo(RacingDeskStore.SchemaVersion));
         }
 
         // ── RacingDesk.Host cars ──

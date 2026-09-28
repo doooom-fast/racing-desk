@@ -54,17 +54,36 @@ npm run host -- schedule            # parse the stored PDF and report what the p
 npm run host -- schedule --series "Caterham"   # what one series parsed to, week by week
 ```
 
-The host also serves the store read-only at `:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars}`
-— that's what the desk reads. If SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk).
+The host also serves the store read-only at
+`:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals}` — that's what the desk reads. If
+SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk). One thing is written
+through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only —
+a request that names an `Origin`, or comes from another machine, gets 403, so the desk page sends it through main.js.
 
 Car names (`cars`, schema v4) come from the session YAML of the driver's own sessions, which lists every entrant's
 `CarPath` and `CarScreenName` — nothing of iRacing's is bundled, so a car that has never been in one of those sessions
 has no name. The host reads them on ingest and live capture, and once, in the background, from the headers of the
-files ingested before v4 (`ingested_files.cars_scanned`) — a file cut short or gone is marked read all the same, one
-that could not be reached (held by another program, its folder not there) is tried again at the next start, and a
-header pass that fails does not stop the ingest after it. `seen` is the number of stored sessions a car was entered in
-(`session_cars`), `driven` those the driver drove it in. An older host still records sessions in a v4 store but can
-no longer mark a file ingested, so rebuild the app before opening the real store with a newer host.
+files it has not read yet (`car_scans`: the file's path, length and mtime when it was read) — a file cut short or gone
+is marked read all the same, one that could not be reached (held by another program, its folder not there) is tried
+again at the next start, and a header pass that fails does not stop the ingest after it. `seen` is the number of
+sessions a car was entered in (`session_cars`), `driven` those the driver drove it in — sessions, not rows: a session
+driven live and then read from its `.ibt`, or written to several files, is one (`subsession_id:session_num`, as
+`packages/calc` merges them).
+
+Schema changes add tables and leave the old ones as they were (v5 took `cars_scanned` back out of `ingested_files`),
+so an earlier build can still record and ingest into a store a later one has opened.
+
+**Per car, for the rig** (schema v5; plan in `docs/view-and-pedals-plan.md`). Nothing here writes to iRacing's files
+or to the pedals.
+- `car_views` — the view a car was driven with. iRacing keeps one height and horizon for every car (`[View]` in
+  `Documents\iRacing\app.ini`, read at sim start, written at exit), so `CarViewRecorder` reads the file while the sim
+  is up and again once it has gone: what changed is what the driver changed in that car (`chosen`). A chosen view is
+  never replaced by one that was only inherited from the car before. The seat is the cockpit camera's offset in the
+  car's own `cameras\cars\<car>\car.cam` (`CarCamFile`, versions 14 and 15).
+- `car_pedals` — which of Heusinkveld SmartControl's profiles a car is driven with, and that profile byte for byte as
+  it was when the car was given it (each device's section carries a hash, so a profile is never rebuilt from its
+  numbers). `RacingDesk.Data/Pedals/SmartControl.cs` reads `C:\ProgramData\Heusinkveld\Database\Heusinkveld.db`
+  read-only: the profiles, and SmartControl Live's keys.
 
 ## Season schedule
 

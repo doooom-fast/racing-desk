@@ -28,7 +28,7 @@ namespace RacingDesk.Tests.Pedals
         }
 
         /// <summary>A profile the way SmartControl writes one: a section a device, each with its hash.</summary>
-        private static string ProfileXml(int brakeKg, string brakeCurve = "0/20/40/60/80/100", string pedals = "SimPedalsUltimate")
+        internal static string ProfileXml(int brakeKg, string brakeCurve = "0/20/40/60/80/100", string pedals = "SimPedalsUltimate")
         {
             string[] c = brakeCurve.Split('/');
             return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Profile>\n" +
@@ -47,9 +47,12 @@ namespace RacingDesk.Tests.Pedals
                 $"  </{pedals}>\n</Profile>\n";
         }
 
-        private string Database(Action<SqliteConnection> fill, bool tables = true)
+        private string Database(Action<SqliteConnection> fill, bool tables = true) =>
+            Database(Path.Combine(_dir, "Heusinkveld.db"), fill, tables);
+
+        /// <summary>A database as SmartControl keeps it, as far as this app reads it.</summary>
+        internal static string Database(string path, Action<SqliteConnection> fill, bool tables = true)
         {
-            string path = Path.Combine(_dir, "Heusinkveld.db");
             using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString());
             db.Open();
             if (tables)
@@ -59,7 +62,7 @@ namespace RacingDesk.Tests.Pedals
             return path;
         }
 
-        private static void Run(SqliteConnection db, string sql, params (string, object)[] args)
+        internal static void Run(SqliteConnection db, string sql, params (string, object)[] args)
         {
             using var cmd = db.CreateCommand();
             cmd.CommandText = sql;
@@ -67,11 +70,11 @@ namespace RacingDesk.Tests.Pedals
             cmd.ExecuteNonQuery();
         }
 
-        private static void AddProfile(SqliteConnection db, string id, string name, object data) =>
+        internal static void AddProfile(SqliteConnection db, string id, string name, object data) =>
             Run(db, "INSERT INTO profile_sim_device (id, name, data) VALUES ($id, $name, $data)",
                 ("$id", id), ("$name", name), ("$data", data));
 
-        private static void AddKey(SqliteConnection db, int type, string value, string first, string second) =>
+        internal static void AddKey(SqliteConnection db, int type, string value, string first, string second) =>
             Run(db, "INSERT INTO keyboard_binding (action_type, action_value, first_key, second_key) VALUES ($t, $v, $a, $b)",
                 ("$t", type), ("$v", value), ("$a", first), ("$b", second));
 

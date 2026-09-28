@@ -36,6 +36,12 @@ namespace RacingDesk.Plugin.IRacing
 
         public bool GameRunning => _raw.IsConnected && _raw.SessionInfo != null;
         public string GameName => "IRacing";
+
+        /// <summary>
+        /// iRacing's folder name for the car the driver is in, e.g. "mx5 mx52016"; null until a frame has been
+        /// read. Unlike the car's name it is the same whatever iRacing calls the car this season.
+        /// </summary>
+        public string CarPath => GameRunning ? _me?.CarPath?.Trim() : null;
         public object NewData => GameRunning ? _data : null;
 
         /// <summary>Recompute normalized data and derived values for the current frame.</summary>
