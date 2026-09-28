@@ -71,7 +71,7 @@ test('validates ids', () => {
   expect(customer.isValid('424242')).toBe(true);
   expect(customer.isValid('')).toBe(false);
   expect(customer.isValid('abc')).toBe(false);
-  expect(customer.isValid('115 9839')).toBe(false);
+  expect(customer.isValid('424 242')).toBe(false);
   expect(customer.isValid('1234567890123')).toBe(false);
   expect(customer.isValid(424242)).toBe(false);
   expect(customer.isValid(null)).toBe(false);

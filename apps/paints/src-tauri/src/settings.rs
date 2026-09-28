@@ -56,13 +56,13 @@ mod tests {
     fn round_trips_through_json() {
         let s = Settings {
             paint_dir: Some(r"C:\Users\x\Documents\iRacing\paint".into()),
-            customer_id: Some("1159839".into()),
+            customer_id: Some("424242".into()),
             include_spec: Some(true),
             ..Default::default()
         };
         let text = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&text).unwrap();
-        assert_eq!(back.customer_id.as_deref(), Some("1159839"));
+        assert_eq!(back.customer_id.as_deref(), Some("424242"));
         assert_eq!(back.include_spec, Some(true));
         assert_eq!(back.library_root, None);
     }

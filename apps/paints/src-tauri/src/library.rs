@@ -9,7 +9,7 @@
 //! ```
 //!
 //! Both filename shapes are accepted on purpose. The plan describes role-only names; the
-//! design pipeline that feeds this app already writes `car_1159839.tga`, and asking it to
+//! design pipeline that feeds this app already writes `car_424242.tga`, and asking it to
 //! change would be the tail wagging the dog.
 
 use crate::digest;
@@ -366,8 +366,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         let v = root.join("lotus79").join("v13-shatter");
         std::fs::create_dir_all(&v).unwrap();
-        std::fs::write(v.join("car_1159839.tga"), b"paint").unwrap();
-        std::fs::write(v.join("car_spec_1159839.tga"), b"spec").unwrap();
+        std::fs::write(v.join("car_424242.tga"), b"paint").unwrap();
+        std::fs::write(v.join("car_spec_424242.tga"), b"spec").unwrap();
         std::fs::write(v.join("preview_topview_nose_up.png"), b"png").unwrap();
 
         let lib = scan(&root, None).unwrap();

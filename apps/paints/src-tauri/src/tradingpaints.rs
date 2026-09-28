@@ -192,14 +192,14 @@ mod tests {
   </Option>
   <Option>
     <configname>User ID</configname>
-    <configvalue>1159839</configvalue>
+    <configvalue>424242</configvalue>
   </Option>
 </Settings>";
 
     #[test]
     fn reads_real_config_shape() {
         let map = parse_config(SAMPLE);
-        assert_eq!(map.get("User ID").map(String::as_str), Some("1159839"));
+        assert_eq!(map.get("User ID").map(String::as_str), Some("424242"));
         assert_eq!(as_bool(&map, KEY_DOWNLOAD_MINE), Some(false));
         assert_eq!(as_bool(&map, KEY_DELETE_BEFORE), Some(true));
     }

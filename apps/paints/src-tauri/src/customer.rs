@@ -227,11 +227,11 @@ mod tests {
             touch(&d, "car_888222.tga");
         }
         let d = root.join("lotus79");
-        touch(&d, "car_1159839.tga");
-        touch(&d, "car_spec_1159839.tga");
+        touch(&d, "car_424242.tga");
+        touch(&d, "car_spec_424242.tga");
 
         let ranked = tally(&root);
-        assert_eq!(ranked[0].id, "1159839");
+        assert_eq!(ranked[0].id, "424242");
         assert_eq!(ranked[0].local_spec_maps, 1);
         std::fs::remove_dir_all(&root).ok();
     }
@@ -281,9 +281,9 @@ mod tests {
 
     #[test]
     fn validates_ids() {
-        assert!(is_valid("1159839"));
+        assert!(is_valid("424242"));
         assert!(!is_valid(""));
         assert!(!is_valid("abc"));
-        assert!(!is_valid("115 9839"));
+        assert!(!is_valid("424 242"));
     }
 }

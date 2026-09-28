@@ -422,7 +422,7 @@ mod tests {
     fn make_library(root: &Path) {
         let v = root.join("lotus79").join("v13");
         std::fs::create_dir_all(&v).unwrap();
-        std::fs::write(v.join("car_1159839.tga"), b"paint").unwrap();
+        std::fs::write(v.join("car_424242.tga"), b"paint").unwrap();
     }
 
     #[test]
@@ -440,8 +440,8 @@ mod tests {
         let root = fixture("simpaint");
         let car = root.join("lotus79");
         std::fs::create_dir_all(&car).unwrap();
-        std::fs::write(car.join("car_1159839.tga"), b"paint").unwrap();
-        std::fs::write(car.join("car_spec_1159839.mip"), b"cooked").unwrap();
+        std::fs::write(car.join("car_424242.tga"), b"paint").unwrap();
+        std::fs::write(car.join("car_spec_424242.mip"), b"cooked").unwrap();
         assert!(!looks_like_library(&root));
         std::fs::remove_dir_all(&root).ok();
     }
@@ -487,7 +487,7 @@ mod tests {
         assert!(pull(&root).is_err());
 
         // Dirty it, and the refusal must mention the work rather than git internals.
-        std::fs::write(root.join("lotus79").join("v13").join("car_1159839.tga"), b"edited")
+        std::fs::write(root.join("lotus79").join("v13").join("car_424242.tga"), b"edited")
             .unwrap();
         let dirty = status(&root);
         assert!(dirty.dirty);
@@ -520,7 +520,7 @@ mod tests {
         // Something the app left behind, of the shape that caused the bug.
         let junk = clone.join(".backups").join("lotus79").join("2026-09-24_1200");
         std::fs::create_dir_all(&junk).unwrap();
-        std::fs::write(junk.join("car_1159839.tga"), b"a backup").unwrap();
+        std::fs::write(junk.join("car_424242.tga"), b"a backup").unwrap();
 
         assert!(
             !status(&clone).dirty,
@@ -530,7 +530,7 @@ mod tests {
         // A new livery upstream must still arrive.
         let v = work.join("nissangtpzxt").join("v10");
         std::fs::create_dir_all(&v).unwrap();
-        std::fs::write(v.join("car_1159839.tga"), b"paint").unwrap();
+        std::fs::write(v.join("car_424242.tga"), b"paint").unwrap();
         git(&work, &["add", "-A"]).unwrap();
         git(&work, &["commit", "--quiet", "-m", "add the Nissan"]).unwrap();
         git(&work, &["push", "--quiet"]).unwrap();
@@ -539,11 +539,11 @@ mod tests {
         assert!(report.updated, "the pull should have gone through");
         assert!(clone.join("nissangtpzxt").join("v10").is_dir());
         // And the untracked file is still sitting there, untouched.
-        assert!(junk.join("car_1159839.tga").is_file());
+        assert!(junk.join("car_424242.tga").is_file());
 
         // A modified *tracked* file is a real reason to hold back, and still does.
         std::fs::write(
-            clone.join("lotus79").join("v13").join("car_1159839.tga"),
+            clone.join("lotus79").join("v13").join("car_424242.tga"),
             b"edited by hand",
         )
         .unwrap();
@@ -581,7 +581,7 @@ mod tests {
         // A new livery lands upstream.
         let v = work.join("nissangtpzxt").join("v10");
         std::fs::create_dir_all(&v).unwrap();
-        std::fs::write(v.join("car_1159839.tga"), b"paint").unwrap();
+        std::fs::write(v.join("car_424242.tga"), b"paint").unwrap();
         git(&work, &["add", "-A"]).unwrap();
         git(&work, &["commit", "--quiet", "-m", "add the Nissan"]).unwrap();
         git(&work, &["push", "--quiet"]).unwrap();

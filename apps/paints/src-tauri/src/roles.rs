@@ -15,7 +15,7 @@ pub const COOKED_EXT: &str = "mip";
 
 /// Split an installed filename into `(role, customer_id, extension)`.
 ///
-/// `car_spec_1159839.tga` -> `("car_spec", "1159839", "tga")`
+/// `car_spec_424242.tga` -> `("car_spec", "424242", "tga")`
 /// Returns `None` for anything that is not `<known role>_<digits>.<ext>`, which is how
 /// helmets, suits and stray files stay out of the way.
 pub fn parse_installed(file_name: &str) -> Option<(&'static str, String, String)> {
@@ -40,7 +40,7 @@ pub fn parse_installed(file_name: &str) -> Option<(&'static str, String, String)
 ///
 /// Two shapes are accepted, because both exist in the wild:
 ///   * the plan's shape, `car.tga` / `car_spec.tga` — no customer id
-///   * the shape the design pipeline already emits, `car_1159839.tga` — with an id
+///   * the shape the design pipeline already emits, `car_424242.tga` — with an id
 ///
 /// Previews (`preview*.png`) and `meta.json` are deliberately not roles.
 pub fn parse_library_file(file_name: &str) -> Option<&'static str> {
@@ -86,22 +86,22 @@ mod tests {
     #[test]
     fn longest_role_prefix_wins() {
         // The whole point of the ordered role list.
-        assert_eq!(parse_installed("car_spec_1159839.tga").unwrap().0, "car_spec");
-        assert_eq!(parse_installed("car_1159839.tga").unwrap().0, "car");
+        assert_eq!(parse_installed("car_spec_424242.tga").unwrap().0, "car_spec");
+        assert_eq!(parse_installed("car_424242.tga").unwrap().0, "car");
         assert_eq!(parse_installed("car_decal_42.tga").unwrap().0, "car_decal");
     }
 
     #[test]
     fn installed_parses_id_and_ext() {
-        let (role, id, ext) = parse_installed("car_spec_1159839.mip").unwrap();
-        assert_eq!((role, id.as_str(), ext.as_str()), ("car_spec", "1159839", "mip"));
+        let (role, id, ext) = parse_installed("car_spec_424242.mip").unwrap();
+        assert_eq!((role, id.as_str(), ext.as_str()), ("car_spec", "424242", "mip"));
     }
 
     #[test]
     fn non_car_files_are_ignored() {
         // Helmets and suits live in the paint root and belong to whoever you raced.
-        assert!(parse_installed("helmet_1159839.tga").is_none());
-        assert!(parse_installed("suit_1159839.tga").is_none());
+        assert!(parse_installed("helmet_424242.tga").is_none());
+        assert!(parse_installed("suit_424242.tga").is_none());
         assert!(parse_installed("car_notanid.tga").is_none());
         assert!(parse_installed("preview.png").is_none());
     }
@@ -110,14 +110,14 @@ mod tests {
     fn library_accepts_both_shapes() {
         assert_eq!(parse_library_file("car.tga"), Some("car"));
         assert_eq!(parse_library_file("car_spec.tga"), Some("car_spec"));
-        assert_eq!(parse_library_file("car_1159839.tga"), Some("car"));
-        assert_eq!(parse_library_file("car_spec_1159839.tga"), Some("car_spec"));
+        assert_eq!(parse_library_file("car_424242.tga"), Some("car"));
+        assert_eq!(parse_library_file("car_spec_424242.tga"), Some("car_spec"));
         assert_eq!(parse_library_file("preview_side.png"), None);
         assert_eq!(parse_library_file("meta.json"), None);
     }
 
     #[test]
     fn rename_for_install() {
-        assert_eq!(installed_name("car_spec", "1159839", "tga"), "car_spec_1159839.tga");
+        assert_eq!(installed_name("car_spec", "424242", "tga"), "car_spec_424242.tga");
     }
 }

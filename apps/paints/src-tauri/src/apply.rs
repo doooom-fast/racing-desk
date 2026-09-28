@@ -651,23 +651,23 @@ mod tests {
     fn make_version(fx: &Fixture, paint_bytes: &[u8], spec_bytes: Option<&[u8]>) -> Version {
         let dir = fx.library.join("lotus79").join("v13");
         let mut files = Vec::new();
-        let p = dir.join("car_1159839.tga");
+        let p = dir.join("car_424242.tga");
         std::fs::write(&p, paint_bytes).unwrap();
         files.push(VersionFile {
             role: "car".into(),
             role_label: "Paint".into(),
-            file_name: "car_1159839.tga".into(),
+            file_name: "car_424242.tga".into(),
             path: p.to_string_lossy().to_string(),
             size: paint_bytes.len() as u64,
             sha256: digest::file_sha256(&p).unwrap(),
         });
         if let Some(spec) = spec_bytes {
-            let s = dir.join("car_spec_1159839.tga");
+            let s = dir.join("car_spec_424242.tga");
             std::fs::write(&s, spec).unwrap();
             files.push(VersionFile {
                 role: "car_spec".into(),
                 role_label: "Spec map".into(),
-                file_name: "car_spec_1159839.tga".into(),
+                file_name: "car_spec_424242.tga".into(),
                 path: s.to_string_lossy().to_string(),
                 size: spec.len() as u64,
                 sha256: digest::file_sha256(&s).unwrap(),
@@ -693,7 +693,7 @@ mod tests {
             car_folder: "lotus79".into(),
             sim_folder: "lotus79".into(),
             version_id: "v13".into(),
-            customer_id: "1159839".into(),
+            customer_id: "424242".into(),
             include_spec: true,
             set_read_only_after: false,
             clear_other_cooked: false,
@@ -706,7 +706,7 @@ mod tests {
     fn applies_renames_and_backs_up() {
         let fx = fixture("basic");
         let car = fx.paint.join("lotus79");
-        std::fs::write(car.join("car_1159839.tga"), b"OLD PAINT").unwrap();
+        std::fs::write(car.join("car_424242.tga"), b"OLD PAINT").unwrap();
 
         let version = make_version(&fx, b"NEW PAINT", Some(b"NEW SPEC"));
         let report = apply(&request(&fx), &version, &fx.backups).unwrap();
@@ -714,18 +714,18 @@ mod tests {
 
         // Installed under the customer id, both roles.
         assert_eq!(
-            std::fs::read(car.join("car_1159839.tga")).unwrap(),
+            std::fs::read(car.join("car_424242.tga")).unwrap(),
             b"NEW PAINT"
         );
         assert_eq!(
-            std::fs::read(car.join("car_spec_1159839.tga")).unwrap(),
+            std::fs::read(car.join("car_spec_424242.tga")).unwrap(),
             b"NEW SPEC"
         );
 
         // The old paint survived, in the backup.
         let backup = PathBuf::from(report.backup_dir.unwrap());
         assert_eq!(
-            std::fs::read(backup.join("car_1159839.tga")).unwrap(),
+            std::fs::read(backup.join("car_424242.tga")).unwrap(),
             b"OLD PAINT"
         );
         assert!(backup.join("manifest.json").is_file());
@@ -739,15 +739,15 @@ mod tests {
         // cost everyone a re-cook.
         let fx = fixture("mips");
         let car = fx.paint.join("lotus79");
-        std::fs::write(car.join("car_1159839.mip"), b"mine").unwrap();
-        std::fs::write(car.join("car_spec_1159839.mip"), b"mine too").unwrap();
+        std::fs::write(car.join("car_424242.mip"), b"mine").unwrap();
+        std::fs::write(car.join("car_spec_424242.mip"), b"mine too").unwrap();
         std::fs::write(car.join("car_999000.mip"), b"someone else").unwrap();
 
         let version = make_version(&fx, b"NEW", None);
         apply(&request(&fx), &version, &fx.backups).unwrap();
 
-        assert!(!car.join("car_1159839.mip").exists());
-        assert!(!car.join("car_spec_1159839.mip").exists());
+        assert!(!car.join("car_424242.mip").exists());
+        assert!(!car.join("car_spec_424242.mip").exists());
         assert!(
             car.join("car_999000.mip").exists(),
             "another driver's cooked file must be left alone"
@@ -775,7 +775,7 @@ mod tests {
     fn read_only_targets_are_cleared_then_written() {
         let fx = fixture("readonly");
         let car = fx.paint.join("lotus79");
-        let target = car.join("car_1159839.tga");
+        let target = car.join("car_424242.tga");
         std::fs::write(&target, b"OLD").unwrap();
         set_read_only(&target).unwrap();
 
@@ -794,7 +794,7 @@ mod tests {
         let version = make_version(&fx, b"NEW", None);
         apply(&req, &version, &fx.backups).unwrap();
 
-        let target = fx.paint.join("lotus79").join("car_1159839.tga");
+        let target = fx.paint.join("lotus79").join("car_424242.tga");
         assert!(std::fs::metadata(&target).unwrap().permissions().readonly());
 
         // And a later apply must still be able to write over it.
@@ -809,7 +809,7 @@ mod tests {
     fn skipping_the_spec_map_warns_that_the_old_one_remains() {
         let fx = fixture("nospec");
         let car = fx.paint.join("lotus79");
-        std::fs::write(car.join("car_spec_1159839.tga"), b"OLD SPEC").unwrap();
+        std::fs::write(car.join("car_spec_424242.tga"), b"OLD SPEC").unwrap();
 
         let mut req = request(&fx);
         req.include_spec = false;
@@ -817,7 +817,7 @@ mod tests {
         let report = apply(&req, &version, &fx.backups).unwrap();
 
         assert_eq!(
-            std::fs::read(car.join("car_spec_1159839.tga")).unwrap(),
+            std::fs::read(car.join("car_spec_424242.tga")).unwrap(),
             b"OLD SPEC"
         );
         assert!(report.warnings.iter().any(|w| w.contains("spec map")));
@@ -840,19 +840,19 @@ mod tests {
     fn revert_restores_and_removes_what_the_apply_added() {
         let fx = fixture("revert");
         let car = fx.paint.join("lotus79");
-        std::fs::write(car.join("car_1159839.tga"), b"ORIGINAL").unwrap();
+        std::fs::write(car.join("car_424242.tga"), b"ORIGINAL").unwrap();
 
         // Apply adds a spec map that was not there before.
         let version = make_version(&fx, b"NEW PAINT", Some(b"NEW SPEC"));
         apply(&request(&fx), &version, &fx.backups).unwrap();
-        assert!(car.join("car_spec_1159839.tga").exists());
+        assert!(car.join("car_spec_424242.tga").exists());
 
         let report = revert(
             &fx.paint,
             &fx.backups,
             "lotus79",
             "lotus79",
-            "1159839",
+            "424242",
             None,
             true,
         )
@@ -860,11 +860,11 @@ mod tests {
         assert!(report.applied);
 
         assert_eq!(
-            std::fs::read(car.join("car_1159839.tga")).unwrap(),
+            std::fs::read(car.join("car_424242.tga")).unwrap(),
             b"ORIGINAL"
         );
         assert!(
-            !car.join("car_spec_1159839.tga").exists(),
+            !car.join("car_spec_424242.tga").exists(),
             "a spec map the apply introduced should not survive the revert"
         );
 
@@ -875,11 +875,11 @@ mod tests {
     fn revert_is_itself_undoable() {
         let fx = fixture("revert-twice");
         let car = fx.paint.join("lotus79");
-        std::fs::write(car.join("car_1159839.tga"), b"ORIGINAL").unwrap();
+        std::fs::write(car.join("car_424242.tga"), b"ORIGINAL").unwrap();
 
         let version = make_version(&fx, b"NEW", None);
         apply(&request(&fx), &version, &fx.backups).unwrap();
-        revert(&fx.paint, &fx.backups, "lotus79", "lotus79", "1159839", None, true).unwrap();
+        revert(&fx.paint, &fx.backups, "lotus79", "lotus79", "424242", None, true).unwrap();
 
         // Two backups now: the apply's, and the one the revert took first.
         let backups = list_backups(&fx.backups, "lotus79").unwrap();
@@ -895,7 +895,7 @@ mod tests {
         // files in the user's repo, and the app's own update check then refused to pull
         // because of them — applying a paint once switched updating off for good.
         let fx = fixture("outside");
-        std::fs::write(fx.paint.join("lotus79").join("car_1159839.tga"), b"OLD").unwrap();
+        std::fs::write(fx.paint.join("lotus79").join("car_424242.tga"), b"OLD").unwrap();
 
         let before: Vec<_> = walk(&fx.library);
         let version = make_version(&fx, b"NEW", Some(b"SPEC"));
@@ -955,7 +955,7 @@ mod tests {
         // only copy of the original paint was what got overwritten.
         let fx = fixture("collide");
         let car = fx.paint.join("lotus79");
-        std::fs::write(car.join("car_1159839.tga"), b"ORIGINAL").unwrap();
+        std::fs::write(car.join("car_424242.tga"), b"ORIGINAL").unwrap();
 
         let root = fx.backups.join("lotus79");
         let mut seen = std::collections::BTreeSet::new();
@@ -965,7 +965,7 @@ mod tests {
                 &fx.backups,
                 "lotus79",
                 "lotus79",
-                "1159839",
+                "424242",
                 "stress",
             )
             .unwrap();
@@ -979,14 +979,14 @@ mod tests {
     #[test]
     fn backups_sort_newest_first() {
         let fx = fixture("sort");
-        std::fs::write(fx.paint.join("lotus79").join("car_1159839.tga"), b"x").unwrap();
+        std::fs::write(fx.paint.join("lotus79").join("car_424242.tga"), b"x").unwrap();
         for i in 0..5 {
             back_up(
                 &fx.paint,
                 &fx.backups,
                 "lotus79",
                 "lotus79",
-                "1159839",
+                "424242",
                 &format!("run {i}"),
             )
             .unwrap();
@@ -1005,7 +1005,7 @@ mod tests {
             &fx.backups,
             "lotus79",
             "lotus79",
-            "1159839",
+            "424242",
             None,
             true,
         );
@@ -1017,7 +1017,7 @@ mod tests {
     fn a_missing_source_file_rolls_the_apply_back() {
         let fx = fixture("rollback");
         let car = fx.paint.join("lotus79");
-        std::fs::write(car.join("car_1159839.tga"), b"ORIGINAL").unwrap();
+        std::fs::write(car.join("car_424242.tga"), b"ORIGINAL").unwrap();
 
         // Paint is fine, spec points at a file that is not there.
         let mut version = make_version(&fx, b"NEW PAINT", Some(b"NEW SPEC"));
@@ -1028,7 +1028,7 @@ mod tests {
 
         // The paint that was already swapped must be back to what it was.
         assert_eq!(
-            std::fs::read(car.join("car_1159839.tga")).unwrap(),
+            std::fs::read(car.join("car_424242.tga")).unwrap(),
             b"ORIGINAL",
             "a partial apply must not leave the new paint in place"
         );
@@ -1040,7 +1040,7 @@ mod tests {
     fn no_temp_files_survive_a_failed_apply() {
         let fx = fixture("tmp");
         let car = fx.paint.join("lotus79");
-        std::fs::write(car.join("car_1159839.tga"), b"ORIGINAL").unwrap();
+        std::fs::write(car.join("car_424242.tga"), b"ORIGINAL").unwrap();
 
         let mut version = make_version(&fx, b"NEW", Some(b"SPEC"));
         version.files[1].path = fx.root.join("gone.tga").to_string_lossy().to_string();

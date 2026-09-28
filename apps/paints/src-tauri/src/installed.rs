@@ -210,7 +210,7 @@ mod tests {
         InstalledFile {
             role: role.into(),
             role_label: roles::role_label(role).into(),
-            file_name: format!("{role}_1159839.tga"),
+            file_name: format!("{role}_424242.tga"),
             path: String::new(),
             size: 1,
             sha256: sha.into(),
