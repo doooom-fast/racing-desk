@@ -15,7 +15,8 @@ namespace RacingDesk.Host
     /// <summary>
     /// Read-only views of the local store for the desk window, served next to the telemetry contract:
     /// <c>GET /racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals}</c>. Rows go out as stored;
-    /// the desk's calc layer (packages/calc) does the merging and derivation.
+    /// the desk's calc layer (packages/calc) does the merging and derivation. Beside them, and not from the
+    /// store: <c>GET /racing-desk/data/controls</c>, the canonical list of cars this build carries.
     ///
     /// One thing is written: <c>POST /racing-desk/data/pedals</c> says which of SmartControl's profiles a car is
     /// driven with. It is for programs on this machine — the app — and not for a page in a browser, which every
@@ -45,6 +46,12 @@ namespace RacingDesk.Host
             _smartControlDb = smartControlDb;
         }
 
+        /// <summary>
+        /// What follows the car the driver is in, for <c>controls</c>: the list of cars and what its check has
+        /// said. The telemetry's own, unless a test gives another.
+        /// </summary>
+        internal RacingDesk.Core.Cars.CarControlsFollower Cars { get; set; } = RacingDesk.Plugin.Engine.TelemetryCapture.Cars;
+
         /// <summary>Claims /data/ requests and answers them off the telemetry thread.</summary>
         public bool TryHandle(HttpListenerContext ctx)
         {
@@ -63,6 +70,16 @@ namespace RacingDesk.Host
                 res.Headers.Add("Access-Control-Allow-Private-Network", "true");
                 res.Headers.Add("Cache-Control", "no-store");
                 res.ContentType = "application/json; charset=utf-8";
+
+                if (route == "controls" && ctx.Request.HttpMethod == "GET")
+                {
+                    // The canonical list of cars, or one car of it (?car=), with what the check has said this
+                    // run. It is carried in the assembly: there is no store to wait for.
+                    var cars = Cars;
+                    string car = ctx.Request.QueryString["car"];
+                    Write(res, 200, json => CarListApi.Write(json, cars?.List, car, cars?.Remarks, cars?.CarPath));
+                    return;
+                }
 
                 if (!File.Exists(_dbPath))
                 {

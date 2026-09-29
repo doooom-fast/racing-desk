@@ -231,6 +231,12 @@ namespace RacingDesk.Plugin.Engine
         /// way is then all there is to go on, and the HUD goes on that.
         /// </summary>
         public bool?  InCar             { get; set; }
+        /// <summary>
+        /// The controls of the car the driver is in — what the car has by the canonical list, what each reads
+        /// now — as the HUD is sent them (<c>RacingDesk.Plugin.CarControls</c>, a JSON object). Null where there
+        /// is nothing true to say: another sim, no car yet, a car the list does not have.
+        /// </summary>
+        public string CarControlsJson   { get; set; }
         /// <summary>Number of cars that have left pit road and are on track.</summary>
         public int    GriddedCars       { get; set; }
         /// <summary>Total car count in the session.</summary>

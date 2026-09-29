@@ -50,6 +50,12 @@ namespace RacingDesk.Plugin.Engine
         // ── iRacing SDK bridge (set by Plugin.Init, used as primary data source) ──
         internal static IRacingSdkBridge _sdkBridge;
 
+        // ── The car's controls, by the canonical list (RacingDesk.Core.Cars) ──
+        internal static RacingDesk.Core.Cars.CarControlsFollower _carControls = new RacingDesk.Core.Cars.CarControlsFollower();
+
+        /// <summary>What follows the car the driver is in: the list it reads, and what its check has said this run.</summary>
+        public static RacingDesk.Core.Cars.CarControlsFollower Cars => _carControls;
+
         // ── iRating estimator (legacy shared memory reader, kept as fallback) ────
         private static IRatingEstimator _irEstimator;
         private static SectorTracker _sectorTracker = new SectorTracker();
@@ -785,7 +791,35 @@ namespace RacingDesk.Plugin.Engine
                 // Fast repair is iRacing-only — not applicable for ACC
             }
 
+            // ── What the car has, and what each control reads now ───────────
+            if (detectedGame == GameId.IRacing) s.CarControlsJson = CarControls(pm, s.InCar);
+
             return s;
+        }
+
+        /// <summary>
+        /// The controls of the car the driver is in. Which car, and whether its setup is fixed, is the source's
+        /// to say where it can (the host's own reader) and the SDK bridge's where it cannot (SimHub).
+        /// </summary>
+        internal static string CarControls(ITelemetrySource pm, bool? inCar)
+        {
+            string carPath;
+            bool? fixedSetup;
+            if (pm is RacingDesk.Core.Cars.ICarIdentity car)
+            {
+                carPath = car.CarPath;
+                fixedSetup = car.FixedSetup;
+            }
+            else if (_sdkBridge != null && _sdkBridge.IsConnected)
+            {
+                carPath = _sdkBridge.PlayerCarPath;
+                fixedSetup = _sdkBridge.IsFixedSetup;
+            }
+            else
+            {
+                return null;
+            }
+            return _carControls.See(carPath, pm.GetPropertyValue, fixedSetup, inCar);
         }
 
         // ── Game-specific raw data helpers ──────────────────────────────────────

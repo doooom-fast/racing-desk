@@ -11,6 +11,12 @@ namespace RacingDesk.Plugin.Transport
     public static class TelemetryFrame
     {
         /// <summary>
+        /// What the car the driver is in has, and what each control reads: NONE, OFF, or a value with the
+        /// car's own label for it. Sent only where there is something true to say.
+        /// </summary>
+        public const string CarControlsKey = "RacingDesk.Plugin.CarControls";
+
+        /// <summary>
         /// Converts a TelemetrySnapshot to a flat Dictionary<string, object>.
         /// This mirrors the Jp() calls in Plugin.HttpServerLoop() to ensure wire format parity.
         /// </summary>
@@ -446,6 +452,8 @@ namespace RacingDesk.Plugin.Transport
             dict["RacingDesk.Plugin.Grid.SessionState"] = s.SessionState;
             // Only where the sim says: a key that is sent is believed, and a constant 0 would hide the HUD for good.
             if (s.InCar.HasValue) dict["DataCorePlugin.GameRawData.Telemetry.IsOnTrack"] = s.InCar.Value ? 1 : 0;
+            // The car's controls by the canonical list: only for a car the list has. A JSON object, as text.
+            if (!demo && !string.IsNullOrEmpty(s.CarControlsJson)) dict[CarControlsKey] = s.CarControlsJson;
             dict["RacingDesk.Plugin.Grid.GriddedCars"] = s.GriddedCars;
             dict["RacingDesk.Plugin.Grid.TotalCars"] = s.TotalCars;
             dict["RacingDesk.Plugin.Grid.PaceMode"] = s.PaceMode;

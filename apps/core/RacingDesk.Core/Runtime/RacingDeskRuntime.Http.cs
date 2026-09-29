@@ -832,6 +832,9 @@ namespace RacingDesk.Plugin
                     Jp(sb, "RacingDesk.Plugin.Grid.SessionState", s.SessionState);
                     // Only where the sim says: a key that is sent is believed, and a constant 0 would hide the HUD for good.
                     if (s.InCar.HasValue) Jp(sb, "DataCorePlugin.GameRawData.Telemetry.IsOnTrack", s.InCar.Value ? 1 : 0);
+                    // The car's controls by the canonical list: a JSON object, and only for a car the list has.
+                    if (!demo && !string.IsNullOrEmpty(s.CarControlsJson))
+                        sb.Append('"').Append(Transport.TelemetryFrame.CarControlsKey).Append("\":").Append(s.CarControlsJson).Append(",\n");
                     Jp(sb, "RacingDesk.Plugin.Grid.GriddedCars", s.GriddedCars);
                     Jp(sb, "RacingDesk.Plugin.Grid.TotalCars", s.TotalCars);
                     Jp(sb, "RacingDesk.Plugin.Grid.PaceMode", s.PaceMode);

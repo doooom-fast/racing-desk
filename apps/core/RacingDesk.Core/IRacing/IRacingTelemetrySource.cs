@@ -17,7 +17,7 @@ namespace RacingDesk.Plugin.IRacing
     /// is iRacing's internal track name; normalized fuel and tyre temperatures follow the display units (gallons
     /// and °F when imperial) while Computed.Fuel_LitersPerLap stays in litres; tyre wear is percent remaining.
     /// </summary>
-    public sealed class IRacingTelemetrySource : ITelemetrySource
+    public sealed class IRacingTelemetrySource : ITelemetrySource, RacingDesk.Core.Cars.ICarIdentity
     {
         private const string RawPrefix = "DataCorePlugin.GameRawData.Telemetry.";
 
@@ -42,6 +42,16 @@ namespace RacingDesk.Plugin.IRacing
         /// read. Unlike the car's name it is the same whatever iRacing calls the car this season.
         /// </summary>
         public string CarPath => GameRunning ? _me?.CarPath?.Trim() : null;
+
+        /// <summary>The session runs a fixed setup: the garage's values are the series'. Null until the session says.</summary>
+        public bool? FixedSetup
+        {
+            get
+            {
+                var options = GameRunning ? _raw.SessionInfo?.WeekendInfo?.WeekendOptions : null;
+                return options == null ? (bool?)null : options.IsFixedSetup == 1;
+            }
+        }
 
         /// <summary>
         /// The car publishes an ABS setting the driver can turn. A car publishes only the controls it has, so

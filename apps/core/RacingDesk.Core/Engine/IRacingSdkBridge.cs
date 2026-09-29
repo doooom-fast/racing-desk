@@ -42,6 +42,12 @@ namespace RacingDesk.Plugin.Engine
         public double PlayerSafetyRating { get; private set; }
         public string PlayerLicenseString { get; private set; } = "";
         public bool IsStandingStart { get; private set; }
+
+        /// <summary>The sim's folder for the car the driver is in, e.g. "mx5 mx52016"; null until the session says.</summary>
+        public string PlayerCarPath { get; private set; }
+
+        /// <summary>The session runs a fixed setup; null until the session says.</summary>
+        public bool? IsFixedSetup { get; private set; }
         public int IncidentLimitPenalty { get; private set; }
         public int IncidentLimitDQ { get; private set; }
 
@@ -297,6 +303,7 @@ namespace RacingDesk.Plugin.Engine
                             // Player's own data
                             if (driver.CarIdx == PlayerCarIdx)
                             {
+                                PlayerCarPath = string.IsNullOrWhiteSpace(driver.CarPath) ? null : driver.CarPath.Trim();
                                 PlayerIRating = driver.IRating;
                                 PlayerLicenseString = driver.LicString ?? "";
 
@@ -324,6 +331,7 @@ namespace RacingDesk.Plugin.Engine
                 if (opts != null)
                 {
                     IsStandingStart = opts.StandingStart == 1;
+                    IsFixedSetup = opts.IsFixedSetup == 1;
 
                     // Incident limits — iRacing returns "unlimited" or a number string
                     // IncidentLimit is the DQ threshold (e.g. "25" or "unlimited")

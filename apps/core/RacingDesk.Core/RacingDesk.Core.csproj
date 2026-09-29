@@ -32,6 +32,17 @@
     <InternalsVisibleTo Include="RacingDesk.Tests" />
   </ItemGroup>
 
+  <!--
+    The canonical list of cars (what each has for the driver to turn, and what its dash calls it), written by
+    hand in packages/car-list and carried inside the assembly so the host and the SimHub plugin read the same
+    one. A tree without the file builds without a list, and every car is then not known.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="../../../packages/car-list/cars.json"
+                      LogicalName="RacingDesk.Core.Cars.cars.json"
+                      Condition="Exists('../../../packages/car-list/cars.json')" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="IRSDKSharper" Version="1.1.4" />
     <PackageReference Include="Fleck" Version="1.2.0" />
