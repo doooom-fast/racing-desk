@@ -1473,6 +1473,11 @@ ipcMain.handle('get-dashboard-mode', async () => {
 const paintsCommands = paints.createCommands({
   carNames: createCarNames({ host: () => hostUrl || localHostUrl() }),
   installRoot: () => (loadSettingsSync().paints || {}).installDir,
+  // The hashes of the library's paints, beside the backups: a library is hundreds of files, hashed in this
+  // process, and is hashed once.
+  hashes: (() => {
+    try { return path.join(path.dirname(paints.apply.backupsBase()), 'hashes.json'); } catch (e) { return null; }
+  })(),
 });
 // What the manager remembers (the two folders, the customer id, the apply options) is the `paints` key of
 // overlay-settings.json, beside the HUD's settings. The file is rewritten whole; every other key is kept, and the

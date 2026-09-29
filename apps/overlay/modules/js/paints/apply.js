@@ -294,7 +294,7 @@ async function apply(req, version, base, deps) {
       written.push(destName);
     } catch (e) {
       const failures = restoreFrom(backupDir, targetDir, backedUp);
-      digest.clearCache();
+      digest.forgetUnder(targetDir);
       let msg = `Could not write ${destName} (${messageOf(e)}). Everything this apply had changed was put back `
         + `from ${backupDir}.`;
       if (failures.length) {
@@ -350,8 +350,15 @@ async function apply(req, version, base, deps) {
     warnings.push('The spec map was not installed. Any spec map already in the folder is still there and will be '
       + 'used with this paint.');
   }
+  // A version with no spec map of its own leaves the one in the folder where it is: an apply takes nothing away
+  // but cooked files. The paint is then worn over another paint's gloss, which has to be said.
+  const specName = roles.installedName('car_spec', request.customerId, roles.TEXTURE_EXT).toLowerCase();
+  if (request.includeSpec && !version.hasSpec && backedUp.some((n) => String(n).toLowerCase() === specName)) {
+    warnings.push('This version has no spec map. The spec map already in the folder is still there and will be '
+      + 'used with this paint.');
+  }
 
-  digest.clearCache();
+  digest.forgetUnder(targetDir);
   return { applied: true, backupDir, actions, warnings };
 }
 
@@ -445,7 +452,7 @@ async function revert(paintDir, base, carFolder, simFolder, customerId, backupId
   }
   if (removed > 0) actions.push({ kind: 'remove', detail: `${removed} file(s) added since that backup were removed` });
 
-  digest.clearCache();
+  digest.forgetUnder(targetDir);
   return { applied: true, backupDir: chosen.path, actions, warnings };
 }
 

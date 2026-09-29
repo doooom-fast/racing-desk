@@ -174,14 +174,20 @@ function find(lib, store, id) {
 
 // Where a car's paint goes: its folder in the paint directory, or — for a car never driven, which has none yet —
 // the folder the sim would make for it, named as the install names the car. Null when neither is known.
+//
+// A folder the library names for the car (a version's meta.json can) is taken as named, there or not: a name is
+// not a folder. It is made, as any is, only when it is missing and the install has a car by that name — what a
+// one-car apply decides for itself (index.js).
 function target(car, installedCars) {
-  if (car.simFolder != null) return { simFolder: car.simFolder, createFolder: false };
+  const names = installedCars || [];
+  if (car.simFolder != null) return { simFolder: car.simFolder, createFolder: names.includes(car.simFolder) };
   const key = library.normalise(car.folder);
-  const carPath = (installedCars || []).find((p) => library.normalise(p) === key);
+  const carPath = names.find((p) => library.normalise(p) === key);
   return carPath ? { simFolder: carPath, createFolder: true } : null;
 }
 
-// Whether what is in the car's folder is this version already, as far as this apply would write it.
+// Whether what is in the car's folder is this version already, as far as this apply would write it. A version
+// with no spec map writes the paint alone, whatever spec map is in the folder, so for it the paint decides.
 function alreadyOn(paintDir, simFolder, customerId, version, includeSpec) {
   let state;
   try {
@@ -190,7 +196,8 @@ function alreadyOn(paintDir, simFolder, customerId, version, includeSpec) {
     return false;
   }
   if (state.appliedVersionId !== version.id) return false;
-  return state.matchKind === 'exact' || (!includeSpec && state.matchKind === 'paint-only');
+  const paintAlone = !includeSpec || !version.hasSpec;
+  return state.matchKind === 'exact' || (paintAlone && state.matchKind === 'paint-only');
 }
 
 // Set a group: `request` is { paintDir, libraryRoot, customerId, groupId, includeSpec, setReadOnlyAfter,

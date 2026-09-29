@@ -32,6 +32,9 @@ const tradingpaints = require('./tradingpaints');
 // hand: a path, or a function returning one or nothing; detection fills in when it does not hold a cars folder).
 function createCommands(overrides = {}) {
   const env = overrides.env || process.env;
+  // `hashes`: a file to keep the hashes of paint files in, so a library is hashed once and not at every start.
+  // Only the app names one; without it nothing is read or written outside what a command is asked to touch.
+  if (typeof overrides.hashes === 'string' && overrides.hashes.length) digest.keepIn(overrides.hashes);
   const exec = overrides.exec;
   const simState = overrides.simState || (() => processMod.simState(exec ? { exec } : undefined));
   const tradingPaints = overrides.tradingPaints

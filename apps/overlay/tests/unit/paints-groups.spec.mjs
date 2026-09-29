@@ -234,6 +234,39 @@ test.describe('setting a group', () => {
     expect(read(path.join(report.results[0].backupDir, `car_${CUSTOMER}.tga`))).toBe('the paint before');
   });
 
+  test('a folder the library names for a car never driven is made, when the install has a car by that name', async () => {
+    const fx = fixture('set-named');
+    // The Porsche's version names its folder, as a meta.json can; the Lotus's names one no car has.
+    fs.writeFileSync(path.join(fx.library, 'porsche992cup', 'shatter', 'meta.json'), JSON.stringify({ simFolder: 'porsche992cup' }));
+    fs.rmSync(path.join(fx.paint, 'lotus79'), { recursive: true });
+    fs.writeFileSync(path.join(fx.library, 'lotus79', 'shatter', 'meta.json'), JSON.stringify({ simFolder: 'lotus 79 special' }));
+
+    const report = await groups.set(request(fx, 'library:shatter'), {
+      lib: fx.lib(), store: memoryStore(), installedCars: fx.installed, base: fx.backups, deps: quiet,
+    });
+
+    expect(outcomes(report)).toEqual(['lotus79: failed', 'mx5-mx52016: applied', 'porsche992cup: applied']);
+    expect(read(path.join(fx.paint, 'porsche992cup', `car_${CUSTOMER}.tga`))).toBe('porsche992cup shatter paint');
+    expect(report.results[0].detail).toContain('lotus 79 special');
+    expect(fs.existsSync(path.join(fx.paint, 'lotus 79 special'))).toBe(false);
+  });
+
+  test('a version with no spec map is on the car when its paint is, whatever spec map is in the folder', async () => {
+    const fx = fixture('set-paint-alone');
+    const mine = memoryStore();
+    const made = groups.save(mine, fx.lib(), { name: 'Orange', cars: { 'mx5-mx52016': 'orange-white' } });
+    fs.writeFileSync(path.join(fx.paint, 'mx5 mx52016', `car_spec_${CUSTOMER}.tga`), 'a spec map from an earlier paint');
+    const deps = { lib: fx.lib(), store: mine, installedCars: fx.installed, base: fx.backups, deps: quiet };
+
+    const first = await groups.set(request(fx, made.id), deps);
+    expect(outcomes(first)).toEqual(['mx5-mx52016: applied']);
+    expect(first.results[0].warnings.join(' ')).toContain('This version has no spec map');
+    expect(read(path.join(fx.paint, 'mx5 mx52016', `car_spec_${CUSTOMER}.tga`))).toBe('a spec map from an earlier paint');
+
+    const again = await groups.set(request(fx, made.id), deps);
+    expect(outcomes(again)).toEqual(['mx5-mx52016: already']);
+  });
+
   test('a second time writes nothing and backs nothing up', async () => {
     const fx = fixture('set-twice');
     const deps = { lib: fx.lib(), store: memoryStore(), installedCars: fx.installed, base: fx.backups, deps: quiet };
