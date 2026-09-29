@@ -14,23 +14,41 @@
 // { ok: true, car } or { ok: false, error } with the error in words — and nothing is thrown: no host, a slow host,
 // a host from before the route and an answer that isn't JSON are all { ok: false }.
 //
-// The read is the three routes the page is drawn from (rig:read), asked from here too, so that the page builds no
+// The read is the four routes the page is drawn from (rig:read), asked from here too, so that the page builds no
 // address of its own:
 //
 //   GET <host>/racing-desk/data/cars       the store's name for each car, and its own spelling of the car's path
 //   GET <host>/racing-desk/data/views      the view each car was last driven with
 //   GET <host>/racing-desk/data/pedals     SmartControl's profiles and keys, and the cars given a profile
+//   GET <host>/racing-desk/data/controls   the canonical list of cars, and what its check has said of each car
 //
 // Each comes back as { value }, as { missing: true } from a host that has no such route yet (404), or as
 // { error } in words. One that fails does not take the others with it, and nothing is thrown here either.
+//
+// The first three are passed on as the host gave them, and the page checks what they hold. The list of cars is
+// the one answer that is big (a couple of hundred cars, each with its controls) and that comes from a file written
+// by hand, so it is bounded and shaped here before it goes to the page (shapeControls): only the keys the page
+// draws, each of the type it is drawn as, no string, list or object longer than the page has room for. A host
+// that answers with something else is { error }, not a page that has to guess.
 const http = require('http');
 
 const DATA_PATH = '/racing-desk/data/';
 const PEDALS_PATH = DATA_PATH + 'pedals';
-const READS = Object.freeze(['cars', 'views', 'pedals']);
+const READS = Object.freeze(['cars', 'views', 'pedals', 'controls']);
 const TIMEOUT_MS = 3000;
 const MAX_LENGTH = 200;   // of a car path or a profile id: both are short names, and the page is not to be trusted with more
 const MAX_ERROR = 300;    // of the host's own words for a refusal, as shown in a table cell
+
+// What the list of cars is held to. The list on this rig is under 300 KB written out; four times that is still a
+// list, and more is not one the page reads.
+const MAX_CONTROLS_BYTES = 1200000;
+const MAX_CARS = 1000;        // cars in the list, and cars with something kept of them
+const MAX_CONTROLS = 60;      // controls of one car
+const MAX_POSITIONS = 64;     // named positions of one control
+const MAX_REMARKS = 60;       // things said of one car
+const MAX_WORD = 100;         // an id, a variable, a label, a kind, a check's key
+const MAX_REMARK = 500;       // one thing the check said
+const MAX_MOMENT = 40;        // a time, as the host writes one
 
 // What is wrong with the arguments, in words, or null when nothing is. A profile id of null takes the profile away.
 function bindingProblem(carPath, profileId) {
@@ -57,7 +75,12 @@ function send(request, timeoutMs) {
   return new Promise((resolve, reject) => {
     const req = http.request(request.url, { method: request.method, headers: request.headers, timeout: timeoutMs }, (res) => {
       const chunks = [];
-      res.on('data', (c) => chunks.push(c));
+      let received = 0;
+      res.on('data', (c) => {
+        received += c.length;
+        if (request.maxBytes && received > request.maxBytes) req.destroy(new Error('too long'));
+        else chunks.push(c);
+      });
       res.on('error', reject);
       res.on('end', () => resolve({ status: res.statusCode, text: Buffer.concat(chunks).toString('utf8') }));
     });
@@ -104,13 +127,17 @@ function readAnswer(answer) {
 function noAnswer(base, err, timeoutMs) {
   const why = err && err.message ? err.message : String(err);
   if (why === 'timeout') return `The host at ${base} did not answer within ${timeoutMs / 1000} s.`;
+  if (why === 'too long') return `The host at ${base} answered with more than the page reads.`;
   if (err && err.code === 'ECONNREFUSED') return `Nothing is answering at ${base}.`;
   return `The host at ${base} could not be asked: ${why}`;
 }
 
 // The request for one of the routes the page reads, as data. A GET with no body, and never an Origin.
+// The list of cars is the one answer with a size to be held to: a host that goes on is not listened to.
 function readRequest(base, route) {
-  return { url: base.replace(/\/+$/, '') + DATA_PATH + route, method: 'GET', headers: { Accept: 'application/json' } };
+  const request = { url: base.replace(/\/+$/, '') + DATA_PATH + route, method: 'GET', headers: { Accept: 'application/json' } };
+  if (route === 'controls') request.maxBytes = MAX_CONTROLS_BYTES;
+  return request;
 }
 
 // One route's answer as the page reads it. What the value holds is the page's to check: it is passed on as the
@@ -124,6 +151,103 @@ function readRoute(answer) {
   } catch (e) {
     return { error: 'The host answered, but not with JSON.' };
   }
+}
+
+// ── The list of cars ──
+
+const str = (v, max) => (typeof v === 'string' && v.trim().length > 0 ? v.slice(0, max) : null);
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const WORDS = Object.freeze(['none', 'fixed', 'adjustable']);
+const word = (v) => (WORDS.includes(v) ? v : null);
+
+// One control of a car: which it is, what carries it, what the car calls it, and the values it can have — off, a
+// range, or names for positions. Null for what is not a control.
+function shapeControl(c) {
+  const id = isRow(c) ? str(c.id, MAX_WORD) : null;
+  if (id === null) return null;
+  const out = { id, var: str(c.var, MAX_WORD), label: str(c.label, MAX_WORD) };
+  if (c.off === false || num(c.off) !== null) out.off = c.off;
+  if (Array.isArray(c.range) && c.range.length === 2 && num(c.range[0]) !== null && num(c.range[1]) !== null) {
+    out.range = [c.range[0], c.range[1]];
+  }
+  if (isRow(c.positions)) {
+    // A list of pairs, in the order of the values, and not an object: nothing here is a key that could be __proto__.
+    const positions = Object.entries(c.positions)
+      .filter(([value]) => value.trim() !== '' && Number.isFinite(Number(value)))
+      .map(([value, name]) => [Number(value), str(name, MAX_WORD)])
+      .filter(([, name]) => name !== null)
+      .slice(0, MAX_POSITIONS)
+      .sort((a, b) => a[0] - b[0]);
+    if (positions.length) out.positions = positions;
+  }
+  if (Array.isArray(c.covers)) out.covers = c.covers.filter((x) => typeof x === 'string').slice(0, 3).map((x) => x.slice(0, MAX_WORD));
+  return out;
+}
+
+// One car of the list. Null for what has no folder to be a car by.
+function shapeCar(c) {
+  const path = isRow(c) ? str(c.path, MAX_LENGTH) : null;
+  if (path === null) return null;
+  return {
+    path,
+    name: str(c.name, MAX_LENGTH),
+    kind: str(c.kind, MAX_WORD),
+    abs: word(c.abs),
+    tc: word(c.tc),
+    brakeBias: word(c.brakeBias),
+    controls: (Array.isArray(c.controls) ? c.controls : []).slice(0, MAX_CONTROLS).map(shapeControl).filter((x) => x !== null),
+    checked: str(c.checked, MAX_WORD),
+  };
+}
+
+// One thing the check said of a car, and when it first and last said it. Null for what says nothing.
+function shapeRemark(r) {
+  const about = isRow(r) ? str(r.about, MAX_WORD) : null;
+  const text = isRow(r) ? str(r.text, MAX_REMARK) : null;
+  if (about === null || text === null) return null;
+  return { about, text, firstSeen: str(r.firstSeen, MAX_MOMENT), lastSeen: str(r.lastSeen, MAX_MOMENT) };
+}
+
+// What the host answered to GET controls, as the page reads it, or null where that is not the list of cars:
+//
+//   { version, listHash, count, following,
+//     cars: [ { path, name, kind, abs, tc, brakeBias, controls: [ { id, var, label, off?, range?, positions?, covers? } ], checked } ],
+//     kept: [ { car, remarks: [ { about, text, firstSeen, lastSeen } ] } ] | null }
+//
+// `kept` is what the host's store has of the check's remarks against this list, by car, and is null when the host
+// could not read its store — which is not the same as none. What the check said in this run alone (`remarks`) is
+// the log's, and is not passed on.
+function shapeControls(body) {
+  if (!isRow(body) || !Array.isArray(body.cars)) return null;
+  let kept = null;
+  if (isRow(body.kept)) {
+    kept = Object.entries(body.kept)
+      .slice(0, MAX_CARS)
+      .map(([car, remarks]) => ({
+        car: str(car, MAX_LENGTH),
+        remarks: (Array.isArray(remarks) ? remarks : []).slice(0, MAX_REMARKS).map(shapeRemark).filter((x) => x !== null),
+      }))
+      .filter((x) => x.car !== null && x.remarks.length > 0);
+  }
+  return {
+    version: num(body.version),
+    listHash: str(body.listHash, MAX_WORD),
+    count: num(body.count),
+    following: str(body.following, MAX_LENGTH),
+    cars: body.cars.slice(0, MAX_CARS).map(shapeCar).filter((x) => x !== null),
+    kept,
+  };
+}
+
+// The answer to GET controls: the same three outcomes as any route, and the list shaped and bounded.
+function readControls(answer) {
+  if (answer && answer.status === 200 && typeof answer.text === 'string' && answer.text.length > MAX_CONTROLS_BYTES) {
+    return { error: 'The host\'s list of cars is longer than the page reads.' };
+  }
+  const read = readRoute(answer);
+  if (!('value' in read)) return read;
+  const shaped = shapeControls(read.value);
+  return shaped === null ? { error: 'The host answered, but not with the list of cars.' } : { value: shaped };
 }
 
 // What a read comes to when nothing could be asked at all: the same words for every route.
@@ -167,7 +291,8 @@ function createRigApi({ host, send: sendRequest = send, timeoutMs = TIMEOUT_MS }
     if (error) return unread(error);
     const answers = await Promise.all(READS.map(async (route) => {
       try {
-        return readRoute(await sendRequest(readRequest(base, route), timeoutMs));
+        const answer = await sendRequest(readRequest(base, route), timeoutMs);
+        return route === 'controls' ? readControls(answer) : readRoute(answer);
       } catch (err) {
         return { error: noAnswer(base, err, timeoutMs) };
       }
@@ -179,6 +304,6 @@ function createRigApi({ host, send: sendRequest = send, timeoutMs = TIMEOUT_MS }
 }
 
 module.exports = {
-  PEDALS_PATH, READS, TIMEOUT_MS, MAX_LENGTH, bindingProblem, bindingRequest, readRequest, isLocal, send, readAnswer, readRoute,
-  unread, createRigApi,
+  PEDALS_PATH, READS, TIMEOUT_MS, MAX_LENGTH, MAX_CONTROLS_BYTES, bindingProblem, bindingRequest, readRequest, isLocal, send, readAnswer,
+  readRoute, readControls, shapeControls, unread, createRigApi,
 };
