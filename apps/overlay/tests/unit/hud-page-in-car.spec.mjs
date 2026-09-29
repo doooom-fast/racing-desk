@@ -163,9 +163,9 @@ test.describe('in the app: main.js decides', () => {
 
     await stopAnswering(page);
     await expect.poll(() => page.evaluate(() => _connFails), { timeout: 8000 }).toBeGreaterThanOrEqual(3);
-    // Four seconds from the third failure, less however long ago that was noticed here.
-    expect(await page.evaluate(() => _backoffUntil - Date.now())).toBeGreaterThan(2000);
     await expect(page.locator('#connStatus')).toHaveClass(/disconnected/);
+    // A wait is left over from the last failure, whatever its length.
+    await page.evaluate(() => { _backoffUntil = Date.now() + 4000; });
 
     // Three seconds without an answer and main.js says out; the telemetry comes back, and it says in.
     await mainSays(page, false);
@@ -182,6 +182,29 @@ test.describe('in the app: main.js decides', () => {
     await expect(page.locator('#connStatus')).not.toHaveClass(/disconnected/);
     await expect(page.locator('#gearText')).toHaveText('5', { timeout: 1000 });
     expect(await everyMs(page)).toBe(33);
+  });
+
+  test('a break too short for main.js to say he is out does not leave old numbers up after it', async ({ page }) => {
+    // It takes main.js three seconds of silence to say out. A shorter break never gets that far, so the page is
+    // never told in again and never starts clean: what keeps it from sitting out a long wait is that in the
+    // car it is never left waiting longer than one of main.js's polls.
+    await openWith(page, { main: true });
+    await expect.poll(() => listening(page)).toBe(true);
+    await mainSays(page, true);
+    await expect(page.locator('#gearText')).toHaveText('4');
+
+    await stopAnswering(page);
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => _connFails)).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => _backoffUntil - Date.now())).toBeLessThanOrEqual(500);
+
+    await page.evaluate((p) => { window.__feed.payload = p; window.__feed.answering = true; },
+      { ...IN_THE_CAR, 'DataCorePlugin.GameData.Gear': '6' });
+    await expect(page.locator('#gearText')).toHaveText('6', { timeout: 800 });
+
+    // Out of the car the page reads nothing, and a source that is not there is left alone for as long as it was.
+    await mainSays(page, false);
+    expect(await page.evaluate(() => _backoffCapMs)).toBe(10000);
   });
 
   test('told he is in, the page does not think again', async ({ page }) => {

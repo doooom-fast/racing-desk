@@ -50,7 +50,7 @@ The other window: **Desk**, **Cars** and **Settings**, switched from its masthea
 
 ### Log
 
-From source the main process logs to `racing-desk-debug.log` in this folder. The built app logs to `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside the host's `host.log` — "In the car → HUD on screen", "Out of the car → HUD hidden" and the rest are there. Past 4 MB the file becomes `overlay.log.1` and a new one is begun.
+From source the main process logs to `racing-desk-debug.log` in this folder. The built app logs to `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside the host's `host.log` — "In the car → HUD on screen", "Out of the car → HUD hidden" and the rest are there. Past 4 MB the file becomes `overlay.log.1` (from source, `racing-desk-debug.log.1`) and a new one is begun.
 
 ### Hotkeys
 
@@ -65,7 +65,12 @@ From source the main process logs to `racing-desk-debug.log` in this folder. The
 | `Ctrl+Shift+M` | Reset the track map |
 | `Ctrl+Shift+V` | Start or stop recording |
 | `Ctrl+Shift+B` | Save the replay buffer |
+| `Ctrl+Shift+P` | Start or stop the replay director |
+| `Ctrl+Shift+I` | Held by the app; nothing listens for it now |
 | `Ctrl+Shift+Q` | Quit the app — the HUD, the desk and the host |
+
+Only `Ctrl+Shift+O` and `Ctrl+Shift+Q` are held for as long as the app runs. The rest are the HUD's, and are
+held only while you are in the car: out of it they are the computer's, for whatever other program uses them.
 
 ## Dashboard Panels
 

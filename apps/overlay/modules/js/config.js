@@ -340,6 +340,10 @@ let _latestSnapshot = null;
 let _snapshotDirty = false;
 let _connFails = 0;
 let _backoffUntil = 0;
+// How long a source that did not answer is left alone, at most. While the main process keeps the HUD on screen
+// (he is in the car) that is one of its polls: a break shorter than the three seconds it takes the main process
+// to say "out" would otherwise leave old numbers up for as long again after the telemetry is back.
+let _backoffCapMs = 10000;
 let _hasEverConnected = false;
 let _settingsForcedByDisconnect = false;
 

@@ -21,6 +21,7 @@ const { isAllowedExternalUrl } = require('./modules/js/external-links');
 const hostLauncher = require('./modules/js/host-launcher');
 const appLog       = require('./modules/js/app-log');
 const hudVisibility = require('./modules/js/hud-visibility');
+const { createHudKeys } = require('./modules/js/hud-keys');
 const settingsFile = require('./modules/js/settings-file');
 const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
@@ -300,10 +301,46 @@ let trayMenu = null;
 // put it.
 const hud = hudVisibility.createHudVisibility({
   getWindow: () => overlayWindow,
+  onInCar: (inCar) => hudKeys.hold(inCar),
   fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
   loadPage: () => loadDashboard(),
   keepVisible: isDev,
   onSwitch: () => tickHudSwitch(),
+  log: logToFile,
+});
+
+// The HUD's keys. Held by every program on the machine while they are held here, so held only while he is in the
+// car (modules/js/hud-keys.js).
+const HUD_KEYS = {
+  'CommandOrControl+Shift+H': () => { dispatchAction('toggle-overlay'); },
+  'CommandOrControl+Shift+R': () => {
+    if (!overlayWindow) return;
+    const { width: sw, height: sh } = screen.getPrimaryDisplay().bounds;
+    overlayWindow.setBounds({ x: 0, y: 0, width: sw, height: sh });
+    console.log('[RacingDesk] Window position/size reset');
+  },
+  'CommandOrControl+Shift+G': () => {
+    // Toggle green-screen mode and restart
+    const settings = loadSettingsSync();
+    settings.greenScreen = !settings.greenScreen;
+    saveSettingsSync(settings);
+    const mode = settings.greenScreen ? 'green-screen' : 'transparent';
+    console.log(`[RacingDesk] Toggling to ${mode} mode — restarting...`);
+    app.relaunch();
+    app.exit(0);
+  },
+  'CommandOrControl+Shift+D': () => { if (overlayWindow) overlayWindow.webContents.send('restart-demo'); },
+  'CommandOrControl+Shift+M': () => { if (overlayWindow) overlayWindow.webContents.send('reset-trackmap'); },
+  'CommandOrControl+Shift+I': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-rating-editor'); },
+  'CommandOrControl+Shift+F': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-drive-mode'); },
+  'CommandOrControl+Shift+V': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-recording'); },
+  'CommandOrControl+Shift+B': () => { if (overlayWindow) overlayWindow.webContents.send('save-replay-buffer'); },
+  'CommandOrControl+Shift+P': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-replay-director'); },
+};
+const hudKeys = createHudKeys({
+  keys: HUD_KEYS,
+  register: (key, act) => globalShortcut.register(key, act),
+  unregister: (key) => globalShortcut.unregister(key),
   log: logToFile,
 });
 
@@ -448,9 +485,11 @@ async function createOverlay() {
   });
 
   overlayWindow.webContents.on('unresponsive', () => {
-    logToFile('[RacingDesk] Renderer unresponsive — reloading');
+    // A page that hangs takes no new load either: it is its process that has to go. render-process-gone then
+    // has it loaded again (hud.pageGone), counted with the rest.
+    logToFile('[RacingDesk] Renderer unresponsive — ending its process, to load the page again');
     if (overlayWindow && !overlayWindow.isDestroyed()) {
-      loadDashboard();
+      try { overlayWindow.webContents.forcefullyCrashRenderer(); } catch (_) { loadDashboard(); }
     }
   });
 
@@ -553,7 +592,7 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
 
   logToFile(`[RacingDesk] Platform: ${os.platform()} ${os.arch()} | Electron ${process.versions.electron}`);
-  logToFile('[RacingDesk] Hotkeys: Ctrl+Shift+H/R/D/M/Q, Ctrl+Shift+O desk');
+  logToFile('[RacingDesk] Hotkeys: Ctrl+Shift+O desk, Ctrl+Shift+Q quit; the HUD\'s are held while he is in the car');
   try {
     createOverlay();
     logToFile('[RacingDesk] Overlay window created OK');
@@ -615,28 +654,8 @@ app.whenReady().then(async () => {
   // No clicks needed — just opens the window and goes.
   //
   // ── GLOBAL HOTKEYS ──
-
-  globalShortcut.register('CommandOrControl+Shift+H', () => {
-    dispatchAction('toggle-overlay');
-  });
-
-  globalShortcut.register('CommandOrControl+Shift+R', () => {
-    if (!overlayWindow) return;
-    const { width: sw, height: sh } = screen.getPrimaryDisplay().bounds;
-    overlayWindow.setBounds({ x: 0, y: 0, width: sw, height: sh });
-    console.log('[RacingDesk] Window position/size reset');
-  });
-
-  globalShortcut.register('CommandOrControl+Shift+G', () => {
-    // Toggle green-screen mode and restart
-    const settings = loadSettingsSync();
-    settings.greenScreen = !settings.greenScreen;
-    saveSettingsSync(settings);
-    const mode = settings.greenScreen ? 'green-screen' : 'transparent';
-    console.log(`[RacingDesk] Toggling to ${mode} mode — restarting...`);
-    app.relaunch();
-    app.exit(0);
-  });
+  // The app's own two are held for as long as it runs. The HUD's (HUD_KEYS) are held only while he is in the
+  // car: hud-visibility says when (onInCar). In dev mode the window is always there, and so are its keys.
 
   globalShortcut.register('CommandOrControl+Shift+O', () => showDesk('desk'));
 
@@ -644,33 +663,7 @@ app.whenReady().then(async () => {
     app.quit();
   });
 
-  globalShortcut.register('CommandOrControl+Shift+D', () => {
-    if (overlayWindow) overlayWindow.webContents.send('restart-demo');
-  });
-
-  globalShortcut.register('CommandOrControl+Shift+M', () => {
-    if (overlayWindow) overlayWindow.webContents.send('reset-trackmap');
-  });
-
-  globalShortcut.register('CommandOrControl+Shift+I', () => {
-    if (overlayWindow) overlayWindow.webContents.send('toggle-rating-editor');
-  });
-
-  globalShortcut.register('CommandOrControl+Shift+F', () => {
-    if (overlayWindow) overlayWindow.webContents.send('toggle-drive-mode');
-  });
-
-  globalShortcut.register('CommandOrControl+Shift+V', () => {
-    if (overlayWindow) overlayWindow.webContents.send('toggle-recording');
-  });
-
-  globalShortcut.register('CommandOrControl+Shift+B', () => {
-    if (overlayWindow) overlayWindow.webContents.send('save-replay-buffer');
-  });
-
-  globalShortcut.register('CommandOrControl+Shift+P', () => {
-    if (overlayWindow) overlayWindow.webContents.send('toggle-replay-director');
-  });
+  if (isDev) hudKeys.hold(true);
 
   await startLocalHost();
   if (!process.argv.includes('--no-desk')) showDesk();

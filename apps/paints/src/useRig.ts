@@ -24,10 +24,20 @@ export interface RigState {
 const isRow = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
+/// The host writes a car's pedals when a run ends and its view once the sim has gone and written its files, which
+/// can be a minute and a half after. Neither is news to the desk, whose count of sessions changed at the first lap.
+const VIEW_IS_WRITTEN_BY_MS = 110_000;
+
+/// Whether the page is the one showing: it stays mounted while another page is up.
+const showing = (): boolean =>
+  !document.hidden && (document.querySelector(".paints-app")?.getClientRects().length ?? 0) > 0;
+
 /// What the host keeps per car, read through the app: when the page is mounted, each time the desk shows it
-/// again, and when the desk says to (`racingdesk:refresh`: its Refresh, the host found after none was, the store
-/// with something new) or the page's own Refresh is pressed. Each answer is numbered, as the list of cars is:
-/// what is shown is the last one asked for, not the last to arrive.
+/// again, when the window comes to the front with the page showing — he is back from a drive — and once more a
+/// while after, and when the desk says to (`racingdesk:refresh`: its Refresh, the host found after none was, the
+/// store with something new) or the page's own Refresh is pressed. It is three questions of the host on this
+/// machine, and asks nothing of the disk. Each answer is numbered, as the list of cars is: what is shown is the
+/// last one asked for, not the last to arrive.
 export function useRig(): RigState {
   const [rig, setRig] = useState<Rig | null>(null);
   const [saving, setSaving] = useState<ReadonlyMap<string, string | null>>(new Map());
@@ -67,11 +77,23 @@ export function useRig(): RigState {
       if ((e as CustomEvent).detail === "cars") void refresh();
     };
     const again = () => void refresh();
+    let later: ReturnType<typeof setTimeout> | undefined;
+    const front = () => {
+      if (!showing()) return;
+      void refresh();
+      clearTimeout(later);
+      later = setTimeout(() => {
+        if (showing() && document.hasFocus()) void refresh();
+      }, VIEW_IS_WRITTEN_BY_MS);
+    };
     document.addEventListener("racingdesk:page", shown);
     document.addEventListener("racingdesk:refresh", again);
+    window.addEventListener("focus", front);
     return () => {
+      clearTimeout(later);
       document.removeEventListener("racingdesk:page", shown);
       document.removeEventListener("racingdesk:refresh", again);
+      window.removeEventListener("focus", front);
     };
   }, [refresh]);
 

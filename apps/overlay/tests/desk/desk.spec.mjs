@@ -2399,6 +2399,89 @@ test('the Cars page reads again when the store has something new, and is on the 
   }
 });
 
+test('with the desk behind the sim nothing is read, however much is new, until somebody looks', async ({ page }) => {
+  // He drives with the desk left on Cars. The store has something new at the first lap, and again with each
+  // session: reading the list of cars for it is work done in the process the HUD answers to, for nobody.
+  const history = buildHistory();
+  const own = await startMockHost(history);
+  try {
+    const { errors, app } = await openCars(page, `http://127.0.0.1:${own.address().port}`, { timers: true });
+    await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+    await expect.poll(() => rigReads(page)).toBe(1);
+
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));   // the sim has the focus
+    driveAfter(history, LOTUS, '2026-09-17T01:20:00.000Z');
+    await page.clock.runFor(31000);
+    await expect.poll(() => askedFor(own, 'sessions')).toBe(2);           // the desk's own page is kept up
+    await page.clock.runFor(31000);
+    expect(await rigReads(page)).toBe(1);
+    expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(1);
+    await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+
+    // He is back: what was owed is read, once, and the page is on the car he drove.
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+    await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
+    await expect.poll(() => rigReads(page)).toBe(2);
+    expect(errors).toEqual([]);
+  } finally {
+    await new Promise((resolve) => { own.closeAllConnections(); own.close(resolve); });
+  }
+});
+
+test('coming back to the desk reads the car\'s view and pedals again, and once more when the view has been written', async ({ page }) => {
+  // The host keeps a car's pedals when the run ends and its view once the sim has gone — neither of which is
+  // news to the desk, whose count of sessions changed at the first lap.
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { timers: true });
+  await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+  await expect.poll(() => rigReads(page)).toBe(1);
+
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect.poll(() => rigReads(page)).toBe(2);
+  await page.clock.runFor(111000);
+  await expect.poll(() => rigReads(page)).toBe(3);
+  await page.clock.runFor(240000);
+  expect(await rigReads(page)).toBe(3);                                 // and that is all
+  expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(1);      // the list of cars is not what changed
+
+  // Not with another page up.
+  await page.locator('.nav a[data-page-link="desk"]').click();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.clock.runFor(1000);
+  expect(await rigReads(page)).toBe(3);
+  expect(errors).toEqual([]);
+});
+
+test('a car he chose stays until he drives again: he comes back from a drive to the car he drove', async ({ page }) => {
+  await stubPaintsBridge(page, PAINTS);
+  await stubGroups(page, [SHATTER]);
+  await stubRig(page);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const app = page.locator(APP);
+  const name = app.locator('.car-head h2');
+  await lookAt(app, 'Caterham Seven 420R');
+  await expect(name).toHaveText('Caterham Seven 420R');
+
+  // Dates of drives before he chose it, arriving late, do not move the page.
+  await drove(page, { lotus79: '2026-09-17T01:15:00Z', mclaren570sgt4: '2026-09-15T23:00:00Z' });
+  await expect(name).toHaveText('Caterham Seven 420R');
+
+  // A drive since does.
+  const since = await page.evaluate(() => new Date(Date.now() + 5 * 60000).toISOString());
+  await drove(page, { lotus79: since, mclaren570sgt4: '2026-09-15T23:00:00Z' });
+  await expect(name).toHaveText('Lotus 79');
+
+  // Not under a group he is looking at: the page follows when he leaves it.
+  await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
+  await expect(app.locator('.group-head h2')).toHaveText('shatter');
+  const later = await page.evaluate(() => new Date(Date.now() + 10 * 60000).toISOString());
+  await drove(page, { 'mx5 mx52016': later });
+  await page.waitForTimeout(300);
+  await expect(app.locator('.group-head h2')).toHaveText('shatter');
+  expect(errors).toEqual([]);
+});
+
 test('with no library to be found the cars are listed all the same, with their views and pedals', async ({ page }) => {
   const plain = CATALOGUE.filter((c) => c.versions.length === 0).concat(car('mx5 mx52016', 'mx5 mx52016', [], 'Mazda MX-5 Cup', 'MX-5 Cup', true, 668));
   const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, {

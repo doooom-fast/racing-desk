@@ -140,7 +140,15 @@ No CI — run locally.
 | `Ctrl+Shift+R` | Reset position and size |
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+O` | Open the desk |
+| `Ctrl+Shift+M` | Reset the track map |
+| `Ctrl+Shift+V` | Start or stop recording |
+| `Ctrl+Shift+B` | Save the replay buffer |
+| `Ctrl+Shift+P` | Start or stop the replay director |
+| `Ctrl+Shift+I` | Held by the app; nothing listens for it now |
 | `Ctrl+Shift+Q` | Quit |
+
+`Ctrl+Shift+O` and `Ctrl+Shift+Q` are held while the app runs; the rest only while the driver is in the car
+(`modules/js/hud-keys.js`).
 
 ## What this repo does NOT do anymore
 

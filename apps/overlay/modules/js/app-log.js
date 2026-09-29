@@ -23,12 +23,14 @@ function logPath({ isPackaged, appDir, env = process.env, home = os.homedir() })
   return path.join(local, 'Racing Desk', BUILT);
 }
 
-// The customer id is in the names of paint files and nowhere else, and a log is not the place for it: an error
-// thrown over a paint carries the file's path, and what is thrown and not caught is logged whole.
+// The customer id is in the names of paint files — the name a paint is written under on its way in among them
+// (car_<id>.doooom-tmp) — and in the settings and each backup's manifest as "customerId". A log is not the place
+// for it: an error thrown over a paint carries the file's path, and what is thrown and not caught is logged whole.
 function scrub(text) {
   return String(text)
+    .replace(/\b((?:car(?:_spec|_decal|_num)?|helmet|suit)_)\d+(?=\.)/gi, '$1<id>')
     .replace(/_\d+(?=\.(?:tga|mip)\b)/gi, '_<id>')
-    .replace(/\b(cust(?:omer)?[ _-]?id\W{0,3})\d+/gi, '$1<id>');
+    .replace(/\b(cust(?:omer)?[ _-]?id\W{0,6})\d+/gi, '$1<id>');
 }
 
 /**

@@ -505,7 +505,7 @@
     }
     if (page === 'cars') {
       mountCars();
-      if (carsOwed) refreshCars();
+      lookedAt();
     }
     if (page === 'settings') renderSettings();
   }
@@ -523,10 +523,17 @@
   // rows this page has read anyway (setLastDriven) — the page opens on the car driven last, and lists the cars
   // driven, by it. And that there is something to read again (racingdesk:refresh): Refresh was pressed, the host
   // has come up, the store has something new — which a drive is. The island then reads the list of cars again
-  // and what the host keeps for them. Said while another page is up, it is owed, and said when Cars is next shown.
+  // and what the host keeps for them.
+  //
+  // Neither is said while nobody is looking — another page up, or the window behind the sim with him driving,
+  // which is when the store has something new. What the island does with them (the library, the install, the
+  // car's files) is done in the process the HUD answers to. It is owed, and said when somebody next looks.
 
   let carsMounted = false;
   let carsOwed = false;
+  let drivenOwed = null;
+  let inFront = typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+  const looking = () => inFront && !document.hidden && currentPage === 'cars';
 
   function mountCars() {
     if (carsMounted) return;
@@ -551,16 +558,46 @@
     return Object.fromEntries([...last].map(([car, { iso }]) => [car, iso]));
   }
 
+  // An island not yet mounted takes the dates as they come: it does nothing with them until it is.
   function tellCars(rows) {
+    const driven = lastDrivenByCar(rows);
+    if (carsMounted && !looking()) {
+      drivenOwed = driven;
+      return;
+    }
+    drivenOwed = null;
     const island = window.RacingDeskPaints;
-    if (island && island.setLastDriven) island.setLastDriven(lastDrivenByCar(rows));
+    if (island && island.setLastDriven) island.setLastDriven(driven);
   }
 
   // An island not yet mounted is owed nothing: it reads everything when it is.
   function refreshCars() {
-    carsOwed = carsMounted && currentPage !== 'cars';
-    if (carsMounted && currentPage === 'cars') document.dispatchEvent(new CustomEvent('racingdesk:refresh'));
+    if (!carsMounted) return;
+    if (!looking()) {
+      carsOwed = true;
+      return;
+    }
+    carsOwed = false;
+    sayDriven();
+    document.dispatchEvent(new CustomEvent('racingdesk:refresh'));
   }
+
+  function sayDriven() {
+    if (drivenOwed === null) return;
+    const island = window.RacingDeskPaints;
+    if (island && island.setLastDriven) island.setLastDriven(drivenOwed);
+    drivenOwed = null;
+  }
+
+  // Somebody looks again: the window comes to the front, or back from being hidden.
+  function lookedAt() {
+    if (!carsMounted || !looking()) return;
+    if (carsOwed) refreshCars();
+    else sayDriven();
+  }
+  window.addEventListener('focus', () => { inFront = true; lookedAt(); });
+  window.addEventListener('blur', () => { inFront = false; });
+  document.addEventListener('visibilitychange', lookedAt);
 
   // ── Settings ─────────────────────────────────────────────
   // The HUD's settings — modules/js/settings.js reads them from overlay-settings.json — edited through the

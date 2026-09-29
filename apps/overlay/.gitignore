@@ -1,6 +1,6 @@
 node_modules/
 logs/
-racing-desk-debug.log
+racing-desk-debug.log*
 test-results/
 .DS_Store
 *.bak

@@ -83,6 +83,10 @@ function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | nul
     const from = abs ? `${LIGHT} or ${DEFAULT}, neither of which SmartControl has` : `${DEFAULT}, which SmartControl does not have`;
     return `${known}, and the rule would give it one from ${from}.`;
   }
+  // With ABS and no LightBrake the rule has nothing to give, unless the car is a formula car: nothing is promised.
+  if (abs && !has(LIGHT)) {
+    return `${known}, and the rule would give it one from ${LIGHT}, which SmartControl does not have (a formula car is given ${DEFAULT}).`;
+  }
   return `${known}, and the rule gives it one when it is next driven.`;
 }
 

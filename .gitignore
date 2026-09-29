@@ -7,7 +7,7 @@ out/
 Thumbs.db
 test-results/
 playwright-report/
-racing-desk-debug.log
+racing-desk-debug.log*
 
 # .NET build output (plugin stages into build/ for install.bat)
 bin/

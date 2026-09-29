@@ -93,6 +93,7 @@ function fetchPayload(url, { timeoutMs = ANSWER_WITHIN_MS, get = http.get } = {}
  *   loadPage()      starts the page loading again; main.js says how it went (pageLoaded, pageFailed)
  *   keepVisible     dev mode: the window is an ordinary one, shown by dev-mode.js, and is left as it is
  *   onSwitch(off)   the driver switched the HUD off, or back on
+ *   onInCar(inCar)  he has got in the car, or out of it
  *
  * { start, stop, poll, toggle, pageLoading, pageLoaded, pageFailed, pageGone, state }
  */
@@ -102,6 +103,7 @@ function createHudVisibility({
   loadPage = null,
   keepVisible = false,
   onSwitch = null,
+  onInCar = null,
   reloadAfterMs = RELOAD_AFTER_MS,
   reloadsAtMost = RELOADS_AT_MOST,
   outOfCarPollMs = OUT_OF_CAR_POLL_MS,
@@ -113,7 +115,16 @@ function createHudVisibility({
   clearTimer = clearTimeout,
   log = () => {},
 }) {
-  const signal = createInCarSignal({ leaveMs, staleMs, now, onChange: (inCar) => { if (inCar) gotIn(); } });
+  const signal = createInCarSignal({
+    leaveMs,
+    staleMs,
+    now,
+    onChange: (inCar) => {
+      if (inCar) gotIn();
+      if (typeof onInCar !== 'function') return;
+      try { onInCar(inCar); } catch (e) { log(`[RacingDesk] HUD: ${e.message}`); }
+    },
+  });
   let switchedOff = false;   // the driver's own choice, from the tray, Ctrl+Shift+H or the Stream Deck
   let pageReady = false;     // the page is loaded, and its process alive
   let loading = false;       // a load is under way

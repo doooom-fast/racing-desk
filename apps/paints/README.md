@@ -210,7 +210,8 @@ Choosing another car, or a group, puts the pane back at its top.
 
 The page opens on the car driven last, and goes on following it — the desk hands over when each car was last
 driven (`setLastDriven`, exported beside `mount`), at its start and again whenever the store has something new —
-until a car is chosen in the list. A car that was chosen is never replaced.
+until a car is chosen in the list. A car that was chosen stays until you drive again: a drive begun after you chose
+it puts the page on the car you drove. It is not moved under a group, or while something is being done.
 
 **Driven**, beside the filter, narrows the list to the cars you have driven, the last driven first, each saying
 when; the cars the store counts sessions for and the desk has no date for come after, by name. It is one click, a

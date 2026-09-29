@@ -181,6 +181,16 @@ test.describe('scrub: no customer id in the log', () => {
     expect(scrub('custid=424242')).toBe('custid=<id>');
   });
 
+  test('in the forms the app itself writes it in', () => {
+    // The name a paint is written under on its way in, which has neither of a paint's endings.
+    expect(scrub("EPERM: operation not permitted, rename 'C:\\paint\\lotus79\\car_424242.doooom-tmp' -> 'C:\\paint\\lotus79\\car_424242.tga'"))
+      .toBe("EPERM: operation not permitted, rename 'C:\\paint\\lotus79\\car_<id>.doooom-tmp' -> 'C:\\paint\\lotus79\\car_<id>.tga'");
+    expect(scrub('car_spec_424242.doooom-tmp')).toBe('car_spec_<id>.doooom-tmp');
+    // The settings and a backup's manifest, as they are laid out on disk, and as a string within a string.
+    expect(scrub('  "customerId": "424242",')).toBe('  "customerId": "<id>",');
+    expect(scrub('{\\"customerId\\": \\"424242\\"}')).toBe('{\\"customerId\\": \\"<id>\\"}');
+  });
+
   test('other numbers are left as they are', () => {
     for (const text of [
       '[RacingDesk] Primary display: 3840x2160 at (0, 0)',

@@ -57,8 +57,7 @@ test.describe('the window', () => {
 test.describe('the switch', () => {
   test('Ctrl+Shift+H and the Stream Deck go through hud.toggle as it is in the car only', () => {
     expect(code).toMatch(/'toggle-overlay':\s*\(\)\s*=>\s*hud\.toggle\(\)\s*,/);
-    const key = argumentsOf("globalShortcut.register('CommandOrControl+Shift+H',");
-    expect(key.replace(/\s+/g, ' ').trim()).toBe("() => { dispatchAction('toggle-overlay'); }");
+    expect(code).toMatch(/'CommandOrControl\+Shift\+H':\s*\(\)\s*=>\s*\{\s*dispatchAction\('toggle-overlay'\);\s*\},/);
   });
 
   test("the tray's goes through hud.toggle as it is anywhere, and ticks itself", () => {
@@ -74,11 +73,45 @@ test.describe('the switch', () => {
   });
 });
 
+test.describe('the keys', () => {
+  // A key registered here is taken from every other program on the machine for as long as it is.
+  test('the app holds two for as long as it runs: the desk, and quitting', () => {
+    const held = calls(/globalShortcut\.register\(\s*'([^']+)'/g).map((call) => call.match(/'([^']+)'/)[1]);
+    expect(held.sort()).toEqual(['CommandOrControl+Shift+O', 'CommandOrControl+Shift+Q']);
+  });
+
+  test("the HUD's are held while he is in the car, which hud-visibility says", () => {
+    const keys = code.match(/const HUD_KEYS = \{([\s\S]*?)\n\};/);
+    expect(keys).not.toBeNull();
+    const named = [...keys[1].matchAll(/^  '(CommandOrControl\+Shift\+\w)':/gm)].map((m) => m[1].slice(-1));
+    expect(named.sort().join('')).toBe('BDFGHIMPRV');
+    expect(named).not.toContain('Q');
+    expect(named).not.toContain('O');
+
+    const made = argumentsOf('createHudKeys(');
+    expect(made).toMatch(/\bkeys:\s*HUD_KEYS\s*,/);
+    expect(made).toMatch(/register:\s*\(key,\s*act\)\s*=>\s*globalShortcut\.register\(key,\s*act\)/);
+    expect(made).toMatch(/unregister:\s*\(key\)\s*=>\s*globalShortcut\.unregister\(key\)/);
+    expect(argumentsOf('hudVisibility.createHudVisibility(')).toMatch(/\bonInCar:\s*\(inCar\)\s*=>\s*hudKeys\.hold\(inCar\)\s*,/);
+    // Held by nothing else, but dev mode, whose window is always there.
+    expect(calls(/hudKeys\.hold\([^)]*\)/g).sort()).toEqual(['hudKeys.hold(inCar)', 'hudKeys.hold(true)']);
+    expect(code).toMatch(/if \(isDev\) hudKeys\.hold\(true\);/);
+  });
+});
+
 test.describe('the page', () => {
   test('what becomes of it is said to hud-visibility, and nothing else decides to load it again after a crash', () => {
     expect(code).toMatch(/'did-start-navigation',\s*\(details\)\s*=>\s*\{\s*if\s*\(details\.isMainFrame\s*&&\s*!details\.isSameDocument\)\s*hud\.pageLoading\(\);/);
     expect(code).toMatch(/'did-finish-load',\s*\(\)\s*=>\s*\{\s*hud\.pageLoaded\(\);\s*\}/);
-    expect(code).toMatch(/'did-fail-load'[\s\S]{0,300}?hud\.pageFailed\(\);/);
+    // A load given up for a newer one (-3), or a frame within the page, is not the page having failed: said so,
+    // the load that is under way would be taken for over, and another begun on top of it.
+    const failed = code.match(/'did-fail-load',\s*\(_event,\s*errorCode,\s*errorDescription,\s*_url,\s*isMainFrame\)\s*=>\s*\{([\s\S]*?)\n  \}\);/);
+    expect(failed).not.toBeNull();
+    expect(failed[1]).toMatch(/^\s*if\s*\(!isMainFrame\s*\|\|\s*errorCode\s*===\s*-3\)\s*return;[\s\S]*hud\.pageFailed\(\);/);
+    // A page that hangs has its process ended, and is loaded again as one that died is.
+    const hung = code.match(/'unresponsive',\s*\(\)\s*=>\s*\{([\s\S]*?)\n  \}\);/);
+    expect(hung).not.toBeNull();
+    expect(hung[1]).toMatch(/overlayWindow\.webContents\.forcefullyCrashRenderer\(\)/);
     const gone = code.match(/'render-process-gone',\s*\(_event,\s*details\)\s*=>\s*\{([\s\S]*?)\n  \}\);/);
     expect(gone).not.toBeNull();
     expect(gone[1]).toMatch(/hud\.pageGone\(details\.reason\);/);

@@ -84,8 +84,22 @@ export default function App() {
   /// Where the list of cars stands. No cars is only "there are none" once the list is here.
   const [listing, setListing] = useState<"reading" | "read" | "failed">("reading");
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  /// Whether the car on the page is one he chose. Until he has chosen one it is the car driven last.
-  const chose = useRef(false);
+  /// When he chose the car on the page, if he did. Until he has chosen one it is the car driven last — and
+  /// again once he has driven since choosing: he comes back from a drive to the car he drove.
+  const choseAt = useRef<number | null>(null);
+  const chosen = (driven: ReadonlyMap<string, string>): boolean => {
+    if (choseAt.current === null) return false;
+    for (const iso of driven.values()) {
+      if (Date.parse(iso) > choseAt.current) {
+        choseAt.current = null;
+        return false;
+      }
+    }
+    return true;
+  };
+  /// Whether something other than a car is on the page, or something is being done: the page does not move
+  /// under either.
+  const held = useRef(false);
   /// The car on the page as of now, for what answers later than it was asked.
   const selectedNow = useRef<string | null>(null);
   const show = useCallback((folder: string | null) => {
@@ -256,11 +270,12 @@ export default function App() {
       // before the desk has said when any was — on the one it was on, or the first as the list shows them.
       const current = selectedNow.current;
       const still = current !== null && found.some((c) => c.folder === current);
-      if (!still) chose.current = false;
-      if (!chose.current) {
+      if (!still) choseAt.current = null;
+      if (!chosen(drivenNow.current)) {
         const opens = carToOpenOn(found, drivenNow.current);
         const driven = opens !== null && drivenNow.current.has(rigKey(opens));
-        if (!still || driven) show(opens?.folder ?? null);
+        // A car that has gone has to be replaced whatever is on the page; following a drive can wait.
+        if (!still || (driven && !held.current)) show(opens?.folder ?? null);
       }
       setSelectedGroup((current) => (current && grouped.some((g) => g.id === current) ? current : null));
     } catch (e) {
@@ -287,11 +302,15 @@ export default function App() {
 
   // When each car was last driven can arrive after the cars: the desk reads its sessions in its own time, and
   // again after every drive. Until he has chosen a car the page follows it.
+  // Not while a group or the editor is on the page, or something is being done: the pane would jump to its
+  // top and what was refused would be gone, with nothing chosen. It catches up when he leaves them.
+  held.current = selectedGroup !== null || editing !== null || busy;
   useEffect(() => {
-    if (chose.current || !cars) return;
+    if (!cars || held.current || chosen(lastDriven)) return;
     const opens = carToOpenOn(cars, lastDriven);
     if (opens && lastDriven.has(rigKey(opens))) show(opens.folder);
-  }, [cars, lastDriven, show]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cars, lastDriven, show, selectedGroup, editing, busy]);
 
   // --- the library as a git checkout ----------------------------------------------------
   const refreshRepo = useCallback(async () => {
@@ -370,7 +389,9 @@ export default function App() {
   const checkedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!ready.current || !libraryRoot || checkedFor.current === libraryRoot) return;
-    if (!inReach || !looking) return;
+    // With "Update automatically when the app starts" ticked, that is what he asked for, and it is done as the
+    // page starts: not a second after he reaches a livery, with Apply going dead under his hand.
+    if (!autoUpdate && (!inReach || !looking)) return;
     const settled = setTimeout(async () => {
       checkedFor.current = libraryRoot;
       const status = await checkForUpdates();
@@ -457,7 +478,7 @@ export default function App() {
   }, [selectedFolder, selectedGroup, editingWhat]);
 
   const selectCar = (folder: string) => {
-    chose.current = true;
+    choseAt.current = Date.now();
     setEditing(null);
     setSelectedGroup(null);
     show(folder);

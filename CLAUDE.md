@@ -177,20 +177,32 @@ anywhere else leave the switch as it was and answer `{ ok: false, reason: 'out o
 desktop they used to switch the HUD off unseen, and there was none when he got in). The Stream Deck's button shows
 its tick all the same: it goes by the answer's status, not by what the answer says. When the main process says he
 is back in the car the page starts clean — no backoff left from a break in the telemetry, and one poll at once
-(`startConnectionClean` in `game-detect.js`). A page whose process has gone is loaded again by `hud-visibility.js`:
+(`startConnectionClean` in `game-detect.js`) — and while he is in the car the page is never left waiting on a
+source that did not answer for longer than half a second, so a break too short for the main process to notice
+does not leave old numbers up after it. A page whose process has gone is loaded again by `hud-visibility.js`:
 two seconds later, for every reason but a clean exit, three times at most without a load finishing; and after
-that, or after a load that failed, once more each time he gets in the car. In dev mode the window stays as
+that, or after a load that failed, once more each time he gets in the car. A page that hangs has its process
+ended (`unresponsive` → `forcefullyCrashRenderer`), and is loaded again as one that died. In dev mode the window stays as
 `dev-mode.js` put it. `tests/unit/hud-main-wiring.spec.mjs` reads `main.js` and holds it to this: the window made
 with `show: false`, nothing in `main.js` showing or hiding it, the switches going through `hud.toggle`.
+**The HUD's keys are held only while he is in the car** (`modules/js/hud-keys.js`, `HUD_KEYS` in `main.js`,
+`tests/unit/hud-keys.spec.mjs`). A key the app registers is taken from every other program on the machine for as
+long as it is held — Ctrl+Shift+V is paste-as-text in a browser, Ctrl+Shift+P a command palette — and the app used
+to hold twelve from start to quit. It holds two, Ctrl+Shift+O (the desk) and Ctrl+Shift+Q (quit); the HUD's ten
+(H, R, G, D, M, I, F, V, B, P) are registered when `hud-visibility` says he has got in (`onInCar`) and let go when
+he gets out. In dev mode they are held throughout.
 **A limit:** beside SimHub the HUD reads SimHub's plugin on `:8889`; if SimHub goes in mid-session the HUD is
 hidden, though the app's own host on `:18889` has the same telemetry. There is no falling back to it.
 
 **The main process's log** (`logToFile` in `main.js`, `modules/js/app-log.js`, `tests/unit/hud-log.spec.mjs`): in
 the built app `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside `host.log` — it was written beside `main.js`, which
 in the built app is inside `app.asar`, so nothing was kept; from source it is still
-`apps/overlay/racing-desk-debug.log`. Past 4 MB the file becomes `overlay.log.1`, in place of the one before, and a
-new one is begun. A line that cannot be written is dropped — a failure to log is never a failure of the app — and
-no line carries a customer id (the digits in a paint file's name are taken out) or the name of a key he pressed.
+`apps/overlay/racing-desk-debug.log`. Past 4 MB the file becomes `overlay.log.1` (from source
+`racing-desk-debug.log.1`, git-ignored with the other), in place of the one before, and a new one is begun. A line
+that cannot be written is dropped — a failure to log is never a failure of the app — and no line carries a
+customer id or the name of a key he pressed. The id is in more places than a paint's name: the name a paint is
+written under on its way in (`car_<id>.doooom-tmp`), and `"customerId"` in the settings and in each backup's
+manifest; `scrub` takes it out of all of them.
 
 The desk window has three pages — **Desk**, **Cars** and **Settings** — switched from the masthead nav, the
 tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js` `showPage`). Paints was a page of its own until
@@ -242,17 +254,28 @@ with the liveries beginning under them, and choosing another car puts the pane a
 tests. A strip under the name and not a column beside the liveries: at that width a column leaves the cards one
 abreast, and is itself too narrow to hold both panels in the height there is.
 - **The car driven last is the one the page opens on**, and follows — the desk hands over the dates at its start
-  and whenever the store has something new — until he chooses a car in the list; a car he chose is never replaced.
+  and whenever the store has something new — until he chooses a car in the list. A car he chose stays until he
+  drives again: a drive begun after he chose it puts the page on the car he drove, which is what he comes back
+  to the desk for. Dates of drives from before the choice, arriving late, move nothing. Nor is the page moved
+  under a group or the group editor, or while something is being done; it catches up when he leaves them.
   Before any date has arrived it is the first car with a livery.
 - **Driven**, a button beside the filter that says whether it is pressed, narrows the list to the cars he has
   driven, the last driven first, each row saying when. One click, kept while the page is open. That list is one
   group, "Driven", not the two: newest first is an order across every car driven. Off, the list is as it was.
 - **What the page asks for while nobody is looking is nothing.** It stays mounted through a race, in the process
-  the HUD answers to. The guards (`simStatus`, `tradingPaintsStatus`: a `tasklist` each) are looked at every 8 s
+  the HUD answers to. The desk says nothing to it — neither that there is something to read again nor when each
+  car was driven — unless the window is in front, not hidden, and Cars the page showing (`looking` in
+  `desk.js`): the store has something new at the first lap of every session, which is when he is driving. What
+  was not said is owed, and said when somebody next looks. The guards (`simStatus`, `tradingPaintsStatus`: a `tasklist` each) are looked at every 8 s
   only while the desk window has the focus and the page is showing, and at once when it gets it. The library's git
   remote is asked once per library, and not before a car with a livery, or a group, has been on the page for a
   second with the window in front; Check asks whenever he does. An apply checks for itself before it writes
-  (`paints/apply.js`), whatever the chips last said.
+  (`paints/apply.js`), whatever the chips last said. With "Update automatically when the app starts" ticked the
+  check and the pull are made as the page starts, as the words say.
+- **Coming back to the desk reads the car's view and pedals again** (`useRig.ts`): when the window comes to the
+  front with the page showing, and once more 110 s later. The host keeps the pedals when the run ends and the
+  view once the sim has gone and written its files, neither of which changes what the desk counts as new. It is
+  three questions of the host on this machine; the list of cars is not read for it.
 
 One UI source, `apps/paints/src` (React), bundled for the desk by
 `apps/paints/build-island.mjs` into `modules/desk/paints.bundle.js` + `.css` (generated, like the calc bundle) and

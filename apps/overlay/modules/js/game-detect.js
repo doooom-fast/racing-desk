@@ -205,7 +205,7 @@
 
     // Failed — enter exponential backoff (1s, 2s, 4s, 8s, cap 10s)
     _connFails++;
-    _backoffUntil = Date.now() + Math.min(1000 * Math.pow(2, _connFails - 1), 10000);
+    _backoffUntil = Date.now() + Math.min(1000 * Math.pow(2, _connFails - 1), _backoffCapMs);
     _updateConnStatus('disconnected');
     if (_connFails <= 3) console.warn(`[The Racing Desk] Plugin server unreachable at ${window._simhubUrlOverride || SIMHUB_URL} — fail #${_connFails}`);
     return null;

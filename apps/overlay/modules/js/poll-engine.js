@@ -106,6 +106,7 @@
       _isIdle = true;
       document.body.classList.add('idle-state');
     }
+    if (_mainDecides) _backoffCapMs = inCar ? 500 : 10000;   // config.js says why
     setOverlayActive(inCar);
     // One poll at once, not at the timer's first tick: the window is on screen already.
     if (inCar && _mainDecides) pollUpdate();
