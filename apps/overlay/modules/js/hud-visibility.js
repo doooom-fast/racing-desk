@@ -95,7 +95,7 @@ function fetchPayload(url, { timeoutMs = ANSWER_WITHIN_MS, get = http.get } = {}
  *   onSwitch(off)   the driver switched the HUD off, or back on
  *   onInCar(inCar)  he has got in the car, or out of it
  *
- * { start, stop, poll, toggle, pageLoading, pageLoaded, pageFailed, pageGone, state }
+ * { start, stop, poll, toggle, putAway, pageLoading, pageLoaded, pageFailed, pageGone, state }
  */
 function createHudVisibility({
   getWindow,
@@ -245,6 +245,25 @@ function createHudVisibility({
     return { ok: true, visible: win.isVisible(), hudOff: switchedOff };
   }
 
+  // "Quit the overlay" — Ctrl+Shift+Q, the Stream Deck's button. The HUD is put away and the app carries on: the
+  // desk, the host, and what they record for the car he is in. It is the switch thrown to off, wherever he is,
+  // so the HUD comes back the way a switched-off HUD does: the tray, or Ctrl+Shift+H and the Stream Deck in the
+  // car. Asked twice, it is away once.
+  function putAway() {
+    const win = liveWindow();
+    if (!win) return { ok: false, reason: 'no window' };
+    if (keepVisible) {
+      if (win.isVisible()) win.hide();
+      return { ok: true, visible: win.isVisible() };
+    }
+    if (!switchedOff) {
+      switchedOff = true;
+      if (typeof onSwitch === 'function') onSwitch(switchedOff);
+    }
+    apply();
+    return { ok: true, visible: win.isVisible(), hudOff: switchedOff };
+  }
+
   // A load has begun — the first, or one after a crash, a resume, a file changed in dev mode. There is nothing
   // to look at until it is over.
   function pageLoading() {
@@ -317,7 +336,7 @@ function createHudVisibility({
     return { inCar: signal.inCar(), hudOff: switchedOff, pageReady, visible: !!win && win.isVisible() };
   }
 
-  return { start, stop, poll, toggle, pageLoading, pageLoaded, pageFailed, pageGone, state };
+  return { start, stop, poll, toggle, putAway, pageLoading, pageLoaded, pageFailed, pageGone, state };
 }
 
 module.exports = {

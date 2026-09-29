@@ -189,7 +189,7 @@ If neither is available, the tools still work — you just get the mechanical sc
 | Ctrl+Shift+B | Save replay buffer clip |
 | Ctrl+Shift+P | Start/cancel Replay Director |
 | Ctrl+Shift+H | Hide/show overlay |
-| Ctrl+Shift+Q | Quit |
+| Ctrl+Shift+Q | Quit the overlay (the app keeps running) |
 
 ---
 

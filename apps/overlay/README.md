@@ -67,10 +67,12 @@ From source the main process logs to `racing-desk-debug.log` in this folder. The
 | `Ctrl+Shift+B` | Save the replay buffer |
 | `Ctrl+Shift+P` | Start or stop the replay director |
 | `Ctrl+Shift+I` | Held by the app; nothing listens for it now |
-| `Ctrl+Shift+Q` | Quit the app — the HUD, the desk and the host |
+| `Ctrl+Shift+Q` | Quit the overlay: the HUD is put away, and the app keeps running. Bring it back with `Ctrl+Shift+H` in the car, or the tray's "HUD on/off" |
 
-Only `Ctrl+Shift+O` and `Ctrl+Shift+Q` are held for as long as the app runs. The rest are the HUD's, and are
-held only while you are in the car: out of it they are the computer's, for whatever other program uses them.
+Only `Ctrl+Shift+O` is held for as long as the app runs. The rest are the HUD's, and are held only while you are
+in the car: out of it they are the computer's, for whatever other program uses them.
+
+To quit the app itself, close the desk window or choose "Quit Racing Desk" from the tray icon.
 
 ## Dashboard Panels
 

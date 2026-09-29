@@ -149,7 +149,7 @@ const ACTIONS = Object.freeze([
   { name: 'toggle-overlay', label: 'Show / Hide', category: 'app' },
   { name: 'toggle-settings', label: 'Open Settings', category: 'app' },
   { name: 'reset-window', label: 'Reset Window', category: 'app' },
-  { name: 'quit', label: 'Quit', category: 'app' },
+  { name: 'quit', label: 'Quit Overlay', category: 'app' },   // the HUD is put away; the app carries on
   { name: 'toggle-drive-mode', label: 'Drive Mode', category: 'hud' },
   { name: 'toggle-leaderboard', label: 'Leaderboard', category: 'hud' },
   { name: 'cycle-rating', label: 'Cycle Rating/Pos', category: 'hud' },

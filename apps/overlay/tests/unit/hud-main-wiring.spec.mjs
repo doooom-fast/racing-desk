@@ -73,19 +73,44 @@ test.describe('the switch', () => {
   });
 });
 
+test.describe('quitting', () => {
+  test('the overlay is quit by putting the HUD away: the key, the Stream Deck and the remote all go through the one action', () => {
+    expect(code).toMatch(/'quit':\s*\(\)\s*=>\s*hud\.putAway\(\)\s*,/);
+    expect(code).toMatch(/'CommandOrControl\+Shift\+Q':\s*\(\)\s*=>\s*\{\s*dispatchAction\('quit'\);\s*\},/);
+    expect(calls(/\bhud\.putAway\(\)/g)).toHaveLength(1);
+    expect(calls(/dispatchAction\(\s*'quit'\s*\)/g)).toHaveLength(1);
+  });
+
+  test('the app is quit from the tray and by closing the desk, and by nothing a page or a key can ask for', () => {
+    const quits = code.split('\n').filter((line) => /\bapp\.quit\(\)/.test(line)).map((line) => line.trim());
+    expect(quits).toEqual([
+      'if (!isFirstInstance) app.quit();',                                  // a second copy, which hands over to the first
+      "deskWindow.on('close', () => { if (!quitting) app.quit(); });",
+      "{ label: 'Quit Racing Desk', click: () => app.quit() },",
+      'app.quit();',                                                        // the HUD's window could not be made
+      'app.quit();',                                                        // every window closed
+    ]);
+    expect(code).toMatch(/catch \(err\) \{\s*logToFile\(`\[RacingDesk\] FATAL: createOverlay\(\) threw[^\n]*\n\s*app\.quit\(\);/);
+    expect(code).toMatch(/app\.on\('window-all-closed', \(\) => \{\s*app\.quit\(\);\s*\}\);/);
+    expect(code).not.toMatch(/quit-app/);
+    const preload = readFileSync(new URL('../../preload.js', import.meta.url), 'utf8');
+    expect(preload).not.toMatch(/quit/i);
+  });
+});
+
 test.describe('the keys', () => {
   // A key registered here is taken from every other program on the machine for as long as it is.
-  test('the app holds two for as long as it runs: the desk, and quitting', () => {
+  test('the app holds one for as long as it runs: the desk', () => {
     const held = calls(/globalShortcut\.register\(\s*'([^']+)'/g).map((call) => call.match(/'([^']+)'/)[1]);
-    expect(held.sort()).toEqual(['CommandOrControl+Shift+O', 'CommandOrControl+Shift+Q']);
+    expect(held).toEqual(['CommandOrControl+Shift+O']);
   });
 
   test("the HUD's are held while he is in the car, which hud-visibility says", () => {
     const keys = code.match(/const HUD_KEYS = \{([\s\S]*?)\n\};/);
     expect(keys).not.toBeNull();
     const named = [...keys[1].matchAll(/^  '(CommandOrControl\+Shift\+\w)':/gm)].map((m) => m[1].slice(-1));
-    expect(named.sort().join('')).toBe('BDFGHIMPRV');
-    expect(named).not.toContain('Q');
+    // Q among them: in a browser Ctrl+Shift+Q closes every window it has.
+    expect(named.sort().join('')).toBe('BDFGHIMPQRV');
     expect(named).not.toContain('O');
 
     const made = argumentsOf('createHudKeys(');

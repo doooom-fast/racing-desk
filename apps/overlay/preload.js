@@ -150,6 +150,4 @@ contextBridge.exposeInMainWorld('racingDesk', {
   onToggleReplayDirector: (callback) => {
     ipcRenderer.on('toggle-replay-director', () => callback());
   },
-  // Quit application
-  quitApp: () => ipcRenderer.invoke('quit-app'),
 });

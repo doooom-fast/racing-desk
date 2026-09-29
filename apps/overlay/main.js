@@ -264,6 +264,8 @@ async function startLocalHost() {
 // The HUD is hidden until the driver is in the car, and with --no-desk there is no desk window either, so the
 // tray icon is what shows the app is running whatever else is on screen: it opens the desk, switches the HUD
 // and quits. Closing the desk window quits the app too (showDesk, above); minimised, it leaves the HUD running.
+// Those are the two ways the app is quit. Quitting the overlay — Ctrl+Shift+Q in the car, the Stream Deck's
+// button — puts the HUD away and quits nothing (the quit action, below).
 function createTray() {
   const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
   tray = new Tray(path.join(__dirname, 'images', 'branding', iconFile));
@@ -278,7 +280,7 @@ function createTray() {
     // Deck's button are left alone out of the car (the toggle-overlay action, below).
     { id: 'hud', label: 'HUD on/off', type: 'checkbox', checked: true, click: () => { hud.toggle({ anywhere: true }); tickHudSwitch(); } },
     { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() },
+    { label: 'Quit Racing Desk', click: () => app.quit() },
   ]);
   tray.setContextMenu(trayMenu);
   tray.on('click', () => showDesk());          // a single click is what people try first on Windows
@@ -336,6 +338,8 @@ const HUD_KEYS = {
   'CommandOrControl+Shift+V': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-recording'); },
   'CommandOrControl+Shift+B': () => { if (overlayWindow) overlayWindow.webContents.send('save-replay-buffer'); },
   'CommandOrControl+Shift+P': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-replay-director'); },
+  // Quits the overlay, and only the overlay (the quit action, below).
+  'CommandOrControl+Shift+Q': () => { dispatchAction('quit'); },
 };
 const hudKeys = createHudKeys({
   keys: HUD_KEYS,
@@ -592,7 +596,7 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
 
   logToFile(`[RacingDesk] Platform: ${os.platform()} ${os.arch()} | Electron ${process.versions.electron}`);
-  logToFile('[RacingDesk] Hotkeys: Ctrl+Shift+O desk, Ctrl+Shift+Q quit; the HUD\'s are held while he is in the car');
+  logToFile('[RacingDesk] Hotkeys: Ctrl+Shift+O desk; the HUD\'s are held while he is in the car, Ctrl+Shift+Q (HUD away) among them');
   try {
     createOverlay();
     logToFile('[RacingDesk] Overlay window created OK');
@@ -654,14 +658,12 @@ app.whenReady().then(async () => {
   // No clicks needed — just opens the window and goes.
   //
   // ── GLOBAL HOTKEYS ──
-  // The app's own two are held for as long as it runs. The HUD's (HUD_KEYS) are held only while he is in the
+  // The app's own one is held for as long as it runs. The HUD's (HUD_KEYS) are held only while he is in the
   // car: hud-visibility says when (onInCar). In dev mode the window is always there, and so are its keys.
+  // No key quits the app: Ctrl+Shift+Q did, from wherever it was pressed, and took the desk and the host with
+  // the overlay it was pressed to be rid of.
 
   globalShortcut.register('CommandOrControl+Shift+O', () => showDesk('desk'));
-
-  globalShortcut.register('CommandOrControl+Shift+Q', () => {
-    app.quit();
-  });
 
   if (isDev) hudKeys.hold(true);
 
@@ -708,10 +710,9 @@ const _actionHandlers = {
     overlayWindow.setBounds({ x: 0, y: 0, width: sw, height: sh });
     return { ok: true };
   },
-  'quit': () => {
-    app.quit();
-    return { ok: true };
-  },
+  // "Quit Overlay" on the Stream Deck, Ctrl+Shift+Q in the car. It is the overlay that is quit: the HUD is put
+  // away and the app carries on. The app itself is quit from the tray, or by closing the desk.
+  'quit': () => hud.putAway(),
 
   // ── Renderer IPC passthrough ──
   'restart-demo':           () => _sendRenderer('restart-demo'),
@@ -1553,11 +1554,6 @@ ipcMain.handle('rig:bindPedals', async (event, carPath, profileId) => {
   const problem = rigApi.bindingProblem(carPath, profileId);
   if (problem) return { ok: false, error: problem };
   return rig.bindPedals(carPath, profileId);
-});
-
-// ── IPC: Quit app ──
-ipcMain.handle('quit-app', () => {
-  app.quit();
 });
 
 // ── IPC: Open external URL in user's default browser ──

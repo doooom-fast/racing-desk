@@ -355,6 +355,72 @@ test.describe("the driver's switch: the tray's, which works anywhere", () => {
   });
 });
 
+test.describe('quitting the overlay', () => {
+  test('in the car the HUD is put away, and comes back the way a switched-off HUD does', async () => {
+    const { win, hud, getIn, switched } = rig();
+    await getIn();
+    expect(hud.putAway()).toEqual({ ok: true, visible: false, hudOff: true });
+    expect(win.isVisible()).toBe(false);
+    expect(switched).toEqual([true]);
+    expect(hud.toggle()).toEqual({ ok: true, visible: true, hudOff: false });
+    expect(win.isVisible()).toBe(true);
+  });
+
+  test('asked twice, it is away once: the second press does not bring it back', async () => {
+    const { win, hud, getIn, switched } = rig();
+    await getIn();
+    hud.putAway();
+    expect(hud.putAway()).toEqual({ ok: true, visible: false, hudOff: true });
+    expect(win.isVisible()).toBe(false);
+    expect(switched).toEqual([true]);
+  });
+
+  test('away is away when he gets out and in again, until he switches it on', async () => {
+    const { win, hud, getIn, getOut, pass } = rig();
+    await getIn();
+    hud.putAway();
+    await getOut();
+    await getIn();
+    await pass(10000);
+    expect(win.isVisible()).toBe(false);
+    expect(hud.toggle({ anywhere: true })).toEqual({ ok: true, visible: true, hudOff: false });
+  });
+
+  test('out of the car it works too, unlike the key that switches: the Stream Deck is pressed from anywhere', async () => {
+    const { win, hud, getIn, switched } = rig();
+    expect(hud.putAway()).toEqual({ ok: true, visible: false, hudOff: true });
+    expect(switched).toEqual([true]);
+    await getIn();
+    expect(win.isVisible()).toBe(false);
+    expect(win.calls).toEqual([]);
+  });
+
+  test('the page goes on reading, so the HUD is whole the moment it is switched back on', async () => {
+    const { win, hud, getIn } = rig();
+    hud.putAway();
+    await getIn();
+    expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', true]);
+  });
+
+  test('in dev mode the window is hidden, and that is all', () => {
+    const { win, hud, switched } = rig({ keepVisible: true });
+    win.visible = true;
+    expect(hud.putAway()).toEqual({ ok: true, visible: false });
+    expect(hud.putAway()).toEqual({ ok: true, visible: false });
+    expect(win.calls.filter((c) => c === 'hide')).toHaveLength(1);
+    expect(switched).toEqual([]);
+  });
+
+  test('no window: it says so', () => {
+    for (const window of [null, Object.assign(fakeWindow(), { destroyed: true })]) {
+      const { hud, switched } = rig({ window, loaded: false });
+      expect(hud.putAway()).toEqual({ ok: false, reason: 'no window' });
+      expect(switched).toEqual([]);
+      expect(hud.state().hudOff).toBe(false);
+    }
+  });
+});
+
 test.describe('the page', () => {
   test('is told when he gets in and when he gets out, and not at every poll', async () => {
     const { win, feed, getIn, pass } = rig();
