@@ -22,6 +22,7 @@ from typing import Any, Callable
 from urllib.parse import urlsplit
 
 from ..errors import LiveryError
+from . import net
 from .cars import TemplateRow
 
 # Where iRacing publishes templates. The table is data, and data is not allowed to say where to go.
@@ -51,7 +52,7 @@ class _StayWithIRacing(urllib.request.HTTPRedirectHandler):
 
 
 def _open(request, timeout=None):
-    return urllib.request.build_opener(_StayWithIRacing).open(request, timeout=timeout)
+    return net.opener(_StayWithIRacing).open(request, timeout=timeout)
 
 
 def default_cache() -> Path:

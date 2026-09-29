@@ -183,6 +183,9 @@ def build_parser() -> argparse.ArgumentParser:
     f_logos.add_argument("car")
     f_logos.add_argument("--cache", default=None)
     f_logos.set_defaults(func=cmd_fleet_logos)
+    f_refresh = fleet_sub.add_parser("refresh", help="bring the template table up to date with the public index")
+    f_refresh.add_argument("--dry-run", action="store_true", help="say what would change, and change nothing")
+    f_refresh.set_defaults(func=cmd_fleet_refresh)
     return parser
 
 
@@ -701,6 +704,20 @@ def cmd_fleet_logos(args) -> int:
     for line in logos.place(work, cfg, logos.Art(config.art_root)):
         print(f"  {line}")
     print(f"next: livery fleet build {args.car} --force")
+    return 0
+
+
+def cmd_fleet_refresh(args) -> int:
+    from .fleet import table
+
+    out = table.refresh(dry=args.dry_run)
+    print(f"{len(out.rows)} cars in the table: {len(out.added)} new, {len(out.changed)} with a new address, "
+          f"{len(out.kept)} the index does not list" + (" (nothing written)" if args.dry_run else ""))
+    for title, rows in (("new", out.added), ("new address", out.changed)):
+        for r in rows:
+            print(f"  {title:12} {r.paint_folder:34} {r.car_name}")
+    for line in out.left_out:
+        print(f"  left out     {line}")
     return 0
 
 
