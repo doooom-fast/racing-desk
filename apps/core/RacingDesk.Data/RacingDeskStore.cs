@@ -121,8 +121,9 @@ CREATE TABLE car_pedal_facts (
         // the run that said it is over. One row per car, per thing said (about: which thing, as CarListCheck keys
         // it), per list: list_hash is CarList.Hash, twelve hex digits of the list's bytes, so that what was said
         // against a list since changed is kept but not taken for what is true of the list in use. Said again under
-        // the same list, a remark moves last_seen_at and nothing else; nothing is duplicated. A car's folder is
-        // compared without regard to case, as the list compares it.
+        // the same list, a remark moves last_seen_at (each drive of the car that finds it still so says it again) and
+        // takes the words it was last said in; nothing is duplicated. A car's folder is compared without regard to
+        // case, as the list compares it.
         private const string CarListRemarksSchema = @"
 CREATE TABLE car_list_remarks (
   car_path TEXT NOT NULL COLLATE NOCASE,
@@ -826,8 +827,9 @@ FROM car_pedals p LEFT JOIN cars c ON c.car_path = p.car_path";
 
         /// <summary>
         /// Keeps what the check of the car list has said. A remark said again under the same list moves its last
-        /// sighting and leaves the rest; one said for the first time is added. Returns how many were written: none
-        /// for a store from a later build that keeps no such table, which is left as it is.
+        /// sighting and takes the words it was last said in; one said for the first time is added. Returns how many
+        /// were written: none for a store that has no such table, which is left as it is. A store from a later build
+        /// has the table (migrations only add), and is written to.
         /// </summary>
         public int KeepCarListRemarks(IEnumerable<CarListRemark> remarks)
         {

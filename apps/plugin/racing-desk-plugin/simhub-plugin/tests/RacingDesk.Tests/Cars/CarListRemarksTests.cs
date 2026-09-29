@@ -99,7 +99,7 @@ namespace RacingDesk.Tests.Cars
         }
 
         [Test]
-        public void TheFollowerHandsEachRemarkOnOnceWithTheListItWasSaidAgainstAndWhen()
+        public void TheFollowerHandsEachRemarkOnWithTheListItWasSaidAgainstAndWhenAndTheLogHasEachOnce()
         {
             var said = new List<CarRemark>();
             var log = new List<string>();
@@ -113,11 +113,132 @@ namespace RacingDesk.Tests.Cars
             for (int i = 0; i < 100; i++) follower.See("ferrari499p", gt3.Property, false, true);
             for (int i = 0; i < 100; i++) follower.See("MADEUP GT3", gt3.Property, false, true);
 
-            Assert.That(said.Select(r => (r.CarPath, r.About)), Is.EqualTo(new[] { ("madeup gt3", "absent:dcABS"), ("ferrari499p", "unknown") }),
-                "once per car for each thing, however often he gets in");
+            // Each thing is said the first time, and again in each later drive of the car that finds it still so.
+            Assert.That(said.Select(r => (r.CarPath, r.About, r.Again)), Is.EqualTo(new[]
+            {
+                ("madeup gt3", "absent:dcABS", false), ("ferrari499p", "unknown", false), ("madeup gt3", "absent:dcABS", true),
+            }), "he was in the Made-up GT3 again");
             Assert.That(said.Select(r => r.ListHash), Is.All.EqualTo(list.Hash));
             Assert.That(said.Select(r => r.SaidAtUtc), Is.All.EqualTo(Noon));
-            Assert.That(log, Is.EqualTo(said.Select(r => r.Line)), "and the log has what it always had");
+            Assert.That(log, Is.EqualTo(said.Where(r => !r.Again).Select(r => r.Line)), "and the log has what it always had: each once");
+            Assert.That(follower.Remarks["madeup gt3"], Is.EqualTo(new[] { "madeup gt3 the list gives abs as dcABS, which the car does not publish" }),
+                "as does this run's, which is by what was said and not by how often");
+        }
+
+        [Test]
+        public void EveryDriveOfACarSaysAgainWhatIsStillSoAndNoDriveSaysItTwice()
+        {
+            // Last seen is when he last drove the car and found it so: not when the app was started. The app is kept
+            // open across sessions, so one follower — one check for each car — sees the car for hours and days.
+            var now = Noon;
+            var said = new List<CarRemark>();
+            var log = new List<string>();
+            var follower = new CarControlsFollower(List(), log.Add, () => now);
+            follower.Said += said.Add;
+            var gt3 = Gt3();
+            gt3.Remove("dcABS");
+            void Drive(string car, int frames, bool? inCar = true)
+            {
+                for (int i = 0; i < frames; i++) follower.See(car, gt3.Property, false, inCar);
+            }
+            (string, string, bool, DateTime)[] Heard() => said.Select(r => (r.CarPath, r.About, r.Again, r.SaidAtUtc)).ToArray();
+
+            // A long drive is one drive: what is found is said once in it.
+            Drive("madeup gt3", 600);
+            Drive("ferrari499p", 5, inCar: false);   // the garage, in a car the list has not got: said as soon as it is known
+            Assert.That(Heard(), Is.EqualTo(new[] { ("madeup gt3", "absent:dcABS", false, Noon), ("ferrari499p", "unknown", false, Noon) }));
+
+            // Out of the car and back in it, in the same car, two hours later.
+            now = Noon.AddHours(2);
+            Drive("madeup gt3", 30, inCar: false);
+            Drive("madeup gt3", 100);
+            // Into the car he was not in, from the car that was not in the list.
+            now = Noon.AddHours(4);
+            Drive("ferrari499p", 100);
+            Assert.That(Heard().Skip(2), Is.EqualTo(new[]
+            {
+                ("madeup gt3", "absent:dcABS", true, Noon.AddHours(2)),
+                ("ferrari499p", "unknown", true, Noon.AddHours(4)),
+            }), "the same thing, said again: a check is one for each car for the run, and it still is");
+
+            // The sim gone and back: no car at all in between.
+            now = Noon.AddHours(6);
+            follower.See("", gt3.Property, false, true);
+            follower.See(null, gt3.Property, false, null);
+            Drive("madeup gt3", 100);
+            Assert.That(Heard().Skip(4), Is.EqualTo(new[] { ("madeup gt3", "absent:dcABS", true, Noon.AddHours(6)) }));
+
+            // From a source that never says whether he is in the car: getting into the car from another is a drive.
+            now = Noon.AddHours(8);
+            Drive("ferrari499p", 100, inCar: null);
+            now = Noon.AddHours(9);
+            Drive("madeup gt3", 100, inCar: null);
+            Assert.That(Heard().Skip(5), Is.EqualTo(new[]
+            {
+                ("ferrari499p", "unknown", true, Noon.AddHours(8)), ("madeup gt3", "absent:dcABS", true, Noon.AddHours(9)),
+            }));
+
+            // Nothing more when nothing was a drive of it: the frames of one go on.
+            int before = said.Count;
+            now = Noon.AddDays(1);
+            Drive("madeup gt3", 2000);
+            Assert.That(said, Has.Count.EqualTo(before));
+
+            // The log had each thing once, all through.
+            Assert.That(log, Is.EqualTo(new[]
+            {
+                "madeup gt3 the list gives abs as dcABS, which the car does not publish",
+                "ferrari499p is not in the list: its controls are shown as they were before there was one",
+            }));
+        }
+
+        [Test]
+        public void AThingThatIsNoLongerSoIsNotSaidAgain()
+        {
+            var now = Noon;
+            var said = new List<CarRemark>();
+            var follower = new CarControlsFollower(List(), _ => { }, () => now);
+            follower.Said += said.Add;
+            void Drive(Car car, int frames = 100) { for (int i = 0; i < frames; i++) follower.See("madeup gt3", car.Property, false, true); }
+            void GetOut() { for (int i = 0; i < 5; i++) follower.See("madeup gt3", Gt3().Property, false, false); }
+
+            // The first drive: the car does not publish what the list says, and a dial reads outside its range.
+            var first = Gt3();
+            first.Remove("dcABS");
+            first["dcTractionControl"] = 30f;
+            Drive(first);
+            Assert.That(said.Select(r => r.About), Is.EqualTo(new[] { "absent:dcABS", "value:dcTractionControl" }));
+
+            // The second: the list has been put right for it, or the car has — what was found is not found, and not said.
+            now = Noon.AddHours(1);
+            GetOut();
+            Drive(Gt3());
+            Assert.That(said, Has.Count.EqualTo(2), "nothing is said of what is not so");
+
+            // The third: the dial is out of its range again, and that is said again; the car still publishes dcABS.
+            now = Noon.AddHours(2);
+            GetOut();
+            var third = Gt3();
+            third["dcTractionControl"] = 31f;
+            Drive(third);
+            Assert.That(said.Skip(2).Select(r => (r.About, r.Again, r.SaidAtUtc)), Is.EqualTo(new[] { ("value:dcTractionControl", true, Noon.AddHours(2)) }));
+            Assert.That(said.Skip(2).Single().Text, Does.Contain("31"), "as it was found this time");
+        }
+
+        [Test]
+        public void ThingsSaidAgainDoNotComeInTheLogOrInThisRunsRemarks()
+        {
+            var log = new List<string>();
+            var follower = new CarControlsFollower(List(), log.Add, () => Noon);
+            var gt3 = Gt3();
+            gt3.Remove("dcABS");
+            for (int drive = 0; drive < 4; drive++)
+            {
+                for (int i = 0; i < 5; i++) follower.See("madeup gt3", gt3.Property, false, false);
+                for (int i = 0; i < 100; i++) follower.See("madeup gt3", gt3.Property, false, true);
+            }
+            Assert.That(log, Has.Count.EqualTo(1));
+            Assert.That(follower.Remarks["madeup gt3"], Has.Count.EqualTo(1));
         }
 
         [Test]

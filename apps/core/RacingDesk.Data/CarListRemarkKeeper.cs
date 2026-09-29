@@ -11,7 +11,8 @@ namespace RacingDesk.Data
     /// thread the telemetry is on. <see cref="Keep"/> only queues the remark and returns; a pool thread writes what
     /// is queued through a connection of its own, as the view's and the pedals' are written, so a store that is
     /// slow, locked or broken holds nothing up. What goes wrong while writing is logged, the remarks in hand are
-    /// dropped — the check says each again when the car is next driven — and it goes no further.
+    /// dropped, and it goes no further: a thing that is still so is said again the next time the car is driven
+    /// (<see cref="CarRemark.Again"/>), which is when it is next seen, and one that is not was not to be kept.
     /// </summary>
     public sealed class CarListRemarkKeeper : IDisposable
     {
@@ -37,7 +38,8 @@ namespace RacingDesk.Data
             try
             {
                 if (remark == null || Volatile.Read(ref _disposed) != 0) return;
-                // Said once per car in a run: it is first and last seen at the moment it was said.
+                // One moment stands for both ends of what this remark says of when it was seen; the store keeps the
+                // earliest first and the latest last of all it has been given for the same thing.
                 DateTime at = remark.SaidAtUtc == default ? DateTime.UtcNow : remark.SaidAtUtc;
                 _queue.Enqueue(new CarListRemark
                 {

@@ -147,10 +147,49 @@ namespace RacingDesk.Tests.IRacing
         }
 
         [Test]
-        public void AStoreFromALaterBuildIsLeftAsItIsAndKeepsNothingInIt()
+        public void AStoreFromALaterBuildIsNotMigratedAndTakesRemarksInTheTableItHas()
         {
-            // Opening a store whose version is above the code's changes nothing in it: it is not migrated, and
-            // not made to look like an older one. What it does not have the table for is not written.
+            // A later build's store has this table, since every migration adds and none takes away. Opening it
+            // changes nothing in it — it is not migrated, and not made to look like an older one — and what is kept
+            // goes into that table as it goes into the others the code shares with it.
+            using (var store = new RacingDeskStore(Db))
+            {
+                store.SaveCarView(new CarView { CarPath = Mx5, DriverHeight = -0.06, VanishY = 0, HeadHorizon = 0, Fov = 69, Chosen = true, SeenAtUtc = June });
+                store.KeepCarListRemarks(new[] { Said(Mx5, "unknown", "is not in the list", June) });
+                store.Exec("DELETE FROM schema_version; INSERT INTO schema_version (version) VALUES (8)");
+            }
+            SqliteConnection.ClearAllPools();
+            string otherTables = Dump("car_list_remarks");
+            string namesBefore = Names();
+            Assert.That(namesBefore, Does.Contain("car_list_remarks"));
+
+            using (var later = new RacingDeskStore(Db))
+            {
+                Assert.That(later.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(8));
+                Assert.That(later.Scalar<long>("SELECT COUNT(*) FROM schema_version"), Is.EqualTo(1), "not migrated");
+                Assert.That(later.KeepCarListRemarks(new[]
+                {
+                    Said(Mx5, "unknown", "is not in the list", June.AddDays(2)),
+                    Said(MadeUpGt3, "absent:dcABS", "the list gives abs as dcABS, which the car does not publish", June.AddDays(2)),
+                }), Is.EqualTo(2));
+                var kept = later.CarListRemarksAgainst(Hash);
+                Assert.That(kept.Select(r => (r.CarPath, r.About, r.FirstSeenUtc, r.LastSeenUtc)), Is.EqualTo(new[]
+                {
+                    (MadeUpGt3, "absent:dcABS", June.AddDays(2), June.AddDays(2)), (Mx5, "unknown", June, June.AddDays(2)),
+                }));
+            }
+            SqliteConnection.ClearAllPools();
+            Assert.That(Dump("car_list_remarks"), Is.EqualTo(otherTables), "nothing else in it is touched");
+            Assert.That(Names(), Is.EqualTo(namesBefore), "nor is a table or an index added");
+            using var again = new RacingDeskStore(Db);
+            Assert.That(again.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(8), "and it is still the version it was");
+        }
+
+        [Test]
+        public void AStoreWithNoRemarksTableIsLeftAsItIsAndKeepsNothingInIt()
+        {
+            // A later store that somehow has no such table — this code makes none in a store it does not migrate — is
+            // read as having nothing kept and is not written to.
             using (var store = new RacingDeskStore(Db))
                 store.Exec("DROP TABLE car_list_remarks; DELETE FROM schema_version; INSERT INTO schema_version (version) VALUES (8)");
             SqliteConnection.ClearAllPools();
@@ -359,6 +398,37 @@ namespace RacingDesk.Tests.IRacing
             }
         }
 
+        [Test]
+        public void LastSeenMovesWithEveryDriveOfTheCarInOneRunOfTheHost()
+        {
+            // The app is kept open across sessions, so the host — one follower, one check for each car — is up for
+            // the evening: the same disagreement is seen at six, at eight and at ten, and the store says so.
+            var list = List();
+            var now = June;
+            var follower = new CarControlsFollower(list, _ => { }, () => now);
+            using var keeper = new CarListRemarkKeeper(Db);
+            follower.Said += keeper.Keep;
+            var gt3 = Gt3();
+            gt3.Remove("dcABS");
+            void Drive(DateTime at)
+            {
+                now = at;
+                for (int i = 0; i < 5; i++) follower.See(MadeUpGt3, gt3.Property, false, false);   // the garage
+                for (int i = 0; i < 100; i++) follower.See(MadeUpGt3, gt3.Property, false, true);
+                Assert.That(keeper.Flush(TimeSpan.FromSeconds(10)), Is.True);
+            }
+
+            Drive(June);
+            Drive(June.AddHours(2));
+            Drive(June.AddHours(4));
+
+            using var store = new RacingDeskStore(Db);
+            var kept = store.CarListRemarksAgainst(list.Hash).Single();
+            Assert.That((kept.About, kept.FirstSeenUtc, kept.LastSeenUtc), Is.EqualTo(("absent:dcABS", June, June.AddHours(4))),
+                "last seen is the last drive that found it, not the run's first");
+            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM car_list_remarks"), Is.EqualTo(1), "and nothing is duplicated");
+        }
+
         private static CarRemark Remark(string car, string about, string text, string hash, DateTime at) => new CarRemark
         {
             CarPath = car, About = about, Text = text, ListHash = hash, SaidAtUtc = at,
@@ -386,13 +456,13 @@ namespace RacingDesk.Tests.IRacing
         {
             int port = FreePort();
             using var listener = new HttpListener();
-            listener.Prefixes.Add($"http://localhost:{port}/racing-desk/");
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/racing-desk/");
             listener.Start();
             var api = new LocalDataApi(Db) { Cars = cars };
             var claimed = Task.Run(() => api.TryHandle(listener.GetContext()));
 
             using var http = new HttpClient();
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"http://localhost:{port}/racing-desk/data/{route}");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{port}/racing-desk/data/{route}");
             using var response = http.Send(request);
             string text = new StreamReader(response.Content.ReadAsStream(), Encoding.UTF8).ReadToEnd();
             Assert.That(claimed.Result, Is.True);
@@ -517,12 +587,12 @@ namespace RacingDesk.Tests.IRacing
         {
             int port = FreePort();
             using var listener = new HttpListener();
-            listener.Prefixes.Add($"http://localhost:{port}/racing-desk/");
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/racing-desk/");
             listener.Start();
             var api = new LocalDataApi(Db) { Cars = new CarControlsFollower(List(), _ => { }) };
             var claimed = Task.Run(() => api.TryHandle(listener.GetContext()));
             using var http = new HttpClient();
-            using var response = http.Send(new HttpRequestMessage(HttpMethod.Post, $"http://localhost:{port}/racing-desk/data/controls")
+            using var response = http.Send(new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/racing-desk/data/controls")
             {
                 Content = new StringContent("{\"kept\":[]}", Encoding.UTF8, "application/json"),
             });

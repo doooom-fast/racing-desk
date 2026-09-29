@@ -24,6 +24,9 @@ namespace RacingDesk.Core.Cars
         private CarListCheck _check;
         private string _json;
         private bool _failed, _failedToTell;
+        // The next frame he is in the car begins a drive of a car the check has seen before: he got back in after
+        // being out of it, or into it from another car, or the sim came back.
+        private bool _beginDrive;
 
         /// <param name="now">The clock remarks are stamped by; null for the machine's.</param>
         public CarControlsFollower(CarList list = null, Action<string> log = null, Func<DateTime> now = null)
@@ -34,9 +37,11 @@ namespace RacingDesk.Core.Cars
         }
 
         /// <summary>
-        /// Raised for each thing the check says of a car, the first time it is said in this run, with the list it
-        /// was said against and when. It is raised on the thread of the frame, and a handler must not hold it up:
-        /// the host's only queues the remark to be kept. What a handler throws is logged once and goes no further.
+        /// Raised for each thing the check says of a car, with the list it was said against and when: the first time
+        /// it is said in this run, and again in each later drive of the car in which it is still so
+        /// (<see cref="CarRemark.Again"/>), so that whoever keeps them knows when a thing was last seen. The log has
+        /// each thing once. It is raised on the thread of the frame, and a handler must not hold it up: the host's
+        /// only queues the remark to be kept. What a handler throws is logged once and goes no further.
         /// </summary>
         public event Action<CarRemark> Said;
 
@@ -92,8 +97,23 @@ namespace RacingDesk.Core.Cars
                         _car = _list.Find(carPath);
                         // A list with nothing in it is a build from before there was one: nothing to check against.
                         if (_list.Cars.Count == 0) _check = null;
-                        else if (!_checks.TryGetValue(carPath, out _check)) _checks[carPath] = _check = new CarListCheck(carPath, _car);
+                        else if (_checks.TryGetValue(carPath, out _check)) _beginDrive = true;
+                        else
+                        {
+                            _checks[carPath] = _check = new CarListCheck(carPath, _car);
+                            _beginDrive = false;
+                        }
                         _json = null;
+                    }
+
+                    // Out of the car (the garage, a replay), and back in it: a drive of it begins, and what the check
+                    // found is looked for again. One check is kept per car for the run, so without this each thing would
+                    // be said in the first drive of the run and never after.
+                    if (inCar == false) _beginDrive = true;
+                    else if (_beginDrive)
+                    {
+                        _beginDrive = false;
+                        _check?.BeginDrive();
                     }
 
                     Func<string, object> variable = name => property(Raw + name);
@@ -109,7 +129,7 @@ namespace RacingDesk.Core.Cars
                                 remark.ListHash = _list.Hash;
                                 remark.SaidAtUtc = at;
                                 fresh.Add(remark);
-                                _log(remark.Line);
+                                if (!remark.Again) _log(remark.Line);
                             }
                         }
                     }
