@@ -289,7 +289,65 @@ dial reads the value that is off. It shows OFF, and he cannot change it.
 
 ## 11. What was built
 
-*Filled in when the work was done; see the end of this document.*
+Branch `feature/car-controls`, 2026-09-29. The root `CLAUDE.md` (The car's controls) and `apps/overlay/CLAUDE.md`
+(The controls panel) say how it works for whoever changes it; this is what came of each finding above.
+
+**The list.** `packages/car-list/cars.json`, written by hand and carried inside `RacingDesk.Core`
+(`RacingDesk.Core.Cars.cars.json`), read by `CarList` (`Find(path)` case-blind, unknown fields left, a wrong entry put
+in `Problems` and the rest read). A car has `abs` and `tc` as `none`, `fixed` or `adjustable`, `brakeBias` as `none`
+or `adjustable`, a `kind`, and `controls`: each an `id`, the telemetry `var` that carries it, the car's own `label`,
+and where it has them an `off` value (or `"off": false`), a `range`, named `positions`, a `note`; optionally
+`lockedWhenFixed`, `covers` and `decimals`. This branch does not contain the file: it is written apart from the
+code, and until it is in the tree the build carries no list and every car is not known.
+
+**What each finding became.**
+
+| Finding | In the code |
+|---|---|
+| §3: `dcABS` is not always ABS; published does not mean adjustable | The list's `abs: none` reads NONE whatever `dcABS` says; `dcABS` is given to the control that is really on it (`brakeMigration`, `mode`). A control with no readable dial is not read at all |
+| §3: ABS without a dial (MX-5, M2 CS) | `abs: fixed` → **ON** |
+| §3: 0 as off | 0 is OFF for ABS and traction control, and for nothing else, unless the control says `off`, names a `positions` entry `off`, or says `"off": false` |
+| §4: modes | A `mode` control with `positions` (`TRACK`, `SPORT`, `NORMAL`); it stands for the cells it `covers` (default: the ones the car lists no control of its own for). A dial that is a word without being a mode (the M2's `DSC`: OFF, MDM, ON) is an ordinary control with `positions` |
+| §5: GTP brake migration, TC slip and gain | `brakeMigration`, `tc` and `tc2` controls with the car's labels (`MIG`, `TCLO`, `TCLA`); the second dial and the migration are in the row beneath the three |
+| §6: anti-roll bars | `arbFront`, `arbRear` controls, in the same row, for the cars that have them |
+| §7: DRS, push-to-pass | `drs` (`DRS_Status` 0 to 3) and `p2p` (`P2P_Status`, `P2P_Count`, 999 no limit, garbage refused) controls; they exist only where the list gives them, since every car publishes the variables |
+| §9: why not detect | Nothing detects. The list is the answer; what the car publishes is the **check** |
+| §10: fixed setups | `IsFixedSetup` decides `locked` for ABS and traction control (the rule), or as the control's `lockedWhenFixed` says |
+
+**The host** (`RacingDesk.Core/Cars`). `CarControls.Read(car, variable, fixedSetup)` reads one car's controls;
+`CarControlsFollower` follows the car the driver is in and never throws (a frame that goes wrong goes out without
+the key). Where the car and its setup come from: the host's own reader (`IRacingTelemetrySource.CarPath` and
+`FixedSetup`, from the session YAML) or, under SimHub, the SDK bridge (`PlayerCarPath`, `IsFixedSetup`).
+`TelemetryCapture` puts the result in the snapshot and `TelemetryFrame` and the `:8889` writer put it on the wire as
+`RacingDesk.Plugin.CarControls`, **only** for a car the list has and never in the demo. `GET
+/racing-desk/data/controls[?car=]` serves the list with what the check has said.
+
+**The check** (`CarListCheck`). Once per car for each thing, after his first second in the car: the car is not in
+the list; the list disagrees with itself (no ABS but a control called `abs`; adjustable with nothing to read it
+from); a listed variable the car does not publish; a dial the car publishes that no control has; `dcABS` published
+or ABS seen working in a car listed without ABS; a bias that moves in a car listed without one; a value outside the
+`range`, or a position with no name. It only says. What the HUD shows is the list's until somebody corrects it.
+
+**The HUD** (`car-controls.js`, `leaderboard.css`, `spotter.js`, `poll-engine.js`). The three cells read NONE, ON,
+OFF, a number or a name, under the car's label; NONE is a cell no wider than the word; a mode is a cell of its
+own; a small lock says the fixed setup holds a control; the row beneath carries the rest, DRS lit when it can be
+opened and while it is open, push-to-pass with its seconds. The spotter says the car's word (`TCLO ▲ 6`, `ESC ▼
+SPORT`), `DRS next zone`, `DRS — open it`, `DRS open`, and when push-to-pass goes on, off or runs out. A name fills no
+bar. The old computing is still in place for a car the host sends nothing for, which shows as it did; the old table
+in `config.js` is what it goes by, so the table stays.
+
+**Tests.** The HUD: 38 in `tests/unit/car-controls.spec.mjs`, the module's functions in Node and the real
+`dashboard.html` fed a payload for each case, with the cars read from `tests/unit/fixtures/car-controls-wire.json`.
+The host: `Cars/CarListTests.cs` (the loader, NONE, ON, OFF, values, modes, DRS, push-to-pass, the follower, the
+check once per car, the served list), `Cars/CarControlsWireTests.cs` (the HUD's fixture is what the host writes; the
+list this build carries agrees with itself), and `Cars/CarControlsOnTheRigTests.cs` (the same read from the rig's
+own recordings of the 570S, the MX-5 and the 963, skipped where there is none). The one hop no test covers is
+`:8889` itself: the runtime writes the snapshot's JSON into the payload as an object, and the only way to run it is
+to start a runtime, which binds wildcard ports.
+
+**Not built.** The desk does not show the list or the check. The pedals' rule (`CarPedalsKeeper`) still works out a
+car's kind and ABS from what it publishes, not from the list. Nothing is remembered per car. What a fixed setup locks
+is the rule of §10 and no more. No car outside the list gets anything: a car the list has not met is shown as it was.
 
 ## 12. The cars, one by one
 

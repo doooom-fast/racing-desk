@@ -59,6 +59,8 @@ The host also serves the store read-only at
 SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk). One thing is written
 through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only —
 a request that names an `Origin`, or comes from another machine, gets 403, so the desk page sends it through main.js.
+Beside them, and from the assembly and not the store, `GET /racing-desk/data/controls[?car=<folder>]` serves the
+car list and what the check has said of each car this run (see The car's controls).
 
 Car names (`cars`, schema v4) come from the session YAML of the driver's own sessions, which lists every entrant's
 `CarPath` and `CarScreenName` — nothing of iRacing's is bundled, so a car that has never been in one of those sessions
@@ -136,6 +138,68 @@ with PdfPig (laid out as fixed-pitch text, like `pdftotext -layout`), parses eve
   (2026 S4: 151 of 151, 1,989 series-weeks, all with a race length).
 - Track and car names come out as iRacing writes them in the PDF, which is not always how it writes them in
   telemetry; the engines fuzzy-match (`packages/calc/src/engines/fuzzy-match.ts`).
+
+## The car's controls
+
+What the HUD's controls panel says of the car he is in: ABS, traction control, brake bias, the car's other dials
+(a second traction dial, brake migration, anti-roll bars, throttle map), DRS and push-to-pass. What each car
+publishes, and why none of it can be trusted to say what a car *has*: [`docs/car-controls-findings.md`](docs/car-controls-findings.md).
+
+- **What a car has is written by hand, once, in one list**, at `packages/car-list/cars.json` (he decided this on
+  2026-09-29: "i don't think we can reliably do databased detection"): `{ version, cars: [ { path, name, kind, abs,
+  tc, brakeBias, controls: [ { id, var, label, off?, range?, positions?, note? } ], checked, sources } ] }`. `path` is
+  the sim's folder for the car (`mx5 mx52016`), `abs` and `tc` are `none`, `fixed` (it has it, he cannot turn it) or
+  `adjustable`, `brakeBias` is `none` or `adjustable`, and each control gives the telemetry variable that carries
+  it and the car's own word for it (`TCLO`, `ESC`, `BBAL`). The file is embedded in `RacingDesk.Core` as
+  `RacingDesk.Core.Cars.cars.json`, so the host and the SimHub plugin carry the same list; a tree without the file
+  builds without one, and every car is then not known. `RacingDesk.Core.Cars.CarList` reads it (`Find(path)` is
+  case-blind and takes `-`, `_` and space as one; what it does not know it leaves, an entry that is wrong is put in
+  `Problems` and the rest are read; `tests/…/Cars/CarListTests.cs`). Keys the code also reads that the list may
+  carry: `lockedWhenFixed`, `covers` (which of abs, tc and brakeBias a `mode` stands for) and `decimals`.
+- **The telemetry is asked three things and nothing more** (`Cars/CarControls.cs`): the value each listed control
+  has now (`var`), whether the session's setup is fixed (`WeekendInfo.WeekendOptions.IsFixedSetup`), and the check
+  below. Nothing here works out what a car has.
+- **NONE, ON, OFF, a value, a mode** — each of the three, the sentence the HUD reads:
+  - **NONE**: the list says the car has none. Whatever the sim publishes under that name is not it — `dcABS` in the
+    GTP cars is the brake migration, and their ABS reads NONE.
+  - **ON**: the car has it and he cannot turn it (`fixed`; the MX-5's ABS), so there is no number to show.
+  - **OFF**: it has a dial and the dial is at its off position — `off` in the control, else a position named `off`
+    in `positions`, else nought for ABS and traction control only (his rule), unless the control says `"off": false`.
+    A fixed setup can hold ABS off, so OFF is not always his to change: the reading says `locked`.
+  - **A value**: the number as the list's `decimals` says (brake bias to one place), or the name of the position
+    (`TRACK`, `SPORT`, the BMW's `MDM`), under the label the list gives. A number has a bar from the control's
+    `range`; a name has none.
+  - **A mode**: one dial standing for several (the 570S's ABS, traction and stability under `TRACK`/`SPORT`/`NORMAL`):
+    the mode is a cell of its own and the cells it covers are not shown.
+  - A fixed setup holds ABS and traction control (`locked`), and nothing else, unless the list says otherwise.
+    That is as far as his own files go (§10 of the findings): the sim does not say which dials a fixed setup locks.
+- **What is sent**: one key, `RacingDesk.Plugin.CarControls` (`TelemetryFrame.CarControlsKey`), an object on `:8889`
+  and its text on the MessagePack feed: `car`, `name`, `kind`, `fixedSetup`, `abs`, `tc`, `bb` (each
+  `{ id, label, state: none|on|off|value|mode, value?, text, fill?, locked?, var?, by? }`), `more` (the car's other
+  controls in the list's order), `drs` and `p2p`. **It is sent only where there is something true to say**: for a
+  car the list has, not in the demo, and each reading only if it can be read — a control the list says can be
+  turned whose variable the car does not publish is left out, and the HUD shows a dash for it. DRS is
+  0 nothing, 1 next zone, 2 open it, 3 open; push-to-pass has its seconds left (999 is practice, no limit).
+  `Cars/CarControlsWireTests.cs` holds what the host writes to `apps/overlay/tests/unit/fixtures/car-controls-wire.json`,
+  which is what the HUD's tests are built from: change the shape, and the C# test fails until
+  `UPDATE_CAR_CONTROLS_WIRE=1 dotnet test … --filter CarControlsWireTests` rewrites the file, and the HUD's tests
+  then run against the new shape.
+- **The check** (`Cars/CarListCheck.cs`, one per car, `CarControlsFollower` follows the car): the list against what
+  the car publishes, said once per car for each thing in the log (`host.log` for the app's host, SimHub's log for the
+  plugin; lines begin `[RacingDesk] car list: <car> …`), and served
+  with the list at `/racing-desk/data/controls`. A car not in the list; a listed variable the car does not
+  publish; a dial the car publishes that no control of the list has; ABS seen working (`BrakeABSactive`) in a car
+  listed without it, or `dcABS` published by one; a bias that moves in a car listed without one; a value outside
+  the control's `range` or a position with no name. It compares only while he is in the car and after his first
+  second in it (the garage and replays publish what the last car left). **It changes nothing the HUD shows**: the
+  list is right until somebody corrects it, and the log line is the reminder to.
+- **A car the list does not have** shows what it showed before there was a list: no key is sent, and the HUD goes by
+  the raw `dc…` values and the old hand-written table in `apps/overlay/modules/js/config.js`. Nothing is made up —
+  no NONE, no car's own labels, no DRS or push-to-pass. The check says once, in the log, that the car is missing.
+- **Not built**: the desk does not show the list or the check; the pedals' rule (`CarPedalsKeeper`, above) still
+  works out a car's kind and ABS from what it publishes and does not read the list; nothing is remembered per car
+  (no schema change). Beside SimHub the key shows only once the plugin has been installed again from a build that
+  carries the list: the plugin carries `RacingDesk.Core`, and the old DLL sends no such key.
 
 ## Desk
 

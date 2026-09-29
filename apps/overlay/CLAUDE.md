@@ -46,8 +46,54 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `formation.js` | Pre-race grid + formation lap UI |
 | `idle-nav.js` | Carousel of stats during idle moments |
 | `qr-code.js` | QR for pairing to native apps / sharing |
+| `car-controls.js` | What the controls panel shows of the car's ABS / TC / brake bias / other dials / DRS / push-to-pass, from the host's `RacingDesk.Plugin.CarControls` (see The controls panel) |
 
 Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud`, `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
+
+## The controls panel (`.car-controls`: BB, TC, ABS, and what the car has besides)
+
+The panel says what the driver's car has and what each control reads. **What a car has is not worked out here**: the
+host sends it, from the hand-written car list (root CLAUDE.md, The car's controls), as one key,
+`RacingDesk.Plugin.CarControls` — an object from `:8889`, its text from the WebSocket feed, and `read()` takes both.
+
+- **`modules/js/car-controls.js`** (`window.RacingDeskCarControls`, or `require` in Node): `read(payload)` (the key, or
+  null: not sent, not JSON, not an object with a `car`), `view(cc)` (the cells, from the reading alone), `signals(prev,
+  next)` (what the spotter says), `render(panel, cc, hooks, state)` (the only part that touches the DOM), `clear`.
+  `poll-engine.js` calls `read` and `render` where it used to compute BB / TC / ABS, and nothing else in the HUD
+  knows about the list. The old computing is still in the `else`.
+- **What a cell shows** — the same words as the host's (`state`): `NONE` (the car has none; the cell shrinks to the
+  word, `.ctrl-none`), `ON` (has it, cannot turn it; `.ctrl-on`), `OFF` (a dial at its off position; `.ctrl-off`), a
+  number or the name of a position under the car's own label (`TCLO`, `ESC`, `BBAL`, `DSC`), or a dash where the
+  host said nothing of it. A control the fixed setup holds gets a small lock mark (`.ctrl-locked`). A number fills its
+  bar by the host's `fill`, else by the bars the HUD always drew (bias `(n-30)/40`, TC and ABS `n/12`); **a name
+  fills nothing** (the number behind `MDM` is a position, not a quantity). A mode (the 570S's one dial) is a
+  cell of its own, `#ctrlMode`, and the cells it covers (`ctrl-hidden`) take no room.
+- **The row beneath** (`#ctrlMore`, `.ctrl-mini`): the car's other controls in the list's order — a second traction
+  dial (`TCLA`), brake migration (`MIG`), the anti-roll bars (`FARB`, `RARB`), a throttle map — then DRS and
+  push-to-pass. Only for a car that has any; DRS is `.ctrl-mini-ready` when it can be opened and
+  `.ctrl-mini-active` while it is, push-to-pass `.ctrl-mini-active` while it is on.
+- **The spotter**: a change of a control is announced with the car's word and what it reads, `TCLO ▲ 6`, `ESC ▼ SPORT`,
+  `DSC ▼ OFF` (`announceAdjustment(type, value, direction, name, text)` in `spotter.js`; a name or text given, the card
+  says the car's own thing; without them, the old `Brake Bias ▲ 55.0`). DRS says `DRS next zone`, `DRS — open it`,
+  `DRS open`; push-to-pass says `<label> on — 64s left`, `off`, `used up`. Nothing is said of a first frame or of a
+  car that has just been changed to.
+- **A car the host sends no key for** (another sim, a car the list does not have, the demo, a host from before the
+  list) is the panel as it was: the raw `dcBrakeBias`, `dcTractionControl` and `dcABS`, hidden or shown by the old
+  table (`getCarAdjustability` in `config.js`, matched by the car's model name), `Off` and `Fixed` in the old words.
+  Nothing is made up for it. The golden frames (no key in their payload) hold this panel as it was. **The old table stays** — it is the whole
+  of what the HUD knows about a car the list has not met: `config.js`'s `_carAdj` and `getCarAdjustability`, read
+  only in `poll-engine.js`'s controls block (the `carModel` change that sets it, and the `tcOk` / `absOk` / `bbOk`
+  and "Fixed" lines) — the pit box does not read it. It goes when the list has every car he drives.
+- **The glow that says an aid is cutting in** (`.ctrl-active`, from `RacingDesk.Plugin.DS.AbsActive` / `TcActive`) is
+  driven for every car, the list's and not (`poll-engine.js`, after the panel; `datastream.js` sets the same
+  class while it runs).
+- **Tests** (`tests/unit/car-controls.spec.mjs`): the module's functions in Node, then the real `dashboard.html`,
+  headless, fed a payload for each case — NONE, ON, OFF, a value with the car's label, a mode by name, GTP brake
+  migration, TC slip and gain, the bars, DRS and push-to-pass, a car that changes, a car not in the list, a key
+  that is not one. **The cars are not typed in the spec**: they are read from `tests/unit/fixtures/car-controls-wire.json`,
+  which RacingDesk.Tests holds to what the host writes (`Cars/CarControlsWireTests.cs`, rewritten with
+  `UPDATE_CAR_CONTROLS_WIRE=1`). The C# side cannot be tested over `:8889` without binding wildcard ports, so that
+  hop is by the code: the runtime writes `s.CarControlsJson` into the payload as an object.
 
 ## Race-bundle (`.rcpdv`) output
 
