@@ -43,11 +43,15 @@
     return n === null ? '—' : String(n);
   }
 
-  /** How full a cell's bar is, 0 to 1: the host's, or the bar the HUD always drew for the three. */
+  /**
+   * How full a cell's bar is, 0 to 1: the host's, or the bar the HUD always drew for the three. A position with a
+   * name of its own (MDM, TRACK) is not a quantity, so the number behind it does not fill a bar.
+   */
   function fillOf(r, slot) {
     if (!r || r.state !== 'value') return 0;
     const fill = number(r.fill);
     if (fill !== null) return Math.max(0, Math.min(1, fill));
+    if (typeof r.text === 'string' && r.text && !/^-?\d+(\.\d+)?$/.test(r.text.trim())) return 0;
     const n = number(r.value);
     if (n === null) return 0;
     if (slot === 'bb') return Math.max(0, Math.min(1, (n - 30) / 40));

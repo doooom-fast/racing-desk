@@ -515,14 +515,6 @@
         }
       }
     }
-    // TC / ABS active flash — runs on main dashboard, not gated behind datastream visibility
-    const tcBoxEl = document.getElementById('ctrlTC');
-    const absBoxEl = document.getElementById('ctrlABS');
-    if (tcActive > 0) _tcFlashFrames = 8;
-    if (absActive > 0) _absFlashFrames = 8;
-    if (tcBoxEl) { tcBoxEl.classList.toggle('ctrl-active', _tcFlashFrames > 0); if (_tcFlashFrames > 0) _tcFlashFrames--; }
-    if (absBoxEl) { absBoxEl.classList.toggle('ctrl-active', _absFlashFrames > 0); if (_absFlashFrames > 0) _absFlashFrames--; }
-
     // Flash control bars on value change + announce via spotter
     if (_prevBB >= 0 && bb > 0 && Math.abs(bb - _prevBB) > 0.05) {
       flashCtrlBar('ctrlBB');
@@ -540,6 +532,16 @@
     if (tcOk) _prevTC = +tc;
     if (absOk) _prevABS = +abs;
     }   // not from the list
+
+    // TC / ABS active flash — runs on main dashboard, not gated behind datastream visibility. For every car, the
+    // list's and not: the glow says the aid is cutting in, which no list can say. (datastream.js sets the same
+    // class while it runs; where this was skipped for a listed car, a glow it left on had nothing to clear it.)
+    const tcBoxEl = document.getElementById('ctrlTC');
+    const absBoxEl = document.getElementById('ctrlABS');
+    if (tcActive > 0) _tcFlashFrames = 8;
+    if (absActive > 0) _absFlashFrames = 8;
+    if (tcBoxEl) { tcBoxEl.classList.toggle('ctrl-active', _tcFlashFrames > 0); if (_tcFlashFrames > 0) _tcFlashFrames--; }
+    if (absBoxEl) { absBoxEl.classList.toggle('ctrl-active', _absFlashFrames > 0); if (_absFlashFrames > 0) _absFlashFrames--; }
 
     // ─── Manufacturer country flag trigger ───
     // Shows 5-second aurora wisps in manufacturer's country colors on:
