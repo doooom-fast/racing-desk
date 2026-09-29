@@ -1536,7 +1536,8 @@ ipcMain.handle('paints:openPath', async (event, p) => {
 // ── IPC: Rig — a car's view and pedals, on the desk's Cars page ──
 // What the host has recorded per car is asked for by this process (modules/js/rig-api.js), not by the page: the
 // page builds no address of its own, and the host it is asked of is one on this machine. rig:read answers the
-// host's cars, views and pedals, each as { value }, { missing: true } or { error }. The one write — which
+// host's cars, views, pedals and the canonical list of cars with what its check has said of them, each as
+// { value }, { missing: true } or { error }. The one write — which
 // SmartControl profile a car is driven with — comes through here too: the host answers 403 to any request
 // carrying an Origin header, which every request from a page does. It answers { ok: true, car } or
 // { ok: false, error }; neither ever throws, and the page shows what it is given beside the car.

@@ -3,13 +3,15 @@ import { ago, rigKey } from "../rig";
 import type { CatalogueCar, LiveryGroup } from "../types";
 
 /// The cars the host keeps something for, by key (rig.ts): a view, pedals. They are marked in the list, so
-/// that the cars that have been set up can be found among all the rest.
+/// that the cars that have been set up can be found among all the rest. So is a car the car list and the
+/// car disagree about (`differs`), which is what the list's author has to look at.
 export interface Kept {
   view: ReadonlySet<string>;
   pedals: ReadonlySet<string>;
+  differs: ReadonlySet<string>;
 }
 
-const NOTHING_KEPT: Kept = { view: new Set(), pedals: new Set() };
+const NOTHING_KEPT: Kept = { view: new Set(), pedals: new Set(), differs: new Set() };
 const NEVER: ReadonlyMap<string, string> = new Map();
 
 /// What a car is called on screen: the sim's name for it, or its folder when it has none.
@@ -120,6 +122,7 @@ function Group({
         const meta = metaFor(c, shared.has(carLabel(c).toLowerCase()), drove(c));
         const view = kept.view.has(rigKey(c));
         const pedals = kept.pedals.has(rigKey(c));
+        const differs = kept.differs.has(rigKey(c));
         return (
           <button
             key={c.folder}
@@ -131,7 +134,7 @@ function Group({
             <span className="name">{carLabel(c)}</span>
             {meta && <span className="meta">{meta}</span>}
             {/* Words inside the row, not controls of their own: a row stays one stop for the keyboard. */}
-            {(view || pedals) && (
+            {(view || pedals || differs) && (
               <span className="kept">
                 {view && (
                   <span className="mark" title="The view it was driven with is recorded">
@@ -141,6 +144,14 @@ function Group({
                 {pedals && (
                   <span className="mark" title="Its pedals are kept">
                     pedals
+                  </span>
+                )}
+                {differs && (
+                  <span
+                    className="mark differs"
+                    title="What this car publishes disagrees with the car list: see its Controls"
+                  >
+                    ≠ list
                   </span>
                 )}
               </span>

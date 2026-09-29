@@ -385,6 +385,11 @@
   color: var(--muted);
   white-space: nowrap;
 }
+/* Where the car list and the car disagree: the one mark that asks for something to be done. */
+.paints-app .sidebar .car .mark.differs {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+}
 
 /* The car being looked at, above its versions. */
 .paints-app .car-head h2 {
@@ -795,6 +800,137 @@
 }
 .paints-app .apply-options .note {
   margin-top: 8px;
+}
+
+/* ---- what the car list says of a car ---- */
+/* Under the view and the pedals, across both: what the list says the car has and what its dials are called, and
+   above it, set apart, where the car has been found doing something the list does not say. */
+
+.paints-app .car-controls {
+  /* Across the view and the pedals and no wider: a column of its own would leave them each a third of a wide window,
+     where without it they are half. */
+  grid-column: 1 / span 2;
+}
+/* The heading, and beside it how the entry was checked. Short: the liveries begin under this panel. */
+.paints-app .car-controls .head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  margin-bottom: 8px;
+}
+.paints-app .car-controls .head h3 {
+  margin: 0;
+}
+/* No taller than the heading alone would be: the panel is under the view and the pedals, and every line of it is a
+   line the liveries begin lower by. */
+.paints-app .car-controls .head .note {
+  margin: 0;
+  line-height: 11px;
+}
+.paints-app .car-controls .facts {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.paints-app .car-controls .tag {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  font: 500 12px/1.5 var(--font-mono);
+  color: var(--fg);
+  white-space: nowrap;
+}
+/* The rows of controls are one press away, folded until asked for: a prototype has eight, and the car's liveries
+   would be pushed out of sight in the desk's smallest window by every listed car. */
+.paints-app .car-controls .control-rows {
+  margin-top: 8px;
+}
+.paints-app .car-controls .control-rows summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  user-select: none;
+}
+.paints-app .car-controls .control-rows summary:hover,
+.paints-app .car-controls .control-rows summary:focus-visible {
+  color: var(--fg);
+}
+.paints-app .car-controls .control-rows .count {
+  color: var(--faint);
+}
+.paints-app .car-controls .controls {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 4px 16px;
+}
+.paints-app .car-controls .controls li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.paints-app .car-controls .controls .what {
+  color: var(--muted);
+}
+.paints-app .car-controls .controls .values {
+  color: var(--faint);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.paints-app .car-controls .note {
+  margin-top: 8px;
+}
+.paints-app .car-controls .disagreements {
+  margin: 0 0 10px;
+  padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+.paints-app .car-controls .disagreements .heading {
+  margin-bottom: 2px;
+  font: 600 11px/1.3 var(--font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn);
+}
+.paints-app .car-controls .disagreements .count {
+  font-weight: 400;
+  color: var(--faint);
+}
+.paints-app .car-controls .disagreements ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.paints-app .car-controls .disagreements li {
+  min-width: 0;
+}
+.paints-app .car-controls .disagreements .says {
+  display: block;
+  color: var(--fg);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.paints-app .car-controls .disagreements .when {
+  display: block;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.25;
+}
+.paints-app .car-controls .not-listed {
+  color: var(--muted);
 }
 
 /* ---- status chips ---- */

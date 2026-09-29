@@ -5,8 +5,10 @@
  * handed; the request as it leaves is checked against a stand-in host on 127.0.0.1 that refuses an Origin as the
  * real one does.
  *
- * And what the page reads, asked from the same place: GET cars, views and pedals, each answered { value },
- * { missing } or { error }, from a host on this machine and no other.
+ * And what the page reads, asked from the same place: GET cars, views, pedals and controls (the canonical list of
+ * cars, with what its check has said of each), each answered { value }, { missing } or { error }, from a host on this
+ * machine and no other. The list of cars is the one answer that is bounded and shaped on the way: only the keys the
+ * page draws, each of the type it is drawn as, nothing longer than the page has room for.
  *
  * And who may ask either: main.js, read as text, answers the desk window alone.
  */
@@ -18,7 +20,8 @@ import http from 'node:http';
 
 const require = createRequire(import.meta.url);
 const {
-  createRigApi, bindingProblem, bindingRequest, readAnswer, readRequest, readRoute, unread, send, PEDALS_PATH, READS, TIMEOUT_MS, MAX_LENGTH,
+  createRigApi, bindingProblem, bindingRequest, readAnswer, readRequest, readRoute, readControls, shapeControls, unread, send, PEDALS_PATH,
+  READS, TIMEOUT_MS, MAX_LENGTH, MAX_CONTROLS_BYTES,
 } = require('../../modules/js/rig-api.js');
 
 const CAR = 'mx5 mx52016';
@@ -255,6 +258,61 @@ const VIEWS = [{
 const PEDALS = { smartcontrol: { found: true, profiles: [{ id: PROFILE, name: 'Default' }], keys: [] }, cars: [ROW] };
 const HELD = { cars: CARS, views: VIEWS, pedals: PEDALS };
 
+// The list of cars as the host writes it, with what its check has kept of each car, and as the page is given it.
+// The host is one from before the list when it holds none of this (HELD): its controls route is a 404.
+const CONTROLS = {
+  version: 1,
+  listHash: '0123456789ab',
+  count: 2,
+  following: CAR,
+  problems: [],
+  remarks: { 'mclaren570sgt4': ['mclaren570sgt4 the list gives abs as dcABS, which the car does not publish'] },
+  kept: {
+    mclaren570sgt4: [{
+      about: 'absent:dcABS', text: 'the list gives abs as dcABS, which the car does not publish',
+      firstSeen: '2026-09-28T18:00:00.000Z', lastSeen: '2026-09-29T09:30:00.000Z',
+    }],
+  },
+  cars: [
+    {
+      path: 'mclaren570sgt4', name: 'McLaren 570S GT4', kind: 'gt', abs: 'adjustable', tc: 'adjustable', brakeBias: 'none',
+      controls: [{ id: 'mode', var: 'dcABS', label: 'ESC', positions: { 0: 'TRACK', 1: 'SPORT', 2: 'NORMAL' }, lockedWhenFixed: true, covers: ['abs', 'tc'], note: 'a long note' }],
+      checked: 'telemetry', sources: ['https://example.invalid/manual.pdf'],
+    },
+    {
+      path: CAR, name: 'Mazda MX-5 Cup', kind: 'touring', abs: 'fixed', tc: 'none', brakeBias: 'adjustable',
+      controls: [{ id: 'brakeBias', var: 'dcBrakeBias', label: 'BB', range: [40, 60], decimals: 1, lockedWhenFixed: false }],
+      checked: 'written',
+    },
+  ],
+};
+const SHAPED = {
+  version: 1,
+  listHash: '0123456789ab',
+  count: 2,
+  following: CAR,
+  cars: [
+    {
+      path: 'mclaren570sgt4', name: 'McLaren 570S GT4', kind: 'gt', abs: 'adjustable', tc: 'adjustable', brakeBias: 'none',
+      controls: [{ id: 'mode', var: 'dcABS', label: 'ESC', positions: [[0, 'TRACK'], [1, 'SPORT'], [2, 'NORMAL']], covers: ['abs', 'tc'] }],
+      checked: 'telemetry',
+    },
+    {
+      path: CAR, name: 'Mazda MX-5 Cup', kind: 'touring', abs: 'fixed', tc: 'none', brakeBias: 'adjustable',
+      controls: [{ id: 'brakeBias', var: 'dcBrakeBias', label: 'BB', range: [40, 60] }],
+      checked: 'written',
+    },
+  ],
+  kept: [{
+    car: 'mclaren570sgt4',
+    remarks: [{
+      about: 'absent:dcABS', text: 'the list gives abs as dcABS, which the car does not publish',
+      firstSeen: '2026-09-28T18:00:00.000Z', lastSeen: '2026-09-29T09:30:00.000Z',
+    }],
+  }],
+};
+const WITH_LIST = { ...HELD, controls: CONTROLS };
+
 // A `send` that answers each route with what the host holds for it, 404 for one it has never heard of.
 function reader(held = HELD) {
   return recorder((request) => {
@@ -263,43 +321,53 @@ function reader(held = HELD) {
   });
 }
 
-test('the contract of a read: a GET for each of cars, views and pedals, with no body and no Origin', () => {
-  expect(READS).toEqual(['cars', 'views', 'pedals']);
+test('the contract of a read: a GET for each of cars, views, pedals and controls, with no body and no Origin', () => {
+  expect(READS).toEqual(['cars', 'views', 'pedals', 'controls']);
   const request = readRequest('http://localhost:8889/', 'views');   // a trailing slash is not doubled
   expect(request.url).toBe('http://localhost:8889/racing-desk/data/views');
   expect(request.method).toBe('GET');
   expect(request.body).toBeUndefined();
   expect(Object.keys(request.headers).map((h) => h.toLowerCase())).toEqual(['accept']);
+  expect(request.maxBytes).toBeUndefined();
+
+  // The list of cars is asked the same way, with a limit on how much of the answer is listened to.
+  const list = readRequest('http://localhost:8889', 'controls');
+  expect(list.url).toBe('http://localhost:8889/racing-desk/data/controls');
+  expect([list.method, list.body, Object.keys(list.headers).map((h) => h.toLowerCase())]).toEqual(['GET', undefined, ['accept']]);
+  expect(list.maxBytes).toBe(MAX_CONTROLS_BYTES);
 });
 
 test('read asks where the host is now, and answers each route with what the host gave', async () => {
   let where = 'http://localhost:8889';
   const { sent, send: sendRequest } = reader();
   const rig = createRigApi({ host: () => where, send: sendRequest });
-  expect(await rig.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { value: PEDALS } });
+  // A host from before the list of cars has no such route, and is read all the same.
+  expect(await rig.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { value: PEDALS }, controls: { missing: true } });
   where = 'http://localhost:18889/';   // the host moved beside SimHub
   await rig.read();
   expect(sent.map((s) => s.request.url)).toEqual([
     'http://localhost:8889/racing-desk/data/cars',
     'http://localhost:8889/racing-desk/data/views',
     'http://localhost:8889/racing-desk/data/pedals',
+    'http://localhost:8889/racing-desk/data/controls',
     'http://localhost:18889/racing-desk/data/cars',
     'http://localhost:18889/racing-desk/data/views',
     'http://localhost:18889/racing-desk/data/pedals',
+    'http://localhost:18889/racing-desk/data/controls',
   ]);
-  expect(sent.map((s) => s.request.method)).toEqual(Array(6).fill('GET'));
-  expect(sent.map((s) => s.timeoutMs)).toEqual(Array(6).fill(3000));
+  expect(sent.map((s) => s.request.method)).toEqual(Array(8).fill('GET'));
+  expect(sent.map((s) => s.timeoutMs)).toEqual(Array(8).fill(3000));
   for (const { request } of sent) expect(Object.keys(request.headers).some((h) => /^origin$/i.test(h))).toBe(false);
 });
 
-test('as it leaves Node: three GETs the host takes, none of them a page\'s', async () => {
+test('as it leaves Node: four GETs the host takes, none of them a page\'s', async () => {
   const host = await startHost();
   try {
-    for (const route of READS) host.state.routes[`/racing-desk/data/${route}`] = { status: 200, body: JSON.stringify(HELD[route]) };
+    for (const route of READS) host.state.routes[`/racing-desk/data/${route}`] = { status: 200, body: JSON.stringify(WITH_LIST[route]) };
     const rig = createRigApi({ host: host.url });
-    expect(await rig.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { value: PEDALS } });
+    expect(await rig.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { value: PEDALS }, controls: { value: SHAPED } });
     expect(host.state.asked.map((a) => `${a.method} ${a.url}`).sort()).toEqual([
-      'GET /racing-desk/data/cars', 'GET /racing-desk/data/pedals', 'GET /racing-desk/data/views',
+      'GET /racing-desk/data/cars', 'GET /racing-desk/data/controls', 'GET /racing-desk/data/pedals', 'GET /racing-desk/data/views',
     ]);
     for (const asked of host.state.asked) {
       expect(asked.headers).not.toHaveProperty('origin');
@@ -313,9 +381,12 @@ test('as it leaves Node: three GETs the host takes, none of them a page\'s', asy
 
 test('a route the host does not have yet is missing, and the others are read all the same', async () => {
   const older = createRigApi({ host: 'http://localhost:8889', send: reader({ cars: CARS }).send });
-  expect(await older.read()).toEqual({ cars: { value: CARS }, views: { missing: true }, pedals: { missing: true } });
+  expect(await older.read()).toEqual({ cars: { value: CARS }, views: { missing: true }, pedals: { missing: true }, controls: { missing: true } });
   const half = createRigApi({ host: 'http://localhost:8889', send: reader({ cars: CARS, views: VIEWS }).send });
-  expect(await half.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { missing: true } });
+  expect(await half.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { missing: true }, controls: { missing: true } });
+  // One that has all but the list of cars: the page is as it was.
+  const before = createRigApi({ host: 'http://localhost:8889', send: reader(HELD).send });
+  expect(await before.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { value: PEDALS }, controls: { missing: true } });
 });
 
 test('an answer that is not a 200 carrying JSON is said in words', () => {
@@ -336,6 +407,7 @@ test('one route failing does not take the others with it', async () => {
   const { send: sendRequest } = recorder((request) => {
     if (request.url.endsWith('/views')) throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
     if (request.url.endsWith('/pedals')) return { status: 200, text: '{ not json' };
+    if (request.url.endsWith('/controls')) return { status: 500, text: 'boom' };
     return { status: 200, text: JSON.stringify(CARS) };
   });
   const rig = createRigApi({ host: 'http://localhost:8889', send: sendRequest });
@@ -343,6 +415,7 @@ test('one route failing does not take the others with it', async () => {
     cars: { value: CARS },
     views: { error: 'Nothing is answering at http://localhost:8889.' },
     pedals: { error: 'The host answered, but not with JSON.' },
+    controls: { error: 'The host answered 500.' },
   });
 });
 
@@ -351,7 +424,7 @@ test('a host on another machine is asked nothing', async () => {
     const { sent, send: sendRequest } = reader();
     const rig = createRigApi({ host: elsewhere, send: sendRequest });
     const error = `The host at ${elsewhere} is not on this machine, so nothing was asked of it.`;
-    expect(await rig.read(), elsewhere).toEqual({ cars: { error }, views: { error }, pedals: { error } });
+    expect(await rig.read(), elsewhere).toEqual({ cars: { error }, views: { error }, pedals: { error }, controls: { error } });
     expect(sent, elsewhere).toEqual([]);
   }
   for (const here of ['http://localhost:8889', 'http://127.0.0.1:18889/', 'http://[::1]:8889']) {
@@ -365,10 +438,10 @@ test('no host, a slow host, a send that throws: every route says so, and nothing
   const url = gone.url;
   await gone.close();
   const nothing = { error: `Nothing is answering at ${url}.` };
-  expect(await createRigApi({ host: url }).read()).toEqual({ cars: nothing, views: nothing, pedals: nothing });
+  expect(await createRigApi({ host: url }).read()).toEqual({ cars: nothing, views: nothing, pedals: nothing, controls: nothing });
 
   const nowhere = { error: 'There is no local host to ask.' };
-  expect(unread(nowhere.error)).toEqual({ cars: nowhere, views: nowhere, pedals: nowhere });
+  expect(unread(nowhere.error)).toEqual({ cars: nowhere, views: nowhere, pedals: nowhere, controls: nowhere });
   expect(await createRigApi({ host: () => null }).read()).toEqual(unread(nowhere.error));
   expect(await createRigApi({ host: () => { throw new Error('no settings'); } }).read()).toEqual(unread(nowhere.error));
   expect(await createRigApi().read()).toEqual(unread(nowhere.error));
@@ -378,7 +451,7 @@ test('no host, a slow host, a send that throws: every route says so, and nothing
     slow.state.answer = { status: 200, body: '[]', delayMs: 5000 };
     const started = Date.now();
     const late = { error: `The host at ${slow.url} did not answer within 0.15 s.` };
-    expect(await createRigApi({ host: slow.url, timeoutMs: 150 }).read()).toEqual({ cars: late, views: late, pedals: late });
+    expect(await createRigApi({ host: slow.url, timeoutMs: 150 }).read()).toEqual({ cars: late, views: late, pedals: late, controls: late });
     expect(Date.now() - started).toBeLessThan(2000);
   } finally {
     await slow.close();
@@ -386,7 +459,158 @@ test('no host, a slow host, a send that throws: every route says so, and nothing
 
   const thrown = createRigApi({ host: 'http://localhost:8889', send: () => { throw new Error('thrown before any promise'); } });
   const why = { error: 'The host at http://localhost:8889 could not be asked: thrown before any promise' };
-  expect(await thrown.read()).toEqual({ cars: why, views: why, pedals: why });
+  expect(await thrown.read()).toEqual({ cars: why, views: why, pedals: why, controls: why });
+});
+
+// ── The list of cars ──
+
+test('the list of cars comes with the keys the page draws, and nothing it has not asked for', async () => {
+  const rig = createRigApi({ host: 'http://localhost:8889', send: reader(WITH_LIST).send });
+  expect((await rig.read()).controls).toEqual({ value: SHAPED });
+  // The note, the sources, what only the HUD reads, this run's remarks and the problems of the list are not passed on.
+  const text = JSON.stringify((await rig.read()).controls);
+  for (const gone of ['a long note', 'sources', 'lockedWhenFixed', 'decimals', 'problems', 'remarks":{']) expect(text, gone).not.toContain(gone);
+  // Positions are in the order of their values, whatever order the host wrote them in.
+  const scrambled = { ...CONTROLS, cars: [{ ...CONTROLS.cars[0], controls: [{ id: 'mode', positions: { 2: 'NORMAL', 0: 'TRACK', 1: 'SPORT' } }] }] };
+  expect(shapeControls(scrambled).cars[0].controls[0].positions).toEqual([[0, 'TRACK'], [1, 'SPORT'], [2, 'NORMAL']]);
+});
+
+test('a host that serves the list and keeps nothing is read as keeping none, and one that could not read its store says so', async () => {
+  // The route existed before the host kept anything: it answers the list and this run's remarks, and no `kept`. That is
+  // a host with nothing kept — plausible with the app run over an older host, or with --desk-host — and the page
+  // must not say of it that a store could not be read.
+  const { kept, ...fromBefore } = CONTROLS;
+  expect(kept).toBeDefined();
+  const old = createRigApi({ host: 'http://localhost:8889', send: reader({ ...HELD, controls: fromBefore }).send });
+  const { controls } = await old.read();
+  expect(controls.value.kept).toEqual([]);
+  expect(controls.value.cars).toEqual(SHAPED.cars);
+
+  // The host's own null is the store it could not read.
+  const unreadable = createRigApi({ host: 'http://localhost:8889', send: reader({ ...HELD, controls: { ...CONTROLS, kept: null } }).send });
+  expect((await unreadable.read()).controls.value.kept).toBeNull();
+  // And a host that keeps things says which.
+  const keeping = createRigApi({ host: 'http://localhost:8889', send: reader(WITH_LIST).send });
+  expect((await keeping.read()).controls.value.kept).toEqual(SHAPED.kept);
+});
+
+test('a control keeps what it says of its values: off, a range, names for positions', () => {
+  const shaped = (control) => shapeControls({ cars: [{ path: 'x', controls: [control] }] }).cars[0].controls[0];
+  expect(shaped({ id: 'tc', var: 'dcTractionControl', label: 'TCS', off: 1, range: [1, 12] })).toEqual({ id: 'tc', var: 'dcTractionControl', label: 'TCS', off: 1, range: [1, 12] });
+  expect(shaped({ id: 'throttleMap', off: false })).toEqual({ id: 'throttleMap', var: null, label: null, off: false });
+  expect(shaped({ id: 'abs', off: 0, range: [0, 12] }).off).toBe(0);
+  // What is not what it should be is left out, as the host's own reader leaves it.
+  expect(shaped({ id: 'a', off: 'zero', range: [12] })).toEqual({ id: 'a', var: null, label: null });
+  expect(shaped({ id: 'a', range: [1, '12'] }).range).toBeUndefined();
+  expect(shaped({ id: 'a', range: [1, 2, 3] }).range).toBeUndefined();
+  expect(shaped({ id: 'a', positions: { one: 'A', '': 'B', ' ': 'C', 2: 'B', 3: 4, 4: '  ' } }).positions).toEqual([[2, 'B']]);
+  expect(shaped({ id: 'a', positions: {} }).positions).toBeUndefined();
+  expect(shaped({ id: 'a', covers: ['abs', 3, 'tc', 'brakeBias', 'extra'] }).covers).toEqual(['abs', 'tc', 'brakeBias']);
+  // A control with no id is not one.
+  expect(shapeControls({ cars: [{ path: 'x', controls: [{ label: 'no id' }, 'text', null, 7, { id: '' }, { id: 'tc' }] }] }).cars[0].controls.map((c) => c.id)).toEqual(['tc']);
+});
+
+test('a car keeps its kind and what it has, and the words that say so are the three the list uses', () => {
+  const car = (fields) => shapeControls({ cars: [{ path: 'x', ...fields }] }).cars[0];
+  expect(car({ kind: 'gt', abs: 'adjustable', tc: 'fixed', brakeBias: 'none', checked: 'telemetry' }))
+    .toEqual({ path: 'x', name: null, kind: 'gt', abs: 'adjustable', tc: 'fixed', brakeBias: 'none', controls: [], checked: 'telemetry' });
+  expect(car({ abs: 'sometimes', tc: 4, brakeBias: null, kind: 5, name: '', checked: {} }))
+    .toEqual({ path: 'x', name: null, kind: null, abs: null, tc: null, brakeBias: null, controls: [], checked: null });
+  expect(car({ controls: 'none' }).controls).toEqual([]);
+  // A car with no folder is not one.
+  expect(shapeControls({ cars: [{ name: 'No folder' }, 'text', null, [], { path: '' }, { path: 'kept' }] }).cars.map((c) => c.path)).toEqual(['kept']);
+});
+
+test('what the check has kept is by car, and a car with nothing kept is not in it', () => {
+  const remark = { about: 'unlisted', text: 'the car publishes dcBrakeMisc, which the list gives to no control', firstSeen: '2026-09-28T18:00:00.000Z', lastSeen: '2026-09-28T18:00:00.000Z' };
+  const shaped = shapeControls({ cars: [], kept: { a: [remark, { about: 'x' }, { text: 'y' }, 'text', null], b: [], c: 'nope', d: [remark] } });
+  expect(shaped.kept).toEqual([{ car: 'a', remarks: [remark] }, { car: 'd', remarks: [remark] }]);
+  // A host that could not read its store says so with null, which is not none.
+  expect(shapeControls({ cars: [], kept: null }).kept).toBeNull();
+  expect(shapeControls({ cars: [], kept: [] }).kept).toBeNull();
+  expect(shapeControls({ cars: [], kept: 'none' }).kept).toBeNull();
+  expect(shapeControls({ cars: [], kept: {} }).kept).toEqual([]);
+  // A host from before the desk kept anything serves the route with no `kept` at all: it keeps none, and that is not
+  // its store being unreadable — the page must not say that of it.
+  expect(shapeControls({ cars: [] }).kept).toEqual([]);
+  expect(shapeControls({ version: 1, remarks: { a: ['a line of the log'] }, cars: [{ path: 'a' }] }).kept).toEqual([]);
+  // The moments are text or nothing.
+  expect(shapeControls({ cars: [], kept: { a: [{ ...remark, firstSeen: 5, lastSeen: null }] } }).kept[0].remarks[0]).toEqual({ ...remark, firstSeen: null, lastSeen: null });
+  // A car called what an object's own keys are is a car like another.
+  const odd = shapeControls({ cars: [], kept: JSON.parse('{"__proto__": [{"about":"a","text":"b"}], "constructor": [{"about":"a","text":"b"}]}') });
+  expect(odd.kept.map((k) => k.car)).toEqual(['__proto__', 'constructor']);
+  expect(({}).about).toBeUndefined();
+});
+
+test('what the page has no room for is cut, and the answer is a list all the same', () => {
+  const long = 'x'.repeat(5000);
+  const shaped = shapeControls({
+    version: 1.5, listHash: long, count: 'many', following: long,
+    cars: [{
+      path: long, name: long, kind: long, checked: long,
+      controls: [{ id: long, var: long, label: long, positions: { 0: long } }],
+    }],
+    kept: { [long]: [{ about: long, text: long, firstSeen: long, lastSeen: long }] },
+  });
+  expect(shaped.version).toBe(1.5);
+  expect(shaped.count).toBeNull();
+  expect(shaped.listHash).toHaveLength(100);
+  expect(shaped.following).toHaveLength(MAX_LENGTH);
+  const car = shaped.cars[0];
+  expect([car.path.length, car.name.length, car.kind.length, car.checked.length]).toEqual([MAX_LENGTH, MAX_LENGTH, 100, 100]);
+  const control = car.controls[0];
+  expect([control.id.length, control.var.length, control.label.length, control.positions[0][1].length]).toEqual([100, 100, 100, 100]);
+  const remark = shaped.kept[0].remarks[0];
+  expect([shaped.kept[0].car.length, remark.about.length, remark.text.length, remark.firstSeen.length, remark.lastSeen.length]).toEqual([MAX_LENGTH, 100, 500, 40, 40]);
+
+  // And in numbers: a list has as many cars as there are, up to a thousand, and a car as many controls as it has, up to sixty.
+  const many = shapeControls({
+    cars: Array.from({ length: 1500 }, (_, i) => ({
+      path: `car${i}`,
+      controls: Array.from({ length: i === 0 ? 90 : 1 }, (__, j) => ({ id: `c${j}`, positions: Object.fromEntries(Array.from({ length: 200 }, (___, k) => [k, `p${k}`])) })),
+    })),
+    kept: Object.fromEntries(Array.from({ length: 1500 }, (_, i) => [`car${i}`, Array.from({ length: 90 }, (__, j) => ({ about: `a${j}`, text: 't' }))])),
+  });
+  expect(many.cars).toHaveLength(1000);
+  expect(many.cars[0].controls).toHaveLength(60);
+  expect(many.cars[0].controls[0].positions).toHaveLength(64);
+  expect(many.kept).toHaveLength(1000);
+  expect(many.kept[0].remarks).toHaveLength(60);
+});
+
+test('an answer that is not the list of cars is an error in words, and an old host is missing', () => {
+  const words = { error: 'The host answered, but not with the list of cars.' };
+  for (const value of [null, [], 'text', 7, {}, { cars: 'all of them' }, { cars: null }, { car: {} }, { kept: {} }]) {
+    expect(readControls({ status: 200, text: JSON.stringify(value) }), JSON.stringify(value)).toEqual(words);
+  }
+  expect(readControls({ status: 200, text: '{ "cars": [] }' })).toEqual({ value: { version: null, listHash: null, count: null, following: null, cars: [], kept: [] } });
+  expect(readControls({ status: 200, text: '{ "cars": [], "kept": null }' }).value.kept).toBeNull();
+  expect(readControls({ status: 404, text: '' })).toEqual({ missing: true });
+  expect(readControls({ status: 500, text: 'boom' })).toEqual({ error: 'The host answered 500.' });
+  expect(readControls({ status: 200, text: '{ not json' })).toEqual({ error: 'The host answered, but not with JSON.' });
+  expect(typeof readControls({}).error).toBe('string');
+  expect(typeof readControls(undefined).error).toBe('string');
+});
+
+test('a list longer than the page reads is not read, and is said', async () => {
+  const size = MAX_CONTROLS_BYTES + 1;
+  expect(readControls({ status: 200, text: ' '.repeat(size) })).toEqual({ error: 'The host\'s list of cars is longer than the page reads.' });
+  expect(readControls({ status: 200, text: '{"cars":[]}' + ' '.repeat(MAX_CONTROLS_BYTES - 11) }).value.cars).toEqual([]);
+
+  // As it comes off the wire: the read stops listening, and the others are asked all the same.
+  const host = await startHost();
+  try {
+    for (const route of ['cars', 'views', 'pedals']) host.state.routes[`/racing-desk/data/${route}`] = { status: 200, body: JSON.stringify(HELD[route]) };
+    host.state.routes['/racing-desk/data/controls'] = { status: 200, body: JSON.stringify({ cars: [{ path: 'x', name: 'y'.repeat(size) }] }) };
+    const result = await createRigApi({ host: host.url }).read();
+    expect(result.controls).toEqual({ error: `The host at ${host.url} answered with more than the page reads.` });
+    expect(result.cars).toEqual({ value: CARS });
+    // The other routes have no such limit: what they hold is the page's to check.
+    host.state.routes['/racing-desk/data/views'] = { status: 200, body: JSON.stringify([{ car_path: 'x', name: 'y'.repeat(size) }]) };
+    expect((await createRigApi({ host: host.url }).read()).views.value[0].name).toHaveLength(size);
+  } finally {
+    await host.close();
+  }
 });
 
 // ── Who may ask ──

@@ -1377,7 +1377,7 @@ const OLDER = { missing: true };
 const RIG = { cars: held(RIG_CARS), views: held(RIG_VIEWS), pedals: held(RIG_PEDALS) };
 
 const CATERHAM = 'caterham caterham420r';
-const NOT_THE_PAGES = ['cars', 'views', 'pedals'];   // what the page must not ask the host for itself
+const NOT_THE_PAGES = ['cars', 'views', 'pedals', 'controls'];   // what the page must not ask the host for itself
 
 // The rig's half of the bridge, put beside the paints half. `binds` are rig.bindPedals' answers, one per call in
 // order, each as main.js gives it — { ok: true, car } or { ok: false, error } — or { __error } to reject, which
@@ -1503,7 +1503,7 @@ test('the one list of cars marks the cars with a view or pedals, and what the ho
     await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
 
     // None of it was asked of the host by the page, and nothing was written.
-    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual([0, 0, 0]);
+    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual(NOT_THE_PAGES.map(() => 0));
     expect(own.asked.filter((a) => a.method !== 'GET')).toEqual([]);
     expect(await bindCalls(page)).toEqual([]);
     expect(errors).toEqual([]);
@@ -1833,7 +1833,7 @@ test('choosing a profile asks the app to give it to the car, and says when it is
 
     // A save is no reason to read again, and the page itself asked the host for none of it and wrote nothing.
     expect(await rigReads(page)).toBe(1);
-    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual([0, 0, 0]);
+    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual(NOT_THE_PAGES.map(() => 0));
     expect(own.asked.filter((a) => a.method !== 'GET')).toEqual([]);
     expect(errors).toEqual([]);
   } finally {
@@ -1986,7 +1986,7 @@ test('a Cars page that found no host reads again when the host comes up: the car
     await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
     await expect(app.locator('.car-view dd').first()).toHaveText('27 h ago');
     await expect(app.getByRole('button', { name: 'Driven', exact: true })).toBeVisible();
-    expect(NOT_THE_PAGES.map((route) => askedFor(late, route))).toEqual([0, 0, 0]);
+    expect(NOT_THE_PAGES.map((route) => askedFor(late, route))).toEqual(NOT_THE_PAGES.map(() => 0));
   } finally {
     await new Promise((resolve) => { late.closeAllConnections(); late.close(resolve); });
   }
@@ -2192,6 +2192,430 @@ test('choosing another car puts the pane at its top', async ({ page }) => {
   await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
   await expect(app.locator('.group-head h2')).toHaveText('shatter');
   await atTheTop();
+  expect(errors).toEqual([]);
+});
+
+// ── Cars: what the car list says of a car, and where the car disagrees ──
+// The canonical list of cars reaches the page through the app, as the rest of the rig does: rig.read() answers
+// `controls` as { value }, { missing } or { error }, already bounded and shaped by modules/js/rig-api.js (positions
+// as [value, name] pairs, what the check has kept as [{ car, remarks }]). Made up over the cars the tests already
+// have. The McLaren is in the list and the check has found the car disagreeing with it twice; the MX-5 is in it and
+// nothing has been found; the Caterham is not, and the check said so; the Lotus is not, and nothing was said; the
+// Nissan is a prototype with a range for some of its dials and none for others, and words in it that are only text.
+
+const said = (about, text, firstSeen, lastSeen) => ({ about, text, firstSeen, lastSeen });
+const LIST_CARS = [
+  {
+    path: 'mclaren570sgt4', name: 'McLaren 570S GT4', kind: 'gt', abs: 'adjustable', tc: 'adjustable', brakeBias: 'none',
+    controls: [{ id: 'mode', var: 'dcABS', label: 'ESC', positions: [[0, 'TRACK'], [1, 'SPORT'], [2, 'NORMAL']], covers: ['abs', 'tc'] }],
+    checked: 'telemetry',
+  },
+  { path: 'mx5 mx52016', name: 'Mazda MX-5 Cup', kind: 'touring', abs: 'fixed', tc: 'none', brakeBias: 'none', controls: [], checked: 'written' },
+  {
+    path: 'nissangtpzxt', name: 'Nissan GTP ZX-T', kind: 'prototype', abs: 'none', tc: 'adjustable', brakeBias: 'adjustable',
+    controls: [
+      { id: 'brakeBias', var: 'dcBrakeBias', label: 'BAL', range: [40, 60] },
+      { id: 'tc', var: 'dcTractionControl', label: 'TC1', off: 1, range: [1, 12] },
+      { id: 'brakeMigration', var: 'dcABS', label: 'MIG', range: [-6, 6] },
+      { id: 'throttleMap', var: 'dcThrottleShape', label: 'MAP', off: false },
+      { id: 'tcToggle', var: 'dcTractionControlToggle', label: 'TC <b>TOGGLE</b>' },
+      { id: 'absToggle', var: 'dcABSToggle', label: 'ABS' },
+      { id: 'powerSteering', var: 'dcPowerSteering', label: 'PS', range: [3, 3] },
+      { id: 'drs', var: 'DRS_Status', label: 'DRS' },
+    ],
+    checked: 'telemetry',
+  },
+];
+const LIST_KEPT = [
+  {
+    car: 'mclaren570sgt4',
+    remarks: [
+      said('absent:dcABS', 'the list gives abs as dcABS, which the car does not publish', '2026-09-15T23:40:00.000Z', '2026-09-22T18:05:00.000Z'),
+      said('value:dcABS', 'dcABS reads 3, a position of mode the list has no name for', '2026-09-22T18:05:00.000Z', '2026-09-22T18:05:00.000Z'),
+    ],
+  },
+  {
+    car: 'caterham caterham420r',
+    remarks: [said('unknown', 'is not in the list: its controls are shown as they were before there was one', '2026-09-14T22:30:00.000Z', '2026-09-20T22:30:00.000Z')],
+  },
+];
+const listOf = (cars = LIST_CARS, kept = LIST_KEPT) => held({ version: 1, listHash: '0123456789ab', count: cars.length, following: null, cars, kept });
+const LISTED = { ...TOLD, controls: listOf() };
+const CONTROLS_STRIP = ['panel car-view', 'panel car-pedals', 'panel car-controls'];
+const stripOf = (app) => app.locator('.car-rig > *').evaluateAll((els) => els.map((el) => el.className.trim()));
+// A moment as the desk writes one, whatever the rig's language and clock.
+const FIRST_AND_LAST = /^First seen \S.*\d.*, last seen \S.*\d.*\.$/;
+const SEEN_ONCE = /^Seen \S.*\d.*\.$/;
+const NOT_IN_THE_LIST = 'This car is not in the car list. The HUD shows its controls as it did before there was a list.';
+
+test('a car\'s controls, as the list has them: its kind, what it has, the car\'s own names for its dials, and how it was checked', async ({ page }) => {
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: LISTED });
+  const panel = app.locator('.car-controls');
+  const facts = panel.locator('.facts');
+
+  // A car with a dial that stands for two things, whose values have names.
+  await lookAt(app, 'McLaren 570S GT4');
+  expect(await stripOf(app)).toEqual(CONTROLS_STRIP);
+  await expect(panel.locator('h3')).toHaveText('Controls');
+  await expect(facts.locator('dt')).toHaveText(['Kind', 'ABS', 'Traction control', 'Brake bias']);
+  await expect(facts.locator('dd')).toHaveText(['GT car', 'adjustable ESC', 'adjustable ESC', 'none']);
+  // The rows of controls are folded until asked for, so that the car's liveries stay in sight under this panel.
+  const rows = panel.locator('.control-rows');
+  await expect(rows).toHaveCount(1);
+  expect(await rows.evaluate((el) => el.open)).toBe(false);
+  await expect(rows.locator('summary')).toHaveText('Each control, its label and values 1');
+  await expect(panel.locator('.controls')).toBeHidden();
+  await rows.locator('summary').click();
+  await expect(panel.locator('.controls')).toBeVisible();
+  await expect(panel.locator('.controls li')).toHaveText(['Mode ESC 0 TRACK · 1 SPORT · 2 NORMAL']);
+  await expect(panel.locator('.controls li .tag')).toHaveText(['ESC']);
+  // How it was checked is beside the heading, one line above what the list says, and is not lost with the rows.
+  await expect(panel.locator('.head .checked')).toHaveText('Checked against your telemetry.');
+
+  // A car whose ranges and off positions are the list's own words, and whose labels are only text. What was opened
+  // stays open as he goes down the list of cars, which is a choice of his and not the panel's.
+  await lookAt(app, 'nissangtpzxt');
+  await expect(facts.locator('dd')).toHaveText(['Prototype', 'none', 'adjustable TC1', 'adjustable BAL']);
+  await expect(rows.locator('summary')).toHaveText('Each control, its label and values 8');
+  expect(await rows.evaluate((el) => el.open)).toBe(true);
+  await expect(panel.locator('.controls li')).toHaveText([
+    'Brake bias BAL 40 to 60',
+    'Traction control TC1 1 to 12, 1 is off',
+    'Brake migration MIG -6 to 6',
+    'Throttle map MAP never off',
+    'TC toggle TC <b>TOGGLE</b>',
+    'ABS toggle ABS',
+    'Power steering PS only 3',
+    'DRS DRS status',
+  ]);
+  await expect(panel.locator('.controls li b')).toHaveCount(0);
+  // The variable that carries a control is under its row, for whoever is putting the list right.
+  await expect(panel.locator('.controls li').first()).toHaveAttribute('title', 'dcBrakeBias');
+  await expect(panel.locator('.checked')).toHaveText('Checked against your telemetry.');
+  await expect(panel.locator('.disagreements')).toHaveCount(0);
+
+  // Written from the manuals and not yet held against his telemetry, which the page says instead. A car the list
+  // gives no controls says so, and its ABS is the one that is fixed.
+  await lookAt(app, 'Mazda MX-5 Cup', MX5(app));
+  await expect(facts.locator('dd')).toHaveText(['Touring car', 'fixed', 'none', 'none']);
+  await expect(facts.locator('.fact').nth(1)).toHaveAttribute('title', 'The car has it, and you cannot turn it.');
+  await expect(panel.locator('.controls')).toHaveCount(0);
+  await expect(panel.locator('.facts + .note')).toHaveText('The list gives this car no controls.');
+  await expect(panel.locator('.control-rows')).toHaveCount(0);
+  await expect(panel.locator('.checked')).toHaveText('Written from the manuals; not checked against your telemetry yet.');
+  await expect(panel.locator('.disagreements')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('where the car and the list disagree is set apart, each in a sentence with when it was first and last seen', async ({ page }) => {
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: LISTED });
+  const panel = app.locator('.car-controls');
+  const differences = panel.locator('.disagreements');
+
+  await lookAt(app, 'McLaren 570S GT4');
+  await expect(differences).toBeVisible();
+  await expect(differences).toHaveAttribute('role', 'group');
+  await expect(differences).toHaveAttribute('aria-label', 'Where the car and the list disagree');
+  await expect(differences.locator('.heading')).toHaveText('Where the car and the list disagree 2');
+  // Sentences: the first letter up and a full stop, except that a variable is written as the sim writes it.
+  await expect(differences.locator('li .says')).toHaveText([
+    'The list gives abs as dcABS, which the car does not publish.',
+    'dcABS reads 3, a position of mode the list has no name for.',
+  ]);
+  const when = differences.locator('li .when');
+  await expect(when).toHaveCount(2);
+  await expect(when.first()).toHaveText(FIRST_AND_LAST);
+  await expect(when.nth(1)).toHaveText(SEEN_ONCE);   // said once, so first and last are the one moment
+  // Above what the list says, where the eye lands, and not in the colour of the rest of the panel.
+  const order = await panel.evaluate((el) => [...el.children].map((c) => c.className || c.tagName));
+  expect(order).toEqual(['head', 'disagreements', 'facts', 'control-rows']);
+  const [warning, ordinary] = await Promise.all([
+    differences.locator('.heading').evaluate((el) => getComputedStyle(el).color),
+    panel.locator('h3').evaluate((el) => getComputedStyle(el).color),
+  ]);
+  expect(warning).not.toBe(ordinary);
+  const box = await differences.evaluate((el) => { const s = getComputedStyle(el); return [s.borderLeftWidth, s.borderTopWidth]; });
+  expect(box).toEqual(['3px', '1px']);
+
+  // The others have none to show.
+  await lookAt(app, 'Lotus 79');
+  await expect(differences).toHaveCount(0);
+  await lookAt(app, 'Mazda MX-5 Cup', MX5(app));
+  await expect(differences).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('what the check says is text: a tag in it is shown as it was written, and is not one', async ({ page }) => {
+  const kept = [{ car: 'nissangtpzxt', remarks: [said('unlisted', 'the car publishes <img src=x onerror="window.__ran = 1">, which the list gives to no control', null, null)] }];
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: { ...TOLD, controls: listOf(LIST_CARS, kept) } });
+  await lookAt(app, 'nissangtpzxt');
+  await expect(app.locator('.disagreements li .says')).toHaveText('The car publishes <img src=x onerror="window.__ran = 1">, which the list gives to no control.');
+  await expect(app.locator('.disagreements img')).toHaveCount(0);
+  // With no moment given there is none to say: no "Seen", and no empty line where it would be.
+  await expect(app.locator('.disagreements .when')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__ran)).toBeUndefined();
+  expect(errors).toEqual([]);
+});
+
+test('a car the list does not have says so plainly, and makes up nothing in its place', async ({ page }) => {
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: LISTED });
+  const panel = app.locator('.car-controls');
+
+  // The check noticed it, and when.
+  await lookAt(app, 'Caterham Seven 420R');
+  expect(await stripOf(app)).toEqual(CONTROLS_STRIP);
+  await expect(panel.locator('.not-listed > div').first()).toHaveText(NOT_IN_THE_LIST);
+  await expect(panel.locator('.not-listed .note')).toHaveText(/^The check noticed it\. First seen \S.*\d.*, last seen \S.*\d.*\.$/);
+  await expect(panel.locator('.facts')).toHaveCount(0);
+  await expect(panel.locator('.controls')).toHaveCount(0);
+  await expect(panel.locator('.checked')).toHaveCount(0);
+  // That the list lacks the car is not a disagreement with it.
+  await expect(panel.locator('.disagreements')).toHaveCount(0);
+
+  // One the check has not said anything of.
+  await lookAt(app, 'Lotus 79');
+  await expect(panel.locator('.not-listed')).toHaveText(NOT_IN_THE_LIST);
+  await expect(panel.locator('.not-listed .note')).toHaveCount(0);
+  await lookAt(app, 'oldcar');
+  await expect(panel.locator('.not-listed')).toHaveText(NOT_IN_THE_LIST);
+  expect(errors).toEqual([]);
+});
+
+test('a car the list and the car disagree about is marked in the list of cars, and no other is', async ({ page }) => {
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: LISTED });
+  const marks = app.locator('.sidebar .mark.differs');
+  await expect(marks).toHaveCount(1);
+  await expect(marks).toHaveText('≠ list');
+  await expect(marks).toHaveAttribute('title', 'What this car publishes disagrees with the car list: see its Controls');
+  await expect(carRow(app, 'McLaren 570S GT4').locator('.mark')).toHaveText(['view', 'pedals', '≠ list']);
+  await expect(carRow(app, 'McLaren 570S GT4').locator('.mark.differs')).toHaveCount(1);
+  // The Caterham was said not to be in the list, which is no disagreement; the MX-5 was said nothing of.
+  await expect(carRow(app, 'Caterham Seven 420R').locator('.mark')).toHaveText(['view', 'pedals']);
+  await expect(MX5(app).locator('.mark.differs')).toHaveCount(0);
+  // A word inside the row, as the others are: from one row the next Tab is the next row.
+  await carRow(app, 'McLaren 570S GT4').focus();
+  await page.keyboard.press('Tab');
+  await expect(app.locator('.sidebar .car:focus')).not.toHaveText(/McLaren/);
+  // Its name is still only its name.
+  await expect(carRow(app, 'McLaren 570S GT4').locator('.name')).toHaveText('McLaren 570S GT4');
+
+  // Driven narrows the list, and the mark goes where the car does.
+  await app.locator('.sidebar .filter .driven').click();
+  await expect(app.locator('.sidebar .mark.differs')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test('a host from before the list: the page is as it was', async ({ page }) => {
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: TOLD });
+  await lookAt(app, 'McLaren 570S GT4');
+  const before = { rig: await app.locator('.car-rig').innerHTML(), marks: await app.locator('.sidebar .mark').allTextContents() };
+  expect(await stripOf(app)).toEqual(['panel car-view', 'panel car-pedals']);
+  await expect(app.locator('.car-controls')).toHaveCount(0);
+  await expect(app.locator('.sidebar .mark.differs')).toHaveCount(0);
+  expect(before.marks).toContain('pedals');
+
+  // Whichever way it does not have it: an app whose answer has no such key, a host with no such route, a host whose
+  // build carries no list, a list with no cars in it.
+  const none = [
+    ['no key in the answer', TOLD],
+    ['a host with no route', { ...TOLD, controls: OLDER }],
+    ['a list with no cars', { ...TOLD, controls: held({ version: 1, listHash: 'empty', count: 0, following: null, cars: [], kept: [] }) }],
+    ['a list with no cars and something kept', { ...TOLD, controls: held({ version: 1, listHash: 'empty', count: 0, following: null, cars: [], kept: LIST_KEPT }) }],
+  ];
+  for (const [what, rig] of none) {
+    await stubRig(page, rig);
+    await page.reload();
+    const again = page.locator(APP);
+    await lookAt(again, 'McLaren 570S GT4');
+    expect(await stripOf(again), what).toEqual(['panel car-view', 'panel car-pedals']);
+    expect(await again.locator('.car-rig').innerHTML(), what).toBe(before.rig);
+    expect(await again.locator('.sidebar .mark').allTextContents(), what).toEqual(before.marks);
+    await expect(again.locator('.car-controls'), what).toHaveCount(0);
+    await lookAt(again, 'Caterham Seven 420R');
+    await expect(again.locator('.car-controls'), what).toHaveCount(0);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('a list that could not be read is said in the Controls panel, and the rest of the page is as it was', async ({ page }) => {
+  const nothing = { error: 'Nothing is answering at http://127.0.0.1:8889.' };
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: { ...TOLD, controls: nothing } });
+  await lookAt(app, 'McLaren 570S GT4');
+  expect(await stripOf(app)).toEqual(CONTROLS_STRIP);
+  await expect(app.locator('.car-controls .note')).toHaveText('The car list could not be read. Nothing is answering at http://127.0.0.1:8889.');
+  await expect(app.locator('.car-controls .facts')).toHaveCount(0);
+  await expect(app.locator('.car-view dd').nth(1)).toHaveText('−60 mm');   // the view is the view
+  await expect(app.locator('.car-pedals select')).toHaveValue('5511aacc');
+  await expect(app.locator('.sidebar .mark.differs')).toHaveCount(0);
+
+  // An answer that is not the list is not taken for one.
+  await stubRig(page, { ...TOLD, controls: held('the list') });
+  await page.reload();
+  const odd = page.locator(APP);
+  await lookAt(odd, 'McLaren 570S GT4');
+  await expect(odd.locator('.car-controls .note')).toHaveText('The car list could not be read. The host\'s answer was not the list.');
+
+  // The rest of the app answered nothing of it at all, or something that is not an answer.
+  await stubRig(page, { ...TOLD, controls: 'nothing' });
+  await page.reload();
+  const none = page.locator(APP);
+  await lookAt(none, 'McLaren 570S GT4');
+  await expect(none.locator('.car-controls .note')).toHaveText('The car list could not be read. The app did not answer.');
+  expect(errors).toEqual([]);
+});
+
+test('a store that could not be read says so beside the list, and no disagreement is made up in its place', async ({ page }) => {
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: { ...TOLD, controls: listOf(LIST_CARS, null) } });
+  const panel = app.locator('.car-controls');
+  await lookAt(app, 'McLaren 570S GT4');
+  await expect(panel.locator('.facts dd')).toHaveText(['GT car', 'adjustable ESC', 'adjustable ESC', 'none']);
+  await expect(panel.locator('.note').last()).toHaveText('What the check has found could not be read from the host\'s store.');
+  await expect(panel.locator('.disagreements')).toHaveCount(0);
+  await expect(app.locator('.sidebar .mark.differs')).toHaveCount(0);
+  await lookAt(app, 'Lotus 79');
+  await expect(panel.locator('.not-listed')).toContainText(NOT_IN_THE_LIST);
+  await expect(panel.locator('.note').last()).toHaveText('What the check has found could not be read from the host\'s store.');
+
+  // Not the same as nothing kept, which says nothing.
+  await stubRig(page, { ...TOLD, controls: listOf(LIST_CARS, []) });
+  await page.reload();
+  const none = page.locator(APP);
+  await lookAt(none, 'McLaren 570S GT4');
+  await expect(none.locator('.car-controls .facts')).toHaveCount(1);
+  await expect(none.locator('.car-controls .disagreements')).toHaveCount(0);
+  await expect(none.locator('.car-controls .note').filter({ hasText: 'could not be read' })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('the list is read again with the rest of what the host keeps, and chosen with the car', async ({ page }) => {
+  const own = await startMockHost(buildHistory());
+  try {
+    await stubPaintsBridge(page, PAINTS);
+    await stubRig(page, LISTED);
+    const errors = await openDesk(page, `http://127.0.0.1:${own.address().port}`, '&page=cars');
+    const app = page.locator(APP);
+    await expect.poll(() => rigReads(page)).toBe(1);
+    await lookAt(app, 'McLaren 570S GT4');
+    await expect(app.locator('.car-controls .disagreements li')).toHaveCount(2);
+
+    // What the host keeps changes while the page is up: the next read has it.
+    await page.evaluate(() => {
+      const read = window.racingDesk.rig.read;
+      window.racingDesk.rig.read = async () => {
+        const answer = await read();
+        answer.controls.value.kept = answer.controls.value.kept.filter((k) => k.car !== 'mclaren570sgt4');
+        return answer;
+      };
+    });
+    await page.locator('#refresh').click();
+    await expect.poll(() => rigReads(page)).toBe(2);
+    await expect(app.locator('.car-controls .disagreements')).toHaveCount(0);
+    await expect(app.locator('.sidebar .mark.differs')).toHaveCount(0);
+    await expect(app.locator('.car-controls .facts')).toHaveCount(1);
+    await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+
+    // The page asked for none of it itself.
+    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual(NOT_THE_PAGES.map(() => 0));
+    expect(errors).toEqual([]);
+  } finally {
+    await new Promise((resolve) => own.close(resolve));
+  }
+});
+
+test('in the desk\'s smallest window the view and the pedals are still in sight, with the controls under them', async ({ page }) => {
+  const painted = CATALOGUE.map((c) => (c.folder === 'mclaren570sgt4'
+    ? { ...c, versions: [version('shatter', 'shatter', c.folder), version('shatter-inverted', 'shatter-inverted', c.folder), version('v3', 'v3', c.folder)] }
+    : c));
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, {
+    paints: { ...PAINTS, carCatalogue: painted, repoStatus: CHECKOUT, repoCheck: CHECKOUT }, rig: LISTED,
+  });
+  const pane = app.locator('.main');
+
+  for (const size of SMALLEST) {
+    const at = `${size.width} by ${size.height}`;
+    await page.setViewportSize(size);
+    // The car with the most to say: liveries, a view, a profile from the rule, the keys, a mode dial and two
+    // disagreements.
+    await lookAt(app, 'McLaren 570S GT4');
+    await expect(app.locator('.versions .card')).toHaveCount(3);
+    await expect(app.locator('.car-controls .disagreements li')).toHaveCount(2);
+    expect(await pane.evaluate((el) => el.scrollTop), at).toBe(0);
+    expect(await allInSight(app.locator('.car-view')), `the view, at ${at}`).toBe(true);
+    expect(await allInSight(app.locator('.car-pedals')), `the pedals, at ${at}`).toBe(true);
+    // Beside each other as they were, with the controls across both and under them.
+    const boxes = await app.locator('.car-head, .car-view, .car-pedals, .car-controls, .versions').evaluateAll((els) => els.map((el) => {
+      const b = el.getBoundingClientRect();
+      return { top: Math.round(b.top), bottom: Math.round(b.bottom), left: Math.round(b.left), right: Math.round(b.right) };
+    }));
+    const [head, view, pedals, controls, versions] = boxes;
+    expect(view.top, at).toBe(pedals.top);
+    expect(head.top, at).toBeLessThan(view.top);
+    expect(controls.top, at).toBeGreaterThanOrEqual(Math.max(view.bottom, pedals.bottom));
+    expect(controls.left, at).toBeLessThanOrEqual(view.left);
+    expect(controls.right, at).toBeGreaterThanOrEqual(pedals.right);
+    expect(versions.top, at).toBeGreaterThanOrEqual(controls.bottom);
+    // The controls begin in sight, and where the car and the list disagree is all in sight — it is what the panel is
+    // for after a drive — with what the list says of the car below it. Nothing is cut off sideways, and the page has
+    // no scroll of its own.
+    expect(controls.top, at).toBeLessThan(size.height);
+    expect(await allInSight(app.locator('.car-controls .disagreements')), `what disagrees, at ${at}`).toBe(true);
+    expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth), at).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight), at).toBe(true);
+
+    // Every other car keeps the view and the pedals where they were.
+    for (const [name, row] of [['Caterham Seven 420R'], ['Lotus 79'], ['oldcar'], ['nissangtpzxt'], ['Mazda MX-5 Cup', MX5(app)]]) {
+      await lookAt(app, name, row);
+      expect(await pane.evaluate((el) => el.scrollTop), `${name}, at ${at}`).toBe(0);
+      expect(await allInSight(app.locator('.car-view')), `the view of ${name}, at ${at}`).toBe(true);
+      expect(await allInSight(app.locator('.car-pedals')), `the pedals of ${name}, at ${at}`).toBe(true);
+    }
+  }
+  expect(errors).toEqual([]);
+});
+
+test('with the list and nothing found, a listed car\'s liveries still begin in sight in the desk\'s smallest window', async ({ page }) => {
+  // Nearly every car is in the list once it lands, and a prototype in it has eight controls: what the list says of a
+  // car is a line and its dials, and the rows of controls are one press away, or the liveries of every listed car
+  // would begin below the fold — with nothing wrong with the car at all.
+  const painted = CATALOGUE.map((c) => (c.folder === 'mclaren570sgt4'
+    ? { ...c, versions: [version('shatter', 'shatter', c.folder), version('shatter-inverted', 'shatter-inverted', c.folder), version('v3', 'v3', c.folder)] }
+    : c));
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, {
+    paints: { ...PAINTS, carCatalogue: painted, repoStatus: CHECKOUT, repoCheck: CHECKOUT }, rig: { ...TOLD, controls: listOf(LIST_CARS, []) },
+  });
+  const pane = app.locator('.main');
+  const top = (locator) => locator.evaluate((el) => Math.round(el.getBoundingClientRect().top));
+
+  for (const size of SMALLEST) {
+    const at = `${size.width} by ${size.height}`;
+    await page.setViewportSize(size);
+    // The one with one control, the prototype with eight (and one livery), and one the list has not got.
+    for (const [name, cards] of [['McLaren 570S GT4', 3], ['nissangtpzxt', 1], ['Lotus 79', 2]]) {
+      await lookAt(app, name);
+      await expect(app.locator('.versions .card')).toHaveCount(cards);
+      await expect(app.locator('.car-controls')).toHaveCount(1);
+      await expect(app.locator('.car-controls .disagreements')).toHaveCount(0);
+      expect(await pane.evaluate((el) => el.scrollTop), `${name}, at ${at}`).toBe(0);
+      if (name !== 'Lotus 79') expect(await app.locator('.control-rows').evaluate((el) => el.open), `${name} folded, at ${at}`).toBe(false);
+      // The liveries begin in sight, and so does all of what the list says of the car.
+      const versions = await top(app.locator('.versions'));
+      expect(versions, `where the liveries of ${name} begin, at ${at}`).toBeLessThan(size.height);
+      expect(await allInSight(app.locator('.car-controls')), `the controls of ${name}, at ${at}`).toBe(true);
+      expect(await allInSight(app.locator('.car-view')), `the view of ${name}, at ${at}`).toBe(true);
+      expect(await allInSight(app.locator('.car-pedals')), `the pedals of ${name}, at ${at}`).toBe(true);
+      expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth), `${name}, at ${at}`).toBe(true);
+    }
+
+    // Asked for, the rows are there — and the view and the pedals are where they were, above them.
+    await lookAt(app, 'nissangtpzxt');
+    await app.locator('.control-rows summary').click();
+    await expect(app.locator('.control-rows .controls li')).toHaveCount(8);
+    await expect(app.locator('.control-rows .controls li').first()).toBeVisible();
+    expect(await allInSight(app.locator('.car-view')), `the view, at ${at}`).toBe(true);
+    expect(await allInSight(app.locator('.car-pedals')), `the pedals, at ${at}`).toBe(true);
+    await app.locator('.control-rows summary').click();
+    expect(await app.locator('.control-rows').evaluate((el) => el.open)).toBe(false);
+  }
   expect(errors).toEqual([]);
 });
 
@@ -2402,7 +2826,7 @@ test('the Cars page reads again when the store has something new, and is on the 
     await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
     await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
     await expect(app.locator('.car-view dd').first()).toHaveText(/^1\d min ago$/);
-    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual([0, 0, 0]);
+    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual(NOT_THE_PAGES.map(() => 0));
     expect(errors).toEqual([]);
   } finally {
     await new Promise((resolve) => { own.closeAllConnections(); own.close(resolve); });
@@ -2824,7 +3248,7 @@ test('without the app the Cars page says so instead of mounting the manager', as
     expect(await page.locator('.paints-app').count()).toBe(0);
     await expect(page.locator('.race-row')).toHaveCount(30);   // the desk page loaded behind it all the same
     // A browser has no app to ask through, and the page does not ask the host itself instead.
-    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual([0, 0, 0]);
+    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual(NOT_THE_PAGES.map(() => 0));
     expect(errors).toEqual([]);
   } finally {
     await new Promise((resolve) => own.close(resolve));

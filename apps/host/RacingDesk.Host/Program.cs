@@ -171,6 +171,15 @@ Data options:
             var pedals = store != null
                 ? new CarPedalsRecorder(() => SmartControl.Read(), seen => SavePedals(o, seen), m => Log.Info("[RacingDesk.Host] " + m))
                 : null;
+            // What the check of the car list says of each car, kept for the desk. It is queued on the telemetry thread
+            // and written on another, through a connection of its own; a store that will not take it is logged and
+            // goes no further. The SimHub plugin has no store, and says it to its log alone.
+            using var remarks = store != null
+                ? new CarListRemarkKeeper(o.Db ?? RacingDeskStore.DefaultPath, m => Log.Warn("[RacingDesk.Host] " + m))
+                : null;
+            var follower = RacingDesk.Plugin.Engine.TelemetryCapture.Cars;
+            Action<RacingDesk.Core.Cars.CarRemark> keepRemark = remarks != null ? remarks.Keep : null;
+            if (keepRemark != null) follower.Said += keepRemark;
             var gate = new object();
 
             raw.TelemetryData += () =>
@@ -227,6 +236,7 @@ Data options:
                 lock (gate) { runtime.Tick(source); }
             }
             raw.Stop();
+            if (keepRemark != null) follower.Said -= keepRemark;
             lock (gate) recorder?.Flush();
             // The host is going with the sim still up — the desk was closed first. The run's force is the car's
             // all the same, and stopping says nothing of the sim having gone.

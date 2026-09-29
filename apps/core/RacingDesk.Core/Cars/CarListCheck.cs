@@ -4,10 +4,47 @@ using System.Globalization;
 
 namespace RacingDesk.Core.Cars
 {
+    /// <summary>One thing the check has said of one car.</summary>
+    public sealed class CarRemark
+    {
+        /// <summary>The car, as the sim names its folder.</summary>
+        public string CarPath { get; internal set; }
+
+        /// <summary>
+        /// Which thing was said: <c>unknown</c>, <c>list:abs</c>, <c>absent:dcABS</c>, <c>unlisted</c>, <c>abs:dial</c>,
+        /// <c>tc:dial</c>, <c>abs:working</c>, <c>bias:moved</c>, <c>value:dcABS</c>… A car and this key name one
+        /// remark, however often it is seen: the log has it once, and each later drive of the car that finds it still
+        /// so says it again (<see cref="Again"/>) for whoever keeps when it was last seen.
+        /// </summary>
+        public string About { get; internal set; }
+
+        /// <summary>What was said, without the car: <c>the list gives abs as dcABS, which the car does not publish</c>.</summary>
+        public string Text { get; internal set; }
+
+        /// <summary>The name of the list it was said against (<see cref="CarList.Hash"/>); set by the follower.</summary>
+        public string ListHash { get; internal set; }
+
+        /// <summary>When it was said; set by the follower.</summary>
+        public DateTime SaidAtUtc { get; internal set; }
+
+        /// <summary>
+        /// True where this thing was said before, in an earlier drive of the car, and is said again because it is
+        /// still so in this one. It is for keeping — it moves when the thing was last seen — and not for the log,
+        /// which has each thing once.
+        /// </summary>
+        public bool Again { get; internal set; }
+
+        /// <summary>As the log has it: the car, then what was said.</summary>
+        public string Line => CarPath + " " + Text;
+
+        public override string ToString() => Line;
+    }
+
     /// <summary>
     /// A check on the list, and not a detector: where what the car publishes disagrees with what the list says of
-    /// it, that is said — once per car for each thing — so the list gets corrected. Nothing found here changes
-    /// what the HUD shows: that is the list's, right or wrong, until somebody puts the list right.
+    /// it, that is said — in the log once per car for each thing, and again in each later drive that finds it still
+    /// so, for whoever keeps when it was last seen — so the list gets corrected. Nothing found here changes what the
+    /// HUD shows: that is the list's, right or wrong, until somebody puts the list right.
     /// </summary>
     public sealed class CarListCheck
     {
@@ -38,9 +75,13 @@ namespace RacingDesk.Core.Cars
 
         private readonly string _carPath;
         private readonly CarEntry _car;
+        // What has been said in this drive of the car, so that each thing is said once in it; and what has been said
+        // at all, in the order it was first said, which is what the log and this run's remarks are.
         private readonly HashSet<string> _said = new HashSet<string>(StringComparer.Ordinal);
-        private readonly List<string> _remarks = new List<string>();
-        private int _frames, _handed;
+        private readonly List<CarRemark> _remarks = new List<CarRemark>();
+        // What is to be handed over: each thing the first time it is said, and again in each later drive it is still so.
+        private readonly List<CarRemark> _pending = new List<CarRemark>();
+        private int _frames;
         private bool _compared;
         private double? _biasAtFirst;
 
@@ -58,18 +99,71 @@ namespace RacingDesk.Core.Cars
             Consistent();
         }
 
-        /// <summary>What has been said of this car, in the order it was said.</summary>
+        /// <summary>What has been said of this car, in the order it was said, as the log has it.</summary>
         public IReadOnlyList<string> Remarks
+        {
+            get
+            {
+                lock (_remarks)
+                {
+                    var lines = new string[_remarks.Count];
+                    for (int i = 0; i < lines.Length; i++) lines[i] = _remarks[i].Line;
+                    return lines;
+                }
+            }
+        }
+
+        /// <summary>What has been said of this car, in the order it was said, with which thing each was.</summary>
+        public IReadOnlyList<CarRemark> Said
         {
             get { lock (_remarks) return _remarks.ToArray(); }
         }
 
         /// <summary>
-        /// One frame. Returns what has been said and not yet been handed over, for the log; mostly nothing.
+        /// One frame. Returns what has been said and not yet been handed over, for the log; mostly nothing. Each
+        /// thing is in the log once, however many times he drives the car.
         /// </summary>
         /// <param name="variable">A telemetry variable by name; null for one the car does not publish.</param>
         /// <param name="inCar">The driver is in the car. Null from a source that does not say: taken as in.</param>
         public IReadOnlyList<string> See(Func<string, object> variable, bool? inCar)
+        {
+            var lines = new List<string>();
+            foreach (var remark in Take(variable, inCar))
+                if (!remark.Again) lines.Add(remark.Line);
+            return lines.Count == 0 ? Array.Empty<string>() : lines.ToArray();
+        }
+
+        /// <summary>
+        /// He is driving this car again: he got back into it after being out of it, or into it from another car, or
+        /// the sim was gone and is back. What the check found is looked for afresh — the car is compared with the list
+        /// again after its first second in it, and a thing seen happening is seen again or not — so that a thing
+        /// still so is said again (<see cref="CarRemark.Again"/>) and one that is no longer so is not. What the list
+        /// says of itself, and that the car is not in it, stands as it was and is said again at once.
+        /// </summary>
+        internal void BeginDrive()
+        {
+            _frames = 0;
+            _compared = false;
+            _biasAtFirst = null;
+            _said.Clear();
+            lock (_remarks)
+                foreach (var said in _remarks)
+                    if (Stands(said.About))
+                    {
+                        _said.Add(said.About);
+                        _pending.Add(Repeat(said, said.Text));
+                    }
+        }
+
+        // What is true of the list whoever is in the car: said at the moment the car is known, not by watching it.
+        private static bool Stands(string about) =>
+            about == "unknown" || about.StartsWith("list:", StringComparison.Ordinal);
+
+        private static CarRemark Repeat(CarRemark said, string text) =>
+            new CarRemark { CarPath = said.CarPath, About = said.About, Text = text, Again = true };
+
+        /// <summary><see cref="See"/>, handing over what was said as remarks and not as lines of the log.</summary>
+        internal IReadOnlyList<CarRemark> Take(Func<string, object> variable, bool? inCar)
         {
             if (variable != null && inCar != false)
             {
@@ -186,20 +280,32 @@ namespace RacingDesk.Core.Cars
 
         private static string Show(double value) => Math.Round(value, 3).ToString("0.###", CultureInfo.InvariantCulture);
 
+        // Each thing once in a drive. The first time it is ever said it is what the log has; said again in a later
+        // drive it is handed over as it was said before, to be kept as seen again.
         private void Say(string about, string remark)
         {
             if (!_said.Add(about)) return;
-            lock (_remarks) _remarks.Add(_carPath + " " + remark);
+            lock (_remarks)
+            {
+                var before = _remarks.Find(r => r.About == about);
+                if (before == null)
+                {
+                    var first = new CarRemark { CarPath = _carPath, About = about, Text = remark };
+                    _remarks.Add(first);
+                    _pending.Add(first);
+                }
+                else _pending.Add(Repeat(before, remark));
+            }
         }
 
-        // What has been said and not yet handed over for the log.
-        private IReadOnlyList<string> Pending()
+        // What has been said and not yet handed over.
+        private IReadOnlyList<CarRemark> Pending()
         {
             lock (_remarks)
             {
-                if (_remarks.Count <= _handed) return Array.Empty<string>();
-                var fresh = _remarks.GetRange(_handed, _remarks.Count - _handed);
-                _handed = _remarks.Count;
+                if (_pending.Count == 0) return Array.Empty<CarRemark>();
+                var fresh = _pending.ToArray();
+                _pending.Clear();
                 return fresh;
             }
         }

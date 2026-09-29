@@ -14,7 +14,7 @@ namespace RacingDesk.Data
     /// </summary>
     public sealed class RacingDeskStore : IDisposable
     {
-        public const int SchemaVersion = 6;
+        public const int SchemaVersion = 7;
 
         // Car names by iRacing's folder name for the car (schema v4). session_cars is which stored session had
         // which car in its entry list. cars.seen counts the sessions among them, not the rows: a session is
@@ -117,6 +117,25 @@ CREATE TABLE car_pedal_facts (
 );
 ";
 
+        // What the check of the car list has said of each car (schema v7), kept so that the desk can show it after
+        // the run that said it is over. One row per car, per thing said (about: which thing, as CarListCheck keys
+        // it), per list: list_hash is CarList.Hash, twelve hex digits of the list's bytes, so that what was said
+        // against a list since changed is kept but not taken for what is true of the list in use. Said again under
+        // the same list, a remark moves last_seen_at (each drive of the car that finds it still so says it again) and
+        // takes the words it was last said in; nothing is duplicated. A car's folder is compared without regard to
+        // case, as the list compares it.
+        private const string CarListRemarksSchema = @"
+CREATE TABLE car_list_remarks (
+  car_path TEXT NOT NULL COLLATE NOCASE,
+  about TEXT NOT NULL,
+  list_hash TEXT NOT NULL,
+  remark TEXT NOT NULL,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  PRIMARY KEY (car_path, about, list_hash)
+);
+";
+
         private readonly SqliteConnection _db;
 
         // Statements the header pass runs tens of thousands of times: prepared once, kept until the store closes.
@@ -216,6 +235,10 @@ CREATE TABLE car_pedal_facts (
                         Exec(@"INSERT INTO car_pedal_facts (car_path, force_kg, force_at, given_by, seen_at)
 SELECT car_path, brake_force_kg, CASE WHEN brake_force_kg IS NOT NULL THEN bound_at END, 'driver', bound_at FROM car_pedals", step);
                         break;
+                    case 6:
+                        // What the check of the car list has said. A table of its own; nothing else is touched.
+                        Exec(CarListRemarksSchema, step);
+                        break;
                 }
                 current++;
                 Exec("INSERT INTO schema_version(version) VALUES (" + current + ")", step);
@@ -292,6 +315,7 @@ CREATE TABLE ingested_files (
             Exec(CarScansSchema, tx);
             Exec(RigSchema, tx);
             Exec(PedalFactsSchema, tx);
+            Exec(CarListRemarksSchema, tx);
             Exec("INSERT INTO schema_version(version) VALUES (" + SchemaVersion + ")", tx);
             tx.Commit();
         }
@@ -882,6 +906,61 @@ FROM car_pedals p LEFT JOIN cars c ON c.car_path = p.car_path";
             using var cmd = Cmd("SELECT 1 FROM cars WHERE car_path = $car");
             P(cmd, "$car", carPath.Trim());
             return cmd.ExecuteScalar() != null;
+        }
+
+        /// <summary>
+        /// Keeps what the check of the car list has said. A remark said again under the same list moves its last
+        /// sighting and takes the words it was last said in; one said for the first time is added. Returns how many
+        /// were written: none for a store that has no such table, which is left as it is. A store from a later build
+        /// has the table (migrations only add), and is written to.
+        /// </summary>
+        public int KeepCarListRemarks(IEnumerable<CarListRemark> remarks)
+        {
+            if (remarks == null || !HasTable("car_list_remarks")) return 0;
+            int kept = 0;
+            using var tx = _db.BeginTransaction();
+            foreach (var remark in remarks)
+            {
+                if (remark == null || string.IsNullOrWhiteSpace(remark.CarPath) || string.IsNullOrWhiteSpace(remark.About)
+                    || string.IsNullOrWhiteSpace(remark.ListHash) || string.IsNullOrWhiteSpace(remark.Text)) continue;
+                // What is given is a range, and one time stands for both ends of it.
+                DateTime first = remark.FirstSeenUtc == default ? remark.LastSeenUtc : remark.FirstSeenUtc;
+                DateTime last = remark.LastSeenUtc == default ? first : remark.LastSeenUtc;
+                if (first == default) first = last = DateTime.UtcNow;
+                ExecKept(@"
+INSERT INTO car_list_remarks (car_path, about, list_hash, remark, first_seen_at, last_seen_at)
+VALUES ($car, $about, $list, $text, $first, $last)
+ON CONFLICT(car_path, about, list_hash) DO UPDATE SET
+  remark = excluded.remark,
+  first_seen_at = MIN(car_list_remarks.first_seen_at, excluded.first_seen_at),
+  last_seen_at = MAX(car_list_remarks.last_seen_at, excluded.last_seen_at)", tx,
+                    ("$car", remark.CarPath.Trim()), ("$about", remark.About), ("$list", remark.ListHash), ("$text", remark.Text),
+                    ("$first", Iso(first)), ("$last", Iso(last)));
+                kept++;
+            }
+            tx.Commit();
+            return kept;
+        }
+
+        /// <summary>
+        /// What the check has said of each car against the list with this name, by car and then by when it was first
+        /// said. What was said against another list is kept and not returned. None from a store that keeps none yet.
+        /// </summary>
+        public IReadOnlyList<CarListRemark> CarListRemarksAgainst(string listHash)
+        {
+            var list = new List<CarListRemark>();
+            if (string.IsNullOrWhiteSpace(listHash) || !HasTable("car_list_remarks")) return list;
+            using var cmd = Cmd(@"SELECT car_path, about, remark, list_hash, first_seen_at, last_seen_at FROM car_list_remarks
+WHERE list_hash = $list ORDER BY car_path COLLATE NOCASE, first_seen_at, about");
+            P(cmd, "$list", listHash);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                list.Add(new CarListRemark
+                {
+                    CarPath = r.GetString(0), About = r.GetString(1), Text = r.GetString(2), ListHash = r.GetString(3),
+                    FirstSeenUtc = Utc(r.GetString(4)), LastSeenUtc = Utc(r.GetString(5)),
+                });
+            return list;
         }
 
         public IReadOnlyList<string> IbtPathsMissingCategory()

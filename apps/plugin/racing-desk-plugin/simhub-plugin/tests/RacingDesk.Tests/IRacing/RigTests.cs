@@ -122,7 +122,7 @@ INSERT INTO schema_version (version) VALUES (4);
 
             using var store = new RacingDeskStore(Db);
 
-            Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6"));
+            Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6,7"));
             Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(name) FROM pragma_table_info('ingested_files')"),
                 Is.EqualTo("path,length,mtime,sessions,error,ingested_at"), "as every host since the first has known it");
             Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(path || '|' || length || '|' || mtime, ' ') FROM (SELECT * FROM car_scans ORDER BY path)"),
@@ -305,7 +305,7 @@ INSERT INTO schema_version (version) VALUES (4);
                 store.BindCarPedals(Pedals(Mx5, "a1", "LightBrake", "<Profile>light</Profile>", June, force: 45));
                 store.BindCarPedals(Pedals(Lotus, "b2", "HeavyBrake", "<Profile>heavy</Profile>", June.AddDays(1)));
                 // As a version 5 store was: no table of what is known beside the profile.
-                store.Exec("DROP TABLE car_pedal_facts; DELETE FROM schema_version WHERE version > 5; " +
+                store.Exec("DROP TABLE car_pedal_facts; DROP TABLE car_list_remarks; DELETE FROM schema_version WHERE version > 5; " +
                            "INSERT INTO schema_version (version) SELECT 5 WHERE NOT EXISTS (SELECT 1 FROM schema_version WHERE version = 5)");
             }
             SqliteConnection.ClearAllPools();
@@ -318,7 +318,7 @@ INSERT INTO schema_version (version) VALUES (4);
             SqliteConnection.ClearAllPools();
 
             using var migrated = new RacingDeskStore(Db);
-            Assert.That(migrated.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(6));
+            Assert.That(migrated.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(7));
             var mazda = migrated.CarPedalFactsOf(Mx5);
             Assert.That((mazda.ForceKg, mazda.ForceAtUtc, mazda.GivenBy, mazda.HasAbs), Is.EqualTo(((double?)45, (DateTime?)June, "driver", (bool?)null)));
             var lotus = migrated.CarPedalFactsOf(Lotus);

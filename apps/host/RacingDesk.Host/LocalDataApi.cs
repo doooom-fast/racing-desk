@@ -16,7 +16,8 @@ namespace RacingDesk.Host
     /// Read-only views of the local store for the desk window, served next to the telemetry contract:
     /// <c>GET /racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals}</c>. Rows go out as stored;
     /// the desk's calc layer (packages/calc) does the merging and derivation. Beside them, and not from the
-    /// store: <c>GET /racing-desk/data/controls</c>, the canonical list of cars this build carries.
+    /// store: <c>GET /racing-desk/data/controls</c>, the canonical list of cars this build carries, with what
+    /// the check of it has said of each car (this run's, and what the store has kept of the runs before).
     ///
     /// One thing is written: <c>POST /racing-desk/data/pedals</c> says which of SmartControl's profiles a car is
     /// driven with. It is for programs on this machine — the app — and not for a page in a browser, which every
@@ -73,11 +74,13 @@ namespace RacingDesk.Host
 
                 if (route == "controls" && ctx.Request.HttpMethod == "GET")
                 {
-                    // The canonical list of cars, or one car of it (?car=), with what the check has said this
-                    // run. It is carried in the assembly: there is no store to wait for.
+                    // The canonical list of cars, or one car of it (?car=), with what the check has said this run
+                    // and what the store has kept of it. The list is carried in the assembly: it is served before
+                    // there is a store, and when the store cannot be read.
                     var cars = Cars;
                     string car = ctx.Request.QueryString["car"];
-                    Write(res, 200, json => CarListApi.Write(json, cars?.List, car, cars?.Remarks, cars?.CarPath));
+                    var kept = KeptRemarks(cars?.List ?? RacingDesk.Core.Cars.CarList.Empty);
+                    Write(res, 200, json => CarListApi.Write(json, cars?.List, car, cars?.Remarks, cars?.CarPath, kept));
                     return;
                 }
 
@@ -213,6 +216,27 @@ namespace RacingDesk.Host
             finally
             {
                 try { res.OutputStream.Close(); } catch { }
+            }
+        }
+
+        // ── The car list ──
+
+        /// <summary>
+        /// What the check has said of the cars against this list, kept in the store: none while there is no store
+        /// yet, which is true; null when the store is there and could not be read, which is not.
+        /// </summary>
+        private IReadOnlyList<CarListRemark> KeptRemarks(RacingDesk.Core.Cars.CarList list)
+        {
+            try
+            {
+                if (!File.Exists(_dbPath)) return Array.Empty<CarListRemark>();
+                using var store = RacingDeskStore.OpenReadOnly(_dbPath);
+                return store.CarListRemarksAgainst(list.Hash);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("[RacingDesk.Host] the car list's remarks were not read: " + ex.Message);
+                return null;
             }
         }
 
