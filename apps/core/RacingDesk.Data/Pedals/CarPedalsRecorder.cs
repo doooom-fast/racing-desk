@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using RacingDesk.Core.Cars;
 
 namespace RacingDesk.Data.Pedals
 {
@@ -311,6 +312,9 @@ namespace RacingDesk.Data.Pedals
         /// <summary>What the rule went by, as it is kept and shown.</summary>
         public const string WhyAbs = "ABS", WhyNoAbs = "no ABS", WhyFormula = "a formula car", WhyPrototype = "a prototype";
 
+        // The kinds of the canonical list the rule is about.
+        private const string KindFormula = "formula", KindPrototype = "prototype";
+
         /// <summary>
         /// "light for touring and sports cars with abs, default for formula and cars without abs", and
         /// "a proto with abs gets default".
@@ -328,7 +332,11 @@ namespace RacingDesk.Data.Pedals
         /// nothing to say. The force is kept first and whatever else happens: it is the car's with or without a
         /// profile. SmartControl is read only if a profile has to be made.
         /// </summary>
-        public static string Keep(RacingDeskStore store, Func<SmartControlSnapshot> smartControl, PedalsSeen seen)
+        /// <param name="list">
+        /// The canonical list of cars (null: the one this build carries). A car it says both the kind and the ABS
+        /// of is given its profile by that, at the end of its first run; any other by what the car showed.
+        /// </param>
+        public static string Keep(RacingDeskStore store, Func<SmartControlSnapshot> smartControl, PedalsSeen seen, CarList list = null)
         {
             if (store == null) throw new ArgumentNullException(nameof(store));
             if (seen == null || string.IsNullOrWhiteSpace(seen.CarPath)) return null;
@@ -342,36 +350,59 @@ namespace RacingDesk.Data.Pedals
                 : seen.Presses > 0 ? $" the force was changed by {Change(seen.ChangeKg)} from one that is not known, or a step key was held; " +
                                      "press a key that sets a force and it will be known"
                 : "";
-            string profile = Profile(store, smartControl, car, known, seen.Prototype, seen.SeenAtUtc);
+            string profile = Profile(store, smartControl, car, known, seen.Prototype, seen.SeenAtUtc, (list ?? CarList.Default).Find(car));
 
             if (profile.Length == 0 && force.Length == 0) return null;
             return $"pedals: {car} —" + profile + (profile.Length > 0 && force.Length > 0 ? ";" : "") + force;
         }
 
         // The car's profile: made by the rule if it has none and enough is known, and made again if what the rule
-        // went by has turned out not to be so — it gave for having no ABS and ABS has been seen since, or for
-        // ABS and the car has shown itself a prototype. One the driver gave, or chose not to have, is his.
+        // went by has turned out not to be so. One the driver gave, or chose not to have, is his.
+        //
+        // The list answers for a car when it says both its kind and its ABS: at once, with no laps to wait for, and
+        // not from what the car published. What the rule went by is then not so when it is not what the list gives
+        // now — the list was put right in a later build, or the data gave the profile before the list had the car.
+        // It is made again once, and what it went by is then what the list gives. A car the list cannot answer for is
+        // gone by from what it showed: it was given for no ABS and ABS has been seen since, or for ABS and the car
+        // has shown itself a prototype.
         //
         // Being a prototype changes what a car with ABS is given and nothing else, so it is the reason only
-        // then: a car without ABS is given Default for that, whatever else it publishes. It is gone by only when
-        // seen — a run in which it was not seen says nothing, and takes nothing back.
+        // then: a car without ABS is given Default for that, whatever else it publishes. By the data it is gone by
+        // only when seen — a run in which it was not seen says nothing, and takes nothing back.
         private static string Profile(RacingDeskStore store, Func<SmartControlSnapshot> smartControl, string car, CarPedalFacts known,
-            bool prototype, DateTime at)
+            bool prototypeSeen, DateTime at, CarEntry listed)
         {
             var has = store.CarPedalsOf(car);
-            bool formula = store.CarRanIn(car, "Formula");
-            bool abs = known.HasAbs == true;
-            bool tookForNoAbs = known.GivenWhy == WhyNoAbs && abs && !formula;
-            bool tookForSportsCar = known.GivenWhy == WhyAbs && abs && !formula && prototype;
-            bool mistaken = has != null && known.GivenBy == "rule" && (tookForNoAbs || tookForSportsCar);
+            bool byList = listed != null && listed.Kind != null && listed.Abs != null;
+            bool formula = byList ? listed.Kind == KindFormula : store.CarRanIn(car, "Formula");
+            bool prototype = byList ? listed.Kind == KindPrototype : prototypeSeen;
+            bool? hasAbs = byList ? listed.Abs != CarEntry.None : known.HasAbs;
+            bool abs = hasAbs == true;
+            prototype = prototype && abs && !formula;
+            string why = formula ? WhyFormula : prototype ? WhyPrototype : abs ? WhyAbs : WhyNoAbs;
+
+            bool contradicted = byList
+                ? known.GivenWhy != why
+                : known.GivenWhy == WhyNoAbs && abs && !formula || known.GivenWhy == WhyAbs && prototype;
+            bool mistaken = has != null && known.GivenBy == "rule" && contradicted;
             if (has != null && !mistaken) return "";
             if (has == null && known.GivenBy == "none") return "";
             // A formula car starts from Default whatever its ABS, so there is nothing to wait for.
-            if (!formula && known.HasAbs == null) return " too short a run to say whether it has ABS; no profile yet";
+            if (!formula && hasAbs == null) return " too short a run to say whether it has ABS; no profile yet";
 
-            prototype = prototype && abs && !formula;
             string name = BaseFor(abs, formula, prototype);
-            string why = formula ? WhyFormula : prototype ? WhyPrototype : abs ? WhyAbs : WhyNoAbs;
+            string says = "the list says " + (formula ? "it is a formula car" : prototype ? "it is a prototype" : abs ? "it has ABS" : "it has no ABS");
+            // Said where the rule acts, so once: the check in the log says the same of a car every run.
+            string against = byList && listed.Abs == CarEntry.None && known.AbsSeen
+                ? "; its ABS has been seen though the list says it has none, and the rule goes by the list" : "";
+
+            if (mistaken && byList && string.Equals(has.ProfileName?.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            {
+                // What it went by has changed and where it starts from has not: only the reason is put right.
+                store.NotePedalsGiven(car, "rule", why, at);
+                return $" {says}; its profile stays from {has.ProfileName} ({why})" + against;
+            }
+
             SmartControlSnapshot snapshot;
             try { snapshot = smartControl?.Invoke(); }
             catch (Exception ex) { return $" SmartControl could not be read ({ex.Message.Trim()}); no profile yet"; }
@@ -388,13 +419,13 @@ namespace RacingDesk.Data.Pedals
                 // Given by the rule and never touched since: the rule's to give again.
                 store.BindCarPedals(given);
                 store.NotePedalsGiven(car, "rule", why, at);
-                string seen = tookForSportsCar ? "it is a prototype" : "its ABS has been seen working";
-                return $" {seen}, so its profile is from {from.Name} now, not {has.ProfileName}";
+                string because = byList ? says : known.GivenWhy == WhyAbs ? "it is a prototype" : "its ABS has been seen working";
+                return $" {because}, so its profile is from {from.Name} now, not {has.ProfileName}" + against;
             }
             // Only if it still has none: a profile given on the desk in the meantime is the driver's, and stays.
             if (!store.GiveCarPedals(given)) return "";
             store.NotePedalsGiven(car, "rule", why, at);
-            return $" its own profile, from {from.Name} ({why})";
+            return $" its own profile, from {from.Name} ({why}{(byList ? ", from the list" : "")})" + against;
         }
     }
 }
