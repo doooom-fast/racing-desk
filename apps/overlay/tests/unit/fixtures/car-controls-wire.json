@@ -1,0 +1,521 @@
+{
+  "bmwm2csr": {
+    "car": "bmwm2csr",
+    "name": "BMW M2 CS Racing",
+    "kind": "touring",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "on",
+      "text": "ON"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "DSC",
+      "state": "value",
+      "value": 2,
+      "text": "ON",
+      "var": "dcTractionControl"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BB",
+      "state": "none",
+      "text": "NONE"
+    }
+  },
+  "bmwm2csr mdm": {
+    "car": "bmwm2csr",
+    "name": "BMW M2 CS Racing",
+    "kind": "touring",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "on",
+      "text": "ON"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "DSC",
+      "state": "value",
+      "value": 1,
+      "text": "MDM",
+      "var": "dcTractionControl"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BB",
+      "state": "none",
+      "text": "NONE"
+    }
+  },
+  "bmwm2csr off": {
+    "car": "bmwm2csr",
+    "name": "BMW M2 CS Racing",
+    "kind": "touring",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "on",
+      "text": "ON"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "DSC",
+      "state": "off",
+      "value": 0,
+      "text": "OFF",
+      "var": "dcTractionControl"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BB",
+      "state": "none",
+      "text": "NONE"
+    }
+  },
+  "madeup formula": {
+    "car": "madeup formula",
+    "name": "Made-up Formula",
+    "kind": "formula",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "none",
+      "text": "NONE"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC",
+      "state": "none",
+      "text": "NONE"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BBAL",
+      "state": "value",
+      "value": 55,
+      "text": "55.0",
+      "var": "dcBrakeBias"
+    },
+    "drs": {
+      "id": "drs",
+      "label": "DRS",
+      "state": "off",
+      "value": 0,
+      "text": "OFF",
+      "var": "DRS_Status",
+      "active": false
+    },
+    "p2p": {
+      "id": "p2p",
+      "label": "OT",
+      "state": "off",
+      "value": 0,
+      "text": "65",
+      "var": "P2P_Status",
+      "count": 65,
+      "active": false
+    }
+  },
+  "madeup formula drs 1": {
+    "car": "madeup formula",
+    "name": "Made-up Formula",
+    "kind": "formula",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "none",
+      "text": "NONE"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC",
+      "state": "none",
+      "text": "NONE"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BBAL",
+      "state": "value",
+      "value": 55,
+      "text": "55.0",
+      "var": "dcBrakeBias"
+    },
+    "drs": {
+      "id": "drs",
+      "label": "DRS",
+      "state": "value",
+      "value": 1,
+      "text": "NEXT",
+      "var": "DRS_Status",
+      "active": false
+    },
+    "p2p": {
+      "id": "p2p",
+      "label": "OT",
+      "state": "off",
+      "value": 0,
+      "text": "65",
+      "var": "P2P_Status",
+      "count": 65,
+      "active": false
+    }
+  },
+  "madeup formula drs 2": {
+    "car": "madeup formula",
+    "name": "Made-up Formula",
+    "kind": "formula",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "none",
+      "text": "NONE"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC",
+      "state": "none",
+      "text": "NONE"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BBAL",
+      "state": "value",
+      "value": 55,
+      "text": "55.0",
+      "var": "dcBrakeBias"
+    },
+    "drs": {
+      "id": "drs",
+      "label": "DRS",
+      "state": "value",
+      "value": 2,
+      "text": "READY",
+      "var": "DRS_Status",
+      "active": false
+    },
+    "p2p": {
+      "id": "p2p",
+      "label": "OT",
+      "state": "off",
+      "value": 0,
+      "text": "65",
+      "var": "P2P_Status",
+      "count": 65,
+      "active": false
+    }
+  },
+  "madeup formula drs 3": {
+    "car": "madeup formula",
+    "name": "Made-up Formula",
+    "kind": "formula",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "none",
+      "text": "NONE"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC",
+      "state": "none",
+      "text": "NONE"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BBAL",
+      "state": "value",
+      "value": 55,
+      "text": "55.0",
+      "var": "dcBrakeBias"
+    },
+    "drs": {
+      "id": "drs",
+      "label": "DRS",
+      "state": "value",
+      "value": 3,
+      "text": "OPEN",
+      "var": "DRS_Status",
+      "active": true
+    },
+    "p2p": {
+      "id": "p2p",
+      "label": "OT",
+      "state": "off",
+      "value": 0,
+      "text": "65",
+      "var": "P2P_Status",
+      "count": 65,
+      "active": false
+    }
+  },
+  "madeup formula p2p empty": {
+    "car": "madeup formula",
+    "name": "Made-up Formula",
+    "kind": "formula",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "none",
+      "text": "NONE"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC",
+      "state": "none",
+      "text": "NONE"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BBAL",
+      "state": "value",
+      "value": 55,
+      "text": "55.0",
+      "var": "dcBrakeBias"
+    },
+    "drs": {
+      "id": "drs",
+      "label": "DRS",
+      "state": "off",
+      "value": 0,
+      "text": "OFF",
+      "var": "DRS_Status",
+      "active": false
+    },
+    "p2p": {
+      "id": "p2p",
+      "label": "OT",
+      "state": "off",
+      "value": 0,
+      "text": "0",
+      "var": "P2P_Status",
+      "count": 0,
+      "active": false
+    }
+  },
+  "madeup formula p2p on": {
+    "car": "madeup formula",
+    "name": "Made-up Formula",
+    "kind": "formula",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "none",
+      "text": "NONE"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC",
+      "state": "none",
+      "text": "NONE"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BBAL",
+      "state": "value",
+      "value": 55,
+      "text": "55.0",
+      "var": "dcBrakeBias"
+    },
+    "drs": {
+      "id": "drs",
+      "label": "DRS",
+      "state": "off",
+      "value": 0,
+      "text": "OFF",
+      "var": "DRS_Status",
+      "active": false
+    },
+    "p2p": {
+      "id": "p2p",
+      "label": "OT",
+      "state": "value",
+      "value": 1,
+      "text": "ON",
+      "var": "P2P_Status",
+      "count": 64,
+      "active": true
+    }
+  },
+  "madeup gt3": {
+    "car": "madeup gt3",
+    "name": "Made-up GT3",
+    "kind": "gt",
+    "fixedSetup": true,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "off",
+      "value": 0,
+      "text": "OFF",
+      "fill": 0,
+      "locked": true,
+      "var": "dcABS"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC1",
+      "state": "value",
+      "value": 4,
+      "text": "4",
+      "fill": 0.333,
+      "locked": true,
+      "var": "dcTractionControl"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BB",
+      "state": "value",
+      "value": 56.2,
+      "text": "56.2",
+      "fill": 0.56,
+      "var": "dcBrakeBias"
+    },
+    "more": [
+      {
+        "id": "throttleMap",
+        "label": "MAP",
+        "state": "value",
+        "value": 2,
+        "text": "2",
+        "var": "dcThrottleShape"
+      }
+    ]
+  },
+  "mclaren570sgt4": {
+    "car": "mclaren570sgt4",
+    "name": "McLaren 570S GT4",
+    "kind": "gt",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "mode",
+      "by": "ESC"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC",
+      "state": "mode",
+      "by": "ESC"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BB",
+      "state": "none",
+      "text": "NONE"
+    },
+    "more": [
+      {
+        "id": "mode",
+        "label": "ESC",
+        "state": "value",
+        "value": 0,
+        "text": "TRACK",
+        "var": "dcABS"
+      }
+    ]
+  },
+  "mx5 mx52016": {
+    "car": "mx5 mx52016",
+    "name": "Mazda MX-5 Cup",
+    "kind": "touring",
+    "fixedSetup": true,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "on",
+      "text": "ON"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC",
+      "state": "none",
+      "text": "NONE"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BB",
+      "state": "none",
+      "text": "NONE"
+    }
+  },
+  "porsche963gtp": {
+    "car": "porsche963gtp",
+    "name": "Porsche 963 GTP",
+    "kind": "prototype",
+    "fixedSetup": true,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "none",
+      "text": "NONE"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TCLO",
+      "state": "value",
+      "value": 5,
+      "text": "5",
+      "fill": 0.364,
+      "locked": true,
+      "var": "dcTractionControl"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BB",
+      "state": "value",
+      "value": 48.25,
+      "text": "48.25",
+      "fill": 0.412,
+      "var": "dcBrakeBias"
+    },
+    "more": [
+      {
+        "id": "brakeMigration",
+        "label": "MIG",
+        "state": "value",
+        "value": -2,
+        "text": "-2",
+        "fill": 0.333,
+        "var": "dcABS"
+      },
+      {
+        "id": "tc2",
+        "label": "TCLA",
+        "state": "value",
+        "value": 4,
+        "text": "4",
+        "fill": 0.273,
+        "locked": true,
+        "var": "dcTractionControl2"
+      },
+      {
+        "id": "arbFront",
+        "label": "FARB",
+        "state": "value",
+        "value": 1,
+        "text": "1",
+        "var": "dcAntiRollFront"
+      },
+      {
+        "id": "arbRear",
+        "label": "RARB",
+        "state": "value",
+        "value": 15,
+        "text": "15",
+        "var": "dcAntiRollRear"
+      }
+    ]
+  }
+}

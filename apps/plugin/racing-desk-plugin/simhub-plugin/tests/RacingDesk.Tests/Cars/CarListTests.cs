@@ -77,24 +77,24 @@ namespace RacingDesk.Tests.Cars
 
         private const string Raw = "DataCorePlugin.GameRawData.Telemetry.";
 
-        private static CarList List() => CarList.Parse(Fixture);
+        internal static CarList List() => CarList.Parse(Fixture);
 
         /// <summary>A car's telemetry: only what it publishes is here.</summary>
-        private sealed class Car : Dictionary<string, object>
+        internal sealed class Car : Dictionary<string, object>
         {
             public object Read(string name) => TryGetValue(name, out var v) ? v : null;
             public object Property(string fullName) => fullName.StartsWith(Raw, StringComparison.Ordinal) ? Read(fullName.Substring(Raw.Length)) : null;
         }
 
-        private static Car Porsche963() => new Car
+        internal static Car Porsche963() => new Car
         {
             ["dcBrakeBias"] = 48.25f, ["dcABS"] = -2f, ["dcBrakeMisc"] = 0f, ["dcTractionControl"] = 5f, ["dcTractionControl2"] = 4f,
             ["dcAntiRollFront"] = 1f, ["dcAntiRollRear"] = 15f, ["BrakeABSactive"] = false, ["P2P_Status"] = false, ["P2P_Count"] = 0,
         };
 
-        private static Car Mclaren570S(float mode = 0) => new Car { ["dcABS"] = mode, ["dcBrakeBias"] = 49f, ["BrakeABSactive"] = false };
+        internal static Car Mclaren570S(float mode = 0) => new Car { ["dcABS"] = mode, ["dcBrakeBias"] = 49f, ["BrakeABSactive"] = false };
 
-        private static Car Gt3() => new Car
+        internal static Car Gt3() => new Car
         {
             ["dcBrakeBias"] = 56.2f, ["dcTractionControl"] = 4f, ["dcABS"] = 3f, ["dcThrottleShape"] = 0f, ["BrakeABSactive"] = false,
         };
