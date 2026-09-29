@@ -419,6 +419,10 @@ let _absSeen = false;
 let _carAdj = null;  // result from getCarAdjustability() for current car
 let _tcFlashFrames = 0;   // TC active glow countdown (frames)
 let _absFlashFrames = 0;  // ABS active glow countdown (frames)
+// The car's controls by the canonical list (modules/js/car-controls.js): the panel, and what was last drawn
+// of which car, so a change is flashed and announced and a new car starts clean.
+let _carControlsPanel = null;
+let _carControlsState = { car: null, last: null, values: null, cc: null };
 
 // Grid / Formation
 let _gridActive = false;

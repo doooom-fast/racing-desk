@@ -298,13 +298,19 @@
   //  Called from poll-engine when BB / TC / ABS values change.
   //  Shows a brief spotter-style callout with the new value.
   //  Reuses existing adjustment card instead of stacking new ones.
+  //  With the car in the canonical list, the card carries the car's own word for the control (`name`) and
+  //  what it reads (`text`: a number, OFF, or a position's name) — "TCLO ▲ 6", "ESC ▶ SPORT".
   // ═══════════════════════════════════════════════════════════════
-  window.announceAdjustment = function(type, value, direction) {
+  window.announceAdjustment = function(type, value, direction, name, text) {
     const stack = document.getElementById('spotterStack');
     if (!stack) return;
 
-    const arrow = direction > 0 ? '\u25B2' : direction < 0 ? '\u25BC' : '';
+    const arrow = direction > 0 ? '\u25B2' : direction < 0 ? '\u25BC' : '\u25B6';
     let label, icon;
+    if (name || text) {
+      label = (name || type) + ' ' + arrow + ' ' + (text || (typeof value === 'number' ? value : ''));
+      icon = type === 'bb' ? 'sp-bb' : type === 'tc' ? 'sp-tc' : type === 'abs' ? 'sp-abs' : 'default';
+    } else
     switch (type) {
       case 'bb':
         label = 'Brake Bias ' + arrow + ' ' + (typeof value === 'number' ? value.toFixed(1) : value);

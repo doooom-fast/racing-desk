@@ -422,6 +422,11 @@
     }
 
     // ─── Controls (BB / TC / ABS) ───
+    // Where the car is in the canonical list, the host says what it has and what each control reads — NONE, OFF,
+    // a value, a mode — with the car's own label (RacingDesk.Plugin.CarControls; modules/js/car-controls.js).
+    // Without it — another sim, a car the list does not have, the demo, a host from before there was a list —
+    // the HUD goes by what it can see, as it always did.
+    const carControls = _demo ? null : RacingDeskCarControls.read(p);
     const bb = _demo ? +v('RacingDesk.Plugin.Demo.BrakeBias') : (+v('DataCorePlugin.GameRawData.Telemetry.dcBrakeBias') || 0);
     const tc = _demo ? +v('RacingDesk.Plugin.Demo.TC') : p['DataCorePlugin.GameRawData.Telemetry.dcTractionControl'];
     const abs = _demo ? +v('RacingDesk.Plugin.Demo.ABS') : p['DataCorePlugin.GameRawData.Telemetry.dcABS'];
@@ -449,6 +454,17 @@
       if (tc != null && +tc >= 0) _tcSeen = true;
       if (abs != null && +abs >= 0) _absSeen = true;
     }
+    if (!_carControlsPanel) _carControlsPanel = document.querySelector('.car-controls');
+    if (carControls) {
+      // The list's word: each of the three as NONE, OFF, ON, a value or its mode; the car's other controls in a
+      // row under them; DRS and push-to-pass with the spotter's word when they change.
+      window._carControlsView = RacingDeskCarControls.render(_carControlsPanel, carControls, {
+        flash: flashCtrlBar,
+        announce: (id, value, direction, label, text) => { if (window.announceAdjustment) window.announceAdjustment(id, value, direction, label, text); },
+        say: (s) => { if (typeof _showSpotterMsg === 'function') _showSpotterMsg(s.msg, s.severity, s.header, s.category); },
+      }, _carControlsState);
+    } else {
+    if (_carControlsState.car) { RacingDeskCarControls.clear(_carControlsPanel, _carControlsState); window._carControlsView = null; }
     // If car is in the no-adjust list, hide the module entirely for absent systems
     // tcNoAdjust / absNoAdjust: electronic exists but isn't driver-adjustable → show "Fixed" + flash when active
     // Adjustable car with value 0 → driver turned it off → show "Off"
@@ -523,6 +539,7 @@
     if (bb > 0) _prevBB = bb;
     if (tcOk) _prevTC = +tc;
     if (absOk) _prevABS = +abs;
+    }   // not from the list
 
     // ─── Manufacturer country flag trigger ───
     // Shows 5-second aurora wisps in manufacturer's country colors on:

@@ -123,6 +123,81 @@
     letter-spacing: 0.05em;
   }
 
+  /* ── The car's controls by the canonical list (modules/js/car-controls.js) ──
+     A control the car lacks reads NONE and takes only the width NONE needs; the rest of the row is the others'.
+     A mode (one dial for ABS, TC and stability) is a cell of its own and the cells it stands for are hidden.
+     The car's other controls — a second traction dial, brake migration, the bars, DRS, push-to-pass — are a row
+     of small cells under the three, there only for a car that has any. */
+  .car-controls.car-controls-listed { flex-wrap: wrap; align-content: stretch; }
+  .car-controls.car-controls-listed .ctrl-item.ctrl-none {
+    flex: 0 0 auto;
+    min-width: 34px;
+    padding: 4px 6px;
+  }
+  .car-controls.car-controls-listed .ctrl-item.ctrl-none .ctrl-value,
+  .car-controls.car-controls-listed .ctrl-item.ctrl-on .ctrl-value { opacity: 0.45 !important; }
+  .car-controls.car-controls-listed .ctrl-item.ctrl-off .ctrl-value { opacity: 0.75; font-size: 18px; letter-spacing: 0.04em; }
+  .car-controls.car-controls-listed .ctrl-item.ctrl-locked .ctrl-label::after {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 6px;
+    margin-left: 4px;
+    border: 1px solid currentColor;
+    border-top-width: 2px;
+    border-radius: 1px;
+    opacity: 0.6;
+    vertical-align: 1px;
+  }
+  .car-controls.car-controls-listed .ctrl-item.ctrl-mode { flex: 1.6; }
+  .car-controls.car-controls-listed .ctrl-item.ctrl-mode::before { background: hsla(150, 60%, 33%, 0.12); }
+  .car-controls.car-controls-listed .ctrl-item.ctrl-mode .ctrl-value { color: hsl(150, 70%, 62%); }
+  .car-controls.car-controls-listed .ctrl-item.ctrl-mode .ctrl-label { color: hsl(150, 40%, 52%); }
+  .car-controls.car-controls-listed .ctrl-item .ctrl-value.ctrl-value-fixed { opacity: 0.9; font-size: 15px; }
+  .ctrl-more {
+    flex: 0 0 100%;
+    display: flex;
+    gap: var(--gap);
+    min-height: 0;
+  }
+  .ctrl-mini {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    padding: 3px 2px;
+    border-radius: var(--corner-r-sm);
+    background: hsla(0,0%,100%,0.03);
+    border: 1px solid transparent;
+    transition: background var(--t-med);
+  }
+  .ctrl-mini-label {
+    font-size: 9px;
+    font-weight: var(--fw-semi);
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+  .ctrl-mini-value {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    font-weight: var(--fw-black);
+    line-height: 1;
+    color: hsla(0,0%,100%,0.85);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .ctrl-mini.ctrl-mini-off .ctrl-mini-value { opacity: 0.5; }
+  .ctrl-mini.ctrl-mini-ready { background: hsla(150, 60%, 45%, 0.16); }
+  .ctrl-mini.ctrl-mini-ready .ctrl-mini-value { color: hsl(150, 70%, 65%); }
+  .ctrl-mini.ctrl-mini-active { background: hsla(150, 70%, 50%, 0.32); border-color: hsla(150, 70%, 60%, 0.5); }
+  .ctrl-mini.ctrl-mini-active .ctrl-mini-value { color: hsl(150, 80%, 75%); }
+  .ctrl-mini.ctrl-mini-changed { animation: value-flash 1.4s ease-out forwards; }
+
   /* "No Adjustments" fallback when all controls are hidden */
   .ctrl-no-adj {
     display: none;
