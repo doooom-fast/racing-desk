@@ -48,18 +48,25 @@ car folder there holds textures directly rather than a layer of version folders.
 you are behind. **Check** asks the remote; **Update** takes what is waiting. The checkbox,
 "Keep the library up to date by itself", is on unless you turn it off (`autoUpdateLibrary` in
 the settings: nothing chosen is on, and only `false` is off; the older `autoUpdateOnLaunch` is
-no longer read, since what it held was the old default and not a choice). While it is on the
-desk looks at the remote as the page starts, every 30 minutes while the app runs, and when its
+no longer read, since what it held was the old default and not a choice). While it is on, the
+Cars page looks at the remote as it starts, every 30 minutes while the app runs, and when the
 window comes back to the front after being away for 30 minutes or more; when something is
-waiting it takes it, reads the library again, and a toast says what arrived. It does none of
-that while the sim is running — it asks again each time, since a race is no time to download
-textures — and never two at once. A remote that cannot be reached is not mentioned: the next
-occasion tries again. With the checkbox off, the status chip says that updates are waiting and
-has an **Update now** button.
+waiting it takes it, reads the library again, and a toast says what arrived. The page is
+started the first time Cars is opened in a run of the app (the app opens on the Desk page), so
+a run in which it is never opened looks at nothing, and what is waiting is taken when it is. It
+does none of that while the sim is running — it asks again each time, since a race is no time
+to download textures — and never two at once. A remote that cannot be reached is not mentioned,
+on the page or under Library source: nothing is pulled, and the next occasion tries again. A
+call to the remote that hangs is given up on (2 minutes for the look; a fetch that has stalled
+for 2 minutes, or has taken 20), so that it cannot hold every later update until the app
+restarts. With the checkbox off, the status chip says that updates are waiting and has an
+**Update now** button.
 
 Nothing on the page tells you to use git. An update that cannot be taken by itself is one plain
 sentence on the status chip ("Library not updated") saying what is in the way and that nothing
-was changed: the checkout has changes of its own, or work the remote does not have.
+was changed: the checkout has changes of its own, or work the remote does not have. Where trying
+again could help (a file held open at that moment, a git that did not answer) the chip has
+**Update now** too, with the checkbox off; with it on the library tries again by itself.
 
 Updating cannot lose work:
 
@@ -70,7 +77,9 @@ Updating cannot lose work:
   would be written over — the fleet build's own paints, say, which the design pipeline pushes
   too — are moved, never deleted, to `%LOCALAPPDATA%\Racing Desk\library-set-aside\<yyyy-mm-dd_hhmmss>\`
   under their own paths in the checkout, and then the update goes ahead. The toast says how
-  many were set aside and where. If the update then fails they are put back.
+  many were set aside and where. If the update then fails they are put back; any that cannot
+  be put back (held open at that moment) stay in that folder, and the toast and the chip say so,
+  in place of "nothing was changed".
 - `git` is driven as a command, not linked in, so it already knows your credentials through
   your credential helper and never has to ask again.
 

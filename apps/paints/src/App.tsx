@@ -74,6 +74,10 @@ const TOAST_MS = 12000;
 const COULD_NOT_UPDATE =
   "The library could not be brought up to date just now, so it was not updated. Nothing was changed.";
 
+/// The reasons an update was not taken that trying again could put right: a file held open for a moment, git or the
+/// remote not answering, files that could not be put back. Not changes or work of the library's own, which stay.
+const CAN_TRY_AGAIN: ReadonlySet<string> = new Set(["files", "other", "kept"]);
+
 /// An error's words for the Activity list, without the hints that tell the reader what to type ("hint: …").
 function plain(e: unknown): string {
   return errorText(e)
@@ -169,8 +173,9 @@ export default function App() {
   const [checking, setChecking] = useState(false);
   /// An update is being taken, by itself or because he asked.
   const [updating, setUpdating] = useState(false);
-  /// Why the last update was not taken, as the sentence the chip says; null when nothing is in the way.
-  const [blocked, setBlocked] = useState<string | null>(null);
+  /// What is in the way of the last update, as the sentence the chip says and whether trying again could help; null
+  /// when nothing is.
+  const [blocked, setBlocked] = useState<{ text: string; retry: boolean } | null>(null);
   const [toast, setToast] = useState<ToastItem | null>(null);
   const toastId = useRef(0);
 
@@ -394,7 +399,7 @@ export default function App() {
   const repoNow = useRef<RepoStatus | null>(null);
   repoNow.current = repo;
   const blockedNow = useRef<string | null>(null);
-  blockedNow.current = blocked;
+  blockedNow.current = blocked?.text ?? null;
 
   /// One look at the remote or one update at a time, whoever asked for it: a button, the page starting, the half
   /// hour, the window coming back.
@@ -415,14 +420,15 @@ export default function App() {
   }, []);
 
   /// Ask the remote what it has. Read-only — it never touches the working tree. `quietly`: nobody asked, so a
-  /// remote that cannot be reached is not said; it is asked again at the next occasion.
+  /// remote that cannot be reached is not said, on the page or under Library source, where the desk's answer would
+  /// print its note; what is shown stays as it was, and it is asked again at the next occasion.
   const checkNow = useCallback(
     async (quietly: boolean) => {
       if (!libraryRoot) return null;
       setChecking(true);
       try {
         const status = await api.repoCheck(libraryRoot);
-        setRepo(status);
+        if (!quietly || status.checkedRemote) setRepo(status);
         // Nothing waiting, on an answer from the remote itself, is nothing in the way.
         if (status.checkedRemote && !status.updatesAvailable) setBlocked(null);
         return status;
@@ -449,9 +455,9 @@ export default function App() {
         setRepo(report.status);
         const arrived = arrival(report);
         if (report.blocked) {
-          const text = report.blocked.text;
+          const { text } = report.blocked;
           if (byHim || blockedNow.current !== text) say("info", "The library was not updated", [text]);
-          setBlocked(text);
+          setBlocked({ text, retry: CAN_TRY_AGAIN.has(report.blocked.reason) });
           // Files that could not be put back are set aside all the same, and that is said.
           if (arrived) tell(arrived, report.setAside?.folder ?? null);
         } else {
@@ -467,7 +473,7 @@ export default function App() {
       } catch (e) {
         if (byHim) {
           say("bad", "Could not update the library", [plain(e)]);
-          setBlocked(COULD_NOT_UPDATE);
+          setBlocked({ text: COULD_NOT_UPDATE, retry: true });
         }
       } finally {
         setUpdating(false);
@@ -505,7 +511,8 @@ export default function App() {
         if (!libraryRoot || (known && (!known.gitAvailable || !known.isRepo || !known.upstream))) return;
         if (busyNow.current || (await simRunning())) return;
         const status = await checkNow(true);
-        if (!status?.isRepo || !status.updatesAvailable) return;
+        // What could not be reached found nothing: `updatesAvailable` of one is only what a fetch left behind.
+        if (!status?.isRepo || !status.checkedRemote || !status.updatesAvailable) return;
         // A look at the remote takes a moment, and a race can begin in it.
         if (busyNow.current || (await simRunning())) return;
         await pullNow(false);
@@ -579,10 +586,10 @@ export default function App() {
     const settled = setTimeout(async () => {
       checkedFor.current = libraryRoot;
       if (autoOn) await keepUp();
-      else await checkForUpdates();
+      else await alone(async () => void (await checkNow(true)));   // nobody pressed Check: quietly, as the rest
     }, REMOTE_AFTER_MS);
     return () => clearTimeout(settled);
-  }, [libraryRoot, autoOn, inReach, looking, keepUp, checkForUpdates]);
+  }, [libraryRoot, autoOn, inReach, looking, keepUp, alone, checkNow]);
 
   const carName = car ? carLabel(car) : "";
   /// Where the car's paint goes: its folder in the paint directory, or, for a car never driven, the

@@ -424,26 +424,36 @@ them a third each, where without it they are half.
 - **The library keeps itself up to date, unless he turns it off** (`App.tsx` `keepUp`; "Keep the library up to date
   by itself" under Library source; `paints.autoUpdateLibrary` in `overlay-settings.json`, where null — nothing
   chosen — is on and only a false is off; the old `autoUpdateOnLaunch` is accepted, never read and dropped by the
-  next save, because it was only ever what the page held before he chose anything). It looks at the remote as the
-  page starts, whatever is on the page and whoever is looking, every 30 minutes while the app runs, and when the
-  window comes back to the front after 30 minutes or more away — and when he turns it on. **Never while the sim is
-  running**, asked afresh each time (`simStatus`: what the chips know of it is as old as the last look at the page,
-  and the desk can be behind the sim for hours) and again between the look and the pull, and never while an apply
-  or another look is under way; **never two at once**. A remote that cannot be reached is not said: the next
-  occasion tries again. When something is waiting it is pulled, the library is read again, and a toast says what
-  arrived ("Library updated: 3 liveries added or changed."). With it off the remote is asked once per library and
-  not before a car with a livery, or a group, has been on the page for a second with the window in front, and the
-  chip says updates are waiting, with an **Update now** in its detail; Check under Library source asks whenever he
-  does. **Nothing on the page tells him to use git or to go elsewhere.** An update that cannot be taken by itself
-  is one plain sentence on the chip, "Library not updated", that says what is in the way and that nothing was
-  changed — the checkout has changes of its own, or has work the remote does not (diverged, ahead), or the
-  fast-forward was refused (`paints/repo.js` `BLOCKED`, printed as it is; a failure of the remote by hand is the
-  same chip; of itself, nothing). **What is in the way is moved, not reported**: files git does not track that an
-  incoming file would be written over — most likely the fleet build's own paints, which the design pipeline pushes
-  too — are moved, whole and never deleted, to `%LOCALAPPDATA%\Racing Desk\library-set-aside\<yyyy-mm-dd_hhmmss>\`
-  under their own paths in the checkout (`repo.pull`, the folder handed in from `main.js`), and the toast says how
-  many and where, with a Show; if the update then fails they are put back. The fast-forward is a `merge --ff-only`
-  of what was just fetched, not a second fetch.
+  next save, because it was only ever what the page held before he chose anything). **It is the Cars page that does
+  it, so it begins when Cars is first opened in a run of the app** (the island is mounted then, and not before —
+  `desk.js` `mountCars`; the app itself opens on the Desk page): it looks at the remote as the page starts, whatever
+  is on the page and whoever is looking, then every 30 minutes while the app runs, and when the window comes back to
+  the front after 30 minutes or more away — and when he turns it on. A run in which he never opens Cars looks at
+  nothing; what is waiting is taken when he does. **Never while the sim is running**, asked afresh each time (`simStatus`: what the
+  chips know of it is as old as the last look at the page, and the desk can be behind the sim for hours) and again
+  between the look and the pull, and never while an apply or another look is under way; **never two at once**. A
+  remote that cannot be reached is not said, on the page or under Library source (the desk's answer to it carries a
+  note, which only a Check he pressed prints): what is shown stays as it was, nothing is pulled, and the next occasion
+  tries again. That holds for a call that hangs as well: the desk gives up on a look at the remote after 2 minutes and
+  on a fetch that has stalled for as long (a fetch still bringing data is left, to 20 minutes), so that one stuck call
+  cannot hold every later look and Apply until the app restarts. When something is waiting it is pulled, the library is
+  read again, and a toast says what arrived ("Library updated: 3 liveries added or changed."). With it off the remote
+  is asked once per library, quietly, and not before a car with a livery, or a group, has been on the page for a
+  second with the window in front, and the chip says updates are waiting, with an **Update now** in its detail; Check
+  under Library source asks whenever he does. **Nothing on the page tells him to use git or to go elsewhere.** An
+  update that cannot be taken by itself is one plain sentence on the chip, "Library not updated", that says what is in
+  the way and that nothing was changed — the checkout has changes of its own, or has work the remote does not
+  (diverged, ahead), or the fast-forward was refused (`paints/repo.js` `BLOCKED`, printed as it is; a failure of the
+  remote by hand is the same chip; of itself, nothing). With it off, that chip keeps the **Update now** where trying
+  again could help (a file held open, git not answering: `files`, `other`, `kept`) and has none where it could not
+  (`changes`, `work`); with it on the library tries again by itself. **What is in the way is moved, not reported**:
+  files git does not track that an incoming file would be written over — most likely the fleet build's own paints,
+  which the design pipeline pushes too — are moved, whole and never deleted, to
+  `%LOCALAPPDATA%\Racing Desk\library-set-aside\<yyyy-mm-dd_hhmmss>\` under their own paths in the checkout
+  (`repo.pull`, the folder handed in from `main.js`), and the toast says how many and where, with a Show; if the update
+  then fails they are put back. If some cannot be put back (a file held open at that moment) they stay in that folder,
+  the toast says how many and where all the same, and the chip's sentence is the one that says so (`kept`) instead of
+  that nothing was changed. The fast-forward is a `merge --ff-only` of what was just fetched, not a second fetch.
 - **Coming back to the desk reads the car's view and pedals again** (`useRig.ts`): when the window comes to the
   front with the page showing, and once more 110 s later. The host keeps the pedals when the run ends and the
   view once the sim has gone and written its files, neither of which changes what the desk counts as new. It is

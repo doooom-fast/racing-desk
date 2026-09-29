@@ -249,10 +249,11 @@ export interface RepoStatus {
   notes: string[];
 }
 
-/// What stands in the way of an update, in words for the driver: `text` is one plain sentence that says so and that
-/// nothing was changed, and is shown as it is.
+/// What stands in the way of an update, in words for the driver: `text` is one plain sentence that says so and, but
+/// for `kept`, that nothing was changed, and is shown as it is. `kept` is files that were moved aside for the update
+/// and could not be put back when it was not taken: they are in the folder `setAside` names.
 export interface Blocked {
-  reason: "changes" | "work" | "files" | "other";
+  reason: "changes" | "work" | "files" | "other" | "kept";
   text: string;
 }
 

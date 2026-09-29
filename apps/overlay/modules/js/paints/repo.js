@@ -20,9 +20,16 @@ const roles = require('./roles');
 const { run } = require('./exec');
 const { refused, other, messageOf } = require('./error');
 
-// Long enough for a fetch of a repo full of multi-megabyte textures on a slow line, short enough that a hung
-// credential prompt does not wedge the UI for ever.
+// How long a call to the remote may take before it is given up on, so that one that hangs — a dropped connection, or
+// a credential helper's sign-in window nobody is at — does not hold every later look and update for as long as the
+// app runs. Asking for a branch's tip is a few hundred bytes, so it gets this. A fetch may be a repo full of
+// multi-megabyte textures on a slow line, so it is not cut off while data is still coming (git's own low-speed check,
+// below); it gets a ceiling of its own for what stalls before a byte does.
 const NETWORK_TIMEOUT_SECS = 120;
+const FETCH_CEILING_SECS = 20 * 60;
+// A transfer slower than this for NETWORK_TIMEOUT_SECS is a stalled one. Git leaves the limit unset, and the time
+// alone does nothing.
+const LOW_SPEED_BYTES_PER_SEC = 1000;
 
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -38,6 +45,10 @@ const BLOCKED = Object.freeze({
     + 'Nothing was changed.',
   // Anything else git refused.
   other: 'The library could not be brought up to date just now, so it was not updated. Nothing was changed.',
+  // The update was not taken after files had been moved aside, and some of them could not be put back. That is a
+  // change, so it does not say there was none: they are in the set-aside folder, which the toast names.
+  kept: 'The library was not updated, and some files that were in the way of it could not be put back, so they are '
+    + 'in the folder they were set aside in.',
 });
 
 function isDir(p) {
@@ -64,9 +75,14 @@ function emptyStatus() {
 }
 
 // Run git in `dir` and hand back trimmed stdout, or throw the error git printed. Never stops for a username
-// prompt: this runs behind a UI with nowhere to type.
-async function git(dir, args, { exec = run } = {}) {
-  const res = await exec('git', args, { cwd: dir, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+// prompt: this runs behind a UI with nowhere to type. With `timeoutMs` a command that has not finished by then is
+// stopped and thrown as a failure, like any other.
+async function git(dir, args, { exec = run } = {}, { timeoutMs } = {}) {
+  const res = await exec('git', args, {
+    cwd: dir,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    ...(timeoutMs ? { timeoutMs } : {}),
+  });
   if (res.error) throw other(`Could not run git: ${messageOf(res.error)}`);
   if (res.status !== 0) {
     const err = (res.stderr || '').trim();
@@ -150,7 +166,8 @@ async function remoteTip(root, upstream, deps) {
   const branch = upstream.slice(slash + 1);
   let out;
   try {
-    out = await git(root, ['ls-remote', '--quiet', remote, `refs/heads/${branch}`], deps);
+    out = await git(root, ['ls-remote', '--quiet', remote, `refs/heads/${branch}`], deps,
+      { timeoutMs: NETWORK_TIMEOUT_SECS * 1000 });
   } catch (e) {
     return null;
   }
@@ -216,7 +233,10 @@ async function check(p, deps) {
 async function fetch(p, deps) {
   const st = await status(p, deps);
   if (!st.isRepo) throw refused('The library is not inside a git repository.');
-  await git(st.root, ['-c', `http.lowSpeedTime=${NETWORK_TIMEOUT_SECS}`, 'fetch', '--quiet', '--prune'], deps);
+  await git(st.root, [
+    '-c', `http.lowSpeedLimit=${LOW_SPEED_BYTES_PER_SEC}`, '-c', `http.lowSpeedTime=${NETWORK_TIMEOUT_SECS}`,
+    'fetch', '--quiet', '--prune',
+  ], deps, { timeoutMs: FETCH_CEILING_SECS * 1000 });
   return status(p, deps);
 }
 
@@ -285,7 +305,8 @@ function moveFile(from, to) {
 
 // Move each of `files` (paths from the checkout's root) out of the checkout into a new folder under `base`, at the
 // same path, and say which folder and which files. Nothing is deleted. If one cannot be moved, those already moved
-// are put back and the failure is thrown.
+// are put back and the failure is thrown — with `kept` on it, `{ count, folder }`, for the ones that could not be put
+// back either (null when all are back), since those are not where they were and that is to be said.
 function setAside(root, files, base, when) {
   fs.mkdirSync(base, { recursive: true });
   const stamp = setAsideStamp(when);
@@ -310,8 +331,10 @@ function setAside(root, files, base, when) {
       moved.push(rel);
     }
   } catch (e) {
-    putBack(root, folder, moved);
-    throw e;
+    const stranded = putBack(root, folder, moved);
+    const failure = e instanceof Error ? e : new Error(messageOf(e));
+    failure.kept = stranded.length ? { count: stranded.length, folder } : null;
+    throw failure;
   }
   return { folder, files: moved };
 }
@@ -348,14 +371,20 @@ function putBack(root, folder, files) {
 // `<setAsideBase>\<yyyy-mm-dd_hhmmss>\<their path in the checkout>` first — with no `setAsideBase` they stay and git
 // refuses. The answer says how many and where (`setAside`), and if the update then fails they are put back.
 //   { updated, commits, changed, setAside: { count, folder } | null, blocked: { reason, text } | null, status }
-// `changed` is the number of versions of a car that arrived or changed.
+// `changed` is the number of versions of a car that arrived or changed. When the update is not taken and some files
+// could not be put back, `setAside` is those (still in that folder) and `blocked.reason` is `kept`, whose sentence
+// does not say that nothing was changed, because a file is not where it was.
 async function pull(p, deps, { setAsideBase = null, now = () => new Date() } = {}) {
   const before = await fetch(p, deps);
   if (!before.isRepo) throw refused('The library is not inside a git repository.');
   if (!before.upstream) throw refused('This branch is not tracking a remote, so there is nothing to pull.');
   const root = before.root;
   const none = { updated: false, commits: [], changed: 0, setAside: null, blocked: null, status: before };
-  const held = (reason, aside = null) => ({ ...none, setAside: aside, blocked: { reason, text: BLOCKED[reason] } });
+  // What stands in the way, with the files that are not where they were, if any: those are the reason, whatever it was.
+  const held = (reason, kept = null) => {
+    const why = kept ? 'kept' : reason;
+    return { ...none, setAside: kept, blocked: { reason: why, text: BLOCKED[why] } };
+  };
 
   if (before.behind === 0) return none;
   if (before.dirty) return held('changes');
@@ -374,7 +403,8 @@ async function pull(p, deps, { setAsideBase = null, now = () => new Date() } = {
       try {
         aside = setAside(root, inWay, setAsideBase, now());
       } catch (e) {
-        return held('files');   // what was moved is back, so nothing was changed
+        // What was moved is back, so nothing was changed — but for what could not be put back, which is said.
+        return held('files', e && e.kept ? e.kept : null);
       }
     }
   }
@@ -470,6 +500,6 @@ async function suggestLibraries(paintDir, { env = process.env, exec } = {}) {
 }
 
 module.exports = {
-  NETWORK_TIMEOUT_SECS, BLOCKED, git, gitOpt, gitAvailable, status, remoteTip, hasObject, isAncestor, check, fetch,
-  pull, inTheWay, setAsideStamp, looksLikeLibrary, suggestLibraries,
+  NETWORK_TIMEOUT_SECS, FETCH_CEILING_SECS, LOW_SPEED_BYTES_PER_SEC, BLOCKED, git, gitOpt, gitAvailable, status,
+  remoteTip, hasObject, isAncestor, check, fetch, pull, inTheWay, setAsideStamp, looksLikeLibrary, suggestLibraries,
 };

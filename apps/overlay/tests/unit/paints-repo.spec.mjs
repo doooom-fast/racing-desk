@@ -269,12 +269,17 @@ test('a diverged branch is not updated, and what is said is plain and nothing ch
 });
 
 test('none of the sentences of what is in the way says how to use git', () => {
-  expect(Object.keys(repo.BLOCKED)).toEqual(['changes', 'work', 'files', 'other']);
+  expect(Object.keys(repo.BLOCKED)).toEqual(['changes', 'work', 'files', 'other', 'kept']);
   for (const [reason, text] of Object.entries(repo.BLOCKED)) {
     expect(text, reason).not.toMatch(/\bgit\b|commit|stash|merge|rebase|pull|push|repo/i);
+    if (reason === 'kept') continue;
     expect(text, reason).toMatch(/Nothing was changed\.$/);
     expect(text.split('. ').length, `${reason} is one sentence, and that nothing was changed`).toBe(2);
   }
+  // Where files were moved and could not be put back something was changed, and it is not said that nothing was.
+  expect(repo.BLOCKED.kept).not.toMatch(/nothing was changed/i);
+  expect(repo.BLOCKED.kept.split('. ')).toHaveLength(1);
+  expect(repo.BLOCKED.kept).toMatch(/could not be put back/);
 });
 
 // ── Files in an update's way ─────────────────────────────────
@@ -419,6 +424,88 @@ test('a file that cannot be moved leaves the others where they were, and the upd
   expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the fleet build');
 });
 
+// A file held open for a moment can be refused twice over: on the way out, and again on the way back.
+const busy = () => Object.assign(new Error('EBUSY: resource busy or locked, rename'), { code: 'EBUSY' });
+const denied = () => Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' });
+
+test('a file that cannot be put back after a failed move is said and named, not lost, and the sentence does not say nothing changed', async () => {
+  const { clone } = await cloneWithFleetPaint('aside-stranded');
+  const base = fixture('aside-stranded-base');
+  const folder = path.join(base, STAMP);
+  const painted = path.join('nissangtpzxt', 'v10', 'car_424242.tga');
+  // The second file is held by another program going out; the first, having gone, is held coming back.
+  const renameSync = fs.renameSync;
+  fs.renameSync = (from, to) => {
+    if (String(from).endsWith('meta.json') && String(to).startsWith(base)) throw busy();
+    if (String(from).startsWith(base) && String(to).startsWith(clone)) throw denied();
+    return renameSync(from, to);
+  };
+  let report;
+  try {
+    report = await repo.pull(clone, undefined, { setAsideBase: base, now: () => WHEN });
+  } finally {
+    fs.renameSync = renameSync;
+  }
+  expect(report).toMatchObject({
+    updated: false, commits: [], changed: 0,
+    setAside: { count: 1, folder },
+    blocked: { reason: 'kept', text: repo.BLOCKED.kept },
+  });
+  expect(report.blocked.text).not.toMatch(/nothing was changed/i);
+  // The file is where the answer says, whole; the other never left.
+  expect(fs.readFileSync(path.join(folder, painted), 'utf8')).toBe('from the fleet build');
+  expect(fs.existsSync(path.join(clone, painted))).toBe(false);
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'meta.json'), 'utf8')).toBe('{"source":"fleet"}');
+  expect((await repo.status(clone)).behind).toBe(1);   // not updated
+
+  // Trying again finds one file in the way and not two, and the update goes ahead.
+  const again = await repo.pull(clone, undefined, { setAsideBase: base, now: () => WHEN });
+  expect(again).toMatchObject({ updated: true, blocked: null, setAside: { count: 1, folder: path.join(base, `${STAMP}-02`) } });
+  expect(fs.readFileSync(path.join(clone, painted), 'utf8')).toBe('from the design pipeline');
+  expect(fs.readFileSync(path.join(base, `${STAMP}-02`, 'nissangtpzxt', 'v10', 'meta.json'), 'utf8')).toBe('{"source":"fleet"}');
+  expect(fs.readFileSync(path.join(folder, painted), 'utf8')).toBe('from the fleet build');
+});
+
+test('files that cannot be put back after the update itself failed are said too', async () => {
+  const { clone } = await cloneWithFleetPaint('aside-stranded-merge');
+  const base = fixture('aside-stranded-merge-base');
+  const folder = path.join(base, STAMP);
+  const exec = async (file, args, opts) => {
+    if (args[0] === 'merge') return { status: 128, stdout: '', stderr: 'fatal: something else entirely', error: null };
+    return run(file, args, opts);
+  };
+  // Both come back refused: they are still held by whatever held them.
+  const renameSync = fs.renameSync;
+  fs.renameSync = (from, to) => {
+    if (String(from).startsWith(base) && String(to).startsWith(clone)) throw denied();
+    return renameSync(from, to);
+  };
+  let report;
+  try {
+    report = await repo.pull(clone, { exec }, { setAsideBase: base, now: () => WHEN });
+  } finally {
+    fs.renameSync = renameSync;
+  }
+  expect(report).toMatchObject({ updated: false, setAside: { count: 2, folder }, blocked: { reason: 'kept', text: repo.BLOCKED.kept } });
+  expect(fs.readFileSync(path.join(folder, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the fleet build');
+  expect(fs.readFileSync(path.join(folder, 'nissangtpzxt', 'v10', 'meta.json'), 'utf8')).toBe('{"source":"fleet"}');
+
+  // One of the two comes back and one does not: the count is of the one that did not.
+  const { clone: second } = await cloneWithFleetPaint('aside-stranded-merge-half');
+  const half = fixture('aside-stranded-merge-half-base');
+  fs.renameSync = (from, to) => {
+    if (String(from).startsWith(half) && String(to).startsWith(second) && String(from).endsWith('meta.json')) throw denied();
+    return renameSync(from, to);
+  };
+  try {
+    report = await repo.pull(second, { exec }, { setAsideBase: half, now: () => WHEN });
+  } finally {
+    fs.renameSync = renameSync;
+  }
+  expect(report).toMatchObject({ updated: false, setAside: { count: 1, folder: path.join(half, STAMP) }, blocked: { reason: 'kept' } });
+  expect(fs.readFileSync(path.join(second, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the fleet build');
+});
+
 test('the files in the way are the incoming paths that are untracked, and only those', async () => {
   const { clone } = await cloneWithFleetPaint('inway');
   await repo.fetch(clone);
@@ -470,6 +557,58 @@ test('the command hands the folder in from the app, and without one puts nothing
   const report = await cmd.repoPull(clone);
   expect(report).toMatchObject({ updated: true, setAside: { count: 2, folder: path.join(base, STAMP) } });
   expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the design pipeline');
+});
+
+// ── A call to the remote that hangs ──────────────────────────
+// Nothing else can stop one: the page holds every later look and update until it answers.
+
+test('the look at the remote and the fetch are given up on if they hang; nothing local is timed', async () => {
+  const { work, origin } = await originWithWork('hang');
+  const clone = fixture('hang-clone');
+  await git(clone, ['clone', '--quiet', origin, '.']);
+  await pushNewLivery(work);
+  const seen = [];
+  const exec = async (file, args, opts) => { seen.push({ args, timeoutMs: opts.timeoutMs }); return run(file, args, opts); };
+
+  expect(await repo.check(clone, { exec })).toMatchObject({ checkedRemote: true, updatesAvailable: true });
+  expect((await repo.pull(clone, { exec })).updated).toBe(true);
+
+  const lookedAt = seen.filter((c) => c.args.includes('ls-remote'));
+  expect(lookedAt.length).toBeGreaterThan(0);
+  for (const c of lookedAt) expect(c.timeoutMs).toBe(repo.NETWORK_TIMEOUT_SECS * 1000);
+  const fetched = seen.filter((c) => c.args.includes('fetch'));
+  expect(fetched).toHaveLength(1);
+  expect(fetched[0].timeoutMs).toBe(repo.FETCH_CEILING_SECS * 1000);
+  // A fetch that has stopped moving is stopped by git itself, which needs both halves of its own setting: the time
+  // alone does nothing.
+  expect(fetched[0].args).toEqual(expect.arrayContaining([
+    `http.lowSpeedLimit=${repo.LOW_SPEED_BYTES_PER_SEC}`, `http.lowSpeedTime=${repo.NETWORK_TIMEOUT_SECS}`,
+  ]));
+  expect(repo.LOW_SPEED_BYTES_PER_SEC).toBeGreaterThan(0);
+  expect(repo.FETCH_CEILING_SECS).toBeGreaterThan(repo.NETWORK_TIMEOUT_SECS);
+  for (const c of seen.filter((s) => !s.args.includes('ls-remote') && !s.args.includes('fetch'))) {
+    expect(c.timeoutMs, c.args.join(' ')).toBeUndefined();
+  }
+});
+
+test('a look at the remote that hangs is a remote that could not be reached, and a fetch that hangs is a failure', async () => {
+  const { work, origin } = await originWithWork('hang-fail');
+  const clone = fixture('hang-fail-clone');
+  await git(clone, ['clone', '--quiet', origin, '.']);
+  await pushNewLivery(work);
+  const stalled = (word) => async (file, args, opts) => {
+    if (args.includes(word)) {
+      return { status: null, signal: 'SIGTERM', stdout: '', stderr: '', error: new Error(`${file} took longer than ${opts.timeoutMs} ms`) };
+    }
+    return run(file, args, opts);
+  };
+
+  const looked = await repo.check(clone, { exec: stalled('ls-remote') });
+  expect(looked).toMatchObject({ checkedRemote: false, updatesAvailable: false });
+  expect(looked.notes).toContain('Could not reach the remote to check for updates.');
+
+  await expect(repo.pull(clone, { exec: stalled('fetch') })).rejects.toThrow(/took longer than 1200000 ms/);
+  expect((await repo.status(clone)).behind).toBe(0);   // nothing was taken
 });
 
 test('suggestLibraries finds a checkout in or beside the paint folder and under Documents\\GitHub, repos first', async () => {

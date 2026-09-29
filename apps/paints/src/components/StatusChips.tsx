@@ -18,8 +18,10 @@ export interface StatusItem {
 export interface LibraryUpdate {
   /// An update is being taken now.
   updating: boolean;
-  /// Why the last one was not, as one plain sentence that says nothing was changed; null when nothing is in the way.
-  blocked: string | null;
+  /// What is in the way of the last one, as one plain sentence, said as it was worked out; null when nothing is.
+  /// `retry`: trying again could put it right — a file held open for a moment, a remote that did not answer — as it
+  /// cannot for changes or work of the library's own.
+  blocked: { text: string; retry: boolean } | null;
   /// The library takes its updates by itself.
   auto: boolean;
   onUpdate: () => void;
@@ -91,6 +93,8 @@ export function collectStatus(args: {
 
   // The library's updates are one chip, and none of them sends him anywhere else: what is going on, what is in the
   // way (a sentence of its own, said the way it was worked out), or that they are waiting and a button to take them.
+  // With it turned off, what is in the way keeps the button where trying again could help: the only other one is
+  // under Library source, and he is not sent there. Turned on, it tries again itself.
   if (library.updating) {
     items.push({
       id: "repo",
@@ -99,7 +103,13 @@ export function collectStatus(args: {
       detail: "New liveries are being added to the library.",
     });
   } else if (library.blocked) {
-    items.push({ id: "repo", level: "warn", short: "Library not updated", detail: library.blocked });
+    items.push({
+      id: "repo",
+      level: "warn",
+      short: "Library not updated",
+      detail: library.blocked.text,
+      action: library.blocked.retry && !library.auto ? { label: "Update now", run: library.onUpdate } : undefined,
+    });
   } else if (repo?.updatesAvailable) {
     items.push({
       id: "repo",

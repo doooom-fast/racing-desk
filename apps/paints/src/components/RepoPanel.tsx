@@ -43,8 +43,7 @@ export function RepoPanel({
       <div className="panel">
         <h3>Library source</h3>
         <div className="note">
-          This library is a plain folder, so it cannot update itself. Choose the folder your
-          liveries are kept in online, above, to have new versions arrive by themselves.
+          This library is a plain folder, so it cannot bring in new liveries by itself.
         </div>
       </div>
     );
