@@ -3,9 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO.Ports;
 using System.Linq;
-using System.Management;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using Newtonsoft.Json;
 
@@ -27,15 +25,18 @@ namespace RacingDesk.Plugin.Engine.Moza
     public class MozaSerialManager : IDisposable
     {
         // ── Configuration ─────────────────────────────────────────────
-        private const int BaudRate = 115200;
-        private const int DataBits = 8;
-        private const StopBits SerialStopBits = StopBits.One;
-        private const Parity SerialParity = Parity.None;
-        private const int ReadTimeoutMs = 500;
-        private const int WriteTimeoutMs = 500;
+        internal const int BaudRate = 115200;
+        internal const int DataBits = 8;
+        internal const StopBits SerialStopBits = StopBits.One;
+        internal const Parity SerialParity = Parity.None;
+        internal const int ReadTimeoutMs = 500;
+        internal const int WriteTimeoutMs = 500;
         private const int PollIntervalMs = 2000;
         private const int DiscoveryIntervalMs = 10000;
         private const int ReadBufferSize = 256;
+
+        /// <summary>How long a port another program holds is left alone before it is looked at again.</summary>
+        internal const int HeldPortRetryMs = 5 * 60 * 1000;
 
         // ── State ─────────────────────────────────────────────────────
         private readonly ConcurrentDictionary<string, MozaDevice> _devices = new ConcurrentDictionary<string, MozaDevice>();
@@ -47,6 +48,18 @@ namespace RacingDesk.Plugin.Engine.Moza
         private volatile bool _running;
         private volatile bool _disposed = false;
         private DateTime _lastDiscovery = DateTime.MinValue;
+
+        // ── Ports another program holds ───────────────────────────────
+        // Windows gives a serial port to one handle at a time, so while another program has a port
+        // (MOZA Pit House holds the base's for as long as it runs) no open can succeed, from this
+        // process or any other. Such a port is logged once a run and looked at again only after
+        // HeldPortRetryMs, when the set of ports changes, or on ForceRediscovery. Poll thread only.
+        private readonly Dictionary<string, DateTime> _heldPortRetryAt = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _heldPortsLogged = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private volatile bool _retryHeldPorts;
+
+        private readonly IMozaPortSystem _portSystem;
+        private readonly Func<DateTime> _utcNow;
 
         // ── Logging callback (injected by Plugin.cs) ──────────────────
         private readonly Action<string> _logInfo;
@@ -93,9 +106,17 @@ namespace RacingDesk.Plugin.Engine.Moza
         // ═══════════════════════════════════════════════════════════════
 
         public MozaSerialManager(Action<string> logInfo = null, Action<string> logWarn = null)
+            : this(logInfo, logWarn, new MozaSystemPorts(), () => DateTime.UtcNow)
+        {
+        }
+
+        /// <summary>For tests: stands in for the machine's serial ports and the clock.</summary>
+        internal MozaSerialManager(Action<string> logInfo, Action<string> logWarn, IMozaPortSystem portSystem, Func<DateTime> utcNow)
         {
             _logInfo = logInfo ?? (_ => { });
             _logWarn = logWarn ?? (_ => { });
+            _portSystem = portSystem;
+            _utcNow = utcNow;
         }
 
         /// <summary>
@@ -173,10 +194,11 @@ namespace RacingDesk.Plugin.Engine.Moza
         }
 
         /// <summary>
-        /// Force an immediate re-discovery of serial ports.
+        /// Force an immediate re-discovery of serial ports, ports another program held included.
         /// </summary>
         public void ForceRediscovery()
         {
+            _retryHeldPorts = true;
             _lastDiscovery = DateTime.MinValue;
         }
 
@@ -279,7 +301,7 @@ namespace RacingDesk.Plugin.Engine.Moza
         {
             var portDiagnostics = new List<object>();
             var portWmiInfo = GetUsbPortWmiInfo();
-            var allPortNames = SerialPort.GetPortNames() ?? new string[0];
+            var allPortNames = _portSystem.GetPortNames();
 
             foreach (var portName in allPortNames)
             {
@@ -362,13 +384,7 @@ namespace RacingDesk.Plugin.Engine.Moza
                     // Attempt to open the port briefly to test access
                     try
                     {
-                        var testPort = new SerialPort(portName, BaudRate, SerialParity, DataBits, SerialStopBits)
-                        {
-                            ReadTimeout = ReadTimeoutMs,
-                            WriteTimeout = WriteTimeoutMs,
-                            Handshake = Handshake.None
-                        };
-                        testPort.Open();
+                        var testPort = _portSystem.Open(portName);
                         testPort.Close();
                         testPort.Dispose();
                         portOpenStatus = "Open";
@@ -415,7 +431,7 @@ namespace RacingDesk.Plugin.Engine.Moza
                     && portOpenStatus == "Open";
                 if (needsProbe)
                 {
-                    var probed = OpenAndProbe(portName, useCache: false);
+                    var probed = OpenAndProbe(portName, discovery: false);
                     if (probed != null)
                     {
                         probedDeviceType = probed.Value.ToString();
@@ -527,13 +543,19 @@ namespace RacingDesk.Plugin.Engine.Moza
         //  DEVICE DISCOVERY
         // ═══════════════════════════════════════════════════════════════
 
-        private void DiscoverDevices()
+        internal void DiscoverDevices()
         {
             try
             {
                 CheckForPitHouse();
 
-                var portNames = SerialPort.GetPortNames();
+                if (_retryHeldPorts)
+                {
+                    _retryHeldPorts = false;
+                    RetryHeldPortsNow();
+                }
+
+                var portNames = _portSystem.GetPortNames();
                 if (portNames == null || portNames.Length == 0) return;
 
                 // Prune disconnected devices so they can be re-discovered.
@@ -591,12 +613,18 @@ namespace RacingDesk.Plugin.Engine.Moza
                         // protocol probe. This is the path that catches Moza
                         // hardware presenting with generic COM names where the
                         // description contains no "Gudsen"/"MOZA" substring.
-                        var probedType = OpenAndProbe(portName, useCache: true);
+                        var probedType = OpenAndProbe(portName, discovery: true);
                         if (probedType == null) continue;
                         match = (probedType.Value, "");
                         identifiedByProbe = true;
                         discoveryProbeIdentifiedCount++;
                         _logInfo($"[MozaSerial] Probe identified {portName} as {probedType.Value} (USB description: \"{description}\")");
+                    }
+                    else if (!MayOpen(portName))
+                    {
+                        // Held by another program — before the counting below, which
+                        // would otherwise log this port's match on every cycle.
+                        continue;
                     }
 
                     discoveryMatchedCount++;
@@ -685,7 +713,7 @@ namespace RacingDesk.Plugin.Engine.Moza
         /// descriptions (no "Gudsen"/"MOZA" substring) can still be identified
         /// by vendor/product ID.
         /// </summary>
-        private class PortWmiInfo
+        internal class PortWmiInfo
         {
             public string Description { get; set; } = "";
             public string HardwareId { get; set; } = "";
@@ -701,58 +729,15 @@ namespace RacingDesk.Plugin.Engine.Moza
         /// </summary>
         private Dictionary<string, PortWmiInfo> GetUsbPortWmiInfo()
         {
-            var result = new Dictionary<string, PortWmiInfo>(StringComparer.OrdinalIgnoreCase);
-
             try
             {
-                using (var searcher = new ManagementObjectSearcher(
-                    "SELECT Name, Description, Manufacturer, HardwareID FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'"))
-                {
-                    foreach (ManagementObject obj in searcher.Get())
-                    {
-                        string name = obj["Name"]?.ToString() ?? "";
-                        string desc = obj["Description"]?.ToString() ?? "";
-                        string manufacturer = obj["Manufacturer"]?.ToString() ?? "";
-
-                        // HardwareID in WMI is typically a string[] — the first entry
-                        // holds the VID/PID token (e.g. "USB\VID_346E&PID_0005&REV_0100").
-                        // Join all entries so downstream matching never loses data.
-                        string hardwareId = "";
-                        if (obj["HardwareID"] is string[] hids && hids.Length > 0)
-                        {
-                            hardwareId = string.Join(";", hids);
-                        }
-                        else
-                        {
-                            hardwareId = obj["HardwareID"]?.ToString() ?? "";
-                        }
-
-                        // Extract COM port number from name like "Gudsen MOZA R9 Base (COM3)"
-                        var comMatch = Regex.Match(name, @"\(COM(\d+)\)");
-                        if (!comMatch.Success) continue;
-
-                        string portName = "COM" + comMatch.Groups[1].Value;
-                        string fullDesc = $"{manufacturer} {name} {desc}".Trim();
-
-                        var vidMatch = Regex.Match(hardwareId, @"VID_([0-9A-F]{4})", RegexOptions.IgnoreCase);
-                        var pidMatch = Regex.Match(hardwareId, @"PID_([0-9A-F]{4})", RegexOptions.IgnoreCase);
-
-                        result[portName] = new PortWmiInfo
-                        {
-                            Description = fullDesc,
-                            HardwareId = hardwareId,
-                            Vid = vidMatch.Success ? vidMatch.Groups[1].Value.ToUpperInvariant() : "",
-                            Pid = pidMatch.Success ? pidMatch.Groups[1].Value.ToUpperInvariant() : "",
-                        };
-                    }
-                }
+                return _portSystem.GetPortInfo();
             }
             catch (Exception ex)
             {
                 _logWarn($"[MozaSerial] WMI query failed: {ex.Message}");
+                return new Dictionary<string, PortWmiInfo>(StringComparer.OrdinalIgnoreCase);
             }
-
-            return result;
         }
 
         /// <summary>
@@ -877,7 +862,8 @@ namespace RacingDesk.Plugin.Engine.Moza
 
         /// <summary>
         /// If the port list has changed since the last discovery cycle, drop
-        /// the not-Moza cache so newly-attached devices get probed.
+        /// the not-Moza cache so newly-attached devices get probed, and look
+        /// at the ports another program held again.
         /// </summary>
         private void RefreshProbeCacheIfPortsChanged(string[] currentPortNames)
         {
@@ -886,43 +872,93 @@ namespace RacingDesk.Plugin.Engine.Moza
             if (changed)
             {
                 _probedNotMoza.Clear();
+                RetryHeldPortsNow();
                 _lastKnownPortNames = (string[])currentPortNames.Clone();
             }
         }
 
         /// <summary>
-        /// Opens a port, runs ProbeOpenPort, and closes it. Used by discovery
-        /// for unclassified ports and (with cache disabled) by the diagnostic.
+        /// True when discovery may open the port now. A port another program
+        /// holds is found with CheckAccess, which does not throw — SerialPort.Open
+        /// does, and SimHub logs every exception thrown in its process with its
+        /// stack, caught or not — and is then left alone until HeldPortRetryMs
+        /// has passed, the set of ports changes, or ForceRediscovery is called.
+        /// Any other failure is left to the open, which says what it was.
         /// </summary>
-        private MozaDeviceRegistry.MozaDeviceType? OpenAndProbe(string portName, bool useCache = true)
+        private bool MayOpen(string portName)
         {
-            if (useCache && _probedNotMoza.Contains(portName)) return null;
+            bool wasHeld = _heldPortRetryAt.TryGetValue(portName, out DateTime retryAt);
+            if (wasHeld && _utcNow() < retryAt) return false;
+
+            var access = _portSystem.CheckAccess(portName);
+            if (access == MozaPortAccess.Held)
+            {
+                NoteHeld(portName);
+                return false;
+            }
+
+            if (wasHeld)
+            {
+                _heldPortRetryAt.Remove(portName);
+                if (access == MozaPortAccess.Free)
+                    _logInfo($"[MozaSerial] {portName} is no longer held by another program");
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Leaves a port another program holds alone for HeldPortRetryMs, and
+        /// logs it the first time in the run — once, with no stack.
+        /// </summary>
+        private void NoteHeld(string portName)
+        {
+            _heldPortRetryAt[portName] = _utcNow().AddMilliseconds(HeldPortRetryMs);
+            if (_heldPortsLogged.Add(portName))
+            {
+                _logWarn($"[MozaSerial] {portName} is held by another program (access denied) and can't be opened "
+                    + $"until it lets go. Looking again every {HeldPortRetryMs / 60000} minutes and when the ports change; "
+                    + "not logged again this run.");
+            }
+        }
+
+        private void RetryHeldPortsNow()
+        {
+            foreach (var portName in _heldPortRetryAt.Keys.ToList())
+                _heldPortRetryAt[portName] = DateTime.MinValue;
+        }
+
+        /// <summary>
+        /// Opens a port, runs ProbeOpenPort, and closes it. Used by discovery
+        /// for unclassified ports and (outside discovery: no cache, no back-off
+        /// from held ports) by the diagnostic.
+        /// </summary>
+        private MozaDeviceRegistry.MozaDeviceType? OpenAndProbe(string portName, bool discovery)
+        {
+            if (discovery && _probedNotMoza.Contains(portName)) return null;
             // Don't probe ports we've already opened for polling — the open
             // would fail and a probe response could collide with live traffic.
             if (_ports.ContainsKey(portName)) return null;
+            if (discovery && !MayOpen(portName)) return null;
 
             SerialPort port = null;
             try
             {
-                port = new SerialPort(portName, BaudRate, SerialParity, DataBits, SerialStopBits)
-                {
-                    ReadTimeout = ReadTimeoutMs,
-                    WriteTimeout = WriteTimeoutMs,
-                    Handshake = Handshake.None
-                };
-                port.Open();
-                port.DiscardInBuffer();
-                port.DiscardOutBuffer();
+                port = _portSystem.Open(portName);
 
                 var result = ProbeOpenPort(port);
-                if (result == null && useCache) _probedNotMoza.Add(portName);
+                if (result == null && discovery) _probedNotMoza.Add(portName);
                 return result;
+            }
+            catch (UnauthorizedAccessException) when (discovery)
+            {
+                // Taken between CheckAccess and the open. Not cached as
+                // not-Moza: once the other program lets go we want to retry.
+                NoteHeld(portName);
+                return null;
             }
             catch (Exception ex)
             {
-                // AccessDenied / NotFound / etc. — port unprobeable right now.
-                // Don't cache as not-Moza: it might be Pit House holding the
-                // port, and once Pit House quits we want to retry.
+                // NotFound / device error / etc. — port unprobeable right now.
                 _logWarn($"[MozaSerial] Probe open failed on {portName}: {ex.Message}");
                 return null;
             }
@@ -999,22 +1035,18 @@ namespace RacingDesk.Plugin.Engine.Moza
         {
             try
             {
-                var port = new SerialPort(device.PortName, BaudRate, SerialParity, DataBits, SerialStopBits)
-                {
-                    ReadTimeout = ReadTimeoutMs,
-                    WriteTimeout = WriteTimeoutMs,
-                    Handshake = Handshake.None
-                };
-
-                port.Open();
-                port.DiscardInBuffer();
-                port.DiscardOutBuffer();
+                var port = _portSystem.Open(device.PortName);
 
                 _ports[device.PortName] = port;
                 _portLocks[device.PortName] = new SemaphoreSlim(1, 1);
                 device.IsConnected = true;
 
                 return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                NoteHeld(device.PortName);
+                return false;
             }
             catch (Exception ex)
             {

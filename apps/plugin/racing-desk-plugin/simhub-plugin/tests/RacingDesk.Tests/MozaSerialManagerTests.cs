@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Ports;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
@@ -11,13 +14,25 @@ namespace RacingDesk.Tests
     public class MozaSerialManagerTests
     {
         private MozaSerialManager _manager;
+        private FakePorts _fake;
+        private DateTime _now;
+        private readonly List<string> _infos = new List<string>();
+        private readonly List<string> _warns = new List<string>();
 
+        // Every manager here reaches the fake's ports, never the machine's: Start() and the
+        // diagnostic would otherwise open the rig's ports and write probe packets to them.
         [SetUp]
         public void SetUp()
         {
+            _fake = new FakePorts();
+            _now = new DateTime(2026, 9, 29, 12, 0, 0, DateTimeKind.Utc);
+            _infos.Clear();
+            _warns.Clear();
             _manager = new MozaSerialManager(
-                logInfo: msg => { },
-                logWarn: msg => { });
+                msg => { lock (_infos) _infos.Add(msg); },
+                msg => { lock (_warns) _warns.Add(msg); },
+                _fake,
+                () => _now);
         }
 
         [TearDown]
@@ -466,14 +481,11 @@ namespace RacingDesk.Tests
         //  Verify that diagnostic returns valid JSON without throwing.
         // ═══════════════════════════════════════════════════════════════
 
-        // Skipped on non-Windows: GetSerialPortDiagnosticJson() reads WMI via
-        // System.Management, which has no implementation on Linux/macOS.
         [Test]
-        [Platform("Win")]
         public void GetSerialPortDiagnosticJson_NoMozaHardware_ReturnsValidJson()
         {
-            // Call diagnostic on a system that likely has no Moza hardware
-            // (or may have real ports, but we just verify the JSON is valid and not null)
+            // One port that is not Moza and cannot be opened
+            _fake.Add("COM20", "Microsoft USB Serial Device (COM20) USB Serial Device");
             string diagnosticJson = _manager.GetSerialPortDiagnosticJson();
 
             // Should return non-empty JSON string
@@ -506,12 +518,10 @@ namespace RacingDesk.Tests
         //  Verify that each port diagnostic includes all expected fields.
         // ═══════════════════════════════════════════════════════════════
 
-        // Skipped on non-Windows: GetSerialPortDiagnosticJson() reads WMI via
-        // System.Management, which has no implementation on Linux/macOS.
         [Test]
-        [Platform("Win")]
         public void GetSerialPortDiagnosticJson_FieldsPresent()
         {
+            _fake.Add("COM20", "Microsoft USB Serial Device (COM20) USB Serial Device");
             string diagnosticJson = _manager.GetSerialPortDiagnosticJson();
             var parsed = Newtonsoft.Json.Linq.JObject.Parse(diagnosticJson);
 
@@ -532,6 +542,246 @@ namespace RacingDesk.Tests
                 Assert.That(firstPort["matchedViaFallback"], Is.Not.Null, "Port should have matchedViaFallback boolean");
                 Assert.That(firstPort["portOpenStatus"], Is.Not.Null, "Port should have portOpenStatus");
                 Assert.That(firstPort["pollStatus"], Is.Not.Null, "Port should have pollStatus");
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  Ports another program holds
+        //  On the rig, MOZA Pit House holds the base's two ports (COM6 and
+        //  COM13, described only as "USB Serial Device") for as long as it
+        //  runs. Opening them was tried every 10 s, and each SerialPort.Open
+        //  threw — which SimHub logs with its stack, caught or not.
+        // ═══════════════════════════════════════════════════════════════
+
+        private const string Generic = "Microsoft USB Serial Device (COM{0}) USB Serial Device";
+
+        private void RigPortsHeldByPitHouse()
+        {
+            _fake.Add("COM6", string.Format(Generic, 6));
+            _fake.Add("COM13", string.Format(Generic, 13));
+            _fake.Held.Add("COM6");
+            _fake.Held.Add("COM13");
+        }
+
+        /// <summary>Discovery as the poll loop runs it: once, then ten seconds on.</summary>
+        private void Cycles(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                _manager.DiscoverDevices();
+                _now = _now.AddSeconds(10);
+            }
+        }
+
+        private int WarnsAbout(string text) => _warns.Count(w => w.Contains(text));
+
+        // The warnings about ports: not the one CheckForPitHouse gives, which goes by the machine's processes
+        private List<string> PortWarns => _warns.Where(w => !w.Contains("Moza software is running")).ToList();
+
+        [Test]
+        public void HeldPort_IsLoggedOnceARun_AndNeverOpened()
+        {
+            RigPortsHeldByPitHouse();
+
+            Cycles(360); // an hour
+
+            Assert.That(WarnsAbout("COM6 is held by another program"), Is.EqualTo(1));
+            Assert.That(WarnsAbout("COM13 is held by another program"), Is.EqualTo(1));
+            Assert.That(PortWarns, Has.Count.EqualTo(2), string.Join("\n", PortWarns));
+            // Nothing was opened, so nothing threw for SimHub to log
+            Assert.That(_fake.Opens, Is.Empty);
+            // Looked at when discovery began, and every five minutes after
+            Assert.That(_fake.ChecksOf("COM6"), Is.EqualTo(12));
+        }
+
+        [Test]
+        public void HeldPort_IsLookedAtAgain_OnlyAfterFiveMinutes()
+        {
+            RigPortsHeldByPitHouse();
+            DateTime start = _now;
+
+            _manager.DiscoverDevices();
+            _now = start.AddMilliseconds(MozaSerialManager.HeldPortRetryMs - 1);
+            _manager.DiscoverDevices();
+            Assert.That(_fake.ChecksOf("COM6"), Is.EqualTo(1));
+
+            _now = start.AddMilliseconds(MozaSerialManager.HeldPortRetryMs);
+            _manager.DiscoverDevices();
+            Assert.That(_fake.ChecksOf("COM6"), Is.EqualTo(2));
+            Assert.That(WarnsAbout("COM6 is held"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void HeldPort_IsLookedAtAgainAtOnce_WhenThePortsChange()
+        {
+            RigPortsHeldByPitHouse();
+            Cycles(1);
+
+            _fake.Add("COM20", string.Format(Generic, 20));
+            Cycles(1);
+
+            Assert.That(_fake.ChecksOf("COM6"), Is.EqualTo(2));
+            Assert.That(_fake.ChecksOf("COM13"), Is.EqualTo(2));
+            Assert.That(WarnsAbout("COM6 is held"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void HeldPort_IsLookedAtAgainAtOnce_OnForceRediscovery()
+        {
+            RigPortsHeldByPitHouse();
+            Cycles(1);
+
+            _manager.ForceRediscovery();
+            Cycles(1);
+
+            Assert.That(_fake.ChecksOf("COM6"), Is.EqualTo(2));
+            Assert.That(WarnsAbout("COM6 is held"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void PortLetGo_IsSaidAndOpenedAgain()
+        {
+            RigPortsHeldByPitHouse();
+            Cycles(1);
+
+            _fake.Held.Remove("COM6"); // Pit House quit
+            _now = _now.AddMilliseconds(MozaSerialManager.HeldPortRetryMs);
+            _manager.DiscoverDevices();
+
+            Assert.That(_infos, Has.Some.Contains("COM6 is no longer held by another program"));
+            Assert.That(_fake.Opens, Is.EqualTo(new[] { "COM6" }));
+            Assert.That(_fake.ChecksOf("COM13"), Is.EqualTo(2));
+            Assert.That(_fake.Opens, Has.No.Member("COM13"));
+        }
+
+        [Test]
+        public void RealOpenFailure_StaysVisible_EveryCycle()
+        {
+            _fake.Add("COM20", string.Format(Generic, 20));
+            _fake.OpenFailure = name => new IOException("The semaphore timeout period has expired.");
+
+            Cycles(3);
+
+            Assert.That(WarnsAbout("Probe open failed on COM20: The semaphore timeout period has expired."), Is.EqualTo(3));
+            Assert.That(WarnsAbout("is held"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void PortTakenBetweenCheckAndOpen_IsTreatedAsHeld()
+        {
+            _fake.Add("COM6", string.Format(Generic, 6));
+            _fake.OpenFailure = name => new UnauthorizedAccessException($"Access to the port '{name}' is denied.");
+
+            Cycles(30);
+
+            Assert.That(_fake.Opens, Has.Count.EqualTo(1));
+            Assert.That(WarnsAbout("COM6 is held by another program"), Is.EqualTo(1));
+            Assert.That(WarnsAbout("Probe open failed"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void HeldPortWithAMozaDescription_IsLoggedOnce_AndNotCountedEveryCycle()
+        {
+            _fake.Add("COM6", "Gudsen MOZA R21 Ultra Base (COM6)");
+            _fake.Held.Add("COM6");
+
+            Cycles(30);
+
+            Assert.That(PortWarns, Has.Count.EqualTo(1), string.Join("\n", PortWarns));
+            Assert.That(PortWarns[0], Does.Contain("COM6 is held by another program"));
+            Assert.That(_infos, Has.None.Contains("DIAGNOSTIC"));
+            Assert.That(_fake.Opens, Is.Empty);
+        }
+
+        [Test]
+        public void MozaDescribedPortTakenBetweenCheckAndOpen_IsTreatedAsHeld()
+        {
+            _fake.Add("COM6", "Gudsen MOZA R21 Ultra Base (COM6)");
+            _fake.OpenFailure = name => new UnauthorizedAccessException($"Access to the port '{name}' is denied.");
+
+            Cycles(30);
+
+            Assert.That(_fake.Opens, Has.Count.EqualTo(1));
+            Assert.That(WarnsAbout("COM6 is held by another program"), Is.EqualTo(1));
+            Assert.That(WarnsAbout("Failed to open"), Is.EqualTo(0));
+        }
+
+        // The real CheckAccess, on things that are not devices: a port that is not there, and files —
+        // "\\.\" + a file's full path names the file, and Windows refuses a read-only file to a
+        // write open with the same error (5, access denied) it gives for a port another handle has.
+
+        [Test]
+        [Platform("Win")]
+        public void SystemPorts_CheckAccess_OnAPortThatIsNotThere_ReturnsFailedWithoutThrowing()
+        {
+            var system = new MozaSystemPorts();
+            Assume.That(system.GetPortNames(), Has.No.Member("COM255"));
+
+            Assert.That(system.CheckAccess("COM255"), Is.EqualTo(MozaPortAccess.Failed));
+        }
+
+        [Test]
+        [Platform("Win")]
+        public void SystemPorts_CheckAccess_SaysHeld_WhenWindowsDeniesAccess_AndFree_WhenItOpens()
+        {
+            string path = Path.Combine(Path.GetTempPath(), "moza-check-access-" + Guid.NewGuid().ToString("N") + ".tmp");
+            File.WriteAllText(path, "");
+            try
+            {
+                var system = new MozaSystemPorts();
+                Assert.That(system.CheckAccess(path), Is.EqualTo(MozaPortAccess.Free));
+
+                File.SetAttributes(path, FileAttributes.ReadOnly);
+                Assert.That(system.CheckAccess(path), Is.EqualTo(MozaPortAccess.Held));
+            }
+            finally
+            {
+                File.SetAttributes(path, FileAttributes.Normal);
+                File.Delete(path);
+            }
+        }
+
+        /// <summary>
+        /// Stands in for the machine's serial ports. Never opens one: Open always throws, as
+        /// SerialPort.Open does for a port it cannot have.
+        /// </summary>
+        private sealed class FakePorts : IMozaPortSystem
+        {
+            public readonly List<string> Names = new List<string>();
+            public readonly Dictionary<string, string> Descriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            public readonly HashSet<string> Held = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            public readonly List<string> Checks = new List<string>();
+            public readonly List<string> Opens = new List<string>();
+            public Func<string, Exception> OpenFailure = name => new IOException($"The port '{name}' does not exist.");
+
+            public void Add(string name, string description)
+            {
+                Names.Add(name);
+                Descriptions[name] = description;
+            }
+
+            public int ChecksOf(string name) => Checks.Count(c => c == name);
+
+            public string[] GetPortNames() => Names.ToArray();
+
+            public Dictionary<string, MozaSerialManager.PortWmiInfo> GetPortInfo() =>
+                Descriptions.ToDictionary(
+                    kv => kv.Key,
+                    kv => new MozaSerialManager.PortWmiInfo { Description = kv.Value },
+                    StringComparer.OrdinalIgnoreCase);
+
+            public MozaPortAccess CheckAccess(string portName)
+            {
+                Checks.Add(portName);
+                return Held.Contains(portName) ? MozaPortAccess.Held : MozaPortAccess.Free;
+            }
+
+            public SerialPort Open(string portName)
+            {
+                Opens.Add(portName);
+                if (Held.Contains(portName))
+                    throw new UnauthorizedAccessException($"Access to the port '{portName}' is denied.");
+                throw OpenFailure(portName);
             }
         }
     }
