@@ -156,6 +156,13 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
   case-blind and takes `-`, `_` and space as one; what it does not know it leaves, an entry that is wrong is put in
   `Problems` and the rest are read; `tests/…/Cars/CarListTests.cs`). Keys the code also reads that the list may
   carry: `lockedWhenFixed`, `covers` (which of abs, tc and brakeBias a `mode` stands for) and `decimals`.
+  **What a control's keys must look like to be read**: `off` a number, or `false` for "no value of this is off";
+  `range` `[low, high]`, low not above high; `positions` an object of value to name, `{ "0": "TRACK", "1": "SPORT" }`
+  (a name of `off` is the off position); `lockedWhenFixed` a boolean; `covers` an array of `abs`, `tc`, `brakeBias`;
+  `decimals` 0 to 3. A key of the wrong kind is taken as not said, not as an error. The ids the code knows are `abs`,
+  `tc`, `tc2`… (a dial that is traction control), `brakeBias`, `mode` (which may be listed more than once), `drs` and
+  `p2p` (its `var` may be left out: `DRS_Status`, `P2P_Status`); any other id (`brakeMigration`, `arbFront`,
+  `arbRear`, `throttleMap`…) is a cell in the row beneath the three, in the order the list gives them.
 - **The telemetry is asked three things and nothing more** (`Cars/CarControls.cs`): the value each listed control
   has now (`var`), whether the session's setup is fixed (`WeekendInfo.WeekendOptions.IsFixedSetup`), and the check
   below. Nothing here works out what a car has.
