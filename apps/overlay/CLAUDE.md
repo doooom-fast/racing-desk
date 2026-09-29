@@ -110,7 +110,7 @@ npm run start:safe                # ARM/software rendering mode
 ```
 
 `npm start` also starts RacingDesk.Host (or uses one already on :8889/:18889; `--desk-host=<url>` to use one you ran
-by hand) and puts a tray icon up — quit from it or with Ctrl+Shift+Q; see the root CLAUDE.md, Desk. Dev mode
+by hand) and puts a tray icon up — quit from it, or by closing the desk; see the root CLAUDE.md, Desk. Dev mode
 starts no host.
 
 The main process logs through `logToFile` in `main.js` (`modules/js/app-log.js`): from source to
@@ -145,10 +145,10 @@ No CI — run locally.
 | `Ctrl+Shift+B` | Save the replay buffer |
 | `Ctrl+Shift+P` | Start or stop the replay director |
 | `Ctrl+Shift+I` | Held by the app; nothing listens for it now |
-| `Ctrl+Shift+Q` | Quit |
+| `Ctrl+Shift+Q` | Quit the overlay: the HUD is put away (`hud.putAway`), the app keeps running |
 
-`Ctrl+Shift+O` and `Ctrl+Shift+Q` are held while the app runs; the rest only while the driver is in the car
-(`modules/js/hud-keys.js`).
+`Ctrl+Shift+O` is held while the app runs; the rest only while the driver is in the car
+(`modules/js/hud-keys.js`). No key quits the app.
 
 ## What this repo does NOT do anymore
 

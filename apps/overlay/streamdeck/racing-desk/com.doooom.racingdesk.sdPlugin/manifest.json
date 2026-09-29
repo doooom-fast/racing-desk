@@ -292,7 +292,7 @@
 			"Name": "Quit Overlay",
 			"UUID": "com.doooom.racingdesk.quit",
 			"Icon": "imgs/actions/quit/icon",
-			"Tooltip": "Quit the RacingDesk overlay application",
+			"Tooltip": "Put the overlay away. The Racing Desk app keeps running",
 			"Controllers": [
 				"Keypad"
 			],

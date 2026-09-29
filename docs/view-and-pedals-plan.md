@@ -114,7 +114,7 @@ from one of two of his:
 | The car | Its profile starts as a copy of |
 |---|---|
 | Touring or sports car **with ABS** | `LightBrake` — 45 kg, linear, 4 % deadzone |
-| Formula car, or any car **without ABS** | `Default` — 80 kg, linear, 5 % deadzone |
+| Formula car, prototype, or any car **without ABS** | `Default` — 80 kg, linear, 5 % deadzone |
 
 - **Whether a car has ABS** is in his own telemetry. A car with ABS he can adjust publishes `dcABS`; one whose
   ABS cannot be adjusted shows it only when it works (`BrakeABSactive`). A car is taken to have none after three
@@ -123,9 +123,17 @@ from one of two of his:
 - **Whether a car is a formula car** is whether any session in it ran in the category `Formula`. A test session
   is `Road` whatever the car, so a formula car only ever tested is not known to be one — which changes nothing
   while no formula car has ABS.
-- **As built, the rule is "ABS and not a formula car".** The store cannot tell a prototype from a touring car:
-  both race as `SportsCar`. So a prototype with ABS starts from `LightBrake`. **His to say** whether that is
-  what he meant.
+- **"A proto with abs gets default"** (his answer, 2026-09-29). The sim cannot say which car is a prototype:
+  it races as `SportsCar`, its class has no name in a test session and the car's own in others. Of the 24 cars
+  he has driven that publish `dcABS`, the five prototypes (Porsche 963, Cadillac V-Series.R, Ferrari 499P, Aston
+  Martin Valkyrie, Audi R18) are the only ones that publish a hybrid system (`EnergyERSBattery`), brake
+  migration (`dcBrakeMisc`) or a front anti-roll bar set from the seat (`dcAntiRollFront`), so as built that is
+  how a prototype is known. A car given `LightBrake` for its ABS and later seen to be a prototype is put right.
+- **That is a stand-in, by his word**: "don't rely only on sim based data" and "just build a canonical list,
+  because i don't think we can reliably do databased detection". The list is `packages/car-list/cars.json` —
+  every car's kind, its ABS, and every control it gives the driver — written by hand and checked against his
+  telemetry for the cars he has driven. Once it is in, the rule reads a car's kind and ABS from it; what the
+  car publishes is the check on the list, and the answer only for a car the list has not met.
 - **Who gave a car its profile is kept** (`car_pedal_facts`: the rule and what it went by, or he himself), and
   the data API says it (`given_by`, `given_why`). A profile he gave on the desk, or chose not to have, is never
   the rule's to change.
@@ -209,11 +217,12 @@ pedals directly, which is a later and more careful piece of work.
 
 ## Open
 
-- After a car is given another profile on the desk, which force is the car's: the one it was last driven with
-  (kept today), or the new profile's own?
+- ~~After a car is given another profile on the desk, which force is the car's?~~ **The last one a key set**
+  (2026-09-29): "I will only adjust with keys, you save last adjustment automatically". No editor, nothing to
+  confirm; the force it was last driven with stays the car's whatever profile it is given.
 - ~~Monitor or VR?~~ **Monitor** (2026-09-28). The horizon applies, and height is the one in `app.ini`.
-- A car with ABS that is neither a touring nor a sports car: which base does it start from? (`Default`, until
-  he says.)
+- ~~A car with ABS that is neither a touring nor a sports car: which base does it start from?~~ **`Default`**
+  (2026-09-29): "A proto with abs gets default".
 - What height up and down and horizon up and down are bound to — or whether the app should read that from the
   control profile.
 - A HUD line for every automatic change, or only when something could not be done?

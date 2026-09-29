@@ -60,6 +60,26 @@ namespace RacingDesk.Plugin.IRacing
         /// </summary>
         public bool HasAbsSetting => GameRunning && _raw.GetValue("dcABS") != null;
 
+        /// <summary>
+        /// What a prototype gives its driver and a GT or touring car does not: a hybrid system, brake
+        /// migration, a front anti-roll bar set from the seat. The sim has no word for what kind of car a car
+        /// is — its class has no name in a test session, and the car's own in others — so the car is known by
+        /// what it publishes.
+        /// </summary>
+        public static readonly string[] PrototypeControls = { "EnergyERSBattery", "dcBrakeMisc", "dcAntiRollFront" };
+
+        /// <summary>The car publishes one of <see cref="PrototypeControls"/>.</summary>
+        public bool HasPrototypeControls
+        {
+            get
+            {
+                if (!GameRunning) return false;
+                foreach (string name in PrototypeControls)
+                    if (_raw.GetValue(name) != null) return true;
+                return false;
+            }
+        }
+
         /// <summary>The ABS is holding the brakes at this moment.</summary>
         public bool AbsWorking => GameRunning && Bool("BrakeABSactive");
 

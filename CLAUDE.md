@@ -103,11 +103,20 @@ or to the pedals.
     in that car, and whether or not the car has a profile. The pedals keep their force from car to car and through
     a break in the telemetry of under a minute; after longer, nothing is known until a key sets a force.
   - **A car with no pedals of its own is given them by the driver's rule** (`CarPedalsKeeper`): his `LightBrake`
-    for a car with ABS that is not a formula car, his `Default` for a formula car or a car without ABS. A car has
-    ABS when it publishes `dcABS` or its ABS was seen working; it is taken to have none after three laps of
-    neither, counted across runs and only while he is in the car — and is put right if its ABS is seen later. A
-    car is a formula car when any session in it ran in the category `Formula` (a test session is `Road` whatever
-    the car). A profile he gave on the desk, or chose not to have, is never the rule's to change.
+    for a car with ABS that is neither a formula car nor a prototype, his `Default` for the rest ("a proto with
+    abs gets default"). A car has ABS when it publishes `dcABS` or its ABS was seen working; it is taken to have
+    none after three laps of neither, counted across runs and only while he is in the car — and is put right if
+    its ABS is seen later. A car is a formula car when any session in it ran in the category `Formula` (a test
+    session is `Road` whatever the car). A car is a prototype, as built, when it publishes what his prototypes do
+    and none of his GT or touring cars does — a hybrid system, brake migration, a front anti-roll bar set from the
+    seat (`IRacingTelemetrySource.PrototypeControls`) — because the sim has no word for it: a prototype races as
+    `SportsCar`, and its class has no name in a test session. **That is the stand-in.** He has asked for a
+    canonical list of cars, written by hand (`packages/car-list/cars.json`), and the rule reads a car's kind and
+    its ABS from there once the list is in; what the car publishes is then the check on the list, and the answer
+    only for a car the list has not met. Being a prototype is the reason only where it changes what is given, so
+    a car without ABS is given `Default` for that. A car the rule took for a sports car and later sees to be a
+    prototype is put right, as one taken to have no ABS is. A profile he gave on the desk, or chose not to have,
+    is never the rule's to change.
   - Nothing here may hold up or end the telemetry: SmartControl's database is read on a thread of its own and
     never waited for, and what is thrown while following the car is logged and goes no further.
   - Not yet: putting a car's force or profile *back* when he gets in. That presses keys or writes SmartControl's
@@ -150,7 +159,11 @@ Desktop "Racing Desk" shortcuts point there; "shipping" is `git pull && npm run 
 on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\Racing Desk\host.log`.
 There is no console window. **Closing the desk window quits the app** (minimise it to keep the HUD while racing) — the
 HUD's window is hidden and Windows 11 tucks the tray icon behind its overflow arrow, so an app that outlived its window
-would run with nothing on screen. The tray menu (Open desk / Cars / Settings, HUD on/off, Quit) and Ctrl+Shift+Q quit too. The host is
+would run with nothing on screen. The tray's "Quit Racing Desk" quits too, and nothing else does. **Quitting the
+overlay is not quitting the app**: Ctrl+Shift+Q (held in the car only), the Stream Deck's "Quit Overlay" and the
+`quit` action all put the HUD away (`hud.putAway`) and leave the desk, the host and what they record running. It is
+the driver's switch thrown to off, so the HUD comes back the way a switched-off HUD does. No page can ask for the
+app to be quit (`quit-app` and `quitApp` are gone). The host is
 spawned detached — Node otherwise puts it in a job object Windows kills with the app, mid-write — and stops itself,
 flushing what it was recording, when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again
 opens the desk in the running app.
@@ -184,13 +197,14 @@ two seconds later, for every reason but a clean exit, three times at most withou
 that, or after a load that failed, once more each time he gets in the car. A page that hangs has its process
 ended (`unresponsive` → `forcefullyCrashRenderer`), and is loaded again as one that died. In dev mode the window stays as
 `dev-mode.js` put it. `tests/unit/hud-main-wiring.spec.mjs` reads `main.js` and holds it to this: the window made
-with `show: false`, nothing in `main.js` showing or hiding it, the switches going through `hud.toggle`.
+with `show: false`, nothing in `main.js` showing or hiding it, the switches going through `hud.toggle`, quitting
+the overlay through `hud.putAway`, and `app.quit()` called from five places and no more.
 **The HUD's keys are held only while he is in the car** (`modules/js/hud-keys.js`, `HUD_KEYS` in `main.js`,
 `tests/unit/hud-keys.spec.mjs`). A key the app registers is taken from every other program on the machine for as
 long as it is held — Ctrl+Shift+V is paste-as-text in a browser, Ctrl+Shift+P a command palette — and the app used
-to hold twelve from start to quit. It holds two, Ctrl+Shift+O (the desk) and Ctrl+Shift+Q (quit); the HUD's ten
-(H, R, G, D, M, I, F, V, B, P) are registered when `hud-visibility` says he has got in (`onInCar`) and let go when
-he gets out. In dev mode they are held throughout.
+to hold twelve from start to quit. It holds one, Ctrl+Shift+O (the desk); the HUD's eleven
+(H, R, G, D, M, I, F, V, B, P, and Q, which puts the HUD away) are registered when `hud-visibility` says he has got
+in (`onInCar`) and let go when he gets out. In dev mode they are held throughout.
 **A limit:** beside SimHub the HUD reads SimHub's plugin on `:8889`; if SimHub goes in mid-session the HUD is
 hidden, though the app's own host on `:18889` has the same telemetry. There is no falling back to it.
 

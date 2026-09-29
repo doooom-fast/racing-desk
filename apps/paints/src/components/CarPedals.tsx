@@ -53,6 +53,7 @@ const WHY = new Map([
   ["ABS", "it has ABS"],
   ["no ABS", "it has no ABS"],
   ["a formula car", "it is a formula car"],
+  ["a prototype", "it is a prototype"],
 ]);
 
 /// The profiles of the driver's that the rule gives a car a copy of.
@@ -60,8 +61,8 @@ const LIGHT = "LightBrake";
 const DEFAULT = "Default";
 
 /// Who gave the car its profile and why, or why it has none and what is waited for. The rule is the driver's:
-/// his LightBrake for a car with ABS that is not a formula car, his Default for the rest, given at the end of a
-/// run once enough has been driven to say which. Null where there is nothing to say: a host from before it told
+/// his LightBrake for a car with ABS that is neither a formula car nor a prototype, his Default for the rest,
+/// given at the end of a run once enough has been driven to say which. Null where there is nothing to say: a host from before it told
 /// any of this, a profile nobody is down as having given. `profiles` are SmartControl's, or null where there is
 /// nothing for the rule to give from or to.
 function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | null): string | null {
@@ -78,14 +79,16 @@ function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | nul
   if (abs === null) return "No profile yet: not driven enough yet to say whether it has ABS.";
   const has = (name: string) => profiles.some((p) => p.name.trim().toLowerCase() === name.toLowerCase());
   const known = `No profile yet: it has ${abs ? "" : "no "}ABS`;
-  // Whether it is a formula car is the host's to know, so with ABS it may be either profile that is wanted.
+  // Whether it is a formula car or a prototype is the host's to know, so with ABS it may be either profile that
+  // is wanted.
   if (!has(DEFAULT) && (!abs || !has(LIGHT))) {
     const from = abs ? `${LIGHT} or ${DEFAULT}, neither of which SmartControl has` : `${DEFAULT}, which SmartControl does not have`;
     return `${known}, and the rule would give it one from ${from}.`;
   }
-  // With ABS and no LightBrake the rule has nothing to give, unless the car is a formula car: nothing is promised.
+  // With ABS and no LightBrake the rule has nothing to give, unless the car is a formula car or a prototype:
+  // nothing is promised.
   if (abs && !has(LIGHT)) {
-    return `${known}, and the rule would give it one from ${LIGHT}, which SmartControl does not have (a formula car is given ${DEFAULT}).`;
+    return `${known}, and the rule would give it one from ${LIGHT}, which SmartControl does not have (a formula car or a prototype is given ${DEFAULT}).`;
   }
   return `${known}, and the rule gives it one when it is next driven.`;
 }

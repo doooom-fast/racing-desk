@@ -27,6 +27,12 @@ namespace RacingDesk.Data.Pedals
         /// <summary>Laps driven in the run.</summary>
         public int Laps { get; set; }
 
+        /// <summary>
+        /// The car published what a prototype has and a GT or touring car does not: a hybrid system, brake
+        /// migration, a front anti-roll bar set from the seat.
+        /// </summary>
+        public bool Prototype { get; set; }
+
         public DateTime SeenAtUtc { get; set; }
     }
 
@@ -62,7 +68,7 @@ namespace RacingDesk.Data.Pedals
         private Task<SmartControlSnapshot> _reading;
         private DateTime _readAgain = DateTime.MinValue;
         private BrakeForceTracker _force;
-        private bool _absSetting, _absWorked;
+        private bool _absSetting, _absWorked, _prototype;
         private int _lapsAt = -1, _laps;
         private bool _saidLiveIsNotRunning;
 
@@ -94,11 +100,12 @@ namespace RacingDesk.Data.Pedals
         /// <summary>
         /// The car the driver's is, on every frame. <paramref name="absSetting"/>: the car publishes an ABS
         /// setting; <paramref name="absWorking"/>: the ABS is working at this moment; <paramref name="driving"/>:
-        /// he is in the car, and not watching it from the garage or in a replay — laps and ABS count only then.
+        /// he is in the car, and not watching it from the garage or in a replay — laps and ABS count only then;
+        /// <paramref name="prototype"/>: the car publishes what only a prototype has.
         /// The keys count wherever he is: they reach the pedals all the same. Never throws, and never waits on a
         /// file: it is called on the thread the telemetry arrives on.
         /// </summary>
-        public void See(string carPath, bool absSetting, bool absWorking, int lapsCompleted, bool driving = true)
+        public void See(string carPath, bool absSetting, bool absWorking, int lapsCompleted, bool driving = true, bool prototype = false)
         {
             if (string.IsNullOrWhiteSpace(carPath)) return;
             carPath = carPath.Trim();
@@ -113,6 +120,7 @@ namespace RacingDesk.Data.Pedals
                         Enter(carPath);
                     }
                     _absSetting |= absSetting;
+                    _prototype |= prototype;
                     if (driving)
                     {
                         _absWorked |= absWorking;
@@ -159,7 +167,7 @@ namespace RacingDesk.Data.Pedals
         private void Enter(string carPath)
         {
             _carPath = carPath;
-            _absSetting = _absWorked = false;
+            _absSetting = _absWorked = _prototype = false;
             _lapsAt = -1;
             _laps = 0;
             _saidLiveIsNotRunning = false;
@@ -247,6 +255,7 @@ namespace RacingDesk.Data.Pedals
                 Presses = _force.Presses,
                 AbsSeen = _absSetting || _absWorked,
                 Laps = _laps,
+                Prototype = _prototype,
                 SeenAtUtc = _now(),
             };
             _leftKg = _force.ForceKg;
@@ -299,8 +308,15 @@ namespace RacingDesk.Data.Pedals
         /// <summary>The driver's own profiles that a car's starts as a copy of.</summary>
         public const string Light = "LightBrake", Default = "Default";
 
-        /// <summary>"light for touring and sports cars with abs, default for formula and cars without abs".</summary>
-        public static string BaseFor(bool hasAbs, bool formula) => hasAbs && !formula ? Light : Default;
+        /// <summary>What the rule went by, as it is kept and shown.</summary>
+        public const string WhyAbs = "ABS", WhyNoAbs = "no ABS", WhyFormula = "a formula car", WhyPrototype = "a prototype";
+
+        /// <summary>
+        /// "light for touring and sports cars with abs, default for formula and cars without abs", and
+        /// "a proto with abs gets default".
+        /// </summary>
+        public static string BaseFor(bool hasAbs, bool formula, bool prototype = false) =>
+            hasAbs && !formula && !prototype ? Light : Default;
 
         internal static string Kg(double kg) => kg.ToString("0.#", CultureInfo.InvariantCulture) + " kg";
 
@@ -326,26 +342,36 @@ namespace RacingDesk.Data.Pedals
                 : seen.Presses > 0 ? $" the force was changed by {Change(seen.ChangeKg)} from one that is not known, or a step key was held; " +
                                      "press a key that sets a force and it will be known"
                 : "";
-            string profile = Profile(store, smartControl, car, known, seen.SeenAtUtc);
+            string profile = Profile(store, smartControl, car, known, seen.Prototype, seen.SeenAtUtc);
 
             if (profile.Length == 0 && force.Length == 0) return null;
             return $"pedals: {car} —" + profile + (profile.Length > 0 && force.Length > 0 ? ";" : "") + force;
         }
 
-        // The car's profile: made by the rule if it has none and enough is known, and made again if the rule
-        // gave it for having no ABS and ABS has been seen since. One the driver gave, or chose not to have, is his.
-        private static string Profile(RacingDeskStore store, Func<SmartControlSnapshot> smartControl, string car, CarPedalFacts known, DateTime at)
+        // The car's profile: made by the rule if it has none and enough is known, and made again if what the rule
+        // went by has turned out not to be so — it gave for having no ABS and ABS has been seen since, or for
+        // ABS and the car has shown itself a prototype. One the driver gave, or chose not to have, is his.
+        //
+        // Being a prototype changes what a car with ABS is given and nothing else, so it is the reason only
+        // then: a car without ABS is given Default for that, whatever else it publishes. It is gone by only when
+        // seen — a run in which it was not seen says nothing, and takes nothing back.
+        private static string Profile(RacingDeskStore store, Func<SmartControlSnapshot> smartControl, string car, CarPedalFacts known,
+            bool prototype, DateTime at)
         {
             var has = store.CarPedalsOf(car);
             bool formula = store.CarRanIn(car, "Formula");
-            bool mistaken = has != null && known.GivenBy == "rule" && known.GivenWhy == "no ABS" && known.HasAbs == true && !formula;
+            bool abs = known.HasAbs == true;
+            bool tookForNoAbs = known.GivenWhy == WhyNoAbs && abs && !formula;
+            bool tookForSportsCar = known.GivenWhy == WhyAbs && abs && !formula && prototype;
+            bool mistaken = has != null && known.GivenBy == "rule" && (tookForNoAbs || tookForSportsCar);
             if (has != null && !mistaken) return "";
             if (has == null && known.GivenBy == "none") return "";
             // A formula car starts from Default whatever its ABS, so there is nothing to wait for.
             if (!formula && known.HasAbs == null) return " too short a run to say whether it has ABS; no profile yet";
 
-            string name = BaseFor(known.HasAbs == true, formula);
-            string why = formula ? "a formula car" : known.HasAbs == true ? "ABS" : "no ABS";
+            prototype = prototype && abs && !formula;
+            string name = BaseFor(abs, formula, prototype);
+            string why = formula ? WhyFormula : prototype ? WhyPrototype : abs ? WhyAbs : WhyNoAbs;
             SmartControlSnapshot snapshot;
             try { snapshot = smartControl?.Invoke(); }
             catch (Exception ex) { return $" SmartControl could not be read ({ex.Message.Trim()}); no profile yet"; }
@@ -362,7 +388,8 @@ namespace RacingDesk.Data.Pedals
                 // Given by the rule and never touched since: the rule's to give again.
                 store.BindCarPedals(given);
                 store.NotePedalsGiven(car, "rule", why, at);
-                return $" its ABS has been seen working, so its profile is from {from.Name} now, not {has.ProfileName}";
+                string seen = tookForSportsCar ? "it is a prototype" : "its ABS has been seen working";
+                return $" {seen}, so its profile is from {from.Name} now, not {has.ProfileName}";
             }
             // Only if it still has none: a profile given on the desk in the meantime is the driver's, and stays.
             if (!store.GiveCarPedals(given)) return "";
