@@ -186,7 +186,8 @@ Data options:
                 try
                 {
                     views?.SeeCar(source.CarPath);
-                    pedals?.See(source.CarPath, source.HasAbsSetting, source.AbsWorking, source.LapsCompleted, source.Driving);
+                    pedals?.See(source.CarPath, source.HasAbsSetting, source.AbsWorking, source.LapsCompleted, source.Driving,
+                        source.HasPrototypeControls);
                 }
                 catch (Exception ex)
                 {

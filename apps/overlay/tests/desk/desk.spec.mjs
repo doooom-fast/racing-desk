@@ -1664,6 +1664,16 @@ const TOLD_PEDALS = {
 const TOLD = { cars: held(TOLD_CARS), views: held(RIG_VIEWS), pedals: held(TOLD_PEDALS) };
 const SET_AT = / in this car, set \S.*\d/;   // a moment as the desk writes one, whatever the rig's language and clock
 
+test('a prototype starts from Default, ABS and all, and the page says that is why', async ({ page }) => {
+  const gtp = { ...bound('nissangtpzxt', null, '283f91ae', 'Default', 'same'), ...facts(null, true, 'rule', 'a prototype') };
+  const rig = { ...TOLD, pedals: held({ ...TOLD_PEDALS, cars: [...TOLD_PEDALS.cars, gtp] }) };
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig });
+  await lookAt(app, 'nissangtpzxt');
+  await expect(app.locator('.car-pedals select')).toHaveValue('283f91ae');
+  await expect(app.locator('.car-pedals .given')).toHaveText('From Default — given by the rule: it is a prototype.');
+  expect(errors).toEqual([]);
+});
+
 test('a car\'s pedals say who gave it its profile and why, the force it was last driven with and when it was set', async ({ page }) => {
   const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: TOLD });
   const pedals = app.locator('.car-pedals');

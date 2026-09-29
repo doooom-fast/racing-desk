@@ -107,7 +107,7 @@ namespace RacingDesk.Data
         /// <summary>"rule", "driver", or "none" when the driver chose that the car has no profile; null when nobody has.</summary>
         public string GivenBy { get; set; }
 
-        /// <summary>What the rule went by: "ABS", "no ABS", "a formula car".</summary>
+        /// <summary>What the rule went by: "ABS", "no ABS", "a formula car", "a prototype".</summary>
         public string GivenWhy { get; set; }
 
         public DateTime SeenAtUtc { get; set; }

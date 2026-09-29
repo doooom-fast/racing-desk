@@ -20,6 +20,7 @@ namespace RacingDesk.Tests.Pedals
     {
         private const int PageUp = 0x21, PageDown = 0x22, Pause = 0x13, RightCtrl = 0xA3, Up = 0x26, Down = 0x28;
         private const string Honda = "hondacivictyper", F4 = "formulair04", Mx5 = "mx5 mx52016", Gr86 = "toyotagr86";
+        private const string Gtp = "porsche963gtp", Lmp2 = "dallarap217";
 
         private static readonly DateTime June = new DateTime(2026, 6, 1, 9, 0, 0, DateTimeKind.Utc);
 
@@ -335,10 +336,10 @@ namespace RacingDesk.Tests.Pedals
             }
 
             /// <summary>A frame in the car, a frame later.</summary>
-            public void Frame(string car, bool absSetting = false, bool absWorking = false, int laps = 0, bool driving = true)
+            public void Frame(string car, bool absSetting = false, bool absWorking = false, int laps = 0, bool driving = true, bool prototype = false)
             {
                 Board.Tick();
-                Recorder.See(car, absSetting, absWorking, laps, driving);
+                Recorder.See(car, absSetting, absWorking, laps, driving, prototype);
             }
 
             /// <summary>Gets in: frames until SmartControl has been read, on its own thread, and its keys are watched.</summary>
@@ -638,8 +639,13 @@ namespace RacingDesk.Tests.Pedals
             store.SaveSession(s);
         }
 
-        private static PedalsSeen Seen(string car, bool abs, int laps = 0, double? force = null, int presses = 0, double change = 0, int day = 0) =>
-            new PedalsSeen { CarPath = car, AbsSeen = abs, Laps = laps, ForceKg = force, Presses = presses, ChangeKg = change, SeenAtUtc = June.AddDays(day) };
+        private static PedalsSeen Seen(string car, bool abs, int laps = 0, double? force = null, int presses = 0, double change = 0, int day = 0,
+            bool prototype = false) =>
+            new PedalsSeen
+            {
+                CarPath = car, AbsSeen = abs, Laps = laps, ForceKg = force, Presses = presses, ChangeKg = change, SeenAtUtc = June.AddDays(day),
+                Prototype = prototype,
+            };
 
         private static Func<SmartControlSnapshot> Rig() { var s = Made(RigKeys()); return () => s; }
 
@@ -727,6 +733,70 @@ namespace RacingDesk.Tests.Pedals
             Assert.That(store.CarPedalsOf(Gr86).ProfileName, Is.EqualTo("LightBrake"));
             Assert.That((store.CarPedalFactsOf(Gr86).GivenBy, store.CarPedalFactsOf(Gr86).GivenWhy), Is.EqualTo(("rule", "ABS")));
             Assert.That(CarPedalsKeeper.Keep(store, Rig(), Seen(Gr86, true, 5, day: 2)), Is.Null, "once");
+        }
+
+        [Test]
+        public void APrototypeWithAbsStartsFromDefault()
+        {
+            Assert.That(CarPedalsKeeper.BaseFor(hasAbs: true, formula: false, prototype: true), Is.EqualTo("Default"));
+            Assert.That(CarPedalsKeeper.BaseFor(hasAbs: false, formula: false, prototype: true), Is.EqualTo("Default"));
+            Assert.That(CarPedalsKeeper.BaseFor(hasAbs: true, formula: false, prototype: false), Is.EqualTo("LightBrake"));
+
+            using var store = Store();
+            Save(store, Gtp, "Porsche 963 GTP", "SportsCar", 6);
+            Save(store, Lmp2, "Dallara P217 LMP2", "SportsCar", 7);
+
+            Assert.That(CarPedalsKeeper.Keep(store, Rig(), Seen(Gtp, true, 0, prototype: true)),
+                Is.EqualTo("pedals: porsche963gtp — its own profile, from Default (a prototype)"));
+            Assert.That(store.CarPedalsOf(Gtp).ProfileName, Is.EqualTo("Default"));
+            Assert.That((store.CarPedalFactsOf(Gtp).GivenBy, store.CarPedalFactsOf(Gtp).GivenWhy), Is.EqualTo(("rule", "a prototype")));
+
+            // Without ABS it is given Default for that, as any car is, and only once enough has been driven to say so.
+            Assert.That(CarPedalsKeeper.Keep(store, Rig(), Seen(Lmp2, false, 1, prototype: true)), Does.Contain("too short a run"));
+            Assert.That(CarPedalsKeeper.Keep(store, Rig(), Seen(Lmp2, false, 2, day: 1, prototype: true)),
+                Is.EqualTo("pedals: dallarap217 — its own profile, from Default (no ABS)"));
+        }
+
+        [Test]
+        public void ACarTakenForASportsCarIsPutRightWhenItIsSeenToBeAPrototype()
+        {
+            using var store = Store();
+            Save(store, Gtp, "Porsche 963 GTP", "SportsCar", 6);
+            // Given by a build that could not tell.
+            Assert.That(CarPedalsKeeper.Keep(store, Rig(), Seen(Gtp, true)), Does.Contain("from LightBrake (ABS)"));
+
+            Assert.That(CarPedalsKeeper.Keep(store, Rig(), Seen(Gtp, true, 4, day: 1, prototype: true)),
+                Is.EqualTo("pedals: porsche963gtp — it is a prototype, so its profile is from Default now, not LightBrake"));
+            Assert.That(store.CarPedalsOf(Gtp).ProfileName, Is.EqualTo("Default"));
+            Assert.That(store.CarPedalFactsOf(Gtp).GivenWhy, Is.EqualTo("a prototype"));
+
+            // A run in which it was not seen says nothing, and takes nothing back.
+            Assert.That(CarPedalsKeeper.Keep(store, Rig(), Seen(Gtp, true, 4, day: 2)), Is.Null);
+            Assert.That(store.CarPedalsOf(Gtp).ProfileName, Is.EqualTo("Default"));
+        }
+
+        [Test]
+        public void AProfileTheDriverGaveAPrototypeIsHis()
+        {
+            using var store = Store();
+            Save(store, Gtp, "Porsche 963 GTP", "SportsCar", 6);
+            store.BindCarPedals(new CarPedals { CarPath = Gtp, ProfileId = "l2", ProfileName = "LightBrake", Profile = new byte[] { 2 }, BoundAtUtc = June });
+            store.NotePedalsGiven(Gtp, "driver", null, June);
+            Assert.That(CarPedalsKeeper.Keep(store, Rig(), Seen(Gtp, true, 4, prototype: true)), Is.Null);
+            Assert.That(store.CarPedalsOf(Gtp).ProfileName, Is.EqualTo("LightBrake"));
+        }
+
+        [Test]
+        public void WhatOnlyAPrototypePublishesIsSeenOnAnyFrameOfTheRun()
+        {
+            var run = new Run(RigKeys());
+            run.Frame(Gtp, absSetting: true);
+            run.Frame(Gtp, absSetting: true, prototype: true, driving: false);
+            run.Frame(Gtp, absSetting: true);
+            run.Frame(Honda, absSetting: true);
+            run.Recorder.SimGone();
+            var by = run.Handed(2).ToDictionary(s => s.CarPath, s => s.Prototype);
+            Assert.That((by[Gtp], by[Honda]), Is.EqualTo((true, false)), "and it is the car's, not the next car's");
         }
 
         [Test]

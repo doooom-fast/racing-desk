@@ -63,7 +63,7 @@ export interface CarPedals {
   /// Null while too little has been driven to say, and from a host that does not say.
   hasAbs: boolean | null;
   givenBy: GivenBy | null;
-  /// What the rule went by: "ABS", "no ABS", "a formula car".
+  /// What the rule went by: "ABS", "no ABS", "a formula car", "a prototype".
   givenWhy: string | null;
 }
 
