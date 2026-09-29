@@ -14,7 +14,7 @@ namespace RacingDesk.Data
     /// </summary>
     public sealed class RacingDeskStore : IDisposable
     {
-        public const int SchemaVersion = 5;
+        public const int SchemaVersion = 6;
 
         // Car names by iRacing's folder name for the car (schema v4). session_cars is which stored session had
         // which car in its entry list. cars.seen counts the sessions among them, not the rows: a session is
@@ -98,6 +98,22 @@ CREATE TABLE car_pedals (
   car_path TEXT PRIMARY KEY,
   profile_id TEXT, profile_name TEXT NOT NULL, profile BLOB,
   brake_force_kg REAL, bound_at TEXT NOT NULL
+);
+";
+
+        // What is known of a car's pedals beside its profile (schema v6). A force is the car's whether or not
+        // it has a profile yet, so it is kept here and not only in car_pedals, which cannot hold one without.
+        // abs_seen is 1 once the car has published an ABS setting or its ABS has been seen working, and
+        // laps_without counts the laps driven before that: three of them and the car is taken to have none,
+        // until it is seen after all. given_by is who gave the car its profile — 'rule', 'driver', or 'none'
+        // when the driver chose that it has none — and given_why what the rule went by.
+        private const string PedalFactsSchema = @"
+CREATE TABLE car_pedal_facts (
+  car_path TEXT PRIMARY KEY,
+  force_kg REAL, force_at TEXT,
+  abs_seen INTEGER NOT NULL DEFAULT 0, laps_without INTEGER NOT NULL DEFAULT 0,
+  given_by TEXT, given_why TEXT,
+  seen_at TEXT NOT NULL
 );
 ";
 
@@ -193,6 +209,13 @@ CREATE TABLE car_pedals (
                         Exec("UPDATE cars SET seen = " + SeenCount + "cars.car_path)", step);
                         Exec(RigSchema, step);
                         break;
+                    case 5:
+                        // What is known of a car's pedals beside its profile. The profiles there are were
+                        // given on the desk, and a force kept with one is the car's still.
+                        Exec(PedalFactsSchema, step);
+                        Exec(@"INSERT INTO car_pedal_facts (car_path, force_kg, force_at, given_by, seen_at)
+SELECT car_path, brake_force_kg, CASE WHEN brake_force_kg IS NOT NULL THEN bound_at END, 'driver', bound_at FROM car_pedals", step);
+                        break;
                 }
                 current++;
                 Exec("INSERT INTO schema_version(version) VALUES (" + current + ")", step);
@@ -268,6 +291,7 @@ CREATE TABLE ingested_files (
             Exec(CarsSchema, tx);
             Exec(CarScansSchema, tx);
             Exec(RigSchema, tx);
+            Exec(PedalFactsSchema, tx);
             Exec("INSERT INTO schema_version(version) VALUES (" + SchemaVersion + ")", tx);
             tx.Commit();
         }
@@ -592,8 +616,9 @@ FROM car_views WHERE car_path = $car");
         }
 
         /// <summary>
-        /// Gives a car one of SmartControl's profiles, kept as it is now. The brake force the car was driven with
-        /// stays: it is the car's, whichever profile it starts from. False without a car or a profile's name.
+        /// Gives a car one of SmartControl's profiles, kept as it is now, in place of the one it had. The brake
+        /// force the car was driven with stays: it is the car's, whichever profile it starts from. False without
+        /// a car or a profile's name.
         /// </summary>
         public bool BindCarPedals(CarPedals pedals)
         {
@@ -610,16 +635,107 @@ ON CONFLICT(car_path) DO UPDATE SET
         }
 
         /// <summary>
-        /// The brake force a car was last driven with, in kilograms. The car has to have pedals of its own
-        /// already: a force belongs to a profile. False if it has none.
+        /// What a run in a car showed of its pedals: the force it ended on, if one is known, and whether the
+        /// car has ABS. The force is the car's whether or not it has a profile. Returns what is now known.
         /// </summary>
+        /// <param name="forceKg">Null leaves the force that is kept as it is.</param>
+        /// <param name="absSeen">The car published an ABS setting, or its ABS was seen working.</param>
+        /// <param name="laps">Laps driven in the run; they count towards "no ABS" while none has been seen.</param>
+        public CarPedalFacts NotePedals(string carPath, double? forceKg, bool absSeen, int laps, DateTime atUtc)
+        {
+            if (string.IsNullOrWhiteSpace(carPath) || !HasTable("car_pedal_facts")) return null;
+            if (forceKg.HasValue && (double.IsNaN(forceKg.Value) || double.IsInfinity(forceKg.Value) || forceKg.Value < 0)) forceKg = null;
+            string car = carPath.Trim();
+            bool profiles = HasTable("car_pedals");
+            using (var tx = _db.BeginTransaction())
+            {
+                Exec(@"
+INSERT INTO car_pedal_facts (car_path, force_kg, force_at, abs_seen, laps_without, seen_at)
+VALUES ($car, $force, CASE WHEN $force IS NOT NULL THEN $at END, $abs, CASE WHEN $abs = 1 THEN 0 ELSE $laps END, $at)
+ON CONFLICT(car_path) DO UPDATE SET
+  force_kg = COALESCE(excluded.force_kg, car_pedal_facts.force_kg),
+  force_at = CASE WHEN excluded.force_kg IS NOT NULL THEN excluded.seen_at ELSE car_pedal_facts.force_at END,
+  abs_seen = MAX(car_pedal_facts.abs_seen, excluded.abs_seen),
+  laps_without = CASE WHEN MAX(car_pedal_facts.abs_seen, excluded.abs_seen) = 1 THEN car_pedal_facts.laps_without
+                      ELSE car_pedal_facts.laps_without + excluded.laps_without END,
+  seen_at = excluded.seen_at", tx,
+                    ("$car", car), ("$force", forceKg), ("$abs", absSeen ? 1 : 0), ("$laps", Math.Max(0, laps)), ("$at", Iso(atUtc)));
+                // An earlier build reads the force beside the profile, where there is one.
+                if (forceKg.HasValue && profiles)
+                    Exec("UPDATE car_pedals SET brake_force_kg = $force WHERE car_path = $car", tx, ("$force", forceKg), ("$car", car));
+                tx.Commit();
+            }
+            return CarPedalFactsOf(car);
+        }
+
+        /// <summary>The brake force a car was last driven with, in kilograms. False for what is not a force.</summary>
         public bool SetCarBrakeForce(string carPath, double kilograms)
         {
             if (string.IsNullOrWhiteSpace(carPath) || double.IsNaN(kilograms) || double.IsInfinity(kilograms) || kilograms < 0) return false;
-            if (!HasTable("car_pedals")) return false;
-            using var cmd = Cmd("UPDATE car_pedals SET brake_force_kg = $force WHERE car_path = $car");
-            P(cmd, "$force", kilograms);
+            return NotePedals(carPath, kilograms, false, 0, DateTime.UtcNow) != null;
+        }
+
+        /// <summary>
+        /// Who gave a car its profile, and what they went by: "rule" with its reason, "driver", or "none" when
+        /// the driver chose that the car has no profile of its own — which the rule then leaves alone.
+        /// </summary>
+        public void NotePedalsGiven(string carPath, string by, string why, DateTime atUtc)
+        {
+            if (string.IsNullOrWhiteSpace(carPath) || !HasTable("car_pedal_facts")) return;
+            Exec(@"
+INSERT INTO car_pedal_facts (car_path, given_by, given_why, seen_at) VALUES ($car, $by, $why, $at)
+ON CONFLICT(car_path) DO UPDATE SET given_by = excluded.given_by, given_why = excluded.given_why", null,
+                ("$car", carPath.Trim()), ("$by", by), ("$why", why), ("$at", Iso(atUtc)));
+        }
+
+        private const string PedalFactsQuery = @"SELECT f.car_path, c.name, f.force_kg, f.force_at, f.abs_seen, f.laps_without, f.given_by, f.given_why, f.seen_at
+FROM car_pedal_facts f LEFT JOIN cars c ON c.car_path = f.car_path";
+
+        public CarPedalFacts CarPedalFactsOf(string carPath)
+        {
+            if (string.IsNullOrWhiteSpace(carPath) || !HasTable("car_pedal_facts")) return null;
+            using var cmd = Cmd(PedalFactsQuery + " WHERE f.car_path = $car");
             P(cmd, "$car", carPath.Trim());
+            using var r = cmd.ExecuteReader();
+            return r.Read() ? ReadPedalFacts(r) : null;
+        }
+
+        /// <summary>What is known of each car's pedals; none from a store that keeps none yet.</summary>
+        public IReadOnlyList<CarPedalFacts> CarPedalFactsList()
+        {
+            var list = new List<CarPedalFacts>();
+            if (!HasTable("car_pedal_facts")) return list;
+            using var cmd = Cmd(PedalFactsQuery + " ORDER BY COALESCE(c.name, f.car_path) COLLATE NOCASE, f.car_path");
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add(ReadPedalFacts(r));
+            return list;
+        }
+
+        private static CarPedalFacts ReadPedalFacts(SqliteDataReader r) => new CarPedalFacts
+        {
+            CarPath = r.GetString(0), CarName = Str(r, 1),
+            ForceKg = r.IsDBNull(2) ? (double?)null : r.GetDouble(2),
+            ForceAtUtc = r.IsDBNull(3) ? (DateTime?)null : Utc(r.GetString(3)),
+            AbsSeen = r.GetInt64(4) != 0, LapsWithoutAbs = (int)r.GetInt64(5),
+            GivenBy = Str(r, 6), GivenWhy = Str(r, 7),
+            SeenAtUtc = Utc(r.GetString(8)),
+        };
+
+        private static DateTime Utc(string iso) =>
+            DateTime.Parse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
+
+        /// <summary>
+        /// Gives a car a profile only if it has none: what the rule does, which must never take the place of a
+        /// profile given on the desk in the meantime. False if the car had one.
+        /// </summary>
+        public bool GiveCarPedals(CarPedals pedals)
+        {
+            if (pedals == null || string.IsNullOrWhiteSpace(pedals.CarPath) || string.IsNullOrWhiteSpace(pedals.ProfileName)) return false;
+            using var cmd = Cmd(@"
+INSERT INTO car_pedals (car_path, profile_id, profile_name, profile, brake_force_kg, bound_at)
+VALUES ($car, $id, $name, $profile, $force, $at) ON CONFLICT(car_path) DO NOTHING");
+            P(cmd, "$car", pedals.CarPath.Trim()); P(cmd, "$id", pedals.ProfileId); P(cmd, "$name", pedals.ProfileName.Trim());
+            P(cmd, "$profile", pedals.Profile); P(cmd, "$force", pedals.BrakeForceKg); P(cmd, "$at", Iso(pedals.BoundAtUtc));
             return cmd.ExecuteNonQuery() > 0;
         }
 

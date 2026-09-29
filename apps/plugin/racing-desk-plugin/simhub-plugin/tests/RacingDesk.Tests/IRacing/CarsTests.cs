@@ -487,7 +487,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
 
             using (var again = new RacingDeskStore(Db))
             {
-                Assert.That(again.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5"));
+                Assert.That(again.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6"));
                 Assert.That(Car(again, Mx5).Seen, Is.EqualTo(4), "opening it again seeds nothing twice");
             }
         }
@@ -498,7 +498,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             using var store = new RacingDeskStore(Db);
             Assert.That(store.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(RacingDeskStore.SchemaVersion));
             Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('cars', 'session_cars')"), Is.EqualTo(2));
-            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('car_scans', 'car_views', 'car_pedals')"), Is.EqualTo(3));
+            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('car_scans', 'car_views', 'car_pedals', 'car_pedal_facts')"), Is.EqualTo(4));
             Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM pragma_table_info('ingested_files')"), Is.EqualTo(6), "as every host since the first has known it");
             Assert.That(store.CarCount(), Is.Zero);
             Assert.That(CarsJson(store), Is.EqualTo("[]"));
@@ -540,10 +540,10 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             }
 
             Assert.That(() => Task.WaitAll(openers), Throws.Nothing, "the one that waited finds the step taken, and takes none");
-            Assert.That(openers.Select(o => o.Result), Is.EqualTo(new[] { 5L, 5L }));
+            Assert.That(openers.Select(o => o.Result), Is.EqualTo(new[] { (long)RacingDeskStore.SchemaVersion, RacingDeskStore.SchemaVersion }));
 
             using var after = new RacingDeskStore(Db);
-            Assert.That(after.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5"));
+            Assert.That(after.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6"));
             Assert.That(after.Cars().Select(c => (c.CarPath, c.Seen)), Is.EqualTo(new[] { (Mx5, 1) }));
         }
 

@@ -55,6 +55,9 @@ namespace RacingDesk.Plugin.IRacing
 
         public int LapsCompleted => GameRunning ? Math.Max(0, Int("LapCompleted")) : 0;
 
+        /// <summary>The driver is in the car, and not in the garage, at the menus or watching a replay.</summary>
+        public bool Driving => GameRunning && Bool("IsOnTrack") && !Bool("IsReplayPlaying");
+
         public object NewData => GameRunning ? _data : null;
 
         /// <summary>Recompute normalized data and derived values for the current frame.</summary>

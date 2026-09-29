@@ -92,12 +92,14 @@ namespace RacingDesk.Data.Pedals
             string path = databasePath ?? DefaultDatabasePath;
             if (!File.Exists(path)) return null;
 
-            // Read-only, and not pooled: no handle on SmartControl's file outlives this call.
+            // Read-only, and not pooled: no handle on SmartControl's file outlives this call. And not patient:
+            // while SmartControl holds its file, this goes away and is asked again, rather than wait half a minute.
             var connection = new SqliteConnectionStringBuilder
             {
                 DataSource = path,
                 Mode = SqliteOpenMode.ReadOnly,
                 Pooling = false,
+                DefaultTimeout = 1,
             };
             using var db = new SqliteConnection(connection.ToString());
             db.Open();

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace RacingDesk.Data.Pedals
 {
@@ -10,7 +12,7 @@ namespace RacingDesk.Data.Pedals
     {
         public string CarPath { get; set; }
 
-        /// <summary>The brake force the run ended on; null when no key that sets one was pressed.</summary>
+        /// <summary>The brake force the run ended on; null when it is not known.</summary>
         public double? ForceKg { get; set; }
 
         /// <summary>What raising and lowering added up to while the force was not known.</summary>
@@ -19,8 +21,11 @@ namespace RacingDesk.Data.Pedals
         /// <summary>How many of Live's brake-force keys were pressed in this car.</summary>
         public int Presses { get; set; }
 
-        /// <summary>Whether the car has ABS; null when the run was too short to say it has none.</summary>
-        public bool? HasAbs { get; set; }
+        /// <summary>The car published an ABS setting, or its ABS was seen working, in this run.</summary>
+        public bool AbsSeen { get; set; }
+
+        /// <summary>Laps driven in the run.</summary>
+        public int Laps { get; set; }
 
         public DateTime SeenAtUtc { get; set; }
     }
@@ -32,28 +37,50 @@ namespace RacingDesk.Data.Pedals
     /// </summary>
     public sealed class CarPedalsRecorder
     {
-        /// <summary>Laps without the ABS ever working, after which a car with no ABS setting is taken to have none.</summary>
-        public const int LapsToSayNoAbs = 3;
+        /// <summary>SmartControl Live, by the name of its process.</summary>
+        public const string LiveProcess = "SmartControl Live";
+
+        /// <summary>
+        /// A break in the telemetry shorter than this is the same run: the sim stuttered, or changed session. The
+        /// force known before it is known after it.
+        /// </summary>
+        internal TimeSpan SameRun = TimeSpan.FromSeconds(60);
+
+        /// <summary>How long after SmartControl could not be read it is asked again.</summary>
+        internal TimeSpan ReadAgainAfter = TimeSpan.FromSeconds(15);
 
         private readonly Func<SmartControlSnapshot> _smartControl;
-        private readonly Func<int, short> _keyState;
+        private readonly Func<IEnumerable<LiveKey>, LiveKeyWatcher> _watch;
+        private readonly Func<bool> _liveRunning;
+        private readonly Func<DateTime> _now;
         private readonly Action<PedalsSeen> _save;
         private readonly Action<string> _log;
         private readonly object _gate = new object();
 
         private string _carPath;
         private LiveKeyWatcher _keys;
+        private Task<SmartControlSnapshot> _reading;
+        private DateTime _readAgain = DateTime.MinValue;
         private BrakeForceTracker _force;
         private bool _absSetting, _absWorked;
-        private int _lapsAtStart = -1, _laps;
+        private int _lapsAt = -1, _laps;
+        private bool _saidLiveIsNotRunning;
+
+        // What the run before left, and when, in case this one is the same run after a break.
+        private double? _leftKg;
+        private DateTime _leftAt = DateTime.MinValue;
 
         /// <param name="smartControl">Reads SmartControl's database (<see cref="SmartControl.Read"/>); null from it means no SmartControl.</param>
-        /// <param name="keyState">Windows' GetAsyncKeyState.</param>
-        public CarPedalsRecorder(Func<SmartControlSnapshot> smartControl, Func<int, short> keyState,
-            Action<PedalsSeen> save, Action<string> log = null)
+        public CarPedalsRecorder(Func<SmartControlSnapshot> smartControl, Action<PedalsSeen> save, Action<string> log = null)
+            : this(smartControl, keys => new LiveKeyWatcher(keys), LiveIsRunning, () => DateTime.UtcNow, save, log) { }
+
+        internal CarPedalsRecorder(Func<SmartControlSnapshot> smartControl, Func<IEnumerable<LiveKey>, LiveKeyWatcher> watch,
+            Func<bool> liveRunning, Func<DateTime> now, Action<PedalsSeen> save, Action<string> log = null)
         {
             _smartControl = smartControl ?? throw new ArgumentNullException(nameof(smartControl));
-            _keyState = keyState ?? throw new ArgumentNullException(nameof(keyState));
+            _watch = watch ?? throw new ArgumentNullException(nameof(watch));
+            _liveRunning = liveRunning ?? throw new ArgumentNullException(nameof(liveRunning));
+            _now = now ?? throw new ArgumentNullException(nameof(now));
             _save = save ?? throw new ArgumentNullException(nameof(save));
             _log = log ?? (_ => { });
         }
@@ -65,75 +92,147 @@ namespace RacingDesk.Data.Pedals
         }
 
         /// <summary>
-        /// The car the driver is in, on every frame. <paramref name="absSetting"/>: the car publishes an ABS
-        /// setting; <paramref name="absWorking"/>: the ABS is working at this moment.
+        /// The car the driver's is, on every frame. <paramref name="absSetting"/>: the car publishes an ABS
+        /// setting; <paramref name="absWorking"/>: the ABS is working at this moment; <paramref name="driving"/>:
+        /// he is in the car, and not watching it from the garage or in a replay — laps and ABS count only then.
+        /// The keys count wherever he is: they reach the pedals all the same. Never throws, and never waits on a
+        /// file: it is called on the thread the telemetry arrives on.
         /// </summary>
-        public void See(string carPath, bool absSetting, bool absWorking, int lapsCompleted)
+        public void See(string carPath, bool absSetting, bool absWorking, int lapsCompleted, bool driving = true)
         {
             if (string.IsNullOrWhiteSpace(carPath)) return;
             carPath = carPath.Trim();
             PedalsSeen left = null;
-            lock (_gate)
-            {
-                if (!string.Equals(carPath, _carPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    left = Leave();
-                    Enter(carPath, left?.ForceKg);
-                }
-                _absSetting |= absSetting;
-                _absWorked |= absWorking;
-                if (_lapsAtStart < 0) _lapsAtStart = lapsCompleted;
-                _laps = Math.Max(_laps, lapsCompleted - _lapsAtStart);
-
-                if (_keys != null)
-                {
-                    foreach (var key in _keys.Poll())
-                    {
-                        _force.Press(key);
-                        _log("pedals: " + Describe(key) + " — brake force " + Show(_force));
-                    }
-                }
-            }
-            if (left != null) _save(left);
-        }
-
-        /// <summary>The sim has stopped sending: what the run left is handed over, and the keys are let go.</summary>
-        public void SimGone()
-        {
-            PedalsSeen left;
-            lock (_gate) left = Leave();
-            if (left != null) _save(left);
-        }
-
-        private void Enter(string carPath, double? knownKg)
-        {
-            _carPath = carPath;
-            _absSetting = _absWorked = false;
-            _lapsAtStart = -1;
-            _laps = 0;
-            // The pedals keep their force from car to car, so what was known in the last car is known in this one.
-            _force = new BrakeForceTracker(knownKg);
-            _keys = null;
             try
             {
-                var snapshot = _smartControl();
-                if (snapshot == null)
+                lock (_gate)
                 {
-                    _log("pedals: SmartControl is not on this machine; nothing is watched");
-                    return;
-                }
-                _keys = new LiveKeyWatcher(snapshot.Keys, _keyState);
-                foreach (var key in _keys.NotWatched) _log("pedals: " + Describe(key) + " is a key this does not know; not watched");
-                if (_keys.Watched.Count == 0)
-                {
-                    _keys = null;
-                    _log("pedals: SmartControl Live has no brake-force keys; nothing is watched");
+                    if (!string.Equals(carPath, _carPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        left = Leave();
+                        Enter(carPath);
+                    }
+                    _absSetting |= absSetting;
+                    if (driving)
+                    {
+                        _absWorked |= absWorking;
+                        // The count is a session's: it starts again with each, and what was driven before still was.
+                        if (_lapsAt < 0 || lapsCompleted < _lapsAt) _lapsAt = lapsCompleted;
+                        if (lapsCompleted > _lapsAt)
+                        {
+                            _laps += lapsCompleted - _lapsAt;
+                            _lapsAt = lapsCompleted;
+                        }
+                    }
+                    else
+                    {
+                        _lapsAt = -1;       // laps that pass while he is out of the car are not his
+                    }
+                    Watch();
                 }
             }
             catch (Exception ex)
             {
-                // SmartControl's database is its own, and may be anything. The car is still followed for its ABS.
-                _log("pedals: SmartControl could not be read — " + ex.Message.Trim());
+                _log("pedals: not followed on this frame — " + ex.Message.Trim());
+            }
+            // Off this thread: the store is a file.
+            if (left != null) Task.Run(() => Save(left));
+        }
+
+        /// <summary>
+        /// The sim has stopped sending, or the host is stopping: what the run left is handed over before this
+        /// returns, and the keys are let go.
+        /// </summary>
+        public void SimGone()
+        {
+            PedalsSeen left;
+            lock (_gate) left = Leave();
+            if (left != null) Save(left);
+        }
+
+        private void Save(PedalsSeen left)
+        {
+            try { _save(left); }
+            catch (Exception ex) { _log("pedals: not kept — " + ex.Message.Trim()); }
+        }
+
+        private void Enter(string carPath)
+        {
+            _carPath = carPath;
+            _absSetting = _absWorked = false;
+            _lapsAt = -1;
+            _laps = 0;
+            _saidLiveIsNotRunning = false;
+            // The pedals keep their force from car to car and through a break in the telemetry, so what was
+            // known a moment ago is known now. After longer it is not: they may have been set with the sim away.
+            bool sameRun = _leftAt != DateTime.MinValue && _now() - _leftAt <= SameRun && _now() >= _leftAt;
+            _force = new BrakeForceTracker(sameRun ? _leftKg : null);
+            _keys = null;
+            _reading = null;
+            _readAgain = DateTime.MinValue;
+        }
+
+        // SmartControl's database is read on a thread of its own and its keys watched once it has been: it is
+        // SmartControl's file, and may be held.
+        private void Watch()
+        {
+            if (_keys == null)
+            {
+                if (_reading == null)
+                {
+                    if (_now() < _readAgain) return;
+                    _reading = Task.Run(_smartControl);
+                    return;
+                }
+                if (!_reading.IsCompleted) return;
+                var read = _reading;
+                _reading = null;
+                if (read.IsFaulted || read.IsCanceled)
+                {
+                    _readAgain = _now() + ReadAgainAfter;
+                    _log("pedals: SmartControl could not be read — " + (read.Exception?.GetBaseException().Message.Trim() ?? "cancelled"));
+                    return;
+                }
+                if (read.Result == null)
+                {
+                    _readAgain = DateTime.MaxValue;
+                    _log("pedals: SmartControl is not on this machine; nothing is watched");
+                    return;
+                }
+                var keys = _watch(read.Result.Keys);
+                foreach (var key in keys.NotWatched) _log("pedals: " + Describe(key) + " is not a key this watches");
+                if (keys.Watched.Count == 0)
+                {
+                    _readAgain = DateTime.MaxValue;
+                    _log("pedals: SmartControl Live has no brake-force keys; nothing is watched");
+                    return;
+                }
+                _keys = keys;
+            }
+
+            var seen = _keys.Poll();
+            if (seen.Pressed.Count == 0 && !seen.HeldToRepeat) return;
+
+            // A key Live is not there to hear did nothing to the pedals.
+            if (!_liveRunning())
+            {
+                if (!_saidLiveIsNotRunning) _log("pedals: SmartControl Live is not running, so its keys do nothing; not counted");
+                _saidLiveIsNotRunning = true;
+                return;
+            }
+            _saidLiveIsNotRunning = false;
+
+            double? before = _force.ForceKg;
+            foreach (var key in seen.Pressed) _force.Press(key);
+            if (seen.HeldToRepeat)
+            {
+                _force.Doubt();
+                _log("pedals: a step key was held until it repeated; the brake force is not known until a key sets one");
+            }
+            else if (_force.ForceKg != before || !_force.ForceKg.HasValue)
+            {
+                // The force, and not the key: what is kept is what was agreed to be kept.
+                _log("pedals: brake force " + Show(_force));
             }
         }
 
@@ -146,12 +245,31 @@ namespace RacingDesk.Data.Pedals
                 ForceKg = _force.ForceKg,
                 ChangeKg = _force.ChangeKg,
                 Presses = _force.Presses,
-                HasAbs = _absSetting || _absWorked ? true : _laps >= LapsToSayNoAbs ? false : (bool?)null,
-                SeenAtUtc = DateTime.UtcNow,
+                AbsSeen = _absSetting || _absWorked,
+                Laps = _laps,
+                SeenAtUtc = _now(),
             };
+            _leftKg = _force.ForceKg;
+            _leftAt = left.SeenAtUtc;
             _carPath = null;
             _keys = null;
+            _reading = null;
             return left;
+        }
+
+        private static bool LiveIsRunning()
+        {
+            try
+            {
+                var found = Process.GetProcessesByName(LiveProcess);
+                foreach (var p in found) p.Dispose();
+                return found.Length > 0;
+            }
+            catch (Exception)
+            {
+                // Not being able to ask is not Live being away.
+                return true;
+            }
         }
 
         internal static string Describe(LiveKey key)
@@ -162,14 +280,14 @@ namespace RacingDesk.Data.Pedals
             {
                 case LiveAction.SetBrakeForce: return $"{keys} (set {kg} kg)";
                 case LiveAction.RaiseBrakeForce: return $"{keys} (+{kg} kg)";
-                case LiveAction.LowerBrakeForce: return $"{keys} (−{kg} kg)";
+                case LiveAction.LowerBrakeForce: return $"{keys} (-{kg} kg)";
                 default: return keys;
             }
         }
 
         private static string Show(BrakeForceTracker force) => force.ForceKg.HasValue
-            ? force.ForceKg.Value.ToString("0.#", CultureInfo.InvariantCulture) + " kg"
-            : "not known yet, " + force.ChangeKg.ToString("+0.#;−0.#;0", CultureInfo.InvariantCulture) + " kg from where it was";
+            ? CarPedalsKeeper.Kg(force.ForceKg.Value)
+            : "not known yet, " + CarPedalsKeeper.Change(force.ChangeKg) + " from where it was";
     }
 
     /// <summary>
@@ -184,43 +302,72 @@ namespace RacingDesk.Data.Pedals
         /// <summary>"light for touring and sports cars with abs, default for formula and cars without abs".</summary>
         public static string BaseFor(bool hasAbs, bool formula) => hasAbs && !formula ? Light : Default;
 
-        /// <summary>Keeps what a run left. Returns a line saying what was kept, for the log.</summary>
-        public static string Keep(RacingDeskStore store, SmartControlSnapshot smartControl, PedalsSeen seen)
+        internal static string Kg(double kg) => kg.ToString("0.#", CultureInfo.InvariantCulture) + " kg";
+
+        internal static string Change(double kg) =>
+            (kg > 0 ? "+" : kg < 0 ? "-" : "") + Math.Abs(kg).ToString("0.#", CultureInfo.InvariantCulture) + " kg";
+
+        /// <summary>
+        /// Keeps what a run left, and returns a line saying what was kept, for the log; null when there was
+        /// nothing to say. The force is kept first and whatever else happens: it is the car's with or without a
+        /// profile. SmartControl is read only if a profile has to be made.
+        /// </summary>
+        public static string Keep(RacingDeskStore store, Func<SmartControlSnapshot> smartControl, PedalsSeen seen)
         {
             if (store == null) throw new ArgumentNullException(nameof(store));
             if (seen == null || string.IsNullOrWhiteSpace(seen.CarPath)) return null;
             string car = seen.CarPath.Trim();
+
+            bool set = seen.Presses > 0 && seen.ForceKg.HasValue;
+            var known = store.NotePedals(car, set ? seen.ForceKg : null, seen.AbsSeen, seen.Laps, seen.SeenAtUtc);
+            if (known == null) return $"pedals: {car} — this store keeps no pedals; nothing kept";
+
+            string force = set ? $" brake force {Kg(seen.ForceKg.Value)}"
+                : seen.Presses > 0 ? $" the force was changed by {Change(seen.ChangeKg)} from one that is not known, or a step key was held; " +
+                                     "press a key that sets a force and it will be known"
+                : "";
+            string profile = Profile(store, smartControl, car, known, seen.SeenAtUtc);
+
+            if (profile.Length == 0 && force.Length == 0) return null;
+            return $"pedals: {car} —" + profile + (profile.Length > 0 && force.Length > 0 ? ";" : "") + force;
+        }
+
+        // The car's profile: made by the rule if it has none and enough is known, and made again if the rule
+        // gave it for having no ABS and ABS has been seen since. One the driver gave, or chose not to have, is his.
+        private static string Profile(RacingDeskStore store, Func<SmartControlSnapshot> smartControl, string car, CarPedalFacts known, DateTime at)
+        {
             var has = store.CarPedalsOf(car);
-            string made = "";
+            bool formula = store.CarRanIn(car, "Formula");
+            bool mistaken = has != null && known.GivenBy == "rule" && known.GivenWhy == "no ABS" && known.HasAbs == true && !formula;
+            if (has != null && !mistaken) return "";
+            if (has == null && known.GivenBy == "none") return "";
+            // A formula car starts from Default whatever its ABS, so there is nothing to wait for.
+            if (!formula && known.HasAbs == null) return " too short a run to say whether it has ABS; no profile yet";
 
-            if (has == null)
+            string name = BaseFor(known.HasAbs == true, formula);
+            string why = formula ? "a formula car" : known.HasAbs == true ? "ABS" : "no ABS";
+            SmartControlSnapshot snapshot;
+            try { snapshot = smartControl?.Invoke(); }
+            catch (Exception ex) { return $" SmartControl could not be read ({ex.Message.Trim()}); no profile yet"; }
+            var from = snapshot?.Profiles.FirstOrDefault(p => string.Equals(p.Name?.Trim(), name, StringComparison.OrdinalIgnoreCase));
+            if (from == null) return $" would start from {name}, which SmartControl does not have; no profile";
+
+            var given = new CarPedals
             {
-                if (!store.HasCar(car)) return $"pedals: {car} — the store has no such car yet; nothing kept";
-                if (seen.HasAbs == null) return $"pedals: {car} — too short a run to say whether it has ABS; no profile yet";
-                bool formula = store.CarRanIn(car, "Formula");
-                string name = BaseFor(seen.HasAbs.Value, formula);
-                var from = smartControl?.Profiles.FirstOrDefault(p => string.Equals(p.Name?.Trim(), name, StringComparison.OrdinalIgnoreCase));
-                if (from == null) return $"pedals: {car} — would start from {name}, which SmartControl does not have; nothing kept";
-
-                has = new CarPedals
-                {
-                    CarPath = car, ProfileId = from.Id, ProfileName = from.Name, Profile = from.Data, BoundAtUtc = seen.SeenAtUtc,
-                };
-                store.BindCarPedals(has);
-                made = $" its own profile, from {from.Name} (" +
-                       (formula ? "a formula car" : seen.HasAbs.Value ? "ABS" : "no ABS") + ");";
-            }
-
-            if (seen.Presses > 0 && seen.ForceKg.HasValue)
+                CarPath = car, ProfileId = from.Id, ProfileName = from.Name, Profile = from.Data, BoundAtUtc = at,
+                BrakeForceKg = known.ForceKg,       // beside the profile too, where an earlier build reads it
+            };
+            if (mistaken)
             {
-                store.SetCarBrakeForce(car, seen.ForceKg.Value);
-                return $"pedals: {car} —{made} brake force {seen.ForceKg.Value.ToString("0.#", CultureInfo.InvariantCulture)} kg";
+                // Given by the rule and never touched since: the rule's to give again.
+                store.BindCarPedals(given);
+                store.NotePedalsGiven(car, "rule", why, at);
+                return $" its ABS has been seen working, so its profile is from {from.Name} now, not {has.ProfileName}";
             }
-            if (seen.Presses > 0)
-                return $"pedals: {car} —{made} the force was changed by " +
-                       seen.ChangeKg.ToString("+0.#;−0.#;0", CultureInfo.InvariantCulture) +
-                       " kg from one that is not known; press a key that sets a force and it will be";
-            return made.Length > 0 ? $"pedals: {car} —{made.TrimEnd(';')}" : null;
+            // Only if it still has none: a profile given on the desk in the meantime is the driver's, and stays.
+            if (!store.GiveCarPedals(given)) return "";
+            store.NotePedalsGiven(car, "rule", why, at);
+            return $" its own profile, from {from.Name} ({why})";
         }
     }
 }

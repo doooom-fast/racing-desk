@@ -1,6 +1,11 @@
 # Per-car view and pedal profiles — plan
 
-> **Status:** plan, 2026-09-28. Nothing built. Facts are in
+> **Status, 2026-09-29.** Built: the view is recorded per car when the sim closes (V1); SmartControl's profiles are
+> read and a car can be tied to one on the desk (P1); the brake force is followed from SmartControl Live's keys
+> and kept per car, and a car with no profile is given one by his rule (P2a). **Not built: putting anything
+> back** — a view, a force or a profile — which is every slice that writes a file of iRacing's or SmartControl's,
+> or presses a key. Nor the line on the HUD for each automatic action: what the app does is in `host.log` and on
+> the desk, and nowhere he would see it from the car. Facts are in
 > [`height-and-pedals-findings.md`](height-and-pedals-findings.md); this is what to do with them.
 >
 > **Decided by Kevin, 2026-09-28:** the view is *height, seat and horizon*; pedals are *per car*; the app *creates
@@ -111,20 +116,30 @@ from one of two of his:
 | Touring or sports car **with ABS** | `LightBrake` — 45 kg, linear, 4 % deadzone |
 | Formula car, or any car **without ABS** | `Default` — 80 kg, linear, 5 % deadzone |
 
-- **Whether a car has ABS** is in his own telemetry: a car that has it publishes `dcABS`, and one that does not
-  has no such variable. The per-car record of controls (`docs/car-controls-findings.md`) holds it; a car never
-  driven has no answer until the first session in it, and until then has no profile.
-- **Whether a car is a formula car** is the category its sessions ran in, which the store has per session. A car
-  with ABS that is neither touring nor sports (a prototype with ABS, say) is not covered by the rule as he gave
-  it: it takes `Default` until he says otherwise, and the Cars page shows which base a car was given and why.
-- **The copy is the car's from then on.** What he changes in SmartControl while in that car — curve, deadzone,
-  force — is saved to the car's profile, not to the base. The base is only where a car starts.
+- **Whether a car has ABS** is in his own telemetry. A car with ABS he can adjust publishes `dcABS`; one whose
+  ABS cannot be adjusted shows it only when it works (`BrakeABSactive`). A car is taken to have none after three
+  laps of neither, counted across runs — and is put right, profile and all, if its ABS is seen later. A car
+  never driven has no answer, and until it has one has no profile.
+- **Whether a car is a formula car** is whether any session in it ran in the category `Formula`. A test session
+  is `Road` whatever the car, so a formula car only ever tested is not known to be one — which changes nothing
+  while no formula car has ABS.
+- **As built, the rule is "ABS and not a formula car".** The store cannot tell a prototype from a touring car:
+  both race as `SportsCar`. So a prototype with ABS starts from `LightBrake`. **His to say** whether that is
+  what he meant.
+- **Who gave a car its profile is kept** (`car_pedal_facts`: the rule and what it went by, or he himself), and
+  the data API says it (`given_by`, `given_why`). A profile he gave on the desk, or chose not to have, is never
+  the rule's to change.
+- **As built, the car's profile is the base's, kept as it was** — under the base's own name, not yet a copy with
+  the car's. What he changes in SmartControl afterwards changes the base for every car that starts from it; the
+  desk shows that the profile has changed since the car was given it. A profile per car *in SmartControl* is a
+  write to its database, and waits with the rest.
 - **What this changes in the slices.** P1's binding by name becomes the base a car was given. P3 (a Live key per
   profile) no longer fits — there would be a key per car — so the way to restore is P4: one profile in
   SmartControl that is the app's, holding the current car's, behind one key. That is a write to SmartControl's
   database, and it waits on E9, E10 and his go-ahead like every other write.
-- **A profile made by the app is not byte for byte SmartControl's**: it is a copy of one that was, under another
-  name. Whether SmartControl takes a row whose name changed and whose hash did not is part of E10.
+- **A profile made in SmartControl by the app would not be byte for byte SmartControl's**: it is a copy of one
+  that was, under another name. Whether SmartControl takes a row whose name changed and whose hash did not is
+  part of E10.
 
 ### What the first night taught (2026-09-28)
 
@@ -138,10 +153,21 @@ Built that night, the half of P2 that writes nothing of anyone else's: the host 
 keys while the sim sends, and when the sim goes keeps it for the car, giving a car with no pedals of its own a
 profile by his rule. Restoring is the half that is left.
 
-Two limits that only he at the rig can lift:
-- **A key held down is one press here.** If Live repeats a step while the key is held, the two will disagree by
-  the repeats. (A key that sets a force puts them right again.)
+A force set by key is kept whatever else is not known — the car's ABS, SmartControl's profiles — because it is
+the car's with or without a profile. That was the first night's complaint, and the first version of this
+repeated it for any car it could not yet give a profile.
+
+What is followed is not trusted further than it can be:
+- **A step key held until Windows repeats it leaves the force not known**, until a key sets one. Whether Live
+  steps again on a repeat is not known, and a number that may be wrong is not kept.
+- **A key pressed while SmartControl Live is not running is not counted.** It did nothing to the pedals.
+- **What is pressed while the sim is not sending is not seen**, and after a minute of that the force is not
+  known either: the pedals may have been set meanwhile.
 - **Where Live stops is not known** (E8). Past Live's limit a step is counted here that Live did not take.
+- **Not known: whether Live acts on Page Up with Ctrl, Shift or Alt held.** Here it counts.
+
+One look at the rig settles most of it: press each of the five keys once with Live speaking, and compare what it
+says with `host.log`.
 
 ### Slices
 
@@ -183,6 +209,8 @@ pedals directly, which is a later and more careful piece of work.
 
 ## Open
 
+- After a car is given another profile on the desk, which force is the car's: the one it was last driven with
+  (kept today), or the new profile's own?
 - ~~Monitor or VR?~~ **Monitor** (2026-09-28). The horizon applies, and height is the one in `app.ini`.
 - A car with ABS that is neither a touring nor a sports car: which base does it start from? (`Default`, until
   he says.)

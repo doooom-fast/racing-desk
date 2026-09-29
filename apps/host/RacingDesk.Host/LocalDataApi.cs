@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text.Json;
 using System.Threading;
@@ -92,9 +94,30 @@ namespace RacingDesk.Host
                             json.WriteStartObject();
                             json.WritePropertyName("smartcontrol");
                             WriteSmartControl(json, smartControl);
+                            // cars: those with a profile of their own. without_profile: those of which
+                            // something is known all the same — a force set by key, or whether they have ABS.
+                            var known = new Dictionary<string, CarPedalFacts>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var facts in store.CarPedalFactsList()) known[facts.CarPath] = facts;
                             json.WritePropertyName("cars");
                             json.WriteStartArray();
-                            foreach (var car in store.CarPedalsList()) WriteCarPedals(json, car, smartControl);
+                            foreach (var car in store.CarPedalsList())
+                            {
+                                known.TryGetValue(car.CarPath, out var facts);
+                                known.Remove(car.CarPath);
+                                WriteCarPedals(json, car, smartControl, facts);
+                            }
+                            json.WriteEndArray();
+                            json.WritePropertyName("without_profile");
+                            json.WriteStartArray();
+                            foreach (var facts in known.Values.OrderBy(f => f.CarName ?? f.CarPath, StringComparer.OrdinalIgnoreCase))
+                            {
+                                json.WriteStartObject();
+                                json.WriteString("car_path", facts.CarPath);
+                                json.WriteString("name", facts.CarName);
+                                Number(json, "brake_force_kg", facts.ForceKg);
+                                WriteFacts(json, facts);
+                                json.WriteEndObject();
+                            }
                             json.WriteEndArray();
                             json.WriteEndObject();
                         });
@@ -241,6 +264,8 @@ namespace RacingDesk.Host
             if (profileId == null)
             {
                 store.UnbindCarPedals(carPath);
+                // His choice, so the rule that gives a car a profile leaves this one alone.
+                store.NotePedalsGiven(carPath, "none", null, DateTime.UtcNow);
                 Write(res, 200, json => { json.WriteStartObject(); json.WriteNull("car"); json.WriteEndObject(); });
                 return;
             }
@@ -260,12 +285,14 @@ namespace RacingDesk.Host
             {
                 CarPath = carPath, ProfileId = profile.Id, ProfileName = profile.Name, Profile = profile.Data, BoundAtUtc = DateTime.UtcNow,
             });
+            store.NotePedalsGiven(carPath, "driver", null, DateTime.UtcNow);
             var bound = store.CarPedalsOf(carPath);
+            var facts = store.CarPedalFactsOf(carPath);
             Write(res, 200, json =>
             {
                 json.WriteStartObject();
                 json.WritePropertyName("car");
-                WriteCarPedals(json, bound, smartControl);
+                WriteCarPedals(json, bound, smartControl, facts);
                 json.WriteEndObject();
             });
         }
@@ -340,18 +367,34 @@ namespace RacingDesk.Host
             json.WriteEndObject();
         }
 
-        private static void WriteCarPedals(Utf8JsonWriter json, CarPedals car, SmartControlSnapshot smartControl)
+        private static void WriteCarPedals(Utf8JsonWriter json, CarPedals car, SmartControlSnapshot smartControl, CarPedalFacts facts)
         {
             json.WriteStartObject();
             json.WriteString("car_path", car.CarPath);
             json.WriteString("name", car.CarName);
             json.WriteString("profile_id", car.ProfileId);
             json.WriteString("profile_name", car.ProfileName);
-            Number(json, "brake_force_kg", car.BrakeForceKg);
-            json.WriteString("bound_at", car.BoundAtUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture));
+            Number(json, "brake_force_kg", facts?.ForceKg ?? car.BrakeForceKg);
+            json.WriteString("bound_at", Iso(car.BoundAtUtc));
             json.WriteString("profile_now", ProfileNow(car, smartControl));
+            WriteFacts(json, facts);
             json.WriteEndObject();
         }
+
+        // brake_force_kg: the force the car was last driven with, set with SmartControl Live's keys; null when
+        // none is known, and the profile's own then stands. has_abs: true, false, or null while too little has
+        // been driven to say. given_by: "rule", "driver", "none" (he chose that the car has no profile), or null.
+        private static void WriteFacts(Utf8JsonWriter json, CarPedalFacts facts)
+        {
+            if (facts?.ForceAtUtc != null) json.WriteString("force_at", Iso(facts.ForceAtUtc.Value));
+            else json.WriteNull("force_at");
+            if (facts?.HasAbs != null) json.WriteBoolean("has_abs", facts.HasAbs.Value);
+            else json.WriteNull("has_abs");
+            json.WriteString("given_by", facts?.GivenBy);
+            json.WriteString("given_why", facts?.GivenWhy);
+        }
+
+        private static string Iso(DateTime utc) => utc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);
 
         /// <summary>How the profile a car was given stands in SmartControl today.</summary>
         internal static string ProfileNow(CarPedals car, SmartControlSnapshot smartControl)

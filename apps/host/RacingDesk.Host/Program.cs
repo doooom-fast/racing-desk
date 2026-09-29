@@ -169,7 +169,7 @@ Data options:
             // those keys and no others, and only while the sim is sending — because nothing on the PC records it.
             // SmartControl's files are read and never written.
             var pedals = store != null
-                ? new CarPedalsRecorder(() => SmartControl.Read(), Keyboard.State, seen => SavePedals(o, seen), m => Log.Info("[RacingDesk.Host] " + m))
+                ? new CarPedalsRecorder(() => SmartControl.Read(), seen => SavePedals(o, seen), m => Log.Info("[RacingDesk.Host] " + m))
                 : null;
             var gate = new object();
 
@@ -181,8 +181,17 @@ Data options:
                     runtime.Tick(source);
                     recorder?.Feed(raw);
                 }
-                views?.SeeCar(source.CarPath);
-                pedals?.See(source.CarPath, source.HasAbsSetting, source.AbsWorking, source.LapsCompleted);
+                // What follows the car is a nicety. Nothing thrown by it may end the telemetry, which an
+                // exception out of this handler would.
+                try
+                {
+                    views?.SeeCar(source.CarPath);
+                    pedals?.See(source.CarPath, source.HasAbsSetting, source.AbsWorking, source.LapsCompleted, source.Driving);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("[RacingDesk.Host] the car was not followed on this frame: " + ex.Message);
+                }
             };
             raw.Connected += () => Log.Info("[RacingDesk.Host] iRacing connected");
             raw.Disconnected += () =>
@@ -218,6 +227,9 @@ Data options:
             }
             raw.Stop();
             lock (gate) recorder?.Flush();
+            // The host is going with the sim still up — the desk was closed first. The run's force is the car's
+            // all the same, and stopping says nothing of the sim having gone.
+            pedals?.SimGone();
         }
 
         // Its own connection, as ingest has: this runs when the sim has closed, on a thread of its own.
@@ -234,14 +246,14 @@ Data options:
             }
         }
 
-        // As the view is: its own connection, off the telemetry thread's store. The session the run was is saved
-        // before this is called, so the store has the car by now.
+        // Its own connection, as the view's has. When the sim goes the session the run was is saved before this
+        // is called, so the store has the car by now; on a change of car in mid-run it may not, and says so.
         private static void SavePedals(HostOptions o, PedalsSeen seen)
         {
             try
             {
                 using var store = new RacingDeskStore(o.Db ?? RacingDeskStore.DefaultPath);
-                string kept = CarPedalsKeeper.Keep(store, SmartControl.Read(), seen);
+                string kept = CarPedalsKeeper.Keep(store, () => SmartControl.Read(), seen);
                 if (kept != null) Log.Info("[RacingDesk.Host] " + kept);
             }
             catch (Exception ex)

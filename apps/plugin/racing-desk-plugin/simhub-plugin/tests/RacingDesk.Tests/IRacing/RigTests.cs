@@ -115,12 +115,14 @@ INSERT INTO schema_version (version) VALUES (4);
                 Assert.That(unmigrated.CarPedalsList(), Is.Empty);
                 Assert.That(unmigrated.CarViewOf(Mx5), Is.Null);
                 Assert.That(unmigrated.CarPedalsOf(Mx5), Is.Null);
+                Assert.That(unmigrated.CarPedalFactsList(), Is.Empty);
+                Assert.That(unmigrated.CarPedalFactsOf(Mx5), Is.Null);
             }
             SqliteConnection.ClearAllPools();
 
             using var store = new RacingDeskStore(Db);
 
-            Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5"));
+            Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6"));
             Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(name) FROM pragma_table_info('ingested_files')"),
                 Is.EqualTo("path,length,mtime,sessions,error,ingested_at"), "as every host since the first has known it");
             Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(path || '|' || length || '|' || mtime, ' ') FROM (SELECT * FROM car_scans ORDER BY path)"),
@@ -295,6 +297,35 @@ INSERT INTO schema_version (version) VALUES (4);
             Assert.That(store.HasCar("never driven"), Is.False);
         }
 
+        [Test]
+        public void AVersion5StoreKeepsItsProfilesAndTheirForcesAsTheDriversOwn()
+        {
+            using (var store = StoreWithCars())
+            {
+                store.BindCarPedals(Pedals(Mx5, "a1", "LightBrake", "<Profile>light</Profile>", June, force: 45));
+                store.BindCarPedals(Pedals(Lotus, "b2", "HeavyBrake", "<Profile>heavy</Profile>", June.AddDays(1)));
+                // As a version 5 store was: no table of what is known beside the profile.
+                store.Exec("DROP TABLE car_pedal_facts; DELETE FROM schema_version WHERE version > 5; " +
+                           "INSERT INTO schema_version (version) SELECT 5 WHERE NOT EXISTS (SELECT 1 FROM schema_version WHERE version = 5)");
+            }
+            SqliteConnection.ClearAllPools();
+
+            using (var unmigrated = RacingDeskStore.OpenReadOnly(Db))
+            {
+                Assert.That(unmigrated.CarPedalsList().Select(p => p.CarPath), Is.EqualTo(new[] { Lotus, Mx5 }), "the profiles are read as they were");
+                Assert.That(unmigrated.CarPedalFactsList(), Is.Empty);
+            }
+            SqliteConnection.ClearAllPools();
+
+            using var migrated = new RacingDeskStore(Db);
+            Assert.That(migrated.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(6));
+            var mazda = migrated.CarPedalFactsOf(Mx5);
+            Assert.That((mazda.ForceKg, mazda.ForceAtUtc, mazda.GivenBy, mazda.HasAbs), Is.EqualTo(((double?)45, (DateTime?)June, "driver", (bool?)null)));
+            var lotus = migrated.CarPedalFactsOf(Lotus);
+            Assert.That((lotus.ForceKg, lotus.ForceAtUtc, lotus.GivenBy), Is.EqualTo(((double?)null, (DateTime?)null, "driver")));
+            Assert.That(migrated.CarPedalsOf(Mx5).BrakeForceKg, Is.EqualTo(45), "and car_pedals is as every host since version 5 has known it");
+        }
+
         // ── /racing-desk/data/pedals ──
 
         private static int FreePort()
@@ -366,7 +397,9 @@ INSERT INTO schema_version (version) VALUES (4);
                 Assert.That(car.EnumerateObject().Select(p => p.Name), Is.EqualTo(new[]
                 {
                     "car_path", "name", "profile_id", "profile_name", "brake_force_kg", "bound_at", "profile_now",
+                    "force_at", "has_abs", "given_by", "given_why",
                 }));
+                Assert.That(car.GetProperty("given_by").GetString(), Is.EqualTo("driver"));
                 Assert.That(car.GetProperty("car_path").GetString(), Is.EqualTo(Mx5));
                 Assert.That(car.GetProperty("name").GetString(), Is.EqualTo("Mazda MX-5 Cup"));
                 Assert.That(car.GetProperty("profile_name").GetString(), Is.EqualTo("LightBrake"));
@@ -402,13 +435,41 @@ INSERT INTO schema_version (version) VALUES (4);
                     Is.EqualTo(new[] { (Lotus, "gone"), (Mx5, "changed") }));
             }
 
-            // Taken away again.
+            // Taken away again: his choice, which is kept, so that nothing gives the car a profile behind his back.
             (status, body) = Request("POST", "pedals", Bind(Mx5, null));
             Assert.That(status, Is.EqualTo(HttpStatusCode.OK));
             Assert.That(body, Is.EqualTo("{\"car\":null}"));
             (_, body) = Request("GET", "pedals");
             using (var json = JsonDocument.Parse(body))
+            {
                 Assert.That(json.RootElement.GetProperty("cars").EnumerateArray().Select(c => c.GetProperty("car_path").GetString()), Is.EqualTo(new[] { Lotus }));
+                Assert.That(json.RootElement.GetProperty("without_profile").GetRawText(), Is.EqualTo(
+                    "[{\"car_path\":\"mx5 mx52016\",\"name\":\"Mazda MX-5 Cup\",\"brake_force_kg\":null,\"force_at\":null,\"has_abs\":null,\"given_by\":\"none\",\"given_why\":null}]"));
+            }
+        }
+
+        [Test]
+        public void ACarWithAForceAndNoProfileIsSaidToo()
+        {
+            using (var store = StoreWithCars())
+            {
+                store.BindCarPedals(Pedals(Lotus, "b2", "HeavyBrake", "<Profile/>", June));
+                store.NotePedalsGiven(Lotus, "rule", "no ABS", June);
+                store.NotePedals(Lotus, 70, false, 3, June.AddHours(1));
+                store.NotePedals(Mx5, 80, false, 2, June.AddHours(2));
+            }
+
+            var (status, body) = Request("GET", "pedals", smartControl: false);
+
+            Assert.That(status, Is.EqualTo(HttpStatusCode.OK));
+            using var json = JsonDocument.Parse(body);
+            Assert.That(json.RootElement.GetProperty("cars").GetRawText(), Is.EqualTo(
+                "[{\"car_path\":\"lotus79\",\"name\":\"Lotus 79\",\"profile_id\":\"b2\",\"profile_name\":\"HeavyBrake\"," +
+                "\"brake_force_kg\":70,\"bound_at\":\"2026-06-01T09:00:00.000Z\",\"profile_now\":\"unknown\"," +
+                "\"force_at\":\"2026-06-01T10:00:00.000Z\",\"has_abs\":false,\"given_by\":\"rule\",\"given_why\":\"no ABS\"}]"));
+            Assert.That(json.RootElement.GetProperty("without_profile").GetRawText(), Is.EqualTo(
+                "[{\"car_path\":\"mx5 mx52016\",\"name\":\"Mazda MX-5 Cup\",\"brake_force_kg\":80," +
+                "\"force_at\":\"2026-06-01T11:00:00.000Z\",\"has_abs\":null,\"given_by\":null,\"given_why\":null}]"));
         }
 
         [Test]
@@ -422,7 +483,8 @@ INSERT INTO schema_version (version) VALUES (4);
             Assert.That(status, Is.EqualTo(HttpStatusCode.OK));
             Assert.That(body, Is.EqualTo("{\"smartcontrol\":{\"found\":false,\"profiles\":[],\"keys\":[]},\"cars\":[" +
                 "{\"car_path\":\"mx5 mx52016\",\"name\":\"Mazda MX-5 Cup\",\"profile_id\":\"a1\",\"profile_name\":\"LightBrake\"," +
-                "\"brake_force_kg\":45,\"bound_at\":\"2026-06-01T09:00:00.000Z\",\"profile_now\":\"unknown\"}]}"));
+                "\"brake_force_kg\":45,\"bound_at\":\"2026-06-01T09:00:00.000Z\",\"profile_now\":\"unknown\"," +
+                "\"force_at\":null,\"has_abs\":null,\"given_by\":null,\"given_why\":null}],\"without_profile\":[]}"));
 
             (status, body) = Request("POST", "pedals", Bind(Mx5, "a1"), smartControl: false);
             Assert.That(status, Is.EqualTo(HttpStatusCode.BadRequest));

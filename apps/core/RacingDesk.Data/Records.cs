@@ -80,6 +80,39 @@ namespace RacingDesk.Data
         }
     }
 
+    /// <summary>What is known of a car's pedals beside its profile.</summary>
+    public sealed class CarPedalFacts
+    {
+        /// <summary>Laps without the ABS ever working, after which a car is taken to have none.</summary>
+        public const int LapsToSayNoAbs = 3;
+
+        public string CarPath { get; set; }
+        public string CarName { get; set; }
+
+        /// <summary>The brake force the car was last driven with, kilograms; null while none is known.</summary>
+        public double? ForceKg { get; set; }
+        public DateTime? ForceAtUtc { get; set; }
+
+        /// <summary>The car has published an ABS setting, or its ABS has been seen working.</summary>
+        public bool AbsSeen { get; set; }
+
+        /// <summary>Laps driven before any ABS was seen.</summary>
+        public int LapsWithoutAbs { get; set; }
+
+        /// <summary>
+        /// Yes once seen; no after enough laps of none — which a later sight of it puts right; null until then.
+        /// </summary>
+        public bool? HasAbs => AbsSeen ? true : LapsWithoutAbs >= LapsToSayNoAbs ? false : (bool?)null;
+
+        /// <summary>"rule", "driver", or "none" when the driver chose that the car has no profile; null when nobody has.</summary>
+        public string GivenBy { get; set; }
+
+        /// <summary>What the rule went by: "ABS", "no ABS", "a formula car".</summary>
+        public string GivenWhy { get; set; }
+
+        public DateTime SeenAtUtc { get; set; }
+    }
+
     /// <summary>What the header pass made of one ingested .ibt file.</summary>
     public sealed class ScannedFile
     {
