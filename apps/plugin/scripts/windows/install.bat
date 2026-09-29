@@ -97,20 +97,33 @@ if !ERRORLEVEL! NEQ 0 set "WAS_RUNNING=1"
 for %%P in (SimHubWPF SimHub SimHubElectron) do (
     powershell -NoProfile -Command "if (Get-Process -Name '%%P' -ErrorAction SilentlyContinue) { Stop-Process -Name '%%P' -Force -ErrorAction SilentlyContinue }" 2>NUL
 )
-:: Confirm it's down so the DLL/data copies don't hit file locks.
+:: Confirm it's down so the DLL/data copies don't hit file locks. The waits are PowerShell's: `timeout` quits at
+:: once ("Input redirection is not supported") when this runs without a console of its own, as from a tool.
 for /L %%I in (1,1,15) do (
     powershell -NoProfile -Command "if (-not (Get-Process -Name 'SimHubWPF' -ErrorAction SilentlyContinue)) { exit 0 } else { exit 1 }" 2>NUL
     if !ERRORLEVEL! == 0 goto :stopped
     set "WAS_RUNNING=1"
-    timeout /t 1 /nobreak >NUL
+    powershell -NoProfile -Command "Start-Sleep -Seconds 1" >NUL 2>&1
 )
 echo        WARNING: SimHub still running after 15s; force-killing.
 taskkill /F /IM SimHubWPF.exe /T >NUL 2>&1
-timeout /t 2 /nobreak >NUL
+powershell -NoProfile -Command "Start-Sleep -Seconds 2" >NUL 2>&1
+:: A SimHub started as administrator - by its own "run elevated" scheduled task, as on this rig - cannot be ended
+:: from a console that is not: Stop-Process and taskkill are both refused. Say so and install nothing, rather than
+:: copy over a DLL it holds.
+powershell -NoProfile -Command "if (Get-Process -Name 'SimHubWPF' -ErrorAction SilentlyContinue) { exit 1 } else { exit 0 }" 2>NUL
+if !ERRORLEVEL! NEQ 0 (
+    echo.
+    echo  ERROR: SimHub could not be closed. It is probably running as administrator.
+    echo         Exit it from its tray icon ^(right-click, Exit^) and run this again.
+    echo.
+    pause
+    exit /b 1
+)
 
 :stopped
 :: Tiny grace so the OS releases file handles.
-timeout /t 1 /nobreak >NUL
+powershell -NoProfile -Command "Start-Sleep -Seconds 1" >NUL 2>&1
 
 :: Belt-and-braces: kill any other PowerShell / pwsh process that
 :: pinned the plugin DLL via [Reflection.Assembly]::LoadFrom (e.g. an
@@ -227,10 +240,15 @@ if not exist "!SH_EXE!" (
     pause
     exit /b 1
 )
-start "" "!SH_EXE!"
-if %ERRORLEVEL% NEQ 0 (
-    echo        WARNING: 'start' returned %ERRORLEVEL%, retrying directly...
-    "!SH_EXE!"
+:: The way SimHub starts itself where it has one: its own "run elevated" scheduled task, which starts it as
+:: administrator without a UAC prompt. Otherwise the exe, as a shortcut would.
+powershell -NoProfile -Command "$t = Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { $_.Actions | Where-Object { $_.Execute -like '*\SimHubWPF.exe' } } | Select-Object -First 1; if ($t) { Start-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath; exit 0 } else { exit 1 }" 2>NUL
+if !ERRORLEVEL! NEQ 0 (
+    start "" "!SH_EXE!"
+    if !ERRORLEVEL! NEQ 0 (
+        echo        WARNING: 'start' returned !ERRORLEVEL!, retrying directly...
+        "!SH_EXE!"
+    )
 )
 echo        OK.
 
