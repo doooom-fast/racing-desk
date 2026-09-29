@@ -157,6 +157,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     mats = sub.add_parser("materials", help="list material presets")
     mats.set_defaults(func=cmd_materials)
+
+    fleet = sub.add_parser("fleet", help="one livery on every car that has a paint template")
+    fleet_sub = fleet.add_subparsers(dest="fleet_command")
+    f_status = fleet_sub.add_parser("status", help="which cars have the livery, and which could")
+    f_status.add_argument("--library", default=None)
+    f_status.add_argument("--json", action="store_true")
+    f_status.set_defaults(func=cmd_fleet_status)
+    f_build = fleet_sub.add_parser("build", help="build the livery into the library; waits while the sim runs")
+    f_build.add_argument("cars", nargs="*", help="paint folders; none means every car without the livery")
+    f_build.add_argument("--library", default=None)
+    f_build.add_argument("--cache", default=None, help="where templates are kept (default: the app's data folder)")
+    f_build.add_argument("--customer-id", default=None)
+    f_build.add_argument("--limit", type=int, default=None, help="stop once this many cars have been built")
+    f_build.add_argument("--force", action="store_true", help="rebuild versions this build wrote before")
+    f_build.add_argument("--uncompressed", action="store_true", help="write the TGAs without RLE")
+    f_build.add_argument("--report", default=None)
+    f_build.set_defaults(func=cmd_fleet_build)
+    f_panels = fleet_sub.add_parser("panels", help="a car's panels, to write its panel map from")
+    f_panels.add_argument("car")
+    f_panels.add_argument("--cache", default=None)
+    f_panels.add_argument("-n", type=int, default=14)
+    f_panels.set_defaults(func=cmd_fleet_panels)
+    f_logos = fleet_sub.add_parser("logos", help="fit the marks onto a car that has a panel map")
+    f_logos.add_argument("car")
+    f_logos.add_argument("--cache", default=None)
+    f_logos.set_defaults(func=cmd_fleet_logos)
     return parser
 
 
@@ -528,6 +554,153 @@ def cmd_materials(args) -> int:
             f"{name:15s} metallic {material.metallic:3d}  roughness {material.roughness:3d}  "
             f"clearcoat {material.clearcoat:3d}  mask {material.spec_mask:3d}  {material.description}"
         )
+    return 0
+
+
+def _fleet(args, config: Config):
+    """What the fleet commands look at: the library, the cars on the rig, the template table."""
+    from .fleet import cars as fleet_cars
+
+    from .fleet.build import state_of
+    from .fleet.shatter import MODES
+
+    library = Path(args.library) if args.library else config.library()
+    rows = fleet_cars.load()
+    painted = fleet_cars.painted(library)
+    status = []
+    for car in fleet_cars.on_the_rig(config.iracing_install_dir, rows, library):
+        target = painted.get(fleet_cars.fold(car), car)
+        states = {m: state_of(library, target, m) for m in MODES}
+        status.append({
+            "car": car,
+            "template": fleet_cars.for_folder(rows, car) is not None,
+            # A version is had when its paint is there, whoever made it.
+            "has": [m for m, s in states.items() if s in ("ours", "theirs")],
+            "ours": [m for m, s in states.items() if s == "ours"],
+            "painted": fleet_cars.fold(car) in painted,
+        })
+    return library, rows, status
+
+
+def _no_cars(config: Config) -> LiveryError:
+    where = config.iracing_install_dir or "nothing"
+    return LiveryError(f"no cars found: iracing_install_dir in livery.yaml names {where}, which holds no cars folder")
+
+
+def cmd_fleet_status(args) -> int:
+    from .fleet.shatter import MODES
+
+    config = _config(args)
+    library, _, status = _fleet(args, config)
+    if not status:
+        raise _no_cars(config)
+    if args.json:
+        print(json.dumps({"library": str(library), "cars": status}, indent=2))
+        return 0
+    done = [s for s in status if len(s["has"]) == len(MODES)]
+    can = [s for s in status if len(s["has"]) < len(MODES) and s["template"]]
+    cannot = [s for s in status if len(s["has"]) < len(MODES) and not s["template"]]
+    print(f"library {library}")
+    print(f"{len(status)} cars on the rig: {len(done)} have the livery, {len(can)} can be built, "
+          f"{len(cannot)} have no template address")
+    if cannot:
+        print("\nno template address (data/paint_templates.tsv has not met them):")
+        for s in cannot:
+            print(f"  {s['car']}")
+    return 0
+
+
+def cmd_fleet_build(args) -> int:
+    from .fleet import build as fleet_build
+    from .fleet import template as fleet_template
+    from .fleet.shatter import FIELD_NAME, MODES
+
+    config = _config(args)
+    library, rows, status = _fleet(args, config)
+    field = config.art_root / FIELD_NAME
+    if not field.exists():
+        raise LiveryError(f"no shard field at {field}")
+    ident = args.customer_id or config.customer_id or fleet_build.customer_id(library)
+    if not ident:
+        raise LiveryError("no customer id: the library holds no paint to read it from; pass --customer-id")
+    ident = fleet_build.require_customer_id(ident)
+
+    if args.cars:
+        folders = list(args.cars)
+    else:
+        if not status:
+            raise _no_cars(config)
+        # Every car short of a version, and with --force every car that has one of the build's own.
+        folders = [
+            s["car"] for s in status
+            if s["template"] and (len(s["has"]) < len(MODES) or (args.force and s["ours"]))
+        ]
+    if not folders:
+        print("nothing to build")
+        return 0
+
+    cache = Path(args.cache) if args.cache else fleet_template.default_cache()
+    report = Path(args.report) if args.report else cache / "fleet-report.json"
+    fleet_build.below_normal()
+    ahead = f"{len(folders)} car(s)" if args.limit is None else f"up to {args.limit} of {len(folders)} car(s)"
+    print(f"{ahead} → {library}", flush=True)
+    results = fleet_build.build_fleet(
+        folders, library, cache, ident, field, rows=rows, force=args.force, limit=args.limit,
+        rle=not args.uncompressed, report=report, log=lambda line: print(line, flush=True),
+    )
+    counts: dict[str, int] = {}
+    for r in results:
+        counts[r.outcome] = counts.get(r.outcome, 0) + 1
+    print("\n" + ", ".join(f"{n} {k}" for k, n in sorted(counts.items())) + f"   report → {report}")
+    return 0 if all(r.outcome in ("built", "there") for r in results) else 1
+
+
+def _fleet_work(args, patterns: bool):
+    """A car's work folder, read out of its template. Not while the sim runs: it is a minute of hard work."""
+    from .fleet import build as fleet_build
+    from .fleet import cars as fleet_cars
+    from .fleet import template as fleet_template
+
+    row = fleet_cars.for_folder(fleet_cars.load(), args.car)
+    if row is None:
+        raise LiveryError(f"no template address is known for {args.car}")
+    running = fleet_build.sim_running()
+    if running is not False:
+        raise LiveryError("the sim is running; this waits until it is not" if running
+                          else "cannot tell whether the sim is running; not started")
+    cache = Path(args.cache) if args.cache else fleet_template.default_cache()
+    fleet_build.below_normal()
+    work, _ = fleet_build.prepare(row, cache, patterns=patterns)
+    return row, work
+
+
+def cmd_fleet_panels(args) -> int:
+    from .fleet import logos
+
+    row, work = _fleet_work(args, patterns=True)
+    for line in logos.report(work, row.paint_folder, n=args.n):
+        print(line)
+    lines, sheet = logos.sheet(work, n=min(args.n, 10))
+    for line in lines[-1:]:
+        print(line)
+    if sheet:
+        print(f"panels → {sheet}")
+    print(f"map    → {logos.panel_map(work)}")
+    print(f"next: write src/livery/data/panels/{row.paint_folder}.json, then `livery fleet logos {args.car}`")
+    return 0
+
+
+def cmd_fleet_logos(args) -> int:
+    from .fleet import logos
+
+    cfg = logos.panel_config(args.car)
+    if cfg is None:
+        raise LiveryError(f"no panel map for {args.car}: `livery fleet panels {args.car}` shows its panels")
+    config = _config(args)
+    _, work = _fleet_work(args, patterns=False)
+    for line in logos.place(work, cfg, logos.Art(config.art_root)):
+        print(f"  {line}")
+    print(f"next: livery fleet build {args.car} --force")
     return 0
 
 

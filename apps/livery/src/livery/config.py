@@ -32,6 +32,9 @@ class Config:
     customer_id: str | None = None
     iracing_paint_dir: Path = field(default_factory=lambda: _default_documents() / "iRacing" / "paint")
     iracing_install_dir: Path | None = None
+    # The livery library the desk's Paints page reads: <library_dir>/<car>/<version>/. Where the fleet
+    # build writes. Default: the checkout the desk finds for itself, in the paint directory.
+    library_dir: Path | None = None
     profiles_dir: Path = field(default_factory=lambda: Path("profiles"))
     liveries_dir: Path = field(default_factory=lambda: Path("liveries"))
     art_root: Path = field(default_factory=lambda: Path("art"))
@@ -75,7 +78,7 @@ class Config:
 
     def _apply_env(self) -> None:
         for key in (
-            "customer_id", "iracing_paint_dir", "iracing_install_dir", "profiles_dir",
+            "customer_id", "iracing_paint_dir", "iracing_install_dir", "library_dir", "profiles_dir",
             "liveries_dir", "art_root", "build_dir", "templates_dir", "blender",
         ):
             env = os.environ.get(ENV_PREFIX + key.upper())
@@ -93,11 +96,21 @@ class Config:
         self.iracing_paint_dir = Path(self.iracing_paint_dir).expanduser()
         if self.iracing_install_dir:
             self.iracing_install_dir = Path(self.iracing_install_dir).expanduser()
+        # A blank library_dir is no library_dir: the default stands. A relative one is beside the config.
+        named = str(self.library_dir).strip() if self.library_dir is not None else ""
+        if named:
+            library = Path(named).expanduser()
+            self.library_dir = library if library.is_absolute() else (self.root / library).resolve()
+        else:
+            self.library_dir = None
 
     # ------------------------------------------------------------------ paths
 
     def paint_dir(self, car: str) -> Path:
         return self.iracing_paint_dir / car
+
+    def library(self) -> Path:
+        return self.library_dir or self.iracing_paint_dir / "doooom-iRacing-liveries" / "cars"
 
     def albedo_name(self, number_mode: str, ident: str) -> str:
         pattern = (

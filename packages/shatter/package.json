@@ -1,0 +1,14 @@
+{
+  "name": "@racing-desk/shatter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Doooom Shatter: the fracture engine that makes the shard field the liveries wear",
+  "license": "MIT",
+  "main": "core/fracture.js",
+  "bin": {
+    "doooom-shatter": "bin/doooom-shatter.mjs"
+  },
+  "scripts": {
+    "test": "node test/geometry.test.js"
+  }
+}

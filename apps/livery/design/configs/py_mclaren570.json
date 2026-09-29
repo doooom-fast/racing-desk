@@ -1,0 +1,111 @@
+{
+  "spec": "/Volumes/Claude/doooom/mx5-livery/work/py/spec_default.png",
+  "out": "/Volumes/Claude/doooom/mx5-livery/py_mclaren570/",
+  "name": "DOOOOM",
+  "base": [
+    248,
+    99,
+    0
+  ],
+  "layers": [
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mc_6_roof.png",
+      "color": [
+        16,
+        16,
+        16
+      ],
+      "rough": null,
+      "name": "Roof + windshield banner"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mc_1_intake.png",
+      "color": [
+        16,
+        16,
+        16
+      ],
+      "rough": null,
+      "name": "570S side intake, painted on the door"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mc_2_rear.png",
+      "color": [
+        16,
+        16,
+        16
+      ],
+      "rough": null,
+      "name": "570S rear bumper panel, behind the rear wheels"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mc_3_sill.png",
+      "color": [
+        16,
+        16,
+        16
+      ],
+      "rough": null,
+      "name": "Rocker sill band"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mc_4_lamps.png",
+      "color": [
+        16,
+        16,
+        16
+      ],
+      "rough": null,
+      "name": "570S headlight sockets"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mc_5_blade.png",
+      "color": [
+        16,
+        16,
+        16
+      ],
+      "rough": null,
+      "name": "Front lower blade"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mc_7_logos.png",
+      "color": [
+        16,
+        16,
+        16
+      ],
+      "rough": null,
+      "name": "Logos - black"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_13_rear.png",
+      "color": [
+        16,
+        16,
+        16
+      ],
+      "rough": null,
+      "name": "Rear - DOOOOM across the back"
+    }
+  ],
+  "underlay": [
+    "/Volumes/Claude/doooom/mx5-livery/work/py/g_car_decal.png"
+  ],
+  "chips": [
+    [
+      2022,
+      2044,
+      2022,
+      2044
+    ],
+    [
+      278,
+      308,
+      2011,
+      2041
+    ]
+  ],
+  "chip_color": "accent",
+  "number_blocks": "/Volumes/Claude/doooom/mx5-livery/work/py/g_Number_Blocks.png"
+}

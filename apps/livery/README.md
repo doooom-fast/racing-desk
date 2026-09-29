@@ -93,6 +93,45 @@ spec_overrides:
 | `livery bake <car> --mesh <file>` | UV-space bake in Blender (`--check` to verify one) |
 | `livery materials` / `livery swatches <car>` | material presets, and a calibration paint |
 
+## The fleet build
+
+One livery on every car: the DOOOOM shard field, in both directions (`shatter`, black with
+orange shards, and `shatter-inverted`), built from each car's own paint template and written
+into the livery library the desk's Paints page reads. It is the pipeline that painted the first
+seventeen cars, brought in from the library's `design/fleet` scripts and the three `iracing-*`
+skills, with every path an argument (`src/livery/fleet`).
+
+| | |
+|---|---|
+| `livery fleet status` | the cars on the rig: which have the livery, which can be built, which have no template address |
+| `livery fleet build [car ...]` | build into the library; with no car named, every car that lacks it (`--limit`, `--force`, `--uncompressed`) |
+| `livery fleet panels <car>` | a car's panels, numbered over its own stock scheme, to write its panel map from |
+| `livery fleet logos <car>` | fit the marks onto a car that has a panel map (`src/livery/data/panels/<car>.json`) |
+
+What a build needs from a car is its template, and iRacing publishes those with no login
+(`src/livery/data/paint_templates.tsv`). A template is fetched once into
+`%LOCALAPPDATA%\Racing Desk\templates\<car>\`, the guide layers and the spec map are read out
+of it into `work\`, and the PSD is dropped. Templates are iRacing's files: they are never
+committed and never passed on.
+
+The rules a build keeps:
+
+- **It does nothing while the sim runs.** A car is a minute of hard work; the build asks before
+  each one and waits.
+- **It never writes over a paint it did not make.** A version is this build's when its
+  `meta.json` says so; `--force` rebuilds those and leaves every other alone.
+- **The customer id is in file names and nowhere else**: not in a log line, the report or
+  `meta.json`. It is read from the library's own paints unless given.
+- **Logos need a look at the car.** The shard field lands on any sheet. A mark has to land on a
+  panel, the right way up, and which panel is which is read off the car's own stock schemes.
+
+`art/doooom/` holds the driver's marks and the shard field; `art/sponsors/` the sponsors'.
+`design/` is the library's scripts as they were written, for reading.
+
+```bash
+pip install -e ".[fleet,dev]"      # psd-tools and scipy
+```
+
 ## Art library
 
 ```

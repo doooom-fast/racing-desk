@@ -1,0 +1,131 @@
+{
+  "spec": "/Volumes/Claude/doooom/mx5-livery/work/py/spec_default.png",
+  "out": "/Volumes/Claude/doooom/mx5-livery/py_white_orange/",
+  "name": "DOOOOM",
+  "base": [
+    236,
+    236,
+    236
+  ],
+  "layers": [
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_4_dissolveA.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Ring dissolve A"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_4_dissolveB.png",
+      "color": [
+        255,
+        122,
+        26
+      ],
+      "rough": null,
+      "name": "Ring dissolve B"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_10_border.png",
+      "color": [
+        168,
+        42,
+        12
+      ],
+      "rough": 255,
+      "name": "Torn fringe border - sills"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_7_speedsports.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": 255,
+      "name": "SPEEDSPORTS matte - roof/trunk"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_6_wordmark.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "DOOOOM wordmark - sides"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_9_nose.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Hood lockup"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_11_banner.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Windshield banner - DOOOOM"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_12_blood.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Blood Incantation"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_8_sponsors.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Sponsor list - sides"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/mx5-livery/work/mx5_13_rear.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Rear - DOOOOM across the back"
+    }
+  ],
+  "underlay": [
+    "/Volumes/Claude/doooom/mx5-livery/work/py/g_car_decal.png"
+  ],
+  "chips": [
+    [
+      2022,
+      2044,
+      2022,
+      2044
+    ],
+    [
+      278,
+      308,
+      2011,
+      2041
+    ]
+  ],
+  "chip_color": "accent",
+  "number_blocks": "/Volumes/Claude/doooom/mx5-livery/work/py/g_Number_Blocks.png"
+}

@@ -1,0 +1,114 @@
+{
+  "spec": "/Volumes/Claude/doooom/zxt-livery/work/py/spec_default.png",
+  "out": "/Volumes/Claude/doooom/zxt-livery/py_v10/",
+  "name": "DOOOOM",
+  "base": [
+    10,
+    10,
+    10
+  ],
+  "layers": [
+    {
+      "png": "/Volumes/Claude/doooom/zxt-livery/work/zxt_4_dissolveA.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Ring dissolve A"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/zxt-livery/work/zxt_4_dissolveB.png",
+      "color": [
+        255,
+        122,
+        26
+      ],
+      "rough": null,
+      "name": "Ring dissolve B"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/zxt-livery/work/zxt_10_border.png",
+      "color": [
+        168,
+        42,
+        12
+      ],
+      "rough": 255,
+      "name": "Torn fringe border - side strips"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/zxt-livery/work/zxt_7_speedsports.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": 255,
+      "name": "SPEEDSPORTS matte - number panels"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/zxt-livery/work/zxt_6_wordmark.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "DOOOOM wordmark - side panels"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/zxt-livery/work/zxt_9_nose.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Nose lockup"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/zxt-livery/work/zxt_11_wing.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Rear wing - DOOOOM"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/zxt-livery/work/zxt_12_blood.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Blood Incantation - rear"
+    },
+    {
+      "png": "/Volumes/Claude/doooom/zxt-livery/work/zxt_8_sponsors.png",
+      "color": [
+        220,
+        55,
+        20
+      ],
+      "rough": null,
+      "name": "Sponsor list - side strips"
+    }
+  ],
+  "underlay": [
+    "/Volumes/Claude/doooom/zxt-livery/work/py/g_Car_Decal.png"
+  ],
+  "chips": [
+    [
+      2029,
+      2048,
+      2029,
+      2048
+    ]
+  ],
+  "chip_color": "accent"
+}

@@ -1,0 +1,4 @@
+[
+  {"name": "rear wing top",       "island": 1, "uv": [295, 5, 506, 475], "car": [1950, 1023, 2160, 1493], "mirror": false},
+  {"name": "rear wing underside", "island": 1, "uv": [9, 5, 271, 475],   "car": [2160, 1023, 1950, 1493], "mirror": true}
+]

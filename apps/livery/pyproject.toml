@@ -15,7 +15,10 @@ dependencies = [
 
 [project.optional-dependencies]
 templates = ["psd-tools>=1.9"]
-dev = ["pytest>=7.4"]
+# The fleet build (src/livery/fleet): reading templates, and finding patches and panels on a sheet.
+fleet = ["psd-tools>=1.9", "scipy>=1.11"]
+# The suite includes the fleet's tests, which find patches and panels with scipy.
+dev = ["pytest>=7.4", "scipy>=1.11"]
 
 [project.scripts]
 livery = "livery.cli:main"
@@ -24,7 +27,7 @@ livery = "livery.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-livery = ["data/*.yaml", "blender/*.py", "fonts/*"]
+livery = ["data/*.yaml", "data/*.tsv", "data/panels/*.json", "blender/*.py", "fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

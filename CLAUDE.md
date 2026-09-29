@@ -188,6 +188,9 @@ mounted the first time the page is shown. Its calls go through `apps/paints/src/
 `window.racingDesk.paints` → `paints:invoke` → `modules/js/paints-ipc.js` (the allow-list and argument mapping) →
 `modules/js/paints/` (the file operations, ported from the Rust in `apps/paints/src-tauri`). Backups live under
 `%LOCALAPPDATA%\Racing Desk\paints\backups`; what it remembers is the `paints` key of `overlay-settings.json`. The
+library is hundreds of paints, every command scans it, and the scan runs in the process the HUD's windows answer
+to — so a paint is hashed once: the hashes are kept beside the backups (`paints\hashes.json`, `digest.keepIn`), and
+an apply forgets only the folder it wrote into (`digest.forgetUnder`), never the library. The
 Tauri shell in `apps/paints` still builds from the same source and goes once the page has proved itself. Use made-up
 customer ids in fixtures.
 
@@ -242,7 +245,7 @@ copies it into SimHub — **ask before running it**, it replaces the installed p
 
 ```bash
 cd apps/livery
-python -m venv .venv && .venv/Scripts/python -m pip install -e ".[dev,templates]"
+python -m venv .venv && .venv/Scripts/python -m pip install -e ".[dev,templates,fleet]"
 .venv/Scripts/livery doctor         # paths, customer id, Blender, stale mips
 .venv/Scripts/livery cars scan      # the cars installed on the rig — folder names are paint folder names
 .venv/Scripts/python -m pytest -q
@@ -252,6 +255,28 @@ Imported from prodrive-agents#19. Use the real Python (`%LOCALAPPDATA%\Python\bi
 WindowsApps `python.exe` stub, which opens the Store and hangs. `livery.yaml` names the rig's install and Blender
 4.2. Builds stage in `apps/livery/build/`; `--install` copies into the paint folder, keeping a `.bak-` of what it
 replaces. Sponsor art beyond the two `sample-*` placeholders, paint templates and `data/cars.json` stay out of git.
+
+**The fleet build** (`apps/livery/src/livery/fleet`, `livery fleet status|build|panels|logos`) lays one livery —
+the DOOOOM shard field, as `shatter` and `shatter-inverted` — on every car that has a paint template, and writes it
+into the library the Paints page reads, where a version name shared by cars is a group by itself. It is the library's
+own `design/fleet` scripts and the skills `iracing-paint-templates`, `iracing-livery-placement` and
+`iracing-paint-install` (all three now in `.claude/skills/`), with the paths of the machine they were written on
+taken out. The rules it is built on, each with a test in `apps/livery/tests/test_fleet*.py`:
+- **Templates are iRacing's files.** They are public (no login; `data/paint_templates.tsv` holds the addresses, and
+  only an `https://ir-core-sites.iracing.com/…zip` is ever fetched), they are kept in
+  `%LOCALAPPDATA%\Racing Desk\templates\`, and they are never committed or passed on. Out of an archive comes the PSD
+  and nothing else, under its own file name.
+- **Nothing heavy while the sim runs.** The build asks before each car and waits; `panels` and `logos` refuse.
+- **A paint the build did not make is never written over** — `meta.json`'s `source` says whose a version is, and
+  `--force` rebuilds only the build's own. The seventeen cars painted before carry logos this machine cannot yet
+  repeat.
+- **The customer id is in file names only.** It is read from the library's paints, and appears in no log line,
+  report or `meta.json`.
+- **The field is the fleet's** (`art/doooom/shatter-field.png`, recovered from the 34 paints already in the library),
+  so a car painted here matches the cars painted before it. `packages/shatter` is the engine that makes a new one
+  (`IMPORTED.md` there says what of it is wired).
+- **Logos wait on two things**: the sponsors' masks (`art/sponsors/masks/`, still on the machine that made them) and
+  a panel map per car (`data/panels/<car>.json`), which takes a look at the car's own stock schemes.
 
 ## Dev loop (overlay design work — parked until Phase 5)
 

@@ -1,0 +1,10 @@
+node_modules/
+test/out/
+mcp/test/out/
+*.log
+.DS_Store
+
+# local render smoke tests
+out_*.svg
+out_*.png
+*_preview.png
