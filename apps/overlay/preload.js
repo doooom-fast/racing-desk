@@ -44,11 +44,11 @@ contextBridge.exposeInMainWorld('racingDesk', {
   onSettingsSync: (callback) => {
     ipcRenderer.on('settings-sync', (event, settings) => callback(settings));
   },
-  // Desk window: main.js asks for a page (tray menu → Cars / Paints / Settings) while the window is already open.
+  // Desk window: main.js asks for a page (tray menu → Cars / Settings) while the window is already open.
   onShowPage: (callback) => {
     ipcRenderer.on('show-page', (_event, page) => callback(page));
   },
-  // Desk window, Paints page: the livery manager's commands (modules/js/paints, dispatched by main.js's
+  // Desk window, Cars page: the livery manager's commands (modules/js/paints, dispatched by main.js's
   // paints:invoke) and the bits of the shell it needs. main.js answers { value } or { error } — Electron would
   // otherwise wrap a thrown error's message in its own — so invoke rejects with the command's own message here.
   paints: {
@@ -61,10 +61,13 @@ contextBridge.exposeInMainWorld('racingDesk', {
     reveal: (p) => ipcRenderer.invoke('paints:reveal', p),
     openPath: (p) => ipcRenderer.invoke('paints:openPath', p),
   },
-  // Desk window, Cars page: give a car one of SmartControl's pedal profiles, or none (null). The host refuses
-  // writes from pages, so main.js makes the request (rig:bindPedals, modules/js/rig-api.js). It resolves to
-  // { ok: true, car } or { ok: false, error } — what went wrong is an answer, not a rejection.
+  // Desk window, Cars page: what the host keeps per car, asked for by main.js (modules/js/rig-api.js) so that
+  // the page builds no address of its own. read resolves to { cars, views, pedals }, each { value },
+  // { missing: true } or { error }. bindPedals gives a car one of SmartControl's pedal profiles, or none (null)
+  // — the host refuses writes from pages — and resolves to { ok: true, car } or { ok: false, error }. What went
+  // wrong is an answer, not a rejection, in both.
   rig: {
+    read: () => ipcRenderer.invoke('rig:read'),
     bindPedals: (carPath, profileId) => ipcRenderer.invoke('rig:bindPedals', carPath, profileId),
   },
   // Ambient light — screen capture moved to C# plugin (ScreenColorSampler).
@@ -88,16 +91,14 @@ contextBridge.exposeInMainWorld('racingDesk', {
   onPresetQualifying: (callback) => { ipcRenderer.on('preset-qualifying', () => callback()); },
   // Stream Deck plugin install
   installStreamDeckPlugin: () => ipcRenderer.invoke('install-streamdeck-plugin'),
-  // In-car state — drives overlay-window show/hide. Renderer → main:
-  // called by poll-engine on every debounced in-car flip.
-  notifyInRaceState: (isInRace) => ipcRenderer.invoke('notify-in-race-state', isInRace),
-  // Main → renderer: subscribe to in-race flips (used by the web-app window
-  // to render live session status without duplicating the polling logic).
+  // In the car or not. main.js decides (modules/js/hud-visibility.js) and tells the HUD's page, which polls and
+  // draws only while he is in; the page tells main nothing. inCarFromMain is how the page knows it has a main
+  // process to wait for — on an iPad or in a browser it has none, and decides for itself.
+  inCarFromMain: true,
   onInRaceState: (callback) => {
     ipcRenderer.on('in-race-state', (_event, isInRace) => callback(isInRace));
   },
-  // Main → renderer: read the current in-race state synchronously on load
-  // (so the web window can decide initial UI without waiting for a flip).
+  // The state as it is now, for a page that started listening after it was last sent.
   getInRaceState: () => ipcRenderer.invoke('get-in-race-state'),
   // Screen recording
   startRecording: (opts) => ipcRenderer.invoke('start-recording', opts),

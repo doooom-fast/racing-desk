@@ -19,6 +19,7 @@ const bundleWriter   = require('./modules/js/bundle-writer');
 const replayDirector = require('./modules/js/replay-director');
 const { isAllowedExternalUrl } = require('./modules/js/external-links');
 const hostLauncher = require('./modules/js/host-launcher');
+const hudVisibility = require('./modules/js/hud-visibility');
 const settingsFile = require('./modules/js/settings-file');
 const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
@@ -180,8 +181,8 @@ function localHostUrl() {
 // desk.html reads its host from the query once, at load: reload it if the host has changed since — a desk
 // opened from the tray or Ctrl+Shift+O while startLocalHost() was still deciding would otherwise stay pointed
 // at SimHub.
-// `page` is one of the desk's pages — desk, cars, paints, settings (desk.js showPage); without one, the desk
-// opens where it was.
+// `page` is one of the desk's pages — desk, cars, settings (desk.js showPage); without one, the desk opens where
+// it was.
 function loadDesk(page) {
   deskHost = localHostUrl();
   const query = { host: deskHost };
@@ -263,30 +264,57 @@ function createTray() {
   const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
   tray = new Tray(path.join(__dirname, 'images', 'branding', iconFile));
   tray.setToolTip('Racing Desk');
-  tray.setContextMenu(Menu.buildFromTemplate([
+  trayMenu = Menu.buildFromTemplate([
     { label: 'Open desk', click: () => showDesk('desk') },
-    { label: 'Cars', click: () => showDesk('cars') },
-    { label: 'Paints', click: () => showDesk('paints') },
+    { label: 'Cars', click: () => showDesk('cars') },   // liveries, view and pedals: one page
     { label: 'Settings', click: () => showDesk('settings') },
     { type: 'separator' },
-    { label: 'HUD on/off', click: () => dispatchAction('toggle-overlay') },
+    // Ticked while the HUD is switched on. Out of the car the window is hidden either way, so the tick is the
+    // only place the switch can be seen.
+    { id: 'hud', label: 'HUD on/off', type: 'checkbox', checked: true, click: () => { dispatchAction('toggle-overlay'); tickHudSwitch(); } },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
-  ]));
+  ]);
+  tray.setContextMenu(trayMenu);
   tray.on('click', () => showDesk());          // a single click is what people try first on Windows
   tray.on('double-click', () => showDesk());
 }
-let isInRace = false;            // true when poll-engine reports live car data (drives overlay visibility)
+let trayMenu = null;
 let rendererCrashCount = 0;
 
-// ── Session-gated visibility ─────────────────────────────────
-// The overlay window is created hidden and only shown while there is
-// live car data to display. poll-engine (in the renderer) flips isInRace
-// via IPC when the driver is in the car (gameRunning && session active,
-// or demo mode). When not in a car the window stays hidden AND the
-// renderer goes dormant (slow poll, paused FX) so the overlay never
-// competes with the sim for CPU/GPU/network — notably while iRacing
-// loads its anti-cheat at the menus. There is no "logo-only" idle screen.
+// ── The HUD is on screen only while the driver is in the car ──
+// The window is made hidden and modules/js/hud-visibility.js is the only thing that reveals it: while the
+// telemetry says he is in the car (modules/js/in-car.js), he has not switched the HUD off, and the page is
+// loaded. It is this process that asks the telemetry — once a second, twice in the car — and tells the page
+// (in-race-state); out of the car the page neither polls nor draws, so at the sim's menus, in the garage, in a
+// replay, with the sim closed, the HUD costs a request a second and nothing is ever quit to get it off the screen.
+// The garage and the replay are told from the car by the telemetry's own IsOnTrack, which the app's host sends;
+// a source that sends none (a SimHub plugin from before 2026-09-29) has a session under way taken for in the car.
+// Ctrl+Shift+H, the tray's switch and the Stream Deck's are the driver's own switch, kept until the app is quit:
+// off stays off when he gets in, on shows nothing while he is out. Dev mode's window stays as dev-mode.js put it.
+const hud = hudVisibility.createHudVisibility({
+  getWindow: () => overlayWindow,
+  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
+  keepVisible: isDev,
+  onSwitch: () => tickHudSwitch(),
+  log: logToFile,
+});
+
+// Where the HUD's page reads its telemetry. The settings are read again every ten seconds, not every poll.
+let hudTelemetry = { url: null, readAt: 0 };
+function hudTelemetryUrl() {
+  if (!hudTelemetry.url || Date.now() - hudTelemetry.readAt > 10000) {
+    const replayPort = devMode ? devMode.readArgs().replayPort : null;
+    hudTelemetry = { url: hudVisibility.telemetryUrl(loadSettingsSync().simhubUrl, { replayPort }), readAt: Date.now() };
+  }
+  return hudTelemetry.url;
+}
+
+function tickHudSwitch() {
+  const item = trayMenu && trayMenu.getMenuItemById('hud');
+  if (item) item.checked = !hud.state().hudOff;
+}
+
 // Single dashboard: vanilla TypeScript build (Vite-bundled, single-file HTML)
 const DASHBOARD_FILE = 'dashboard.html';
 
@@ -319,7 +347,7 @@ async function createOverlay() {
     x:      overlayBounds.x,
     y:      overlayBounds.y,
     icon: path.join(__dirname, 'images', 'branding', 'icon.png'),
-    // Created hidden — shown only while there is live car data (isInRace).
+    // Created hidden — shown only while the driver is in the car (hud, above).
     show: false,
     frame: false,
     alwaysOnTop: true,
@@ -344,14 +372,21 @@ async function createOverlay() {
   overlayWindow.setIgnoreMouseEvents(true, { forward: true });
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   if (devMode) devMode.attach(overlayWindow, { rootDir: __dirname, log: logToFile });
+  // A page being loaded — the first time, after a crash, on resume — is nothing to look at, and once loaded it
+  // has to be told afresh whether he is in the car.
+  overlayWindow.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) hud.pageGone();
+  });
   loadDashboard();
-  logToFile('[RacingDesk] Overlay created hidden — awaiting live car data (isInRace)');
+  logToFile('[RacingDesk] Overlay created hidden — shown while the driver is in the car');
 
   overlayWindow.webContents.on('did-finish-load', () => {
     rendererCrashCount = 0;
+    hud.pageLoaded();
   });
 
-  overlayWindow.on('closed', () => { overlayWindow = null; });
+  overlayWindow.on('closed', () => { hud.stop(); overlayWindow = null; });
+  hud.start();
 
   // ── Reflow overlay when system UI changes ──
   // Windows: taskbar auto-hide changes workArea — reflow to full bounds.
@@ -389,6 +424,7 @@ async function createOverlay() {
   // ── Crash recovery ──────────────────────────────────────────
   overlayWindow.webContents.on('render-process-gone', (_event, details) => {
     logToFile(`[RacingDesk] Renderer crashed: ${details.reason}`);
+    hud.pageGone();
     if (details.reason === 'crashed' || details.reason === 'killed') {
       rendererCrashCount++;
       if (rendererCrashCount > 3) {
@@ -573,10 +609,7 @@ app.whenReady().then(async () => {
   // ── GLOBAL HOTKEYS ──
 
   globalShortcut.register('CommandOrControl+Shift+H', () => {
-    if (overlayWindow) {
-      if (overlayWindow.isVisible()) overlayWindow.hide();
-      else overlayWindow.show();
-    }
+    dispatchAction('toggle-overlay');
   });
 
   globalShortcut.register('CommandOrControl+Shift+R', () => {
@@ -651,12 +684,8 @@ app.on('will-quit', () => {
 
 const _actionHandlers = {
   // ── Window / App ──
-  'toggle-overlay': () => {
-    if (!overlayWindow) return { ok: false, reason: 'no window' };
-    if (overlayWindow.isVisible()) overlayWindow.hide();
-    else overlayWindow.show();
-    return { ok: true, visible: overlayWindow.isVisible() };
-  },
+  // The driver's switch, not the window's: see hud, above.
+  'toggle-overlay': () => hud.toggle(),
   'toggle-settings': () => {
     // Settings UI lives in the WinUI host now. Deep-link via the
     // racing-desk-native:// protocol scheme the host registers — activating
@@ -830,35 +859,12 @@ ipcMain.handle('install-streamdeck-plugin', async () => {
   }
 });
 
-// ── IPC: In-car state (drives overlay window visibility) ──
-// poll-engine (in the renderer) emits this on every debounced flip
-// between "live car data" and "not in a car". The window is shown only
-// while in a car and hidden otherwise, so the overlay is never on-screen
-// — or competing with the sim for resources — at the menus.
-ipcMain.handle('notify-in-race-state', async (_event, inRace) => {
-  if (inRace === isInRace) return;   // no change
-  isInRace = !!inRace;
-  if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  if (isDev) return;   // dev mode: window stays visible + interactive
-
-  if (isInRace) {
-    // Reveal the overlay without stealing focus from the game.
-    overlayWindow.showInactive();
-    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-    overlayWindow.setFocusable(false);
-    logToFile('[RacingDesk] In-car → overlay revealed');
-  } else {
-    overlayWindow.hide();
-    logToFile('[RacingDesk] Out of car → overlay hidden');
-  }
-});
-
-// Expose the current in-race state so the web window can decide initial UI
-// on load (rather than waiting for the next flip — which may not come for
-// minutes if the user is already in a steady state).
+// ── IPC: In the car or not ──
+// Decided here (hud, above) and sent to the HUD's page as in-race-state on each change, and once more whenever
+// the page has been loaded. A page asks for it as it starts, in case that was sent before it was listening.
+// Nothing a page says shows or hides the window.
 ipcMain.handle('get-in-race-state', async () => {
-  return isInRace;
+  return hud.state().inCar;
 });
 
 // ── IPC: Screen recording ──────────────────────────────────────
@@ -1460,7 +1466,7 @@ ipcMain.handle('get-dashboard-mode', async () => {
   return 'build';
 });
 
-// ── IPC: Paints — the livery manager on the desk's Paints page ──
+// ── IPC: Paints — the livery manager on the desk's Cars page ──
 // The UI (apps/paints/src, bundled into the desk by apps/paints/build-island.mjs) asks for everything over
 // paints:invoke; modules/js/paints does the file work, in this process. modules/js/paints-ipc.js says which names
 // may be called and how their arguments are passed on. The handler answers { value } or { error } rather than
@@ -1524,16 +1530,23 @@ ipcMain.handle('paints:openPath', async (event, p) => {
   if (isFolder) await shell.openPath(p);
 });
 
-// ── IPC: Rig — the desk's Cars page ──
-// The page reads what the host has recorded per car straight from the host. Its one write — which SmartControl
-// profile a car is driven with — comes through here: the host answers 403 to any request carrying an Origin
-// header, which every request from a page does, so the POST is made by this process (modules/js/rig-api.js), to
-// the host the desk reads from. It answers { ok: true, car } or { ok: false, error } and never throws; the page
-// shows either beside the car's select.
+// ── IPC: Rig — a car's view and pedals, on the desk's Cars page ──
+// What the host has recorded per car is asked for by this process (modules/js/rig-api.js), not by the page: the
+// page builds no address of its own, and the host it is asked of is one on this machine. rig:read answers the
+// host's cars, views and pedals, each as { value }, { missing: true } or { error }. The one write — which
+// SmartControl profile a car is driven with — comes through here too: the host answers 403 to any request
+// carrying an Origin header, which every request from a page does. It answers { ok: true, car } or
+// { ok: false, error }; neither ever throws, and the page shows what it is given beside the car.
 const rig = rigApi.createRigApi({ host: () => localHostUrl() });
+const RIG_NOT_DESK = 'The Cars page belongs to the desk window.';
+
+ipcMain.handle('rig:read', async (event) => {
+  if (!fromDesk(event)) return rigApi.unread(RIG_NOT_DESK);
+  return rig.read();
+});
 
 ipcMain.handle('rig:bindPedals', async (event, carPath, profileId) => {
-  if (!fromDesk(event)) return { ok: false, error: 'The Cars page belongs to the desk window.' };
+  if (!fromDesk(event)) return { ok: false, error: RIG_NOT_DESK };
   // A car path of 1–200 characters; a profile id of at most 200, or null for none. Nothing else is sent on.
   const problem = rigApi.bindingProblem(carPath, profileId);
   if (problem) return { ok: false, error: problem };

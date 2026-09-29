@@ -225,6 +225,12 @@ namespace RacingDesk.Plugin.Engine
         // ── Grid / Formation lap state ─────────────────────────────────────
         // SessionState: iRacing → 0=Invalid, 1=GetInCar, 2=Warmup, 3=ParadeLaps, 4=Racing, 5=Checkered, 6=Cooldown
         public int    SessionState      { get; set; }
+        /// <summary>
+        /// The driver is in the car — on track or in the pits, the sim's physics running for him — and not at
+        /// the garage screen or watching a replay. Null where the sim has no such thing to say: a session under
+        /// way is then all there is to go on, and the HUD goes on that.
+        /// </summary>
+        public bool?  InCar             { get; set; }
         /// <summary>Number of cars that have left pit road and are on track.</summary>
         public int    GriddedCars       { get; set; }
         /// <summary>Total car count in the session.</summary>

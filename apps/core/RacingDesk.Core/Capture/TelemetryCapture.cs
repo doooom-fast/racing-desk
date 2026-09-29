@@ -660,6 +660,7 @@ namespace RacingDesk.Plugin.Engine
 
             // ── Grid / Formation state ────────────────────────────────────
             s.SessionState = GetRaw<int>(pm, "SessionState");
+            s.InCar        = InCar(pm);
             s.PaceMode     = GetRaw<int>(pm, "PaceMode");
             // Track country — only use SimHub fallback if SDK bridge didn't already provide it
             if (string.IsNullOrEmpty(s.TrackCountry))
@@ -921,6 +922,36 @@ namespace RacingDesk.Plugin.Engine
 
         private static T Coalesce<T>(T primary, T fallback) where T : IComparable<T>
             => primary.CompareTo(default(T)) != 0 ? primary : fallback;
+
+        /// <summary>
+        /// iRacing's IsOnTrack, and not a replay of it. Null from a sim that publishes no such variable: nothing
+        /// is said rather than "out of the car", which would hide the HUD for good.
+        /// </summary>
+        internal static bool? InCar(ITelemetrySource pm)
+        {
+            try
+            {
+                object onTrack = pm.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnTrack");
+                if (onTrack == null) return null;
+                return Flag(onTrack) && !Flag(pm.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsReplayPlaying"));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool Flag(object value)
+        {
+            if (value is bool b) return b;
+            if (value is IConvertible c)
+            {
+                try { return c.ToDouble(System.Globalization.CultureInfo.InvariantCulture) != 0; }
+                catch (FormatException) { return string.Equals(value as string, "true", StringComparison.OrdinalIgnoreCase); }
+                catch (InvalidCastException) { return false; }
+            }
+            return false;
+        }
 
         private static T GetRaw<T>(ITelemetrySource pm, string name, string prefix = null)
         {

@@ -1,13 +1,12 @@
 // Records the plugin's localhost:8889 payload at a fixed rate into a replay file.
 
+import { createRequire } from 'node:module';
 import { createRecordingWriter } from './format.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Mirrors the overlay's visibility rule (poll-engine.js): demo mode, or game running with a session.
-export const inCar = (p) =>
-  Number(p['RacingDesk.Plugin.DemoMode']) === 1 ||
-  (Number(p['DataCorePlugin.GameRunning']) === 1 && Number(p['RacingDesk.Plugin.Grid.SessionState']) > 0);
+// The HUD's own rule, not a copy of it: --only-in-car keeps the frames the HUD would be on screen for.
+export const { inCar } = createRequire(import.meta.url)('../../../apps/overlay/modules/js/in-car.js');
 
 export async function record({ url, out, hz = 30, durationSec = 0, onlyInCar = false, signal, log = () => {}, onFrame = () => {} }) {
   const writer = createRecordingWriter(out, { source: url, startedAt: new Date().toISOString(), hz, onlyInCar });

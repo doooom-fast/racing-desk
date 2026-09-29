@@ -349,12 +349,11 @@ let _isIRacing = true;
 let _isRally = false;
 let _rallyModeEnabled = false;
 let _isIdle = true;            // true when not in a car — gates the heavy render path
-// isInRace signal — owned by poll-engine, consumed by main via IPC to show/
-// hide the overlay window. _isIdle is the immediate (undebounced) in-car gate
-// for the renderer's own skip-render; _prevInRace is the debounced edge-trigger
-// that drives window visibility AND the active/dormant workload switch.
+// In the car or not (in-car.js). _isIdle is the immediate, per-frame gate for
+// the renderer's own skip-render; _prevInRace is the steadied one — leaving has
+// to last two seconds — that switches the page between active and dormant. In
+// the app main.js decides it and tells the page; see poll-engine.js _setInCar.
 let _prevInRace = false;
-let _inRaceLeaveTimer = null;
 let _cycleFrameCount = 0;
 let _cycleLastSwitch = 0;
 let _prevLap = 0;

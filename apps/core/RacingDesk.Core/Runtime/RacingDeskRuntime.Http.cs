@@ -830,6 +830,8 @@ namespace RacingDesk.Plugin
 
                     // ── Grid / Formation state ──
                     Jp(sb, "RacingDesk.Plugin.Grid.SessionState", s.SessionState);
+                    // Only where the sim says: a key that is sent is believed, and a constant 0 would hide the HUD for good.
+                    if (s.InCar.HasValue) Jp(sb, "DataCorePlugin.GameRawData.Telemetry.IsOnTrack", s.InCar.Value ? 1 : 0);
                     Jp(sb, "RacingDesk.Plugin.Grid.GriddedCars", s.GriddedCars);
                     Jp(sb, "RacingDesk.Plugin.Grid.TotalCars", s.TotalCars);
                     Jp(sb, "RacingDesk.Plugin.Grid.PaceMode", s.PaceMode);

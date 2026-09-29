@@ -10,7 +10,7 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 
 - **HTTP API**: `GET http://localhost:8889/racing-desk/`
 - **Response**: Flat JSON object with 100+ properties (telemetry, commentary, strategy)
-- **Polling**: `fetchProps()` in `poll-engine.js` issues a GET every 33ms (~30fps)
+- **Polling**: `fetchProps()` in `poll-engine.js` issues a GET every 33ms (~30fps) while the driver is in the car, and none out of it — the main process asks once a second and tells the page (root CLAUDE.md, Desk)
 - **Backoff**: Exponential on failure (1s → 2s → 4s → 8s, capped at 10s)
 - **Demo mode**: Reads from `RacingDesk.Plugin.Demo.*` properties instead — switching is transparent
 - **Contract rule**: Any change to JSON property names consumed by this overlay must be coordinated with the plugin
@@ -131,7 +131,7 @@ No CI — run locally.
 |----------|--------|
 | `Ctrl+Shift+S` | Toggle settings/move mode |
 | `Ctrl+Shift+F` | Toggle Drive HUD mode (fullscreen) |
-| `Ctrl+Shift+H` | Hide/show overlay |
+| `Ctrl+Shift+H` | Switch the HUD off/on (on, it is on screen only in the car) |
 | `Ctrl+Shift+G` | Toggle green-screen mode |
 | `Ctrl+Shift+R` | Reset position and size |
 | `Ctrl+Shift+D` | Restart demo sequence |

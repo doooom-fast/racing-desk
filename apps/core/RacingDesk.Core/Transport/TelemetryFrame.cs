@@ -444,6 +444,8 @@ namespace RacingDesk.Plugin.Transport
 
             // Grid state
             dict["RacingDesk.Plugin.Grid.SessionState"] = s.SessionState;
+            // Only where the sim says: a key that is sent is believed, and a constant 0 would hide the HUD for good.
+            if (s.InCar.HasValue) dict["DataCorePlugin.GameRawData.Telemetry.IsOnTrack"] = s.InCar.Value ? 1 : 0;
             dict["RacingDesk.Plugin.Grid.GriddedCars"] = s.GriddedCars;
             dict["RacingDesk.Plugin.Grid.TotalCars"] = s.TotalCars;
             dict["RacingDesk.Plugin.Grid.PaceMode"] = s.PaceMode;

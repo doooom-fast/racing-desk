@@ -2754,13 +2754,19 @@
     // FX loop does zero work at the menus (the GL context stays warm for an
     // instant resume). Starts false — boot is dormant.
     let _fxActive = false;
+    let _fxFrame = 0;   // the frame asked for; 0 while dormant, when none is
     function fxLoop(now) {
       const dt = Math.min((now - _lastFXTime) / 1000, 0.05); // cap at 50ms
       _lastFXTime = now;
-      // Skip the FX work while dormant (not in a car) or when WebGL effects
-      // are disabled. Keep rescheduling so we resume instantly on reactivate.
-      if (!_fxActive || (typeof _settings !== 'undefined' && _settings.showWebGL === false)) {
-        requestAnimationFrame(fxLoop);
+      // Dormant (not in a car): no work and no next frame — a hidden window's frames still run, so an idle
+      // loop would go round for nothing. setGLFXActive starts it again.
+      if (!_fxActive) {
+        _fxFrame = 0;
+        return;
+      }
+      // WebGL effects disabled: skip the work, keep rescheduling so they resume when switched back on.
+      if (typeof _settings !== 'undefined' && _settings.showWebGL === false) {
+        _fxFrame = requestAnimationFrame(fxLoop);
         return;
       }
       if (window._tachoFXFrame) window._tachoFXFrame(dt);
@@ -2775,12 +2781,16 @@
       if (window._mfrFlagFXFrame) window._mfrFlagFXFrame(dt);
       if (window._gridFlagFXFrame) window._gridFlagFXFrame(dt);
       if (window._glareFXFrame) window._glareFXFrame(dt);
-      requestAnimationFrame(fxLoop);
+      _fxFrame = requestAnimationFrame(fxLoop);
     }
-    requestAnimationFrame((now) => { _lastFXTime = now; requestAnimationFrame(fxLoop); });
 
     // Active/dormant switch — driven by poll-engine setOverlayActive().
-    window.setGLFXActive = function(on) { _fxActive = !!on; };
+    window.setGLFXActive = function(on) {
+      _fxActive = !!on;
+      if (_fxActive && !_fxFrame) {
+        _fxFrame = requestAnimationFrame((now) => { _lastFXTime = now; _fxFrame = requestAnimationFrame(fxLoop); });
+      }
+    };
 
     /* ── Public API for main update loop ── */
     window.updateGLFX = function(rpmRatio, thr, brk, clt) {

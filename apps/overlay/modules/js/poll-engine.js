@@ -83,6 +83,29 @@
     });
   }
 
+  // ─── In the car or not ───
+  // modules/js/in-car.js says what in the car means. In the app it is main.js that asks it and tells this page
+  // (in-race-state): out of the car the window is hidden and the page does nothing — no poll, no frames, no
+  // effects — and it is not for a hidden page to notice that the driver is back in. A page with no main process
+  // behind it (an iPad, a browser, OBS) has to notice for itself, so it goes on polling once a second.
+  const _mainDecides = !window._remoteMode && !!window.racingDesk && window.racingDesk.inCarFromMain === true
+    && typeof window.racingDesk.onInRaceState === 'function' && typeof window.racingDesk.getInRaceState === 'function';
+  const _inCarSignal = _mainDecides ? null : RacingDeskInCar.createInCarSignal({ onChange: _setInCar });
+
+  function _setInCar(inCar) {
+    inCar = !!inCar;
+    if (inCar === _prevInRace) return;
+    _prevInRace = inCar;
+    if (inCar) {
+      if (_mainDecides) _snapshotDirty = false;   // what was last read is from the last time he was in
+    } else if (!_isIdle) {
+      // Out with no frame to say so (the source went quiet): the flag the other modules read still has to change.
+      _isIdle = true;
+      document.body.classList.add('idle-state');
+    }
+    setOverlayActive(inCar);
+  }
+
   // ─── Data fetch loop (runs on setInterval — decoupled from display) ───
   async function pollUpdate() {
     if (_pollActive) return;
@@ -93,6 +116,8 @@
         _latestSnapshot = p;
         _snapshotDirty = true;
       }
+      // Every poll, answered or not: a source that has gone quiet is out of the car too.
+      if (_inCarSignal) _inCarSignal.feed(p);
     } catch (err) {
       console.error('[K10 poll] Fetch error:', err);
     } finally {
@@ -101,20 +126,23 @@
   }
 
   // ─── Poll-rate control + active/dormant switch ───
-  // The overlay is "active" only while there is live car data on screen.
-  // When dormant we slow the SimHub poll and pause the FX + ambient loops so
-  // the renderer stops competing with the sim for CPU/GPU/network. This is
-  // required, not just nice-to-have: the anti-throttling switches in main.js
-  // keep timers + rAF running at full speed even when the window is hidden,
-  // so the renderer has to self-regulate. Driven by the debounced in-car
-  // edges (not the immediate _isIdle) so brief session-state dips don't flap.
+  // The overlay is "active" only while the driver is in the car. Dormant, the FX + ambient loops are paused, and
+  // the poll and the frames stop altogether when main.js decides (slow to once a second when the page has to
+  // notice for itself). This is required, not just nice-to-have: the anti-throttling switches in main.js keep
+  // timers + rAF running at full speed even when the window is hidden, so the renderer has to self-regulate.
   function setPollRate(ms) {
     if (_pollIntervalId) clearInterval(_pollIntervalId);
-    _pollIntervalId = setInterval(pollUpdate, ms);
+    _pollIntervalId = ms ? setInterval(pollUpdate, ms) : null;
   }
 
   function setOverlayActive(active) {
-    setPollRate(active ? POLL_MS : IDLE_POLL_MS);
+    if (active || !_mainDecides) {
+      setPollRate(active ? POLL_MS : IDLE_POLL_MS);
+      _startFrames();
+    } else {
+      setPollRate(0);
+      _stopFrames();
+    }
     // The page on an iPad shows the drive view, which has none of the effects: drawing them where nobody sees
     // them costs it its frame rate.
     var effects = active && !window._remoteMode;
@@ -128,13 +156,20 @@
   }
 
   // ─── rAF render loop — DOM writes synchronized to display refresh rate ───
+  let _rafId = 0;
   function _rafLoop() {
-    requestAnimationFrame(_rafLoop);
+    _rafId = requestAnimationFrame(_rafLoop);
     if (!_snapshotDirty || !_latestSnapshot) return;
     _snapshotDirty = false;
     _renderFrame(_latestSnapshot);
   }
-  requestAnimationFrame(_rafLoop);
+  function _startFrames() {
+    if (!_rafId) _rafId = requestAnimationFrame(_rafLoop);
+  }
+  function _stopFrames() {
+    if (_rafId) cancelAnimationFrame(_rafId);
+    _rafId = 0;
+  }
 
   // ─── Render frame — all DOM reads/writes happen here, once per display frame ───
   function _renderFrame(p) {
@@ -173,12 +208,6 @@
     const d = (gameKey, demoKey) => _demo ? v('RacingDesk.Plugin.' + demoKey) : v(gameKey);
     const ds = (gameKey, demoKey) => _demo ? vs('RacingDesk.Plugin.' + demoKey) : vs(gameKey);
 
-    // ─── In-car detection ───
-    // Always use REAL game state here (never demo-swapped), so the overlay
-    // stays dormant/hidden when no game is actually running even if the
-    // SimHub plugin has demo mode enabled.
-    const gameRunning = +v('DataCorePlugin.GameRunning') || 0;
-    const realSessNum = parseInt(vs('RacingDesk.Plugin.Grid.SessionState')) || 0;
     const sessionPre = _demo ? 'RacingDesk.Plugin.Demo.Grid.' : 'RacingDesk.Plugin.Grid.';
     const dsPre = _demo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
     const sessNum = parseInt(vs(sessionPre + 'SessionState')) || 0;
@@ -232,52 +261,16 @@
     // Expose rolling/formation start state for leaderboard sparklines
     window._isRollingStart = (sessNum === 2 || sessNum === 3); // Warmup or ParadeLaps
 
-    // In-car detection: idle when no game is running OR no active session,
-    // and not in demo mode (demo always shows the full HUD for preview).
-    // SessionState 0 = menus/results; 1=GetInCar, 2=Warmup, 3=ParadeLaps,
-    // 4=Racing all mean you're in the car. _isIdle gates the heavy render
-    // below; body.idle-state is kept as a state flag other modules read
-    // (e.g. replay-buffer). There is no idle logo — when not in a car the
-    // window is hidden entirely (see the in-car visibility signal below).
-    const nowIdle = !_demo && (!gameRunning || realSessNum === 0);
+    // In the car or not, by this frame: modules/js/in-car.js (demo mode counts, so the HUD can be looked at).
+    // _isIdle gates the heavy render below; body.idle-state is kept as a state flag other modules read (e.g.
+    // replay-buffer). There is no idle logo — out of the car the window is hidden entirely. Neither that nor
+    // whether this page polls is decided per frame: see _setInCar, above.
+    const nowIdle = !RacingDeskInCar.inCar(p);
     if (nowIdle !== _isIdle) {
       _isIdle = nowIdle;
       document.body.classList.toggle('idle-state', nowIdle);
     }
 
-    // In-car visibility signal — drives the overlay window's show/hide (main
-    // process) and the renderer's active/dormant workload. Demo mode is ALSO
-    // in-car so the overlay shows during preview. Short debounce on "leave"
-    // only — session-state briefly hits 0 between sessions and we don't want
-    // the window to flicker out and back. Entering a car is immediate.
-    const nowInRace = !!_demo || (gameRunning && realSessNum > 0);
-    if (nowInRace !== _prevInRace) {
-      if (nowInRace) {
-        // Enter car: immediate, cancel any pending leave.
-        if (_inRaceLeaveTimer) { clearTimeout(_inRaceLeaveTimer); _inRaceLeaveTimer = null; }
-        _prevInRace = true;
-        setOverlayActive(true);
-        if (window.racingDesk && window.racingDesk.notifyInRaceState) {
-          window.racingDesk.notifyInRaceState(true);
-        }
-      } else {
-        // Leave car: debounce 2s to ride through session transitions before
-        // going dormant + hiding the window.
-        if (_inRaceLeaveTimer) clearTimeout(_inRaceLeaveTimer);
-        _inRaceLeaveTimer = setTimeout(function() {
-          _inRaceLeaveTimer = null;
-          _prevInRace = false;
-          setOverlayActive(false);
-          if (window.racingDesk && window.racingDesk.notifyInRaceState) {
-            window.racingDesk.notifyInRaceState(false);
-          }
-        }, 2000);
-      }
-    } else if (nowInRace && _inRaceLeaveTimer) {
-      // Flapped back to in-car during the debounce window — cancel the leave.
-      clearTimeout(_inRaceLeaveTimer);
-      _inRaceLeaveTimer = null;
-    }
     // Skip rest of update in idle (except settings remain responsive)
     // Moza hardware status must update even when idle — user may open
     // settings to configure hardware without being in a race session.
@@ -1276,20 +1269,31 @@
   Promise.all([loadCarLogos(), loadCountryFlags()]).then(() => {
     console.log('[The Racing Desk] Assets loaded, polling SimHub HTTP API at ' + SIMHUB_URL);
 
-    // Initialize logo cycling (before we connect, the logos will cycle to be visible)
-    _logoCycleTimer = setInterval(() => {
-      if (!_hasEverConnected) cycleCarLogo();
-    }, 3000);
+    // Initialize logo cycling (before we connect, the logos will cycle to be visible). Not in the app's hidden
+    // window, which connects only once the driver is in the car.
+    if (!_mainDecides) {
+      _logoCycleTimer = setInterval(() => {
+        if (!_hasEverConnected) cycleCarLogo();
+      }, 3000);
+    }
     setCarLogo(carLogoOrder[0], _demoModels[carLogoOrder[0]]);
 
     // Settings and Discord state are loaded by connections.js on script load
 
-    // Start polling. Do one immediate read so launch gets data without
-    // waiting a full interval, then settle into the dormant (slow) rate.
-    // The first poll that detects live car data flips us to the fast rate
-    // and reveals the window via setOverlayActive(true) in the in-car block.
-    pollUpdate();
-    setPollRate(IDLE_POLL_MS);
+    if (_mainDecides) {
+      // Nothing until main.js says he is in the car. It says so on every change; asking covers what it said
+      // before this page was listening.
+      window.racingDesk.onInRaceState(_setInCar);
+      Promise.resolve(window.racingDesk.getInRaceState()).then(_setInCar).catch(function() {});
+    } else {
+      // Start polling. Do one immediate read so launch gets data without
+      // waiting a full interval, then settle into the dormant (slow) rate.
+      // The first poll that finds the driver in the car flips us to the fast
+      // rate (_setInCar).
+      pollUpdate();
+      setPollRate(IDLE_POLL_MS);
+      _startFrames();
+    }
     window.addEventListener('beforeunload', function() {
       if (_pollIntervalId) clearInterval(_pollIntervalId);
     });
