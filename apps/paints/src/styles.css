@@ -385,6 +385,11 @@
   color: var(--muted);
   white-space: nowrap;
 }
+/* Where the car list and the car disagree: the one mark that asks for something to be done. */
+.paints-app .sidebar .car .mark.differs {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+}
 
 /* The car being looked at, above its versions. */
 .paints-app .car-head h2 {
@@ -795,6 +800,100 @@
 }
 .paints-app .apply-options .note {
   margin-top: 8px;
+}
+
+/* ---- what the car list says of a car ---- */
+/* Under the view and the pedals, across both: what the list says the car has and what its dials are called, and
+   above it, set apart, where the car has been found doing something the list does not say. */
+
+.paints-app .car-controls {
+  /* Across the view and the pedals and no wider: a column of its own would leave them each a third of a wide window,
+     where without it they are half. */
+  grid-column: 1 / span 2;
+}
+.paints-app .car-controls .facts {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.paints-app .car-controls .tag {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  font: 500 12px/1.5 var(--font-mono);
+  color: var(--fg);
+  white-space: nowrap;
+}
+.paints-app .car-controls .controls {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 4px 16px;
+}
+.paints-app .car-controls .controls li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.paints-app .car-controls .controls .what {
+  color: var(--muted);
+}
+.paints-app .car-controls .controls .values {
+  color: var(--faint);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.paints-app .car-controls .note {
+  margin-top: 8px;
+}
+.paints-app .car-controls .disagreements {
+  margin: 0 0 10px;
+  padding: 6px 12px 7px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+.paints-app .car-controls .disagreements .heading {
+  margin-bottom: 3px;
+  font: 600 11px/1.3 var(--font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn);
+}
+.paints-app .car-controls .disagreements .count {
+  font-weight: 400;
+  color: var(--faint);
+}
+.paints-app .car-controls .disagreements ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.paints-app .car-controls .disagreements li {
+  min-width: 0;
+}
+.paints-app .car-controls .disagreements .says {
+  display: block;
+  color: var(--fg);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.paints-app .car-controls .disagreements .when {
+  display: block;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.3;
+}
+.paints-app .car-controls .not-listed {
+  color: var(--muted);
 }
 
 /* ---- status chips ---- */

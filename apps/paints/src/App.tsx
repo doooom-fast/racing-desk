@@ -3,6 +3,7 @@ import * as api from "./api";
 import { inDesk, reveal } from "./bridge";
 import { errorText } from "./api";
 import { ApplyOptionsPanel, Refusal, type ApplyOptions } from "./components/ApplyOptions";
+import { CarControlsPanel } from "./components/CarControls";
 import { CarList, carLabel, carToOpenOn, type Kept } from "./components/CarList";
 import { CarPedalsPanel } from "./components/CarPedals";
 import { CarViewPanel } from "./components/CarView";
@@ -14,7 +15,7 @@ import { SetupBar } from "./components/SetupBar";
 import { collectStatus, StatusChips } from "./components/StatusChips";
 import { VersionCard } from "./components/VersionCard";
 import { useLastDriven } from "./driven";
-import { hasPedals, rigKey } from "./rig";
+import { disagrees, hasPedals, rigKey } from "./rig";
 import { useRig } from "./useRig";
 import type {
   BackupEntry,
@@ -714,17 +715,22 @@ export default function App() {
   );
   const painted = (cars ?? []).some((c) => c.versions.length > 0);
 
-  /// The cars the host keeps a view or pedals for, to be marked in the list.
+  /// The cars the host keeps a view or pedals for, and those the car list and the car disagree about, to be
+  /// marked in the list.
   const kept: Kept = useMemo(
     () => ({
       view: new Set(rig.rig?.views?.keys() ?? []),
       pedals: new Set(
         [...(rig.rig?.pedals?.cars ?? [])].filter(([, row]) => hasPedals(row)).map(([key]) => key),
       ),
+      differs: new Set(
+        [...(rig.rig?.list?.kept ?? [])].filter(([, said]) => disagrees(said)).map(([key]) => key),
+      ),
     }),
     [rig.rig],
   );
   const carKey = car ? rigKey(car) : "";
+  const carList = rig.rig?.list ?? null;
 
   /// What stands where the cars would be while there are none to show.
   const noCars = !listable
@@ -867,6 +873,13 @@ export default function App() {
                   saving={rig.saving.get(carKey)}
                   note={rig.notes.get(carKey) ?? null}
                   onBind={(path, profileId) => void rig.bind(path, profileId)}
+                />
+                {/* What the car list says of it, and where the car disagrees. Not there at all for a host that
+                    has no list to say it from. */}
+                <CarControlsPanel
+                  rig={rig.rig}
+                  listed={carList?.cars.get(carKey) ?? null}
+                  remarks={carList === null || carList.kept === null ? null : (carList.kept.get(carKey) ?? [])}
                 />
               </div>
 

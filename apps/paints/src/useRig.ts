@@ -35,9 +35,10 @@ const showing = (): boolean =>
 /// What the host keeps per car, read through the app: when the page is mounted, each time the desk shows it
 /// again, when the window comes to the front with the page showing — he is back from a drive — and once more a
 /// while after, and when the desk says to (`racingdesk:refresh`: its Refresh, the host found after none was, the
-/// store with something new) or the page's own Refresh is pressed. It is three questions of the host on this
-/// machine, and asks nothing of the disk. Each answer is numbered, as the list of cars is: what is shown is the
-/// last one asked for, not the last to arrive.
+/// store with something new) or the page's own Refresh is pressed. It is four questions of the host on this
+/// machine — the cars' names, the views, the pedals, and the car list with what its check has found — and asks
+/// nothing of the disk. Each answer is numbered, as the list of cars is: what is shown is the last one asked for,
+/// not the last to arrive.
 export function useRig(): RigState {
   const [rig, setRig] = useState<Rig | null>(null);
   const [saving, setSaving] = useState<ReadonlyMap<string, string | null>>(new Map());
@@ -60,7 +61,7 @@ export function useRig(): RigState {
       } catch (e) {
         // The app never rejects; if a bridge ever does, that is why nothing could be read.
         const error = errorText(e);
-        answer = { cars: { error }, views: { error }, pedals: { error } };
+        answer = { cars: { error }, views: { error }, pedals: { error }, controls: { error } };
       }
       if (reading.current?.mine === mine) reading.current = null;
       if (mine !== asked.current) return;

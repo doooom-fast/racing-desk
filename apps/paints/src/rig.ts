@@ -1,7 +1,8 @@
 // What The Racing Desk's host keeps for a car beside its paint: the view it was last driven with, and which of
-// SmartControl's pedal profiles it is driven with. The rows are the host's — /racing-desk/data/{cars,views,pedals},
-// asked for by the app's main process (apps/overlay/modules/js/rig-api.js) — and nothing here asks for anything:
-// this shapes what came back, and puts its numbers into words.
+// SmartControl's pedal profiles it is driven with; and what the canonical list of cars says of it, and where the
+// car disagrees. The rows are the host's — /racing-desk/data/{cars,views,pedals,controls}, asked for by the app's
+// main process (apps/overlay/modules/js/rig-api.js) — and nothing here asks for anything: this shapes what came
+// back, and puts its numbers into words.
 //
 // Nothing the host says is taken on trust. A row that is not a row is left out, a number that is not one is
 // "none", and an answer that is not the one asked for is said in words where the car's view or pedals would be.
@@ -78,8 +79,63 @@ export interface Pedals {
   cars: Map<string, CarPedals>;
 }
 
+/// Whether a car has ABS, traction control or a brake bias, as the list says: none, fixed (it has it and the
+/// driver cannot turn it) or adjustable.
+export type Having = "none" | "fixed" | "adjustable";
+
+/// One in-car control as the list gives it: what the car calls it and the values it can have.
+export interface ListedControl {
+  /// Ours: abs, tc, tc2, brakeBias, brakeMigration, arbFront, mode, drs… A car may list some more than once.
+  id: string;
+  /// The telemetry variable that carries it.
+  variable: string | null;
+  /// What the car's own dash or black box calls it.
+  label: string | null;
+  /// The value that is off; false where the list says no value of it is.
+  off: number | false | null;
+  range: [number, number] | null;
+  /// Names for the values of a dial that is a mode and not a number, in the order of the values.
+  positions: [number, string][];
+  /// For a mode: which of abs, tc and brakeBias it stands for. Null where the list does not say.
+  covers: string[] | null;
+}
+
+/// One car of the canonical list.
+export interface ListedCar {
+  path: string;
+  name: string | null;
+  kind: string | null;
+  abs: Having | null;
+  tc: Having | null;
+  brakeBias: Having | null;
+  controls: ListedControl[];
+  /// "telemetry": compared with what the car publishes on this rig. "written": from what is written about it.
+  checked: string | null;
+}
+
+/// One thing the check of the list has said of a car: where what the car publishes disagrees with what the list
+/// says of it, or that the list does not have the car. The host says each once per run and keeps it, with when it
+/// was first and last said.
+export interface Remark {
+  /// Which thing was said — the host's own key for it; "unknown" is a car the list does not have.
+  about: string;
+  text: string;
+  firstSeen: string | null;
+  lastSeen: string | null;
+}
+
+/// The canonical list of cars, and what its check has found. Both by key (`carKey`).
+export interface CarListRead {
+  cars: Map<string, ListedCar>;
+  /// What the check has said of each car against the list in use. Null where the host could not read the store
+  /// it keeps them in — which is not the same as none.
+  kept: Map<string, Remark[]> | null;
+}
+
 /// The host's answers as the page uses them. `views` and `pedals` are null when the host had none to give, and
-/// the note beside each says why, in words.
+/// the note beside each says why, in words. `list` is null when there is no list to show: a host from before it,
+/// or one whose build carries none — the page is then as it was — or one that could not be read, which
+/// `listNote` says.
 export interface Rig {
   /// The store's own spelling of each car's path, which is what a write has to name.
   paths: Map<string, string>;
@@ -88,6 +144,8 @@ export interface Rig {
   viewsNote: string | null;
   pedals: Pedals | null;
   pedalsNote: string | null;
+  list: CarListRead | null;
+  listNote: string | null;
 }
 
 type Row = Record<string, unknown>;
@@ -178,8 +236,104 @@ export function withoutProfile(carPath: string, had: CarPedals | undefined): Car
   };
 }
 
-/// What `window.racingDesk.rig.read()` answered — { cars, views, pedals }, each { value }, { missing } or
-/// { error } — as the page uses it.
+const HAVING: readonly string[] = ["none", "fixed", "adjustable"];
+const having = (v: unknown): Having | null =>
+  typeof v === "string" && HAVING.includes(v) ? (v as Having) : null;
+
+function controlOf(row: Row): ListedControl | null {
+  const id = text(row.id);
+  if (id === null) return null;
+  const range = row.range;
+  const off = row.off === false ? false : num(row.off);
+  return {
+    id,
+    variable: text(row.var),
+    label: text(row.label),
+    off,
+    range:
+      Array.isArray(range) && range.length === 2 && num(range[0]) !== null && num(range[1]) !== null
+        ? [range[0] as number, range[1] as number]
+        : null,
+    positions: (Array.isArray(row.positions) ? row.positions : []).flatMap((p): [number, string][] => {
+      const value = Array.isArray(p) ? num(p[0]) : null;
+      const name = Array.isArray(p) ? text(p[1]) : null;
+      return value === null || name === null ? [] : [[value, name]];
+    }),
+    covers: Array.isArray(row.covers) ? row.covers.filter((c): c is string => typeof c === "string") : null,
+  };
+}
+
+function listedCarOf(row: Row & { path: string }): ListedCar {
+  return {
+    path: row.path,
+    name: text(row.name),
+    kind: text(row.kind),
+    abs: having(row.abs),
+    tc: having(row.tc),
+    brakeBias: having(row.brakeBias),
+    controls: rows(row.controls).flatMap((c) => controlOf(c) ?? []),
+    checked: text(row.checked),
+  };
+}
+
+function remarkOf(row: Row): Remark | null {
+  const about = text(row.about);
+  const said = text(row.text);
+  if (about === null || said === null) return null;
+  return { about, text: said, firstSeen: text(row.firstSeen), lastSeen: text(row.lastSeen) };
+}
+
+/// What has been kept, by car: `[{ car, remarks: [...] }]` as the app gives it, or null where the host could not
+/// read what it keeps.
+function keptOf(v: unknown): Map<string, Remark[]> | null {
+  if (!Array.isArray(v)) return null;
+  const kept = new Map<string, Remark[]>();
+  for (const row of rows(v)) {
+    const car = text(row.car);
+    if (car === null) continue;
+    const said = rows(row.remarks).flatMap((r) => remarkOf(r) ?? []);
+    if (said.length === 0) continue;
+    kept.set(carKey(car), [...(kept.get(carKey(car)) ?? []), ...said]);
+  }
+  return kept;
+}
+
+/// The list of cars from what the app answered for it. `answer` is what `answerOf` made of it; an app from before
+/// the list has no such key, and a host from before it has no such route: both are as if it were not there.
+function readList(answer: { value?: unknown; missing: boolean; error: string | null }, out: Rig): void {
+  if (answer.missing) return;
+  if (answer.error !== null) {
+    out.listNote = `The car list could not be read. ${answer.error}`;
+    return;
+  }
+  const value = answer.value;
+  if (!isRow(value) || !Array.isArray(value.cars)) {
+    out.listNote = "The car list could not be read. The host's answer was not the list.";
+    return;
+  }
+  const cars = new Map<string, ListedCar>();
+  for (const row of value.cars) {
+    if (!isRow(row) || typeof row.path !== "string" || row.path.trim().length === 0) continue;
+    // The first spelling of a car stands, as the host's own list does.
+    if (!cars.has(carKey(row.path))) cars.set(carKey(row.path), listedCarOf({ ...row, path: row.path }));
+  }
+  // A build with no list has nothing to say of any car, and saying "not in the list" of every one would be a
+  // lie about the car: the page is as it was.
+  if (cars.size === 0) return;
+  out.list = { cars, kept: keptOf(value.kept) };
+}
+
+/// The check's word for a car the list does not have.
+export const UNKNOWN_CAR = "unknown";
+
+/// Whether the check has found the car and the list disagreeing. Not that the list lacks the car: the page says
+/// that of every car it does not have, from the list itself.
+export const disagrees = (remarks: readonly Remark[] | undefined): boolean =>
+  !!remarks && remarks.some((r) => r.about !== UNKNOWN_CAR);
+
+/// What `window.racingDesk.rig.read()` answered — { cars, views, pedals, controls }, each { value }, { missing } or
+/// { error } — as the page uses it. An app from before the list of cars sends no `controls`, and is read as one
+/// whose host has none.
 export function readRig(read: unknown): Rig {
   const out: Rig = {
     paths: new Map(),
@@ -188,6 +342,8 @@ export function readRig(read: unknown): Rig {
     viewsNote: null,
     pedals: null,
     pedalsNote: null,
+    list: null,
+    listNote: null,
   };
   // The first spelling of a path stands: the store's own list is read first, and is the one a write is checked
   // against.
@@ -242,6 +398,11 @@ export function readRig(read: unknown): Rig {
       pedals.error ?? "The host's answer was not SmartControl's profiles."
     }`;
   }
+
+  readList(
+    isRow(read) && !("controls" in read) ? { missing: true, error: null } : answerOf(read, "controls"),
+    out,
+  );
   return out;
 }
 
@@ -324,4 +485,96 @@ const dateTime = new Intl.DateTimeFormat(undefined, {
 export function when(iso: string | null): string | null {
   if (iso === null || Number.isNaN(Date.parse(iso))) return null;
   return dateTime.format(new Date(iso));
+}
+
+// ── The car list in words ──
+
+const KINDS = new Map([
+  ["formula", "Formula car"],
+  ["prototype", "Prototype"],
+  ["gt", "GT car"],
+  ["touring", "Touring car"],
+  ["stock", "Stock car"],
+  ["dirt", "Dirt car"],
+  ["rally", "Rally car"],
+  ["truck", "Truck"],
+  ["other", "Other"],
+]);
+
+/// What kind of car the list says it is: "GT car", "Prototype". A kind the page has no words for is shown as the
+/// list wrote it.
+export const kindWords = (kind: string | null): string | null =>
+  kind === null ? null : (KINDS.get(kind) ?? kind);
+
+const FUNCTIONS = new Map([
+  ["abs", "ABS"],
+  ["tc", "Traction control"],
+  ["tc2", "Traction control 2"],
+  ["tc3", "Traction control 3"],
+  ["tc4", "Traction control 4"],
+  ["brakeBias", "Brake bias"],
+  ["brakeMigration", "Brake migration"],
+  ["arbFront", "Front anti-roll bar"],
+  ["arbRear", "Rear anti-roll bar"],
+  ["throttleMap", "Throttle map"],
+  ["mode", "Mode"],
+  ["drs", "DRS"],
+  ["p2p", "Push to pass"],
+]);
+
+/// What a control is for, in words: "Traction control" for `tc`; one the page has not met is its id with the
+/// humps taken out ("tcToggle" is "Tc toggle").
+export function functionWords(id: string): string {
+  const known = FUNCTIONS.get(id);
+  if (known) return known;
+  const spaced = id.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/// The values a control can have, in words: "1 to 12, 1 is off", "0 TRACK · 1 SPORT · 2 NORMAL". Where the list
+/// gives neither a range nor names, it says so.
+export function valueWords(control: ListedControl): string {
+  const parts: string[] = [];
+  if (control.positions.length > 0) {
+    parts.push(control.positions.map(([value, name]) => `${plain(value)} ${name}`).join(" · "));
+  } else if (control.range) {
+    parts.push(`${plain(control.range[0])} to ${plain(control.range[1])}`);
+  }
+  if (control.off === false) parts.push("never off");
+  else if (control.off !== null && !control.positions.some(([value]) => value === control.off)) {
+    parts.push(`${plain(control.off)} is off`);
+  }
+  if (parts.length > 0) return parts.join(", ");
+  // DRS and push to pass are states the car reports, not dials with a range.
+  return control.id === "drs" || control.id === "p2p" ? "status" : "no range given";
+}
+
+/// What the car calls a thing it has (`abs`, `tc`, `brakeBias`): the label of the control the list gives for it, or
+/// of the mode dial that stands for it. Null where the list gives neither.
+export function labelFor(car: ListedCar, id: "abs" | "tc" | "brakeBias"): string | null {
+  const own = car.controls.find((c) => c.id === id && c.label !== null);
+  if (own) return own.label;
+  const mode = car.controls.find(
+    (c) => c.id === "mode" && c.label !== null && (c.covers === null || c.covers.includes(id)),
+  );
+  return mode ? mode.label : null;
+}
+
+/// A thing the check said of a car, as a sentence: the first letter up, and a full stop. Not the first letter of a
+/// telemetry variable, which is written as the sim writes it: "dcABS reads 13" stays so.
+export function sentence(said: string): string {
+  const t = said.trim();
+  const variable = /[a-z][A-Z0-9]/.test(t.split(/\s/)[0] ?? "");
+  const up = variable ? t : t.charAt(0).toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(up) ? up : `${up}.`;
+}
+
+/// When a remark was first and last said, in a sentence, or null where the host gave neither.
+export function seenWords(remark: Remark): string | null {
+  const first = when(remark.firstSeen);
+  const last = when(remark.lastSeen);
+  if (first && last) return first === last ? `Seen ${first}.` : `First seen ${first}, last seen ${last}.`;
+  if (last) return `Last seen ${last}.`;
+  if (first) return `First seen ${first}.`;
+  return null;
 }
