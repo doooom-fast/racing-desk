@@ -849,7 +849,7 @@ namespace RacingDesk.Tests.Pedals
 
         // ------------------------------------------------------------------ the canonical list
 
-        // A small list of a test's own. The Honda and the Lmp2 are not in it; the last two entries leave out the ABS
+        // A small list of a test's own. The Honda and the Lmp2 are not in it; the last four entries leave out the ABS
         // or the kind.
         private static readonly CarList Cars = CarList.Parse(@"{ ""version"": 1, ""cars"": [
   { ""path"": ""bmwm4gt3"",      ""kind"": ""gt"",        ""abs"": ""adjustable"" },
@@ -858,8 +858,11 @@ namespace RacingDesk.Tests.Pedals
   { ""path"": ""toyotagr86"",    ""kind"": ""touring"",   ""abs"": ""none"" },
   { ""path"": ""mx5 mx52016"",   ""kind"": ""stock"",     ""abs"": ""fixed"" },
   { ""path"": ""formulair04"",   ""kind"": ""formula"",   ""abs"": ""none"" },
+  { ""path"": ""touringabs"",    ""kind"": ""touring"",   ""abs"": ""adjustable"" },
   { ""path"": ""nokind"",        ""abs"": ""adjustable"" },
-  { ""path"": ""noabs"",         ""kind"": ""gt"" }
+  { ""path"": ""noabs"",         ""kind"": ""gt"" },
+  { ""path"": ""formulaonly"",   ""kind"": ""formula"" },
+  { ""path"": ""noneonly"",      ""abs"": ""none"" }
 ] }");
 
         [Test]
@@ -900,7 +903,7 @@ namespace RacingDesk.Tests.Pedals
             // disagreement is in the line.
             string line = Keep(store, Rig(), Seen(Touring, true, 5), Cars);
             Assert.That(line, Is.EqualTo("pedals: toyotagr86 — its own profile, from Default (no ABS, from the list); " +
-                                         "its ABS has been seen though the list says it has none, and the rule goes by the list"));
+                                         "the car published an ABS setting or its ABS was seen working, though the list says it has none, and the rule goes by the list"));
             Assert.That((store.CarPedalsOf(Touring).ProfileName, store.CarPedalFactsOf(Touring).GivenWhy), Is.EqualTo(("Default", "no ABS")));
             Assert.That(store.CarPedalFactsOf(Touring).HasAbs, Is.True, "what the car showed is kept as it was");
 
@@ -933,12 +936,79 @@ namespace RacingDesk.Tests.Pedals
             Save(store, "newformula", "New Formula", "Formula", 8);
             Assert.That(Keep(store, Rig(), Seen("newformula", false, 1, day: 1), Cars),
                 Is.EqualTo("pedals: newformula — its own profile, from Default (a formula car)"));
+        }
 
-            // An entry that leaves out the kind or the ABS does not answer for the car: the data does.
-            Assert.That(Keep(store, Rig(), Seen("nokind", false, 1), Cars), Does.Contain("too short a run"));
+        [Test]
+        public void TheListsKindIsGoneByWhateverTheCarShowedOfIt()
+        {
+            using var store = Store();
+
+            // The list says a GT car; the car published what only a prototype does. The list wins: it has ABS, so
+            // LightBrake — and not Default, which is what a prototype would be given.
+            Assert.That(Keep(store, Rig(), Seen(Gt3, true, 0, prototype: true), Cars),
+                Is.EqualTo("pedals: bmwm4gt3 — its own profile, from LightBrake (ABS, from the list)"));
+            Assert.That(store.CarPedalFactsOf(Gt3).GivenWhy, Is.EqualTo("ABS"));
+
+            // The list says a touring car; a session in it ran in the category Formula. The list wins again.
+            Save(store, "touringabs", "Touring With ABS", "Formula", 6);
+            Assert.That(store.CarRanIn("touringabs", "Formula"), Is.True);
+            Assert.That(Keep(store, Rig(), Seen("touringabs", false, 0), Cars),
+                Is.EqualTo("pedals: touringabs — its own profile, from LightBrake (ABS, from the list)"));
+            Assert.That(store.CarPedalsOf("touringabs").ProfileName, Is.EqualTo("LightBrake"));
+        }
+
+        [Test]
+        public void WhatAnEntryLeavesOutIsLeftToTheDataAndNoMore()
+        {
+            using var store = Store();
+
+            // The kind, without the ABS: the ABS is what the car showed, and waits for laps as it did.
             Assert.That(Keep(store, Rig(), Seen("noabs", false, 1), Cars), Does.Contain("too short a run"));
             Assert.That(Keep(store, Rig(), Seen("noabs", true, 1, day: 1), Cars),
-                Is.EqualTo("pedals: noabs — its own profile, from LightBrake (ABS)"));
+                Is.EqualTo("pedals: noabs — its own profile, from LightBrake (ABS, from the list and what the car showed)"));
+
+            // The ABS, without the kind: the ABS is the list's, so no laps to wait for; the kind is what the car showed.
+            Assert.That(Keep(store, Rig(), Seen("nokind", false, 0), Cars),
+                Is.EqualTo("pedals: nokind — its own profile, from LightBrake (ABS, from the list and what the car showed)"));
+            Save(store, "nokindformula", "Formula Without A Kind", "Formula", 6);
+            var formulaWithoutKind = CarList.Parse(@"{ ""cars"": [ { ""path"": ""nokindformula"", ""abs"": ""adjustable"" } ] }");
+            Assert.That(Keep(store, Rig(), Seen("nokindformula", false, 0), formulaWithoutKind),
+                Is.EqualTo("pedals: nokindformula — its own profile, from Default (a formula car, from the list and what the car showed)"));
+
+            // A formula car with no ABS in its entry is a formula car: Default at once, whatever the data has of its ABS.
+            Assert.That(Keep(store, Rig(), Seen("formulaonly", true, 0), Cars),
+                Is.EqualTo("pedals: formulaonly — its own profile, from Default (a formula car, from the list)"));
+
+            // No ABS in the list is no ABS, whatever the kind and whatever the car published.
+            Assert.That(Keep(store, Rig(), Seen("noneonly", false, 0), Cars),
+                Is.EqualTo("pedals: noneonly — its own profile, from Default (no ABS, from the list)"));
+            var seenAbs = Keep(store, Rig(), Seen("noneonlyabs", true, 4), CarList.Parse(@"{ ""cars"": [ { ""path"": ""noneonlyabs"", ""abs"": ""none"" } ] }"));
+            Assert.That(seenAbs, Is.EqualTo("pedals: noneonlyabs — its own profile, from Default (no ABS, from the list); " +
+                "the car published an ABS setting or its ABS was seen working, though the list says it has none, and the rule goes by the list"));
+
+            // A misspelt ABS is left out by the loader and is a problem in the list; the kind it has is still gone by.
+            var typo = CarList.Parse(@"{ ""cars"": [ { ""path"": ""hondacivictyper"", ""kind"": ""formula"", ""abs"": ""adjustible"" } ] }");
+            Assert.That(typo.Problems, Has.Count.EqualTo(1));
+            Assert.That(typo.Find(Honda).Abs, Is.Null);
+            Assert.That(Keep(store, Rig(), Seen(Honda, true, 0), typo),
+                Is.EqualTo("pedals: hondacivictyper — its own profile, from Default (a formula car, from the list)"),
+                "the Honda ran in no formula session, and had ABS: the data alone would have given it LightBrake");
+        }
+
+        [Test]
+        public void AProfileGivenForAKindTheListSaysTheCarIsNotIsGivenAgain()
+        {
+            using var store = Store();
+            Save(store, Gtp, "Porsche 963 GTP", "SportsCar", 6);
+
+            // Given by the data, for a prototype; a list that says it is a touring car (and says no more) says it is
+            // not one: with the ABS the car showed, it is LightBrake's.
+            Assert.That(Keep(store, Rig(), Seen(Gtp, true, 4, prototype: true)), Does.Contain("from Default (a prototype)"));
+            var touring = CarList.Parse(@"{ ""cars"": [ { ""path"": ""porsche963gtp"", ""kind"": ""touring"" } ] }");
+            Assert.That(Keep(store, Rig(), Seen(Gtp, true, 0, day: 1, prototype: true), touring),
+                Is.EqualTo("pedals: porsche963gtp — the list says its kind is touring, so its profile is from LightBrake now, not Default"));
+            Assert.That((store.CarPedalsOf(Gtp).ProfileName, store.CarPedalFactsOf(Gtp).GivenWhy), Is.EqualTo(("LightBrake", "ABS")));
+            Assert.That(Keep(store, Rig(), Seen(Gtp, true, 0, day: 2, prototype: true), touring), Is.Null, "once");
         }
 
         [Test]
@@ -956,7 +1026,7 @@ namespace RacingDesk.Tests.Pedals
             // The list says the GR86 has no ABS, and the MX-5 has it. The line says why.
             Assert.That(Keep(store, Rig(), Seen(Touring, false, 0, day: 1), Cars),
                 Is.EqualTo("pedals: toyotagr86 — the list says it has no ABS, so its profile is from Default now, not LightBrake; " +
-                           "its ABS has been seen though the list says it has none, and the rule goes by the list"));
+                           "the car published an ABS setting or its ABS was seen working, though the list says it has none, and the rule goes by the list"));
             Assert.That(Keep(store, Rig(), Seen(Mx5, false, 0, day: 1), Cars),
                 Is.EqualTo("pedals: mx5 mx52016 — the list says it has ABS, so its profile is from LightBrake now, not Default"));
             Assert.That(store.CarPedalsOf(Touring).ProfileName, Is.EqualTo("Default"));
@@ -974,7 +1044,7 @@ namespace RacingDesk.Tests.Pedals
             var noAbs = CarList.Parse(@"{ ""cars"": [ { ""path"": ""porsche963gtp"", ""kind"": ""prototype"", ""abs"": ""none"" } ] }");
             Assert.That(Keep(store, Rig(), Seen(Gtp, false, 0, day: 3), noAbs),
                 Is.EqualTo("pedals: porsche963gtp — the list says it has no ABS; its profile stays from Default (no ABS); " +
-                           "its ABS has been seen though the list says it has none, and the rule goes by the list"));
+                           "the car published an ABS setting or its ABS was seen working, though the list says it has none, and the rule goes by the list"));
             Assert.That(store.CarPedalFactsOf(Gtp).GivenWhy, Is.EqualTo("no ABS"));
             Assert.That((store.CarPedalsOf(Gtp).ProfileName, store.CarPedalsOf(Gtp).BoundAtUtc), Is.EqualTo((before.ProfileName, before.BoundAtUtc)));
             Assert.That(Keep(store, Rig(), Seen(Gtp, false, 0, day: 4), noAbs), Is.Null, "once");
@@ -1011,6 +1081,92 @@ namespace RacingDesk.Tests.Pedals
 
             // What the list says of a car does not hold up a force: it is kept as it was.
             Assert.That(Keep(store, Rig(), Seen(Gt3, true, 4, 55, 2, day: 2), Cars), Is.EqualTo("pedals: bmwm4gt3 — brake force 55 kg"));
+        }
+
+        // The desk is another connection to the same store, and the rule reads SmartControl's database — file IO, and
+        // long enough — between looking at a car and writing to it. What the driver chooses in that time is his.
+        private RacingDeskStore Desk() => new RacingDeskStore(Path.Combine(_dir, "racing-desk.db"));
+
+        private static Func<SmartControlSnapshot> WhileReading(Func<SmartControlSnapshot> smartControl, Action onTheDesk) =>
+            () => { onTheDesk(); return smartControl(); };
+
+        private static CarPedals His(string car, string id, string name, int day) =>
+            new CarPedals { CarPath = car, ProfileId = id, ProfileName = name, Profile = new byte[] { 9 }, BoundAtUtc = June.AddDays(day) };
+
+        [Test]
+        public void AProfileTheDriverChoosesWhileTheRuleIsReadingSmartControlIsNotWrittenOver()
+        {
+            using var store = Store();
+            using var desk = Desk();
+            Save(store, Touring, "Toyota GR86", "SportsCar", 6);
+            Save(store, Gtp, "Porsche 963 GTP", "SportsCar", 7);
+            Assert.That(Keep(store, Rig(), Seen(Touring, true, 5)), Does.Contain("from LightBrake (ABS)"));
+            Assert.That(Keep(store, Rig(), Seen(Gtp, true, 4, prototype: true)), Does.Contain("from Default (a prototype)"));
+
+            // The rule is about to give the GR86 Default, because the list says it has no ABS; on the desk he picks
+            // his own profile in the meantime, and both of the desk's writes are done.
+            var mine = His(Touring, "h3", "HeavyBrake", 9);
+            Assert.That(Keep(store, WhileReading(Rig(), () => { desk.BindCarPedals(mine); desk.NotePedalsGiven(Touring, "driver", null, mine.BoundAtUtc); }),
+                Seen(Touring, false, 0, day: 1), Cars), Is.Null);
+            Assert.That(store.CarPedalsOf(Touring).ProfileName, Is.EqualTo("HeavyBrake"));
+            Assert.That(store.CarPedalsOf(Touring).BoundAtUtc, Is.EqualTo(mine.BoundAtUtc));
+            Assert.That(store.CarPedalFactsOf(Touring).GivenBy, Is.EqualTo("driver"));
+            Assert.That(store.CarPedalFactsOf(Touring).GivenWhy, Is.Null);
+
+            // The desk writes the profile and then who gave it: between the two he is not yet down as having.
+            var hers = His(Gtp, "h3", "HeavyBrake", 9);
+            Assert.That(Keep(store, WhileReading(Rig(), () => desk.BindCarPedals(hers)), Seen(Gtp, false, 0, day: 1), CarList.Parse(
+                @"{ ""cars"": [ { ""path"": ""porsche963gtp"", ""kind"": ""touring"", ""abs"": ""adjustable"" } ] }")), Is.Null);
+            Assert.That(store.CarPedalsOf(Gtp).ProfileName, Is.EqualTo("HeavyBrake"), "the rule looked at a profile that is no longer there");
+        }
+
+        [Test]
+        public void AChoiceTheDriverMakesWhileTheRuleIsGivingACarItsFirstProfileStands()
+        {
+            using var store = Store();
+            using var desk = Desk();
+            Save(store, Gt3, "BMW M4 GT3", "SportsCar", 6);
+
+            // He picks a profile for the GT3 while the rule is reading SmartControl: it is his, and is not relabelled.
+            var mine = His(Gt3, "h3", "HeavyBrake", 9);
+            Assert.That(Keep(store, WhileReading(Rig(), () => { desk.BindCarPedals(mine); desk.NotePedalsGiven(Gt3, "driver", null, mine.BoundAtUtc); }),
+                Seen(Gt3, true, 0), Cars), Is.Null);
+            Assert.That(store.CarPedalsOf(Gt3).ProfileName, Is.EqualTo("HeavyBrake"));
+            Assert.That(store.CarPedalFactsOf(Gt3).GivenBy, Is.EqualTo("driver"));
+
+            // He chooses that the MX-5 has none: no profile is made for it after all.
+            Assert.That(Keep(store, WhileReading(Rig(), () => desk.NotePedalsGiven(Mx5, "none", null, June)), Seen(Mx5, false, 0), Cars), Is.Null);
+            Assert.That(store.CarPedalsOf(Mx5), Is.Null);
+            Assert.That(store.CarPedalFactsOf(Mx5).GivenBy, Is.EqualTo("none"));
+        }
+
+        [Test]
+        public void TheRulePutsRightWhatItWentByOnlyWhileTheProfileIsStillTheOneItGave()
+        {
+            using var store = Store();
+            using var desk = Desk();
+            Save(store, Gtp, "Porsche 963 GTP", "SportsCar", 6);
+            Assert.That(Keep(store, Rig(), Seen(Gtp, true, 4, prototype: true)), Does.Contain("from Default (a prototype)"));
+            var read = store.CarPedalsOf(Gtp);
+
+            // Chosen on the desk since the rule looked: the reason is not the rule's to put on it.
+            desk.BindCarPedals(His(Gtp, "d1", "Default", 9));
+            desk.NotePedalsGiven(Gtp, "driver", null, June.AddDays(9));
+            Assert.That(store.NoteRuleReason(Gtp, "no ABS", read.BoundAtUtc), Is.False);
+            Assert.That(store.CarPedalFactsOf(Gtp).GivenBy, Is.EqualTo("driver"));
+            Assert.That(store.CarPedalFactsOf(Gtp).GivenWhy, Is.Null);
+
+            // And after he chose that it has none.
+            var chosen = store.CarPedalsOf(Gtp);
+            desk.UnbindCarPedals(Gtp);
+            desk.NotePedalsGiven(Gtp, "none", null, June.AddDays(10));
+            Assert.That(store.NoteRuleReason(Gtp, "no ABS", chosen.BoundAtUtc), Is.False);
+            Assert.That(store.CarPedalFactsOf(Gtp).GivenBy, Is.EqualTo("none"));
+            Assert.That(store.CarPedalsOf(Gtp), Is.Null);
+
+            // And the profile the rule read, given again, is the one it read: not one that has been given since.
+            Assert.That(store.RegiveCarPedalsByRule(His(Gtp, "l2", "LightBrake", 11), read.BoundAtUtc, "ABS", June.AddDays(11)), Is.False);
+            Assert.That(store.CarPedalsOf(Gtp), Is.Null);
         }
 
         [Test]

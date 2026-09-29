@@ -133,21 +133,40 @@ from one of two of his:
   because i don't think we can reliably do databased detection". The list is `packages/car-list/cars.json` —
   every car's kind, its ABS, and every control it gives the driver — written by hand and checked against his
   telemetry for the cars he has driven. **The rule reads it** (`CarPedalsKeeper.Keep`, given a `CarList`, by
-  default the one the build carries): a car the list says both the kind and the ABS of is a formula car when its
-  kind is `formula`, a prototype when it is `prototype`, and has ABS when `abs` is `fixed` or `adjustable`. That
-  answers at the end of the car's first run — no laps to wait for, nothing the car published — and what the car
-  publishes is the check on the list, and the answer only for a car the list has not met (or has without its kind
-  or its ABS), where everything above stands as it was.
+  default the one the build carries): a car is a formula car when the list says its kind is `formula`, a prototype
+  when it says `prototype`, and has ABS when it says `abs` is `fixed` or `adjustable`. That answers at the end of
+  the car's first run — no laps to wait for, nothing the car published — when what the list says is enough for
+  the profile: both the kind and the ABS, or a formula car, or no ABS (each starts from `Default` whatever else is
+  so). What the car publishes is the check on the list, and the answer for a car the list has not met and for
+  whatever an entry leaves out: an entry that says the kind and not the ABS waits for the laps to say the ABS, and
+  one that says the ABS and not the kind has what the car showed for its kind. Everything above stands as it was
+  for those. The log line says which ("from the list", or "from the list and what the car showed").
 - **A profile the rule gave, and the list contradicts, is given again once.** The list may be put right in a later
   build, or the data may have given the profile before the list had the car. The rule's reason kept is compared
   with the one the list gives now; if they differ the profile is made again from the base the list sends it to
   and the log line says why ("the list says it has no ABS, so its profile is from Default now, not LightBrake").
   If that base is the profile it already has, only the reason kept is put right and the profile is left as it was.
-  A profile he gave, or his choice that a car has none, is not touched. A car the list says has no ABS whose ABS
-  was seen is given `Default` all the same, and the line where the rule acts says the two disagree.
+  A profile he gave, or his choice that a car has none, is not touched. A car the list says has no ABS that
+  published an ABS setting, or whose ABS was seen working, is given `Default` all the same, and the line where the
+  rule acts says the two disagree ("the car published an ABS setting or its ABS was seen working, though the list
+  says it has none, and the rule goes by the list"). It says what was seen and not that the car has ABS: the
+  prototypes of the list have none, and publish `dcABS` for the brake migration it carries.
+- **What the rule writes is written only if he has not chosen since it looked.** The rule reads the car's pedals,
+  then SmartControl's database, then writes, and on the desk he may pick a profile, or that the car has none, in
+  between (the desk has its own connection to the store). The store makes the write conditional in the write
+  itself: a first profile only where the car has none and he has not chosen (`GiveCarPedalsByRule`); a profile
+  given again only while it is still the one the rule read, by when it was bound, and the rule is still down as
+  having given it (`RegiveCarPedalsByRule`); the reason put right likewise (`NoteRuleReason`). If he has chosen, the
+  rule writes nothing and says nothing. There is no schema change: these are statements, not tables.
 - **Where the answer came from is in the log line only** ("from Default (no ABS, from the list)"). The reasons kept
   are the same four; a note of the source would need a table of its own (schema 7), which another branch is
   adding for a different purpose, so the desk does not say it yet.
+- **The Cars page's "No profile yet" sentences do not read the list either.** They go by the data's `has_abs`
+  (`apps/paints/src/components/CarPedals.tsx`), which the list's answer never sets. A listed car with no profile
+  reads "not driven enough yet to say whether it has ABS" when the list already says; a prototype, with `abs: none`
+  in the list and a true `has_abs` from its `dcABS`, reads "it has ABS" and may be offered `LightBrake`, where the
+  rule gives `Default`. The branch that shows the source on the page is where the host can send the list's answer
+  to it.
 - **Who gave a car its profile is kept** (`car_pedal_facts`: the rule and what it went by, or he himself), and
   the data API says it (`given_by`, `given_why`). A profile he gave on the desk, or chose not to have, is never
   the rule's to change.

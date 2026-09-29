@@ -346,8 +346,9 @@ own recordings of the 570S, the MX-5 and the 963, skipped where there is none). 
 to start a runtime, which binds wildcard ports.
 
 **Not built.** The desk does not show the list or the check. The pedals' rule (`CarPedalsKeeper`) reads a car's kind
-and ABS from the list where the list says both, and from what the car publishes for any other; the desk cannot yet
-say which. Nothing is remembered per car. What a fixed setup locks
+and ABS from the list where the list says them, and from what the car publishes for what an entry leaves out and
+for any car the list has not met; the desk cannot yet say which, and the Cars page's "No profile yet" sentences still
+go by what the car published. Nothing is remembered per car. What a fixed setup locks
 is the rule of §10 and no more. No car outside the list gets anything: a car the list has not met is shown as it was.
 
 ## 12. The cars, one by one

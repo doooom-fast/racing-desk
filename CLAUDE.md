@@ -107,18 +107,26 @@ or to the pedals.
   - **A car with no pedals of its own is given them by the driver's rule** (`CarPedalsKeeper`): his `LightBrake`
     for a car with ABS that is neither a formula car nor a prototype, his `Default` for the rest ("a proto with
     abs gets default"). **The car list answers first** (`RacingDesk.Core.Cars.CarList`; `CarPedalsKeeper.Keep`
-    takes one, by default the list the build carries): a car it says both the `kind` and the `abs` of is a formula
-    car when its kind is `formula`, a prototype when it is `prototype`, and has ABS when `abs` is `fixed` or
-    `adjustable`. It answers at the end of the car's first run, with no laps to wait for, and whatever the car
-    published. The log line says so (`from Default (no ABS, from the list)`); what is kept is one of the four
-    reasons and no more (no schema change), so the desk cannot yet say where an answer came from. Where the rule
-    acts on a car the list has without ABS and its ABS has been seen, the line says the two disagree and that the
-    rule goes by the list — once, since it is said where the rule acts, and the check in the log says the rest.
-    **A profile the rule gave whose reason the list now contradicts** (the list was put right in a later build, or
-    the data gave the profile before the list had the car) **is given again, once**, with the line saying why; when
-    the list sends it to the profile it already has, only the reason kept is put right and the profile stays as it
-    was given. **For a car the list does not have, or has without its kind or its ABS, the rule goes by the data**
-    as it did before the list. A car has ABS when it publishes `dcABS` or its ABS was seen working; it is taken to
+    takes one, by default the list the build carries): a car is a formula car when the list says its `kind` is
+    `formula`, a prototype when it says `prototype`, and has ABS when it says `abs` is `fixed` or `adjustable`.
+    The list answers at the end of the car's first run, with no laps to wait for, and whatever the car published,
+    when what it says is enough for the profile: both the kind and the ABS, or a formula car, or no ABS (those two
+    start from `Default` whatever else is so). The log line says so (`from Default (no ABS, from the list)`); what
+    is kept is one of the four reasons and no more (no schema change), so the desk cannot yet say where an answer
+    came from. Where the rule acts on a car the list has without ABS, and the car published an ABS setting or its
+    ABS was seen working, the line says the two disagree and that the rule goes by the list — once, since it is
+    said where the rule acts, and the check in the log says the rest; every prototype of the list is such a car,
+    for the `dcABS` they publish carries brake migration. **A profile the rule gave whose reason the list now
+    contradicts** (the list was put right in a later build, or the data gave the profile before the list had the
+    car) **is given again, once**, with the line saying why; when the list sends it to the profile it already has,
+    only the reason kept is put right and the profile stays as it was given. **What an entry leaves out, and any car
+    the list does not have, the rule goes by the data for**, as it did before the list: an entry that says the kind
+    and not the ABS is a kind, and waits for the laps to say the ABS (`… from the list and what the car showed`);
+    one that says the ABS and not the kind has what the car showed for its kind. **What the rule writes is written
+    only if the driver has not chosen since it looked** (`GiveCarPedalsByRule`, `RegiveCarPedalsByRule`,
+    `NoteRuleReason` in the store: he may pick on the desk, from another connection, while SmartControl's database
+    is being read) — his profile, his choice that a car has none, stand. A car has ABS when it publishes `dcABS` or
+    its ABS was seen working; it is taken to
     have none after three laps of neither, counted across runs and only while he is in the car — and is put right
     if its ABS is seen later. A car is a formula car when any session in it ran in the category `Formula` (a test
     session is `Road` whatever the car). A car is a prototype, as built, when it publishes what his prototypes do
@@ -215,7 +223,12 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
   no NONE, no car's own labels, no DRS or push-to-pass. The check says once, in the log, that the car is missing.
 - **Not built**: the desk does not show the list or the check; nothing is remembered per car (no schema change) —
   so the pedals' rule (`CarPedalsKeeper`, above) reads the list, but the desk cannot yet say that a profile came
-  from it. Beside SimHub the key shows only once the plugin has been installed again from a build that carries the
+  from it. **Nor do the Cars page's "No profile yet" sentences read the list**: they still go by the data's `has_abs`
+  (`components/CarPedals.tsx`), which the list's answer never sets. A listed car with no profile, including one not
+  yet driven with the host, says "not driven enough yet to say whether it has ABS" though the list already says; and
+  a prototype (`abs: none` in the list) whose `has_abs` is true, from the `dcABS` it publishes, says "it has ABS"
+  and may be offered `LightBrake` in the sentence, where the rule gives `Default`. The branch that shows where a
+  profile came from is where the host can send the list's answer to the page. Beside SimHub the key shows only once the plugin has been installed again from a build that carries the
   list: the plugin carries `RacingDesk.Core`, and the old DLL sends no such key.
 
 ## Desk
@@ -406,7 +419,8 @@ millimetres and the page does not say which way is forward — that has not been
   has ABS." (or no ABS, or a formula car), "You chose this.", "You chose that this car has none."; for a car with
   no profile yet, what is waited for: "No profile yet: not driven enough yet to say whether it has ABS.", or, once
   that is known, that the rule gives it one when it is next driven — or has no `LightBrake` or `Default` in
-  SmartControl to give from. Beside the profile's brake, the force and when it was set: "brake force 62 kg in this
+  SmartControl to give from. **That is what the data says, not the list**: the sentences go by `has_abs` and know
+  nothing of the car list, which the rule reads (see "Not built" under "The car's controls"). Beside the profile's brake, the force and when it was set: "brake force 62 kg in this
   car, set Tue, Sep 15, 5:40 PM". A host from before it sent any of this shows as it did: no sentence, no date.
   Taking a profile away leaves the force on the page.
 - **Read through main.** `window.racingDesk.rig.read()` → `rig:read` (the desk window only) →
