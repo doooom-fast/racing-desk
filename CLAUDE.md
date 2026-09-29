@@ -83,7 +83,25 @@ or to the pedals.
 - `car_pedals` — which of Heusinkveld SmartControl's profiles a car is driven with, and that profile byte for byte as
   it was when the car was given it (each device's section carries a hash, so a profile is never rebuilt from its
   numbers). `RacingDesk.Data/Pedals/SmartControl.cs` reads `C:\ProgramData\Heusinkveld\Database\Heusinkveld.db`
-  read-only: the profiles, and SmartControl Live's keys.
+  read-only: the profiles, and SmartControl Live's keys. A profile is parsed as text, never as bytes: most say
+  `encoding="utf-16"` on their first line and are one byte to a letter.
+- **The brake force is followed from SmartControl Live's keys** (`Pedals/BrakeForce.cs`, `CarPedalsRecorder.cs`),
+  because it is in no file: a key goes to Live, Live tells the controller, the controller keeps it. The driver
+  said yes to this (2026-09-28), on these terms, which the tests hold it to:
+  - Windows is asked whether a key is down (`GetAsyncKeyState`; no hook) about **the keys Live has bound to the
+    brake force and no others** — `LiveKeyWatcher.Watched` — and only on a telemetry frame, so only while the sim is
+    sending. Nothing is kept but the force they come to.
+  - The force is known from the first key that *sets* one. Raised or lowered from a force nobody knows, only the
+    change is known, and nothing is kept for the car but a line in the log.
+  - When the sim goes (or the car changes), the run's force becomes the car's `brake_force_kg` — if a key was
+    pressed in that car. The pedals keep their force from car to car, so it carries within one run of the sim; the
+    next run starts from nothing known.
+  - **A car with no pedals of its own is given them by the driver's rule** (`CarPedalsKeeper`): a copy of his
+    `LightBrake` for a touring or sports car with ABS, of his `Default` for a formula car or a car without. A car
+    has ABS when it publishes `dcABS` or its ABS was seen working; it has none after three laps of neither. A car is
+    a formula car when any session in it ran in the category `Formula` (a test session is `Road` whatever the car).
+  - Not yet: putting a car's force or profile *back* when he gets in. That presses keys or writes SmartControl's
+    database, and waits on the experiments in the plan (does Live act on a key a program sends?) and on him.
 
 ## Season schedule
 
