@@ -214,13 +214,15 @@ function shapeRemark(r) {
 //     cars: [ { path, name, kind, abs, tc, brakeBias, controls: [ { id, var, label, off?, range?, positions?, covers? } ], checked } ],
 //     kept: [ { car, remarks: [ { about, text, firstSeen, lastSeen } ] } ] | null }
 //
-// `kept` is what the host's store has of the check's remarks against this list, by car, and is null when the host
-// could not read its store — which is not the same as none. What the check said in this run alone (`remarks`) is
-// the log's, and is not passed on.
+// `kept` is what the host's store has of the check's remarks against this list, by car. It is null only where the host
+// says so — `"kept": null`: it could not read its store — which is not the same as none. A host from before it kept
+// anything has no such key, and keeps none: that is [], and the page says nothing of it. What the check said in this
+// run alone (`remarks`) is the log's, and is not passed on.
 function shapeControls(body) {
   if (!isRow(body) || !Array.isArray(body.cars)) return null;
   let kept = null;
-  if (isRow(body.kept)) {
+  if (body.kept === undefined) kept = [];
+  else if (isRow(body.kept)) {
     kept = Object.entries(body.kept)
       .slice(0, MAX_CARS)
       .map(([car, remarks]) => ({

@@ -475,6 +475,25 @@ test('the list of cars comes with the keys the page draws, and nothing it has no
   expect(shapeControls(scrambled).cars[0].controls[0].positions).toEqual([[0, 'TRACK'], [1, 'SPORT'], [2, 'NORMAL']]);
 });
 
+test('a host that serves the list and keeps nothing is read as keeping none, and one that could not read its store says so', async () => {
+  // The route existed before the host kept anything: it answers the list and this run's remarks, and no `kept`. That is
+  // a host with nothing kept — plausible with the app run over an older host, or with --desk-host — and the page
+  // must not say of it that a store could not be read.
+  const { kept, ...fromBefore } = CONTROLS;
+  expect(kept).toBeDefined();
+  const old = createRigApi({ host: 'http://localhost:8889', send: reader({ ...HELD, controls: fromBefore }).send });
+  const { controls } = await old.read();
+  expect(controls.value.kept).toEqual([]);
+  expect(controls.value.cars).toEqual(SHAPED.cars);
+
+  // The host's own null is the store it could not read.
+  const unreadable = createRigApi({ host: 'http://localhost:8889', send: reader({ ...HELD, controls: { ...CONTROLS, kept: null } }).send });
+  expect((await unreadable.read()).controls.value.kept).toBeNull();
+  // And a host that keeps things says which.
+  const keeping = createRigApi({ host: 'http://localhost:8889', send: reader(WITH_LIST).send });
+  expect((await keeping.read()).controls.value.kept).toEqual(SHAPED.kept);
+});
+
 test('a control keeps what it says of its values: off, a range, names for positions', () => {
   const shaped = (control) => shapeControls({ cars: [{ path: 'x', controls: [control] }] }).cars[0].controls[0];
   expect(shaped({ id: 'tc', var: 'dcTractionControl', label: 'TCS', off: 1, range: [1, 12] })).toEqual({ id: 'tc', var: 'dcTractionControl', label: 'TCS', off: 1, range: [1, 12] });
@@ -508,9 +527,13 @@ test('what the check has kept is by car, and a car with nothing kept is not in i
   expect(shaped.kept).toEqual([{ car: 'a', remarks: [remark] }, { car: 'd', remarks: [remark] }]);
   // A host that could not read its store says so with null, which is not none.
   expect(shapeControls({ cars: [], kept: null }).kept).toBeNull();
-  expect(shapeControls({ cars: [] }).kept).toBeNull();
   expect(shapeControls({ cars: [], kept: [] }).kept).toBeNull();
+  expect(shapeControls({ cars: [], kept: 'none' }).kept).toBeNull();
   expect(shapeControls({ cars: [], kept: {} }).kept).toEqual([]);
+  // A host from before the desk kept anything serves the route with no `kept` at all: it keeps none, and that is not
+  // its store being unreadable — the page must not say that of it.
+  expect(shapeControls({ cars: [] }).kept).toEqual([]);
+  expect(shapeControls({ version: 1, remarks: { a: ['a line of the log'] }, cars: [{ path: 'a' }] }).kept).toEqual([]);
   // The moments are text or nothing.
   expect(shapeControls({ cars: [], kept: { a: [{ ...remark, firstSeen: 5, lastSeen: null }] } }).kept[0].remarks[0]).toEqual({ ...remark, firstSeen: null, lastSeen: null });
   // A car called what an object's own keys are is a car like another.
@@ -560,7 +583,8 @@ test('an answer that is not the list of cars is an error in words, and an old ho
   for (const value of [null, [], 'text', 7, {}, { cars: 'all of them' }, { cars: null }, { car: {} }, { kept: {} }]) {
     expect(readControls({ status: 200, text: JSON.stringify(value) }), JSON.stringify(value)).toEqual(words);
   }
-  expect(readControls({ status: 200, text: '{ "cars": [] }' })).toEqual({ value: { version: null, listHash: null, count: null, following: null, cars: [], kept: null } });
+  expect(readControls({ status: 200, text: '{ "cars": [] }' })).toEqual({ value: { version: null, listHash: null, count: null, following: null, cars: [], kept: [] } });
+  expect(readControls({ status: 200, text: '{ "cars": [], "kept": null }' }).value.kept).toBeNull();
   expect(readControls({ status: 404, text: '' })).toEqual({ missing: true });
   expect(readControls({ status: 500, text: 'boom' })).toEqual({ error: 'The host answered 500.' });
   expect(readControls({ status: 200, text: '{ not json' })).toEqual({ error: 'The host answered, but not with JSON.' });
