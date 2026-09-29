@@ -98,6 +98,34 @@ SmartControl, and **a brake force**, adjusted from the seat with Live's keys. Th
   and the profile the desk was told. The desk asks which profile once per car, by name, and not in the car.
 - **A car with nothing saved** keeps whatever the pedals have, and the HUD says so.
 
+### A profile of its own for every car (decided 2026-09-28)
+
+> "app should create new profiles based on them: light for touring and sports cars with abs, default for
+> formula and cars without abs"
+
+So the desk no longer asks which of the six a car uses. Every car gets a profile of its own, made by the app
+from one of two of his:
+
+| The car | Its profile starts as a copy of |
+|---|---|
+| Touring or sports car **with ABS** | `LightBrake` — 45 kg, linear, 4 % deadzone |
+| Formula car, or any car **without ABS** | `Default` — 80 kg, linear, 5 % deadzone |
+
+- **Whether a car has ABS** is in his own telemetry: a car that has it publishes `dcABS`, and one that does not
+  has no such variable. The per-car record of controls (`docs/car-controls-findings.md`) holds it; a car never
+  driven has no answer until the first session in it, and until then has no profile.
+- **Whether a car is a formula car** is the category its sessions ran in, which the store has per session. A car
+  with ABS that is neither touring nor sports (a prototype with ABS, say) is not covered by the rule as he gave
+  it: it takes `Default` until he says otherwise, and the Cars page shows which base a car was given and why.
+- **The copy is the car's from then on.** What he changes in SmartControl while in that car — curve, deadzone,
+  force — is saved to the car's profile, not to the base. The base is only where a car starts.
+- **What this changes in the slices.** P1's binding by name becomes the base a car was given. P3 (a Live key per
+  profile) no longer fits — there would be a key per car — so the way to restore is P4: one profile in
+  SmartControl that is the app's, holding the current car's, behind one key. That is a write to SmartControl's
+  database, and it waits on E9, E10 and his go-ahead like every other write.
+- **A profile made by the app is not byte for byte SmartControl's**: it is a copy of one that was, under another
+  name. Whether SmartControl takes a row whose name changed and whose hash did not is part of E10.
+
 ### Slices
 
 | | Does | Writes |
@@ -137,7 +165,9 @@ pedals directly, which is a later and more careful piece of work.
 
 ## Open
 
-- Monitor or VR? The horizon is a monitor setting; in a headset it may not apply, and height behaves differently.
+- ~~Monitor or VR?~~ **Monitor** (2026-09-28). The horizon applies, and height is the one in `app.ini`.
+- A car with ABS that is neither a touring nor a sports car: which base does it start from? (`Default`, until
+  he says.)
 - What height up and down and horizon up and down are bound to — or whether the app should read that from the
   control profile.
 - A HUD line for every automatic change, or only when something could not be done?
