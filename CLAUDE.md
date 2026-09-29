@@ -59,8 +59,9 @@ The host also serves the store read-only at
 SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk). One thing is written
 through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only —
 a request that names an `Origin`, or comes from another machine, gets 403, so the desk page sends it through main.js.
-Beside them, and from the assembly and not the store, `GET /racing-desk/data/controls[?car=<folder>]` serves the
-car list and what the check has said of each car this run (see The car's controls).
+Beside them, `GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
+before there is a store) with what the check of it has said of each car: this run's, and what the store has kept of
+the runs before (see The car's controls).
 
 Car names (`cars`, schema v4) come from the session YAML of the driver's own sessions, which lists every entrant's
 `CarPath` and `CarScreenName` — nothing of iRacing's is bundled, so a car that has never been in one of those sessions
@@ -75,7 +76,7 @@ driven live and then read from its `.ibt`, or written to several files, is one (
 Schema changes add tables and leave the old ones as they were (v5 took `cars_scanned` back out of `ingested_files`),
 so an earlier build can still record and ingest into a store a later one has opened.
 
-**Per car, for the rig** (schema v5 and v6; plan in `docs/view-and-pedals-plan.md`). Nothing here writes to iRacing's files
+**Per car, for the rig** (schema v5 to v7; plan in `docs/view-and-pedals-plan.md`). Nothing here writes to iRacing's files
 or to the pedals.
 - `car_views` — the view a car was driven with. iRacing keeps one height and horizon for every car (`[View]` in
   `Documents\iRacing\app.ini`, read at sim start, written at exit), so `CarViewRecorder` reads the file while the sim
@@ -91,6 +92,8 @@ or to the pedals.
   driven with, whether it has ABS, and who gave it its profile (`rule` and what the rule went by, `driver`, or
   `none` when he chose that it has none). A force is the car's with or without a profile, which is why it is not
   kept only in `car_pedals`.
+- `car_list_remarks` (schema v7) — what the check of the car list has said of each car, kept so that the desk can
+  show it after the run that said it is over (see The car's controls).
 - **The brake force is followed from SmartControl Live's keys** (`Pedals/BrakeForce.cs`, `CarPedalsRecorder.cs`),
   because it is in no file: a key goes to Live, Live tells the controller, the controller keeps it. The driver
   said yes to this (2026-09-28), on these terms:
@@ -193,19 +196,38 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
   then run against the new shape.
 - **The check** (`Cars/CarListCheck.cs`, one per car, `CarControlsFollower` follows the car): the list against what
   the car publishes, said once per car for each thing in the log (`host.log` for the app's host, SimHub's log for the
-  plugin; lines begin `[RacingDesk] car list: <car> …`), and served
+  plugin; lines begin `[RacingDesk] car list: <car> …`), kept in the store by the host, and served
   with the list at `/racing-desk/data/controls`. A car not in the list; a listed variable the car does not
   publish; a dial the car publishes that no control of the list has; ABS seen working (`BrakeABSactive`) in a car
   listed without it, or `dcABS` published by one; a bias that moves in a car listed without one; a value outside
   the control's `range` or a position with no name. It compares only while he is in the car and after his first
   second in it (the garage and replays publish what the last car left). **It changes nothing the HUD shows**: the
   list is right until somebody corrects it, and the log line is the reminder to.
+- **What the check said is kept, and shown on the desk** (schema v7, `car_list_remarks`). Each remark is a
+  `CarRemark`: the car, `About` — which thing was said, the key the check already said each once by (`unknown`,
+  `list:abs`, `absent:dcABS`, `unlisted`, `abs:dial`, `tc:dial`, `abs:working`, `bias:moved`, `value:dcABS`…) — and
+  `Text`, the words without the car. `CarControlsFollower.Said` raises each the first time it is said in a run,
+  stamped with the list it was said against and when, after the follower's lock is let go; the SimHub plugin has no
+  store and does not listen. The list's name is `CarList.Hash`: twelve hex digits of the SHA-256 of the exact bytes
+  of the embedded `cars.json` (`empty` for a build with no list, which has nothing to say). The host's
+  `CarListRemarkKeeper` (`RacingDesk.Data`) only queues the remark on the telemetry thread and writes it from a pool
+  thread through a connection of its own, as the pedals are; a store that will not take it is logged and goes no
+  further, and what was in hand is dropped — the check says it again when the car is next driven. One row per car
+  (case-blind), per thing, per list: said again under the same list a remark moves `last_seen_at` and nothing else;
+  said against another list — the list has changed since — it is a row of its own. **Only what was said against the
+  list in use is served as current**: rows against an earlier list stay in the store and are not shown, since what
+  they say may have been put right. A host in replay (`--ibt`) keeps none: a replay's remarks would be stamped
+  with the day it was replayed. `/racing-desk/data/controls` says `listHash` and, per car, `kept` — `{ about, text,
+  firstSeen, lastSeen }` — beside `remarks`, this run's, as the log has them (`{ "<car>": […] }` for the whole
+  list; for `?car=` a list). `kept` is `null` when the store is there and could not be read, which is not the same as
+  none. The route reads the store read-only and creates none. A store from a later build is opened as it is and
+  nothing is kept in it (a version above the code's is not migrated, and is not refused either).
 - **A car the list does not have** shows what it showed before there was a list: no key is sent, and the HUD goes by
   the raw `dc…` values and the old hand-written table in `apps/overlay/modules/js/config.js`. Nothing is made up —
   no NONE, no car's own labels, no DRS or push-to-pass. The check says once, in the log, that the car is missing.
-- **Not built**: the desk does not show the list or the check; the pedals' rule (`CarPedalsKeeper`, above) still
-  works out a car's kind and ABS from what it publishes and does not read the list; nothing is remembered per car
-  (no schema change). Beside SimHub the key shows only once the plugin has been installed again from a build that
+- **Not built**: the HUD does not say what the check found; the pedals' rule (`CarPedalsKeeper`, above) still
+  works out a car's kind and ABS from what it publishes and does not read the list; of a car's controls nothing is
+  remembered but what the check said. Beside SimHub the key shows only once the plugin has been installed again from a build that
   carries the list: the plugin carries `RacingDesk.Core`, and the old DLL sends no such key.
 
 ## Desk
@@ -331,13 +353,17 @@ set Auto-Lock to Never.
 pedals. The list is on the left — every car the rig knows, by the sim's name for it, cars with a livery first, a
 filter over all of them, the livery groups above — and a car that has a view or pedals kept says so in its row
 (`view`, `pedals`), so the cars that have been set up can be found among the rest. The car on the page is on the
-right, in this order: its name; **View** and **Pedals**, side by side (`.car-rig`); its versions and "When a livery
-is applied"; what is on disk for it (installed in the sim, backups); Trading Paints; and last the library's own
-housekeeping, Library source. The view and the pedals are what the page is opened for after a drive, so they are in
-sight without scrolling in the desk's smallest window (1024 × 680 outside, about 1008 × 641 inside) for every car,
-with the liveries beginning under them, and choosing another car puts the pane at its top — both held by desk
+right, in this order: its name; **View** and **Pedals**, side by side, and **Controls** across both (`.car-rig`); its
+versions and "When a livery is applied"; what is on disk for it (installed in the sim, backups); Trading Paints; and
+last the library's own housekeeping, Library source. The view and the pedals are what the page is opened for after a
+drive, so they are in sight without scrolling in the desk's smallest window (1024 × 680 outside, about 1008 × 641
+inside) for every car, with the liveries beginning under them — and, where the host has the car list, Controls
+between: it begins in sight, and where the car and the list disagree (its top block) is in sight for a car with two
+of them, so the liveries begin below the fold there. Choosing another car puts the pane at its top; all held by desk
 tests. A strip under the name and not a column beside the liveries: at that width a column leaves the cards one
-abreast, and is itself too narrow to hold both panels in the height there is.
+abreast, and is itself too narrow to hold both panels in the height there is. Controls spans the two columns
+the view and the pedals are in and no more (`grid-column: 1 / span 2`): across a whole wide window it would leave
+them a third each, where without it they are half.
 - **The car driven last is the one the page opens on**, and follows — the desk hands over the dates at its start
   and whenever the store has something new — until he chooses a car in the list. A car he chose stays until he
   drives again: a drive begun after he chose it puts the page on the car he drove, which is what he comes back
@@ -360,7 +386,8 @@ abreast, and is itself too narrow to hold both panels in the height there is.
 - **Coming back to the desk reads the car's view and pedals again** (`useRig.ts`): when the window comes to the
   front with the page showing, and once more 110 s later. The host keeps the pedals when the run ends and the
   view once the sim has gone and written its files, neither of which changes what the desk counts as new. It is
-  three questions of the host on this machine; the list of cars is not read for it.
+  four questions of the host on this machine (the names, the views, the pedals, the car list); the list of cars is not
+  read for it.
 
 One UI source, `apps/paints/src` (React), bundled for the desk by
 `apps/paints/build-island.mjs` into `modules/desk/paints.bundle.js` + `.css` (generated, like the calc bundle) and
@@ -399,12 +426,34 @@ millimetres and the page does not say which way is forward — that has not been
   SmartControl to give from. Beside the profile's brake, the force and when it was set: "brake force 62 kg in this
   car, set Tue, Sep 15, 5:40 PM". A host from before it sent any of this shows as it did: no sentence, no date.
   Taking a profile away leaves the force on the page.
+- **Controls** (`components/CarControls.tsx`, under the view and the pedals, across both) is what the car list says
+  of the car, and where the car has been found disagreeing with it. In plain words: the kind ("GT car",
+  "Prototype"); ABS, traction control and brake bias each as none, fixed or adjustable with the car's own name for the
+  dial (`adjustable ESC`; a mode dial that stands for several is the label of each); each control as its function,
+  its label and its range or named positions ("Traction control TCS 1 to 12, 1 is off", "Mode ESC 0 TRACK · 1 SPORT ·
+  2 NORMAL"); and "Checked against your telemetry." or "Written from the manuals; not checked against your
+  telemetry yet." Above it, **where the car and the list disagree**: each thing the check kept, as a sentence with
+  when it was first and last seen ("First seen Tue, Sep 15, 5:40 PM, last seen Tue, Sep 22, 12:05 PM.", or "Seen …"
+  where they are one moment), in the warning colour with a heading of its own. A car the list does not have says so
+  ("This car is not in the car list. The HUD shows its controls as it did before there was a list.", and when the
+  check first noticed) and shows nothing made up; that the list lacks a car is not counted a disagreement. In the
+  list of cars a car with a disagreement carries the mark `≠ list`, beside `view` and `pedals` — and a car the list
+  lacks does not. **The page is as it was where there is no list**: an app whose answer has no `controls`, a host with
+  no such route, or a list with no cars in it (a build from before the list) show no panel and no mark. A list that
+  could not be read is said in a Controls panel of its own ("The car list could not be read. …"), and a store that
+  could not be read beside the list ("What the check has found could not be read from the host's store."), never as
+  nothing found. What was said is text, however it is written.
 - **Read through main.** `window.racingDesk.rig.read()` → `rig:read` (the desk window only) →
-  `modules/js/rig-api.js`, which GETs `cars`, `views` and `pedals` from Node with a 3 s limit each, only from a
-  host on this machine, and answers `{ cars, views, pedals }`, each `{ value }`, `{ missing: true }` (a 404: a host
-  from before the route, and the page says the host is older) or `{ error }` in words — never a rejection, and
-  one failing does not take the others with it. `apps/paints/src/rig.ts` shapes the answers and trusts none of
-  them. Read when the page is mounted and each time it is shown again — not at desk start.
+  `modules/js/rig-api.js`, which GETs `cars`, `views`, `pedals` and `controls` from Node with a 3 s limit each, only
+  from a host on this machine, and answers `{ cars, views, pedals, controls }`, each `{ value }`, `{ missing: true }`
+  (a 404: a host from before the route, and the page says the host is older) or `{ error }` in words — never a
+  rejection, and one failing does not take the others with it. `apps/paints/src/rig.ts` shapes the answers and
+  trusts none of them. Read when the page is mounted and each time it is shown again — not at desk start. The first
+  three are passed on as the host gave them; **`controls` is bounded and shaped on the way** (`shapeControls`),
+  being the one big answer and one from a file written by hand: at most 1.2 MB is listened to, only the keys the
+  page draws are kept, each of the type it is drawn as (`positions` as `[value, name]` pairs, `kept` as
+  `[{ car, remarks }]`), no string, list or object longer than the page has room for, and an answer that is not the
+  list is `{ error }`. The notes and sources of the list and what the check said in this run alone are not passed on.
 - **Read again, the list of cars with it, when the desk says so** (`racingdesk:refresh`, `desk.js` `refreshCars`):
   the masthead's Refresh, which does for this page what the page's own does; the desk finding the host after finding none,
   which is how cars listed by folder while the host was starting get their names; and the store having something

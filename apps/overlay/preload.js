@@ -62,8 +62,8 @@ contextBridge.exposeInMainWorld('racingDesk', {
     openPath: (p) => ipcRenderer.invoke('paints:openPath', p),
   },
   // Desk window, Cars page: what the host keeps per car, asked for by main.js (modules/js/rig-api.js) so that
-  // the page builds no address of its own. read resolves to { cars, views, pedals }, each { value },
-  // { missing: true } or { error }. bindPedals gives a car one of SmartControl's pedal profiles, or none (null)
+  // the page builds no address of its own. read resolves to { cars, views, pedals, controls } (the last is the
+  // canonical list of cars and what its check has found), each { value }, { missing: true } or { error }. bindPedals gives a car one of SmartControl's pedal profiles, or none (null)
   // — the host refuses writes from pages — and resolves to { ok: true, car } or { ok: false, error }. What went
   // wrong is an answer, not a rejection, in both.
   rig: {

@@ -199,12 +199,13 @@ Node port of `src-tauri/src`, module for module, in `apps/overlay/modules/js/pai
 There the page has no name of its own on it — the desk's masthead says where you are — and the status chips and
 Refresh sit at the end of the setup row.
 
-A car's page reads from the top: its name; its **View** and its **Pedals**, side by side; its versions and "When a
-livery is applied"; what is on disk for it (installed in the sim, backups); Trading Paints; and last the library's
-own housekeeping, **Library source**, which used to be first. The view and the pedals are what the page is opened
-for after a drive, and under the versions' cards they were out of sight: where they are now they are in sight
-without scrolling in the desk's smallest window, for every car, with the first row of cards beginning under them.
-Choosing another car, or a group, puts the pane back at its top.
+A car's page reads from the top: its name; its **View** and its **Pedals**, side by side, and **Controls** across
+both; its versions and "When a livery is applied"; what is on disk for it (installed in the sim, backups); Trading
+Paints; and last the library's own housekeeping, **Library source**, which used to be first. The view and the pedals
+are what the page is opened for after a drive, and under the versions' cards they were out of sight: where they are
+now they are in sight without scrolling in the desk's smallest window, for every car, with the first row of cards
+beginning under them — under Controls too, where the host has the car list, and then below the fold. Choosing
+another car, or a group, puts the pane back at its top.
 
 ### The car just driven
 
@@ -249,12 +250,39 @@ profile away leaves its force on the page, and the host has that down as the dri
 Both come from the app's host by way of its main process (`window.racingDesk.rig`: `read()` and
 `bindPedals(carPath, profileId)`); the page builds no address and fetches nothing. `src/rig.ts` shapes what comes
 back, `src/useRig.ts` reads it — when the page is mounted, when the desk shows it again, on either Refresh, and when
-the desk says there is something new. The Rust never had any of
+the desk says there is something new. `read()` answers `{ cars, views, pedals, controls }`. The Rust never had any of
 this, so nothing falls back to it: in the Tauri shell and in `dev-preview.html` the two panels say that the app is
 not there, and everything else works as it did.
 
 In the desk the list of cars does not wait on a library either. Once one has been looked for and not found, the
 cars are the install's and the paint folder's, so a car's view and pedals can be looked at with no livery anywhere.
+
+### What the car list says of a car
+
+The third panel of the strip, **Controls**, is the canonical list of cars (`packages/car-list/cars.json`, written by
+hand, carried by the host) read for this car, with what the host's check of it has found. It is the desk's alone, as
+the other two are, and read the same way — `read()`'s `controls`, bounded and shaped by
+`apps/overlay/modules/js/rig-api.js` before the page has it — and it is drawn by `src/components/CarControls.tsx`.
+
+| The page says | Where it comes from |
+|---|---|
+| **Kind** — GT car, Prototype, Formula car… | the car's `kind` |
+| **ABS**, **Traction control**, **Brake bias** — none, fixed (the car has it and you cannot turn it) or adjustable, with the car's own name for the dial in a tag (`adjustable ESC`) | `abs`, `tc`, `brakeBias`, and the label of the control the list gives for each, or of the mode dial that stands for it |
+| a row for every control — what it is, its label, and its values: "1 to 12, 1 is off", "0 TRACK · 1 SPORT · 2 NORMAL", "never off", "status" (DRS, push to pass) | `controls` |
+| "Checked against your telemetry." / "Written from the manuals; not checked against your telemetry yet." | `checked` |
+| **Where the car and the list disagree**, above them: each thing as a sentence, and when it was first and last seen | `kept`, from the host's store: what the check has said of the car against the list in use, this run's and the runs before |
+| "This car is not in the car list. The HUD shows its controls as it did before there was a list." and, where the check said so, when it first noticed | the car is not in `cars`; `kept`'s `unknown` |
+
+A car with a disagreement is marked `≠ list` in the list of cars, beside `view` and `pedals`. A car the list merely
+lacks is not: that is said in its own Controls panel, and marking every car the list is yet to have would bury the
+ones the list gets wrong.
+
+Nothing is made up. Where there is no list the page is as it was — an app whose answer has no `controls`, a host with
+no such route, or one whose list has no cars in it shows no panel and no mark. A list that could not be read is said
+where the panel would be, and a store the host could not read is said beside the list and is not taken for nothing
+kept. A remark about a list since changed is not shown: the host keeps it but serves only what was said against the
+list in use, since what it says may have been put right. The words of a remark and a control's label are text,
+however they are written.
 
 ### What is read, and when
 
