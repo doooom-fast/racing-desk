@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using Newtonsoft.Json.Linq;
 using RacingDesk.Plugin;
 
@@ -106,7 +108,10 @@ namespace RacingDesk.Core.Cars
         /// <summary>The name the list is embedded under.</summary>
         public const string ResourceName = "RacingDesk.Core.Cars.cars.json";
 
-        public static readonly CarList Empty = new CarList(0, new List<CarEntry>(), new List<string>());
+        /// <summary>What <see cref="Hash"/> is for a list with nothing in it: no list in the build, or one that could not be read.</summary>
+        public const string EmptyHash = "empty";
+
+        public static readonly CarList Empty = new CarList(0, new List<CarEntry>(), new List<string>(), EmptyHash);
 
         private static readonly Lazy<CarList> Embedded = new Lazy<CarList>(LoadEmbedded);
 
@@ -116,14 +121,23 @@ namespace RacingDesk.Core.Cars
         public int Version { get; }
         public IReadOnlyList<CarEntry> Cars { get; }
 
+        /// <summary>
+        /// A short name for the exact bytes this list was read from (twelve hex digits of their SHA-256), which
+        /// changes when anybody changes the list. What the check said is kept against it, so that a remark about
+        /// a list since corrected is not taken for one about the list in use. <see cref="EmptyHash"/> for a list
+        /// with nothing in it.
+        /// </summary>
+        public string Hash { get; }
+
         /// <summary>What was wrong with the text the list was read from, entry by entry. Empty for a list with nothing wrong.</summary>
         public IReadOnlyList<string> Problems { get; }
 
-        private CarList(int version, List<CarEntry> cars, List<string> problems)
+        private CarList(int version, List<CarEntry> cars, List<string> problems, string hash)
         {
             Version = version;
             Cars = cars;
             Problems = problems;
+            Hash = hash;
             foreach (var car in cars)
             {
                 if (!_byPath.ContainsKey(car.Path)) _byPath[car.Path] = car;
@@ -147,15 +161,19 @@ namespace RacingDesk.Core.Cars
             return _byFolded.TryGetValue(Fold(path), out car) ? car : null;
         }
 
-        private static string Fold(string path) =>
-            path.Trim().ToLowerInvariant().Replace('-', ' ').Replace('_', ' ');
+        /// <summary>A car's folder as <see cref="Find"/> compares it: case, hyphens, underscores and spaces folded away.</summary>
+        public static string Fold(string path) =>
+            (path ?? "").Trim().ToLowerInvariant().Replace('-', ' ').Replace('_', ' ');
 
         /// <summary>
         /// Reads a list. Whatever it does not know it leaves, whatever is not what it should be it takes as not
         /// said, and an entry with no path is passed over: a list with a mistake in one car is still the list
         /// for the others. Throws only for text that is not JSON at all.
         /// </summary>
-        public static CarList Parse(string json)
+        public static CarList Parse(string json) =>
+            Parse(json, string.IsNullOrWhiteSpace(json) ? EmptyHash : HashOf(Encoding.UTF8.GetBytes(json)));
+
+        private static CarList Parse(string json, string hash)
         {
             if (string.IsNullOrWhiteSpace(json)) return Empty;
             var root = JToken.Parse(json) as JObject;
@@ -164,14 +182,14 @@ namespace RacingDesk.Core.Cars
             if (root == null)
             {
                 problems.Add("the list is not an object");
-                return new CarList(0, cars, problems);
+                return new CarList(0, cars, problems, hash);
             }
 
             int version = (int)(Number(root["version"]) ?? 0);
             if (!(root["cars"] is JArray list))
             {
                 problems.Add("the list has no cars");
-                return new CarList(version, cars, problems);
+                return new CarList(version, cars, problems, hash);
             }
 
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -222,7 +240,19 @@ namespace RacingDesk.Core.Cars
                 car.Controls = controls;
                 cars.Add(car);
             }
-            return new CarList(version, cars, problems);
+            return new CarList(version, cars, problems, hash);
+        }
+
+        /// <summary>The first twelve hex digits of the SHA-256 of these bytes: <see cref="Hash"/> of a list read from them.</summary>
+        public static string HashOf(byte[] bytes)
+        {
+            using (var sha = SHA256.Create())
+            {
+                byte[] digest = sha.ComputeHash(bytes ?? new byte[0]);
+                var text = new StringBuilder(12);
+                for (int i = 0; i < 6; i++) text.Append(digest[i].ToString("x2", CultureInfo.InvariantCulture));
+                return text.ToString();
+            }
         }
 
         private static CarControl Control(JObject o)
@@ -317,9 +347,15 @@ namespace RacingDesk.Core.Cars
                 using (var stream = typeof(CarList).GetTypeInfo().Assembly.GetManifestResourceStream(ResourceName))
                 {
                     if (stream == null) return Empty;
-                    using (var reader = new StreamReader(stream))
+                    byte[] bytes;
+                    using (var copy = new MemoryStream())
                     {
-                        var list = Parse(reader.ReadToEnd());
+                        stream.CopyTo(copy);
+                        bytes = copy.ToArray();
+                    }
+                    using (var reader = new StreamReader(new MemoryStream(bytes)))
+                    {
+                        var list = Parse(reader.ReadToEnd(), HashOf(bytes));
                         foreach (string problem in list.Problems) Log.Warn("[RacingDesk] car list: " + problem);
                         return list;
                     }

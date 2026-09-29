@@ -138,6 +138,29 @@ namespace RacingDesk.Data
         public DateTime BoundAtUtc { get; set; }
     }
 
+    /// <summary>
+    /// One thing the check of the car list has said of a car (schema v7): where what the car publishes disagrees
+    /// with what the list says of it, or that the list does not have it. One row per car, per thing, per list.
+    /// </summary>
+    public sealed class CarListRemark
+    {
+        /// <summary>The sim's folder for the car, as it was named when the remark was said.</summary>
+        public string CarPath { get; set; }
+
+        /// <summary>Which thing was said (<c>unknown</c>, <c>abs:dial</c>, <c>value:dcABS</c>…): a car and this name one remark.</summary>
+        public string About { get; set; }
+
+        /// <summary>What was said, without the car: <c>the list gives abs as dcABS, which the car does not publish</c>.</summary>
+        public string Text { get; set; }
+
+        /// <summary>The name of the list it was said against (<c>CarList.Hash</c>).</summary>
+        public string ListHash { get; set; }
+
+        /// <summary>The first time it was said against that list, and the last.</summary>
+        public DateTime FirstSeenUtc { get; set; }
+        public DateTime LastSeenUtc { get; set; }
+    }
+
     /// <summary>A row of the <c>cars</c> table with how often the driver's own sessions were in that car.</summary>
     public sealed class CarSummary
     {

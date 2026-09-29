@@ -15,6 +15,7 @@ namespace RacingDesk.Core.Cars
 
         private readonly CarList _list;
         private readonly Action<string> _log;
+        private readonly Func<DateTime> _now;
         private readonly Dictionary<string, CarListCheck> _checks = new Dictionary<string, CarListCheck>(StringComparer.OrdinalIgnoreCase);
         private readonly object _gate = new object();
 
@@ -22,13 +23,22 @@ namespace RacingDesk.Core.Cars
         private CarEntry _car;
         private CarListCheck _check;
         private string _json;
-        private bool _failed;
+        private bool _failed, _failedToTell;
 
-        public CarControlsFollower(CarList list = null, Action<string> log = null)
+        /// <param name="now">The clock remarks are stamped by; null for the machine's.</param>
+        public CarControlsFollower(CarList list = null, Action<string> log = null, Func<DateTime> now = null)
         {
             _list = list ?? CarList.Default;
             _log = log ?? (line => Log.Info("[RacingDesk] car list: " + line));
+            _now = now ?? (() => DateTime.UtcNow);
         }
+
+        /// <summary>
+        /// Raised for each thing the check says of a car, the first time it is said in this run, with the list it
+        /// was said against and when. It is raised on the thread of the frame, and a handler must not hold it up:
+        /// the host's only queues the remark to be kept. What a handler throws is logged once and goes no further.
+        /// </summary>
+        public event Action<CarRemark> Said;
 
         /// <summary>The list this follower reads.</summary>
         public CarList List => _list;
@@ -62,6 +72,7 @@ namespace RacingDesk.Core.Cars
         public string See(string carPath, Func<string, object> property, bool? fixedSetup, bool? inCar)
         {
             if (property == null) return null;
+            List<CarRemark> fresh = null;
             try
             {
                 lock (_gate)
@@ -87,7 +98,21 @@ namespace RacingDesk.Core.Cars
 
                     Func<string, object> variable = name => property(Raw + name);
                     if (_check != null)
-                        foreach (string remark in _check.See(variable, inCar)) _log(remark);
+                    {
+                        var said = _check.Take(variable, inCar);
+                        if (said.Count > 0)
+                        {
+                            fresh = new List<CarRemark>(said.Count);
+                            DateTime at = _now();
+                            foreach (var remark in said)
+                            {
+                                remark.ListHash = _list.Hash;
+                                remark.SaidAtUtc = at;
+                                fresh.Add(remark);
+                                _log(remark.Line);
+                            }
+                        }
+                    }
                     if (_car == null) return null;
 
                     string json = CarControls.Read(_car, variable, fixedSetup).ToJson();
@@ -102,6 +127,31 @@ namespace RacingDesk.Core.Cars
                 _failed = true;
                 return null;
             }
+            finally
+            {
+                if (fresh != null) Tell(fresh);
+            }
+        }
+
+        // Outside the lock, so that a handler cannot deadlock the telemetry by asking the follower a question, and
+        // however the frame ended: a remark said is a remark said, whether or not the car's controls could be read.
+        private void Tell(List<CarRemark> fresh)
+        {
+            var handlers = Said;
+            if (handlers == null) return;
+            foreach (var remark in fresh)
+                foreach (Delegate handler in handlers.GetInvocationList())
+                {
+                    try
+                    {
+                        ((Action<CarRemark>)handler)(remark);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (!_failedToTell) Log.Warn("[RacingDesk] car list: a remark was not passed on — " + ex.Message);
+                        _failedToTell = true;
+                    }
+                }
         }
     }
 }

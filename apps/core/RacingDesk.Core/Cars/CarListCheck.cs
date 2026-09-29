@@ -4,6 +4,34 @@ using System.Globalization;
 
 namespace RacingDesk.Core.Cars
 {
+    /// <summary>One thing the check has said of one car.</summary>
+    public sealed class CarRemark
+    {
+        /// <summary>The car, as the sim names its folder.</summary>
+        public string CarPath { get; internal set; }
+
+        /// <summary>
+        /// Which thing was said: <c>unknown</c>, <c>list:abs</c>, <c>absent:dcABS</c>, <c>unlisted</c>, <c>abs:dial</c>,
+        /// <c>tc:dial</c>, <c>abs:working</c>, <c>bias:moved</c>, <c>value:dcABS</c>… A thing is said once per car
+        /// however often it is seen, so a car and this key name one remark.
+        /// </summary>
+        public string About { get; internal set; }
+
+        /// <summary>What was said, without the car: <c>the list gives abs as dcABS, which the car does not publish</c>.</summary>
+        public string Text { get; internal set; }
+
+        /// <summary>The name of the list it was said against (<see cref="CarList.Hash"/>); set by the follower.</summary>
+        public string ListHash { get; internal set; }
+
+        /// <summary>When it was said; set by the follower.</summary>
+        public DateTime SaidAtUtc { get; internal set; }
+
+        /// <summary>As the log has it: the car, then what was said.</summary>
+        public string Line => CarPath + " " + Text;
+
+        public override string ToString() => Line;
+    }
+
     /// <summary>
     /// A check on the list, and not a detector: where what the car publishes disagrees with what the list says of
     /// it, that is said — once per car for each thing — so the list gets corrected. Nothing found here changes
@@ -39,7 +67,7 @@ namespace RacingDesk.Core.Cars
         private readonly string _carPath;
         private readonly CarEntry _car;
         private readonly HashSet<string> _said = new HashSet<string>(StringComparer.Ordinal);
-        private readonly List<string> _remarks = new List<string>();
+        private readonly List<CarRemark> _remarks = new List<CarRemark>();
         private int _frames, _handed;
         private bool _compared;
         private double? _biasAtFirst;
@@ -58,8 +86,22 @@ namespace RacingDesk.Core.Cars
             Consistent();
         }
 
-        /// <summary>What has been said of this car, in the order it was said.</summary>
+        /// <summary>What has been said of this car, in the order it was said, as the log has it.</summary>
         public IReadOnlyList<string> Remarks
+        {
+            get
+            {
+                lock (_remarks)
+                {
+                    var lines = new string[_remarks.Count];
+                    for (int i = 0; i < lines.Length; i++) lines[i] = _remarks[i].Line;
+                    return lines;
+                }
+            }
+        }
+
+        /// <summary>What has been said of this car, in the order it was said, with which thing each was.</summary>
+        public IReadOnlyList<CarRemark> Said
         {
             get { lock (_remarks) return _remarks.ToArray(); }
         }
@@ -70,6 +112,16 @@ namespace RacingDesk.Core.Cars
         /// <param name="variable">A telemetry variable by name; null for one the car does not publish.</param>
         /// <param name="inCar">The driver is in the car. Null from a source that does not say: taken as in.</param>
         public IReadOnlyList<string> See(Func<string, object> variable, bool? inCar)
+        {
+            var fresh = Take(variable, inCar);
+            if (fresh.Count == 0) return Array.Empty<string>();
+            var lines = new string[fresh.Count];
+            for (int i = 0; i < lines.Length; i++) lines[i] = fresh[i].Line;
+            return lines;
+        }
+
+        /// <summary><see cref="See"/>, handing over what was said as remarks and not as lines of the log.</summary>
+        internal IReadOnlyList<CarRemark> Take(Func<string, object> variable, bool? inCar)
         {
             if (variable != null && inCar != false)
             {
@@ -189,15 +241,15 @@ namespace RacingDesk.Core.Cars
         private void Say(string about, string remark)
         {
             if (!_said.Add(about)) return;
-            lock (_remarks) _remarks.Add(_carPath + " " + remark);
+            lock (_remarks) _remarks.Add(new CarRemark { CarPath = _carPath, About = about, Text = remark });
         }
 
-        // What has been said and not yet handed over for the log.
-        private IReadOnlyList<string> Pending()
+        // What has been said and not yet handed over.
+        private IReadOnlyList<CarRemark> Pending()
         {
             lock (_remarks)
             {
-                if (_remarks.Count <= _handed) return Array.Empty<string>();
+                if (_remarks.Count <= _handed) return Array.Empty<CarRemark>();
                 var fresh = _remarks.GetRange(_handed, _remarks.Count - _handed);
                 _handed = _remarks.Count;
                 return fresh;
