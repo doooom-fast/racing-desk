@@ -204,8 +204,11 @@ both; its versions and "When a livery is applied"; what is on disk for it (insta
 Paints; and last the library's own housekeeping, **Library source**, which used to be first. The view and the pedals
 are what the page is opened for after a drive, and under the versions' cards they were out of sight: where they are
 now they are in sight without scrolling in the desk's smallest window, for every car, with the first row of cards
-beginning under them — under Controls too, where the host has the car list, and then below the fold. Choosing
-another car, or a group, puts the pane back at its top.
+beginning under them. Where the host has the car list, Controls sits between, and is kept short so that a listed car's
+versions still begin in sight there (the rows of its controls are folded, see below). Where the car and the list
+disagree, the disagreements are set apart above the rest of the panel and are never folded, and the versions then begin
+below the fold in the smallest window: that is the price of seeing first what the list's author has to act on.
+Choosing another car, or a group, puts the pane back at its top.
 
 ### The car just driven
 
@@ -268,9 +271,9 @@ the other two are, and read the same way — `read()`'s `controls`, bounded and 
 |---|---|
 | **Kind** — GT car, Prototype, Formula car… | the car's `kind` |
 | **ABS**, **Traction control**, **Brake bias** — none, fixed (the car has it and you cannot turn it) or adjustable, with the car's own name for the dial in a tag (`adjustable ESC`) | `abs`, `tc`, `brakeBias`, and the label of the control the list gives for each, or of the mode dial that stands for it |
-| a row for every control — what it is, its label, and its values: "1 to 12, 1 is off", "0 TRACK · 1 SPORT · 2 NORMAL", "never off", "status" (DRS, push to pass) | `controls` |
-| "Checked against your telemetry." / "Written from the manuals; not checked against your telemetry yet." | `checked` |
-| **Where the car and the list disagree**, above them: each thing as a sentence, and when it was first and last seen | `kept`, from the host's store: what the check has said of the car against the list in use, this run's and the runs before |
+| a row for every control — what it is, its label, and its values: "1 to 12, 1 is off", "0 TRACK · 1 SPORT · 2 NORMAL", "never off", "status" (DRS, push to pass) — folded under "Each control, its label and values 8" until asked for, and left open as you go down the list | `controls` |
+| "Checked against your telemetry." / "Written from the manuals; not checked against your telemetry yet." — beside the heading | `checked` |
+| **Where the car and the list disagree**, above them and never folded: each thing as a sentence, and when it was first and last seen — last seen is the last drive of the car that found it so | `kept`, from the host's store: what the check has said of the car against the list in use, this run's and the runs before |
 | "This car is not in the car list. The HUD shows its controls as it did before there was a list." and, where the check said so, when it first noticed | the car is not in `cars`; `kept`'s `unknown` |
 
 A car with a disagreement is marked `≠ list` in the list of cars, beside `view` and `pedals`. A car the list merely
@@ -280,7 +283,8 @@ ones the list gets wrong.
 Nothing is made up. Where there is no list the page is as it was — an app whose answer has no `controls`, a host with
 no such route, or one whose list has no cars in it shows no panel and no mark. A list that could not be read is said
 where the panel would be, and a store the host could not read is said beside the list and is not taken for nothing
-kept. A remark about a list since changed is not shown: the host keeps it but serves only what was said against the
+kept — while a host from before it kept anything, whose answer has no `kept` at all, is read as keeping none and
+says nothing. A remark about a list since changed is not shown: the host keeps it but serves only what was said against the
 list in use, since what it says may have been put right. The words of a remark and a control's label are text,
 however they are written.
 

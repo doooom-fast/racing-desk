@@ -206,22 +206,35 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
 - **What the check said is kept, and shown on the desk** (schema v7, `car_list_remarks`). Each remark is a
   `CarRemark`: the car, `About` — which thing was said, the key the check already said each once by (`unknown`,
   `list:abs`, `absent:dcABS`, `unlisted`, `abs:dial`, `tc:dial`, `abs:working`, `bias:moved`, `value:dcABS`…) — and
-  `Text`, the words without the car. `CarControlsFollower.Said` raises each the first time it is said in a run,
-  stamped with the list it was said against and when, after the follower's lock is let go; the SimHub plugin has no
-  store and does not listen. The list's name is `CarList.Hash`: twelve hex digits of the SHA-256 of the exact bytes
-  of the embedded `cars.json` (`empty` for a build with no list, which has nothing to say). The host's
-  `CarListRemarkKeeper` (`RacingDesk.Data`) only queues the remark on the telemetry thread and writes it from a pool
-  thread through a connection of its own, as the pedals are; a store that will not take it is logged and goes no
-  further, and what was in hand is dropped — the check says it again when the car is next driven. One row per car
-  (case-blind), per thing, per list: said again under the same list a remark moves `last_seen_at` and nothing else;
-  said against another list — the list has changed since — it is a row of its own. **Only what was said against the
-  list in use is served as current**: rows against an earlier list stay in the store and are not shown, since what
-  they say may have been put right. A host in replay (`--ibt`) keeps none: a replay's remarks would be stamped
-  with the day it was replayed. `/racing-desk/data/controls` says `listHash` and, per car, `kept` — `{ about, text,
-  firstSeen, lastSeen }` — beside `remarks`, this run's, as the log has them (`{ "<car>": […] }` for the whole
-  list; for `?car=` a list). `kept` is `null` when the store is there and could not be read, which is not the same as
-  none. The route reads the store read-only and creates none. A store from a later build is opened as it is and
-  nothing is kept in it (a version above the code's is not migrated, and is not refused either).
+  `Text`, the words without the car. `CarControlsFollower.Said` raises each one, stamped with the list it was said
+  against and when, after the follower's lock is let go; the SimHub plugin has no store and does not listen.
+  **A thing is said in every drive of the car that finds it so**, because "last seen" has to mean the last time he
+  drove the car and it was still so, and the host — and its one follower, one check per car — is up for as long as the
+  app is, across sessions. A drive begins when he gets back into the car after being out of it (`inCar` false, then
+  not), when he gets into a car the check has seen before, and when the sim has been gone and comes back; the check
+  is then looked at afresh (`CarListCheck.BeginDrive`): what the list says of itself, and that a car is not in it,
+  stands and is said again at once, the comparison with what the car publishes is made again after its first second
+  in it, and a thing seen happening (ABS working, a bias that moves, a value outside its range) is said again only
+  if it is seen again. A thing that is no longer so is not said, and its last sighting stays where it was. A repeat
+  is a `CarRemark` with `Again` set: it is for keeping, and the log and this run's remarks have each thing once.
+  The list's name is `CarList.Hash`: twelve hex digits of the SHA-256 of the exact bytes of the embedded
+  `cars.json` (`empty` for a build with no list, which has nothing to say). The host's `CarListRemarkKeeper`
+  (`RacingDesk.Data`) only queues the remark on the telemetry thread and writes it from a pool thread through a
+  connection of its own, as the pedals are; a store that will not take it is logged and goes no further, and what
+  was in hand is dropped — a thing still so is said again in the car's next drive, which is when it is next seen.
+  One row per car (case-blind), per thing, per list: said again under the same list a remark moves `last_seen_at`
+  (the earliest first and the latest last are kept) and takes the words it was last said in; said against another
+  list — the list has changed since — it is a row of its own. **Only what was said against the list in use is served
+  as current**: rows against an earlier list stay in the store and are not shown, since what they say may have been
+  put right. A host in replay (`--ibt`) keeps none: a replay's remarks would be stamped with the day it was
+  replayed. `/racing-desk/data/controls` says `listHash` and, per car, `kept` — `{ about, text, firstSeen,
+  lastSeen }` — beside `remarks`, this run's, as the log has them (`{ "<car>": […] }` for the whole list; for
+  `?car=` a list). `kept` is `null` when the store is there and could not be read, which is not the same as none. A
+  host from before this had no `kept` at all, and `rig-api.js` reads that as none kept — a host that kept nothing,
+  not a store that could not be read. The route reads the store read-only and creates none. A store from a later
+  build is not migrated, and is not refused either: it is opened as it is, and remarks are kept in its
+  `car_list_remarks` when it has the table — a later build's store has it, since every migration adds and none
+  takes away — and nothing is kept in one that does not (`tests/…/CarListRemarksStoreTests.cs`).
 - **A car the list does not have** shows what it showed before there was a list: no key is sent, and the HUD goes by
   the raw `dc…` values and the old hand-written table in `apps/overlay/modules/js/config.js`. Nothing is made up —
   no NONE, no car's own labels, no DRS or push-to-pass. The check says once, in the log, that the car is missing.
@@ -358,8 +371,16 @@ versions and "When a livery is applied"; what is on disk for it (installed in th
 last the library's own housekeeping, Library source. The view and the pedals are what the page is opened for after a
 drive, so they are in sight without scrolling in the desk's smallest window (1024 × 680 outside, about 1008 × 641
 inside) for every car, with the liveries beginning under them — and, where the host has the car list, Controls
-between: it begins in sight, and where the car and the list disagree (its top block) is in sight for a car with two
-of them, so the liveries begin below the fold there. Choosing another car puts the pane at its top; all held by desk
+between. **Controls is short on purpose**, because the list will have nearly every car and a panel that listed each
+control (a prototype has eight) pushed every listed car's liveries below the fold, with nothing wrong with the car:
+its heading with how the entry was checked beside it, one line of kind and the three dials, and the rows of
+controls folded under "Each control, its label and values" (a `<details>`, folded to begin with and kept as he
+leaves it while he goes down the list). So for a listed car the whole panel is in sight and the liveries begin in
+sight (about 620 of 641 for the McLaren, 600 for a prototype), and the rows are one press away. **Where the car
+and the list disagree the liveries do begin below the fold** in that window: what disagrees is set apart and is
+never folded, it is in sight for a car with two of them (its bottom edge about 10 px inside), and the line of what
+the list says comes under it. That is the trade, made so that what the list's author has to act on is seen first;
+put it to him if it is not the one he wants. Choosing another car puts the pane at its top; all held by desk
 tests. A strip under the name and not a column beside the liveries: at that width a column leaves the cards one
 abreast, and is itself too narrow to hold both panels in the height there is. Controls spans the two columns
 the view and the pedals are in and no more (`grid-column: 1 / span 2`): across a whole wide window it would leave
@@ -432,9 +453,12 @@ millimetres and the page does not say which way is forward — that has not been
   dial (`adjustable ESC`; a mode dial that stands for several is the label of each); each control as its function,
   its label and its range or named positions ("Traction control TCS 1 to 12, 1 is off", "Mode ESC 0 TRACK · 1 SPORT ·
   2 NORMAL"); and "Checked against your telemetry." or "Written from the manuals; not checked against your
-  telemetry yet." Above it, **where the car and the list disagree**: each thing the check kept, as a sentence with
-  when it was first and last seen ("First seen Tue, Sep 15, 5:40 PM, last seen Tue, Sep 22, 12:05 PM.", or "Seen …"
-  where they are one moment), in the warning colour with a heading of its own. A car the list does not have says so
+  telemetry yet." (beside the heading). The kind and the three dials are a line; **the rows of controls are folded**
+  under "Each control, its label and values 8" and open with one press (see the Cars paragraph for why). Above them,
+  **where the car and the list disagree**: each thing the check kept, as a sentence with when it was first and last
+  seen ("First seen Tue, Sep 15, 5:40 PM, last seen Tue, Sep 22, 12:05 PM.", or "Seen …" where they are one moment;
+  last seen is the last drive of the car that found it so, not when the host was last started), in the warning
+  colour with a heading of its own, never folded. A car the list does not have says so
   ("This car is not in the car list. The HUD shows its controls as it did before there was a list.", and when the
   check first noticed) and shows nothing made up; that the list lacks a car is not counted a disagreement. In the
   list of cars a car with a disagreement carries the mark `≠ list`, beside `view` and `pedals` — and a car the list
@@ -452,8 +476,9 @@ millimetres and the page does not say which way is forward — that has not been
   three are passed on as the host gave them; **`controls` is bounded and shaped on the way** (`shapeControls`),
   being the one big answer and one from a file written by hand: at most 1.2 MB is listened to, only the keys the
   page draws are kept, each of the type it is drawn as (`positions` as `[value, name]` pairs, `kept` as
-  `[{ car, remarks }]`), no string, list or object longer than the page has room for, and an answer that is not the
-  list is `{ error }`. The notes and sources of the list and what the check said in this run alone are not passed on.
+  `[{ car, remarks }]`, `[]` for a host whose answer has no `kept` and `null` only for the host's own `"kept": null`),
+  no string, list or object longer than the page has room for, and an answer that is not the list is `{ error }`.
+  The notes and sources of the list and what the check said in this run alone are not passed on.
 - **Read again, the list of cars with it, when the desk says so** (`racingdesk:refresh`, `desk.js` `refreshCars`):
   the masthead's Refresh, which does for this page what the page's own does; the desk finding the host after finding none,
   which is how cars listed by folder while the host was starting get their names; and the store having something
