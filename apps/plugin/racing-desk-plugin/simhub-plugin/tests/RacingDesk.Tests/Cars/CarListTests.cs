@@ -217,7 +217,8 @@ namespace RacingDesk.Tests.Cars
             foreach (var car in list.Cars)
             {
                 Assert.That(list.Find(car.Path), Is.SameAs(car), car.Path);
-                Assert.That(car.Path, Does.Not.Match(@"\d{5,}").Or.EqualTo("mx5 mx52016"), "a folder, not an id");
+                // An id stands on its own; a folder's digits run on from its letters (mx52016, camarozl12018).
+                Assert.That(car.Path, Does.Not.Match(@"(^|[^A-Za-z0-9])\d{5,}($|[^A-Za-z0-9])"), "a folder, not an id");
                 foreach (var control in car.Controls)
                     Assert.That(control.Id, Is.Not.Empty, car.Path);
             }

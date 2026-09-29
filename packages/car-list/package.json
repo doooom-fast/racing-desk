@@ -1,0 +1,11 @@
+{
+  "name": "@racing-desk/car-list",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Every car on the rig: its kind, its ABS, traction control and brake bias, and every control it gives the driver, with the car's own labels. Written by hand.",
+  "files": [
+    "cars.json",
+    "DOUBTS.md",
+    "README.md"
+  ]
+}
