@@ -682,11 +682,14 @@ ON CONFLICT(car_path) DO UPDATE SET
         public void NotePedalsGiven(string carPath, string by, string why, DateTime atUtc)
         {
             if (string.IsNullOrWhiteSpace(carPath) || !HasTable("car_pedal_facts")) return;
+            WritePedalsGiven(carPath, by, why, atUtc, null);
+        }
+
+        private void WritePedalsGiven(string carPath, string by, string why, DateTime atUtc, SqliteTransaction tx) =>
             Exec(@"
 INSERT INTO car_pedal_facts (car_path, given_by, given_why, seen_at) VALUES ($car, $by, $why, $at)
-ON CONFLICT(car_path) DO UPDATE SET given_by = excluded.given_by, given_why = excluded.given_why", null,
+ON CONFLICT(car_path) DO UPDATE SET given_by = excluded.given_by, given_why = excluded.given_why", tx,
                 ("$car", carPath.Trim()), ("$by", by), ("$why", why), ("$at", Iso(atUtc)));
-        }
 
         private const string PedalFactsQuery = @"SELECT f.car_path, c.name, f.force_kg, f.force_at, f.abs_seen, f.laps_without, f.given_by, f.given_why, f.seen_at
 FROM car_pedal_facts f LEFT JOIN cars c ON c.car_path = f.car_path";
@@ -736,6 +739,86 @@ INSERT INTO car_pedals (car_path, profile_id, profile_name, profile, brake_force
 VALUES ($car, $id, $name, $profile, $force, $at) ON CONFLICT(car_path) DO NOTHING");
             P(cmd, "$car", pedals.CarPath.Trim()); P(cmd, "$id", pedals.ProfileId); P(cmd, "$name", pedals.ProfileName.Trim());
             P(cmd, "$profile", pedals.Profile); P(cmd, "$force", pedals.BrakeForceKg); P(cmd, "$at", Iso(pedals.BoundAtUtc));
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        // The rule reads a car's pedals, then SmartControl's database, then writes; the driver may choose on the desk in
+        // between, from another connection. What the rule writes is therefore written only if the car is still as the
+        // rule read it, decided by the write itself and not by a look beforehand.
+
+        /// <summary>
+        /// The rule gives a car its first profile, and says what it went by: only if the car has none and the driver has
+        /// not chosen since the rule looked — neither a profile of his own nor that the car has none. False if he has,
+        /// and nothing is written.
+        /// </summary>
+        public bool GiveCarPedalsByRule(CarPedals pedals, string why, DateTime atUtc)
+        {
+            if (pedals == null || string.IsNullOrWhiteSpace(pedals.CarPath) || string.IsNullOrWhiteSpace(pedals.ProfileName)) return false;
+            if (!HasTable("car_pedals") || !HasTable("car_pedal_facts")) return false;
+            using var tx = _db.BeginTransaction();
+            using (var cmd = Cmd(@"
+INSERT INTO car_pedals (car_path, profile_id, profile_name, profile, brake_force_kg, bound_at)
+SELECT $car, $id, $name, $profile, $force, $at
+WHERE NOT EXISTS (SELECT 1 FROM car_pedal_facts WHERE car_path = $car AND given_by IN ('driver', 'none'))
+ON CONFLICT(car_path) DO NOTHING", tx))
+            {
+                P(cmd, "$car", pedals.CarPath.Trim()); P(cmd, "$id", pedals.ProfileId); P(cmd, "$name", pedals.ProfileName.Trim());
+                P(cmd, "$profile", pedals.Profile); P(cmd, "$force", pedals.BrakeForceKg); P(cmd, "$at", Iso(pedals.BoundAtUtc));
+                if (cmd.ExecuteNonQuery() == 0)
+                {
+                    tx.Rollback();
+                    return false;
+                }
+            }
+            WritePedalsGiven(pedals.CarPath, "rule", why, atUtc, tx);
+            tx.Commit();
+            return true;
+        }
+
+        /// <summary>
+        /// The rule gives a car a profile again, in place of the one it gave: only if that is still the profile the
+        /// rule read, bound at <paramref name="wasBoundAtUtc"/>, and the rule is still down as having given it. False if
+        /// the driver has chosen since — a profile, or that the car has none — and nothing is written. The brake force
+        /// the car was driven with stays.
+        /// </summary>
+        public bool RegiveCarPedalsByRule(CarPedals pedals, DateTime wasBoundAtUtc, string why, DateTime atUtc)
+        {
+            if (pedals == null || string.IsNullOrWhiteSpace(pedals.CarPath) || string.IsNullOrWhiteSpace(pedals.ProfileName)) return false;
+            if (!HasTable("car_pedals") || !HasTable("car_pedal_facts")) return false;
+            using var tx = _db.BeginTransaction();
+            using (var cmd = Cmd(@"
+UPDATE car_pedals SET profile_id = $id, profile_name = $name, profile = $profile,
+  brake_force_kg = COALESCE($force, brake_force_kg), bound_at = $at
+WHERE car_path = $car AND bound_at = $was
+  AND EXISTS (SELECT 1 FROM car_pedal_facts WHERE car_path = $car AND given_by = 'rule')", tx))
+            {
+                P(cmd, "$car", pedals.CarPath.Trim()); P(cmd, "$id", pedals.ProfileId); P(cmd, "$name", pedals.ProfileName.Trim());
+                P(cmd, "$profile", pedals.Profile); P(cmd, "$force", pedals.BrakeForceKg); P(cmd, "$at", Iso(pedals.BoundAtUtc));
+                P(cmd, "$was", Iso(wasBoundAtUtc));
+                if (cmd.ExecuteNonQuery() == 0)
+                {
+                    tx.Rollback();
+                    return false;
+                }
+            }
+            WritePedalsGiven(pedals.CarPath, "rule", why, atUtc, tx);
+            tx.Commit();
+            return true;
+        }
+
+        /// <summary>
+        /// Puts right what the rule went by for the profile it gave, and leaves the profile as it was: only if that is
+        /// still the profile the rule read, bound at <paramref name="wasBoundAtUtc"/>, and the rule is still down as having
+        /// given it. False if the driver has chosen since, and nothing is written.
+        /// </summary>
+        public bool NoteRuleReason(string carPath, string why, DateTime wasBoundAtUtc)
+        {
+            if (string.IsNullOrWhiteSpace(carPath) || !HasTable("car_pedals") || !HasTable("car_pedal_facts")) return false;
+            using var cmd = Cmd(@"
+UPDATE car_pedal_facts SET given_why = $why
+WHERE car_path = $car AND given_by = 'rule'
+  AND EXISTS (SELECT 1 FROM car_pedals WHERE car_path = $car AND bound_at = $was)");
+            P(cmd, "$car", carPath.Trim()); P(cmd, "$why", why); P(cmd, "$was", Iso(wasBoundAtUtc));
             return cmd.ExecuteNonQuery() > 0;
         }
 
