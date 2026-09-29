@@ -666,8 +666,11 @@ const CATALOGUE = [
   car('oldcar', 'oldcar', [], null, null, false, 0),
 ];
 
+// The library keeps itself up to date unless he turned it off, so the tests that are about something else have it off:
+// nothing asks the remote, or the sim, that they are not counting. The tests of the updating itself say what is saved
+// (`loadSettings`), and that includes saying nothing.
 const PAINTS = {
-  loadSettings: {},
+  loadSettings: { autoUpdateLibrary: false },
   saveSettings: null,
   detectPaths: {
     candidates: [{ path: PAINT_DIR, source: '%USERPROFILE%', exists: true, isOneDrive: false, carFolders: 85, textureFiles: 3204 }],
@@ -688,7 +691,7 @@ const PAINTS = {
   },
   simStatus: { simRunning: false, uiRunning: false, matched: [] },
   repoStatus: PLAIN_FOLDER,
-  repoCheck: PLAIN_FOLDER, // asked once per library on launch
+  repoCheck: PLAIN_FOLDER, // asked once per library, when a livery is in reach (updating by itself is off here)
   preflight: { blockers: [], warnings: [] },
   applyVersion: {
     applied: true,
@@ -794,7 +797,7 @@ test('the Cars page is the livery manager: the paint folder it found, the cars b
 
   // What it worked out is remembered through the bridge, in the Settings shape.
   await expect.poll(() => paintsCalls(page, 'saveSettings')).toEqual([{
-    settings: { paintDir: PAINT_DIR, libraryRoot: LIBRARY, customerId: CUSTOMER, includeSpec: true, setReadOnlyAfter: false, clearOtherCooked: false, autoUpdateOnLaunch: false },
+    settings: { paintDir: PAINT_DIR, libraryRoot: LIBRARY, customerId: CUSTOMER, includeSpec: true, setReadOnlyAfter: false, clearOtherCooked: false, autoUpdateLibrary: false },
   }]);
 
   // Leaving the page and coming back finds the same island, not a second one.
@@ -2770,6 +2773,309 @@ test('a group on the page is a livery within reach', async ({ page }) => {
   await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
   await expect(app.locator('.group-head h2')).toHaveText('shatter');
   await expect.poll(() => paintsCalls(page, 'repoCheck')).toEqual([{ path: LIBRARY }]);
+  expect(errors).toEqual([]);
+});
+
+// ── Cars: the library keeps itself up to date ────────────────
+// On unless he turned it off (`autoUpdateLibrary`; null, and the old `autoUpdateOnLaunch` that was only ever the
+// page's default, are on). The remote is looked at as the page starts, every half hour, and when the window is back
+// in front after as long away — never while the sim is running, and never two at once — and what is waiting is taken.
+// What is in the way is one plain sentence on the chip, and nothing on the page sends him to git.
+
+const UP = { ...CHECKOUT, checkedRemote: true, updatesAvailable: true };
+const CURRENT = { ...CHECKOUT, checkedRemote: true };
+const pulled = (over = {}) => ({ updated: true, commits: ['abc1234 lotus79: v14'], changed: 3, setAside: null, blocked: null, status: CURRENT, ...over });
+// The desk's own sentences (apps/overlay/modules/js/paints/repo.js says them; the page prints what it is told).
+const IN_THE_WAY = {
+  changes: 'The library has changes of its own that are not online, so it was not updated. Nothing was changed.',
+  work: 'The library has work of its own that is not online, so it was not updated. Nothing was changed.',
+  files: 'Files in the library are in the way of the update and could not be moved aside, so it was not updated. Nothing was changed.',
+  other: 'The library could not be brought up to date just now, so it was not updated. Nothing was changed.',
+};
+const refusedFor = (reason, status = UP) => ({ updated: false, commits: [], changed: 0, setAside: null, blocked: { reason, text: IN_THE_WAY[reason] }, status });
+const RUNNING = { simRunning: true, uiRunning: false, matched: ['iRacingSim64DX11.exe'] };
+const sourcePanel = (app) => app.locator('.panel', { hasText: 'Library source' });
+const autoBox = (app) => sourcePanel(app).getByLabel('Keep the library up to date by itself');
+const chipOf = (app) => app.locator('.chips .chip');
+
+// Everything a chip or a toast says, and the tooltip a chip carries, that he could read: none of it is about git.
+async function saidOnTheChips(app) {
+  const said = [
+    ...(await app.locator('.chips .chip, .chip-detail, .toast').allInnerTexts()),
+    ...(await app.locator('.chips .chip').evaluateAll((els) => els.map((el) => el.title))),
+  ].join('\n');
+  expect(said).not.toMatch(/\bgit\b|commit|stash|Library source/i);
+  return said;
+}
+
+test('with nothing saved the library keeps itself up to date: looked at as the page starts, updated, and what arrived is said', async ({ page }) => {
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: { ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: UP, repoPull: { __after: 1500, answer: pulled() } },
+  });
+  // The page starts, and asks nothing of him: no livery had to be within reach, nobody had to press anything.
+  await expect(chipOf(app)).toHaveText('Updating library…');
+  await saidOnTheChips(app);
+  await expect(app.locator('.toast .grow')).toHaveText('Library updated: 3 liveries added or changed.');
+  await expect(chipOf(app)).toHaveText('ready');
+  expect(await paintsCalls(page, 'repoCheck')).toEqual([{ path: LIBRARY }]);
+  expect(await paintsCalls(page, 'repoPull')).toEqual([{ path: LIBRARY }]);
+  expect((await paintsCalls(page, 'simStatus')).length).toBeGreaterThan(0);   // asked, and not running
+  // The library is read again, as an update by hand does.
+  await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
+  await expect(app.locator('.log .entry').first()).toContainText('The library was updated');
+  await saidOnTheChips(app);
+
+  // It is where it was, ticked, under the words he can follow; and he never chose it, so what is saved is not a choice.
+  await expect(autoBox(app)).toBeChecked();
+  await expect.poll(async () => (await paintsCalls(page, 'saveSettings')).at(-1)?.settings.autoUpdateLibrary).toBeNull();
+  expect((await paintsCalls(page, 'saveSettings')).at(-1).settings).not.toHaveProperty('autoUpdateOnLaunch');
+  await app.locator('.toast').getByRole('button', { name: 'Dismiss' }).click();
+  await expect(app.locator('.toast')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('an older version\'s saved false is its default, not his choice: the library still updates itself', async ({ page }) => {
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: { ...PAINTS, loadSettings: { autoUpdateOnLaunch: false }, repoStatus: CHECKOUT, repoCheck: UP, repoPull: pulled() },
+  });
+  await expect(app.locator('.toast .grow')).toHaveText('Library updated: 3 liveries added or changed.');
+  expect(await paintsCalls(page, 'repoPull')).toEqual([{ path: LIBRARY }]);
+  await expect(autoBox(app)).toBeChecked();
+  await expect.poll(async () => (await paintsCalls(page, 'saveSettings')).at(-1)?.settings.autoUpdateLibrary).toBeNull();
+  expect((await paintsCalls(page, 'saveSettings')).at(-1).settings).not.toHaveProperty('autoUpdateOnLaunch');
+  expect(errors).toEqual([]);
+});
+
+test('turned off, nothing is taken by itself: the chip says updates are waiting and has an Update now that does it there', async ({ page }) => {
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: { ...PAINTS, loadSettings: { autoUpdateLibrary: false }, repoStatus: CHECKOUT, repoCheck: UP, repoPull: { __after: 1500, answer: pulled({ changed: 1 }) } },
+  });
+  await expect(autoBox(app)).not.toBeChecked();
+  // Asked once, when a livery is within reach — this car has two — and said on the chip, not on a toast.
+  await expect(chipOf(app)).toHaveText('Updates waiting');
+  await page.waitForTimeout(UNASKED_MS);
+  expect(await paintsCalls(page, 'repoCheck')).toEqual([{ path: LIBRARY }]);
+  expect(await paintsCalls(page, 'repoPull')).toEqual([]);
+  await expect(app.locator('.toast')).toHaveCount(0);
+
+  await chipOf(app).click();
+  await expect(app.locator('.chip-detail')).toContainText('New liveries are waiting to be added to the library.');
+  await expect(app.locator('.chip-detail').getByRole('button')).toHaveText('Update now');
+  await saidOnTheChips(app);
+  await app.locator('.chip-detail').getByRole('button', { name: 'Update now' }).click();
+  await expect(chipOf(app)).toHaveText('Updating library…');
+  await expect(app.locator('.toast .grow')).toHaveText('Library updated: 1 livery added or changed.');
+  await expect(chipOf(app)).toHaveText('ready');
+  await expect(app.locator('.chip-detail')).toHaveCount(0);
+  expect(await paintsCalls(page, 'repoPull')).toEqual([{ path: LIBRARY }]);
+  await saidOnTheChips(app);
+
+  // Turned on, it does what it is for at once, and the choice is saved as his.
+  await autoBox(app).check();
+  await expect.poll(() => paintsCalls(page, 'repoPull')).toHaveLength(2);
+  await expect.poll(async () => (await paintsCalls(page, 'saveSettings')).at(-1)?.settings.autoUpdateLibrary).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('the remote is looked at every half hour while the app runs, and never while the sim is', async ({ page }) => {
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: { ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: CURRENT },
+    timers: true,
+  });
+  const asked = () => paintsCalls(page, 'repoCheck');
+  await expect(app.locator('.versions .card')).toHaveCount(2);
+  await expect.poll(asked).toHaveLength(1);        // as the page starts
+  await page.clock.runFor(29 * 60000);
+  expect(await asked()).toHaveLength(1);
+  await page.clock.runFor(60000);
+  await expect.poll(asked).toHaveLength(2);        // and every half hour after
+  await page.clock.runFor(30 * 60000);
+  await expect.poll(asked).toHaveLength(3);
+  expect(await paintsCalls(page, 'repoPull')).toEqual([]);   // nothing was waiting
+
+  // Turned off, it stops.
+  await autoBox(app).uncheck();
+  await page.clock.runFor(95 * 60000);
+  expect(await asked()).toHaveLength(3);
+  expect(errors).toEqual([]);
+});
+
+test('with the sim running the remote is not looked at, whoever is looking, until it is not', async ({ page }) => {
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: { ...PAINTS, loadSettings: {}, simStatus: RUNNING, repoStatus: CHECKOUT, repoCheck: UP, repoPull: pulled() },
+    timers: true,
+  });
+  await expect(app.locator('.versions .card')).toHaveCount(2);
+  await expect(chipOf(app)).toHaveText('iRacing running');
+  await page.clock.runFor(3000);
+  // Not as the page starts, though it was asked afresh.
+  expect(await paintsCalls(page, 'repoCheck')).toEqual([]);
+
+  // Behind the sim, so that nobody is looking and the chips' own answer goes stale: asked again, itself, at the half hour.
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  const before = (await paintsCalls(page, 'simStatus')).length;
+  await page.clock.runFor(61 * 60000);
+  expect((await paintsCalls(page, 'simStatus')).length).toBeGreaterThanOrEqual(before + 2);
+  expect(await paintsCalls(page, 'repoCheck')).toEqual([]);
+  expect(await paintsCalls(page, 'repoPull')).toEqual([]);
+  await expect(app.locator('.toast')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('a race that begins while the remote is being looked at is not downloaded into', async ({ page }) => {
+  // The sim is not running until the remote has been looked at, and is after: the look goes ahead, and the update
+  // does not.
+  await stubPaintsBridge(page, {
+    ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoPull: pulled(), repoCheck: { __after: 400, answer: UP },
+  });
+  await stubRig(page);
+  await page.addInitScript(() => {
+    const invoke = window.racingDesk.paints.invoke;
+    window.racingDesk.paints.invoke = async (name, args) => {
+      const answer = await invoke(name, args);
+      const looked = window.__paints.calls.some((c) => c.name === 'repoCheck');
+      return name === 'simStatus' && looked ? { ...answer, simRunning: true } : answer;
+    };
+  });
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
+  const app = page.locator(APP);
+  await expect.poll(() => paintsCalls(page, 'repoCheck')).toHaveLength(1);
+  await page.waitForTimeout(UNASKED_MS);
+  expect(await paintsCalls(page, 'repoPull')).toEqual([]);
+  await expect(chipOf(app)).toHaveText(['iRacing running', 'Updates waiting']);
+  await chipOf(app).nth(1).click();
+  await expect(app.locator('.chip-detail')).toContainText('The library takes them by itself when it can, and not while iRacing is running.');
+  await saidOnTheChips(app);
+  expect(errors).toEqual([]);
+});
+
+test('the window coming back after half an hour away is another occasion, and a short time away is not', async ({ page }) => {
+  const { errors } = await openCars(page, lotusLast(), {
+    paints: { ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: CURRENT },
+    timers: true,
+  });
+  const asked = () => paintsCalls(page, 'repoCheck');
+  await expect.poll(asked).toHaveLength(1);
+  const blur = () => page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  const focus = () => page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+  await blur();
+  await page.clock.fastForward('20:00');
+  await focus();
+  await page.waitForTimeout(300);
+  expect(await asked()).toHaveLength(1);
+
+  // Away for 31 minutes: the half hour's own look falls due in it, and coming back is one more.
+  await blur();
+  await page.clock.fastForward('31:00');
+  await expect.poll(asked).toHaveLength(2);
+  await page.waitForTimeout(300);
+  await focus();
+  await expect.poll(asked).toHaveLength(3);
+  expect(errors).toEqual([]);
+});
+
+for (const reason of ['changes', 'work', 'files', 'other']) {
+  test(`an update that cannot be taken by itself is said in one plain sentence, and nothing is told to be done: ${reason}`, async ({ page }) => {
+    const { errors, app } = await openCars(page, lotusLast(), {
+      paints: { ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: UP, repoPull: refusedFor(reason, { ...UP, dirty: reason === 'changes', ahead: reason === 'work' ? 1 : 0 }) },
+    });
+    await expect(chipOf(app)).toHaveText('Library not updated');
+    await chipOf(app).click();
+    await expect(app.locator('.chip-detail')).toHaveText(IN_THE_WAY[reason]);
+    await expect(app.locator('.chip-detail').getByRole('button')).toHaveCount(0);
+    await expect(app.locator('.toast')).toHaveCount(0);
+    await saidOnTheChips(app);
+    // The Activity list has it too, once, in the same words.
+    await expect(app.locator('.log .entry')).toHaveCount(1);
+    await expect(app.locator('.log .entry')).toContainText(IN_THE_WAY[reason]);
+    expect(await paintsCalls(page, 'repoPull')).toEqual([{ path: LIBRARY }]);
+    expect(errors).toEqual([]);
+  });
+}
+
+test('a refusal goes when the library is up to date again, and is not said again each time it is found', async ({ page }) => {
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: {
+      ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT,
+      repoCheck: { __in_turn: [UP, UP, CURRENT] }, repoPull: refusedFor('changes'),
+    },
+    timers: true,
+  });
+  await expect(chipOf(app)).toHaveText('Library not updated');
+  await page.clock.runFor(30 * 60000);
+  await expect.poll(() => paintsCalls(page, 'repoPull')).toHaveLength(2);
+  await expect(chipOf(app)).toHaveText('Library not updated');
+  await expect(app.locator('.log .entry')).toHaveCount(1);   // the same thing, said the once
+  // He put it right: the next look finds nothing waiting.
+  await page.clock.runFor(30 * 60000);
+  await expect(chipOf(app)).toHaveText('ready');
+  expect(await paintsCalls(page, 'repoPull')).toHaveLength(2);
+  expect(errors).toEqual([]);
+});
+
+test('an update that fails of itself says nothing; by hand it says so plainly, and never in git\'s words', async ({ page }) => {
+  const git = 'fatal: unable to access the remote: could not resolve host\nhint: use git pull --rebase to put it right';
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: { ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: UP, repoPull: { __error: git } },
+  });
+  // It tried, and could not; nobody is told, and there is still something waiting.
+  await expect.poll(() => paintsCalls(page, 'repoPull')).toHaveLength(1);
+  await expect(chipOf(app)).toHaveText('Updates waiting');
+  await expect(app.locator('.toast')).toHaveCount(0);
+  await expect(app.locator('.log .entry')).toHaveCount(0);
+
+  await chipOf(app).click();
+  await app.locator('.chip-detail').getByRole('button', { name: 'Update now' }).click();
+  await expect(chipOf(app)).toHaveText('Library not updated');
+  await expect(app.locator('.chip-detail')).toHaveText(IN_THE_WAY.other);   // the detail stayed open through it
+  await saidOnTheChips(app);
+  // What went wrong is in the Activity list, without the line that tells him what to type.
+  const entry = app.locator('.log .entry');
+  await expect(entry).toHaveCount(1);
+  await expect(entry).toContainText('Could not update the library');
+  await expect(entry).toContainText('unable to access the remote');
+  await expect(entry).not.toContainText('hint');
+  await expect(entry).not.toContainText('rebase');
+  expect(errors).toEqual([]);
+});
+
+test('files that were in the way are said with how many and where, can be shown, and the toast goes a while after somebody looks', async ({ page }) => {
+  const folder = 'C:\\Users\\Owner\\AppData\\Local\\Racing Desk\\library-set-aside\\2026-09-29_101530';
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: {
+      ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: UP,
+      repoPull: { __after: 3000, answer: pulled({ changed: 2, setAside: { count: 12, folder } }) },
+    },
+    timers: true,
+  });
+  await page.clock.runFor(1500);   // the page starts, and the update is under way
+  await expect(chipOf(app)).toHaveText('Updating library…');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));   // and he is driving
+  await page.clock.runFor(4000);
+  const toast = app.locator('.toast .grow');
+  await expect(toast).toHaveText(`Library updated: 2 liveries added or changed. 12 files that were in the way were set aside in ${folder}. Nothing was deleted.`);
+  await saidOnTheChips(app);
+
+  // Nobody was there: it is there when somebody is, and then for a while.
+  await page.clock.runFor(60000);
+  await expect(toast).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.clock.runFor(8000);
+  await expect(toast).toBeVisible();
+  await app.locator('.toast').getByRole('button', { name: 'Show' }).click();
+  await expect.poll(() => page.evaluate(() => window.__paints.revealed)).toEqual([folder]);
+  await page.clock.runFor(6000);
+  await expect(app.locator('.toast')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('one set-aside file is said in the singular', async ({ page }) => {
+  const folder = 'C:\\Users\\Owner\\AppData\\Local\\Racing Desk\\library-set-aside\\2026-09-29_101530';
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: { ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: UP, repoPull: pulled({ changed: 0, setAside: { count: 1, folder } }) },
+  });
+  await expect(app.locator('.toast .grow')).toHaveText(`Library updated. 1 file that was in the way was set aside in ${folder}. Nothing was deleted.`);
   expect(errors).toEqual([]);
 });
 

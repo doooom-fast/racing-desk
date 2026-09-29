@@ -1008,6 +1008,43 @@
   line-height: 1.5;
 }
 
+.paints-app .chip-detail .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ---- toast ---- */
+/* Something that happened by itself, said over the bottom of the window (fixed: it is not one of the page's rows,
+   and the two panes scroll under it). */
+
+.paints-app .toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--orange-dim);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.paints-app .toast .grow {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.paints-app .toast button {
+  flex-shrink: 0;
+}
+
 /* ---- switching between a card's images ---- */
 
 .paints-app .views {

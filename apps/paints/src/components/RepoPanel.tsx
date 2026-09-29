@@ -1,10 +1,12 @@
 import type { RepoStatus } from "../types";
 
-/// The library's git checkout: where it is, whether new liveries are waiting, and one button
-/// to take them.
+/// The library's git checkout: where it is, whether new liveries are waiting, a button to take
+/// them, and the one switch — whether the library keeps itself up to date, which it does unless
+/// he turns it off.
 ///
-/// The update is a fast-forward or nothing. If the checkout has uncommitted work or has
-/// diverged from the remote, the app says so and leaves it alone rather than merging.
+/// The update is a fast-forward or nothing. If the checkout has work of its own or has diverged
+/// from the remote, the app says so (the status chip has the sentence) and leaves it alone
+/// rather than merging.
 export function RepoPanel({
   repo,
   busy,
@@ -17,6 +19,7 @@ export function RepoPanel({
   repo: RepoStatus | null;
   busy: boolean;
   checking: boolean;
+  /// The library keeps itself up to date.
   autoUpdate: boolean;
   onAutoUpdate: (v: boolean) => void;
   onCheck: () => void;
@@ -40,8 +43,8 @@ export function RepoPanel({
       <div className="panel">
         <h3>Library source</h3>
         <div className="note">
-          This library is a plain folder, not a git checkout. Point it at a clone of your
-          liveries repo to have new versions arrive by updating.
+          This library is a plain folder, so it cannot update itself. Choose the folder your
+          liveries are kept in online, above, to have new versions arrive by themselves.
         </div>
       </div>
     );
@@ -89,7 +92,7 @@ export function RepoPanel({
         {repo.ahead > 0 && (
           <div className="row-line">
             <span className="grow note">
-              {repo.ahead} local commit{repo.ahead === 1 ? "" : "s"} not pushed.
+              {repo.ahead} change{repo.ahead === 1 ? "" : "s"} of its own not online yet.
             </span>
           </div>
         )}
@@ -109,7 +112,7 @@ export function RepoPanel({
               checked={autoUpdate}
               onChange={(e) => onAutoUpdate(e.target.checked)}
             />
-            Update automatically when the app starts
+            Keep the library up to date by itself
           </label>
           <button onClick={onCheck} disabled={busy || checking}>
             {checking ? "Checking…" : "Check"}

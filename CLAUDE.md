@@ -413,16 +413,37 @@ them a third each, where without it they are half.
 - **Driven**, a button beside the filter that says whether it is pressed, narrows the list to the cars he has
   driven, the last driven first, each row saying when. One click, kept while the page is open. That list is one
   group, "Driven", not the two: newest first is an order across every car driven. Off, the list is as it was.
-- **What the page asks for while nobody is looking is nothing.** It stays mounted through a race, in the process
-  the HUD answers to. The desk says nothing to it — neither that there is something to read again nor when each
-  car was driven — unless the window is in front, not hidden, and Cars the page showing (`looking` in
-  `desk.js`): the store has something new at the first lap of every session, which is when he is driving. What
-  was not said is owed, and said when somebody next looks. The guards (`simStatus`, `tradingPaintsStatus`: a `tasklist` each) are looked at every 8 s
-  only while the desk window has the focus and the page is showing, and at once when it gets it. The library's git
-  remote is asked once per library, and not before a car with a livery, or a group, has been on the page for a
-  second with the window in front; Check asks whenever he does. An apply checks for itself before it writes
-  (`paints/apply.js`), whatever the chips last said. With "Update automatically when the app starts" ticked the
-  check and the pull are made as the page starts, as the words say.
+- **What the page asks for while nobody is looking is nothing** — but for one thing, the library keeping itself up
+  to date (next). It stays mounted through a race, in the process the HUD answers to. The desk says nothing to it —
+  neither that there is something to read again nor when each car was driven — unless the window is in front, not
+  hidden, and Cars the page showing (`looking` in `desk.js`): the store has something new at the first lap of every
+  session, which is when he is driving. What was not said is owed, and said when somebody next looks. The guards
+  (`simStatus`, `tradingPaintsStatus`: a `tasklist` each) are looked at every 8 s only while the desk window has the
+  focus and the page is showing, and at once when it gets it. An apply checks for itself before it writes
+  (`paints/apply.js`), whatever the chips last said.
+- **The library keeps itself up to date, unless he turns it off** (`App.tsx` `keepUp`; "Keep the library up to date
+  by itself" under Library source; `paints.autoUpdateLibrary` in `overlay-settings.json`, where null — nothing
+  chosen — is on and only a false is off; the old `autoUpdateOnLaunch` is accepted, never read and dropped by the
+  next save, because it was only ever what the page held before he chose anything). It looks at the remote as the
+  page starts, whatever is on the page and whoever is looking, every 30 minutes while the app runs, and when the
+  window comes back to the front after 30 minutes or more away — and when he turns it on. **Never while the sim is
+  running**, asked afresh each time (`simStatus`: what the chips know of it is as old as the last look at the page,
+  and the desk can be behind the sim for hours) and again between the look and the pull, and never while an apply
+  or another look is under way; **never two at once**. A remote that cannot be reached is not said: the next
+  occasion tries again. When something is waiting it is pulled, the library is read again, and a toast says what
+  arrived ("Library updated: 3 liveries added or changed."). With it off the remote is asked once per library and
+  not before a car with a livery, or a group, has been on the page for a second with the window in front, and the
+  chip says updates are waiting, with an **Update now** in its detail; Check under Library source asks whenever he
+  does. **Nothing on the page tells him to use git or to go elsewhere.** An update that cannot be taken by itself
+  is one plain sentence on the chip, "Library not updated", that says what is in the way and that nothing was
+  changed — the checkout has changes of its own, or has work the remote does not (diverged, ahead), or the
+  fast-forward was refused (`paints/repo.js` `BLOCKED`, printed as it is; a failure of the remote by hand is the
+  same chip; of itself, nothing). **What is in the way is moved, not reported**: files git does not track that an
+  incoming file would be written over — most likely the fleet build's own paints, which the design pipeline pushes
+  too — are moved, whole and never deleted, to `%LOCALAPPDATA%\Racing Desk\library-set-aside\<yyyy-mm-dd_hhmmss>\`
+  under their own paths in the checkout (`repo.pull`, the folder handed in from `main.js`), and the toast says how
+  many and where, with a Show; if the update then fails they are put back. The fast-forward is a `merge --ff-only`
+  of what was just fetched, not a second fetch.
 - **Coming back to the desk reads the car's view and pedals again** (`useRig.ts`): when the window comes to the
   front with the page showing, and once more 110 s later. The host keeps the pedals when the run ends and the
   view once the sim has gone and written its files, neither of which changes what the desk counts as new. It is

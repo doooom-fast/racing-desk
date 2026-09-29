@@ -228,7 +228,8 @@ export interface Settings {
   includeSpec?: boolean | null;
   setReadOnlyAfter?: boolean | null;
   clearOtherCooked?: boolean | null;
-  autoUpdateOnLaunch?: boolean | null;
+  /// Whether the library keeps itself up to date. Null, until he chooses, is yes: only false turns it off.
+  autoUpdateLibrary?: boolean | null;
 }
 
 export interface RepoStatus {
@@ -248,9 +249,23 @@ export interface RepoStatus {
   notes: string[];
 }
 
+/// What stands in the way of an update, in words for the driver: `text` is one plain sentence that says so and that
+/// nothing was changed, and is shown as it is.
+export interface Blocked {
+  reason: "changes" | "work" | "files" | "other";
+  text: string;
+}
+
+/// The desk's answer (apps/overlay/modules/js/paints/repo.js). The Tauri shell's Rust has none of the last three:
+/// it refuses in an error, and puts nothing aside.
 export interface PullReport {
   updated: boolean;
   commits: string[];
+  /// How many versions of a car arrived or changed.
+  changed?: number;
+  /// Files that were in the way and were moved, not deleted, out of the library, and where to.
+  setAside?: { count: number; folder: string } | null;
+  blocked?: Blocked | null;
   status: RepoStatus;
 }
 

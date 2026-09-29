@@ -13,6 +13,7 @@ import { TradingPaintsPanel } from "./components/Guards";
 import { RepoPanel } from "./components/RepoPanel";
 import { SetupBar } from "./components/SetupBar";
 import { collectStatus, StatusChips } from "./components/StatusChips";
+import { Toast, type ToastItem } from "./components/Toast";
 import { VersionCard } from "./components/VersionCard";
 import { useLastDriven } from "./driven";
 import { disagrees, hasPedals, rigKey } from "./rig";
@@ -26,6 +27,7 @@ import type {
   LibrarySuggestion,
   LiveryGroup,
   PathReport,
+  PullReport,
   RepoStatus,
   Settings,
   SimState,
@@ -58,6 +60,51 @@ const GUARD_POLL_MS = 8000;
 
 /// How long a livery has to have been within reach before the library's remote is asked about.
 const REMOTE_AFTER_MS = 1000;
+
+/// How often the library looks at its remote while the app runs, and how long the window has to have been away
+/// for its coming back to be another occasion to.
+const KEEP_UP_MS = 30 * 60 * 1000;
+
+/// How long a toast stays once somebody is looking at the page.
+const TOAST_MS = 12000;
+
+/// What the chip says when an update that was asked for could not be taken, and the page was told no more than that
+/// it failed: the network, or a shell whose answer says nothing else. The desk's own answers say what was in the way
+/// themselves (apps/overlay/modules/js/paints/repo.js).
+const COULD_NOT_UPDATE =
+  "The library could not be brought up to date just now, so it was not updated. Nothing was changed.";
+
+/// An error's words for the Activity list, without the hints that tell the reader what to type ("hint: …").
+function plain(e: unknown): string {
+  return errorText(e)
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*hint:/i.test(line))
+    .join(" ")
+    .trim();
+}
+
+/// What an update brought, for a toast: how much arrived, and any files that were in the way and were moved out of
+/// it, with where to. Nothing in it says how it was done.
+function arrival(report: PullReport): string {
+  const parts: string[] = [];
+  if (report.updated) {
+    const n = report.changed ?? 0;
+    parts.push(
+      n > 0
+        ? `Library updated: ${n} ${n === 1 ? "livery" : "liveries"} added or changed.`
+        : "Library updated.",
+    );
+  }
+  const aside = report.setAside;
+  if (aside && aside.count > 0) {
+    parts.push(
+      aside.count === 1
+        ? `1 file that was in the way was set aside in ${aside.folder}. Nothing was deleted.`
+        : `${aside.count} files that were in the way were set aside in ${aside.folder}. Nothing was deleted.`,
+    );
+  }
+  return parts.join(" ");
+}
 
 /// A car the driver has driven that is nowhere on this rig now: not in the install, the paint folder or the
 /// library. What the store kept of it is shown; nothing that needs the car on disk is offered.
@@ -115,8 +162,17 @@ export default function App() {
   /// Whether a library has been looked for. Until it has, an empty field is not yet "there is no library".
   const [looked, setLooked] = useState(false);
   const [repo, setRepo] = useState<RepoStatus | null>(null);
-  const [autoUpdate, setAutoUpdate] = useState(false);
+  /// Whether the library keeps itself up to date, as he set it. Null is that he never chose, which is yes: only
+  /// turning it off turns it off. What an older version saved under another name was its default, not his choice.
+  const [autoUpdate, setAutoUpdate] = useState<boolean | null>(null);
+  const autoOn = autoUpdate !== false;
   const [checking, setChecking] = useState(false);
+  /// An update is being taken, by itself or because he asked.
+  const [updating, setUpdating] = useState(false);
+  /// Why the last update was not taken, as the sentence the chip says; null when nothing is in the way.
+  const [blocked, setBlocked] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastItem | null>(null);
+  const toastId = useRef(0);
 
   const [groups, setGroups] = useState<LiveryGroup[]>([]);
   /// The group on the page, in place of a car.
@@ -175,7 +231,7 @@ export default function App() {
         setReadOnlyAfter: saved.setReadOnlyAfter ?? false,
         clearOtherCooked: saved.clearOtherCooked ?? false,
       });
-      setAutoUpdate(saved.autoUpdateOnLaunch ?? false);
+      setAutoUpdate(saved.autoUpdateLibrary ?? null);
       for (const note of detected?.notes ?? []) say("info", note);
       // With no paint folder there is nowhere to look for a library near.
       if (!paint) setLooked(true);
@@ -214,7 +270,7 @@ export default function App() {
           includeSpec: options.includeSpec,
           setReadOnlyAfter: options.setReadOnlyAfter,
           clearOtherCooked: options.clearOtherCooked,
-          autoUpdateOnLaunch: autoUpdate,
+          autoUpdateLibrary: autoUpdate,
         })
         .catch(() => {});
     }, 400);
@@ -330,46 +386,172 @@ export default function App() {
     void refreshRepo();
   }, [refreshRepo]);
 
-  /// Ask the remote what it has. Read-only — it never touches the working tree.
-  const checkForUpdates = useCallback(async () => {
-    if (!libraryRoot) return null;
-    setChecking(true);
-    try {
-      const status = await api.repoCheck(libraryRoot);
-      setRepo(status);
-      return status;
-    } catch (e) {
-      say("bad", "Could not reach the library repo", [errorText(e)]);
-      return null;
-    } finally {
-      setChecking(false);
-    }
-  }, [libraryRoot, say]);
+  // What the timers below run late, and cannot be handed the render they were made in: the newest of each.
+  const refreshNow = useRef(refreshLibrary);
+  refreshNow.current = refreshLibrary;
+  const busyNow = useRef(false);
+  busyNow.current = busy;
+  const repoNow = useRef<RepoStatus | null>(null);
+  repoNow.current = repo;
+  const blockedNow = useRef<string | null>(null);
+  blockedNow.current = blocked;
 
-  const updateLibrary = useCallback(async () => {
-    if (!libraryRoot) return;
-    setBusy(true);
+  /// One look at the remote or one update at a time, whoever asked for it: a button, the page starting, the half
+  /// hour, the window coming back.
+  const working = useRef(false);
+  const alone = useCallback(async (work: () => Promise<void>) => {
+    if (working.current) return;
+    working.current = true;
     try {
-      const report = await api.repoPull(libraryRoot);
-      setRepo(report.status);
-      if (report.updated) {
-        say(
-          "ok",
-          `Library updated — ${report.commits.length} new commit${
-            report.commits.length === 1 ? "" : "s"
-          }`,
-          report.commits,
-        );
-        await refreshLibrary();
-      } else {
-        say("info", "The library is already up to date.");
-      }
-    } catch (e) {
-      say("bad", "Could not update the library", [errorText(e)]);
+      await work();
     } finally {
-      setBusy(false);
+      working.current = false;
     }
-  }, [libraryRoot, refreshLibrary, say]);
+  }, []);
+
+  const tell = useCallback((text: string, folder: string | null = null) => {
+    toastId.current += 1;
+    setToast({ id: toastId.current, text, folder });
+  }, []);
+
+  /// Ask the remote what it has. Read-only — it never touches the working tree. `quietly`: nobody asked, so a
+  /// remote that cannot be reached is not said; it is asked again at the next occasion.
+  const checkNow = useCallback(
+    async (quietly: boolean) => {
+      if (!libraryRoot) return null;
+      setChecking(true);
+      try {
+        const status = await api.repoCheck(libraryRoot);
+        setRepo(status);
+        // Nothing waiting, on an answer from the remote itself, is nothing in the way.
+        if (status.checkedRemote && !status.updatesAvailable) setBlocked(null);
+        return status;
+      } catch (e) {
+        if (!quietly) say("bad", "Could not check the library for updates", [plain(e)]);
+        return null;
+      } finally {
+        setChecking(false);
+      }
+    },
+    [libraryRoot, say],
+  );
+
+  /// Take what is waiting. `byHim`: he asked, so what came of it is said whichever way it went. When the page did
+  /// it of itself, what is in the way is the chip's to say, once, and a failure is not said at all: the next
+  /// occasion tries again.
+  const pullNow = useCallback(
+    async (byHim: boolean) => {
+      if (!libraryRoot) return;
+      setBusy(true);
+      setUpdating(true);
+      try {
+        const report = await api.repoPull(libraryRoot);
+        setRepo(report.status);
+        const arrived = arrival(report);
+        if (report.blocked) {
+          const text = report.blocked.text;
+          if (byHim || blockedNow.current !== text) say("info", "The library was not updated", [text]);
+          setBlocked(text);
+          // Files that could not be put back are set aside all the same, and that is said.
+          if (arrived) tell(arrived, report.setAside?.folder ?? null);
+        } else {
+          setBlocked(null);
+          if (report.updated) {
+            tell(arrived, report.setAside?.folder ?? null);
+            say("ok", "The library was updated", [arrived, ...report.commits]);
+            await refreshNow.current();
+          } else if (byHim) {
+            say("info", "The library is already up to date.");
+          }
+        }
+      } catch (e) {
+        if (byHim) {
+          say("bad", "Could not update the library", [plain(e)]);
+          setBlocked(COULD_NOT_UPDATE);
+        }
+      } finally {
+        setUpdating(false);
+        setBusy(false);
+      }
+    },
+    [libraryRoot, say, tell],
+  );
+
+  const checkForUpdates = useCallback(
+    () => alone(async () => void (await checkNow(false))),
+    [alone, checkNow],
+  );
+  const updateLibrary = useCallback(() => alone(() => pullNow(true)), [alone, pullNow]);
+
+  /// Whether the sim is running, asked afresh. What the chips know of it is as old as the last time somebody
+  /// looked at the page, and the desk can be behind the sim for hours. If it cannot be told, it is taken to be.
+  const simRunning = useCallback(async (): Promise<boolean> => {
+    try {
+      const s = await api.simStatus();
+      setSim(s);
+      return s.simRunning;
+    } catch {
+      return true;
+    }
+  }, []);
+
+  /// The library keeping itself up to date: look at the remote, and take what is waiting. Never while the sim is
+  /// running — a race is no time to download textures — and never while something else is being done to the
+  /// library. A remote that cannot be reached is not said; it is tried again at the next occasion.
+  const keepUp = useCallback(
+    () =>
+      alone(async () => {
+        const known = repoNow.current;
+        if (!libraryRoot || (known && (!known.gitAvailable || !known.isRepo || !known.upstream))) return;
+        if (busyNow.current || (await simRunning())) return;
+        const status = await checkNow(true);
+        if (!status?.isRepo || !status.updatesAvailable) return;
+        // A look at the remote takes a moment, and a race can begin in it.
+        if (busyNow.current || (await simRunning())) return;
+        await pullNow(false);
+      }),
+    [alone, libraryRoot, simRunning, checkNow, pullNow],
+  );
+  const keepUpNow = useRef(keepUp);
+  keepUpNow.current = keepUp;
+
+  // While it does, that is every half hour the app runs, and when the window comes back to the front after as
+  // long away. (And once as the page starts, below.) Away is not being the window in front: another program has
+  // the focus, or it is minimised.
+  useEffect(() => {
+    if (!libraryRoot || !autoOn) return;
+    const every = setInterval(() => void keepUpNow.current(), KEEP_UP_MS);
+    let awayAt: number | null = document.hasFocus() && !document.hidden ? null : Date.now();
+    const away = () => {
+      if (awayAt === null) awayAt = Date.now();
+    };
+    const back = () => {
+      const since = awayAt;
+      awayAt = null;
+      if (since !== null && Date.now() - since >= KEEP_UP_MS) void keepUpNow.current();
+    };
+    const shown = () => {
+      if (document.hidden) away();
+      else if (document.hasFocus()) back();
+    };
+    window.addEventListener("blur", away);
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", shown);
+    return () => {
+      clearInterval(every);
+      window.removeEventListener("blur", away);
+      window.removeEventListener("focus", back);
+      document.removeEventListener("visibilitychange", shown);
+    };
+  }, [libraryRoot, autoOn]);
+
+  // A toast stays until he dismisses it or, once somebody is looking, for a while: one that came with nobody there
+  // is still there when somebody is.
+  useEffect(() => {
+    if (!toast || !looking) return;
+    const gone = setTimeout(() => setToast((t) => (t && t.id === toast.id ? null : t)), TOAST_MS);
+    return () => clearTimeout(gone);
+  }, [toast, looking]);
 
   const car: CatalogueCar | null = useMemo(
     () => cars?.find((c) => c.folder === selectedFolder) ?? null,
@@ -383,35 +565,24 @@ export default function App() {
   /// Whether an apply is a click away: a car with a livery is on the page, or a group.
   const inReach = !editing && (group !== null || (car?.versions.length ?? 0) > 0);
 
-  // Check once per library, and pull only if asked to — but not before a livery is within reach of somebody
-  // looking at the page, and has been for a moment. The page is opened to look at a view or a pair of pedals
-  // as often as to paint, and stays mounted through a race; the remote is no business of either, nor of a car
-  // passed on the way to another. Check, under Library source, asks whenever he does.
+  // The library is looked at once as the page starts, and then as above. Keeping itself up to date, that is as the
+  // page starts, whatever is on it and whether or not anybody is looking: it is what he asked for by not turning
+  // it off, and it is not a second after he reaches a livery, with Apply going dead under his hand. With it turned
+  // off the remote is asked once per library, and only said — the chip has a button — and not before a livery is
+  // within reach of somebody looking at the page, and has been for a moment: the page is opened to look at a view
+  // or a pair of pedals as often as to paint, and stays mounted through a race; the remote is no business of
+  // either, nor of a car passed on the way to another. Check, under Library source, asks whenever he does.
   const checkedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!ready.current || !libraryRoot || checkedFor.current === libraryRoot) return;
-    // With "Update automatically when the app starts" ticked, that is what he asked for, and it is done as the
-    // page starts: not a second after he reaches a livery, with Apply going dead under his hand.
-    if (!autoUpdate && (!inReach || !looking)) return;
+    if (!autoOn && (!inReach || !looking)) return;
     const settled = setTimeout(async () => {
       checkedFor.current = libraryRoot;
-      const status = await checkForUpdates();
-      if (!status?.isRepo || !status.updatesAvailable) return;
-      if (autoUpdate) {
-        await updateLibrary();
-      } else {
-        // The count is only known when the commits are already downloaded.
-        say(
-          "info",
-          status.behind > 0
-            ? `${status.behind} library update${status.behind === 1 ? "" : "s"} waiting`
-            : "New liveries are waiting in the library repo",
-          ["Use Update under Library source to take them."],
-        );
-      }
+      if (autoOn) await keepUp();
+      else await checkForUpdates();
     }, REMOTE_AFTER_MS);
     return () => clearTimeout(settled);
-  }, [libraryRoot, autoUpdate, inReach, looking, checkForUpdates, updateLibrary, say]);
+  }, [libraryRoot, autoOn, inReach, looking, keepUp, checkForUpdates]);
 
   const carName = car ? carLabel(car) : "";
   /// Where the car's paint goes: its folder in the paint directory, or, for a car never driven, the
@@ -710,8 +881,16 @@ export default function App() {
 
   const idValid = /^\d+$/.test(customerId);
   const status = useMemo(
-    () => collectStatus({ sim, tp, repo, car, idValid }),
-    [sim, tp, repo, car, idValid],
+    () =>
+      collectStatus({
+        sim,
+        tp,
+        repo,
+        library: { updating, blocked, auto: autoOn, onUpdate: () => void updateLibrary() },
+        car,
+        idValid,
+      }),
+    [sim, tp, repo, updating, blocked, autoOn, updateLibrary, car, idValid],
   );
   const painted = (cars ?? []).some((c) => c.versions.length > 0);
 
@@ -1031,8 +1210,12 @@ export default function App() {
             repo={repo}
             busy={busy}
             checking={checking}
-            autoUpdate={autoUpdate}
-            onAutoUpdate={setAutoUpdate}
+            autoUpdate={autoOn}
+            onAutoUpdate={(on) => {
+              setAutoUpdate(on);
+              // Turned on, it does what it is for now, and not at the next half hour.
+              if (on) void keepUp();
+            }}
             onCheck={() => void checkForUpdates()}
             onUpdate={() => void updateLibrary()}
           />
@@ -1059,6 +1242,12 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <Toast
+        toast={toast}
+        onShow={(folder) => void reveal(folder).catch(() => {})}
+        onDismiss={() => setToast(null)}
+      />
     </div>
   );
 }

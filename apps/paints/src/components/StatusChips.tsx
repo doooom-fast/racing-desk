@@ -10,6 +10,19 @@ export interface StatusItem {
   short: string;
   /// The full sentence, shown when the chip is opened.
   detail: string;
+  /// Something to do about it, as a button under the sentence.
+  action?: { label: string; run: () => void };
+}
+
+/// Where the library's own updates stand, for the one chip they get.
+export interface LibraryUpdate {
+  /// An update is being taken now.
+  updating: boolean;
+  /// Why the last one was not, as one plain sentence that says nothing was changed; null when nothing is in the way.
+  blocked: string | null;
+  /// The library takes its updates by itself.
+  auto: boolean;
+  onUpdate: () => void;
 }
 
 /// Everything that used to be a stack of banners above the cars, as one line of chips.
@@ -21,10 +34,11 @@ export function collectStatus(args: {
   sim: SimState | null;
   tp: TradingPaints | null;
   repo: RepoStatus | null;
+  library: LibraryUpdate;
   car: CatalogueCar | null;
   idValid: boolean;
 }): StatusItem[] {
-  const { sim, tp, repo, car, idValid } = args;
+  const { sim, tp, repo, library, car, idValid } = args;
   const items: StatusItem[] = [];
 
   if (!idValid) {
@@ -75,7 +89,18 @@ export function collectStatus(args: {
     });
   }
 
-  if (repo?.updatesAvailable) {
+  // The library's updates are one chip, and none of them sends him anywhere else: what is going on, what is in the
+  // way (a sentence of its own, said the way it was worked out), or that they are waiting and a button to take them.
+  if (library.updating) {
+    items.push({
+      id: "repo",
+      level: "info",
+      short: "Updating library…",
+      detail: "New liveries are being added to the library.",
+    });
+  } else if (library.blocked) {
+    items.push({ id: "repo", level: "warn", short: "Library not updated", detail: library.blocked });
+  } else if (repo?.updatesAvailable) {
     items.push({
       id: "repo",
       level: "info",
@@ -83,8 +108,10 @@ export function collectStatus(args: {
         repo.behind > 0
           ? `${repo.behind} update${repo.behind === 1 ? "" : "s"}`
           : "Updates waiting",
-      detail:
-        "New liveries are waiting in the library repo. Use Update under Library source to take them.",
+      detail: library.auto
+        ? "New liveries are waiting. The library takes them by itself when it can, and not while iRacing is running."
+        : "New liveries are waiting to be added to the library.",
+      action: { label: "Update now", run: library.onUpdate },
     });
   }
 
@@ -109,6 +136,11 @@ export function StatusChips({ items }: { items: StatusItem[] }) {
       document.removeEventListener("keydown", esc);
     };
   }, [openId]);
+
+  // A chip that has gone takes its detail with it: not to come back open when it does.
+  useEffect(() => {
+    if (openId && !items.some((i) => i.id === openId)) setOpenId(null);
+  }, [items, openId]);
 
   if (items.length === 0) {
     return (
@@ -138,6 +170,13 @@ export function StatusChips({ items }: { items: StatusItem[] }) {
       {open && (
         <div className="chip-detail" role="dialog">
           {open.detail}
+          {open.action && (
+            <div className="actions">
+              <button className="primary" onClick={open.action.run}>
+                {open.action.label}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -38,24 +38,48 @@ writes `car_424242.tga`, so that repo's `cars/` folder works as a library with n
 
 ### Keeping it current
 
-If the library is a git checkout, the app treats the repo as the source of truth and says when
-new liveries are waiting. It finds the checkout itself — any folder in or beside the paint
+If the library is a git checkout, the app treats the repo as the source of truth and keeps the
+library up to date by itself. It finds the checkout itself — any folder in or beside the paint
 directory, or under `Documents\GitHub`, whose nesting looks like a library — so the usual case
 needs no browsing at all. The sim's own paint folder can never be mistaken for one, because a
 car folder there holds textures directly rather than a layer of version folders.
 
 **Library source** in the UI shows the remote, the branch, the commit you are on, and whether
-you are behind. **Check** fetches; **Update** fast-forwards. There is a checkbox to update
-automatically on launch.
+you are behind. **Check** asks the remote; **Update** takes what is waiting. The checkbox,
+"Keep the library up to date by itself", is on unless you turn it off (`autoUpdateLibrary` in
+the settings: nothing chosen is on, and only `false` is off; the older `autoUpdateOnLaunch` is
+no longer read, since what it held was the old default and not a choice). While it is on the
+desk looks at the remote as the page starts, every 30 minutes while the app runs, and when its
+window comes back to the front after being away for 30 minutes or more; when something is
+waiting it takes it, reads the library again, and a toast says what arrived. It does none of
+that while the sim is running — it asks again each time, since a race is no time to download
+textures — and never two at once. A remote that cannot be reached is not mentioned: the next
+occasion tries again. With the checkbox off, the status chip says that updates are waiting and
+has an **Update now** button.
+
+Nothing on the page tells you to use git. An update that cannot be taken by itself is one plain
+sentence on the status chip ("Library not updated") saying what is in the way and that nothing
+was changed: the checkout has changes of its own, or work the remote does not have.
 
 Updating cannot lose work:
 
-- The only write is `git pull --ff-only`. If the branch has diverged, git stops rather than
-  inventing a merge.
-- A dirty working tree is refused before git is asked, with a message about your changes rather
-  than about git.
+- The only write to the library is a fast-forward, `git merge --ff-only` of what was just
+  fetched. If the branch has diverged, git stops rather than inventing a merge.
+- A checkout with changes of its own is not touched.
+- **What is in the way is moved, not reported.** Files git does not track that an incoming file
+  would be written over — the fleet build's own paints, say, which the design pipeline pushes
+  too — are moved, never deleted, to `%LOCALAPPDATA%\Racing Desk\library-set-aside\<yyyy-mm-dd_hhmmss>\`
+  under their own paths in the checkout, and then the update goes ahead. The toast says how
+  many were set aside and where. If the update then fails they are put back.
 - `git` is driven as a command, not linked in, so it already knows your credentials through
   your credential helper and never has to ask again.
+
+The Tauri shell's Rust (`src-tauri`) was not changed, and still asks: it has no set-aside, does
+not know `autoUpdateLibrary` (so it does not remember the choice, and the page there is always
+on), and an update that is in the way is refused in its own words ("Commit or stash them
+first"). The page does not print those on a chip: it says the plain "could not be brought up to
+date" sentence there, and keeps what the Rust said, less git's `hint:` lines, in the Activity
+list under it.
 
 `simFolder` is the escape hatch for when the library folder and the sim's folder disagree.
 Usually they do not need it: `mx5-mx52016` is matched to the sim's `mx5 mx52016` automatically,
@@ -302,9 +326,12 @@ everything it asks for is done in the process the HUD answers to. So:
   seconds only while the desk's window is the one in front and this page is the one showing, and at once when that
   becomes so. An apply does not go by them: the app checks for itself before it writes, and a refused apply asks
   afresh.
-- **The library's remote** is asked once per library, and only once a livery is within reach — a car with a version,
-  or a group, has been on the page for a second, with the window in front. Looking at a car's view, or passing a
-  car on the way to another, asks nothing. **Check** asks whenever it is pressed.
+- **The library's remote** is asked, while the library keeps itself up to date (the default), as the page starts
+  and then every 30 minutes and when the window returns after that long away — whoever is looking, and never while
+  the sim is running (see Keeping it current). With that turned off it is asked once per library, and only once a
+  livery is within reach — a car with a version, or a group, has been on the page for a second, with the window in
+  front. Looking at a car's view, or passing a car on the way to another, asks nothing. **Check** asks whenever it
+  is pressed.
 - **Refresh** is two buttons that do the same to this page: the page's own, and the desk's in the masthead, both
   read the list of cars again and what the host keeps for them. So does the desk finding its host after finding
   none — which is how cars listed by folder while the host was starting get their names — and the store having
