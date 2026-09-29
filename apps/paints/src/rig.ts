@@ -522,31 +522,41 @@ const FUNCTIONS = new Map([
   ["p2p", "Push to pass"],
 ]);
 
+/// Words that are what the sim's own people write in capitals.
+const ACRONYMS = new Set(["abs", "tc", "mgu", "esc", "ibs", "drs", "arb", "rf", "lf", "rr", "lr"]);
+
 /// What a control is for, in words: "Traction control" for `tc`; one the page has not met is its id with the
-/// humps taken out ("tcToggle" is "Tc toggle").
+/// humps taken out ("tcToggle" is "TC toggle", "brakeBiasFine" "Brake bias fine").
 export function functionWords(id: string): string {
   const known = FUNCTIONS.get(id);
   if (known) return known;
-  const spaced = id.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+  const words = id
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(" ")
+    .map((w) => (ACRONYMS.has(w) ? w.toUpperCase() : w));
+  const first = words[0] ?? "";
+  words[0] = first.charAt(0).toUpperCase() + first.slice(1);
+  return words.join(" ");
 }
 
-/// The values a control can have, in words: "1 to 12, 1 is off", "0 TRACK · 1 SPORT · 2 NORMAL". Where the list
-/// gives neither a range nor names, it says so.
+/// The values a control can have, in words: "1 to 12, 1 is off", "0 TRACK · 1 SPORT · 2 NORMAL". Nothing where the
+/// list gives neither a range nor names: a control is listed all the same, and a blank is not a claim. DRS and
+/// push to pass are states the car reports and not dials with a range, and are said to be.
 export function valueWords(control: ListedControl): string {
   const parts: string[] = [];
   if (control.positions.length > 0) {
     parts.push(control.positions.map(([value, name]) => `${plain(value)} ${name}`).join(" · "));
   } else if (control.range) {
-    parts.push(`${plain(control.range[0])} to ${plain(control.range[1])}`);
+    const [low, high] = control.range;
+    parts.push(low === high ? `only ${plain(low)}` : `${plain(low)} to ${plain(high)}`);
   }
   if (control.off === false) parts.push("never off");
   else if (control.off !== null && !control.positions.some(([value]) => value === control.off)) {
     parts.push(`${plain(control.off)} is off`);
   }
   if (parts.length > 0) return parts.join(", ");
-  // DRS and push to pass are states the car reports, not dials with a range.
-  return control.id === "drs" || control.id === "p2p" ? "status" : "no range given";
+  return control.id === "drs" || control.id === "p2p" ? "status" : "";
 }
 
 /// What the car calls a thing it has (`abs`, `tc`, `brakeBias`): the label of the control the list gives for it, or

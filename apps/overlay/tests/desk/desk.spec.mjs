@@ -2201,7 +2201,7 @@ test('choosing another car puts the pane at its top', async ({ page }) => {
 // as [value, name] pairs, what the check has kept as [{ car, remarks }]). Made up over the cars the tests already
 // have. The McLaren is in the list and the check has found the car disagreeing with it twice; the MX-5 is in it and
 // nothing has been found; the Caterham is not, and the check said so; the Lotus is not, and nothing was said; the
-// Nissan is a prototype the list gives a range to nearly everything, with words in it that are only text.
+// Nissan is a prototype with a range for some of its dials and none for others, and words in it that are only text.
 
 const said = (about, text, firstSeen, lastSeen) => ({ about, text, firstSeen, lastSeen });
 const LIST_CARS = [
@@ -2219,6 +2219,8 @@ const LIST_CARS = [
       { id: 'brakeMigration', var: 'dcABS', label: 'MIG', range: [-6, 6] },
       { id: 'throttleMap', var: 'dcThrottleShape', label: 'MAP', off: false },
       { id: 'tcToggle', var: 'dcTractionControlToggle', label: 'TC <b>TOGGLE</b>' },
+      { id: 'absToggle', var: 'dcABSToggle', label: 'ABS' },
+      { id: 'powerSteering', var: 'dcPowerSteering', label: 'PS', range: [3, 3] },
       { id: 'drs', var: 'DRS_Status', label: 'DRS' },
     ],
     checked: 'telemetry',
@@ -2269,7 +2271,9 @@ test('a car\'s controls, as the list has them: its kind, what it has, the car\'s
     'Traction control TC1 1 to 12, 1 is off',
     'Brake migration MIG -6 to 6',
     'Throttle map MAP never off',
-    'Tc toggle TC <b>TOGGLE</b> no range given',
+    'TC toggle TC <b>TOGGLE</b>',
+    'ABS toggle ABS',
+    'Power steering PS only 3',
     'DRS DRS status',
   ]);
   await expect(panel.locator('.controls li b')).toHaveCount(0);

@@ -133,9 +133,9 @@ export function CarControlsPanel({
             <ul className="controls" aria-label="Controls the list gives this car">
               {listed.controls.map((c, i) => (
                 <li key={`${c.id}-${i}`} title={c.variable ?? undefined}>
-                  <span className="what">{functionWords(c.id)}</span>{" "}
-                  {c.label && <>{tag(c.label)} </>}
-                  <span className="values">{valueWords(c)}</span>
+                  <span className="what">{functionWords(c.id)}</span>
+                  {c.label && <> {tag(c.label)}</>}
+                  {valueWords(c) && <> <span className="values">{valueWords(c)}</span></>}
                 </li>
               ))}
             </ul>
