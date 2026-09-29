@@ -10,6 +10,7 @@ Context that spans more than one app in this repo. Anything tied to a single app
 | [race-join-findings.md](race-join-findings.md) | Listing/joining official sessions from inside the app — what the rig allows (`iracing://` deep links, the UI's local ports and hand-off, UI Automation), ranked options and the first slice for Race Now |
 | [height-and-pedals-findings.md](height-and-pedals-findings.md) | Per-car driver height and Heusinkveld brake settings — where iRacing and SmartControl keep them, what can be restored and how, ranked options and first slices |
 | [view-and-pedals-plan.md](view-and-pedals-plan.md) | **Plan** for the two per-car tools: the view (height, seat, horizon) and the pedals (profile and brake force) — design, slices, and the experiments that gate every write |
+| [car-controls-findings.md](car-controls-findings.md) | In-car controls car by car — what each of the 55 cars driven publishes, what the garage calls it, where the telemetry misleads (ABS, traction control, brake bias, modes, GTP brake migration, DRS, push-to-pass), and why what a car has is a list written by hand |
 | [telemetry-sidecar-schema.md](telemetry-sidecar-schema.md) | Per-frame telemetry sidecar schema (`.telemetry.jsonl`) |
 | [video-editor-plan.md](video-editor-plan.md) | Video editor and the `.rcpdv` bundle format — written for the multi-repo, native-apps world; the bundle format still applies |
 | [obs-recording-mode-plan.md](obs-recording-mode-plan.md) | OBS recording mode — OBS owns video; a companion records the telemetry sidecar |
