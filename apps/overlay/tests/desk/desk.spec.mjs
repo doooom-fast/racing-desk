@@ -2248,6 +2248,37 @@ const FIRST_AND_LAST = /^First seen \S.*\d.*, last seen \S.*\d.*\.$/;
 const SEEN_ONCE = /^Seen \S.*\d.*\.$/;
 const NOT_IN_THE_LIST = 'This car is not in the car list. The HUD shows its controls as it did before there was a list.';
 
+test('a car with no profile yet is said to wait on what the car list says, not on what the car publishes', async ({ page }) => {
+  // The McLaren without its profile, nothing seen of its ABS; the Nissan, a prototype, seen publishing dcABS — which
+  // in a GTP carries brake migration. The list answers both at once, and the rule gives each a profile when it is
+  // next driven.
+  const pedals = {
+    ...TOLD_PEDALS,
+    cars: TOLD_PEDALS.cars.filter((c) => c.car_path !== 'mclaren570sgt4'),
+    without_profile: [
+      ...TOLD_PEDALS.without_profile,
+      bare('mclaren570sgt4', 'McLaren 570S GT4', null, facts(null, null, null, null)),
+      bare('nissangtpzxt', null, null, facts(null, true, null, null)),
+    ],
+  };
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: { ...LISTED, pedals: held(pedals) } });
+  const given = app.locator('.car-pedals .given');
+
+  await lookAt(app, 'McLaren 570S GT4');
+  await expect(given).toHaveText('No profile yet: the car list says it has ABS, and the rule gives it one from LightBrake when it is next driven.');
+  await lookAt(app, 'nissangtpzxt');
+  await expect(given).toHaveText('No profile yet: the car list says it is a prototype, and the rule gives it one from Default when it is next driven.');
+  // A car the list does not have waits on the data, as before.
+  await lookAt(app, 'oldcar');
+  await expect(given).toHaveText('No profile yet: it has ABS, and the rule gives it one when it is next driven.');
+  expect(errors).toEqual([]);
+
+  // A host with no list: the prototype waits on the data, and the data's word is the only one there is.
+  const { app: bare2 } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: { ...TOLD, pedals: held(pedals) } });
+  await lookAt(bare2, 'nissangtpzxt');
+  await expect(bare2.locator('.car-pedals .given')).toHaveText('No profile yet: it has ABS, and the rule gives it one when it is next driven.');
+});
+
 test('a car\'s controls, as the list has them: its kind, what it has, the car\'s own names for its dials, and how it was checked', async ({ page }) => {
   const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: LISTED });
   const panel = app.locator('.car-controls');

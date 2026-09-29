@@ -870,6 +870,7 @@ export default function App() {
                   carName={carName}
                   carPath={rig.rig?.paths.get(carKey) ?? null}
                   bound={rig.rig?.pedals?.cars.get(carKey) ?? null}
+                  listed={carList?.cars.get(carKey) ?? null}
                   saving={rig.saving.get(carKey)}
                   note={rig.notes.get(carKey) ?? null}
                   onBind={(path, profileId) => void rig.bind(path, profileId)}

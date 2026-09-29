@@ -161,12 +161,9 @@ from one of two of his:
 - **Where the answer came from is in the log line only** ("from Default (no ABS, from the list)"). The reasons kept
   are the same four; a note of the source would need a table of its own (schema 7), which another branch is
   adding for a different purpose, so the desk does not say it yet.
-- **The Cars page's "No profile yet" sentences do not read the list either.** They go by the data's `has_abs`
-  (`apps/paints/src/components/CarPedals.tsx`), which the list's answer never sets. A listed car with no profile
-  reads "not driven enough yet to say whether it has ABS" when the list already says; a prototype, with `abs: none`
-  in the list and a true `has_abs` from its `dcABS`, reads "it has ABS" and may be offered `LightBrake`, where the
-  rule gives `Default`. The branch that shows the source on the page is where the host can send the list's answer
-  to it.
+- **The Cars page's "No profile yet" sentences read the list** as the rule does (`CarPedals.tsx`, from the list
+  the page has for its Controls panel): a listed car is not said to wait on laps, and a GTP — whose `dcABS` is its
+  brake migration — is not said to have ABS.
 - **Who gave a car its profile is kept** (`car_pedal_facts`: the rule and what it went by, or he himself), and
   the data API says it (`given_by`, `given_why`). A profile he gave on the desk, or chose not to have, is never
   the rule's to change.

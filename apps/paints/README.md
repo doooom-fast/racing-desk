@@ -241,17 +241,17 @@ with, and the Pedals panel says so in a sentence under the profile:
 | a profile, `given_by: "rule"`, `given_why: "ABS"` | From LightBrake — given by the rule: it has ABS. (or "it has no ABS", "it is a formula car", "it is a prototype") |
 | a profile, `given_by: "driver"` | You chose this. |
 | no profile, `given_by: "none"` | You chose that this car has none. |
-| no profile, `has_abs: null` | No profile yet: not driven enough yet to say whether it has ABS. (what is waited for is the data's, not the list's: see below) |
-| no profile, `has_abs` known | No profile yet: it has ABS, and the rule gives it one when it is next driven. (or that SmartControl has no `LightBrake` or `Default` to give from) |
+| no profile, a car the list has | No profile yet: the car list says it is a prototype, and the rule gives it one from Default when it is next driven. (or "it is a formula car", "it has ABS" → LightBrake, "it has no ABS"; or that SmartControl has no such profile to give from) |
+| no profile, not in the list, `has_abs: null` | No profile yet: not driven enough yet to say whether it has ABS. |
+| no profile, not in the list, `has_abs` known | No profile yet: it has ABS, and the rule gives it one when it is next driven. (or that SmartControl has no `LightBrake` or `Default` to give from) |
 | `brake_force_kg`, `force_at` | brake force 62 kg in this car, set Tue, Sep 15, 5:40 PM — beside the profile's brake, and there with no profile at all |
 
 The rule is the driver's — his `LightBrake` for a car with ABS that is neither a formula car nor a prototype, his
 `Default` for the rest — and it is the host that applies it, at the end of a run, going by what the canonical car
 list says of a car's kind and ABS, and by what the car showed for what an entry leaves out and for any car the list
-does not have. The page does not say which yet, and the two "No profile yet" sentences above still go by the data's
-`has_abs`, not by the list: a listed car with no profile reads "not driven enough yet to say whether it has ABS"
-although the list already says, and a prototype (`abs: none` in the list, `has_abs` true from the `dcABS` it
-publishes) reads "it has ABS" and may be offered `LightBrake` where the rule gives `Default`. A host from before it
+does not have. The "No profile yet" sentences go the same way, so a car the list has is not said to wait on laps,
+and a GTP — which publishes `dcABS` for its brake migration and has no ABS — is not said to have ABS. Which of the
+two decided a profile *already given* is in the host's log only. A host from before it
 kept any of this sends none of those fields, and the panel is then as it was: the sentence is left out, and the force has no date. Taking a car's
 profile away leaves its force on the page, and the host has that down as the driver's choice.
 

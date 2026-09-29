@@ -257,14 +257,10 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
   the raw `dc…` values and the old hand-written table in `apps/overlay/modules/js/config.js`. Nothing is made up —
   no NONE, no car's own labels, no DRS or push-to-pass. The check says once, in the log, that the car is missing.
 - **Not built**: the HUD does not say what the check found; of a car's controls nothing is remembered but what the
-  check said; the desk cannot yet say that a pedal profile came from the list (the host's log line says so). **Nor
-  do the Cars page's "No profile yet" sentences read the list**: they still go by the data's `has_abs`
-  (`components/CarPedals.tsx`), which the list's answer never sets. A listed car with no profile, including one not
-  yet driven with the host, says "not driven enough yet to say whether it has ABS" though the list already says; and
-  a prototype (`abs: none` in the list) whose `has_abs` is true, from the `dcABS` it publishes, says "it has ABS"
-  and may be offered `LightBrake` in the sentence, where the rule gives `Default`. Beside SimHub the key shows only
-  once the plugin has been installed again from a build that carries the list: the plugin carries
-  `RacingDesk.Core`, and the old DLL sends no such key.
+  check said; the desk cannot yet say that a pedal profile *already given* came from the list (the host's log line
+  says so). A car with no profile yet is said to wait on the list's answer where the list has one (the Desk
+  section, below). Beside SimHub the key shows only once the plugin has been installed again from a build that
+  carries the list: the plugin carries `RacingDesk.Core`, and the old DLL sends no such key.
 
 ## Desk
 
@@ -467,8 +463,10 @@ millimetres and the page does not say which way is forward — that has not been
   has ABS." (or no ABS, or a formula car), "You chose this.", "You chose that this car has none."; for a car with
   no profile yet, what is waited for: "No profile yet: not driven enough yet to say whether it has ABS.", or, once
   that is known, that the rule gives it one when it is next driven — or has no `LightBrake` or `Default` in
-  SmartControl to give from. **That is what the data says, not the list**: the sentences go by `has_abs` and know
-  nothing of the car list, which the rule reads (see "Not built" under "The car's controls"). Beside the profile's brake, the force and when it was set: "brake force 62 kg in this
+  SmartControl to give from. As the rule does, the sentences go by the car list where it says, each fact on its own, as the rule does — "No profile yet: the
+  car list says it is a prototype, and the rule gives it one from Default when it is next driven." — and by the
+  data's `has_abs` for what an entry leaves out and for a car the list does not have. A GTP publishes `dcABS`,
+  which carries its brake migration, so the data would say it has ABS; the list says it has none. Beside the profile's brake, the force and when it was set: "brake force 62 kg in this
   car, set Tue, Sep 15, 5:40 PM". A host from before it sent any of this shows as it did: no sentence, no date.
   Taking a profile away leaves the force on the page.
 - **Controls** (`components/CarControls.tsx`, under the view and the pedals, across both) is what the car list says

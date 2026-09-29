@@ -347,8 +347,9 @@ to start a runtime, which binds wildcard ports.
 
 **Not built.** The desk does not show the list or the check. The pedals' rule (`CarPedalsKeeper`) reads a car's kind
 and ABS from the list where the list says them, and from what the car publishes for what an entry leaves out and
-for any car the list has not met; the desk cannot yet say which, and the Cars page's "No profile yet" sentences still
-go by what the car published. Nothing is remembered per car. What a fixed setup locks
+for any car the list has not met; the Cars page's "No profile yet" sentences go the same way, and which of the two
+decided a profile already given is in the host's log only. Of a car's controls nothing is remembered but what the
+check said (`car_list_remarks`), which the desk shows. What a fixed setup locks
 is the rule of §10 and no more. No car outside the list gets anything: a car the list has not met is shown as it was.
 
 ## 12. The cars, one by one

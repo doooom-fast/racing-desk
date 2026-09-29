@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, type ReactNode } from "react";
-import { curveShape, keyWords, plain, when, type CarPedals, type Profile, type Rig } from "../rig";
+import { curveShape, keyWords, plain, when, type CarPedals, type ListedCar, type Profile, type Rig } from "../rig";
 import type { PedalNote } from "../useRig";
 
 const NOT_HERE = "A car's pedals are kept by the Racing Desk app, and this page is running without it.";
@@ -62,10 +62,10 @@ const DEFAULT = "Default";
 
 /// Who gave the car its profile and why, or why it has none and what is waited for. The rule is the driver's:
 /// his LightBrake for a car with ABS that is neither a formula car nor a prototype, his Default for the rest,
-/// given at the end of a run once enough has been driven to say which. Null where there is nothing to say: a host from before it told
+/// given at the end of a run once enough is known to say which. Null where there is nothing to say: a host from before it told
 /// any of this, a profile nobody is down as having given. `profiles` are SmartControl's, or null where there is
-/// nothing for the rule to give from or to.
-function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | null): string | null {
+/// nothing for the rule to give from or to. `listed` is the car's entry in the car list, or null.
+function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | null, listed: ListedCar | null): string | null {
   if (!told) return null;
   if (bound && bound.profileId !== null) {
     if (bound.givenBy === "driver") return "You chose this.";
@@ -75,9 +75,26 @@ function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | nul
   }
   if (bound?.givenBy === "none") return "You chose that this car has none.";
   if (profiles === null) return null;
-  const abs = bound?.hasAbs ?? null;
-  if (abs === null) return "No profile yet: not driven enough yet to say whether it has ABS.";
   const has = (name: string) => profiles.some((p) => p.name.trim().toLowerCase() === name.toLowerCase());
+
+  // The rule goes by the car list where it says, each fact on its own, and by what the host has seen where it does
+  // not (CarPedalsKeeper). The data's has_abs is not the list's: a GTP publishes dcABS, which carries its brake
+  // migration, and has no ABS.
+  const listAbs = listed?.abs == null ? null : listed.abs !== "none";
+  const kind = listed?.kind ?? null;
+  const special = kind === "formula" ? "a formula car" : kind === "prototype" ? "a prototype" : null;
+  const abs = listAbs ?? bound?.hasAbs ?? null;
+  if (special !== null || (kind !== null && abs !== null)) {
+    // Enough is known to say which: no laps are waited for.
+    const base = special !== null || !abs ? DEFAULT : LIGHT;
+    const fact = special !== null ? `it is ${special}` : `it has ${abs ? "" : "no "}ABS`;
+    const said = special !== null || listAbs !== null ? "the car list says " : "";
+    const then = has(base)
+      ? `the rule gives it one from ${base} when it is next driven`
+      : `the rule would give it one from ${base}, which SmartControl does not have`;
+    return `No profile yet: ${said}${fact}, and ${then}.`;
+  }
+  if (abs === null) return "No profile yet: not driven enough yet to say whether it has ABS.";
   const known = `No profile yet: it has ${abs ? "" : "no "}ABS`;
   // Whether it is a formula car or a prototype is the host's to know, so with ABS it may be either profile that
   // is wanted.
@@ -104,6 +121,7 @@ export function CarPedalsPanel({
   carName,
   carPath,
   bound,
+  listed = null,
   saving,
   note,
   onBind,
@@ -116,6 +134,8 @@ export function CarPedalsPanel({
   /// The host's own spelling of the car's path; null for a car it has never heard of.
   carPath: string | null;
   bound: CarPedals | null;
+  /// The car's entry in the car list; null for a car it does not have, or a host with no list.
+  listed?: ListedCar | null;
   /// The profile being saved for this car (null for none); undefined while nothing is.
   saving: string | null | undefined;
   note: PedalNote | null;
@@ -148,7 +168,7 @@ export function CarPedalsPanel({
   const profile = boundId === null ? null : (pedals.profiles.find((p) => p.id === boundId) ?? null);
   const says = words(bound, profile);
   // Without SmartControl, or a car the host knows, the notes below say what is missing.
-  const whose = given(bound, pedals.told, pedals.found && carPath !== null ? pedals.profiles : null);
+  const whose = given(bound, pedals.told, pedals.found && carPath !== null ? pedals.profiles : null, listed);
 
   return (
     <div className="panel car-pedals">
