@@ -29,7 +29,9 @@ const tradingpaints = require('./tradingpaints');
 // one; default %LOCALAPPDATA%\Racing Desk\paints\backups), `simState` and `tradingPaints` (async inspectors),
 // `env`, `exec` (how commands are run) and `registry` (how Documents is looked up); for the catalogue, `carNames`
 // (async, the store's rows — see car-names.js; none by default) and `installRoot` (the iRacing install set by
-// hand: a path, or a function returning one or nothing; detection fills in when it does not hold a cars folder).
+// hand: a path, or a function returning one or nothing; detection fills in when it does not hold a cars folder);
+// and `setAside`, the folder an update puts files in the library's way into (a path, or a function returning one or
+// nothing — the app names %LOCALAPPDATA%\Racing Desk\library-set-aside; with none, such files stay and stop the update).
 function createCommands(overrides = {}) {
   const env = overrides.env || process.env;
   // `hashes`: a file to keep the hashes of paint files in, so a library is hashed once and not at every start.
@@ -45,6 +47,10 @@ function createCommands(overrides = {}) {
     if (typeof overrides.backupsBase === 'function') return overrides.backupsBase();
     if (typeof overrides.backupsBase === 'string') return overrides.backupsBase;
     return apply.backupsBase({ env });
+  };
+  const setAsideBase = () => {
+    const base = typeof overrides.setAside === 'function' ? overrides.setAside() : overrides.setAside;
+    return typeof base === 'string' && base.length ? base : null;
   };
   const carNames = async () => {
     if (typeof overrides.carNames !== 'function') return [];
@@ -119,8 +125,8 @@ function createCommands(overrides = {}) {
     // Ask the remote whether anything is waiting. Transfers no objects.
     repoCheck: async (p) => repo.check(p, repoDeps),
 
-    // Fast-forward the library to the remote.
-    repoPull: async (p) => repo.pull(p, repoDeps),
+    // Fast-forward the library to the remote, putting aside what is in the way (repo.js).
+    repoPull: async (p) => repo.pull(p, repoDeps, { setAsideBase: setAsideBase(), now: overrides.now }),
 
     // Libraries findable near the sim, so the common case needs no browsing.
     suggestLibraries: async (paintDir) => repo.suggestLibraries(paintDir, { env, exec }),

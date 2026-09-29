@@ -179,7 +179,7 @@ test('a catalogue with no host to name the cars, or no install to find, is the c
 test('what the manager remembers goes through the store, and needs the settings to be there', async () => {
   const settings = {
     paintDir, libraryRoot, customerId: CUSTOMER, includeSpec: true, setReadOnlyAfter: false, clearOtherCooked: false,
-    autoUpdateOnLaunch: false,
+    autoUpdateLibrary: false,
   };
   await invoke('saveSettings', { settings });
   expect(await invoke('loadSettings')).toEqual(settings);

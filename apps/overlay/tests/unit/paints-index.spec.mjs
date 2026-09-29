@@ -176,12 +176,12 @@ test('loadSettings and saveSettings go through the caller\'s store and keep the 
   const store = { get: () => held, set: (obj) => { held = obj; } };
   expect(await cmd.loadSettings(store)).toEqual({
     paintDir: null, libraryRoot: null, customerId: CUSTOMER, includeSpec: null, setReadOnlyAfter: null,
-    clearOtherCooked: null, autoUpdateOnLaunch: null,
+    clearOtherCooked: null, autoUpdateLibrary: null,
   });
-  expect(await cmd.saveSettings({ paintDir: fx.paint, autoUpdateOnLaunch: true, includeSpec: 'no' }, store)).toBeNull();
+  expect(await cmd.saveSettings({ paintDir: fx.paint, autoUpdateLibrary: false, includeSpec: 'no' }, store)).toBeNull();
   expect(held).toEqual({
     paintDir: fx.paint, libraryRoot: null, customerId: null, includeSpec: null, setReadOnlyAfter: null,
-    clearOtherCooked: null, autoUpdateOnLaunch: true,
+    clearOtherCooked: null, autoUpdateLibrary: false,
   });
   expect(await cmd.loadSettings({ get: () => { throw new Error('no file'); } })).toEqual(paints.settings.DEFAULTS);
 });

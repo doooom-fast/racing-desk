@@ -12,7 +12,7 @@ const settings = require('../../modules/js/paints/settings.js');
 
 const ALL_NULL = {
   paintDir: null, libraryRoot: null, customerId: null, includeSpec: null, setReadOnlyAfter: null,
-  clearOtherCooked: null, autoUpdateOnLaunch: null,
+  clearOtherCooked: null, autoUpdateLibrary: null,
 };
 
 test('the defaults are the Settings shape with every field null', () => {
@@ -39,9 +39,44 @@ test('unknown and missing fields are tolerated', () => {
 });
 
 test('wrong-typed fields are dropped and named', () => {
-  const { settings: s, problems } = settings.validate({ customerId: 424242, includeSpec: 'yes', paintDir: 'ok', autoUpdateOnLaunch: false });
-  expect(s).toEqual({ ...ALL_NULL, paintDir: 'ok', autoUpdateOnLaunch: false });
+  const { settings: s, problems } = settings.validate({ customerId: 424242, includeSpec: 'yes', paintDir: 'ok', autoUpdateLibrary: false });
+  expect(s).toEqual({ ...ALL_NULL, paintDir: 'ok', autoUpdateLibrary: false });
   expect(problems).toEqual(['customerId must be a string; ignoring it.', 'includeSpec must be true or false; ignoring it.']);
+  expect(settings.validate({ autoUpdateLibrary: 'sometimes' })).toEqual({
+    settings: ALL_NULL, problems: ['autoUpdateLibrary must be true or false; ignoring it.'],
+  });
+});
+
+test('the library keeps itself up to date unless it is set to false: null, until he chooses, is not a no', () => {
+  // The page reads null as on, so null has to stay null through a load and a save, and only a false is a no.
+  expect(settings.normalise({}).autoUpdateLibrary).toBeNull();
+  expect(settings.normalise({ autoUpdateLibrary: null }).autoUpdateLibrary).toBeNull();
+  expect(settings.normalise({ autoUpdateLibrary: true }).autoUpdateLibrary).toBe(true);
+  expect(settings.normalise({ autoUpdateLibrary: false }).autoUpdateLibrary).toBe(false);
+  expect(settings.merge({ ...ALL_NULL, autoUpdateLibrary: false }, { autoUpdateLibrary: null }).autoUpdateLibrary).toBeNull();
+  expect(settings.merge({ ...ALL_NULL, autoUpdateLibrary: false }, { paintDir: 'P' }).autoUpdateLibrary).toBe(false);
+});
+
+test('autoUpdateOnLaunch, which older files hold, is accepted and never read: what it said was the old default, not a choice', () => {
+  expect(settings.LEGACY_KEYS).toEqual(['autoUpdateOnLaunch']);
+  expect(settings.KEYS).not.toContain('autoUpdateOnLaunch');
+  // Whatever it holds — the false the page saved, a true, or something that is not a boolean — it is dropped, and not
+  // reported: an old file loads clean.
+  for (const value of [false, true, null, 'yes', 7]) {
+    const { settings: s, problems } = settings.validate({ customerId: '42', autoUpdateOnLaunch: value });
+    expect(s, String(value)).toEqual({ ...ALL_NULL, customerId: '42' });
+    expect(s).not.toHaveProperty('autoUpdateOnLaunch');
+    expect(problems, String(value)).toEqual([]);
+  }
+  // As he has it: only the old false in the file. Nothing there says he turned it off.
+  const old = settings.normalise('{"paintDir":"P","autoUpdateOnLaunch":false}');
+  expect(old.autoUpdateLibrary).toBeNull();
+  // The first save takes it out of the file.
+  let held = { paintDir: 'P', autoUpdateOnLaunch: false, installDir: 'D:\\Sims\\iRacing' };
+  const store = { get: () => held, set: (obj) => { held = obj; } };
+  settings.save(store, { ...settings.load(store) });
+  expect(held).toEqual({ ...ALL_NULL, paintDir: 'P', installDir: 'D:\\Sims\\iRacing' });
+  expect(held).not.toHaveProperty('autoUpdateOnLaunch');
 });
 
 test('rubbish is the defaults: not an object, corrupt JSON, nothing', () => {

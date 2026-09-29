@@ -1487,6 +1487,11 @@ const paintsCommands = paints.createCommands({
   hashes: (() => {
     try { return path.join(path.dirname(paints.apply.backupsBase()), 'hashes.json'); } catch (e) { return null; }
   })(),
+  // Where an update puts files that are in the library's way — untracked files an incoming one would be written over
+  // — at %LOCALAPPDATA%\Racing Desk\library-set-aside, in a folder of its own for each. Moved there, never deleted.
+  setAside: (() => {
+    try { return path.join(path.dirname(path.dirname(paints.apply.backupsBase())), 'library-set-aside'); } catch (e) { return null; }
+  })(),
 });
 // What the manager remembers (the two folders, the customer id, the apply options) is the `paints` key of
 // overlay-settings.json, beside the HUD's settings. The file is rewritten whole; every other key is kept, and the

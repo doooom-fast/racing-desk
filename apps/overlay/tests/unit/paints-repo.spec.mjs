@@ -1,7 +1,8 @@
 /**
- * The library as a git checkout: recognising the nesting, reading a real (temp) checkout, refusing to pull a dirty
- * tree, ignoring untracked files, and a clone-push-check-fetch-pull cycle against a local bare remote. Every repo
- * here is created under os.tmpdir() by the test itself; nothing touches a real checkout. Port of the tests in
+ * The library as a git checkout: recognising the nesting, reading a real (temp) checkout, not pulling into a tree
+ * with changes of its own, ignoring untracked files, a clone-push-check-fetch-pull cycle against a local bare remote,
+ * and files that are in an update's way being set aside — moved, never deleted — before it. Every repo here is
+ * created under os.tmpdir() by the test itself; nothing touches a real checkout. Port of the tests in
  * apps/paints/src-tauri/src/repo.rs plus suggestLibraries and the error texts.
  */
 
@@ -13,6 +14,8 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const repo = require('../../modules/js/paints/repo.js');
+const paints = require('../../modules/js/paints/index.js');
+const { run } = require('../../modules/js/paints/exec.js');
 const { git } = repo;
 
 let root;
@@ -147,11 +150,11 @@ test('reads a real checkout and refuses to pull a dirty one', async () => {
   expect(await repo.check(dir)).toMatchObject({ checkedRemote: false, updatesAvailable: false });
   await expect(repo.pull(dir)).rejects.toThrow('This branch is not tracking a remote, so there is nothing to pull.');
 
-  // Dirty it, and the refusal must mention the work rather than git internals.
+  // Dirty it, and what is said is about his work, not about git.
   fs.writeFileSync(path.join(v, 'car_424242.tga'), 'edited');
   const dirty = await repo.status(dir);
   expect(dirty.dirty).toBe(true);
-  expect(dirty.notes).toContain('The repository has uncommitted changes. Updating is held back so they are not disturbed.');
+  expect(dirty.notes).toContain('The library has changes of its own that are not online, so updating is held back.');
 });
 
 test('untracked files do not block updating; a modified tracked file does', async () => {
@@ -176,11 +179,18 @@ test('untracked files do not block updating; a modified tracked file does', asyn
   // And the untracked file is still sitting there, untouched.
   expect(fs.readFileSync(path.join(junk, 'car_424242.tga'), 'utf8')).toBe('a backup');
 
-  // A modified *tracked* file is a real reason to hold back, and still does.
+  // A modified *tracked* file is a real reason to hold back, and still does — once there is something to take.
   fs.writeFileSync(path.join(clone, 'lotus79', 'v13', 'car_424242.tga'), 'edited by hand');
   expect((await repo.status(clone)).dirty).toBe(true);
-  await expect(repo.pull(clone)).rejects.toThrow('The repository has uncommitted changes. Commit or stash them first — pulling over them could lose work.');
+  expect(await repo.pull(clone)).toMatchObject({ updated: false, blocked: null });   // up to date: nothing to hold back
+  await pushNewLivery(work, 'mx5', 'add the MX-5');
+  const held = await repo.pull(clone);
+  expect(held).toMatchObject({
+    updated: false, commits: [], changed: 0, setAside: null,
+    blocked: { reason: 'changes', text: 'The library has changes of its own that are not online, so it was not updated. Nothing was changed.' },
+  });
   expect(fs.readFileSync(path.join(clone, 'lotus79', 'v13', 'car_424242.tga'), 'utf8')).toBe('edited by hand');
+  expect(fs.existsSync(path.join(clone, 'mx5'))).toBe(false);
 });
 
 test('counts how far behind a checkout is: check asks, fetch counts, pull fast-forwards, again is a no-op', async () => {
@@ -224,17 +234,20 @@ test('counts how far behind a checkout is: check asks, fetch counts, pull fast-f
   expect(report.updated).toBe(true);
   expect(report.commits).toHaveLength(1);
   expect(report.commits[0]).toMatch(/^[0-9a-f]{7,} add the Nissan$/);
+  expect(report.changed).toBe(1);   // one version of one car
+  expect(report.setAside).toBeNull();
+  expect(report.blocked).toBeNull();
   expect(report.status.behind).toBe(0);
   expect(report.status.updatesAvailable).toBe(false);
   expect(fs.existsSync(path.join(clone, 'nissangtpzxt', 'v10'))).toBe(true);
 
   // Pulling again is a no-op, not an error.
   const again = await repo.pull(clone);
-  expect(again).toMatchObject({ updated: false, commits: [] });
-  expect(Object.keys(again).sort()).toEqual(['commits', 'status', 'updated']);
+  expect(again).toMatchObject({ updated: false, commits: [], changed: 0, setAside: null, blocked: null });
+  expect(Object.keys(again).sort()).toEqual(['blocked', 'changed', 'commits', 'setAside', 'status', 'updated']);
 });
 
-test('a diverged branch is refused by --ff-only, and nothing changes', async () => {
+test('a diverged branch is not updated, and what is said is plain and nothing changes', async () => {
   const { work, origin } = await originWithWork('diverged');
   const clone = fixture('diverged-clone');
   await git(clone, ['clone', '--quiet', origin, '.']);
@@ -245,13 +258,218 @@ test('a diverged branch is refused by --ff-only, and nothing changes', async () 
   await git(clone, ['commit', '--quiet', '-m', 'local mx5']);
   await pushNewLivery(work);
 
-  const err = await repo.pull(clone).catch((e) => e);
-  expect(err.kind).toBe('refused');
-  // git's stderr comes through verbatim, hints and all, as it did from the Rust.
-  expect(err.message).toMatch(/^Could not fast-forward the library: [\s\S]+ Nothing was changed\.$/);
-  expect(err.message).toContain('Not possible to fast-forward');
+  const report = await repo.pull(clone);
+  expect(report).toMatchObject({
+    updated: false, commits: [], changed: 0, setAside: null,
+    blocked: { reason: 'work', text: 'The library has work of its own that is not online, so it was not updated. Nothing was changed.' },
+  });
   expect(fs.existsSync(path.join(clone, 'nissangtpzxt'))).toBe(false);
-  expect((await repo.status(clone))).toMatchObject({ ahead: 1, behind: 1, dirty: false });
+  expect(fs.existsSync(path.join(clone, 'mx5', 'v1'))).toBe(true);
+  expect(report.status).toMatchObject({ ahead: 1, behind: 1, dirty: false });
+});
+
+test('none of the sentences of what is in the way says how to use git', () => {
+  expect(Object.keys(repo.BLOCKED)).toEqual(['changes', 'work', 'files', 'other']);
+  for (const [reason, text] of Object.entries(repo.BLOCKED)) {
+    expect(text, reason).not.toMatch(/\bgit\b|commit|stash|merge|rebase|pull|push|repo/i);
+    expect(text, reason).toMatch(/Nothing was changed\.$/);
+    expect(text.split('. ').length, `${reason} is one sentence, and that nothing was changed`).toBe(2);
+  }
+});
+
+// ── Files in an update's way ─────────────────────────────────
+// The fleet build writes paints into the library that the design pipeline pushes too: git will not write an incoming
+// file over one it does not track. They are moved out of the checkout, whole, and the update goes ahead.
+
+const WHEN = new Date(2026, 8, 29, 10, 15, 30);   // local time, as the folder's name is
+const STAMP = '2026-09-29_101530';
+
+// An origin with one livery, a clone of it, and — in `work` — a push of a version of the Nissan that the clone has
+// already, untracked, under its own name for it: made here, as the fleet build makes one.
+async function cloneWithFleetPaint(tag) {
+  const { work, origin } = await originWithWork(tag);
+  const clone = fixture(`${tag}-clone`);
+  await git(clone, ['clone', '--quiet', origin, '.']);
+  const theirs = path.join(work, 'nissangtpzxt', 'v10');
+  fs.mkdirSync(theirs, { recursive: true });
+  fs.writeFileSync(path.join(theirs, 'car_424242.tga'), 'from the design pipeline');
+  fs.writeFileSync(path.join(theirs, 'meta.json'), '{"source":"pipeline"}');
+  await git(work, ['add', '-A']);
+  await git(work, ['commit', '--quiet', '-m', 'add the Nissan']);
+  await git(work, ['push', '--quiet']);
+
+  const mine = path.join(clone, 'nissangtpzxt', 'v10');
+  fs.mkdirSync(mine, { recursive: true });
+  fs.writeFileSync(path.join(mine, 'car_424242.tga'), 'from the fleet build');
+  fs.writeFileSync(path.join(mine, 'meta.json'), '{"source":"fleet"}');
+  // Untracked, and in nobody's way: it stays where it is.
+  fs.mkdirSync(path.join(clone, 'nissangtpzxt', 'v11'), { recursive: true });
+  fs.writeFileSync(path.join(clone, 'nissangtpzxt', 'v11', 'car_424242.tga'), 'a paint of my own');
+  return { work, origin, clone };
+}
+
+test('files an update would write over are set aside, not deleted, and then it goes ahead', async () => {
+  const { clone } = await cloneWithFleetPaint('aside');
+  const base = fixture('aside-base');
+
+  // Without somewhere to put them git refuses, as it always did: nothing is moved, and nothing is changed.
+  const stuck = await repo.pull(clone);
+  expect(stuck).toMatchObject({ updated: false, setAside: null, blocked: { reason: 'files', text: repo.BLOCKED.files } });
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the fleet build');
+  expect((await repo.status(clone)).behind).toBe(1);
+
+  const report = await repo.pull(clone, undefined, { setAsideBase: base, now: () => WHEN });
+  expect(report.blocked).toBeNull();
+  expect(report.updated).toBe(true);
+  expect(report.changed).toBe(1);
+  expect(report.commits).toHaveLength(1);
+  const folder = path.join(base, STAMP);
+  expect(report.setAside).toEqual({ count: 2, folder });
+
+  // What came is the online copy's; what was there is whole, under the same path in the set-aside folder.
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the design pipeline');
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'meta.json'), 'utf8')).toBe('{"source":"pipeline"}');
+  expect(fs.readFileSync(path.join(folder, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the fleet build');
+  expect(fs.readFileSync(path.join(folder, 'nissangtpzxt', 'v10', 'meta.json'), 'utf8')).toBe('{"source":"fleet"}');
+  // Only what was in the way: the untracked file that was in nobody's stays, and is not in the set-aside folder.
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v11', 'car_424242.tga'), 'utf8')).toBe('a paint of my own');
+  expect(fs.existsSync(path.join(folder, 'nissangtpzxt', 'v11'))).toBe(false);
+  expect(fs.readdirSync(base)).toEqual([STAMP]);
+  expect(report.status).toMatchObject({ behind: 0, dirty: false });
+
+  // Nothing waiting: nothing set aside, and no folder made for it.
+  const again = await repo.pull(clone, undefined, { setAsideBase: base, now: () => WHEN });
+  expect(again).toMatchObject({ updated: false, setAside: null, blocked: null });
+  expect(fs.readdirSync(base)).toEqual([STAMP]);
+});
+
+test('nothing is set aside when nothing is in the way, and two updates in one second have folders of their own', async () => {
+  const { work, origin } = await originWithWork('aside-none');
+  const clone = fixture('aside-none-clone');
+  await git(clone, ['clone', '--quiet', origin, '.']);
+  const base = path.join(fixture('aside-none-base'), 'library-set-aside');   // not there yet
+  fs.mkdirSync(path.join(clone, 'elsewhere'), { recursive: true });
+  fs.writeFileSync(path.join(clone, 'elsewhere', 'notes.txt'), 'mine');
+  await pushNewLivery(work);
+  const first = await repo.pull(clone, undefined, { setAsideBase: base, now: () => WHEN });
+  expect(first).toMatchObject({ updated: true, setAside: null, blocked: null });
+  expect(fs.existsSync(base)).toBe(false);   // not even the folder for them
+
+  // Two in one second: `-02`.
+  for (const [n, car] of [[1, 'car1'], [2, 'car2']]) {
+    fs.mkdirSync(path.join(clone, car, 'v1'), { recursive: true });
+    fs.writeFileSync(path.join(clone, car, 'v1', 'car_424242.tga'), `mine ${n}`);
+    makeLibrary(work, car, 'v1');
+    await git(work, ['add', '-A']);
+    await git(work, ['commit', '--quiet', '-m', `add ${car}`]);
+    await git(work, ['push', '--quiet']);
+    const done = await repo.pull(clone, undefined, { setAsideBase: base, now: () => WHEN });
+    expect(done.setAside).toEqual({ count: 1, folder: path.join(base, n === 1 ? STAMP : `${STAMP}-02`) });
+  }
+  expect(fs.readdirSync(base).sort()).toEqual([STAMP, `${STAMP}-02`]);
+  expect(fs.readFileSync(path.join(base, `${STAMP}-02`, 'car2', 'v1', 'car_424242.tga'), 'utf8')).toBe('mine 2');
+  expect(fs.readFileSync(path.join(clone, 'elsewhere', 'notes.txt'), 'utf8')).toBe('mine');
+});
+
+test('a set-aside is put back when the update then fails, and the folder it made goes', async () => {
+  const { clone } = await cloneWithFleetPaint('aside-back');
+  const base = fixture('aside-back-base');
+  // Git fails at the fast-forward, after the files were moved.
+  const exec = async (file, args, opts) => {
+    if (args[0] === 'merge') return { status: 128, stdout: '', stderr: 'fatal: something else entirely\nhint: try a different way', error: null };
+    return run(file, args, opts);
+  };
+  const report = await repo.pull(clone, { exec }, { setAsideBase: base, now: () => WHEN });
+  expect(report).toMatchObject({ updated: false, setAside: null, blocked: { reason: 'other', text: repo.BLOCKED.other } });
+  expect(report.blocked.text).not.toContain('hint');
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the fleet build');
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'meta.json'), 'utf8')).toBe('{"source":"fleet"}');
+  expect(fs.readdirSync(base)).toEqual([]);   // no folder left behind holding nothing
+  expect((await repo.status(clone)).behind).toBe(1);
+});
+
+test('a file that cannot be moved leaves the others where they were, and the update is not taken', async () => {
+  const { clone } = await cloneWithFleetPaint('aside-locked');
+  const base = fixture('aside-locked-base');
+  // The second file is held by another program: its move is refused, after the first one's went through.
+  const renameSync = fs.renameSync;
+  fs.renameSync = (from, to) => {
+    if (String(from).endsWith('meta.json') && String(to).startsWith(base)) {
+      throw Object.assign(new Error('EBUSY: resource busy or locked, rename'), { code: 'EBUSY' });
+    }
+    return renameSync(from, to);
+  };
+  let report;
+  try {
+    report = await repo.pull(clone, undefined, { setAsideBase: base, now: () => WHEN });
+  } finally {
+    fs.renameSync = renameSync;
+  }
+  expect(report).toMatchObject({ updated: false, setAside: null, blocked: { reason: 'files', text: repo.BLOCKED.files } });
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the fleet build');
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'meta.json'), 'utf8')).toBe('{"source":"fleet"}');
+  expect(fs.readdirSync(base)).toEqual([]);   // the first file went back, and the folder made for it is gone
+  expect((await repo.status(clone)).behind).toBe(1);
+
+  // Nowhere it could be made at all: the same, before anything is moved.
+  const notAFolder = path.join(fixture('aside-locked-file'), 'library-set-aside');
+  fs.writeFileSync(notAFolder, 'a file where the folder should be');
+  expect(await repo.pull(clone, undefined, { setAsideBase: notAFolder, now: () => WHEN }))
+    .toMatchObject({ updated: false, blocked: { reason: 'files' } });
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the fleet build');
+});
+
+test('the files in the way are the incoming paths that are untracked, and only those', async () => {
+  const { clone } = await cloneWithFleetPaint('inway');
+  await repo.fetch(clone);
+  const incoming = (await git(clone, ['diff', '--name-only', '-z', 'HEAD..@{upstream}'])).split('\0').filter(Boolean);
+  expect(incoming.sort()).toEqual(['nissangtpzxt/v10/car_424242.tga', 'nissangtpzxt/v10/meta.json']);
+  expect((await repo.inTheWay(clone, incoming)).sort()).toEqual(['nissangtpzxt/v10/car_424242.tga', 'nissangtpzxt/v10/meta.json']);
+  expect(await repo.inTheWay(clone, ['lotus79/v13/car_424242.tga', 'nissangtpzxt/v11/other.tga'])).toEqual([]);
+  expect(await repo.inTheWay(clone, [])).toEqual([]);
+  // A file git ignores is not in its way: it is written over without being asked.
+  fs.writeFileSync(path.join(clone, '.gitignore'), '*.log\n');
+  fs.writeFileSync(path.join(clone, 'incoming.log'), 'ignored');
+  expect(await repo.inTheWay(clone, ['incoming.log'])).toEqual([]);
+});
+
+test('on Windows an untracked file is in the way of an incoming one that differs from it in case only', async () => {
+  test.skip(process.platform !== 'win32', 'the disk tells the two names apart elsewhere');
+  const { work, origin } = await originWithWork('case');
+  const clone = fixture('case-clone');
+  await git(clone, ['clone', '--quiet', origin, '.']);
+  const base = fixture('case-base');
+  makeLibrary(work, 'nissangtpzxt', 'v10');
+  await git(work, ['add', '-A']);
+  await git(work, ['commit', '--quiet', '-m', 'add the Nissan']);
+  await git(work, ['push', '--quiet']);
+  fs.mkdirSync(path.join(clone, 'NissanGTPZXT', 'V10'), { recursive: true });
+  fs.writeFileSync(path.join(clone, 'NissanGTPZXT', 'V10', 'CAR_424242.tga'), 'fleet');
+
+  const report = await repo.pull(clone, undefined, { setAsideBase: base, now: () => WHEN });
+  expect(report).toMatchObject({ updated: true, blocked: null, setAside: { count: 1 } });
+  expect(fs.readFileSync(path.join(report.setAside.folder, 'NissanGTPZXT', 'V10', 'CAR_424242.tga'), 'utf8')).toBe('fleet');
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('paint');
+});
+
+test('the folder is named for the local time, to the second', () => {
+  expect(repo.setAsideStamp(new Date(2026, 0, 5, 3, 4, 9))).toBe('2026-01-05_030409');
+  expect(repo.setAsideStamp(WHEN)).toBe(STAMP);
+});
+
+test('the command hands the folder in from the app, and without one puts nothing aside', async () => {
+  const { clone } = await cloneWithFleetPaint('command');
+  const base = fixture('command-base');
+  const none = paints.createCommands({});
+  expect(await none.repoPull(clone)).toMatchObject({ updated: false, blocked: { reason: 'files' } });
+  const lost = paints.createCommands({ setAside: () => '' });
+  expect(await lost.repoPull(clone)).toMatchObject({ updated: false, blocked: { reason: 'files' } });
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the fleet build');
+
+  const cmd = paints.createCommands({ setAside: () => base, now: () => WHEN });
+  const report = await cmd.repoPull(clone);
+  expect(report).toMatchObject({ updated: true, setAside: { count: 2, folder: path.join(base, STAMP) } });
+  expect(fs.readFileSync(path.join(clone, 'nissangtpzxt', 'v10', 'car_424242.tga'), 'utf8')).toBe('from the design pipeline');
 });
 
 test('suggestLibraries finds a checkout in or beside the paint folder and under Documents\\GitHub, repos first', async () => {

@@ -7,8 +7,15 @@
 // install is not re-corrected on every start.
 
 const STRING_KEYS = Object.freeze(['paintDir', 'libraryRoot', 'customerId']);
-const BOOL_KEYS = Object.freeze(['includeSpec', 'setReadOnlyAfter', 'clearOtherCooked', 'autoUpdateOnLaunch']);
+// `autoUpdateLibrary`: the library keeps itself up to date (checks now and then, and takes what is waiting). Null,
+// which is what he has until he chooses, means yes; only an explicit false turns it off.
+const BOOL_KEYS = Object.freeze(['includeSpec', 'setReadOnlyAfter', 'clearOtherCooked', 'autoUpdateLibrary']);
 const KEYS = Object.freeze([...STRING_KEYS, ...BOOL_KEYS]);
+
+// Keys older files hold, which are accepted and then dropped: never read, never kept, never reported. That was
+// `autoUpdateOnLaunch`, off until ticked, and the page saved every setting whole on any change — so a false in a
+// file is what the page held, the old default, not a choice he made. A save takes it out of the file.
+const LEGACY_KEYS = Object.freeze(['autoUpdateOnLaunch']);
 
 // Kept beside the Settings in the same store, set by hand and read by the app alone: `installDir`, the iRacing
 // install for when detection picks the wrong one (catalogue.js). They are no part of the Settings shape — the UI
@@ -26,7 +33,7 @@ const DEFAULTS = Object.freeze({
   includeSpec: null,
   setReadOnlyAfter: null,
   clearOtherCooked: null,
-  autoUpdateOnLaunch: null,
+  autoUpdateLibrary: null,
 });
 
 function isPlainObject(v) {
@@ -34,8 +41,8 @@ function isPlainObject(v) {
 }
 
 // Coerce anything into the Settings shape and say what was dropped. Unknown keys are ignored (an older or newer
-// settings file must not stop the app starting), a wrong-typed value becomes null, and something that is not an
-// object at all is the defaults. A JSON string is parsed first, since a store may hand the file back raw.
+// settings file must not stop the app starting) and so are the legacy ones, a wrong-typed value becomes null, and
+// something that is not an object at all is the defaults. A JSON string is parsed first, since a store may hand the file back raw.
 function validate(input) {
   const problems = [];
   let raw = input;
@@ -121,4 +128,7 @@ function save(store, settings) {
   return clean;
 }
 
-module.exports = { DEFAULTS, KEYS, STRING_KEYS, BOOL_KEYS, HOST_KEYS, LIST_KEYS, validate, normalise, merge, load, hostValues, save };
+module.exports = {
+  DEFAULTS, KEYS, STRING_KEYS, BOOL_KEYS, HOST_KEYS, LIST_KEYS, LEGACY_KEYS, validate, normalise, merge, load,
+  hostValues, save,
+};
