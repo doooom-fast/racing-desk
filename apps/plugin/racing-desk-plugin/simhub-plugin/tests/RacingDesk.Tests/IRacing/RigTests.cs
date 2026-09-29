@@ -342,13 +342,13 @@ INSERT INTO schema_version (version) VALUES (4);
         {
             int port = FreePort();
             using var listener = new HttpListener();
-            listener.Prefixes.Add($"http://localhost:{port}/racing-desk/");
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/racing-desk/"); // not localhost: HTTP.sys binds that on every address
             listener.Start();
             var api = new LocalDataApi(Db, smartControl ? SmartControlDb : Path.Combine(_dir, "not-installed.db"));
             var claimed = Task.Run(() => api.TryHandle(listener.GetContext()));
 
             using var http = new HttpClient();
-            using var request = new HttpRequestMessage(new HttpMethod(method), $"http://localhost:{port}/racing-desk/data/{route}");
+            using var request = new HttpRequestMessage(new HttpMethod(method), $"http://127.0.0.1:{port}/racing-desk/data/{route}");
             if (body != null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
             if (origin != null) request.Headers.TryAddWithoutValidation("Origin", origin);
             using var response = http.Send(request);

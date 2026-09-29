@@ -834,13 +834,13 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
         {
             int port = FreePort();
             using var listener = new HttpListener();
-            listener.Prefixes.Add($"http://localhost:{port}/racing-desk/");
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/racing-desk/"); // not localhost: HTTP.sys binds that on every address
             listener.Start();
             var api = new LocalDataApi(dbPath);
             var claimed = Task.Run(() => api.TryHandle(listener.GetContext()));
 
             using var http = new HttpClient();
-            using var response = http.GetAsync($"http://localhost:{port}/racing-desk/data/{route}").Result;
+            using var response = http.GetAsync($"http://127.0.0.1:{port}/racing-desk/data/{route}").Result;
             string body = response.Content.ReadAsStringAsync().Result;
             Assert.That(claimed.Result, Is.True, "the data API claims /data/ routes");
             return (response.StatusCode, body);

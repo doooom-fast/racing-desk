@@ -33,6 +33,13 @@ namespace RacingDesk.Plugin
             /// <summary>Port for the MessagePack WebSocket feed.</summary>
             public int WsPort { get; set; } = 8890;
             /// <summary>
+            /// Serve :HttpPort and :WsPort on 127.0.0.1 and on no other address, with no fallback. For tests and
+            /// probes, which never listen on the LAN. Off, the HTTP server tries every address, then localhost, and
+            /// the WebSocket binds 0.0.0.0 — a localhost prefix is no way to stay off the LAN: HTTP.sys binds it on
+            /// every address, and hands it any request that says <c>Host: localhost</c>, wherever it came from.
+            /// </summary>
+            public bool LoopbackOnly { get; set; }
+            /// <summary>
             /// Moza serial, pedal profiles and screen colour sampling. Off for test hosts that must never touch
             /// the rig's hardware (e.g. replaying an .ibt beside a running SimHub).
             /// </summary>
@@ -203,7 +210,7 @@ namespace RacingDesk.Plugin
             // Start WebSocket server for overlay (port 8890, PR 5 migrates to 8889)
             try
             {
-                _wsServer = new Transport.WsServer(_options.WsPort, "/racing-desk");
+                _wsServer = new Transport.WsServer(_options.WsPort, "/racing-desk", _options.LoopbackOnly ? "127.0.0.1" : "0.0.0.0");
                 _wsServer.Start();
                 _wsPublisher = new Transport.WsTelemetryPublisher(_wsServer);
                 Log.Info($"[RacingDesk] WebSocket telemetry server started on port {_options.WsPort}");
