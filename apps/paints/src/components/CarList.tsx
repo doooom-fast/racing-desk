@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { rigKey } from "../rig";
+import { ago, rigKey } from "../rig";
 import type { CatalogueCar, LiveryGroup } from "../types";
 
 /// The cars the host keeps something for, by key (rig.ts): a view, pedals. They are marked in the list, so
@@ -10,6 +10,7 @@ export interface Kept {
 }
 
 const NOTHING_KEPT: Kept = { view: new Set(), pedals: new Set() };
+const NEVER: ReadonlyMap<string, string> = new Map();
 
 /// What a car is called on screen: the sim's name for it, or its folder when it has none.
 export function carLabel(car: CatalogueCar): string {
@@ -28,6 +29,32 @@ export function groupCars(cars: CatalogueCar[]): { liveries: CatalogueCar[]; res
   };
 }
 
+/// Whether the driver has driven the car: the desk has a session of his in it, or the store counts one.
+export const isDriven = (car: CatalogueCar, lastDriven: ReadonlyMap<string, string>): boolean =>
+  car.driven > 0 || lastDriven.has(rigKey(car));
+
+/// The cars he has driven, the last driven first. One the store counts sessions for and the desk has no date
+/// for comes after those with one, by name.
+export function drivenCars(
+  cars: CatalogueCar[],
+  lastDriven: ReadonlyMap<string, string>,
+): CatalogueCar[] {
+  const at = (car: CatalogueCar) => Date.parse(lastDriven.get(rigKey(car)) ?? "") || 0;
+  return cars.filter((c) => isDriven(c, lastDriven)).sort((a, b) => at(b) - at(a) || byLabel(a, b));
+}
+
+/// The car the page opens on until one is chosen: the one driven last, or, while the desk has said nothing
+/// of any car in the list, the first as the list shows them.
+export function carToOpenOn(
+  cars: CatalogueCar[],
+  lastDriven: ReadonlyMap<string, string>,
+): CatalogueCar | null {
+  const last = drivenCars(cars, lastDriven)[0];
+  if (last && lastDriven.has(rigKey(last))) return last;
+  const { liveries, rest } = groupCars(cars);
+  return liveries[0] ?? rest[0] ?? null;
+}
+
 /// Case and accents folded away, as the list's order already takes them: "huracan" is "Huracán".
 const fold = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
@@ -43,8 +70,9 @@ function matches(car: CatalogueCar, words: string[]): boolean {
 /// The line under a car's name, or nothing. The name says which car it is; the folder is only worth the
 /// room where it says something more — the library calls the car one thing and the sim another, or two
 /// cars in the list go by the same name.
-function metaFor(car: CatalogueCar, ambiguous: boolean): string {
+function metaFor(car: CatalogueCar, ambiguous: boolean, drove: string | null = null): string {
   const parts: string[] = [];
+  if (drove) parts.push(drove);
   const n = car.versions.length;
   if (n > 0) parts.push(`${n} version${n === 1 ? "" : "s"}`);
   const renamed = car.simFolder !== null && car.simFolder !== car.folder;
@@ -63,6 +91,7 @@ function Group({
   selected,
   onSelect,
   quiet = false,
+  lastDriven = null,
 }: {
   title: string;
   cars: CatalogueCar[];
@@ -73,15 +102,22 @@ function Group({
   /// The cars with nothing to apply. Said, not worked out from where the group is in the list: the
   /// filter can leave either group the only one.
   quiet?: boolean;
+  /// For the cars he has driven: when each was, which its row then says first.
+  lastDriven?: ReadonlyMap<string, string> | null;
 }) {
   if (cars.length === 0) return null;
+  const drove = (c: CatalogueCar) => {
+    if (!lastDriven) return null;
+    const last = lastDriven.get(rigKey(c));
+    return last ? `driven ${ago(last)}` : `driven in ${c.driven} session${c.driven === 1 ? "" : "s"}`;
+  };
   return (
     <div className={quiet ? "group rest" : "group"} role="group" aria-label={title}>
       <div className="heading">
         {title} <span className="count">{cars.length}</span>
       </div>
       {cars.map((c) => {
-        const meta = metaFor(c, shared.has(carLabel(c).toLowerCase()));
+        const meta = metaFor(c, shared.has(carLabel(c).toLowerCase()), drove(c));
         const view = kept.view.has(rigKey(c));
         const pedals = kept.pedals.has(rigKey(c));
         return (
@@ -160,12 +196,18 @@ function Groups({
 /// The sidebar: the livery groups, then every car the rig knows, the ones with a livery first, and a
 /// filter over the cars. It is the one list of cars: a car's liveries, its view and its pedals are all
 /// looked at from here.
+///
+/// "Driven" narrows it to the cars he has driven, the last driven first, which is how the car he has just got
+/// out of is found among a couple of hundred. That list is one group and not the two: newest first is an
+/// order across every car driven, and under "Liveries" and "No livery yet" a car just driven that has no
+/// livery would be below every driven car that has one. Off, the list is as it was, with every car in it.
 export function CarList({
   cars,
   selected,
   onSelect,
   empty,
   kept = NOTHING_KEPT,
+  lastDriven = NEVER,
   groups = [],
   selectedGroup = null,
   onSelectGroup = () => {},
@@ -178,6 +220,8 @@ export function CarList({
   /// What to say when there are no cars at all.
   empty: string;
   kept?: Kept;
+  /// When each car was last driven, by key (rig.ts), as the desk has said.
+  lastDriven?: ReadonlyMap<string, string>;
   groups?: LiveryGroup[];
   selectedGroup?: string | null;
   onSelectGroup?: (id: string) => void;
@@ -185,6 +229,8 @@ export function CarList({
   onNewGroup?: (() => void) | null;
 }) {
   const [filter, setFilter] = useState("");
+  /// Only the cars he has driven. Kept while the page is open, as the filter's text is.
+  const [drivenOnly, setDrivenOnly] = useState(false);
   const query = fold(filter).trim().replace(/\s+/g, " ");
   const list = useRef<HTMLDivElement>(null);
 
@@ -194,7 +240,7 @@ export function CarList({
   useEffect(() => {
     if (query) return;
     list.current?.querySelector(".car.active")?.scrollIntoView({ block: "nearest" });
-  }, [query, selected]);
+  }, [query, selected, drivenOnly]);
 
   const shared = useMemo(() => {
     const seen = new Set<string>();
@@ -207,10 +253,16 @@ export function CarList({
     return twice;
   }, [cars]);
 
-  const { liveries, rest } = useMemo(() => {
+  const found = useMemo(() => {
     const words = query ? query.split(" ") : [];
-    return groupCars(words.length ? cars.filter((c) => matches(c, words)) : cars);
+    return words.length ? cars.filter((c) => matches(c, words)) : cars;
   }, [cars, query]);
+  const { liveries, rest } = useMemo(() => groupCars(drivenOnly ? [] : found), [found, drivenOnly]);
+  const driven = useMemo(
+    () => (drivenOnly ? drivenCars(found, lastDriven) : []),
+    [found, drivenOnly, lastDriven],
+  );
+  const anyDriven = useMemo(() => cars.some((c) => isDriven(c, lastDriven)), [cars, lastDriven]);
 
   if (cars.length === 0) {
     return (
@@ -237,9 +289,21 @@ export function CarList({
             }
           }}
         />
+        {/* There while there is a car to find with it, and while it is on: it is the way back out. */}
+        {(anyDriven || drivenOnly) && (
+          <button
+            type="button"
+            className={drivenOnly ? "driven on" : "driven"}
+            aria-pressed={drivenOnly}
+            title="Only the cars you have driven, the last driven first"
+            onClick={() => setDrivenOnly((on) => !on)}
+          >
+            Driven
+          </button>
+        )}
       </div>
       <div className="list" ref={list}>
-        {!query && (
+        {!query && !drivenOnly && (
           <Groups
             groups={groups}
             selected={selectedGroup}
@@ -264,8 +328,23 @@ export function CarList({
           onSelect={onSelect}
           quiet
         />
-        {liveries.length + rest.length === 0 && (
-          <div className="empty">No car matches “{filter.trim()}”.</div>
+        <Group
+          title="Driven"
+          cars={driven}
+          shared={shared}
+          kept={kept}
+          selected={selected}
+          onSelect={onSelect}
+          lastDriven={lastDriven}
+        />
+        {liveries.length + rest.length + driven.length === 0 && (
+          <div className="empty">
+            {!query
+              ? "No car here has been driven yet."
+              : drivenOnly
+                ? `No car you have driven matches “${filter.trim()}”.`
+                : `No car matches “${filter.trim()}”.`}
+          </div>
         )}
       </div>
     </div>

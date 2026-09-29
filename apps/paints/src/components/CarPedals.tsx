@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, type ReactNode } from "react";
-import { curveShape, keyWords, plain, type CarPedals, type Profile, type Rig } from "../rig";
+import { curveShape, keyWords, plain, when, type CarPedals, type Profile, type Rig } from "../rig";
 import type { PedalNote } from "../useRig";
 
 const NOT_HERE = "A car's pedals are kept by the Racing Desk app, and this page is running without it.";
@@ -10,7 +10,7 @@ const NO_PATH =
 const n = (value: number) => <span className="n">{plain(value)}</span>;
 
 /// One line beside the profile: its brake as SmartControl has it now, whether the profile is still what the
-/// car was given, and the brake force kept for the car itself.
+/// car was given, and the brake force kept for the car itself, with when it was set where the host says.
 function words(bound: CarPedals | null, profile: Profile | null): ReactNode {
   const parts: ReactNode[] = [];
   if (profile) {
@@ -27,7 +27,14 @@ function words(bound: CarPedals | null, profile: Profile | null): ReactNode {
     parts.push(<span className="warn">edited in SmartControl since this car was given it</span>);
   }
   if (bound?.profileNow === "gone") parts.push(<span className="warn">deleted in SmartControl</span>);
-  if (bound && bound.brakeForceKg !== null) parts.push(<>brake force {n(bound.brakeForceKg)} kg in this car</>);
+  if (bound && bound.brakeForceKg !== null) {
+    const set = when(bound.forceAt);
+    parts.push(
+      <>
+        brake force {n(bound.brakeForceKg)} kg in this car{set && `, set ${set}`}
+      </>,
+    );
+  }
   if (parts.length === 0) return null;
   return (
     <span className="brake">
@@ -41,10 +48,49 @@ function words(bound: CarPedals | null, profile: Profile | null): ReactNode {
   );
 }
 
-/// A car's pedals: which of SmartControl's profiles it is driven with, chosen here once per car, and what
-/// that profile's brake is. The choice is the one thing the page writes to the host, through the app; nothing
-/// here changes the pedals themselves. A profile SmartControl no longer has stays in the car's own list, so
-/// the select says what the host has, not "none".
+/// What the driver's rule went by, as the host has it down, in a sentence's worth.
+const WHY = new Map([
+  ["ABS", "it has ABS"],
+  ["no ABS", "it has no ABS"],
+  ["a formula car", "it is a formula car"],
+]);
+
+/// The profiles of the driver's that the rule gives a car a copy of.
+const LIGHT = "LightBrake";
+const DEFAULT = "Default";
+
+/// Who gave the car its profile and why, or why it has none and what is waited for. The rule is the driver's:
+/// his LightBrake for a car with ABS that is not a formula car, his Default for the rest, given at the end of a
+/// run once enough has been driven to say which. Null where there is nothing to say: a host from before it told
+/// any of this, a profile nobody is down as having given. `profiles` are SmartControl's, or null where there is
+/// nothing for the rule to give from or to.
+function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | null): string | null {
+  if (!told) return null;
+  if (bound && bound.profileId !== null) {
+    if (bound.givenBy === "driver") return "You chose this.";
+    if (bound.givenBy !== "rule") return null;
+    const why = bound.givenWhy === null ? null : (WHY.get(bound.givenWhy) ?? bound.givenWhy);
+    return `From ${bound.profileName ?? bound.profileId} — given by the rule${why ? `: ${why}` : ""}.`;
+  }
+  if (bound?.givenBy === "none") return "You chose that this car has none.";
+  if (profiles === null) return null;
+  const abs = bound?.hasAbs ?? null;
+  if (abs === null) return "No profile yet: not driven enough yet to say whether it has ABS.";
+  const has = (name: string) => profiles.some((p) => p.name.trim().toLowerCase() === name.toLowerCase());
+  const known = `No profile yet: it has ${abs ? "" : "no "}ABS`;
+  // Whether it is a formula car is the host's to know, so with ABS it may be either profile that is wanted.
+  if (!has(DEFAULT) && (!abs || !has(LIGHT))) {
+    const from = abs ? `${LIGHT} or ${DEFAULT}, neither of which SmartControl has` : `${DEFAULT}, which SmartControl does not have`;
+    return `${known}, and the rule would give it one from ${from}.`;
+  }
+  return `${known}, and the rule gives it one when it is next driven.`;
+}
+
+/// A car's pedals: which of SmartControl's profiles it is driven with, chosen here once per car, what that
+/// profile's brake is, who gave the car the profile, and the brake force the car was last driven with. The
+/// choice is the one thing the page writes to the host, through the app; nothing here changes the pedals
+/// themselves. A profile SmartControl no longer has stays in the car's own list, so the select says what the
+/// host has, not "none".
 export function CarPedalsPanel({
   here,
   rig,
@@ -94,6 +140,8 @@ export function CarPedalsPanel({
   const boundId = bound?.profileId ?? null;
   const profile = boundId === null ? null : (pedals.profiles.find((p) => p.id === boundId) ?? null);
   const says = words(bound, profile);
+  // Without SmartControl, or a car the host knows, the notes below say what is missing.
+  const whose = given(bound, pedals.told, pedals.found && carPath !== null ? pedals.profiles : null);
 
   return (
     <div className="panel car-pedals">
@@ -105,6 +153,7 @@ export function CarPedalsPanel({
             id="car-pedals-profile"
             ref={select}
             aria-label={`Pedal profile for ${carName}`}
+            aria-describedby={whose ? "car-pedals-given" : undefined}
             value={(busy ? saving : boundId) ?? ""}
             disabled={busy || carPath === null}
             onChange={(e) => {
@@ -138,6 +187,11 @@ export function CarPedalsPanel({
             <span className="says">{says}</span>
           </div>
         )
+      )}
+      {whose && (
+        <div className="given" id="car-pedals-given">
+          {whose}
+        </div>
       )}
       {rig.pedalsNote && <div className="note">{rig.pedalsNote}</div>}
       {pedals.found && carPath === null && <div className="note">{rig.carsNote ?? NO_PATH}</div>}

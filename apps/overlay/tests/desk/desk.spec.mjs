@@ -146,19 +146,40 @@ function startMockHost(history, schedule = SCHEDULE, port = 0) {
   return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server)));
 }
 
+// One more session at the end of a history: a practice in `car`, an hour after the last — or at `startedAt`.
+function driveAfter(history, car, startedAt = null) {
+  const last = history.sessions.at(-1);
+  history.sessions.push({
+    ...last, id: last.id + 1, ibt_path: `practice-${car.path}.ibt`, subsession_id: last.subsession_id + 1, official: 0,
+    car_path: car.path, car_id: car.id, car_screen_name: car.name, session_num: 0, event_type: 'Practice', session_type: 'Practice',
+    started_at: startedAt ?? new Date(Date.parse(last.started_at) + 3600e3).toISOString(), duration_s: 1200, laps_completed: 5,
+    start_position: 0, finish_position: 0, finish_position_in_class: 0,
+  });
+  return history;
+}
+const LOTUS = { id: 42, path: 'lotus79', name: 'Lotus 79' };
+
+// Two hosts. In `host`'s history the car driven last is the McLaren. The Cars page opens on the car driven last,
+// so the tests of a car's liveries are over `lotusHost`, where that is the Lotus: a car with liveries to apply.
 let host;
+let lotusHost;
+const lotusLast = () => `http://127.0.0.1:${lotusHost.address().port}`;
 
 test.beforeAll(async () => {
   execFileSync(process.execPath, [join(here, '..', '..', '..', '..', 'packages', 'calc', 'build.mjs')], { stdio: 'pipe' });
   execFileSync(process.execPath, [join(here, '..', '..', '..', 'paints', 'build-island.mjs')], { stdio: 'pipe' });
   host = await startMockHost(buildHistory());
+  lotusHost = await startMockHost(driveAfter(buildHistory(), LOTUS));
 });
 
 test.afterAll(async () => {
   await new Promise((resolve) => host?.close(resolve));
+  await new Promise((resolve) => lotusHost?.close(resolve));
 });
 
-async function openDesk(page, hostUrl, query = '') {
+// `timers` hands the page's clock to the test (page.clock.runFor), for what happens every so often: the time is
+// NOW and moves on from it. Without, the time is NOW for good and the page's timers run as they would.
+async function openDesk(page, hostUrl, query = '', { timers = false } = {}) {
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
   page.on('console', (msg) => {
@@ -167,7 +188,8 @@ async function openDesk(page, hostUrl, query = '') {
     errors.push(msg.text());
   });
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort()); // Typekit and anything else off-machine
-  await page.clock.setFixedTime(NOW);
+  if (timers) await page.clock.install({ time: NOW });
+  else await page.clock.setFixedTime(NOW);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto(`${DESK}?host=${encodeURIComponent(hostUrl)}${query}`);
   return errors;
@@ -605,7 +627,8 @@ test('a rig on no network is switched on all the same, and says there is no addr
 // stubbed window.racingDesk.paints: a canned answer per command, every call recorded. The stand-in is put beside
 // whatever else of the bridge a test has stood in, so a test can have the rig's half too (stubRig, further down). An answer of { __error } rejects the
 // way preload.js does, with an Error carrying the command's own message; { __after: ms, answer } answers that much
-// later; { __by: 'carFolder', answers } picks the answer by that argument ('*' for the rest).
+// later; { __by: 'carFolder', answers } picks the answer by that argument ('*' for the rest); { __in_turn: [...] }
+// answers each call with the next, and with the last from then on.
 
 const PAINT_DIR = 'C:\\Users\\Owner\\Documents\\iRacing\\paint';
 const LIBRARY = 'C:\\Users\\Owner\\Documents\\GitHub\\liveries\\cars';
@@ -682,6 +705,10 @@ async function stubPaintsBridge(page, answers) {
     window.__paints = { calls: [], picked: 0, revealed: [] };
     const give = async (answer, args) => {
       const special = (key) => answer !== null && typeof answer === 'object' && key in answer;
+      if (special('__in_turn')) {
+        answer.given = (answer.given ?? 0) + 1;
+        return give(answer.__in_turn[Math.min(answer.given, answer.__in_turn.length) - 1], args);
+      }
       if (special('__by')) {
         const key = String((args ?? {})[answer.__by]);
         return give(key in answer.answers ? answer.answers[key] : answer.answers['*'], args);
@@ -716,7 +743,7 @@ const paintsCalls = (page, name) => page.evaluate((n) => window.__paints.calls.f
 
 test('the Cars page is the livery manager: the paint folder it found, the cars by name and the first one\'s versions', async ({ page }) => {
   await stubPaintsBridge(page, PAINTS);
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   await expect(page.locator('#cars-page')).toBeVisible();
   await expect(page.locator('#cars-unbuilt')).toBeHidden();
   await expect(page.locator('#cars-note')).toBeHidden();
@@ -742,7 +769,7 @@ test('the Cars page is the livery manager: the paint folder it found, the cars b
   await expect(app.locator('.setup .status .chips .chip')).toHaveText('ready');
   await expect(app.locator('.setup .status button', { hasText: 'Refresh' })).toBeEnabled();
 
-  // Cars are called what the sim calls them; the first with a livery is the one shown.
+  // Cars are called what the sim calls them; the one driven last is the one shown.
   await expect(app.locator('.sidebar .car .name')).toHaveText([
     'Lotus 79', 'Mazda MX-5 Cup', 'nissangtpzxt', 'Caterham Seven 420R', 'Mazda MX-5 Cup', 'McLaren 570S GT4', 'oldcar',
   ]);
@@ -786,7 +813,7 @@ test('the Cars page is the livery manager: the paint folder it found, the cars b
 
 test('the list of cars: cars with a livery, then the rest, each by name, and a filter over both', async ({ page }) => {
   await stubPaintsBridge(page, PAINTS);
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   const groups = app.locator('.sidebar .group');
   await expect(groups).toHaveCount(2);
@@ -811,6 +838,8 @@ test('the list of cars: cars with a livery, then the rest, each by name, and a f
   expect(await app.locator('.sidebar .car').evaluateAll((els) => els.map((el) => el.tagName))).toEqual(Array(7).fill('BUTTON'));
   const filter = app.locator('.sidebar .filter input');
   await filter.focus();
+  await page.keyboard.press('Tab');
+  await expect(app.getByRole('button', { name: 'Driven', exact: true })).toBeFocused();       // the cars he has driven
   await page.keyboard.press('Tab');
   await expect(app.locator('.sidebar .groups .heading button')).toBeFocused();   // New, for a group
   await page.keyboard.press('Tab');
@@ -862,7 +891,7 @@ test('a car with no livery says where one would go, shows what is installed, and
   };
   const backup = { id: '2026-09-16_221500_000', path: 'C:\\backups\\caterham caterham420r\\2026-09-16_221500_000', created: '2026-09-16T22:15:00.000+01:00', reason: 'before revert to 2026-09-10_101010_000', fileCount: 1 };
   await stubPaintsBridge(page, { ...PAINTS, carState: installed, listBackups: [backup] });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.sidebar .car', { hasText: 'Caterham Seven 420R' }).click();
 
@@ -912,7 +941,7 @@ test('a livery for a car with no paint folder is shown, warned about, and cannot
     ...PAINTS,
     carState: { simFolder: null, folderExists: false, files: [], cooked: [], cookedOtherDrivers: 0, appliedVersionId: null, matchKind: 'none', anyReadOnly: false },
   });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.sidebar .car', { hasText: 'nissangtpzxt' }).click();
   await expect(app.locator('.car-head h2')).toHaveText('nissangtpzxt');
@@ -931,7 +960,7 @@ const applyRequest = (extra = {}) => ({
 
 test('Apply is one click: no dialog, the request src/types.ts describes, and what was done in the activity', async ({ page }) => {
   await stubPaintsBridge(page, PAINTS);
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
 
@@ -949,7 +978,7 @@ test('Apply is one click: no dialog, the request src/types.ts describes, and wha
 
 test('how a livery is applied is set once, remembered, and used by the next apply', async ({ page }) => {
   await stubPaintsBridge(page, { ...PAINTS, loadSettings: { setReadOnlyAfter: true } });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   const options = app.locator('.apply-options');
   await expect(options.locator('h3')).toHaveText('When a livery is applied');
@@ -985,7 +1014,7 @@ test('what stands in the way is said where the click was, and going on regardles
     window.racingDesk.paints.invoke = (name, args) =>
       invoke(name, name === 'applyVersion' ? { ...args, force: String(args.request.force) } : args);
   });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
 
@@ -1004,7 +1033,7 @@ test('what stands in the way is said where the click was, and going on regardles
 test('a failure that insisting would not mend offers no way to insist', async ({ page }) => {
   const failure = `Could not write car_${CUSTOMER}.tga (EBUSY). Everything this apply had changed was put back.`;
   await stubPaintsBridge(page, { ...PAINTS, applyVersion: { __error: failure } });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
 
@@ -1019,7 +1048,7 @@ test('a failure that insisting would not mend offers no way to insist', async ({
 
 test('choosing another car takes the refusal with it: what it says is about the car it was for', async ({ page }) => {
   await stubPaintsBridge(page, { ...PAINTS, applyVersion: { __error: SIM_RUNNING } });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
   const refusal = app.locator('.refusal');
@@ -1045,7 +1074,7 @@ test('a car never driven has no paint folder, and its livery is applied into the
     carCatalogue: [...CATALOGUE, NEVER_DRIVEN],
     carState: { simFolder: 'porsche992cup', folderExists: false, files: [], cooked: [], cookedOtherDrivers: 0, appliedVersionId: null, matchKind: 'none', anyReadOnly: false },
   });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.sidebar .car', { hasText: 'Porsche 911 GT3 Cup (992)' }).click();
   await expect(app.locator('.panel', { hasText: 'Installed in the sim' })).toContainText('Applying a livery makes it');
@@ -1075,7 +1104,7 @@ test('a car just chosen is not shown the last car\'s files and backups while its
     ...PAINTS, ...BY_CAR,
     carState: { __by: 'carFolder', answers: { mclaren570sgt4: { __after: 800, answer: MCLAREN_STATE }, '*': PAINTS.carState } },
   });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   const inSim = app.locator('.panel', { hasText: 'Installed in the sim' });
   const backups = app.locator('.panel', { hasText: 'Backups' });
@@ -1096,7 +1125,7 @@ test('a car just chosen is not shown the last car\'s files and backups while its
 
 test('a car chosen while an apply is on its way keeps its own files when the apply answers', async ({ page }) => {
   await stubPaintsBridge(page, { ...PAINTS, ...BY_CAR, applyVersion: { __after: 500, answer: PAINTS.applyVersion } });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
   await app.locator('.sidebar .car', { hasText: 'McLaren 570S GT4' }).click();
@@ -1126,7 +1155,7 @@ test('a car chosen while an apply is on its way keeps its own files when the app
 
 test('while the cars are on their way the page says so, and when they cannot be read it says why', async ({ page }) => {
   await stubPaintsBridge(page, { ...PAINTS, carCatalogue: { __after: 700, answer: CATALOGUE } });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await expect(app.locator('.sidebar .empty')).toHaveText('Reading the cars…');
   await expect(app.locator('.main > .empty')).toHaveText('Reading the cars…');
@@ -1178,7 +1207,7 @@ const focusedRowIfCovered = (page) => page.evaluate(() => {
 
 test('a long list: a row reached by keyboard is never under a group\'s heading', async ({ page }) => {
   await stubPaintsBridge(page, { ...PAINTS, carCatalogue: MANY });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   const rows = app.locator('.sidebar .car');
   await expect(rows).toHaveCount(189);
@@ -1198,7 +1227,7 @@ test('a long list: a row reached by keyboard is never under a group\'s heading',
 
 test('a long list: the car being looked at is back in view when the filter is cleared', async ({ page }) => {
   await stubPaintsBridge(page, { ...PAINTS, carCatalogue: MANY });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   const rows = app.locator('.sidebar .car');
   const active = app.locator('.sidebar .car.active');
@@ -1238,7 +1267,7 @@ test('the filter takes words in any order, and an accent need not be typed', asy
       car('citroenc3wrx', null, [], 'Citroën C3 WRX', 'C3 WRX', true, 0),
     ],
   });
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   const names = app.locator('.sidebar .car .name');
   const filter = app.locator('.sidebar .filter input');
@@ -1267,7 +1296,7 @@ test('the filter takes words in any order, and an accent need not be typed', asy
 
 test('a car with a livery is as bold when the filter leaves only cars with one', async ({ page }) => {
   await stubPaintsBridge(page, PAINTS);
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   const groups = app.locator('.sidebar .group');
   const filter = app.locator('.sidebar .filter input');
@@ -1374,10 +1403,10 @@ async function stubRig(page, rig = RIG, binds = []) {
 }
 
 // The Cars page as the app has it: the livery manager's commands and what the host keeps, both stood in for.
-async function openCars(page, hostUrl, { paints = PAINTS, rig = RIG, binds = [] } = {}) {
+async function openCars(page, hostUrl, { paints = PAINTS, rig = RIG, binds = [], timers = false } = {}) {
   await stubPaintsBridge(page, paints);
   await stubRig(page, rig, binds);
-  const errors = await openDesk(page, hostUrl, '&page=cars');
+  const errors = await openDesk(page, hostUrl, '&page=cars', { timers });
   return { errors, app: page.locator(APP) };
 }
 
@@ -1429,32 +1458,49 @@ test('the one list of cars marks the cars with a view or pedals, and what the ho
     await page.keyboard.press('Enter');
     await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
 
-    // One car, one place: what it wears, then how it is driven, then what is on disk for it.
-    await expect(app.locator('.main > .panel h3'))
-      .toHaveText(['Library source', 'No livery yet', 'View', 'Pedals', 'Installed in the sim', 'Backups', 'Trading Paints']);
+    // One car, one place: how it is driven, under its name; then what it wears; then what is on disk for it; and
+    // under them all the library's own housekeeping.
+    const headings = app.locator('.main .panel h3');
+    const blocks = () => app.locator('.main > *').evaluateAll((els) => els.map((el) => el.className.trim()));
+    await expect(headings)
+      .toHaveText(['View', 'Pedals', 'No livery yet', 'Installed in the sim', 'Backups', 'Trading Paints', 'Library source']);
+    expect(await blocks()).toEqual(['car-head', 'car-rig', 'panel no-livery', 'panel', 'panel', 'panel', 'panel']);
     await lookAt(app, 'Lotus 79');
-    await expect(app.locator('.main > .panel h3'))
-      .toHaveText(['Library source', 'When a livery is applied', 'View', 'Pedals', 'Installed in the sim', 'Backups', 'Trading Paints']);
-    expect(await app.locator('.main > *').evaluateAll((els) => els.map((el) => el.className.trim())))
-      .toEqual(['panel', 'car-head', 'versions', 'panel apply-options', 'panel car-view', 'panel car-pedals', 'panel', 'panel', 'panel']);
+    await expect(headings)
+      .toHaveText(['View', 'Pedals', 'When a livery is applied', 'Installed in the sim', 'Backups', 'Trading Paints', 'Library source']);
+    expect(await blocks()).toEqual(['car-head', 'car-rig', 'versions', 'panel apply-options', 'panel', 'panel', 'panel', 'panel']);
+    expect(await app.locator('.car-rig > *').evaluateAll((els) => els.map((el) => el.className.trim())))
+      .toEqual(['panel car-view', 'panel car-pedals']);
 
-    // The desk's Refresh reads it again, and so does coming back to the page; the page's own reads the cars too.
+    // The desk's Refresh reads it all again, the list of cars too, as the page's own does. Coming back to the
+    // page reads what the host keeps, and not the list.
     await page.locator('#refresh').click();
     await expect.poll(() => rigReads(page)).toBe(2);
+    await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
     await page.locator('.nav a', { hasText: 'Desk' }).click();
     await expect(page.locator('#cars-page')).toBeHidden();
     await page.locator('.nav a', { hasText: 'Cars' }).click();
     await expect.poll(() => rigReads(page)).toBe(3);
-    expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(1);
+    expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(2);
     await app.locator('.setup .status button', { hasText: 'Refresh' }).click();
     await expect.poll(() => rigReads(page)).toBe(4);
-    await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
+    await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(3);
     await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
-    // Elsewhere in the desk its Refresh is the desk's alone.
+    // Elsewhere in the desk its Refresh reads nothing of the Cars page's there and then. It is owed to the page,
+    // which reads it all when it is next shown — once, though it is told twice: shown, and something new.
     await page.locator('.nav a', { hasText: 'Desk' }).click();
     await page.locator('#refresh').click();
     await expect(page.locator('#freshness')).toContainText('ms');
     expect(await rigReads(page)).toBe(4);
+    expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(3);
+    await page.locator('.nav a', { hasText: 'Cars' }).click();
+    await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(4);
+    await expect.poll(() => rigReads(page)).toBe(5);
+    await page.locator('.nav a', { hasText: 'Desk' }).click();
+    await page.locator('.nav a', { hasText: 'Cars' }).click();   // nothing is owed twice
+    await expect.poll(() => rigReads(page)).toBe(6);
+    expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(4);
+    await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
 
     // None of it was asked of the host by the page, and nothing was written.
     expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual([0, 0, 0]);
@@ -1523,6 +1569,9 @@ test('a car\'s pedals: the profile it was given, that profile\'s brake in a line
   await expect(pedals.locator('.brake .warn')).toHaveText('edited in SmartControl since this car was given it');
   await expect(pedals.locator('.pedal-note')).toHaveText('');
   await expect(pedals.locator('.pedal-note')).toHaveAttribute('role', 'status');
+  // This host is one from before it said who gave a car its profile: nothing is said of it, as nothing was.
+  await expect(pedals.locator('.given')).toHaveCount(0);
+  await expect(select).not.toHaveAttribute('aria-describedby');
 
   // The keys the driver presses, by the names on the keycaps; a name not known here is shown as it came.
   await expect(pedals.locator('.live-keys .key')).toHaveText([
@@ -1535,6 +1584,7 @@ test('a car\'s pedals: the profile it was given, that profile\'s brake in a line
   await expect(pedals.locator('select option:checked')).toHaveText('no profile of its own');
   await expect(pedals.getByLabel('Pedal profile for Caterham Seven 420R')).toBeEnabled();
   await expect(pedals.locator('.brake')).toHaveCount(0);
+  await expect(pedals.locator('.given')).toHaveCount(0);
   await expect(pedals.locator('.live-keys .key')).toHaveCount(4);
 
   // A car that has never been in a session is one the host cannot keep anything against, and the page says so
@@ -1575,12 +1625,155 @@ test('a profile deleted in SmartControl is still what the car was given, and the
   await expect(pedals.locator('.brake')).toHaveText('no brake in this profile');
   await lookAt(app, 'McLaren 570S GT4');
   await expect(pedals.locator('.brake')).toHaveText('brake max 80 kg · bottom deadzone 5% · linear curve');
-  // A car with no profile, and a force the host has followed all the same.
+  await expect(pedals.locator('.given')).toHaveCount(0);   // nobody is down as having given it
+  // A car with no profile, and a force the host has followed all the same: what it is, and when it was set.
   await lookAt(app, 'Lotus 79');
   await expect(pedals.locator('select')).toHaveValue('');
-  await expect(pedals.locator('.brake')).toHaveText('brake force 48.5 kg in this car');
+  await expect(pedals.locator('.brake')).toHaveText(/^brake force 48\.5 kg in this car, set \S.*\d/);
+  await expect(pedals.locator('.given')).toHaveText('You chose that this car has none.');
   await expect(app.locator('.sidebar .mark', { hasText: 'pedals' })).toHaveCount(4);
   expect(errors).toEqual([]);
+});
+
+// ── Cars: what the store knows of a car's pedals beside its profile ──
+// A host that keeps a car's pedal facts sends them with every row — force_at, has_abs, given_by, given_why, nulls
+// where nothing is known — and the cars it knows something of that have no profile yet (without_profile). The
+// driver's rule gives a car with no profile a copy of his LightBrake (ABS, not a formula car) or his Default.
+const LIGHT_BRAKE = { id: '5511aacc', name: 'LightBrake', throttle: null, brake: { deadzone_bottom: 4, max_force_kg: 60, curve: LINEAR }, clutch: null };
+const facts = (force_at, has_abs, given_by, given_why) => ({ force_at, has_abs, given_by, given_why });
+const bare = (car_path, name, brake_force_kg, known) => ({ car_path, name, brake_force_kg, ...known });
+const TOLD_CARS = [
+  ...RIG_CARS,
+  { car_path: 'mx5 cup', name: 'Mazda MX-5 Cup', short_name: 'MX-5 Cup', car_id: 35, driven: 3, seen: 3 },
+  { car_path: 'oldcar', name: null, short_name: null, car_id: 9, driven: 2, seen: 2 },
+  { car_path: 'nissangtpzxt', name: null, short_name: null, car_id: 77, driven: 1, seen: 1 },
+];
+const TOLD_PEDALS = {
+  smartcontrol: { found: true, profiles: [...PROFILES, LIGHT_BRAKE], keys: LIVE_KEYS },
+  cars: [
+    { ...bound('mclaren570sgt4', 'McLaren 570S GT4', '5511aacc', 'LightBrake', 'same', 62), ...facts('2026-09-15T23:40:00.000Z', true, 'rule', 'ABS') },
+    { ...bound('lotus79', 'Lotus 79', '283f91ae', 'Default', 'same'), ...facts(null, null, 'rule', 'a formula car') },
+    { ...bound('mx5 mx52016', 'Mazda MX-5 Cup', '9c1d44e0', 'GT3 <stiff>', 'same', 70), ...facts(null, false, 'driver', null) },
+  ],
+  without_profile: [
+    bare(CATERHAM, 'Caterham Seven 420R', 55, facts('2026-09-14T22:30:00.000Z', null, null, null)),
+    bare('mx5 cup', 'Mazda MX-5 Cup', null, facts(null, true, 'none', null)),
+    bare('oldcar', null, null, facts(null, true, null, null)),
+  ],
+};
+const TOLD = { cars: held(TOLD_CARS), views: held(RIG_VIEWS), pedals: held(TOLD_PEDALS) };
+const SET_AT = / in this car, set \S.*\d/;   // a moment as the desk writes one, whatever the rig's language and clock
+
+test('a car\'s pedals say who gave it its profile and why, the force it was last driven with and when it was set', async ({ page }) => {
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: TOLD });
+  const pedals = app.locator('.car-pedals');
+  const select = pedals.locator('select');
+
+  // Given by the rule, which went by its ABS: a copy of LightBrake, as the select says.
+  await lookAt(app, 'McLaren 570S GT4');
+  await expect(select).toHaveValue('5511aacc');
+  await expect(pedals.locator('.given')).toHaveText('From LightBrake — given by the rule: it has ABS.');
+  await expect(pedals.locator('.brake')).toHaveText(/^brake max 60 kg · bottom deadzone 4% · linear curve · brake force 62 kg in this car, set \S/);
+  await expect(pedals.locator('.brake')).toHaveText(SET_AT);
+  // The sentence is the select's description: a screen reader says it with the profile.
+  await expect(select).toHaveAttribute('aria-describedby', 'car-pedals-given');
+  await expect(pedals.locator('#car-pedals-given')).toHaveText('From LightBrake — given by the rule: it has ABS.');
+  await expect(pedals.getByLabel('Pedal profile for McLaren 570S GT4')).toHaveValue('5511aacc');
+
+  // A formula car starts from Default whatever its ABS; no force is known for this one, and none is made up.
+  await lookAt(app, 'Lotus 79');
+  await expect(pedals.locator('.given')).toHaveText('From Default — given by the rule: it is a formula car.');
+  await expect(pedals.locator('.brake')).toHaveText('brake max 80 kg · bottom deadzone 5% · linear curve');
+
+  // One he gave it here. The force is known, and when it was set is not.
+  await lookAt(app, 'Mazda MX-5 Cup', MX5(app));
+  await expect(pedals.locator('.given')).toHaveText('You chose this.');
+  await expect(pedals.locator('.brake')).toHaveText('brake max 95.5 kg · bottom deadzone 3% · shaped curve · brake force 70 kg in this car');
+
+  // No profile yet, and what is waited for. The force it was driven with is kept all the same.
+  await lookAt(app, 'Caterham Seven 420R');
+  await expect(select).toHaveValue('');
+  await expect(select).toBeEnabled();
+  await expect(pedals.locator('.given')).toHaveText('No profile yet: not driven enough yet to say whether it has ABS.');
+  await expect(pedals.locator('.brake')).toHaveText(/^brake force 55 kg in this car, set \S/);
+  await expect(pedals.locator('.brake')).toHaveText(SET_AT);
+  // Enough is known, and the rule has not been round since.
+  await lookAt(app, 'oldcar');
+  await expect(pedals.locator('.given')).toHaveText('No profile yet: it has ABS, and the rule gives it one when it is next driven.');
+  await expect(pedals.locator('.brake')).toHaveCount(0);
+  // A car the host knows and keeps nothing of is waiting like any other.
+  await lookAt(app, 'nissangtpzxt');
+  await expect(select).toBeEnabled();
+  await expect(pedals.locator('.given')).toHaveText('No profile yet: not driven enough yet to say whether it has ABS.');
+  // None, and his choice: the rule leaves it alone, and the page does not say it is waiting.
+  await lookAt(app, 'Mazda MX-5 Cup', app.locator('.sidebar .group').nth(1).locator('.car', { hasText: 'Mazda MX-5 Cup' }));
+  await expect(select).toHaveValue('');
+  await expect(pedals.locator('.given')).toHaveText('You chose that this car has none.');
+
+  // In the list a car's pedals are kept when it has a profile or a force, not when it is only known of.
+  await expect(app.locator('.sidebar .mark', { hasText: 'pedals' })).toHaveCount(4);
+  await expect(carRow(app, 'oldcar').locator('.mark')).toHaveCount(0);
+  expect(await bindCalls(page)).toEqual([]);
+  expect(errors).toEqual([]);
+
+  // With nothing for the rule to give from, that is what is waited for. A car the host has never had in a
+  // session has nothing kept against it, and the note that says so is all that is said.
+  const none = { ...TOLD_PEDALS, smartcontrol: { found: true, profiles: PROFILES.slice(1), keys: [] } };
+  await stubRig(page, { cars: held(TOLD_CARS.slice(0, -1)), views: held(RIG_VIEWS), pedals: held(none) });
+  await page.reload();
+  const again = page.locator(APP);
+  await lookAt(again, 'oldcar');
+  await expect(again.locator('.car-pedals .given'))
+    .toHaveText('No profile yet: it has ABS, and the rule would give it one from LightBrake or Default, neither of which SmartControl has.');
+  await lookAt(again, 'nissangtpzxt');
+  await expect(again.locator('.car-pedals select')).toBeDisabled();
+  await expect(again.locator('.car-pedals .given')).toHaveCount(0);
+  await expect(again.locator('.car-pedals .note')).toContainText('it has not been in one of your sessions');
+});
+
+test('a profile taken away leaves the force the car was driven with on the page', async ({ page }) => {
+  // From a host that says nothing of who gave what: the force stays, and nothing else is said.
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { binds: [{ ok: true, car: null }] });
+  const pedals = app.locator('.car-pedals');
+  const select = pedals.locator('select');
+  await lookAt(app, 'McLaren 570S GT4');
+  await expect(pedals.locator('.brake')).toContainText('brake force 62 kg in this car');
+  await select.selectOption({ label: 'no profile of its own' });
+
+  await expect(pedals.locator('.pedal-note.saved')).toHaveText('saved');
+  expect(await bindCalls(page)).toEqual([['mclaren570sgt4', null]]);
+  await expect(select).toHaveValue('');
+  await expect(pedals.locator('.brake')).toHaveText('brake force 62 kg in this car');
+  await expect(pedals.locator('.given')).toHaveCount(0);
+  await expect(carRow(app, 'McLaren 570S GT4').locator('.mark')).toHaveText(['view', 'pedals']);
+  // Still there when the car is come back to: it is the car's, not the moment's.
+  await lookAt(app, 'Caterham Seven 420R');
+  await expect(pedals.locator('.brake')).toHaveCount(0);
+  await lookAt(app, 'McLaren 570S GT4');
+  await expect(pedals.locator('.brake')).toHaveText('brake force 62 kg in this car');
+  expect(await rigReads(page)).toBe(1);   // it was not read again to find out
+  expect(errors).toEqual([]);
+
+  // From one that does: the force and when it was set, and that having none is his choice — of a car with a
+  // force, and of one with nothing else known of it.
+  await stubRig(page, TOLD, [{ ok: true, car: null }, { ok: true, car: null }]);
+  await page.reload();
+  const told = page.locator(APP);
+  const given = told.locator('.car-pedals .given');
+  await lookAt(told, 'McLaren 570S GT4');
+  await expect(given).toHaveText('From LightBrake — given by the rule: it has ABS.');
+  await told.locator('.car-pedals select').selectOption({ label: 'no profile of its own' });
+  await expect(told.locator('.car-pedals .pedal-note.saved')).toHaveText('saved');
+  await expect(given).toHaveText('You chose that this car has none.');
+  await expect(told.locator('.car-pedals .brake')).toHaveText(/^brake force 62 kg in this car, set \S/);
+  await expect(carRow(told, 'McLaren 570S GT4').locator('.mark')).toHaveText(['view', 'pedals']);
+  await lookAt(told, 'Lotus 79');
+  await told.locator('.car-pedals select').selectOption({ label: 'no profile of its own' });
+  await expect(told.locator('.car-pedals .pedal-note.saved')).toHaveText('saved');
+  await expect(given).toHaveText('You chose that this car has none.');
+  await expect(told.locator('.car-pedals .brake')).toHaveCount(0);
+  await expect(carRow(told, 'Lotus 79').locator('.mark')).toHaveCount(0);
+  expect(await bindCalls(page)).toEqual([['mclaren570sgt4', null], ['lotus79', null]]);
 });
 
 test('choosing a profile asks the app to give it to the car, and says when it is saved', async ({ page }) => {
@@ -1751,26 +1944,458 @@ test('what could not be read is said where it would have been, in the app\'s own
   await expect(odd.locator('.car-pedals .note')).toHaveText('The pedals could not be read. The host\'s answer was not SmartControl\'s profiles.');
 });
 
-test('a Cars page that found no host reads again when the host comes up', async ({ page }) => {
+test('a Cars page that found no host reads again when the host comes up: the cars by name, their views and pedals', async ({ page }) => {
   const closed = http.createServer();
   await new Promise((resolve) => closed.listen(0, '127.0.0.1', resolve));
   const port = closed.address().port;
   await new Promise((resolve) => closed.close(resolve));
 
-  const { app } = await openCars(page, `http://127.0.0.1:${port}`);
-  await expect(app.locator('.sidebar .car')).toHaveCount(7);
+  // While the host is starting the app has no names to give, nor how often a car was driven: the cars are
+  // listed by folder. The next list is the one with names in.
+  const unnamed = CATALOGUE.map((c) => ({ ...c, name: null, shortName: null, driven: 0 }));
+  const { app } = await openCars(page, `http://127.0.0.1:${port}`, {
+    paints: { ...PAINTS, carCatalogue: { __in_turn: [unnamed, CATALOGUE] } },
+  });
+  const names = app.locator('.sidebar .car .name');
+  await expect(names).toHaveText(['lotus79', 'mx5-mx52016', 'nissangtpzxt', 'caterham caterham420r', 'mclaren570sgt4', 'mx5 cup', 'oldcar']);
   await expect(page.locator('#freshness')).toHaveText('Local host not running');
+  // Nothing says which car was driven last, or that any was: the first with a livery, and no way to narrow.
+  await expect(app.locator('.car-head h2')).toHaveText('lotus79');
+  await expect(app.getByRole('button', { name: 'Driven', exact: true })).toHaveCount(0);
   expect(await rigReads(page)).toBe(1);
+  expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(1);
 
   // The desk asks for the store again every five seconds until something answers.
   const late = await startMockHost(buildHistory(), SCHEDULE, port);
   try {
     await expect.poll(() => rigReads(page), { timeout: 12000 }).toBe(2);
-    await lookAt(app, 'McLaren 570S GT4');
+    // The list was read again too, without the page's own Refresh being pressed: the cars have their names.
+    await expect(names).toHaveText(['Lotus 79', 'Mazda MX-5 Cup', 'nissangtpzxt', 'Caterham Seven 420R', 'Mazda MX-5 Cup', 'McLaren 570S GT4', 'oldcar']);
+    expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(2);
+    // And when each was driven came with the host: no car had been chosen, so the page is on the one driven last.
+    await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
     await expect(app.locator('.car-view dd').first()).toHaveText('27 h ago');
+    await expect(app.getByRole('button', { name: 'Driven', exact: true })).toBeVisible();
     expect(NOT_THE_PAGES.map((route) => askedFor(late, route))).toEqual([0, 0, 0]);
   } finally {
     await new Promise((resolve) => { late.closeAllConnections(); late.close(resolve); });
+  }
+});
+
+// ── Cars: the car he has just driven ─────────────────────────
+// The desk hands the island when each car was last driven (RacingDeskPaints.setLastDriven, from the sessions it
+// has read), at its start and again whenever the store has something new. `drove` is the desk doing that.
+const drove = (page, byCar) => page.evaluate((dates) => window.RacingDeskPaints.setLastDriven(dates), byCar);
+
+test('the page opens on the car driven last, follows it until a car is chosen, and never takes the place of one that was', async ({ page }) => {
+  // In this history that is the McLaren: a car with no livery, fifth in the list.
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`);
+  const name = app.locator('.car-head h2');
+  const active = app.locator('.sidebar .car.active');
+  await expect(name).toHaveText('McLaren 570S GT4');
+  await expect(active.locator('.name')).toHaveText('McLaren 570S GT4');
+  await expect(active).toHaveAttribute('aria-current', 'true');
+  await expect(app.locator('.car-view dd').first()).toHaveText('27 h ago');
+  // Reading the list again leaves it there.
+  await app.locator('.setup .status button', { hasText: 'Refresh' }).click();
+  await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
+  await expect(name).toHaveText('McLaren 570S GT4');
+
+  // Another car is driven, and the page has not been touched: it is on that car.
+  await drove(page, { mclaren570sgt4: '2026-09-15T23:00:00Z', 'mx5 mx52016': '2026-09-17T00:30:00Z' });
+  await expect(name).toHaveText('Mazda MX-5 Cup');
+  await expect(app.locator('.car-head .note')).toContainText('mx5-mx52016');   // the library's name for the sim's car
+  await expect(app.locator('.car-view dd').first()).toHaveText('1 h ago');
+  await expect(active).toBeInViewport();
+
+  // A car he chose stays, whatever is driven after it, and however often the list is read.
+  await lookAt(app, 'Caterham Seven 420R');
+  await drove(page, { lotus79: '2026-09-17T01:15:00Z', 'caterham caterham420r': '2026-09-17T00:45:00Z' });
+  await expect(app.locator('.car-view dd').first()).toHaveText('45 min ago');
+  await expect(name).toHaveText('Caterham Seven 420R');
+  await page.locator('#refresh').click();
+  await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(3);
+  await expect(name).toHaveText('Caterham Seven 420R');
+  await expect(active.locator('.name')).toHaveText('Caterham Seven 420R');
+  expect(errors).toEqual([]);
+});
+
+test('Driven narrows the list to the cars he has driven, the last driven first, and is remembered while the page is open', async ({ page }) => {
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`);
+  const driven = app.getByRole('button', { name: 'Driven', exact: true });
+  const rows = app.locator('.sidebar .car');
+  const headings = app.locator('.sidebar .group .heading');
+  await expect(driven).toHaveAttribute('aria-pressed', 'false');
+  await expect(rows).toHaveCount(7);
+
+  // One click. The desk has a date for two of them; the store counts sessions in two more, which come after, by
+  // name. One list and not two: newest first is an order across them all.
+  await driven.click();
+  await expect(driven).toHaveAttribute('aria-pressed', 'true');
+  await expect(headings).toHaveText(['Driven 4']);
+  await expect(app.locator('.sidebar .group')).toHaveAttribute('aria-label', 'Driven');
+  await expect(rows.locator('.name')).toHaveText(['McLaren 570S GT4', 'Caterham Seven 420R', 'Lotus 79', 'Mazda MX-5 Cup']);
+  await expect(rows.locator('.meta')).toHaveText([
+    'driven 27 h ago', 'driven 2 days ago', 'driven in 41 sessions · 2 versions',
+    'driven in 668 sessions · 1 version · mx5-mx52016 · installs to mx5 mx52016',
+  ]);
+  // What the host keeps for a car is said in its row here as in the whole list, and a row is one stop.
+  await expect(rows.first().locator('.mark')).toHaveText(['view', 'pedals']);
+  await expect(app.locator('.sidebar .groups')).toHaveCount(0);   // the livery groups are out of the way
+  await app.locator('.sidebar .filter input').focus();
+  await page.keyboard.press('Tab');
+  await expect(driven).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(rows.first()).toBeFocused();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(app.locator('.car-head h2')).toHaveText('Caterham Seven 420R');
+  await expect(rows.nth(1)).toHaveAttribute('aria-current', 'true');
+
+  // The filter's words are over the cars he has driven while it is on.
+  const filter = app.locator('.sidebar .filter input');
+  await filter.fill('mazda');
+  await expect(rows.locator('.name')).toHaveText(['Mazda MX-5 Cup']);
+  await expect(headings).toHaveText(['Driven 1']);
+  await filter.fill('oldcar');
+  await expect(rows).toHaveCount(0);
+  await expect(app.locator('.sidebar .list .empty')).toHaveText('No car you have driven matches “oldcar”.');
+  await filter.press('Escape');
+  await expect(rows).toHaveCount(4);
+
+  // A car driven since is at the top, once the desk has said so.
+  await drove(page, { mclaren570sgt4: '2026-09-15T23:00:00Z', lotus79: '2026-09-17T01:00:00Z' });
+  await expect(rows.locator('.name')).toHaveText(['Lotus 79', 'McLaren 570S GT4', 'Caterham Seven 420R', 'Mazda MX-5 Cup']);
+  await expect(rows.first().locator('.meta')).toHaveText('driven 30 min ago · 2 versions');
+
+  // Remembered while the page is open: through another page of the desk, and the list being read again.
+  await page.locator('.nav a', { hasText: 'Desk' }).click();
+  await page.locator('.nav a', { hasText: 'Cars' }).click();
+  await expect(driven).toHaveAttribute('aria-pressed', 'true');
+  await expect(headings).toHaveText(['Driven 4']);
+  await app.locator('.setup .status button', { hasText: 'Refresh' }).click();
+  await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
+  await expect(headings).toHaveText(['Driven 4']);
+
+  // Off, by the keyboard: the list as it was, every car in it, the groups and their headings the same.
+  await driven.focus();
+  await page.keyboard.press('Space');
+  await expect(driven).toHaveAttribute('aria-pressed', 'false');
+  await expect(headings).toHaveText(['Liveries 3', 'No livery yet 4']);
+  await expect(app.locator('.sidebar .groups .heading')).toContainText('Groups 0');
+  await expect(rows).toHaveCount(7);
+  await expect(app.locator('.sidebar .car.active .name')).toHaveText('Caterham Seven 420R');
+  expect(errors).toEqual([]);
+});
+
+// ── Cars: the view and the pedals, in sight ──────────────────
+// The desk's window is no smaller than 1024 by 680 (main.js), which leaves the page about 1008 by 641 inside
+// its frame. 1024 by 700 is the size the review named.
+const SMALLEST = [{ width: 1024, height: 700 }, { width: 1008, height: 641 }];
+const CHECKOUT = {
+  ...PLAIN_FOLDER, isRepo: true, root: LIBRARY, branch: 'main', upstream: 'origin/main', remoteUrl: 'https://github.com/DOOOOM/liveries',
+  head: 'abc1234', subject: 'lotus79: v13, matte black against gloss shards',
+};
+
+// Whether all of an element is on screen: inside the pane that scrolls it, and inside the window.
+const allInSight = (locator) => locator.evaluate((el) => {
+  const box = el.getBoundingClientRect();
+  const pane = el.closest('.main').getBoundingClientRect();
+  return box.height > 0 && box.top >= pane.top && box.bottom <= Math.min(pane.bottom, window.innerHeight)
+    && box.left >= pane.left && box.right <= Math.min(pane.right, window.innerWidth);
+});
+
+test('a car\'s view and pedals are in sight without scrolling in the desk\'s smallest window, above its liveries', async ({ page }) => {
+  // The most there is to say of a car: liveries, a view of its own, a profile from the rule, a force, the keys.
+  const painted = CATALOGUE.map((c) => (c.folder === 'mclaren570sgt4'
+    ? { ...c, versions: [version('shatter', 'shatter', c.folder), version('shatter-inverted', 'shatter-inverted', c.folder), version('v3', 'v3', c.folder)] }
+    : c));
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, {
+    paints: { ...PAINTS, carCatalogue: painted, repoStatus: CHECKOUT, repoCheck: CHECKOUT }, rig: TOLD,
+  });
+  const pane = app.locator('.main');
+  const scrolled = () => pane.evaluate((el) => el.scrollTop);
+
+  for (const size of SMALLEST) {
+    const at = `${size.width} by ${size.height}`;
+    await page.setViewportSize(size);
+    await lookAt(app, 'McLaren 570S GT4');
+    await expect(app.locator('.versions .card')).toHaveCount(3);
+    await expect(app.locator('.car-view dd')).toHaveCount(9);
+    await expect(app.locator('.car-pedals .given')).toHaveText('From LightBrake — given by the rule: it has ABS.');
+    await expect(app.locator('.car-pedals .live-keys .key')).toHaveCount(4);
+    expect(await scrolled(), at).toBe(0);
+    expect(await allInSight(app.locator('.car-view')), `the view, at ${at}`).toBe(true);
+    expect(await allInSight(app.locator('.car-pedals')), `the pedals, at ${at}`).toBe(true);
+    // Beside each other, under the car's name and above what it wears — which begins in sight too.
+    const tops = await app.locator('.car-head, .car-view, .car-pedals, .versions').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+    expect(tops[1], at).toBe(tops[2]);
+    expect(tops[0], at).toBeLessThan(tops[1]);
+    expect(tops[1], at).toBeLessThan(tops[3]);
+    expect(tops[3], at).toBeLessThan(size.height);
+    // Nothing is cut off sideways, and the page has no scroll of its own.
+    expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth), at).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight), at).toBe(true);
+
+    // Every car: one with no livery and no profile, one the host knows nothing of, one that is in no sim.
+    for (const [name, row] of [['Caterham Seven 420R'], ['Lotus 79'], ['oldcar'], ['nissangtpzxt'], ['Mazda MX-5 Cup', MX5(app)]]) {
+      await lookAt(app, name, row);
+      expect(await scrolled(), `${name}, at ${at}`).toBe(0);
+      expect(await allInSight(app.locator('.car-view')), `the view of ${name}, at ${at}`).toBe(true);
+      expect(await allInSight(app.locator('.car-pedals')), `the pedals of ${name}, at ${at}`).toBe(true);
+    }
+  }
+  expect(errors).toEqual([]);
+});
+
+test('choosing another car puts the pane at its top', async ({ page }) => {
+  await stubPaintsBridge(page, PAINTS);
+  await stubGroups(page, [SHATTER]);
+  await stubRig(page);
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
+  const app = page.locator(APP);
+  const pane = app.locator('.main');
+  await page.setViewportSize(SMALLEST[0]);
+  await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+  await expect(app.locator('.versions .card')).toHaveCount(2);
+  const toTheFoot = async () => {
+    await pane.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    expect(await pane.evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
+    expect(await allInSight(app.locator('.car-view, .group-head').first())).toBe(false);
+  };
+  const atTheTop = async () => {
+    await expect.poll(() => pane.evaluate((el) => el.scrollTop)).toBe(0);
+    expect(await allInSight(app.locator('.car-view, .group-head').first())).toBe(true);
+  };
+
+  await toTheFoot();
+  await lookAt(app, 'Mazda MX-5 Cup', MX5(app));
+  await atTheTop();
+  // By the keyboard as by the mouse.
+  await toTheFoot();
+  await app.locator('.sidebar .group .car', { hasText: 'Lotus 79' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+  await atTheTop();
+  // A group is read from its top too.
+  await toTheFoot();
+  await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
+  await expect(app.locator('.group-head h2')).toHaveText('shatter');
+  await atTheTop();
+  expect(errors).toEqual([]);
+});
+
+// ── Cars: what the page keeps an eye on, and when ────────────
+// The chips say whether the sim or the downloader is running, and each look starts a process in the app. The
+// page stays mounted through a race, so it looks only while the desk's window is the one in front.
+
+const looks = async (page) => {
+  const [sim, downloader] = await Promise.all([paintsCalls(page, 'simStatus'), paintsCalls(page, 'tradingPaintsStatus')]);
+  expect(downloader.length).toBe(sim.length);
+  return sim.length;
+};
+// The remote is asked about once a livery has been within reach for a second (App.tsx, REMOTE_AFTER_MS). This is
+// long enough for it to have been asked, had it been going to be.
+const UNASKED_MS = 1400;
+
+test('the guards are looked at every eight seconds while the desk\'s window is in front, at once when it comes there, and not otherwise', async ({ page }) => {
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    simStatus: { simRunning: true, uiRunning: true, matched: ['iRacingSim64DX11.exe'] },
+    applyVersion: { __error: SIM_RUNNING },
+  });
+  await stubRig(page);
+  const errors = await openDesk(page, lotusLast(), '&page=cars', { timers: true });
+  const app = page.locator(APP);
+  await expect(app.locator('.versions .card')).toHaveCount(2);
+  await expect.poll(() => looks(page)).toBe(1);   // somebody is looking: at once
+  await page.clock.pauseAt(new Date(NOW.getTime() + 60000));   // from here the clock is the test's
+  const before = await looks(page);
+
+  await page.clock.runFor(8000);
+  await expect.poll(() => looks(page)).toBe(before + 1);
+  await page.clock.runFor(16000);
+  await expect.poll(() => looks(page)).toBe(before + 3);
+
+  // Behind another window — he is driving — nothing is looked at, however long, and whatever the desk shows
+  // meanwhile: the app can be asked for a page from the tray or a button on the wheel.
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.clock.runFor(120000);
+  expect(await looks(page)).toBe(before + 3);
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('racingdesk:page', { detail: 'cars' })));
+  await page.clock.runFor(30000);
+  expect(await looks(page)).toBe(before + 3);
+  // In front again: at once, and then every eight seconds as before.
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect.poll(() => looks(page)).toBe(before + 4);
+  await page.clock.runFor(8000);
+  await expect.poll(() => looks(page)).toBe(before + 5);
+
+  // Another page of the desk is up: the same.
+  await page.locator('.nav a', { hasText: 'Settings' }).click();
+  await expect(page.locator('#settings')).toBeVisible();
+  await page.clock.runFor(60000);
+  expect(await looks(page)).toBe(before + 5);
+  await page.locator('.nav a', { hasText: 'Cars' }).click();
+  await expect.poll(() => looks(page)).toBe(before + 6);
+  await page.clock.runFor(8000);
+  await expect.poll(() => looks(page)).toBe(before + 7);
+
+  // What stands in an apply's way is asked about when the apply is refused, whoever is or is not looking: it
+  // does not go by what the chips last said.
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await app.locator('.versions .card', { hasText: 'v13 Shatter' }).locator('.actions button.primary').click();
+  await expect(app.locator('.refusal').getByRole('button')).toHaveText(['Apply v13 Shatter anyway', 'Dismiss']);
+  expect(await looks(page)).toBe(before + 8);
+  await page.clock.runFor(60000);
+  expect(await looks(page)).toBe(before + 8);
+  expect(errors).toEqual([]);
+});
+
+test('the library\'s remote is asked when a livery is within reach or he asks, not for looking at how a car is driven', async ({ page }) => {
+  // The car driven last has no livery: the page opens on its view and pedals, with nothing to apply.
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, {
+    paints: { ...PAINTS, repoStatus: CHECKOUT, repoCheck: { ...CHECKOUT, checkedRemote: true } },
+  });
+  const source = app.locator('.panel', { hasText: 'Library source' });
+  const asked = () => paintsCalls(page, 'repoCheck');
+  await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+  await expect(app.locator('.car-view dd').nth(1)).toHaveText('−60 mm');
+  // The checkout as it stands on disk is read, which asks nothing of anybody.
+  await expect(source.locator('.badge')).toHaveText('up to date as of last check');
+  await lookAt(app, 'Caterham Seven 420R');
+  await page.waitForTimeout(UNASKED_MS);
+  expect(await asked()).toEqual([]);
+  expect(await paintsCalls(page, 'repoStatus')).toEqual([{ path: LIBRARY }]);
+
+  // A car with a livery, passed on the way to another: not for that either.
+  await lookAt(app, 'Lotus 79');
+  await expect(app.locator('.versions .card')).toHaveCount(2);
+  await lookAt(app, 'McLaren 570S GT4');
+  await page.waitForTimeout(UNASKED_MS);
+  expect(await asked()).toEqual([]);
+  // One stayed on, and the window behind another: not yet. In front: asked, once for the library.
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await lookAt(app, 'Lotus 79');
+  await page.waitForTimeout(UNASKED_MS);
+  expect(await asked()).toEqual([]);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect.poll(asked).toEqual([{ path: LIBRARY }]);
+  await expect(source.locator('.badge')).toHaveText('up to date');
+  await lookAt(app, 'Mazda MX-5 Cup', MX5(app));
+  await page.waitForTimeout(UNASKED_MS);
+  expect(await asked()).toHaveLength(1);
+
+  // Check asks whenever he does, whatever car is on the page.
+  await lookAt(app, 'McLaren 570S GT4');
+  await source.getByRole('button', { name: 'Check' }).click();
+  await expect.poll(asked).toHaveLength(2);
+  expect(errors).toEqual([]);
+});
+
+test('a group on the page is a livery within reach', async ({ page }) => {
+  await stubPaintsBridge(page, { ...PAINTS, repoStatus: CHECKOUT, repoCheck: { ...CHECKOUT, checkedRemote: true } });
+  await stubGroups(page, [SHATTER]);
+  await stubRig(page);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const app = page.locator(APP);
+  await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+  await page.waitForTimeout(UNASKED_MS);
+  expect(await paintsCalls(page, 'repoCheck')).toEqual([]);
+  await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
+  await expect(app.locator('.group-head h2')).toHaveText('shatter');
+  await expect.poll(() => paintsCalls(page, 'repoCheck')).toEqual([{ path: LIBRARY }]);
+  expect(errors).toEqual([]);
+});
+
+// ── Cars: a car that is no longer on the rig ─────────────────
+// The store has sessions for it, a view and pedals; the install, the paint folder and the library have nothing.
+// The catalogue lists it as not installed (modules/js/paints/catalogue.js).
+const GONE = car('porsche992cup', null, [], 'Porsche 911 GT3 Cup (992)', '911 Cup', false, 12);
+const GONE_RIG = {
+  cars: held([...RIG_CARS, { car_path: 'porsche992cup', name: 'Porsche 911 GT3 Cup (992)', short_name: '911 Cup', car_id: 143, driven: 12, seen: 40 }]),
+  views: held([...RIG_VIEWS, {
+    car_path: 'porsche992cup', name: 'Porsche 911 GT3 Cup (992)', driver_height: 0.02, vanish_y: 0.01, head_horizon: 0.5, fov: 69.0,
+    seat_x: 0.04, seat_y: 0.0, seat_z: -0.01, chosen: 1, chosen_at: '2026-08-02T20:00:00.000Z', seen_at: '2026-08-02T20:00:00.000Z',
+  }]),
+  pedals: held({ ...RIG_PEDALS, cars: [...RIG_PEDALS.cars, bound('porsche992cup', 'Porsche 911 GT3 Cup (992)', '283f91ae', 'Default', 'same', 58)] }),
+};
+
+test('a car he has driven that is no longer on the rig has its view and pedals, and nothing that needs it on disk', async ({ page }) => {
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, {
+    paints: { ...PAINTS, carCatalogue: [...CATALOGUE, GONE] }, rig: GONE_RIG, binds: [{ ok: true, car: bound('porsche992cup', 'Porsche 911 GT3 Cup (992)', '9c1d44e0', 'GT3 <stiff>', 'same', 58) }],
+  });
+  // In the list with the rest, and among the cars he has driven; its row says what it is and what is kept.
+  const row = carRow(app, 'Porsche 911 GT3 Cup (992)');
+  await expect(app.locator('.sidebar .group .heading')).toHaveText(['Liveries 3', 'No livery yet 5']);
+  await expect(row.locator('.meta')).toHaveText('not installed');
+  await expect(row.locator('.mark')).toHaveText(['view', 'pedals']);
+  await app.getByRole('button', { name: 'Driven', exact: true }).click();
+  await expect(row.locator('.meta')).toHaveText('driven in 12 sessions · not installed');
+  await app.getByRole('button', { name: 'Driven', exact: true }).click();
+
+  await lookAt(app, 'Porsche 911 GT3 Cup (992)');
+  await expect(app.locator('.car-head .note')).toHaveText('porsche992cup · driven in 12 sessions · not installed');
+  await expect(app.locator('.car-view dd')).toHaveText(['—', '+20 mm', '+0.01', '0.5', '69°', '+40 mm', '0 mm', '−10 mm', 'its own']);
+  await expect(app.locator('.car-pedals select')).toHaveValue('283f91ae');
+  await expect(app.locator('.car-pedals .brake')).toHaveText('brake max 80 kg · bottom deadzone 5% · linear curve · brake force 58 kg in this car');
+
+  // Said plainly, and nothing offered that needs the car on disk: nowhere for a livery to go, nothing installed
+  // to read, no backup to put back, nothing to apply.
+  await expect(app.locator('.main .panel h3')).toHaveText(['View', 'Pedals', 'Not installed', 'Trading Paints', 'Library source']);
+  await expect(app.locator('.panel.not-on-disk')).toContainText('This car is not on the rig now');
+  await expect(app.locator('.panel.not-on-disk')).toContainText('Its view and its pedals are kept from when you drove it.');
+  await expect(app.locator('.panel.no-livery')).toHaveCount(0);
+  await expect(app.locator('.main code')).toHaveCount(0);
+  await expect(app.getByRole('button', { name: /apply|revert|restore|explorer/i })).toHaveCount(0);
+  await expect(app.locator('.chips .chip')).toHaveText('ready');
+  await page.waitForTimeout(150);
+  expect((await paintsCalls(page, 'carState')).filter((c) => c.carFolder === 'porsche992cup')).toEqual([]);
+  expect((await paintsCalls(page, 'listBackups')).filter((c) => c.carFolder === 'porsche992cup')).toEqual([]);
+
+  // Its pedals are the store's, which has the car: a profile can still be chosen for it.
+  await app.locator('.car-pedals select').selectOption({ label: 'GT3 <stiff>' });
+  await expect(app.locator('.car-pedals .pedal-note.saved')).toHaveText('saved');
+  expect(await bindCalls(page)).toEqual([['porsche992cup', '9c1d44e0']]);
+
+  // A car that is on the rig is as it was.
+  await lookAt(app, 'oldcar');
+  await expect(app.locator('.main .panel h3')).toHaveText(['View', 'Pedals', 'No livery yet', 'Installed in the sim', 'Backups', 'Trading Paints', 'Library source']);
+  expect(errors).toEqual([]);
+});
+
+// ── Cars: the store has something new ────────────────────────
+// The desk asks the host how the store stands every half minute (desk.js, pollStatus). Another session in it is
+// something new: the desk reads its sessions again, hands the island the dates, and says there is something to
+// read — the list of cars, and what the host keeps for them.
+test('the Cars page reads again when the store has something new, and is on the car just driven', async ({ page }) => {
+  const history = buildHistory();
+  const own = await startMockHost(history);
+  try {
+    const { errors, app } = await openCars(page, `http://127.0.0.1:${own.address().port}`, { timers: true });
+    await expect(app.locator('.car-head h2')).toHaveText('McLaren 570S GT4');
+    await expect.poll(() => rigReads(page)).toBe(1);
+    expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(1);
+
+    // Nothing new, nothing read.
+    await page.clock.runFor(31000);
+    await expect.poll(() => askedFor(own, 'status')).toBeGreaterThanOrEqual(2);
+    expect(await rigReads(page)).toBe(1);
+    expect(await paintsCalls(page, 'carCatalogue')).toHaveLength(1);
+    expect(askedFor(own, 'sessions')).toBe(1);
+
+    // He drives the Lotus, and comes back to the desk.
+    driveAfter(history, LOTUS, '2026-09-17T01:20:00.000Z');
+    await page.clock.runFor(30000);
+    await expect.poll(() => askedFor(own, 'sessions')).toBe(2);
+    await expect.poll(() => rigReads(page)).toBe(2);
+    await expect.poll(() => paintsCalls(page, 'carCatalogue')).toHaveLength(2);
+    await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+    await expect(app.locator('.car-view dd').first()).toHaveText(/^1\d min ago$/);
+    expect(NOT_THE_PAGES.map((route) => askedFor(own, route))).toEqual([0, 0, 0]);
+    expect(errors).toEqual([]);
+  } finally {
+    await new Promise((resolve) => { own.closeAllConnections(); own.close(resolve); });
   }
 });
 
@@ -1851,7 +2476,7 @@ const groupRequest = (groupId, extra = {}) => ({
 test('groups are listed above the cars, and one is looked at where a car would be', async ({ page }) => {
   await stubPaintsBridge(page, PAINTS);
   await stubGroups(page, [RACE_DAY, SHATTER]);
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
 
   await expect(app.locator('.sidebar .groups .heading')).toContainText('Groups 2');
@@ -1892,7 +2517,7 @@ test('groups are listed above the cars, and one is looked at where a car would b
 test('setting a group is one click, and what became of each car is said beside it', async ({ page }) => {
   await stubPaintsBridge(page, { ...PAINTS, setGroup: SET_REPORT });
   await stubGroups(page, [SHATTER]);
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
   await app.locator('.group-actions button.primary').click();
@@ -1927,7 +2552,7 @@ test('a group that cannot be set while the sim runs says so, and can be set anyw
       invoke(name, name === 'setGroup' ? { ...args, force: String(args.request.force) } : args);
   });
   await stubGroups(page, [SHATTER]);
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
   await app.locator('.group-actions button.primary').click();
@@ -1948,7 +2573,7 @@ test('a group that cannot be set while the sim runs says so, and can be set anyw
 test('a group of the driver\'s own is made from the cars\' versions, changed, and forgotten', async ({ page }) => {
   await stubPaintsBridge(page, PAINTS);
   await stubGroups(page, [SHATTER]);
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
 
   await app.locator('.sidebar .groups .heading button', { hasText: 'New' }).click();
@@ -2014,7 +2639,7 @@ test('"every car in" fills the group from a version the cars share', async ({ pa
     carCatalogue: [shared('lotus79', 'Lotus 79', [version('v14', 'v14')]), shared('dallarair18', 'Dallara IR18', []), car('audi90gto', 'audi90gto', [version('v1', 'v1', 'audi90gto')], 'Audi 90 GTO', 'Audi 90', true, 3)],
   });
   await stubGroups(page, []);
-  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
   const app = page.locator(APP);
   await expect(app.locator('.sidebar .groups .heading')).toContainText('Groups 0');
   await app.locator('.sidebar .groups .heading button', { hasText: 'New' }).click();

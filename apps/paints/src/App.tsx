@@ -3,7 +3,7 @@ import * as api from "./api";
 import { inDesk, reveal } from "./bridge";
 import { errorText } from "./api";
 import { ApplyOptionsPanel, Refusal, type ApplyOptions } from "./components/ApplyOptions";
-import { CarList, carLabel, groupCars, type Kept } from "./components/CarList";
+import { CarList, carLabel, carToOpenOn, type Kept } from "./components/CarList";
 import { CarPedalsPanel } from "./components/CarPedals";
 import { CarViewPanel } from "./components/CarView";
 import { GroupEditor } from "./components/GroupEditor";
@@ -55,6 +55,19 @@ function versionHome(libraryRoot: string, folder: string): string {
 /// status chip that went stale would be worse than none.
 const GUARD_POLL_MS = 8000;
 
+/// How long a livery has to have been within reach before the library's remote is asked about.
+const REMOTE_AFTER_MS = 1000;
+
+/// A car the driver has driven that is nowhere on this rig now: not in the install, the paint folder or the
+/// library. What the store kept of it is shown; nothing that needs the car on disk is offered.
+const notOnDisk = (car: CatalogueCar): boolean =>
+  !car.installed && car.simFolder === null && car.versions.length === 0;
+
+/// Whether the page is the one showing. Inside The Racing Desk it stays mounted while another page is up, or
+/// the window is minimised behind a race.
+const showing = (): boolean =>
+  !document.hidden && (document.querySelector(".paints-app")?.getClientRects().length ?? 0) > 0;
+
 export default function App() {
   const [paintDir, setPaintDir] = useState("");
   const [libraryRoot, setLibraryRoot] = useState("");
@@ -71,6 +84,14 @@ export default function App() {
   /// Where the list of cars stands. No cars is only "there are none" once the list is here.
   const [listing, setListing] = useState<"reading" | "read" | "failed">("reading");
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  /// Whether the car on the page is one he chose. Until he has chosen one it is the car driven last.
+  const chose = useRef(false);
+  /// The car on the page as of now, for what answers later than it was asked.
+  const selectedNow = useRef<string | null>(null);
+  const show = useCallback((folder: string | null) => {
+    selectedNow.current = folder;
+    setSelectedFolder(folder);
+  }, []);
   const [installed, setInstalled] = useState<InstalledState | null>(null);
   const [backups, setBackups] = useState<BackupEntry[]>([]);
   const [tp, setTp] = useState<TradingPaints | null>(null);
@@ -100,6 +121,11 @@ export default function App() {
   // desk says each was last driven. The desk's alone: elsewhere the two panels say there is no app.
   const rig = useRig();
   const lastDriven = useLastDriven();
+  /// As it stands when the list of cars arrives, which does not wait for it.
+  const drivenNow = useRef(lastDriven);
+  drivenNow.current = lastDriven;
+  /// Whether anybody is looking: the window is the one in front and this page is showing. The guards' to say.
+  const [looking, setLooking] = useState(false);
 
   const say = useCallback((kind: LogEntry["kind"], title: string, lines: string[] = []) => {
     logId.current += 1;
@@ -226,12 +252,16 @@ export default function App() {
       setCars(found);
       setGroups(grouped);
       setListing("read");
-      // A car that is still there stays selected; otherwise the first with a livery, as the list shows it.
-      setSelectedFolder((current) => {
-        if (current && found.some((c) => c.folder === current)) return current;
-        const { liveries, rest } = groupCars(found);
-        return (liveries[0] ?? rest[0])?.folder ?? null;
-      });
+      // A car he chose stays, while it is still there. Otherwise the page is on the car driven last, or —
+      // before the desk has said when any was — on the one it was on, or the first as the list shows them.
+      const current = selectedNow.current;
+      const still = current !== null && found.some((c) => c.folder === current);
+      if (!still) chose.current = false;
+      if (!chose.current) {
+        const opens = carToOpenOn(found, drivenNow.current);
+        const driven = opens !== null && drivenNow.current.has(rigKey(opens));
+        if (!still || driven) show(opens?.folder ?? null);
+      }
       setSelectedGroup((current) => (current && grouped.some((g) => g.id === current) ? current : null));
     } catch (e) {
       if (mine !== asked.current) return;
@@ -240,11 +270,28 @@ export default function App() {
       setListing("failed");
       say("bad", "Could not read the library", [errorText(e)]);
     }
-  }, [libraryRoot, paintDir, listable, say]);
+  }, [libraryRoot, paintDir, listable, say, show]);
 
   useEffect(() => {
     void refreshLibrary();
   }, [refreshLibrary]);
+
+  // The desk says when there is something to read again — its own Refresh, the host found after none was, the
+  // store with something new — and that is the list as much as what the host keeps per car (useRig): cars
+  // listed while the host was starting have no names until the list is read again.
+  useEffect(() => {
+    const again = () => void refreshLibrary();
+    document.addEventListener("racingdesk:refresh", again);
+    return () => document.removeEventListener("racingdesk:refresh", again);
+  }, [refreshLibrary]);
+
+  // When each car was last driven can arrive after the cars: the desk reads its sessions in its own time, and
+  // again after every drive. Until he has chosen a car the page follows it.
+  useEffect(() => {
+    if (chose.current || !cars) return;
+    const opens = carToOpenOn(cars, lastDriven);
+    if (opens && lastDriven.has(rigKey(opens))) show(opens.folder);
+  }, [cars, lastDriven, show]);
 
   // --- the library as a git checkout ----------------------------------------------------
   const refreshRepo = useCallback(async () => {
@@ -304,12 +351,28 @@ export default function App() {
     }
   }, [libraryRoot, refreshLibrary, say]);
 
-  // Check once per library on launch, and pull only if asked to.
+  const car: CatalogueCar | null = useMemo(
+    () => cars?.find((c) => c.folder === selectedFolder) ?? null,
+    [cars, selectedFolder],
+  );
+  const group = useMemo(
+    () => groups.find((g) => g.id === selectedGroup) ?? null,
+    [groups, selectedGroup],
+  );
+
+  /// Whether an apply is a click away: a car with a livery is on the page, or a group.
+  const inReach = !editing && (group !== null || (car?.versions.length ?? 0) > 0);
+
+  // Check once per library, and pull only if asked to — but not before a livery is within reach of somebody
+  // looking at the page, and has been for a moment. The page is opened to look at a view or a pair of pedals
+  // as often as to paint, and stays mounted through a race; the remote is no business of either, nor of a car
+  // passed on the way to another. Check, under Library source, asks whenever he does.
   const checkedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!ready.current || !libraryRoot || checkedFor.current === libraryRoot) return;
-    checkedFor.current = libraryRoot;
-    (async () => {
+    if (!inReach || !looking) return;
+    const settled = setTimeout(async () => {
+      checkedFor.current = libraryRoot;
       const status = await checkForUpdates();
       if (!status?.isRepo || !status.updatesAvailable) return;
       if (autoUpdate) {
@@ -324,29 +387,22 @@ export default function App() {
           ["Use Update under Library source to take them."],
         );
       }
-    })();
-  }, [libraryRoot, autoUpdate, checkForUpdates, updateLibrary, say]);
+    }, REMOTE_AFTER_MS);
+    return () => clearTimeout(settled);
+  }, [libraryRoot, autoUpdate, inReach, looking, checkForUpdates, updateLibrary, say]);
 
-  const car: CatalogueCar | null = useMemo(
-    () => cars?.find((c) => c.folder === selectedFolder) ?? null,
-    [cars, selectedFolder],
-  );
   const carName = car ? carLabel(car) : "";
   /// Where the car's paint goes: its folder in the paint directory, or, for a car never driven, the
   /// folder the sim would make for it — which an apply makes. Null for a car the sim does not have.
   const target = car ? (car.simFolder ?? car.installPath) : null;
-  const group = useMemo(
-    () => groups.find((g) => g.id === selectedGroup) ?? null,
-    [groups, selectedGroup],
-  );
 
   // --- installed state for the selected car ---------------------------------------------
   // Numbered like the list: what is shown is the answer for the last car asked about, however late
-  // another's arrives.
+  // another's arrives. A car that is nowhere on disk has nothing installed to read.
   const carAsked = useRef(0);
   const refreshCar = useCallback(async () => {
     const mine = ++carAsked.current;
-    if (!car || !paintDir || !libraryRoot || !/^\d+$/.test(customerId)) {
+    if (!car || notOnDisk(car) || !paintDir || !libraryRoot || !/^\d+$/.test(customerId)) {
       setInstalled(null);
       setBackups([]);
       return;
@@ -393,10 +449,18 @@ export default function App() {
     setGroupReport(null);
   }, [selectedGroup]);
 
+  // Another car, or a group, is read from its top: the pane does not keep the last one's scroll.
+  const pane = useRef<HTMLDivElement>(null);
+  const editingWhat = editing ? (editing.group?.id ?? "new") : null;
+  useLayoutEffect(() => {
+    if (pane.current) pane.current.scrollTop = 0;
+  }, [selectedFolder, selectedGroup, editingWhat]);
+
   const selectCar = (folder: string) => {
+    chose.current = true;
     setEditing(null);
     setSelectedGroup(null);
-    setSelectedFolder(folder);
+    show(folder);
   };
   const selectGroup = (id: string) => {
     setEditing(null);
@@ -404,27 +468,59 @@ export default function App() {
   };
 
   // --- guards ---------------------------------------------------------------------------
+  // Whether the sim or the downloader is running, for the chips. Each check starts a process (tasklist), in
+  // the process the HUD answers to, so they are made only while somebody is looking — the window in front,
+  // this page showing — every eight seconds, and at once when somebody starts to. Apply does not depend on
+  // this: it asks again, itself, before it writes.
   useEffect(() => {
     let live = true;
-    // Inside The Racing Desk the page stays mounted while another page is up, or the window is minimised behind
-    // a race. Nobody is looking at the chips then, and each check starts a process — so it waits until somebody
-    // is. Apply does not depend on this: it asks again, itself.
-    const watched = () =>
-      !document.hidden && (document.querySelector(".paints-app")?.getClientRects().length ?? 0) > 0;
-    const tick = () => {
-      if (!watched()) return;
-      api.tradingPaintsStatus().then((v) => live && setTp(v)).catch(() => {});
-      api.simStatus().then((v) => live && setSim(v)).catch(() => {});
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let checking = false;
+    let inFront = document.hasFocus();
+    const lookedAt = () => inFront && showing();
+    // One check at a time: the window coming to the front and the desk showing the page are one moment.
+    const check = () => {
+      if (checking) return;
+      checking = true;
+      void Promise.allSettled([
+        api.tradingPaintsStatus().then((v) => live && setTp(v)),
+        api.simStatus().then((v) => live && setSim(v)),
+      ]).then(() => {
+        checking = false;
+      });
     };
-    tick();
-    const h = setInterval(tick, GUARD_POLL_MS);
-    document.addEventListener("visibilitychange", tick);
-    document.addEventListener("racingdesk:page", tick);   // the desk, on showing a page
+    const rest = () => {
+      if (timer !== null) clearInterval(timer);
+      timer = null;
+      setLooking(false);
+    };
+    const look = () => {
+      rest();
+      if (!lookedAt()) return;
+      setLooking(true);
+      check();
+      timer = setInterval(() => (lookedAt() ? check() : rest()), GUARD_POLL_MS);
+    };
+    const front = () => {
+      inFront = true;
+      look();
+    };
+    const behind = () => {
+      inFront = false;
+      rest();
+    };
+    look();
+    window.addEventListener("focus", front);
+    window.addEventListener("blur", behind);
+    document.addEventListener("visibilitychange", look);
+    document.addEventListener("racingdesk:page", look);   // the desk, on showing a page
     return () => {
       live = false;
-      clearInterval(h);
-      document.removeEventListener("visibilitychange", tick);
-      document.removeEventListener("racingdesk:page", tick);
+      rest();
+      window.removeEventListener("focus", front);
+      window.removeEventListener("blur", behind);
+      document.removeEventListener("visibilitychange", look);
+      document.removeEventListener("racingdesk:page", look);
     };
   }, []);
 
@@ -658,6 +754,7 @@ export default function App() {
           onSelect={selectCar}
           empty={noCars.list}
           kept={kept}
+          lastDriven={lastDriven}
           groups={groups}
           selectedGroup={editing ? null : selectedGroup}
           onSelectGroup={selectGroup}
@@ -671,17 +768,7 @@ export default function App() {
           }
         />
 
-        <div className="main">
-          <RepoPanel
-            repo={repo}
-            busy={busy}
-            checking={checking}
-            autoUpdate={autoUpdate}
-            onAutoUpdate={setAutoUpdate}
-            onCheck={() => void checkForUpdates()}
-            onUpdate={() => void updateLibrary()}
-          />
-
+        <div className="main" ref={pane}>
           {editing ? (
             <GroupEditor
               key={editing.group?.id ?? "new"}
@@ -734,7 +821,32 @@ export default function App() {
                   )}
                   {car.driven > 0 &&
                     ` · driven in ${car.driven} session${car.driven === 1 ? "" : "s"}`}
+                  {notOnDisk(car) && " · not installed"}
                 </div>
+              </div>
+
+              {/* The car as it is driven, under its name and above its liveries: side by side, and in sight
+                  without scrolling whatever the car has to wear. */}
+              <div className="car-rig">
+                <CarViewPanel
+                  here={rig.here}
+                  rig={rig.rig}
+                  view={rig.rig?.views?.get(carKey) ?? null}
+                  lastDriven={lastDriven.get(carKey) ?? null}
+                />
+                {/* Keyed by the car: where the keyboard was while one car's pedals were saved is not
+                    another's. */}
+                <CarPedalsPanel
+                  key={car.folder}
+                  here={rig.here}
+                  rig={rig.rig}
+                  carName={carName}
+                  carPath={rig.rig?.paths.get(carKey) ?? null}
+                  bound={rig.rig?.pedals?.cars.get(carKey) ?? null}
+                  saving={rig.saving.get(carKey)}
+                  note={rig.notes.get(carKey) ?? null}
+                  onBind={(path, profileId) => void rig.bind(path, profileId)}
+                />
               </div>
 
               {refused?.what === "version" && refused.carFolder === car.folder && (
@@ -769,6 +881,16 @@ export default function App() {
                   )}
                   <ApplyOptionsPanel options={options} onOptions={setOptions} />
                 </>
+              ) : notOnDisk(car) ? (
+                // Nothing here needs the car on disk, so nothing is offered that does: no place for a
+                // livery, nothing installed, no backup to put back.
+                <div className="panel not-on-disk">
+                  <h3>Not installed</h3>
+                  <div>
+                    This car is not on the rig now: it was not found in the iRacing install, the paint
+                    folder or the library. Its view and its pedals are kept from when you drove it.
+                  </div>
+                </div>
               ) : libraryRoot ? (
                 <div className="panel no-livery">
                   <h3>No livery yet</h3>
@@ -788,103 +910,97 @@ export default function App() {
                 </div>
               )}
 
-              {/* The car as it is driven, after the car as it is painted. */}
-              <CarViewPanel
-                here={rig.here}
-                rig={rig.rig}
-                view={rig.rig?.views?.get(carKey) ?? null}
-                lastDriven={lastDriven.get(carKey) ?? null}
-              />
-              {/* Keyed by the car: where the keyboard was while one car's pedals were saved is not
-                  another's. */}
-              <CarPedalsPanel
-                key={car.folder}
-                here={rig.here}
-                rig={rig.rig}
-                carName={carName}
-                carPath={rig.rig?.paths.get(carKey) ?? null}
-                bound={rig.rig?.pedals?.cars.get(carKey) ?? null}
-                saving={rig.saving.get(carKey)}
-                note={rig.notes.get(carKey) ?? null}
-                onBind={(path, profileId) => void rig.bind(path, profileId)}
-              />
-
-              <div className="panel">
-                <h3>Installed in the sim</h3>
-                {!installed?.folderExists ? (
-                  <div className="note">
-                    {car.simFolder || !idValid
-                      ? "Nothing to read yet."
-                      : car.installPath
-                        ? "This car has no folder in the paint directory yet. Applying a livery makes it; so does the sim, the first time you drive the car."
-                        : "This car has no folder in the paint directory yet. The sim creates it the first time you drive the car."}
-                  </div>
-                ) : installed.files.length === 0 ? (
-                  <div className="note">
-                    No files for customer {customerId} in {installed.simFolder}.
-                  </div>
-                ) : (
-                  <div className="rows">
-                    {installed.files.map((f) => (
-                      <div className="row-line" key={f.path}>
-                        <span className="grow mono">{f.fileName}</span>
-                        <span className="note">{f.roleLabel}</span>
-                        {f.readOnly && <span className="badge likely">read-only</span>}
+              {!notOnDisk(car) && (
+                <>
+                  <div className="panel">
+                    <h3>Installed in the sim</h3>
+                    {!installed?.folderExists ? (
+                      <div className="note">
+                        {car.simFolder || !idValid
+                          ? "Nothing to read yet."
+                          : car.installPath
+                            ? "This car has no folder in the paint directory yet. Applying a livery makes it; so does the sim, the first time you drive the car."
+                            : "This car has no folder in the paint directory yet. The sim creates it the first time you drive the car."}
                       </div>
-                    ))}
-                    <div className="row-line">
-                      <span className="grow note">
-                        {installed.cooked.length} cooked .mip file(s) for this customer
-                        {installed.cookedOtherDrivers > 0 &&
-                          `, ${installed.cookedOtherDrivers} belonging to other drivers`}
-                      </span>
-                      <button
-                        onClick={() =>
-                          installed.files[0] &&
-                          reveal(installed.files[0].path).catch(() => {})
-                        }
-                      >
-                        Show in Explorer
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="panel">
-                <h3>Backups</h3>
-                {backups.length === 0 ? (
-                  <div className="note">
-                    Nothing backed up for this car yet. One is taken before every apply.
-                  </div>
-                ) : (
-                  <div className="rows">
-                    {backups.slice(0, 8).map((b, i) => (
-                      <div className="row-line" key={b.id}>
-                        <span className="grow">
-                          <span className="mono">{b.id}</span>{" "}
-                          <span className="note">
-                            — {b.reason}, {b.fileCount} file(s)
+                    ) : installed.files.length === 0 ? (
+                      <div className="note">
+                        No files for customer {customerId} in {installed.simFolder}.
+                      </div>
+                    ) : (
+                      <div className="rows">
+                        {installed.files.map((f) => (
+                          <div className="row-line" key={f.path}>
+                            <span className="grow mono">{f.fileName}</span>
+                            <span className="note">{f.roleLabel}</span>
+                            {f.readOnly && <span className="badge likely">read-only</span>}
+                          </div>
+                        ))}
+                        <div className="row-line">
+                          <span className="grow note">
+                            {installed.cooked.length} cooked .mip file(s) for this customer
+                            {installed.cookedOtherDrivers > 0 &&
+                              `, ${installed.cookedOtherDrivers} belonging to other drivers`}
                           </span>
-                        </span>
-                        <button
-                          className={i === 0 ? "danger" : ""}
-                          disabled={busy || !car.simFolder}
-                          onClick={() => void doRevert(b.id)}
-                        >
-                          {i === 0 ? "Revert to this" : "Restore"}
-                        </button>
+                          <button
+                            onClick={() =>
+                              installed.files[0] &&
+                              reveal(installed.files[0].path).catch(() => {})
+                            }
+                          >
+                            Show in Explorer
+                          </button>
+                        </div>
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
+
+                  <div className="panel">
+                    <h3>Backups</h3>
+                    {backups.length === 0 ? (
+                      <div className="note">
+                        Nothing backed up for this car yet. One is taken before every apply.
+                      </div>
+                    ) : (
+                      <div className="rows">
+                        {backups.slice(0, 8).map((b, i) => (
+                          <div className="row-line" key={b.id}>
+                            <span className="grow">
+                              <span className="mono">{b.id}</span>{" "}
+                              <span className="note">
+                                — {b.reason}, {b.fileCount} file(s)
+                              </span>
+                            </span>
+                            <button
+                              className={i === 0 ? "danger" : ""}
+                              disabled={busy || !car.simFolder}
+                              onClick={() => void doRevert(b.id)}
+                            >
+                              {i === 0 ? "Revert to this" : "Restore"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               <TradingPaintsPanel tp={tp} />
             </>
           ) : (
             <div className="empty">{noCars.page}</div>
           )}
+
+          {/* The library's own housekeeping, under whatever the page is about. */}
+          <RepoPanel
+            repo={repo}
+            busy={busy}
+            checking={checking}
+            autoUpdate={autoUpdate}
+            onAutoUpdate={setAutoUpdate}
+            onCheck={() => void checkForUpdates()}
+            onUpdate={() => void updateLibrary()}
+          />
 
           {/* Whether or not there is a car to show: what went wrong reading the cars is said here. */}
           {log.length > 0 && (

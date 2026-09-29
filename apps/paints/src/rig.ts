@@ -43,20 +43,36 @@ export interface LiveKey {
   keys: string[];
 }
 
+/// Who gave a car its profile: the driver's rule, the driver on this page, or — "none" — the driver's choice that
+/// the car has no profile of its own, which the rule then leaves alone.
+export type GivenBy = "rule" | "driver" | "none";
+
 /// What the host keeps of a car's pedals. `profileId` is null for a car with no profile of its own, of which
-/// the host may still know the brake force it was last driven with.
+/// the host may still know the brake force it was last driven with, and whether it has ABS.
 export interface CarPedals {
   carPath: string;
   profileId: string | null;
   profileName: string | null;
+  /// The force the car was last driven with, set with SmartControl Live's keys. Null when none is known, and
+  /// the profile's own then stands.
   brakeForceKg: number | null;
+  /// When that force was set.
+  forceAt: string | null;
   /// How the profile stands in SmartControl since the car was given it: same, changed, gone or unknown.
   profileNow: string | null;
+  /// Null while too little has been driven to say, and from a host that does not say.
+  hasAbs: boolean | null;
+  givenBy: GivenBy | null;
+  /// What the rule went by: "ABS", "no ABS", "a formula car".
+  givenWhy: string | null;
 }
 
 export interface Pedals {
   /// Whether SmartControl is on this rig at all.
   found: boolean;
+  /// Whether this host says who gave a car its profile and what a car without one is waiting for. One from
+  /// before it did says none of it, and neither does the page then.
+  told: boolean;
   profiles: Profile[];
   keys: LiveKey[];
   cars: Map<string, CarPedals>;
@@ -126,13 +142,39 @@ function brakeOf(v: unknown): Brake | null {
   };
 }
 
+/// The keys a host sends once it keeps more of a car's pedals than its profile. They are sent with every row,
+/// as nulls where nothing is known, so that one of them is there says the host is one that tells.
+const FACTS = ["force_at", "has_abs", "given_by", "given_why"];
+const tells = (row: Row): boolean => FACTS.some((key) => key in row);
+
+const givenBy = (v: unknown): GivenBy | null => (v === "rule" || v === "driver" || v === "none" ? v : null);
+
 function pedalsOf(row: Row & { car_path: string }): CarPedals {
   return {
     carPath: row.car_path,
     profileId: text(row.profile_id),
     profileName: text(row.profile_name),
     brakeForceKg: num(row.brake_force_kg),
+    forceAt: text(row.force_at),
     profileNow: text(row.profile_now),
+    hasAbs: typeof row.has_abs === "boolean" ? row.has_abs : null,
+    givenBy: givenBy(row.given_by),
+    givenWhy: text(row.given_why),
+  };
+}
+
+/// A car with no profile by the driver's own choice, keeping what else is known of it (`had`).
+export function withoutProfile(carPath: string, had: CarPedals | undefined): CarPedals {
+  return {
+    carPath,
+    profileId: null,
+    profileName: null,
+    brakeForceKg: had?.brakeForceKg ?? null,
+    forceAt: had?.forceAt ?? null,
+    profileNow: null,
+    hasAbs: had?.hasAbs ?? null,
+    givenBy: "none",
+    givenWhy: null,
   };
 }
 
@@ -169,10 +211,12 @@ export function readRig(read: unknown): Rig {
   const smartControl = isRow(pedals.value) ? pedals.value.smartcontrol : undefined;
   if (isRow(pedals.value) && isRow(smartControl)) {
     const found = smartControl.found === true;
-    // The cars given a profile, then those the host knows something of all the same — a brake force set by key.
+    // The cars given a profile, then those the host knows something of all the same — a brake force set by key,
+    // whether they have ABS.
     const known = [...rows(pedals.value.cars), ...rows(pedals.value.without_profile)].filter(isCarRow);
     out.pedals = {
       found,
+      told: Array.isArray(pedals.value.without_profile) || known.some(tells),
       profiles: rows(smartControl.profiles).flatMap((p) => {
         const id = text(p.id);
         return id === null ? [] : [{ id, name: text(p.name) ?? id, brake: brakeOf(p.brake) }];

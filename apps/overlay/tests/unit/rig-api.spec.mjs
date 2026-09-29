@@ -7,10 +7,13 @@
  *
  * And what the page reads, asked from the same place: GET cars, views and pedals, each answered { value },
  * { missing } or { error }, from a host on this machine and no other.
+ *
+ * And who may ask either: main.js, read as text, answers the desk window alone.
  */
 
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'module';
+import { readFileSync } from 'node:fs';
 import http from 'node:http';
 
 const require = createRequire(import.meta.url);
@@ -384,4 +387,53 @@ test('no host, a slow host, a send that throws: every route says so, and nothing
   const thrown = createRigApi({ host: 'http://localhost:8889', send: () => { throw new Error('thrown before any promise'); } });
   const why = { error: 'The host at http://localhost:8889 could not be asked: thrown before any promise' };
   expect(await thrown.read()).toEqual({ cars: why, views: why, pedals: why });
+});
+
+// ── Who may ask ──
+// main.js cannot be loaded without Electron, so it is read as text and held to this: rig:read and rig:bindPedals
+// answer the desk window and no other. The HUD's window shares the preload, and so has the same two calls to make;
+// the page on an iPad is served the HUD's scripts. Neither has any business with what a car is driven with.
+
+const MAIN = readFileSync(new URL('../../main.js', import.meta.url), 'utf8');
+
+// What a handler does, statement by statement: the lines of ipcMain.handle('<channel>', …)'s body, without the
+// comments and the blank ones. `takes` is what it is handed.
+function handlerOf(channel) {
+  const registered = MAIN.split(`ipcMain.handle('${channel}',`);
+  expect(registered, `${channel} is handled once`).toHaveLength(2);
+  const opening = /^\s*async \(([^)]*)\) => \{\r?\n/.exec(registered[1]);
+  expect(opening, `${channel} is handled by a function written out where it is registered`).not.toBeNull();
+  const body = registered[1].slice(opening[0].length).split(/\r?\n\}\);/)[0];
+  const does = body.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length && !line.startsWith('//'));
+  return { takes: opening[1].split(',').map((name) => name.trim()), does };
+}
+
+test('main.js answers rig:read and rig:bindPedals to the desk window and no other', () => {
+  // The desk window is the one whose page is asking: the sender itself, not a name or an address it gives.
+  const fromDesk = /\bconst fromDesk = \(event\) => ([^;\n]+);/.exec(MAIN);
+  expect(fromDesk, 'fromDesk is one expression over the event').not.toBeNull();
+  expect(fromDesk[1]).toContain('event.sender === deskWindow.webContents');
+  expect(fromDesk[1]).toContain('!deskWindow.isDestroyed()');
+  expect(fromDesk[1]).not.toContain('||');
+  expect(MAIN.match(/\bfromDesk\s*=/g)).toHaveLength(1);   // and it is not made to mean something else later
+
+  const turnedAway = { 'rig:read': 'rigApi.unread(RIG_NOT_DESK)', 'rig:bindPedals': '{ ok: false, error: RIG_NOT_DESK }' };
+  for (const [channel, answer] of Object.entries(turnedAway)) {
+    const { takes, does } = handlerOf(channel);
+    expect(takes[0], channel).toBe('event');
+    // Anybody else is turned away first, with an answer the page could read and nothing of the host's in it.
+    expect(does[0], channel).toBe(`if (!fromDesk(event)) return ${answer};`);
+    // Only after that is the host asked, and nowhere else in the handler.
+    const asks = does.map((line, i) => (/\brig\.\w+\(/.test(line) ? i : -1)).filter((i) => i >= 0);
+    expect(asks, channel).toHaveLength(1);
+    expect(asks[0], channel).toBeGreaterThan(0);
+  }
+
+  // Nothing else in main.js asks on the page's behalf: the two calls are made in those two handlers.
+  expect(MAIN.match(/\brig\.read\(/g)).toHaveLength(1);
+  expect(MAIN.match(/\brig\.bindPedals\(/g)).toHaveLength(1);
+  expect(handlerOf('rig:read').does.some((line) => line.includes('rig.read('))).toBe(true);
+  expect(handlerOf('rig:bindPedals').does.some((line) => line.includes('rig.bindPedals('))).toBe(true);
+  // What is said to anybody else is words, as unread() and bindPedals' refusals are.
+  expect(MAIN).toMatch(/\bconst RIG_NOT_DESK = '[^']+';/);
 });

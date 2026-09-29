@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorText } from "./api";
 import { deskRig } from "./bridge";
-import { boundRow, carKey, readRig, type Rig } from "./rig";
+import { boundRow, carKey, readRig, withoutProfile, type Rig } from "./rig";
 
 /// How the last change to a car's pedals went, said beside its profile.
 export interface PedalNote {
@@ -25,29 +25,40 @@ const isRow = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
 /// What the host keeps per car, read through the app: when the page is mounted, each time the desk shows it
-/// again, and when either Refresh is pressed (the desk's says so with `racingdesk:refresh`). Each answer is
-/// numbered, as the list of cars is: what is shown is the last one asked for, not the last to arrive.
+/// again, and when the desk says to (`racingdesk:refresh`: its Refresh, the host found after none was, the store
+/// with something new) or the page's own Refresh is pressed. Each answer is numbered, as the list of cars is:
+/// what is shown is the last one asked for, not the last to arrive.
 export function useRig(): RigState {
   const [rig, setRig] = useState<Rig | null>(null);
   const [saving, setSaving] = useState<ReadonlyMap<string, string | null>>(new Map());
   const [notes, setNotes] = useState<ReadonlyMap<string, PedalNote>>(new Map());
   const asked = useRef(0);
+  /// The read that is on its way, and its number.
+  const reading = useRef<{ mine: number; done: Promise<void> } | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback((): Promise<void> => {
     const bridge = deskRig();
-    if (!bridge) return;
+    if (!bridge) return Promise.resolve();
+    // Asked for twice in one breath — the desk shows the page again and says there is something new — it is
+    // read once: the read on its way is the latest there is.
+    if (reading.current?.mine === asked.current) return reading.current.done;
     const mine = ++asked.current;
-    let answer: unknown;
-    try {
-      answer = await bridge.read();
-    } catch (e) {
-      // The app never rejects; if a bridge ever does, that is why nothing could be read.
-      const error = errorText(e);
-      answer = { cars: { error }, views: { error }, pedals: { error } };
-    }
-    if (mine !== asked.current) return;
-    setNotes(new Map());
-    setRig(readRig(answer));
+    const done = (async () => {
+      let answer: unknown;
+      try {
+        answer = await bridge.read();
+      } catch (e) {
+        // The app never rejects; if a bridge ever does, that is why nothing could be read.
+        const error = errorText(e);
+        answer = { cars: { error }, views: { error }, pedals: { error } };
+      }
+      if (reading.current?.mine === mine) reading.current = null;
+      if (mine !== asked.current) return;
+      setNotes(new Map());
+      setRig(readRig(answer));
+    })();
+    reading.current = { mine, done };
+    return done;
   }, []);
 
   useEffect(() => {
@@ -92,9 +103,11 @@ export function useRig(): RigState {
         const cars = new Map(current.pedals.cars);
         const had = cars.get(key);
         if (row) cars.set(key, row);
-        // With its profile taken away, the force the car was driven with is still the host's to show.
-        else if (had && had.brakeForceKg !== null) {
-          cars.set(key, { ...had, profileId: null, profileName: null, profileNow: null });
+        // With its profile taken away, the force the car was driven with is still the host's to show, and the
+        // host has it down as the driver's choice that the car has none.
+        else if (current.pedals.told || (had && had.brakeForceKg !== null)) {
+          const bare = withoutProfile(carPath, had);
+          cars.set(key, current.pedals.told ? bare : { ...bare, givenBy: null });
         } else cars.delete(key);
         const paths = current.paths.has(key) ? current.paths : new Map(current.paths).set(key, carPath);
         return { ...current, paths, pedals: { ...current.pedals, cars } };

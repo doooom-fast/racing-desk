@@ -170,9 +170,27 @@ screen and a replay are out of the car; or, from a source that sends no such key
 (`Grid.SessionState` > 0), which counts them as in. The SimHub plugin sends the key once it has been installed
 again from this build; until then, beside SimHub, the HUD is on screen in the garage.
 The page on an iPad or in a browser has no main process behind it and asks the same function for itself; so does
-`npm run record -- --only-in-car`. Ctrl+Shift+H, the tray's "HUD on/off" (ticked while it is on) and the Stream
-Deck's button are the driver's switch, kept until the app is quit: off stays off when he gets in, on shows nothing
-while he is out. In dev mode the window stays as `dev-mode.js` put it.
+`npm run record -- --only-in-car`. The driver's switch is kept until the app is quit: off stays off when he gets
+in, on shows nothing while he is out. The tray's "HUD on/off" (ticked while it is on) throws it anywhere;
+Ctrl+Shift+H and the Stream Deck's button only where what they do is seen — in the car, the page loaded — and
+anywhere else leave the switch as it was and answer `{ ok: false, reason: 'out of the car' }` (pressed at the
+desktop they used to switch the HUD off unseen, and there was none when he got in). The Stream Deck's button shows
+its tick all the same: it goes by the answer's status, not by what the answer says. When the main process says he
+is back in the car the page starts clean — no backoff left from a break in the telemetry, and one poll at once
+(`startConnectionClean` in `game-detect.js`). A page whose process has gone is loaded again by `hud-visibility.js`:
+two seconds later, for every reason but a clean exit, three times at most without a load finishing; and after
+that, or after a load that failed, once more each time he gets in the car. In dev mode the window stays as
+`dev-mode.js` put it. `tests/unit/hud-main-wiring.spec.mjs` reads `main.js` and holds it to this: the window made
+with `show: false`, nothing in `main.js` showing or hiding it, the switches going through `hud.toggle`.
+**A limit:** beside SimHub the HUD reads SimHub's plugin on `:8889`; if SimHub goes in mid-session the HUD is
+hidden, though the app's own host on `:18889` has the same telemetry. There is no falling back to it.
+
+**The main process's log** (`logToFile` in `main.js`, `modules/js/app-log.js`, `tests/unit/hud-log.spec.mjs`): in
+the built app `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside `host.log` — it was written beside `main.js`, which
+in the built app is inside `app.asar`, so nothing was kept; from source it is still
+`apps/overlay/racing-desk-debug.log`. Past 4 MB the file becomes `overlay.log.1`, in place of the one before, and a
+new one is begun. A line that cannot be written is dropped — a failure to log is never a failure of the app — and
+no line carries a customer id (the digits in a paint file's name are taken out) or the name of a key he pressed.
 
 The desk window has three pages — **Desk**, **Cars** and **Settings** — switched from the masthead nav, the
 tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js` `showPage`). Paints was a page of its own until
@@ -215,9 +233,28 @@ set Auto-Lock to Never.
 **Cars** is the one list of cars and the one place to look at a car: its liveries, the view it is driven with, its
 pedals. The list is on the left — every car the rig knows, by the sim's name for it, cars with a livery first, a
 filter over all of them, the livery groups above — and a car that has a view or pedals kept says so in its row
-(`view`, `pedals`), so the cars that have been set up can be found among the rest. The car chosen is on the right,
-in this order: its versions and "When a livery is applied"; **View**; **Pedals**; then what is on disk for it
-(installed in the sim, backups, Trading Paints). One UI source, `apps/paints/src` (React), bundled for the desk by
+(`view`, `pedals`), so the cars that have been set up can be found among the rest. The car on the page is on the
+right, in this order: its name; **View** and **Pedals**, side by side (`.car-rig`); its versions and "When a livery
+is applied"; what is on disk for it (installed in the sim, backups); Trading Paints; and last the library's own
+housekeeping, Library source. The view and the pedals are what the page is opened for after a drive, so they are in
+sight without scrolling in the desk's smallest window (1024 × 680 outside, about 1008 × 641 inside) for every car,
+with the liveries beginning under them, and choosing another car puts the pane at its top — both held by desk
+tests. A strip under the name and not a column beside the liveries: at that width a column leaves the cards one
+abreast, and is itself too narrow to hold both panels in the height there is.
+- **The car driven last is the one the page opens on**, and follows — the desk hands over the dates at its start
+  and whenever the store has something new — until he chooses a car in the list; a car he chose is never replaced.
+  Before any date has arrived it is the first car with a livery.
+- **Driven**, a button beside the filter that says whether it is pressed, narrows the list to the cars he has
+  driven, the last driven first, each row saying when. One click, kept while the page is open. That list is one
+  group, "Driven", not the two: newest first is an order across every car driven. Off, the list is as it was.
+- **What the page asks for while nobody is looking is nothing.** It stays mounted through a race, in the process
+  the HUD answers to. The guards (`simStatus`, `tradingPaintsStatus`: a `tasklist` each) are looked at every 8 s
+  only while the desk window has the focus and the page is showing, and at once when it gets it. The library's git
+  remote is asked once per library, and not before a car with a livery, or a group, has been on the page for a
+  second with the window in front; Check asks whenever he does. An apply checks for itself before it writes
+  (`paints/apply.js`), whatever the chips last said.
+
+One UI source, `apps/paints/src` (React), bundled for the desk by
 `apps/paints/build-island.mjs` into `modules/desk/paints.bundle.js` + `.css` (generated, like the calc bundle) and
 mounted into `#cars-root` the first time the page is shown (`desk.js` `mountCars`). The page fetches nothing: every
 call goes through `apps/paints/src/bridge.ts` to the preload bridge, and the main process does the asking. In a
@@ -245,22 +282,38 @@ profile the car is driven with, chosen from a select, with that profile's brake 
 the profile has been edited or deleted in SmartControl since, and the brake force kept for the car — and
 SmartControl Live's keys at the foot. Nothing on the page changes iRacing or the pedals. Seat offsets are signed
 millimetres and the page does not say which way is forward — that has not been verified.
+- **What the store knows of a car's pedals beside its profile** (`car_pedal_facts`, above; `force_at`, `has_abs`,
+  `given_by`, `given_why` on every row of `pedals`, and the rows of `without_profile`) is said in plain words
+  (`components/CarPedals.tsx`). Under the profile, who gave it and why: "From LightBrake — given by the rule: it
+  has ABS." (or no ABS, or a formula car), "You chose this.", "You chose that this car has none."; for a car with
+  no profile yet, what is waited for: "No profile yet: not driven enough yet to say whether it has ABS.", or, once
+  that is known, that the rule gives it one when it is next driven — or has no `LightBrake` or `Default` in
+  SmartControl to give from. Beside the profile's brake, the force and when it was set: "brake force 62 kg in this
+  car, set Tue, Sep 15, 5:40 PM". A host from before it sent any of this shows as it did: no sentence, no date.
+  Taking a profile away leaves the force on the page.
 - **Read through main.** `window.racingDesk.rig.read()` → `rig:read` (the desk window only) →
   `modules/js/rig-api.js`, which GETs `cars`, `views` and `pedals` from Node with a 3 s limit each, only from a
   host on this machine, and answers `{ cars, views, pedals }`, each `{ value }`, `{ missing: true }` (a 404: a host
   from before the route, and the page says the host is older) or `{ error }` in words — never a rejection, and
   one failing does not take the others with it. `apps/paints/src/rig.ts` shapes the answers and trusts none of
-  them. Read when the page is mounted, each time it is shown again, on either Refresh (the masthead's says so with
-  the `racingdesk:refresh` event), and when the desk finds the host after finding none — not at desk start.
+  them. Read when the page is mounted and each time it is shown again — not at desk start.
+- **Read again, the list of cars with it, when the desk says so** (`racingdesk:refresh`, `desk.js` `refreshCars`):
+  the masthead's Refresh, which does for this page what the page's own does; the desk finding the host after finding none,
+  which is how cars listed by folder while the host was starting get their names; and the store having something
+  new — the desk asks the host how it stands every 30 s (`pollStatus`), and another session is a drive, so the car
+  just driven is there to be looked at when he comes back. Said while another page is up, it is owed, and said
+  when Cars is next shown.
 - **One write**, through main because the host refuses a request that names an origin:
   `window.racingDesk.rig.bindPedals(carPath, profileId | null)` → `rig:bindPedals` → `rig-api.js`, which POSTs
   and answers `{ ok: true, car }` or `{ ok: false, error }`. The car is named by the store's own `car_path`, which
   `cars` gives; a car the store has never had in a session has none, and its select is off and says why.
+  `tests/unit/rig-api.spec.mjs` reads `main.js` as text and holds both handlers to answering the desk window alone.
 - **Which car a row is about** is the list's own rule: the sim's car path with `-`, `_` and case folded away
   (`rig.ts` `carKey`, as `paints/library.js` `normalise`), so the library's `mx5-mx52016` has the view kept for
   `mx5 mx52016`.
 - **Last driven** is the desk's to say: `desk.js` works it out from the session rows it has read for the Desk page
-  and hands it to the island (`RacingDeskPaints.setLastDriven`).
+  and hands it to the island (`RacingDeskPaints.setLastDriven`), each time it reads them. It is what the page
+  opens on and what Driven is ordered by, as well as what a car's View says.
 - **With no library** the list is still there in the desk — the install's cars and the paint folder's — once one
   has been looked for and not found, so a car's view and pedals do not wait on there being a livery anywhere.
 
@@ -278,7 +331,8 @@ The list is every car the rig knows, by the sim's name for it — cars with a li
 filter over both — and a car with no livery still shows what is installed for it and its backups. It is the
 `carCatalogue` command (`modules/js/paints/catalogue.js`; the desk's own — the Rust has none, so the Tauri shell lists
 the library by folder name): the library's cars, the cars in the iRacing install and the folders of the paint
-directory that are cars, merged on the sim's car path. That path is the car's folder under `<install>\cars` with the
+directory that are cars, merged on the sim's car path, and the cars he has driven that are in none of the three.
+That path is the car's folder under `<install>\cars` with the
 folders joined by spaces — `cars\mx5\mx52016` is `mx5 mx52016`, and they go three deep (`dirtsprint winged 410`) — and
 is also the name of its paint folder and the store's `car_path`; `-`, `_` and case fold away, so the library's
 `mx5-mx52016` is the same car.
@@ -290,6 +344,11 @@ is also the name of its paint folder and the store's `car_path`; `-`, `_` and ca
 - **A car in the paint directory** is a folder the install has, or one holding `car_*.tga` / `car_*.mip` itself — and
   never `helmets`, `suits` or `cars`, where Trading Paints leaves `car_spec_*.mip` files too, nor the folder the
   library is in, whatever is lying at the top of a checkout.
+- **A car he has driven that is nowhere on disk** — uninstalled since, or the install not found — is listed from
+  the store's row for it (`driven` > 0), under the store's own path, not installed, with no paint folder: its view
+  and pedals are kept, and were out of reach. The page says "Not installed" and offers nothing that needs the car
+  on disk — nowhere for a livery, nothing installed, no backups, nothing read from the paint folder for it; its
+  pedals can still be given a profile, which is the store's. A car only ever seen in a session is not listed.
 - **Names** come from the local store through the host, `GET /racing-desk/data/cars` →
   `[{ car_path, name, short_name, car_id, driven, seen }]` (`modules/js/paints/car-names.js`: 3 s, a good answer kept
   for a minute, an empty list on any failure, one request however many callers are waiting). A car that has never

@@ -1,8 +1,9 @@
 /**
  * Every car the rig knows: finding the iRacing install (set by hand, the iracing:// registration from a faked
  * `reg query`, the usual places), walking its cars folder into car paths, and merging the library, the install and
- * the paint directory into one named list — over a temp install, a temp paint directory and a temp library. Nothing
- * here reads the real install, the real registry or the real paint folder.
+ * the paint directory into one named list, with the cars the store says were driven that are in none of them —
+ * over a temp install, a temp paint directory and a temp library. Nothing here reads the real install, the real
+ * registry or the real paint folder.
  */
 
 import { test, expect } from '@playwright/test';
@@ -394,9 +395,48 @@ test.describe('catalogue', () => {
     for (const names of [undefined, null, 'nope', {}]) expect(list({ names }).every((c) => c.name === null)).toBe(true);
   });
 
+  test('a car he has driven that is nowhere on disk is listed, as not installed', () => {
+    // Driven, and since uninstalled; driven under a spelling of its own; only ever seen; and one that is on disk.
+    const names = [
+      ...NAMES,
+      { car_path: 'porsche992cup', name: 'Porsche 911 GT3 Cup (992)', short_name: '911 Cup', car_id: 143, driven: 12, seen: 40 },
+      { car_path: ' Dirtsprint_Winged-410 ', name: 'Dirt Sprint Car - 410', short_name: 'Sprint 410', car_id: 80, driven: 1, seen: 1 },
+      { car_path: 'audir8lms', name: 'Audi R8 LMS', short_name: 'R8 LMS', car_id: 73, driven: 0, seen: 210 },
+      { car_path: 'unnamed', name: null, short_name: null, car_id: 0, driven: 2, seen: 2 },
+    ];
+    const cars = list({ names });
+    expect(find(cars, 'porsche992cup')).toEqual({
+      folder: 'porsche992cup', simFolder: null, simFolderInferred: false, versions: [],
+      name: 'Porsche 911 GT3 Cup (992)', shortName: '911 Cup', installed: false, installPath: null, driven: 12,
+    });
+    // Listed by the store's own path for it, which is what its view and pedals are kept against.
+    expect(find(cars, 'Dirtsprint_Winged-410')).toMatchObject({ name: 'Dirt Sprint Car - 410', installed: false, simFolder: null, driven: 1 });
+    expect(find(cars, 'unnamed')).toMatchObject({ name: null, installed: false, driven: 2 });
+    expect(find(cars, 'audir8lms')).toBeUndefined();
+    expect(find(cars, 'ferrari296gt3')).toBeUndefined();
+    // The cars that are on disk are as they were, once each.
+    expect(cars).toHaveLength(list().length + 3);
+    expect(cars.filter((c) => library.normalise(c.simFolder || c.folder) === 'mx5 mx52016')).toHaveLength(1);
+    expect(find(cars, 'lotus79')).toEqual(find(list(), 'lotus79'));
+    // In its place by name, like any other.
+    expect(cars.map((c) => c.name || c.folder)).toEqual([...cars.map((c) => c.name || c.folder)].sort((a, b) => {
+      const [x, y] = [a.toLowerCase(), b.toLowerCase()];
+      return x < y ? -1 : x > y ? 1 : 0;
+    }));
+  });
+
+  test('with no install to be found, the cars he has driven are listed all the same', () => {
+    const cars = catalogue.catalogue({ library: null, paintDir: null, installRoot: null, names: NAMES });
+    expect(cars.map((c) => [c.folder, c.name, c.installed, c.simFolder, c.driven])).toEqual([
+      ['lotus79', 'Lotus 79', false, null, 41], ['mx5 mx52016', 'Mazda MX-5 Cup', false, null, 668],
+    ]);
+    for (const car of cars) expect(car).toMatchObject({ versions: [], installPath: null, simFolderInferred: false });
+  });
+
   test('nothing to go on is an empty list', () => {
     expect(catalogue.catalogue()).toEqual([]);
-    expect(catalogue.catalogue({ library: null, paintDir: path.join(root, 'no-paint'), installRoot: path.join(root, 'no-install'), names: NAMES })).toEqual([]);
+    const seen = NAMES.map((row) => ({ ...row, driven: 0 }));   // a store that has met cars, and driven none
+    expect(catalogue.catalogue({ library: null, paintDir: path.join(root, 'no-paint'), installRoot: path.join(root, 'no-install'), names: seen })).toEqual([]);
     expect(catalogue.catalogue({ library: { root: 'x', cars: [], notes: [] } })).toEqual([]);
   });
 });

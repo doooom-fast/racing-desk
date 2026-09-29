@@ -1,7 +1,8 @@
 // Every car the rig knows, for the Cars page's list: the library's cars, the cars in the iRacing install and
 // the cars with a folder in the sim's paint directory, merged into one list keyed on the sim's car path, each with
-// its full name where the local store has one. There was no Rust for this — the Tauri shell lists the library and
-// nothing else.
+// its full name where the local store has one — and the cars the driver has driven that are in none of the three,
+// which the store still keeps a view and pedals for. There was no Rust for this — the Tauri shell lists the library
+// and nothing else.
 //
 // The sim's car path is the car's folder under <install>\cars with the folders joined by spaces: cars\lotus79 is
 // `lotus79`, cars\mx5\mx52016 is `mx5 mx52016`, cars\dirtsprint\winged\410 is `dirtsprint winged 410`. It is also
@@ -173,6 +174,11 @@ function text(v) {
 // A library car is kept exactly as the library described it. A folder in the paint directory is a car when the
 // install has it or it holds car_*.tga / car_*.mip files itself, which leaves out helmets and suits by name
 // (NOT_CARS), and the folder the library is in — a checkout in the paint directory — whatever is lying in it.
+//
+// A car the driver has driven (driven > 0) that is in none of the three — uninstalled since, or the install was
+// not found — is listed too, under the store's own path for it: not installed, no paint folder, no versions. What
+// the store kept while it was driven is still there to be looked at. One only seen in a session is not: there is
+// nothing kept for it.
 function catalogue({ library = null, paintDir = null, installRoot: root = null, names = [] } = {}) {
   const named = new Map();
   for (const row of Array.isArray(names) ? names : []) {
@@ -245,6 +251,9 @@ function catalogue({ library = null, paintDir = null, installRoot: root = null, 
     if (listed.has(key) || NOT_CARS.includes(key)) continue;
     const dir = path.join(paintDir, folder);
     if (!holdsLibrary(dir) && holdsCarFiles(dir)) add(key, folder);
+  }
+  for (const [key, row] of named) {
+    if (describe(key).driven > 0) add(key, row.car_path.trim());
   }
 
   const label = (car) => (car.name || car.folder).toLowerCase();

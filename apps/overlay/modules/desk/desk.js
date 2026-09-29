@@ -96,8 +96,10 @@
     raceLinks = await loadRaceLinks();
     render();
     $('freshness').textContent = `${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)} · ${ms} ms`;
-    // A Cars page that found no host — the desk can be up before the host is — asks again now that there is
-    // one, and so does one that is up when the store has something new.
+    // A Cars page that found no host — the desk can be up before the host is — reads again now that there is
+    // one, its list of cars as well as their views and pedals: the cars have no names until the host gives
+    // them. And so does one that is up when the store has something new, which is how a car just driven is
+    // there to be looked at.
     if ((readBefore || wasOffline) && refreshed !== true) refreshCars();
     readBefore = true;
     wasOffline = false;
@@ -501,7 +503,10 @@
     if (location.hash !== '#' + page) {
       try { history.replaceState(null, '', '#' + page); } catch (_) { location.hash = page; }
     }
-    if (page === 'cars') mountCars();
+    if (page === 'cars') {
+      mountCars();
+      if (carsOwed) refreshCars();
+    }
     if (page === 'settings') renderSettings();
   }
 
@@ -515,10 +520,13 @@
   // the page says so instead.
   //
   // Two things are said to the island from here. When each car was last driven, worked out from the session
-  // rows this page has read anyway (setLastDriven); and that what the host keeps is to be read again
-  // (racingdesk:refresh) — Refresh was pressed, the host has come up, the store has something new.
+  // rows this page has read anyway (setLastDriven) — the page opens on the car driven last, and lists the cars
+  // driven, by it. And that there is something to read again (racingdesk:refresh): Refresh was pressed, the host
+  // has come up, the store has something new — which a drive is. The island then reads the list of cars again
+  // and what the host keeps for them. Said while another page is up, it is owed, and said when Cars is next shown.
 
   let carsMounted = false;
+  let carsOwed = false;
 
   function mountCars() {
     if (carsMounted) return;
@@ -548,8 +556,10 @@
     if (island && island.setLastDriven) island.setLastDriven(lastDrivenByCar(rows));
   }
 
+  // An island not yet mounted is owed nothing: it reads everything when it is.
   function refreshCars() {
-    if (currentPage === 'cars') document.dispatchEvent(new CustomEvent('racingdesk:refresh'));
+    carsOwed = carsMounted && currentPage !== 'cars';
+    if (carsMounted && currentPage === 'cars') document.dispatchEvent(new CustomEvent('racingdesk:refresh'));
   }
 
   // ── Settings ─────────────────────────────────────────────
