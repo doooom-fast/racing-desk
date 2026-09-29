@@ -161,6 +161,21 @@
   window.applyConnBanner = applyConnBanner;
   window.dismissConnBanner = dismissConnBanner;
 
+  // ─── Start clean ───
+  // For when main.js says he is back in the car (poll-engine.js _setInCar). It says so because the telemetry is
+  // answering it, so what the last break left here — a backoff of up to ten seconds, the count it grew from, the
+  // marks of a lost connection — says nothing about now. The backoff used to outlast the break: the HUD came
+  // back on screen and sat it out, over the numbers from before.
+  function startConnectionClean() {
+    _connFails = 0;
+    _backoffUntil = 0;
+    const banner = document.getElementById('connBanner');
+    if (banner) banner.classList.remove('visible');
+    const settingsWarn = document.getElementById('settingsConnWarn');
+    if (settingsWarn) settingsWarn.classList.remove('warn-visible');
+    _updateConnStatus('connecting');
+  }
+
   // ─── Fetch with timeout helper ───
   function fetchWithTimeout(url, opts, ms) {
     const ac = new AbortController();

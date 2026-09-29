@@ -10,8 +10,8 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 
 - **HTTP API**: `GET http://localhost:8889/racing-desk/`
 - **Response**: Flat JSON object with 100+ properties (telemetry, commentary, strategy)
-- **Polling**: `fetchProps()` in `poll-engine.js` issues a GET every 33ms (~30fps) while the driver is in the car, and none out of it — the main process asks once a second and tells the page (root CLAUDE.md, Desk)
-- **Backoff**: Exponential on failure (1s → 2s → 4s → 8s, capped at 10s)
+- **Polling**: `pollUpdate()` in `poll-engine.js` calls `fetchProps()` (`game-detect.js`), one GET every 33ms (~30fps) while the driver is in the car. Out of the car, in the app, the page asks for nothing and draws nothing — the main process asks once a second (`modules/js/hud-visibility.js`) and tells the page (root CLAUDE.md, Desk). A page with no main process behind it (an iPad, a browser) asks once a second out of the car, to notice him getting in
+- **Backoff**: Exponential on failure (1s → 2s → 4s → 8s, capped at 10s). In the app it is dropped when the main process says he is back in the car, and the page polls at once (`startConnectionClean()` in `game-detect.js`)
 - **Demo mode**: Reads from `RacingDesk.Plugin.Demo.*` properties instead — switching is transparent
 - **Contract rule**: Any change to JSON property names consumed by this overlay must be coordinated with the plugin
 
@@ -113,6 +113,11 @@ npm run start:safe                # ARM/software rendering mode
 by hand) and puts a tray icon up — quit from it or with Ctrl+Shift+Q; see the root CLAUDE.md, Desk. Dev mode
 starts no host.
 
+The main process logs through `logToFile` in `main.js` (`modules/js/app-log.js`): from source to
+`racing-desk-debug.log` in this folder, in the built app to `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside the
+host's `host.log` — this folder is inside `app.asar` there, and nothing written to it is kept. Two files of 4 MB at
+most (`overlay.log`, `overlay.log.1`). A line is never a reason for the app to fail, and carries no customer id.
+
 ## Testing
 
 ```bash
@@ -129,9 +134,8 @@ No CI — run locally.
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+S` | Toggle settings/move mode |
 | `Ctrl+Shift+F` | Toggle Drive HUD mode (fullscreen) |
-| `Ctrl+Shift+H` | Switch the HUD off/on (on, it is on screen only in the car) |
+| `Ctrl+Shift+H` | Switch the HUD off/on, in the car only — out of it the key does nothing, and the tray's "HUD on/off" is the switch |
 | `Ctrl+Shift+G` | Toggle green-screen mode |
 | `Ctrl+Shift+R` | Reset position and size |
 | `Ctrl+Shift+D` | Restart demo sequence |

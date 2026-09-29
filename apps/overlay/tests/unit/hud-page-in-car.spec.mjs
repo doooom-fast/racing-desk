@@ -27,8 +27,14 @@ const AT_THE_MENUS = { ...MOCK_TELEMETRY, 'RacingDesk.Plugin.Grid.SessionState':
 async function openWith(page, { payload = IN_THE_CAR, main = false, inCarAtStart = false } = {}) {
   await page.route(/^https?:\/\//, (route) => route.abort());
   await page.addInitScript(({ first, withMain, atStart }) => {
-    const feed = { payload: first, answering: true, polls: 0, everyMs: 0 };
+    const feed = { payload: first, answering: true, polls: 0, everyMs: 0, frames: 0, fetches: 0 };
     window.__feed = feed;
+    // Every frame asked for, by whatever asks: the page's own loop, the effects', anything else's.
+    const realFrame = window.requestAnimationFrame;
+    window.requestAnimationFrame = function () {
+      feed.frames++;
+      return realFrame.apply(this, arguments);
+    };
     // What the poll's timer is set to: 33 in the car, 1000 or nothing at all (0) out of it.
     const realSet = window.setInterval;
     const realClear = window.clearInterval;
@@ -44,6 +50,7 @@ async function openWith(page, { payload = IN_THE_CAR, main = false, inCarAtStart
     };
     const realFetch = window.fetch;
     window.fetch = function (url) {
+      feed.fetches++;
       // A poll is the plugin's address and nothing after it; its ?action= calls go the way of the rest.
       if (!/^http:\/\/localhost:8889\/racing-desk\/$/.test(String(url))) return realFetch.apply(this, arguments);
       feed.polls++;
@@ -78,6 +85,15 @@ async function pollsIn(page, ms) {
   const before = await polls(page);
   await page.waitForTimeout(ms);
   return (await polls(page)) - before;
+}
+
+// Frames asked for and requests made — of any address — in the next `ms`.
+async function workIn(page, ms) {
+  const count = () => page.evaluate(() => ({ frames: window.__feed.frames, fetches: window.__feed.fetches }));
+  const before = await count();
+  await page.waitForTimeout(ms);
+  const after = await count();
+  return { frames: after.frames - before.frames, fetches: after.fetches - before.fetches };
 }
 
 test.describe('in the app: main.js decides', () => {
@@ -115,6 +131,57 @@ test.describe('in the app: main.js decides', () => {
     await expect.poll(() => inCar(page)).toBe(true);
     expect(await everyMs(page)).toBe(33);
     await expect(page.locator('#gearText')).toHaveText('4');
+  });
+
+  test('out of the car nothing goes round: no frame is asked for, nothing is fetched', async ({ page }) => {
+    // The window is hidden, but main.js has Chromium's throttling switched off, so a hidden page's frames and
+    // timers run as fast as a shown one's: a loop left going out of the car costs what it costs in it.
+    await openWith(page, { main: true });
+    await expect.poll(() => listening(page)).toBe(true);
+    await page.waitForTimeout(1000);   // what the page does as it loads
+    expect(await workIn(page, 2000)).toEqual({ frames: 0, fetches: 0 });
+
+    // In the car the page's loop and the effects' go round, a frame each at a time; that is what is counted.
+    await mainSays(page, true);
+    const inTheCar = await workIn(page, 1000);
+    expect(inTheCar.frames).toBeGreaterThan(10);
+    expect(inTheCar.fetches).toBeGreaterThan(3);
+
+    await mainSays(page, false);
+    await page.waitForTimeout(500);   // the frames already asked for, and what they had begun
+    expect(await workIn(page, 2000)).toEqual({ frames: 0, fetches: 0 });
+  });
+
+  test('back in the car after a break in the telemetry: it starts clean, and reads at once', async ({ page }) => {
+    // The page waits longer after each request that fails — 1 s, 2 s, 4 s, up to 10 — and the wait used to
+    // outlast the break: main.js had its answer and put the HUD on screen, and the page sat out what was left
+    // over the numbers from before, marked as having no connection.
+    await openWith(page, { main: true });
+    await expect.poll(() => listening(page)).toBe(true);
+    await mainSays(page, true);
+    await expect(page.locator('#gearText')).toHaveText('4');
+
+    await stopAnswering(page);
+    await expect.poll(() => page.evaluate(() => _connFails), { timeout: 8000 }).toBeGreaterThanOrEqual(3);
+    // Four seconds from the third failure, less however long ago that was noticed here.
+    expect(await page.evaluate(() => _backoffUntil - Date.now())).toBeGreaterThan(2000);
+    await expect(page.locator('#connStatus')).toHaveClass(/disconnected/);
+
+    // Three seconds without an answer and main.js says out; the telemetry comes back, and it says in.
+    await mainSays(page, false);
+    expect(await pollsIn(page, 500)).toBe(0);
+    await page.evaluate((p) => { window.__feed.payload = p; window.__feed.answering = true; },
+      { ...IN_THE_CAR, 'DataCorePlugin.GameData.Gear': '5' });
+
+    const atOnce = await page.evaluate(() => {
+      const before = window.__feed.polls;
+      window.__mainSays(true);
+      return { polls: window.__feed.polls - before, fails: _connFails, backoffUntil: _backoffUntil };
+    });
+    expect(atOnce).toEqual({ polls: 1, fails: 0, backoffUntil: 0 });
+    await expect(page.locator('#connStatus')).not.toHaveClass(/disconnected/);
+    await expect(page.locator('#gearText')).toHaveText('5', { timeout: 1000 });
+    expect(await everyMs(page)).toBe(33);
   });
 
   test('told he is in, the page does not think again', async ({ page }) => {

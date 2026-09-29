@@ -9,7 +9,8 @@
     gameRunning: 'DataCorePlugin.GameRunning',
     sessionState: 'RacingDesk.Plugin.Grid.SessionState',
     demoMode: 'RacingDesk.Plugin.DemoMode',
-    // iRacing's own "the player is in the car, physics running". No host sends it yet; the day one does, it decides.
+    // iRacing's own "the player is in the car, physics running", and not a replay. The app's host sends it, 1 or
+    // 0, and only where the sim says it (TelemetryCapture.InCar); sent, it decides.
     onTrack: 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack',
   });
 
@@ -35,8 +36,8 @@
    * - The sim not running, or not in a session yet, is out.
    * - With iRacing's IsOnTrack in the payload, that is the answer: the garage screen and a replay are out.
    * - Without it, a session under way (SessionState 1 GetInCar … 6 CoolDown) is all there is to go on. That
-   *   describes the session, not the driver — the garage screen before getting in counts as in the car until a
-   *   host sends IsOnTrack.
+   *   describes the session, not the driver: from a source that sends no IsOnTrack — a SimHub plugin from before
+   *   2026-09-29 — the garage screen and a replay count as in the car.
    */
   function inCar(payload) {
     if (!payload || typeof payload !== 'object') return false;

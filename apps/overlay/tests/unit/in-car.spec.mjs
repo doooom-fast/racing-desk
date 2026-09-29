@@ -114,13 +114,25 @@ test.describe('createInCarSignal: a run of polls', () => {
     expect(said[1].at - said[0].at).toBeLessThan(3000 + 2000 + 100);
   });
 
-  test('once a second is enough to notice', () => {
-    const { signal, run } = signalAt();
+  test('twice a second, as the main process asks while he is in the car, is enough to notice', () => {
+    const { signal, said, run } = signalAt();
     run(IN_THE_CAR, 2000, 500);
     run(SIM_CLOSED, 2000, 500);
     expect(signal.inCar()).toBe(true);
     run(SIM_CLOSED, 500, 500);
     expect(signal.inCar()).toBe(false);
+    // The two seconds are counted from the first poll that said out, half a second after the last that said in.
+    expect(said[1].at - said[0].at).toBe(1500 + 500 + 2000);
+  });
+
+  test('once a second is enough too: out at the first poll after two seconds of it', () => {
+    const { signal, said, run } = signalAt();
+    run(IN_THE_CAR, 2000, 1000);
+    run(SIM_CLOSED, 2000, 1000);
+    expect(signal.inCar()).toBe(true);
+    run(SIM_CLOSED, 1000, 1000);
+    expect(signal.inCar()).toBe(false);
+    expect(said[1].at - said[0].at).toBe(1000 + 1000 + 2000);
   });
 
   test('a dip between sessions is ridden through, and the two seconds start again after it', () => {

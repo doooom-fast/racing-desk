@@ -8,8 +8,11 @@
 // screen until the app was quit. Here the process that owns the window asks the telemetry itself — once a second,
 // twice in the car — and tells the page (in-race-state). Out of the car the page does nothing at all.
 //
-// What "in the car" means is modules/js/in-car.js. The window, the telemetry and the clock are handed in, so the
-// rules are tested without Electron (tests/unit/hud-visibility.spec.mjs).
+// A page that has died is this module's to bring back as well: main.js says what became of the page (loading,
+// loaded, failed, its process gone) and is asked to load it again.
+//
+// What "in the car" means is modules/js/in-car.js. The window, the telemetry, the clock and the timers are handed
+// in, so the rules are tested without Electron (tests/unit/hud-visibility.spec.mjs).
 const http = require('http');
 const { createInCarSignal } = require('./in-car');
 const { telemetryBase } = require('../../remote-server');
@@ -18,6 +21,8 @@ const TELEMETRY_PATH = '/racing-desk/';
 const OUT_OF_CAR_POLL_MS = 1000;
 const IN_CAR_POLL_MS = 500;
 const ANSWER_WITHIN_MS = 1500;
+const RELOAD_AFTER_MS = 2000;
+const RELOADS_AT_MOST = 3;
 const MAX_ANSWER_BYTES = 4 * 1024 * 1024;
 
 // The address the HUD's page reads (modules/js/settings.js): the saved one when it ends in the plugin's path,
@@ -85,16 +90,20 @@ function fetchPayload(url, { timeoutMs = ANSWER_WITHIN_MS, get = http.get } = {}
  *
  *   getWindow()     the HUD's BrowserWindow, or null
  *   fetchPayload()  resolves the telemetry payload, or null when nothing answered
+ *   loadPage()      starts the page loading again; main.js says how it went (pageLoaded, pageFailed)
  *   keepVisible     dev mode: the window is an ordinary one, shown by dev-mode.js, and is left as it is
  *   onSwitch(off)   the driver switched the HUD off, or back on
  *
- * { start, stop, poll, toggle, pageLoaded, pageGone, state }
+ * { start, stop, poll, toggle, pageLoading, pageLoaded, pageFailed, pageGone, state }
  */
 function createHudVisibility({
   getWindow,
   fetchPayload: ask,
+  loadPage = null,
   keepVisible = false,
   onSwitch = null,
+  reloadAfterMs = RELOAD_AFTER_MS,
+  reloadsAtMost = RELOADS_AT_MOST,
   outOfCarPollMs = OUT_OF_CAR_POLL_MS,
   inCarPollMs = IN_CAR_POLL_MS,
   leaveMs,
@@ -104,13 +113,16 @@ function createHudVisibility({
   clearTimer = clearTimeout,
   log = () => {},
 }) {
-  const signal = createInCarSignal({ leaveMs, staleMs, now });
+  const signal = createInCarSignal({ leaveMs, staleMs, now, onChange: (inCar) => { if (inCar) gotIn(); } });
   let switchedOff = false;   // the driver's own choice, from the tray, Ctrl+Shift+H or the Stream Deck
   let pageReady = false;     // the page is loaded, and its process alive
+  let loading = false;       // a load is under way
+  let gone = 0;              // times the page's process has gone since a load last finished
   let toldPage = null;       // what the page was last told; null once it has been loaded afresh
   let running = false;
   let asking = false;
   let timer = null;
+  let reloadTimer = null;    // a load booked for two seconds after the page's process went
 
   function liveWindow() {
     const win = getWindow();
@@ -192,10 +204,16 @@ function createHudVisibility({
     running = false;
     if (timer !== null) clearTimer(timer);
     timer = null;
+    if (reloadTimer !== null) clearTimer(reloadTimer);
+    reloadTimer = null;
   }
 
   // The driver's switch. Off stays off when he gets in the car; on does not put the HUD on screen out of it.
-  function toggle() {
+  // The tray's works anywhere ({ anywhere: true }), and its tick shows where the switch stands. The key's and the
+  // Stream Deck's work only where what they do is seen — in the car, the page loaded — and anywhere else leave
+  // the switch as it was and say so: pressed at the desktop they switched the HUD off unseen, and there was none
+  // when he got in.
+  function toggle({ anywhere = false } = {}) {
     const win = liveWindow();
     if (!win) return { ok: false, reason: 'no window' };
     if (keepVisible) {
@@ -203,23 +221,84 @@ function createHudVisibility({
       else win.show();
       return { ok: true, visible: win.isVisible() };
     }
+    if (!anywhere) {
+      const reason = !signal.inCar() ? 'out of the car' : !pageReady ? 'the HUD page is not loaded' : null;
+      if (reason) {
+        log(`[RacingDesk] HUD switch left ${switchedOff ? 'off' : 'on'}: ${reason}`);
+        return { ok: false, reason, visible: win.isVisible(), hudOff: switchedOff };
+      }
+    }
     switchedOff = !switchedOff;
     if (typeof onSwitch === 'function') onSwitch(switchedOff);
     apply();
     return { ok: true, visible: win.isVisible(), hudOff: switchedOff };
   }
 
-  function pageLoaded() {
-    pageReady = true;
+  // A load has begun — the first, or one after a crash, a resume, a file changed in dev mode. There is nothing
+  // to look at until it is over.
+  function pageLoading() {
+    pageReady = false;
+    loading = true;
     toldPage = null;
     apply();
   }
 
-  // Loading again, or its process gone: there is nothing to look at until it is back.
-  function pageGone() {
-    pageReady = false;
+  function pageLoaded() {
+    pageReady = true;
+    loading = false;
+    gone = 0;
     toldPage = null;
     apply();
+  }
+
+  // A load that came to nothing. It is tried again when he next gets in the car (gotIn).
+  function pageFailed() {
+    pageReady = false;
+    loading = false;
+    toldPage = null;
+    apply();
+  }
+
+  // Its process gone. For any reason but a clean exit the page is loaded again two seconds later — 'oom',
+  // 'launch-failed' and 'abnormal-exit' as much as 'crashed' and 'killed', once the only two that were — and at
+  // most three times without a load finishing in between: a page that dies as it loads would go round for ever.
+  function pageGone(reason) {
+    pageReady = false;
+    loading = false;
+    toldPage = null;
+    apply();
+    if (reason === 'clean-exit') return;
+    gone++;
+    if (gone > reloadsAtMost) {
+      log(`[RacingDesk] HUD: the page's process has gone ${gone} times without a load finishing — tried again when he gets in the car`);
+      return;
+    }
+    if (reloadTimer !== null) clearTimer(reloadTimer);
+    reloadTimer = setTimer(() => {
+      reloadTimer = null;
+      // Something else may have loaded it in the two seconds: the GPU's process gone, the machine waking.
+      if (!pageReady && !loading) load(`the page's process gone (${reason || 'no reason given'})`);
+    }, reloadAfterMs);
+    if (reloadTimer && typeof reloadTimer.unref === 'function') reloadTimer.unref();
+  }
+
+  // He has got in the car. A page that is gone, with no load under way or booked, is loaded once more: a page
+  // past its three tries, or one whose load failed, used to stay gone until the app was started again. Once each
+  // time he gets in, not once a poll.
+  function gotIn() {
+    if (!pageReady && !loading && reloadTimer === null) load('in the car with no page');
+  }
+
+  function load(why) {
+    if (typeof loadPage !== 'function' || !liveWindow()) return;
+    log(`[RacingDesk] HUD: ${why} → loading it again`);
+    loading = true;
+    try {
+      loadPage();
+    } catch (e) {
+      loading = false;
+      log(`[RacingDesk] HUD: the page could not be loaded (${e.message})`);
+    }
   }
 
   function state() {
@@ -227,9 +306,10 @@ function createHudVisibility({
     return { inCar: signal.inCar(), hudOff: switchedOff, pageReady, visible: !!win && win.isVisible() };
   }
 
-  return { start, stop, poll, toggle, pageLoaded, pageGone, state };
+  return { start, stop, poll, toggle, pageLoading, pageLoaded, pageFailed, pageGone, state };
 }
 
 module.exports = {
-  OUT_OF_CAR_POLL_MS, IN_CAR_POLL_MS, telemetryUrl, fetchPayload, createHudVisibility,
+  OUT_OF_CAR_POLL_MS, IN_CAR_POLL_MS, RELOAD_AFTER_MS, RELOADS_AT_MOST,
+  telemetryUrl, fetchPayload, createHudVisibility,
 };

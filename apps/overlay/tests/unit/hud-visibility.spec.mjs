@@ -2,8 +2,8 @@
  * When the HUD's window is on screen (modules/js/hud-visibility.js): while the driver is in the car, he has not
  * switched the HUD off, and the page is loaded — never otherwise, and never by taking the focus from the sim.
  *
- * A fake window, a fake telemetry and a clock the test moves: no Electron, no ports, no timers. main.js gives the
- * same object the real window and http.get.
+ * A fake window, a fake telemetry, a clock the test moves and timers the test runs: no Electron, no ports, nothing
+ * waited for. main.js gives the same object the real window and http.get.
  */
 
 import { test, expect } from '@playwright/test';
@@ -14,13 +14,22 @@ import { MOCK_TELEMETRY, MOCK_DEMO } from '../helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const {
-  createHudVisibility, fetchPayload, telemetryUrl, IN_CAR_POLL_MS, OUT_OF_CAR_POLL_MS,
+  createHudVisibility, fetchPayload, telemetryUrl, IN_CAR_POLL_MS, OUT_OF_CAR_POLL_MS, RELOAD_AFTER_MS, RELOADS_AT_MOST,
 } = require('../../modules/js/hud-visibility.js');
+const { inCar } = require('../../modules/js/in-car.js');
 
 const SIM_CLOSED = JSON.parse(readFileSync(new URL('../golden/fixtures/base-payload.json', import.meta.url), 'utf8'));
 const IN_THE_CAR = MOCK_TELEMETRY;
 const AT_THE_MENUS = { ...MOCK_TELEMETRY, 'RacingDesk.Plugin.Grid.SessionState': 0 };
 const NOTHING_ANSWERS = null;
+
+// The whole payload, as the app's host sends it with the sim running and a race under way: what differs between
+// the garage screen, the car and a replay is the one key.
+const ON_TRACK = 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack';
+const SESSION_UNDER_WAY = { ...SIM_CLOSED, 'DataCorePlugin.GameRunning': 1, 'RacingDesk.Plugin.Grid.SessionState': 4 };
+const IN_THE_GARAGE = { ...SESSION_UNDER_WAY, [ON_TRACK]: 0 };
+const DRIVING = { ...SESSION_UNDER_WAY, [ON_TRACK]: 1 };
+const WATCHING_A_REPLAY = { ...SESSION_UNDER_WAY, [ON_TRACK]: 0 };
 
 function fakeWindow() {
   const win = {
@@ -43,17 +52,26 @@ function fakeWindow() {
 }
 
 // The app as it is a moment after starting: the window made, hidden, its page loaded, the sim closed.
+// `loads` counts the times the page was loaded again; `booked` are the timers set, run when the test says
+// (the polls here are the test's own, so the only timers are the ones a load is booked with).
 function rig({ keepVisible = false, loaded = true, window: given } = {}) {
   const clock = { at: 10000 };
   const feed = { payload: SIM_CLOSED, asked: 0 };
   const win = given === undefined ? fakeWindow() : given;
   const switched = [];
+  const page = { loads: 0 };
+  const booked = [];
+  const said = [];
   const hud = createHudVisibility({
     getWindow: () => win,
     fetchPayload: async () => { feed.asked++; return feed.payload; },
+    loadPage: () => { page.loads++; },
     keepVisible,
     onSwitch: (off) => switched.push(off),
     now: () => clock.at,
+    setTimer: (fn, ms) => { const t = { fn, ms, cleared: false, ran: false }; booked.push(t); return t; },
+    clearTimer: (t) => { t.cleared = true; },
+    log: (line) => said.push(line),
   });
   if (loaded) hud.pageLoaded();
   // `ms` go by, with a poll every `every`.
@@ -64,7 +82,13 @@ function rig({ keepVisible = false, loaded = true, window: given } = {}) {
     }
   };
   const getIn = async () => { feed.payload = IN_THE_CAR; await pass(500); };
-  return { clock, feed, win, hud, switched, pass, getIn };
+  const getOut = async () => { feed.payload = SIM_CLOSED; await pass(3000); };
+  // The timers booked and not yet run or cleared, run.
+  const runTimers = () => {
+    for (const t of booked.filter((b) => !b.cleared && !b.ran)) { t.ran = true; t.fn(); }
+  };
+  const waiting = () => booked.filter((b) => !b.cleared && !b.ran);
+  return { clock, feed, win, hud, switched, page, booked, said, pass, getIn, getOut, runTimers, waiting };
 }
 
 const shown = (win) => win.calls.filter((c) => c === 'show' || c === 'showInactive' || c === 'focus');
@@ -171,7 +195,48 @@ test.describe('in the car', () => {
   });
 });
 
-test.describe("the driver's switch: the tray, Ctrl+Shift+H, the Stream Deck", () => {
+test.describe("the garage, the car, a replay: the sim's own IsOnTrack, in the payload the host sends", () => {
+  test('the payloads are what they are called', () => {
+    expect(Object.keys(SESSION_UNDER_WAY).length).toBeGreaterThan(300);
+    expect(ON_TRACK in SESSION_UNDER_WAY).toBe(false);
+    expect(IN_THE_GARAGE).toMatchObject({ 'DataCorePlugin.GameRunning': 1, 'RacingDesk.Plugin.Grid.SessionState': 4, [ON_TRACK]: 0 });
+    // Without the key the same payload is in the car: it is the key that keeps the garage off the screen.
+    expect(inCar(SESSION_UNDER_WAY)).toBe(true);
+    expect(inCar(IN_THE_GARAGE)).toBe(false);
+    expect(inCar(DRIVING)).toBe(true);
+  });
+
+  test('in the garage the window stays hidden; in the car it is revealed, the sim keeping the focus; in a replay it is hidden two seconds on', async () => {
+    const { win, feed, pass, hud } = rig();
+    feed.payload = IN_THE_GARAGE;
+    await pass(10000, 1000);
+    expect(win.isVisible()).toBe(false);
+    expect(win.calls).toEqual([]);
+    expect(win.sent).toEqual([['in-race-state', false]]);
+
+    feed.payload = DRIVING;
+    await pass(500);
+    expect(win.isVisible()).toBe(true);
+    expect(shown(win)).toEqual(['showInactive']);
+    expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', true]);
+
+    feed.payload = WATCHING_A_REPLAY;
+    await pass(2000);
+    expect(win.isVisible()).toBe(true);
+    await pass(500);
+    expect(win.isVisible()).toBe(false);
+    expect(win.calls.filter((c) => c === 'hide')).toHaveLength(1);
+    expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', false]);
+    expect(hud.state()).toEqual({ inCar: false, hudOff: false, pageReady: true, visible: false });
+
+    // And it stays hidden for as long as the replay runs, with nothing shown and hidden again.
+    await pass(30000, 1000);
+    expect(shown(win)).toEqual(['showInactive']);
+    expect(win.calls.filter((c) => c === 'hide')).toHaveLength(1);
+  });
+});
+
+test.describe("the driver's switch: the key and the Stream Deck, in the car", () => {
   test('in the car it takes the HUD off the screen, and puts it back', async () => {
     const { win, hud, getIn, switched } = rig();
     await getIn();
@@ -184,11 +249,10 @@ test.describe("the driver's switch: the tray, Ctrl+Shift+H, the Stream Deck", ()
   });
 
   test('off stays off when he gets out and in again', async () => {
-    const { win, hud, feed, getIn, pass } = rig();
+    const { win, hud, getIn, getOut, pass } = rig();
     await getIn();
     hud.toggle();
-    feed.payload = SIM_CLOSED;
-    await pass(3000);
+    await getOut();
     await getIn();
     await pass(10000);
     expect(win.isVisible()).toBe(false);
@@ -197,9 +261,62 @@ test.describe("the driver's switch: the tray, Ctrl+Shift+H, the Stream Deck", ()
     expect(win.isVisible()).toBe(true);
   });
 
-  test('switched off out of the car, it is off when he gets in', async () => {
-    const { win, hud, getIn } = rig();
+  test('out of the car it switches nothing, and says so', async () => {
+    // Pressed at the desktop it used to switch the HUD off, unseen: the window is hidden there either way. Then
+    // there was no HUD when he got in.
+    const { win, hud, feed, pass, getIn, switched, said } = rig();
+    for (const payload of [SIM_CLOSED, AT_THE_MENUS, IN_THE_GARAGE, NOTHING_ANSWERS]) {
+      feed.payload = payload;
+      await pass(1000, 1000);
+      expect(hud.toggle()).toEqual({ ok: false, reason: 'out of the car', visible: false, hudOff: false });
+    }
+    expect(switched).toEqual([]);
+    expect(win.calls).toEqual([]);
+    expect(said.filter((line) => /switch/.test(line))).toHaveLength(4);
+    await getIn();
+    expect(win.isVisible()).toBe(true);
+  });
+
+  test('out of the car it does not switch the HUD back on either: off is off until it is seen to be switched', async () => {
+    const { win, hud, getIn, getOut, switched } = rig();
+    await getIn();
+    hud.toggle();
+    await getOut();
+    expect(hud.toggle()).toEqual({ ok: false, reason: 'out of the car', visible: false, hudOff: true });
+    await getIn();
+    expect(win.isVisible()).toBe(false);
+    expect(hud.toggle()).toEqual({ ok: true, visible: true, hudOff: false });
+    expect(switched).toEqual([true, false]);
+  });
+
+  test('in the car with no page to show, the same: nothing it did would be seen', async () => {
+    const { win, hud, getIn, switched } = rig({ loaded: false });
+    await getIn();
+    expect(hud.toggle()).toEqual({ ok: false, reason: 'the HUD page is not loaded', visible: false, hudOff: false });
+    expect(switched).toEqual([]);
+    hud.pageLoaded();
+    expect(win.isVisible()).toBe(true);
     expect(hud.toggle()).toEqual({ ok: true, visible: false, hudOff: true });
+  });
+
+  test('no window: it says so, and the switch stays where it was', () => {
+    for (const window of [null, Object.assign(fakeWindow(), { destroyed: true })]) {
+      const { hud, switched } = rig({ window, loaded: false });
+      expect(hud.toggle()).toEqual({ ok: false, reason: 'no window' });
+      expect(hud.toggle({ anywhere: true })).toEqual({ ok: false, reason: 'no window' });
+      expect(switched).toEqual([]);
+      expect(hud.state().hudOff).toBe(false);
+    }
+  });
+});
+
+test.describe("the driver's switch: the tray's, which works anywhere", () => {
+  const tray = { anywhere: true };
+
+  test('switched off out of the car, it is off when he gets in', async () => {
+    const { win, hud, getIn, switched } = rig();
+    expect(hud.toggle(tray)).toEqual({ ok: true, visible: false, hudOff: true });
+    expect(switched).toEqual([true]);
     await getIn();
     expect(win.isVisible()).toBe(false);
     expect(win.calls).toEqual([]);
@@ -207,8 +324,8 @@ test.describe("the driver's switch: the tray, Ctrl+Shift+H, the Stream Deck", ()
 
   test('switched on out of the car, nothing comes on screen until he gets in', async () => {
     const { win, hud, pass, getIn } = rig();
-    hud.toggle();
-    expect(hud.toggle()).toEqual({ ok: true, visible: false, hudOff: false });
+    hud.toggle(tray);
+    expect(hud.toggle(tray)).toEqual({ ok: true, visible: false, hudOff: false });
     await pass(5000, 1000);
     expect(win.isVisible()).toBe(false);
     expect(win.calls).toEqual([]);
@@ -216,13 +333,25 @@ test.describe("the driver's switch: the tray, Ctrl+Shift+H, the Stream Deck", ()
     expect(win.isVisible()).toBe(true);
   });
 
-  test('no window: it says so, and the switch stays where it was', () => {
-    for (const window of [null, Object.assign(fakeWindow(), { destroyed: true })]) {
-      const { hud, switched } = rig({ window, loaded: false });
-      expect(hud.toggle()).toEqual({ ok: false, reason: 'no window' });
-      expect(switched).toEqual([]);
-      expect(hud.state().hudOff).toBe(false);
-    }
+  test('in the car it takes the HUD off the screen and puts it back, as the key does', async () => {
+    const { win, hud, getIn, switched } = rig();
+    await getIn();
+    expect(hud.toggle(tray)).toEqual({ ok: true, visible: false, hudOff: true });
+    expect(hud.toggle()).toEqual({ ok: true, visible: true, hudOff: false });
+    expect(hud.toggle()).toEqual({ ok: true, visible: false, hudOff: true });
+    expect(hud.toggle(tray)).toEqual({ ok: true, visible: true, hudOff: false });
+    expect(win.isVisible()).toBe(true);
+    expect(switched).toEqual([true, false, true, false]);
+  });
+
+  test('switched off in the car with the key, it is switched back on from the tray at the desktop', async () => {
+    const { win, hud, getIn, getOut } = rig();
+    await getIn();
+    hud.toggle();
+    await getOut();
+    expect(hud.toggle(tray)).toEqual({ ok: true, visible: false, hudOff: false });
+    await getIn();
+    expect(win.isVisible()).toBe(true);
   });
 });
 
@@ -240,7 +369,7 @@ test.describe('the page', () => {
 
   test('is told whatever the switch says: switched off, the HUD goes on reading', async () => {
     const { win, hud, getIn } = rig();
-    hud.toggle();
+    hud.toggle({ anywhere: true });
     await getIn();
     expect(win.isVisible()).toBe(false);
     expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', true]);
@@ -259,24 +388,18 @@ test.describe('the page', () => {
   test('loaded again while he drives: off the screen while it loads, then back and told afresh', async () => {
     // The page used to remember for itself, and main.js for it; after a reload the two disagreed, and nothing
     // put that right.
-    const { win, hud, getIn, pass } = rig();
+    const { win, hud, page, getIn, pass, booked } = rig();
     await getIn();
-    hud.pageGone();
+    hud.pageLoading();
     expect(win.isVisible()).toBe(false);
     await pass(2000);
     expect(win.isVisible()).toBe(false);
     hud.pageLoaded();
     expect(win.isVisible()).toBe(true);
     expect(win.sent.slice(-2)).toEqual([['in-race-state', true], ['in-race-state', true]]);
-  });
-
-  test('its process gone for good: nothing on screen, in the car or out', async () => {
-    const { win, hud, getIn, pass } = rig();
-    await getIn();
-    hud.pageGone();
-    await pass(30000, 1000);
-    expect(win.isVisible()).toBe(false);
-    expect(hud.state()).toMatchObject({ inCar: true, pageReady: false, visible: false });
+    // It was loading all the while: nothing here loads it a second time.
+    expect(page.loads).toBe(0);
+    expect(booked).toEqual([]);
   });
 
   test('a page that cannot be told does not stop the window being put right', async () => {
@@ -284,6 +407,189 @@ test.describe('the page', () => {
     win.webContents.send = () => { throw new Error('Render frame was disposed'); };
     await getIn();
     expect(win.isVisible()).toBe(true);
+  });
+});
+
+test.describe('a page that has died is loaded again', () => {
+  // Every reason Electron gives for render-process-gone but 'clean-exit'. Only 'crashed' and 'killed' used to
+  // load the page again; after any of the others there was no HUD until the app was started again.
+  const REASONS = ['crashed', 'killed', 'oom', 'launch-failed', 'abnormal-exit', 'integrity-failure', 'memory-eviction', undefined];
+
+  for (const reason of REASONS) {
+    test(`its process gone (${reason}): off the screen, and loaded again two seconds later`, async () => {
+      const { win, hud, page, getIn, booked, runTimers, pass } = rig();
+      await getIn();
+      hud.pageGone(reason);
+      expect(win.isVisible()).toBe(false);
+      expect(hud.state()).toMatchObject({ inCar: true, pageReady: false, visible: false });
+      expect(page.loads).toBe(0);
+      expect(booked.map((t) => t.ms)).toEqual([RELOAD_AFTER_MS]);
+
+      // He is in the car all the while, and the polls go on: they load nothing, the timer does.
+      await pass(2000);
+      expect(page.loads).toBe(0);
+      runTimers();
+      expect(page.loads).toBe(1);
+      await pass(2000);
+      expect(page.loads).toBe(1);
+
+      hud.pageLoaded();
+      expect(win.isVisible()).toBe(true);
+      expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', true]);
+    });
+  }
+
+  test('a clean exit is not a death: nothing is booked', async () => {
+    const { hud, page, booked, runTimers } = rig();
+    hud.pageGone('clean-exit');
+    runTimers();
+    expect(booked).toEqual([]);
+    expect(page.loads).toBe(0);
+    expect(hud.state().pageReady).toBe(false);
+  });
+
+  test('three times at most without a load finishing, and a load that finishes starts the count again', async () => {
+    const { hud, page, runTimers, waiting, said } = rig();
+    expect(RELOAD_AFTER_MS).toBe(2000);
+    expect(RELOADS_AT_MOST).toBe(3);
+    for (let n = 1; n <= 3; n++) {
+      hud.pageGone('crashed');
+      runTimers();
+      expect(page.loads).toBe(n);
+    }
+    hud.pageGone('crashed');
+    expect(waiting()).toEqual([]);
+    runTimers();
+    expect(page.loads).toBe(3);
+    expect(said.filter((line) => /4 times/.test(line))).toHaveLength(1);
+
+    hud.pageLoaded();
+    hud.pageGone('oom');
+    runTimers();
+    expect(page.loads).toBe(4);
+  });
+
+  test('past its three tries, he gets in the car: loaded once more — once for getting in, not once a poll', async () => {
+    const { win, hud, page, runTimers, getIn, getOut, pass } = rig();
+    for (let n = 1; n <= 4; n++) { hud.pageGone('crashed'); runTimers(); }
+    expect(page.loads).toBe(3);
+
+    // Out of the car nothing loads it, however long.
+    await pass(60000, 1000);
+    expect(page.loads).toBe(3);
+
+    await getIn();
+    expect(page.loads).toBe(4);
+    await pass(60000);
+    expect(page.loads).toBe(4);
+    expect(win.isVisible()).toBe(false);
+
+    // That load died as well. Nothing more until he gets in again.
+    hud.pageGone('crashed');
+    runTimers();
+    await pass(10000);
+    expect(page.loads).toBe(4);
+    await getOut();
+    await getIn();
+    expect(page.loads).toBe(5);
+
+    hud.pageLoaded();
+    expect(win.isVisible()).toBe(true);
+    expect(shown(win)).toEqual(['showInactive']);
+  });
+
+  test('a load that failed is tried again when he gets in', async () => {
+    const { win, hud, page, getIn, pass } = rig({ loaded: false });
+    hud.pageLoading();
+    hud.pageFailed();
+    await pass(5000, 1000);
+    expect(page.loads).toBe(0);
+    await getIn();
+    expect(page.loads).toBe(1);
+    hud.pageLoaded();
+    expect(win.isVisible()).toBe(true);
+  });
+
+  test('getting in loads nothing while a load is under way, or booked', async () => {
+    // Under way: the app has just started, and he is in the car already.
+    const starting = rig({ loaded: false });
+    starting.hud.pageLoading();
+    await starting.getIn();
+    expect(starting.page.loads).toBe(0);
+
+    // Booked: its process went a moment before he got in.
+    const { hud, page, getIn, runTimers, getOut } = rig();
+    hud.pageGone('crashed');
+    await getIn();
+    expect(page.loads).toBe(0);
+    runTimers();
+    expect(page.loads).toBe(1);
+    // And under way since: out and in again, it is still the one load.
+    await getOut();
+    await getIn();
+    expect(page.loads).toBe(1);
+  });
+
+  test('loaded by something else within the two seconds, the load that was booked does nothing', async () => {
+    // main.js loads the page when the GPU's process goes and when the machine wakes, too.
+    const loadingAgain = rig();
+    loadingAgain.hud.pageGone('crashed');
+    loadingAgain.hud.pageLoading();
+    loadingAgain.runTimers();
+    expect(loadingAgain.page.loads).toBe(0);
+
+    const loaded = rig();
+    loaded.hud.pageGone('crashed');
+    loaded.hud.pageLoading();
+    loaded.hud.pageLoaded();
+    loaded.runTimers();
+    expect(loaded.page.loads).toBe(0);
+  });
+
+  test('gone twice before the two seconds are up: one load, not two', async () => {
+    const { hud, page, booked, runTimers } = rig();
+    hud.pageGone('crashed');
+    hud.pageGone('killed');
+    expect(booked.map((t) => t.cleared)).toEqual([true, false]);
+    runTimers();
+    expect(page.loads).toBe(1);
+  });
+
+  test('stopped — the window closed — what was booked is dropped; and no window, nothing is loaded', async () => {
+    const { hud, page, booked, runTimers, win } = rig();
+    hud.pageGone('crashed');
+    hud.stop();
+    expect(booked[0].cleared).toBe(true);
+
+    hud.pageGone('crashed');
+    win.destroyed = true;
+    runTimers();
+    expect(page.loads).toBe(0);
+  });
+
+  test('a load that throws is a load that failed', async () => {
+    const win = fakeWindow();
+    const said = [];
+    let tries = 0;
+    const feed = { payload: SIM_CLOSED };
+    const clock = { at: 0 };
+    const hud = createHudVisibility({
+      getWindow: () => win,
+      fetchPayload: async () => feed.payload,
+      loadPage: () => { tries++; throw new Error('Object has been destroyed'); },
+      now: () => clock.at,
+      log: (line) => said.push(line),
+    });
+    const getInAndOut = async () => {
+      feed.payload = IN_THE_CAR;
+      clock.at += 500; await hud.poll();
+      feed.payload = SIM_CLOSED;
+      for (let i = 0; i < 6; i++) { clock.at += 500; await hud.poll(); }
+    };
+    await getInAndOut();
+    await getInAndOut();
+    expect(tries).toBe(2);
+    expect(said.filter((line) => /could not be loaded/.test(line))).toHaveLength(2);
   });
 });
 

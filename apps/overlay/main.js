@@ -19,6 +19,7 @@ const bundleWriter   = require('./modules/js/bundle-writer');
 const replayDirector = require('./modules/js/replay-director');
 const { isAllowedExternalUrl } = require('./modules/js/external-links');
 const hostLauncher = require('./modules/js/host-launcher');
+const appLog       = require('./modules/js/app-log');
 const hudVisibility = require('./modules/js/hud-visibility');
 const settingsFile = require('./modules/js/settings-file');
 const paints       = require('./modules/js/paints');
@@ -26,13 +27,14 @@ const paintsIpc    = require('./modules/js/paints-ipc');
 const { createCarNames } = require('./modules/js/paints/car-names');
 const rigApi       = require('./modules/js/rig-api');
 
-// ── Crash log ───────────────────────────────────────────────
-// Write a log file next to the app so crash info is visible
-const LOG_PATH = path.join(__dirname, 'racing-desk-debug.log');
+// ── Log ─────────────────────────────────────────────────────
+// From source, racing-desk-debug.log beside this file. In the built app, overlay.log beside the host's log in
+// %LOCALAPPDATA%\Racing Desk: the folder this file is in is inside app.asar there, and nothing written to it was
+// ever kept. modules/js/app-log.js has the rules — two files of four megabytes at most, and a line that cannot
+// be written is dropped. No line carries a customer id or the name of a key he pressed.
+const appLogFile = appLog.createLog({ file: appLog.logPath({ isPackaged: app.isPackaged, appDir: __dirname }) });
 function logToFile(msg) {
-  const ts = new Date().toISOString();
-  const line = `[${ts}] ${msg}\n`;
-  try { fs.appendFileSync(LOG_PATH, line); } catch (e) { /* non-critical */ }
+  appLogFile.write(msg);
   console.log(msg);
 }
 
@@ -258,8 +260,9 @@ async function startLocalHost() {
 }
 
 // ── Tray icon ─────────────────────────────────────────────────
-// The HUD is hidden until the driver is in the car and the desk can be closed without quitting, so the
-// tray icon is what shows the app is running, and where it is quit from.
+// The HUD is hidden until the driver is in the car, and with --no-desk there is no desk window either, so the
+// tray icon is what shows the app is running whatever else is on screen: it opens the desk, switches the HUD
+// and quits. Closing the desk window quits the app too (showDesk, above); minimised, it leaves the HUD running.
 function createTray() {
   const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
   tray = new Tray(path.join(__dirname, 'images', 'branding', iconFile));
@@ -270,8 +273,9 @@ function createTray() {
     { label: 'Settings', click: () => showDesk('settings') },
     { type: 'separator' },
     // Ticked while the HUD is switched on. Out of the car the window is hidden either way, so the tick is the
-    // only place the switch can be seen.
-    { id: 'hud', label: 'HUD on/off', type: 'checkbox', checked: true, click: () => { dispatchAction('toggle-overlay'); tickHudSwitch(); } },
+    // only place the switch can be seen — and this the only switch that works there: the key and the Stream
+    // Deck's button are left alone out of the car (the toggle-overlay action, below).
+    { id: 'hud', label: 'HUD on/off', type: 'checkbox', checked: true, click: () => { hud.toggle({ anywhere: true }); tickHudSwitch(); } },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
@@ -280,7 +284,6 @@ function createTray() {
   tray.on('double-click', () => showDesk());
 }
 let trayMenu = null;
-let rendererCrashCount = 0;
 
 // ── The HUD is on screen only while the driver is in the car ──
 // The window is made hidden and modules/js/hud-visibility.js is the only thing that reveals it: while the
@@ -290,11 +293,15 @@ let rendererCrashCount = 0;
 // replay, with the sim closed, the HUD costs a request a second and nothing is ever quit to get it off the screen.
 // The garage and the replay are told from the car by the telemetry's own IsOnTrack, which the app's host sends;
 // a source that sends none (a SimHub plugin from before 2026-09-29) has a session under way taken for in the car.
-// Ctrl+Shift+H, the tray's switch and the Stream Deck's are the driver's own switch, kept until the app is quit:
-// off stays off when he gets in, on shows nothing while he is out. Dev mode's window stays as dev-mode.js put it.
+// The driver's own switch is kept until the app is quit: off stays off when he gets in, on shows nothing while
+// he is out. The tray's "HUD on/off" throws it anywhere; Ctrl+Shift+H and the Stream Deck's button only in the
+// car, where what they do is seen. A page that has died is loaded again from there too (loadDashboard): two
+// seconds after its process went, and when he gets in the car with none. Dev mode's window stays as dev-mode.js
+// put it.
 const hud = hudVisibility.createHudVisibility({
   getWindow: () => overlayWindow,
   fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
+  loadPage: () => loadDashboard(),
   keepVisible: isDev,
   onSwitch: () => tickHudSwitch(),
   log: logToFile,
@@ -322,18 +329,23 @@ function getDashboardFile() {
   return DASHBOARD_FILE;
 }
 
+/** Load the dashboard into the overlay window via file:// (all assets inlined). */
+function loadDashboard() {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  logToFile('[RacingDesk] Loading dashboard via file://');
+  // Said here as well as at did-start-navigation, which comes a moment later: in between, a poll that finds
+  // him in the car must not take the page for gone and load it a second time.
+  hud.pageLoading();
+  // How it ended is said by did-finish-load and did-fail-load; a load given up for a newer one rejects too.
+  overlayWindow.loadFile(path.join(__dirname, getDashboardFile())).catch(() => {});
+}
+
 async function createOverlay() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenW, height: screenH } = primaryDisplay.bounds;
 
   logToFile(`[RacingDesk] Dashboard: ${getDashboardFile()}`);
   logToFile(`[RacingDesk] Primary display: ${screenW}x${screenH} at (${primaryDisplay.bounds.x}, ${primaryDisplay.bounds.y})`);
-
-  /** Load the dashboard into the overlay window via file:// (all assets inlined). */
-  function loadDashboard() {
-    logToFile('[RacingDesk] Loading dashboard via file://');
-    overlayWindow.loadFile(path.join(__dirname, getDashboardFile()));
-  }
 
   // ── Transparent overlay window ──
   // macOS: use workArea to respect the dock and menu bar.
@@ -375,14 +387,20 @@ async function createOverlay() {
   // A page being loaded — the first time, after a crash, on resume — is nothing to look at, and once loaded it
   // has to be told afresh whether he is in the car.
   overlayWindow.webContents.on('did-start-navigation', (details) => {
-    if (details.isMainFrame && !details.isSameDocument) hud.pageGone();
+    if (details.isMainFrame && !details.isSameDocument) hud.pageLoading();
   });
   loadDashboard();
   logToFile('[RacingDesk] Overlay created hidden — shown while the driver is in the car');
 
   overlayWindow.webContents.on('did-finish-load', () => {
-    rendererCrashCount = 0;
     hud.pageLoaded();
+  });
+
+  // -3 is a load given up for a newer one, which has its own ending to come.
+  overlayWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, _url, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3) return;
+    logToFile(`[RacingDesk] Dashboard did not load: ${errorDescription} (${errorCode})`);
+    hud.pageFailed();
   });
 
   overlayWindow.on('closed', () => { hud.stop(); overlayWindow = null; });
@@ -422,21 +440,11 @@ async function createOverlay() {
   }
 
   // ── Crash recovery ──────────────────────────────────────────
+  // The HUD's keeper loads the page again (hud-visibility.js pageGone): for every reason but a clean exit, two
+  // seconds later, three times at most without a load finishing — and once more each time he gets in the car.
   overlayWindow.webContents.on('render-process-gone', (_event, details) => {
-    logToFile(`[RacingDesk] Renderer crashed: ${details.reason}`);
-    hud.pageGone();
-    if (details.reason === 'crashed' || details.reason === 'killed') {
-      rendererCrashCount++;
-      if (rendererCrashCount > 3) {
-        logToFile('[RacingDesk] Renderer crash limit reached (3) — giving up');
-        return;
-      }
-      setTimeout(() => {
-        if (overlayWindow && !overlayWindow.isDestroyed()) {
-          loadDashboard();
-        }
-      }, 2000);
-    }
+    logToFile(`[RacingDesk] Renderer gone: ${details.reason}`);
+    hud.pageGone(details.reason);
   });
 
   overlayWindow.webContents.on('unresponsive', () => {
@@ -684,7 +692,8 @@ app.on('will-quit', () => {
 
 const _actionHandlers = {
   // ── Window / App ──
-  // The driver's switch, not the window's: see hud, above.
+  // The driver's switch, not the window's: see hud, above. From Ctrl+Shift+H and the Stream Deck, so only in the
+  // car: out of it the switch is left as it was and the answer says so ({ ok: false, reason: 'out of the car' }).
   'toggle-overlay': () => hud.toggle(),
   'toggle-settings': () => {
     // Settings UI lives in the WinUI host now. Deep-link via the

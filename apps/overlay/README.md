@@ -2,7 +2,7 @@
 
 A standalone Electron overlay that renders real-time sim racing telemetry as a transparent HUD on top of your sim. Designed for stream overlays and broadcast production — it composites directly over the game window with no capture card or secondary monitor required. Also functions as a dedicated driving display in fullscreen Drive HUD mode.
 
-The overlay is bundled inside the [`prodrive-windows`](https://github.com/DOOOOM/prodrive-windows) installer and auto-launched by the desktop app's iRacing detector. A sibling repo, [`prodrive-overlay-showcase`](https://github.com/DOOOOM/prodrive-overlay-showcase), holds the same code with a `showcase-bootstrap.js` that drives it from synthesized data — used in the marketing-site iframe.
+This is the Electron half of The Racing Desk: the HUD (`dashboard.html`) and the desk window (`desk.html`), one app. It is built by `npm run build` at the monorepo root into `dist/win-unpacked/Racing Desk.exe` and starts its own RacingDesk.Host — there is no installer; see the root `CLAUDE.md`, Desk. **The HUD is on screen only while the driver is in the car** ([below](#when-the-hud-is-on-screen)). A sibling repo, [`prodrive-overlay-showcase`](https://github.com/DOOOOM/prodrive-overlay-showcase), holds the same code with a `showcase-bootstrap.js` that drives it from synthesized data — used in the marketing-site iframe.
 
 **Beyond the live HUD,** today's overlay also handles **race recording** (produces `.rcpdv` bundles = MP4 + telemetry sidecar via `recorder.js` + `ffmpeg-encoder.js`), **in-overlay replay** (`replay-director.js` for scrubbing the captured race), **Race Coach** (live Claude AI commentary via direct calls to `api.anthropic.com` from `race-coach.js` — uses your own Anthropic API key), **voice commentary** (`voice-coach.js`), and **incident coaching** (`incident-coach.js`). 51 modules in `modules/js/` total — the table below covers the live-HUD subset.
 
@@ -10,7 +10,7 @@ The overlay is bundled inside the [`prodrive-windows`](https://github.com/DOOOOM
 
 ## Overview
 
-The dashboard connects to the RacingDesk SimHub plugin's HTTP API and renders telemetry data at ~30fps. It runs as a frameless, always-on-top, click-through window so the game receives all mouse and keyboard input normally. On systems that support native transparency (x64 Windows), the window background is fully transparent. On ARM devices (Surface Pro, Snapdragon laptops), it uses a green chroma key background for OBS Color Key compositing.
+The dashboard connects to the telemetry's HTTP API — the RacingDesk SimHub plugin's, or the app's own RacingDesk.Host when SimHub is not running — and renders telemetry data at ~30fps. It runs as a frameless, always-on-top, click-through window so the game receives all mouse and keyboard input normally; the window is hidden until the driver is in the car, and is shown without taking the focus from the sim. On systems that support native transparency (x64 Windows), the window background is fully transparent. On ARM devices (Surface Pro, Snapdragon laptops), it uses a green chroma key background for OBS Color Key compositing.
 
 The `dashboard.html` file powers three deployment modes: the Electron overlay (this app), the SimHub built-in dashboard template, and direct browser access via the plugin's HTTP server.
 
@@ -19,31 +19,53 @@ The `dashboard.html` file powers three deployment modes: the Electron overlay (t
 ### Prerequisites
 
 - Node.js 18+
-- SimHub running with the RacingDesk plugin enabled
-- The plugin's HTTP server active on port 8889 (starts automatically with the plugin)
-- **iRacing users:** The [iRacing Extra Properties](https://drive.google.com/drive/folders/1AiIWHviD4j-_D-zgRrjJU1AFhJ_xmass) plugin by RomainRob (required for iRating and Safety Rating display)
+- Telemetry on port 8889: SimHub with the RacingDesk plugin enabled, or RacingDesk.Host, which the app starts for itself (`npm run build:host` at the monorepo root, once)
+- **iRacing users, beside SimHub:** The [iRacing Extra Properties](https://drive.google.com/drive/folders/1AiIWHviD4j-_D-zgRrjJU1AFhJ_xmass) plugin by RomainRob (required for iRating and Safety Rating display)
 
 ### Install and Run
 
+From the monorepo root:
+
 ```bash
-cd racing-desk-overlay
 npm install
-npm start
+npm start -w racing-desk-overlay     # from source; the built app is `npm run build`, then Racing Desk.exe
 ```
 
-The overlay appears in the top-right corner of your primary display. For ARM hardware, use safe mode: `npm run start:safe`
+The desk window opens and a tray icon goes up. Nothing of the HUD is on screen yet: it comes up when you get in the car, and goes again two seconds after you get out. For ARM hardware, use safe mode: `npm run start:safe`
+
+### When the HUD is on screen
+
+Only while the driver is in the car, he has not switched the HUD off, and the page is loaded. The window is made hidden; `modules/js/hud-visibility.js`, in the main process, is the only thing that shows it (`showInactive`, so the sim keeps the focus) and hides it. It asks the telemetry once a second — twice in the car — and tells the page, which polls and draws only while he is in. Nothing is ever quit to get the HUD off the screen.
+
+- **In the car** is one rule, `inCar` in `modules/js/in-car.js`: demo mode; or the sim running and iRacing's own `IsOnTrack`, which RacingDesk.Host sends — so the sim's menus, the garage screen and a replay are out of the car. From a source that sends no `IsOnTrack` (a SimHub plugin from before 2026-09-29) a session under way counts as in the car, garage and replay included.
+- **Getting out** is believed after two seconds, so the HUD does not blink between sessions; a telemetry that has not answered for three seconds is out of the car too.
+- **The switch.** The tray's "HUD on/off" works anywhere, and its tick shows where it stands. `Ctrl+Shift+H` and the Stream Deck's button work only in the car, where what they do is seen; out of the car they do nothing, and their answer says so (`{ ok: false, reason: 'out of the car' }`). Off stays off — through getting out and in again — until it is switched on, or the app is started again.
+- **A page that dies** is loaded again two seconds later, whatever the reason but a clean exit, three times at most without a load finishing; after that, once more each time he gets in the car.
+- **Back in the car after a break in the telemetry** the page starts clean: no backoff left over, and one poll at once.
+- **Dev mode** (`npm run dev`) leaves the window on screen whatever the car is doing.
+
+### The desk
+
+The other window: **Desk**, **Cars** and **Settings**, switched from its masthead, the tray menu or `Ctrl+Shift+O`. Cars is every car on the rig and, for the one chosen, its liveries, the view it was last driven with and its pedals — Paints was a page of its own until 2026-09-29, and `paints` as a page's name still leads to Cars. Settings edits the HUD's `overlay-settings.json` and each change reaches the HUD live. Closing the desk window quits the app; minimise it to keep the HUD while racing. See the root `CLAUDE.md`, Desk.
+
+### Log
+
+From source the main process logs to `racing-desk-debug.log` in this folder. The built app logs to `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside the host's `host.log` — "In the car → HUD on screen", "Out of the car → HUD hidden" and the rest are there. Past 4 MB the file becomes `overlay.log.1` and a new one is begun.
 
 ### Hotkeys
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+S` | Toggle settings/move mode — drag to reposition, resize from edges |
+| `Ctrl+Shift+H` | Switch the HUD off or on — in the car only; out of it, use the tray's "HUD on/off" |
+| `Ctrl+Shift+O` | Open the desk |
 | `Ctrl+Shift+F` | Toggle Drive HUD mode (fullscreen driving-focused display) |
-| `Ctrl+Shift+H` | Hide or show the overlay |
 | `Ctrl+Shift+G` | Toggle green-screen mode (restarts) |
-| `Ctrl+Shift+R` | Reset overlay position and size to defaults |
+| `Ctrl+Shift+R` | Put the HUD's window back over the whole primary display |
 | `Ctrl+Shift+D` | Restart demo sequence |
-| `Ctrl+Shift+Q` | Quit the overlay |
+| `Ctrl+Shift+M` | Reset the track map |
+| `Ctrl+Shift+V` | Start or stop recording |
+| `Ctrl+Shift+B` | Save the replay buffer |
+| `Ctrl+Shift+Q` | Quit the app — the HUD, the desk and the host |
 
 ## Dashboard Panels
 
@@ -162,11 +184,11 @@ The Electron main process captures a configurable screen region at ~4fps using `
 
 1. The SimHub plugin serves all telemetry, commentary, and strategy state as a flat JSON object at `/racing-desk/` over HTTP on port 8889.
 
-2. The dashboard's `fetchProps()` function issues a single HTTP GET every 33ms (~30fps). In demo mode, the dashboard reads from `RacingDesk.Plugin.Demo.*` properties instead — the switching is transparent.
+2. While the driver is in the car, `pollUpdate()` (`poll-engine.js`) calls `fetchProps()` (`game-detect.js`), a single HTTP GET every 33ms (~30fps). Out of the car the app's page asks for nothing and draws nothing: the main process asks once a second and tells the page when he is in. A page in a browser or on an iPad has no main process behind it, and asks once a second for itself. In demo mode, the dashboard reads from `RacingDesk.Plugin.Demo.*` properties instead — the switching is transparent.
 
-3. Each poll cycle, `pollUpdate()` routes JSON values to the appropriate module: updating DOM elements, CSS custom properties, SVG transforms, class toggles, and WebGL shader uniforms. Animations are driven by CSS transitions triggered by class changes.
+3. Each frame, `_renderFrame()` routes the JSON values last read to the appropriate module: updating DOM elements, CSS custom properties, SVG transforms, class toggles, and WebGL shader uniforms. Animations are driven by CSS transitions triggered by class changes.
 
-4. The connection uses exponential backoff on failure (1s → 2s → 4s → 8s, capped at 10s) to avoid socket exhaustion when SimHub isn't running.
+4. The connection uses exponential backoff on failure (1s → 2s → 4s → 8s, capped at 10s) to avoid socket exhaustion when nothing is answering. In the app the backoff is dropped when the main process says he is back in the car.
 
 ### Modules
 
@@ -227,21 +249,15 @@ The overlay is back to being purely the live-HUD-and-recording client.
 
 ## Configuration
 
-### In-App Settings
+### Settings
 
-Press `Ctrl+Shift+S` to enter settings mode, then click the gear icon to open the settings panel. Toggle individual dashboard sections on or off: fuel, tyres, controls, pedal traces, track map, position/gaps, tachometer, commentary, RacingDesk logo, car logo, leaderboard, datastream, incidents, and spotter.
+The HUD has no settings panel of its own any more: its window takes no clicks. Settings are a page of the desk window (`modules/desk/settings-model.js` lists them) — layout (position, zoom, bottom offset), which modules are shown, the look (visual preset, theme, ambient light, borders, WebGL effects), and the HUD on an iPad. Each change is written to `%APPDATA%\Racing Desk\overlay-settings.json` and reaches the HUD at once.
 
-You can also change the SimHub API URL for remote setups (e.g., `http://playbox.local:8889/racing-desk`).
-
-Settings persist between sessions via Electron IPC to a JSON file, with localStorage fallback in browser mode.
-
-### Layout Position
-
-The settings panel includes a **Position** dropdown for screen corner or edge-center placement. For center positions, a **Flow Direction** selector appears. The **Swap Vertical** toggle reverses the top and bottom halves of all stacked panel columns.
+In a browser, with no app behind the page, settings fall back to localStorage.
 
 ### Window Position
 
-In settings mode, drag the overlay anywhere on screen and resize from edges. Position and size persist between sessions. `Ctrl+Shift+R` resets to defaults.
+The HUD's window covers the whole primary display, and the panels place themselves inside it by the Position setting. `Ctrl+Shift+R` puts the window back if something has moved it.
 
 ## ARM Compatibility
 
@@ -261,13 +277,15 @@ On x64 systems, native transparency composites directly — no OBS filter needed
 
 ## Troubleshooting
 
-**Dashboard shows no data:** Open `http://localhost:8889/racing-desk/` in a browser. You should see a JSON blob with 100+ properties. If not, verify the RacingDesk plugin is enabled in SimHub.
+**No HUD in the car:** Look at the tray's "HUD on/off": unticked, the HUD is switched off, and stays off until it is ticked again. Then read the log (`%LOCALAPPDATA%\Racing Desk\overlay.log` in the built app): it says when the HUD was put on screen and hidden, and why. Beside SimHub the HUD reads SimHub's plugin, so SimHub closing in mid-session hides the HUD.
+
+**The HUD is on screen in the garage, or over a replay:** The telemetry it reads sends no `IsOnTrack` — a SimHub plugin installed before 2026-09-29. Install the plugin again from this build.
+
+**Dashboard shows no data:** Open `http://localhost:8889/racing-desk/` in a browser. You should see a JSON blob with 100+ properties. If not, verify the RacingDesk plugin is enabled in SimHub, or that RacingDesk.Host is running.
 
 **Overlay crashes on launch (ARM):** Use `npm run start:safe` for software rendering. Requires Electron 33+.
 
 **Commentary panel never appears:** Enable Demo Mode in the plugin settings to trigger test events.
-
-**Overlay covers clicks:** Press `Ctrl+Shift+S` to exit settings mode and restore click-through behavior.
 
 **OBS shows black/solid overlay:** On x64, use Window Capture with "Allow Transparency" enabled. On ARM, use the Color Key filter.
 

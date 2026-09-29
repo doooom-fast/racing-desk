@@ -97,13 +97,18 @@
     if (inCar === _prevInRace) return;
     _prevInRace = inCar;
     if (inCar) {
-      if (_mainDecides) _snapshotDirty = false;   // what was last read is from the last time he was in
+      if (_mainDecides) {
+        _snapshotDirty = false;   // what was last read is from the last time he was in
+        startConnectionClean();   // and so is any backoff (game-detect.js)
+      }
     } else if (!_isIdle) {
       // Out with no frame to say so (the source went quiet): the flag the other modules read still has to change.
       _isIdle = true;
       document.body.classList.add('idle-state');
     }
     setOverlayActive(inCar);
+    // One poll at once, not at the timer's first tick: the window is on screen already.
+    if (inCar && _mainDecides) pollUpdate();
   }
 
   // ─── Data fetch loop (runs on setInterval — decoupled from display) ───
