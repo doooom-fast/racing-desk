@@ -345,8 +345,9 @@ own recordings of the 570S, the MX-5 and the 963, skipped where there is none). 
 `:8889` itself: the runtime writes the snapshot's JSON into the payload as an object, and the only way to run it is
 to start a runtime, which binds wildcard ports.
 
-**Not built.** The desk does not show the list or the check. The pedals' rule (`CarPedalsKeeper`) still works out a
-car's kind and ABS from what it publishes, not from the list. Nothing is remembered per car. What a fixed setup locks
+**Not built.** The desk does not show the list or the check. The pedals' rule (`CarPedalsKeeper`) reads a car's kind
+and ABS from the list where the list says both, and from what the car publishes for any other; the desk cannot yet
+say which. Nothing is remembered per car. What a fixed setup locks
 is the rule of §10 and no more. No car outside the list gets anything: a car the list has not met is shown as it was.
 
 ## 12. The cars, one by one

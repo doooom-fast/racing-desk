@@ -242,7 +242,8 @@ with, and the Pedals panel says so in a sentence under the profile:
 | `brake_force_kg`, `force_at` | brake force 62 kg in this car, set Tue, Sep 15, 5:40 PM — beside the profile's brake, and there with no profile at all |
 
 The rule is the driver's — his `LightBrake` for a car with ABS that is neither a formula car nor a prototype, his
-`Default` for the rest — and it is the host that applies it, at the end of a run. A host from before it kept any of this sends none of
+`Default` for the rest — and it is the host that applies it, at the end of a run, going by the canonical car list for
+a car the list says the kind and ABS of, and by what the car showed for any other. The page does not say which yet. A host from before it kept any of this sends none of
 those fields, and the panel is then as it was: the sentence is left out, and the force has no date. Taking a car's
 profile away leaves its force on the page, and the host has that down as the driver's choice.
 

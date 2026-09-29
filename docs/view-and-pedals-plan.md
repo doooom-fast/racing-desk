@@ -132,8 +132,22 @@ from one of two of his:
 - **That is a stand-in, by his word**: "don't rely only on sim based data" and "just build a canonical list,
   because i don't think we can reliably do databased detection". The list is `packages/car-list/cars.json` —
   every car's kind, its ABS, and every control it gives the driver — written by hand and checked against his
-  telemetry for the cars he has driven. Once it is in, the rule reads a car's kind and ABS from it; what the
-  car publishes is the check on the list, and the answer only for a car the list has not met.
+  telemetry for the cars he has driven. **The rule reads it** (`CarPedalsKeeper.Keep`, given a `CarList`, by
+  default the one the build carries): a car the list says both the kind and the ABS of is a formula car when its
+  kind is `formula`, a prototype when it is `prototype`, and has ABS when `abs` is `fixed` or `adjustable`. That
+  answers at the end of the car's first run — no laps to wait for, nothing the car published — and what the car
+  publishes is the check on the list, and the answer only for a car the list has not met (or has without its kind
+  or its ABS), where everything above stands as it was.
+- **A profile the rule gave, and the list contradicts, is given again once.** The list may be put right in a later
+  build, or the data may have given the profile before the list had the car. The rule's reason kept is compared
+  with the one the list gives now; if they differ the profile is made again from the base the list sends it to
+  and the log line says why ("the list says it has no ABS, so its profile is from Default now, not LightBrake").
+  If that base is the profile it already has, only the reason kept is put right and the profile is left as it was.
+  A profile he gave, or his choice that a car has none, is not touched. A car the list says has no ABS whose ABS
+  was seen is given `Default` all the same, and the line where the rule acts says the two disagree.
+- **Where the answer came from is in the log line only** ("from Default (no ABS, from the list)"). The reasons kept
+  are the same four; a note of the source would need a table of its own (schema 7), which another branch is
+  adding for a different purpose, so the desk does not say it yet.
 - **Who gave a car its profile is kept** (`car_pedal_facts`: the rule and what it went by, or he himself), and
   the data API says it (`given_by`, `given_why`). A profile he gave on the desk, or chose not to have, is never
   the rule's to change.

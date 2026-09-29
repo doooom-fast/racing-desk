@@ -106,19 +106,29 @@ or to the pedals.
     a break in the telemetry of under a minute; after longer, nothing is known until a key sets a force.
   - **A car with no pedals of its own is given them by the driver's rule** (`CarPedalsKeeper`): his `LightBrake`
     for a car with ABS that is neither a formula car nor a prototype, his `Default` for the rest ("a proto with
-    abs gets default"). A car has ABS when it publishes `dcABS` or its ABS was seen working; it is taken to have
-    none after three laps of neither, counted across runs and only while he is in the car — and is put right if
-    its ABS is seen later. A car is a formula car when any session in it ran in the category `Formula` (a test
+    abs gets default"). **The car list answers first** (`RacingDesk.Core.Cars.CarList`; `CarPedalsKeeper.Keep`
+    takes one, by default the list the build carries): a car it says both the `kind` and the `abs` of is a formula
+    car when its kind is `formula`, a prototype when it is `prototype`, and has ABS when `abs` is `fixed` or
+    `adjustable`. It answers at the end of the car's first run, with no laps to wait for, and whatever the car
+    published. The log line says so (`from Default (no ABS, from the list)`); what is kept is one of the four
+    reasons and no more (no schema change), so the desk cannot yet say where an answer came from. Where the rule
+    acts on a car the list has without ABS and its ABS has been seen, the line says the two disagree and that the
+    rule goes by the list — once, since it is said where the rule acts, and the check in the log says the rest.
+    **A profile the rule gave whose reason the list now contradicts** (the list was put right in a later build, or
+    the data gave the profile before the list had the car) **is given again, once**, with the line saying why; when
+    the list sends it to the profile it already has, only the reason kept is put right and the profile stays as it
+    was given. **For a car the list does not have, or has without its kind or its ABS, the rule goes by the data**
+    as it did before the list. A car has ABS when it publishes `dcABS` or its ABS was seen working; it is taken to
+    have none after three laps of neither, counted across runs and only while he is in the car — and is put right
+    if its ABS is seen later. A car is a formula car when any session in it ran in the category `Formula` (a test
     session is `Road` whatever the car). A car is a prototype, as built, when it publishes what his prototypes do
     and none of his GT or touring cars does — a hybrid system, brake migration, a front anti-roll bar set from the
     seat (`IRacingTelemetrySource.PrototypeControls`) — because the sim has no word for it: a prototype races as
-    `SportsCar`, and its class has no name in a test session. **That is the stand-in.** He has asked for a
-    canonical list of cars, written by hand (`packages/car-list/cars.json`), and the rule reads a car's kind and
-    its ABS from there once the list is in; what the car publishes is then the check on the list, and the answer
-    only for a car the list has not met. Being a prototype is the reason only where it changes what is given, so
-    a car without ABS is given `Default` for that. A car the rule took for a sports car and later sees to be a
-    prototype is put right, as one taken to have no ABS is. A profile he gave on the desk, or chose not to have,
-    is never the rule's to change.
+    `SportsCar`, and its class has no name in a test session. **That is the stand-in**, for the cars the list has
+    not met. Being a prototype is the reason only where it changes what is given, so a car without ABS is given
+    `Default` for that. By the data, a car the rule took for a sports car and later sees to be a prototype is put
+    right, as one taken to have no ABS is. A profile he gave on the desk, or chose not to have, is never the
+    rule's to change, whatever the list says.
   - Nothing here may hold up or end the telemetry: SmartControl's database is read on a thread of its own and
     never waited for, and what is thrown while following the car is logged and goes no further.
   - Not yet: putting a car's force or profile *back* when he gets in. That presses keys or writes SmartControl's
@@ -203,10 +213,10 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
 - **A car the list does not have** shows what it showed before there was a list: no key is sent, and the HUD goes by
   the raw `dc…` values and the old hand-written table in `apps/overlay/modules/js/config.js`. Nothing is made up —
   no NONE, no car's own labels, no DRS or push-to-pass. The check says once, in the log, that the car is missing.
-- **Not built**: the desk does not show the list or the check; the pedals' rule (`CarPedalsKeeper`, above) still
-  works out a car's kind and ABS from what it publishes and does not read the list; nothing is remembered per car
-  (no schema change). Beside SimHub the key shows only once the plugin has been installed again from a build that
-  carries the list: the plugin carries `RacingDesk.Core`, and the old DLL sends no such key.
+- **Not built**: the desk does not show the list or the check; nothing is remembered per car (no schema change) —
+  so the pedals' rule (`CarPedalsKeeper`, above) reads the list, but the desk cannot yet say that a profile came
+  from it. Beside SimHub the key shows only once the plugin has been installed again from a build that carries the
+  list: the plugin carries `RacingDesk.Core`, and the old DLL sends no such key.
 
 ## Desk
 
