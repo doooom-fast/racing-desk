@@ -609,6 +609,33 @@ ON CONFLICT(car_path) DO UPDATE SET
             return true;
         }
 
+        /// <summary>
+        /// The brake force a car was last driven with, in kilograms. The car has to have pedals of its own
+        /// already: a force belongs to a profile. False if it has none.
+        /// </summary>
+        public bool SetCarBrakeForce(string carPath, double kilograms)
+        {
+            if (string.IsNullOrWhiteSpace(carPath) || double.IsNaN(kilograms) || double.IsInfinity(kilograms) || kilograms < 0) return false;
+            if (!HasTable("car_pedals")) return false;
+            using var cmd = Cmd("UPDATE car_pedals SET brake_force_kg = $force WHERE car_path = $car");
+            P(cmd, "$force", kilograms);
+            P(cmd, "$car", carPath.Trim());
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        /// <summary>
+        /// Whether any session in this car ran in a category — "Formula", "SportsCar", "Road", "Oval", as the sim
+        /// names them. A test session is "Road" whatever the car, so only an answer of yes says anything.
+        /// </summary>
+        public bool CarRanIn(string carPath, string category)
+        {
+            if (string.IsNullOrWhiteSpace(carPath) || string.IsNullOrWhiteSpace(category)) return false;
+            using var cmd = Cmd("SELECT 1 FROM sessions WHERE car_path = $car AND category = $category COLLATE NOCASE LIMIT 1");
+            P(cmd, "$car", carPath.Trim());
+            P(cmd, "$category", category.Trim());
+            return cmd.ExecuteScalar() != null;
+        }
+
         /// <summary>The car goes back to having no pedals of its own. False if it had none.</summary>
         public bool UnbindCarPedals(string carPath)
         {

@@ -126,12 +126,30 @@ from one of two of his:
 - **A profile made by the app is not byte for byte SmartControl's**: it is a copy of one that was, under another
   name. Whether SmartControl takes a row whose name changed and whose hash did not is part of E10.
 
+### What the first night taught (2026-09-28)
+
+He drove the Honda Civic Type R TCR, set the brakes and found nothing saved. The view had been (height 0.02,
+horizon 0.05, seat −0.04). The pedals had not: nothing followed them yet, and what he changed went through
+Live's keys into the controller — SmartControl's database was untouched, and Live writes nothing when a key is
+pressed. He then said **yes to noticing the keys** ("Yes watch the hot keys") and gave the force ("It was 45"),
+which is his `LightBrake`, and what his rule gives a touring car with ABS.
+
+Built that night, the half of P2 that writes nothing of anyone else's: the host follows the force from Live's
+keys while the sim sends, and when the sim goes keeps it for the car, giving a car with no pedals of its own a
+profile by his rule. Restoring is the half that is left.
+
+Two limits that only he at the rig can lift:
+- **A key held down is one press here.** If Live repeats a step while the key is held, the two will disagree by
+  the repeats. (A key that sets a force puts them right again.)
+- **Where Live stops is not known** (E8). Past Live's limit a step is counted here that Live did not take.
+
 ### Slices
 
 | | Does | Writes |
 |---|---|---|
 | P1 | Reads SmartControl's profiles; binds car to profile; the desk shows each car's | nothing |
-| P2 | Brake force per car: restored with Live's keys, followed by noticing them, saved at session end | key presses |
+| P2a | **Done.** Brake force per car, followed by noticing Live's keys, saved when the sim goes; a profile by his rule for a car that has none | the app's own store |
+| P2 | Brake force per car: restored with Live's keys | key presses |
 | P3 | The profile per car, with a Live key per profile | key presses |
 | P4 | The managed profile: a snapshot per car, one key | one row in SmartControl's database |
 
@@ -173,5 +191,5 @@ pedals directly, which is a later and more careful piece of work.
 - A HUD line for every automatic change, or only when something could not be done?
 - Page Up, Page Down and Pause reach iRacing as well as Live when pressed. They do already, from the keyboard;
   worth a look at what, if anything, they are bound to in the sim.
-- Noticing five keys means the host listens to the keyboard while the sim runs. It keeps nothing but the
-  resulting force. Say if that is not wanted: the alternative is the force being restored but never learnt.
+- ~~Noticing five keys means the host listens to the keyboard while the sim runs.~~ **Yes** (2026-09-28): those
+  keys, only while the sim runs, keeping only the force.

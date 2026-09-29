@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Newtonsoft.Json;
 using RacingDesk.Data;
+using RacingDesk.Data.Pedals;
 using RacingDesk.Data.Schedule;
 using RacingDesk.Plugin;
 using RacingDesk.Plugin.IRacing;
@@ -164,6 +165,12 @@ Data options:
             var views = store != null
                 ? new CarViewRecorder(null, BackgroundIo.SimRunning, view => SaveCarView(o, view), m => Log.Info("[RacingDesk.Host] " + m))
                 : null;
+            // The pedals each car is driven with. The brake force is followed from SmartControl Live's own keys —
+            // those keys and no others, and only while the sim is sending — because nothing on the PC records it.
+            // SmartControl's files are read and never written.
+            var pedals = store != null
+                ? new CarPedalsRecorder(() => SmartControl.Read(), Keyboard.State, seen => SavePedals(o, seen), m => Log.Info("[RacingDesk.Host] " + m))
+                : null;
             var gate = new object();
 
             raw.TelemetryData += () =>
@@ -175,6 +182,7 @@ Data options:
                     recorder?.Feed(raw);
                 }
                 views?.SeeCar(source.CarPath);
+                pedals?.See(source.CarPath, source.HasAbsSetting, source.AbsWorking, source.LapsCompleted);
             };
             raw.Connected += () => Log.Info("[RacingDesk.Host] iRacing connected");
             raw.Disconnected += () =>
@@ -182,6 +190,7 @@ Data options:
                 Log.Info("[RacingDesk.Host] iRacing disconnected");
                 lock (gate) recorder?.Flush();
                 views?.SimGone();
+                pedals?.SimGone();
             };
             raw.Start();
             Log.Info("[RacingDesk.Host] waiting for iRacing (Ctrl+C to stop)");
@@ -222,6 +231,22 @@ Data options:
             catch (Exception ex)
             {
                 Log.Warn("[RacingDesk.Host] view not stored: " + ex.Message);
+            }
+        }
+
+        // As the view is: its own connection, off the telemetry thread's store. The session the run was is saved
+        // before this is called, so the store has the car by now.
+        private static void SavePedals(HostOptions o, PedalsSeen seen)
+        {
+            try
+            {
+                using var store = new RacingDeskStore(o.Db ?? RacingDeskStore.DefaultPath);
+                string kept = CarPedalsKeeper.Keep(store, SmartControl.Read(), seen);
+                if (kept != null) Log.Info("[RacingDesk.Host] " + kept);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("[RacingDesk.Host] pedals not stored: " + ex.Message);
             }
         }
 

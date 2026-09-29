@@ -42,6 +42,19 @@ namespace RacingDesk.Plugin.IRacing
         /// read. Unlike the car's name it is the same whatever iRacing calls the car this season.
         /// </summary>
         public string CarPath => GameRunning ? _me?.CarPath?.Trim() : null;
+
+        /// <summary>
+        /// The car publishes an ABS setting the driver can turn. A car publishes only the controls it has, so
+        /// this says the car has ABS; a car without the setting may still have ABS that cannot be adjusted,
+        /// which shows as <see cref="AbsWorking"/>.
+        /// </summary>
+        public bool HasAbsSetting => GameRunning && _raw.GetValue("dcABS") != null;
+
+        /// <summary>The ABS is holding the brakes at this moment.</summary>
+        public bool AbsWorking => GameRunning && Bool("BrakeABSactive");
+
+        public int LapsCompleted => GameRunning ? Math.Max(0, Int("LapCompleted")) : 0;
+
         public object NewData => GameRunning ? _data : null;
 
         /// <summary>Recompute normalized data and derived values for the current frame.</summary>
