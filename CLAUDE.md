@@ -73,7 +73,7 @@ driven live and then read from its `.ibt`, or written to several files, is one (
 Schema changes add tables and leave the old ones as they were (v5 took `cars_scanned` back out of `ingested_files`),
 so an earlier build can still record and ingest into a store a later one has opened.
 
-**Per car, for the rig** (schema v5; plan in `docs/view-and-pedals-plan.md`). Nothing here writes to iRacing's files
+**Per car, for the rig** (schema v5 and v6; plan in `docs/view-and-pedals-plan.md`). Nothing here writes to iRacing's files
 or to the pedals.
 - `car_views` — the view a car was driven with. iRacing keeps one height and horizon for every car (`[View]` in
   `Documents\iRacing\app.ini`, read at sim start, written at exit), so `CarViewRecorder` reads the file while the sim
@@ -85,23 +85,34 @@ or to the pedals.
   numbers). `RacingDesk.Data/Pedals/SmartControl.cs` reads `C:\ProgramData\Heusinkveld\Database\Heusinkveld.db`
   read-only: the profiles, and SmartControl Live's keys. A profile is parsed as text, never as bytes: most say
   `encoding="utf-16"` on their first line and are one byte to a letter.
+- `car_pedal_facts` (schema v6) — what is known of a car's pedals beside its profile: the brake force it was last
+  driven with, whether it has ABS, and who gave it its profile (`rule` and what the rule went by, `driver`, or
+  `none` when he chose that it has none). A force is the car's with or without a profile, which is why it is not
+  kept only in `car_pedals`.
 - **The brake force is followed from SmartControl Live's keys** (`Pedals/BrakeForce.cs`, `CarPedalsRecorder.cs`),
   because it is in no file: a key goes to Live, Live tells the controller, the controller keeps it. The driver
-  said yes to this (2026-09-28), on these terms, which the tests hold it to:
+  said yes to this (2026-09-28), on these terms:
   - Windows is asked whether a key is down (`GetAsyncKeyState`; no hook) about **the keys Live has bound to the
-    brake force and no others** — `LiveKeyWatcher.Watched` — and only on a telemetry frame, so only while the sim is
-    sending. Nothing is kept but the force they come to.
-  - The force is known from the first key that *sets* one. Raised or lowered from a force nobody knows, only the
-    change is known, and nothing is kept for the car but a line in the log.
-  - When the sim goes (or the car changes), the run's force becomes the car's `brake_force_kg` — if a key was
-    pressed in that car. The pedals keep their force from car to car, so it carries within one run of the sim; the
-    next run starts from nothing known.
-  - **A car with no pedals of its own is given them by the driver's rule** (`CarPedalsKeeper`): a copy of his
-    `LightBrake` for a touring or sports car with ABS, of his `Default` for a formula car or a car without. A car
-    has ABS when it publishes `dcABS` or its ABS was seen working; it has none after three laps of neither. A car is
-    a formula car when any session in it ran in the category `Formula` (a test session is `Road` whatever the car).
+    brake force and no others** — `LiveKeyWatcher.Watched` — and never about a key that text is typed with,
+    whatever Live has bound. It is asked on a telemetry frame, so only while the sim is sending; there is no
+    clock in it. **Nothing is kept but the force**: the log has the force, never the key.
+  - The force is known from the first key that *sets* one. **A number that may be wrong is not kept**: a step key
+    held until Windows repeats it leaves the force not known until a key sets one, a key pressed while
+    SmartControl Live is not running is not counted, and a look after a gap in the frames only looks.
+  - When the sim goes, the car changes or the host stops, the run's force becomes the car's — if a key was pressed
+    in that car, and whether or not the car has a profile. The pedals keep their force from car to car and through
+    a break in the telemetry of under a minute; after longer, nothing is known until a key sets a force.
+  - **A car with no pedals of its own is given them by the driver's rule** (`CarPedalsKeeper`): his `LightBrake`
+    for a car with ABS that is not a formula car, his `Default` for a formula car or a car without ABS. A car has
+    ABS when it publishes `dcABS` or its ABS was seen working; it is taken to have none after three laps of
+    neither, counted across runs and only while he is in the car — and is put right if its ABS is seen later. A
+    car is a formula car when any session in it ran in the category `Formula` (a test session is `Road` whatever
+    the car). A profile he gave on the desk, or chose not to have, is never the rule's to change.
+  - Nothing here may hold up or end the telemetry: SmartControl's database is read on a thread of its own and
+    never waited for, and what is thrown while following the car is logged and goes no further.
   - Not yet: putting a car's force or profile *back* when he gets in. That presses keys or writes SmartControl's
-    database, and waits on the experiments in the plan (does Live act on a key a program sends?) and on him.
+    database, and waits on the experiments in the plan (does Live act on a key a program sends?) and on him. Nor
+    is any of this said on the HUD.
 
 ## Season schedule
 
@@ -139,13 +150,33 @@ Desktop "Racing Desk" shortcuts point there; "shipping" is `git pull && npm run 
 on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\Racing Desk\host.log`.
 There is no console window. **Closing the desk window quits the app** (minimise it to keep the HUD while racing) — the
 HUD's window is hidden and Windows 11 tucks the tray icon behind its overflow arrow, so an app that outlived its window
-would run with nothing on screen. The tray menu (Open desk / Cars / Paints / Settings, HUD on/off, Quit) and Ctrl+Shift+Q quit too. The host is
+would run with nothing on screen. The tray menu (Open desk / Cars / Settings, HUD on/off, Quit) and Ctrl+Shift+Q quit too. The host is
 spawned detached — Node otherwise puts it in a job object Windows kills with the app, mid-write — and stops itself,
 flushing what it was recording, when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again
 opens the desk in the running app.
 
-The desk window has four pages — **Desk**, **Cars**, **Paints** and **Settings** — switched from the masthead nav, the
-tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js` `showPage`). Settings edits the HUD's `%APPDATA%\Racing Desk\overlay-settings.json` through the preload bridge
+**The HUD is on screen only while the driver is in the car.** Its window is made hidden, and
+`modules/js/hud-visibility.js` is the only thing that reveals it (`showInactive`, so the sim keeps the focus): while
+the telemetry says he is in the car, he has not switched the HUD off, and the page is loaded. At the sim's menus,
+with the sim closed, or once the telemetry has not answered for three seconds it is hidden — two seconds after he
+gets out, so it does not blink between sessions — and nothing is ever quit to get it off the screen. The decision
+is the main process's, not the page's: it asks the telemetry the page reads, once a second (twice in the car), and
+tells the page (`in-race-state`), which polls and draws only while he is in. A hidden page is not relied on to
+notice him getting back in. What "in the car" means is one function, `inCar` in `modules/js/in-car.js`
+(`tests/unit/in-car.spec.mjs`): demo mode; or the sim running and iRacing's own `IsOnTrack` and not a replay, which
+the payload carries as `DataCorePlugin.GameRawData.Telemetry.IsOnTrack` (`TelemetryCapture.InCar`, sent only where
+the sim says it: a key that is sent is believed, so one made up would hide the HUD for good) — so the garage
+screen and a replay are out of the car; or, from a source that sends no such key, a session under way
+(`Grid.SessionState` > 0), which counts them as in. The SimHub plugin sends the key once it has been installed
+again from this build; until then, beside SimHub, the HUD is on screen in the garage.
+The page on an iPad or in a browser has no main process behind it and asks the same function for itself; so does
+`npm run record -- --only-in-car`. Ctrl+Shift+H, the tray's "HUD on/off" (ticked while it is on) and the Stream
+Deck's button are the driver's switch, kept until the app is quit: off stays off when he gets in, on shows nothing
+while he is out. In dev mode the window stays as `dev-mode.js` put it.
+
+The desk window has three pages — **Desk**, **Cars** and **Settings** — switched from the masthead nav, the
+tray menu, `?page=` or the `#settings` hash (`modules/desk/desk.js` `showPage`). Paints was a page of its own until
+2026-09-29, when it and Cars became one; `paints` as a page's name still leads to Cars. Settings edits the HUD's `%APPDATA%\Racing Desk\overlay-settings.json` through the preload bridge
 (`modules/desk/settings-model.js` lists the keys) and each change applies live: `save-settings` writes the file whole
 and sends `settings-sync` to the HUD window. The old WinUI settings app is no longer the way to change the HUD.
 
@@ -181,36 +212,57 @@ whatever the driver is doing — so nothing but the driver's own switch ever sta
 standard's rules, since no reader is on hand. A page cannot keep an iPad awake over plain http, so the card says to
 set Auto-Lock to Never.
 
-**Cars** is what the host remembers per car, for the cars the driver has driven (`driven > 0` in
-`/racing-desk/data/cars`), the one driven last first — worked out from the session rows the desk already has. Two
-things. The **view** each was last driven with: driver height, horizon, head horizon, FOV and the seat's three
-offsets, from `GET /racing-desk/data/views`; the page says whether a car's view is its own or inherited from the car
-driven before it, and a car with none yet says so plainly, which is how every car starts. And its **pedals**: which
-SmartControl profile it is driven with, chosen from a select, with that profile's brake in a line beside it and
-SmartControl Live's keys at the foot of the page (`GET /racing-desk/data/pedals`). Nothing on the page changes
-iRacing or the pedals. The three routes are read each time the page is shown and on Refresh, not at desk start
-(`loadCars`); a host from before the page answers 404 for `views` and `pedals`, and the page lists the cars and says
-the host is older. The one write goes through main, because the host refuses a request that names an origin:
-`window.racingDesk.rig.bindPedals(carPath, profileId)` → `rig:bindPedals` (the desk window only) →
-`modules/js/rig-api.js`, which POSTs from Node with a 3 s limit, only to a host on this machine, and answers
-`{ ok: true, car }` or `{ ok: false, error }`, never a rejection. Seat offsets are signed millimetres and the page
-does not say which way is forward — that has not been verified. `id="cars"` is still the Desk page's Car affinity
-card; the page's own elements are `cars-page`, `cars-list` and so on, and the nav switches pages itself rather than
+**Cars** is the one list of cars and the one place to look at a car: its liveries, the view it is driven with, its
+pedals. The list is on the left — every car the rig knows, by the sim's name for it, cars with a livery first, a
+filter over all of them, the livery groups above — and a car that has a view or pedals kept says so in its row
+(`view`, `pedals`), so the cars that have been set up can be found among the rest. The car chosen is on the right,
+in this order: its versions and "When a livery is applied"; **View**; **Pedals**; then what is on disk for it
+(installed in the sim, backups, Trading Paints). One UI source, `apps/paints/src` (React), bundled for the desk by
+`apps/paints/build-island.mjs` into `modules/desk/paints.bundle.js` + `.css` (generated, like the calc bundle) and
+mounted into `#cars-root` the first time the page is shown (`desk.js` `mountCars`). The page fetches nothing: every
+call goes through `apps/paints/src/bridge.ts` to the preload bridge, and the main process does the asking. In a
+browser there is no bridge, and the page says it needs the app. `id="cars"` is still the Desk page's Car affinity
+card; the page's own elements are `cars-page` and `cars-root`, and the nav switches pages itself rather than
 following `#cars`, which would scroll the desk to that card.
 
-**Paints** is the livery manager (was doooom-paints): a library of paint versions outside the sim's folders, applied
-by copying files in under the customer id, backing up what was there, deleting the stale `.mip` files and warning
-when Trading Paints would undo it. One UI source, `apps/paints/src` (React), bundled for the desk by
-`apps/paints/build-island.mjs` into `modules/desk/paints.bundle.js` + `.css` (generated, like the calc bundle) and
-mounted the first time the page is shown. Its calls go through `apps/paints/src/bridge.ts` to
-`window.racingDesk.paints` → `paints:invoke` → `modules/js/paints-ipc.js` (the allow-list and argument mapping) →
+Its **liveries** are the livery manager (was doooom-paints, and the Paints page): a library of paint versions
+outside the sim's folders, applied by copying files in under the customer id, backing up what was there, deleting
+the stale `.mip` files and warning when Trading Paints would undo it. The calls are `window.racingDesk.paints` →
+`paints:invoke` → `modules/js/paints-ipc.js` (the allow-list and argument mapping) →
 `modules/js/paints/` (the file operations, ported from the Rust in `apps/paints/src-tauri`). Backups live under
 `%LOCALAPPDATA%\Racing Desk\paints\backups`; what it remembers is the `paints` key of `overlay-settings.json`. The
 library is hundreds of paints, every command scans it, and the scan runs in the process the HUD's windows answer
 to — so a paint is hashed once: the hashes are kept beside the backups (`paints\hashes.json`, `digest.keepIn`), and
 an apply forgets only the folder it wrote into (`digest.forgetUnder`), never the library. The
-Tauri shell in `apps/paints` still builds from the same source and goes once the page has proved itself. Use made-up
-customer ids in fixtures.
+Tauri shell in `apps/paints` still builds from the same source and goes once the page has proved itself; it has no
+host behind it, so there a car's View and Pedals say that the app is not there. Use made-up customer ids in fixtures.
+
+Its **view** and **pedals** are what the host remembers per car (`car_views`, `car_pedals`, above). The view is the
+one the car was last driven with — driver height, horizon, head horizon, FOV and the seat's three offsets — with
+when it was last driven, whether the view is its own or inherited from the car driven before it, and when it was
+recorded; a car with none yet says so plainly, which is how every car starts. The pedals are which SmartControl
+profile the car is driven with, chosen from a select, with that profile's brake in a line beside it — and whether
+the profile has been edited or deleted in SmartControl since, and the brake force kept for the car — and
+SmartControl Live's keys at the foot. Nothing on the page changes iRacing or the pedals. Seat offsets are signed
+millimetres and the page does not say which way is forward — that has not been verified.
+- **Read through main.** `window.racingDesk.rig.read()` → `rig:read` (the desk window only) →
+  `modules/js/rig-api.js`, which GETs `cars`, `views` and `pedals` from Node with a 3 s limit each, only from a
+  host on this machine, and answers `{ cars, views, pedals }`, each `{ value }`, `{ missing: true }` (a 404: a host
+  from before the route, and the page says the host is older) or `{ error }` in words — never a rejection, and
+  one failing does not take the others with it. `apps/paints/src/rig.ts` shapes the answers and trusts none of
+  them. Read when the page is mounted, each time it is shown again, on either Refresh (the masthead's says so with
+  the `racingdesk:refresh` event), and when the desk finds the host after finding none — not at desk start.
+- **One write**, through main because the host refuses a request that names an origin:
+  `window.racingDesk.rig.bindPedals(carPath, profileId | null)` → `rig:bindPedals` → `rig-api.js`, which POSTs
+  and answers `{ ok: true, car }` or `{ ok: false, error }`. The car is named by the store's own `car_path`, which
+  `cars` gives; a car the store has never had in a session has none, and its select is off and says why.
+- **Which car a row is about** is the list's own rule: the sim's car path with `-`, `_` and case folded away
+  (`rig.ts` `carKey`, as `paints/library.js` `normalise`), so the library's `mx5-mx52016` has the view kept for
+  `mx5 mx52016`.
+- **Last driven** is the desk's to say: `desk.js` works it out from the session rows it has read for the Desk page
+  and hands it to the island (`RacingDeskPaints.setLastDriven`).
+- **With no library** the list is still there in the desk — the install's cars and the paint folder's — once one
+  has been looked for and not found, so a car's view and pedals do not wait on there being a livery anywhere.
 
 Applying is one click — there is no dialog. The three options (spec map, read-only afterwards, other drivers' cooked
 files) are set once under "When a livery is applied" and remembered; an apply that is refused says why where the
@@ -222,8 +274,8 @@ applies each car's version through `apply.js`, skips a car already wearing it, a
 fails. A car never driven has no paint folder: an apply makes it under the install's name for the car
 (`installPath` in the catalogue), and only `index.js` decides that it may.
 
-The page lists every car the rig knows, by the sim's name for it — cars with a livery first, then the rest, with a
-filter over both — and a car with no livery still shows what is installed for it and its backups. The list is the
+The list is every car the rig knows, by the sim's name for it — cars with a livery first, then the rest, with a
+filter over both — and a car with no livery still shows what is installed for it and its backups. It is the
 `carCatalogue` command (`modules/js/paints/catalogue.js`; the desk's own — the Rust has none, so the Tauri shell lists
 the library by folder name): the library's cars, the cars in the iRacing install and the folders of the paint
 directory that are cars, merged on the sim's car path. That path is the car's folder under `<install>\cars` with the
@@ -276,7 +328,7 @@ replaces. Sponsor art beyond the two `sample-*` placeholders, paint templates an
 
 **The fleet build** (`apps/livery/src/livery/fleet`, `livery fleet status|build|panels|logos`) lays one livery —
 the DOOOOM shard field, as `shatter` and `shatter-inverted` — on every car that has a paint template, and writes it
-into the library the Paints page reads, where a version name shared by cars is a group by itself. It is the library's
+into the library the Cars page reads, where a version name shared by cars is a group by itself. It is the library's
 own `design/fleet` scripts and the skills `iracing-paint-templates`, `iracing-livery-placement` and
 `iracing-paint-install` (all three now in `.claude/skills/`), with the paths of the machine they were written on
 taken out. The rules it is built on, each with a test in `apps/livery/tests/test_fleet*.py`:
