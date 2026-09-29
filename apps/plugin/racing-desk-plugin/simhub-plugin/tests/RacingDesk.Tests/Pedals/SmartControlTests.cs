@@ -112,6 +112,31 @@ namespace RacingDesk.Tests.Pedals
         }
 
         [Test]
+        public void AProfileIsReadWhateverItsFirstLineSaysItIs()
+        {
+            // Five of the six profiles on the rig say encoding="utf-16" and are one byte to a letter: SmartControl
+            // writes a profile from a string and stores the string. A reader that believes the line reads none.
+            string sixteen = ProfileXml(80).Replace("encoding=\"utf-8\"", "encoding=\"utf-16\"");
+            byte[] mislabelled = Encoding.UTF8.GetBytes(sixteen);
+            byte[] truly = Encoding.Unicode.GetBytes(sixteen);
+            byte[] marked = new byte[] { 0xFF, 0xFE }.Concat(Encoding.Unicode.GetBytes(sixteen)).ToArray();
+            byte[] bigEnd = Encoding.BigEndianUnicode.GetBytes(sixteen);
+            string path = Database(db =>
+            {
+                AddProfile(db, "a1", "a mislabelled", mislabelled);
+                AddProfile(db, "b2", "b truly", truly);
+                AddProfile(db, "c3", "c marked", marked);
+                AddProfile(db, "d4", "d big end", bigEnd);
+            });
+
+            var profiles = SmartControl.Read(path).Profiles;
+
+            Assert.That(profiles.Select(p => p.Brake?.MaxForceKg), Is.EqualTo(new double?[] { 80, 80, 80, 80 }));
+            Assert.That(profiles[0].Data, Is.EqualTo(mislabelled), "and kept as it was, first line and all");
+            Assert.That(profiles[1].Data, Is.EqualTo(truly));
+        }
+
+        [Test]
         public void ReadsTheSectionForThePedalsAskedFor()
         {
             string path = Database(db => AddProfile(db, "a1", "one", Encoding.UTF8.GetBytes(ProfileXml(60))));

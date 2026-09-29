@@ -164,8 +164,11 @@ namespace RacingDesk.Data.Pedals
             XElement device;
             try
             {
-                using var stream = new MemoryStream(profile.Data, writable: false);
-                device = XDocument.Load(stream).Root?.Elements().FirstOrDefault(e => e.Name.LocalName == pedals);
+                // Read as text, not as bytes: SmartControl writes a profile from a string, so most say
+                // encoding="utf-16" on their first line and are nothing of the kind on disk, and a reader
+                // that believes the line refuses the file. Parsed from a string, the line is not consulted.
+                device = XDocument.Parse(Text(profile.Data)).Root?.Elements()
+                    .FirstOrDefault(e => e.Name.LocalName == pedals);
             }
             catch (System.Xml.XmlException)
             {
@@ -194,6 +197,25 @@ namespace RacingDesk.Data.Pedals
                 MaxForceKg = Value("MaximumCalibratedForceInKilogram"),
                 Curve = curve.All(p => p.HasValue) ? curve.Select(p => p.Value).ToList() : new List<double>(),
             };
+        }
+
+        /// <summary>
+        /// A profile's bytes as text, by what the bytes are: a byte order mark says, and failing that a profile
+        /// that really is UTF-16 has a zero in every other byte of its first line.
+        /// </summary>
+        internal static string Text(byte[] data)
+        {
+            if (data.Length >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF)
+                return Encoding.UTF8.GetString(data, 3, data.Length - 3);
+            if (data.Length >= 2 && data[0] == 0xFF && data[1] == 0xFE)
+                return Encoding.Unicode.GetString(data, 2, data.Length - 2);
+            if (data.Length >= 2 && data[0] == 0xFE && data[1] == 0xFF)
+                return Encoding.BigEndianUnicode.GetString(data, 2, data.Length - 2);
+            if (data.Length >= 4 && data[0] != 0 && data[1] == 0 && data[2] != 0 && data[3] == 0)
+                return Encoding.Unicode.GetString(data);
+            if (data.Length >= 4 && data[0] == 0 && data[1] != 0 && data[2] == 0 && data[3] != 0)
+                return Encoding.BigEndianUnicode.GetString(data);
+            return Encoding.UTF8.GetString(data);
         }
 
         private static double? Number(string text) =>
