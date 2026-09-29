@@ -13,9 +13,16 @@ interface DeskPaints {
   openPath(path: string): Promise<void>;
 }
 
+/// What the desk's host keeps per car — its view, its pedals — and the one thing written there. The app's main
+/// process does the asking; rig.ts says what the answers hold.
+export interface DeskRig {
+  read(): Promise<unknown>;
+  bindPedals(carPath: string, profileId: string | null): Promise<unknown>;
+}
+
 declare global {
   interface Window {
-    racingDesk?: { paints?: DeskPaints };
+    racingDesk?: { paints?: DeskPaints; rig?: Partial<DeskRig> };
   }
 }
 
@@ -24,6 +31,15 @@ const desk = (): DeskPaints | undefined => window.racingDesk?.paints;
 /// Whether the host is The Racing Desk. A few commands are the desk's alone — the Rust never had them — and
 /// api.ts has to know which answer to expect.
 export const inDesk = (): boolean => desk() !== undefined;
+
+/// The way to a car's view and pedals, or null where there is none: the Tauri shell, the dev preview, a desk
+/// from before it kept them. Nothing falls back to the Rust here — it never had any of this.
+export function deskRig(): DeskRig | null {
+  const rig = window.racingDesk?.rig;
+  return rig && typeof rig.read === "function" && typeof rig.bindPedals === "function"
+    ? (rig as DeskRig)
+    : null;
+}
 
 /// `detectPaths` -> `detect_paths`: the Rust command's name for the same call.
 const snake = (name: string) => name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);

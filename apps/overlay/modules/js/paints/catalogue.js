@@ -1,4 +1,4 @@
-// Every car the rig knows, for the Paints page's list: the library's cars, the cars in the iRacing install and
+// Every car the rig knows, for the Cars page's list: the library's cars, the cars in the iRacing install and
 // the cars with a folder in the sim's paint directory, merged into one list keyed on the sim's car path, each with
 // its full name where the local store has one. There was no Rust for this — the Tauri shell lists the library and
 // nothing else.

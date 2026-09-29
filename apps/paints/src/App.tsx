@@ -3,7 +3,9 @@ import * as api from "./api";
 import { inDesk, reveal } from "./bridge";
 import { errorText } from "./api";
 import { ApplyOptionsPanel, Refusal, type ApplyOptions } from "./components/ApplyOptions";
-import { CarList, carLabel, groupCars } from "./components/CarList";
+import { CarList, carLabel, groupCars, type Kept } from "./components/CarList";
+import { CarPedalsPanel } from "./components/CarPedals";
+import { CarViewPanel } from "./components/CarView";
 import { GroupEditor } from "./components/GroupEditor";
 import { GroupPage } from "./components/GroupPage";
 import { TradingPaintsPanel } from "./components/Guards";
@@ -11,6 +13,9 @@ import { RepoPanel } from "./components/RepoPanel";
 import { SetupBar } from "./components/SetupBar";
 import { collectStatus, StatusChips } from "./components/StatusChips";
 import { VersionCard } from "./components/VersionCard";
+import { useLastDriven } from "./driven";
+import { hasPedals, rigKey } from "./rig";
+import { useRig } from "./useRig";
 import type {
   BackupEntry,
   CatalogueCar,
@@ -71,6 +76,8 @@ export default function App() {
   const [tp, setTp] = useState<TradingPaints | null>(null);
   const [sim, setSim] = useState<SimState | null>(null);
   const [suggestions, setSuggestions] = useState<LibrarySuggestion[]>([]);
+  /// Whether a library has been looked for. Until it has, an empty field is not yet "there is no library".
+  const [looked, setLooked] = useState(false);
   const [repo, setRepo] = useState<RepoStatus | null>(null);
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -88,6 +95,11 @@ export default function App() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const logId = useRef(0);
   const ready = useRef(false);
+
+  // What the host keeps per car beside its paint — the view it was driven with, its pedals — and when the
+  // desk says each was last driven. The desk's alone: elsewhere the two panels say there is no app.
+  const rig = useRig();
+  const lastDriven = useLastDriven();
 
   const say = useCallback((kind: LogEntry["kind"], title: string, lines: string[] = []) => {
     logId.current += 1;
@@ -124,6 +136,8 @@ export default function App() {
       });
       setAutoUpdate(saved.autoUpdateOnLaunch ?? false);
       for (const note of detected?.notes ?? []) say("info", note);
+      // With no paint folder there is nowhere to look for a library near.
+      if (!paint) setLooked(true);
       ready.current = true;
     })();
   }, [say]);
@@ -139,8 +153,9 @@ export default function App() {
         setSuggestions(found);
         // Adopt the best one only when nothing is set; a chosen path is the user's.
         setLibraryRoot((current) => current || found[0]?.path || "");
+        setLooked(true);
       })
-      .catch(() => {});
+      .catch(() => live && setLooked(true));
     return () => {
       live = false;
     };
@@ -187,10 +202,15 @@ export default function App() {
   // Each answer is numbered, because the folders can change while one is on its way — every keystroke in
   // a path asks again — and the list has to be the last one asked for, not the last one to arrive. The
   // groups are read with the cars: they are made of the same library.
+  //
+  // In the desk the list does not wait on a library: a car's view and pedals are there to be looked at
+  // whether or not there is a livery anywhere, so once a library has been looked for and none found, the
+  // cars are the install's and the paint folder's. The Tauri shell lists a library or nothing.
   const asked = useRef(0);
+  const listable = !!libraryRoot || (inDesk() && looked);
   const refreshLibrary = useCallback(async () => {
     const mine = ++asked.current;
-    if (!libraryRoot) {
+    if (!listable) {
       setCars(null);
       setGroups([]);
       return;
@@ -220,7 +240,7 @@ export default function App() {
       setListing("failed");
       say("bad", "Could not read the library", [errorText(e)]);
     }
-  }, [libraryRoot, paintDir, say]);
+  }, [libraryRoot, paintDir, listable, say]);
 
   useEffect(() => {
     void refreshLibrary();
@@ -577,8 +597,20 @@ export default function App() {
   );
   const painted = (cars ?? []).some((c) => c.versions.length > 0);
 
+  /// The cars the host keeps a view or pedals for, to be marked in the list.
+  const kept: Kept = useMemo(
+    () => ({
+      view: new Set(rig.rig?.views?.keys() ?? []),
+      pedals: new Set(
+        [...(rig.rig?.pedals?.cars ?? [])].filter(([, row]) => hasPedals(row)).map(([key]) => key),
+      ),
+    }),
+    [rig.rig],
+  );
+  const carKey = car ? rigKey(car) : "";
+
   /// What stands where the cars would be while there are none to show.
-  const noCars = !libraryRoot
+  const noCars = !listable
     ? { list: "Pick a library folder above.", page: "Pick a library folder to get started." }
     : listing === "reading"
       ? { list: "Reading the cars…", page: "Reading the cars…" }
@@ -606,8 +638,15 @@ export default function App() {
         onCustomerId={setCustomerId}
       >
         <StatusChips items={status} />
-        {/* The cars only: a new list is a new car to read, which the effect on it does. */}
-        <button onClick={() => void refreshLibrary()} disabled={busy}>
+        {/* The cars, and what the host keeps for them. A new list is a new car to read, which the effect
+            on it does. */}
+        <button
+          onClick={() => {
+            void refreshLibrary();
+            void rig.refresh();
+          }}
+          disabled={busy}
+        >
           Refresh
         </button>
       </SetupBar>
@@ -618,6 +657,7 @@ export default function App() {
           selected={selectedGroup || editing ? null : selectedFolder}
           onSelect={selectCar}
           empty={noCars.list}
+          kept={kept}
           groups={groups}
           selectedGroup={editing ? null : selectedGroup}
           onSelectGroup={selectGroup}
@@ -729,7 +769,7 @@ export default function App() {
                   )}
                   <ApplyOptionsPanel options={options} onOptions={setOptions} />
                 </>
-              ) : (
+              ) : libraryRoot ? (
                 <div className="panel no-livery">
                   <h3>No livery yet</h3>
                   <div>
@@ -741,7 +781,33 @@ export default function App() {
                     <code>car_spec.tga</code>.
                   </div>
                 </div>
+              ) : (
+                <div className="panel no-livery">
+                  <h3>No livery yet</h3>
+                  <div>There is no library to keep liveries in. Pick its folder above.</div>
+                </div>
               )}
+
+              {/* The car as it is driven, after the car as it is painted. */}
+              <CarViewPanel
+                here={rig.here}
+                rig={rig.rig}
+                view={rig.rig?.views?.get(carKey) ?? null}
+                lastDriven={lastDriven.get(carKey) ?? null}
+              />
+              {/* Keyed by the car: where the keyboard was while one car's pedals were saved is not
+                  another's. */}
+              <CarPedalsPanel
+                key={car.folder}
+                here={rig.here}
+                rig={rig.rig}
+                carName={carName}
+                carPath={rig.rig?.paths.get(carKey) ?? null}
+                bound={rig.rig?.pedals?.cars.get(carKey) ?? null}
+                saving={rig.saving.get(carKey)}
+                note={rig.notes.get(carKey) ?? null}
+                onBind={(path, profileId) => void rig.bind(path, profileId)}
+              />
 
               <div className="panel">
                 <h3>Installed in the sim</h3>

@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { rigKey } from "../rig";
 import type { CatalogueCar, LiveryGroup } from "../types";
+
+/// The cars the host keeps something for, by key (rig.ts): a view, pedals. They are marked in the list, so
+/// that the cars that have been set up can be found among all the rest.
+export interface Kept {
+  view: ReadonlySet<string>;
+  pedals: ReadonlySet<string>;
+}
+
+const NOTHING_KEPT: Kept = { view: new Set(), pedals: new Set() };
 
 /// What a car is called on screen: the sim's name for it, or its folder when it has none.
 export function carLabel(car: CatalogueCar): string {
@@ -49,6 +59,7 @@ function Group({
   title,
   cars,
   shared,
+  kept,
   selected,
   onSelect,
   quiet = false,
@@ -56,6 +67,7 @@ function Group({
   title: string;
   cars: CatalogueCar[];
   shared: Set<string>;
+  kept: Kept;
   selected: string | null;
   onSelect: (folder: string) => void;
   /// The cars with nothing to apply. Said, not worked out from where the group is in the list: the
@@ -70,6 +82,8 @@ function Group({
       </div>
       {cars.map((c) => {
         const meta = metaFor(c, shared.has(carLabel(c).toLowerCase()));
+        const view = kept.view.has(rigKey(c));
+        const pedals = kept.pedals.has(rigKey(c));
         return (
           <button
             key={c.folder}
@@ -80,6 +94,21 @@ function Group({
           >
             <span className="name">{carLabel(c)}</span>
             {meta && <span className="meta">{meta}</span>}
+            {/* Words inside the row, not controls of their own: a row stays one stop for the keyboard. */}
+            {(view || pedals) && (
+              <span className="kept">
+                {view && (
+                  <span className="mark" title="The view it was driven with is recorded">
+                    view
+                  </span>
+                )}
+                {pedals && (
+                  <span className="mark" title="Its pedals are kept">
+                    pedals
+                  </span>
+                )}
+              </span>
+            )}
           </button>
         );
       })}
@@ -129,12 +158,14 @@ function Groups({
 }
 
 /// The sidebar: the livery groups, then every car the rig knows, the ones with a livery first, and a
-/// filter over the cars.
+/// filter over the cars. It is the one list of cars: a car's liveries, its view and its pedals are all
+/// looked at from here.
 export function CarList({
   cars,
   selected,
   onSelect,
   empty,
+  kept = NOTHING_KEPT,
   groups = [],
   selectedGroup = null,
   onSelectGroup = () => {},
@@ -146,6 +177,7 @@ export function CarList({
   onSelect: (folder: string) => void;
   /// What to say when there are no cars at all.
   empty: string;
+  kept?: Kept;
   groups?: LiveryGroup[];
   selectedGroup?: string | null;
   onSelectGroup?: (id: string) => void;
@@ -219,6 +251,7 @@ export function CarList({
           title="Liveries"
           cars={liveries}
           shared={shared}
+          kept={kept}
           selected={selected}
           onSelect={onSelect}
         />
@@ -226,6 +259,7 @@ export function CarList({
           title="No livery yet"
           cars={rest}
           shared={shared}
+          kept={kept}
           selected={selected}
           onSelect={onSelect}
           quiet

@@ -1,4 +1,6 @@
-// The desk's one write to the local host: which SmartControl profile a car is driven with.
+// What the local host keeps per car, for the desk's Cars page: read, and the one thing written.
+//
+// The write is which SmartControl profile a car is driven with:
 //
 //   POST <host>/racing-desk/data/pedals    { "car_path": "mx5 mx52016", "profile_id": "283f91ae" }
 //   200 { "car": { …the car's row… } }     { "car": null } when "profile_id": null took the profile away
@@ -11,9 +13,21 @@
 // The page shows whatever comes back beside the car's select, so every outcome is an answer it can read —
 // { ok: true, car } or { ok: false, error } with the error in words — and nothing is thrown: no host, a slow host,
 // a host from before the route and an answer that isn't JSON are all { ok: false }.
+//
+// The read is the three routes the page is drawn from (rig:read), asked from here too, so that the page builds no
+// address of its own:
+//
+//   GET <host>/racing-desk/data/cars       the store's name for each car, and its own spelling of the car's path
+//   GET <host>/racing-desk/data/views      the view each car was last driven with
+//   GET <host>/racing-desk/data/pedals     SmartControl's profiles and keys, and the cars given a profile
+//
+// Each comes back as { value }, as { missing: true } from a host that has no such route yet (404), or as
+// { error } in words. One that fails does not take the others with it, and nothing is thrown here either.
 const http = require('http');
 
-const PEDALS_PATH = '/racing-desk/data/pedals';
+const DATA_PATH = '/racing-desk/data/';
+const PEDALS_PATH = DATA_PATH + 'pedals';
+const READS = Object.freeze(['cars', 'views', 'pedals']);
 const TIMEOUT_MS = 3000;
 const MAX_LENGTH = 200;   // of a car path or a profile id: both are short names, and the page is not to be trusted with more
 const MAX_ERROR = 300;    // of the host's own words for a refusal, as shown in a table cell
@@ -94,20 +108,51 @@ function noAnswer(base, err, timeoutMs) {
   return `The host at ${base} could not be asked: ${why}`;
 }
 
+// The request for one of the routes the page reads, as data. A GET with no body, and never an Origin.
+function readRequest(base, route) {
+  return { url: base.replace(/\/+$/, '') + DATA_PATH + route, method: 'GET', headers: { Accept: 'application/json' } };
+}
+
+// One route's answer as the page reads it. What the value holds is the page's to check: it is passed on as the
+// host gave it.
+function readRoute(answer) {
+  const status = answer && answer.status;
+  if (status === 404) return { missing: true };
+  if (status !== 200) return { error: `The host answered ${status}.` };
+  try {
+    return { value: JSON.parse(answer.text) };
+  } catch (e) {
+    return { error: 'The host answered, but not with JSON.' };
+  }
+}
+
+// What a read comes to when nothing could be asked at all: the same words for every route.
+function unread(error) {
+  return Object.fromEntries(READS.map((route) => [route, { error }]));
+}
+
 // `host` returns where the host is now (it can move while the app runs: :8889, or :18889 beside SimHub). `send` is
 // injectable for the tests.
 function createRigApi({ host, send: sendRequest = send, timeoutMs = TIMEOUT_MS } = {}) {
-  async function bindPedals(carPath, profileId) {
-    const problem = bindingProblem(carPath, profileId);
-    if (problem) return { ok: false, error: problem };
+  // Where to ask, or why not: { base } or { error }. The desk can be pointed at a host elsewhere; what a car is
+  // driven with is this rig's, and is neither sent to another machine nor taken from one.
+  function where(verb) {
     let base = null;
     try {
       base = typeof host === 'function' ? host() : host;
     } catch (e) {
       // no host to be worked out: said below
     }
-    if (typeof base !== 'string' || !base.length) return { ok: false, error: 'There is no local host to ask.' };
-    if (!isLocal(base)) return { ok: false, error: `The host at ${base} is not on this machine, so nothing was sent to it.` };
+    if (typeof base !== 'string' || !base.length) return { error: 'There is no local host to ask.' };
+    if (!isLocal(base)) return { error: `The host at ${base} is not on this machine, so nothing was ${verb} it.` };
+    return { base };
+  }
+
+  async function bindPedals(carPath, profileId) {
+    const problem = bindingProblem(carPath, profileId);
+    if (problem) return { ok: false, error: problem };
+    const { base, error } = where('sent to');
+    if (error) return { ok: false, error };
     let answer;
     try {
       answer = await sendRequest(bindingRequest(base, carPath, profileId), timeoutMs);
@@ -116,7 +161,24 @@ function createRigApi({ host, send: sendRequest = send, timeoutMs = TIMEOUT_MS }
     }
     return readAnswer(answer);
   }
-  return { bindPedals };
+
+  async function read() {
+    const { base, error } = where('asked of');
+    if (error) return unread(error);
+    const answers = await Promise.all(READS.map(async (route) => {
+      try {
+        return readRoute(await sendRequest(readRequest(base, route), timeoutMs));
+      } catch (err) {
+        return { error: noAnswer(base, err, timeoutMs) };
+      }
+    }));
+    return Object.fromEntries(READS.map((route, i) => [route, answers[i]]));
+  }
+
+  return { bindPedals, read };
 }
 
-module.exports = { PEDALS_PATH, TIMEOUT_MS, MAX_LENGTH, bindingProblem, bindingRequest, isLocal, send, readAnswer, createRigApi };
+module.exports = {
+  PEDALS_PATH, READS, TIMEOUT_MS, MAX_LENGTH, bindingProblem, bindingRequest, readRequest, isLocal, send, readAnswer, readRoute,
+  unread, createRigApi,
+};

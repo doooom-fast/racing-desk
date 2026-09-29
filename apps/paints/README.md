@@ -188,7 +188,9 @@ one place.
 
 ## Inside The Racing Desk
 
-The same UI now runs as the **Paints** page of The Racing Desk's desk window. `build-island.mjs` bundles `src/` for
+The same UI now runs as the **Cars** page of The Racing Desk's desk window: the one list of cars, and the one place
+to look at a car — its liveries, the view it is driven with, its pedals. (It was the Paints page, beside a Cars page
+of views and pedals, until the two became one.) `build-island.mjs` bundles `src/` for
 it; `src/bridge.ts` sends every call to the app when it is there (`window.racingDesk.paints`) and to the Rust
 commands when it isn't, so the components never know which host they are in. In the app the file operations are a
 Node port of `src-tauri/src`, module for module, in `apps/overlay/modules/js/paints/`. Backups move to
@@ -196,6 +198,25 @@ Node port of `src-tauri/src`, module for module, in `apps/overlay/modules/js/pai
 
 There the page has no name of its own on it — the desk's masthead says where you are — and the status chips and
 Refresh sit at the end of the setup row.
+
+### A car's view and pedals
+
+Under a car's versions are two panels that are the desk's alone. **View** is the view the car was last driven with —
+driver height, horizon, head horizon, FOV, the seat's three offsets — with when it was last driven and whether the
+view is the car's own or carried over from the car driven before it. **Pedals** is which of Heusinkveld
+SmartControl's profiles the car is driven with, chosen from a select, with that profile's brake beside it and
+SmartControl Live's keys under it. A car with either kept is marked in the list (`view`, `pedals`). Nothing here
+changes iRacing or the pedals; choosing a profile is the one thing written, and it is written to the app's host.
+
+Both come from the app's host by way of its main process (`window.racingDesk.rig`: `read()` and
+`bindPedals(carPath, profileId)`); the page builds no address and fetches nothing. `src/rig.ts` shapes what comes
+back, `src/useRig.ts` reads it — when the page is mounted, when the desk shows it again, on Refresh — and the desk
+hands over when each car was last driven (`setLastDriven`, exported beside `mount`). The Rust never had any of
+this, so nothing falls back to it: in the Tauri shell and in `dev-preview.html` the two panels say that the app is
+not there, and everything else works as it did.
+
+In the desk the list of cars does not wait on a library either. Once one has been looked for and not found, the
+cars are the install's and the paint folder's, so a car's view and pedals can be looked at with no livery anywhere.
 
 ### Every car, by name
 

@@ -1,4 +1,4 @@
-// The desk's Paints page reaches the livery manager (modules/js/paints) over one IPC channel, paints:invoke,
+// The desk's Cars page reaches the livery manager (modules/js/paints) over one IPC channel, paints:invoke,
 // carrying a command's camelCase name and the named arguments apps/paints/src/api.ts sends with it. This is the
 // part of that handler that needs no Electron, so it can be tested without one: which names may be called, and
 // how each one's named arguments become the positional ones the commands take. main.js wires it to ipcMain and

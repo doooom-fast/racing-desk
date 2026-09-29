@@ -6,7 +6,7 @@
 //       "driven": 668, "seen": 702 } ]
 //
 // `driven` is the driver's own sessions in the car, `seen` the sessions whose entry list had it. A car that has
-// never been in a session is not there and has no name; the Paints page shows its folder instead.
+// never been in a session is not there and has no name; the Cars page shows its folder instead.
 //
 // Names are a nicety. Anything going wrong — no host, a host from before this route, a slow answer — is an empty
 // list, never an error, and only a good answer is kept: a host that was still starting is asked again next time,

@@ -4,6 +4,9 @@
  * answer the Cars page can show, { ok, … }, never a rejection. Mostly over a `send` that records what it was
  * handed; the request as it leaves is checked against a stand-in host on 127.0.0.1 that refuses an Origin as the
  * real one does.
+ *
+ * And what the page reads, asked from the same place: GET cars, views and pedals, each answered { value },
+ * { missing } or { error }, from a host on this machine and no other.
  */
 
 import { test, expect } from '@playwright/test';
@@ -11,7 +14,9 @@ import { createRequire } from 'module';
 import http from 'node:http';
 
 const require = createRequire(import.meta.url);
-const { createRigApi, bindingProblem, bindingRequest, readAnswer, send, PEDALS_PATH, TIMEOUT_MS, MAX_LENGTH } = require('../../modules/js/rig-api.js');
+const {
+  createRigApi, bindingProblem, bindingRequest, readAnswer, readRequest, readRoute, unread, send, PEDALS_PATH, READS, TIMEOUT_MS, MAX_LENGTH,
+} = require('../../modules/js/rig-api.js');
 
 const CAR = 'mx5 mx52016';
 const PROFILE = '283f91ae';
@@ -31,15 +36,16 @@ function recorder(answer = { status: 200, text: JSON.stringify({ car: ROW }) }) 
   return { sent, send: sendRequest };
 }
 
-// A host that answers as RacingDesk.Host does where it matters here: 403 to anything with an Origin.
+// A host that answers as RacingDesk.Host does where it matters here: 403 to anything with an Origin. `routes`
+// are answers by address, for the reads; anything else gets `answer`.
 function startHost() {
-  const state = { answer: { status: 200, body: JSON.stringify({ car: ROW }) }, asked: [] };
+  const state = { answer: { status: 200, body: JSON.stringify({ car: ROW }) }, routes: {}, asked: [] };
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
       state.asked.push({ method: req.method, url: req.url, headers: req.headers, body: Buffer.concat(chunks).toString('utf8') });
-      const { status, body, delayMs = 0 } = 'origin' in req.headers ? { status: 403, body: '' } : state.answer;
+      const { status, body, delayMs = 0 } = 'origin' in req.headers ? { status: 403, body: '' } : state.routes[req.url] ?? state.answer;
       const timer = setTimeout(() => {
         res.writeHead(status, { 'Content-Type': 'application/json' });
         res.end(body);
@@ -234,4 +240,148 @@ test('whatever a send throws comes back as words', async () => {
   }
   const sync = createRigApi({ host: 'http://localhost:8889', send: () => { throw new Error('thrown before any promise'); } });
   expect(await sync.bindPedals(CAR, PROFILE)).toEqual({ ok: false, error: 'The host at http://localhost:8889 could not be asked: thrown before any promise' });
+});
+
+// ── What the Cars page reads ──
+
+const CARS = [{ car_path: CAR, name: 'Mazda MX-5 Cup', short_name: 'MX-5 Cup', car_id: 67, driven: 3, seen: 9 }];
+const VIEWS = [{
+  car_path: CAR, name: 'Mazda MX-5 Cup', driver_height: -0.06, vanish_y: -0.035, head_horizon: 0.5, fov: 69,
+  seat_x: -0.13, seat_y: 0, seat_z: 0.02, chosen: 1, chosen_at: '2026-09-28T18:00:00.000Z', seen_at: '2026-09-28T18:00:00.000Z',
+}];
+const PEDALS = { smartcontrol: { found: true, profiles: [{ id: PROFILE, name: 'Default' }], keys: [] }, cars: [ROW] };
+const HELD = { cars: CARS, views: VIEWS, pedals: PEDALS };
+
+// A `send` that answers each route with what the host holds for it, 404 for one it has never heard of.
+function reader(held = HELD) {
+  return recorder((request) => {
+    const route = new URL(request.url).pathname.replace('/racing-desk/data/', '');
+    return Object.hasOwn(held, route) ? { status: 200, text: JSON.stringify(held[route]) } : { status: 404, text: '{"error":"unknown data route"}' };
+  });
+}
+
+test('the contract of a read: a GET for each of cars, views and pedals, with no body and no Origin', () => {
+  expect(READS).toEqual(['cars', 'views', 'pedals']);
+  const request = readRequest('http://localhost:8889/', 'views');   // a trailing slash is not doubled
+  expect(request.url).toBe('http://localhost:8889/racing-desk/data/views');
+  expect(request.method).toBe('GET');
+  expect(request.body).toBeUndefined();
+  expect(Object.keys(request.headers).map((h) => h.toLowerCase())).toEqual(['accept']);
+});
+
+test('read asks where the host is now, and answers each route with what the host gave', async () => {
+  let where = 'http://localhost:8889';
+  const { sent, send: sendRequest } = reader();
+  const rig = createRigApi({ host: () => where, send: sendRequest });
+  expect(await rig.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { value: PEDALS } });
+  where = 'http://localhost:18889/';   // the host moved beside SimHub
+  await rig.read();
+  expect(sent.map((s) => s.request.url)).toEqual([
+    'http://localhost:8889/racing-desk/data/cars',
+    'http://localhost:8889/racing-desk/data/views',
+    'http://localhost:8889/racing-desk/data/pedals',
+    'http://localhost:18889/racing-desk/data/cars',
+    'http://localhost:18889/racing-desk/data/views',
+    'http://localhost:18889/racing-desk/data/pedals',
+  ]);
+  expect(sent.map((s) => s.request.method)).toEqual(Array(6).fill('GET'));
+  expect(sent.map((s) => s.timeoutMs)).toEqual(Array(6).fill(3000));
+  for (const { request } of sent) expect(Object.keys(request.headers).some((h) => /^origin$/i.test(h))).toBe(false);
+});
+
+test('as it leaves Node: three GETs the host takes, none of them a page\'s', async () => {
+  const host = await startHost();
+  try {
+    for (const route of READS) host.state.routes[`/racing-desk/data/${route}`] = { status: 200, body: JSON.stringify(HELD[route]) };
+    const rig = createRigApi({ host: host.url });
+    expect(await rig.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { value: PEDALS } });
+    expect(host.state.asked.map((a) => `${a.method} ${a.url}`).sort()).toEqual([
+      'GET /racing-desk/data/cars', 'GET /racing-desk/data/pedals', 'GET /racing-desk/data/views',
+    ]);
+    for (const asked of host.state.asked) {
+      expect(asked.headers).not.toHaveProperty('origin');
+      expect(asked.headers).not.toHaveProperty('referer');
+      expect(asked.body).toBe('');
+    }
+  } finally {
+    await host.close();
+  }
+});
+
+test('a route the host does not have yet is missing, and the others are read all the same', async () => {
+  const older = createRigApi({ host: 'http://localhost:8889', send: reader({ cars: CARS }).send });
+  expect(await older.read()).toEqual({ cars: { value: CARS }, views: { missing: true }, pedals: { missing: true } });
+  const half = createRigApi({ host: 'http://localhost:8889', send: reader({ cars: CARS, views: VIEWS }).send });
+  expect(await half.read()).toEqual({ cars: { value: CARS }, views: { value: VIEWS }, pedals: { missing: true } });
+});
+
+test('an answer that is not a 200 carrying JSON is said in words', () => {
+  expect(readRoute({ status: 200, text: '[]' })).toEqual({ value: [] });
+  expect(readRoute({ status: 200, text: 'null' })).toEqual({ value: null });   // what it holds is the page's to check
+  expect(readRoute({ status: 404, text: '' })).toEqual({ missing: true });
+  for (const text of ['', '{ not json', '<html>']) {
+    expect(readRoute({ status: 200, text }), text).toEqual({ error: 'The host answered, but not with JSON.' });
+  }
+  expect(readRoute({ status: 500, text: 'boom' })).toEqual({ error: 'The host answered 500.' });
+  expect(readRoute({ status: 403, text: '{"error":"no"}' })).toEqual({ error: 'The host answered 403.' });
+  // Nor is an answer with no status, or none at all, anything to throw over.
+  expect(typeof readRoute({}).error).toBe('string');
+  expect(typeof readRoute(undefined).error).toBe('string');
+});
+
+test('one route failing does not take the others with it', async () => {
+  const { send: sendRequest } = recorder((request) => {
+    if (request.url.endsWith('/views')) throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+    if (request.url.endsWith('/pedals')) return { status: 200, text: '{ not json' };
+    return { status: 200, text: JSON.stringify(CARS) };
+  });
+  const rig = createRigApi({ host: 'http://localhost:8889', send: sendRequest });
+  expect(await rig.read()).toEqual({
+    cars: { value: CARS },
+    views: { error: 'Nothing is answering at http://localhost:8889.' },
+    pedals: { error: 'The host answered, but not with JSON.' },
+  });
+});
+
+test('a host on another machine is asked nothing', async () => {
+  for (const elsewhere of ['http://192.168.1.20:8889', 'http://rig.local:8889', 'http://localhost.example.com:8889']) {
+    const { sent, send: sendRequest } = reader();
+    const rig = createRigApi({ host: elsewhere, send: sendRequest });
+    const error = `The host at ${elsewhere} is not on this machine, so nothing was asked of it.`;
+    expect(await rig.read(), elsewhere).toEqual({ cars: { error }, views: { error }, pedals: { error } });
+    expect(sent, elsewhere).toEqual([]);
+  }
+  for (const here of ['http://localhost:8889', 'http://127.0.0.1:18889/', 'http://[::1]:8889']) {
+    const rig = createRigApi({ host: here, send: reader().send });
+    expect((await rig.read()).views, here).toEqual({ value: VIEWS });
+  }
+});
+
+test('no host, a slow host, a send that throws: every route says so, and nothing is thrown', async () => {
+  const gone = await startHost();
+  const url = gone.url;
+  await gone.close();
+  const nothing = { error: `Nothing is answering at ${url}.` };
+  expect(await createRigApi({ host: url }).read()).toEqual({ cars: nothing, views: nothing, pedals: nothing });
+
+  const nowhere = { error: 'There is no local host to ask.' };
+  expect(unread(nowhere.error)).toEqual({ cars: nowhere, views: nowhere, pedals: nowhere });
+  expect(await createRigApi({ host: () => null }).read()).toEqual(unread(nowhere.error));
+  expect(await createRigApi({ host: () => { throw new Error('no settings'); } }).read()).toEqual(unread(nowhere.error));
+  expect(await createRigApi().read()).toEqual(unread(nowhere.error));
+
+  const slow = await startHost();
+  try {
+    slow.state.answer = { status: 200, body: '[]', delayMs: 5000 };
+    const started = Date.now();
+    const late = { error: `The host at ${slow.url} did not answer within 0.15 s.` };
+    expect(await createRigApi({ host: slow.url, timeoutMs: 150 }).read()).toEqual({ cars: late, views: late, pedals: late });
+    expect(Date.now() - started).toBeLessThan(2000);
+  } finally {
+    await slow.close();
+  }
+
+  const thrown = createRigApi({ host: 'http://localhost:8889', send: () => { throw new Error('thrown before any promise'); } });
+  const why = { error: 'The host at http://localhost:8889 could not be asked: thrown before any promise' };
+  expect(await thrown.read()).toEqual({ cars: why, views: why, pedals: why });
 });
