@@ -78,6 +78,11 @@ function Disagreements({ remarks }: { remarks: Remark[] }) {
 /// manuals. Above it, where there are any, what the host's check has found the car doing that the list does not
 /// say. A car the list does not have says so, and nothing is made up for it.
 ///
+/// It is short on purpose. The panel sits under the view and the pedals, and the car's liveries begin under it: in
+/// the desk's smallest window a listed car's liveries are still in sight, so what the list says of the car's kind and
+/// its three dials is on one line, how it was checked is beside the heading, and the rows of controls — a prototype
+/// has eight — are one press away. What disagrees is never folded: it is what the list's author has to act on.
+///
 /// Not there at all for a host from before the list, or one whose build carries none: the page is then as it was.
 export function CarControlsPanel({
   rig,
@@ -108,7 +113,10 @@ export function CarControlsPanel({
 
   return (
     <div className="panel car-controls">
-      <h3>Controls</h3>
+      <div className="head">
+        <h3>Controls</h3>
+        {checked && <span className="note checked">{checked}</span>}
+      </div>
       {differences.length > 0 && <Disagreements remarks={differences} />}
       {listed === null ? (
         <div className="not-listed">
@@ -130,19 +138,23 @@ export function CarControlsPanel({
             </Fact>
           </dl>
           {listed.controls.length > 0 ? (
-            <ul className="controls" aria-label="Controls the list gives this car">
-              {listed.controls.map((c, i) => (
-                <li key={`${c.id}-${i}`} title={c.variable ?? undefined}>
-                  <span className="what">{functionWords(c.id)}</span>
-                  {c.label && <> {tag(c.label)}</>}
-                  {valueWords(c) && <> <span className="values">{valueWords(c)}</span></>}
-                </li>
-              ))}
-            </ul>
+            <details className="control-rows">
+              <summary>
+                Each control, its label and values <span className="count">{listed.controls.length}</span>
+              </summary>
+              <ul className="controls" aria-label="Controls the list gives this car">
+                {listed.controls.map((c, i) => (
+                  <li key={`${c.id}-${i}`} title={c.variable ?? undefined}>
+                    <span className="what">{functionWords(c.id)}</span>
+                    {c.label && <> {tag(c.label)}</>}
+                    {valueWords(c) && <> <span className="values">{valueWords(c)}</span></>}
+                  </li>
+                ))}
+              </ul>
+            </details>
           ) : (
             <div className="note">{NO_CONTROLS}</div>
           )}
-          {checked && <div className="note checked">{checked}</div>}
         </>
       )}
       {remarks === null && <div className="note">{UNREAD}</div>}

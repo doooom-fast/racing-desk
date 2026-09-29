@@ -811,6 +811,24 @@
      where without it they are half. */
   grid-column: 1 / span 2;
 }
+/* The heading, and beside it how the entry was checked. Short: the liveries begin under this panel. */
+.paints-app .car-controls .head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  margin-bottom: 8px;
+}
+.paints-app .car-controls .head h3 {
+  margin: 0;
+}
+/* No taller than the heading alone would be: the panel is under the view and the pedals, and every line of it is a
+   line the liveries begin lower by. */
+.paints-app .car-controls .head .note {
+  margin: 0;
+  line-height: 11px;
+}
 .paints-app .car-controls .facts {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
@@ -823,9 +841,28 @@
   color: var(--fg);
   white-space: nowrap;
 }
+/* The rows of controls are one press away, folded until asked for: a prototype has eight, and the car's liveries
+   would be pushed out of sight in the desk's smallest window by every listed car. */
+.paints-app .car-controls .control-rows {
+  margin-top: 8px;
+}
+.paints-app .car-controls .control-rows summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  user-select: none;
+}
+.paints-app .car-controls .control-rows summary:hover,
+.paints-app .car-controls .control-rows summary:focus-visible {
+  color: var(--fg);
+}
+.paints-app .car-controls .control-rows .count {
+  color: var(--faint);
+}
 .paints-app .car-controls .controls {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   padding: 8px 0 0;
   border-top: 1px solid var(--line);
   display: grid;
@@ -852,14 +889,14 @@
 }
 .paints-app .car-controls .disagreements {
   margin: 0 0 10px;
-  padding: 6px 12px 7px;
+  padding: 5px 12px;
   border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
   border-left-width: 3px;
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--warn) 8%, transparent);
 }
 .paints-app .car-controls .disagreements .heading {
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   font: 600 11px/1.3 var(--font);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -875,7 +912,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 .paints-app .car-controls .disagreements li {
   min-width: 0;
@@ -883,14 +920,14 @@
 .paints-app .car-controls .disagreements .says {
   display: block;
   color: var(--fg);
-  line-height: 1.3;
+  line-height: 1.25;
   overflow-wrap: anywhere;
 }
 .paints-app .car-controls .disagreements .when {
   display: block;
   color: var(--faint);
   font-size: 12px;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 .paints-app .car-controls .not-listed {
   color: var(--muted);

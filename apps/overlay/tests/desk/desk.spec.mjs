@@ -2259,13 +2259,25 @@ test('a car\'s controls, as the list has them: its kind, what it has, the car\'s
   await expect(panel.locator('h3')).toHaveText('Controls');
   await expect(facts.locator('dt')).toHaveText(['Kind', 'ABS', 'Traction control', 'Brake bias']);
   await expect(facts.locator('dd')).toHaveText(['GT car', 'adjustable ESC', 'adjustable ESC', 'none']);
+  // The rows of controls are folded until asked for, so that the car's liveries stay in sight under this panel.
+  const rows = panel.locator('.control-rows');
+  await expect(rows).toHaveCount(1);
+  expect(await rows.evaluate((el) => el.open)).toBe(false);
+  await expect(rows.locator('summary')).toHaveText('Each control, its label and values 1');
+  await expect(panel.locator('.controls')).toBeHidden();
+  await rows.locator('summary').click();
+  await expect(panel.locator('.controls')).toBeVisible();
   await expect(panel.locator('.controls li')).toHaveText(['Mode ESC 0 TRACK · 1 SPORT · 2 NORMAL']);
   await expect(panel.locator('.controls li .tag')).toHaveText(['ESC']);
-  await expect(panel.locator('.checked')).toHaveText('Checked against your telemetry.');
+  // How it was checked is beside the heading, one line above what the list says, and is not lost with the rows.
+  await expect(panel.locator('.head .checked')).toHaveText('Checked against your telemetry.');
 
-  // A car whose ranges and off positions are the list's own words, and whose labels are only text.
+  // A car whose ranges and off positions are the list's own words, and whose labels are only text. What was opened
+  // stays open as he goes down the list of cars, which is a choice of his and not the panel's.
   await lookAt(app, 'nissangtpzxt');
   await expect(facts.locator('dd')).toHaveText(['Prototype', 'none', 'adjustable TC1', 'adjustable BAL']);
+  await expect(rows.locator('summary')).toHaveText('Each control, its label and values 8');
+  expect(await rows.evaluate((el) => el.open)).toBe(true);
   await expect(panel.locator('.controls li')).toHaveText([
     'Brake bias BAL 40 to 60',
     'Traction control TC1 1 to 12, 1 is off',
@@ -2288,7 +2300,8 @@ test('a car\'s controls, as the list has them: its kind, what it has, the car\'s
   await expect(facts.locator('dd')).toHaveText(['Touring car', 'fixed', 'none', 'none']);
   await expect(facts.locator('.fact').nth(1)).toHaveAttribute('title', 'The car has it, and you cannot turn it.');
   await expect(panel.locator('.controls')).toHaveCount(0);
-  await expect(panel.locator('.note').first()).toHaveText('The list gives this car no controls.');
+  await expect(panel.locator('.facts + .note')).toHaveText('The list gives this car no controls.');
+  await expect(panel.locator('.control-rows')).toHaveCount(0);
   await expect(panel.locator('.checked')).toHaveText('Written from the manuals; not checked against your telemetry yet.');
   await expect(panel.locator('.disagreements')).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -2315,7 +2328,7 @@ test('where the car and the list disagree is set apart, each in a sentence with 
   await expect(when.nth(1)).toHaveText(SEEN_ONCE);   // said once, so first and last are the one moment
   // Above what the list says, where the eye lands, and not in the colour of the rest of the panel.
   const order = await panel.evaluate((el) => [...el.children].map((c) => c.className || c.tagName));
-  expect(order).toEqual(['H3', 'disagreements', 'facts', 'controls', 'note checked']);
+  expect(order).toEqual(['head', 'disagreements', 'facts', 'control-rows']);
   const [warning, ordinary] = await Promise.all([
     differences.locator('.heading').evaluate((el) => getComputedStyle(el).color),
     panel.locator('h3').evaluate((el) => getComputedStyle(el).color),
@@ -2556,6 +2569,52 @@ test('in the desk\'s smallest window the view and the pedals are still in sight,
       expect(await allInSight(app.locator('.car-view')), `the view of ${name}, at ${at}`).toBe(true);
       expect(await allInSight(app.locator('.car-pedals')), `the pedals of ${name}, at ${at}`).toBe(true);
     }
+  }
+  expect(errors).toEqual([]);
+});
+
+test('with the list and nothing found, a listed car\'s liveries still begin in sight in the desk\'s smallest window', async ({ page }) => {
+  // Nearly every car is in the list once it lands, and a prototype in it has eight controls: what the list says of a
+  // car is a line and its dials, and the rows of controls are one press away, or the liveries of every listed car
+  // would begin below the fold — with nothing wrong with the car at all.
+  const painted = CATALOGUE.map((c) => (c.folder === 'mclaren570sgt4'
+    ? { ...c, versions: [version('shatter', 'shatter', c.folder), version('shatter-inverted', 'shatter-inverted', c.folder), version('v3', 'v3', c.folder)] }
+    : c));
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, {
+    paints: { ...PAINTS, carCatalogue: painted, repoStatus: CHECKOUT, repoCheck: CHECKOUT }, rig: { ...TOLD, controls: listOf(LIST_CARS, []) },
+  });
+  const pane = app.locator('.main');
+  const top = (locator) => locator.evaluate((el) => Math.round(el.getBoundingClientRect().top));
+
+  for (const size of SMALLEST) {
+    const at = `${size.width} by ${size.height}`;
+    await page.setViewportSize(size);
+    // The one with one control, the prototype with eight (and one livery), and one the list has not got.
+    for (const [name, cards] of [['McLaren 570S GT4', 3], ['nissangtpzxt', 1], ['Lotus 79', 2]]) {
+      await lookAt(app, name);
+      await expect(app.locator('.versions .card')).toHaveCount(cards);
+      await expect(app.locator('.car-controls')).toHaveCount(1);
+      await expect(app.locator('.car-controls .disagreements')).toHaveCount(0);
+      expect(await pane.evaluate((el) => el.scrollTop), `${name}, at ${at}`).toBe(0);
+      if (name !== 'Lotus 79') expect(await app.locator('.control-rows').evaluate((el) => el.open), `${name} folded, at ${at}`).toBe(false);
+      // The liveries begin in sight, and so does all of what the list says of the car.
+      const versions = await top(app.locator('.versions'));
+      expect(versions, `where the liveries of ${name} begin, at ${at}`).toBeLessThan(size.height);
+      expect(await allInSight(app.locator('.car-controls')), `the controls of ${name}, at ${at}`).toBe(true);
+      expect(await allInSight(app.locator('.car-view')), `the view of ${name}, at ${at}`).toBe(true);
+      expect(await allInSight(app.locator('.car-pedals')), `the pedals of ${name}, at ${at}`).toBe(true);
+      expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth), `${name}, at ${at}`).toBe(true);
+    }
+
+    // Asked for, the rows are there — and the view and the pedals are where they were, above them.
+    await lookAt(app, 'nissangtpzxt');
+    await app.locator('.control-rows summary').click();
+    await expect(app.locator('.control-rows .controls li')).toHaveCount(8);
+    await expect(app.locator('.control-rows .controls li').first()).toBeVisible();
+    expect(await allInSight(app.locator('.car-view')), `the view, at ${at}`).toBe(true);
+    expect(await allInSight(app.locator('.car-pedals')), `the pedals, at ${at}`).toBe(true);
+    await app.locator('.control-rows summary').click();
+    expect(await app.locator('.control-rows').evaluate((el) => el.open)).toBe(false);
   }
   expect(errors).toEqual([]);
 });
