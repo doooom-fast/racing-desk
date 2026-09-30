@@ -120,12 +120,17 @@ export function GroupPage({
                     {result && (result.outcome === "skipped" || result.outcome === "failed") && (
                       <span className="note"> — {result.detail}</span>
                     )}
+                    {result?.outcome === "applied" && result.helmet?.onCar && (
+                      <span className="note"> — with the {result.helmet.set} helmet</span>
+                    )}
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        {/* Which helmet the group made the default, or why the default was left as it was. */}
+        {report?.helmet?.said && <div className="note helmet-said">{report.helmet.said}</div>}
       </div>
 
       {(leftOut.length > 0 || unpainted > 0) && (

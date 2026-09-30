@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { errorText, previewImage } from "../api";
-import type { InstalledState, Version, VersionFile } from "../types";
+import type { HelmetPick, InstalledState, Version, VersionFile } from "../types";
 
 interface Source {
   key: string;
@@ -70,6 +70,41 @@ function Preview({ source }: { source: Source | undefined }) {
   );
 }
 
+const rgb = (c: [number, number, number]) => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+
+/// The helmet's two colours as one small disc, the body on the left and the art on the right. A set the list
+/// gives no colours for has no disc; one it gives one colour for is that colour whole.
+function Swatch({ pick }: { pick: HelmetPick }) {
+  const body = pick.body ?? pick.art;
+  const art = pick.art ?? pick.body;
+  if (!body || !art) return null;
+  return (
+    <span
+      className="swatch"
+      aria-hidden="true"
+      style={{ background: `linear-gradient(135deg, ${rgb(body)} 0 50%, ${rgb(art)} 50% 100%)` }}
+    />
+  );
+}
+
+/// Which helmet comes with the version, where the library keeps helmets at all: the set, with its colours, or
+/// that none does. Nothing where the library keeps none.
+function Helmet({ pick }: { pick: HelmetPick | null | undefined }) {
+  if (pick === undefined) return null;
+  return (
+    <div className="helmet">
+      {pick ? (
+        <>
+          <Swatch pick={pick} />
+          <span>Comes with the {pick.set} helmet.</span>
+        </>
+      ) : (
+        <span>No helmet comes with this version.</span>
+      )}
+    </div>
+  );
+}
+
 export function VersionCard({
   version,
   installed,
@@ -114,6 +149,7 @@ export function VersionCard({
         {partial && <span className="badge partial">paint only</span>}
       </div>
       <div className="roles">{roles}</div>
+      <Helmet pick={version.helmet} />
       {version.meta.notes && <div className="notes">{version.meta.notes}</div>}
       {version.problems.length > 0 && (
         <div className="problems">

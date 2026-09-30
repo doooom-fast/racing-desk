@@ -52,6 +52,14 @@ export interface VersionFile {
   sha256: string;
 }
 
+/// The helmet a version comes with, from the library's helmet list (apps/overlay/modules/js/paints/helmets.js):
+/// the set's name, and its body and art colours for a swatch, or null for either colour the list does not give.
+export interface HelmetPick {
+  set: string;
+  body: [number, number, number] | null;
+  art: [number, number, number] | null;
+}
+
 export interface Version {
   id: string;
   name: string;
@@ -62,6 +70,9 @@ export interface Version {
   hasPaint: boolean;
   hasSpec: boolean;
   problems: string[];
+  /// Which helmet comes with the version: null where the library keeps helmets and names none for it, and not
+  /// there at all where the library keeps none (or the host is the Rust, which knows nothing of them).
+  helmet?: HelmetPick | null;
 }
 
 export interface Car {
@@ -143,11 +154,23 @@ export interface Action {
   detail: string;
 }
 
+/// What became of the helmet in an apply or a revert: the set that went on the car (null for none), whether it
+/// is on the car and whether it is now the default, and one plain sentence saying so — or why the helmet was left
+/// as it was.
+export interface HelmetOutcome {
+  set: string | null;
+  onCar: boolean;
+  isDefault: boolean;
+  said: string;
+}
+
 export interface ApplyReport {
   applied: boolean;
   backupDir: string | null;
   actions: Action[];
   warnings: string[];
+  /// The desk's alone: the Rust knows nothing of helmets.
+  helmet?: HelmetOutcome | null;
 }
 
 export interface BackupEntry {
@@ -208,6 +231,8 @@ export interface GroupResult {
   detail: string;
   backupDir: string | null;
   warnings: string[];
+  /// For a car that was applied: the helmet that went on it, or why none did.
+  helmet?: HelmetOutcome | null;
 }
 
 export interface GroupReport {
@@ -219,6 +244,9 @@ export interface GroupReport {
   skipped: number;
   failed: number;
   warnings: string[];
+  /// The default helmet the group set — the set its cars agree on, else the library's default — and a plain
+  /// sentence saying which, or why the default was left as it was.
+  helmet?: { set: string | null; said: string; backupDir: string | null } | null;
 }
 
 export interface Settings {

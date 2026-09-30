@@ -467,6 +467,27 @@
   color: var(--faint);
   font-size: 12px;
 }
+/* Which helmet comes with the version: the set's colours as a disc, then the sentence. */
+.paints-app .card .helmet {
+  padding: 4px 12px 0;
+  color: var(--muted);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.paints-app .swatch {
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+}
+/* What the last apply did about the helmet, under the cards it was done from. */
+.paints-app .helmet-said {
+  margin-top: 8px;
+}
 .paints-app .card .notes {
   padding: 6px 12px 0;
   color: var(--muted);

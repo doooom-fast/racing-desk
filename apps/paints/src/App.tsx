@@ -188,6 +188,8 @@ export default function App() {
   const [groupReport, setGroupReport] = useState<GroupReport | null>(null);
 
   const [refused, setRefused] = useState<Refused | null>(null);
+  /// What the last apply or revert on a car did about the helmet, in a sentence, under that car's versions.
+  const [helmetSaid, setHelmetSaid] = useState<{ folder: string; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const logId = useRef(0);
@@ -643,6 +645,7 @@ export default function App() {
     setInstalled(null);
     setBackups([]);
     setRefused(null);
+    setHelmetSaid(null);
   }, [selectedFolder, selectedGroup]);
 
   useLayoutEffect(() => {
@@ -760,8 +763,12 @@ export default function App() {
         clearOtherCooked: options.clearOtherCooked,
         force,
       });
+      // What became of the helmet is said where the cards are, and in the activity with the rest.
+      const helmet = report.helmet?.said ? [report.helmet.said] : [];
+      if (helmet.length) setHelmetSaid({ folder: applyingTo, text: helmet[0] });
       say("ok", `Applied ${version.name} to ${name}`, [
         ...report.actions.map((a) => a.detail),
+        ...helmet,
         ...report.warnings,
       ]);
     } catch (e) {
@@ -777,6 +784,7 @@ export default function App() {
 
   const doRevert = async (backupId: string | null) => {
     if (!car?.simFolder) return;
+    const reverting = car.folder;
     setBusy(true);
     try {
       const report = await api.revertCar({
@@ -787,8 +795,11 @@ export default function App() {
         backupId,
         force: false,
       });
+      const helmet = report.helmet?.said ? [report.helmet.said] : [];
+      setHelmetSaid(helmet.length ? { folder: reverting, text: helmet[0] } : null);
       say("ok", `Reverted ${carName}`, [
         ...report.actions.map((a) => a.detail),
+        ...helmet,
         ...report.warnings,
       ]);
     } catch (e) {
@@ -834,6 +845,7 @@ export default function App() {
             .filter((r) => r.outcome === "skipped" || r.outcome === "failed")
             .map((r) => `${nameOf(r.folder)}: ${r.detail}`),
           ...report.results.flatMap((r) => r.warnings.map((w) => `${nameOf(r.folder)}: ${w}`)),
+          ...(report.helmet?.said ? [report.helmet.said] : []),
           ...report.warnings,
         ],
       );
@@ -1094,6 +1106,9 @@ export default function App() {
                       />
                     ))}
                   </div>
+                  {helmetSaid && helmetSaid.folder === car.folder && (
+                    <div className="note helmet-said">{helmetSaid.text}</div>
+                  )}
                   {!target && (
                     <div className="note">
                       This car is not in the sim: it has no folder in the paint directory and is not
