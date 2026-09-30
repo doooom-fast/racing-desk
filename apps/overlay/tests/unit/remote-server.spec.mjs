@@ -172,10 +172,27 @@ test.describe('the page', () => {
 
   test('waits for nothing from the internet: an iPad that has the rig and no internet is not left with a blank page', async () => {
     const page = await ask('/', withKey);
-    expect(page.body).not.toContain('typekit');
+    // No stylesheet from the internet is left in the page's markup, where it would hold the page back...
     expect(page.body).not.toContain('fonts.example');
     expect(page.body).not.toMatch(/<link\b[^>]*https?:/i);
     expect(page.body).toContain('<link rel="stylesheet" href="fonts/mono.css">');   // its own are kept
+    // ...the kit of the HUD's faces that the page named is asked for by a script, once the page has loaded, and only
+    // that one: what else the page named is not asked for at all.
+    expect(page.body).toContain('addEventListener(\'load\'');
+    expect(page.body).toContain('var kits = ["https://use.typekit.net/abc1def.css"];');
+    // Until its faces have come the HUD's own are stood in for by the condensed faces iPadOS has.
+    expect(page.body).toContain(':root:not(.rd-kit)');
+  });
+
+  test('a stylesheet on another host than Typekit is never asked for, whatever the page names', () => {
+    const html = '<html><head><link rel="stylesheet" href="https://evil.example/use.typekit.net/x.css">'
+      + '<link rel="stylesheet" href="https://use.typekit.net.evil.example/x.css">'
+      + '<link rel="stylesheet" href="http://use.typekit.net/x.css">'
+      + '<link rel="stylesheet" href="https://use.typekit.net/aaa111.css"></head><body></body></html>';
+    const out = remote.injectRemoteOverrides(html);
+    expect(out).toContain('var kits = ["https://use.typekit.net/aaa111.css"];');
+    expect(out).not.toMatch(/<link\b[^>]*https?:/i);
+    expect(out).not.toContain('evil.example');
   });
 
   test('offers only what works on an iPad, and cannot be held inside another site\'s page', async () => {
@@ -183,6 +200,9 @@ test.describe('the page', () => {
     expect(page.body).toContain("label: 'Full screen'");
     expect(page.body).toContain("label: 'Reconnect'");
     expect(page.body.match(/label: '[^']*'/g)).toEqual(["label: 'Full screen'", "label: 'Reconnect'"]);
+    // …and the switch for the HUD's effects, kept on the iPad itself: its label says which way it is.
+    expect(page.body).toContain("'Effects: off' : 'Effects: on'");
+    expect(page.body).toContain("localStorage.setItem('rd-effects'");
     expect(page.headers['Content-Security-Policy']).toBe("frame-ancestors 'none'");
     expect(page.headers['X-Frame-Options']).toBe('DENY');
   });
@@ -531,7 +551,7 @@ test.describe('starting and stopping', () => {
 
   // The whole way, with the real HUD in a browser that has no app around it — which is what an iPad is. The
   // telemetry is a stand-in on 127.0.0.1; every address but 127.0.0.1 is shut, so nothing reaches the network.
-  test('a browser is shown the drive view, asks the rig it came from for its telemetry, and says when there is none', async ({ page }) => {
+  test('a browser is shown the glance layout, asks the rig it came from for its telemetry, and says when there is none', async ({ page }) => {
     test.setTimeout(90000);   // it waits out the page's own back-off, twice
     const asked = [];
     let answering = true;
@@ -555,6 +575,19 @@ test.describe('starting and stopping', () => {
       page.on('request', (r) => requested.push(r.url()));
       page.on('pageerror', (e) => errors.push(e.message));
       await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
+      // What the page adds to itself, and when: the kit is a stylesheet added by script, and it has to be after the
+      // page has loaded ('complete' is what the document says during the load event, and after it).
+      await page.addInitScript(() => {
+        // This iPad had its effects switched off before (a headless browser draws their WebGL in software, at the cost
+        // of the tests beside this one); the switch is tried below.
+        try { localStorage.setItem('rd-effects', 'off'); } catch (e) { /* none */ }
+        window.__added = [];
+        new MutationObserver((records) => {
+          for (const r of records) for (const n of r.addedNodes) {
+            if (n.tagName === 'LINK') window.__added.push({ href: n.href, readyState: document.readyState });
+          }
+        }).observe(document, { childList: true, subtree: true });   // the document: its <html> is not there yet
+      });
       await page.setViewportSize({ width: 1180, height: 820 });   // an iPad, on its side
       await page.goto(`http://127.0.0.1:${port}/`);
 
@@ -562,17 +595,45 @@ test.describe('starting and stopping', () => {
       await expect.poll(() => requested.filter((u) => u === mine).length, { timeout: 10000 }).toBeGreaterThan(2);
       // What the server said is still what the page has, after its settings were applied.
       expect(await page.evaluate(() => [window._remoteMode, window._simhubUrlOverride])).toEqual([true, mine]);
-      // Nothing was asked of the iPad itself, of the internet, or of the rig to change anything.
-      expect(requested.filter((u) => !u.startsWith(`http://127.0.0.1:${port}/`))).toEqual([]);
+      // Nothing was asked of the iPad itself or of the rig to change anything, and the one thing asked of the internet
+      // is the HUD's typefaces, from Typekit, by a stylesheet the page added after it had loaded.
+      expect(requested.filter((u) => !u.startsWith(`http://127.0.0.1:${port}/`))).toEqual(['https://use.typekit.net/pdg5yka.css']);
       expect(requested.filter((u) => u.includes('?action='))).toEqual([]);
-      await expect(page.locator('#driveHud')).toBeVisible();
+      const added = await page.evaluate(() => window.__added.filter((a) => /typekit/.test(a.href)));
+      expect(added).toEqual([{ href: 'https://use.typekit.net/pdg5yka.css', readyState: 'complete' }]);
+      // With the kit refused the page is drawn all the same, in the stand-in faces.
+      expect(await page.evaluate(() => document.documentElement.classList.contains('rd-kit'))).toBe(false);
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ff'))).toContain('Avenir Next Condensed');
+
+      // It is the glance layout: the HUD's own panels as the cells of a grid, all in sight (drive-view.spec.mjs has
+      // the sizes), and the menu is one of them.
+      expect(await page.evaluate(() => getComputedStyle(document.body).display)).toBe('grid');
+      for (const id of ['leaderboardPanel', 'positionPage', 'fullMapSvg', 'gapsBlock', 'rd-remote-menu-fab']) {
+        await expect(page.locator('#' + id), id).toBeVisible();
+        const inside = await page.evaluate((i) => {
+          const r = document.getElementById(i).getBoundingClientRect();
+          return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+        }, id);
+        expect(inside, `${id} inside the window`).toBe(true);
+      }
+      expect(await page.locator('#driveHud').count()).toBe(0);
       await expect(page.locator('#rd-remote-menu-fab')).toBeVisible();
       expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(0, 0, 0)');
       expect(await page.evaluate(() => document.body.classList.contains('rd-no-data'))).toBe(false);
 
       // The menu works, and what it offers is there to offer.
       await page.locator('#rd-remote-menu-fab').click();
-      await expect(page.locator('#rd-remote-menu-panel .rd-rm-btn')).toHaveText(['Full screen', 'Reconnect']);
+      // The effects were off on this iPad from before, and the page began without them.
+      await expect(page.locator('#rd-remote-menu-panel .rd-rm-btn')).toHaveText(['Full screen', 'Reconnect', 'Effects: off']);
+      expect(await page.evaluate(() => [window._rdEffectsOff, document.documentElement.classList.contains('rd-effects-off')])).toEqual([true, true]);
+      // They go on and off from here, the menu staying open, and the iPad keeps the choice.
+      await page.locator('#rd-remote-menu-panel .rd-rm-btn', { hasText: 'Effects' }).click();
+      await expect(page.locator('#rd-remote-menu-panel .rd-rm-btn').nth(2)).toHaveText('Effects: on');
+      expect(await page.evaluate(() => [window._rdEffectsOff, document.documentElement.classList.contains('rd-effects-off'), localStorage.getItem('rd-effects')]))
+        .toEqual([false, false, 'on']);
+      await page.locator('#rd-remote-menu-panel .rd-rm-btn', { hasText: 'Effects' }).click();
+      expect(await page.evaluate(() => [window._rdEffectsOff, document.documentElement.classList.contains('rd-effects-off'), localStorage.getItem('rd-effects')]))
+        .toEqual([true, true, 'off']);
       await page.locator('#rd-remote-menu-panel .rd-rm-btn', { hasText: 'Reconnect' }).click();
       await expect(page.locator('#rd-remote-menu-panel')).toBeHidden();
 
@@ -588,6 +649,35 @@ test.describe('starting and stopping', () => {
       expect([...new Set(asked)]).toEqual(['GET /racing-desk/']);
     } finally {
       await new Promise((resolve) => { telemetry.close(resolve); telemetry.closeAllConnections(); });
+    }
+  });
+
+  // The kit is Adobe's, and its files are not to be copied, so the tests serve stand-ins under its address: a stylesheet
+  // that names the two faces, and a font file that is the bundled mono (nobody's licence but its own).
+  test('when the kit arrives the page changes over to the HUD\'s faces, and until it does it is in the stand-ins', async ({ page }) => {
+    const port = await freePort();
+    const overlay = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+    try {
+      await remote.start({ port, host: '127.0.0.1', appDir: overlay, key: KEY, log: () => {}, telemetryUrl: 'http://127.0.0.1:1/racing-desk/' });
+      const font = `http://127.0.0.1:${port}/fonts/jetbrains-mono/jetbrains-mono-latin-700-normal.woff2`;
+      let kitAsked = 0;
+      await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, async (route) => {
+        if (route.request().url() !== 'https://use.typekit.net/pdg5yka.css') return route.abort();
+        kitAsked++;
+        await route.fulfill({
+          status: 200, contentType: 'text/css', headers: { 'Access-Control-Allow-Origin': '*' },
+          body: `@font-face{font-family:sofia-pro-comp;font-weight:700;src:url(${font}) format("woff2")}`
+            + `@font-face{font-family:stolzl;font-weight:400;src:url(${font}) format("woff2")}`,
+        });
+      });
+      await page.setViewportSize({ width: 1180, height: 820 });
+      await page.goto(`http://127.0.0.1:${port}/`);
+      await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('rd-kit')), { timeout: 10000 }).toBe(true);
+      expect(kitAsked).toBe(1);
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ff'))).toContain('sofia-pro-comp');
+      expect(await page.evaluate(() => getComputedStyle(document.querySelector('.lb-header')).fontFamily)).toContain('sofia-pro-comp');
+    } finally {
+      await remote.stop();
     }
   });
 

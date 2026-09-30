@@ -1,0 +1,567 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   THE GLANCE LAYOUT — drive mode (Ctrl+Shift+F on the rig; the whole of what an iPad is shown)
+
+   Every panel of the HUD, laid out as the cells of one grid on <body> that fills the screen: a data display with no
+   empty band. Nothing is moved and nothing is copied. The HUD's wrappers step aside (display: contents) and its
+   panels become the cells, so every module goes on writing to the same elements it always did, in the colours, the
+   states and the type it always had, and the two screens are one product. The panels keep the rig's glass: the
+   tinted, lit panel of ambient.css, in the ambient colour the telemetry carries (on an iPad there is no game behind
+   it to take a colour from), and when a flag is out the whole background behind them is that flag.
+
+   What is in a cell is sized from the cell: each is a size container and its type is in cq units, so one set of rules
+   serves an iPad mini, an Air on its side and a 12.9-inch Pro alike. A cell's own padding and gaps stay in px (a cq
+   unit on the container itself would resolve against the page). Type has floors: no label under 11px, no number
+   under 20px.
+
+   Landscape (24 columns):                              Portrait (24 columns):
+     hero×8   gaps×4   tacho×5          lb×7              hero×14            gaps×10
+     map×8    local×4  laps×5           lb                tacho×8   map×11   local×5
+     map      local    rating×5         lb                lb×15              laps×9
+     ctrl×6   pedals×4 brand×2 car×2 timer×3 lb           lb                 rating×9
+     pit×10            ds×4     inc×3   lb                ctrl×8 pedals×8 brand×2 car×2 timer×4
+                                                          pit×13        ds×6    inc×5
+   On an iPad the menu (remote-server.js) is laid over the brand square, the one touch target on the screen. What
+   comes and goes is laid over the cells, as it is over the game on the rig (the end of this file).
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+body.drive-mode-active {
+  --rd-frame: clamp(8px, 1.2vmin, 14px);         /* the edge round the grid: where a flag shows at its boldest */
+  --rd-gap: clamp(5px, 0.75vmin, 9px);
+  --rd-glass-r: var(--ambient-r);                  /* the glass's tint: the ambient colour, or the flag's */
+  --rd-glass-g: var(--ambient-g);
+  --rd-glass-b: var(--ambient-b);
+  --rd-bg: #050608;
+  background: var(--rd-bg) !important;
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: max(var(--rd-frame), env(safe-area-inset-top)) max(var(--rd-frame), env(safe-area-inset-right))
+           max(var(--rd-frame), env(safe-area-inset-bottom)) max(var(--rd-frame), env(safe-area-inset-left));
+  display: grid;
+  gap: var(--rd-gap);
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 24fr) minmax(0, 22fr) minmax(0, 14fr) minmax(0, 13fr) minmax(0, 23fr);
+  grid-template-areas:
+    "hero hero hero hero hero hero hero hero gaps gaps gaps gaps tacho tacho tacho tacho tacho lb lb lb lb lb lb lb"
+    "map map map map map map map map local local local local laps laps laps laps laps lb lb lb lb lb lb lb"
+    "map map map map map map map map local local local local rating rating rating rating rating lb lb lb lb lb lb lb"
+    "ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals brand brand car car timer timer timer lb lb lb lb lb lb lb"
+    "pit pit pit pit pit pit pit pit pit pit ds ds ds ds inc inc inc lb lb lb lb lb lb lb";
+}
+@media (orientation: portrait) {
+  body.drive-mode-active {
+    grid-template-rows: minmax(0, 15fr) minmax(0, 21fr) minmax(0, 20fr) minmax(0, 9fr) minmax(0, 8fr) minmax(0, 17fr);
+    grid-template-areas:
+      "hero hero hero hero hero hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps gaps gaps gaps"
+      "tacho tacho tacho tacho tacho tacho tacho tacho map map map map map map map map map map map local local local local local"
+      "lb lb lb lb lb lb lb lb lb lb lb lb lb lb lb laps laps laps laps laps laps laps laps laps"
+      "lb lb lb lb lb lb lb lb lb lb lb lb lb lb lb rating rating rating rating rating rating rating rating rating"
+      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals brand brand car car timer timer timer timer"
+      "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
+  }
+}
+
+/* The HUD's zoom setting (settings.js applyZoom sets it inline) is the rig screen's. Here every size comes from the
+   cell, so it is undone: left, cq units would come out divided by it. */
+body.drive-mode-active :is(#dashboard, #incidentsPanel, #secContainer, #rcBanner, #spotterPanel, #commentaryCol) { zoom: 1 !important; }
+
+/* The wrappers step aside, and so do their pseudo-elements, which would otherwise become cells of their own (the
+   dashboard's sentiment halo, the glass of the position block that holds two pages). */
+body.drive-mode-active :is(#dashboard, .main-row, .main-area, .controls-pedals-block, .maps-col, .pos-gaps-col,
+  #cycleRatingPos, .timer-row, #secContainer, .logo-col) { display: contents !important; }
+body.drive-mode-active :is(#dashboard, .main-row, .main-area, .controls-pedals-block, .maps-col, .pos-gaps-col,
+  #cycleRatingPos, .timer-row, #secContainer, .logo-col)::before,
+body.drive-mode-active :is(#dashboard, .main-row, .main-area, .controls-pedals-block, .maps-col, .pos-gaps-col,
+  #cycleRatingPos, .timer-row, #secContainer, .logo-col)::after { content: none !important; display: none !important; }
+
+/* What only the rig's screen needs. The glare pass (webgl.js) lights panels by where they are on the screen, from its
+   middle; here the glass is the panels' own (below), which lights each one alike. */
+body.drive-mode-active :is(.cycle-sizer, .cycle-dots, #connStatus, #connBanner, #gameLogoOverlay, .ambient-canvas,
+  #glareCanvas, .pb-tabs, .lb-brand) { display: none !important; }
+
+/* Every panel is a cell whatever the rig's settings show, and nothing in a cell is a touch target: the cells are data. */
+body.drive-mode-active :is(.car-controls, .pedals-area, .map-panel, .map-zoom-panel, #positionPage, #ratingPage,
+  #gapsBlock, .tacho-block, #brandLogoSquare, #carLogoSquare, #raceTimerBlock, #leaderboardPanel, #datastreamPanel,
+  #pitBoxPanel, #incidentsPanel, #lapsPanel) {
+  container-type: size;
+  position: relative;
+  inset: auto;
+  min-width: 0; min-height: 0; width: auto; height: auto; max-height: none; margin: 0;
+  flex: none;
+  border-radius: var(--corner-r);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 1;
+  transform: none;
+}
+body.drive-mode-active :is(.car-controls, .pedals-area, .map-panel, .map-zoom-panel, #positionPage, #ratingPage,
+  #gapsBlock, .tacho-block, #raceTimerBlock, #leaderboardPanel, #datastreamPanel, #pitBoxPanel, #incidentsPanel,
+  #lapsPanel).section-hidden { display: flex !important; }
+/* The badges are shown whatever the rig's visual preset hides (modes.css). */
+body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: flex !important; }
+
+/* ── The glass ─────────────────────────────────────────────────────────────────────────────────────────────────────
+   The rig's panel: near-black at nine-tenths, a hairline edge, and over it the light of ambient.css — an overhead glow
+   and a sweep in the ambient colour, and the specular streak of a glass surface. On the rig the WebGL glare adds to
+   it by where a panel sits on the screen; here each panel is lit the same, by its own layers, a little brighter to
+   make up for the glare pass it does not have. The four panels that draw their own inner card (leaderboard,
+   datastream, pit box, incidents) take the same background on the card. */
+body.drive-mode-active :is(.car-controls, .pedals-area, .map-panel, .map-zoom-panel, #positionPage, #ratingPage,
+  #gapsBlock, .tacho-block, #raceTimerBlock, #lapsPanel, .lb-inner, .ds-inner, .pb-inner, .inc-inner) {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.26) 0%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.16) 55%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.20) 100%),
+    var(--bg);
+  border: 1px solid rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.30);
+  border-radius: var(--corner-r);
+  box-shadow:
+    inset 0 0 36px 6px rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.14 + var(--ambient-lum) * 0.18)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  transition: background 0.6s ease, border-color 0.6s ease;
+}
+body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) {
+  background: var(--bg-logo);
+  border-radius: var(--corner-r);
+}
+/* The overhead glow and the sweep (ambient.css's ::before, which the rig shows in its plastic mode), tinted by the glass. */
+body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel, .incidents-panel,
+  .laps-panel)::before {
+  display: block;
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  border-radius: inherit;
+  transform: none;
+  background:
+    radial-gradient(ellipse 140% 90% at 50% 0%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.34) 0%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.12) 35%,
+      transparent 75%),
+    linear-gradient(155deg, transparent 8%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.10) 30%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.04) 55%, transparent 72%);
+  opacity: calc(0.45 + var(--ambient-lum) * 0.5);
+}
+/* The specular streak is ambient.css's ::after, the rig's own, and shows as it is. */
+body.drive-mode-active.ambient-off :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel,
+  .incidents-panel, .laps-panel)::before { display: none; }
+
+/* ═══ The cells ════════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Hero: the place, and the lap ───────────────────────────────────────────────────────────────────────────────────
+   In a race the big number is the place, with the places gained or lost since the start beside it; beside them the lap,
+   the time on this lap, and the gap to his best lap of the session, labelled with what it is against. Out of a race
+   (body.session-nonrace, from poll-engine.js) the place is a rank of best laps and the gap is what he drives by, so the
+   gap is the big number. */
+body.drive-mode-active #positionPage { grid-area: hero; display: flex; align-items: stretch; padding: 0 clamp(8px, 1.6vw, 24px); }
+body.drive-mode-active #positionPage .pos-layout { align-items: center; gap: 3cqw; width: 100%; }
+body.drive-mode-active #positionPage .pos-number { font-size: max(80px, min(70cqh, 25cqw)); display: flex; flex-direction: column; justify-content: center; }
+body.drive-mode-active #positionPage .pos-number[data-digits="1"] { font-size: max(80px, min(70cqh, 36cqw)); }
+body.drive-mode-active #positionPage .pos-delta { font-size: max(20px, min(16cqh, 7cqw)); margin-top: 0.05em; }
+body.drive-mode-active #positionPage .pos-meta { gap: 1.6cqh; align-self: center; flex: 1; align-items: flex-end; }
+body.drive-mode-active #positionPage .pos-meta-row { font-size: max(11px, min(11cqh, 5cqw)); }
+body.drive-mode-active #positionPage .pos-meta-row:first-child .val { font-size: max(20px, min(22cqh, 8cqw)); }
+body.drive-mode-active #positionPage .pos-meta-row.current-row { text-align: right !important; }
+body.drive-mode-active #positionPage .pos-meta-row.current-row .val { font-size: max(20px, min(19cqh, 6.6cqw)); text-align: right; }
+body.drive-mode-active #positionPage .pos-meta-row.delta-row { min-height: 0; text-align: right; }
+body.drive-mode-active #positionPage .pos-meta-row.delta-row .val { font-size: max(20px, min(19cqh, 6.6cqw)); text-align: right; }
+body.drive-mode-active #positionPage .delta-ref { font-size: max(11px, min(7.5cqh, 3.2cqw)); text-align: right; }
+
+body.drive-mode-active.session-nonrace #positionPage .pos-layout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 14fr) minmax(0, 38fr) minmax(0, 24fr) minmax(0, 24fr);
+  grid-template-areas: "ref ref" "delta delta" "pos lap" "pos cur";
+  gap: 0 4cqw;
+  height: 100%;
+}
+body.drive-mode-active.session-nonrace #positionPage .pos-meta { display: contents; }
+body.drive-mode-active.session-nonrace #positionPage .pos-number,
+body.drive-mode-active.session-nonrace #positionPage .pos-number[data-digits="1"] { grid-area: pos; font-size: max(40px, min(30cqh, 15cqw)); align-self: center; }
+body.drive-mode-active.session-nonrace #positionPage .pos-delta { display: none; }
+body.drive-mode-active.session-nonrace #positionPage .pos-meta-row:first-child { grid-area: lap; align-self: end; text-align: right; }
+body.drive-mode-active.session-nonrace #positionPage .pos-meta-row.current-row { grid-area: cur; align-self: start; text-align: right; }
+body.drive-mode-active.session-nonrace #positionPage .pos-meta-row.delta-row { display: contents; }
+body.drive-mode-active.session-nonrace #positionPage .delta-ref { grid-area: ref; align-self: end; text-align: left; font-size: max(11px, min(9cqh, 4.4cqw)); }
+body.drive-mode-active.session-nonrace #positionPage .pos-meta-row.delta-row .val { grid-area: delta; align-self: center; text-align: left; font-size: max(40px, min(36cqh, 17cqw)); }
+body.drive-mode-active.session-nonrace #positionPage .pos-meta-row:first-child .val { font-size: max(20px, min(14cqh, 7cqw)); }
+body.drive-mode-active.session-nonrace #positionPage .pos-meta-row.current-row .val { font-size: max(20px, min(14cqh, 7cqw)); }
+/* With no lap timed there is no gap: the cell says so quietly and does not sit empty. */
+body.drive-mode-active.session-nonrace #positionPage .pos-meta-row.delta-row .val:empty::before { content: '—.———'; color: var(--text-dim); }
+
+/* ── Gaps: the car ahead over the car behind (out of a race the same block shows its sector cells) ────────────────── */
+body.drive-mode-active #gapsBlock { grid-area: gaps; display: flex; flex-direction: column; gap: var(--rd-gap); padding: 6px 8px; }
+body.drive-mode-active #gapsBlock .gap-item { gap: 1.5cqh; }
+body.drive-mode-active #gapsBlock .panel-label { font-size: max(11px, min(6cqh, 8cqw)); }
+body.drive-mode-active #gapsBlock .gap-time { font-size: max(20px, min(15cqh, 22cqw)); }
+body.drive-mode-active #gapsBlock .gap-driver { font-size: max(11px, min(7cqh, 10cqw)); max-width: 100%; }
+/* The rig's driver name takes the body's tracking, 0.48px, which at its 10px is 0.048em: here its size is the cell's, so the
+   tracking is given in em to stay the rig's. */
+body.drive-mode-active #gapsBlock .gap-driver { letter-spacing: 0.048em; }
+body.drive-mode-active #gapsBlock .gap-ir { font-size: max(11px, min(5.5cqh, 7.5cqw)); }
+body.drive-mode-active #gapsBlock .sector-indicator { flex-direction: column; }
+/* Upright, the block is wide and short: ahead beside behind, as on the rig. */
+@media (orientation: portrait) {
+  body.drive-mode-active #gapsBlock { flex-direction: row; }
+  body.drive-mode-active #gapsBlock .gap-item { gap: 2cqh; }
+  body.drive-mode-active #gapsBlock .panel-label { font-size: max(11px, min(8cqh, 5cqw)); }
+  body.drive-mode-active #gapsBlock .gap-time { font-size: max(20px, min(26cqh, 12cqw)); }
+  body.drive-mode-active #gapsBlock .gap-driver { font-size: max(11px, min(10cqh, 5.4cqw)); }
+  body.drive-mode-active #gapsBlock .gap-ir { font-size: max(11px, min(8cqh, 4.2cqw)); }
+  body.drive-mode-active #gapsBlock .sector-indicator { flex-direction: row; }
+}
+body.drive-mode-active #gapsBlock .sector-cell { display: flex; flex-direction: column; justify-content: center; }
+body.drive-mode-active #gapsBlock .sector-label { font-size: max(11px, min(8cqh, 6cqw)); }
+body.drive-mode-active #gapsBlock .sector-time,
+body.drive-mode-active #gapsBlock .sector-delta { font-size: max(11px, min(11cqh, 11cqw)); }
+body.drive-mode-active #gapsBlock .flag-label { font-size: max(20px, min(14cqh, 15cqw)); }
+body.drive-mode-active #gapsBlock .flag-context { font-size: max(11px, min(7cqh, 8cqw)); padding: 0 6px; }
+
+/* ── The tacho: gear, speed, revs and the bar to the redline, as on the rig ─────────────────────────────────────── */
+body.drive-mode-active .tacho-block { grid-area: tacho; display: flex; flex-direction: column; padding: 6px 10px 8px; }
+body.drive-mode-active .tacho-top-row { height: auto; flex: 0 0 auto; }
+body.drive-mode-active .tacho-gear { font-size: max(40px, min(58cqh, 40cqw)); }
+body.drive-mode-active .speed-value { font-size: max(20px, min(22cqh, 17cqw)); }
+body.drive-mode-active .speed-unit { font-size: max(11px, min(7cqh, 5cqw)); }
+body.drive-mode-active .tacho-rpm { font-size: max(11px, min(10cqh, 8cqw)); align-self: flex-end; }
+body.drive-mode-active .tacho-bar-track { flex: 1 1 0; min-height: 12px; gap: max(2px, 0.8cqw); }
+
+/* ── The track: the full circuit, and the local view beside it ─────────────────────────────────────────────────────
+   The HUD's three-layer outline (a wide pale edge, a dark core, a thin cyan centre line), its sector colours, the
+   start/finish tick, the car in its maker's colour and the others going orange as they close: all its own. What
+   changes is the line weights, given in pixels — the maps' script sets --px, the units of the map to a pixel — and
+   the viewBox, fitted to the outline so that the circuit fills its cell. */
+body.drive-mode-active .map-panel { grid-area: map; display: flex; flex-direction: column; padding: 8px; }
+body.drive-mode-active .map-panel .map-svg { width: 100%; flex: 1 1 0; }
+body.drive-mode-active .map-panel > .map-zoom-label { font-size: max(11px, min(4.4cqmin, 18px)); letter-spacing: 0.12em; }
+body.drive-mode-active .map-panel .map-track-outer  { stroke-width: calc(12 * var(--px, 0.2)); }
+body.drive-mode-active .map-panel .map-track        { stroke-width: calc(7 * var(--px, 0.2)); }
+body.drive-mode-active .map-panel .map-track-inner  { stroke-width: calc(1.5 * var(--px, 0.2)); }
+body.drive-mode-active .map-panel .map-sector       { stroke-width: calc(8 * var(--px, 0.2)); }
+/* The local view, heading up, in a tall cell of its own: more of the road ahead shows. */
+body.drive-mode-active .map-zoom-panel { grid-area: local; display: flex; flex-direction: column; padding: 0; }
+body.drive-mode-active .map-zoom-panel .map-zoom-svg { width: 100%; height: 100%; flex: 1 1 0; }
+body.drive-mode-active .map-zoom-panel .map-zoom-label { display: none; }
+body.drive-mode-active .map-zoom-panel .map-track-outer { stroke-width: calc(10 * var(--px, 0.2)); }
+body.drive-mode-active .map-zoom-panel .map-track      { stroke-width: calc(6 * var(--px, 0.2)); }
+body.drive-mode-active .map-zoom-panel .map-track-inner { stroke-width: calc(1.2 * var(--px, 0.2)); }
+/* The glow under the car is sized in pixels by the script, and does not breathe in units. */
+body.drive-mode-active #trackPlayerGlow { animation: none; }
+/* The panels' own WebGL canvases fill their cell and no more (webgl.js sizes their drawing to the cell's outer box). */
+body.drive-mode-active .gl-overlay { width: 100%; height: 100%; }
+
+/* ── The leaderboard: the HUD's own panel and rows, the type sized from the panel and the rows sharing its height.
+      leaderboard.js counts how many rows the panel holds at that size. The race timeline stays at its foot. ── */
+body.drive-mode-active #leaderboardPanel { grid-area: lb; display: flex; flex-direction: column; gap: var(--rd-gap); background: none; border: none; }
+body.drive-mode-active #leaderboardPanel .lb-inner { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 0; }
+body.drive-mode-active .lb-header { font-size: max(11px, min(3.6cqw, 16px)); padding: 0.3em 0.8em 0.45em; }
+body.drive-mode-active #lbRows {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  font-size: clamp(14px, min(5cqw, 4.6cqh), 26px);
+}
+/* The rows share the height between them, and none is taller than a few lines when the field is small. */
+body.drive-mode-active .lb-row {
+  flex: 1 1 0; min-height: 0; max-height: 3.4em;
+  font-size: 1em;
+  grid-template-columns: 1.5em minmax(4.5em, 1.6fr) 3.3em 3.3em minmax(2.6em, 1fr);
+  gap: 0.35em; padding: 0 0.5em;
+}
+body.drive-mode-active .lb-row.lb-player { padding-left: 0.5em; }
+body.drive-mode-active .lb-pos { font-size: 1em; font-family: var(--ff-mono); }
+body.drive-mode-active .lb-name { overflow: hidden; text-overflow: ellipsis; }
+/* The rig's names take the body's tracking, 0.48px, which at their 11px is 0.044em; here in em, to stay the rig's. */
+body.drive-mode-active .lb-name { letter-spacing: 0.044em; }
+body.drive-mode-active .lb-gap,
+body.drive-mode-active .lb-lap { font-size: 0.84em; }
+body.drive-mode-active .lb-spark { height: 1.3em; min-width: 0; opacity: 0.9; }
+body.drive-mode-active .lb-spark .lb-spark-line { stroke-width: 2px; }
+body.drive-mode-active .lb-spark .lb-spark-dot { stroke-width: 4.5px; }
+body.drive-mode-active .race-timeline { margin: 0; flex: 0 0 auto; }
+body.drive-mode-active .rt-canvas { height: max(9px, 1.4cqh); }
+
+/* ── Laps: the times, the sectors against his best, the gaps to his other references, and the fuel to the end ─────
+   This panel is the glance layout's (the rig's HUD has these numbers spread over the timer and the datastream). */
+.laps-panel { display: none; }
+body.drive-mode-active .laps-panel { grid-area: laps; display: flex; flex-direction: column; justify-content: space-between; gap: 5px; padding: 7px 10px; }
+/* The panel is its own size container, so its type is set on what is in it (a cq unit on the container resolves
+   against the page). */
+body.drive-mode-active .laps-panel > * { font-size: max(11px, min(7.6cqh, 5cqw)); }
+.laps-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5em; }
+.laps-panel .panel-label { font-size: max(11px, 0.85em); margin: 0; }
+.laps-count { font-family: var(--ff-mono); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary); font-size: 1.1em; }
+/* Two rows of three: the times (last, best, optimal) over the gaps (to his session best, the optimal lap, his best
+   ever), each its label over its number. */
+.laps-cols { display: grid; grid-template-rows: auto auto; gap: 0.35em; }
+.laps-col { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 0.6em; min-width: 0; }
+.laps-col .laps-row { flex-direction: column; align-items: stretch; gap: 0; }
+.laps-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6em; min-width: 0; }
+.laps-col .laps-v { font-size: 1.1em; }
+.laps-k { font-size: max(11px, 0.82em); font-weight: 600; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.laps-v { font-family: var(--ff-mono); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap; color: var(--text-primary); flex: none; }
+.laps-v.purple { color: var(--purple); }
+.laps-v.green, .laps-v.delta-faster { color: var(--green); }
+.laps-v.delta-slower, .laps-v.red { color: var(--red); }
+.laps-v.amber { color: var(--amber); }
+.laps-v.dim, .laps-v.delta-even { color: var(--text-secondary); }
+.laps-sectors { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.35em; }
+.laps-sectors .sector-cell { display: flex; flex-direction: column; justify-content: center; padding: 0.15em 0.3em; min-width: 0; }
+.laps-sectors .sector-label { font-size: max(11px, 0.72em); margin: 0; }
+.laps-sectors .sector-time { font-size: max(11px, 0.95em); }
+.laps-sectors .sector-delta { font-size: max(11px, 0.8em); min-height: 1.1em; }
+/* A short panel (an iPad mini on its side) gives up its heading: the lap is in the hero beside it. */
+@container (max-height: 150px) { .laps-head { display: none; } }
+
+/* ── Ratings: iRating with the change the race is heading for, safety rating and licence ────────────────────────── */
+body.drive-mode-active #ratingPage { grid-area: rating; display: flex; align-items: center; padding: 6px 10px; }
+body.drive-mode-active #ratingPage .rating-row { width: 100%; gap: 6cqw; align-items: center; }
+body.drive-mode-active #ratingPage .panel-label { font-size: max(11px, min(10cqh, 5cqw)); }
+body.drive-mode-active #ratingPage .rating-value { font-size: max(20px, min(23cqh, 10cqw)); }
+body.drive-mode-active #ratingPage .rating-delta { font-size: max(11px, min(12cqh, 5.4cqw)); }
+body.drive-mode-active #ratingPage .ir-bar-track { height: max(6px, 6cqh); }
+body.drive-mode-active #ratingPage .ir-bar-tick-label { font-size: max(11px, min(9cqh, 4cqw)); top: calc(100% + 2px); }
+body.drive-mode-active #ratingPage .sr-pie-svg { width: min(40cqh, 20cqw); height: min(40cqh, 20cqw); }
+/* A short one gives up the thousands under the iRating bar. */
+@container (max-height: 110px) { body.drive-mode-active #ratingPage .ir-bar-tick-label { display: none; } }
+
+/* ── Controls and pedals: BB, TC, ABS by the car list, and the three traces ────────────────────────────────────── */
+body.drive-mode-active .car-controls { grid-area: ctrl; padding: 6px; }
+body.drive-mode-active .ctrl-label { font-size: max(11px, min(16cqh, 6cqw)); }
+body.drive-mode-active .ctrl-value { font-size: max(20px, min(40cqh, 10.5cqw)); }
+/* The words a control reads when it has no number to (NONE, ON, OFF) are read at a glance too. */
+body.drive-mode-active .car-controls .ctrl-item .ctrl-value.ctrl-value-fixed,
+body.drive-mode-active .car-controls.car-controls-listed .ctrl-item.ctrl-off .ctrl-value { font-size: max(20px, min(30cqh, 9cqw)) !important; }
+body.drive-mode-active .ctrl-mini { padding: 1px 2px; }
+body.drive-mode-active .ctrl-mini-label { font-size: max(11px, min(12cqh, 3cqw)); }
+body.drive-mode-active .ctrl-mini-value { font-size: max(11px, min(20cqh, 5cqw)); }
+body.drive-mode-active .car-controls:has(#ctrlMore .ctrl-mini) { padding: 4px 6px; }
+body.drive-mode-active .car-controls:has(#ctrlMore .ctrl-mini) .ctrl-label { font-size: max(11px, min(12cqh, 5cqw)); }
+body.drive-mode-active .car-controls:has(#ctrlMore .ctrl-mini) .ctrl-value { font-size: max(20px, min(24cqh, 9cqw)); }
+body.drive-mode-active .ctrl-no-adj { font-size: max(11px, min(14cqh, 6cqw)); }
+body.drive-mode-active .pedals-area { grid-area: pedals; display: flex; flex-direction: column; padding: 6px 8px; }
+body.drive-mode-active .pedal-labels-row { flex: 0 0 auto; }
+body.drive-mode-active .pedal-channel-label { font-size: max(11px, min(12cqh, 5cqw)); }
+body.drive-mode-active .pedal-pct { font-size: max(11px, min(13cqh, 5.5cqw)); }
+body.drive-mode-active .pedal-viz-stack { flex: 1 1 0; min-height: 0; height: auto; }
+body.drive-mode-active .pedal-labels-row { gap: 4px; }
+/* A narrow panel (a 9.7-inch iPad on its side) names the two pedals every car has; the clutch's trace stays. */
+@container (max-width: 180px) { body.drive-mode-active #clutchLabelGroup { display: none !important; } }
+
+/* ── The badges: the Racing Desk mark, and the car's maker with the car's name ─────────────────────────────────── */
+body.drive-mode-active #brandLogoSquare { grid-area: brand; display: flex; align-items: center; justify-content: center; }
+body.drive-mode-active #carLogoSquare { grid-area: car; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; }
+body.drive-mode-active #brandLogoSquare img { width: min(70cqw, 70cqh) !important; }
+body.drive-mode-active #carLogoSquare .car-logo-icon svg,
+body.drive-mode-active #carLogoSquare .car-logo-icon img { width: min(62cqw, 52cqh); height: min(62cqw, 52cqh); }
+body.drive-mode-active #carLogoSquare .car-model-label { font-size: max(11px, min(11cqh, 11cqw)); -webkit-line-clamp: 1; line-clamp: 1; }
+body.drive-mode-active #brandLogoSubtitle { display: none; }
+
+/* ── The clock: time or laps left, and the last lap ─────────────────────────────────────────────────────────────── */
+body.drive-mode-active #raceTimerBlock { grid-area: timer; display: flex; align-items: center; justify-content: center; gap: 0.25em; padding: 4px; }
+body.drive-mode-active #raceTimerBlock .race-timer-value { font-size: max(20px, min(40cqh, 15cqw)); }
+body.drive-mode-active #raceTimerBlock .race-timer-lap { font-size: max(11px, min(16cqh, 7cqw)); margin: 0; }
+
+/* ── The pit box: tyres, fuel and weather side by side (on the rig they are tabs) ───────────────────────────────── */
+body.drive-mode-active #pitBoxPanel { grid-area: pit; display: flex; background: none; border: none; }
+body.drive-mode-active .pb-inner { flex: 1; display: flex; min-width: 0; }
+body.drive-mode-active .pb-content { flex: 1; display: grid; grid-template-columns: minmax(0, 46fr) minmax(0, 30fr) minmax(0, 24fr); min-width: 0; }
+body.drive-mode-active .pb-page { display: flex !important; flex-direction: column; justify-content: center; min-width: 0; padding: 6px 10px;
+  font-size: max(11px, min(8cqh, 2.4cqw)); }
+body.drive-mode-active .pb-page + .pb-page { border-left: 1px solid hsla(0, 0%, 100%, 0.08); }
+body.drive-mode-active .pb-page::before {
+  font-size: max(11px, 0.85em); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim);
+  margin-bottom: 0.3em;
+}
+body.drive-mode-active #pbPageTyres::before { content: 'Tyres'; }
+body.drive-mode-active #pbPageFuel::before { content: 'Fuel'; }
+body.drive-mode-active #pbPageWeather::before { content: 'Weather'; }
+body.drive-mode-active .pb-tire-circles { flex: 1 1 0; min-height: 0; gap: 2px 6px; align-content: center; }
+body.drive-mode-active .pb-wear-ring { width: min(37cqh, 13cqw); height: min(37cqh, 13cqw); }
+body.drive-mode-active .pb-circle-inner { height: min(37cqh, 13cqw); }
+body.drive-mode-active .pb-circle-pct { font-size: max(11px, min(9.5cqh, 3.3cqw)); }
+body.drive-mode-active .pb-circle-temp { font-size: max(11px, min(7cqh, 2.4cqw)); }
+body.drive-mode-active .pb-circle-pos { font-size: max(11px, min(6cqh, 2cqw)); }
+body.drive-mode-active .pb-car-svg { width: min(40cqh, 11cqw); }
+body.drive-mode-active .pb-row,
+body.drive-mode-active .pb-label,
+body.drive-mode-active .pb-value { font-size: max(11px, 1em); }
+body.drive-mode-active .pb-fuel-tank { margin-bottom: 0.3em; }
+body.drive-mode-active .pb-fuel-tank-bar { height: max(8px, 7cqh); }
+body.drive-mode-active .pb-fuel-tank-level { font-size: max(20px, min(16cqh, 4.6cqw)); }
+body.drive-mode-active .pb-fuel-tank-cap { font-size: max(11px, 0.9em); }
+body.drive-mode-active .pb-divider { margin: 0.25em 0; }
+body.drive-mode-active .pb-weather-hero { padding: 0.2em 0; }
+body.drive-mode-active .pb-weather-icon { font-size: max(20px, min(16cqh, 4cqw)); }
+body.drive-mode-active .pb-weather-temp { font-size: max(20px, min(16cqh, 4.4cqw)); }
+body.drive-mode-active .pb-strat-suggest { display: none; }
+body.drive-mode-active .pb-no-data { font-size: max(11px, min(10cqh, 4cqw)); }
+
+/* ── The datastream: g-forces, yaw, the wheel's torque, the delta and the track ────────────────────────────────── */
+body.drive-mode-active #datastreamPanel { grid-area: ds; display: flex; background: none; border: none; }
+body.drive-mode-active .ds-inner { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 6px 10px;
+  font-size: max(11px, min(5cqh, 6.6cqw)); overflow: hidden; }
+body.drive-mode-active .ds-header { font-size: max(11px, 0.9em); padding-bottom: 0.3em; margin-bottom: 0.3em; }
+body.drive-mode-active .ds-gforce { gap: 0.6em; margin-bottom: 0.3em; }
+body.drive-mode-active .ds-gforce-diamond { width: min(26cqh, 30cqw); height: min(26cqh, 30cqw); }
+body.drive-mode-active .ds-label,
+body.drive-mode-active .ds-value { font-size: max(11px, 1em); }
+body.drive-mode-active .ds-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; margin-right: 0.4em; }
+body.drive-mode-active .ds-row { padding: 0.1em 0; }
+body.drive-mode-active .ds-yaw-trail { height: max(10px, 6cqh); }
+/* What only matters on the rig's own screen (its frame rate), and the torque of a wheel he is holding. */
+body.drive-mode-active #datastreamPanel [data-ds-field="dsShowFps"] { display: none; }
+/* A short one gives up the yaw's trace (its rate and bar stay). */
+@container (max-height: 180px) { body.drive-mode-active .ds-yaw-trail { display: none; } }
+
+/* ── Incidents: the HUD's own panel as it is on the rig — label, the count coloured by level, the bar to penalty and
+      DQ, what is left of each. It is fixed to a corner there; here it is a cell. ── */
+body.drive-mode-active #incidentsPanel { grid-area: inc; display: flex; background: none; border: none; }
+body.drive-mode-active .inc-inner {
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: center; gap: 3cqh;
+  padding: 4cqh 8cqw;
+}
+body.drive-mode-active .inc-label { font-size: max(11px, min(8cqh, 9cqw)); padding-bottom: 0.4em; margin: 0; }
+body.drive-mode-active .inc-count { font-size: max(20px, min(32cqh, 36cqw)); }
+body.drive-mode-active .inc-x { font-size: max(20px, min(15cqh, 17cqw)); }
+body.drive-mode-active .inc-progress { margin: 0; }
+body.drive-mode-active .inc-bar-track { height: max(4px, 2.5cqh); }
+body.drive-mode-active .inc-thresholds { margin: 0; gap: 0.35em; }
+body.drive-mode-active .inc-thresh-row,
+body.drive-mode-active .inc-thresh-val { font-size: max(11px, min(8cqh, 9cqw)); }
+body.drive-mode-active .inc-gl-canvas { inset: 0; width: 100%; height: 100%; }
+
+/* ── What comes and goes, over the grid as it does over the game ───────────────────────────────────────────────────
+   The spotter's calls over the foot of the track, where the cars it calls are; race control over its top; the finish
+   over the track and the local view; the commentary card over the pit box. The pit limiter and the grid come from
+   the top edge, as on the rig. Placed in a grid area, an absolute box takes that area for its frame. */
+body.drive-mode-active #pitBanner .pit-label { font-size: clamp(18px, 2.6vmin, 30px); }
+body.drive-mode-active #pitBanner .pit-speed,
+body.drive-mode-active #pitBanner .pit-limit { font-size: clamp(14px, 2vmin, 22px); }
+body.drive-mode-active #spotterPanel {
+  position: absolute; grid-area: map; inset: auto 10px 10px 10px; transform: none; max-width: none; z-index: 70;
+}
+body.drive-mode-active.rc-active #spotterPanel { top: auto; }
+body.drive-mode-active #spotterPanel.section-hidden { display: block !important; }
+body.drive-mode-active #spotterPanel .sp-message { font-size: clamp(18px, 2.6vmin, 30px); }
+body.drive-mode-active #spotterPanel .sp-header { font-size: clamp(11px, 1.3vmin, 15px); }
+body.drive-mode-active #commentaryCol {
+  position: absolute; grid-area: pit; inset: auto 8px 8px 8px; width: auto; transform: none; z-index: 69;
+}
+body.drive-mode-active #commentaryCol .commentary-inner { width: auto; }
+body.drive-mode-active #commentaryCol .commentary-title { font-size: clamp(18px, 2.4vmin, 28px); }
+body.drive-mode-active #commentaryCol .commentary-text { font-size: clamp(15px, 1.9vmin, 22px); }
+body.drive-mode-active #commentaryCol .commentary-track-img { display: none; }
+/* Race control over the top of the track, not over the place and the gaps it would otherwise cover. */
+body.drive-mode-active #rcBanner {
+  position: absolute; grid-area: map; top: 0; left: 50%; right: auto; bottom: auto; z-index: 75;
+  width: max-content; max-width: calc(100% - 16px);
+}
+body.drive-mode-active #rcBanner .rc-inner { padding: 12px 18px 14px 16px; gap: 12px; }
+body.drive-mode-active #rcBanner .rc-title { font-size: clamp(13px, 1.7vmin, 19px); }
+body.drive-mode-active #rcBanner .rc-detail { font-size: clamp(18px, 2.8vmin, 32px); }
+/* The finish (race-end.js sizes it to the dashboard, which here is not a box): over the track and the local view. */
+body.drive-mode-active #raceEndScreen {
+  position: absolute !important; grid-row: map-start / map-end; grid-column: map-start / local-end;
+  inset: 0 !important; width: auto !important; height: auto !important; z-index: 76;
+}
+body.drive-mode-active #raceEndScreen .race-end-content { padding: 12px 16px; max-width: 100%; }
+body.drive-mode-active #raceEndScreen .re-stats { gap: 6px; margin-top: 10px; }
+
+/* ═══ Flags: the whole background is the flag ════════════════════════════════════════════════════════════════════
+   poll-engine.js writes the flag on show (the one the gaps block shows, held as long as it holds it) to
+   body[data-flag]. Behind the panels the page takes it full-bleed — the edge round the grid and every gutter between
+   the cells — and the glass of every panel takes its colour, so it is read from arm's length at once and in the
+   corner of an eye; the gaps block says which flag in words, and race control says the rest. Gone when the flag
+   clears. A blue flag rings the screen and leaves the panels as they are: it is a car to let by, and the numbers are
+   still what he races by. The pattern moves slowly (a composited layer, so it costs the iPad no repaint). */
+body.drive-mode-active::before {
+  content: '';
+  position: fixed;
+  inset: -64px;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--rd-flag-bg, transparent);
+  background-size: var(--rd-flag-size, auto);
+  transition: opacity 0.35s ease;
+}
+body.drive-mode-active[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::before {
+  opacity: 1;
+  animation: rd-flag-drift 2.4s linear infinite;
+}
+@keyframes rd-flag-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(var(--rd-flag-step, 0px), var(--rd-flag-step, 0px), 0); }
+}
+body.drive-mode-active[data-flag="green"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, hsl(130, 72%, 40%) 0 26px, hsl(130, 72%, 34%) 26px 52px);
+  --rd-flag-step: 36.77px; --rd-glass-r: 60; --rd-glass-g: 200; --rd-glass-b: 90;
+}
+body.drive-mode-active[data-flag="yellow"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, hsl(48, 98%, 52%) 0 26px, hsl(44, 98%, 46%) 26px 52px);
+  --rd-flag-step: 36.77px; --rd-glass-r: 245; --rd-glass-g: 205; --rd-glass-b: 40;
+}
+body.drive-mode-active[data-flag="red"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, hsl(0, 85%, 48%) 0 26px, hsl(0, 85%, 40%) 26px 52px);
+  --rd-flag-step: 36.77px; --rd-glass-r: 230; --rd-glass-g: 45; --rd-glass-b: 40;
+}
+body.drive-mode-active[data-flag="white"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, hsl(0, 0%, 96%) 0 26px, hsl(0, 0%, 84%) 26px 52px);
+  --rd-flag-step: 36.77px; --rd-glass-r: 225; --rd-glass-g: 225; --rd-glass-b: 230;
+}
+body.drive-mode-active[data-flag="blue"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, hsl(220, 85%, 52%) 0 26px, hsl(220, 85%, 44%) 26px 52px);
+  --rd-flag-step: 36.77px;
+}
+body.drive-mode-active[data-flag="checkered"] {
+  --rd-flag-bg: repeating-conic-gradient(#f4f4f4 0 25%, #111 0 50%);
+  --rd-flag-size: 48px 48px; --rd-flag-step: 48px; --rd-glass-r: 200; --rd-glass-g: 200; --rd-glass-b: 205;
+}
+body.drive-mode-active[data-flag="black"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, #000 0 26px, hsl(0, 0%, 14%) 26px 52px);
+  --rd-flag-step: 36.77px; --rd-glass-r: 200; --rd-glass-g: 40; --rd-glass-b: 40;
+}
+/* The meatball: an orange disc on black, as the flag is, over and over. */
+body.drive-mode-active[data-flag="meatball"] {
+  --rd-flag-bg: radial-gradient(circle at 50% 50%, hsl(24, 100%, 52%) 0 34%, #000 35%);
+  --rd-flag-size: 72px 72px; --rd-flag-step: 72px; --rd-glass-r: 245; --rd-glass-g: 120; --rd-glass-b: 30;
+}
+/* Debris or oil on the track: the surface flag, yellow with red stripes. */
+body.drive-mode-active[data-flag="debris"] {
+  --rd-flag-bg: repeating-linear-gradient(90deg, hsl(48, 98%, 52%) 0 22px, hsl(0, 85%, 48%) 22px 44px);
+  --rd-flag-step: 44px; --rd-glass-r: 245; --rd-glass-g: 150; --rd-glass-b: 40;
+}
+body.drive-mode-active[data-flag="black"] :is(.car-controls, .pedals-area, .map-panel, .map-zoom-panel, #positionPage,
+  #ratingPage, #gapsBlock, .tacho-block, #raceTimerBlock, #lapsPanel, .lb-inner, .ds-inner, .pb-inner, .inc-inner) {
+  border-color: hsla(0, 80%, 55%, 0.8);
+}
+/* The glass under a flag: its colour through the panel, the numbers on it as legible as ever. */
+body.drive-mode-active:is([data-flag="green"], [data-flag="yellow"], [data-flag="red"], [data-flag="white"],
+  [data-flag="checkered"], [data-flag="meatball"], [data-flag="debris"]) :is(.car-controls, .pedals-area, .map-panel,
+  .map-zoom-panel, #positionPage, #ratingPage, #gapsBlock, .tacho-block, #raceTimerBlock, #lapsPanel, .lb-inner,
+  .ds-inner, .pb-inner, .inc-inner) {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.34) 0%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.20) 60%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.26) 100%),
+    hsla(0, 0%, 6%, 0.96);
+  border-color: rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.85);
+}
+/* The badges' squares, which are lighter, stay whole over a pattern. */
+body.drive-mode-active[data-flag]:not([data-flag="none"]) :is(#brandLogoSquare, #carLogoSquare) { background: hsla(0, 0%, 12%, 0.97); }
+/* The flag's words in the gaps block, as big as the block allows. */
+body.drive-mode-active #gapsBlock.flag-active .flag-overlay { background: hsla(0, 0%, 4%, 0.55); }
+
+/* ═══ Effects that cannot be seen, and the iPad's switch for the rest ══════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  body.drive-mode-active::before { animation: none !important; }
+}
+html.rd-effects-off body.drive-mode-active::before { animation: none !important; }
+html.rd-effects-off body.drive-mode-active .gl-overlay { display: none !important; }

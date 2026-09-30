@@ -52,20 +52,29 @@
   // Expose ambient color for WebGL postfx shader (0-1 range)
   window._ambientGL = { r: 0, g: 0, b: 0, lum: 0 };
 
+  // What was last written: a colour that has settled is not written again every frame, since each write has every
+  // panel's glass worked out anew (on an iPad, that is its frame rate).
+  let _wrote = '';
   function updateReflectionColor(r, g, b) {
     const root = document.documentElement.style;
-    root.setProperty('--ambient-r', String(Math.round(r * 255)));
-    root.setProperty('--ambient-g', String(Math.round(g * 255)));
-    root.setProperty('--ambient-b', String(Math.round(b * 255)));
+    const R = Math.round(r * 255), G = Math.round(g * 255), B = Math.round(b * 255);
     // Perceptual luminance (rec. 709)
     const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    root.setProperty('--ambient-lum', lum.toFixed(3));
+    const key = R + ',' + G + ',' + B + ',' + lum.toFixed(3);
+    if (key !== _wrote) {
+      _wrote = key;
+      root.setProperty('--ambient-r', String(R));
+      root.setProperty('--ambient-g', String(G));
+      root.setProperty('--ambient-b', String(B));
+      root.setProperty('--ambient-lum', lum.toFixed(3));
+    }
     // Push to WebGL-readable global
     const a = window._ambientGL;
     a.r = r; a.g = g; a.b = b; a.lum = lum;
   }
 
   function clearReflectionColor() {
+    _wrote = '';
     const root = document.documentElement.style;
     root.setProperty('--ambient-r', '80');
     root.setProperty('--ambient-g', '100');

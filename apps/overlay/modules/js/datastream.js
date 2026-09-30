@@ -30,6 +30,7 @@
   const _elYawFill    = document.getElementById('dsYawFill');
   const _elSteerTorque = document.getElementById('dsSteerTorque');
   const _elDelta      = document.getElementById('dsDelta');
+  const _elDeltaRef   = document.getElementById('dsDeltaRef');
   const _elTrackTemp  = document.getElementById('dsTrackTemp');
   const _elCtrlABS    = document.getElementById('ctrlABS');
   const _elCtrlTC     = document.getElementById('ctrlTC');
@@ -268,7 +269,6 @@
     const incidentCount = vd('IncidentCount');
     const absActive = vd('AbsActive') > 0;
     const tcActive = vd('TcActive') > 0;
-    const lapDelta = vd('LapDelta');
 
     // Expose G-force values for map trail animation
     window._ambientLatG = latG;
@@ -308,16 +308,23 @@
     // Steering torque
     if (_elSteerTorque) _elSteerTorque.textContent = steerTorque.toFixed(1) + ' Nm';
 
-    // Lap delta
+    // Lap delta: the one the position block shows (poll-engine.js, lap-delta.js), labelled with what it is against —
+    // his best lap of the session, or before he has one his best ever here — and a minus when he is gaining.
     if (_elDelta) {
-      const sign = lapDelta >= 0 ? '+' : '';
-      _elDelta.textContent = sign + lapDelta.toFixed(3);
+      const shown = window._lapDeltaView && window._lapDeltaView.shown;
+      const d = shown ? shown.value : null;
+      const f = d != null && window.RacingDeskLapDelta ? window.RacingDeskLapDelta.format(d) : { text: '—', cls: '' };
+      if (_elDelta.textContent !== f.text) _elDelta.textContent = f.text;
       _elDelta.classList.remove('ds-positive', 'ds-negative', 'ds-neutral');
-      if (lapDelta > 0.05) _elDelta.classList.add('ds-positive');
-      else if (lapDelta < -0.05) _elDelta.classList.add('ds-negative');
+      if (d != null && d > 0.0005) _elDelta.classList.add('ds-positive');
+      else if (d != null && d < -0.0005) _elDelta.classList.add('ds-negative');
       else _elDelta.classList.add('ds-neutral');
+      if (_elDeltaRef) {
+        const label = shown ? shown.label : 'Delta';
+        if (_elDeltaRef.textContent !== label) _elDeltaRef.textContent = label;
+      }
       // Flash on sign change
-      const curSign = lapDelta > 0.05 ? 1 : lapDelta < -0.05 ? -1 : 0;
+      const curSign = d > 0.05 ? 1 : d < -0.05 ? -1 : 0;
       if (_dsPrevDeltaSign !== 0 && curSign !== 0 && curSign !== _dsPrevDeltaSign) dsFlash(_elDelta);
       if (curSign !== 0) _dsPrevDeltaSign = curSign;
     }

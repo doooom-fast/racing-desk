@@ -126,11 +126,6 @@ body.mode-minimal .map-player {
   text-shadow: none !important;
 }
 
-/* Remove map pulse animation */
-body.mode-minimal .dh-map-svg .map-player {
-  animation: none !important;
-}
-
 /* ── Sentiment halo: Hidden ── */
 body.mode-minimal .dashboard::before {
   opacity: 0 !important;
@@ -342,20 +337,6 @@ body.mode-minimal-plus .map-player {
   box-shadow: none !important;
 }
 
-/* Preserve map pulse at reduced radius */
-body.mode-minimal-plus .dh-map-svg .map-player {
-  animation: map-player-pulse-mini 2s ease-in-out infinite;
-}
-
-@keyframes map-player-pulse-mini {
-  0%, 100% {
-    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.3));
-  }
-  50% {
-    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
-  }
-}
-
 /* ── G-force vignette: Show at 50% intensity (peripheral safety cue) ── */
 body.mode-minimal-plus .g-vignette,
 body.mode-minimal-plus .datastream-gvignette {
@@ -446,48 +427,6 @@ body.mode-minimal-plus .fuel-fill,
 body.mode-minimal-plus .sr-value,
 body.mode-minimal-plus .tire-temp {
   transition: color 0.2s ease, text-shadow 0.15s ease-out, transform 0.15s ease-out, background-color var(--t-med) !important;
-}
-
-/* ───────────────────────────────────────────────────────────────────────────────
-   DRIVE MODE — Tufte principles (Minimal-like, no atmospheric effects)
-   ─────────────────────────────────────────────────────────────────────────────── */
-
-body.drive-mode-active {
-  background: #000 !important;
-}
-
-/* Remove background tints from drive mode panels */
-body.drive-mode-active .dh-map,
-body.drive-mode-active .dh-right,
-body.drive-mode-active .dh-sector {
-  background: transparent !important;
-  background-image: none !important;
-}
-
-/* Remove drop shadow from map player in drive mode */
-body.drive-mode-active .map-player {
-  filter: none !important;
-  text-shadow: none !important;
-}
-
-/* Tighten sector boxes: remove border-radius, reduce padding */
-body.drive-mode-active .dh-sector {
-  border-radius: 0 !important;
-  padding: 4px !important;
-}
-
-/* Keep color-coding system (it's data, not decoration) */
-body.drive-mode-active [class*="sector-1"],
-body.drive-mode-active [class*="sector-2"],
-body.drive-mode-active [class*="sector-3"],
-body.drive-mode-active .gap-ahead,
-body.drive-mode-active .gap-behind {
-  /* Color remains — it encodes data */
-}
-
-/* Optional redline flash can be toggled */
-body.drive-mode-active[data-redline-flash="on"] .tachometer {
-  --redline-flash: on;
 }
 
 /* ───────────────────────────────────────────────────────────────────────────────

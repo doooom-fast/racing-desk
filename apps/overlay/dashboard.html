@@ -54,7 +54,7 @@
 <link rel="stylesheet" href="modules/styles/race-results.css">
 <link rel="stylesheet" href="modules/styles/incident-coach.css">
 <link rel="stylesheet" href="modules/styles/recorder.css">
-<!-- drive-mode.css removed — iPad drive mode no longer active -->
+<link rel="stylesheet" href="modules/styles/drive-view.css">
 
 </head>
 <body>
@@ -65,71 +65,6 @@
 <canvas id="glareCanvas" style="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:60;"></canvas>
 
 
-
-<!-- COMPONENT: Drive Mode (Ctrl+Shift+F or auto on remote) -->
-<div class="drive-hud" id="driveHud" style="display:none;">
-
-  <!-- Left column: track map (large) + spotter below -->
-  <div class="dh-left">
-    <div class="dh-map">
-      <div class="dh-map-name" id="dhMapName"></div>
-      <svg class="dh-map-svg" id="dhMapSvg" viewBox="35 35 30 30" overflow="visible">
-        <!-- dhMapRotateGroup rotates around the player's SVG coordinate so the
-             driving direction always points up, without rotating the SVG element
-             itself (which caused rectangular clipping + crop artifacts). -->
-        <g id="dhMapRotateGroup">
-          <path class="map-track" id="dhMapTrack" d="" />
-          <path class="map-sector" id="dhSector1" d="" />
-          <path class="map-sector" id="dhSector2" d="" />
-          <path class="map-sector" id="dhSector3" d="" />
-          <g id="dhMapOpponents"></g>
-        </g>
-        <!-- Player dot is outside the rotate group so it stays upright -->
-        <circle class="map-player" id="dhMapPlayer" cx="50" cy="50" r="2" />
-      </svg>
-    </div>
-    <div class="dh-spotter" id="dhSpotter"></div>
-  </div>
-
-  <!-- Center column: timing -->
-  <div class="dh-center">
-    <div class="dh-position"><span class="dh-pos-num" id="dhPosition">P—</span></div>
-    <div class="dh-lap-delta" id="dhLapDelta">+0.000</div>
-    <div class="dh-sectors">
-      <div class="dh-sector" id="dhS1"><div class="dh-sec-label">S1</div><div class="dh-sec-time" id="dhS1Time">—</div><div class="dh-sec-delta" id="dhS1Delta"></div></div>
-      <div class="dh-sector" id="dhS2"><div class="dh-sec-label">S2</div><div class="dh-sec-time" id="dhS2Time">—</div><div class="dh-sec-delta" id="dhS2Delta"></div></div>
-      <div class="dh-sector" id="dhS3"><div class="dh-sec-label">S3</div><div class="dh-sec-time" id="dhS3Time">—</div><div class="dh-sec-delta" id="dhS3Delta"></div></div>
-    </div>
-    <div class="dh-lap-times">
-      <div class="dh-lap-row"><span class="dh-lap-label">Last</span><span class="dh-lap-val" id="dhLastLap">—</span></div>
-      <div class="dh-lap-row dh-lap-num-row"><span class="dh-lap-label">Lap</span><span class="dh-lap-val" id="dhCurrentLap">—</span></div>
-      <div class="dh-live-lap" id="dhLiveLap">
-        <span class="dh-live-time" id="dhLiveTime">—</span>
-        <span class="dh-live-delta" id="dhLiveDelta"></span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Right column: incidents -->
-  <div class="dh-right">
-    <div class="dh-incidents">
-      <div class="dh-inc-label">Incidents</div>
-      <div class="dh-inc-count" id="dhIncCount">0<span class="dh-inc-x">x</span></div>
-      <div class="dh-inc-thresholds">
-        <span id="dhIncToPen">—</span> to pen
-        <span id="dhIncToDQ">—</span> to DQ
-      </div>
-    </div>
-    <!-- Incident Coach: composure + rage score in drive mode -->
-    <div class="dh-composure" id="dhComposure" style="display:none;">
-      <div class="dh-composure-bar">
-        <div class="dh-composure-fill" id="dhComposureFill"></div>
-      </div>
-      <div class="dh-composure-label" id="dhComposureLabel">CALM</div>
-    </div>
-  </div>
-
-</div>
 
 <!-- COMPONENT: Main Dashboard -->
 <div class="dashboard layout-tr" id="dashboard">
@@ -230,7 +165,7 @@
             <div class="pos-meta">
               <div class="pos-meta-row">Lap <span class="val">—</span></div>
               <div class="pos-meta-row current-row"><span class="val">—:——.———</span></div>
-              <div class="pos-meta-row delta-row"><span class="val"></span></div>
+              <div class="pos-meta-row delta-row"><span class="delta-ref"></span><span class="val"></span></div>
             </div>
           </div>
         </div>
@@ -281,7 +216,7 @@
             <div class="pos-meta">
               <div class="pos-meta-row">Lap <span class="val">—</span></div>
               <div class="pos-meta-row current-row"><span class="val">—:——.———</span></div>
-              <div class="pos-meta-row delta-row"><span class="val"></span></div>
+              <div class="pos-meta-row delta-row"><span class="delta-ref"></span><span class="val"></span></div>
             </div>
           </div>
         </div>
@@ -374,6 +309,27 @@
 
 </div><!-- /dashboard -->
 
+<!-- COMPONENT: Laps — the lap times, the sectors against his best, the gaps to his other references and the fuel to
+     the end. The glance layout's (drive mode, and the iPad); on the rig's HUD these numbers are in the timer and the
+     datastream, and this panel is not shown (drive-view.css; filled by modules/js/laps-panel.js). -->
+<div class="panel laps-panel" id="lapsPanel">
+  <div class="laps-head"><span class="panel-label">Laps</span><span class="laps-count" id="lapsCount">—</span></div>
+  <div class="laps-cols">
+    <div class="laps-col">
+      <div class="laps-row"><span class="laps-k">Last</span><span class="laps-v" id="lapsLast">—</span></div>
+      <div class="laps-row"><span class="laps-k">Best</span><span class="laps-v" id="lapsBest">—</span></div>
+      <div class="laps-row"><span class="laps-k">Optimal</span><span class="laps-v" id="lapsOptimal">—</span></div>
+    </div>
+    <div class="laps-col">
+      <div class="laps-row"><span class="laps-k">vs best</span><span class="laps-v" id="lapsDeltaBest">—</span></div>
+      <div class="laps-row"><span class="laps-k">vs optimal</span><span class="laps-v" id="lapsDeltaOpt">—</span></div>
+      <div class="laps-row"><span class="laps-k">vs all-time</span><span class="laps-v" id="lapsDeltaAll">—</span></div>
+    </div>
+  </div>
+  <div class="laps-sectors" id="lapsSectors"></div>
+  <div class="laps-row laps-fuel"><span class="laps-k" id="lapsFuelK">Fuel</span><span class="laps-v" id="lapsFuel">—</span></div>
+</div>
+
 <!-- COMMENTARY — independent fixed overlay, positioned in the open corner opposite the HUD -->
 <div class="commentary-col" id="commentaryCol" style="--commentary-h: 0;">
   <canvas class="commentary-gl-canvas" id="commentaryGlCanvas"></canvas>
@@ -454,7 +410,7 @@
 
     <!-- Lap delta -->
     <div class="ds-row" data-ds-field="dsShowDelta">
-      <span class="ds-label">Delta</span>
+      <span class="ds-label" id="dsDeltaRef">Delta</span>
       <span class="ds-value ds-neutral" id="dsDelta">+0.000</span>
     </div>
 
@@ -857,7 +813,6 @@
 <script src="modules/js/ambient-capture.js"></script>
 <script src="modules/js/commentary-viz.js"></script>
 <script src="modules/js/game-logo.js"></script>
-<!-- drive-mode.js removed — iPad drive mode no longer active -->
 <script src="modules/js/drive-hud.js"></script>
 <script src="modules/js/recorder.js"></script>
 <script src="modules/js/recorder-ui.js"></script>
@@ -867,6 +822,8 @@
 <script src="modules/js/replay-director-ui.js"></script>
 <script src="modules/js/in-car.js"></script>
 <script src="modules/js/car-controls.js"></script>
+<script src="modules/js/lap-delta.js"></script>
+<script src="modules/js/laps-panel.js"></script>
 <script src="modules/js/poll-engine.js"></script>
 
 </body>

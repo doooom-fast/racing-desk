@@ -572,14 +572,22 @@
     border-radius: inherit;
   }
   .lb-inner { position: relative; }
-  /* Sparkline canvas */
+  /* Sparkline: the car's place through the race (leaderboard.js). Better places are higher, and a dashed hairline is
+     where the race began. Drawn over a box that is not the shape of its own units, so the strokes are in pixels. */
   .lb-spark {
     width: 100%;
     height: 12px;
     opacity: 0.6;
     min-width: 44px;
     grid-column: 5;
+    overflow: visible;
   }
+  .lb-spark .lb-spark-line,
+  .lb-spark .lb-spark-dot,
+  .lb-spark .lb-spark-start { vector-effect: non-scaling-stroke; }
+  .lb-spark .lb-spark-line { stroke-width: 1.2px; }
+  .lb-spark .lb-spark-dot { stroke-width: 3px; }
+  .lb-spark .lb-spark-start { stroke: hsla(0, 0%, 100%, 0.28); stroke-width: 1px; stroke-dasharray: 2 2; }
 
   /* ═══════════════════════════════════════════════
      ═══════════════════════════════════════════════ */

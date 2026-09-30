@@ -1,9 +1,11 @@
-// The HUD on an iPad: a small web server on the home network that serves the HUD's drive view to a browser and
-// passes it the telemetry the HUD itself reads. Off unless the driver switches it on (Settings, in the desk).
+// The HUD on an iPad: a small web server on the home network that serves the HUD to a browser, laid out as a glance
+// display (drive mode: the HUD's own panels as the cells of a grid that fills the screen), and passes it the
+// telemetry the HUD itself reads. Off unless the driver switches it on (Settings, in the desk).
 //
 // It sends numbers, never pictures of the game, and it is read-only from the network:
 //
-//   GET /                   the HUD page, told to ask this server for its telemetry
+//   GET /                   the HUD page, told to ask this server for its telemetry. It is the only page that asks
+//                           the internet for anything: Adobe's kit of the HUD's typefaces, once the page has loaded
 //   GET /racing-desk/       the telemetry, fetched from the plugin or host on this machine — and nothing else of
 //                           theirs: a request carrying a query (?action=…) is refused, so nothing on the network
 //                           can change a setting, a pedal profile or the wheel base through here
@@ -173,17 +175,53 @@ const ACTIONS = Object.freeze([
 // What the page is given before anything of its own runs: that it is the remote one, and that its telemetry is
 // here, at whatever address it was reached by. Worked out in the page, from its own address: nothing the request
 // said is written into it.
-const INJECTION = `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+//
+// The faces are the HUD's own (sofia-pro-comp and stolzl, from Adobe's kit) and the iPad is drawn in them, but the
+// page never waits for them. A stylesheet from the internet holds the whole page back until it arrives, for as long
+// as it takes to give up when the iPad has the rig and no internet, so the kit is taken out of what is served
+// and asked for by a script once the page has loaded. Adobe serves it to any address (its web projects have no
+// list of domains to add this one to), with or without a referrer, and its fonts may not be copied or passed on, so
+// the rig never serves them: the iPad fetches them from Adobe itself. Until the text face has arrived the page is
+// in the condensed faces iPadOS has (`:root:not(.rd-kit)`), so its text is never invisible and never late, and a
+// page with no internet stays in them.
+function injection(kits) {
+  return `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="referrer" content="no-referrer">
 <script>
 window._remoteMode = true;
 window._simhubUrlOverride = location.origin + '${TELEMETRY_PATH}';
+document.documentElement.classList.add('rd-remote');
+// The HUD's effects are drawn here as on the rig unless they were switched off from the menu, on this iPad, before.
+try { window._rdEffectsOff = localStorage.getItem('rd-effects') === 'off'; } catch (e) { window._rdEffectsOff = false; }
+if (window._rdEffectsOff) document.documentElement.classList.add('rd-effects-off');
+addEventListener('load', function () {
+  var kits = ${kits};
+  var faces = ['700 1em sofia-pro-comp', '400 1em stolzl'];
+  kits.forEach(function (href) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.onload = function () {
+      // The text face is the one the glance layout is set in: with it, the page changes over. The display face is asked
+      // for alongside and is the fallback stack's till it comes.
+      Promise.all(faces.map(function (face) { return document.fonts.load(face); })).then(function (loaded) {
+        if (loaded[0].length > 0) document.documentElement.classList.add('rd-kit');
+      }, function () {});
+    };
+    document.head.appendChild(link);
+  });
+});
 </script>
 <style>
 /* The app's window is see-through, over the game. A browser's is not: there is nothing behind it but white. */
 html { background: #000; }
+/* The HUD's faces until the kit's have arrived. */
+:root:not(.rd-kit) {
+  --ff: "Avenir Next Condensed", "Helvetica Neue", sans-serif;
+  --ff-display: "Avenir Next", "Helvetica Neue", sans-serif;
+}
 /* Numbers that have stopped arriving look like numbers: say that they have (game-detect.js sets the class). */
 body.rd-no-data::after {
   content: 'No data from the rig';
@@ -207,12 +245,27 @@ body.rd-no-data::after {
 }
 #rd-remote-menu-panel.open { display: block; }
 .rd-rm-btn {
-  display: block; width: 100%; padding: 12px 14px; margin: 0;
+  display: block; width: 100%; padding: 14px 16px; margin: 0;
   background: transparent; border: none; border-radius: 6px;
-  color: rgba(255,255,255,0.94); font: 14px system-ui, sans-serif;
+  color: rgba(255,255,255,0.94); font: 600 16px var(--ff, system-ui), system-ui, sans-serif;
   cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent;
 }
 .rd-rm-btn:active { background: rgba(255,255,255,0.08); }
+/* In the glance layout (modules/styles/drive-view.css) the menu is laid over the Racing Desk mark, the one touch
+   target on the screen: the whole square answers a tap, and the menu's sign sits in its corner. Its list opens from
+   it, upward or downward, where there is room (the script below). */
+body.drive-mode-active #rd-remote-menu-fab {
+  grid-area: brand; position: relative; inset: auto; z-index: 20;
+  width: auto; height: auto; min-width: 44px; min-height: 44px;
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 3px 7px;
+  border-radius: var(--corner-r, 8px);
+  background: transparent; border: 1px solid transparent;
+  color: rgba(255,255,255,0.62);
+  font: 400 clamp(18px, 2.8vmin, 30px)/1 system-ui, sans-serif;
+  opacity: 1;
+}
+body.drive-mode-active #rd-remote-menu-fab.open { color: #dc3714; border-color: rgba(220,55,20,0.6); }
 html, body { overscroll-behavior: none; touch-action: manipulation; }
 </style>
 <script>
@@ -223,7 +276,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var panel = document.createElement('div');
   panel.id = 'rd-remote-menu-panel';
 
-  // The whole HUD is laid out for the rig's screen, over the game; on an iPad it is the drive view or nothing.
+  // The whole HUD is laid out for the rig's screen, over the game; on an iPad it is the glance layout or nothing.
   var actions = [
     { label: 'Full screen', keep: true, fn: function () {
         var el = document.documentElement;
@@ -233,23 +286,48 @@ document.addEventListener('DOMContentLoaded', function () {
     { label: 'Reconnect', keep: false, fn: function () {
         if (typeof _connFails !== 'undefined') { _connFails = 0; _backoffUntil = 0; }
       } },
+    // The HUD's effects (the WebGL glows, the flag's moving pattern) cost an iPad its frame rate: one that stutters
+    // can go without them. Kept on this iPad; the numbers, the colours and the flags are the same either way.
+    { label: function () { return window._rdEffectsOff ? 'Effects: off' : 'Effects: on'; }, keep: true, fn: function () {
+        var off = !window._rdEffectsOff;
+        window._rdEffectsOff = off;
+        try { localStorage.setItem('rd-effects', off ? 'off' : 'on'); } catch (e) {}
+        document.documentElement.classList.toggle('rd-effects-off', off);
+        var inCar = typeof _isIdle === 'undefined' || !_isIdle;
+        if (typeof window.setGLFXActive === 'function') window.setGLFXActive(!off && inCar);
+        if (off && typeof window.stopAmbientLight === 'function') window.stopAmbientLight();
+        if (!off && inCar && typeof window.startAmbientLight === 'function') window.startAmbientLight();
+      } },
   ];
+  var labelOf = function (a) { return typeof a.label === 'function' ? a.label() : a.label; };
   actions.forEach(function (a) {
     var btn = document.createElement('button');
     btn.className = 'rd-rm-btn';
-    btn.textContent = a.label;
+    btn.textContent = labelOf(a);
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
       a.fn();
+      btn.textContent = labelOf(a);
       if (!a.keep) { fab.classList.remove('open'); panel.classList.remove('open'); }
     });
     panel.appendChild(btn);
   });
   document.body.appendChild(panel);
   document.body.appendChild(fab);
+  // In the glance layout the list opens from the menu's square, on the side of it with the more room, on screen.
+  function place() {
+    if (!document.body.classList.contains('drive-mode-active')) return;
+    var r = fab.getBoundingClientRect();
+    var w = panel.offsetWidth, gap = 8;
+    panel.style.right = 'auto';
+    panel.style.left = Math.max(gap, Math.min(r.left, innerWidth - w - gap)) + 'px';
+    if (r.top > innerHeight - r.bottom) { panel.style.top = 'auto'; panel.style.bottom = (innerHeight - r.top + gap) + 'px'; }
+    else { panel.style.bottom = 'auto'; panel.style.top = (r.bottom + gap) + 'px'; }
+  }
   fab.addEventListener('click', function (e) {
     e.stopPropagation();
     panel.classList.toggle('open', fab.classList.toggle('open'));
+    if (panel.classList.contains('open')) place();
   });
   document.addEventListener('click', function () {
     fab.classList.remove('open');
@@ -257,13 +335,24 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 </script>`;
+}
+
+// The kits the page names (a stylesheet on use.typekit.net), the only thing the page is allowed to ask the internet
+// for, and only once it has loaded.
+const KIT_LINK = /^https:\/\/use\.typekit\.net\/[A-Za-z0-9]+\.css$/i;
 
 function injectRemoteOverrides(html) {
-  // A stylesheet from the internet holds the whole page back until it arrives — for as long as it takes to give
-  // up, when the iPad has the rig and no internet. The page is drawn in the fonts it has.
-  const local = html.replace(/<link\b[^>]*\bhref=["']https?:\/\/[^"']*["'][^>]*>\s*/gi, '');
-  if (local.includes('<head>')) return local.replace('<head>', () => `<head>${INJECTION}`);
-  return local.replace('<body', () => `${INJECTION}<body`);
+  // A stylesheet from the internet is taken out of the page, whichever it is: the kit comes back after the load,
+  // from the script above, and nothing else does. The page is drawn in the fonts it has until then.
+  const kits = [];
+  const local = html.replace(/<link\b[^>]*\bhref=["'](https?:\/\/[^"']*)["'][^>]*>\s*/gi, (tag, href) => {
+    if (KIT_LINK.test(href) && !kits.includes(href)) kits.push(href);
+    return '';
+  });
+  // The addresses are the page's own, not the request's; the escape is for a script tag's sake all the same.
+  const add = injection(JSON.stringify(kits).replace(/</g, '\\u003c'));
+  if (local.includes('<head>')) return local.replace('<head>', () => `<head>${add}`);
+  return local.replace('<body', () => `${add}<body`);
 }
 
 const NO_STORE = Object.freeze({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });

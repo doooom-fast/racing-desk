@@ -192,47 +192,6 @@
 }
 
 
-/* ── Drive-HUD Composure Bar ─────────────────────────────────── */
-/* Thin horizontal bar in the drive-hud right column.
-   Shows rage level with color fill + text label. */
-
-.dh-composure {
-  display: none;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
-  padding: 0 2px;
-}
-
-.dh-composure-bar {
-  position: relative;
-  width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: hsla(0, 0%, 100%, 0.08);
-  overflow: hidden;
-}
-
-.dh-composure-fill {
-  position: absolute;
-  inset: 0;
-  width: 0%;
-  border-radius: 2px;
-  background: hsl(140, 50%, 40%);
-  transition: width 0.6s ease, background 0.6s ease;
-}
-
-.dh-composure-label {
-  font-family: var(--ff-mono);
-  font-size: 7px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: hsla(0, 0%, 100%, 0.35);
-  text-align: right;
-  transition: color 0.4s ease;
-}
-
-
 /* ── Incident Flash Overlay ──────────────────────────────────── */
 /* Brief directional flash on contact. Fades in/out over ~600ms.
    Covers only the edge from the impact direction. */

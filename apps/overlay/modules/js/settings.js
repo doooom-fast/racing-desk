@@ -182,9 +182,11 @@
 
   function applySettings() {
     // Module visibility: apply .section-hidden directly to each
-    // mapped panel based on the host's show* booleans.
+    // mapped panel based on the host's show* booleans. They choose what the rig's screen shows over the game; the
+    // glance layout (drive mode, and the iPad: drive-view.css) is every panel, whatever they say.
+    var driveMode = document.body.classList.contains('drive-mode-active');
     Object.keys(_MODULE_VISIBILITY).forEach(function(key) {
-      var on = _settings[key] !== false;
+      var on = driveMode || _settings[key] !== false;
       document.querySelectorAll(_MODULE_VISIBILITY[key]).forEach(function(el) {
         el.classList.toggle('section-hidden', !on);
       });

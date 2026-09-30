@@ -388,6 +388,8 @@ let _clutchLayerEl = null;
 
 // Session change detection (resets event history, timeline, etc.)
 let _prevSessionTypeName = '';
+let _prevGridState = 0;        // the last grid SessionState the page saw (0 is none): the green flag is 1-3 becoming 4
+let _prevRaceMode = null;      // whether the session was a race, as body.session-race / body.session-nonrace says
 
 // Manufacturer country flag trigger state
 let _mfrFlagShownThisSession = false;  // prevent re-trigger within same session

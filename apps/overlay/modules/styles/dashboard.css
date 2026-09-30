@@ -881,6 +881,20 @@
   .pos-meta-row.delta-row .val.delta-faster { color: var(--green); }
   .pos-meta-row.delta-row .val.delta-slower { color: hsl(0, 60%, 55%); }
   .pos-meta-row.delta-row .val.delta-pb     { color: var(--purple); }
+  .pos-meta-row.delta-row .val.delta-even   { color: var(--text-secondary); }
+  /* What the delta is against (lap-delta.js): his best lap of the session, or before he has one his best ever here. */
+  .pos-meta-row.delta-row .delta-ref {
+    display: block;
+    font-family: var(--ff);
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .pos-meta-row.delta-row .delta-ref:empty { display: none; }
 
   /* Gaps — side-by-side */
   .gaps-block {

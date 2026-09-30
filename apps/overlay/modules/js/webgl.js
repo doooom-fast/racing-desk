@@ -882,9 +882,19 @@
         // Init perf instrumentation
         _glarePerf.init(gGL);
 
+        let _glareCleared = false;
         window._glareFXFrame = function(dt) {
           _postfxTime += dt;
           lerpPFX(dt);
+
+          // The glance layout (drive mode, and the iPad) lights its panels with their own glass (drive-view.css) and
+          // hides this canvas: nothing is measured or drawn for it.
+          if (document.body.classList.contains('drive-mode-active')) {
+            if (!_glareCleared && gC.width > 0) { gGL.clearColor(0, 0, 0, 0); gGL.clear(gGL.COLOR_BUFFER_BIT); }
+            _glareCleared = true;
+            return;
+          }
+          _glareCleared = false;
 
           // Refresh panel list every ~60 frames
           _panelRefreshCounter++;

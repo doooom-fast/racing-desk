@@ -92,6 +92,9 @@
     && typeof window.racingDesk.onInRaceState === 'function' && typeof window.racingDesk.getInRaceState === 'function';
   const _inCarSignal = _mainDecides ? null : RacingDeskInCar.createInCarSignal({ onChange: _setInCar });
 
+  // The gap to his own laps of the session (lap-delta.js), fed every frame he is in the car.
+  const _lapDeltaTracker = RacingDeskLapDelta.create();
+
   function _setInCar(inCar) {
     inCar = !!inCar;
     if (inCar === _prevInRace) return;
@@ -149,9 +152,9 @@
       setPollRate(0);
       _stopFrames();
     }
-    // The page on an iPad shows the drive view, which has none of the effects: drawing them where nobody sees
-    // them costs it its frame rate.
-    var effects = active && !window._remoteMode;
+    // The page on an iPad draws the HUD's effects as the rig does, unless they have been switched off from its menu
+    // (remote-server.js keeps that in the iPad's own storage): an iPad too slow for them can go without.
+    var effects = active && !(window._remoteMode && window._rdEffectsOff === true);
     if (typeof window.setGLFXActive === 'function') window.setGLFXActive(effects);
     var ambMode = (_settings && _settings.ambientMode) || 'auto';
     if (effects && ambMode !== 'off') {
@@ -223,6 +226,15 @@
     // 0=Unknown, 1=Practice, 2=Qualifying, 3=Warmup, 4=Race
     const sessionMode = +(p[dsPre + 'SessionMode']) || 0;
 
+    // What kind of session it is, for the CSS: the glance layout (drive-view.css) puts the live delta in its big
+    // cell out of a race, and the place in one. Written only when it changes.
+    const _raceMode = sessionMode === 4;
+    if (_raceMode !== _prevRaceMode) {
+      _prevRaceMode = _raceMode;
+      document.body.classList.toggle('session-race', _raceMode);
+      document.body.classList.toggle('session-nonrace', !_raceMode);
+    }
+
     // ─── Session change detection — reset per-session state ───
     const _currSessionTypeName = _demo
       ? vs('RacingDesk.Plugin.Demo.SessionTypeName')
@@ -234,6 +246,10 @@
         window.capturePracticeSessionEnd(p, _demo);
       }
       if (typeof resetTimeline === 'function') resetTimeline();
+      // A place in one session is not a place in the next: the leaderboard's trails begin again, and so does the
+      // start (the host's is asked for again, or it is the first place seen).
+      if (typeof resetLeaderboardTrails === 'function') resetLeaderboardTrails();
+      _startPosition = 0;
       if (typeof resetRaceResults === 'function') resetRaceResults();
       // Capture session start snapshot for sync
       if (typeof window.captureSessionStart === 'function') {
@@ -242,6 +258,15 @@
       window._sessionStartCaptured = true;
     }
     if (_currSessionTypeName) _prevSessionTypeName = _currSessionTypeName;
+
+    // The green flag: a race begins from its grid. What tells a heat from a feature of the same type at the same
+    // track is nothing but this, so the trails and the start begin again here too. A frame with no state says
+    // nothing and does not count as the state before.
+    if (sessionMode === 4 && sessNum === 4 && _prevGridState >= 1 && _prevGridState <= 3) {
+      if (typeof resetLeaderboardTrails === 'function') resetLeaderboardTrails();
+      _startPosition = 0;
+    }
+    if (sessNum > 0) _prevGridState = sessNum;
 
     // First-frame capture: if we haven't captured a start snapshot yet and have session data
     if (typeof window.captureSessionStart === 'function' && !window._sessionStartCaptured && _currSessionTypeName) {
@@ -263,9 +288,6 @@
     if (window.updateGameLogo) window.updateGameLogo(_currentGameId, _settings.showGameLogo !== false);
 
     // All games are now allowed without connection checks
-
-    // Expose rolling/formation start state for leaderboard sparklines
-    window._isRollingStart = (sessNum === 2 || sessNum === 3); // Warmup or ParadeLaps
 
     // In the car or not, by this frame: modules/js/in-car.js (demo mode counts, so the HUD can be looked at).
     // _isIdle gates the heavy render below; body.idle-state is kept as a state flag other modules read (e.g.
@@ -600,32 +622,52 @@
       ? (+(p['RacingDesk.Plugin.Demo.CurrentLapTime']) || 0)
       : (_parseTimeValue(p['DataCorePlugin.GameData.CurrentLapTime'])
          || +(p['DataCorePlugin.GameRawData.Telemetry.LapCurrentLapTime']) || 0);
+    // (data-digits is how many the place has: the glance layout sizes the number to fit P4 and P12 alike)
+    const posDigits = pos > 0 ? ('' + pos).length : 1;
     document.querySelectorAll('.pos-number').forEach(el => {
       const sp = el.querySelector('.skew-accent');
       if (sp) sp.textContent = pos > 0 ? 'P' + pos : 'P—';
+      if (el.getAttribute('data-digits') !== '' + posDigits) el.setAttribute('data-digits', '' + posDigits);
     });
-    // Use server-computed LapDelta (cumulative sector delta at current track position)
-    const lapDelta = +(p[dsPre + 'LapDelta']) || 0;
+    // The delta: the gap to his best lap of this session, worked out from his own laps (lap-delta.js); before he has
+    // one, iRacing's gap to his best lap ever in this car here (DS.LapDelta), which is what the plugin sends and is
+    // there from the first lap. Each is labelled with what it is against, a minus and green when he is gaining, a plus
+    // and red when he is losing.
+    const allTimeDelta = +(p[dsPre + 'LapDelta']) || 0;
+    const _trackPct = +(p[dsPre + 'TrackPct']);
+    const _bounds = ('' + (p[dsPre + 'SectorBoundaryPcts'] || '')).split(',').map(Number).filter((x) => x > 0 && x < 1);
+    if (_bounds.length === 0) {
+      const s2 = +(p[dsPre + 'SectorS2StartPct']) || 0, s3 = +(p[dsPre + 'SectorS3StartPct']) || 0;
+      if (s2 > 0) _bounds.push(s2);
+      if (s3 > s2) _bounds.push(s3);
+    }
+    _lapDeltaTracker.feed({
+      session: _currSessionTypeName + '|' + (vs('RacingDesk.Plugin.TrackMap.TrackName') || vs('DataCorePlugin.GameData.TrackName')),
+      pct: isFinite(_trackPct) ? _trackPct : NaN,
+      t: curLapTime,
+      clean: !_inPitLane && !(+(p[dsPre + 'IsLapInvalid']) > 0),
+      boundaries: _bounds,
+    });
+    const _deltaView = _lapDeltaTracker.view();
+    const _delta = curLapTime > 0.5 ? RacingDeskLapDelta.pick(_deltaView, allTimeDelta) : null;
+    const _deltaShown = _delta ? RacingDeskLapDelta.format(_delta.value) : { text: '', cls: '' };
+    const lapDelta = _delta ? _delta.value : 0;
+    window._lapDeltaView = { shown: _delta, view: _deltaView, allTime: allTimeDelta || null };
     document.querySelectorAll('.pos-meta-row .val').forEach(el => {
       const row = el.closest('.pos-meta-row');
       if (row.classList.contains('delta-row')) {
-        // Delta row: show cumulative lap delta vs best lap
-        if (curLapTime > 0.5 && bestLap > 0) {
-          el.textContent = (lapDelta >= 0 ? '+' : '') + lapDelta.toFixed(3);
-          el.classList.remove('delta-faster', 'delta-slower', 'delta-pb');
-          if (lapDelta <= -0.5) el.classList.add('delta-pb');
-          else if (lapDelta < 0) el.classList.add('delta-faster');
-          else if (lapDelta > 0) el.classList.add('delta-slower');
-        } else {
-          el.textContent = '';
-          el.classList.remove('delta-faster', 'delta-slower', 'delta-pb');
-        }
+        if (el.textContent !== _deltaShown.text) el.textContent = _deltaShown.text;
+        const cls = 'val' + (_deltaShown.cls ? ' ' + _deltaShown.cls : '');
+        if (el.className !== cls) el.className = cls;
+        const ref = row.querySelector('.delta-ref');
+        const label = _delta ? _delta.label : '';
+        if (ref && ref.textContent !== label) ref.textContent = label;
       } else if (row.classList.contains('current-row')) {
         // Current lap time (no delta appended — that's in the delta row now)
         if (curLapTime > 0.5) {
           el.textContent = fmtLap(curLapTime);
           el.classList.remove('purple', 'green');
-          if (bestLap > 0 && lapDelta < 0) el.classList.add('green');
+          if (_delta && lapDelta < 0) el.classList.add('green');
         } else {
           // Between laps: show best lap for reference
           el.textContent = bestLap > 0 ? fmtLap(bestLap) : '—:——.———';
@@ -877,7 +919,8 @@
       if (gapBehind) gapBehind.style.display = 'none';
 
       const curSector = +(p[dsPre + 'CurrentSector']) || 1;
-      const lapDelta = +(p[dsPre + 'LapDelta']) || 0;
+      // The sector he is in is coloured by the same gap the HUD shows (see the delta, above).
+      const sectorDelta = _delta ? _delta.value : 0;
 
       // Sector count: iRacing's SplitTimeInfo, via the plugin
       const sectorCount = +(p[dsPre + 'SectorCount']) || +(p['RacingDesk.Plugin.DS.SectorCount']) || 0;
@@ -939,8 +982,8 @@
         if (si === curSector) {
           cell.classList.add('sector-active');
           // Live delta coloring on active sector
-          if (!_lapInvalid && lapDelta !== 0) {
-            cell.classList.add(lapDelta < 0 ? 'sector-faster' : 'sector-slower');
+          if (!_lapInvalid && sectorDelta !== 0) {
+            cell.classList.add(sectorDelta < 0 ? 'sector-faster' : 'sector-slower');
           }
         } else if (states[si - 1] > 0) {
           // Completed sector with a new performance state — apply and cache it
@@ -1040,6 +1083,9 @@
           _flagHoldState = 'none';
         }
       }
+
+      // The flag on show, for the glance layout's background (drive-view.css): written only when it changes.
+      if (document.body.dataset.flag !== showFlag) document.body.dataset.flag = showFlag;
 
       // Remove all flag-* classes
       gapsBlock.className = gapsBlock.className.replace(/\bflag-\S+/g, '').trim();
@@ -1197,6 +1243,14 @@
     // ─── Datastream ───
     try { updateDatastream(p, _demo); } catch(e) { console.error('[RacingDesk] Datastream error:', e); }
 
+    // ─── Laps (the glance layout's panel: laps-panel.js) ───
+    try {
+      if (window.updateLapsPanel) window.updateLapsPanel(p, {
+        dsPre, lap, totalLaps, remLaps, remTime, lastLap: lastLapTime, bestLap, isLapRace, raceMode: sessionMode === 4,
+        fuelLaps: fuelLapsEst, view: _deltaView, allTime: allTimeDelta || null,
+      });
+    } catch(e) { console.error('[RacingDesk] Laps panel error:', e); }
+
     // ─── Pit Box ───
     try { updatePitBox(p); } catch(e) { console.error('[RacingDesk] PitBox error:', e); }
 
@@ -1262,9 +1316,6 @@
     // ─── FPS counter (game API framerate, not browser) ───
     setApiFps(+v('DataCorePlugin.GameRawData.Telemetry.FrameRate') || 0);
     updateFps();
-
-    // ─── Drive HUD ───
-    try { if (window.updateDriveHud) window.updateDriveHud(p, !!_demo); } catch(e) { console.error('[RacingDesk] Drive HUD error:', e); }
 
     // ─── Telemetry sidecar (write frame when recording) ───
     try {

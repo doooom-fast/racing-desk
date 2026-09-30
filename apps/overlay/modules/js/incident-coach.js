@@ -332,7 +332,6 @@
     // ── Update UI elements ───────────────────────────────────────
     _updateComposureIndicator(_ic.rageScore);
     _updateCooldownVignette(_ic.cooldownActive, _ic.rageScore);
-    _updateDriveHudComposure(_ic.rageScore);
 
     // ── Leaderboard + track-map threats (throttled to ~3x/sec) ──
     // These do heavy DOM queries/mutations; no need to run every frame.
@@ -359,49 +358,9 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //  PHASE 3: DRIVE HUD COMPOSURE BAR
-  // ═══════════════════════════════════════════════════════════════
-
-  function _updateDriveHudComposure(rageScore) {
-    const container = document.getElementById('dhComposure');
-    const fill = document.getElementById('dhComposureFill');
-    const label = document.getElementById('dhComposureLabel');
-    if (!container || !fill || !label) return;
-
-    // Only show after first incident
-    if (_ic.threats.length === 0 && rageScore === 0) {
-      container.style.display = 'none';
-      return;
-    }
-    container.style.display = '';
-
-    // Fill bar width represents rage (0–100)
-    fill.style.width = Math.min(100, rageScore) + '%';
-
-    // Color + label by tier
-    if (rageScore <= 30) {
-      fill.style.background = 'hsl(140, 50%, 40%)';
-      label.textContent = 'CALM';
-      label.style.color = 'hsl(140, 40%, 60%)';
-    } else if (rageScore <= 50) {
-      fill.style.background = 'hsl(35, 80%, 50%)';
-      label.textContent = 'ELEVATED';
-      label.style.color = 'hsl(35, 70%, 65%)';
-    } else if (rageScore <= 70) {
-      fill.style.background = 'hsl(25, 85%, 50%)';
-      label.textContent = 'ACTIVE';
-      label.style.color = 'hsl(25, 80%, 65%)';
-    } else {
-      fill.style.background = 'hsl(0, 70%, 50%)';
-      label.textContent = _ic.cooldownActive ? 'COOL DOWN' : 'CRITICAL';
-      label.style.color = 'hsl(0, 60%, 70%)';
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════
   //  PHASE 5: TRACK MAP THREAT COLORING
   // ═══════════════════════════════════════════════════════════════
-  // Colors opponent dots on the drive-hud track map based on
+  // Colors opponent dots on the track maps (the full circuit and the local view) based on
   // threat level. Uses nearest-ahead/behind names to identify which
   // dot belongs to the flagged driver (closest dots get colored).
 
@@ -423,12 +382,17 @@
     const aheadThreat = threatMap.get(aheadName);
     const behindThreat = threatMap.get(behindName);
 
-    // Color the closest and second-closest opponent dots
-    const dhOppG = document.getElementById('dhMapOpponents');
-    if (!dhOppG) return;
+    // Color the closest and second-closest opponent dots, on each of the two maps
+    _colourThreatDots('fullMapOpponents', 'fullMapPlayer', aheadThreat, behindThreat);
+    _colourThreatDots('zoomMapOpponents', 'zoomMapPlayer', aheadThreat, behindThreat);
+  }
 
-    const dots = dhOppG.querySelectorAll('.map-opponent');
-    const playerDot = document.getElementById('dhMapPlayer');
+  function _colourThreatDots(opponentsId, playerId, aheadThreat, behindThreat) {
+    const oppG = document.getElementById(opponentsId);
+    if (!oppG) return;
+
+    const dots = oppG.querySelectorAll('.map-opponent');
+    const playerDot = document.getElementById(playerId);
     if (!playerDot || dots.length === 0) return;
 
     const px = +playerDot.getAttribute('cx') || 50;

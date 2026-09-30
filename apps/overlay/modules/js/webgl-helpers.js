@@ -921,6 +921,92 @@
   }
   window._splitPathIntoSectors = _splitPathIntoSectors;
 
+  // ═══ THE MAPS IN THE GLANCE LAYOUT ═══
+  // drive-view.css makes the two maps cells of a grid, as big as the cells are. The full circuit is fitted to its
+  // cell (its viewBox is the outline's own box, so the circuit fills the cell and not a centred square), the local
+  // view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels there — the
+  // lines of the outline, the car, the other cars — is worked out from how many pixels one unit of the map is
+  // (`--px` on the svg is that, the other way about: units to a pixel). None of it runs unless drive mode is on.
+  const _dv = { on: false, fullUnit: 0, zoomUnit: 0, zoomAspect: 0, zoomW: 0 };
+  // The marker sizes, in pixels: the car, the other cars, and the glow under the car.
+  const _DV_PLAYER_PX = 7, _DV_OPPONENT_PX = 5, _DV_GLOW_PX = 14;
+
+  function _dvSizeMarkers(svg, unit) {
+    if (!svg) return;
+    const player = svg.querySelector('.map-player');
+    if (player) player.setAttribute('r', (_DV_PLAYER_PX * unit).toFixed(3));
+    const glow = svg.querySelector('#trackPlayerGlow');
+    if (glow) glow.setAttribute('r', (_DV_GLOW_PX * unit).toFixed(3));
+    const dots = svg.querySelectorAll('.map-opponent');
+    for (let i = 0; i < dots.length; i++) dots[i].setAttribute('r', (_DV_OPPONENT_PX * unit).toFixed(3));
+  }
+
+  // The full circuit's viewBox, its box and the pixels a unit is, and where the local view is, measured again.
+  function _dvLayout() {
+    if (!_dv.on) return;
+    const fullSvg = document.getElementById('fullMapSvg');
+    if (fullSvg) {
+      let vb = [0, 0, 100, 100];
+      if (_trackPathCoords.length > 3) {
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (let i = 0; i < _trackPathCoords.length; i++) {
+          const c = _trackPathCoords[i];
+          if (c.x < x0) x0 = c.x;
+          if (c.x > x1) x1 = c.x;
+          if (c.y < y0) y0 = c.y;
+          if (c.y > y1) y1 = c.y;
+        }
+        const w = Math.max(1, x1 - x0), h = Math.max(1, y1 - y0);
+        const m = Math.max(w, h) * 0.06;   // room for the outline's width and the car at the edge
+        vb = [x0 - m, y0 - m, w + 2 * m, h + 2 * m];
+      }
+      fullSvg.setAttribute('viewBox', vb.map((v) => v.toFixed(1)).join(' '));
+      const r = fullSvg.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        _dv.fullUnit = 1 / Math.min(r.width / vb[2], r.height / vb[3]);
+        fullSvg.style.setProperty('--px', _dv.fullUnit.toFixed(4));
+        _dvSizeMarkers(fullSvg, _dv.fullUnit);
+      }
+    }
+    const zoomSvg = document.getElementById('zoomMapSvg');
+    if (zoomSvg) {
+      const r = zoomSvg.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        _dv.zoomAspect = r.width / r.height;
+        _dv.zoomW = r.width;
+        _dv.zoomUnit = 0;   // the next frame sizes what is in it
+      }
+    }
+  }
+
+  // Told by drive-hud.js that the layout has changed. Out of drive mode the maps are the HUD's own again.
+  function driveViewChanged(on) {
+    _dv.on = !!on;
+    if (_dv.on) {
+      _dvLayout();
+      return;
+    }
+    const fullSvg = document.getElementById('fullMapSvg');
+    const zoomSvg = document.getElementById('zoomMapSvg');
+    if (fullSvg) { fullSvg.setAttribute('viewBox', '0 0 100 100'); fullSvg.style.removeProperty('--px'); }
+    if (zoomSvg) zoomSvg.style.removeProperty('--px');
+    const restore = (svg, player, dots) => {
+      if (!svg) return;
+      const p = svg.querySelector('.map-player');
+      if (p) p.setAttribute('r', String(player));
+      const glow = svg.querySelector('#trackPlayerGlow');
+      if (glow) glow.setAttribute('r', '7');
+      const list = svg.querySelectorAll('.map-opponent');
+      for (let i = 0; i < list.length; i++) list[i].setAttribute('r', String(dots));
+    };
+    restore(fullSvg, 4, 2.5);
+    restore(zoomSvg, 2, 1.5);
+    _dv.zoomUnit = 0;
+  }
+  window.driveViewChanged = driveViewChanged;
+  window.addEventListener('resize', _dvLayout);
+  window.addEventListener('orientationchange', _dvLayout);
+
   // Smoothed zoom radius for the local map
   let _mapZoomRadius = 15.5;
 
@@ -1002,6 +1088,9 @@
       } catch (e) {
         // getBBox throws if element is detached from DOM — ignore silently
       }
+
+      // A new circuit is fitted to its cell (glance layout only)
+      if (_dv.on) _dvLayout();
 
       // Split path into N sector sub-paths using native iRacing boundaries
       const boundaryPcts = Array.isArray(window._sectorBoundaries) ? window._sectorBoundaries : null;
@@ -1159,8 +1248,9 @@
     // Ensure trail polylines exist and render using actual track geometry
     if (!_fullMapTrailEl)  _fullMapTrailEl  = _ensureTrailPolyline('fullMapSvg', 'fullMapPlayer', 'fullMapTrail');
     if (!_zoomMapTrailEl) _zoomMapTrailEl = _ensureTrailPolyline('zoomMapRotateGroup', 'zoomMapOpponents', 'zoomMapTrail');
-    _renderTrackTrail(_fullMapTrailEl, 5, playerIdx);    // matches .map-track-outer stroke-width
-    _renderTrackTrail(_zoomMapTrailEl, 2.5, playerIdx);  // matches .map-zoom-svg .map-track-outer stroke-width
+    // The width of the outline's outer layer (.map-track-outer): in the glance layout that is in pixels
+    _renderTrackTrail(_fullMapTrailEl, _dv.on && _dv.fullUnit ? 12 * _dv.fullUnit : 5, playerIdx);
+    _renderTrackTrail(_zoomMapTrailEl, _dv.on && _dv.zoomUnit ? 10 * _dv.zoomUnit : 2.5, playerIdx);
 
     // Self-check: warn once if trail polylines couldn't be created.
     // Their absence means _renderTrackTrail is silently no-op'ing and
@@ -1190,11 +1280,25 @@
       _mapZoomRadius += (targetZR - _mapZoomRadius) * 0.15;
       const zr = _mapZoomRadius;
 
-      // ViewBox always centered on player — NO clamping, overflow="visible"
-      // handles content outside the 0-100 range. Player is always at center.
-      const vx = sx - zr;
-      const vy = sy - zr;
-      zoomSvg.setAttribute('viewBox', vx.toFixed(1) + ' ' + vy.toFixed(1) + ' ' + (zr * 2).toFixed(1) + ' ' + (zr * 2).toFixed(1));
+      if (_dv.on && _dv.zoomAspect > 0) {
+        // The glance layout: the view is the shape of its cell, as wide as the radius says, and the car is
+        // two-thirds of the way down it, so what is ahead gets the room. What is drawn in pixels is sized
+        // again when the pixels a unit is have moved by a few percent.
+        const vw = zr * 2, vh = vw / _dv.zoomAspect;
+        zoomSvg.setAttribute('viewBox', (sx - vw / 2).toFixed(1) + ' ' + (sy - vh * (2 / 3)).toFixed(1) + ' ' + vw.toFixed(1) + ' ' + vh.toFixed(1));
+        const unit = vw / _dv.zoomW;
+        if (Math.abs(unit - _dv.zoomUnit) > _dv.zoomUnit * 0.03) {
+          _dv.zoomUnit = unit;
+          zoomSvg.style.setProperty('--px', unit.toFixed(4));
+          _dvSizeMarkers(zoomSvg, unit);
+        }
+      } else {
+        // ViewBox always centered on player — NO clamping, overflow="visible"
+        // handles content outside the 0-100 range. Player is always at center.
+        const vx = sx - zr;
+        const vy = sy - zr;
+        zoomSvg.setAttribute('viewBox', vx.toFixed(1) + ' ' + vy.toFixed(1) + ' ' + (zr * 2).toFixed(1) + ' ' + (zr * 2).toFixed(1));
+      }
 
       // Clear any legacy CSS rotation on the SVG element
       zoomSvg.style.transform = '';
@@ -1230,8 +1334,8 @@
     const count = Math.min(parts.length, _MAP_MAX_OPPONENTS);
 
     // Ensure we have enough circle elements (create/remove as needed)
-    _ensureOpponentDots(fullG, count, 2.5);
-    _ensureOpponentDots(zoomG, count, 1.5);
+    _ensureOpponentDots(fullG, count, _dv.on && _dv.fullUnit ? _DV_OPPONENT_PX * _dv.fullUnit : 2.5);
+    _ensureOpponentDots(zoomG, count, _dv.on && _dv.zoomUnit ? _DV_OPPONENT_PX * _dv.zoomUnit : 1.5);
 
     // Update positions
     const fullDots = fullG.children;

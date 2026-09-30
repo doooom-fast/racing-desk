@@ -670,7 +670,7 @@
       <h2>iPad</h2>
       <div class="field">
         <label class="name" for="remote-on">Show the HUD on an iPad or tablet</label>
-        <span class="hint">The drive view, in a browser on your home network. It is sent the numbers the HUD reads, never a picture of the game, and nothing can be changed from there.</span>
+        <span class="hint">The HUD as a full-screen data display, in a browser on your home network. It is sent the numbers the HUD reads, never a picture of the game, and nothing can be changed from there.</span>
         <span class="control"><input type="checkbox" class="switch" id="remote-on"${on ? ' checked' : ''}${off}></span>
       </div>
       <div class="field">
