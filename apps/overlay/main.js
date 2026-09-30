@@ -310,8 +310,14 @@ const hudScreen = hudDisplay.createHudDisplay({
   getChoice: () => loadSettingsSync().hudDisplay,
   readIni: () => hudDisplay.readSimIni(app.getPath('documents')),
   askSimWindow: () => hudDisplay.fetchSimWindow(`${localHostUrl()}${hudDisplay.SIM_WINDOW_PATH}`),
+  // The screens' real sizes: Electron's are DIPs, rounded up, and a 1440 × 1080 screen at 175 % reads 823 × 618.
+  askMonitors: () => hudDisplay.fetchMonitors(`${localHostUrl()}${hudDisplay.MONITORS_PATH}`),
   toDipRect: (rect) => screen.screenToDipRect(null, rect),
   keepAsIs: isDev,
+  // The desk's Settings page lists the screens and says where the HUD is: it is told when either has changed.
+  onChange: () => {
+    if (deskWindow && !deskWindow.isDestroyed()) deskWindow.webContents.send('hud-displays-changed');
+  },
   log: logToFile,
 });
 

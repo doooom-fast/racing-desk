@@ -15,7 +15,9 @@ import { MOCK_TELEMETRY, MOCK_DEMO } from '../helpers.mjs';
 const require = createRequire(import.meta.url);
 const {
   createHudVisibility, fetchPayload, telemetryUrl, IN_CAR_POLL_MS, OUT_OF_CAR_POLL_MS, RELOAD_AFTER_MS, RELOADS_AT_MOST,
+  PREPARE_WITHIN_MS,
 } = require('../../modules/js/hud-visibility.js');
+const { createHudDisplay } = require('../../modules/js/hud-display.js');
 const { inCar } = require('../../modules/js/in-car.js');
 
 const SIM_CLOSED = JSON.parse(readFileSync(new URL('../golden/fixtures/base-payload.json', import.meta.url), 'utf8'));
@@ -741,7 +743,7 @@ test.describe('a hook before the window is revealed: it is put on the sim\'s scr
     expect(r.win.isVisible()).toBe(false);
     const waiting = r.waiting();
     expect(waiting).toHaveLength(1);
-    expect(waiting[0].ms).toBe(1500);
+    expect(waiting[0].ms).toBe(PREPARE_WITHIN_MS);
     r.runTimers();
     await poll;
     expect(r.win.isVisible()).toBe(true);
@@ -782,6 +784,53 @@ test.describe('a hook before the window is revealed: it is put on the sim\'s scr
     const r = rig({ beforeReveal: (...given) => { args = given; } });
     await r.getIn();
     expect(args).toEqual([]);
+  });
+
+  test("a round of putting the window on the sim's screen already under way when he gets in is waited for, and the one after it", async () => {
+    // The real keeper of the window's screen, with a host that is slow the first time it is asked. The window was made
+    // on the small primary screen; the sim is on the ultrawide.
+    const win = fakeWindow();
+    win.bounds = { x: 0, y: 0, width: 823, height: 618 };
+    win.getBounds = () => ({ ...win.bounds });
+    win.setBounds = (b) => { win.calls.push(['setBounds', { ...b }]); win.bounds = { ...b }; };
+    const small = { id: 2, bounds: { x: 0, y: 0, width: 823, height: 618 }, scaleFactor: 1.75, primary: true };
+    const ultrawide = { id: 1, bounds: { x: 823, y: 0, width: 3440, height: 1440 }, scaleFactor: 1, primary: false };
+    const asked = { sim: 0, release: null };
+    const display = createHudDisplay({
+      getWindow: () => win,
+      getDisplays: () => [small, ultrawide],
+      askSimWindow: async () => {
+        asked.sim++;
+        if (asked.sim === 1) await new Promise((resolve) => { asked.release = resolve; });
+        return { state: 'running', window: { x: 1440, y: 0, width: 3440, height: 1440 }, monitor: null };
+      },
+      toDipRect: (r) => ({ x: 823 + (r.x - 1440), y: r.y, width: r.width, height: r.height }),
+      platform: 'win32',
+    });
+    // A screen changed a moment ago and the round it asked for is waiting on the host...
+    const underWay = display.refresh();
+    await tick();
+    expect(asked.sim).toBe(1);
+
+    // ...and he gets in.
+    const r = rig({ window: win, beforeReveal: () => display.refresh() });
+    r.feed.payload = IN_THE_CAR;
+    r.clock.at += 500;
+    const poll = r.hud.poll();
+    await tick();
+    expect(win.isVisible()).toBe(false);
+    asked.release();
+    await poll;
+    await underWay;
+
+    // Two rounds were asked, the second after he was in, and the window was moved before it was revealed.
+    expect(asked.sim).toBe(2);
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+    const order = win.calls.map((c) => (Array.isArray(c) ? c[0] : c));
+    expect(order.indexOf('setBounds')).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf('setBounds')).toBeLessThan(order.indexOf('showInactive'));
+    expect(win.calls.filter((c) => c === 'showInactive')).toHaveLength(1);
+    expect(win.isVisible()).toBe(true);
   });
 });
 

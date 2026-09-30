@@ -194,10 +194,19 @@ test.describe('the screen', () => {
     expect(made).toMatch(/\breadIni:\s*\(\)\s*=>\s*hudDisplay\.readSimIni\(app\.getPath\('documents'\)\)\s*,/);
     // The sim's window is asked of the app's own host, on the address the desk uses for it, and never waited for long.
     expect(made).toMatch(/\baskSimWindow:\s*\(\)\s*=>\s*hudDisplay\.fetchSimWindow\(`\$\{localHostUrl\(\)\}\$\{hudDisplay\.SIM_WINDOW_PATH\}`\)\s*,/);
+    // The screens' real sizes too: Electron's are DIPs, rounded up, and cannot be turned back into the panel's.
+    expect(made).toMatch(/\baskMonitors:\s*\(\)\s*=>\s*hudDisplay\.fetchMonitors\(`\$\{localHostUrl\(\)\}\$\{hudDisplay\.MONITORS_PATH\}`\)\s*,/);
     expect(made).toMatch(/\btoDipRect:\s*\(rect\)\s*=>\s*screen\.screenToDipRect\(null,\s*rect\)\s*,/);
     // Dev mode's window is dev-mode.js's.
     expect(made).toMatch(/\bkeepAsIs:\s*isDev\s*,/);
-    expect(hudDisplay_calls()).toEqual(['hudDisplay.createHudDisplay(', 'hudDisplay.readSimIni(', 'hudDisplay.fetchSimWindow(']);
+    expect(hudDisplay_calls()).toEqual(['hudDisplay.createHudDisplay(', 'hudDisplay.readSimIni(', 'hudDisplay.fetchSimWindow(', 'hudDisplay.fetchMonitors(']);
+  });
+
+  test('the desk is told when the screens, or where the HUD is, have changed: the desk window, if there is one', () => {
+    const made = argumentsOf('hudDisplay.createHudDisplay(');
+    expect(made).toMatch(/\bonChange:\s*\(\)\s*=>\s*\{\s*if \(deskWindow && !deskWindow\.isDestroyed\(\)\) deskWindow\.webContents\.send\('hud-displays-changed'\);\s*\},/);
+    const preload = readFileSync(new URL('../../preload.js', import.meta.url), 'utf8');
+    expect(preload).toMatch(/onHudDisplaysChanged:\s*\(callback\)\s*=>\s*\{\s*ipcRenderer\.on\('hud-displays-changed',/);
   });
 
   test('he gets in: hud-visibility has the window put right before it is revealed', () => {

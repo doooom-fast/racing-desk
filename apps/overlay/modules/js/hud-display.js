@@ -11,7 +11,14 @@
 // (GET /racing-desk/data/simwindow, apps/host/RacingDesk.Host/SimWindow.cs), which answers in physical pixels. The
 // host may be absent — dev mode, or one that failed to start, or SimHub's plugin on :8889 answering something else
 // — and then the rule falls to the ini. Nothing here waits on it for long: a short timeout, and the answer is
-// "unknown".
+// "unknown". An "unknown" is not "the sim is closed": if the sim was last seen on a screen that is still there, that
+// is where the HUD stays until the host says otherwise.
+//
+// A screen's size. Electron gives it in DIPs, and Chromium takes the enclosing rectangle of the physical size over the
+// scale: 1440 × 1080 at 175 % is 823 × 618, not 823 × 617. So bounds × scale is not the physical size and cannot be
+// turned back into it (1439 is 823 wide too). Sizes are compared within one step of the scale, and the real ones are
+// asked of the host (GET /racing-desk/data/monitors, EnumDisplayMonitors) and paired with the screens by position; a
+// name that has only the estimate says "about".
 //
 // The choosing is pure: the screens, the sim window's rectangle, the ini's text and the saved choice are handed in,
 // so it is tested without Electron (tests/unit/hud-display.spec.mjs). createHudDisplay is the part main.js drives:
@@ -23,6 +30,8 @@ const path = require('path');
 
 const AUTO = 'auto';
 const SIM_WINDOW_PATH = '/racing-desk/data/simwindow';
+const MONITORS_PATH = '/racing-desk/data/monitors';
+const MAX_MONITORS = 16;
 const ASK_WITHIN_MS = 800;
 const MAX_ANSWER_BYTES = 64 * 1024;
 const MAX_INI_BYTES = 1024 * 1024;
@@ -40,10 +49,34 @@ function validRect(r) {
     && r.width > 0 && r.height > 0 && Math.abs(r.x) < 1e6 && Math.abs(r.y) < 1e6 && r.width < 1e6 && r.height < 1e6;
 }
 
-// What the sim would be set to run at on a screen: its size in physical pixels. Electron gives DIPs and a scale.
+const scaleOf = (display) => (isNumber(display.scaleFactor) && display.scaleFactor > 0 ? display.scaleFactor : 1);
+
+// An estimate of a screen's size in physical pixels: its DIPs by its scale. It is exact at 100 % and a pixel or two out
+// at other scales (see the head of this file), so it is only what is compared and shown until the host has said.
 function physicalSize(display) {
-  const scale = isNumber(display.scaleFactor) && display.scaleFactor > 0 ? display.scaleFactor : 1;
+  const scale = scaleOf(display);
   return { width: Math.round(display.bounds.width * scale), height: Math.round(display.bounds.height * scale) };
+}
+
+// Whether a size in DIPs is a physical size at that scale. Chromium takes the enclosing rectangle, so the DIPs by the
+// scale come to up to a step of the scale above the physical size; below it, or exact, if it were rounded another way.
+// At 100 % there is nothing to round and the two are the same number.
+function agrees(dip, scale, physical) {
+  const step = scale === 1 ? 0 : scale;
+  return Math.abs(dip * scale - physical) <= step + 1e-6;
+}
+
+const isSize = (s) => !!s && isNumber(s.width) && isNumber(s.height) && s.width > 0 && s.height > 0;
+
+// Whether a screen is a size, physically: exactly, where the host has said what it is; within a step where it has not.
+function isSized(display, size) {
+  if (display.exact) return display.physical.width === size.width && display.physical.height === size.height;
+  return agrees(display.bounds.width, display.scaleFactor, size.width) && agrees(display.bounds.height, display.scaleFactor, size.height);
+}
+
+// Whether the room a screen has beside its taskbar is a size: what a window maximized on it fills.
+function isWorkSized(display, size) {
+  return agrees(display.workArea.width, display.scaleFactor, size.width) && agrees(display.workArea.height, display.scaleFactor, size.height);
 }
 
 // A screen is kept by Electron's own id for it. The id is a number; the settings hold it as text.
@@ -51,21 +84,28 @@ function displayKey(display) {
   return String(display.id);
 }
 
-// The screens as the rule reads them: each with its key, its physical size and whether it is the primary. One that
-// has no usable bounds is left out. Nothing says which is primary but the caller (`primary: true`); with none
-// given, the one at the origin, which on Windows is always the primary, else the first.
-function normaliseDisplays(list) {
+// The screens as the rule reads them: each with its key, its physical size (`exact` when it is not an estimate: the
+// host said, or the scale is 100 %) and whether it is the primary. `sizes` is what the host said, by key. A screen
+// already read, with an exact size of its own, keeps it. One that has no usable bounds is left out. Nothing says which
+// is primary but the caller (`primary: true`); with none given, the one at the origin, which on Windows is always the
+// primary, else the first.
+function normaliseDisplays(list, sizes = null) {
   const kept = [];
   for (const d of Array.isArray(list) ? list : []) {
     if (!d || d.id === undefined || d.id === null || !validRect(d.bounds)) continue;
     const bounds = { x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height };
+    const scaleFactor = scaleOf(d);
+    const said = sizes && typeof sizes.get === 'function' ? sizes.get(displayKey(d)) : null;
+    const carried = d.exact === true && isSize(d.physical) ? d.physical : null;
+    const known = carried || (isSize(said) ? said : null);
     kept.push({
       id: d.id,
       key: displayKey(d),
       bounds,
       workArea: validRect(d.workArea) ? { x: d.workArea.x, y: d.workArea.y, width: d.workArea.width, height: d.workArea.height } : bounds,
-      scaleFactor: isNumber(d.scaleFactor) && d.scaleFactor > 0 ? d.scaleFactor : 1,
-      physical: physicalSize(d),
+      scaleFactor,
+      physical: known ? { width: known.width, height: known.height } : physicalSize(d),
+      exact: !!known || scaleFactor === 1,
       primary: d.primary === true,
     });
   }
@@ -80,6 +120,9 @@ function normaliseDisplays(list) {
 const byPosition = (a, b) => a.bounds.x - b.bounds.x || a.bounds.y - b.bounds.y;
 
 const pixels = (size) => `${size.width} × ${size.height}`;
+
+// A screen's size for a name or a log line; "about" where all that is known is the estimate.
+const sizeWords = (display) => `${display.exact ? '' : 'about '}${pixels(display.physical)}`;
 
 function ordinal(n) {
   const rest = n % 100;
@@ -110,15 +153,15 @@ function positionWords(displays) {
   return words;
 }
 
-// "3440 × 1440 (right)", "1440 × 1080 (left, primary)": the size the screen really has, where it sits, and whether
-// Windows has it as the main one. Two screens of one size are told apart by where they sit.
+// "3440 × 1440 (right)", "1440 × 1080 (left, primary)": the size the screen has, where it sits, and whether Windows
+// has it as the main one. Two screens of one size are told apart by where they sit.
 function displayName(display, displays) {
   const list = normaliseDisplays(displays);
   const own = list.find((d) => d.key === displayKey(display)) || normaliseDisplays([display])[0];
   if (!own) return 'a screen';
   const where = positionWords(list).get(own.key);
   const notes = [where, own.primary ? 'primary' : null].filter(Boolean);
-  return `${pixels(own.physical)}${notes.length ? ` (${notes.join(', ')})` : ''}`;
+  return `${sizeWords(own)}${notes.length ? ` (${notes.join(', ')})` : ''}`;
 }
 
 // The screens a choice can be made from, left to right: [{ key, name, primary }].
@@ -147,6 +190,38 @@ function matchSimWindow(rect, displays) {
   return best;
 }
 
+// The physical size of each screen, from the monitors the host lists (physical pixels, as Windows lays them out): a
+// Map from a screen's key to { width, height }. A monitor is paired with the screen most of it lies on, once it is in
+// the screens' own units (`toDip`), and only if the two agree on their size within a step of the scale; a screen that
+// two monitors would claim, or that none does, is left with its estimate.
+function matchMonitors(displays, monitors, toDip = (r) => r) {
+  const list = normaliseDisplays(displays);
+  const claims = new Map();
+  for (const m of Array.isArray(monitors) ? monitors : []) {
+    if (!validRect(m)) continue;
+    let dip;
+    try {
+      dip = toDip({ x: m.x, y: m.y, width: m.width, height: m.height });
+    } catch (e) {
+      continue;
+    }
+    const on = matchSimWindow(dip, list);
+    if (!on || !agrees(on.display.bounds.width, on.display.scaleFactor, m.width) || !agrees(on.display.bounds.height, on.display.scaleFactor, m.height)) continue;
+    const held = claims.get(on.display.key) || [];
+    held.push({ width: m.width, height: m.height });
+    claims.set(on.display.key, held);
+  }
+  const sizes = new Map();
+  for (const [key, held] of claims) if (held.length === 1) sizes.set(key, held[0]);
+  return sizes;
+}
+
+// The layout of the screens, as text: which screens there are, where and at what scale. What the host said of their
+// sizes is good for as long as this is the same.
+function layoutOf(displays) {
+  return displays.map((d) => `${d.key}@${d.bounds.x},${d.bounds.y},${d.bounds.width},${d.bounds.height}x${d.scaleFactor}`).sort().join(';');
+}
+
 // The host's answer to /racing-desk/data/simwindow, once parsed: { state: 'running', window, monitor, process },
 // { state: 'not-running' } (JSON null, or no window), or { state: 'unknown' } for anything that is not an answer.
 function parseSimWindow(body) {
@@ -165,7 +240,27 @@ function parseSimWindow(body) {
 
 // GET the sim window from the host. Resolves parseSimWindow's answer; never rejects. The answer has timeoutMs to
 // come in, whatever the host does with the request, and one bigger than a window's rectangle can be is dropped.
-function fetchSimWindow(url, { timeoutMs = ASK_WITHIN_MS, get = http.get } = {}) {
+function fetchSimWindow(url, options = {}) {
+  return fetchJson(url, parseSimWindow, options);
+}
+
+// The monitors the host lists, once parsed: { state: 'ok', monitors: [{ x, y, width, height, primary }] }, or
+// { state: 'unknown' } for anything that is not a list of them. Physical pixels, as Windows lays them out.
+function parseMonitors(body) {
+  if (!Array.isArray(body)) return { state: 'unknown' };
+  const monitors = body.filter(validRect).slice(0, MAX_MONITORS)
+    .map((m) => ({ x: m.x, y: m.y, width: m.width, height: m.height, primary: m.primary === true }));
+  return { state: 'ok', monitors };
+}
+
+// GET the monitors from the host, on the same terms as the sim window: parseMonitors' answer, never a rejection.
+function fetchMonitors(url, options = {}) {
+  return fetchJson(url, parseMonitors, options);
+}
+
+// GET a route of the host and parse it. The answer has timeoutMs to come in, whatever the host does with the request;
+// a status other than 200, a body that is not JSON and one that goes on for ever are all `{ state: 'unknown' }`.
+function fetchJson(url, parse, { timeoutMs = ASK_WITHIN_MS, get = http.get } = {}) {
   return new Promise((resolve) => {
     let done = false;
     let req = null;
@@ -200,7 +295,7 @@ function fetchSimWindow(url, { timeoutMs = ASK_WITHIN_MS, get = http.get } = {})
         });
         res.on('end', () => {
           try {
-            finish(parseSimWindow(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
+            finish(parse(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
           } catch (e) {
             finish({ state: 'unknown' });
           }
@@ -273,9 +368,9 @@ function readSimIni(documentsDir, { read = fs.readFileSync, stat = fs.statSync }
   }
 }
 
-function describeIni(size, matches) {
+function describeIni(size, matches, workArea) {
   const where = size.how === 'fullscreen' ? `full screen at ${pixels(size)}`
-    : size.how === 'maximized' ? `maximized at ${pixels(size)}`
+    : size.how === 'maximized' ? `maximized at ${pixels(size)}${workArea ? ', which is a screen without its taskbar' : ''}`
     : `in a ${pixels(size)} window`;
   return `iRacing is set to run ${where}${matches > 1 ? `, and ${matches} screens are that size` : ''}`;
 }
@@ -288,13 +383,15 @@ function describeIni(size, matches) {
  *   displays    [{ id, bounds, workArea, scaleFactor, primary }] — Electron's, in DIPs
  *   choice      what Settings holds: a screen's key, or 'auto' / nothing
  *   simWindow   the sim's window as { x, y, width, height } in the same DIPs, or null while it is not running
+ *   simKept     the key of the screen the sim was last seen on, given only when the host did not say where it is now
+ *               (which is not the same as saying it is not running): while that screen is connected it is the answer
  *   ini         parseSimIni's answer, or null
  *
  * → { display, key, reason, why, choiceMissing } — reason: chosen, only, sim, ini, largest, primary — or null when
  * there are no screens. `choiceMissing` is a choice that names a screen that is not connected: it is not used and
  * is not lost, and comes back into force when the screen does.
  */
-function chooseDisplay({ displays, choice = null, simWindow = null, ini = null }) {
+function chooseDisplay({ displays, choice = null, simWindow = null, simKept = null, ini = null }) {
   const list = normaliseDisplays(displays).sort(byPosition);
   if (!list.length) return null;
   const primary = list.find((d) => d.primary) || list[0];
@@ -309,12 +406,21 @@ function chooseDisplay({ displays, choice = null, simWindow = null, ini = null }
   const onIt = matchSimWindow(simWindow, list);
   if (onIt) return made(onIt.display, 'sim', 'iRacing is running on it');
 
+  const kept = typeof simKept === 'string' ? list.find((d) => d.key === simKept) || null : null;
+  if (kept) return made(kept, 'sim', 'iRacing was last on it, and the host did not say where it is now');
+
   const size = simSizeFromIni(ini);
   if (size) {
-    const matches = list.filter((d) => d.physical.width === size.width && d.physical.height === size.height);
+    // A maximized window fills the room a screen has beside its taskbar, so that is a size it can be too.
+    let matches = list.filter((d) => isSized(d, size));
+    let workArea = false;
+    if (!matches.length && size.how === 'maximized') {
+      matches = list.filter((d) => isWorkSized(d, size));
+      workArea = matches.length > 0;
+    }
     if (matches.length) {
       const pick = matches.find((d) => d.primary) || matches[0];
-      return made(pick, 'ini', describeIni(size, matches.length));
+      return made(pick, 'ini', describeIni(size, matches.length, workArea));
     }
   }
 
@@ -334,7 +440,7 @@ function boundsFor(display, platform) {
 const sameBounds = (a, b, tolerance = 0) => ['x', 'y', 'width', 'height'].every((k) => Math.abs(a[k] - b[k]) <= tolerance);
 
 function describeDisplays(displays) {
-  return displays.map((d) => `${pixels(d.physical)} at ${Math.round(d.scaleFactor * 100)}% (${d.bounds.x}, ${d.bounds.y})${d.primary ? ', primary' : ''}`).join('; ');
+  return displays.map((d) => `${sizeWords(d)} at ${Math.round(d.scaleFactor * 100)}% (${d.bounds.x}, ${d.bounds.y})${d.primary ? ', primary' : ''}`).join('; ');
 }
 
 /**
@@ -345,8 +451,10 @@ function describeDisplays(displays) {
  *   getChoice()     what Settings holds for `hudDisplay`
  *   readIni()       the ini's text, or null
  *   askSimWindow()  resolves fetchSimWindow's answer; may never resolve, and is not waited for beyond askWithinMs
- *   toDipRect(r)    the sim window's rectangle from physical pixels into the units screens are in
+ *   askMonitors()   resolves fetchMonitors' answer, on the same terms: the screens' real sizes
+ *   toDipRect(r)    a rectangle from physical pixels into the units screens are in (the sim window's, the monitors')
  *   keepAsIs        dev mode: dev-mode.js puts the window where it wants it
+ *   onChange()      the screens, or where the HUD is and why, have changed: the desk's Settings page shows both
  *
  * { initialBounds, place, refresh, reset, settingsChanged, describe }
  */
@@ -356,18 +464,24 @@ function createHudDisplay({
   getChoice = () => null,
   readIni = () => null,
   askSimWindow = async () => ({ state: 'unknown' }),
+  askMonitors = async () => ({ state: 'unknown' }),
   toDipRect = (r) => r,
   platform = process.platform,
   keepAsIs = false,
   askWithinMs = ASK_WITHIN_MS,
   setTimer = setTimeout,
   clearTimer = clearTimeout,
+  onChange = () => {},
   log = () => {},
 }) {
   let last = null;            // the last decision
   let lastLogged = null;      // what was last said of the choice, so that it is said once per change
   let lastDisplays = null;    // and of the screens
+  let told = null;            // what onChange was last called for
   let choiceUsed = null;      // the saved choice as it was when the last decision was made
+  let sizes = null;           // the screens' real sizes, by key, as the host said
+  let sizesFor = null;        // and the layout of the screens it said them for
+  let learning = null;
   let running = null;
   let again = false;
 
@@ -377,19 +491,46 @@ function createHudDisplay({
   }
 
   function connected() {
-    let list;
+    let raw;
     try {
-      list = normaliseDisplays(getDisplays());
+      raw = getDisplays();
     } catch (e) {
       log(`[RacingDesk] HUD screen: the screens could not be read (${e.message})`);
-      list = [];
+      raw = [];
     }
+    const estimated = normaliseDisplays(raw);
+    // What the host said of the sizes holds for the layout it said it of, and no other.
+    const list = sizes && sizesFor === layoutOf(estimated) ? normaliseDisplays(raw, sizes) : estimated;
     const seen = describeDisplays(list);
     if (seen !== lastDisplays) {
       lastDisplays = seen;
       log(`[RacingDesk] Screens: ${seen || 'none'}`);
     }
     return list;
+  }
+
+  function silentDisplays() {
+    try {
+      return normaliseDisplays(getDisplays());
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // An ask of the host, given askWithinMs to come back with something: what it says, or `unknown` if it says nothing
+  // in time, fails, or throws.
+  async function within(askFn, unknown) {
+    let timer = null;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(askFn),
+        new Promise((resolve) => { timer = setTimer(() => resolve(unknown), askWithinMs); }),
+      ]);
+    } catch (e) {
+      return unknown;
+    } finally {
+      if (timer !== null) clearTimer(timer);
+    }
   }
 
   // The choice Settings holds, as a screen's key; null for Automatic, however that is written.
@@ -411,8 +552,13 @@ function createHudDisplay({
     }
   }
 
-  function decide(list, simWindow) {
-    return chooseDisplay({ displays: list, choice: saved(), simWindow, ini: iniNow() });
+  function decide(list, simWindow, simKept) {
+    return chooseDisplay({ displays: list, choice: saved(), simWindow, simKept, ini: iniNow() });
+  }
+
+  // The screen the sim was last seen on: where the HUD stays for a round in which the host did not say where it is.
+  function lastSimScreen() {
+    return last && last.reason === 'sim' ? last.key : null;
   }
 
   // Said once for each change of the choice or of why it was made — not at every poll that finds it the same.
@@ -424,6 +570,14 @@ function createHudDisplay({
     if (key === lastLogged) return;
     lastLogged = key;
     log(`[RacingDesk] HUD screen: ${displayName(decision.display, list)} — ${decision.why}${notes.length ? ` (${notes.join('; ')})` : ''}`);
+  }
+
+  // The desk's Settings page shows the screens and where the HUD is: it is told when either has changed.
+  function tell() {
+    const now = `${lastDisplays}|${lastLogged}`;
+    if (now === told) return;
+    told = now;
+    try { onChange(); } catch (e) { /* nobody is listening */ }
   }
 
   // Set the window's bounds and look again: on a screen of another scale the first try can come out at the size of
@@ -442,11 +596,12 @@ function createHudDisplay({
     return false;
   }
 
-  // The rule with no host asked — the sim is probably not running, or nothing is known of it — so the ini decides.
+  // The rule with no host asked — the sim is probably not running, or nothing is known of it — so the ini decides,
+  // unless the sim was seen on a screen before.
   function decideWithoutAsking() {
     const list = connected();
     choiceUsed = saved();
-    const decision = decide(list, null);
+    const decision = decide(list, null, lastSimScreen());
     if (decision) {
       last = decision;
       say(decision, list, 'not-asked');
@@ -467,22 +622,41 @@ function createHudDisplay({
 
   async function ask() {
     if (platform !== 'win32' || keepAsIs) return { state: 'unknown', skipped: true };
-    let timer = null;
-    try {
-      const answer = await Promise.race([
-        Promise.resolve().then(askSimWindow),
-        new Promise((resolve) => { timer = setTimer(() => resolve({ state: 'unknown' }), askWithinMs); }),
-      ]);
-      return answer && typeof answer === 'object' && typeof answer.state === 'string' ? answer : { state: 'unknown' };
-    } catch (e) {
-      return { state: 'unknown' };
-    } finally {
-      if (timer !== null) clearTimer(timer);
-    }
+    const answer = await within(askSimWindow, { state: 'unknown' });
+    return answer && typeof answer === 'object' && typeof answer.state === 'string' ? answer : { state: 'unknown' };
+  }
+
+  // The screens' real sizes are asked of the host once for each layout of the screens, and again when it changes;
+  // until it has said, a screen at a scale but 100 % is its estimate and is named "about". Never rejects, is never
+  // waited on for long, and a host that does not say — or says what pairs with no screen — leaves the estimate, to be
+  // asked again next round. With every screen at 100 % there is nothing to ask: a DIP is a pixel.
+  function learnSizes() {
+    if (platform !== 'win32' || keepAsIs) return Promise.resolve();
+    if (learning) return learning;
+    const round = (async () => {
+      try {
+        const list = silentDisplays();
+        const layout = layoutOf(list);
+        if (!list.some((d) => !d.exact) || (sizes && sizesFor === layout)) return;
+        const answer = await within(askMonitors, { state: 'unknown' });
+        if (!answer || answer.state !== 'ok' || !Array.isArray(answer.monitors)) return;
+        const now = silentDisplays();
+        if (layoutOf(now) !== layout) return;   // the screens changed while it was asked: the next round asks again
+        const learned = matchMonitors(now, answer.monitors, toDipRect);
+        if (!learned.size) return;
+        sizes = learned;
+        sizesFor = layout;
+      } catch (e) {
+        // not known
+      }
+    })();
+    learning = round;
+    round.then(() => { if (learning === round) learning = null; });
+    return round;
   }
 
   async function once() {
-    const sim = await ask();
+    const [sim] = await Promise.all([ask(), learnSizes()]);
     const list = connected();
     let simWindow = null;
     if (sim.state === 'running') {
@@ -493,12 +667,15 @@ function createHudDisplay({
         simWindow = null;
       }
     }
+    // The host not saying is not the sim being closed: it is where it was last seen, while that screen is there.
+    const simKept = sim.state === 'unknown' && !sim.skipped ? lastSimScreen() : null;
     choiceUsed = saved();
-    const decision = decide(list, simWindow);
+    const decision = decide(list, simWindow, simKept);
     if (!decision) return null;
     last = decision;
     say(decision, list, sim.skipped ? 'not-asked' : sim.state);
     place(decision);
+    tell();
     return decision;
   }
 
@@ -538,10 +715,11 @@ function createHudDisplay({
     return saved() !== choiceUsed ? refresh() : Promise.resolve(last);
   }
 
-  // For the desk's Settings page: the screens to choose from and where the HUD is now.
-  function describe() {
+  // For the desk's Settings page: the screens to choose from, named by the size they have, and where the HUD is now.
+  async function describe() {
+    await learnSizes();
     const list = connected();
-    const decision = last && list.some((d) => d.key === last.key) ? last : decide(list, null);
+    const decision = last && list.some((d) => d.key === last.key) ? last : decide(list, null, null);
     return {
       displays: listDisplays(list),
       using: decision ? { key: decision.key, name: displayName(decision.display, list), reason: decision.reason, why: decision.why } : null,
@@ -553,9 +731,9 @@ function createHudDisplay({
 }
 
 module.exports = {
-  AUTO, SIM_WINDOW_PATH, ASK_WITHIN_MS,
+  AUTO, SIM_WINDOW_PATH, MONITORS_PATH, ASK_WITHIN_MS,
   physicalSize, displayKey, normaliseDisplays, positionWords, displayName, listDisplays,
-  matchSimWindow, parseSimWindow, fetchSimWindow,
+  matchSimWindow, parseSimWindow, fetchSimWindow, parseMonitors, fetchMonitors, matchMonitors,
   parseSimIni, simSizeFromIni, simIniPath, readSimIni,
   chooseDisplay, boundsFor, createHudDisplay,
 };

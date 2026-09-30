@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld('racingDesk', {
   // The screens the HUD can be put on, by a plain name, and the one it is on and why (Settings, "HUD screen"):
   // { displays: [{ key, name, primary }], using: { key, name, reason, why } | null, choiceMissing }.
   getHudDisplays: () => ipcRenderer.invoke('get-hud-displays'),
+  // The screens, or where the HUD is, have changed: the Settings page asks again.
+  onHudDisplaysChanged: (callback) => {
+    ipcRenderer.on('hud-displays-changed', () => callback());
+  },
   // Dashboard mode (legacy, returns 'build')
   getDashboardMode: () => ipcRenderer.invoke('get-dashboard-mode'),
   // Open URL in user's default browser

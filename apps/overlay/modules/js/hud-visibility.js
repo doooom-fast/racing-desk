@@ -23,7 +23,10 @@ const IN_CAR_POLL_MS = 500;
 const ANSWER_WITHIN_MS = 1500;
 const RELOAD_AFTER_MS = 2000;
 const RELOADS_AT_MOST = 3;
-const PREPARE_WITHIN_MS = 1500;
+// How long the window may be kept hidden while it is put on the sim's screen. A round of asking the host takes 0.8 s at
+// the most (hud-display.js ASK_WITHIN_MS), and one that is already under way when he gets in is followed by one more,
+// which is two; the rest is for the window to be moved. If it runs out the HUD comes up where it was and moves.
+const PREPARE_WITHIN_MS = 2500;
 const MAX_ANSWER_BYTES = 4 * 1024 * 1024;
 
 // The address the HUD's page reads (modules/js/settings.js): the saved one when it ends in the plugin's path,
@@ -377,6 +380,6 @@ function createHudVisibility({
 }
 
 module.exports = {
-  OUT_OF_CAR_POLL_MS, IN_CAR_POLL_MS, RELOAD_AFTER_MS, RELOADS_AT_MOST,
+  OUT_OF_CAR_POLL_MS, IN_CAR_POLL_MS, RELOAD_AFTER_MS, RELOADS_AT_MOST, PREPARE_WITHIN_MS,
   telemetryUrl, fetchPayload, createHudVisibility,
 };
