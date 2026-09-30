@@ -34,6 +34,12 @@
   const FLAG_AMBIENT = {
     green:     { r: 0.35, g: 0.85, b: 0.45 },
     yellow:    { r: 0.95, g: 0.82, b: 0.25 },
+    caution:   { r: 0.95, g: 0.82, b: 0.25 },
+    localyellow: { r: 0.80, g: 0.70, b: 0.30 },
+    onetogreen: { r: 0.95, g: 0.90, b: 0.55 },
+    greenheld: { r: 0.35, g: 0.85, b: 0.45 },
+    furled:    { r: 0.55, g: 0.55, b: 0.58 },
+    disqualify: { r: 0.85, g: 0.15, b: 0.12 },
     red:       { r: 0.90, g: 0.20, b: 0.15 },
     blue:      { r: 0.30, g: 0.50, b: 0.95 },
     white:     { r: 0.85, g: 0.85, b: 0.90 },

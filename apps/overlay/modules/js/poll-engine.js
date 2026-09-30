@@ -94,6 +94,8 @@
 
   // The gap to his own laps of the session (lap-delta.js), fed every frame he is in the car.
   const _lapDeltaTracker = RacingDeskLapDelta.create();
+  // The small flags iRacing's field says (ten and five to go, halfway) are said once when they come up (session-flags.js).
+  const _flagNotices = window.RacingDeskSessionFlags ? window.RacingDeskSessionFlags.createNoticeTracker() : null;
   // Whether the cars ahead and behind are closing or dropping away (gap-trend.js), said in the glance layout.
   const _gapTrend = RacingDeskGapTrend.create();
   const _trendSaid = [null, null];
@@ -1067,15 +1069,44 @@
     }
 
     // ─── Flag Status → Gaps Block ───
+    // iRacing's own flag field, where the host sends it (session-flags.js): it tells a local yellow from a full-course
+    // caution, and says one lap to green, green held, the black flag furled and disqualified. With no field in the payload
+    // (a plugin from before it, a replay, a sim that does not say, the demo) the one word it always sent is all there is.
     const rawFlag = (_forceFlagState && _demo) ? _forceFlagState : (vs('currentFlagState') || 'none');
-    const flagState = (!rawFlag || rawFlag === '0' || rawFlag === 0) ? 'none' : rawFlag;
+    const flagWord = (!rawFlag || rawFlag === '0' || rawFlag === 0) ? 'none' : rawFlag;
+    const flagField = (window.RacingDeskSessionFlags && !_demo) ? window.RacingDeskSessionFlags.read(p) : null;
+    const flagDetail = flagField === null ? null : window.RacingDeskSessionFlags.decode(flagField);
+    const flagState = flagDetail ? window.RacingDeskSessionFlags.flagOf(flagDetail, flagWord) : flagWord;
+    const isGreenFlag = (f) => f === 'green' || f === 'greenheld';
+    // The small things the field says — ten and five to go, halfway — are said once each, as the spotter says its calls.
+    if (_flagNotices) {
+      for (const note of _flagNotices.update(flagDetail)) {
+        if (typeof _showSpotterMsg === 'function') _showSpotterMsg(note.text, 'sp-clear', 'Race control', 'flag-' + note.id);
+      }
+    }
     const gapsBlock = document.getElementById('gapsBlock');
     if (gapsBlock) {
-      const flagLabels = { yellow: 'CAUTION', red: 'RED FLAG', blue: 'BLUE FLAG', white: 'LAST LAP', debris: 'DEBRIS', checkered: 'FINISH', black: 'BLACK FLAG', green: 'GREEN', meatball: 'MEATBALL', orange: 'LAPPED CAR' };
-      const flagContexts = { yellow: 'Full course caution — hold position', red: 'Session stopped — return to pits', blue: 'Faster car approaching — yield', white: 'Last lap — push to the line', debris: 'Debris on track — stay alert', checkered: 'Checkered flag — race complete', black: 'Penalty — report to pit lane', green: 'Green flag — racing resumes', meatball: 'Repair required — pit immediately', orange: 'Car ahead must yield — make the pass' };
+      const flagLabels = {
+        yellow: 'CAUTION', caution: 'CAUTION', localyellow: 'LOCAL YELLOW', onetogreen: '1 LAP TO GREEN', red: 'RED FLAG', blue: 'BLUE FLAG',
+        white: 'LAST LAP', debris: 'DEBRIS', checkered: 'FINISH', black: 'BLACK FLAG', furled: 'BLACK FLAG WARNING', disqualify: 'DISQUALIFIED',
+        green: 'GREEN', greenheld: 'GREEN HELD', meatball: 'MEATBALL', orange: 'LAPPED CAR',
+      };
+      const flagContexts = {
+        yellow: 'Full course caution — hold position', caution: 'Full course caution — hold position',
+        localyellow: 'Local yellow — slow in this sector', onetogreen: 'Green flag next lap — be ready',
+        red: 'Session stopped — return to pits', blue: 'Faster car approaching — yield', white: 'Last lap — push to the line',
+        debris: 'Debris on track — stay alert', checkered: 'Checkered flag — race complete', black: 'Penalty — report to pit lane',
+        furled: 'Warning — a black flag may follow', disqualify: 'Disqualified — return to the pits',
+        green: 'Green flag — racing resumes', greenheld: 'Green flag held — racing resumes', meatball: 'Repair required — pit immediately',
+        orange: 'Car ahead must yield — make the pass',
+      };
 
-      // Minimum hold durations per flag type (ms) — prevents flicker from rapid state changes
-      const FLAG_HOLD_MS = { yellow: 8000, red: 10000, blue: 4000, white: 6000, debris: 5000, checkered: 10000, black: 8000, green: 5000, meatball: 10000, orange: 4000 };
+      // Minimum hold durations per flag type (ms) — prevents flicker from rapid state changes (a local yellow comes and
+      // goes with the sector he is in, so it is held the shortest)
+      const FLAG_HOLD_MS = {
+        yellow: 8000, caution: 8000, localyellow: 3000, onetogreen: 6000, red: 10000, blue: 4000, white: 6000, debris: 5000,
+        checkered: 10000, black: 8000, furled: 8000, disqualify: 10000, green: 5000, greenheld: 5000, meatball: 10000, orange: 4000,
+      };
 
       let showFlag = flagState;
       const now = Date.now();
@@ -1087,7 +1118,7 @@
       }
 
       // Green flag: show briefly when transitioning from caution, then clear
-      if (flagState === 'green' && _lastFlagState !== 'green' && _lastFlagState !== 'none') {
+      if (isGreenFlag(flagState) && !isGreenFlag(_lastFlagState) && _lastFlagState !== 'none') {
         if (_greenFlagTimeout) clearTimeout(_greenFlagTimeout);
         _greenFlagTimeout = setTimeout(() => {
           const gb = document.getElementById('gapsBlock');
@@ -1096,7 +1127,7 @@
           _greenFlagTimeout = null;
           _flagHoldState = 'none';
         }, FLAG_HOLD_MS.green);
-      } else if (flagState === 'green' && !_greenFlagTimeout) {
+      } else if (isGreenFlag(flagState) && !_greenFlagTimeout) {
         showFlag = 'none'; // green with no active timer = steady state, don't show
       } else if (flagState === 'none') {
         // Flag cleared — but hold the overlay if minimum duration hasn't elapsed
@@ -1129,8 +1160,9 @@
       }
       // ── Race Control banner — only for critical events ──
       // Minor flags (blue, white, green, debris) are handled by the flag module on the gaps block.
-      // Race Control only fires for session-altering events: red, black, yellow (full course), checkered.
-      const RC_FLAGS = { red: true, black: true, yellow: true, checkered: true, meatball: true };
+      // Race Control only fires for session-altering events: red, black, yellow (full course), checkered — and what is
+      // said to him alone: the black flag furled, disqualified.
+      const RC_FLAGS = { red: true, black: true, yellow: true, caution: true, checkered: true, meatball: true, furled: true, disqualify: true };
       if (flagState !== _lastFlagState) {
         if (RC_FLAGS[flagState]) {
           showRaceControl(flagState);
@@ -1145,7 +1177,7 @@
       // ── Leaderboard event animations for race start / finish ──
       if (flagState !== _lastFlagState && window.triggerLBEvent) {
         // Green flag transition from non-green = race start (or restart)
-        if (flagState === 'green' && _lastFlagState !== 'green' && _lastFlagState !== 'none') {
+        if (isGreenFlag(flagState) && !isGreenFlag(_lastFlagState) && _lastFlagState !== 'none') {
           window.triggerLBEvent('green');
         }
         // Checkered flag = race finish

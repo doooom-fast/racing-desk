@@ -232,7 +232,7 @@ body.drive-mode-active #gapsBlock .sector-indicator { gap: 4px; }
 @media (orientation: landscape) {
   body.drive-mode-active #gapsBlock .sector-cell { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 0.3em; }
 }
-body.drive-mode-active #gapsBlock .flag-label { font-size: max(20px, min(14cqh, 15cqw)); }
+body.drive-mode-active #gapsBlock .flag-label { font-size: max(20px, min(14cqh, 15cqw)); text-align: center; text-wrap: balance; overflow-wrap: anywhere; }
 body.drive-mode-active #gapsBlock .flag-context { font-size: max(11px, min(7cqh, 8cqw)); padding: 0 6px; }
 
 /* ── The tacho: gear, speed, revs and the bar to the redline, as on the rig ─────────────────────────────────────── */
@@ -544,7 +544,7 @@ body.drive-mode-active #rcBanner {
 }
 body.drive-mode-active #rcBanner .rc-inner { padding: 12px 18px 14px 16px; gap: 12px; }
 body.drive-mode-active #rcBanner .rc-content { min-width: 0; }
-body.drive-mode-active #rcBanner .rc-title { font-size: clamp(13px, 1.7vmin, 19px); }
+body.drive-mode-active #rcBanner .rc-title { font-size: clamp(13px, 1.7vmin, 19px); white-space: normal; overflow-wrap: anywhere; text-wrap: balance; }
 /* The sentence is the message he most needs to read: it wraps to as many lines as the cell asks, and none is cut. */
 body.drive-mode-active #rcBanner .rc-detail { font-size: clamp(18px, 2.8vmin, 32px); white-space: normal; overflow-wrap: anywhere; text-wrap: balance; }
 /* The finish (race-end.js sizes it to the dashboard, which here is not a box): over the track and the local view. */
@@ -561,7 +561,13 @@ body.drive-mode-active #raceEndScreen .re-stats { gap: 6px; margin-top: 10px; }
    the cells — and the glass of every panel takes its colour, so it is read from arm's length at once and in the
    corner of an eye; the gaps block says which flag in words, and race control says the rest. Gone when the flag
    clears. A blue flag rings the screen and leaves the panels as they are: it is a car to let by, and the numbers are
-   still what he races by. The pattern moves slowly (a composited layer, so it costs the iPad no repaint). */
+   still what he races by. The pattern moves slowly (a composited layer, so it costs the iPad no repaint).
+   iRacing's own flag field (session-flags.js) says more than the one word did, so there are more backgrounds:
+   `caution` is a full-course caution and has the whole treatment yellow has (`yellow` is what the word says when it
+   does not say which); `localyellow` is the sector he is in and is lighter than that, sparse yellow stripes round the
+   edge and the panels left as they are, like the blue; `onetogreen` is yellow and white, between a caution and the
+   white flag; `greenheld` is the green; `furled`, the black flag rolled up, is a black and grey ring with the panels
+   left alone, where the black flag itself tints them; `disqualify` is black and deep red. */
 body.drive-mode-active::before {
   content: '';
   position: fixed;
@@ -581,11 +587,11 @@ body.drive-mode-active[data-flag]:not([data-flag="none"]):not([data-flag="orange
   from { transform: translate3d(0, 0, 0); }
   to   { transform: translate3d(var(--rd-flag-step, 0px), var(--rd-flag-step, 0px), 0); }
 }
-body.drive-mode-active[data-flag="green"] {
+body.drive-mode-active:is([data-flag="green"], [data-flag="greenheld"]) {
   --rd-flag-bg: repeating-linear-gradient(-45deg, hsl(130, 72%, 40%) 0 26px, hsl(130, 72%, 34%) 26px 52px);
   --rd-flag-step: 36.77px; --rd-glass-r: 60; --rd-glass-g: 200; --rd-glass-b: 90;
 }
-body.drive-mode-active[data-flag="yellow"] {
+body.drive-mode-active:is([data-flag="yellow"], [data-flag="caution"]) {
   --rd-flag-bg: repeating-linear-gradient(-45deg, hsl(48, 98%, 52%) 0 26px, hsl(44, 98%, 46%) 26px 52px);
   --rd-flag-step: 36.77px; --rd-glass-r: 245; --rd-glass-g: 205; --rd-glass-b: 40;
 }
@@ -609,6 +615,27 @@ body.drive-mode-active[data-flag="black"] {
   --rd-flag-bg: repeating-linear-gradient(-45deg, #000 0 26px, hsl(0, 0%, 14%) 26px 52px);
   --rd-flag-step: 36.77px; --rd-glass-r: 200; --rd-glass-g: 40; --rd-glass-b: 40;
 }
+/* A local yellow is the lighter of the yellows: thin stripes with the dark between them, all round the edge, and no
+   tint on the panels. A full-course caution fills the gutters solid and lights every panel. */
+body.drive-mode-active[data-flag="localyellow"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, hsl(48, 98%, 52%) 0 12px, transparent 12px 40px);
+  --rd-flag-step: 28.28px;
+}
+/* One lap to green: the yellow of the caution it is under and the white of the last lap, in stripes. */
+body.drive-mode-active[data-flag="onetogreen"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, hsl(48, 98%, 52%) 0 26px, hsl(0, 0%, 96%) 26px 52px);
+  --rd-flag-step: 36.77px; --rd-glass-r: 250; --rd-glass-g: 232; --rd-glass-b: 150;
+}
+/* The black flag furled, a warning: black and grey, a ring, where the black flag is solid and reddens the panels. */
+body.drive-mode-active[data-flag="furled"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, #000 0 20px, hsl(0, 0%, 58%) 20px 40px);
+  --rd-flag-step: 28.28px;
+}
+/* Disqualified: black and deep red, and the panels go red. */
+body.drive-mode-active[data-flag="disqualify"] {
+  --rd-flag-bg: repeating-linear-gradient(-45deg, #000 0 26px, hsl(0, 85%, 30%) 26px 52px);
+  --rd-flag-step: 36.77px; --rd-glass-r: 225; --rd-glass-g: 25; --rd-glass-b: 25;
+}
 /* The meatball: an orange disc on black, as the flag is, over and over. */
 body.drive-mode-active[data-flag="meatball"] {
   --rd-flag-bg: radial-gradient(circle at 50% 50%, hsl(24, 100%, 52%) 0 34%, #000 35%);
@@ -624,8 +651,9 @@ body.drive-mode-active[data-flag="black"] :is(.car-controls, .pedals-area, .map-
   border-color: hsla(0, 80%, 55%, 0.8);
 }
 /* The glass under a flag: its colour through the panel, the numbers on it as legible as ever. */
-body.drive-mode-active:is([data-flag="green"], [data-flag="yellow"], [data-flag="red"], [data-flag="white"],
-  [data-flag="checkered"], [data-flag="meatball"], [data-flag="debris"]) :is(.car-controls, .pedals-area, .map-panel,
+body.drive-mode-active:is([data-flag="green"], [data-flag="greenheld"], [data-flag="yellow"], [data-flag="caution"],
+  [data-flag="onetogreen"], [data-flag="red"], [data-flag="white"], [data-flag="checkered"], [data-flag="meatball"],
+  [data-flag="debris"], [data-flag="disqualify"]) :is(.car-controls, .pedals-area, .map-panel,
   .map-zoom-panel, #positionPage, #ratingPage, #gapsBlock, .tacho-block, #raceTimerBlock, #lapsPanel, .lb-inner,
   .ds-inner, .pb-inner, .inc-inner) {
   background:

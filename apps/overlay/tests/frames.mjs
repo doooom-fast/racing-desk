@@ -61,13 +61,15 @@ export function fieldWith(place, others = FIELD) {
  *   lastLaps  { name: seconds } to override a car's last lap
  *   controls  the car's controls key (car-controls-wire.json), or none
  *   flag      currentFlagState: none, green, yellow, blue, white, checkered, black, meatball, red, debris
+ *   sessionFlags  iRacing's own flag field (the host's DataCorePlugin.GameRawData.Telemetry.SessionFlags), an unsigned
+ *             number, or none: a frame with no key is a plugin from before it, a replay or a sim that does not say
  *   lapDelta  DS.LapDelta, iRacing's gap to his best lap ever at the track
  *   extra     any keys of the payload, over the rest (a strategy call, a tyre pressure)
  */
 export function frame({
   order, lap = 5, session = 'Race', mode = 4, state = 4, start = 0, playerPct = 0.3, lastLaps = {}, lapDelta = 0.412,
   incidents = 4, curLapTime = 41.2, track = 'synthetic_circuit', noPlaces = false, controls = null, totalLaps = 20,
-  flag = 'none', fuelLaps = 9.1, extra = {},
+  flag = 'none', fuelLaps = 9.1, extra = {}, sessionFlags = null,
 } = {}) {
   const me = order.indexOf(ME) + 1;
   const pcts = {};
@@ -142,6 +144,7 @@ export function frame({
     'RacingDesk.Plugin.Grid.TotalCars': order.length,
     currentFlagState: flag,
   };
+  if (sessionFlags !== null) payload['DataCorePlugin.GameRawData.Telemetry.SessionFlags'] = sessionFlags;
   if (controls) {
     payload['RacingDesk.Plugin.CarControls'] = controls;
     payload['DataCorePlugin.GameData.CarModel'] = controls.name;

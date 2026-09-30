@@ -32,6 +32,10 @@
     const sessionModePre = isDemo ? 'RacingDesk.Plugin.Demo.SessionMode' : 'RacingDesk.Plugin.DS.SessionMode';
     const isQuali = +(p[sessionModePre]) === 2;
 
+    // iRacing's own start lights, where the host sends its flag field and the plugin's phase says nothing: set is the
+    // red lights all lit and go the green (session-flags.js). Not in the demo, whose flags are made up.
+    if (lightsPhase === 0 && !isDemo && !isQuali && window.RacingDeskSessionFlags) lightsPhase = window.RacingDeskSessionFlags.lightsPhaseOf(p);
+
     const mod  = document.getElementById('gridModule');
     const info = document.getElementById('gridInfo');
     const lights = document.getElementById('startLights');

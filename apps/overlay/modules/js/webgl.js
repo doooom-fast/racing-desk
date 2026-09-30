@@ -1142,6 +1142,12 @@
     // Flag color definitions per flag type
     window._FLAG_GL_COLORS = {
       yellow:    { c1: [1.0, 0.85, 0.12], c2: [1.0, 1.0, 0.92],  pattern: 0.0 },
+      caution:   { c1: [1.0, 0.85, 0.12], c2: [1.0, 1.0, 0.92],  pattern: 0.0 },    // a full-course caution: the yellow's
+      localyellow: { c1: [0.95, 0.80, 0.12], c2: [0.20, 0.17, 0.04], pattern: 1.0 }, // the lighter one: yellow bands on dark
+      onetogreen: { c1: [1.0, 0.85, 0.12], c2: [0.96, 0.96, 0.96], pattern: 3.0 },  // yellow and white, diagonal
+      greenheld: { c1: [0.20, 0.72, 0.28], c2: [0.10, 0.42, 0.16], pattern: 0.0 },
+      furled:    { c1: [0.06, 0.06, 0.06], c2: [0.70, 0.70, 0.70], pattern: 1.0 },  // the black flag rolled up: black and grey
+      disqualify: { c1: [0.06, 0.06, 0.06], c2: [0.80, 0.10, 0.08], pattern: 3.0 },
       red:       { c1: [0.90, 0.14, 0.12], c2: [0.50, 0.06, 0.06], pattern: 0.0 },
       blue:      { c1: [0.20, 0.45, 0.92], c2: [0.08, 0.20, 0.55], pattern: 3.0 },
       green:     { c1: [0.20, 0.72, 0.28], c2: [0.10, 0.42, 0.16], pattern: 0.0 },

@@ -8,6 +8,10 @@
   // Blue, white, green, debris are handled by the flag overlay on the gaps block.
   const RC_MESSAGES = {
     yellow:    { title: 'CAUTION',          detail: 'Full course yellow — hold position' },
+    // What iRacing's own flag field says of it (session-flags.js): a full-course caution, and what is said to him alone.
+    caution:   { title: 'CAUTION',          detail: 'Full course caution — hold position' },
+    furled:    { title: 'BLACK FLAG WARNING', detail: 'Warning — a black flag may follow' },
+    disqualify: { title: 'DISQUALIFIED',    detail: 'Disqualified — return to the pits' },
     red:       { title: 'RED FLAG',         detail: 'Session stopped — return to pits' },
     checkered: { title: 'CHECKERED FLAG',   detail: 'Race complete — cool down lap' },
     black:     { title: 'BLACK FLAG',       detail: 'Penalty — report to pit lane immediately' },
