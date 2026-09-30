@@ -15,6 +15,7 @@ const customer = require('./customer');
 const digest = require('./digest');
 const error = require('./error');
 const groups = require('./groups');
+const helmets = require('./helmets');
 const installed = require('./installed');
 const library = require('./library');
 const paths = require('./paths');
@@ -107,10 +108,12 @@ function createCommands(overrides = {}) {
       const version = car ? car.versions.find((v) => v.id === request.versionId) : undefined;
       if (!version) throw error.other(`${request.carFolder} / ${request.versionId} is no longer in the library.`);
       // Whether a folder may be made is decided here, whatever the page sent: only where there is none, and only
-      // under a name the install has for one of its cars.
+      // under a name the install has for one of its cars. So is the helmet: one car's apply makes its version's
+      // helmet the default, with a backup of its own, whatever the page sent (a group decides for its cars in
+      // groups.js).
       const missing = !isDir(path.join(String(request.paintDir), String(request.simFolder)));
       const createFolder = missing && (await installPaths()).includes(String(request.simFolder));
-      return apply.apply({ ...request, createFolder }, version, base(), applyDeps);
+      return apply.apply({ ...request, createFolder, setDefaultHelmet: true, defaultHelmetBackup: null }, version, base(), applyDeps);
     },
 
     listBackups: async (carFolder) => apply.listBackups(base(), carFolder),
@@ -181,6 +184,7 @@ module.exports = {
   digest,
   error,
   groups,
+  helmets,
   installed,
   library,
   paths,

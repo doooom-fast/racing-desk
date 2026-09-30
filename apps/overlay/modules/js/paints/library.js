@@ -8,9 +8,13 @@
 //
 // Both filename shapes are accepted on purpose. The plan describes role-only names; the design pipeline that
 // feeds this app already writes car_424242.tga, and asking it to change would be the tail wagging the dog.
+//
+// The library keeps helmets too, beside the cars (helmets.js): every version says which set it comes with
+// (`helmet`, on the version), and the helmets folder itself is never a car.
 const fs = require('fs');
 const path = require('path');
 const digest = require('./digest');
+const helmets = require('./helmets');
 const roles = require('./roles');
 const { messageOf } = require('./error');
 
@@ -18,6 +22,10 @@ const { messageOf } = require('./error');
 // directory — inside a git checkout they made the repo permanently dirty — but a library may still carry one,
 // and it is not a car.
 const LEGACY_BACKUP_DIR = '.backups';
+
+// Folders at the library's root that are not cars: the helmets, one folder per set of helmet_<id>.tga, and the
+// suits the same way should the pipeline ever write them. Named as the sim names its own (catalogue.js NOT_CARS).
+const NOT_CARS = Object.freeze([helmets.FOLDER, 'suits']);
 
 const META_STRING_KEYS = ['name', 'created', 'notes', 'source', 'seed', 'simFolder'];
 
@@ -165,8 +173,15 @@ function scan(root, paintDir) {
     return { root: rootText, cars, notes };
   }
 
-  // LEGACY_BACKUP_DIR is ours, and dotfolders are never cars.
-  const carDirs = subdirNames(root).filter((n) => !n.startsWith('.')).sort(cmp);
+  // LEGACY_BACKUP_DIR is ours, dotfolders are never cars, and neither are the helmets.
+  const carDirs = subdirNames(root)
+    .filter((n) => !n.startsWith('.') && !NOT_CARS.includes(n.toLowerCase()))
+    .sort(cmp);
+
+  // Which helmet each version comes with. Said on every version where the library keeps helmets at all, null
+  // for a version none is named for; where it keeps none, nothing is said and the key is not there.
+  const manifest = helmets.readManifest(root);
+  notes.push(...manifest.notes);
 
   for (const folder of carDirs) {
     const carDir = path.join(root, folder);
@@ -176,7 +191,9 @@ function scan(root, paintDir) {
     for (const v of versionDirs) {
       const versionDir = path.join(carDir, v);
       try {
-        versions.push(scanVersion(versionDir));
+        const version = scanVersion(versionDir);
+        if (manifest.found) version.helmet = helmets.pick(manifest, folder, version.id);
+        versions.push(version);
       } catch (e) {
         notes.push(`${versionDir} could not be read (${messageOf(e)}).`);
       }
@@ -198,4 +215,4 @@ function scan(root, paintDir) {
   return { root: rootText, cars, notes };
 }
 
-module.exports = { LEGACY_BACKUP_DIR, normalise, resolveSimFolder, parseMeta, readMeta, scanVersion, scan, emptyMeta };
+module.exports = { LEGACY_BACKUP_DIR, NOT_CARS, normalise, resolveSimFolder, parseMeta, readMeta, scanVersion, scan, emptyMeta };

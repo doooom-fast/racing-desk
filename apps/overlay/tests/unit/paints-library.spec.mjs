@@ -179,6 +179,35 @@ test.describe('scan', () => {
     expect(out.cars[1].versions.map((v) => v.id)).toEqual(['v10', 'v2']);   // plain string order, as the Rust sorted paths
   });
 
+  test('which helmet a version comes with is on the version, and the helmets folder is not a car', () => {
+    const l = lib('helmets');
+    version(l, 'lotus79', 'v13', { 'car.tga': 'p' });
+    version(l, 'lotus79', 'v12', { 'car.tga': 'p' });
+    version(l, 'mx5-mx52016', 'white-orange', { 'car.tga': 'p' });
+    // The helmets folder holds one folder per set, each with a file that is no version's, and a list that names
+    // the sets and a set that points outside the folder.
+    fs.mkdirSync(path.join(l, 'helmets', 'shatter'), { recursive: true });
+    fs.writeFileSync(path.join(l, 'helmets', 'shatter', 'helmet_31337.tga'), 'helmet');
+    fs.mkdirSync(path.join(l, 'Suits', 'shatter'), { recursive: true });
+    fs.writeFileSync(path.join(l, 'helmets', 'manifest.json'), JSON.stringify({
+      customer_id: '31337', default: 'shatter',
+      sets: { shatter: { file: 'helmets/shatter/helmet_31337.tga', body: [10, 10, 10], art: [220, 55, 20] }, up: { file: '../x.tga' } },
+      variants: { 'lotus79/v13': 'shatter', 'mx5-mx52016/white-orange': 'up' },
+    }));
+    const out = library.scan(l, null);
+    expect(out.cars.map((c) => c.folder)).toEqual(['lotus79', 'mx5-mx52016']);
+    const [v12, v13] = out.cars[0].versions;
+    expect(v13.helmet).toEqual({ set: 'shatter', body: [10, 10, 10], art: [220, 55, 20] });
+    expect(v12.helmet).toBeNull();
+    expect(out.cars[1].versions[0].helmet).toBeNull();   // a set that may not be used is none to show
+    expect(out.notes).toEqual(["The up helmet names a file outside the library's helmets folder, so it is not used."]);
+    expect(library.NOT_CARS).toEqual(['helmets', 'suits']);
+
+    // A library that keeps no helmets says nothing of them: the key is not there at all.
+    fs.rmSync(path.join(l, 'helmets'), { recursive: true });
+    expect('helmet' in library.scan(l, null).cars[0].versions[0]).toBe(false);
+  });
+
   test('a root that is not a folder is a note, not an error', () => {
     const missing = path.join(root, 'no-such-library');
     expect(library.scan(missing, null)).toEqual({ root: missing, cars: [], notes: [`${missing} is not a folder.`] });

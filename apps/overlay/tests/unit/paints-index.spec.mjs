@@ -65,7 +65,7 @@ test('exactly the 22 commands — the Tauri ones in camelCase, then the desk\'s 
   expect(Object.keys(cmd)).toEqual(NAMES);
   for (const name of NAMES) expect(typeof cmd[name], name).toBe('function');
   // No Electron in any of it: everything loaded under plain Node.
-  for (const mod of ['apply', 'catalogue', 'customer', 'digest', 'groups', 'installed', 'library', 'paths', 'process', 'repo', 'roles', 'settings', 'tga', 'tradingpaints']) {
+  for (const mod of ['apply', 'catalogue', 'customer', 'digest', 'groups', 'helmets', 'installed', 'library', 'paths', 'process', 'repo', 'roles', 'settings', 'tga', 'tradingpaints']) {
     expect(typeof paints[mod], mod).toBe('object');
   }
 });
