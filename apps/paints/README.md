@@ -18,9 +18,19 @@ Versions live outside the sim's folders, one folder per version:
     car_spec.tga      spec map       (or car_spec_<id>.tga, optional)
     preview*.png      optional
     meta.json         optional
-<library>/helmets/
-    manifest.json     which helmet each <car folder>/<version> comes with, and the default
-    <set>/helmet_<id>.tga
+```
+
+Helmets, where the library keeps them, are in a `helmets` folder beside the cars. In the
+design repo that is the top of the checkout, with the cars in `cars/` — the folder that is the
+library — so the app looks for `helmets/` in the library's own folder first, and then in the
+folder the library is in:
+
+```
+<checkout>/
+    cars/                        <- the library
+    helmets/
+        manifest.json            which helmet each <car folder>/<version> comes with, and the default
+        <set>/helmet_<id>.tga    each set's file, named in the manifest relative to <checkout>
 ```
 
 Both filename shapes are read. The plan called for role-only names; the design pipeline in
@@ -136,7 +146,7 @@ of the current state first, so a revert is itself undoable.
 Pick a livery for a car or a fleet and the helmet comes with it. There is no helmet of its own to
 choose. Helmets are per car: applying a livery to one car never changes another car's helmet.
 
-The library keeps helmets beside the cars, one per colourway rather than one per car:
+The library keeps helmets beside the cars (see the layout above), one per colourway rather than one per car:
 `helmets/<set>/helmet_<id>.tga` and `helmets/manifest.json`, which names the set each
 `<car folder>/<version>` comes with, a default set, and each set's body and art colours. The
 sim reads `paint/<car folder>/helmet_<id>.tga` as that car's helmet, and `paint/helmet_<id>.tga`
@@ -145,7 +155,9 @@ which the app leaves alone since the library names none.
 
 - **Every card says which helmet comes with the version** — "Comes with the shatter helmet."
   with a swatch of the set's two colours, or "No helmet comes with this version." — where the
-  library keeps helmets at all.
+  library keeps helmets at all. A version that comes with a set that cannot be used says why, in
+  the words an apply would use ("The shatter helmet's file is not in the library."), so the card
+  and the apply never disagree.
 - **An apply copies the version's helmet into the car's folder**, named with your customer id
   whatever id the library's file carries, in the same step as the paint: backed up with it, rolled
   back with it if a write fails, put back by the same revert. What was done is said under the
@@ -155,18 +167,30 @@ which the app leaves alone since the library names none.
   last. An apply sees to it: where the default is missing, or is another set, the library's set is
   put in place, the default that was there backed up first, so reverting the car puts the default
   back as well. That is said with the rest: "The shatter helmet is now the default for every car
-  without a helmet of its own." A default already in place is left alone and not mentioned again.
-  When a library update brings a list that names another default, the page sees to it then and
-  says so with the update; with the sim running it waits for the next apply.
+  without a helmet of its own. The default helmet that was there is kept, and can be put back."
+  A default already in place is left alone and not mentioned again.
+  When a library update changes which set the list names as the default, the page sees to it then
+  and says so with the update; an update that leaves the default as it was does nothing about the
+  helmet, and a default that differs for another reason is left for the next apply. With the sim
+  running it is not touched, and the sentence says it waits for the next apply.
+- **Every backup of the default can be put back from the page.** A car's revert puts back the one
+  its apply took, but a group that sets no car, or a library update, takes one no car's backup
+  names. The Cars page lists the newest backups of the default helmet under **Default helmet**,
+  each with **Put back**, which keeps the default as it stands first (so that is undoable too),
+  says what came back, and, where the library's default will go in again at the next apply, says
+  that. The sim must be closed for it too.
 - **Setting a group sees to the default once**, after its cars, and the group's page says which
   helmet it is. What the cars in the group wear has no say in it. A car already wearing its
-  version and its helmet is left alone.
+  version and its helmet is left alone. The sim is looked for again before the default is written,
+  as before each car: if it started part-way through, the default is left as it was, and that is
+  said. Beside each car that was set, the page says which helmet went on it — or, where none did,
+  why, in the sentence an apply would give.
 - **Where there is no helmet to bring** — the library keeps none, the version has no entry, the
   set's file is missing — the car's helmet is left as it is, and the sentence says so.
 - **Only the library's own helmets folder is read.** A file the manifest names outside it, one
-  that is not a true-colour TGA of up to 2048², or one larger than any helmet the sim takes is not
-  used, and the helmet on the car is left as it is. Nothing the manifest says is ever taken as a
-  place to write to. The sim must be closed, as for the paint.
+  that is not a 24-bit true-colour TGA of up to 2048² (12 MiB and a header), or one larger than
+  16 MiB is not used, and the helmet on the car is left as it is. Nothing the manifest says is
+  ever taken as a place to write to. The sim must be closed, as for the paint.
 
 Backups of the default helmet live beside the cars' own, under `.default-helmet`. The helmets
 themselves are designed with the `iracing-helmet-paint` skill, on the machine that makes the

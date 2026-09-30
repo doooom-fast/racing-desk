@@ -756,7 +756,10 @@ fails. A car never driven has no paint folder: an apply makes it under the insta
 car or a fleet, and the helmet comes along with it so whatever my last choice was sets the helmet. it's not a
 single thing on its own"). The library keeps them beside the cars — `helmets/<set>/helmet_<id>.tga`, one 24-bit
 TGA per colourway, and `helmets/manifest.json` naming a set per `<car folder>/<version>`, a default set, and each
-set's body and art colours — and the sim reads `paint/<car folder>/helmet_<id>.tga` as that car's helmet and
+set's body and art colours. **`helmets/` is at the top of his checkout, beside `cars/`, and the library the app is
+given is the `cars/` folder**: so it is looked for in the library's own folder first, then in the folder the library
+is in, and each set's `file` (`helmets/<set>/helmet_<id>.tga`) is relative to the folder that holds `helmets/`
+(`manifest.base`). The sim reads `paint/<car folder>/helmet_<id>.tga` as that car's helmet and
 `paint/helmet_<id>.tga` as the default for every car without one (the same two rules for `suit_<id>.tga`, which
 nothing touches: the manifest names none). An apply copies the version's set into the car's folder **under the
 app's own id, whatever id the library's file name carries**, after the car's textures and in the same step:
@@ -770,19 +773,29 @@ is missing or is another set, byte for byte, the manifest's set is put in place,
 up first under `backups\.default-helmet\<timestamp>\` (a backup with no file says there was none) and that backup
 named in the car's (`defaultHelmetBackup`), so reverting the car puts the default back as well; a revert's own
 safety backup does the same, so a revert is undoable whole. A default in place already is neither backed up nor
-written nor said again. A group sees to the default once for all its cars, backing it up before any car is
-touched and writing it after them, and says which (`report.helmet: { set, put, said, backupDir }`); a car already
-wearing its version *and* its helmet is left alone. After a library update the page asks for the default on its
-own (`ensureDefaultHelmet`, the desk's alone), since the update may bring a manifest whose default has changed:
-under the same sim guard, and with the sim running it says so and leaves it to the next apply. A version with no
+written nor said again. **Every backup of the default can be put back from the page**, including the ones no car's
+backup names (a group that sets no car, a library update): `listDefaultHelmetBackups` / `revertDefaultHelmet` (the
+desk's alone) back the `Default helmet` panel on the Cars page, under the same sim guard, taking a backup of the
+default as it stands first; and the sentence that puts a new default in place says the old one was kept and can be
+put back. A group sees to the default once for all its cars, backing it up before any car is touched and writing
+it after them — asking the sim guard again first, as each car does, and leaving the default as it is when the sim
+has started since — and says which (`report.helmet: { set, put, said, backupDir }`); a car already wearing its
+version *and* its helmet is left alone, and the group's page says beside each car set which helmet went on it or,
+where none did, why. After a library update that **changed which set the manifest names as the default**
+(`repoPull` reports `helmetDefault: { was, now, changed }`, read before and after the pull) the page asks for the
+default on its own (`ensureDefaultHelmet` with `was`, the desk's alone): under the same sim guard, and with the sim
+running it says what is in the way and leaves it to the next apply; an update that left the default as it was does
+nothing about it. A version with no
 manifest entry, a set file that is missing, or a library without a manifest leaves the car's helmet as it is and
 says so. Nothing in the manifest is trusted as a path: only a file under the library's `helmets/` folder is read
-(no `..`, no drive, no absolute path, links followed), only a true-colour TGA up to 2048² and no larger than
-16 MiB plus a header, and the destination is always the sim folder the car's paint goes to or the paint root;
+(no `..`, no drive, no absolute path, links followed), only a 24-bit true-colour TGA up to 2048² and no larger than
+16 MiB, and the destination is always the sim folder the car's paint goes to or the paint root;
 the sim guard is the apply's own. The card says which helmet comes with the version, with a swatch of the set's
 body and art colours (`version.helmet` from the library scan: `null` where the library keeps helmets and names
-none, absent where it keeps none), and after an apply the sentence is under the cards. The manifest's
-`customer_id` is never read, and no id is in any line said. Tests: `tests/unit/paints-helmets.spec.mjs`, the
+none, absent where it keeps none; `problem` is the apply's own sentence for a set that cannot be used, which the card
+shows instead of the swatch), and after an apply the sentence is under the cards. The manifest's `customer_id` is
+never read, and the sentences the helmet code says (`said`, and the helmet lines in an apply's and a revert's
+actions) name no file and carry no id; the car textures' action lines name their files, as they always did. Tests: `tests/unit/paints-helmets.spec.mjs`, the
 helmets blocks of `paints-apply` and `paints-groups`, and the desk's. The skill that designs them is
 `.claude/skills/iracing-helmet-paint`.
 
