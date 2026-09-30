@@ -697,7 +697,8 @@ app.whenReady().then(async () => {
 app.on('will-quit', () => {
   if (app.isReady()) globalShortcut.unregisterAll();   // a second instance quits before ready
   // The host watches this process (--parent-pid) and stops by itself once we're gone, flushing the lap it
-  // was recording; a kill now would cut that short. The 3 s backstop only fires if the app is still here.
+  // was recording; a kill now would cut that short. The 3 s backstop only fires if the app is still here. A host
+  // that outlives us is not this code's to end: it ends itself if its stop is not over 5 s after we went (HostStop.cs).
   hostLauncher.stopHost(hostChild, { graceMs: 3000 });
 });
 
