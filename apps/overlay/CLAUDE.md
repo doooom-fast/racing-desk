@@ -184,12 +184,16 @@ knows (`connectedDisplays`, `screen.screenToDipRect`) and the settings: nothing 
 `getPrimaryDisplay()` is used once, for the primary's id (`tests/unit/hud-main-wiring.spec.mjs`). The rule and its
 reasons are in the root CLAUDE.md (Desk, "The HUD is on the screen iRacing is on"). Short: a screen chosen in Settings
 (`hudDisplay`, "HUD screen" in Layout, Automatic by default) while it is connected → the screen the sim's window is on
-(the host's `/racing-desk/data/simwindow`) → the screen that is the size `rendererDX11Monitor.ini` says iRacing runs
-at → the largest. It is decided at start, when he gets in the car (`hud-visibility`'s `beforeReveal`, before the
-window is revealed), on any screen being added, removed or changed, on a change of the setting, and by Ctrl+Shift+R.
-`tests/unit/hud-display.spec.mjs` holds the rule with his two screens (823 × 617 at 175 % primary, 3440 × 1440 at
-100 %) and three-monitor, single-monitor, mixed-scale, straddling, disconnected-choice, no-host, slow-host and
-bad-ini cases; the Settings control is in `tests/desk` and `tests/unit/desk-settings-model.spec.mjs`.
+(the host's `/racing-desk/data/simwindow`; while the host does not say, the screen it was last on) → the screen that is
+the size `rendererDX11Monitor.ini` says iRacing runs at → the largest. It is decided at start, when he gets in the car
+(`hud-visibility`'s `beforeReveal`, before the window is revealed), on any screen being added, removed or changed, on a
+change of the setting, and by Ctrl+Shift+R. A screen's size is not DIPs times its scale: Electron's DIPs are the
+enclosing rectangle (his small screen, 1440 × 1080 at 175 %, is 823 × 618), so sizes are compared within a step of the
+scale and named from the host's `/racing-desk/data/monitors`, "about" when it has not said.
+`tests/unit/hud-display.spec.mjs` holds the rule with his two screens (823 × 618 at 175 % primary, 3440 × 1440 at
+100 %) and three-monitor, single-monitor, mixed-scale, straddling, disconnected-choice, no-host, slow-host, silent-host
+and bad-ini cases; the Settings control is in `tests/desk` and `tests/unit/desk-settings-model.spec.mjs`. The Settings
+page reads the list of screens again in place when the app says they changed (`hud-displays-changed`).
 
 ## Hotkeys
 
