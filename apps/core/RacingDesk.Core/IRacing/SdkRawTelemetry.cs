@@ -18,7 +18,8 @@ namespace RacingDesk.Plugin.IRacing
         public event Action Connected { add => _sdk.OnConnected += value; remove => _sdk.OnConnected -= value; }
         public event Action Disconnected { add => _sdk.OnDisconnected += value; remove => _sdk.OnDisconnected -= value; }
 
-        public void Start() => _sdk.Start();
+        /// <summary>Starts reading the sim, and returns at once: see <see cref="SdkStart"/>.</summary>
+        public void Start() => SdkStart.Start(_sdk);
         public void Stop() { if (_sdk.IsStarted) _sdk.Stop(); }
         public void Dispose() => Stop();
 
