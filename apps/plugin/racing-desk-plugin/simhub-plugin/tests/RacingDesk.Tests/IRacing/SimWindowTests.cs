@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -13,8 +14,9 @@ namespace RacingDesk.Tests.IRacing
 {
     /// <summary>
     /// <c>GET /racing-desk/data/simwindow</c>: where the sim's window is, so that the HUD is drawn on the screen the sim
-    /// is on. Windows is never asked here: the source is a fake that says what the test tells it, and counts the times
-    /// it is asked.
+    /// is on; and <c>GET /racing-desk/data/monitors</c>: the monitors' rectangles in physical pixels, so that a screen is
+    /// named by the size it really has. Windows is never asked here: the sources are fakes that say what the test tells
+    /// them, and count the times they are asked.
     /// </summary>
     [TestFixture]
     public class SimWindowTests
@@ -41,6 +43,28 @@ namespace RacingDesk.Tests.IRacing
             Monitor = new ScreenRect(1440, 0, 3440, 1440),
         };
 
+        private sealed class FakeMonitors : IMonitorSource
+        {
+            public List<MonitorInfo> Answer = new List<MonitorInfo>();
+            public Exception? Throws;
+            public int Asked;
+
+            public IReadOnlyList<MonitorInfo> List()
+            {
+                Asked++;
+                if (Throws != null) throw Throws;
+                return Answer;
+            }
+        }
+
+        // The rig as Windows lays it out (read on 2026-09-29 by a query that changed nothing): the ultrawide is the
+        // primary at the origin, and the small 175 % screen is to its left, 1440 × 1080 physical.
+        private static List<MonitorInfo> TheRig() => new List<MonitorInfo>
+        {
+            new MonitorInfo { Bounds = new ScreenRect(-1440, 0, 1440, 1080), Primary = false },
+            new MonitorInfo { Bounds = new ScreenRect(0, 0, 3440, 1440), Primary = true },
+        };
+
         private static int FreePort()
         {
             var l = new TcpListener(IPAddress.Loopback, 0);
@@ -51,13 +75,13 @@ namespace RacingDesk.Tests.IRacing
         }
 
         /// <summary>One request through the host's data API, with no store behind it, as the runtime hands it requests.</summary>
-        private static (HttpStatusCode Status, string Body) Request(ISimWindowSource source, string method = "GET", string route = "simwindow")
+        private static (HttpStatusCode Status, string Body) Request(ISimWindowSource source, string method = "GET", string route = "simwindow", IMonitorSource? monitors = null)
         {
             int port = FreePort();
             using var listener = new HttpListener();
             listener.Prefixes.Add($"http://127.0.0.1:{port}/racing-desk/");
             listener.Start();
-            var api = new LocalDataApi(Path.Combine(Path.GetTempPath(), "racing-desk-no-store-" + Guid.NewGuid().ToString("N") + ".db")) { SimWindows = source };
+            var api = new LocalDataApi(Path.Combine(Path.GetTempPath(), "racing-desk-no-store-" + Guid.NewGuid().ToString("N") + ".db")) { SimWindows = source, Monitors = monitors ?? new FakeMonitors() };
             var claimed = Task.Run(() => api.TryHandle(listener.GetContext()));
 
             using var http = new HttpClient();
@@ -135,6 +159,53 @@ namespace RacingDesk.Tests.IRacing
             var (status, _) = Request(source);
             Assert.That(status, Is.EqualTo(HttpStatusCode.InternalServerError));
             Assert.That(source.Asked, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void SaysTheMonitorsInPhysicalPixels_TheSmallOneLeftOfThePrimaryHasANegativePosition()
+        {
+            var monitors = new FakeMonitors { Answer = TheRig() };
+            var (status, body) = Request(new FakeSimWindow(), "GET", "monitors", monitors);
+
+            Assert.That(status, Is.EqualTo(HttpStatusCode.OK), body);
+            var json = JArray.Parse(body);
+            Assert.That(json, Has.Count.EqualTo(2));
+            Assert.That(((int)json[0]["x"]!, (int)json[0]["y"]!, (int)json[0]["width"]!, (int)json[0]["height"]!, (bool)json[0]["primary"]!),
+                Is.EqualTo((-1440, 0, 1440, 1080, false)));
+            Assert.That(((int)json[1]["x"]!, (int)json[1]["width"]!, (int)json[1]["height"]!, (bool)json[1]["primary"]!),
+                Is.EqualTo((0, 3440, 1440, true)));
+            Assert.That(monitors.Asked, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void SaysNoMonitorsAsAnEmptyList_AndLeavesOutOneWithNoSize()
+        {
+            Assert.That(JArray.Parse(Request(new FakeSimWindow(), "GET", "monitors", new FakeMonitors()).Body), Is.Empty);
+
+            var odd = TheRig();
+            odd.Add(new MonitorInfo { Bounds = new ScreenRect(0, 0, 0, 0) });
+            odd.Add(null!);
+            var json = JArray.Parse(Request(new FakeSimWindow(), "GET", "monitors", new FakeMonitors { Answer = odd }).Body);
+            Assert.That(json, Has.Count.EqualTo(2));
+        }
+
+        [Test]
+        public void AMonitorListThatCannotBeMadeIsAnErrorAndNotAnEmptyList()
+        {
+            var monitors = new FakeMonitors { Throws = new InvalidOperationException("Windows would not list the monitors") };
+            var (status, _) = Request(new FakeSimWindow(), "GET", "monitors", monitors);
+            Assert.That(status, Is.EqualTo(HttpStatusCode.InternalServerError));
+            Assert.That(monitors.Asked, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void MonitorsAreOnlyReadAndOnlyOnTheirOwnRoute()
+        {
+            var monitors = new FakeMonitors { Answer = TheRig() };
+            Assert.That(Request(new FakeSimWindow(), "POST", "monitors", monitors).Status, Is.Not.EqualTo(HttpStatusCode.OK));
+            Request(new FakeSimWindow(), "GET", "simwindow", monitors);
+            Request(new FakeSimWindow(), "GET", "controls", monitors);
+            Assert.That(monitors.Asked, Is.EqualTo(0), "nothing is listed for a request that is not a read of the monitors");
         }
 
         [Test]

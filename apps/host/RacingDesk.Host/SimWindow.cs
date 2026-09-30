@@ -81,9 +81,34 @@ namespace RacingDesk.Host
     }
 
     /// <summary>
-    /// The sim's main window, from Windows. This host is not DPI-aware, so a call made as it is would be given
-    /// coordinates scaled down to what a program of the old kind sees; the thread asking is made per-monitor aware
-    /// for the length of the call, which is what gives physical pixels on a rig with screens of different scales.
+    /// For the length of a look at Windows's screens: the thread asking is made per-monitor aware, which is what gives
+    /// physical pixels on a rig with screens of different scales. This host is not DPI-aware, so a call made as it is
+    /// would be given coordinates scaled down to what a program of the old kind sees. Dispose puts it back.
+    /// </summary>
+    internal readonly struct PerMonitorAwareScope : IDisposable
+    {
+        private static readonly IntPtr PerMonitorAwareV2 = new IntPtr(-4);   // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+
+        private readonly IntPtr _before;
+
+        public PerMonitorAwareScope()
+        {
+            try { _before = SetThreadDpiAwarenessContext(PerMonitorAwareV2); }
+            catch (EntryPointNotFoundException) { _before = IntPtr.Zero; /* Windows before 10 1607: the numbers are what they are */ }
+        }
+
+        public void Dispose()
+        {
+            if (_before != IntPtr.Zero) SetThreadDpiAwarenessContext(_before);
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    }
+
+    /// <summary>
+    /// The sim's main window, from Windows, in physical pixels (the look is made per-monitor aware, see
+    /// <see cref="PerMonitorAwareScope"/>).
     /// </summary>
     internal sealed class Win32SimWindowSource : ISimWindowSource
     {
@@ -94,9 +119,10 @@ namespace RacingDesk.Host
         {
             foreach (string name in ProcessNames)
             {
-                Process[] found;
-                try { found = Process.GetProcessesByName(name); }
-                catch (Exception) { continue; }
+                // A look that cannot be made throws, and the route answers 500: that is "not known" to the HUD, which
+                // is not the same as null, "the sim is not running". A process that goes between being listed and
+                // being asked is gone, and Describe says null for it.
+                Process[] found = Process.GetProcessesByName(name);
                 try
                 {
                     foreach (var process in found)
@@ -120,17 +146,8 @@ namespace RacingDesk.Host
             catch (Exception) { return null; }   // gone between being listed and being asked
             if (window == IntPtr.Zero || !IsWindowVisible(window) || IsIconic(window)) return null;
 
-            IntPtr before = IntPtr.Zero;
-            bool changed = false;
-            try
+            using (new PerMonitorAwareScope())
             {
-                try
-                {
-                    before = SetThreadDpiAwarenessContext(PerMonitorAwareV2);
-                    changed = before != IntPtr.Zero;
-                }
-                catch (EntryPointNotFoundException) { /* Windows before 10 1607: the numbers are what they are */ }
-
                 RECT rect;
                 if (DwmGetWindowAttribute(window, ExtendedFrameBounds, out rect, Marshal.SizeOf<RECT>()) != 0
                     && !GetWindowRect(window, out rect))
@@ -147,15 +164,10 @@ namespace RacingDesk.Host
 
                 return new SimWindowInfo { Process = name, Window = frame, Monitor = monitor };
             }
-            finally
-            {
-                if (changed) SetThreadDpiAwarenessContext(before);
-            }
         }
 
         private const int ExtendedFrameBounds = 9;                  // DWMWA_EXTENDED_FRAME_BOUNDS: the frame without its shadow
         private const uint MonitorDefaultToNearest = 2;             // MONITOR_DEFAULTTONEAREST: the one with most of the window
-        private static readonly IntPtr PerMonitorAwareV2 = new IntPtr(-4);   // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
 
         [StructLayout(LayoutKind.Sequential)]
         private struct RECT
@@ -186,9 +198,6 @@ namespace RacingDesk.Host
 
         [DllImport("user32.dll")]
         private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO info);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmGetWindowAttribute(IntPtr hWnd, int attribute, out RECT value, int size);
