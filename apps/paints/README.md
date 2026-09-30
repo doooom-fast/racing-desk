@@ -18,6 +18,9 @@ Versions live outside the sim's folders, one folder per version:
     car_spec.tga      spec map       (or car_spec_<id>.tga, optional)
     preview*.png      optional
     meta.json         optional
+<library>/helmets/
+    manifest.json     which helmet each <car folder>/<version> comes with, and the default
+    <set>/helmet_<id>.tga
 ```
 
 Both filename shapes are read. The plan called for role-only names; the design pipeline in
@@ -127,6 +130,43 @@ the car still means loading the sim.
 
 Nothing the app did not install is ever deleted. Revert restores a backup, and takes a backup
 of the current state first, so a revert is itself undoable.
+
+## Helmets come with the livery
+
+Pick a livery for a car or a fleet and the helmet comes with it; whatever the last choice was
+sets the helmet. There is no helmet of its own to choose.
+
+The library keeps helmets beside the cars, one per colourway rather than one per car:
+`helmets/<set>/helmet_<id>.tga` and `helmets/manifest.json`, which names the set each
+`<car folder>/<version>` comes with, a default set, and each set's body and art colours. The
+sim reads `paint/<car folder>/helmet_<id>.tga` as that car's helmet, and `paint/helmet_<id>.tga`
+as the default for every car without one of its own; the same two rules hold for the suit,
+which the app leaves alone since the library names none.
+
+- **Every card says which helmet comes with the version** — "Comes with the shatter helmet."
+  with a swatch of the set's two colours, or "No helmet comes with this version." — where the
+  library keeps helmets at all.
+- **An apply copies the version's helmet into the car's folder**, named with your customer id
+  whatever id the library's file carries, in the same step as the paint: backed up with it, rolled
+  back with it if a write fails, put back by the same revert. Then it makes that helmet the default
+  for every car without one, backing up the default that was there first, so reverting the car
+  puts the default back as well. What was done is one sentence under the cards, and in the
+  activity: "The shatter helmet is on the car, and is now the default for every car without a
+  helmet of its own."
+- **Setting a group sets the default once**, after its cars: the set every car in the group
+  wears when they agree, otherwise the library's default, and the group's page says which. A car
+  already wearing its version and its helmet is left alone, and a default that is the group's
+  already is not written again.
+- **Where there is no helmet to bring** — the library keeps none, the version has no entry, the
+  set's file is missing — the car's helmet is left as it is, and the sentence says so.
+- **Only the library's own helmets folder is read.** A file the manifest names outside it, one
+  that is not a true-colour TGA of up to 2048², or one larger than any helmet the sim takes is not
+  used, and the helmet on the car is left as it is. Nothing the manifest says is ever taken as a
+  place to write to. The sim must be closed, as for the paint.
+
+Backups of the default helmet live beside the cars' own, under `.default-helmet`. The helmets
+themselves are designed with the `iracing-helmet-paint` skill, on the machine that makes the
+liveries; nothing here builds them.
 
 ## Two things the app works out for you
 
@@ -403,7 +443,10 @@ beside it (`apps/overlay/modules/js/paints/groups.js`).
 
 A car that has never been driven has no paint folder. An apply makes it, under the install's name for the car —
 which is what the sim would call it — so the paint is there the first time the car is driven. Whether a folder may
-be made is decided in the app's main process, whatever the page sent.
+be made is decided in the app's main process, whatever the page sent — and so is whether a version's helmet becomes
+the default: one car's apply always makes it so, a group decides once for its cars (see Helmets come with the
+livery, above). The Rust knows nothing of helmets, so in the Tauri shell the cards say nothing of them and an apply
+brings none.
 
 ## Still to come
 

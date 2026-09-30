@@ -718,6 +718,34 @@ applies each car's version through `apply.js`, skips a car already wearing it, a
 fails. A car never driven has no paint folder: an apply makes it under the install's name for the car
 (`installPath` in the catalogue), and only `index.js` decides that it may.
 
+**Helmets come with the livery** (`modules/js/paints/helmets.js`; his words, 2026-09-30: "we pick a livery for a
+car or a fleet, and the helmet comes along with it so whatever my last choice was sets the helmet. it's not a
+single thing on its own"). The library keeps them beside the cars — `helmets/<set>/helmet_<id>.tga`, one 24-bit
+TGA per colourway, and `helmets/manifest.json` naming a set per `<car folder>/<version>`, a default set, and each
+set's body and art colours — and the sim reads `paint/<car folder>/helmet_<id>.tga` as that car's helmet and
+`paint/helmet_<id>.tga` as the default for every car without one (the same two rules for `suit_<id>.tga`, which
+nothing touches: the manifest names none). An apply copies the version's set into the car's folder **under the
+app's own id, whatever id the library's file name carries**, after the car's textures and in the same step:
+backed up with them (`helmetsIncluded` in the backup's manifest, so a revert knows a helmet the backup lacks was
+not there), rolled back with them, put back by the same revert, said in the same result (`helmet: { set, onCar,
+isDefault, said }`, `said` one plain sentence). It then makes it the default, backing the default that was there
+up under `backups\.default-helmet\<timestamp>\` first (a backup with no file says there was none) and naming that
+backup in the car's (`defaultHelmetBackup`), so reverting the car puts the default back as well; a revert's own
+safety backup does the same, so a revert is undoable whole. A group sets the default once, after its cars: the
+set every car wears when they agree (a car whose version comes with no helmet does not disagree), else the
+manifest's default, and it says which (`report.helmet.said`); a car already wearing its version *and* its helmet
+is left alone, and a default that is the group's already is neither backed up nor written. A version with no
+manifest entry, a set file that is missing, or a library without a manifest leaves the car's helmet as it is and
+says so. Nothing in the manifest is trusted as a path: only a file under the library's `helmets/` folder is read
+(no `..`, no drive, no absolute path, links followed), only a true-colour TGA up to 2048² and no larger than
+16 MiB plus a header, and the destination is always the sim folder the car's paint goes to or the paint root;
+the sim guard is the apply's own. The card says which helmet comes with the version, with a swatch of the set's
+body and art colours (`version.helmet` from the library scan: `null` where the library keeps helmets and names
+none, absent where it keeps none), and after an apply the sentence is under the cards. The manifest's
+`customer_id` is never read, and no id is in any line said. Tests: `tests/unit/paints-helmets.spec.mjs`, the
+helmets blocks of `paints-apply` and `paints-groups`, and the desk's. The skill that designs them is
+`.claude/skills/iracing-helmet-paint`.
+
 The list is every car the rig knows, by the sim's name for it — cars with a livery first, then the rest, with a
 filter over both — and a car with no livery still shows what is installed for it and its backups. It is the
 `carCatalogue` command (`modules/js/paints/catalogue.js`; the desk's own — the Rust has none, so the Tauri shell lists
@@ -797,6 +825,10 @@ taken out. The rules it is built on, each with a test in `apps/livery/tests/test
   (`IMPORTED.md` there says what of it is wired).
 - **Logos wait on two things**: the sponsors' masks (`art/sponsors/masks/`, still on the machine that made them) and
   a panel map per car (`data/panels/<car>.json`), which takes a look at the car's own stock schemes.
+- **Helmets are one per colourway, not one per car** (`.claude/skills/iracing-helmet-paint`, from prodrive-agents,
+  its example id the made-up one): the library's `design/helmets/build_helmets.py` builds `helmets/<set>/` and
+  `helmets/manifest.json`, and the Cars page installs the set a version comes with alongside the livery (see
+  Helmets under Cars). Nothing here builds them yet; they are designed on the machine that made the logos.
 
 ## Dev loop (overlay design work — parked until Phase 5)
 
