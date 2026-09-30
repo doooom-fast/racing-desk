@@ -450,6 +450,104 @@ test('a change writes the whole settings file back with that one key changed', a
   await expect(page.locator('#setting-commentaryPromptDuration')).toHaveValue('120');
 });
 
+// ── Settings: the HUD's screen ───────────────────────────────
+// main.js says which screens are connected and which one the HUD is on (get-hud-displays); the page offers Automatic
+// and each screen by a plain name. This stand-in is his rig: a small primary on the left, the ultrawide on the right,
+// and it answers as the app does — the HUD is on the chosen screen while it is connected, else where iRacing is.
+
+const RIG_SCREENS = [
+  { key: '2', name: '1440 × 1080 (left, primary)', primary: true },
+  { key: '1', name: '3440 × 1440 (right)', primary: false },
+];
+
+async function stubHudScreens(page, { displays = RIG_SCREENS, simOn = '1' } = {}) {
+  await page.addInitScript((start) => {
+    window.__hud = { asked: 0 };
+    Object.assign(window.racingDesk, {
+      getHudDisplays: async () => {
+        window.__hud.asked += 1;
+        const choice = window.__k10.settings.hudDisplay;
+        const chosen = start.displays.find((d) => d.key === choice);
+        const using = chosen || start.displays.find((d) => d.key === start.simOn);
+        return {
+          displays: start.displays,
+          using: { key: using.key, name: using.name, reason: chosen ? 'chosen' : 'sim', why: chosen ? 'you chose it in Settings' : 'iRacing is running on it' },
+          choiceMissing: !!choice && choice !== 'auto' && !chosen,
+        };
+      },
+    });
+  }, { displays, simOn });
+}
+
+test('the HUD screen is Automatic until he chooses, and names each connected screen and where the HUD is', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubHudScreens(page);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const control = page.locator('#setting-hudDisplay');
+  await expect(page.locator('label[for="setting-hudDisplay"]')).toHaveText('HUD screen');
+  await expect(control).toBeEnabled();
+  await expect(control).toHaveValue('auto');
+  await expect(control.locator('option')).toHaveText([
+    'Automatic (the screen iRacing is on)', '1440 × 1080 (left, primary)', '3440 × 1440 (right)',
+  ]);
+  await expect(page.locator('#setting-hudDisplay-note')).toHaveText('Now on 3440 × 1440 (right): iRacing is running on it.');
+  // In Layout, where the HUD's placement already is.
+  await expect(page.locator('#settings-layout #setting-hudDisplay')).toHaveCount(1);
+  // Looking at the page writes nothing.
+  expect(await page.evaluate(() => window.__k10.saved.length)).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('choosing a screen writes it into the settings, beside everything else, and says where the HUD went', async ({ page }) => {
+  const seed = { zoom: 120, raceLinks: { 'Caterham Academy Challenge': '6273' } };
+  await stubBridge(page, seed);
+  await stubHudScreens(page);
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+
+  await page.locator('#setting-hudDisplay').selectOption('2');
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(1);
+  expect(await page.evaluate(() => window.__k10.saved[0])).toEqual({ ...seed, hudDisplay: '2' });
+  await expect(page.locator('#settings-status')).toHaveText(/Saved/);
+  await expect(page.locator('#setting-hudDisplay-note')).toHaveText('Now on 1440 × 1080 (left, primary): you chose it in Settings.');
+
+  // Back to Automatic: the HUD follows iRacing again.
+  await page.locator('#setting-hudDisplay').selectOption('auto');
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(2);
+  expect(await page.evaluate(() => window.__k10.saved[1].hudDisplay)).toBe('auto');
+  await expect(page.locator('#setting-hudDisplay-note')).toHaveText('Now on 3440 × 1440 (right): iRacing is running on it.');
+});
+
+test('a screen he chose that is not connected shows Automatic, and the choice is kept for when it is', async ({ page }) => {
+  await stubBridge(page, { hudDisplay: '7', zoom: 120 });
+  await stubHudScreens(page);
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  await expect(page.locator('#setting-hudDisplay')).toHaveValue('auto');
+  await expect(page.locator('#setting-hudDisplay-note')).toContainText('The screen you chose is not connected');
+  await expect(page.locator('#setting-hudDisplay-note')).toContainText('Now on 3440 × 1440 (right)');
+  expect(await page.evaluate(() => window.__k10.saved.length)).toBe(0);
+
+  // Changing something else does not lose it.
+  await page.locator('#setting-layoutPosition').selectOption('bottom-left');
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(1);
+  expect(await page.evaluate(() => window.__k10.saved[0])).toEqual({ hudDisplay: '7', zoom: 120, layoutPosition: 'bottom-left' });
+});
+
+test('with one screen there is Automatic and that screen', async ({ page }) => {
+  await stubBridge(page, {});
+  await stubHudScreens(page, { displays: [{ key: '1', name: '2560 × 1440 (primary)', primary: true }], simOn: '1' });
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  await expect(page.locator('#setting-hudDisplay option')).toHaveText(['Automatic (the screen iRacing is on)', '2560 × 1440 (primary)']);
+});
+
+test('an app that cannot say which screens there are offers Automatic alone, still enabled', async ({ page }) => {
+  await stubBridge(page, {});
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  await expect(page.locator('#setting-hudDisplay')).toBeEnabled();
+  await expect(page.locator('#setting-hudDisplay option')).toHaveText(['Automatic (the screen iRacing is on)']);
+  await expect(page.locator('#setting-hudDisplay-note')).toHaveText('');
+  expect(errors).toEqual([]);
+});
+
 test('without the app the Settings page is read-only and says so', async ({ page }) => {
   const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
   await expect(page.locator('#settings-note')).toBeVisible();
@@ -457,6 +555,8 @@ test('without the app the Settings page is read-only and says so', async ({ page
   await expect(page.locator('#setting-zoom')).toBeDisabled();
   await expect(page.locator('#setting-zoom')).toHaveValue('165'); // the HUD's default
   await expect(page.locator('#setting-showSpotter')).toBeChecked();
+  await expect(page.locator('#setting-hudDisplay')).toBeDisabled();
+  await expect(page.locator('#setting-hudDisplay')).toHaveValue('auto');
   expect(await page.locator('#settings-sections [data-key]:not(:disabled)').count()).toBe(0);
   // The iPad view is the app's to switch, too.
   await expect(page.locator('#remote-on')).toBeDisabled();

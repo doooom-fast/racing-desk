@@ -619,13 +619,35 @@
     if (bridge) {
       try { saved = await bridge.getSettings(); } catch (_) { saved = null; }
     }
-    const sections = SettingsModel.settingsView(saved || {});
+    const sections = SettingsModel.settingsView(saved || {}, { hudScreens: await hudScreensNow(bridge) });
     $('settings-note').hidden = !!bridge;
     $('settings-sections').innerHTML = SETTINGS_COLUMNS.map((ids) => `<div class="settings-col">${ids.map((id) => {
       const section = sections.find((s) => s.id === id);
       return `<section class="card" id="settings-${esc(id)}"><h2>${esc(section.title)}</h2>${section.fields.map((f) => fieldHtml(f, !bridge)).join('')}</section>`;
     }).join('')}</div>`).join('');
     await renderRemote();
+  }
+
+  // The screens the HUD can be on, and the one it is on, as the app says (main.js get-hud-displays). Null outside the
+  // app, or from one that has no such call: the HUD screen then offers Automatic alone.
+  async function hudScreensNow(bridge) {
+    if (!bridge || typeof bridge.getHudDisplays !== 'function') return null;
+    try {
+      const answer = await bridge.getHudDisplays();
+      return answer && typeof answer === 'object' ? answer : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // After the HUD's screen is changed: where the HUD is now, said under the control. The app has moved it by the time
+  // the save is answered.
+  async function refreshHudScreenNote() {
+    const el = $('setting-hudDisplay-note');
+    if (!el) return;
+    const saved = ((await settingsBridge().getSettings()) || {});
+    const field = SettingsModel.settingsView(saved, { hudScreens: await hudScreensNow(settingsBridge()) }).flatMap((section) => section.fields).find((f) => f.key === 'hudDisplay');
+    el.textContent = field.note || '';
   }
 
   // ── The HUD on an iPad ───────────────────────────────────
@@ -758,6 +780,7 @@
     return `<div class="field">
       <label class="name" for="${id}">${esc(f.label)}</label>
       ${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}
+      ${f.screens ? `<span class="hint" id="${id}-note" role="status">${esc(f.note || '')}</span>` : ''}
       <span class="control">${control}</span>
     </div>`;
   }
@@ -774,6 +797,7 @@
       settings[key] = value;
       await bridge.saveSettings(settings);
       settingsStatus('Saved — the HUD has it.');
+      if (key === 'hudDisplay') await refreshHudScreenNote();
     }).catch((err) => settingsStatus(`Not saved: ${err.message}`));
     return settingsSave;
   }

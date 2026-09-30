@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('racingDesk', {
   getVersion: () => ipcRenderer.invoke('get-version'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  // The screens the HUD can be put on, by a plain name, and the one it is on and why (Settings, "HUD screen"):
+  // { displays: [{ key, name, primary }], using: { key, name, reason, why } | null, choiceMissing }.
+  getHudDisplays: () => ipcRenderer.invoke('get-hud-displays'),
   // Dashboard mode (legacy, returns 'build')
   getDashboardMode: () => ipcRenderer.invoke('get-dashboard-mode'),
   // Open URL in user's default browser
