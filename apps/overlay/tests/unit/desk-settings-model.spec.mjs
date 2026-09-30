@@ -79,9 +79,12 @@ test.describe('settings model', () => {
     expect(field.value).toBe('auto');
     expect(field.options).toEqual([['auto', 'Automatic (the screen iRacing is on)']]);
     expect(field.note).toBeNull();
-    // A choice in the file is no claim that a screen is missing when the app has not said which there are.
-    expect(screenField(settingsView({ hudDisplay: '7' })).note).toBeNull();
-    expect(screenField(settingsView({ hudDisplay: '7' })).value).toBe('auto');
+    // A choice in the file is no claim that a screen is missing when the app has not said which there are: it stays the
+    // control's value, as itself, and can be changed to Automatic.
+    const chosen = screenField(settingsView({ hudDisplay: '7' }));
+    expect(chosen.note).toBeNull();
+    expect(chosen.value).toBe('7');
+    expect(chosen.options).toEqual([['auto', 'Automatic (the screen iRacing is on)'], ['7', 'The screen you chose']]);
   });
 
   test('with the screens the app names, each is offered and the note says where the HUD is', () => {
@@ -94,15 +97,24 @@ test.describe('settings model', () => {
     expect(field.note).toBe('Now on 3440 × 1440 (right): iRacing is running on it.');
   });
 
-  test('a choice that is not connected shows Automatic and is not turned into it', () => {
-    const view = settingsView({ hudDisplay: '7' }, { hudScreens: SCREENS });
-    expect(screenField(view).value).toBe('auto');
-    expect(screenField(view).note).toContain('is not connected');
+  test("a choice that is not connected stays the control's value, as an option that says so, so that Automatic can replace it", () => {
+    const field = screenField(settingsView({ hudDisplay: '7' }, { hudScreens: SCREENS }));
+    // Selected as itself: choosing Automatic is then a change like any other, and clears it from the file. (It showed
+    // Automatic before, and choosing Automatic again fired no change, so the stale key stayed.)
+    expect(field.value).toBe('7');
+    expect(field.options).toEqual([
+      ['auto', 'Automatic (the screen iRacing is on)'], ['2', '1440 × 1080 (left, primary)'], ['1', '3440 × 1440 (right)'],
+      ['7', 'The screen you chose (not connected)'],
+    ]);
+    expect(field.note).toBe('The screen you chose is not connected, so the HUD follows iRacing until it is. Now on 3440 × 1440 (right): iRacing is running on it.');
     // The file's value is the model's to read, not to change: what a control's value becomes keeps the key.
     expect(parseControlValue(fieldFor('hudDisplay'), '7')).toBe('7');
     expect(parseControlValue(fieldFor('hudDisplay'), 'auto')).toBe('auto');
     expect(parseControlValue(fieldFor('hudDisplay'), '')).toBe('auto');
     expect(parseControlValue(fieldFor('hudDisplay'), null)).toBe('auto');
+    // Once it is Automatic the extra option is gone, and a screen that is connected needs none.
+    expect(screenField(settingsView({ hudDisplay: 'auto' }, { hudScreens: SCREENS })).options).toHaveLength(3);
+    expect(screenField(settingsView({ hudDisplay: '1' }, { hudScreens: SCREENS })).options).toHaveLength(3);
   });
 
   test('a saved value that is not a screen\'s key reads as Automatic, and nothing an answer holds breaks the control', () => {

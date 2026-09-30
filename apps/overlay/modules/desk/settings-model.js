@@ -145,19 +145,22 @@
   }
 
   // The HUD screen's control, given the screens the app says are connected ({ displays: [{ key, name }], using:
-  // { name, why } | null }, from main.js): Automatic and one option for each. A saved choice that is not connected
-  // shows Automatic, which is what the HUD is doing, and the file keeps the choice for when it is.
+  // { name, why } | null }, from main.js): Automatic and one option for each. A saved choice that is not one of them
+  // stays the control's value, as an option of its own, "not connected" where the app has said which screens there are:
+  // the HUD is following iRacing meanwhile and the file keeps the choice for when the screen is back, and choosing
+  // Automatic is then a change like any other, which clears it.
   function screenField(field, saved, hudScreens) {
     const displays = hudScreens && Array.isArray(hudScreens.displays) ? hudScreens.displays : [];
     const options = [...field.options, ...displays.filter((d) => d && typeof d.key === 'string' && d.key !== field.def).map((d) => [d.key, String(d.name)])];
-    const connected = options.some(([key]) => key === saved);
+    const listed = options.some(([key]) => key === saved);
     // Said only when the app has said which screens there are: without its answer nothing is known to be missing.
-    const missing = !!hudScreens && Array.isArray(hudScreens.displays) && saved !== field.def && !connected;
+    const missing = !!hudScreens && Array.isArray(hudScreens.displays) && saved !== field.def && !listed;
+    if (saved !== field.def && !listed) options.push([saved, missing ? 'The screen you chose (not connected)' : 'The screen you chose']);
     const using = hudScreens && hudScreens.using;
     const notes = [];
     if (missing) notes.push('The screen you chose is not connected, so the HUD follows iRacing until it is.');
     if (using && using.name) notes.push(`Now on ${using.name}${using.why ? `: ${using.why}` : ''}.`);
-    return { ...field, options, value: connected ? saved : field.def, note: notes.join(' ') || null };
+    return { ...field, options, value: saved, note: notes.join(' ') || null };
   }
 
   // `extra.hudScreens` is what the app says of the screens; without it the HUD screen offers Automatic alone.
