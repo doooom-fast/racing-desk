@@ -1,0 +1,725 @@
+/**
+ * Which screen the HUD's window is on (modules/js/hud-display.js): the one he chose in Settings, else the one the
+ * sim's window is on, else the one iRacing's own ini says it runs at, else the largest — never just the primary.
+ *
+ * No Electron: the screens, the sim window's rectangle, the ini's text and the saved choice are handed in, and the
+ * window is a fake that records what it is asked. The one test that opens a socket listens on 127.0.0.1, on a port
+ * the system picks.
+ */
+
+import { test, expect } from '@playwright/test';
+import { createRequire } from 'module';
+import { EventEmitter } from 'node:events';
+import http from 'node:http';
+
+const require = createRequire(import.meta.url);
+const {
+  physicalSize, normaliseDisplays, displayName, listDisplays, matchSimWindow, parseSimWindow, fetchSimWindow,
+  parseSimIni, simSizeFromIni, simIniPath, readSimIni, chooseDisplay, boundsFor, createHudDisplay,
+} = require('../../modules/js/hud-display.js');
+
+// ── His rig, read on 2026-09-29 ──────────────────────────────────────────────────────────────────────────────
+// \\.\DISPLAY2 is the Windows primary: 1440 × 1080 physical at 175 %, so Electron sees 823 × 617 at (0, 0).
+// \\.\DISPLAY1 is the 3440 × 1440 ultrawide at 100 %, where iRacing runs; Windows lays it out at x = 1440 physical.
+const SMALL = { id: 2, bounds: { x: 0, y: 0, width: 823, height: 617 }, workArea: { x: 0, y: 0, width: 823, height: 577 }, scaleFactor: 1.75, primary: true };
+const ULTRAWIDE = { id: 1, bounds: { x: 823, y: 0, width: 3440, height: 1440 }, workArea: { x: 823, y: 0, width: 3440, height: 1400 }, scaleFactor: 1, primary: false };
+const RIG = [SMALL, ULTRAWIDE];
+
+// His rendererDX11Monitor.ini's [Display] section as iRacing writes it: values, then a tab and a comment.
+function iniOf({ fullScreen = 0, maximized = 1, width = 3440, height = 1440, fullWidth = 3440, fullHeight = 1440, eol = '\n', before = '', after = '' } = {}) {
+  return [
+    '[AutoCfg]', 'AutoCfgCompleted=1                              \t; 0=need to run 3D autocfg at startup',
+    before,
+    '[Display]',
+    'windowedYPos=0                                  \t; Window top left corner in windowed mode',
+    'windowedXPos=0                                  \t; Window top left corner in windowed mode',
+    `windowedWidth=${width}                              \t; windowed mode width`,
+    `windowedMaximized=${maximized}                             \t; Window is maximized in windowed mode`,
+    `windowedHeight=${height}                             \t; windowed mode height`,
+    'RefreshRate=240.000                             \t; Refresh Rate',
+    `fullScreenWidth=${fullWidth}                            \t; full screen Window's width`,
+    `fullScreenHeight=${fullHeight}                           \t; full screen Window's height`,
+    `fullScreen=${fullScreen}                            \t; fullscreen?`,
+    'deviceIdx=0                                     \t; which adapter',
+    after,
+    '[MonitorSetup]', 'NumMonitors=1                                   \t; 1 or 3',
+    '',
+  ].join(eol);
+}
+const HIS_INI = iniOf();
+
+// The sim's window as Electron gives it once converted to the screens' own units.
+const onTheUltrawide = { x: 823, y: 0, width: 3440, height: 1440 };
+const onTheSmall = { x: 0, y: 0, width: 823, height: 617 };
+
+const choose = (over) => chooseDisplay({ displays: RIG, ...over });
+
+test.describe('what a screen really is', () => {
+  test('its physical size is its bounds by its scale, rounded: 823 × 617 at 175 % is 1440 × 1080', () => {
+    expect(physicalSize(SMALL)).toEqual({ width: 1440, height: 1080 });
+    expect(physicalSize(ULTRAWIDE)).toEqual({ width: 3440, height: 1440 });
+    expect(physicalSize({ bounds: { width: 2048, height: 1152 }, scaleFactor: 1.25 })).toEqual({ width: 2560, height: 1440 });
+    expect(physicalSize({ bounds: { width: 2560, height: 1440 }, scaleFactor: 1.5 })).toEqual({ width: 3840, height: 2160 });
+    expect(physicalSize({ bounds: { width: 1920, height: 1080 } })).toEqual({ width: 1920, height: 1080 });
+  });
+
+  test('screens with no usable bounds are left out, and one is the primary whoever says so', () => {
+    const kept = normaliseDisplays([
+      null, {}, { id: 1 }, { id: 2, bounds: { x: 0, y: 0, width: 0, height: 10 } },
+      { id: 3, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+      { id: 4, bounds: { x: 1920, y: 0, width: 1920, height: 1080 } },
+    ]);
+    expect(kept.map((d) => d.key)).toEqual(['3', '4']);
+    expect(kept.map((d) => d.primary)).toEqual([true, false]);   // the one at the origin
+    expect(normaliseDisplays('nope')).toEqual([]);
+  });
+});
+
+test.describe("what iRacing is set to run at: the ini's [Display] section", () => {
+  test('his ini is maximized in a window at 3440 × 1440, not full screen', () => {
+    expect(parseSimIni(HIS_INI)).toEqual({
+      fullScreen: false, maximized: true, windowed: { width: 3440, height: 1440 }, full: { width: 3440, height: 1440 },
+    });
+    expect(simSizeFromIni(parseSimIni(HIS_INI))).toEqual({ width: 3440, height: 1440, how: 'maximized' });
+  });
+
+  test('full screen is the full-screen size; a window that is not maximized is the windowed size', () => {
+    const full = parseSimIni(iniOf({ fullScreen: 1, width: 1920, height: 1080, fullWidth: 2560, fullHeight: 1440 }));
+    expect(simSizeFromIni(full)).toEqual({ width: 2560, height: 1440, how: 'fullscreen' });
+    const windowed = parseSimIni(iniOf({ maximized: 0, width: 1920, height: 1080 }));
+    expect(simSizeFromIni(windowed)).toEqual({ width: 1920, height: 1080, how: 'windowed' });
+  });
+
+  test('the file as it is written: a byte order mark, Windows line ends, comments, other sections', () => {
+    expect(parseSimIni(`\uFEFF${iniOf({ eol: '\r\n' })}`)).toEqual(parseSimIni(HIS_INI));
+    // Keys of other sections are not the [Display] ones, and the section is found however it is written.
+    const other = iniOf({ before: '[Other]\nfullScreen=1\nwindowedWidth=1\nwindowedHeight=1' });
+    expect(simSizeFromIni(parseSimIni(other))).toEqual({ width: 3440, height: 1440, how: 'maximized' });
+    expect(parseSimIni(HIS_INI.replace('[Display]', '[ display ]'))).toEqual(parseSimIni(HIS_INI));
+    expect(parseSimIni(HIS_INI.replace(/windowedMaximized/, 'WINDOWEDMAXIMIZED'))).toEqual(parseSimIni(HIS_INI));
+  });
+
+  test('a missing, empty or garbled file says nothing', () => {
+    for (const text of [
+      null, undefined, '', 42, {}, '<html>not an ini</html>', '\0\0\0\u0001\u0002binary', '[Display]', '[Display]\nfullScreen=maybe',
+      // Sizes missing or not sizes.
+      HIS_INI.replace(/windowedWidth=\d+/, 'windowedWidth=wide'),
+      HIS_INI.replace(/windowedHeight=\d+/, 'windowedHeight=0'),
+      HIS_INI.replace(/fullScreen=0/, 'fullScreen=2'),
+      HIS_INI.replace(/fullScreen=0[^\n]*\n/, ''),
+      iniOf({ fullScreen: 1, fullWidth: 0, fullHeight: 0 }),
+      HIS_INI.replace('[Display]', '[Displays]'),
+    ]) {
+      expect(parseSimIni(text), JSON.stringify(text)).toBeNull();
+    }
+    expect(simSizeFromIni(null)).toBeNull();
+    expect(simSizeFromIni({})).toBeNull();
+  });
+
+  test('read from Documents\\iRacing, and null for a file that is not there, unreadable or absurdly large', () => {
+    const seen = [];
+    expect(readSimIni('C:\\Users\\Someone\\Documents', { stat: (f) => ({ size: 10 }), read: (f, enc) => { seen.push([f, enc]); return HIS_INI; } })).toBe(HIS_INI);
+    expect(seen).toEqual([[simIniPath('C:\\Users\\Someone\\Documents'), 'utf8']]);
+    expect(simIniPath('C:\\Users\\Someone\\Documents')).toMatch(/Documents[\\/]iRacing[\\/]rendererDX11Monitor\.ini$/);
+    expect(readSimIni('C:\\nowhere', { stat: () => { throw new Error('ENOENT'); }, read: () => HIS_INI })).toBeNull();
+    expect(readSimIni('C:\\x', { stat: () => ({ size: 10 }), read: () => { throw new Error('EBUSY'); } })).toBeNull();
+    expect(readSimIni('C:\\x', { stat: () => ({ size: 50 * 1024 * 1024 }), read: () => HIS_INI })).toBeNull();
+  });
+});
+
+test.describe('the sim window on a screen', () => {
+  test('the screen that has most of it', () => {
+    expect(matchSimWindow(onTheUltrawide, RIG).display.key).toBe('1');
+    expect(matchSimWindow(onTheSmall, RIG).display.key).toBe('2');
+    // A maximized window's frame runs a few pixels past the screen's edges on every side.
+    expect(matchSimWindow({ x: 815, y: -8, width: 3456, height: 1456 }, RIG).display.key).toBe('1');
+  });
+
+  test('straddling two screens, the one that holds more of it; equal shares go to the left one', () => {
+    const left = { id: 10, bounds: { x: 0, y: 0, width: 2560, height: 1440 }, scaleFactor: 1, primary: true };
+    const right = { id: 11, bounds: { x: 2560, y: 0, width: 2560, height: 1440 }, scaleFactor: 1, primary: false };
+    expect(matchSimWindow({ x: 1000, y: 0, width: 2560, height: 1440 }, [right, left]).display.key).toBe('10');   // 1560 on the left, 1000 on the right
+    expect(matchSimWindow({ x: 2000, y: 0, width: 2560, height: 1440 }, [left, right]).display.key).toBe('11');   // 560 on the left, 2000 on the right
+    expect(matchSimWindow({ x: 1280, y: 0, width: 2560, height: 1440 }, [right, left]).display.key).toBe('10');   // half and half
+  });
+
+  test('on no screen, or not a rectangle, it is nowhere', () => {
+    expect(matchSimWindow({ x: -32000, y: -32000, width: 160, height: 28 }, RIG)).toBeNull();
+    for (const rect of [null, undefined, {}, { x: 0, y: 0, width: 0, height: 100 }, { x: NaN, y: 0, width: 10, height: 10 }, 'window']) {
+      expect(matchSimWindow(rect, RIG)).toBeNull();
+    }
+  });
+
+  test("the host's answer is read as running, not running, or not an answer", () => {
+    const running = { process: 'iRacingSim64DX11', window: { x: 1440, y: 0, width: 3440, height: 1440 }, monitor: { x: 1440, y: 0, width: 3440, height: 1440 } };
+    expect(parseSimWindow(running)).toEqual({ state: 'running', window: running.window, monitor: running.monitor, process: 'iRacingSim64DX11' });
+    expect(parseSimWindow({ window: running.window, monitor: null })).toMatchObject({ state: 'running', monitor: null, process: null });
+    expect(parseSimWindow(null)).toEqual({ state: 'not-running' });
+    expect(parseSimWindow({ window: null })).toEqual({ state: 'not-running' });
+    for (const body of [undefined, 'null', 7, [], {}, { window: {} }, { window: { x: 0, y: 0, width: -1, height: 5 } }, { RacingDeskTelemetry: 1 }]) {
+      expect(parseSimWindow(body), JSON.stringify(body)).toEqual({ state: 'unknown' });
+    }
+  });
+});
+
+test.describe('the rule, with his screens', () => {
+  test('the sim not running: iRacing is set to run maximized at 3440 × 1440, and the ultrawide is that size', () => {
+    const decision = choose({ ini: parseSimIni(HIS_INI) });
+    expect(decision.key).toBe('1');
+    expect(decision.reason).toBe('ini');
+    expect(decision.why).toBe('iRacing is set to run maximized at 3440 × 1440');
+    expect(decision.choiceMissing).toBe(false);
+  });
+
+  test('nothing known at all: the largest screen, which is the ultrawide and not the primary', () => {
+    const decision = choose({});
+    expect(decision.key).toBe('1');
+    expect(decision.reason).toBe('largest');
+  });
+
+  test('the sim running on the ultrawide, and on the small one when that is where he has put it', () => {
+    expect(choose({ simWindow: onTheUltrawide, ini: parseSimIni(HIS_INI) })).toMatchObject({ key: '1', reason: 'sim', why: 'iRacing is running on it' });
+    // The window beats the ini: he has moved it since the ini was written.
+    expect(choose({ simWindow: onTheSmall, ini: parseSimIni(HIS_INI) })).toMatchObject({ key: '2', reason: 'sim' });
+  });
+
+  test('a screen he chose beats the sim and the ini, while it is connected', () => {
+    for (const choice of ['2', ' 2 ']) {
+      expect(choose({ choice, simWindow: onTheUltrawide, ini: parseSimIni(HIS_INI) })).toMatchObject({ key: '2', reason: 'chosen', why: 'you chose it in Settings', choiceMissing: false });
+    }
+    expect(choose({ choice: '1', simWindow: onTheSmall })).toMatchObject({ key: '1', reason: 'chosen' });
+  });
+
+  test("Automatic, however it is written, is the rule's own answer", () => {
+    for (const choice of [null, undefined, 'auto', '', '  ', 0, 2, {}]) {
+      expect(choose({ choice, simWindow: onTheUltrawide }), String(choice)).toMatchObject({ key: '1', reason: 'sim', choiceMissing: false });
+    }
+  });
+
+  test('a saved choice that is not connected is not used, is said to be missing, and is used again when the screen is back', () => {
+    const missing = choose({ choice: '99', simWindow: onTheUltrawide });
+    expect(missing).toMatchObject({ key: '1', reason: 'sim', choiceMissing: true });
+    const alone = choose({ choice: '99', ini: parseSimIni(HIS_INI) });
+    expect(alone).toMatchObject({ key: '1', reason: 'ini', choiceMissing: true });
+    // The same choice, the screen there: the choice is in force.
+    const back = chooseDisplay({ displays: [...RIG, { id: 99, bounds: { x: 4263, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 }], choice: '99', simWindow: onTheUltrawide });
+    expect(back).toMatchObject({ key: '99', reason: 'chosen', choiceMissing: false });
+  });
+
+  test("the ini's size is matched against the physical size, so 1440 × 1080 is the small screen at 175 %", () => {
+    expect(choose({ ini: parseSimIni(iniOf({ fullScreen: 1, fullWidth: 1440, fullHeight: 1080 })) })).toMatchObject({ key: '2', reason: 'ini', why: 'iRacing is set to run full screen at 1440 × 1080' });
+    expect(choose({ ini: parseSimIni(iniOf({ maximized: 0, width: 1440, height: 1080 })) })).toMatchObject({ key: '2', reason: 'ini', why: 'iRacing is set to run in a 1440 × 1080 window' });
+    // Not the DIP size the screen reports.
+    expect(choose({ ini: parseSimIni(iniOf({ fullScreen: 1, fullWidth: 823, fullHeight: 617 })) })).toMatchObject({ reason: 'largest' });
+  });
+
+  test('an ini that matches no screen, or is missing or garbled, falls to the largest', () => {
+    for (const text of [iniOf({ width: 1920, height: 1080 }), null, '', 'garbage', '[Display]\nfullScreen=1']) {
+      expect(choose({ ini: parseSimIni(text) }), String(text)).toMatchObject({ key: '1', reason: 'largest' });
+    }
+  });
+
+  test('the sim window on no screen (asked while it is minimized, or off the desktop) leaves it to the ini', () => {
+    expect(choose({ simWindow: { x: -32000, y: -32000, width: 160, height: 28 }, ini: parseSimIni(HIS_INI) })).toMatchObject({ key: '1', reason: 'ini' });
+  });
+});
+
+test.describe('the rule, with other rigs', () => {
+  const at = (id, x, width, height, extra = {}) => ({ id, bounds: { x, y: 0, width, height }, scaleFactor: 1, primary: false, ...extra });
+
+  test('one screen is the only one, and a choice that names another is missing, not obeyed', () => {
+    const only = [at(5, 0, 2560, 1440, { primary: true })];
+    expect(chooseDisplay({ displays: only })).toMatchObject({ key: '5', reason: 'only' });
+    expect(chooseDisplay({ displays: only, choice: '7', simWindow: { x: 0, y: 0, width: 2560, height: 1440 } })).toMatchObject({ key: '5', reason: 'only', choiceMissing: true });
+    expect(chooseDisplay({ displays: only, choice: '5' })).toMatchObject({ key: '5', reason: 'chosen' });
+  });
+
+  test('no screens is no answer, whatever else is known', () => {
+    expect(chooseDisplay({ displays: [], choice: '1', simWindow: onTheUltrawide, ini: parseSimIni(HIS_INI) })).toBeNull();
+    expect(chooseDisplay({ displays: undefined })).toBeNull();
+  });
+
+  test('three monitors alike: the sim decides, and with nothing known the primary one, in the middle', () => {
+    const three = [at(1, 0, 2560, 1440), at(2, 2560, 2560, 1440, { primary: true }), at(3, 5120, 2560, 1440)];
+    expect(chooseDisplay({ displays: three, simWindow: { x: 5120, y: 0, width: 2560, height: 1440 } })).toMatchObject({ key: '3', reason: 'sim' });
+    expect(chooseDisplay({ displays: three, simWindow: { x: 0, y: 0, width: 2560, height: 1440 } })).toMatchObject({ key: '1', reason: 'sim' });
+    expect(chooseDisplay({ displays: three })).toMatchObject({ key: '2', reason: 'primary' });
+    // All three are 2560 × 1440, and the ini says so: the primary of the three.
+    expect(chooseDisplay({ displays: three, ini: parseSimIni(iniOf({ fullScreen: 1, fullWidth: 2560, fullHeight: 1440 })) }))
+      .toMatchObject({ key: '2', reason: 'ini', why: 'iRacing is set to run full screen at 2560 × 1440, and 3 screens are that size' });
+  });
+
+  test('two screens alike and the primary not one of them: the first from the left', () => {
+    const rig = [at(1, 0, 1920, 1080, { primary: true }), at(3, 3840, 2560, 1440), at(2, 1920, 2560, 1440)];
+    expect(chooseDisplay({ displays: rig, ini: parseSimIni(iniOf({ fullScreen: 1, fullWidth: 2560, fullHeight: 1440 })) })).toMatchObject({ key: '2', reason: 'ini' });
+    expect(chooseDisplay({ displays: rig })).toMatchObject({ key: '2', reason: 'largest' });
+  });
+
+  test('mixed scaling: the largest is by physical size, and the ini is matched by it', () => {
+    const mixed = [
+      at(1, 0, 2560, 1440),                                          // 2560 × 1440 at 100 %
+      at(2, 2560, 2560, 1440, { scaleFactor: 1.5, primary: true }),  // 3840 × 2160 at 150 %
+      at(3, 5120, 1920, 1080),                                       // 1920 × 1080 at 100 %
+    ];
+    expect(chooseDisplay({ displays: mixed })).toMatchObject({ key: '2', reason: 'largest' });
+    expect(chooseDisplay({ displays: mixed, ini: parseSimIni(iniOf({ fullScreen: 1, fullWidth: 1920, fullHeight: 1080 })) })).toMatchObject({ key: '3', reason: 'ini' });
+    expect(chooseDisplay({ displays: mixed, ini: parseSimIni(iniOf({ fullScreen: 1, fullWidth: 3840, fullHeight: 2160 })) })).toMatchObject({ key: '2', reason: 'ini' });
+  });
+
+  test('a sim window straddling two of three screens is on the one with more of it', () => {
+    const three = [at(1, 0, 2560, 1440), at(2, 2560, 2560, 1440, { primary: true }), at(3, 5120, 2560, 1440)];
+    expect(chooseDisplay({ displays: three, simWindow: { x: 1500, y: 0, width: 2560, height: 1440 } })).toMatchObject({ key: '2', reason: 'sim' });   // 1060 left, 1500 middle
+    expect(chooseDisplay({ displays: three, simWindow: { x: 4000, y: 0, width: 2560, height: 1440 } })).toMatchObject({ key: '3', reason: 'sim' });   // 1120 middle, 1440 right
+  });
+});
+
+test.describe('the screens by a plain name', () => {
+  const at = (id, x, y, width, height, extra = {}) => ({ id, bounds: { x, y, width, height }, scaleFactor: 1, primary: false, ...extra });
+
+  test('his two: the size it really is, where it sits and whether it is the main one', () => {
+    expect(displayName(SMALL, RIG)).toBe('1440 × 1080 (left, primary)');
+    expect(displayName(ULTRAWIDE, RIG)).toBe('3440 × 1440 (right)');
+    expect(listDisplays(RIG)).toEqual([
+      { key: '2', name: '1440 × 1080 (left, primary)', primary: true },
+      { key: '1', name: '3440 × 1440 (right)', primary: false },
+    ]);
+  });
+
+  test('one screen has no left or right', () => {
+    expect(displayName(at(1, 0, 0, 2560, 1440, { primary: true }), [at(1, 0, 0, 2560, 1440, { primary: true })])).toBe('2560 × 1440 (primary)');
+    expect(displayName(at(1, 0, 0, 2560, 1440), [at(1, 0, 0, 2560, 1440)])).toBe('2560 × 1440 (primary)');   // the only one is the main one
+  });
+
+  test('three side by side are left, middle and right, and screens of one size are told apart by it', () => {
+    const three = [at(2, 2560, 0, 2560, 1440, { primary: true }), at(1, 0, 0, 2560, 1440), at(3, 5120, 0, 2560, 1440)];
+    expect(listDisplays(three).map((d) => d.name)).toEqual(['2560 × 1440 (left)', '2560 × 1440 (middle, primary)', '2560 × 1440 (right)']);
+  });
+
+  test('stacked screens are top and bottom, and more than three are counted from the left', () => {
+    const stacked = [at(1, 0, 0, 1920, 1080, { primary: true }), at(2, 0, 1080, 1920, 1080)];
+    expect(listDisplays(stacked).map((d) => d.name)).toEqual(['1920 × 1080 (top, primary)', '1920 × 1080 (bottom)']);
+    const four = [0, 1, 2, 3].map((i) => at(i + 1, i * 1920, 0, 1920, 1080, { primary: i === 0 }));
+    expect(listDisplays(four).map((d) => d.name)).toEqual([
+      '1920 × 1080 (left, primary)', '1920 × 1080 (2nd from the left)', '1920 × 1080 (3rd from the left)', '1920 × 1080 (right)',
+    ]);
+  });
+
+  test('the keys are the ones the settings hold, as text', () => {
+    expect(listDisplays([{ ...SMALL, id: 2528732444 }, ULTRAWIDE]).map((d) => d.key)).toEqual(['2528732444', '1']);
+  });
+});
+
+test.describe('where the window goes', () => {
+  test('all of the screen on Windows, its work area on a Mac, which leaves the dock and the menu bar alone', () => {
+    const [ultrawide] = normaliseDisplays([ULTRAWIDE]);
+    expect(boundsFor(ultrawide, 'win32')).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+    expect(boundsFor(ultrawide, 'linux')).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+    expect(boundsFor(ultrawide, 'darwin')).toEqual({ x: 823, y: 0, width: 3440, height: 1400 });
+  });
+});
+
+// ── Asking the host ─────────────────────────────────────────────────────────────────────────────────────────
+
+test.describe('fetchSimWindow', () => {
+  // http.get, answering as the test says: { status, body } | { error } | { silent: true }.
+  function fakeGet(answer) {
+    const seen = { urls: [], destroyed: 0 };
+    const get = (url, _options, onResponse) => {
+      seen.urls.push(url);
+      const req = new EventEmitter();
+      req.destroy = () => { seen.destroyed++; };
+      setImmediate(() => {
+        if (answer.silent) return;
+        if (answer.error) { req.emit('error', new Error(answer.error)); return; }
+        const res = new EventEmitter();
+        res.statusCode = answer.status;
+        res.resume = () => {};
+        onResponse(res);
+        for (const chunk of answer.chunks || [answer.body]) res.emit('data', Buffer.from(chunk));
+        res.emit('end');
+      });
+      return req;
+    };
+    return { get, seen };
+  }
+
+  const URL_ = 'http://localhost:18889/racing-desk/data/simwindow';
+  const RUNNING = { process: 'iRacingSim64DX11', window: { x: 1440, y: 0, width: 3440, height: 1440 }, monitor: { x: 1440, y: 0, width: 3440, height: 1440 } };
+
+  test('running, from an answer in one piece or several', async () => {
+    const body = JSON.stringify(RUNNING);
+    const whole = fakeGet({ status: 200, body });
+    expect(await fetchSimWindow(URL_, { get: whole.get })).toMatchObject({ state: 'running', window: RUNNING.window });
+    expect(whole.seen.urls).toEqual([URL_]);
+    expect(await fetchSimWindow(URL_, { get: fakeGet({ status: 200, chunks: [body.slice(0, 20), body.slice(20)] }).get })).toMatchObject({ state: 'running' });
+  });
+
+  test('null is the sim not running; anything that is not an answer is unknown', async () => {
+    expect(await fetchSimWindow(URL_, { get: fakeGet({ status: 200, body: 'null' }).get })).toEqual({ state: 'not-running' });
+    for (const answer of [
+      { status: 404, body: 'Not found' },
+      { status: 500, body: JSON.stringify(RUNNING) },
+      { status: 200, body: '<html>' },
+      { status: 200, body: '' },
+      { status: 200, body: '[1,2]' },
+      { status: 200, body: '{"DataCorePlugin.GameRunning":1}' },   // the telemetry, from something else on that port
+      { error: 'ECONNREFUSED' },
+    ]) {
+      expect(await fetchSimWindow(URL_, { get: fakeGet(answer).get }), JSON.stringify(answer)).toEqual({ state: 'unknown' });
+    }
+  });
+
+  test('unknown when no answer comes in time, and the request is dropped', async () => {
+    const { get, seen } = fakeGet({ silent: true });
+    const started = Date.now();
+    expect(await fetchSimWindow(URL_, { get, timeoutMs: 50 })).toEqual({ state: 'unknown' });
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(seen.destroyed).toBe(1);
+  });
+
+  test('an answer that goes on for ever is dropped, not read', async () => {
+    const big = fakeGet({ status: 200, chunks: ['{"x":"', 'a'.repeat(70 * 1024), '"}'] });
+    expect(await fetchSimWindow(URL_, { get: big.get })).toEqual({ state: 'unknown' });
+    expect(big.seen.destroyed).toBe(1);
+  });
+
+  test('unknown when the request cannot even be made', async () => {
+    expect(await fetchSimWindow('nowhere', { get: () => { throw new Error('Invalid URL'); } })).toEqual({ state: 'unknown' });
+  });
+
+  test('over a real socket on 127.0.0.1: an answer, one that never comes, and nothing listening', async () => {
+    const seen = [];
+    const server = http.createServer((req, res) => {
+      seen.push(req.url);
+      if (req.url.endsWith('/hang')) return;   // never answered
+      res.setHeader('content-type', 'application/json');
+      res.end(req.url.endsWith('/closed') ? 'null' : JSON.stringify(RUNNING));
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+      expect(await fetchSimWindow(`${base}/racing-desk/data/simwindow`)).toMatchObject({ state: 'running', process: 'iRacingSim64DX11' });
+      expect(await fetchSimWindow(`${base}/closed`)).toEqual({ state: 'not-running' });
+      const started = Date.now();
+      expect(await fetchSimWindow(`${base}/hang`, { timeoutMs: 100 })).toEqual({ state: 'unknown' });
+      expect(Date.now() - started).toBeLessThan(2000);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+    // The port it was on is not listening any more.
+    expect(await fetchSimWindow(`${base}/racing-desk/data/simwindow`, { timeoutMs: 500 })).toEqual({ state: 'unknown' });
+    expect(seen[0]).toBe('/racing-desk/data/simwindow');
+  });
+});
+
+// ── The keeper ──────────────────────────────────────────────────────────────────────────────────────────────
+
+// A window that says where it is and does what it is told — and would show, hide or take the focus if it were
+// asked to, which the test then sees. `drift` is how many of the next setBounds calls come out as they do on a
+// screen of another scale: at the size the window had before.
+function fakeWindow(start = { x: 0, y: 0, width: 823, height: 617 }) {
+  const win = {
+    bounds: { ...start },
+    calls: [],
+    drift: 0,
+    destroyed: false,
+    isDestroyed: () => win.destroyed,
+    getBounds: () => ({ ...win.bounds }),
+    setBounds: (b) => {
+      win.calls.push(['setBounds', { ...b }]);
+      if (win.drift > 0) {
+        win.drift--;
+        win.bounds = { x: b.x, y: b.y, width: win.bounds.width, height: win.bounds.height };
+      } else {
+        win.bounds = { ...b };
+      }
+    },
+  };
+  for (const name of ['show', 'showInactive', 'hide', 'focus', 'blur', 'minimize', 'restore', 'maximize', 'moveTop']) {
+    win[name] = () => { win.calls.push([name]); };
+  }
+  return win;
+}
+
+const RUNNING_ON_ULTRAWIDE = { state: 'running', window: { x: 1440, y: 0, width: 3440, height: 1440 }, monitor: { x: 1440, y: 0, width: 3440, height: 1440 } };
+const RUNNING_ON_SMALL = { state: 'running', window: { x: 0, y: 0, width: 1440, height: 1080 }, monitor: { x: 0, y: 0, width: 1440, height: 1080 } };
+// Physical pixels to the screens' own units, for his layout: the ultrawide begins at 1440 physical, 823 in DIPs.
+const toDip = (r) => (r.x >= 1440 ? { x: 823 + (r.x - 1440), y: r.y, width: r.width, height: r.height } : { x: r.x / 1.75, y: r.y / 1.75, width: r.width / 1.75, height: r.height / 1.75 });
+
+function keeper(over = {}) {
+  const win = over.window === undefined ? fakeWindow() : over.window;
+  const said = [];
+  const asked = { host: 0, ini: 0 };
+  const state = { displays: [SMALL, ULTRAWIDE], choice: undefined, ini: HIS_INI, sim: { state: 'not-running' } };
+  const hud = createHudDisplay({
+    getWindow: () => win,
+    getDisplays: () => state.displays,
+    getChoice: () => state.choice,
+    readIni: () => { asked.ini++; return state.ini; },
+    askSimWindow: async () => { asked.host++; return typeof state.sim === 'function' ? state.sim() : state.sim; },
+    toDipRect: toDip,
+    platform: 'win32',
+    askWithinMs: 40,
+    log: (line) => said.push(line),
+    ...over.options,
+  });
+  return { hud, win, said, asked, state };
+}
+
+const moves = (win) => win.calls.filter(([name]) => name === 'setBounds').map(([, b]) => b);
+const noShowing = (win) => expect(win.calls.filter(([name]) => name !== 'setBounds')).toEqual([]);
+
+test.describe('the keeper', () => {
+  test('makes the window on the screen the ini says, without asking the host: the sim is probably not running', () => {
+    const { hud, asked, said } = keeper();
+    expect(hud.initialBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+    expect(asked.host).toBe(0);
+    expect(said).toEqual([
+      '[RacingDesk] Screens: 1440 × 1080 at 175% (0, 0), primary; 3440 × 1440 at 100% (823, 0)',
+      '[RacingDesk] HUD screen: 3440 × 1440 (right) — iRacing is set to run maximized at 3440 × 1440',
+    ]);
+  });
+
+  test('a window made on the primary screen by the system is moved to the chosen one, and looked at again if it did not take', () => {
+    const { hud, win } = keeper();
+    win.drift = 1;   // the first try comes out at the small size
+    expect(hud.place()).toBe(true);
+    expect(moves(win)).toEqual([{ x: 823, y: 0, width: 3440, height: 1440 }, { x: 823, y: 0, width: 3440, height: 1440 }]);
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+    noShowing(win);
+  });
+
+  test('the host says the sim is on the small screen: the window goes there, and it is said once', async () => {
+    const { hud, win, said, state } = keeper();
+    hud.place();
+    win.calls.length = 0;
+    state.sim = RUNNING_ON_SMALL;
+    const decision = await hud.refresh();
+    expect(decision).toMatchObject({ key: '2', reason: 'sim' });
+    expect(moves(win)).toEqual([{ x: 0, y: 0, width: 823, height: 617 }]);
+    // Asked again, nothing changed: nothing moved, nothing said.
+    const said1 = said.length;
+    await hud.refresh();
+    await hud.refresh();
+    expect(moves(win)).toHaveLength(1);
+    expect(said).toHaveLength(said1);
+    expect(said.filter((line) => line.includes('HUD screen:')).at(-1)).toBe('[RacingDesk] HUD screen: 1440 × 1080 (left, primary) — iRacing is running on it');
+    noShowing(win);
+  });
+
+  test("the sim's window in physical pixels is taken to the screens' units, so the ultrawide at x = 1440 is the one at 823", async () => {
+    const { hud, win, state } = keeper({ window: fakeWindow({ x: 0, y: 0, width: 823, height: 617 }) });
+    state.ini = null;
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'sim' });
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+  });
+
+  test('the host is not there: the ini decides, and it is said that the host did not say', async () => {
+    const { hud, said, state } = keeper();
+    state.sim = { state: 'unknown' };
+    expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'ini' });
+    expect(said.at(-1)).toContain('(the host did not say where iRacing is)');
+  });
+
+  test('a host that never answers is not waited for beyond the limit, and the ini decides', async () => {
+    const { hud, win, state } = keeper();
+    state.sim = () => new Promise(() => {});
+    const started = Date.now();
+    expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'ini' });
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+  });
+
+  test('a host that fails is a host that did not say', async () => {
+    for (const sim of [() => { throw new Error('ECONNREFUSED'); }, () => Promise.reject(new Error('boom')), () => undefined, () => 'x', () => ({})]) {
+      const { hud, state } = keeper();
+      state.sim = sim;
+      expect(await hud.refresh(), String(sim)).toMatchObject({ key: '1', reason: 'ini' });
+    }
+  });
+
+  test('an ini that is missing or garbled leaves the largest screen, host or not', async () => {
+    for (const ini of [null, '', '\0\0garbage', '[Display]']) {
+      const { hud, state } = keeper();
+      state.ini = ini;
+      state.sim = { state: 'unknown' };
+      expect(await hud.refresh(), String(ini)).toMatchObject({ key: '1', reason: 'largest' });
+    }
+    const { hud, state } = keeper({ options: { readIni: () => { throw new Error('EACCES'); } } });
+    state.sim = { state: 'unknown' };
+    expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'largest' });
+  });
+
+  test('a choice made in Settings applies at once, and only when it has changed', async () => {
+    const { hud, win, asked, state, said } = keeper();
+    hud.place();
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.refresh();
+    const hostAsks = asked.host;
+    // Nothing changed: not asked.
+    await hud.settingsChanged();
+    expect(asked.host).toBe(hostAsks);
+    state.choice = '2';
+    expect(await hud.settingsChanged()).toMatchObject({ key: '2', reason: 'chosen' });
+    expect(win.getBounds()).toEqual({ x: 0, y: 0, width: 823, height: 617 });
+    expect(said.at(-1)).toBe('[RacingDesk] HUD screen: 1440 × 1080 (left, primary) — you chose it in Settings');
+    // The same choice again: not asked, not moved.
+    const moved = moves(win).length;
+    await hud.settingsChanged();
+    expect(moves(win)).toHaveLength(moved);
+    // Back to Automatic.
+    state.choice = 'auto';
+    expect(await hud.settingsChanged()).toMatchObject({ key: '1', reason: 'sim' });
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+    noShowing(win);
+  });
+
+  test('a screen that goes: the HUD follows the sim, says the choice is not connected, and goes back when the screen does', async () => {
+    const { hud, win, state, said } = keeper();
+    const extra = { id: 9, bounds: { x: 4263, y: 0, width: 1920, height: 1080 }, workArea: { x: 4263, y: 0, width: 1920, height: 1040 }, scaleFactor: 1, primary: false };
+    state.displays = [SMALL, ULTRAWIDE, extra];
+    state.choice = '9';
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    expect(await hud.refresh()).toMatchObject({ key: '9', reason: 'chosen' });
+    expect(win.getBounds()).toEqual({ x: 4263, y: 0, width: 1920, height: 1080 });
+
+    state.displays = [SMALL, ULTRAWIDE];   // unplugged
+    expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'sim', choiceMissing: true });
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+    expect(said.at(-1)).toContain('the screen chosen in Settings is not connected, so it is Automatic for now');
+    expect(hud.describe().choiceMissing).toBe(true);
+
+    state.displays = [SMALL, ULTRAWIDE, extra];   // plugged in again: the choice was never lost
+    expect(await hud.refresh()).toMatchObject({ key: '9', reason: 'chosen', choiceMissing: false });
+    expect(win.getBounds()).toEqual({ x: 4263, y: 0, width: 1920, height: 1080 });
+  });
+
+  test('the primary going away and the screens changing scale move the window to where the rule now says', async () => {
+    const { hud, win, state } = keeper();
+    state.sim = { state: 'not-running' };
+    await hud.refresh();
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+    // The ultrawide is now the only screen, at the origin.
+    state.displays = [{ ...ULTRAWIDE, bounds: { x: 0, y: 0, width: 3440, height: 1440 }, primary: true }];
+    expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'only' });
+    expect(win.getBounds()).toEqual({ x: 0, y: 0, width: 3440, height: 1440 });
+  });
+
+  test('Ctrl+Shift+R puts it back on the chosen screen, not the primary one', async () => {
+    const { hud, win, state } = keeper();
+    hud.place();
+    win.bounds = { x: 100, y: 100, width: 500, height: 300 };   // moved or resized by something
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.reset();
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+    win.bounds = { x: 0, y: 0, width: 823, height: 617 };
+    state.choice = '2';
+    await hud.reset();
+    expect(win.getBounds()).toEqual({ x: 0, y: 0, width: 823, height: 617 });
+    noShowing(win);
+  });
+
+  test('a window that will not take its bounds is tried three times, and said', async () => {
+    const { hud, win, said } = keeper();
+    win.drift = 99;
+    await hud.refresh();
+    expect(moves(win)).toHaveLength(3);
+    expect(said.at(-1)).toMatch(/HUD screen: the window is at 823x617 \(823, 0\), not 3440x1440 \(823, 0\), after 3 tries/);
+    win.drift = 0;
+    await hud.refresh();
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+  });
+
+  test('a window a pixel or two off is where it should be: nothing is set at every poll', async () => {
+    const { hud, win } = keeper({ window: fakeWindow({ x: 822, y: 1, width: 3441, height: 1439 }) });
+    await hud.refresh();
+    expect(moves(win)).toEqual([]);
+  });
+
+  test('rounds asked for while one is under way are run once more, with what is known then', async () => {
+    const { hud, win, state, asked } = keeper();
+    let release;
+    state.sim = () => new Promise((resolve) => { release = () => resolve(RUNNING_ON_SMALL); });
+    const first = hud.refresh();
+    const second = hud.refresh();
+    const third = hud.refresh();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(asked.host).toBe(1);
+    // The sim's window is now on the ultrawide, for the round that follows.
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    release();
+    const [a, b, c] = await Promise.all([first, second, third]);
+    expect(asked.host).toBe(2);
+    expect([a.key, b.key, c.key]).toEqual(['1', '1', '1']);
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+  });
+
+  test('the screens that cannot be read leave the window alone, and nothing rejects', async () => {
+    const { hud, win, said } = keeper({ options: { getDisplays: () => { throw new Error('no screens'); } } });
+    expect(hud.initialBounds()).toBeNull();
+    expect(hud.place()).toBe(false);
+    expect(await hud.refresh()).toBeNull();
+    expect(hud.describe()).toEqual({ displays: [], using: null, choiceMissing: false });
+    expect(moves(win)).toEqual([]);
+    expect(said.some((line) => line.includes('the screens could not be read (no screens)'))).toBe(true);
+  });
+
+  test('a window that has gone is left alone', async () => {
+    const { hud, win, state } = keeper();
+    win.destroyed = true;
+    state.sim = RUNNING_ON_SMALL;
+    expect(await hud.refresh()).toMatchObject({ key: '2' });
+    expect(win.calls).toEqual([]);
+    expect(hud.place()).toBe(false);
+  });
+
+  test("in dev mode the window is dev-mode.js's: nothing moves it, and the host is not asked", async () => {
+    const { hud, win, asked, state } = keeper({ options: { keepAsIs: true } });
+    state.sim = RUNNING_ON_SMALL;
+    expect(hud.place()).toBe(false);
+    expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'ini' });
+    expect(win.calls).toEqual([]);
+    expect(asked.host).toBe(0);
+  });
+
+  test('on a Mac there is no sim window to ask for, and the work area is used', async () => {
+    const { hud, win, asked } = keeper({ options: { platform: 'darwin' } });
+    expect(hud.initialBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1400 });
+    expect(await hud.refresh()).toMatchObject({ key: '1' });
+    expect(asked.host).toBe(0);
+    expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1400 });
+  });
+
+  test('says which screens there are once, and again when they change', async () => {
+    const { hud, said, state } = keeper();
+    await hud.refresh();
+    await hud.refresh();
+    expect(said.filter((line) => line.includes('Screens:'))).toHaveLength(1);
+    state.displays = [SMALL];
+    await hud.refresh();
+    expect(said.filter((line) => line.includes('Screens:'))).toHaveLength(2);
+    expect(said.at(-1)).toContain('it is the only screen');
+  });
+
+  test("tells the desk the screens by name and where the HUD is and why, and never shows or hides anything", async () => {
+    const { hud, win, state } = keeper();
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.refresh();
+    expect(hud.describe()).toEqual({
+      displays: [
+        { key: '2', name: '1440 × 1080 (left, primary)', primary: true },
+        { key: '1', name: '3440 × 1440 (right)', primary: false },
+      ],
+      using: { key: '1', name: '3440 × 1440 (right)', reason: 'sim', why: 'iRacing is running on it' },
+      choiceMissing: false,
+    });
+    noShowing(win);
+  });
+
+  test('without anything decided yet, describe works it out from what is known', () => {
+    const { hud } = keeper();
+    expect(hud.describe().using).toMatchObject({ key: '1', reason: 'ini' });
+  });
+});

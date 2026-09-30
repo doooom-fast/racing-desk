@@ -154,6 +154,109 @@ test.describe('the page', () => {
   });
 });
 
+test.describe('the screen', () => {
+  // The HUD was put on the primary screen, whichever screen the sim was on. hud-display.js chooses (its own spec holds the
+  // rule); what is held here is that main.js leaves the placing to it: no window of the HUD is moved from anywhere else.
+  test('the HUD is placed by hud-display and by nothing in main.js: no setBounds, no other way to move a window', () => {
+    expect(code).not.toMatch(/\.\s*(setBounds|setPosition|setSize|setContentBounds|center)\s*\(/);
+    expect(code).not.toMatch(/\bmaximize\s*\(|\bsetFullScreen\s*\(/);
+  });
+
+  test("no primary screen is looked at but to say which screen is the primary one: its id, and nothing of its bounds", () => {
+    const uses = calls(/getPrimaryDisplay\s*\(\s*\)[^\n;]*/g);
+    expect(uses).toHaveLength(1);
+    expect(uses[0]).toMatch(/^getPrimaryDisplay\(\)\.id\b/);
+    expect(code).not.toMatch(/\.getPrimaryDisplay\(\)\s*\.\s*(bounds|workArea|size|workAreaSize)/);
+    // Where it is: in the function that lists the screens for hud-display, and that gives it no bounds of the primary's own.
+    const listing = code.match(/function connectedDisplays\(\)\s*\{([\s\S]*?)\n\}/);
+    expect(listing).not.toBeNull();
+    expect(listing[1]).toMatch(/getPrimaryDisplay\(\)\.id/);
+    expect(listing[1]).toMatch(/primary:\s*d\.id\s*===\s*primaryId/);
+  });
+
+  test('the window is made where hud-display says, hidden all the same', () => {
+    expect(code).toMatch(/const startAt = hudScreen\.initialBounds\(\) \|\| \{\};/);
+    const options = argumentsOf('overlayWindow = new BrowserWindow(');
+    expect(options).toMatch(/\bx:\s*startAt\.x\b/);
+    expect(options).toMatch(/\by:\s*startAt\.y\b/);
+    expect(options).toMatch(/\bwidth:\s*startAt\.width\b/);
+    expect(options).toMatch(/\bheight:\s*startAt\.height\b/);
+    expect(options).not.toMatch(/primary|screen\./i);
+    // Made on the wrong scale it can come out at the wrong size, so it is looked at once it is there.
+    expect(code).toMatch(/overlayWindow\.setAlwaysOnTop\(true, 'screen-saver'\);\s*(?:\/\/[^\n]*\n\s*)?hudScreen\.place\(\);/);
+  });
+
+  test('hud-display is given the window by a function, and the screens, the ini and the host by the ones the app has', () => {
+    const made = argumentsOf('hudDisplay.createHudDisplay(');
+    expect(made).toMatch(/\bgetWindow:\s*\(\)\s*=>\s*overlayWindow\s*,/);
+    expect(made).toMatch(/\bgetDisplays:\s*connectedDisplays\s*,/);
+    expect(made).toMatch(/\bgetChoice:\s*\(\)\s*=>\s*loadSettingsSync\(\)\.hudDisplay\s*,/);
+    expect(made).toMatch(/\breadIni:\s*\(\)\s*=>\s*hudDisplay\.readSimIni\(app\.getPath\('documents'\)\)\s*,/);
+    // The sim's window is asked of the app's own host, on the address the desk uses for it, and never waited for long.
+    expect(made).toMatch(/\baskSimWindow:\s*\(\)\s*=>\s*hudDisplay\.fetchSimWindow\(`\$\{localHostUrl\(\)\}\$\{hudDisplay\.SIM_WINDOW_PATH\}`\)\s*,/);
+    expect(made).toMatch(/\btoDipRect:\s*\(rect\)\s*=>\s*screen\.screenToDipRect\(null,\s*rect\)\s*,/);
+    // Dev mode's window is dev-mode.js's.
+    expect(made).toMatch(/\bkeepAsIs:\s*isDev\s*,/);
+    expect(hudDisplay_calls()).toEqual(['hudDisplay.createHudDisplay(', 'hudDisplay.readSimIni(', 'hudDisplay.fetchSimWindow(']);
+  });
+
+  test('he gets in: hud-visibility has the window put right before it is revealed', () => {
+    expect(argumentsOf('hudVisibility.createHudVisibility(')).toMatch(/\bbeforeReveal:\s*\(\)\s*=>\s*hudScreen\.refresh\(\)\s*,/);
+    // Asked here, when a screen is added or removed (one helper), and when one changes: nowhere else.
+    expect(calls(/hudScreen\.refresh\(\)/g)).toHaveLength(3);
+  });
+
+  test('a screen added, removed or changed — any screen — is asked about again', () => {
+    for (const event of ['display-added', 'display-removed', 'display-metrics-changed']) {
+      expect(code, event).toMatch(new RegExp(String.raw`screen\.on\('${event}',`));
+    }
+    const changed = code.match(/screen\.on\('display-metrics-changed',\s*\(\)\s*=>\s*\{([\s\S]*?)\n  \}\);/);
+    expect(changed).not.toBeNull();
+    expect(changed[1]).toMatch(/hudScreen\.refresh\(\);/);
+    // Not only the primary's: the handler no longer looks at which screen it was.
+    expect(changed[1]).not.toMatch(/primary|display\.id|changedMetrics/);
+    const helper = code.match(/const screensChanged = \(why\) => \(\) => \{([\s\S]*?)\n  \};/);
+    expect(helper).not.toBeNull();
+    expect(helper[1]).toMatch(/hudScreen\.refresh\(\);/);
+    expect(code).toMatch(/screen\.on\('display-added',\s*screensChanged\(/);
+    expect(code).toMatch(/screen\.on\('display-removed',\s*screensChanged\(/);
+  });
+
+  test('Ctrl+Shift+R and the Stream Deck put it back where the rule says, through one action', () => {
+    expect(code).toMatch(/'CommandOrControl\+Shift\+R':\s*\(\)\s*=>\s*\{\s*dispatchAction\('reset-window'\);\s*\},/);
+    const reset = code.match(/'reset-window':\s*\(\)\s*=>\s*\{([\s\S]*?)\n  \},/);
+    expect(reset).not.toBeNull();
+    expect(reset[1]).toMatch(/hudScreen\.reset\(\);/);
+    expect(reset[1]).toMatch(/return \{ ok: true \};/);
+    expect(calls(/dispatchAction\(\s*'reset-window'\s*\)/g)).toHaveLength(1);
+  });
+
+  test("a screen chosen in Settings applies when the settings are saved, and the desk is told the screens", () => {
+    const save = code.match(/ipcMain\.handle\('save-settings'[\s\S]*?\n\}\);/);
+    expect(save).not.toBeNull();
+    expect(save[0]).toMatch(/await hudScreen\.settingsChanged\(\);\s*return true;/);
+    expect(code).toMatch(/ipcMain\.handle\('get-hud-displays',\s*async\s*\(\)\s*=>\s*hudScreen\.describe\(\)\);/);
+    const watcher = code.match(/function startSettingsWatcher\(\)\s*\{([\s\S]*?)\n\}/);
+    expect(watcher).not.toBeNull();
+    expect(watcher[1]).toMatch(/hudScreen\.settingsChanged\(\);/);
+  });
+
+  test("hud-display.js moves the window and never shows, hides or focuses it: that is hud-visibility's alone", () => {
+    const module = readFileSync(new URL('../../modules/js/hud-display.js', import.meta.url), 'utf8')
+      .replace(/\r\n/g, '\n')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|\s)\/\/.*$/gm, '$1');
+    expect(module).toMatch(/\bwin\.setBounds\(/);
+    expect(module).not.toMatch(/\.\s*(show|showInactive|hide|focus|blur|restore|minimize|maximize|moveTop|setAlwaysOnTop|setVisibleOnAllWorkspaces)\s*\(/);
+    expect(module).not.toMatch(/getPrimaryDisplay|require\(['"]electron['"]\)/);
+  });
+});
+
+// The calls main.js makes on the hud-display module, in the order they are first made.
+function hudDisplay_calls() {
+  return [...new Set([...code.matchAll(/hudDisplay\.\w+\(/g)].map((m) => m[0]))];
+}
+
 test.describe('the log', () => {
   test('is app-log.js\'s, which knows the built app from the source', () => {
     expect(argumentsOf('appLog.createLog(')).toMatch(/appLog\.logPath\(\{\s*isPackaged:\s*app\.isPackaged,\s*appDir:\s*__dirname\s*\}\)/);

@@ -54,7 +54,7 @@ function fakeWindow() {
 // The app as it is a moment after starting: the window made, hidden, its page loaded, the sim closed.
 // `loads` counts the times the page was loaded again; `booked` are the timers set, run when the test says
 // (the polls here are the test's own, so the only timers are the ones a load is booked with).
-function rig({ keepVisible = false, loaded = true, window: given } = {}) {
+function rig({ keepVisible = false, loaded = true, window: given, beforeReveal } = {}) {
   const clock = { at: 10000 };
   const feed = { payload: SIM_CLOSED, asked: 0 };
   const win = given === undefined ? fakeWindow() : given;
@@ -67,6 +67,7 @@ function rig({ keepVisible = false, loaded = true, window: given } = {}) {
     fetchPayload: async () => { feed.asked++; return feed.payload; },
     loadPage: () => { page.loads++; },
     keepVisible,
+    beforeReveal,
     onSwitch: (off) => switched.push(off),
     now: () => clock.at,
     setTimer: (fn, ms) => { const t = { fn, ms, cleared: false, ran: false }; booked.push(t); return t; },
@@ -656,6 +657,131 @@ test.describe('a page that has died is loaded again', () => {
     await getInAndOut();
     expect(tries).toBe(2);
     expect(said.filter((line) => /could not be loaded/.test(line))).toHaveLength(2);
+  });
+});
+
+test.describe('a hook before the window is revealed: it is put on the sim\'s screen first', () => {
+  // A promise the test settles, and the moment it is asked.
+  function deferred() {
+    const d = { asked: 0 };
+    d.promise = new Promise((resolve, reject) => { d.resolve = resolve; d.reject = reject; });
+    return d;
+  }
+  const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+  test('asked when he gets in, with the window still hidden, and the window is revealed after it and not before', async () => {
+    const seen = [];
+    let win;
+    const hook = async () => { seen.push(win.isVisible()); win.calls.push('moved'); };
+    const r = rig({ beforeReveal: hook });
+    win = r.win;
+    await r.getIn();
+    expect(seen).toEqual([false]);
+    expect(win.isVisible()).toBe(true);
+    expect(win.calls.indexOf('moved')).toBeGreaterThanOrEqual(0);
+    expect(win.calls.indexOf('moved')).toBeLessThan(win.calls.indexOf('showInactive'));
+    expect(shown(win)).toEqual(['showInactive']);
+  });
+
+  test('not asked again while he drives, and again each time he gets back in', async () => {
+    let asked = 0;
+    const r = rig({ beforeReveal: async () => { asked++; } });
+    await r.getIn();
+    await r.pass(30000);
+    expect(asked).toBe(1);
+    await r.getOut();
+    expect(r.win.isVisible()).toBe(false);
+    expect(asked).toBe(1);
+    await r.getIn();
+    expect(asked).toBe(2);
+    expect(r.win.isVisible()).toBe(true);
+  });
+
+  test('not asked out of the car: at the menus, in the garage, with the sim closed or nothing answering', async () => {
+    let asked = 0;
+    const r = rig({ beforeReveal: async () => { asked++; } });
+    for (const payload of [SIM_CLOSED, AT_THE_MENUS, NOTHING_ANSWERS, IN_THE_GARAGE]) {
+      r.feed.payload = payload;
+      await r.pass(3000, 1000);
+    }
+    expect(asked).toBe(0);
+    expect(r.win.calls).toEqual([]);
+  });
+
+  test('the window waits for it: nothing reveals it while it is under way, whoever asks', async () => {
+    const hook = deferred();
+    const r = rig({ beforeReveal: () => { hook.asked++; return hook.promise; } });
+    r.feed.payload = IN_THE_CAR;
+    r.clock.at += 500;
+    const poll = r.hud.poll();
+    await tick();
+    expect(hook.asked).toBe(1);
+    expect(r.win.isVisible()).toBe(false);
+    // The page loading, the driver's switch on the tray, another poll: none of them shows it.
+    r.hud.pageLoaded();
+    r.hud.toggle({ anywhere: true });
+    r.hud.toggle({ anywhere: true });
+    await r.hud.poll();
+    expect(r.win.isVisible()).toBe(false);
+    expect(hook.asked).toBe(1);
+    expect(r.feed.asked).toBe(1);
+    expect(r.hud.state()).toMatchObject({ inCar: true, visible: false });
+    hook.resolve();
+    await poll;
+    expect(r.win.isVisible()).toBe(true);
+    expect(shown(r.win)).toEqual(['showInactive']);
+  });
+
+  test('a hook that never answers is let go of after its time, and the HUD comes up', async () => {
+    const r = rig({ beforeReveal: () => new Promise(() => {}) });
+    r.feed.payload = IN_THE_CAR;
+    r.clock.at += 500;
+    const poll = r.hud.poll();
+    await tick();
+    expect(r.win.isVisible()).toBe(false);
+    const waiting = r.waiting();
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0].ms).toBe(1500);
+    r.runTimers();
+    await poll;
+    expect(r.win.isVisible()).toBe(true);
+  });
+
+  test('a hook that answers clears its time', async () => {
+    const r = rig({ beforeReveal: async () => {} });
+    await r.getIn();
+    expect(r.waiting()).toEqual([]);
+    expect(r.booked.every((t) => t.cleared || t.ran)).toBe(true);
+  });
+
+  test('a hook that throws, or rejects, is said and does not keep the HUD off', async () => {
+    for (const hook of [() => { throw new Error('no screens'); }, () => Promise.reject(new Error('no screens'))]) {
+      const r = rig({ beforeReveal: hook });
+      await r.getIn();
+      expect(r.win.isVisible()).toBe(true);
+      expect(r.said.some((line) => line.includes('before it is shown: no screens'))).toBe(true);
+    }
+  });
+
+  test('the switch off is kept while it is under way, and the window is not revealed after it', async () => {
+    const hook = deferred();
+    const r = rig({ beforeReveal: () => hook.promise });
+    r.feed.payload = IN_THE_CAR;
+    r.clock.at += 500;
+    const poll = r.hud.poll();
+    await tick();
+    r.hud.toggle({ anywhere: true });   // switched off, from the tray, before it comes up
+    hook.resolve();
+    await poll;
+    expect(r.win.isVisible()).toBe(false);
+    expect(r.hud.state()).toMatchObject({ inCar: true, hudOff: true, visible: false });
+  });
+
+  test('never shows or focuses the window itself: the hook is given no window', async () => {
+    let args;
+    const r = rig({ beforeReveal: (...given) => { args = given; } });
+    await r.getIn();
+    expect(args).toEqual([]);
   });
 });
 

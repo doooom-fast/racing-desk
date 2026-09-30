@@ -23,6 +23,7 @@ const IN_CAR_POLL_MS = 500;
 const ANSWER_WITHIN_MS = 1500;
 const RELOAD_AFTER_MS = 2000;
 const RELOADS_AT_MOST = 3;
+const PREPARE_WITHIN_MS = 1500;
 const MAX_ANSWER_BYTES = 4 * 1024 * 1024;
 
 // The address the HUD's page reads (modules/js/settings.js): the saved one when it ends in the plugin's path,
@@ -94,6 +95,9 @@ function fetchPayload(url, { timeoutMs = ANSWER_WITHIN_MS, get = http.get } = {}
  *   keepVisible     dev mode: the window is an ordinary one, shown by dev-mode.js, and is left as it is
  *   onSwitch(off)   the driver switched the HUD off, or back on
  *   onInCar(inCar)  he has got in the car, or out of it
+ *   beforeReveal()  he has got in the car: resolves when the window is where it belongs, which is asked of the sim
+ *                   and takes a moment. The window is not revealed until it has, or until prepareMs has gone by
+ *                   — it would otherwise come up on the wrong screen and move.
  *
  * { start, stop, poll, toggle, putAway, pageLoading, pageLoaded, pageFailed, pageGone, state }
  */
@@ -104,6 +108,8 @@ function createHudVisibility({
   keepVisible = false,
   onSwitch = null,
   onInCar = null,
+  beforeReveal = null,
+  prepareMs = PREPARE_WITHIN_MS,
   reloadAfterMs = RELOAD_AFTER_MS,
   reloadsAtMost = RELOADS_AT_MOST,
   outOfCarPollMs = OUT_OF_CAR_POLL_MS,
@@ -120,7 +126,10 @@ function createHudVisibility({
     staleMs,
     now,
     onChange: (inCar) => {
-      if (inCar) gotIn();
+      if (inCar) {
+        justGotIn = true;
+        gotIn();
+      }
       if (typeof onInCar !== 'function') return;
       try { onInCar(inCar); } catch (e) { log(`[RacingDesk] HUD: ${e.message}`); }
     },
@@ -132,6 +141,8 @@ function createHudVisibility({
   let toldPage = null;       // what the page was last told; null once it has been loaded afresh
   let running = false;
   let asking = false;
+  let justGotIn = false;     // he got in during this poll's feed, and beforeReveal has not been asked yet
+  let preparing = false;     // beforeReveal is under way: the window is not revealed until it is over
   let timer = null;
   let reloadTimer = null;    // a load booked for two seconds after the page's process went
 
@@ -166,7 +177,7 @@ function createHudVisibility({
     if (!win) return;
     tellPage(win);
     if (keepVisible) return;
-    const wanted = signal.inCar() && !switchedOff && pageReady;
+    const wanted = signal.inCar() && !switchedOff && pageReady && !preparing;
     if (wanted === win.isVisible()) return;
     if (wanted) {
       reveal(win);
@@ -177,23 +188,49 @@ function createHudVisibility({
     }
   }
 
+  // He has just got in: before the window is revealed, main.js is given the moment to put it where it belongs.
+  // Bounded, and never a reason for the HUD not to come up: a hook that throws, or takes longer than prepareMs, is
+  // let go of. The window is not revealed while it is under way (apply), whatever else asks for it.
+  async function prepare() {
+    if (typeof beforeReveal !== 'function' || !liveWindow()) return;
+    preparing = true;
+    let deadline = null;
+    try {
+      await Promise.race([
+        Promise.resolve().then(beforeReveal),
+        new Promise((resolve) => { deadline = setTimer(resolve, prepareMs); }),
+      ]);
+    } catch (e) {
+      log(`[RacingDesk] HUD: before it is shown: ${e.message}`);
+    } finally {
+      if (deadline !== null) clearTimer(deadline);
+      preparing = false;
+    }
+  }
+
   // One round: ask the telemetry, decide, put the window right. Resolves state(); never rejects.
   async function poll() {
     if (asking) return state();
     asking = true;
-    let payload = null;
     try {
-      payload = await ask();
-    } catch (e) {
-      payload = null;
+      let payload = null;
+      try {
+        payload = await ask();
+      } catch (e) {
+        payload = null;
+      }
+      signal.feed(payload);
+      if (justGotIn) {
+        justGotIn = false;
+        await prepare();
+      }
+      try {
+        apply();
+      } catch (e) {
+        log(`[RacingDesk] HUD: ${e.message}`);
+      }
     } finally {
       asking = false;
-    }
-    signal.feed(payload);
-    try {
-      apply();
-    } catch (e) {
-      log(`[RacingDesk] HUD: ${e.message}`);
     }
     return state();
   }

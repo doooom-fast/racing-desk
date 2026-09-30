@@ -21,6 +21,7 @@ const { isAllowedExternalUrl } = require('./modules/js/external-links');
 const hostLauncher = require('./modules/js/host-launcher');
 const appLog       = require('./modules/js/app-log');
 const hudVisibility = require('./modules/js/hud-visibility');
+const hudDisplay   = require('./modules/js/hud-display');
 const { createHudKeys } = require('./modules/js/hud-keys');
 const settingsFile = require('./modules/js/settings-file');
 const paints       = require('./modules/js/paints');
@@ -288,6 +289,32 @@ function createTray() {
 }
 let trayMenu = null;
 
+// ── The HUD is on the screen iRacing is on ───────────────────
+// modules/js/hud-display.js chooses the screen and moves the window there — never shows or hides it, which is
+// hud-visibility's alone. The rule: the screen he chose in Settings (`hudDisplay`) while it is connected; else the
+// one the sim's window is on, which the app's host says (/racing-desk/data/simwindow) because Electron cannot see
+// another program's windows; else the one that matches the size iRacing's own ini says it runs at; else the largest.
+// It is asked at start (the ini decides: the sim is probably not running), each time he gets in the car, before
+// the window is revealed (beforeReveal, below), whenever a screen is added, removed or changes, and by the reset
+// key. Nothing here places the HUD on the primary screen: the primary is only what the module is told is primary.
+function connectedDisplays() {
+  const primaryId = screen.getPrimaryDisplay().id;
+  return screen.getAllDisplays().map((d) => ({
+    id: d.id, bounds: d.bounds, workArea: d.workArea, scaleFactor: d.scaleFactor, primary: d.id === primaryId,
+  }));
+}
+
+const hudScreen = hudDisplay.createHudDisplay({
+  getWindow: () => overlayWindow,
+  getDisplays: connectedDisplays,
+  getChoice: () => loadSettingsSync().hudDisplay,
+  readIni: () => hudDisplay.readSimIni(app.getPath('documents')),
+  askSimWindow: () => hudDisplay.fetchSimWindow(`${localHostUrl()}${hudDisplay.SIM_WINDOW_PATH}`),
+  toDipRect: (rect) => screen.screenToDipRect(null, rect),
+  keepAsIs: isDev,
+  log: logToFile,
+});
+
 // ── The HUD is on screen only while the driver is in the car ──
 // The window is made hidden and modules/js/hud-visibility.js is the only thing that reveals it: while the
 // telemetry says he is in the car (modules/js/in-car.js), he has not switched the HUD off, and the page is
@@ -304,6 +331,8 @@ let trayMenu = null;
 const hud = hudVisibility.createHudVisibility({
   getWindow: () => overlayWindow,
   onInCar: (inCar) => hudKeys.hold(inCar),
+  // Got in: the window is put on the screen the sim is on before it is revealed, not after.
+  beforeReveal: () => hudScreen.refresh(),
   fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
   loadPage: () => loadDashboard(),
   keepVisible: isDev,
@@ -315,12 +344,7 @@ const hud = hudVisibility.createHudVisibility({
 // car (modules/js/hud-keys.js).
 const HUD_KEYS = {
   'CommandOrControl+Shift+H': () => { dispatchAction('toggle-overlay'); },
-  'CommandOrControl+Shift+R': () => {
-    if (!overlayWindow) return;
-    const { width: sw, height: sh } = screen.getPrimaryDisplay().bounds;
-    overlayWindow.setBounds({ x: 0, y: 0, width: sw, height: sh });
-    console.log('[RacingDesk] Window position/size reset');
-  },
+  'CommandOrControl+Shift+R': () => { dispatchAction('reset-window'); },
   'CommandOrControl+Shift+G': () => {
     // Toggle green-screen mode and restart
     const settings = loadSettingsSync();
@@ -382,23 +406,18 @@ function loadDashboard() {
 }
 
 async function createOverlay() {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenW, height: screenH } = primaryDisplay.bounds;
-
   logToFile(`[RacingDesk] Dashboard: ${getDashboardFile()}`);
-  logToFile(`[RacingDesk] Primary display: ${screenW}x${screenH} at (${primaryDisplay.bounds.x}, ${primaryDisplay.bounds.y})`);
 
   // ── Transparent overlay window ──
-  // macOS: use workArea to respect the dock and menu bar.
-  // Windows: use full bounds so the overlay covers the entire screen over the game.
-  const isMac = process.platform === 'darwin';
-  const overlayBounds = isMac ? primaryDisplay.workArea : primaryDisplay.bounds;
+  // On the screen hud-display chooses (hudScreen, above). macOS: its workArea, to respect the dock and menu bar.
+  // Windows: its full bounds, so the overlay covers the entire screen over the game.
+  const startAt = hudScreen.initialBounds() || {};
 
   overlayWindow = new BrowserWindow({
-    width:  overlayBounds.width,
-    height: overlayBounds.height,
-    x:      overlayBounds.x,
-    y:      overlayBounds.y,
+    width:  startAt.width,
+    height: startAt.height,
+    x:      startAt.x,
+    y:      startAt.y,
     icon: path.join(__dirname, 'images', 'branding', 'icon.png'),
     // Created hidden — shown only while the driver is in the car (hud, above).
     show: false,
@@ -424,6 +443,8 @@ async function createOverlay() {
 
   overlayWindow.setIgnoreMouseEvents(true, { forward: true });
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  // A window made on a screen of another scale can come out at the wrong size: looked at, and put right if so.
+  hudScreen.place();
   if (devMode) devMode.attach(overlayWindow, { rootDir: __dirname, log: logToFile });
   // A page being loaded — the first time, after a crash, on resume — is nothing to look at, and once loaded it
   // has to be told afresh whether he is in the car.
@@ -447,23 +468,19 @@ async function createOverlay() {
   overlayWindow.on('closed', () => { hud.stop(); overlayWindow = null; });
   hud.start();
 
-  // ── Reflow overlay when system UI changes ──
-  // Windows: taskbar auto-hide changes workArea — reflow to full bounds.
-  // macOS: dock resize/show/hide changes workArea — reflow to workArea.
-  screen.on('display-metrics-changed', (_event, display, changedMetrics) => {
+  // ── Follow the screens ──
+  // A screen added, removed or changed — its size or scale, or the taskbar moving its work area — is a reason to ask
+  // again where the HUD belongs, whichever screen it was. The window is moved only if the answer differs.
+  const screensChanged = (why) => () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
-    if (!changedMetrics.includes('workArea') && !changedMetrics.includes('bounds')) return;
-
-    const primary = screen.getPrimaryDisplay();
-    if (display.id !== primary.id) return;
-
-    // macOS: respect dock/menu bar via workArea. Windows: cover full screen.
-    const target = process.platform === 'darwin' ? primary.workArea : primary.bounds;
-    const cur = overlayWindow.getBounds();
-    if (cur.x === target.x && cur.y === target.y && cur.width === target.width && cur.height === target.height) return;
-
-    logToFile(`[RacingDesk] Display metrics changed (${changedMetrics.join(', ')}), reflowing overlay to ${target.width}x${target.height}`);
-    overlayWindow.setBounds({ x: target.x, y: target.y, width: target.width, height: target.height });
+    logToFile(`[RacingDesk] ${why}`);
+    hudScreen.refresh();
+  };
+  screen.on('display-added', screensChanged('A screen was added'));
+  screen.on('display-removed', screensChanged('A screen was removed'));
+  screen.on('display-metrics-changed', () => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    hudScreen.refresh();
   });
 
   // ── Windows: periodically re-assert always-on-top ──────────
@@ -704,10 +721,12 @@ const _actionHandlers = {
       return { ok: false, reason: err.message };
     }
   },
+  // Puts the window back on the screen the rule chooses (hudScreen, above), covering all of it; the answer does not
+  // wait for the sim to be asked where it is.
   'reset-window': () => {
     if (!overlayWindow) return { ok: false, reason: 'no window' };
-    const { width: sw, height: sh } = screen.getPrimaryDisplay().bounds;
-    overlayWindow.setBounds({ x: 0, y: 0, width: sw, height: sh });
+    logToFile('[RacingDesk] HUD window reset');
+    hudScreen.reset();
     return { ok: true };
   },
   // "Quit Overlay" on the Stream Deck, Ctrl+Shift+Q in the car. It is the overlay that is quit: the HUD is put
@@ -869,6 +888,10 @@ ipcMain.handle('install-streamdeck-plugin', async () => {
 ipcMain.handle('get-in-race-state', async () => {
   return hud.state().inCar;
 });
+
+// ── IPC: The HUD's screen ──
+// For the desk's Settings page: the screens connected, by a plain name, and the one the HUD is on and why.
+ipcMain.handle('get-hud-displays', async () => hudScreen.describe());
 
 // ── IPC: Screen recording ──────────────────────────────────────
 // The renderer handles capture via getDisplayMedia + MediaRecorder.
@@ -1414,6 +1437,7 @@ function startSettingsWatcher() {
     }
     overlayWindow.webContents.send('settings-sync', withoutRemoteKey(settings));
     logToFile('[RacingDesk] settings-sync broadcast (file changed)');
+    hudScreen.settingsChanged();
   });
 }
 
@@ -1461,6 +1485,9 @@ ipcMain.handle('save-settings', async (event, settings) => {
   if (overlayWindow && !overlayWindow.isDestroyed() && event.sender !== overlayWindow.webContents) {
     overlayWindow.webContents.send('settings-sync', withoutRemoteKey(settings));
   }
+  // A different screen for the HUD takes effect now, and the answer waits for it so that the desk can say where the
+  // HUD is. No more than the sim's short answer is waited for.
+  await hudScreen.settingsChanged();
   return true;
 });
 
