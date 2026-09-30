@@ -35,19 +35,6 @@ racing-desk-overlay/modules/js/sector-hud.js             # Sector timing display
 
 # Hybrid (DOM + Canvas)
 racing-desk-overlay/modules/js/webgl-helpers.js          # Tachometer segments, pedal bars (55KB)
-racing-desk-overlay/modules/js/drive-mode.js             # Drive mode tacho SVG + spotter gaps (28KB)
-
-# Web Components (Shadow DOM encapsulated)
-racing-desk-overlay/modules/components/tachometer.js
-racing-desk-overlay/modules/components/tire-grid.js
-racing-desk-overlay/modules/components/fuel-gauge.js
-racing-desk-overlay/modules/components/gap-display.js
-racing-desk-overlay/modules/components/position-card.js
-racing-desk-overlay/modules/components/leaderboard.js
-racing-desk-overlay/modules/components/datastream.js
-racing-desk-overlay/modules/components/commentary-viz.js
-racing-desk-overlay/modules/components/pedal-curves.js
-racing-desk-overlay/modules/components/race-timeline.js
 
 # Data flow
 racing-desk-overlay/modules/js/poll-engine.js            # Data routing from API to modules (66KB)
@@ -98,7 +85,7 @@ Topic-based config maps each commentary event ID to a viz type and data binding.
 
 **Leaderboard** (`leaderboard.js`):
 - Table: position, driver name, interval gap, gap-to-leader, lap count
-- Sparkline history: 12 samples per driver (canvas mini-chart)
+- Sparkline: each car's places through the race in hand (SVG, one trail per car, race only, better place higher; see apps/overlay/CLAUDE.md)
 - Focus modes: `'me'` (relative to player), `'lead'` (absolute leader)
 - Deduplication on data change + settings version key
 

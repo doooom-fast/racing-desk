@@ -20,8 +20,8 @@ racing-desk-overlay/dashboard.html                       # HTML structure — al
 racing-desk-overlay/modules/styles/dashboard.css         # Layout system — positions, grid, flow
 racing-desk-overlay/modules/styles/base.css              # Theme variables, dimensions, spacing
 racing-desk-overlay/modules/js/settings.js               # Settings UI, position/flow controls
-racing-desk-overlay/modules/js/drive-hud.js              # Drive HUD fullscreen layout
-racing-desk-overlay/modules/js/drive-mode.js             # Drive mode DOM creation
+racing-desk-overlay/modules/js/drive-hud.js              # The switch for drive mode (the glance layout)
+racing-desk-overlay/modules/styles/drive-view.css        # The glance layout: the HUD's panels as one grid
 racing-desk-overlay/main.js                              # Electron window config (frameless, click-through, transparency)
 ```
 
@@ -88,11 +88,11 @@ When settings mode is active:
 
 ### Drive HUD Mode (Ctrl+Shift+F)
 
-Fullscreen driving-focused display:
-- Hides all broadcast/stream panels
-- Shows only: track map, sectors, lap delta, position, spotter, incidents
-- Different layout rules (centered, maximized)
-- `drive-hud.js` manages this mode's DOM and layout
+The glance layout, fullscreen, and the whole of what an iPad is shown:
+- Every panel of the HUD as the cells of one grid on `<body>` (the wrappers become `display: contents`), in the HUD's glass,
+  type and colours, each cell a size container sized in `cq` units; the flag on show as the background (`body[data-flag]`)
+- What comes and goes (spotter, race control, commentary, the finish) is laid over the cells
+- `drive-hud.js` switches this mode (`body.drive-mode-active`); `drive-view.css` is its layout; see apps/overlay/CLAUDE.md
 
 ### Window Properties (Electron)
 

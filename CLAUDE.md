@@ -351,8 +351,11 @@ and sends `settings-sync` to the HUD window. The old WinUI settings app is no lo
 
 **The HUD on an iPad** (`remote-server.js`; the "iPad" card at the foot of the Settings page). Off unless the driver
 switches it on; then the main process listens on the home network (port 9090) and serves `dashboard.html` to a
-browser, which shows the drive view (`#driveHud`, `modules/js/drive-hud.js`). It sends the numbers the HUD reads,
-never a picture of the game. The rules it is built on, each with tests in `tests/unit/remote-server.spec.mjs`:
+browser, which shows the glance layout: every panel of the HUD, in its glass and type, as the cells of one grid that
+fills the screen, with the flag as the background when one is out (`body.drive-mode-active`,
+`modules/styles/drive-view.css`; the switch is `modules/js/drive-hud.js`, and Ctrl+Shift+F puts the rig's HUD in the
+same layout — see `apps/overlay/CLAUDE.md`, The glance layout). It sends the numbers the HUD reads, never a picture of
+the game. The rules it is built on, each with tests in `tests/unit/remote-server.spec.mjs`:
 - **Read-only from the network.** GET and HEAD only. `/racing-desk/` is proxied to the telemetry the HUD itself
   reads (`localhost:8889`, or a saved `simhubUrl` that ends in `/racing-desk/`) and a request carrying a query is
   refused — the plugin and host take `?action=…` on that same path, wheel-base settings among them, and none of it
@@ -368,12 +371,22 @@ never a picture of the game. The rules it is built on, each with tests in `tests
   `X-Racing-Desk: 1` (the Stream Deck plugin does). A browser cannot put that header on a link, an image or a
   form, and anything carrying a browser's own headers is refused too: otherwise any page open on the rig could
   quit the app.
-- **The page waits for nothing from the internet**: the Typekit stylesheet is taken out of what is served, because
-  a stylesheet that cannot be fetched holds the whole page back.
+- **The page waits for nothing from the internet.** The Typekit stylesheet is taken out of what is served, because a
+  stylesheet that cannot be fetched holds the whole page back, and a script asks for it once the page has loaded
+  (`remote-server.js` `injection()`). The HUD's two faces, sofia-pro-comp and stolzl, are Adobe's kit `pdg5yka`. The
+  kit serves any address, with or without a referrer (a web project has no list of domains, so there is nothing to add
+  in the driver's Adobe account; the page sends `no-referrer`), and its font files may not be copied or passed on, so
+  the rig never serves them: the iPad fetches them from Adobe itself and needs the internet for that. Until the text
+  face has arrived (`document.fonts.load`, then `rd-kit` on `<html>`) the page is in `"Avenir Next Condensed"` and
+  `"Helvetica Neue"`, so no text is ever invisible or late; with no internet it stays in them. The only requests off
+  the rig are that stylesheet, made after `load`, and Adobe's own ping from inside it. If Adobe ever stops serving the
+  kit to an address like this one, the choice is the driver's: open-licensed faces bundled for both screens. The
+  main HUD's typefaces are not changed by any of this.
 - **What the page is told, not what it works out**: `window._remoteMode` and `window._simhubUrlOverride` are set
   before any of the HUD's scripts run, and `settings.js` leaves the address alone in remote mode. (It used to reset
-  it, which had the iPad asking itself for telemetry.) In remote mode there is no voice coach, no WebGL effects and
-  no ambient light, and a strip says "No data from the rig" when the numbers stop arriving.
+  it, which had the iPad asking itself for telemetry.) In remote mode there is no voice coach; the HUD's effects and
+  its ambient light are there (the colour the plugin samples from the rig's screen) unless "Effects: off" in the menu,
+  which the iPad keeps; and a strip says "No data from the rig" when the numbers stop arriving.
 
 Tests listen on 127.0.0.1 only. A listener on the network makes Windows ask about the firewall, in a window, over
 whatever the driver is doing — so nothing but the driver's own switch ever starts one. The code on the card is

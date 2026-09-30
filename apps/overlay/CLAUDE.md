@@ -26,7 +26,7 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 - **ffmpeg** — bundled binary, used by `ffmpeg-encoder.js` for race-bundle recording
 - **Anthropic SDK** — direct API calls from `race-coach.js` for live AI commentary (uses user's own API key)
 
-## 51 modules in `modules/js/`
+## 53 modules in `modules/js/`
 
 Far more than just the telemetry HUD. Notable additions beyond the original module set:
 
@@ -47,8 +47,10 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `idle-nav.js` | Carousel of stats during idle moments |
 | `qr-code.js` | QR for pairing to native apps / sharing |
 | `car-controls.js` | What the controls panel shows of the car's ABS / TC / brake bias / other dials / DRS / push-to-pass, from the host's `RacingDesk.Plugin.CarControls` (see The controls panel) |
+| `lap-delta.js` | The gap to his best lap of the session and to the optimal lap, worked out from his own laps, and how a delta is written and labelled (see The delta) |
+| `laps-panel.js` | The glance layout's laps panel: the times, the sectors, the three gaps and the fuel to the flag (see The glance layout) |
 
-Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud`, `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
+Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
 
 ## The controls panel (`.car-controls`: BB, TC, ABS, and what the car has besides)
 
@@ -94,6 +96,122 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   which RacingDesk.Tests holds to what the host writes (`Cars/CarControlsWireTests.cs`, rewritten with
   `UPDATE_CAR_CONTROLS_WIRE=1`). The C# side cannot be tested over `:8889` without binding wildcard ports, so that
   hop is by the code: the runtime writes `s.CarControlsJson` into the payload as an object.
+
+## The glance layout (drive mode: Ctrl+Shift+F, and the whole of what an iPad is shown)
+
+A data display and not a page, and the real thing: **every one of the HUD's panels, in the HUD's glass and type, laid out
+as the cells of one grid on `<body>`** that fills the screen, with the flag as the background when one is out.
+`modules/styles/drive-view.css` is the layout; `modules/js/drive-hud.js` is the switch (`body.drive-mode-active`, on for a
+page served to an iPad from the start, and toggled on the rig by Ctrl+Shift+F, the Stream Deck's Drive Mode and
+`_settings.driveMode`). There is no second layout to keep in step: the HUD's wrappers (`#dashboard`, `.main-row`,
+`.main-area`, `.controls-pedals-block`, `.maps-col`, `.pos-gaps-col`, `#cycleRatingPos`, `.timer-row`, `#secContainer`,
+`.logo-col`) become `display: contents` (and their pseudo-elements go, or they would be cells of their own), the panels
+become the cells, and every module goes on writing to the elements it always did, so the type, the colours and the
+states are the HUD's. (The layout that was here before — `#driveHud`, `drive-mode.js`, the `dm-*` and `dh-*` rules,
+`modules/components/` — is gone; it had a face, a track and a colour of its own.)
+
+- **The cells** (24 columns; landscape, then portrait): the position block (`#positionPage`: the place, the places since
+  the start, the lap, the live lap, the delta), the gaps ahead and behind (`#gapsBlock`, with its flag overlay), the tacho,
+  the relative leaderboard with its sparklines and the race timeline, the full circuit and the local view, the laps panel
+  (below), iRating and safety rating (`#ratingPage`, which on the rig takes turns with the position block; here both are
+  up), the car's controls, the pedals, the Racing Desk mark and the car's badge, the clock (`#raceTimerBlock`), the pit
+  box (its tyres, fuel and weather side by side, not tabs), the datastream, the incidents. Landscape:
+  `hero×8 gaps×4 tacho×5 lb×7 / map×8 local×4 laps×5 lb / map local rating×5 lb / ctrl×6 pedals×4 brand×2 car×2 timer×3 lb /
+  pit×10 ds×4 inc×3 lb`; portrait: `hero×14 gaps×10 / tacho×8 map×11 local×5 / lb×15 laps×9 / lb rating×9 /
+  ctrl×8 pedals×8 brand×2 car×2 timer×4 / pit×13 ds×6 inc×5`. The tracks are `fr`, the edge round the grid
+  `clamp(8px, 1.2vmin, 14px)` and the gutters `clamp(5px, 0.75vmin, 9px)`; nothing is set per device. Every panel is a cell
+  whatever the rig's settings hide from its own screen (`settings.js` `applySettings` shows them all in drive mode, and
+  leaving drive mode puts the settings' choice back), and nothing in a cell is a touch target.
+- **What comes and goes** is laid over the cells, as it is over the game on the rig: the spotter's calls over the foot of
+  the track (where the cars it calls are), race control over its top, the finish (`#raceEndScreen`) over the track and the
+  local view, the commentary card over the pit box, the pit limiter and the grid from the top edge. An absolute box placed
+  in a grid area takes that area for its frame.
+- **The glass**: each panel is the rig's — near-black at nine-tenths, an edge, and over it ambient.css's light (the
+  overhead glow and sweep of its plastic mode, and its specular streak), tinted by the ambient colour. On the rig the WebGL
+  glare pass adds to it by where a panel is on the screen; in the glance layout that pass is skipped (`webgl.js`) and each
+  panel is lit the same, by its own layers. On an iPad there is no game behind it, so the colour is the one the telemetry
+  carries (`DS.AmbientR/G/B`, the plugin's sample of the rig's screen), or the flag's when there is none (`ambient-light.js`,
+  which now writes the colour only when it changes).
+- **Flags are the background**: `poll-engine.js` writes the flag on show (the gaps block's, held as long as it holds it) to
+  `body[data-flag]`, written only when it changes. The page behind the panels takes it full-bleed — the edge and every
+  gutter — as the flag's own colour or pattern (checkered a checkerboard, the meatball an orange disc on black, debris the
+  yellow and red surface flag), moving slowly on a composited layer, and the glass of every panel takes its colour; gone
+  when the flag clears. A blue flag rings the screen and leaves the panels as they are. `currentFlagState` is all the
+  payload says: a local yellow and a full-course caution are both `yellow`, and there is no "one to go" in it (the plugin
+  would have to send iRacing's `SessionFlags` bits for either).
+- **Effects**: the HUD's own, on an iPad too — the tacho's redline flash and glow, the pit limiter's blue, the gaps' and the
+  position's ahead/behind pulses, the leaderboard's P1 shimmer and gain/lose pulses, the incidents' levels, the spotter, the
+  maps' close and near cars. The iPad's menu has "Effects: on/off", kept in its own storage (`rd-effects`), for an iPad
+  that cannot keep up; off, the WebGL canvases and the flag's movement stop and the numbers, colours and flags stay. What
+  cannot work without the game behind it is not there: the screen-capture colour of the rig's own ambient light (the iPad
+  takes the plugin's sample instead) and the glare pass.
+- **Every cell is a size container** (`container-type: size`) and what is in it is sized in `cq` units, with floors: no
+  label under 11px, no number under 20px, the place at 80px or more. A cq unit on the container itself would resolve
+  against the page, so a cell's own padding, gap and font-size are in px or set on its children; a short or narrow cell
+  gives something up by `@container` query (the laps panel's heading, the yaw trace, the iRating thousands, the clutch's
+  label). The HUD's zoom setting is the rig screen's and is undone here.
+- **The hero**: in a race the place, big; out of one (`body.session-nonrace`, which `poll-engine.js` sets from
+  `DS.SessionMode`, written only when it changes) the place is a rank of best laps and the big number is the delta.
+- **The laps panel** (`#lapsPanel`, `modules/js/laps-panel.js`; shown only in the glance layout): the lap of how many, his
+  last, best and optimal laps (the optimal the plugin's `DS.SectorBests` added up), each sector's time and its gap to his
+  best of it in the gaps block's colours, his gaps to his best of the session, the optimal lap and his best ever, and the
+  laps of fuel against the laps to go (in a race to time, the time left over his last lap), green with a lap to spare,
+  amber just, red short.
+- **The maps** (`webgl-helpers.js`, "The maps in the glance layout"): the full circuit's viewBox is fitted to the outline,
+  the local view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels (the
+  outline's three layers at 12 / 7 / 1.5px, the sectors at 8px, the car at 7px and the others at 5px) is worked out from
+  `--px` on the svg, the units of the map to a pixel. Told by `driveViewChanged` (drive-hud.js), on resize, and on a new
+  path; out of drive mode the maps are the HUD's own again.
+- **The leaderboard** is the HUD's panel and rows, its type sized from the panel (`#lbRows` font-size) and the rows sharing
+  its height; `leaderboard.js` counts how many the panel holds at that size (1.9 lines to a row) and not the sum of the
+  screen minus the dashboard that the rig's HUD does.
+- **The menu** (remote-server.js) is laid over the Racing Desk mark: the whole square answers a tap and its list opens on
+  the side with the more room. On the rig there is no menu, and the mark is just the mark.
+- **Tests**: `tests/unit/drive-view.spec.mjs` serves the real page through `remote-server.js` at seven iPad sizes, in a
+  race, under a yellow flag, out of a race and with three cars' controls, and holds it to: every panel a cell, inside the
+  screen, none on another, the cells the screen, nothing cut off by its cell, nothing under the floors, the HUD's own type,
+  colours and glass (compared with the HUD's page, item by item); the flags as the background and gone when cleared; the
+  laps panel's numbers; every panel shown whatever the settings hide, and the settings back after; the menu the one touch
+  target. Golden frames of the glance layout at 1180x820 and 820x1180 are in `tests/golden/glance.spec.mjs`.
+
+## The delta: what the gap is against
+
+`RacingDesk.Plugin.DS.LapDelta` is iRacing's `LapDeltaToBestLap` (`TelemetryCapture.cs`), and iRacing measures that against
+his **best lap ever in that car at that track** (the lap file it keeps in `Documents\iRacing\lapfiles`), not against the
+session: it is valid before the session's first lap is done and stays positive until that lap is beaten. At Zandvoort on
+2026-09-29 it was positive on 87% of the frames of his qualifying and 72% of his race, which is why it was red with a
+plus nearly always. `modules/js/lap-delta.js` works out the gap to **his best lap of the session**, and to the **optimal
+lap** (his best of each sector), from his own laps as the page sees them: where he is round the lap (`DS.TrackPct`) and the
+time on it, at each frame. A lap is one to measure against when it was seen whole, from the line to the line, off pit road
+and not marked invalid (`DS.IsLapInvalid`); a new session (its type and track) starts again. The HUD shows one delta,
+labelled with what it is against (`.delta-ref`): his session best once he has one, else iRacing's all-time one; a minus and
+green when he is gaining, a plus and red when he is losing, `0.000` in neither. The position block, the datastream's row and
+the sector he is in all use it; the laps panel shows all three. Tests: `tests/unit/lap-delta.spec.mjs`.
+
+## The leaderboard's sparklines
+
+Each row's line is **that car's places through the race in hand** (`leaderboard.js`, `_trails`): one trail per car, its
+first point the place it held at the first frame of the race in which it has one — the driver's own is `DS.StartPosition`,
+his grid slot — then every change, on the page's own clock (`performance.now()`), the start never dropped (past 64 points
+the oldest change after it goes). The better place is drawn higher, P1 at the top, against the race's time; a dashed
+hairline is where the race began (above it is places gained, below places lost); the scale is the trail's own range, at
+least two places wide. His own line is coloured by where he stands against where he began (gold P1, green, red, blue),
+the rest are white.
+
+- **Only in a race** (`DS.SessionMode` 4, `Grid.SessionState` 4 or 5). In practice, qualifying and warm-up "position" is the
+  order of best laps, and a cell that meant two things is how a race he gained a place in drew a staircase down (the HUD's
+  page stays loaded through a whole event, and the line began with the ranks of the sessions before it). Those rows draw no
+  line; the last-lap column carries the lap's colour there.
+- **A trail belongs to one session and one green flag**: cleared when the session's type or the plugin's track name
+  changes (a frame that names neither says nothing), and at the green flag (`Grid.SessionState` 1-3 becoming 4 in a race,
+  seen in `poll-engine.js`, which also clears `_startPosition` there and on a change of session type, so that a heat and a
+  feature of one type at one track are told apart). `resetLeaderboardTrails()` is the way in.
+- **The rows are in the order of their places**: each is put in its place before whatever is there (it used to be
+  appended to the end, which left the rows of cars gone out of view at the top and cut wanted ones off the bottom when
+  the view shifted by several places at once).
+- **Cost**: one Map lookup and a compare per car per render (the whole field, not only the rows on show, so a car scrolling
+  into view has its history); a row's SVG nodes (hairline, line, dot) are made once and written to only when the trail has
+  changed or a second has gone by. Tests: `tests/unit/leaderboard-trails.spec.mjs`.
 
 ## Race-bundle (`.rcpdv`) output
 
@@ -180,7 +298,7 @@ No CI — run locally.
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+F` | Toggle Drive HUD mode (fullscreen) |
+| `Ctrl+Shift+F` | Toggle the glance layout (fullscreen): every panel of the HUD as one grid filling the screen, as an iPad is shown |
 | `Ctrl+Shift+H` | Switch the HUD off/on, in the car only — out of it the key does nothing, and the tray's "HUD on/off" is the switch |
 | `Ctrl+Shift+G` | Toggle green-screen mode |
 | `Ctrl+Shift+R` | Reset position and size |

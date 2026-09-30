@@ -58,7 +58,7 @@ From source the main process logs to `racing-desk-debug.log` in this folder. The
 |----------|--------|
 | `Ctrl+Shift+H` | Switch the HUD off or on — in the car only; out of it, use the tray's "HUD on/off" |
 | `Ctrl+Shift+O` | Open the desk |
-| `Ctrl+Shift+F` | Toggle Drive HUD mode (fullscreen driving-focused display) |
+| `Ctrl+Shift+F` | Toggle the glance layout (fullscreen data display, as an iPad is shown) |
 | `Ctrl+Shift+G` | Toggle green-screen mode (restarts) |
 | `Ctrl+Shift+R` | Put the HUD's window back over the whole primary display |
 | `Ctrl+Shift+D` | Restart demo sequence |
@@ -122,9 +122,9 @@ To quit the app itself, close the desk window or choose "Quit Racing Desk" from 
 
 Slides in from the edge when the commentary engine fires an event. Shows topic title, commentary text, and category label. The panel border and background tint match the event's sentiment color — orange for warnings, red for critical, blue for informational, amber for strategy calls. Auto-dismisses when the event expires.
 
-### Drive HUD Mode
+### The glance layout (drive mode)
 
-Toggle with `Ctrl+Shift+F` for a fullscreen driving-focused display. Shows only track map with sectors, lap delta, position, spotter, and incident count — designed for direct racing without stream production elements.
+Toggle with `Ctrl+Shift+F` for a fullscreen data display, and it is what an iPad on the home network is shown. Every panel of the HUD — the place and the live lap with its delta, the gaps ahead and behind, the tacho, the full circuit and the local view of it, the leaderboard with its sparklines, a laps panel (last, best and optimal laps, the sectors, the gaps to each, the fuel to the flag), the ratings, the car's controls, the pedals, the badges, the clock, the tyres, fuel and weather, the datastream and the incidents — is laid out as the cells of one grid that fills the screen, in the HUD's glass, type and colours, each sized from its cell. When a flag is out the whole background is that flag.
 
 ## Visual Effects
 
@@ -207,7 +207,7 @@ The Electron main process captures a configurable screen region at ~4fps using `
 | `webgl-helpers.js` | Shader compilation, icon atlas generation |
 | `ambient-light.js` | Screen color sampling, LERP interpolation, CSS variable updates |
 | `ambient-capture.js` | Capture region UI configuration |
-| `drive-hud.js` | Fullscreen driving-focused HUD mode |
+| `drive-hud.js` | The switch for the glance layout (drive mode: Ctrl+Shift+F, and an iPad): the layout itself is `modules/styles/drive-view.css` |
 | `leaderboard.js` | Full-field position/gap leaderboard |
 | `datastream.js` | Live telemetry data stream |
 | `spotter.js` | Proximity overlay |
@@ -296,4 +296,4 @@ On x64 systems, native transparency composites directly — no OBS filter needed
 
 **OBS shows black/solid overlay:** On x64, use Window Capture with "Allow Transparency" enabled. On ARM, use the Color Key filter.
 
-**Drive HUD shows no map:** Track map data must be available from the plugin. Some tracks may not have SVG path data — export maps from the plugin's SimHub settings panel.
+**The glance layout shows no map:** Track map data must be available from the plugin. Some tracks may not have SVG path data — export maps from the plugin's SimHub settings panel.
