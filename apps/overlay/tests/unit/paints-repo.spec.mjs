@@ -648,3 +648,62 @@ test('suggestLibraries finds a checkout in or beside the paint folder and under 
   // Nowhere to look is an empty list, not an error.
   expect(await repo.suggestLibraries(path.join(home, 'nope', 'paint'), { env: {} })).toEqual([]);
 });
+
+// ── The helmet list's default, across an update ──────────────
+// The page sees to the default helmet after an update only where the update changed which set the list names, so the
+// update says which it named before it and after it. The library is the checkout's cars/ folder and the list is at
+// the top of the checkout, beside it, as it is for real.
+
+test('an update says which set the helmet list named as the default before it and after it, and nothing where nothing came', async () => {
+  const origin = fixture('helmet-default-origin');
+  await git(origin, ['init', '--quiet', '--bare']);
+  const work = fixture('helmet-default-work');
+  await git(work, ['clone', '--quiet', origin, '.']);
+  await identity(work);
+  const cars = path.join(work, 'cars');
+  makeLibrary(cars);
+  const push = async (message) => {
+    await git(work, ['add', '-A']);
+    await git(work, ['commit', '--quiet', '-m', message]);
+    await git(work, ['push', '--quiet', '-u', 'origin', 'HEAD']);
+  };
+  const setFile = (name) => ({ file: `helmets/${name}/helmet_31337.tga`, body: [10, 10, 10], art: [220, 55, 20] });
+  const nameDefault = (name) => {
+    fs.mkdirSync(path.join(work, 'helmets'), { recursive: true });
+    fs.writeFileSync(path.join(work, 'helmets', 'manifest.json'), JSON.stringify({
+      customer_id: '31337', default: name, sets: { shatter: setFile('shatter'), 'shatter-inverted': setFile('shatter-inverted') }, variants: {},
+    }));
+  };
+  await push('first livery');
+
+  const clone = fixture('helmet-default-clone');
+  await git(clone, ['clone', '--quiet', origin, '.']);
+  const library = path.join(clone, 'cars');
+  const base = fixture('helmet-default-base');
+  const cmd = paints.createCommands({ setAside: () => base, now: () => WHEN });
+
+  // The list arrives with the update, where there was none: the default is new.
+  nameDefault('shatter');
+  await push('the helmets');
+  const arrived = await cmd.repoPull(library);
+  expect(arrived).toMatchObject({ updated: true, helmetDefault: { was: null, now: 'shatter', changed: true } });
+
+  // Liveries only: the list is as it was, and so is its default.
+  makeLibrary(cars, 'nissangtpzxt', 'v10');
+  await push('add the Nissan');
+  const liveries = await cmd.repoPull(library);
+  expect(liveries).toMatchObject({ updated: true, helmetDefault: { was: 'shatter', now: 'shatter', changed: false } });
+
+  // The list names another default.
+  nameDefault('shatter-inverted');
+  await push('another default');
+  const changed = await cmd.repoPull(library);
+  expect(changed).toMatchObject({ updated: true, helmetDefault: { was: 'shatter', now: 'shatter-inverted', changed: true } });
+
+  // Nothing came: nothing is said of the default.
+  const nothing = await cmd.repoPull(library);
+  expect(nothing.updated).toBe(false);
+  expect(nothing.helmetDefault).toBeUndefined();
+  // The id the list carries is never part of what is said.
+  expect(JSON.stringify([arrived.helmetDefault, liveries.helmetDefault, changed.helmetDefault])).not.toContain('31337');
+});

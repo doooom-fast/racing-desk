@@ -34,7 +34,10 @@ const CALLS = Object.freeze({
     c.saveGroup({ libraryRoot, paintDir, id, name, cars }, store),
   deleteGroup: (c, { id }, store) => c.deleteGroup(id, store),
   setGroup: (c, { request }, store) => c.setGroup(request, store),
-  ensureDefaultHelmet: (c, { paintDir, libraryRoot, customerId }) => c.ensureDefaultHelmet({ paintDir, libraryRoot, customerId }),
+  ensureDefaultHelmet: (c, { paintDir, libraryRoot, customerId, was }) => c.ensureDefaultHelmet({ paintDir, libraryRoot, customerId, was }),
+  listDefaultHelmetBackups: (c, { customerId }) => c.listDefaultHelmetBackups({ customerId }),
+  revertDefaultHelmet: (c, { paintDir, libraryRoot, customerId, backupId }) =>
+    c.revertDefaultHelmet({ paintDir, libraryRoot, customerId, backupId }),
 });
 
 const NAMES = Object.freeze(Object.keys(CALLS));

@@ -1,8 +1,10 @@
 /**
  * The library's helmets: reading its helmet list as far as it can be trusted, which set a version comes with, the
- * file a set is copied from — only one under the library's helmets folder, only a true-colour TGA the sim could
- * load — and the library's default set. All in a temp library with generated TGAs; every id is made up, and the
- * library's file names carry a different one from the app's, as the real library's do.
+ * file a set is copied from — only one under the library's helmets folder, only a 24-bit TGA of up to 2048² and
+ * 16 MiB — and the library's default set. All in a temp library with generated TGAs; every id is made up, and the
+ * library's file names carry a different one from the app's, as the real library's do. The real library is a
+ * checkout whose cars/ folder is the library, with helmets/ at the top of the checkout, beside cars/: both places
+ * are tested.
  */
 
 import { test, expect } from '@playwright/test';
@@ -117,7 +119,8 @@ test.describe('readManifest', () => {
     expect(m.notes).toEqual([]);
     // The id the list carries is not read: the app names what it writes with its own. (The files' names carry it,
     // as the library's do, and they are read only to copy from.)
-    expect(Object.keys(m).sort()).toEqual(['default', 'found', 'notes', 'reason', 'refused', 'sets', 'variants']);
+    expect(Object.keys(m).sort()).toEqual(['base', 'default', 'found', 'notes', 'reason', 'refused', 'sets', 'variants']);
+    expect(m.base).toBe(lib);
     expect(m.notes.join(' ')).not.toContain(LIBRARY_ID);
   });
 
@@ -183,14 +186,32 @@ test.describe('which set a version comes with', () => {
     expect(helmets.setFor(null, 'lotus79', 'v13-shatter')).toBeNull();
   });
 
-  test('what a card shows: the set and its colours, or null', () => {
+  test('what a card shows: the set and its colours, or null — and, for a set that cannot be used, why', () => {
     const lib = library('pick');
-    withHelmets(lib, { ...FIVE, sets: { ...FIVE.sets, up: { file: '../x.tga' } }, variants: { ...FIVE.variants, 'a/2': 'up' } });
+    withHelmets(lib, {
+      ...FIVE,
+      sets: { ...FIVE.sets, up: { file: '../x.tga' }, gone: { file: false }, thin: { bytes: tga(2, 2, [1, 2, 3], { bits: 32 }) } },
+      variants: { ...FIVE.variants, 'a/2': 'up', 'a/3': 'gone', 'a/4': 'thin' },
+    });
     const m = helmets.readManifest(lib);
-    expect(helmets.pick(m, 'lotus79', 'v14-inverted')).toEqual({ set: 'shatter-inverted', body: [220, 55, 20], art: [10, 10, 10] });
-    expect(helmets.pick(m, 'lotus79', 'v12')).toBeNull();
-    expect(helmets.pick(m, 'a', '2')).toBeNull();   // a refused set is no helmet to show
-    expect(helmets.pick(helmets.readManifest(''), 'lotus79', 'v13-shatter')).toBeNull();
+    const usable = helmets.checker(lib, m);
+    expect(helmets.pick(m, 'lotus79', 'v14-inverted')).toEqual({ set: 'shatter-inverted', body: [220, 55, 20], art: [10, 10, 10], problem: null });
+    expect(helmets.pick(m, 'lotus79', 'v14-inverted', usable)).toEqual({ set: 'shatter-inverted', body: [220, 55, 20], art: [10, 10, 10], problem: null });
+    expect(helmets.pick(m, 'lotus79', 'v12', usable)).toBeNull();
+    expect(helmets.pick(helmets.readManifest(''), 'lotus79', 'v13-shatter', usable)).toBeNull();
+    // A set the list refused, one whose file is not there and one that is no helmet the sim takes: the version comes
+    // with it and cannot have it, and says why in the sentence an apply says — so the card and the apply agree.
+    const said = (carFolder, versionId) => helmets.resolve(lib, carFolder, versionId, m).said;
+    expect(helmets.pick(m, 'a', '2', usable)).toEqual({ set: 'up', body: null, art: null, problem: "The up helmet names a file outside the library's helmets folder, so it is not used." });
+    expect(helmets.pick(m, 'a', '3', usable)).toEqual({ set: 'gone', body: [10, 10, 10], art: [220, 55, 20], problem: "The gone helmet's file is not in the library." });
+    expect(helmets.pick(m, 'a', '4', usable).problem).toBe("The thin helmet's file is not a 24-bit true-colour TGA.");
+    for (const id of ['2', '3', '4']) expect(said('a', id)).toBe(`${helmets.pick(m, 'a', id, usable).problem} The car's helmet was left as it was.`);
+    // Looked at once per set however many versions ask: the answer is kept for as long as the checker is.
+    const once = helmets.checker(lib, m);
+    expect(once('shatter')).toBeNull();
+    fs.rmSync(path.join(lib, setFile('shatter')));
+    expect(once('shatter')).toBeNull();
+    expect(helmets.checker(lib, m)('shatter')).toBe("The shatter helmet's file is not in the library.");
   });
 });
 
@@ -201,9 +222,9 @@ test.describe('the file a set is copied from', () => {
     const m = helmets.readManifest(lib);
     const found = helmets.sourceFor(lib, m, 'shatter');
     expect(found).toEqual({ path: path.join(lib, 'helmets', 'shatter', `helmet_${LIBRARY_ID}.tga`), size: 18 + 2 * 2 * 3 });
-    // 32-bit is a true-colour TGA too, and run-length encoded is fine.
+    // The format is 24-bit: a 32-bit TGA is not a helmet this reads, however small. Run-length encoded 24-bit is.
     fs.writeFileSync(found.path, tga(2, 2, [1, 2, 3], { bits: 32 }));
-    expect(helmets.sourceFor(lib, m, 'shatter').size).toBe(18 + 2 * 2 * 4);
+    expect(helmets.sourceFor(lib, m, 'shatter').problem).toBe("The shatter helmet's file is not a 24-bit true-colour TGA.");
     fs.writeFileSync(found.path, tga(2, 2, [1, 2, 3], { imageType: 10 }));
     expect(helmets.sourceFor(lib, m, 'shatter').problem).toBeUndefined();
   });
@@ -235,7 +256,7 @@ test.describe('the file a set is copied from', () => {
     const e = fs.readFileSync(empty);
     e.writeUInt16LE(0, 14);
     fs.writeFileSync(empty, e);
-    // The huge one is a good header on a file larger than any helmet the sim takes: the length is what is read.
+    // The huge one is a good header on a file larger than 16 MiB: the length is what is read.
     fs.truncateSync(path.join(lib, setFile('huge')), helmets.MAX_BYTES + 1);
 
     const m = helmets.readManifest(lib);
@@ -243,15 +264,19 @@ test.describe('the file a set is copied from', () => {
     expect(problem('never')).toBe("The never helmet is not in the library's helmet list.");
     expect(problem('gone')).toBe("The gone helmet's file is not in the library.");
     expect(problem('folder')).toBe("The folder helmet's file is not a file.");
-    expect(problem('text')).toBe("The text helmet's file is not a true-colour TGA.");
+    expect(problem('text')).toBe("The text helmet's file is not a 24-bit true-colour TGA.");
     expect(problem('short')).toBe("The short helmet's file is not a TGA.");
-    expect(problem('mapped')).toBe("The mapped helmet's file is not a true-colour TGA.");
-    expect(problem('grey')).toBe("The grey helmet's file is not a true-colour TGA.");
+    expect(problem('mapped')).toBe("The mapped helmet's file is not a 24-bit true-colour TGA.");
+    expect(problem('grey')).toBe("The grey helmet's file is not a 24-bit true-colour TGA.");
     expect(problem('wide')).toBe(`The wide helmet is ${helmets.MAX_EDGE + 1} × 1, and the sim takes helmets up to ${helmets.MAX_EDGE} × ${helmets.MAX_EDGE}.`);
     expect(problem('empty')).toBe('The empty helmet is 1 × 0, and the sim takes helmets up to 2048 × 2048.');
     expect(problem('huge')).toBe("The huge helmet's file is larger than any helmet the sim takes.");
     expect(helmets.sourceFor(lib, m, 'shatter').problem).toBeUndefined();
-    expect(helmets.MAX_BYTES).toBeLessThanOrEqual(17 * 1024 * 1024);
+    // 16 MiB and not a byte more; a 24-bit 2048² TGA is 12 MiB and a header, well inside it.
+    expect(helmets.MAX_BYTES).toBe(16 * 1024 * 1024);
+    expect(18 + 2048 * 2048 * 3 + 26).toBeLessThan(helmets.MAX_BYTES);
+    fs.truncateSync(path.join(lib, setFile('huge')), helmets.MAX_BYTES);
+    expect(problem('huge')).toBeUndefined();
   });
 
   test('a path that leaves the helmets folder is refused before anything is read, and one that leaves it through a link after', () => {
@@ -289,6 +314,74 @@ test.describe('the file a set is copied from', () => {
     expect(helmets.parseHelmet('suit_424242.tga')).toBeNull();
     expect(helmets.installedName('424242')).toBe('helmet_424242.tga');
     expect(helmets.cookedName('424242')).toBe('helmet_424242.mip');
+  });
+});
+
+// The real library: a checkout with cars/<car>/<version> and helmets/ at its top. The library the app is given is the
+// checkout's cars/ folder, so its helmets are beside it, not in it, and each set's `file` is relative to the checkout.
+test.describe('helmets beside the cars, as the real library has them', () => {
+  // <root>/<tag>/cars/<car>/<version>/car_<id>.tga and <root>/<tag>/helmets/manifest.json + <set>/helmet_<other id>.tga
+  function checkout(tag, options = FIVE) {
+    const top = library(tag);
+    fs.mkdirSync(path.join(top, 'cars', 'lotus79', 'v13-shatter'), { recursive: true });
+    fs.writeFileSync(path.join(top, 'cars', 'lotus79', 'v13-shatter', 'car_424242.tga'), 'paint');
+    withHelmets(top, options);
+    return { top, cars: path.join(top, 'cars') };
+  }
+
+  test('the list is found from the cars folder, the files are read from the checkout, and nothing is read from anywhere else', () => {
+    const { top, cars } = checkout('beside');
+    const m = helmets.readManifest(cars);
+    expect(m.found).toBe(true);
+    expect(m.base).toBe(top);
+    expect(m.default).toBe('shatter');
+    expect(Object.keys(m.sets)).toEqual(['shatter', 'shatter-inverted', 'white-orange']);
+    expect(helmets.sourceFor(cars, m, 'shatter')).toEqual({ path: path.join(top, 'helmets', 'shatter', `helmet_${LIBRARY_ID}.tga`), size: 18 + 2 * 2 * 3 });
+    expect(helmets.resolve(cars, 'lotus79', 'v13-shatter', m).source.path).toBe(path.join(top, 'helmets', 'shatter', `helmet_${LIBRARY_ID}.tga`));
+    expect(helmets.resolve(cars, 'lotus79', 'v13-shatter').said).toBe('');   // read from the library when not handed in
+    expect(helmets.resolveDefault(cars).source.path).toBe(path.join(top, 'helmets', 'shatter', `helmet_${LIBRARY_ID}.tga`));
+    // The checkout itself is a library too, and finds its own helmets/ first.
+    expect(helmets.readManifest(top).base).toBe(top);
+    // A library with no helmets beside it or in it keeps none, and the folder above the checkout is not looked in.
+    const lonely = library('beside-lonely');
+    fs.mkdirSync(path.join(lonely, 'cars'), { recursive: true });
+    expect(helmets.readManifest(path.join(lonely, 'cars'))).toMatchObject({ found: false, reason: 'no-manifest' });
+    expect(helmets.readManifest(path.join(top, 'cars', 'lotus79'))).toMatchObject({ found: false, reason: 'no-manifest' });
+  });
+
+  test('the library\'s own helmets/ wins over one beside it', () => {
+    const { top, cars } = checkout('beside-both');
+    withHelmets(cars, { sets: { own: {} }, variants: {}, fallback: 'own' });
+    const m = helmets.readManifest(cars);
+    expect(m.base).toBe(cars);
+    expect(Object.keys(m.sets)).toEqual(['own']);
+    expect(helmets.readManifest(top).base).toBe(top);
+  });
+
+  test('a path in the list that leaves helmets/ is refused beside the cars too — into cars/, up out of the checkout, or through a link', () => {
+    const { top, cars } = checkout('beside-outside', { sets: { shatter: {} }, variants: {}, fallback: 'shatter' });
+    fs.writeFileSync(path.join(top, 'outside.tga'), tga(1, 1));
+    fs.writeFileSync(path.join(cars, 'lotus79', 'helmet.tga'), tga(1, 1));
+    const raw = JSON.parse(fs.readFileSync(path.join(top, 'helmets', 'manifest.json'), 'utf8'));
+    raw.sets.intocars = { file: 'cars/lotus79/helmet.tga' };
+    raw.sets.up = { file: '../outside.tga' };
+    raw.sets.sneaky = { file: 'helmets/../cars/lotus79/helmet.tga' };
+    raw.sets.fromcars = { file: '../helmets/shatter/helmet_31337.tga' };
+    fs.writeFileSync(path.join(top, 'helmets', 'manifest.json'), JSON.stringify(raw));
+    const m = helmets.readManifest(cars);
+    expect(Object.keys(m.sets)).toEqual(['shatter']);
+    expect(Object.keys(m.refused).sort()).toEqual(['fromcars', 'intocars', 'sneaky', 'up']);
+    // A link out of helmets/ is refused when followed.
+    const linked = path.join(top, 'helmets', 'linked');
+    try {
+      fs.symlinkSync(path.join(cars, 'lotus79'), linked, 'junction');
+    } catch (e) {
+      test.skip(true, `no junction could be made here (${e.code})`);
+    }
+    raw.sets.linked = { file: 'helmets/linked/helmet.tga', body: [1, 1, 1], art: [2, 2, 2] };
+    fs.writeFileSync(path.join(top, 'helmets', 'manifest.json'), JSON.stringify(raw));
+    const again = helmets.readManifest(cars);
+    expect(helmets.sourceFor(cars, again, 'linked').problem).toBe("The linked helmet's file is outside the library's helmets folder.");
   });
 });
 

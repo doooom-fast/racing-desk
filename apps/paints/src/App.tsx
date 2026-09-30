@@ -7,6 +7,7 @@ import { CarControlsPanel } from "./components/CarControls";
 import { CarList, carLabel, carToOpenOn, type Kept } from "./components/CarList";
 import { CarPedalsPanel } from "./components/CarPedals";
 import { CarViewPanel } from "./components/CarView";
+import { DefaultHelmetPanel } from "./components/DefaultHelmet";
 import { GroupEditor } from "./components/GroupEditor";
 import { GroupPage } from "./components/GroupPage";
 import { TradingPaintsPanel } from "./components/Guards";
@@ -22,6 +23,7 @@ import type {
   BackupEntry,
   CatalogueCar,
   CustomerReport,
+  DefaultHelmetBackup,
   GroupReport,
   InstalledState,
   LibrarySuggestion,
@@ -190,6 +192,10 @@ export default function App() {
   const [refused, setRefused] = useState<Refused | null>(null);
   /// What the last apply or revert on a car did about the helmet, in a sentence, under that car's versions.
   const [helmetSaid, setHelmetSaid] = useState<{ folder: string; text: string } | null>(null);
+  /// The backups of the default helmet — what the library's default replaced, by an apply, a group or an update —
+  /// newest first, and what putting one back did, in a sentence. The desk's alone.
+  const [defaultBackups, setDefaultBackups] = useState<DefaultHelmetBackup[]>([]);
+  const [defaultSaid, setDefaultSaid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const logId = useRef(0);
@@ -403,19 +409,38 @@ export default function App() {
   const blockedNow = useRef<string | null>(null);
   blockedNow.current = blocked?.text ?? null;
 
-  /// After an update the default helmet follows the library's list, which may name another set now. Only the
-  /// desk knows helmets, and asked with what the page knows at the time. What it says, if anything, goes with the
-  /// update's own lines; nothing to say, or a host that cannot answer, is nothing.
-  const defaultHelmetNow = useRef(async (): Promise<string[]> => []);
-  defaultHelmetNow.current = async () => {
+  /// After an update that changed which set the library's list names as the default helmet, the default follows it.
+  /// Only the desk knows helmets, and asked with what the page knows at the time and the set it was before. What
+  /// it says, if anything, goes with the update's own lines; nothing to say, or a host that cannot answer, is
+  /// nothing.
+  const defaultHelmetNow = useRef(async (_was: string | null): Promise<string[]> => []);
+  defaultHelmetNow.current = async (was) => {
     if (!inDesk() || !paintDir || !libraryRoot || !customerId) return [];
     try {
-      const report = await api.ensureDefaultHelmet({ paintDir, libraryRoot, customerId });
+      const report = await api.ensureDefaultHelmet({ paintDir, libraryRoot, customerId, was });
       return report.said ? [report.said] : [];
     } catch {
       return [];
     }
   };
+
+  /// What is in the list of the default helmet's backups, read again: after anything that may have taken one.
+  const refreshDefaultBackups = useCallback(async () => {
+    if (!inDesk() || !/^\d+$/.test(customerId)) {
+      setDefaultBackups([]);
+      return;
+    }
+    try {
+      setDefaultBackups(await api.listDefaultHelmetBackups(customerId));
+    } catch {
+      setDefaultBackups([]);
+    }
+  }, [customerId]);
+  const refreshDefaultsNow = useRef(refreshDefaultBackups);
+  refreshDefaultsNow.current = refreshDefaultBackups;
+  useEffect(() => {
+    void refreshDefaultBackups();
+  }, [refreshDefaultBackups]);
 
   /// One look at the remote or one update at a time, whoever asked for it: a button, the page starting, the half
   /// hour, the window coming back.
@@ -480,9 +505,12 @@ export default function App() {
           setBlocked(null);
           if (report.updated) {
             tell(arrived, report.setAside?.folder ?? null);
-            const helmet = await defaultHelmetNow.current();
+            // The default helmet is seen to only where this update changed which set the list names.
+            const change = report.helmetDefault;
+            const helmet = change?.changed ? await defaultHelmetNow.current(change.was) : [];
             say("ok", "The library was updated", [arrived, ...report.commits, ...helmet]);
             await refreshNow.current();
+            void refreshDefaultsNow.current();
           } else if (byHim) {
             say("info", "The library is already up to date.");
           }
@@ -661,6 +689,7 @@ export default function App() {
     setBackups([]);
     setRefused(null);
     setHelmetSaid(null);
+    setDefaultSaid(null);
   }, [selectedFolder, selectedGroup]);
 
   useLayoutEffect(() => {
@@ -794,6 +823,7 @@ export default function App() {
     } finally {
       setBusy(false);
       await latestRefreshCar.current();
+      void refreshDefaultsNow.current();
     }
   };
 
@@ -822,6 +852,24 @@ export default function App() {
     } finally {
       setBusy(false);
       await latestRefreshCar.current();
+      void refreshDefaultsNow.current();
+    }
+  };
+
+  /// Put the default helmet back as one of its backups has it. A car's revert does this for the backup it names;
+  /// this is for the ones no car names — a group that set no car, a library update — and any of the rest.
+  const doPutBackDefault = async (backup: DefaultHelmetBackup) => {
+    setDefaultSaid(null);
+    setBusy(true);
+    try {
+      const report = await api.revertDefaultHelmet({ paintDir, libraryRoot, customerId, backupId: backup.id });
+      setDefaultSaid(report.said);
+      say("ok", "Put the default helmet back", [report.said, ...report.warnings]);
+    } catch (e) {
+      say("bad", "Did not put the default helmet back", [errorText(e)]);
+    } finally {
+      setBusy(false);
+      await refreshDefaultsNow.current();
     }
   };
 
@@ -872,6 +920,7 @@ export default function App() {
     } finally {
       setBusy(false);
       await latestRefreshCar.current();
+      void refreshDefaultsNow.current();
     }
   };
 
@@ -1242,7 +1291,14 @@ export default function App() {
             <div className="empty">{noCars.page}</div>
           )}
 
-          {/* The library's own housekeeping, under whatever the page is about. */}
+          {/* The default helmet's backups, where there are any to put back, and the library's own housekeeping, under
+              whatever the page is about. */}
+          <DefaultHelmetPanel
+            backups={defaultBackups}
+            busy={busy || !paintDir || !libraryRoot}
+            said={defaultSaid}
+            onPutBack={(b) => void doPutBackDefault(b)}
+          />
           <RepoPanel
             repo={repo}
             busy={busy}

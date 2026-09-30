@@ -17,7 +17,8 @@
 // library's manifest names as its default (apply.js), put in place after the cars where it is missing or is
 // another — never the set the cars wear. The default that was there is backed up before any car is touched, and
 // every car's backup names that backup, so reverting any one of them puts the default back as well. A default in
-// place already is left as it is, backup and all.
+// place already is left as it is, backup and all. The guard is asked again before the default is written, as a car's
+// is before its own write: the sim starting part-way through a group leaves the default as it is.
 const path = require('path');
 const apply = require('./apply');
 const customer = require('./customer');
@@ -314,7 +315,17 @@ async function set(request, { lib, store, installedCars = [], base, deps } = {})
   // The default helmet, once, after the cars: the library's default set, put in place where it was missing or
   // another, whether or not any car needed writing. What the cars wear has no say in it. A library that keeps no
   // helmet list has no default to see to, and the group says so once, where each car said it of its own helmet.
-  const done = apply.writeDefault(paintDir, customerId, fallback, warnings);
+  //
+  // Each car's apply asks again whether the sim is in the way before it writes, and so does this, when it has a
+  // default to write: the sim can start while the cars are being set, and a default written under it is as much a
+  // swap under a running sim as a car's. With something in the way, and not told to go on, the default is left as
+  // it is and that is said.
+  const writing = fallback.source !== null && !fallback.inPlace;
+  const late = writing ? await apply.preflightAll(deps) : null;
+  const held = late !== null && late.blockers.length > 0 && !force;
+  const done = held
+    ? { put: false, said: `The default helmet was left as it was, since ${apply.inTheWay(late)} now.` }
+    : apply.writeDefault(paintDir, customerId, fallback, warnings, defaultBackup !== null && defaultBackup.had);
   const helmet = { set: fallback.set, put: done.put, said: done.said || noList(manifest), backupDir: defaultBackup ? defaultBackup.dir : null };
 
   const count = (outcome) => results.filter((r) => r.outcome === outcome).length;

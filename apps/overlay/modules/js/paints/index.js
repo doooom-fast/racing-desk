@@ -128,7 +128,18 @@ function createCommands(overrides = {}) {
     repoCheck: async (p) => repo.check(p, repoDeps),
 
     // Fast-forward the library to the remote, putting aside what is in the way (repo.js).
-    repoPull: async (p) => repo.pull(p, repoDeps, { setAsideBase: setAsideBase(), now: overrides.now }),
+    // The update says what became of the helmet list's default, which the pull may change: the set it named before and
+    // after (`helmetDefault: { was, now, changed }`, only where something was taken), so that the page sees to the
+    // default when the update changed it and not after every update.
+    repoPull: async (p) => {
+      const was = helmets.readManifest(p).default;
+      const report = await repo.pull(p, repoDeps, { setAsideBase: setAsideBase(), now: overrides.now });
+      if (report && report.updated) {
+        const now = helmets.readManifest(p).default;
+        report.helmetDefault = { was, now, changed: was !== now };
+      }
+      return report;
+    },
 
     // Libraries findable near the sim, so the common case needs no browsing.
     suggestLibraries: async (paintDir) => repo.suggestLibraries(paintDir, { env, exec }),
@@ -165,10 +176,19 @@ function createCommands(overrides = {}) {
       return groups.set(request, { lib, store, installedCars: await installPaths(), base: base(), deps: applyDeps });
     },
 
-    // The default helmet seen to on its own, after a library update that may have changed which set it is. Not in
-    // lib.rs: the Rust knows nothing of helmets.
-    ensureDefaultHelmet: async ({ paintDir, libraryRoot, customerId } = {}) =>
-      apply.ensureDefault({ paintDir, libraryRoot, customerId }, base(), applyDeps),
+    // The default helmet seen to on its own, after a library update that changed which set it is (`was` is the one it
+    // was before). Not in lib.rs: the Rust knows nothing of helmets.
+    ensureDefaultHelmet: async ({ paintDir, libraryRoot, customerId, was } = {}) =>
+      apply.ensureDefault({ paintDir, libraryRoot, customerId, was }, base(), applyDeps),
+
+    // The backups of the default helmet, newest first, for this customer: what an apply, a group or an update put
+    // in its place has left of what was there. No id, none listed.
+    listDefaultHelmetBackups: async ({ customerId } = {}) =>
+      customer.isValid(String(customerId)) ? apply.listDefaultBackups(base(), String(customerId)) : [],
+
+    // Put the default helmet back as one of those backups has it.
+    revertDefaultHelmet: async ({ paintDir, libraryRoot, customerId, backupId } = {}) =>
+      apply.revertDefault({ paintDir, libraryRoot, customerId, backupId }, base(), applyDeps),
   };
 }
 

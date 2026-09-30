@@ -54,10 +54,13 @@ export interface VersionFile {
 
 /// The helmet a version comes with, from the library's helmet list (apps/overlay/modules/js/paints/helmets.js):
 /// the set's name, and its body and art colours for a swatch, or null for either colour the list does not give.
+/// `problem` is null for a helmet that can be used, and else says in a sentence why the set cannot be — its file is
+/// not in the library, or is outside the helmets folder, or is no helmet the sim takes — which is what an apply says.
 export interface HelmetPick {
   set: string;
   body: [number, number, number] | null;
   art: [number, number, number] | null;
+  problem: string | null;
 }
 
 export interface Version {
@@ -176,6 +179,25 @@ export interface HelmetDefault {
 }
 
 export interface DefaultHelmetReport extends HelmetDefault {
+  warnings: string[];
+}
+
+/// A backup of the default helmet — what was in paint/helmet_<id>.tga before an apply, a group or a library update
+/// put the library's default there — newest first from the desk. `had` is false for one that says there was none.
+export interface DefaultHelmetBackup {
+  id: string;
+  path: string;
+  created: string;
+  reason: string;
+  had: boolean;
+}
+
+/// What putting a default helmet back did: whether the file came back, was taken away (there was none then) or
+/// nothing was there to change; a plain sentence saying so; and where the default that was there went first.
+export interface DefaultHelmetRestored {
+  restored: "restored" | "removed" | "none";
+  said: string;
+  backupDir: string;
   warnings: string[];
 }
 
@@ -307,6 +329,9 @@ export interface PullReport {
   commits: string[];
   /// How many versions of a car arrived or changed.
   changed?: number;
+  /// The desk's alone, and only where something was taken: the set the library's helmet list named as the default
+  /// before the update and after it, and whether the update changed it.
+  helmetDefault?: { was: string | null; now: string | null; changed: boolean } | null;
   /// Files that were in the way and were moved, not deleted, out of the library, and where to.
   setAside?: { count: number; folder: string } | null;
   blocked?: Blocked | null;

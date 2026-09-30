@@ -123,6 +123,10 @@ export function GroupPage({
                     {result?.outcome === "applied" && result.helmet?.onCar && (
                       <span className="note"> — with the {result.helmet.set} helmet</span>
                     )}
+                    {/* A car whose helmet was left as it was says why, in the sentence an apply says it. */}
+                    {result?.outcome === "applied" && result.helmet && !result.helmet.onCar && result.helmet.said && (
+                      <span className="note helmet-left"> — {result.helmet.said}</span>
+                    )}
                   </td>
                 </tr>
               );

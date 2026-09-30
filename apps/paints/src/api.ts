@@ -5,7 +5,9 @@ import type {
   BackupEntry,
   CatalogueCar,
   CustomerReport,
+  DefaultHelmetBackup,
   DefaultHelmetReport,
+  DefaultHelmetRestored,
   GroupReport,
   GroupRequest,
   InstalledState,
@@ -124,9 +126,26 @@ export const deleteGroup = (id: string) => invoke<boolean>("deleteGroup", { id }
 
 export const setGroup = (request: GroupRequest) => invoke<GroupReport>("setGroup", { request });
 
-/// The default helmet seen to on its own, after a library update: the desk's alone, as helmets are.
-export const ensureDefaultHelmet = (args: { paintDir: string; libraryRoot: string; customerId: string }) =>
-  invoke<DefaultHelmetReport>("ensureDefaultHelmet", args);
+/// The default helmet seen to on its own, after a library update that changed which set it is (`was` is the one it
+/// was before): the desk's alone, as helmets are.
+export const ensureDefaultHelmet = (args: {
+  paintDir: string;
+  libraryRoot: string;
+  customerId: string;
+  was: string | null;
+}) => invoke<DefaultHelmetReport>("ensureDefaultHelmet", args);
+
+/// The backups of the default helmet, newest first. The desk's alone.
+export const listDefaultHelmetBackups = (customerId: string) =>
+  invoke<DefaultHelmetBackup[]>("listDefaultHelmetBackups", { customerId });
+
+/// Put the default helmet back as one of those backups has it. The desk's alone.
+export const revertDefaultHelmet = (args: {
+  paintDir: string;
+  libraryRoot: string;
+  customerId: string;
+  backupId: string;
+}) => invoke<DefaultHelmetRestored>("revertDefaultHelmet", args);
 
 /// Errors arrive as plain strings from Rust and as Errors carrying the command's own message from the desk's
 /// bridge; anything else is a bug worth showing verbatim.

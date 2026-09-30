@@ -1,11 +1,15 @@
 // Helmets come with the livery. The driver's words: "we pick a livery for a car or a fleet, and the helmet comes
 // along with it so whatever my last choice was sets the helmet. it's not a single thing on its own."
 //
-// The library keeps them beside the cars, in one folder the design pipeline writes:
+// The library keeps them in one folder the design pipeline writes, at the top of the checkout:
 //
-//   <library>/helmets/manifest.json         { customer_id, default, sets: { <set>: { file, body, art } },
-//                                             variants: { "<car folder>/<version>": "<set>" } }
-//   <library>/helmets/<set>/helmet_<id>.tga  one 24-bit TGA per set, up to 2048²
+//   <checkout>/helmets/manifest.json         { customer_id, default, sets: { <set>: { file, body, art } },
+//                                              variants: { "<car folder>/<version>": "<set>" } }
+//   <checkout>/helmets/<set>/helmet_<id>.tga  one 24-bit TGA per set, up to 2048²
+//
+// The library the app is given is the checkout itself or, as it usually is, the checkout's cars/ folder — so the
+// helmets are looked for in the library's own folder first, and then beside it, in the folder the library is in.
+// Each set's `file` is relative to the folder that holds helmets/, which is where the pipeline wrote it from.
 //
 // The sim reads paint/<car folder>/helmet_<id>.tga as that car's helmet, and paint/helmet_<id>.tga as the default
 // for every car without one of its own; the same two rules for suit_<id>.tga, which nothing here touches since
@@ -28,8 +32,8 @@ const { messageOf } = require('./error');
 const FOLDER = 'helmets';
 const MANIFEST = 'manifest.json';
 
-// The largest helmet the sim takes is 2048² at 32 bits, 16 MiB of pixels; the rest is the file's header and footer.
-const MAX_BYTES = 16 * 1024 * 1024 + 64 * 1024;
+// A helmet is a 24-bit TGA of up to 2048², which is 12 MiB and a header; nothing larger than 16 MiB is read.
+const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_EDGE = 2048;
 
 // What a hand-written manifest is allowed to be: enough for a fleet, not enough to turn a scan into a crawl.
@@ -59,8 +63,9 @@ function colour(v) {
   return out.includes(null) ? null : out;
 }
 
-// A set's file as a path relative to the library, or null: it has to be under helmets/, made of plain folder and
-// file names, and be a .tga. `helmets\shatter\helmet_1.tga` and `helmets/shatter/helmet_1.tga` are both taken.
+// A set's file as a path relative to the folder that holds helmets/, or null: it has to be under helmets/, made of
+// plain folder and file names, and be a .tga. `helmets\shatter\helmet_1.tga` and `helmets/shatter/helmet_1.tga` are
+// both taken.
 function fileUnderHelmets(file) {
   if (typeof file !== 'string' || !file.length || file.length > MAX_FILE) return null;
   const parts = file.split(/[\\/]+/);
@@ -76,10 +81,21 @@ function none(reason, notes = []) {
   return { found: false, reason, default: null, sets: {}, refused: {}, variants: {}, notes };
 }
 
-// The library's helmets, as far as they can be trusted: { found, reason, default, sets, refused, variants, notes }.
+// The folders a library's helmets/ may be in: the library's own, else the one it is in — the checkout, when the
+// library is the checkout's cars/ folder.
+function holders(root) {
+  const here = path.resolve(root);
+  const up = path.dirname(here);
+  return up === here ? [here] : [here, up];
+}
+
+// The library's helmets, as far as they can be trusted: { found, reason, default, sets, refused, variants, notes,
+// base }.
 //
-//   sets      { <name>: { file (relative to the library, under helmets/), body, art } } — only sets whose file is
-//             one that may be read
+//   base      the folder that holds helmets/ — the library itself or the folder it is in; what each set's file is
+//             relative to (only where found)
+//   sets      { <name>: { file (relative to base, under helmets/), body, art } } — only sets whose file is one that
+//             may be read
 //   refused   { <name>: <why, in a sentence> } — the sets whose file names something outside helmets/, kept by
 //             name so that a version which comes with one can say why its helmet was left alone
 //   variants  { "<car folder>/<version>": <set name> } — only variants naming a set that was kept or refused
@@ -90,13 +106,19 @@ function none(reason, notes = []) {
 function readManifest(libraryRoot) {
   const root = typeof libraryRoot === 'string' && libraryRoot.trim().length ? libraryRoot : null;
   if (!root) return none('no-library');
-  let text;
-  try {
-    text = fs.readFileSync(path.join(root, FOLDER, MANIFEST), 'utf8');
-  } catch (e) {
-    if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) return none('no-manifest');
-    return none('unreadable', [`The helmet list could not be read (${messageOf(e)}).`]);
+  let text = null;
+  let base = null;
+  for (const holder of holders(root)) {
+    try {
+      text = fs.readFileSync(path.join(holder, FOLDER, MANIFEST), 'utf8');
+      base = holder;
+      break;
+    } catch (e) {
+      if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) continue;
+      return none('unreadable', [`The helmet list could not be read (${messageOf(e)}).`]);
+    }
   }
+  if (base === null) return none('no-manifest');
   let raw;
   try {
     raw = JSON.parse(text);
@@ -143,6 +165,7 @@ function readManifest(libraryRoot) {
     refused,
     variants,
     notes,
+    base,
   };
 }
 
@@ -159,13 +182,27 @@ function setFor(manifest, carFolder, versionId) {
   return null;
 }
 
-// What a card shows of a version's helmet: { set, body, art }, or null when none comes with it — or none that
-// may be used.
-function pick(manifest, carFolder, versionId) {
+// What a card shows of a version's helmet: { set, body, art, problem }, or null when the list names none for it.
+// `problem` is null for a helmet that can be used, and else says in a sentence why the set the version comes with
+// cannot — the sentence an apply says of it: a set whose file is outside helmets/ is refused when the list is read,
+// and one whose file is missing or is no helmet the sim takes is found out by `usable`, which takes a set's name
+// and answers that sentence or null (checker()). Without `usable` a set that was kept is taken as usable.
+function pick(manifest, carFolder, versionId, usable = () => null) {
   const set = setFor(manifest, carFolder, versionId);
-  const entry = set ? manifest.sets[set] : undefined;
-  if (!entry) return null;
-  return { set, body: entry.body, art: entry.art };
+  if (!set) return null;
+  const entry = manifest.sets[set];
+  if (!entry) return { set, body: null, art: null, problem: manifest.refused[set] || null };
+  return { set, body: entry.body, art: entry.art, problem: usable(set) || null };
+}
+
+// Whether each set of a manifest can be used, looked at once however many versions ask: a function from a set's
+// name to null (it can) or the sentence why it cannot. For a scan, which asks once per version.
+function checker(libraryRoot, manifest) {
+  const seen = new Map();
+  return (set) => {
+    if (!seen.has(set)) seen.set(set, sourceFor(libraryRoot, manifest, set).problem || null);
+    return seen.get(set);
+  };
 }
 
 // Whether a file is a helmet as the sim names one: `helmet_<digits>.tga`, or its cooked `.mip`. { role, id, ext },
@@ -191,13 +228,14 @@ function within(parent, child) {
 }
 
 // The file a set would be copied from, checked: { path, size } or { problem } in words. Only a file under the
-// library's helmets folder, only a TGA the sim could load — true colour, 24 or 32 bits, no larger than 2048² —
-// and no larger than the largest such file.
+// library's helmets folder, only a 24-bit true-colour TGA of no more than 2048², and no larger than 16 MiB.
 function sourceFor(libraryRoot, manifest, set) {
   const entry = manifest && manifest.found ? manifest.sets[set] : undefined;
   if (!entry) return { problem: `The ${set} helmet is not in the library's helmet list.` };
-  const folder = path.resolve(String(libraryRoot), FOLDER);
-  const file = path.resolve(String(libraryRoot), entry.file);
+  // What the list's files are relative to is the folder it was found in, which is not always the library's own.
+  const base = typeof manifest.base === 'string' && manifest.base.length ? manifest.base : String(libraryRoot);
+  const folder = path.resolve(base, FOLDER);
+  const file = path.resolve(base, entry.file);
   if (!within(folder, file)) return { problem: `The ${set} helmet's file is outside the library's helmets folder.` };
 
   let real;
@@ -227,8 +265,8 @@ function sourceFor(libraryRoot, manifest, set) {
   }
   if (n < 18) return { problem: `The ${set} helmet's file is not a TGA.` };
   const h = tga.readHeader(head);
-  if (h.colorMapType !== 0 || (h.imageType !== 2 && h.imageType !== 10) || (h.bits !== 24 && h.bits !== 32)) {
-    return { problem: `The ${set} helmet's file is not a true-colour TGA.` };
+  if (h.colorMapType !== 0 || (h.imageType !== 2 && h.imageType !== 10) || h.bits !== 24) {
+    return { problem: `The ${set} helmet's file is not a 24-bit true-colour TGA.` };
   }
   if (h.width < 1 || h.height < 1 || h.width > MAX_EDGE || h.height > MAX_EDGE) {
     return { problem: `The ${set} helmet is ${h.width} × ${h.height}, and the sim takes helmets up to ${MAX_EDGE} × ${MAX_EDGE}.` };
@@ -282,5 +320,5 @@ function resolveDefault(libraryRoot, manifest = readManifest(libraryRoot)) {
 
 module.exports = {
   FOLDER, MANIFEST, MAX_BYTES, MAX_EDGE, MAX_SETS, MAX_VARIANTS, MAX_NAME, DIGITS, fileUnderHelmets, readManifest, setFor,
-  pick, parseHelmet, installedName, cookedName, sourceFor, leftAlone, resolve, resolveDefault,
+  pick, checker, parseHelmet, installedName, cookedName, sourceFor, leftAlone, resolve, resolveDefault,
 };

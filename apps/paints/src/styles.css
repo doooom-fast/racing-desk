@@ -476,6 +476,9 @@
   align-items: center;
   gap: 6px;
 }
+.paints-app .card .helmet .problem {
+  color: var(--warn);
+}
 .paints-app .swatch {
   display: inline-block;
   flex: none;

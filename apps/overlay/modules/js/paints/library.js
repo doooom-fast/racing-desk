@@ -9,8 +9,9 @@
 // Both filename shapes are accepted on purpose. The plan describes role-only names; the design pipeline that
 // feeds this app already writes car_424242.tga, and asking it to change would be the tail wagging the dog.
 //
-// The library keeps helmets too, beside the cars (helmets.js): every version says which set it comes with
-// (`helmet`, on the version), and the helmets folder itself is never a car.
+// The library keeps helmets too, in a helmets folder beside the cars — in the library itself or, where the library is
+// a checkout's cars/ folder, in the checkout (helmets.js): every version says which set it comes with (`helmet`, on
+// the version), and a helmets folder in the library is never a car.
 const fs = require('fs');
 const path = require('path');
 const digest = require('./digest');
@@ -179,9 +180,11 @@ function scan(root, paintDir) {
     .sort(cmp);
 
   // Which helmet each version comes with. Said on every version where the library keeps helmets at all, null
-  // for a version none is named for; where it keeps none, nothing is said and the key is not there.
+  // for a version none is named for, and with why where the set it comes with cannot be used; where it keeps none,
+  // nothing is said and the key is not there. The helmets are in the library's folder or the one it is in.
   const manifest = helmets.readManifest(root);
   notes.push(...manifest.notes);
+  const usable = helmets.checker(root, manifest);
 
   for (const folder of carDirs) {
     const carDir = path.join(root, folder);
@@ -192,7 +195,7 @@ function scan(root, paintDir) {
       const versionDir = path.join(carDir, v);
       try {
         const version = scanVersion(versionDir);
-        if (manifest.found) version.helmet = helmets.pick(manifest, folder, version.id);
+        if (manifest.found) version.helmet = helmets.pick(manifest, folder, version.id, usable);
         versions.push(version);
       } catch (e) {
         notes.push(`${versionDir} could not be read (${messageOf(e)}).`);

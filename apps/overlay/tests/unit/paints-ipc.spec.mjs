@@ -23,9 +23,9 @@ function recorder() {
 
 const store = { get: () => ({}), set: () => {} };
 
-test('exactly the 23 commands, in the order the port lists them', () => {
+test('exactly the 25 commands, in the order the port lists them', () => {
   expect(paintsIpc.NAMES).toEqual(COMMAND_NAMES);
-  expect(paintsIpc.NAMES).toHaveLength(23);
+  expect(paintsIpc.NAMES).toHaveLength(25);
 });
 
 test('names outside the list are refused before anything runs — including Object.prototype\'s and non-strings', async () => {
@@ -67,7 +67,9 @@ test('named arguments become the positional ones each command takes', async () =
   await paintsIpc.invoke(commands, store, 'saveSettings', { settings: { customerId: '1' } });
   await paintsIpc.invoke(commands, store, 'previewImage', { path: 'car.tga', maxEdge: 640 });
   await paintsIpc.invoke(commands, store, 'carCatalogue', { libraryRoot: 'L', paintDir: 'P', installRoot: 'not the page\'s to say' });
-  await paintsIpc.invoke(commands, store, 'ensureDefaultHelmet', { paintDir: 'P', libraryRoot: 'L', customerId: '1', force: 'not the page\'s to say' });
+  await paintsIpc.invoke(commands, store, 'ensureDefaultHelmet', { paintDir: 'P', libraryRoot: 'L', customerId: '1', was: 'shatter', force: 'not the page\'s to say' });
+  await paintsIpc.invoke(commands, store, 'listDefaultHelmetBackups', { customerId: '1', paintDir: 'not the page\'s to say' });
+  await paintsIpc.invoke(commands, store, 'revertDefaultHelmet', { paintDir: 'P', libraryRoot: 'L', customerId: '1', backupId: '2026-09-30_120000_000', force: 'not the page\'s to say' });
 
   expect(calls).toEqual([
     ['detectPaths'],
@@ -88,7 +90,9 @@ test('named arguments become the positional ones each command takes', async () =
     ['saveSettings', { customerId: '1' }, store],
     ['previewImage', 'car.tga', 640],
     ['carCatalogue', { libraryRoot: 'L', paintDir: 'P' }],
-    ['ensureDefaultHelmet', { paintDir: 'P', libraryRoot: 'L', customerId: '1' }],
+    ['ensureDefaultHelmet', { paintDir: 'P', libraryRoot: 'L', customerId: '1', was: 'shatter' }],
+    ['listDefaultHelmetBackups', { customerId: '1' }],
+    ['revertDefaultHelmet', { paintDir: 'P', libraryRoot: 'L', customerId: '1', backupId: '2026-09-30_120000_000' }],
   ]);
 });
 

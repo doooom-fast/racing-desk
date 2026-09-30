@@ -26,6 +26,16 @@ function lib(tag) {
   return dir;
 }
 
+// A 1x1 24-bit true-colour TGA: a helmet the scan can tell is one the sim takes.
+function tiny24() {
+  const head = Buffer.alloc(18);
+  head[2] = 2;
+  head.writeUInt16LE(1, 12);
+  head.writeUInt16LE(1, 14);
+  head[16] = 24;
+  return Buffer.concat([head, Buffer.from([1, 2, 3])]);
+}
+
 function version(libRoot, car, id, files) {
   const dir = path.join(libRoot, car, id);
   fs.mkdirSync(dir, { recursive: true });
@@ -187,7 +197,7 @@ test.describe('scan', () => {
     // The helmets folder holds one folder per set, each with a file that is no version's, and a list that names
     // the sets and a set that points outside the folder.
     fs.mkdirSync(path.join(l, 'helmets', 'shatter'), { recursive: true });
-    fs.writeFileSync(path.join(l, 'helmets', 'shatter', 'helmet_31337.tga'), 'helmet');
+    fs.writeFileSync(path.join(l, 'helmets', 'shatter', 'helmet_31337.tga'), tiny24());
     fs.mkdirSync(path.join(l, 'Suits', 'shatter'), { recursive: true });
     fs.writeFileSync(path.join(l, 'helmets', 'manifest.json'), JSON.stringify({
       customer_id: '31337', default: 'shatter',
@@ -197,15 +207,52 @@ test.describe('scan', () => {
     const out = library.scan(l, null);
     expect(out.cars.map((c) => c.folder)).toEqual(['lotus79', 'mx5-mx52016']);
     const [v12, v13] = out.cars[0].versions;
-    expect(v13.helmet).toEqual({ set: 'shatter', body: [10, 10, 10], art: [220, 55, 20] });
+    expect(v13.helmet).toEqual({ set: 'shatter', body: [10, 10, 10], art: [220, 55, 20], problem: null });
     expect(v12.helmet).toBeNull();
-    expect(out.cars[1].versions[0].helmet).toBeNull();   // a set that may not be used is none to show
+    // A set that may not be used is still the one the version comes with, and the card says why it cannot be.
+    expect(out.cars[1].versions[0].helmet).toEqual({
+      set: 'up', body: null, art: null, problem: "The up helmet names a file outside the library's helmets folder, so it is not used.",
+    });
     expect(out.notes).toEqual(["The up helmet names a file outside the library's helmets folder, so it is not used."]);
     expect(library.NOT_CARS).toEqual(['helmets', 'suits']);
 
     // A library that keeps no helmets says nothing of them: the key is not there at all.
     fs.rmSync(path.join(l, 'helmets'), { recursive: true });
     expect('helmet' in library.scan(l, null).cars[0].versions[0]).toBe(false);
+  });
+
+  test('the real library: cars/ is the library and helmets/ is beside it in the checkout — every version says which helmet it comes with', () => {
+    const top = path.join(root, 'checkout');
+    const cars = path.join(top, 'cars');
+    fs.mkdirSync(cars, { recursive: true });
+    version(cars, 'lotus79', 'v13', { 'car.tga': 'p' });
+    version(cars, 'lotus79', 'v12', { 'car.tga': 'p' });
+    version(cars, 'mx5-mx52016', 'white-orange', { 'car.tga': 'p' });
+    version(cars, 'mx5-mx52016', 'orange-white', { 'car.tga': 'p' });
+    // Three sets with a file each and one with none; the list carries an id of its own, which the files' names share.
+    const sets = { shatter: {}, 'white-orange': {}, gone: { missing: true } };
+    const manifest = { customer_id: '31337', default: 'shatter', sets: {}, variants: { 'lotus79/v13': 'shatter', 'mx5-mx52016/white-orange': 'white-orange', 'mx5-mx52016/orange-white': 'gone' } };
+    for (const [name, o] of Object.entries(sets)) {
+      manifest.sets[name] = { file: `helmets/${name}/helmet_31337.tga`, body: [10, 10, 10], art: [220, 55, 20] };
+      if (o.missing) continue;
+      fs.mkdirSync(path.join(top, 'helmets', name), { recursive: true });
+      fs.writeFileSync(path.join(top, 'helmets', name, 'helmet_31337.tga'), tiny24());
+    }
+    fs.writeFileSync(path.join(top, 'helmets', 'manifest.json'), JSON.stringify(manifest));
+
+    const out = library.scan(cars, null);
+    expect(out.cars.map((c) => c.folder)).toEqual(['lotus79', 'mx5-mx52016']);
+    const [v12, v13] = out.cars[0].versions;
+    expect(v13.helmet).toEqual({ set: 'shatter', body: [10, 10, 10], art: [220, 55, 20], problem: null });
+    expect(v12.helmet).toBeNull();
+    const [orangeWhite, whiteOrange] = out.cars[1].versions;
+    expect(whiteOrange.helmet).toMatchObject({ set: 'white-orange', problem: null });
+    // The set the version comes with has no file in the library: the card says so, as the apply does.
+    expect(orangeWhite.helmet).toEqual({ set: 'gone', body: [10, 10, 10], art: [220, 55, 20], problem: "The gone helmet's file is not in the library." });
+    expect(out.notes).toEqual([]);
+    // Where the checkout has no list, no version says anything of helmets.
+    fs.rmSync(path.join(top, 'helmets'), { recursive: true });
+    expect('helmet' in library.scan(cars, null).cars[0].versions[0]).toBe(false);
   });
 
   test('a root that is not a folder is a note, not an error', () => {

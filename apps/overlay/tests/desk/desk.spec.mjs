@@ -844,6 +844,7 @@ const PAINTS = {
     cooked: [`${PAINT_DIR}\\lotus79\\car_${CUSTOMER}.mip`], cookedOtherDrivers: 41, appliedVersionId: 'v12', matchKind: 'paint-only', anyReadOnly: false,
   },
   listBackups: [],
+  listDefaultHelmetBackups: [],
   tradingPaintsStatus: {
     configFound: false, configPath: null, running: false, userId: null, downloadMySchemes: null, deleteBeforeDownloading: null,
     deleteAfterSession: null, keepSynced: null, warnings: [],
@@ -1177,6 +1178,33 @@ test('a card says which helmet comes with the version, and an apply says where i
   await app.locator('.sidebar .car', { hasText: 'Lotus 79' }).click();
   await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
   await expect(app.locator('.helmet-said')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('a version that comes with a helmet that cannot be used says why on its card, in the words an apply uses, and the apply says it too', async ({ page }) => {
+  // A set whose file is missing, and one the list names outside its helmets folder: each version still comes with it,
+  // and neither has a swatch to show.
+  const GONE = { set: 'shatter', body: [10, 10, 10], art: [220, 55, 20], problem: "The shatter helmet's file is not in the library." };
+  const OUT = { set: 'up', body: null, art: null, problem: "The up helmet names a file outside the library's helmets folder, so it is not used." };
+  const lotus = car('lotus79', 'lotus79', [{ ...version('v12', 'v12 Shatter'), helmet: OUT }, { ...version('v13', 'v13 Shatter'), helmet: GONE }], 'Lotus 79', 'Lotus 79', true, 41);
+  const said = "The shatter helmet's file is not in the library. The car's helmet was left as it was.";
+  await stubPaintsBridge(page, {
+    ...PAINTS,
+    carCatalogue: CATALOGUE.map((c) => (c.folder === 'lotus79' ? lotus : c)),
+    applyVersion: { ...PAINTS.applyVersion, helmet: { set: 'shatter', onCar: false, defaultSet: 'shatter', defaultPut: false, said } },
+  });
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
+  const app = page.locator(APP);
+  const cards = app.locator('.versions .card');
+  await expect(cards.locator('.helmet')).toHaveText([OUT.problem, GONE.problem]);
+  await expect(cards.locator('.helmet .swatch')).toHaveCount(0);
+  expect((await cards.locator('.helmet').allInnerTexts()).join(' ')).not.toContain('Comes with');
+
+  // What the apply says of it is what the card said: nothing the page has to work out, and no instruction.
+  await cards.nth(1).locator('.actions button.primary').click();
+  await expect(app.locator('.helmet-said')).toHaveText(said);
+  await expect(app.locator('.log .entry.ok')).toContainText(said);
+  expect(await app.locator('.helmet-said').innerText()).not.toMatch(/close|first|go to/i);
   expect(errors).toEqual([]);
 });
 
@@ -3759,19 +3787,132 @@ test('setting a group says which helmet each car got, and which the library\'s d
   expect(errors).toEqual([]);
 });
 
-test('after a library update the default helmet follows the library\'s list, and what came of it is said with the update', async ({ page }) => {
-  const said = 'The shatter-inverted helmet is now the default for every car without a helmet of its own.';
+test('setting a group says, beside a car whose helmet was left as it was, why — in the sentence an apply gives', async ({ page }) => {
+  const left = 'No helmet comes with this version, so the helmet on the car was left as it was.';
+  const report = {
+    ...SET_REPORT,
+    results: [
+      { ...SET_REPORT.results[0], helmet: { set: null, onCar: false, defaultSet: null, defaultPut: false, said: left } },
+      SET_REPORT.results[1],
+    ],
+    helmet: { set: 'shatter', put: false, said: 'The shatter helmet is the default for every car without a helmet of its own, as before.', backupDir: null },
+  };
+  await stubPaintsBridge(page, { ...PAINTS, setGroup: report });
+  await stubGroups(page, [SHATTER]);
+  const errors = await openDesk(page, lotusLast(), '&page=cars');
+  const app = page.locator(APP);
+  await app.locator('.sidebar .groups .car', { hasText: 'shatter' }).click();
+  await app.locator('.group-actions button.primary').click();
+
+  const panel = app.locator('.panel', { hasText: 'Cars in this group' });
+  await expect(panel.locator('tbody tr .outcome')).toHaveText([
+    `applied — ${left}`, 'skipped — The car has no folder in the paint directory and is not in the iRacing install.',
+  ]);
+  await expect(panel.locator('tbody tr .outcome .helmet-left')).toHaveCount(1);
+  // A car whose helmet went on says which; one whose helmet was left alone does not say it came with one.
+  expect((await panel.locator('tbody tr .outcome').allInnerTexts()).join(' ')).not.toMatch(/with the .* helmet/);
+  expect(errors).toEqual([]);
+});
+
+test('after a library update that changed the default helmet the default follows, and what came of it is said with the update', async ({ page }) => {
+  const said = 'The shatter-inverted helmet is now the default for every car without a helmet of its own. The default helmet that was there is kept, and can be put back.';
   const { errors, app } = await openCars(page, lotusLast(), {
     paints: {
-      ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: UP, repoPull: pulled(),
+      ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: UP,
+      repoPull: pulled({ helmetDefault: { was: 'shatter', now: 'shatter-inverted', changed: true } }),
       ensureDefaultHelmet: { set: 'shatter-inverted', put: true, said, backupDir: 'C:\\backups\\.default-helmet\\2026-09-30_120000_000', warnings: [] },
     },
   });
   await expect(app.locator('.toast .grow')).toHaveText('Library updated: 3 liveries added or changed.');
   await expect(app.locator('.log .entry.ok', { hasText: 'The library was updated' })).toContainText(said);
-  // Asked with what the page knows — the paint folder, the library and the customer id — and nothing of its own.
-  expect(await paintsCalls(page, 'ensureDefaultHelmet')).toEqual([{ paintDir: PAINT_DIR, libraryRoot: LIBRARY, customerId: CUSTOMER }]);
+  // Asked with what the page knows — the paint folder, the library, the customer id and the default it was — and
+  // nothing of its own.
+  expect(await paintsCalls(page, 'ensureDefaultHelmet')).toEqual([{ paintDir: PAINT_DIR, libraryRoot: LIBRARY, customerId: CUSTOMER, was: 'shatter' }]);
   await saidOnTheChips(app);
+  expect(errors).toEqual([]);
+});
+
+test('an update that leaves the default helmet as it was does nothing about it', async ({ page }) => {
+  // The update brought liveries and the list's default is the same: the page never asks.
+  const same = await openCars(page, lotusLast(), {
+    paints: {
+      ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: UP,
+      repoPull: pulled({ helmetDefault: { was: 'shatter', now: 'shatter', changed: false } }),
+      ensureDefaultHelmet: { set: 'shatter', put: true, said: 'must not be asked', backupDir: null, warnings: [] },
+    },
+  });
+  await expect(same.app.locator('.toast .grow')).toHaveText('Library updated: 3 liveries added or changed.');
+  await expect(same.app.locator('.log .entry.ok', { hasText: 'The library was updated' })).not.toContainText('must not be asked');
+  expect(await paintsCalls(page, 'ensureDefaultHelmet')).toEqual([]);
+  expect(same.errors).toEqual([]);
+});
+
+test('with the sim in the way an update says what changed and what is in the way, and gives no instruction', async ({ page }) => {
+  const said = "The library's default helmet is now the shatter-inverted helmet; the next apply puts it in place, since iRacing is running right now.";
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: {
+      ...PAINTS, loadSettings: {}, repoStatus: CHECKOUT, repoCheck: UP,
+      repoPull: pulled({ helmetDefault: { was: 'shatter', now: 'shatter-inverted', changed: true } }),
+      ensureDefaultHelmet: { set: 'shatter-inverted', put: false, said, backupDir: null, warnings: [] },
+    },
+  });
+  const line = app.locator('.log .entry.ok', { hasText: 'The library was updated' });
+  await expect(line).toContainText(said);
+  await expect(line).not.toContainText('Close the sim');
+  expect(await paintsCalls(page, 'ensureDefaultHelmet')).toHaveLength(1);
+  expect(errors).toEqual([]);
+});
+
+// Every backup of the default helmet can be put back from the page: the ones a car's revert names, and the ones no
+// car's backup names (a group that set no car, a library update).
+const DEFAULT_BACKUPS = [
+  { id: '2026-09-30_120000_000', path: 'C:\\backups\\.default-helmet\\2026-09-30_120000_000', created: '2026-09-30T12:00:00.000+10:00', reason: 'library update', had: true },
+  { id: '2026-09-29_090000_000', path: 'C:\\backups\\.default-helmet\\2026-09-29_090000_000', created: '2026-09-29T09:00:00.000+10:00', reason: 'set shatter', had: false },
+];
+
+test('the default helmet\'s backups are on the page and each can be put back, and what came of it is said', async ({ page }) => {
+  const back = 'The default helmet is back as it was. The library\'s default, the shatter helmet, goes in again at the next apply.';
+  const { errors, app } = await openCars(page, lotusLast(), {
+    paints: {
+      ...PAINTS,
+      listDefaultHelmetBackups: DEFAULT_BACKUPS,
+      revertDefaultHelmet: {
+        __by: 'backupId',
+        answers: {
+          [DEFAULT_BACKUPS[0].id]: { restored: 'restored', said: back, backupDir: 'C:\\backups\\.default-helmet\\2026-09-30_130000_000', warnings: [] },
+          '*': { __error: SIM_RUNNING },
+        },
+      },
+    },
+  });
+  const panel = app.locator('.panel.default-helmet');
+  await expect(panel.locator('h3')).toHaveText('Default helmet');
+  await expect(panel.locator('.row-line')).toHaveCount(2);
+  await expect(panel.locator('.row-line').nth(0)).toContainText('2026-09-30_120000_000');
+  await expect(panel.locator('.row-line').nth(0)).toContainText('library update; a helmet was there');
+  await expect(panel.locator('.row-line').nth(1)).toContainText('set shatter; no helmet was there');
+  await expect(panel.getByRole('button', { name: 'Put back' })).toHaveCount(2);
+  // Asked for by the customer's id alone: the paint folder and the library are the page's to send with the put back.
+  expect(await paintsCalls(page, 'listDefaultHelmetBackups')).toContainEqual({ customerId: CUSTOMER });
+
+  await panel.locator('.row-line').nth(0).getByRole('button', { name: 'Put back' }).click();
+  await expect(panel.locator('.helmet-said')).toHaveText(back);
+  await expect(app.locator('.log .entry.ok', { hasText: 'Put the default helmet back' })).toContainText(back);
+  expect(await paintsCalls(page, 'revertDefaultHelmet')).toEqual([{ paintDir: PAINT_DIR, libraryRoot: LIBRARY, customerId: CUSTOMER, backupId: DEFAULT_BACKUPS[0].id }]);
+  // The list is read again after it, as after anything that may have taken a backup.
+  await expect.poll(async () => (await paintsCalls(page, 'listDefaultHelmetBackups')).length).toBeGreaterThanOrEqual(2);
+
+  // With the sim running the host refuses, and that is said, as it is for a car.
+  await panel.locator('.row-line').nth(1).getByRole('button', { name: 'Put back' }).click();
+  await expect(app.locator('.log .entry.bad', { hasText: 'Did not put the default helmet back' })).toContainText(SIM_RUNNING);
+  expect(errors).toEqual([]);
+});
+
+test('with no backup of the default helmet there is no panel for it', async ({ page }) => {
+  const { errors, app } = await openCars(page, lotusLast());
+  await expect(app.locator('.car-head h2')).toHaveText('Lotus 79');
+  await expect(app.locator('.panel.default-helmet')).toHaveCount(0);
+  expect(await paintsCalls(page, 'listDefaultHelmetBackups')).toContainEqual({ customerId: CUSTOMER });
   expect(errors).toEqual([]);
 });
 

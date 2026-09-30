@@ -19,7 +19,7 @@ const NAMES = [
   'detectPaths', 'detectCustomer', 'scanLibrary', 'carState', 'tradingPaintsStatus', 'simStatus', 'preflight',
   'applyVersion', 'listBackups', 'revertCar', 'repoStatus', 'repoCheck', 'repoPull', 'suggestLibraries',
   'loadSettings', 'saveSettings', 'previewImage', 'carCatalogue',
-  'liveryGroups', 'saveGroup', 'deleteGroup', 'setGroup', 'ensureDefaultHelmet',
+  'liveryGroups', 'saveGroup', 'deleteGroup', 'setGroup', 'ensureDefaultHelmet', 'listDefaultHelmetBackups', 'revertDefaultHelmet',
 ];
 
 const quietSim = async () => ({ simRunning: false, uiRunning: false, matched: [] });
@@ -59,7 +59,7 @@ test.beforeAll(() => {
 });
 test.afterAll(() => { fs.rmSync(root, { recursive: true, force: true }); });
 
-test('exactly the 23 commands — the Tauri ones in camelCase, then the desk\'s own — every one async', () => {
+test('exactly the 25 commands — the Tauri ones in camelCase, then the desk\'s own — every one async', () => {
   expect(Object.keys(commands)).toEqual(NAMES);
   expect(COMMAND_NAMES).toEqual(NAMES);
   expect(Object.keys(cmd)).toEqual(NAMES);

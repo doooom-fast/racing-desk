@@ -88,12 +88,15 @@ function Swatch({ pick }: { pick: HelmetPick }) {
 }
 
 /// Which helmet comes with the version, where the library keeps helmets at all: the set, with its colours, or
-/// that none does. Nothing where the library keeps none.
+/// that none does — or, for a set that cannot be used, why, in the sentence an apply would say of it, so that the
+/// card and the apply never disagree. Nothing where the library keeps none.
 function Helmet({ pick }: { pick: HelmetPick | null | undefined }) {
   if (pick === undefined) return null;
   return (
     <div className="helmet">
-      {pick ? (
+      {pick && pick.problem ? (
+        <span className="problem">{pick.problem}</span>
+      ) : pick ? (
         <>
           <Swatch pick={pick} />
           <span>Comes with the {pick.set} helmet.</span>
