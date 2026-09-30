@@ -96,6 +96,14 @@ namespace RacingDesk.Plugin.Engine
         public double SteeringWheelAngle { get; set; } // angle (radians)
         public double FrameRate           { get; set; } // game render FPS
         public int    SessionFlags        { get; set; } // yellow/black/etc. bitmask
+        /// <summary>
+        /// iRacing's own <c>SessionFlags</c> (irsdk_Flags), whole and exactly as the sim published it: the start lights'
+        /// bits in the top nibble, so an unsigned number. <see cref="SessionFlags"/> is what the one-word flag state
+        /// is made from, and that cannot tell a local yellow from a full-course caution and drops the rest. Null where
+        /// the sim did not say (another sim, the variable not there): nothing is made up, and the HUD then goes by the
+        /// flag word alone.
+        /// </summary>
+        public uint?  SessionFlagsRaw     { get; set; }
         public int    IncidentCount       { get; set; } // iRacing incident points
         /// <summary>Incident count at which a slowdown/drivethrough penalty is issued. 0 = unknown.</summary>
         public int    IncidentLimitPenalty { get; set; }

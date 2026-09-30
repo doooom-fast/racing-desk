@@ -436,6 +436,9 @@ namespace RacingDesk.Plugin.Engine
 
             // Session flags: game-aware
             s.SessionFlags = GetGameSessionFlags(pm, detectedGame);
+            // iRacing's own flag field, whole, for the HUD to tell a local yellow from a full-course caution, and the rest.
+            // Only iRacing's: the other sims' flags are mapped onto the word above and have nothing to add.
+            s.SessionFlagsRaw = detectedGame == GameId.IRacing ? SessionFlagsRaw(pm) : null;
 
             // Incident count
             s.IncidentCount = GetGameIncidentCount(pm, detectedGame);
@@ -956,6 +959,38 @@ namespace RacingDesk.Plugin.Engine
 
         private static T Coalesce<T>(T primary, T fallback) where T : IComparable<T>
             => primary.CompareTo(default(T)) != 0 ? primary : fallback;
+
+        /// <summary>
+        /// iRacing's <c>SessionFlags</c> exactly as the sim published it, for the HUD to read the flags from: the
+        /// bitfield is an unsigned number (the start lights are its top nibble), and is kept whole. Null where the
+        /// sim says nothing of it, or says something that is not a whole number in the range of one: nothing is made
+        /// up, because a key that is sent is believed.
+        /// </summary>
+        internal static uint? SessionFlagsRaw(ITelemetrySource pm)
+        {
+            try
+            {
+                object raw = pm.GetPropertyValue(Transport.TelemetryFrame.SessionFlagsKey);
+                if (raw == null || raw is bool) return null;
+                double d;
+                if (raw is string text)
+                {
+                    if (!double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) return null;
+                }
+                else if (raw is IConvertible c)
+                {
+                    d = c.ToDouble(System.Globalization.CultureInfo.InvariantCulture);
+                }
+                else return null;
+                // A signed read of the same 32 bits (SimHub and the SDK hand a bitfield over as an int) is the same field.
+                if (double.IsNaN(d) || d != Math.Floor(d) || d < int.MinValue || d > uint.MaxValue) return null;
+                return d < 0 ? unchecked((uint)(int)d) : (uint)d;
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         /// <summary>
         /// iRacing's IsOnTrack, and not a replay of it. Null from a sim that publishes no such variable: nothing

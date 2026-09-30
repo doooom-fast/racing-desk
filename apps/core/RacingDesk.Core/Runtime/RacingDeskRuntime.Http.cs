@@ -832,6 +832,8 @@ namespace RacingDesk.Plugin
                     Jp(sb, "RacingDesk.Plugin.Grid.SessionState", s.SessionState);
                     // Only where the sim says: a key that is sent is believed, and a constant 0 would hide the HUD for good.
                     if (s.InCar.HasValue) Jp(sb, "DataCorePlugin.GameRawData.Telemetry.IsOnTrack", s.InCar.Value ? 1 : 0);
+                    // iRacing's flag field, whole, as it was published (an unsigned number): only where the sim said it, never in demo.
+                    if (!demo && s.GameRunning && s.SessionFlagsRaw.HasValue) Jp(sb, Transport.TelemetryFrame.SessionFlagsKey, (long)s.SessionFlagsRaw.Value);
                     // The car's controls by the canonical list: a JSON object, and only for a car the list has.
                     if (!demo && !string.IsNullOrEmpty(s.CarControlsJson))
                         sb.Append('"').Append(Transport.TelemetryFrame.CarControlsKey).Append("\":").Append(s.CarControlsJson).Append(",\n");
@@ -940,6 +942,8 @@ namespace RacingDesk.Plugin
         // JSON property helpers — avoid pulling in Newtonsoft for a simple flat map
         private static void Jp(StringBuilder sb, string key, int val)
             => sb.Append($"  \"{key}\": {val},\n");
+        private static void Jp(StringBuilder sb, string key, long val)
+            => sb.Append($"  \"{key}\": {val.ToString(System.Globalization.CultureInfo.InvariantCulture)},\n");
         private static void Jp(StringBuilder sb, string key, double val, System.Globalization.CultureInfo ic)
             => sb.Append($"  \"{key}\": {val.ToString("G", ic)},\n");
         private static void Jp(StringBuilder sb, string key, string val)

@@ -85,6 +85,7 @@ namespace RacingDesk.Tests.IRacing
                     .Where(k => !k.StartsWith("RacingDesk.Plugin.DS.Sector"))
                     .Where(k => k != "RacingDesk.Plugin.TrackMap.TrackDisplayName") // added in Phase 3, after the fixture was captured
                     .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.IsOnTrack") // whether he is in the car: what the HUD is shown by
+                    .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.SessionFlags") // iRacing's flag field, whole: sent where the sim says it
                     .Where(k => k != "RacingDesk.Plugin.CarControls") // what the car has by the canonical list: sent for a car the list has
                     .ToList();
                 Assert.That(missing, Is.Empty, "keys the plugin serves that the host doesn't (hardware keys excluded)");
@@ -95,6 +96,21 @@ namespace RacingDesk.Tests.IRacing
                 Assert.That((string)body["RacingDesk.Plugin.TrackMap.TrackSlug"], Is.EqualTo(ibt.SessionInfo.WeekendInfo.TrackName));
                 Assert.That((int)body["DataCorePlugin.GameData.CurrentLap"], Is.GreaterThan(0));
                 Assert.That((int)body["DataCorePlugin.GameRawData.Telemetry.IsOnTrack"], Is.EqualTo(1), "in the car, in the middle of a race");
+
+                // iRacing's flag field is sent whole, as an unsigned number, and the one word is made from the same bits as it was.
+                var flagKey = body["DataCorePlugin.GameRawData.Telemetry.SessionFlags"];
+                Assert.That(flagKey, Is.Not.Null, "the recording says its SessionFlags, so the host sends them");
+                Assert.That(flagKey.Type, Is.EqualTo(JTokenType.Integer));
+                long flags = (long)flagKey;
+                Assert.That(flags, Is.InRange(0L, (long)uint.MaxValue));
+                string word = (string)body["currentFlagState"];
+                if (word != "orange") // the car ahead being lapped is not in the field
+                {
+                    string expected = (flags & 0x10) != 0 ? "red" : (flags & 0x100000) != 0 ? "meatball" : (flags & 0x10000) != 0 ? "black"
+                        : (flags & (0x8 | 0x4000 | 0x8000)) != 0 ? "yellow" : (flags & 0x20) != 0 ? "blue" : (flags & 0x40) != 0 ? "debris"
+                        : (flags & 0x2) != 0 ? "white" : (flags & 0x1) != 0 ? "checkered" : (flags & 0x4) != 0 ? "green" : "none";
+                    Assert.That(word, Is.EqualTo(expected), $"currentFlagState for SessionFlags 0x{flags:X}");
+                }
                 Assert.That((string)body["RacingDesk.Plugin.TrackMap.TrackDisplayName"], Is.EqualTo(ibt.SessionInfo.WeekendInfo.TrackDisplayName));
                 Assert.That((int)body["RacingDesk.Plugin.DS.SectorCount"], Is.EqualTo(ibt.SessionInfo.SplitTimeInfo.Sectors.Count), "sectors from SplitTimeInfo");
             }

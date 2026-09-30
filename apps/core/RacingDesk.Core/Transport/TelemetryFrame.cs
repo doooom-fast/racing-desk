@@ -17,6 +17,14 @@ namespace RacingDesk.Plugin.Transport
         public const string CarControlsKey = "RacingDesk.Plugin.CarControls";
 
         /// <summary>
+        /// iRacing's own <c>SessionFlags</c> bitmask, whole, as an unsigned integer: a local yellow from a full-course
+        /// caution, one lap to green, ten and five to go, halfway, green held, the black flag furled, disqualified and
+        /// the start lights. It is the name SimHub gives the variable, and is read by the same name (TelemetryCapture).
+        /// Sent only where the sim says it, and never in demo: <c>currentFlagState</c> is still the one word it was.
+        /// </summary>
+        public const string SessionFlagsKey = "DataCorePlugin.GameRawData.Telemetry.SessionFlags";
+
+        /// <summary>
         /// Converts a TelemetrySnapshot to a flat Dictionary<string, object>.
         /// This mirrors the Jp() calls in Plugin.HttpServerLoop() to ensure wire format parity.
         /// </summary>
@@ -452,6 +460,8 @@ namespace RacingDesk.Plugin.Transport
             dict["RacingDesk.Plugin.Grid.SessionState"] = s.SessionState;
             // Only where the sim says: a key that is sent is believed, and a constant 0 would hide the HUD for good.
             if (s.InCar.HasValue) dict["DataCorePlugin.GameRawData.Telemetry.IsOnTrack"] = s.InCar.Value ? 1 : 0;
+            // iRacing's flag field, whole: only what the sim said (a demo's flags are made up, and so is a sim that is not running).
+            if (!demo && s.GameRunning && s.SessionFlagsRaw.HasValue) dict[SessionFlagsKey] = (long)s.SessionFlagsRaw.Value;
             // The car's controls by the canonical list: only for a car the list has. A JSON object, as text.
             if (!demo && !string.IsNullOrEmpty(s.CarControlsJson)) dict[CarControlsKey] = s.CarControlsJson;
             dict["RacingDesk.Plugin.Grid.GriddedCars"] = s.GriddedCars;
