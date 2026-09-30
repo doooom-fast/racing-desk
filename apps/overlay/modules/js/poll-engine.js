@@ -309,6 +309,9 @@
     if (nowIdle !== _isIdle) {
       _isIdle = nowIdle;
       document.body.classList.toggle('idle-state', nowIdle);
+      // On an iPad, back in the car — the same car, after the garage, say — the rig chooses another section of the
+      // paint, as it does on its own screen: ask for it (car-logos.js). A change of car asks, below.
+      if (!nowIdle && window._remoteMode && typeof requestRemoteLivery === 'function') requestRemoteLivery();
     }
 
     // Skip rest of update in idle (except settings remain responsive)

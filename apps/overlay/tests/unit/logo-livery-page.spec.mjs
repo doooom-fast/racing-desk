@@ -3,7 +3,9 @@
  * dashboard.html, headless. In the app the crop the main process chose is laid under the logo, over the maker's
  * colour, and taken away when it says there is none. On an iPad the page asks the rig for it at its one address when
  * the car changes, through remote-server.js's real server on 127.0.0.1, and shows the maker's colour when the rig has
- * none. In a browser with nothing behind it the badge is the maker's colour and nothing is asked for.
+ * none, and asks again when he is back in the car. In a browser with nothing behind it the badge is the maker's colour
+ * and nothing is asked for. In the glance layout the darkening over the crop deepens under the flags the panels take a
+ * heavier tint under, and under no others.
  */
 
 import { test, expect } from '@playwright/test';
@@ -146,6 +148,35 @@ test.describe('in the app', () => {
   });
 });
 
+// The alpha of the first stop of the layer's darkening: what the glass's colour is laid on at.
+const tintOf = (page, flag) => page.evaluate((f) => {
+  document.body.classList.add('drive-mode-active');
+  if (f) document.body.setAttribute('data-flag', f);
+  else document.body.removeAttribute('data-flag');
+  const m = /rgba\(\d+, \d+, \d+, ([\d.]+)\)/.exec(getComputedStyle(document.querySelector('#carLivery'), '::after').backgroundImage);
+  return m ? Number(m[1]) : null;
+}, flag);
+
+test.describe('the glance layout\'s darkening over the crop', () => {
+  test('is the heavier tint under the flags the panels take a heavier tint under, and the light one under any other', async ({ page }) => {
+    await open(page, { bridge: true, crop: dataUrlOf(cropOf(200, 30, 30)) });
+    await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
+    await expect.poll(() => badge(page), { timeout: 5000 }).toMatchObject({ hasLivery: true });
+    // The panels' own list (drive-view.css, "The glass under a flag").
+    const panels = ['green', 'greenheld', 'yellow', 'caution', 'onetogreen', 'red', 'white', 'checkered', 'meatball', 'debris', 'disqualify'];
+    // What the page also has a flag for and the panels leave as they are: a local yellow, blue, the black flag
+    // and its furled warning, the flag for a car being lapped, and none.
+    const others = ['none', 'blue', 'black', 'furled', 'localyellow', 'orange'];
+    const light = await tintOf(page, null);
+    expect(light).toBe(0.18);
+    for (const flag of panels) expect(await tintOf(page, flag), flag).toBe(0.34);
+    for (const flag of others) expect(await tintOf(page, flag), flag).toBe(light);
+    // Outside the glance layout the darkening is the plain one, with no glass colour in it.
+    await page.evaluate(() => { document.body.classList.remove('drive-mode-active'); document.body.removeAttribute('data-flag'); });
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('#carLivery'), '::after').backgroundImage)).not.toContain('rgba(225');
+  });
+});
+
 test('in a browser with nothing behind it, the badge is the maker\'s colour and nothing is asked for', async ({ page }) => {
   await open(page, { bridge: false });
   await page.waitForTimeout(500);
@@ -244,5 +275,36 @@ test.describe('on an iPad', () => {
     await expect.poll(() => badge(page), { timeout: 15000 }).toMatchObject({ hasLivery: true, label: '911 GT3 R' });
     expect((await badge(page)).image).toMatch(/^url\("blob:/);
     expect((await badge(page)).image).not.toBe(shown.image);
+  });
+
+  test('back in the car, the same car after the garage, the page asks the rig again and shows the section it has chosen since', async ({ page }) => {
+    test.setTimeout(60000);
+    const onTrack = (value) => ({ ...PORSCHE, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': value });
+    payload = onTrack(1);
+    crop = { png: cropOf(200, 30, 30), id: '5-1' };
+    const requested = [];
+    page.on('request', (r) => requested.push(r.url()));
+    await page.addInitScript(() => { try { localStorage.setItem('rd-effects', 'off'); } catch (e) { /* none */ } });
+    await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
+    await page.setViewportSize({ width: 1180, height: 820 });
+    await page.goto(`http://127.0.0.1:${port}/?k=${KEY}`);
+    const cropUrl = `http://127.0.0.1:${port}${remote.CROP_PATH}`;
+    await expect.poll(() => badge(page), { timeout: 15000 }).toMatchObject({ hasLivery: true, label: '911 GT3 R' });
+    const first = (await badge(page)).image;
+
+    // Out of the car — the garage screen, the car still named — and the page has noticed.
+    payload = onTrack(0);
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('idle-state')), { timeout: 15000 }).toBe(true);
+    await page.waitForTimeout(1000);
+    const asked = requested.filter((u) => u === cropUrl).length;
+    // The rig chooses another section of the same car's paint as he gets back in, and the page asks for it then.
+    crop = { png: cropOf(30, 200, 30), id: '5-2' };
+    payload = onTrack(1);
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('idle-state')), { timeout: 15000 }).toBe(false);
+    await expect.poll(() => requested.filter((u) => u === cropUrl).length, { timeout: 10000 }).toBeGreaterThan(asked);
+    await expect.poll(() => badge(page).then((b) => b.image), { timeout: 10000 }).not.toBe(first);
+    expect((await badge(page)).image).toMatch(/^url\("blob:/);
+    expect((await badge(page)).label).toBe('911 GT3 R');
+    expect(requested.filter((u) => CROP_URL.test(u)).every((u) => u === cropUrl)).toBe(true);
   });
 });

@@ -13,22 +13,26 @@
 // (`carNames`, /racing-desk/data/cars). The paint folder and the customer id are the desk's paint settings. None
 // of those three is enough on its own, and with any missing the badge is the maker's colour, as it was.
 //
-// The paint is read and decoded in a worker (logo-livery-worker.js), one at a time; a newer wish supersedes a pick
-// still under way, whose answer is then dropped. Nothing here throws into the poll that feeds it, and no line of
-// the log carries the customer id or the paint's path.
+// The paint is read and decoded in a worker (logo-livery-worker.js), one at a time: a newer wish ends the worker of
+// the pick still under way, whose answer is never used. The crop is cut at the widest shape the badge takes
+// (BADGE_ASPECT; the page cover-fits it, so the square badge shows its middle). A crop made for another car is
+// taken away as soon as the car changes, so the last car's paint is never under this car's logo while this one's is
+// made; getting back into the same car keeps it until the new one comes. Nothing here throws into the poll that
+// feeds it, and no line of the log carries the customer id or the paint's path.
 'use strict';
 const path = require('path');
 const fs = require('fs');
 const { Worker } = require('worker_threads');
 const { createInCarSignal } = require('./in-car');
 const { isValid: isCustomerId } = require('./paints/customer');
+const { BADGE_ASPECT } = require('./logo-livery-picker');
 
 const CAR_CONTROLS_KEY = 'RacingDesk.Plugin.CarControls';
 const CAR_MODEL_KEY = 'DataCorePlugin.GameData.CarModel';
 const DEMO_KEY = 'RacingDesk.Plugin.DemoMode';
 
-// The crop's edge: about twice the badge's largest size on any screen (the glance layout's cell on the rig's
-// ultrawide is about 290 pixels across).
+// The crop's width: about twice the badge's widest size on any screen (204 pixels across in the glance layout on the
+// rig's ultrawide), and its height is that over the badge's shape.
 const CROP_EDGE = 512;
 // A 2048 by 2048 paint at 32 bits is 16 megabytes; nothing larger than this is read.
 const MAX_PAINT_BYTES = 70 * 1024 * 1024;
@@ -93,24 +97,36 @@ function workerFile(dir = __dirname) {
 }
 
 // One pick, in a worker of its own. Resolves the PNG (a Buffer) or null where there is nothing to show; rejects
-// for a paint that could not be read or decoded, with a reason that carries no path.
-function pickInWorker(job, { file = workerFile(), timeoutMs = PICK_WITHIN_MS } = {}) {
+// for a paint that could not be read or decoded, with a reason that carries no path. An aborted `signal` ends the
+// worker at once and rejects with 'superseded': a pick nobody wants any more does not go on decoding. `Worker` is
+// for the tests.
+function pickInWorker(job, { file = workerFile(), timeoutMs = PICK_WITHIN_MS, signal = null, Worker: WorkerClass = Worker } = {}) {
   return new Promise((resolve, reject) => {
+    if (signal && signal.aborted) {
+      reject(new Error('superseded'));
+      return;
+    }
     let worker;
     try {
-      worker = new Worker(file, { workerData: job });
+      worker = new WorkerClass(file, { workerData: job });
     } catch (e) {
       reject(new Error(`the worker could not be started (${e.code || e.message})`));
       return;
     }
     let done = false;
     let timer = null;
+    const onAbort = () => {
+      finish(reject, new Error('superseded'));
+      worker.terminate().catch(() => {});
+    };
     const finish = (fn, value) => {
       if (done) return;
       done = true;
       if (timer !== null) clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', onAbort);
       fn(value);
     };
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
     timer = setTimeout(() => {
       finish(reject, new Error('the crop took too long'));
       worker.terminate().catch(() => {});
@@ -133,7 +149,9 @@ function pickInWorker(job, { file = workerFile(), timeoutMs = PICK_WITHIN_MS } =
  *   paintDir()     the paint folder from the settings, or nothing
  *   customerId()   the customer id from the settings, or nothing
  *   carNames()     async: the store's rows (car_path, name), for a car the host did not name; may be left out
- *   pick(job)      async: the crop of the paint the job names — pickInWorker by default; the tests hand in their own
+ *   pick(job, { signal })
+ *                  async: the crop of the paint the job names — pickInWorker by default; the tests hand in their own.
+ *                  The signal is aborted when a newer wish makes the pick unwanted
  *   onCrop(crop)   the crop has changed: { png, id, dataUrl } or null
  *   log(line)
  *   random()       a number in [0, 1), for the seed the worker is given
@@ -149,17 +167,18 @@ function createLogoLivery({
   log = () => {},
   random = Math.random,
   size = CROP_EDGE,
-  aspect = 1,
+  aspect = BADGE_ASPECT,
   maxBytes = MAX_PAINT_BYTES,
   leaveMs,
   staleMs,
   now = Date.now,
 } = {}) {
-  let crop = null;          // { png, id, dataUrl, carPath } — what the badge shows
+  let crop = null;          // { png, id, dataUrl, carPath, key } — what the badge shows, and the wish it was made for
   let wanted = null;        // the car the crop is for, or being made for: 'path:<carPath>' or 'model:<name>'
   let seq = 0;              // each wish is numbered; an answer to an older one is dropped
   let picking = false;
   let picks = 0;
+  let active = null;        // the AbortController of the pick in hand, which a newer wish aborts
 
   const signal = createInCarSignal({
     leaveMs, staleMs, now,
@@ -192,7 +211,16 @@ function createLogoLivery({
     return carPathByName(rows, car.model);
   }
 
-  async function choose(mine, car) {
+  // Whether the crop held was made for this car: for the same wish, or for the same folder.
+  function madeFor(held, car, key) {
+    if (!held) return false;
+    if (held.key === key) return true;
+    return !!(car.carPath && held.carPath && held.carPath.toLowerCase() === car.carPath.toLowerCase());
+  }
+
+  async function choose(mine, car, key) {
+    const ctl = new AbortController();
+    active = ctl;
     picking = true;
     picks += 1;
     try {
@@ -209,7 +237,7 @@ function createLogoLivery({
       };
       let out;
       try {
-        out = await pick(job);
+        out = await pick(job, { signal: ctl.signal });
       } catch (e) {
         if (mine !== seq) return;
         clear(`the paint for ${carPath} could not be read (${e.message})`);
@@ -218,10 +246,11 @@ function createLogoLivery({
       if (mine !== seq) return;
       if (!out || !Buffer.isBuffer(out.png)) { clear(`no paint with artwork to show for ${carPath}`); return; }
       const idOf = `${mine}-${out.png.length}`;
-      say({ png: out.png, id: idOf, dataUrl: `data:image/png;base64,${out.png.toString('base64')}`, carPath });
+      say({ png: out.png, id: idOf, dataUrl: `data:image/png;base64,${out.png.toString('base64')}`, carPath, key });
       const w = out.window || {};
       log(`[RacingDesk] Livery: a crop of the paint for ${carPath} is behind the badge (${out.png.length} bytes, window ${w.w || '?'}px at ${w.x || 0},${w.y || 0}, one of ${w.among || '?'} of ${w.looked || '?'} looked at, ${out.ms || '?'} ms)`);
     } finally {
+      if (active === ctl) active = null;
       if (mine === seq) picking = false;
     }
   }
@@ -236,8 +265,13 @@ function createLogoLivery({
       if (key === wanted) return;
       wanted = key;
       seq += 1;
-      if (!car) { clear(crop ? 'no car to show' : ''); return; }
-      choose(seq, car).catch((e) => log(`[RacingDesk] Livery: ${e.message}`));
+      // A newer wish ends the worker of the pick under way: its answer would be dropped, so it is not worth a decode.
+      if (active) { active.abort(); active = null; }
+      if (!car) { picking = false; clear(crop ? 'no car to show' : ''); return; }
+      // The last car's paint is not left under this car's logo while this one's is made. Getting back into the same
+      // car keeps the crop it had until the new one comes.
+      if (crop && !madeFor(crop, car, key)) clear('the car has changed');
+      choose(seq, car, key).catch((e) => log(`[RacingDesk] Livery: ${e.message}`));
     } catch (e) {
       log(`[RacingDesk] Livery: ${e.message}`);
     }

@@ -1,8 +1,9 @@
 /**
  * Choosing the section of a paint that goes behind the car badge (modules/js/logo-livery-picker.js), on sheets made
- * up here: a flat body with one busy patch picks the patch; a flat paint, an empty one and a transparent one give
- * nothing; the choice is random among the best few and the same random gives the same choice; the window is the
- * badge's shape and inside the sheet; the crop is the window's pixels at the size asked.
+ * up here: a flat body with one busy patch picks the patch; a flat paint, an empty one, a transparent one, two flat
+ * fields with a few letters on them, and a field of greys give nothing; the choice is random among the best few and
+ * the same random gives the same choice; the window is the badge's shape (the widest it takes, with artwork in its
+ * middle too) and inside the sheet; the crop is the window's pixels at the size asked.
  */
 
 import { test, expect } from '@playwright/test';
@@ -44,6 +45,14 @@ function busy(x, y, seed = 1) {
   else if (h < 240) [r, g, b] = [0, xx, c]; else if (h < 300) [r, g, b] = [xx, 0, c]; else [r, g, b] = [c, 0, xx];
   return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
 }
+
+// Letters as 5 by 5 dots.
+const GLYPHS = {
+  P: ['1111.', '1...1', '1111.', '1....', '1....'],
+  O: ['.111.', '1...1', '1...1', '1...1', '.111.'],
+  E: ['11111', '1....', '1111.', '1....', '11111'],
+  H: ['1...1', '1...1', '11111', '1...1', '1...1'],
+};
 
 const inside = (win, box) => win.x >= box.x && win.y >= box.y && win.x + win.w <= box.x + box.w && win.y + win.h <= box.y + box.h;
 const centreIn = (win, box) => {
@@ -92,6 +101,75 @@ test.describe('what is chosen', () => {
     expect(win.flatShare).toBeGreaterThan(picker.FLAT_SHARE);
     expect(win.edgeDensity).toBeGreaterThanOrEqual(picker.BUSY_EDGES);
     expect(win.score).toBeGreaterThan(picker.MIN_SCORE);
+  });
+
+  test('two flat fields with a few letters on them are not artwork: a black box on the template\'s white, half a word across both', () => {
+    // What his Porsche 911 GT3 Cup (992) sheet has at the top: a black box beside blank white ground, and a few
+    // letters of the car's name in the box, some of them upside down. Two colours cover nearly all of any window
+    // that reaches both, about half each, and a few letters are edges on a twentieth of it.
+    const letters = [
+      { at: [130, 24], glyph: GLYPHS.P }, { at: [146, 24], glyph: GLYPHS.O },
+      { at: [130, 205], glyph: GLYPHS.E }, { at: [146, 205], glyph: GLYPHS.H },
+    ];
+    const img = sheet(256, 256, (x, y) => {
+      const inBox = x >= 120;
+      for (const l of letters) {
+        const gx = Math.floor((x - l.at[0]) / 3);
+        const gy = Math.floor((y - l.at[1]) / 3);
+        if (gx >= 0 && gx < 5 && gy >= 0 && gy < 5 && l.glyph[gy][gx] === '1') return [245, 245, 245];
+      }
+      return inBox ? [8, 8, 10] : [246, 246, 246];
+    });
+    for (const aspect of [1, picker.BADGE_ASPECT]) {
+      expect(picker.chooseWindow(img, { aspect }), `aspect ${aspect}`).toBeNull();
+      expect(picker.chooseWindow(img, { aspect, random: () => 0.9 }), `aspect ${aspect}`).toBeNull();
+    }
+    // The window across the box's edge says why: two colours, about half each, and artwork in only part of it.
+    const a = picker.analyse(picker.shrink(img, picker.WORK_EDGE));
+    const across = picker.scoreWindow(a, { x: 94, y: 0, w: 60, h: 60 }, [246, 246, 246]);
+    expect(across.out).toBe('two colours');
+    expect(across.twoShare).toBeGreaterThan(picker.TWO_SHARE);
+    expect(across.coverage).toBeLessThan(picker.COVERAGE_MIN);
+    expect(across.hues).toBe(1);
+  });
+
+  test('a wordmark across a dark body is artwork, though the body and the letters are two colours', () => {
+    // Orange capitals all over a black body (his Lotus 79): two colours cover the whole window, and so does the
+    // lettering, so it is busy throughout and stays in.
+    const glyphs = [GLYPHS.P, GLYPHS.O, GLYPHS.E, GLYPHS.H];
+    const img = sheet(256, 256, (x, y) => {
+      const cx = Math.floor(x / 14);
+      const cy = Math.floor(y / 14);
+      const g = glyphs[(cx + cy * 3) % 4];
+      const gx = Math.floor((x % 14) / 2.8);
+      const gy = Math.floor((y % 14) / 2.8);
+      return g[Math.min(4, gy)][Math.min(4, gx)] === '1' ? [236, 96, 12] : [10, 10, 12];
+    });
+    const win = picker.chooseWindow(img, { random: () => 0.4 });
+    expect(win).not.toBeNull();
+    expect(win.twoShare).toBeGreaterThan(picker.TWO_SHARE);
+    expect(win.coverage).toBeGreaterThanOrEqual(picker.COVERAGE_MIN);
+    expect(win.hues).toBe(2);
+  });
+
+  test('greys, however many, are one colour: a field of black, grey and white shards is not a palette', () => {
+    const img = sheet(256, 256, (x, y) => {
+      const cell = (Math.floor(x / 4) * 2654435761) ^ (Math.floor(y / 4) * 40503);
+      const k = (cell >>> 0) % 3;
+      return k === 0 ? [14, 14, 16] : k === 1 ? [128, 128, 132] : [238, 238, 240];
+    });
+    expect(picker.chooseWindow(img, { random: () => 0.5 })).toBeNull();
+    const a = picker.analyse(picker.shrink(img, picker.WORK_EDGE));
+    const s = picker.scoreWindow(a, { x: 40, y: 40, w: 80, h: 80 }, [14, 14, 16]);
+    expect(s.hues).toBe(1);
+    expect(s.out).toBe('one colour');
+    // The same shards with a hue among them are a palette.
+    const coloured = sheet(256, 256, (x, y) => {
+      const cell = (Math.floor(x / 4) * 2654435761) ^ (Math.floor(y / 4) * 40503);
+      const k = (cell >>> 0) % 3;
+      return k === 0 ? [14, 14, 16] : k === 1 ? [220, 40, 30] : [238, 238, 240];
+    });
+    expect(picker.chooseWindow(coloured, { random: () => 0.5 })).not.toBeNull();
   });
 
   test('a transparent sheet gives nothing; artwork that is opaque on a clear sheet is found', () => {
@@ -175,6 +253,37 @@ test.describe('what is chosen', () => {
     // Too small to be a paint at all.
     expect(picker.chooseWindow(sheet(8, 8, (x, y) => busy(x, y)))).toBeNull();
     expect(picker.chooseWindow(null)).toBeNull();
+  });
+
+  test('the badge is chosen for at its widest, and what a narrower badge shows of it has artwork in it too', () => {
+    // The glance layout's badge is 1.5 to 1 on the rig's ultrawide and 0.87 on an iPad, and the rig HUD's is square;
+    // the page cover-fits one crop to all of them, so a square badge shows the middle of a wide crop.
+    expect(picker.BADGE_ASPECT).toBeCloseTo(1.5, 5);
+    expect(picker.NARROWEST).toBeLessThan(1);
+    // Artwork at the two ends of a stretch of base coat, and a gap between: a window across both has artwork in
+    // each end and none in the middle, and is put out.
+    const ends = [{ x: 96, y: 60, w: 26, h: 70 }, { x: 166, y: 60, w: 26, h: 70 }];
+    const img = sheet(288, 200, (x, y) => (ends.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) ? busy(x, y) : GREY));
+    const a = picker.analyse(picker.shrink(img, picker.WORK_EDGE));
+    const { candidates, rejected } = picker.scoreAll(a, picker.BADGE_ASPECT);
+    expect(rejected.some((r) => /^middle:/.test(r.out)), 'a window across the gap is put out for its middle').toBe(true);
+    for (const c of candidates) {
+      const middle = picker.middleOf(c, picker.BADGE_ASPECT);
+      expect(middle, 'a wide window has a middle').not.toBeNull();
+      expect(middle.w).toBeLessThan(c.w);
+      expect(picker.scoreWindow(a, middle, [88, 88, 94]).out, JSON.stringify(c)).toBeUndefined();
+    }
+    // What is chosen is 1.5 to 1 and sits on one patch.
+    for (const r of [0, 0.5, 0.99]) {
+      const win = picker.chooseWindow(img, { aspect: picker.BADGE_ASPECT, random: () => r });
+      expect(win).not.toBeNull();
+      expect(Math.abs(win.w / win.h - picker.BADGE_ASPECT)).toBeLessThan(0.08);
+      const centre = { x: win.x + win.w / 2, y: win.y + win.h / 2 };
+      expect(ends.some((b) => centre.x >= b.x - 10 && centre.x <= b.x + b.w + 10), `random ${r}: centred on a patch`).toBe(true);
+    }
+    // A square window has no middle to score again.
+    expect(picker.middleOf({ x: 0, y: 0, w: 40, h: 40 }, 0.8)).toBeNull();
+    expect(picker.middleOf({ x: 0, y: 0, w: 40, h: 40 }, 1)).toEqual({ x: 3, y: 0, w: 34, h: 40 });
   });
 });
 

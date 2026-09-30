@@ -1,7 +1,9 @@
 /**
  * The livery behind the car badge, as the main process keeps it (modules/js/logo-livery.js), with the real worker
  * (logo-livery-worker.js) reading paints made up here in a temp folder, through paints/tga.js: what is chosen,
- * when, what is handed over, what is refused, and that no line of the log carries the customer id or a path.
+ * when, what is handed over, what is refused (a file over the cap, an image that declares too much, anything outside
+ * the paint folder), that a newer car ends the worker of the pick before it, that the last car's paint is taken away
+ * when the car changes, and that no line of the log carries the customer id or a path.
  */
 
 import { test, expect } from '@playwright/test';
@@ -9,10 +11,12 @@ import { createRequire } from 'module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Worker } from 'node:worker_threads';
 
 const require = createRequire(import.meta.url);
 const livery = require('../../modules/js/logo-livery.js');
 const worker = require('../../modules/js/logo-livery-worker.js');
+const picker = require('../../modules/js/logo-livery-picker.js');
 
 const ID = '424242';
 const GREY = [88, 88, 94];
@@ -49,6 +53,33 @@ const withPatch = (x, y) => (x >= 120 && x < 190 && y >= 10 && y < 80 ? busy(x, 
 
 const pngSize = (png) => ({ width: png.readUInt32BE(16), height: png.readUInt32BE(20) });
 
+// A TGA header only, for a file that says more than it holds: run-length encoded truecolour, `bits` deep.
+function headerOnly(width, height, { type = 10, bits = 24 } = {}) {
+  const head = Buffer.alloc(18);
+  head[2] = type;
+  head.writeUInt16LE(width, 12);
+  head.writeUInt16LE(height, 14);
+  head[16] = bits;
+  // One run of one pixel, so that there is something after the header.
+  return Buffer.concat([head, Buffer.from([0x00, 1, 2, 3])]);
+}
+
+// A 2048 by 2048 paint of noise, 12 megabytes, which takes a worker a good while to decode and look at.
+function bigNoise() {
+  const head = Buffer.alloc(18);
+  head[2] = 2;
+  head.writeUInt16LE(2048, 12);
+  head.writeUInt16LE(2048, 14);
+  head[16] = 24;
+  const body = Buffer.alloc(2048 * 2048 * 3);
+  let seed = 12345;
+  for (let i = 0; i < body.length; i += 1) {
+    seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+    body[i] = seed >>> 24;
+  }
+  return Buffer.concat([head, body]);
+}
+
 let paintDir;
 let elsewhere;
 test.beforeAll(() => {
@@ -66,6 +97,11 @@ test.beforeAll(() => {
   put('theirs', 'car_777777.tga', tgaOf(200, 200, withPatch));
   put('rle', `car_${ID}.tga`, tgaOf(200, 200, (x, y) => [...withPatch(x, y), 255], { bits: 32 }));
   put('broken', `car_${ID}.tga`, Buffer.from('not a paint at all'));
+  // A few kilobytes that declare a 16384 by 16384 image: tga.decode would allocate about a gigabyte for it.
+  put('bomb', `car_${ID}.tga`, headerOnly(16384, 16384));
+  put('tall', `car_${ID}.tga`, headerOnly(64, 5000));
+  put('wide', `car_${ID}.tga`, tgaOf(4096, 64, (x, y) => ((x >> 3) % 2 ? busy(x, y) : GREY)));
+  put('big', `car_${ID}.tga`, bigNoise());
   fs.writeFileSync(path.join(elsewhere, `car_${ID}.tga`), tgaOf(200, 200, withPatch));
 });
 test.afterAll(() => { fs.rmSync(path.dirname(paintDir), { recursive: true, force: true }); });
@@ -188,6 +224,77 @@ test.describe('the worker', () => {
     expect(worker.reasonOf(new Error('This TGA holds no image data.'))).toBe('This TGA holds no image data.');
   });
 
+  test('a file that declares a huge image is refused from its header, before anything is allocated or decoded', () => {
+    const began = Date.now();
+    expect(() => worker.cropPaint({ paintDir, carFolder: 'bomb', fileName: `car_${ID}.tga`, size: 48 })).toThrow('declares an image too large');
+    expect(() => worker.cropPaint({ paintDir, carFolder: 'tall', fileName: `car_${ID}.tga`, size: 48 })).toThrow('declares an image too large');
+    expect(Date.now() - began, 'refused at once, not after a decode').toBeLessThan(1000);
+    // Nothing the decoder would have taken is allowed through by the gate: a paint is 2048 across, and 4096 is the limit.
+    expect(worker.DEFAULT_MAX_EDGE).toBe(4096);
+    expect(() => worker.cropPaint({ paintDir, carFolder: 'wide', fileName: `car_${ID}.tga`, size: 48 })).not.toThrow();
+    expect(() => worker.cropPaint({ paintDir, carFolder: 'mycar', fileName: `car_${ID}.tga`, size: 48, maxEdge: 100 })).toThrow('declares an image too large');
+    expect(worker.cropPaint({ paintDir, carFolder: 'mycar', fileName: `car_${ID}.tga`, size: 48, maxEdge: 200 })).not.toBeNull();
+    // The message has no path or id in it, and a file shorter than a header is still a file that is not a TGA.
+    try {
+      worker.cropPaint({ paintDir, carFolder: 'bomb', fileName: `car_${ID}.tga`, size: 48 });
+    } catch (e) {
+      expect(worker.reasonOf(e)).not.toContain(ID);
+      expect(worker.reasonOf(e)).not.toContain(paintDir);
+    }
+    // A file that is not a TGA has letters where the size is: it is not judged by them, and the decoder refuses it by name.
+    expect(worker.readPaint(path.join(paintDir, 'broken', `car_${ID}.tga`), 4096)).toHaveLength(18);
+    // The bytes read are the file's, all of them.
+    const file = path.join(paintDir, 'mycar', `car_${ID}.tga`);
+    expect(Buffer.compare(worker.readPaint(file, 4096), fs.readFileSync(file))).toBe(0);
+  });
+
+  test('a newer pick ends the worker of the one before it: three in 40 ms steps leave one working', async () => {
+    const started = [];
+    class SpyWorker extends Worker {
+      constructor(...args) {
+        super(...args);
+        this.said = 0;
+        this.terminated = false;
+        this.gone = false;
+        this.on('message', () => { this.said += 1; });
+        this.on('exit', () => { this.gone = true; });
+        started.push(this);
+      }
+
+      terminate() {
+        this.terminated = true;
+        return super.terminate();
+      }
+    }
+    const job = { paintDir, carFolder: 'big', fileName: `car_${ID}.tga`, size: 32, seed: 1 };
+    const controls = [new AbortController(), new AbortController(), new AbortController()];
+    const outcomes = [];
+    const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+    const launch = (i) => livery.pickInWorker(job, { signal: controls[i].signal, Worker: SpyWorker }).then((v) => ({ ok: v }), (e) => ({ err: e.message }));
+    outcomes.push(launch(0));
+    await pause(40);
+    controls[0].abort();
+    outcomes.push(launch(1));
+    await pause(40);
+    controls[1].abort();
+    outcomes.push(launch(2));
+    const [first, second, third] = await Promise.all(outcomes);
+    expect(first).toEqual({ err: 'superseded' });
+    expect(second).toEqual({ err: 'superseded' });
+    expect(third.err).toBeUndefined();
+    expect(started).toHaveLength(3);
+    expect(started.map((w) => w.terminated)).toEqual([true, true, false]);
+    // They are gone, and the two that were ended never got as far as answering.
+    await pause(1500);
+    expect(started.map((w) => w.gone)).toEqual([true, true, true]);
+    expect(started.map((w) => w.said)).toEqual([0, 0, 1]);
+    // A pick whose signal is already aborted starts no worker at all.
+    const spent = new AbortController();
+    spent.abort();
+    await expect(livery.pickInWorker(job, { signal: spent.signal, Worker: SpyWorker })).rejects.toThrow('superseded');
+    expect(started).toHaveLength(3);
+  });
+
   test('in its own thread: the PNG comes back, nothing to show comes back as null, and a bad paint as a reason with no path', async () => {
     const out = await livery.pickInWorker({ paintDir, carFolder: 'mycar', fileName: `car_${ID}.tga`, size: 32, seed: 5 });
     expect(Buffer.isBuffer(out.png)).toBe(true);
@@ -228,7 +335,8 @@ test.describe('the keeper', () => {
     expect(crops).toHaveLength(1);
     const crop = crops[0];
     expect(Buffer.compare(crop.png.subarray(0, 8), PNG_SIGNATURE)).toBe(0);
-    expect(pngSize(crop.png)).toEqual({ width: 64, height: 64 });
+    // The badge's widest shape: 1.5 to 1.
+    expect(pngSize(crop.png)).toEqual({ width: 64, height: 43 });
     expect(crop.dataUrl).toBe(`data:image/png;base64,${crop.png.toString('base64')}`);
     expect(crop.id).toMatch(/^1-\d+$/);
     expect(crop.carPath).toBe('mycar');
@@ -282,16 +390,17 @@ test.describe('the keeper', () => {
     await wait();
     k.feed(inCar('rle'));
     await wait();
-    expect(crops.map((c) => c && c.carPath)).toEqual(['mycar', 'rle']);
+    // The last car's crop is taken away as the car changes, and the next one put up when it is made.
+    expect(crops.map((c) => c && c.carPath)).toEqual(['mycar', null, 'rle']);
     k.feed(inCar('flat'));
     await wait();
-    expect(crops[2]).toBeNull();
+    expect(crops[3]).toBeNull();
     expect(k.current()).toBeNull();
     expect(said.some((l) => /no paint with artwork to show for flat/.test(l))).toBe(true);
     // Nothing was up, and nothing is: the page is not told again.
     k.feed(inCar('nocar'));
     await wait();
-    expect(crops).toHaveLength(3);
+    expect(crops).toHaveLength(4);
     expect(k.state().picks).toBe(4);
     // A paint of somebody else's is not his.
     k.feed(inCar('theirs'));
@@ -403,9 +512,79 @@ test.describe('the keeper', () => {
     k.feed(inCar('mycar'));
     await wait();
     expect(jobs).toEqual([{
-      paintDir, carFolder: 'mycar', fileName: `car_${ID}.tga`, size: 96, aspect: 1, maxBytes: livery.MAX_PAINT_BYTES,
+      paintDir, carFolder: 'mycar', fileName: `car_${ID}.tga`, size: 96, aspect: picker.BADGE_ASPECT, maxBytes: livery.MAX_PAINT_BYTES,
       seed: Math.floor(0.5 * 0x7fffffff),
     }]);
+  });
+
+  test('the last car\'s paint is not left under this car\'s logo while this one\'s is made; the same car keeps its crop until the new one comes', async () => {
+    const pngOf = (name) => Buffer.concat([PNG_SIGNATURE, Buffer.from(name)]);
+    const late = { rle: 120 };
+    const pick = (job) => new Promise((resolve) => setTimeout(() => resolve({ png: pngOf(job.carFolder), window: {} }), late[job.carFolder] || 10));
+    const { k, crops, settled: wait } = keeper({ pick });
+    k.feed(inCar('mycar'));
+    await wait();
+    expect(k.current().carPath).toBe('mycar');
+    // Another car: the crop is gone the moment the wish changes, before its pick has answered.
+    k.feed(inCar('rle'));
+    expect(k.current()).toBeNull();
+    expect(crops.map((c) => c && c.carPath)).toEqual(['mycar', null]);
+    await wait();
+    await new Promise((r) => setTimeout(r, 160));
+    expect(k.current().carPath).toBe('rle');
+    // Out and back into the same car: the crop stays while the new one is made, then it is replaced.
+    k.feed({ ...OUT_OF_CAR, 'RacingDesk.Plugin.CarControls': { car: 'rle' } });
+    const held = k.current();
+    k.feed(inCar('rle'));
+    expect(k.current()).toBe(held);
+    expect(crops.filter((c) => c === null)).toHaveLength(1);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(k.current()).not.toBe(held);
+    expect(k.current().carPath).toBe('rle');
+    // The same holds for a car found by the store's name for it: another model clears, the same one does not.
+    const rows = [{ car_path: 'mycar', name: 'My Car' }, { car_path: 'rle', name: 'Other Car' }];
+    const byName = keeper({ pick, carNames: async () => rows });
+    byName.k.feed({ ...IN_CAR, 'DataCorePlugin.GameData.CarModel': 'My Car' });
+    await byName.settled();
+    expect(byName.k.current().carPath).toBe('mycar');
+    byName.k.feed({ ...IN_CAR, 'DataCorePlugin.GameData.CarModel': 'Other Car' });
+    expect(byName.k.current()).toBeNull();
+    await byName.settled();
+    await new Promise((r) => setTimeout(r, 200));
+    expect(byName.k.current().carPath).toBe('rle');
+    // The host naming the folder of the car the store had named: the same car, kept.
+    byName.k.feed(inCar('rle'));
+    expect(byName.k.current().carPath).toBe('rle');
+  });
+
+  test('a newer car ends the pick under way: its signal is aborted, and only the last answer is used', async () => {
+    const pngOf = (name) => Buffer.concat([PNG_SIGNATURE, Buffer.from(name)]);
+    const seen = [];
+    const pick = (job, { signal }) => new Promise((resolve, reject) => {
+      const entry = { car: job.carFolder, aborted: false };
+      seen.push(entry);
+      const timer = setTimeout(() => resolve({ png: pngOf(job.carFolder), window: {} }), 200);
+      signal.addEventListener('abort', () => { entry.aborted = true; clearTimeout(timer); reject(new Error('superseded')); }, { once: true });
+    });
+    const { k, crops, said, settled: wait } = keeper({ pick });
+    k.feed(inCar('slow'));
+    await new Promise((r) => setTimeout(r, 40));
+    k.feed(inCar('mycar'));
+    await new Promise((r) => setTimeout(r, 40));
+    k.feed(inCar('rle'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(seen.map((e) => `${e.car}:${e.aborted}`)).toEqual(['slow:true', 'mycar:true', 'rle:false']);
+    await wait();
+    expect(crops.map((c) => c.carPath)).toEqual(['rle']);
+    expect(k.state().picks).toBe(3);
+    // A superseded pick is not a failure: nothing is said of it.
+    expect(said.filter((l) => /could not be read/.test(l))).toEqual([]);
+    // With no car to show, the pick under way is ended too, and the keeper is not left picking.
+    k.feed(inCar('slow'));
+    await new Promise((r) => setTimeout(r, 30));
+    k.feed({ ...IN_CAR });
+    expect(seen[seen.length - 1]).toEqual({ car: 'slow', aborted: true });
+    expect(k.state().picking).toBe(false);
   });
 
   test('nothing here throws into the poll that feeds it', async () => {
@@ -418,6 +597,7 @@ test.describe('the keeper', () => {
     const throwing = keeper({ paintDir: () => { throw new Error('no settings'); } });
     throwing.k.feed(inCar('mycar'));
     await throwing.settled();
-    expect(throwing.current === undefined || throwing.k.current() === null).toBe(true);
+    expect(throwing.k.current()).toBeNull();
+    expect(throwing.said.some((l) => /no settings/.test(l))).toBe(true);
   });
 });

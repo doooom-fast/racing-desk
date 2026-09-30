@@ -6,8 +6,11 @@
 // something transparent. So every window of a few sizes is scored for how much is going on in it (edges, the spread
 // of its colours, how many hues it has), the flat, the empty and the clear ones are put out, and the choice is made
 // at random among the best few that are not the same spot, so that each time he gets in the car it is another
-// pleasing section. Pure: no file, no DOM, no Electron. The worker (logo-livery-worker.js) hands it the decoded
-// paint and takes the crop back; the tests hand it images they made up.
+// pleasing section. The windows are the widest shape the badge takes (BADGE_ASPECT), and a window is scored again over
+// its middle, which is all a narrower badge shows of it. Two flat fields with a few letters on them — a black box and
+// the template's white, half a word across both — are put out with the flat, the empty and the clear. Pure: no
+// file, no DOM, no Electron. The worker (logo-livery-worker.js) hands it the decoded paint and takes the crop back;
+// the tests hand it images they made up.
 'use strict';
 
 // The sheet is scored at this size across. Artwork is still artwork at 320 pixels, and a 2048 sheet would be
@@ -39,20 +42,41 @@ const BUSY_EDGES = 0.15;
 const COVER_AT_MOST = 0.8;
 // A window whose mean alpha is under this is mostly transparent.
 const CLEAR_SHARE = 0.5;
+// A window whose two commonest colours cover more than this is two flat fields with whatever is written on them: a
+// black box and the template's white ground with half a word across both is not artwork. It is let through only when
+// it is busy throughout (below).
+const TWO_SHARE = 0.8;
+// "Busy throughout": a window is cut in GRID by GRID cells, and a cell has artwork in it when edges are on this
+// share of its pixels; the window is busy throughout when at least COVERAGE_MIN of its cells have. Letters on a
+// black box beside blank ground leave a third of the cells empty; a shard field, or a wordmark across a black car,
+// leaves few or none.
+const GRID = 4;
+const CELL_EDGES = 0.06;
+const COVERAGE_MIN = 0.75;
 // How near a pixel has to be to a colour to count as it (per channel, 0–255).
 const NEAR = 28;
-// Fewer hues than this is one colour, however it is lit.
+// Fewer hues than this is one colour, however it is lit. All the greys, white and near-black together are one hue:
+// black-and-white lettering, blurred, is not a palette.
 const MIN_HUES = 2;
+// The badge is not one shape. The glance layout's is about 204 by 138 on the rig's ultrawide (1.5 to 1), 91 by 105
+// on an iPad (0.87) and the rig HUD's is square, and the page cover-fits the crop, so a square badge shows the
+// middle of a wide crop. The crop is chosen at the widest shape (BADGE_ASPECT) and is scored again over what the
+// narrowest shape (NARROWEST, width over height) shows of it, so the section has artwork in it in every badge.
+const BADGE_ASPECT = 1.5;
+const NARROWEST = 0.85;
 // Below this a window is not worth showing. On his paints (2026-09-30): two flat colours meeting along a line score
 // about 0.35, the shard fields 0.76 to 0.92, a wordmark on the black Lotus about 0.6, and the coarsest shards, in
 // windows the size of a panel, about 0.5.
 const MIN_SCORE = 0.5;
-// Pixels with less saturation than this are counted by their lightness, not their hue...
+// Pixels with less saturation than this have no hue to speak of: grey, and white, are one colour as far as hues go...
 const GREY_SAT = 0.22;
 // ...and so are pixels darker than this in every channel: near black, a channel or two ahead is noise, not a hue.
 const DARK_MAX = 40;
 // A hue bin has to hold this share of a window's pixels to be counted as one of its hues.
 const HUE_SHARE = 0.04;
+// The twelve hues of the wheel are bins 0 to 11; bin 12 is every pixel that has no hue to speak of.
+const NEUTRAL = 12;
+const HUE_BINS = 13;
 
 // Average `img` down so its longer edge is `maxEdge` at most: rgb, and alpha where there is one.
 function shrink(img, maxEdge) {
@@ -107,7 +131,7 @@ function resample(img, win, outW, outH) {
 }
 
 // What each pixel of the working image is: its luminance, whether it sits on an edge, and which hue bin it is in
-// (twelve hues round the wheel for the saturated, three lightnesses for the grey).
+// (twelve hues round the wheel for the saturated, one for the grey, the white and the near-black).
 function analyse(work) {
   const { width, height, rgb, alpha } = work;
   const n = width * height;
@@ -122,7 +146,7 @@ function analyse(work) {
     const min = Math.min(r, g, b);
     const sat = max === 0 ? 0 : (max - min) / max;
     if (sat < GREY_SAT || max < DARK_MAX) {
-      hue[i] = 12 + (max < 70 ? 0 : max < 170 ? 1 : 2);
+      hue[i] = NEUTRAL;
     } else {
       let hh;
       const d = max - min;
@@ -144,9 +168,10 @@ function analyse(work) {
   return { width, height, rgb, alpha, lum, hue, edge };
 }
 
-// The commonest colour of an image — its pixels put in 512 bins, and the mean of the fullest bin's — which on a
-// paint sheet is the template's ground or the base coat.
-function commonestColour(rgb, from, count, stride, width, win) {
+// The two commonest colours of an image — its pixels put in 512 bins, the mean of the fullest bin's, then the mean
+// of the fullest bin whose colour is not near the first's — which on a paint sheet are the template's ground and the
+// base coat, or the base coat and what is painted on it. The second is null where there is no other colour.
+function commonestTwo(rgb, width, win, from = 0, count = 0) {
   const bins = new Uint32Array(512);
   const sums = new Float64Array(512 * 3);
   const each = (i) => {
@@ -162,12 +187,25 @@ function commonestColour(rgb, from, count, stride, width, win) {
   if (win) {
     for (let y = win.y; y < win.y + win.h; y++) for (let x = win.x; x < win.x + win.w; x++) each(y * width + x);
   } else {
-    for (let i = from; i < from + count; i += stride) each(i);
+    for (let i = from; i < from + count; i++) each(i);
   }
+  const mean = (k) => [sums[k * 3] / (bins[k] || 1), sums[k * 3 + 1] / (bins[k] || 1), sums[k * 3 + 2] / (bins[k] || 1)];
   let best = 0;
   for (let k = 1; k < 512; k++) if (bins[k] > bins[best]) best = k;
-  const n = bins[best] || 1;
-  return [sums[best * 3] / n, sums[best * 3 + 1] / n, sums[best * 3 + 2] / n];
+  const first = mean(best);
+  let next = -1;
+  for (let k = 0; k < 512; k++) {
+    if (bins[k] === 0 || k === best) continue;
+    const c = mean(k);
+    if (Math.abs(c[0] - first[0]) <= NEAR && Math.abs(c[1] - first[1]) <= NEAR && Math.abs(c[2] - first[2]) <= NEAR) continue;
+    if (next < 0 || bins[k] > bins[next]) next = k;
+  }
+  return [first, next < 0 ? null : mean(next)];
+}
+
+// The commonest colour of the whole sheet, which is the template's ground or the base coat.
+function commonestColour(rgb, count) {
+  return commonestTwo(rgb, 0, null, 0, count)[0];
 }
 
 function near(rgb, i, colour) {
@@ -175,13 +213,33 @@ function near(rgb, i, colour) {
     && Math.abs(rgb[i * 3 + 2] - colour[2]) <= NEAR;
 }
 
-// Score one window of the analysed image. Returns null for a window put out: flat, the ground, or clear.
+// The share of a window's GRID by GRID cells that have artwork in them: edges on CELL_EDGES of the cell's pixels.
+function coverageOf(edge, width, win) {
+  let full = 0;
+  for (let gy = 0; gy < GRID; gy++) {
+    const y0 = win.y + Math.floor((gy * win.h) / GRID);
+    const y1 = win.y + Math.floor(((gy + 1) * win.h) / GRID);
+    for (let gx = 0; gx < GRID; gx++) {
+      const x0 = win.x + Math.floor((gx * win.w) / GRID);
+      const x1 = win.x + Math.floor(((gx + 1) * win.w) / GRID);
+      let e = 0;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) e += edge[y * width + x];
+      const area = (y1 - y0) * (x1 - x0);
+      if (area > 0 && e / area >= CELL_EDGES) full += 1;
+    }
+  }
+  return full / (GRID * GRID);
+}
+
+// Score one window of the analysed image. The facts come back either way, with `out` saying why for a window put
+// out (clear, flat, ground, two colours, one colour, dull) and `score` for one that stays in.
 function scoreWindow(a, win, ground) {
   const { width, rgb, alpha, edge, hue } = a;
   const n = win.w * win.h;
-  const mode = commonestColour(rgb, 0, 0, 1, width, win);
+  const [mode, second] = commonestTwo(rgb, width, win);
   let edges = 0;
   let flat = 0;
+  let onSecond = 0;
   let onGround = 0;
   let clear = 0;
   let sr = 0;
@@ -190,12 +248,13 @@ function scoreWindow(a, win, ground) {
   let sr2 = 0;
   let sg2 = 0;
   let sb2 = 0;
-  const hues = new Uint32Array(15);
+  const hues = new Uint32Array(HUE_BINS);
   for (let y = win.y; y < win.y + win.h; y++) {
     for (let x = win.x; x < win.x + win.w; x++) {
       const i = y * width + x;
       edges += edge[i];
       if (near(rgb, i, mode)) flat += 1;
+      else if (second && near(rgb, i, second)) onSecond += 1;
       if (near(rgb, i, ground)) onGround += 1;
       if (alpha) clear += alpha[i];
       hues[hue[i]] += 1;
@@ -208,18 +267,23 @@ function scoreWindow(a, win, ground) {
   }
   const flatShare = flat / n;
   const groundShare = onGround / n;
+  const twoShare = (flat + onSecond) / n;
   const meanAlpha = alpha ? clear / n / 255 : 1;
   let distinct = 0;
-  for (let k = 0; k < 15; k++) if (hues[k] / n >= HUE_SHARE) distinct += 1;
+  for (let k = 0; k < HUE_BINS; k++) if (hues[k] / n >= HUE_SHARE) distinct += 1;
   const sd = (s, s2) => Math.sqrt(Math.max(0, s2 / n - (s / n) * (s / n)));
   const spread = (sd(sr, sr2) + sd(sg, sg2) + sd(sb, sb2)) / 3 / 128;
   const edgeDensity = edges / n;
-  const facts = { edgeDensity, spread, hues: distinct, flatShare, groundShare, meanAlpha };
+  const coverage = coverageOf(edge, width, win);
+  const facts = { edgeDensity, spread, hues: distinct, flatShare, groundShare, twoShare, coverage, meanAlpha };
   // A base coat with a mark across it is artwork; a base coat with a mark in one corner is not.
   const busy = edgeDensity >= BUSY_EDGES && flatShare <= COVER_AT_MOST && groundShare <= COVER_AT_MOST;
   if (meanAlpha < CLEAR_SHARE) return { ...facts, out: 'clear' };
   if (flatShare > FLAT_SHARE && !busy) return { ...facts, out: 'flat' };
   if (groundShare > GROUND_SHARE && !busy) return { ...facts, out: 'ground' };
+  // Two flat fields with lettering on them — black and white, say — are not a section of a livery, however far apart
+  // the two are: unless artwork is all over the window, which is a shard field or a wordmark across a dark body.
+  if (twoShare > TWO_SHARE && !(busy && coverage >= COVERAGE_MIN)) return { ...facts, out: 'two colours' };
   if (distinct < MIN_HUES) return { ...facts, out: 'one colour' };
   // What is going on in the window: its edges above all — artwork has them, a base coat has none — then how far
   // apart its colours are, then how many hues it has, which is what tells the shard field from the sponsor board.
@@ -240,11 +304,20 @@ function overlap(a, b) {
   return (w * h) / Math.min(a.w * a.h, b.w * b.h);
 }
 
-// Every window of the given aspect at every size and step, scored. Returns { candidates (the ones in), rejected
-// (the ones out, with why) }, in the working image's pixels.
+// The middle of a window that is wider than the narrowest badge: what that badge shows of it, cover-fitted.
+function middleOf(win, aspect) {
+  if (!(aspect > NARROWEST)) return null;
+  const w = Math.max(8, Math.round(win.h * NARROWEST));
+  if (w >= win.w) return null;
+  return { x: win.x + Math.floor((win.w - w) / 2), y: win.y, w, h: win.h };
+}
+
+// Every window of the given aspect at every size and step, scored. A window wider than the narrowest badge is scored
+// over its whole and again over its middle, and is in only if both are, at the lower score. Returns { candidates
+// (the ones in), rejected (the ones out, with why) }, in the working image's pixels.
 function scoreAll(a, aspect) {
   const shorter = Math.min(a.width, a.height);
-  const ground = commonestColour(a.rgb, 0, a.width * a.height, 1, a.width, null);
+  const ground = commonestColour(a.rgb, a.width * a.height);
   const candidates = [];
   const rejected = [];
   for (const fraction of FRACTIONS) {
@@ -258,8 +331,11 @@ function scoreAll(a, aspect) {
       for (let x = 0; x + w <= a.width; x += step) {
         const win = { x, y, w, h };
         const s = scoreWindow(a, win, ground);
+        const inner = s.out ? null : middleOf(win, aspect);
+        const t = inner ? scoreWindow(a, inner, ground) : null;
         if (s.out) rejected.push({ ...win, ...s });
-        else candidates.push({ ...win, ...s });
+        else if (t && t.out) rejected.push({ ...win, ...s, out: `middle: ${t.out}` });
+        else candidates.push({ ...win, ...s, score: t ? Math.min(s.score, t.score) : s.score });
       }
     }
   }
@@ -283,9 +359,10 @@ function bestFew(candidates) {
 
 /**
  * Choose the window. `img` is { width, height, rgb, alpha? } as tga.decode gives it; `aspect` is the window's
- * width over its height; `random` gives a number in [0, 1). Returns null when no window is worth showing —
- * a flat paint, an empty one, a transparent one — else { x, y, w, h } in the source's own pixels, with `score`,
- * `few` (what the choice was among, in source pixels) and `looked` (how many windows were scored).
+ * width over its height (the badge's widest, BADGE_ASPECT, for the HUD); `random` gives a number in [0, 1).
+ * Returns null when no window is worth showing — a flat paint, an empty one, a transparent one, two flat fields
+ * with lettering on them — else { x, y, w, h } in the source's own pixels, with `score`, the window's facts, `few`
+ * (what the choice was among, in source pixels) and `looked` (how many windows were scored).
  */
 function chooseWindow(img, { aspect = 1, random = Math.random } = {}) {
   if (!img || !img.width || !img.height || img.width < 16 || img.height < 16) return null;
@@ -303,7 +380,10 @@ function chooseWindow(img, { aspect = 1, random = Math.random } = {}) {
     let w = Math.max(1, Math.round(h * aspect));
     if (x + w > img.width) { w = img.width - x; h = Math.max(1, Math.round(w / aspect)); }
     if (y + h > img.height) { h = img.height - y; w = Math.max(1, Math.min(img.width - x, Math.round(h * aspect))); }
-    return { x, y, w, h, score: c.score, edgeDensity: c.edgeDensity, spread: c.spread, hues: c.hues, flatShare: c.flatShare, groundShare: c.groundShare };
+    return {
+      x, y, w, h, score: c.score, edgeDensity: c.edgeDensity, spread: c.spread, hues: c.hues, flatShare: c.flatShare,
+      groundShare: c.groundShare, twoShare: c.twoShare, coverage: c.coverage,
+    };
   };
   const mapped = few.map(toSource);
   let pick = Math.floor(random() * mapped.length);
@@ -340,6 +420,6 @@ function seeded(seed) {
 
 module.exports = {
   WORK_EDGE, FRACTIONS, KEEP, NEAR_BEST, SAME_SPOT, FLAT_SHARE, GROUND_SHARE, BUSY_EDGES, COVER_AT_MOST, CLEAR_SHARE,
-  MIN_HUES, MIN_SCORE,
-  shrink, resample, analyse, scoreWindow, scoreAll, bestFew, overlap, chooseWindow, cropImage, chooseCrop, seeded,
+  TWO_SHARE, GRID, CELL_EDGES, COVERAGE_MIN, MIN_HUES, MIN_SCORE, BADGE_ASPECT, NARROWEST, NEUTRAL,
+  shrink, resample, analyse, scoreWindow, scoreAll, middleOf, coverageOf, bestFew, overlap, chooseWindow, cropImage, chooseCrop, seeded,
 };

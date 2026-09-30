@@ -303,41 +303,67 @@ and when, and why the main process and never the page does it. This is the page'
   anything that is not a string: the maker's colour set on the square shows through. In the app the preload's
   `onLogoLivery` (the main process's `logo-livery` message, the data URL or null) and `getLogoLivery` (for a page that
   loaded after the crop was chosen) are all it listens to. In the glance layout (`drive-view.css`) the darkening takes
-  the glass's colour as the panels do, and more of it under a flag, over an opaque base — the crop is opaque, so the
-  flag's pattern shows through the badge no more than it did.
+  the glass's colour as the panels do, and more of it under the flags the panels take a heavier tint under — the same
+  `:is(...)` list as the panels' (green, green held, yellow, caution, one to green, red, white, chequered, meatball,
+  debris, disqualified); under a local yellow, a blue, the black flag, its furled warning and the orange of a car being
+  lapped the panels are as they were, and so is the badge (`tests/unit/logo-livery-page.spec.mjs` holds the list) —
+  over an opaque base: the crop is opaque, so the flag's pattern shows through the badge no more than it did.
+- **The badge is not one shape.** It is 204 by 138 (1.5 to 1) in the glance layout on the rig's ultrawide at 2560 by
+  1080, 91 by 105 (0.87) on an iPad at 1180 by 820, and square (162 by 162) on the rig's HUD, measured. The crop is cut
+  at the widest of them (`BADGE_ASPECT` in the picker, 1.5 to 1: 512 across and 341 high), the layer is `cover`, so a
+  narrower badge shows the middle of it, and the picker scores that middle too (below), so the section has artwork in
+  it in every badge.
 - **On an iPad** the page asks the rig for it: `requestRemoteLivery()`, called by `poll-engine.js` where the car's
-  model changes (in remote mode only), fetches `/livery-crop.png` from the page's own origin — the one address, no
-  query, the key's cookie — at 0, 0.8, 2.5, 6 and 14 s, because the rig chooses a new crop once it has seen the same
-  change and takes a moment over it; an ask before it has gets the last car's crop or a 404, and the asks after put
-  that right. A 200 is shown as a blob URL (the one before is revoked), a 404 empties the layer, and the same crop
+  model changes and where the page's in-car state goes from out to in (in remote mode only; the rig chooses another
+  section each time he gets in the car, the same car after the garage included), fetches `/livery-crop.png` from the
+  page's own origin — the one address, no query, the key's cookie — at 0, 0.8, 2.5, 6 and 14 s, because the rig chooses
+  a new crop once it has seen the same change and takes a moment over it; an ask before it has gets the last car's crop
+  (or a 404, once the rig has taken that away for the car having changed), and the asks after put that right. A 200 is shown as a blob URL (the one before is revoked), a 404 empties the layer, and the same crop
   told again (its `ETag`, the crop's id) is kept as it is. Nothing else is fetched for it.
 - **The picker** (`logo-livery-picker.js`, `chooseWindow` / `chooseCrop`): the sheet is averaged down to 320 across,
   every pixel gets a luminance, an edge (a step of 24 or more to the next pixel) and a hue bin (twelve round the
-  wheel, three lightnesses for the grey and the near-black), and every window of the badge's shape at 15, 22, 30 and
-  40 in 100 of the shorter edge, stepped a quarter of its width, is scored: edges above all (`0.5 × min(1, edges / 0.3)`),
+  wheel, and one for everything with no hue to speak of: grey, white and near-black are one colour, so black-and-white
+  lettering is not a palette), and every window of the badge's widest shape (`BADGE_ASPECT`) at 15, 22, 30 and 40 in
+  100 of the shorter edge, stepped a quarter of its width, is scored: edges above all (`0.5 × min(1, edges / 0.3)`),
   then the spread of its colours (`0.3`), then its count of hues (`0.2`), less what the base or the ground covers past
-  half the window. **Put out**: a window mostly transparent (mean alpha under a half; `tga.decode` keeps a 32-bit
+  half the window. A window wider than the narrowest badge (`NARROWEST`, 0.85) is scored twice, over its whole and
+  over its middle — what that badge shows of it, cover-fitted — and is in only if both are, at the lower score, so that
+  two patches at the ends of a gap are not a section the square badge would show the gap of. **Put out**: a window mostly transparent (mean alpha under a half; `tga.decode` keeps a 32-bit
   file's alpha when asked, `keepAlpha`), one whose commonest colour covers more than 55 in 100 (the base coat), one
   more than half the sheet's own commonest colour (the template's empty ground) — **unless it is busy throughout**:
   edges on 15 in 100 of its pixels or more, and the base under 80 in 100. That exemption is what finds the
   wordmark on a black car: on his Lotus 79 the wordmark windows are seven-tenths black with edges on four-tenths of
   their pixels, and the rule without it chose nothing on the Lotus, the Nissan GTP and the MX-5's orange-and-white
-  (2026-09-30, the library's paints). Then a window of one hue, and one scoring under 0.5 (dull: two flat colours
-  meeting along a line score about 0.35; his shard fields 0.76 to 0.92, the Lotus's wordmarks about 0.6). The
+  (2026-09-30, the library's paints). **Two flat fields with lettering on them** are put out as well (`TWO_SHARE`): a
+  window whose two commonest colours together cover more than 80 in 100, unless it is busy throughout — busy as above
+  and with artwork in at least three-quarters of its 4 by 4 cells (`COVERAGE_MIN`; a cell has artwork when edges are
+  on 6 in 100 of its pixels). That is what his Porsche 911 GT3 Cup (992) sheet had for a crop at first (review,
+  2026-09-30): a black box, the template's white beside it and half a word across both, 47 in 100 black and 40 in 100
+  white, edges on 22 in 100 of the window but artwork in only ten of its sixteen cells; it was two flat greys in the
+  badge. A shard field or a wordmark across a black car has artwork in every cell and stays in. Then a window of one
+  hue, and one scoring under 0.5 (dull: two flat colours meeting along a line score about 0.35; his shard fields 0.76
+  to 0.92, the Lotus's wordmarks about 0.6). Over his paints with these rules (31 installed, the library's hand-made
+  versions and samples of the shard ones, at 1.5 to 1): 54 of 57 give a crop; the Dallara IL-15 (a dark base with small
+  sponsor marks) and the Nissan GTP's two library versions, which are black with orange marks no window of the badge's
+  shape is mostly more than, give none, and their badge is the maker's colour. The
   choice is random among the best five that are not the same spot (no two overlapping by more than 35 in 100 of the
   smaller) and none under 0.7 of the best; the worker is given a seed from the main process's random, so a choice
   can be repeated in a test (`seeded`). The crop is the window averaged down to 512 across. Sponsor marks come out as
   the sheet has them, which on some panels is upside down: the sheet is the car unwrapped, and nothing here knows
   which way a panel faces.
 - **Tests**: `tests/unit/logo-livery-picker.spec.mjs` (sheets made up in the test: a flat body with one busy patch
-  picks the patch; a flat paint, a noisy one, two colours along a line, a transparent sheet give nothing; a two-colour
-  shard field and a mark across the ground are in; the choice random among the best few and the same for the same
-  random; the badge's shape held inside the sheet), `tests/unit/logo-livery.spec.mjs` (the keeper and the real worker
-  over TGAs written to a temp folder: what the payload names, once per car, the paint folder never left, the cap, no
-  id or path in the log), `tests/unit/logo-livery-page.spec.mjs` (the real page: in the app, in a browser, and on an
-  iPad through the real server), the crop's address in `tests/unit/remote-server.spec.mjs`, `keepAlpha` in
-  `tests/unit/paints-tga.spec.mjs`. The golden frames have no paint (their fixture names no car the rig has), so
-  they are unchanged.
+  picks the patch; a flat paint, a noisy one, two colours along a line, a transparent sheet, two flat fields with a few
+  letters on them, and a field of greys give nothing; a two-colour shard field, a wordmark across a dark body and a
+  mark across the ground are in; the choice random among the best few and the same for the same random; the badge's
+  widest shape held inside the sheet, with artwork in the middle of every window too), `tests/unit/logo-livery.spec.mjs`
+  (the keeper and the real worker over TGAs written to a temp folder: what the payload names, once per car, the paint
+  folder never left, the byte cap, the header cap that refuses a few kilobytes declaring 16384 by 16384, a newer pick
+  ending the worker of the one before it — three in 40 ms steps leave one, the others terminated and silent — the last
+  car's crop taken away when the car changes and kept for the same car, no id or path in the log),
+  `tests/unit/logo-livery-page.spec.mjs` (the real page: in the app, in a browser, and on an iPad through the real
+  server, which asks again on getting back in; the darkening's flag list), the crop's address in
+  `tests/unit/remote-server.spec.mjs`, `keepAlpha` in `tests/unit/paints-tga.spec.mjs`. The golden frames have no paint
+  (their fixture names no car the rig has), so they are unchanged.
 - **Not built**: the helmet and the suit (they come with the livery he applies, not from here); a preview of the
   crop on the desk; preferring a panel that faces the right way up.
 
