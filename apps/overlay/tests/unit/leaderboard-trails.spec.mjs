@@ -187,6 +187,29 @@ test.describe('his own line, through a whole event in one page load', () => {
     expect(shown.color).toBe(RED);
   });
 
+  // His most recent race, Tsukuba on 2026-09-29 (an MX-5, .ibt 22-13-03), in the one page load it was driven in: a
+  // qualifying that gave him P1 to P6, then a race from P8 that went P4 on the first lap, back to P9, and ended P6 —
+  // two places gained. The line the HUD drew for it was [2 3 4 5 6 8 4 5 6 7 9 6]: the qualifying's ranks first, and a
+  // line that ended below the height it began at although he had gained two places.
+  test('Tsukuba: two places gained draws a line that ends above where it began, in green, from the grid slot', async ({ page }) => {
+    await open(page, at(1, { session: 'Lone Qualify', mode: 2, state: 4, start: 1, lap: 1 }));
+    await play(page, [2, 3, 4, 5, 6].map((p, i) => at(p, { session: 'Lone Qualify', mode: 2, state: 4, start: 1, lap: 2 + i })));
+    await play(page, [1, 2, 3].map((state) => at(6, { mode: 4, state, start: 0, lap: 1 })));
+    await play(page, [
+      at(8, { state: 4, start: 0, noPlaces: true, lap: 1 }),
+      at(8, { state: 4, start: 8, lap: 1 }), at(4, { state: 4, start: 8, lap: 1 }), at(5, { state: 4, start: 8, lap: 1 }),
+      at(6, { state: 4, start: 8, lap: 1 }), at(7, { state: 4, start: 8, lap: 1 }), at(9, { state: 4, start: 8, lap: 1 }),
+      at(6, { state: 4, start: 8, lap: 3 }), at(6, { state: 5, start: 8, lap: 12 }),
+    ]);
+    expect(await places(page, ME)).toEqual([8, 4, 5, 6, 7, 9, 6]);
+    const shown = await mine(page);
+    expect(shown.last).toBeLessThan(shown.start);   // ends above the hairline where the race began: places gained
+    expect(shown.color).toBe(GREEN);
+    // Its highest is P4 and its lowest P9, and it is drawn between them: the scale is his own range in the race.
+    expect(Math.min(...shown.pts.map((p) => p[1]))).toBeLessThan(shown.last);
+    expect(Math.max(...shown.pts.map((p) => p[1]))).toBeGreaterThan(shown.start);
+  });
+
   test('a place lost is drawn lower, in red, below the hairline', async ({ page }) => {
     await open(page, at(8, { state: 4, start: 8 }));
     await play(page, [at(9, { start: 8 }), at(10, { start: 8 }), at(9, { start: 8 }), at(10, { start: 8 })]);
@@ -288,6 +311,40 @@ test.describe('every other row is that car\'s places too, not its laps', () => {
 });
 
 test.describe('which race a trail belongs to', () => {
+  // The cool-down is when he looks back at how his race went. The lines were hidden by the next render after the
+  // chequered flag (a gap changes every frame, so that render comes at once), and would have been stretched across the
+  // clock as it went on: they stay, as the race ended, until the session or the track changes.
+  test('the lines of the finished race stay through the cool-down, held where the race ended, and go with the session', async ({ page }) => {
+    await open(page, at(11, { state: 4, start: 11 }));
+    await play(page, [at(10, { start: 11, lap: 5 }), at(9, { start: 11, lap: 9 }), at(9, { state: 5, start: 11, lap: 12 })]);
+    const raced = await mine(page);
+    const rows = await drawn(page);
+    expect(raced).not.toBeNull();
+    expect(rows).toBeGreaterThan(5);
+    expect(raced.color).toBe(GREEN);
+
+    // The cool-down: a car's last lap changes, so every row is drawn again. The lines are all there, and his is the
+    // line it was (the right-hand end is where the race ended, not the page's clock a second and a half later).
+    await page.waitForTimeout(1500);
+    await play(page, [
+      at(9, { state: 6, start: 11, lap: 12, lastLaps: { [ME]: 96.5 } }),
+      at(9, { state: 6, start: 11, lap: 12, lastLaps: { [ME]: 97.1 } }),
+    ]);
+    expect(await drawn(page)).toBe(rows);
+    const cooled = await mine(page);
+    expect(cooled).not.toBeNull();
+    expect(cooled.pts).toEqual(raced.pts);
+    expect(cooled.color).toBe(GREEN);
+    // Nothing is added to a trail in the cool-down: a place that changes there is not a place in the race.
+    await show(page, at(12, { state: 6, start: 11, lap: 12, lastLaps: { [ME]: 98 } }));
+    expect(await places(page, ME)).toEqual([11, 10, 9]);
+
+    // The next session takes them away.
+    await show(page, at(6, { session: 'Practice', mode: 1, state: 4, start: 6 }));
+    expect(await drawn(page)).toBe(0);
+    expect(await page.evaluate(() => _trails.size)).toBe(0);
+  });
+
   test('a second race of the same type at the same track starts clean at its green flag', async ({ page }) => {
     await open(page, at(11, { state: 4, start: 11 }));
     await play(page, [at(10, { start: 11, lap: 5 }), at(9, { start: 11, lap: 9 })]);

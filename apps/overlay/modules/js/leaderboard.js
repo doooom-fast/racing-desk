@@ -9,20 +9,25 @@
   // starts from his grid slot), then every change of place, on the page's own clock. Only a race has one. In
   // practice, qualifying and warm-up "position" is the order of best laps, and one line that means two things is
   // what drew his race going down while he went up the grid: the line began with the ranks of the sessions before.
-  // A trail belongs to one session (its type and track) and to one green flag, and is dropped with either.
+  // A trail belongs to one session (its type and track) and to one green flag, and is dropped with either. It is
+  // drawn from the green flag on, through the chequered flag and the cool-down (that is when he looks back at how the
+  // race went), with its right-hand end held where the race ended.
   const TRAIL_MAX = 64;            // the start is always kept; past this the oldest change after it goes
   const _trails = new Map();       // name -> { pts: [[t, place], …], v: <number of changes> }
   let _trailType = '';             // the session the trails belong to: its type, and its track
   let _trailTrack = '';
+  let _trailEnd = 0;               // the page's clock at the last frame of the race that added to the trails
 
   function resetLeaderboardTrails() {
     _trails.clear();
     _trailType = '';
     _trailTrack = '';
+    _trailEnd = 0;
   }
   window.resetLeaderboardTrails = resetLeaderboardTrails;
 
-  // Which session this frame is, and whether it is a race under way (green or chequered flag).
+  // Which session this frame is; whether it is a race under way (green or chequered flag: `racing`, when trails are
+  // added to); and whether it is a race whose trails are to be drawn (`shown`: that, and the cool-down after it).
   function _trailSession(p) {
     const demo = +p['RacingDesk.Plugin.DemoMode'] || 0;
     const ds = demo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
@@ -33,7 +38,7 @@
     const track = '' + (p['RacingDesk.Plugin.TrackMap.TrackName'] || '');
     const mode = +p[ds + 'SessionMode'] || 0;              // 4 is a race
     const state = parseInt(p[grid + 'SessionState']) || 0; // 4 racing, 5 chequered
-    return { type, track, racing: mode === 4 && (state === 4 || state === 5) };
+    return { type, track, racing: mode === 4 && (state === 4 || state === 5), shown: mode === 4 && state >= 4 };
   }
 
   // Every car in the field, not only the ones on show, so that a car scrolling into view has its history.
@@ -286,7 +291,10 @@
     if ((session.type && session.type !== _trailType) || (session.track && session.track !== _trailTrack)) _trails.clear();
     if (session.type) _trailType = session.type;
     if (session.track) _trailTrack = session.track;
-    if (session.racing) _recordTrails(raw, trailNow);
+    if (session.racing) {
+      _recordTrails(raw, trailNow);
+      _trailEnd = trailNow;
+    }
 
     // ── Focus + row limit logic ──
     const focusMode = _settings.lbFocus || 'me';
@@ -466,11 +474,11 @@
       const irStr = ir > 0 ? (ir >= 1000 ? (ir / 1000).toFixed(1) + 'k' : '' + ir) : '';
 
       // ── Sparkline: this car's place through the race ──
-      // Drawn from the trail the frame's walk of the whole field made (_recordTrails), and only in a race: out of
-      // one the cell is empty, and the last-lap column carries the lap's colour. His own line is coloured by where
-      // he stands against where he began (gold P1, green ahead of the start, red behind it, blue where it began);
-      // the rest are white.
-      const trail = session.racing ? _trails.get(name) : null;
+      // Drawn from the trail the frame's walk of the whole field made (_recordTrails), and only in a race and its
+      // cool-down: out of one the cell is empty, and the last-lap column carries the lap's colour. His own line is
+      // coloured by where he stands against where he began (gold P1, green ahead of the start, red behind it, blue
+      // where it began); the rest are white.
+      const trail = session.shown ? _trails.get(name) : null;
       let sparkColor = 'hsla(0,0%,100%,0.35)';
       if (isSelf) {
         const began = trail ? trail.pts[0][1] : _startPosition;
@@ -479,7 +487,7 @@
         else if (began > 0 && pos > began) sparkColor = 'hsla(0,75%,50%,1)';
         else sparkColor = 'hsla(210,75%,55%,1)';
       }
-      _setSpark(row, trail, trailNow, sparkColor);
+      _setSpark(row, trail, session.racing ? trailNow : _trailEnd, sparkColor);
 
       // Lap time display with color coding
       let lapStr = '', lapClass = 'lb-lap';
