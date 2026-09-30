@@ -22,6 +22,7 @@ const hostLauncher = require('./modules/js/host-launcher');
 const appLog       = require('./modules/js/app-log');
 const hudVisibility = require('./modules/js/hud-visibility');
 const hudDisplay   = require('./modules/js/hud-display');
+const captureScreen = require('./modules/js/capture-screen');
 const { createHudKeys } = require('./modules/js/hud-keys');
 const settingsFile = require('./modules/js/settings-file');
 const paints       = require('./modules/js/paints');
@@ -626,21 +627,14 @@ app.whenReady().then(async () => {
     createTray();
 
     // ── Display media handler for screen recording ──
-    // Electron 33+ requires this to allow getDisplayMedia() in the renderer.
-    // Automatically grant access to the primary screen without a picker dialog.
-    session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
-      try {
-        const sources = await desktopCapturer.getSources({ types: ['screen'] });
-        if (sources.length > 0) {
-          callback({ video: sources[0], audio: 'loopback' });
-        } else {
-          callback({ video: null });
-        }
-      } catch (err) {
-        logToFile(`[RacingDesk] Display media handler error: ${err.message}`);
-        callback({ video: null });
-      }
-    });
+    // Electron 33+ requires this to allow getDisplayMedia() in the renderer. A screen is granted without a picker:
+    // the one the HUD is on (hudScreen, above), matched to the capturer's sources by display_id in
+    // modules/js/capture-screen.js, else the first.
+    session.defaultSession.setDisplayMediaRequestHandler(captureScreen.createDisplayMediaHandler({
+      getSources: () => desktopCapturer.getSources({ types: ['screen'] }),
+      getDisplayKey: () => hudScreen.currentKey(),
+      log: logToFile,
+    }));
 
     // ── Media permission handler for facecam + mic ──
     // The overlay window is transparent + focusable:false, so a Chromium

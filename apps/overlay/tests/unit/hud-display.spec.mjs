@@ -607,6 +607,23 @@ test.describe('the keeper', () => {
     ]);
   });
 
+  test('currentKey is the screen the rule last chose, and null before it has run: what a recording is of', async () => {
+    const { hud, state, asked } = keeper();
+    expect(hud.currentKey()).toBeNull();
+    hud.initialBounds();
+    expect(hud.currentKey()).toBe('1');   // the ini: the ultrawide
+    state.sim = RUNNING_ON_SMALL;
+    await hud.refresh();
+    expect(hud.currentKey()).toBe('2');
+    state.choice = '1';
+    await hud.settingsChanged();
+    expect(hud.currentKey()).toBe('1');
+    // It asks nothing of its own.
+    const before = { ...asked };
+    hud.currentKey();
+    expect(asked).toEqual(before);
+  });
+
   test('a window made on the primary screen by the system is moved to the chosen one, and looked at again if it did not take', () => {
     const { hud, win } = keeper();
     win.drift = 1;   // the first try comes out at the small size
