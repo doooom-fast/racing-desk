@@ -670,6 +670,32 @@ body.drive-mode-active:is([data-flag="green"], [data-flag="greenheld"], [data-fl
 body.drive-mode-active #carLogoSquare {
   background: linear-gradient(var(--logo-tint, transparent), var(--logo-tint, transparent)), var(--rd-bg) !important;
 }
+/* The livery under the badge (dashboard.css, .car-livery) takes the glass's colour as the panels do — the ambient
+   colour, or the flag's when one is out, and more of it under the flags the panels take more under (the list is the
+   panels', above: a local yellow, a blue, a furled black flag and the plain black leave the panels as they are, and
+   leave this as it is) — over the darkening that keeps the mark readable. The crop is opaque, so the flag's pattern
+   shows through it no more than the base. */
+body.drive-mode-active #carLogoSquare .car-livery::after {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.18) 0%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.10) 55%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.14) 100%),
+    radial-gradient(ellipse 85% 75% at 50% 42%, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0.40) 68%, rgba(0, 0, 0, 0.62) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.20) 0%, rgba(0, 0, 0, 0.28) 55%, rgba(0, 0, 0, 0.52) 100%);
+  transition: background 0.6s ease;
+}
+body.drive-mode-active:is([data-flag="green"], [data-flag="greenheld"], [data-flag="yellow"], [data-flag="caution"],
+  [data-flag="onetogreen"], [data-flag="red"], [data-flag="white"], [data-flag="checkered"], [data-flag="meatball"],
+  [data-flag="debris"], [data-flag="disqualify"]) #carLogoSquare .car-livery::after {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.34) 0%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.20) 60%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.26) 100%),
+    radial-gradient(ellipse 85% 75% at 50% 42%, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0.40) 68%, rgba(0, 0, 0, 0.62) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.20) 0%, rgba(0, 0, 0, 0.28) 55%, rgba(0, 0, 0, 0.52) 100%);
+}
 body.drive-mode-active[data-flag]:not([data-flag="none"]) #brandLogoSquare { background: hsl(0, 0%, 9%); }
 /* The flag's words in the gaps block, as big as the block allows. */
 body.drive-mode-active #gapsBlock.flag-active .flag-overlay { background: hsla(0, 0%, 4%, 0.55); }

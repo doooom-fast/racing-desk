@@ -309,6 +309,9 @@
     if (nowIdle !== _isIdle) {
       _isIdle = nowIdle;
       document.body.classList.toggle('idle-state', nowIdle);
+      // On an iPad, back in the car — the same car, after the garage, say — the rig chooses another section of the
+      // paint, as it does on its own screen: ask for it (car-logos.js). A change of car asks, below.
+      if (!nowIdle && window._remoteMode && typeof requestRemoteLivery === 'function') requestRemoteLivery();
     }
 
     // Skip rest of update in idle (except settings remain responsive)
@@ -472,6 +475,9 @@
       _lastCarModel = carModel;
       _carAdj = getCarAdjustability(carModel);
       setCarLogo(detectMfr(carModel), carModel);
+      // On an iPad the crop of the car's paint behind the badge is the rig's to choose; the page asks for it
+      // (car-logos.js). In the app the main process sends it of its own accord.
+      if (window._remoteMode && typeof requestRemoteLivery === 'function') requestRemoteLivery();
       // Track car usage for driver profile heatmap
       if (carModel && !_demo && typeof recordCarSession === 'function') recordCarSession(carModel);
     }

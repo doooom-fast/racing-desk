@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { SOFTWARE_GL_ARGS } from './tests/software-browser.mjs';
 
 export default defineConfig({
   testDir: './tests',
@@ -8,7 +9,11 @@ export default defineConfig({
     headless: true,
     viewport: { width: 1280, height: 600 },
     launchOptions: {
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      // Software rendering, always: this machine is the sim rig, and its graphics driver crashed three times on
+      // 2026-09-29 while headless pages of the WebGL HUD were being screenshotted, once leaving the screen in a
+      // mode the monitor could not show. The tests draw in SwiftShader and never touch the driver. The flags are
+      // tests/software-browser.mjs's, which every script that starts Chromium on its own takes too.
+      args: ['--no-sandbox', '--disable-setuid-sandbox', ...SOFTWARE_GL_ARGS],
     },
   },
   projects: [

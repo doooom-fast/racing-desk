@@ -46,6 +46,8 @@ test.beforeAll(() => {
   put('modules/js/notes.txt', 'SECRET notes');
   put('modules/js/app.map', 'SECRET map');
   put('node_modules/thing/index.js', 'SECRET module');
+  // A file named as the livery crop's address is: the crop comes from memory, never from here.
+  put('livery-crop.png', 'SECRET file');
 });
 test.afterAll(() => { fs.rmSync(appDir, { recursive: true, force: true }); });
 
@@ -79,6 +81,7 @@ function ask(target, { from = IPAD, host = '192.168.1.20:9090', method = 'GET', 
         if (this.writableEnded) return;
         this.writableEnded = true;
         if (data !== undefined) out.body += Buffer.isBuffer(data) ? data.toString('utf8') : String(data);
+        if (Buffer.isBuffer(data)) out.bytes = data;   // as sent, for an answer that is not text
         resolve(out);
       },
     };
@@ -281,6 +284,66 @@ test.describe('the telemetry', () => {
     });
     expect(answer.status).toBe(502);
     expect(JSON.parse(answer.body).error).toBe('The telemetry is not answering on the rig.');
+  });
+});
+
+test.describe('the livery crop', () => {
+  // What the main process holds: a PNG's signature and a few bytes are enough for the server, which reads none of it.
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const held = { crop: () => ({ png: PNG, id: '3-11' }) };
+
+  test('is served whole from the main process\'s memory at its one address, tagged, never cached', async () => {
+    const answer = await ask(remote.CROP_PATH, { ...withKey, config: held });
+    expect(remote.CROP_PATH).toBe('/livery-crop.png');
+    expect(answer.status).toBe(200);
+    expect(answer.headers['Content-Type']).toBe('image/png');
+    expect(answer.headers['Cache-Control']).toBe('no-store');
+    expect(answer.headers['Content-Length']).toBe(PNG.length);
+    expect(answer.headers.ETag).toBe('"3-11"');
+    expect(Buffer.compare(answer.bytes, PNG)).toBe(0);
+    expect(answer.upstream).toEqual([]);
+    // The tag is the crop's id and nothing else that could be put in a header.
+    const odd = await ask(remote.CROP_PATH, { ...withKey, config: { crop: () => ({ png: PNG, id: 'a"b\r\nX: y' }) } });
+    expect(odd.headers.ETag).toBe('"abXy"');
+    expect((await ask(remote.CROP_PATH, { ...withKey, config: { crop: () => ({ png: PNG }) } })).headers.ETag).toBe(`"${PNG.length}"`);
+    // On the rig itself no key is needed, as for the rest; asked with HEAD it says the same.
+    expect((await ask(remote.CROP_PATH, { ...onTheRig, config: held })).status).toBe(200);
+    expect((await ask(remote.CROP_PATH, { ...withKey, config: held, method: 'HEAD' })).status).toBe(200);
+    expect(Object.keys(answer.headers).map((h) => h.toLowerCase())).not.toContain('access-control-allow-origin');
+  });
+
+  test('needs the key from the network, takes no query, and is not a file', async () => {
+    const noKey = await ask(remote.CROP_PATH, { config: held });
+    expect(noKey.status).toBe(403);
+    expect(noKey.body).toBe(NEEDS_KEY);
+    for (const target of [`${remote.CROP_PATH}?x=1`, `${remote.CROP_PATH}?k=${KEY}`, `${remote.CROP_PATH}/`, '/livery-crop.PNG', '/livery-crop', '/images/livery-crop.png']) {
+      const answer = await ask(target, { ...withKey, config: held });
+      expect(answer.status, target).toBe(404);
+      expect(answer.bytes, target).toBeUndefined();
+      expect(answer.body, target).not.toContain('SECRET');
+    }
+    expect((await ask(`${remote.CROP_PATH}?`, { ...withKey, config: held })).status).toBe(200);   // no query at all
+    // A request naming the address as a query of something else changes nothing either.
+    expect((await ask(`/racing-desk/?${remote.CROP_PATH}`, { ...withKey, config: held })).status).toBe(403);
+    expect((await ask(remote.CROP_PATH, { ...withKey, config: held, method: 'POST' })).status).toBe(405);
+  });
+
+  test('is 404 while there is none to show, and the file of that name in the app folder is never it', async () => {
+    for (const [what, crop] of Object.entries({
+      'no crop function': undefined,
+      'none held': () => null,
+      'nothing': () => undefined,
+      'not a PNG': () => ({ png: 'not bytes', id: '1' }),
+      'empty': () => ({ png: Buffer.alloc(0), id: '1' }),
+      'a throw': () => { throw new Error('gone'); },
+    })) {
+      const answer = await ask(remote.CROP_PATH, { ...withKey, config: { crop } });
+      expect(answer.status, what).toBe(404);
+      expect(answer.body, what).toBe('No livery crop to show.');
+      expect(answer.headers['Cache-Control'], what).toBe('no-store');
+    }
+    expect(fs.existsSync(path.join(appDir, 'livery-crop.png'))).toBe(true);
+    expect(remote.staticFile(appDir, remote.CROP_PATH)).toBeNull();
   });
 });
 

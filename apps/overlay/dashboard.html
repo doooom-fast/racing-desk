@@ -277,6 +277,9 @@
         <img src="images/branding/logomark.png" alt="RacingDesk" style="width:75%;height:auto;opacity:1;position:relative;z-index:2;">
       </div>
       <div class="logo-square" id="carLogoSquare">
+        <!-- A section of the car's own paint, under everything else in the square: the main process chooses it
+             (modules/js/logo-livery.js) and car-logos.js sets it here; empty, the maker's colour shows. -->
+        <div class="car-livery" id="carLivery"></div>
         <canvas class="mfr-flag-canvas" id="mfrFlagCanvas"></canvas>
         <!-- Generic logo (replaced by JS when CarModel data arrives) -->
         <div class="car-logo-icon" id="carLogoIcon">

@@ -107,6 +107,13 @@ contextBridge.exposeInMainWorld('racingDesk', {
   },
   // The state as it is now, for a page that started listening after it was last sent.
   getInRaceState: () => ipcRenderer.invoke('get-in-race-state'),
+  // The crop of the car's paint behind the car badge, chosen by main.js (modules/js/logo-livery.js) and handed over
+  // as a data URL, or null for none: sent whenever it changes, and asked for by a page that loaded after it was sent.
+  // The page reads no file and builds no path.
+  onLogoLivery: (callback) => {
+    ipcRenderer.on('logo-livery', (_event, dataUrl) => callback(dataUrl));
+  },
+  getLogoLivery: () => ipcRenderer.invoke('get-logo-livery'),
   // Screen recording
   startRecording: (opts) => ipcRenderer.invoke('start-recording', opts),
   stopRecording: () => ipcRenderer.invoke('stop-recording'),
