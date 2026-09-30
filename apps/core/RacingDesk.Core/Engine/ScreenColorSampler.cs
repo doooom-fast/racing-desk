@@ -1,15 +1,21 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Threading;
+using RacingDesk.Core.Screens;
 
 namespace RacingDesk.Plugin.Engine
 {
     /// <summary>
     /// Lightweight screen color sampler using GDI+ Graphics.CopyFromScreen().
-    /// Captures a small region of the primary screen and averages the color.
-    /// Runs on a background thread at ~4 FPS to avoid blocking the main plugin tick.
+    /// Captures a small region of the monitor the sim is on and averages the color: the monitor Windows has most of the
+    /// sim's window on, found as the host's simwindow route finds it, and the primary monitor while the sim has no
+    /// window on screen (<see cref="SimMonitor"/>). It was the primary, always, which on a rig whose sim runs on
+    /// another screen is not the picture the HUD sits over. The region is set as ratios of that monitor.
+    /// Runs on a background thread at ~4 FPS to avoid blocking the main plugin tick. It runs in the app's host and in
+    /// the SimHub plugin alike.
     ///
     /// Replaces the Electron desktopCapturer pipeline which caused GPU→CPU readback
     /// stalls that froze all Windows animations and mouse movement.
@@ -32,6 +38,19 @@ namespace RacingDesk.Plugin.Engine
         // Downscale large regions to this size before averaging
         private const int MAX_SAMPLE = 64;
 
+        // Which monitor is looked at; only the capture thread asks it.
+        private readonly SimMonitor _screen;
+
+        public ScreenColorSampler() : this(new SimMonitor())
+        {
+        }
+
+        /// <summary>Looks at the monitor <paramref name="screen"/> gives: tests give one with fake sources.</summary>
+        internal ScreenColorSampler(SimMonitor screen)
+        {
+            _screen = screen ?? new SimMonitor();
+        }
+
         /// <summary>Current averaged red component (0-255).</summary>
         public int R => _r;
         /// <summary>Current averaged green component (0-255).</summary>
@@ -44,7 +63,7 @@ namespace RacingDesk.Plugin.Engine
         public bool HasRect => _hasRect;
 
         /// <summary>
-        /// Set the capture region as ratios of screen size (0-1).
+        /// Set the capture region as ratios of the monitor's size (0-1).
         /// </summary>
         public void SetRect(double x, double y, double w, double h)
         {
@@ -93,9 +112,15 @@ namespace RacingDesk.Plugin.Engine
         private void CaptureLoop()
         {
             int frameCount = 0;
+            var clock = Stopwatch.StartNew();
+            string said = null;
+            bool failing = false;   // the last capture failed: the monitor has been looked for again once already
 
             while (_running)
             {
+                // The monitor is found and captured in physical pixels, on this thread and in the same awareness: a
+                // lookup made in one and a capture in another would miss each other on screens of different scales.
+                var aware = PerMonitorAwareScope.Enter();
                 try
                 {
                     // ~4 FPS (250ms interval) — matches the old Electron capture rate
@@ -103,28 +128,25 @@ namespace RacingDesk.Plugin.Engine
 
                     if (!_hasRect) continue;
 
-                    // Read screen dimensions
-                    var screenBounds = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
-                    int screenW = screenBounds.Width;
-                    int screenH = screenBounds.Height;
+                    // The monitor the sim is on, else the primary; looked for again every couple of seconds
+                    ScreenRect monitor = _screen.Current(clock.ElapsedMilliseconds);
+                    string where = Where(monitor, _screen.Why);
+                    if (where != said)
+                    {
+                        said = where;
+                        Log.Info($"[RacingDesk] ScreenColor: {where}");
+                    }
+                    if (!monitor.IsUsable) continue;
 
-                    // Compute pixel region from ratios
-                    int srcX, srcY, srcW, srcH;
+                    // Compute the pixel region from the ratios, on that monitor
+                    ScreenRect region;
                     lock (_lock)
                     {
-                        srcX = (int)(_rectX * screenW);
-                        srcY = (int)(_rectY * screenH);
-                        srcW = Math.Max(1, (int)(_rectW * screenW));
-                        srcH = Math.Max(1, (int)(_rectH * screenH));
+                        region = Region(monitor, _rectX, _rectY, _rectW, _rectH);
                     }
+                    if (!region.IsUsable) continue;
 
-                    // Clamp to screen bounds
-                    srcX = Math.Max(0, Math.Min(srcX, screenW - 1));
-                    srcY = Math.Max(0, Math.Min(srcY, screenH - 1));
-                    srcW = Math.Min(srcW, screenW - srcX);
-                    srcH = Math.Min(srcH, screenH - srcY);
-
-                    if (srcW <= 0 || srcH <= 0) continue;
+                    int srcX = region.X, srcY = region.Y, srcW = region.Width, srcH = region.Height;
 
                     // Determine sample size (downscale large regions)
                     int sampleW = Math.Min(srcW, MAX_SAMPLE);
@@ -171,6 +193,7 @@ namespace RacingDesk.Plugin.Engine
                         _b = avgB;
                         _hasColor = true;
                     }
+                    failing = false;
 
                     frameCount++;
                     if (frameCount <= 3 || frameCount % 100 == 0)
@@ -182,7 +205,11 @@ namespace RacingDesk.Plugin.Engine
                 }
                 catch (Exception ex)
                 {
-                    // Don't crash the thread on transient GDI errors (e.g. locked screen)
+                    // Don't crash the thread on transient GDI errors (e.g. locked screen). The screens may have
+                    // changed under the monitor that was found: it is looked for again at the next frame — once. A
+                    // capture that goes on failing (the screen locked, a UAC prompt up) waits on the usual 2 s.
+                    if (!failing) _screen.Forget();
+                    failing = true;
                     frameCount++;
                     if (frameCount % 100 == 0)
                     {
@@ -190,6 +217,45 @@ namespace RacingDesk.Plugin.Engine
                             $"[RacingDesk] ScreenColor capture error: {ex.Message}");
                     }
                 }
+                finally
+                {
+                    aware.Dispose();
+                }
+            }
+        }
+
+        /// <summary>
+        /// The region to capture, on the virtual screen in physical pixels: the ratios (0-1) of the monitor's size,
+        /// from its own corner, kept on it and at least a pixel each way. Not usable when the monitor is not.
+        /// </summary>
+        internal static ScreenRect Region(ScreenRect monitor, double x, double y, double w, double h)
+        {
+            if (!monitor.IsUsable) return new ScreenRect();
+            int screenW = monitor.Width;
+            int screenH = monitor.Height;
+
+            int srcX = (int)(x * screenW);
+            int srcY = (int)(y * screenH);
+            int srcW = Math.Max(1, (int)(w * screenW));
+            int srcH = Math.Max(1, (int)(h * screenH));
+
+            // Clamp to the monitor
+            srcX = Math.Max(0, Math.Min(srcX, screenW - 1));
+            srcY = Math.Max(0, Math.Min(srcY, screenH - 1));
+            srcW = Math.Min(srcW, screenW - srcX);
+            srcH = Math.Min(srcH, screenH - srcY);
+
+            return new ScreenRect(monitor.X + srcX, monitor.Y + srcY, srcW, srcH);
+        }
+
+        // What is being sampled, for the log: said once each time it changes.
+        internal static string Where(ScreenRect monitor, SimMonitor.Reason why)
+        {
+            switch (why)
+            {
+                case SimMonitor.Reason.Sim: return $"sampling the monitor iRacing is on, {monitor}";
+                case SimMonitor.Reason.Primary: return $"sampling the primary monitor, {monitor}: iRacing's window was not found";
+                default: return "no monitor to sample: Windows listed none";
             }
         }
 
