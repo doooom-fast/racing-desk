@@ -30,11 +30,22 @@ const KEY = 'abcd2345';
 const WIRE = JSON.parse(fs.readFileSync(path.join(here, 'fixtures', 'car-controls-wire.json'), 'utf8'));
 
 // Every size an iPad has, on its side and upright: the Air and the 11" Pro (1180x820), the 9th generation and the
-// 9.7" (1024x768), the 12.9" Pro (1366x1024), the mini (1133x744), the 10.2" (1080x810).
-const SIZES = [
+// 9.7" (1024x768), the 12.9" Pro (1366x1024), the mini (1133x744), the 10.2" (1080x810). And the two screens the rig's
+// own Ctrl+Shift+F is on: 1920x1080 and the ultrawide 2560x1080.
+const IPADS = [
   [1180, 820, 'Air, landscape'], [820, 1180, 'Air, portrait'], [1366, 1024, '12.9" Pro, landscape'],
   [1024, 768, '9.7", landscape'], [744, 1133, 'mini, portrait'], [1133, 744, 'mini, landscape'], [810, 1080, '10.2", portrait'],
 ];
+const RIG = [[1920, 1080, 'the rig, 16:9'], [2560, 1080, 'the rig, ultrawide']];
+const SIZES = [...IPADS, ...RIG];
+
+// The strategy engine calling for tyres and for fuel, with a pit window and a stint of 14 laps: more lines in the pit box.
+const CALLS = {
+  'RacingDesk.Plugin.Strategy.TireHealthState': 2, 'RacingDesk.Plugin.Strategy.TireLapsRemaining': 12,
+  'RacingDesk.Plugin.Strategy.FuelHealthState': 2, 'RacingDesk.Plugin.Strategy.FuelLapsRemaining': 6,
+  'RacingDesk.Plugin.Strategy.PitWindowOpen': 18, 'RacingDesk.Plugin.Strategy.PitWindowClose': 24,
+  'RacingDesk.Plugin.Strategy.StintNumber': 2, 'RacingDesk.Plugin.Strategy.StintLaps': 14,
+};
 
 let telemetry, port, payload;
 
@@ -104,12 +115,12 @@ const CELLS = {
   inc: '#incidentsPanel',
 };
 
-// Everything the four rules are held to, measured in the page. Each is a list of what breaks it: nothing, when it holds.
+// Everything the rules are held to, measured in the page. Each is a list of what breaks it: nothing, when it holds.
 function measure(page) {
   return page.evaluate((cellSelectors) => {
     const vw = innerWidth, vh = innerHeight;
     const shown = (el) => el.getClientRects().length > 0;
-    const out = { cells: {}, outside: [], overflowing: [], small: [], covered: 0, overlapping: [] };
+    const out = { cells: {}, outside: [], overflowing: [], cutOff: [], small: [], covered: 0, overlapping: [] };
 
     let area = 0;
     const rects = [];
@@ -133,35 +144,94 @@ function measure(page) {
     // Nothing in a cell is cut off by it: the cell's contents, and the parts inside it that lay themselves out.
     const containers = [...Object.values(cellSelectors), '#positionPage .pos-layout', '#positionPage .pos-meta', '#lbRows',
       '#incidentsPanel .inc-inner', '#gapsBlock .gap-item', '#gapsBlock .sector-cell', '#leaderboardPanel .lb-inner', '.lb-row',
-      '.car-controls .ctrl-item', '.car-controls .ctrl-mini', '.ds-inner', '.pb-page', '.laps-panel > *', '.laps-sectors .sector-cell',
-      '#ratingPage .rating-row'];
+      '.car-controls .ctrl-item', '.car-controls .ctrl-mini', '.ds-inner', '.pb-inner', '.pb-content', '.pb-page', '.pb-tire-circles',
+      '.pb-circle-cell', '.laps-panel > *', '.laps-sectors .sector-cell', '.laps-col', '#ratingPage .rating-row',
+      '#ratingPage .rating-item', '.pedal-labels-row', '.pedal-label-group', '.ds-gforce'];
     for (const sel of containers) {
       for (const el of document.querySelectorAll(sel)) {
         if (!shown(el)) continue;
-        if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) {
+        // (a line of type is taller than its line-height in a face like the mono, by a fraction of its size, and that
+        // is the slack allowed in height)
+        const slack = Math.max(1, parseFloat(getComputedStyle(el).fontSize) * 0.3);
+        if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + slack) {
           out.overflowing.push(`${sel} ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight}`);
         }
       }
     }
 
-    // Nothing is too small: labels 11px, numbers 20px.
-    const floor = (list, min) => {
-      for (const sel of list) {
-        for (const el of document.querySelectorAll(sel)) {
-          if (!shown(el) || !el.textContent.trim()) continue;
-          const px = parseFloat(getComputedStyle(el).fontSize);
-          if (px < min - 0.01) out.small.push(`${sel} ${px}px < ${min}`);
-        }
+    // Nothing that is written is cut off or left out of sight: every piece of text in a cell lies inside the box its
+    // ancestors let show (an overflow hidden, the ellipsis of a name that does not fit, a line clamp, and the cell).
+    const gone = (el) => {
+      for (let e = el; e && e !== document.body; e = e.parentElement) {
+        const cs = getComputedStyle(e);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return true;
       }
+      return false;
     };
-    floor(['#gapsBlock .panel-label', '.car-controls .ctrl-label', '.inc-label', '.lb-header', '.gap-driver', '.gap-ir',
-      '.inc-thresh-row', '.race-timer-lap', '.map-panel > .map-zoom-label', '.ctrl-mini-label', '#gapsBlock .sector-label',
-      '#positionPage .pos-meta-row', '#positionPage .delta-ref', '.laps-k', '.laps-panel .panel-label', '.laps-sectors .sector-label',
-      '.ds-label', '.ds-value', '.pb-label', '.pb-value', '.pb-circle-pct', '.pb-circle-temp', '.pedal-channel-label',
-      '#ratingPage .panel-label', '.speed-unit', '.tacho-rpm', '.car-model-label'], 11);
-    floor(['#gapsBlock .gap-time', '.car-controls .ctrl-value', '.inc-count', '.inc-x', '.race-timer-value',
-      '#positionPage .pos-meta-row .val', '#positionPage .pos-delta.visible', '.speed-value', '#ratingPage .rating-value'], 20);
-    floor(['.lb-row'], 14);
+    const window_ = (el, cell) => {
+      let l = -Infinity, t = -Infinity, r = Infinity, b = Infinity;
+      for (let e = el; e; e = e.parentElement) {
+        const cs = getComputedStyle(e);
+        // (a box that steps aside, display: contents, shows nothing of its own and clips nothing)
+        if (cs.display !== 'contents' && (cs.overflowX !== 'visible' || cs.overflowY !== 'visible')) {
+          const q = e.getBoundingClientRect();
+          l = Math.max(l, q.left); t = Math.max(t, q.top); r = Math.min(r, q.right); b = Math.min(b, q.bottom);
+        }
+        if (e === cell) break;
+      }
+      return { l, t, r, b };
+    };
+
+    // Labels are 11px or more and numbers 20px or more. The exceptions are named: a caption to a name (the car's
+    // model, a driver's iRating, an axis, a sector's number, the tank's size, the track's name) is a label whatever it
+    // says, and the leaderboard's rows are a list of a dozen, at 14px.
+    const CAPTION = '.gap-ir, .gap-driver, .car-model-label, .sector-label, .ctrl-mini-label, .pb-circle-pos, .ir-bar-tick-label, ' +
+      '.pb-fuel-tank-cap, .map-zoom-label, .panel-label, .ds-label, .pb-label, .laps-k, .pedal-channel-label, .ctrl-label, .lb-header, ' +
+      '.pb-strat-btn';
+    const tiny = new Map();
+    for (const [name, sel] of Object.entries(cellSelectors)) {
+      const cell = document.querySelector(sel);
+      if (!cell || !shown(cell)) continue;
+      const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const text = node.textContent.trim();
+        const el = node.parentElement;
+        if (!text || !el || !shown(el) || gone(el)) continue;
+        if (el.closest('svg, canvas, #rd-remote-menu-fab, #rd-remote-menu-panel')) continue;
+
+        const px = parseFloat(getComputedStyle(el).fontSize);
+        // (a line's box is taller than the ink in it: a digit's is the middle three fifths, so that is what is held to
+        // the box it is shown through)
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const box = window_(el, cell);
+        for (const q of range.getClientRects()) {
+          if (q.width < 1) continue;
+          const inset = px * (px >= 60 ? 0.3 : 0.22);
+          const top = q.top + inset, bottom = q.bottom - inset;
+          if (q.left < box.l - 1.5 || top < box.t - 1.5 || q.right > box.r + 1.5 || bottom > box.b + 1.5) {
+            out.cutOff.push(`${name}: "${text.slice(0, 24)}" [${Math.round(q.left)},${Math.round(top)},${Math.round(q.right)},${Math.round(bottom)}] out of [${Math.round(box.l)},${Math.round(box.t)},${Math.round(box.r)},${Math.round(box.b)}]`);
+            break;
+          }
+        }
+
+        const inList = !!el.closest('.lb-row');
+        const isCaption = !!el.closest(CAPTION);
+        const isNumber = /\d/.test(text) && !isCaption && !inList;
+        const min = isNumber ? 20 : 11;
+        if (px < min - 0.01) tiny.set(`${name}: "${text.slice(0, 20)}" ${px.toFixed(1)}px < ${min}`, 1);
+      }
+    }
+    out.small = [...tiny.keys()];
+
+    // The leaderboard is a list of a dozen rows, at 14px or more in its rows' own type (its lap and gap columns are the
+    // 0.84 of it, and never under a label's 11).
+    for (const row of document.querySelectorAll('.lb-row')) {
+      if (!shown(row)) continue;
+      const px = parseFloat(getComputedStyle(row).fontSize);
+      if (px < 14 - 0.01) out.small.push(`lb: a row is ${px.toFixed(1)}px < 14`);
+    }
     out.place = parseFloat(getComputedStyle(document.querySelector('#positionPage .pos-number')).fontSize);
     out.gear = parseFloat(getComputedStyle(document.querySelector('.tacho-gear')).fontSize);
     const delta = document.querySelector('#positionPage .pos-meta-row.delta-row .val');
@@ -197,6 +267,7 @@ for (const size of SIZES) {
         ['a race in a prototype with its dials in a row beneath', () => withCar('porsche963gtp')],
         ['a race in a formula car with DRS and push-to-pass', () => withCar('madeup formula drs 2')],
         ['a race under a yellow flag', () => RACE({ flag: 'yellow' })],
+        ['a race with the strategy engine calling for tyres and fuel', () => RACE({ extra: CALLS })],
       ] : []),
       ['practice', () => PRACTICE()],
     ];
@@ -209,8 +280,9 @@ for (const size of SIZES) {
       expect(m.overlapping, `${label}: cells on top of one another`).toEqual([]);
       // The cells are the screen: what is not a cell is the edge round the grid and the gutters between the cells.
       expect(m.covered, `${label}: the cells cover the screen (${JSON.stringify(m.cells)})`).toBeGreaterThanOrEqual(0.86);
-      expect(m.overflowing, `${label}: content cut off by its cell`).toEqual([]);
-      expect(m.small, `${label}: type too small to glance at`).toEqual([]);
+      expect.soft(m.overflowing, `${label}: content cut off by its cell`).toEqual([]);
+      expect.soft(m.cutOff, `${label}: text cut off or left out of sight`).toEqual([]);
+      expect.soft(m.small, `${label}: type too small to glance at`).toEqual([]);
       expect(m.gear, `${label}: the gear`).toBeGreaterThanOrEqual(40);
       if (name === 'practice') {
         // Out of a race the place is a rank of best laps; the number that changes what he does is the live delta.
@@ -249,8 +321,11 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
         sf: document.getElementById('fullMapSF').style.display !== 'none',
       };
     });
-    // The outline is as large as its cell lets it be: on one axis or the other it reaches almost to the edges.
+    // The outline is as large as its cell lets it be: on one axis or the other it reaches almost to the edges, and on
+    // neither does it go past them (a ratio over one is an outline that overflows its box).
     expect(Math.max(m.fillsW, m.fillsH)).toBeGreaterThan(0.85);
+    expect(m.fillsW).toBeLessThanOrEqual(1);
+    expect(m.fillsH).toBeLessThanOrEqual(1);
     // Twelve, seven and one and a half pixels: the HUD's 5 : 3 : 0.6 outline, given in pixels so it does not grow.
     expect(m.outer).toBeCloseTo(12, 0);
     expect(m.core).toBeCloseTo(7, 0);
@@ -336,8 +411,8 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     // iRacing's gap to his best lap ever at the track: a plus and red, labelled as that.
     expect(m.allTime).toEqual(['+0.412', 'laps-v delta-slower']);
     expect(m.sectors).toEqual([['S1', '30.512', 'pb'], ['S2', '31.270', 'slower'], ['S3', '—', '']]);
-    // 9.1 laps of fuel and 8 to go: enough, with a lap to spare.
-    expect(m.fuel).toEqual(['Fuel to the flag', '9.1 laps · 8 to go', 'laps-v green']);
+    // 9.1 laps of fuel and 8 to go, to the flag: enough, with a lap to spare.
+    expect(m.fuel).toEqual(['Fuel', '9.1 laps · 8 to go', 'laps-v green']);
   });
 
   test('every panel is shown whatever the rig\'s settings hide from its own screen, and leaving puts the settings back', async ({ page }) => {
@@ -466,7 +541,7 @@ test.describe('the flag is the background', () => {
     expect(yellow.opacity).toBe('1');
     expect(yellow.pattern).toContain('rgb(253, 205, 13)');          // hsl(48, 98%, 52%), the flag's yellow
     expect(yellow.tint).toContain('rgba(245, 205, 40, 0.34)');      // the glass takes the flag's colour
-    expect(yellow.panel).toBe('rgba(15, 15, 15, 0.96)');            // over a panel the numbers stay legible on
+    expect(yellow.panel).toBe('rgb(15, 15, 15)');                   // over a panel the numbers stay legible on, and nothing shows through it
 
     // A blue flag is a car to let by: the edge and the gutters, not the panels.
     await serve(page, RACE({ flag: 'blue' }));
@@ -493,5 +568,259 @@ test.describe('the flag is the background', () => {
     const meatball = await page.evaluate(() => [document.body.dataset.flag, getComputedStyle(document.body, '::before').backgroundImage]);
     expect(meatball[0]).toBe('meatball');
     expect(meatball[1]).toContain('radial-gradient');
+  });
+});
+
+// ── Race control: the sentence is read whole, for every flag that has one, at every size ──────────────────────────────
+// The banner is over the top of the full circuit. Its detail ("Full course yellow — hold position") is the message he
+// most needs to read, and it was set on one line, so in a cell narrower than the sentence it read "FULL COURSE YELLOV".
+for (const size of SIZES) {
+  const [width, height] = size;
+  test(`${describeSize(size)}: race control's whole sentence is read, for every flag that has one`, async ({ page }) => {
+    test.setTimeout(90000);
+    await openAt(page, width, height, RACE());
+    for (const flag of ['yellow', 'red', 'checkered', 'black', 'meatball']) {
+      await serve(page, RACE({ flag }));
+      await page.waitForTimeout(700);
+      const m = await page.evaluate(() => {
+        const banner = document.getElementById('rcBanner');
+        const content = banner.querySelector('.rc-content').getBoundingClientRect();
+        const box = banner.getBoundingClientRect();
+        const map = document.querySelector('.map-panel').getBoundingClientRect();
+        const cut = [];
+        for (const id of ['rcTitle', 'rcDetail']) {
+          const el = document.getElementById(id);
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          for (const q of range.getClientRects()) {
+            if (q.left < content.left - 1 || q.right > content.right + 1) cut.push(`${id} ${Math.round(q.left)}-${Math.round(q.right)} out of ${Math.round(content.left)}-${Math.round(content.right)}`);
+          }
+        }
+        const detail = document.getElementById('rcDetail');
+        return {
+          shown: banner.classList.contains('rc-visible') && getComputedStyle(banner).opacity === '1',
+          title: document.getElementById('rcTitle').textContent, detail: detail.textContent,
+          cut, wider: detail.scrollWidth > detail.clientWidth + 1,
+          inMap: box.left >= map.left - 1 && box.right <= map.right + 1 && box.top >= map.top - 1 && box.bottom <= map.bottom + 1,
+          onScreen: box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight,
+        };
+      });
+      const label = `${describeSize(size)}, ${flag}`;
+      expect(m.shown, `${label}: the banner is up`).toBe(true);
+      expect(m.detail.length, `${label}: it has a sentence`).toBeGreaterThan(10);
+      expect(m.cut, `${label}: "${m.detail}" is read whole`).toEqual([]);
+      expect(m.wider, `${label}: the sentence is not wider than its box`).toBe(false);
+      expect(m.inMap, `${label}: the banner is over the circuit`).toBe(true);
+      expect(m.onScreen, `${label}: and on the screen`).toBe(true);
+    }
+  });
+}
+
+test.describe('what the background flag and the race-control banner say together', () => {
+  test('a flag that replaces the yellow takes its banner away at once: the banner never says yellow over a blue screen', async ({ page }) => {
+    test.setTimeout(60000);
+    await openAt(page, 1180, 820, RACE());
+    const banner = () => page.evaluate(() => document.getElementById('rcBanner').classList.contains('rc-visible'));
+    await serve(page, RACE({ flag: 'yellow' }));
+    await page.waitForTimeout(400);
+    expect(await banner()).toBe(true);
+    expect(await page.evaluate(() => document.getElementById('rcDetail').textContent)).toMatch(/yellow/i);
+    await serve(page, RACE({ flag: 'blue' }));
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => document.body.dataset.flag)).toBe('blue');
+    expect(await banner()).toBe(false);
+    // One that is cleared leaves it to run its time out (so that it is not yanked away), as it always did.
+    await serve(page, RACE({ flag: 'red' }));
+    await page.waitForTimeout(300);
+    expect(await banner()).toBe(true);
+    await serve(page, RACE({ flag: 'none' }));
+    await page.waitForTimeout(300);
+    expect(await banner()).toBe(true);
+  });
+
+  test('under a flag the panels and the car\'s badge are opaque: the pattern does not show through them', async ({ page }) => {
+    test.setTimeout(60000);
+    await openAt(page, 1180, 820, RACE({ controls: WIRE.porsche963gtp }));
+    const panels = () => page.evaluate((cells) => {
+      const out = {};
+      for (const [name, sel] of Object.entries(cells)) {
+        const el = document.querySelector(sel);
+        if (name === 'lb') { out.lb = getComputedStyle(el.querySelector('.lb-inner')).backgroundColor; continue; }
+        if (name === 'pit') { out.pit = getComputedStyle(el.querySelector('.pb-inner')).backgroundColor; continue; }
+        if (name === 'ds') { out.ds = getComputedStyle(el.querySelector('.ds-inner')).backgroundColor; continue; }
+        if (name === 'inc') { out.inc = getComputedStyle(el.querySelector('.inc-inner')).backgroundColor; continue; }
+        out[name] = getComputedStyle(el).backgroundColor;
+      }
+      out.badge = getComputedStyle(document.getElementById('carLogoSquare')).backgroundColor;
+      out.badgeImage = getComputedStyle(document.getElementById('carLogoSquare')).backgroundImage;
+      return out;
+    }, CELLS);
+    const opaque = (c) => /^rgb\(/.test(c);
+    const none = await panels();
+    // The badge is the maker's colour over an opaque base, with a flag or without one.
+    expect(none.badge).toBe('rgb(5, 6, 8)');
+    expect(none.badgeImage).toContain('linear-gradient');
+    for (const flag of ['checkered', 'meatball', 'yellow', 'white', 'debris']) {
+      await serve(page, RACE({ flag, controls: WIRE.porsche963gtp }));
+      await page.waitForTimeout(500);
+      const p = await panels();
+      const seen = Object.entries(p).filter(([k, v]) => k !== 'badgeImage' && !opaque(v) && v !== 'rgba(0, 0, 0, 0)').map(([k, v]) => `${k}: ${v}`);
+      expect(seen, `${flag}: every panel's base is opaque`).toEqual([]);
+      expect(p.badge, `${flag}: the badge's base is opaque`).toBe('rgb(5, 6, 8)');
+      expect(p.badgeImage, `${flag}: and the maker's colour is over it`).toContain('linear-gradient');
+    }
+  });
+
+  test('the spotter\'s card is over the datastream, not over the circuit or the local view', async ({ page }) => {
+    await openAt(page, 1180, 820, RACE());
+    await page.evaluate(() => { _pushSpotterMsg('Car ahead — 1.3s', 'sp-warn', 'Spotter'); });
+    await page.waitForTimeout(600);
+    const m = await page.evaluate(() => {
+      const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+      const sp = r('#spotterPanel'), ds = r('#datastreamPanel'), map = r('.map-panel'), local = r('.map-zoom-panel');
+      const meets = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+      return {
+        shown: sp.width > 0 && sp.height > 0 && getComputedStyle(document.querySelector('#spotterPanel .sp-inner')).opacity !== '0',
+        overMap: meets(sp, map), overLocal: meets(sp, local),
+        inDs: sp.left >= ds.left - 1 && sp.right <= ds.right + 1 && sp.top >= ds.top - 1 && sp.bottom <= ds.bottom + 1,
+        text: document.querySelector('#spotterPanel .sp-message').textContent,
+      };
+    });
+    expect(m.text).toBe('Car ahead — 1.3s');
+    expect(m.shown).toBe(true);
+    expect(m.overMap).toBe(false);
+    expect(m.overLocal).toBe(false);
+    expect(m.inDs).toBe(true);
+  });
+});
+
+// ── The clock cell says what it is ────────────────────────────────────────────────────────────────────────────────
+test.describe('the clock', () => {
+  const clock = (page) => page.evaluate(() => ({
+    key: document.getElementById('raceTimerKey').textContent, value: document.getElementById('raceTimerValue').textContent,
+    keyShown: getComputedStyle(document.getElementById('raceTimerKey')).display !== 'none',
+  }));
+
+  test('in a lap race it says the laps to go, not the time on the lap the hero has already', async ({ page }) => {
+    await openAt(page, 1180, 820, RACE());
+    expect(await clock(page)).toEqual({ key: 'Laps to go', value: '8', keyShown: true });
+    await serve(page, RACE({ lap: 19 }));
+    expect(await clock(page)).toEqual({ key: 'Laps to go', value: '1', keyShown: true });
+  });
+
+  test('in a race to a time it says the time left, in practice the clock', async ({ page }) => {
+    await openAt(page, 1180, 820, RACE({ extra: { 'RacingDesk.Plugin.DS.IsLapRace': 0, 'RacingDesk.Plugin.DS.RemainingTimeFormatted': '0:14:22' } }));
+    expect(await clock(page)).toEqual({ key: 'Time left', value: '0:14:22', keyShown: true });
+    await serve(page, PRACTICE());
+    expect((await clock(page)).key).toBe('Clock');
+  });
+
+  test('on the rig\'s own HUD the clock cell is what it was: the time on the lap in a lap race, with no key', async ({ page, context }) => {
+    const hud = await context.newPage();
+    await hud.route(/^https?:\/\/(?!localhost:8889)/, (route) => route.abort());
+    await hud.route('http://localhost:8889/racing-desk/', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RACE()) }));
+    await hud.setViewportSize({ width: 1920, height: 1080 });
+    await hud.goto(pathToFileURL(path.join(OVERLAY, 'dashboard.html')).href);
+    await hud.evaluate(() => { _settings.showWebGL = false; });
+    await hud.waitForFunction(() => typeof _isIdle !== 'undefined' && _isIdle === false && _pollFrame > 6, null, { timeout: 10000 });
+    const c = await clock(hud);
+    expect(c.keyShown).toBe(false);
+    expect(c.value).toMatch(/^\d+(:\d\d)?\.\d$/);   // 41.2: the time on this lap
+    await hud.close();
+  });
+});
+
+// ── The pit box's strategy calls, read on a screen with nothing to press ──────────────────────────────────────────────
+test.describe('the strategy engine\'s calls in the pit box', () => {
+  test('a call for tyres and one for fuel are shown, worded for a screen with nothing to press, and gone when the call is', async ({ page }) => {
+    await openAt(page, 1180, 820, RACE());
+    const calls = () => page.evaluate(() => ['pbStratSuggest', 'pbFuelStratSuggest'].map((id) => {
+      const el = document.getElementById(id);
+      return [getComputedStyle(el).display !== 'none', el.textContent.trim().replace(/\s+/g, ' '), getComputedStyle(el.querySelector('button')).pointerEvents];
+    }));
+    expect((await calls()).map((c) => c[0])).toEqual([false, false]);
+    await serve(page, RACE({ extra: CALLS }));
+    const on = await calls();
+    expect(on.map((c) => c[0])).toEqual([true, true]);
+    expect(on[0][1]).toMatch(/Change · ~12 laps/);
+    expect(on[1][1]).toMatch(/Stop · ~6 laps/);
+    expect(on.map((c) => c[2])).toEqual(['none', 'none']);
+    // The fuel strategy's pit window is a line in the fuel page, and the laps on this set of tyres are in the tyres' heading.
+    const more = () => page.evaluate(() => [document.getElementById('pbRowWindow').getClientRects().length > 0, document.getElementById('pbWindow').textContent,
+      getComputedStyle(document.getElementById('pbPageTyres'), '::before').content]);
+    expect(await more()).toEqual([true, 'L18–24', '"Tyres · 14 laps"']);
+    await serve(page, RACE());
+    expect((await calls()).map((c) => c[0])).toEqual([false, false]);
+    expect(await more()).toEqual([false, '', '"Tyres"']);
+  });
+});
+
+// ── The rig's own screen: Ctrl+Shift+F on 1920x1080 and on the ultrawide, from the file, not through the server ───────
+for (const [width, height, what] of RIG) {
+  test(`${width}x${height} (${what}): the glance layout of the rig's own HUD holds every panel`, async ({ page }) => {
+    test.setTimeout(60000);
+    payload = RACE({ controls: WIRE.porsche963gtp, extra: CALLS });
+    await page.route(/^https?:\/\/(?!localhost:8889)/, (route) => route.abort());
+    await page.route('http://localhost:8889/racing-desk/', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) }));
+    await page.setViewportSize({ width, height });
+    await page.goto(pathToFileURL(path.join(OVERLAY, 'dashboard.html')).href);
+    await page.evaluate(() => { _settings.showWebGL = false; });
+    await page.waitForFunction(() => typeof _isIdle !== 'undefined' && _isIdle === false && _pollFrame > 6, null, { timeout: 10000 });
+    await page.evaluate(() => setDriveMode(true));
+    await drawn(page);
+    const m = await measure(page);
+    const label = `${width}x${height}`;
+    expect(m.outside, `${label}: outside`).toEqual([]);
+    expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn`).toEqual(Object.keys(CELLS).sort());
+    expect(m.overlapping, `${label}: overlapping`).toEqual([]);
+    expect.soft(m.overflowing, `${label}: content cut off by its cell`).toEqual([]);
+    expect.soft(m.cutOff, `${label}: text cut off or left out of sight`).toEqual([]);
+    expect.soft(m.small, `${label}: type too small`).toEqual([]);
+    // The pit box in particular: the rear tyres' names and the two services were below its foot on this screen.
+    const pit = await page.evaluate(() => {
+      const cell = document.getElementById('pitBoxPanel').getBoundingClientRect();
+      const low = [];
+      for (const sel of ['#pbCircleLR .pb-circle-pos', '#pbCircleRR .pb-circle-pos', '#pbTempLR', '#pbTempRR', '#pbFuelLaps', '#pbConditions']) {
+        const b = document.querySelector(sel).getBoundingClientRect();
+        if (b.bottom > cell.bottom + 0.5 || b.top < cell.top) low.push(sel);
+      }
+      const services = ['#pbFastRepair', '#pbWindshield'].map((s) => { const el = document.querySelector(s); return el.getClientRects().length === 0 ? 'left out' : (el.getBoundingClientRect().bottom <= cell.bottom + 0.5 ? 'in' : 'below'); });
+      return { low, services };
+    });
+    expect(pit.low, `${label}: the pit box's contents are inside it`).toEqual([]);
+    expect(pit.services.filter((s) => s === 'below'), `${label}: the services are inside the pit box or left out, never below it`).toEqual([]);
+  });
+}
+
+// ── Whether the cars around are closing or dropping away ─────────────────────────────────────────────────────────────
+test.describe('the gaps block: which way the gaps are going', () => {
+  test('it says over the last lap whether each gap shrank (▼) or grew (▲), green when that is good for him, red when not', async ({ page }) => {
+    test.setTimeout(60000);
+    const gaps = (ahead, behind) => ({ 'IRacingExtraProperties.iRacing_Opponent_Ahead_Gap': ahead, 'IRacingExtraProperties.iRacing_Opponent_Behind_Gap': behind });
+    await openAt(page, 1180, 820, RACE({ lap: 12, extra: gaps(2.0, 1.0) }));
+    const said = () => page.evaluate(() => {
+      const named = (v) => { const s = document.createElement('span'); s.style.color = `var(${v})`; document.body.appendChild(s); const c = getComputedStyle(s).color; s.remove(); return c; };
+      return {
+        green: named('--green'), red: named('--red'),
+        sides: ['#gapAheadItem .gap-ir', '#gapBehindItem .gap-ir'].map((sel) => {
+          const after = getComputedStyle(document.querySelector(sel), '::after');
+          return { content: after.content, colour: after.color };
+        }),
+      };
+    });
+    // The first lap seen says nothing.
+    expect((await said()).sides.map((s) => s.content)).toEqual(['none', 'none']);
+
+    // Next lap: he closed on the car ahead by 0.5 and the car behind dropped back by 0.4: both good.
+    await serve(page, RACE({ lap: 13, extra: gaps(1.5, 1.4) }));
+    let s = await said();
+    expect(s.sides.map((x) => x.content)).toEqual(['" · ▼0.5/lap"', '" · ▲0.4/lap"']);
+    expect(s.sides.map((x) => x.colour)).toEqual([s.green, s.green]);
+
+    // The lap after: the car ahead pulled away by 0.3 and the car behind closed by 0.4: both bad.
+    await serve(page, RACE({ lap: 14, extra: gaps(1.8, 1.0) }));
+    s = await said();
+    expect(s.sides.map((x) => x.content)).toEqual(['" · ▲0.3/lap"', '" · ▼0.4/lap"']);
+    expect(s.sides.map((x) => x.colour)).toEqual([s.red, s.red]);
   });
 });

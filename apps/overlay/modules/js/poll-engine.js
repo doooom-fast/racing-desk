@@ -94,6 +94,16 @@
 
   // The gap to his own laps of the session (lap-delta.js), fed every frame he is in the car.
   const _lapDeltaTracker = RacingDeskLapDelta.create();
+  // Whether the cars ahead and behind are closing or dropping away (gap-trend.js), said in the glance layout.
+  const _gapTrend = RacingDeskGapTrend.create();
+  const _trendSaid = [null, null];
+  function _sayTrend(index, el, said) {
+    const key = said ? said.text + '|' + said.cls : '';
+    if (!el || _trendSaid[index] === key) return;
+    _trendSaid[index] = key;
+    if (said) { el.dataset.trend = said.text; el.dataset.trendCls = said.cls; }
+    else { delete el.dataset.trend; delete el.dataset.trendCls; }
+  }
 
   function _setInCar(inCar) {
     inCar = !!inCar;
@@ -739,8 +749,12 @@
     // Read current sector early — needed for lap-race timer popup on sector transitions
     const timerCurSector = +(p[dsPre + 'CurrentSector']) || 1;
 
+    // In the glance layout the clock cell says what it shows (drive-view.css); on the rig it is just the time.
+    const driveClock = document.body.classList.contains('drive-mode-active');
+    let clockKey = '';
     if (timerEl) {
       if (isPracticeTimer) {
+        clockKey = 'Clock';
         // Practice: show local wall clock time (12-hour format)
         const now = new Date();
         let hours = now.getHours();
@@ -749,9 +763,11 @@
         const mins = now.getMinutes();
         timerEl.textContent = hours + ':' + (mins < 10 ? '0' : '') + mins + ' ' + ampm;
       } else if (isLapRace && !isNonRaceTimer) {
-        // Lap-limited race: show current lap time instead of useless 168:00:00 countdown
-        if (remLaps === 1) timerEl.textContent = 'Final Lap';
-        else if (remLaps === 0) timerEl.textContent = 'Finish';
+        // Lap-limited race: show current lap time instead of useless 168:00:00 countdown. The glance layout has the
+        // time on this lap in its hero already, so its clock says the laps to go.
+        if (driveClock && remLaps >= 1) { timerEl.textContent = '' + remLaps; clockKey = 'Laps to go'; }
+        else if (remLaps === 1) timerEl.textContent = 'Final Lap';
+        else if (remLaps === 0) { timerEl.textContent = 'Finish'; clockKey = 'Flag'; }
         else if (curLapTime > 0) {
           const lm = Math.floor(curLapTime / 60);
           const ls = curLapTime % 60;
@@ -760,6 +776,7 @@
           timerEl.textContent = '0.0';
         }
       } else if (isQualiTimer) {
+        clockKey = 'Time left';
         // Qualifying: show remaining session time
         const serverFmt = p[dsPre + 'RemainingTimeFormatted'] || '';
         if (serverFmt) {
@@ -772,6 +789,7 @@
           timerEl.textContent = '0:00';
         }
       } else {
+        clockKey = 'Time left';
         // Timed race: show remaining time
         const serverFmt = p[dsPre + 'RemainingTimeFormatted'] || '';
         if (serverFmt) {
@@ -789,6 +807,8 @@
         }
       }
     }
+    const clockKeyEl = document.getElementById('raceTimerKey');
+    if (clockKeyEl && clockKeyEl.dataset.k !== clockKey) { clockKeyEl.dataset.k = clockKey; clockKeyEl.textContent = clockKey; }
     const lastLapEl = document.getElementById('lastLapTimeValue');
     if (lastLapEl) { lastLapEl.textContent = fmtLap(lastLapTime); }
 
@@ -1034,6 +1054,11 @@
       if (gapTimes.length >= 2) { gapTimes[0].textContent = (gAhead && Math.abs(gAhead) >= 0.05) ? fmtGap(-Math.abs(gAhead)) : '—'; gapTimes[1].textContent = (gBehind && Math.abs(gBehind) >= 0.05) ? fmtGap(Math.abs(gBehind)) : '—'; }
       if (gapDrivers.length >= 2) { gapDrivers[0].textContent = dAhead || '—'; gapDrivers[1].textContent = dBehind || '—'; }
       if (gapIRs.length >= 2) { gapIRs[0].textContent = irA > 0 ? irA + ' iR' : ''; gapIRs[1].textContent = irB > 0 ? irB + ' iR' : ''; }
+      if (gapIRs.length >= 2) {
+        const trend = _gapTrend.update(lap, dAhead, gAhead, dBehind, gBehind);
+        _sayTrend(0, gapIRs[0], trend.ahead);
+        _sayTrend(1, gapIRs[1], trend.behind);
+      }
       if (gapItems.length >= 2) {
         if (dAhead !== _lastDriverAhead && _lastDriverAhead) flashElement(gapItems[0], 'ahead-changed');
         if (dBehind !== _lastDriverBehind && _lastDriverBehind) flashElement(gapItems[1], 'behind-changed');
@@ -1110,8 +1135,9 @@
         if (RC_FLAGS[flagState]) {
           showRaceControl(flagState);
         }
-        // Only hide RC banner when flag hold has also expired — don't yank it early
-        else if ((flagState === 'none' || !RC_FLAGS[flagState]) && now >= _flagHoldUntil) {
+        // Another flag replaces the one the banner is about, at once (a banner saying yellow over a blue flag says two
+        // things); a flag that is cleared leaves it until the hold has run out, so it is not yanked early.
+        else if (flagState !== 'none' || now >= _flagHoldUntil) {
           hideRaceControl();
         }
       }

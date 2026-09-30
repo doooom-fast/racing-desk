@@ -62,11 +62,12 @@ export function fieldWith(place, others = FIELD) {
  *   controls  the car's controls key (car-controls-wire.json), or none
  *   flag      currentFlagState: none, green, yellow, blue, white, checkered, black, meatball, red, debris
  *   lapDelta  DS.LapDelta, iRacing's gap to his best lap ever at the track
+ *   extra     any keys of the payload, over the rest (a strategy call, a tyre pressure)
  */
 export function frame({
   order, lap = 5, session = 'Race', mode = 4, state = 4, start = 0, playerPct = 0.3, lastLaps = {}, lapDelta = 0.412,
   incidents = 4, curLapTime = 41.2, track = 'synthetic_circuit', noPlaces = false, controls = null, totalLaps = 20,
-  flag = 'none', fuelLaps = 9.1,
+  flag = 'none', fuelLaps = 9.1, extra = {},
 } = {}) {
   const me = order.indexOf(ME) + 1;
   const pcts = {};
@@ -126,6 +127,9 @@ export function frame({
     'RacingDesk.Plugin.DS.IsLapRace': mode === 4 ? 1 : 0,
     'DataCorePlugin.GameData.RemainingLaps': Math.max(0, totalLaps - lap),
     'RacingDesk.Plugin.DS.FuelLapsRemaining': fuelLaps,
+    'RacingDesk.Plugin.DS.FuelPct': 47,
+    'RacingDesk.Plugin.DS.FuelFormatted': '28.4 L',
+    'RacingDesk.Plugin.DS.FuelPerLapFormatted': '3.12 L',
     'RacingDesk.Plugin.DS.TrackTemp': 31.5,
     'RacingDesk.Plugin.DS.AirTemp': 22.4,
     'RacingDesk.Plugin.DS.EstimatedIRatingDelta': 18,
@@ -142,5 +146,5 @@ export function frame({
     payload['RacingDesk.Plugin.CarControls'] = controls;
     payload['DataCorePlugin.GameData.CarModel'] = controls.name;
   }
-  return payload;
+  return { ...payload, ...extra };
 }

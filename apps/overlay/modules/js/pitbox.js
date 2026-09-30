@@ -57,6 +57,8 @@
   let _lastDecrement = -1;
   let _lastToggle = -1;
   var _tabOrder = ['tyres', 'fuel', 'weather'];
+  var _lastWindow = null;         // the pit window's words, and the tyres' age, as last written
+  var _lastTyreAge = null;
   var _pbHidden = false;  // "off" state — pitbox dismissed via tab cycling past the edges
 
   // SVG circle constants — radius 28, circumference = 2πr ≈ 175.93
@@ -100,6 +102,9 @@
       fuelStratLabel:   $('pbFuelStratLabel'),
       fastRepair:  $('pbFastRepair'),
       windshield:  $('pbWindshield'),
+      windowRow:   $('pbRowWindow'),
+      windowVal:   $('pbWindow'),
+      tyresPage:   $('pbPageTyres'),
       // Weather tab
       weatherIcon: $('pbWeatherIcon'),
       airTemp:     $('pbAirTemp'),
@@ -423,7 +428,10 @@
       var lapsStr = (tireLapsLeft != null && tireLapsLeft !== '')
         ? ' · ~' + Math.round(parseFloat(tireLapsLeft)) + ' laps left'
         : '';
-      _els.stratLabel.textContent = 'Accept tire change' + lapsStr;
+      // (In the glance layout there is nothing to press: the call is read, and says what to do.)
+      _els.stratLabel.textContent = document.body.classList.contains('drive-mode-active')
+        ? 'Change' + (lapsStr ? ' · ~' + Math.round(parseFloat(tireLapsLeft)) + ' laps' : '')
+        : 'Accept tire change' + lapsStr;
       _stratTires = [true, true, true, true];
     } else {
       _stratTires = [false, false, false, false];
@@ -546,7 +554,26 @@
       var fuelLapsStr = (fuelStratLaps != null && fuelStratLaps !== '')
         ? ' · ~' + Math.round(parseFloat(fuelStratLaps)) + ' laps left'
         : '';
-      _els.fuelStratLabel.textContent = 'Accept fuel stop' + fuelLapsStr;
+      _els.fuelStratLabel.textContent = document.body.classList.contains('drive-mode-active')
+        ? 'Stop' + (fuelLapsStr ? ' · ~' + Math.round(parseFloat(fuelStratLaps)) + ' laps' : '')
+        : 'Accept fuel stop' + fuelLapsStr;
+    }
+
+    // The fuel strategy's pit window (lap numbers; zero while the fuel reaches the flag) and how many laps this set of
+    // tyres has done: read in the glance layout, written only when they change.
+    var winOpen = parseInt(st('PitWindowOpen')) || 0;
+    var winClose = parseInt(st('PitWindowClose')) || 0;
+    var winText = winClose > 0 ? (winOpen > 0 && winOpen < winClose ? 'L' + winOpen + '–' + winClose : 'by L' + winClose) : '';
+    if (_els.windowRow && _lastWindow !== winText) {
+      _lastWindow = winText;
+      _els.windowRow.classList.toggle('hidden', !winText);
+      if (_els.windowVal) _els.windowVal.textContent = winText;
+    }
+    var stintLaps = parseInt(st('StintLaps')) || 0;
+    var tyreAge = stintLaps > 0 ? ' · ' + stintLaps + (stintLaps === 1 ? ' lap' : ' laps') : '';
+    if (_els.tyresPage && _lastTyreAge !== tyreAge) {
+      _lastTyreAge = tyreAge;
+      if (tyreAge) _els.tyresPage.dataset.age = tyreAge; else delete _els.tyresPage.dataset.age;
     }
 
     // Tank gauge bar — full width = full tank capacity

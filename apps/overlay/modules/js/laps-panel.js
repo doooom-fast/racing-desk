@@ -24,6 +24,23 @@
     node.className = 'laps-v' + (cls ? ' ' + cls : '');
   }
 
+  // The fuel: what he has, and after it (in a second span, which a narrow panel leaves out) what is left to go.
+  function putFuel(main, more, cls) {
+    const node = el('lapsFuel');
+    if (!node) return;
+    const key = main + '|' + more + '|' + (cls || '');
+    if (last.get(node) === key) return;
+    last.set(node, key);
+    node.className = 'laps-v' + (cls ? ' ' + cls : '');
+    node.textContent = main;
+    if (more) {
+      const span = document.createElement('span');
+      span.className = 'laps-togo';
+      span.textContent = more;
+      node.appendChild(span);
+    }
+  }
+
   function lapTime(s) {
     if (!(s > 0)) return '—';
     const m = Math.floor(s / 60);
@@ -105,23 +122,19 @@
     put('lapsDeltaOpt', o.text || '—', o.text ? o.cls : 'dim');
     put('lapsDeltaAll', a.text || '—', a.text ? a.cls : 'dim');
 
-    // Fuel: laps of it against the laps to go. In a race run to time the laps to go are the time left over his last
-    // lap. Out of a race there is no flag to reach, and it says the laps it has.
+    // Fuel: laps of it against the laps to go, to the flag. In a race run to time the laps to go are the time left over
+    // his last lap. Out of a race there is no flag to reach, and it says the laps it has.
     const fuelLaps = ctx.fuelLaps > 0 ? ctx.fuelLaps : 0;
     let toGo = 0;
     if (ctx.raceMode) {
       if (ctx.isLapRace && ctx.remLaps > 0) toGo = ctx.remLaps;
       else if (ctx.remTime > 0 && ctx.lastLap > 0) toGo = Math.ceil(ctx.remTime / ctx.lastLap);
     }
-    const k = el('lapsFuelK');
-    const kText = toGo > 0 ? 'Fuel to the flag' : 'Fuel';
-    if (k && k.textContent !== kText) k.textContent = kText;
-    if (!(fuelLaps > 0)) put('lapsFuel', '—', 'dim');
+    if (!(fuelLaps > 0)) putFuel('—', '', 'dim');
     else if (toGo > 0) {
       const spare = fuelLaps - toGo;
-      const text = fuelLaps.toFixed(1) + ' laps · ' + toGo + ' to go';
-      put('lapsFuel', text, spare >= 0.5 ? 'green' : spare >= 0 ? 'amber' : 'red');
-    } else put('lapsFuel', fuelLaps.toFixed(1) + ' laps', '');
+      putFuel(fuelLaps.toFixed(1) + ' laps', ' · ' + toGo + ' to go', spare >= 0.5 ? 'green' : spare >= 0 ? 'amber' : 'red');
+    } else putFuel(fuelLaps.toFixed(1) + ' laps', '', '');
   }
 
   window.updateLapsPanel = updateLapsPanel;

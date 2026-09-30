@@ -32,6 +32,7 @@
     // Apply brand-colored background (or default dark bg)
     const sq = document.getElementById('carLogoSquare');
     sq.style.background = _mfrBrandColors[key] || _defaultLogoBg;
+    sq.style.setProperty('--logo-tint', _mfrBrandColors[key] || _defaultLogoBg);
     _currentCarLogo = ''; // reset so setCarLogo always fires on first real data
   }
 
@@ -66,6 +67,9 @@
     const sq = document.getElementById('carLogoSquare');
     const cloudColor = window.carBrandColors && window.carBrandColors[key];
     sq.style.background = cloudColor || _mfrBrandColors[key] || _defaultLogoBg;
+    // The same colour as a variable: the glance layout lays it over an opaque base (drive-view.css), so that a flag's
+    // pattern does not show through the badge, which an inline background would otherwise let it.
+    sq.style.setProperty('--logo-tint', cloudColor || _mfrBrandColors[key] || _defaultLogoBg);
     // Expose full-opacity brand color for map player dot
     const brandHsl = _mfrBrandColors[key];
     if (brandHsl) {

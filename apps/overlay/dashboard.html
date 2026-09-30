@@ -300,6 +300,7 @@
   <!-- ROW: Race Timer — aligned with position box -->
   <div class="timer-row">
     <div class="panel race-timer-block" id="raceTimerBlock">
+      <div class="race-timer-key" id="raceTimerKey"></div>
       <div class="race-timer-value" id="raceTimerValue">0:00:00</div>
       <div class="race-timer-lap"><span class="timer-label">Last</span> <span id="lastLapTimeValue">—:——.———</span></div>
     </div>
@@ -568,6 +569,9 @@
           <span class="pb-value selectable" id="pbFuelVal">—</span>
         </div>
 
+        <!-- The fuel strategy's pit window, in laps; there only when there is one (shown in the glance layout) -->
+        <div class="pb-row pb-row-window hidden" id="pbRowWindow"><span class="pb-label">Pit window</span><span class="pb-value" id="pbWindow">—</span></div>
+
         <div class="pb-divider"></div>
         <div class="pb-row"><span class="pb-label">Fast repair</span><span class="pb-value off" id="pbFastRepair">NO</span></div>
         <div class="pb-row"><span class="pb-label">Tearoff</span><span class="pb-value off" id="pbWindshield">NO</span></div>
@@ -823,6 +827,7 @@
 <script src="modules/js/in-car.js"></script>
 <script src="modules/js/car-controls.js"></script>
 <script src="modules/js/lap-delta.js"></script>
+<script src="modules/js/gap-trend.js"></script>
 <script src="modules/js/laps-panel.js"></script>
 <script src="modules/js/poll-engine.js"></script>
 
