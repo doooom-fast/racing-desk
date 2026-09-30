@@ -154,14 +154,29 @@ export interface Action {
   detail: string;
 }
 
-/// What became of the helmet in an apply or a revert: the set that went on the car (null for none), whether it
-/// is on the car and whether it is now the default, and one plain sentence saying so — or why the helmet was left
-/// as it was.
+/// What became of the helmet in an apply or a revert: the set that went on the car (null for none) and whether it
+/// is on the car; the library's default set where the apply saw to the default, and whether it put it in place
+/// just now; and plain sentences saying so — or why the helmet was left as it was.
 export interface HelmetOutcome {
   set: string | null;
   onCar: boolean;
-  isDefault: boolean;
+  defaultSet: string | null;
+  defaultPut: boolean;
   said: string;
+}
+
+/// The default helmet, seen to once for a group or after a library update: the set the library names as its
+/// default, whether it was put in place just now, a plain sentence saying which — or why the default was left as it
+/// was — and where the default that was there went. `said` is empty where there is nothing to say.
+export interface HelmetDefault {
+  set: string | null;
+  put: boolean;
+  said: string;
+  backupDir: string | null;
+}
+
+export interface DefaultHelmetReport extends HelmetDefault {
+  warnings: string[];
 }
 
 export interface ApplyReport {
@@ -244,9 +259,9 @@ export interface GroupReport {
   skipped: number;
   failed: number;
   warnings: string[];
-  /// The default helmet the group set — the set its cars agree on, else the library's default — and a plain
+  /// The default helmet the group saw to — the library's default set, whatever its cars wear — with a plain
   /// sentence saying which, or why the default was left as it was.
-  helmet?: { set: string | null; said: string; backupDir: string | null } | null;
+  helmet?: HelmetDefault | null;
 }
 
 export interface Settings {

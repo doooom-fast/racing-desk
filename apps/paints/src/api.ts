@@ -5,6 +5,7 @@ import type {
   BackupEntry,
   CatalogueCar,
   CustomerReport,
+  DefaultHelmetReport,
   GroupReport,
   GroupRequest,
   InstalledState,
@@ -122,6 +123,10 @@ export const saveGroup = (args: {
 export const deleteGroup = (id: string) => invoke<boolean>("deleteGroup", { id });
 
 export const setGroup = (request: GroupRequest) => invoke<GroupReport>("setGroup", { request });
+
+/// The default helmet seen to on its own, after a library update: the desk's alone, as helmets are.
+export const ensureDefaultHelmet = (args: { paintDir: string; libraryRoot: string; customerId: string }) =>
+  invoke<DefaultHelmetReport>("ensureDefaultHelmet", args);
 
 /// Errors arrive as plain strings from Rust and as Errors carrying the command's own message from the desk's
 /// bridge; anything else is a bug worth showing verbatim.

@@ -403,6 +403,20 @@ export default function App() {
   const blockedNow = useRef<string | null>(null);
   blockedNow.current = blocked?.text ?? null;
 
+  /// After an update the default helmet follows the library's list, which may name another set now. Only the
+  /// desk knows helmets, and asked with what the page knows at the time. What it says, if anything, goes with the
+  /// update's own lines; nothing to say, or a host that cannot answer, is nothing.
+  const defaultHelmetNow = useRef(async (): Promise<string[]> => []);
+  defaultHelmetNow.current = async () => {
+    if (!inDesk() || !paintDir || !libraryRoot || !customerId) return [];
+    try {
+      const report = await api.ensureDefaultHelmet({ paintDir, libraryRoot, customerId });
+      return report.said ? [report.said] : [];
+    } catch {
+      return [];
+    }
+  };
+
   /// One look at the remote or one update at a time, whoever asked for it: a button, the page starting, the half
   /// hour, the window coming back.
   const working = useRef(false);
@@ -466,7 +480,8 @@ export default function App() {
           setBlocked(null);
           if (report.updated) {
             tell(arrived, report.setAside?.folder ?? null);
-            say("ok", "The library was updated", [arrived, ...report.commits]);
+            const helmet = await defaultHelmetNow.current();
+            say("ok", "The library was updated", [arrived, ...report.commits, ...helmet]);
             await refreshNow.current();
           } else if (byHim) {
             say("info", "The library is already up to date.");

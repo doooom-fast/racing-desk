@@ -133,8 +133,8 @@ of the current state first, so a revert is itself undoable.
 
 ## Helmets come with the livery
 
-Pick a livery for a car or a fleet and the helmet comes with it; whatever the last choice was
-sets the helmet. There is no helmet of its own to choose.
+Pick a livery for a car or a fleet and the helmet comes with it. There is no helmet of its own to
+choose. Helmets are per car: applying a livery to one car never changes another car's helmet.
 
 The library keeps helmets beside the cars, one per colourway rather than one per car:
 `helmets/<set>/helmet_<id>.tga` and `helmets/manifest.json`, which names the set each
@@ -148,15 +148,19 @@ which the app leaves alone since the library names none.
   library keeps helmets at all.
 - **An apply copies the version's helmet into the car's folder**, named with your customer id
   whatever id the library's file carries, in the same step as the paint: backed up with it, rolled
-  back with it if a write fails, put back by the same revert. Then it makes that helmet the default
-  for every car without one, backing up the default that was there first, so reverting the car
-  puts the default back as well. What was done is one sentence under the cards, and in the
-  activity: "The shatter helmet is on the car, and is now the default for every car without a
-  helmet of its own."
-- **Setting a group sets the default once**, after its cars: the set every car in the group
-  wears when they agree, otherwise the library's default, and the group's page says which. A car
-  already wearing its version and its helmet is left alone, and a default that is the group's
-  already is not written again.
+  back with it if a write fails, put back by the same revert. What was done is said under the
+  cards, and in the activity: "The shatter-inverted helmet is on the car."
+- **The default helmet is the library's default set** — the set the manifest names as `default`,
+  worn by every car without a helmet of its own — and not the helmet of whichever car was applied
+  last. An apply sees to it: where the default is missing, or is another set, the library's set is
+  put in place, the default that was there backed up first, so reverting the car puts the default
+  back as well. That is said with the rest: "The shatter helmet is now the default for every car
+  without a helmet of its own." A default already in place is left alone and not mentioned again.
+  When a library update brings a list that names another default, the page sees to it then and
+  says so with the update; with the sim running it waits for the next apply.
+- **Setting a group sees to the default once**, after its cars, and the group's page says which
+  helmet it is. What the cars in the group wear has no say in it. A car already wearing its
+  version and its helmet is left alone.
 - **Where there is no helmet to bring** — the library keeps none, the version has no entry, the
   set's file is missing — the car's helmet is left as it is, and the sentence says so.
 - **Only the library's own helmets folder is read.** A file the manifest names outside it, one
@@ -443,9 +447,9 @@ beside it (`apps/overlay/modules/js/paints/groups.js`).
 
 A car that has never been driven has no paint folder. An apply makes it, under the install's name for the car —
 which is what the sim would call it — so the paint is there the first time the car is driven. Whether a folder may
-be made is decided in the app's main process, whatever the page sent — and so is whether a version's helmet becomes
-the default: one car's apply always makes it so, a group decides once for its cars (see Helmets come with the
-livery, above). The Rust knows nothing of helmets, so in the Tauri shell the cards say nothing of them and an apply
+be made is decided in the app's main process, whatever the page sent — and so is whether an apply sees to the
+default helmet: one car's apply always does, a group does once for its cars (see Helmets come with the livery,
+above). The Rust knows nothing of helmets, so in the Tauri shell the cards say nothing of them and an apply
 brings none.
 
 ## Still to come

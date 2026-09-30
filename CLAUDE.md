@@ -728,13 +728,19 @@ nothing touches: the manifest names none). An apply copies the version's set int
 app's own id, whatever id the library's file name carries**, after the car's textures and in the same step:
 backed up with them (`helmetsIncluded` in the backup's manifest, so a revert knows a helmet the backup lacks was
 not there), rolled back with them, put back by the same revert, said in the same result (`helmet: { set, onCar,
-isDefault, said }`, `said` one plain sentence). It then makes it the default, backing the default that was there
-up under `backups\.default-helmet\<timestamp>\` first (a backup with no file says there was none) and naming that
-backup in the car's (`defaultHelmetBackup`), so reverting the car puts the default back as well; a revert's own
-safety backup does the same, so a revert is undoable whole. A group sets the default once, after its cars: the
-set every car wears when they agree (a car whose version comes with no helmet does not disagree), else the
-manifest's default, and it says which (`report.helmet.said`); a car already wearing its version *and* its helmet
-is left alone, and a default that is the group's already is neither backed up nor written. A version with no
+defaultSet, defaultPut, said }`, `said` plain sentences). Helmets are per car, so an apply never changes any other
+car's helmet. **The default helmet is the manifest's default set** (`paint/helmet_<id>.tga`, worn by every car
+without one of its own; shatter today) — never the set a car was just given: he chose this over "the last apply
+becomes the default" (2026-09-30). An apply sees to it (`apply.defaultHelmet`, `writeDefault`): where the default
+is missing or is another set, byte for byte, the manifest's set is put in place, the default that was there backed
+up first under `backups\.default-helmet\<timestamp>\` (a backup with no file says there was none) and that backup
+named in the car's (`defaultHelmetBackup`), so reverting the car puts the default back as well; a revert's own
+safety backup does the same, so a revert is undoable whole. A default in place already is neither backed up nor
+written nor said again. A group sees to the default once for all its cars, backing it up before any car is
+touched and writing it after them, and says which (`report.helmet: { set, put, said, backupDir }`); a car already
+wearing its version *and* its helmet is left alone. After a library update the page asks for the default on its
+own (`ensureDefaultHelmet`, the desk's alone), since the update may bring a manifest whose default has changed:
+under the same sim guard, and with the sim running it says so and leaves it to the next apply. A version with no
 manifest entry, a set file that is missing, or a library without a manifest leaves the car's helmet as it is and
 says so. Nothing in the manifest is trusted as a path: only a file under the library's `helmets/` folder is read
 (no `..`, no drive, no absolute path, links followed), only a true-colour TGA up to 2048² and no larger than
