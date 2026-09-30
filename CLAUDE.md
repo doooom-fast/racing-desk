@@ -336,9 +336,12 @@ in (`onInCar`) and let go when he gets out. In dev mode they are held throughout
 hidden, though the app's own host on `:18889` has the same telemetry. There is no falling back to it.
 
 **The HUD is on the screen iRacing is on** (`modules/js/hud-display.js`, `tests/unit/hud-display.spec.mjs`). It used to
-be put on the primary screen, always. On this rig the primary is the small one — 1440 × 1080 physical at 175 %, which
-Electron sees as 823 × 617 at (0, 0) — and the sim runs on the 3440 × 1440 ultrawide at 100 % beside it, so the HUD
-was on the wrong monitor. The rule, in the order it is applied:
+be put on the primary screen, always, so it was on the wrong monitor whenever the primary was not the one the sim runs
+on. The rig has two screens: the 3440 × 1440 ultrawide at 100 %, where iRacing runs, and a small 1440 × 1080 one at 175 %
+(Electron sees 823 × 617). Which of them Windows has as the primary has changed: the request for this had the small
+one as primary at (0, 0) with the ultrawide at (1440, 0), and a read-only query that evening (`EnumDisplayMonitors`,
+per-monitor aware) found the ultrawide as primary at (0, 0) and the small one to its left at (-1440, 0). The rule does
+not depend on it, and its tests hold both layouts. The rule, in the order it is applied:
 1. **A screen he chose** in Settings ("HUD screen", Layout; `hudDisplay` in `overlay-settings.json`: `auto`, or a
    screen's key), while it is connected. A choice that is not connected is not used and is not lost: it is Automatic
    until the screen is back, the Settings page says so, and the key stays in the file. The key is Electron's
@@ -348,8 +351,9 @@ was on the wrong monitor. The rule, in the order it is applied:
    app's own host says (`GET /racing-desk/data/simwindow`, `apps/host/RacingDesk.Host/SimWindow.cs`): the main window of
    `iRacingSim64DX11` or `iRacingSim64` — its frame (`DWMWA_EXTENDED_FRAME_BOUNDS`, else `GetWindowRect`) and the monitor
    Windows has most of it on, in **physical pixels**, or JSON `null` when there is no such window on screen (the sim
-   closed, or minimized). The host is not DPI-aware, so the asking thread is made per-monitor aware for the call (else
-   a 175 % primary would scale every number down). `main.js` turns the rectangle into the screens' own units
+   closed, or minimized). The host is not DPI-aware, so the asking thread is made per-monitor aware for the call: a caller
+   that is not gets the 175 % screen's windows and monitor scaled down (measured with a probe of the same calls, on
+   another program's window there: 832 × 578 for a window that is 1456 × 1012). `main.js` turns the rectangle into the screens' own units
    (`screen.screenToDipRect`) and the screen with most of its area wins; equal shares go to the left one. The host is
    asked at `localHostUrl()`, for 0.8 s at most.
 3. **The screen that is the size iRacing is set to run at**, from `Documents\iRacing\rendererDX11Monitor.ini` (its

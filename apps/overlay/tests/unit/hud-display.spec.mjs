@@ -25,6 +25,13 @@ const SMALL = { id: 2, bounds: { x: 0, y: 0, width: 823, height: 617 }, workArea
 const ULTRAWIDE = { id: 1, bounds: { x: 823, y: 0, width: 3440, height: 1440 }, workArea: { x: 823, y: 0, width: 3440, height: 1400 }, scaleFactor: 1, primary: false };
 const RIG = [SMALL, ULTRAWIDE];
 
+// The same two screens as a read-only Win32 query found them at 20:10 on 2026-09-29, an hour after the brief's
+// reading: the ultrawide is the Windows primary at (0, 0), and the small screen is to the left of it at (-1440, 0)
+// physical, (-823, 0) in DIPs. Whichever is primary, the rule must not depend on it.
+const SMALL_LEFT = { id: 2, bounds: { x: -823, y: 0, width: 823, height: 617 }, workArea: { x: -823, y: 0, width: 823, height: 577 }, scaleFactor: 1.75, primary: false };
+const ULTRAWIDE_MAIN = { id: 1, bounds: { x: 0, y: 0, width: 3440, height: 1440 }, workArea: { x: 0, y: 0, width: 3440, height: 1400 }, scaleFactor: 1, primary: true };
+const RIG_ULTRAWIDE_MAIN = [SMALL_LEFT, ULTRAWIDE_MAIN];
+
 // His rendererDX11Monitor.ini's [Display] section as iRacing writes it: values, then a tab and a comment.
 function iniOf({ fullScreen = 0, maximized = 1, width = 3440, height = 1440, fullWidth = 3440, fullHeight = 1440, eol = '\n', before = '', after = '' } = {}) {
   return [
@@ -273,6 +280,39 @@ test.describe('the rule, with other rigs', () => {
   });
 });
 
+test.describe('the same rig with the ultrawide as the Windows primary', () => {
+  const choose2 = (over) => chooseDisplay({ displays: RIG_ULTRAWIDE_MAIN, ...over });
+
+  test('the ultrawide by the ini, by the sim, and by size; the small one when the sim is there or when he says so', () => {
+    expect(choose2({ ini: parseSimIni(HIS_INI) })).toMatchObject({ key: '1', reason: 'ini' });
+    expect(choose2({})).toMatchObject({ key: '1', reason: 'largest' });
+    expect(choose2({ simWindow: { x: 0, y: 0, width: 3440, height: 1440 }, ini: parseSimIni(HIS_INI) })).toMatchObject({ key: '1', reason: 'sim' });
+    expect(choose2({ simWindow: { x: -823, y: 0, width: 823, height: 617 }, ini: parseSimIni(HIS_INI) })).toMatchObject({ key: '2', reason: 'sim' });
+    expect(choose2({ choice: '2', simWindow: { x: 0, y: 0, width: 3440, height: 1440 } })).toMatchObject({ key: '2', reason: 'chosen' });
+    // iRacing set to run at the small screen's size finds it wherever it sits.
+    expect(choose2({ ini: parseSimIni(iniOf({ fullScreen: 1, fullWidth: 1440, fullHeight: 1080 })) })).toMatchObject({ key: '2', reason: 'ini' });
+  });
+
+  test('a maximized frame that overhangs the primary screen is still on it', () => {
+    // As Windows reports a maximized window: eight pixels past the edge on the left, right and top.
+    expect(choose2({ simWindow: { x: -8, y: -8, width: 3456, height: 1408 } })).toMatchObject({ key: '1', reason: 'sim' });
+  });
+
+  test('named as it sits: the small one on the left, the ultrawide on the right and the main one', () => {
+    expect(listDisplays(RIG_ULTRAWIDE_MAIN)).toEqual([
+      { key: '2', name: '1440 × 1080 (left)', primary: false },
+      { key: '1', name: '3440 × 1440 (right, primary)', primary: true },
+    ]);
+  });
+
+  test("the primary is not what puts the window on the sim's screen: the same answer with either as primary", () => {
+    const asked = { simWindow: { x: 0, y: 0, width: 3440, height: 1440 } };
+    const flipped = RIG_ULTRAWIDE_MAIN.map((d) => ({ ...d, primary: !d.primary }));
+    expect(chooseDisplay({ displays: flipped, ...asked })).toMatchObject({ key: '1', reason: 'sim' });
+    expect(chooseDisplay({ displays: RIG_ULTRAWIDE_MAIN, ...asked })).toMatchObject({ key: '1', reason: 'sim' });
+  });
+});
+
 test.describe('the screens by a plain name', () => {
   const at = (id, x, y, width, height, extra = {}) => ({ id, bounds: { x, y, width, height }, scaleFactor: 1, primary: false, ...extra });
 
@@ -467,6 +507,9 @@ function keeper(over = {}) {
   return { hud, win, said, asked, state };
 }
 
+// Physical to DIPs for that layout: a rectangle whose centre is left of the origin is on the 175 % screen.
+const toDipMain = (r) => (r.x + r.width / 2 >= 0 ? { ...r } : { x: r.x / 1.75, y: r.y / 1.75, width: r.width / 1.75, height: r.height / 1.75 });
+
 const moves = (win) => win.calls.filter(([name]) => name === 'setBounds').map(([, b]) => b);
 const noShowing = (win) => expect(win.calls.filter(([name]) => name !== 'setBounds')).toEqual([]);
 
@@ -514,6 +557,19 @@ test.describe('the keeper', () => {
     state.sim = RUNNING_ON_ULTRAWIDE;
     expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'sim' });
     expect(win.getBounds()).toEqual({ x: 823, y: 0, width: 3440, height: 1440 });
+  });
+
+  test('with the ultrawide as the primary and the small screen to its left: the sim on the small one takes the HUD there, and back', async () => {
+    const { hud, win, state } = keeper({ window: fakeWindow({ x: 0, y: 0, width: 3440, height: 1440 }), options: { toDipRect: toDipMain } });
+    state.displays = RIG_ULTRAWIDE_MAIN;
+    // Windows reports the small screen's window in physical pixels, left of the origin.
+    state.sim = { state: 'running', window: { x: -1440, y: 0, width: 1440, height: 1080 }, monitor: { x: -1440, y: 0, width: 1440, height: 1080 } };
+    expect(await hud.refresh()).toMatchObject({ key: '2', reason: 'sim' });
+    expect(win.getBounds()).toEqual({ x: -823, y: 0, width: 823, height: 617 });
+    state.sim = { state: 'running', window: { x: -8, y: -8, width: 3456, height: 1408 }, monitor: { x: 0, y: 0, width: 3440, height: 1440 } };
+    expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'sim' });
+    expect(win.getBounds()).toEqual({ x: 0, y: 0, width: 3440, height: 1440 });
+    noShowing(win);
   });
 
   test('the host is not there: the ini decides, and it is said that the host did not say', async () => {
