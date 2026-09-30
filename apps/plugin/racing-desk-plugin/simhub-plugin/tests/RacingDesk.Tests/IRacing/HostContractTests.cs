@@ -37,6 +37,39 @@ namespace RacingDesk.Tests.IRacing
             return null;
         }
 
+        // SessionFlags as the recording has it for the frame the raw source is on: the SDK hands a bitfield over as an int.
+        private static long RecordedFlags(IbtRawTelemetry raw) => unchecked((uint)(int)raw.GetValue("SessionFlags"));
+
+        // The one word as it has always been made from the bits (FLAG_YELLOW is a local yellow and a full-course caution).
+        private static string WordFor(long flags)
+            => (flags & 0x10) != 0 ? "red" : (flags & 0x100000) != 0 ? "meatball" : (flags & 0x10000) != 0 ? "black"
+                : (flags & (0x8 | 0x4000 | 0x8000)) != 0 ? "yellow" : (flags & 0x20) != 0 ? "blue" : (flags & 0x40) != 0 ? "debris"
+                : (flags & 0x2) != 0 ? "white" : (flags & 0x1) != 0 ? "checkered" : (flags & 0x4) != 0 ? "green" : "none";
+
+        private static int FrameWithAFlagOut(IbtRawTelemetry raw, int from, int to)
+        {
+            for (int i = Math.Max(0, from); i < to; i += 15)
+            {
+                if (!raw.Seek(i)) return -1;
+                if (WordFor(RecordedFlags(raw)) != "none") return i;
+            }
+            return -1;
+        }
+
+        private static void AssertFlagsAreTheRecordings(JObject body, IbtRawTelemetry raw)
+        {
+            var flagKey = body["DataCorePlugin.GameRawData.Telemetry.SessionFlags"];
+            Assert.That(flagKey, Is.Not.Null, "the recording says its SessionFlags, so the host sends them");
+            Assert.That(flagKey.Type, Is.EqualTo(JTokenType.Integer));
+            long recorded = RecordedFlags(raw);
+            long sent = (long)flagKey;
+            Assert.That(sent, Is.InRange(0L, (long)uint.MaxValue));
+            Assert.That(sent, Is.EqualTo(recorded), $"the key is the recording's SessionFlags for this frame, 0x{recorded:X}");
+            string word = (string)body["currentFlagState"];
+            if (word != "orange") // the car ahead being lapped is not in the field
+                Assert.That(word, Is.EqualTo(WordFor(recorded)), $"currentFlagState for the recording's SessionFlags 0x{recorded:X}");
+        }
+
         [Test]
         public void IbtFedRuntimeServesThePluginContract()
         {
@@ -97,19 +130,27 @@ namespace RacingDesk.Tests.IRacing
                 Assert.That((int)body["DataCorePlugin.GameData.CurrentLap"], Is.GreaterThan(0));
                 Assert.That((int)body["DataCorePlugin.GameRawData.Telemetry.IsOnTrack"], Is.EqualTo(1), "in the car, in the middle of a race");
 
-                // iRacing's flag field is sent whole, as an unsigned number, and the one word is made from the same bits as it was.
-                var flagKey = body["DataCorePlugin.GameRawData.Telemetry.SessionFlags"];
-                Assert.That(flagKey, Is.Not.Null, "the recording says its SessionFlags, so the host sends them");
-                Assert.That(flagKey.Type, Is.EqualTo(JTokenType.Integer));
-                long flags = (long)flagKey;
-                Assert.That(flags, Is.InRange(0L, (long)uint.MaxValue));
-                string word = (string)body["currentFlagState"];
-                if (word != "orange") // the car ahead being lapped is not in the field
+                // iRacing's flag field is sent whole, as an unsigned number, and is the recording's own: the value of the frame
+                // the host was just given, which the test reads from the recording itself. (In the middle of a race the real
+                // value is usually 0x10040000, with no flag bit and the word none: a host that always sent 0, or a stale value,
+                // must not pass, which is why the second look, below, is at a frame where a flag was out.)
+                AssertFlagsAreTheRecordings(body, raw);
+
+                // And again where something was out: the first frame after the window whose old word is not none. The key
+                // has to follow the recording there too, and the word is made from the same bits.
+                int probe = FrameWithAFlagOut(raw, start + 600, ibt.RecordCount);
+                if (probe < 0) probe = FrameWithAFlagOut(raw, 0, start);
+                if (probe >= 0)
                 {
-                    string expected = (flags & 0x10) != 0 ? "red" : (flags & 0x100000) != 0 ? "meatball" : (flags & 0x10000) != 0 ? "black"
-                        : (flags & (0x8 | 0x4000 | 0x8000)) != 0 ? "yellow" : (flags & 0x20) != 0 ? "blue" : (flags & 0x40) != 0 ? "debris"
-                        : (flags & 0x2) != 0 ? "white" : (flags & 0x1) != 0 ? "checkered" : (flags & 0x4) != 0 ? "green" : "none";
-                    Assert.That(word, Is.EqualTo(expected), $"currentFlagState for SessionFlags 0x{flags:X}");
+                    for (int i = Math.Max(0, probe - 2); i <= probe + 2 && i < ibt.RecordCount; i++)
+                    {
+                        Assert.That(raw.Seek(i), Is.True);
+                        source.Update();
+                        runtime.Tick(source);
+                    }
+                    TestContext.WriteLine($"SessionFlags checked again at frame {probe} of {ibt.RecordCount}: 0x{RecordedFlags(raw):X}");
+                    var there = JObject.Parse(http.GetStringAsync($"http://localhost:{httpPort}/racing-desk/").Result);
+                    AssertFlagsAreTheRecordings(there, raw);
                 }
                 Assert.That((string)body["RacingDesk.Plugin.TrackMap.TrackDisplayName"], Is.EqualTo(ibt.SessionInfo.WeekendInfo.TrackDisplayName));
                 Assert.That((int)body["RacingDesk.Plugin.DS.SectorCount"], Is.EqualTo(ibt.SessionInfo.SplitTimeInfo.Sectors.Count), "sectors from SplitTimeInfo");
