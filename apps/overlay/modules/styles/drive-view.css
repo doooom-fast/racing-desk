@@ -565,8 +565,8 @@ body.drive-mode-active #raceEndScreen .re-stats { gap: 6px; margin-top: 10px; }
    iRacing's own flag field (session-flags.js) says more than the one word did, so there are more backgrounds:
    `caution` is a full-course caution and has the whole treatment yellow has (`yellow` is what the word says when it
    does not say which); `localyellow` is the sector he is in and is lighter than that, sparse yellow stripes round the
-   edge and the panels left as they are, like the blue; `onetogreen` is yellow and white, between a caution and the
-   white flag; `greenheld` is the green; `furled`, the black flag rolled up, is a black and grey ring with the panels
+   edge and the panels left as they are, like the blue; `onetogreen` is a caution told one lap to green (0x200 with
+   a caution bit; 0x200 alone is not a flag), yellow and white; `greenheld` is the green; `furled`, the black flag rolled up, is a black and grey ring with the panels
    left alone, where the black flag itself tints them; `disqualify` is black and deep red. */
 body.drive-mode-active::before {
   content: '';

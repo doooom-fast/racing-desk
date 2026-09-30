@@ -2,14 +2,20 @@
 // a full-course caution and leaves out the rest (one lap to green, ten and five to go, halfway, green held, the black
 // flag furled, disqualified, the start lights), so the host also sends the field itself — `SessionFlags`, iRacing's
 // irsdk_Flags — under the name SimHub gives it, and only where the sim says it. This is the one place it is read.
+// (One lap to green is only said under a full-course caution: see BITS.)
 // Pure: no DOM, no timers, so it runs in the page, in Node and in the unit tests (tests/unit/session-flags.spec.mjs).
 (function () {
   'use strict';
 
   const KEY = 'DataCorePlugin.GameRawData.Telemetry.SessionFlags';
 
-  // irsdk_Flags, as IRSDKSharper names them (IRacingSdkEnum.Flags). 0x200 is the SDK's oneLapToGreen: the field is told
-  // one lap to green (under a caution, or before a start) — it is not a lap to the finish, which is the white flag.
+  // irsdk_Flags, as IRSDKSharper names them (IRacingSdkEnum.Flags). 0x200 is the SDK's oneLapToGreen, and in his
+  // recordings it is up whenever the car is not under green, which is most of the time: the whole of a practice or test
+  // session (0x10040200), a qualifying out-lap, the grid before every start (standing starts too), the warm-up and the
+  // parade (0x20040200, 0x40040200, 0x20040600), and beside the chequered flag in the cool-down (0x10040201). None of his
+  // recordings has a full-course caution in it, so what the bit does under one has not been seen; it is taken as the SDK
+  // names it. It is not a lap to the finish either: the SDK has no bit for that beyond the white flag (0x2, the last lap).
+  // So the page says one lap to green only with a full-course caution up, and otherwise takes 0x200 for nothing.
   const BITS = Object.freeze({
     checkered: 0x1, white: 0x2, green: 0x4, yellow: 0x8, red: 0x10, blue: 0x20, debris: 0x40, crossed: 0x80,
     yellowWaving: 0x100, oneLapToGreen: 0x200, greenHeld: 0x400, tenToGo: 0x800, fiveToGo: 0x1000, randomWaving: 0x2000,
@@ -20,7 +26,8 @@
 
   // The words the page gives a flag. The first ten are `currentFlagState`'s own (and 'orange', which only the host's
   // word has: the car ahead is being lapped); the rest are what the field adds: 'caution' is a full-course caution and
-  // 'yellow' stays what the word says when it does not say which, 'localyellow' is the sector he is in.
+  // 'yellow' stays what the word says when it does not say which, 'localyellow' is the sector he is in, 'onetogreen' is a
+  // full-course caution told one lap to green.
   const FLAGS = Object.freeze([
     'none', 'red', 'disqualify', 'meatball', 'black', 'furled', 'onetogreen', 'caution', 'localyellow', 'yellow', 'blue',
     'debris', 'white', 'checkered', 'greenheld', 'green', 'orange',
@@ -43,8 +50,10 @@
 
   /**
    * What the field says. `flag` is the one the page shows as the flag, in this order: red, disqualified, the meatball,
-   * the black flag, the black flag furled (a warning), one to green, a full-course caution, a local yellow, blue, debris,
-   * white (the last lap), the chequered flag, green held, green. `notices` are the small things — ten to go, five to go,
+   * the black flag, the black flag furled (a warning), a full-course caution (which is one lap to green when 0x200 is up
+   * with it), a local yellow (not once the chequered flag is out: the finish is what he is looking at), blue, debris,
+   * white (the last lap), the chequered flag, green held, green. 0x200 without a caution is nothing (see BITS), and is
+   * never ranked above the white or the chequered flag. `notices` are the small things — ten to go, five to go,
    * halfway — that are said once, and `start` is the start lights (hidden, ready, set, go) or null.
    */
   function decode(raw) {
@@ -56,7 +65,7 @@
       raw: r,
       flag: 'none',
       caution, localYellow,
-      oneToGreen: on('oneLapToGreen'),
+      oneToGreen: caution && on('oneLapToGreen'),
       greenHeld: on('greenHeld'),
       furled: on('furled'),
       disqualified: on('disqualify'),
@@ -68,9 +77,8 @@
     else if (on('repair')) out.flag = 'meatball';
     else if (on('black')) out.flag = 'black';
     else if (on('furled')) out.flag = 'furled';
-    else if (on('oneLapToGreen')) out.flag = 'onetogreen';
-    else if (caution) out.flag = 'caution';
-    else if (localYellow) out.flag = 'localyellow';
+    else if (caution) out.flag = out.oneToGreen ? 'onetogreen' : 'caution';
+    else if (localYellow && !on('checkered')) out.flag = 'localyellow';   // (0x10040101 is seen once a race is over)
     else if (on('blue')) out.flag = 'blue';
     else if (on('debris')) out.flag = 'debris';
     else if (on('white')) out.flag = 'white';

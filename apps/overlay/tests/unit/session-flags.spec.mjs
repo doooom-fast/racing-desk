@@ -57,6 +57,13 @@ test.describe('decode: the flag the page shows', () => {
     }
   });
 
+  test('a local yellow does not take the chequered flag from him: the finish is what he is looking at', () => {
+    expect(at(0x1 | 0x100).flag).toBe('checkered');
+    expect(at(0x1 | 0x8).flag).toBe('checkered');
+    expect(at(0x1 | 0x100).localYellow, 'it is still known to be out').toBe(true);
+    expect(at(0x1 | 0x4000).flag, 'a caution is still the caution, as it always was').toBe('caution');
+  });
+
   test('a full-course caution is 0x4000 or 0x8000, and wins over the local yellow that comes with it', () => {
     for (const raw of [0x4000, 0x8000, 0x4000 | 0x8000, 0x4000 | 0x8, 0x8000 | 0x100, 0x4000 | 0x8 | 0x100]) {
       const d = at(raw);
@@ -66,13 +73,33 @@ test.describe('decode: the flag the page shows', () => {
     expect(at(0x4000).localYellow).toBe(false);
   });
 
-  test('one lap to green is 0x200, under a caution or not, and is neither the caution nor the white flag', () => {
-    expect(at(0x200).flag).toBe('onetogreen');
+  test('one lap to green is 0x200 under a full-course caution, and is neither the caution nor the white flag', () => {
     expect(at(0x4000 | 0x200).flag).toBe('onetogreen');
+    expect(at(0x8000 | 0x200).flag).toBe('onetogreen');
     expect(at(0x8000 | 0x8 | 0x200).flag).toBe('onetogreen');
     expect(at(0x4000 | 0x200).caution, 'the caution is still known to be out').toBe(true);
+    expect(at(0x4000 | 0x200).oneToGreen).toBe(true);
+    expect(at(0x4000).flag, 'a caution without it is the caution').toBe('caution');
+    expect(at(0x4000).oneToGreen).toBe(false);
     expect(at(0x2).flag, 'the white flag is the last lap').toBe('white');
-    expect(at(0x2 | 0x200).flag).toBe('onetogreen');
+    expect(at(0x4000 | 0x200 | 0x2).flag, 'under a caution it is the caution that is shown, as it is over the white flag').toBe('onetogreen');
+    expect(at(0x10000 | 0x4000 | 0x200).flag, 'the black flag is worse').toBe('black');
+  });
+
+  test('on its own 0x200 is nothing: it is up whenever he is not under green, and is never above the white or chequered flag', () => {
+    // His recordings have it in every practice and test session, on out-laps, on the grid, in the parade and beside the
+    // chequered flag in the cool-down: a flag that was out all the time would be no flag.
+    expect(at(0x200).flag).toBe('none');
+    expect(at(0x200).oneToGreen).toBe(false);
+    expect(at(0x200 | 0x40000 | 0x10000000).flag).toBe('none');
+    expect(at(0x2 | 0x200).flag, 'the white flag, the last lap').toBe('white');
+    expect(at(0x1 | 0x200).flag, 'the chequered flag, through the cool-down').toBe('checkered');
+    expect(at(0x4 | 0x200).flag).toBe('green');
+    expect(at(0x8 | 0x200).flag).toBe('localyellow');
+    expect(at(0x20 | 0x200).flag).toBe('blue');
+    expect(at(0x40 | 0x200).flag).toBe('debris');
+    expect(at(0x400 | 0x200).flag).toBe('greenheld');
+    expect(at(0x80000 | 0x200).flag, 'the black flag furled is a warning, with it or not').toBe('furled');
   });
 
   test('green held is 0x400, and beats the plain green it comes with', () => {
@@ -104,8 +131,8 @@ test.describe('decode: the flag the page shows', () => {
     expect(at(0x20).flag).toBe('blue');
     expect(at(0x40).flag).toBe('debris');
     expect(at(0x100000).flag).toBe('meatball');
-    // The order: red, disqualified, the meatball, black, furled, one to green, caution, local yellow, blue, debris,
-    // white, chequered, green held, green.
+    // The order: red, disqualified, the meatball, black, furled, caution (one to green under it), local yellow, blue,
+    // debris, white, chequered, green held, green.
     expect(at(0x10 | 0x20000 | 0x100000 | 0x10000 | 0x80000 | 0x200 | 0x4000 | 0x8 | 0x20 | 0x40 | 0x2 | 0x1 | 0x400 | 0x4).flag).toBe('red');
     expect(at(0x20000 | 0x100000 | 0x10000).flag).toBe('disqualify');
     expect(at(0x100000 | 0x10000 | 0x4000).flag).toBe('meatball');
@@ -118,9 +145,49 @@ test.describe('decode: the flag the page shows', () => {
   });
 
   test('no flag out, and bits that are not flags the page shows, is none', () => {
-    for (const raw of [0, 0x80, 0x800, 0x1000, 0x2000, 0x40000, 0x10000000, 0x20000000, 0x40000000, 0x80000000]) {
+    for (const raw of [0, 0x80, 0x200, 0x800, 0x1000, 0x2000, 0x40000, 0x10000000, 0x20000000, 0x40000000, 0x80000000]) {
       expect(at(raw).flag, `0x${raw.toString(16)}`).toBe('none');
     }
+  });
+});
+
+test.describe('the values his own recordings have (the newest .ibt files, read 2026-09-30)', () => {
+  // Every real frame also carries 0x40000 (service allowed: not a flag) and 0x10000000 (the start lights hidden) from the
+  // first frame of a session to the last, or the start lights' own bit in their place. [value, where, flag, start lights]
+  const RECORDED = [
+    [0x10040200, 'practice or a test session, all of it; the grid (SessionState 1); qualifying', 'none', 'hidden'],
+    [0x10000200, 'the first seconds of a session, before the service bit is up', 'none', 'hidden'],
+    [0x20040200, 'warm-up and the parade: lights ready', 'none', 'ready'],
+    [0x40040200, 'warm-up: lights set', 'none', 'set'],
+    [0x80040204, 'warm-up and the start: lights go, green', 'green', 'go'],
+    [0x80040004, 'the start, four seconds: lights go, green', 'green', 'go'],
+    [0x20040600, 'the end of the parade: green held', 'greenheld', 'ready'],
+    [0x80040604, 'the start after it', 'greenheld', 'go'],
+    [0x10040000, 'mid-race, nothing out', 'none', 'hidden'],
+    [0x10040004, 'mid-race, green', 'green', 'hidden'],
+    [0x10040002, 'the last lap', 'white', 'hidden'],
+    [0x10040001, 'the chequered flag', 'checkered', 'hidden'],
+    [0x10040201, 'the cool-down, and the end of a lone qualifying: the chequered flag is still out', 'checkered', 'hidden'],
+    [0x10040101, 'the chequered flag with a yellow waved somewhere after it', 'checkered', 'hidden'],
+    [0x10040024, 'blue with green', 'blue', 'hidden'],
+    [0x10040040, 'debris', 'debris', 'hidden'],
+    [0x10040100, 'a local yellow, waved', 'localyellow', 'hidden'],
+    [0x10040104, 'a local yellow at the start of a lap', 'localyellow', 'hidden'],
+    [0x10040140, 'a local yellow and debris', 'localyellow', 'hidden'],
+    [0x100c0200, 'the black flag furled, in practice', 'furled', 'hidden'],
+  ];
+  for (const [raw, where, flag, start] of RECORDED) {
+    test(`0x${raw.toString(16)} (${where}) is ${flag}`, () => {
+      const d = at(raw);
+      expect(d.flag).toBe(flag);
+      expect(d.start).toBe(start);
+      expect(d.oneToGreen, 'no full-course caution in any recording').toBe(false);
+    });
+  }
+
+  test('no real value shows a one lap to green, and the practice and grid value shows nothing at all', () => {
+    for (const [raw] of RECORDED) expect(at(raw).flag, `0x${raw.toString(16)}`).not.toBe('onetogreen');
+    expect(at(0x10040200).notices).toEqual([]);
   });
 });
 

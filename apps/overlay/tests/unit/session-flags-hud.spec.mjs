@@ -4,6 +4,8 @@
  * small notices, the start lights. The real dashboard.html is served through remote-server.js on 127.0.0.1, headless, as
  * the glance layout (an iPad's), over a stand-in for the rig's telemetry; every other address is shut. A payload with no
  * field in it is what a SimHub plugin from before it sends, or a replay: the page is then as it was, from the one word.
+ * The values his own recordings have (0x10040200 all through a practice session, 0x10040201 in the cool-down, 0x20040600 in
+ * the parade) are held against the page too, since a flag made of a bit that is always up is no flag.
  */
 
 import { test, expect } from '@playwright/test';
@@ -64,6 +66,12 @@ async function drawn(page) {
   await page.waitForTimeout(700);   // the colours' own transitions (0.35s and 0.4s) have run
 }
 
+// A few frames, no more (the colours' own transitions are not waited for): for what is told by when a frame is seen.
+async function frames(page, n = 6) {
+  const before = await page.evaluate(() => _pollFrame);
+  await page.waitForFunction((k) => _pollFrame >= k, before + n, { timeout: 8000 });
+}
+
 async function serve(page, next) {
   payload = next;
   await drawn(page);
@@ -81,6 +89,7 @@ const look = (page) => page.evaluate(() => {
     tint: getComputedStyle(panel).backgroundImage,
     base: getComputedStyle(panel).backgroundColor,
     gapsClass: [...document.getElementById('gapsBlock').classList].filter((c) => c.startsWith('flag-') && c !== 'flag-active').join(' '),
+    active: document.getElementById('gapsBlock').classList.contains('flag-active'),
     label: document.getElementById('flagLabel1').textContent,
     context: document.getElementById('flagCtx1').textContent,
     banner: banner.classList.contains('rc-visible') ? [document.getElementById('rcTitle').textContent, document.getElementById('rcDetail').textContent] : null,
@@ -155,7 +164,7 @@ test.describe('a local yellow is lighter than a full-course caution, and both ar
 });
 
 test.describe('one lap to green, green held, the black flag furled, disqualified', () => {
-  test('one lap to green is yellow and white, between a caution and the white flag, and says it', async ({ page }) => {
+  test('one lap to green, under a caution, is yellow and white, and says it', async ({ page }) => {
     test.setTimeout(60000);
     await openAt(page, 1180, 820, RACE({ flag: 'yellow', sessionFlags: CAUTION }));
     await serve(page, RACE({ flag: 'yellow', sessionFlags: CAUTION | ONE_TO_GREEN }));
@@ -230,6 +239,105 @@ test.describe('one lap to green, green held, the black flag furled, disqualified
     expect(dq.tint).toContain('rgba(225, 25, 25, 0.34)');
     expect(dq.banner).toEqual(['DISQUALIFIED', 'Disqualified — return to the pits']);
     expect(dq.bannerClass).toContain('rc-flag-disqualify');
+  });
+});
+
+test.describe('the values his own recordings have: no flag all through practice and on the grid, the chequered flag through the cool-down', () => {
+  // SessionFlags as iRacing wrote it (the service bit 0x40000 and the start lights' 0x10000000 are in every real frame).
+  const PRACTICE = (over = {}) => frame({ order: fieldWith(4), state: 4, mode: 1, session: 'Practice', start: 0, lap: 3, ...over });
+  const QUALI = (over = {}) => frame({ order: fieldWith(4), state: 4, mode: 2, session: 'Qualify', start: 0, lap: 3, ...over });
+  const nothing = (l, where) => {
+    expect(l.flag, `${where}: no flag`).toBe('none');
+    expect(l.active, `${where}: the gaps block is the gaps`).toBe(false);
+    expect(l.gapsClass, where).toBe('');
+    expect(l.opacity, `${where}: no background`).toBe('0');
+    expect(l.banner, `${where}: race control has nothing to say`).toBeNull();
+  };
+  const finish = (page) => page.evaluate(() => ({ up: _raceEndVisible, shown: document.getElementById('raceEndScreen').classList.contains('re-visible') }));
+
+  test('a practice session (0x10040200, every frame of it) shows no flag: the glance layout is as if nothing were out', async ({ page }) => {
+    test.setTimeout(60000);
+    await openAt(page, 1180, 820, PRACTICE({ flag: 'none', sessionFlags: 0x10040200 }));
+    nothing(await look(page), 'practice');
+    await serve(page, PRACTICE({ flag: 'none', sessionFlags: 0x10000200 }));
+    nothing(await look(page), 'the first seconds, before the service bit');
+    // The glance layout's own words are not in it anywhere.
+    expect(await page.evaluate(() => document.body.innerText.toUpperCase().includes('LAP TO GREEN'))).toBe(false);
+  });
+
+  test('the black flag furled in practice (0x100c0200) is the warning, and the 0x200 beside it is not a flag', async ({ page }) => {
+    test.setTimeout(60000);
+    await openAt(page, 1180, 820, PRACTICE({ flag: 'none', sessionFlags: 0x10040200 }));
+    await serve(page, PRACTICE({ flag: 'none', sessionFlags: 0x100c0200 }));
+    const furled = await look(page);
+    expect(furled.flag).toBe('furled');
+    expect(furled.label).toBe('BLACK FLAG WARNING');
+  });
+
+  test('the grid, the warm-up and the parade show no flag, and the start after them is the start and not a flag', async ({ page }) => {
+    test.setTimeout(90000);
+    await openAt(page, 1180, 820, RACE({ state: 1, flag: 'none', sessionFlags: 0x10040200 }));
+    nothing(await look(page), 'the grid');
+    for (const [state, flags, where] of [[2, 0x20040200, 'lights ready'], [2, 0x40040200, 'lights set'], [3, 0x20040200, 'the parade'],
+      [3, 0x20040600, 'the end of the parade (green held, 0x200)'], [4, 0x80040604, 'the start, lights go'], [4, 0x80040004, 'the start, green']]) {
+      await serve(page, RACE({ state, flag: (flags & 0x4) ? 'green' : 'none', sessionFlags: flags }));
+      nothing(await look(page), where);
+    }
+  });
+
+  test('the cool-down (0x10040201) keeps the chequered flag and the finish screen; a yellow waved after the flag (0x10040101) does not take them', async ({ page }) => {
+    test.setTimeout(90000);
+    await openAt(page, 1180, 820, RACE({ state: 4, flag: 'none', sessionFlags: 0x10040000 }));
+    await serve(page, RACE({ state: 5, flag: 'checkered', sessionFlags: 0x10040001 }));
+    const flag = await look(page);
+    expect(flag.flag).toBe('checkered');
+    expect(flag.label).toBe('FINISH');
+    expect(flag.banner?.[0]).toBe('CHECKERED FLAG');
+    expect(await finish(page), 'the finish screen is up').toEqual({ up: true, shown: true });
+
+    await serve(page, RACE({ state: 5, flag: 'checkered', sessionFlags: 0x10040101 }));
+    expect((await look(page)).flag, 'a yellow waved after the flag').toBe('checkered');
+    expect(await finish(page)).toEqual({ up: true, shown: true });
+
+    await serve(page, RACE({ state: 6, flag: 'checkered', sessionFlags: 0x10040201 }));
+    const cool = await look(page);
+    expect(cool.flag, 'the cool-down: the chequered flag is still out, with 0x200 beside it').toBe('checkered');
+    expect(cool.label).toBe('FINISH');
+    expect(await finish(page), 'the finish screen stays up').toEqual({ up: true, shown: true });
+  });
+
+  test('a lone qualifying ends with the chequered flag (0x10040201 at SessionState 4 and 5), which is shown', async ({ page }) => {
+    test.setTimeout(60000);
+    await openAt(page, 1180, 820, QUALI({ flag: 'none', sessionFlags: 0x10040200 }));
+    nothing(await look(page), 'qualifying, lapping');
+    await serve(page, QUALI({ flag: 'checkered', sessionFlags: 0x10040201 }));
+    const l = await look(page);
+    expect(l.flag).toBe('checkered');
+    expect(l.label).toBe('FINISH');
+  });
+});
+
+test.describe('a local yellow is held for at least three seconds from when it comes up, and is gone when it clears after that', () => {
+  test('cleared after a blink it stays on show to the end of its three seconds; up for longer it goes the moment it clears', async ({ page }) => {
+    test.setTimeout(60000);
+    await openAt(page, 1180, 820, RACE({ flag: 'none', sessionFlags: 0 }));
+    expect((await look(page)).flag).toBe('none');
+
+    payload = RACE({ flag: 'yellow', sessionFlags: LOCAL_YELLOW });
+    await frames(page, 8);
+    expect((await look(page)).flag).toBe('localyellow');
+    payload = RACE({ flag: 'none', sessionFlags: 0 });
+    await frames(page, 8);
+    expect((await look(page)).flag, 'cleared a moment later: the minimum from its onset has not run out').toBe('localyellow');
+    await expect.poll(async () => (await look(page)).flag, { timeout: 8000 }).toBe('none');
+
+    payload = RACE({ flag: 'yellow', sessionFlags: LOCAL_YELLOW });
+    await frames(page, 8);
+    expect((await look(page)).flag).toBe('localyellow');
+    await page.waitForTimeout(3400);
+    payload = RACE({ flag: 'none', sessionFlags: 0 });
+    await frames(page, 8);
+    expect((await look(page)).flag, 'up for longer than the three seconds, it is not held again after it clears').toBe('none');
   });
 });
 
@@ -385,6 +493,61 @@ test.describe('the rig\'s own HUD says the same in its gaps block', () => {
     body = RACE({ flag: 'yellow', sessionFlags: CAUTION });
     await expect.poll(async () => (await say()).cls, { timeout: 8000 }).toBe('flag-caution');
     expect(await say()).toEqual({ cls: 'flag-caution', label: 'CAUTION', context: 'Full course caution — hold position', drive: false });
+    await hud.close();
+  });
+
+  test('every label is centred in the gaps block, the long ones that wrap to two lines as much as the short ones', async ({ page, context }) => {
+    test.setTimeout(90000);
+    const hud = await context.newPage();
+    let body = RACE({ flag: 'yellow', sessionFlags: LOCAL_YELLOW });
+    await hud.route(/^https?:\/\/(?!localhost:8889)/, (route) => route.abort());
+    await hud.route('http://localhost:8889/racing-desk/', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }));
+    await hud.setViewportSize({ width: 1920, height: 1080 });
+    await hud.goto(pathToFileURL(path.join(OVERLAY, 'dashboard.html')).href);
+    await hud.evaluate(() => { _settings.showWebGL = false; });
+    await hud.waitForFunction(() => typeof _isIdle !== 'undefined' && _isIdle === false && _pollFrame > 6, null, { timeout: 10000 });
+    const label = () => hud.evaluate(() => document.getElementById('flagLabel1').textContent);
+    // Where each line of the label and of the sentence under it sits in the block: the gap to its left edge and to its right.
+    const lines = () => hud.evaluate(() => {
+      const box = document.getElementById('gapsBlock').getBoundingClientRect();
+      const out = { width: Math.round(box.width), label: [], context: [], align: getComputedStyle(document.getElementById('flagLabel1')).textAlign };
+      for (const [key, id] of [['label', 'flagLabel1'], ['context', 'flagCtx1']]) {
+        const range = document.createRange();
+        range.selectNodeContents(document.getElementById(id));
+        for (const q of range.getClientRects()) out[key].push({ left: q.left - box.left, right: box.right - q.right, top: q.top - box.top, bottom: box.bottom - q.bottom });
+      }
+      return out;
+    });
+
+    // Each state comes after another flag (a green held is only shown after one), so the order matters.
+    const STATES = [
+      ['LOCAL YELLOW', RACE({ flag: 'yellow', sessionFlags: LOCAL_YELLOW })],
+      ['CAUTION', RACE({ flag: 'yellow', sessionFlags: CAUTION })],
+      ['1 LAP TO GREEN', RACE({ flag: 'yellow', sessionFlags: CAUTION | ONE_TO_GREEN })],
+      ['BLACK FLAG WARNING', RACE({ flag: 'none', sessionFlags: FURLED })],
+      ['DISQUALIFIED', RACE({ flag: 'black', sessionFlags: DISQUALIFY | BLACK })],
+      ['GREEN HELD', RACE({ flag: 'green', sessionFlags: GREEN | GREEN_HELD })],
+      ['LAST LAP', RACE({ flag: 'white', sessionFlags: WHITE })],
+      ['BLACK FLAG', RACE({ flag: 'black', sessionFlags: BLACK })],
+      ['LAPPED CAR', RACE({ flag: 'orange' })],   // the one word alone, as before
+    ];
+    for (const [text, next] of STATES) {
+      body = next;
+      await expect.poll(label, { timeout: 8000, message: text }).toBe(text);
+      const m = await lines();
+      expect(m.align, `${text}: the label is centred`).toBe('center');
+      expect(m.label.length, text).toBeGreaterThan(0);
+      for (const key of ['label', 'context']) {
+        for (const q of m[key]) {
+          expect(q.left, `${text} (${key}) is inside the block on the left`).toBeGreaterThanOrEqual(-1);
+          expect(q.right, `${text} (${key}) is inside the block on the right`).toBeGreaterThanOrEqual(-1);
+          // Every line has the same room either side (the letters' own spacing after the last is about a pixel and a half).
+          expect(Math.abs(q.left - q.right), `${text} (${key}): ${Math.round(q.left)}px from the left edge, ${Math.round(q.right)}px from the right, in a block ${m.width}px wide`).toBeLessThanOrEqual(4);
+          expect(q.top, `${text} (${key}) is inside the block at the top`).toBeGreaterThanOrEqual(-1);
+          expect(q.bottom, `${text} (${key}) is inside the block at the bottom`).toBeGreaterThanOrEqual(-1);
+        }
+      }
+    }
     await hud.close();
   });
 });
