@@ -25,7 +25,7 @@ Research-backed driver behavior system. All modules are **fully implemented**.
 | `spotter.js` | Stacking threat approach alerts |
 | `incidents.js` | Incident count triggers attribution |
 | `leaderboard.js` | Threat highlighting via CSS classes (ic-watch, ic-caution, ic-danger) |
-| `drive-hud.js` | Track map danger zone rings |
+| `incident-coach.js` | Track map danger zone rings, on the full circuit and the local view |
 
 ### Plugin (C#)
 | File | Lines | Purpose |

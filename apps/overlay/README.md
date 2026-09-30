@@ -1,6 +1,6 @@
 # RacingDesk — Dashboard Overlay
 
-A standalone Electron overlay that renders real-time sim racing telemetry as a transparent HUD on top of your sim. Designed for stream overlays and broadcast production — it composites directly over the game window with no capture card or secondary monitor required. Also functions as a dedicated driving display in fullscreen Drive HUD mode.
+A standalone Electron overlay that renders real-time sim racing telemetry as a transparent HUD on top of your sim. Designed for stream overlays and broadcast production — it composites directly over the game window with no capture card or secondary monitor required. Also, as the glance layout (Ctrl+Shift+F, and what an iPad on the home network is shown), a full-screen data display of every panel.
 
 This is the Electron half of The Racing Desk: the HUD (`dashboard.html`) and the desk window (`desk.html`), one app. It is built by `npm run build` at the monorepo root into `dist/win-unpacked/Racing Desk.exe` and starts its own RacingDesk.Host — there is no installer; see the root `CLAUDE.md`, Desk. **The HUD is on screen only while the driver is in the car** ([below](#when-the-hud-is-on-screen)). A sibling repo, [`prodrive-overlay-showcase`](https://github.com/DOOOOM/prodrive-overlay-showcase), holds the same code with a `showcase-bootstrap.js` that drives it from synthesized data — used in the marketing-site iframe.
 

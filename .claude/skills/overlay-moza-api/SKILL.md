@@ -82,13 +82,13 @@ modules/
 │   ├── pedal-curves.js          (existing — extend with direct hardware data)
 │   ├── moza-settings.js         (NEW — main Moza settings panel logic)
 │   ├── moza-device-status.js    (NEW — device connection status indicators)
-│   └── moza-wheelbase.js        (NEW — wheelbase FFB controls if complex enough)
+│   ├── moza-wheelbase.js        (NEW — wheelbase FFB controls if complex enough)
+│   └── moza-curve-editor.js     (NEW — reusable 5-point curve editor widget)
 ├── styles/
 │   ├── settings.css             (existing — extend with Moza hardware styles)
 │   └── moza-settings.css        (NEW — if Moza styles grow beyond a few rules)
-├── components/
-│   └── moza-curve-editor.js     (NEW — reusable 5-point curve editor widget)
 ```
+(An unused draft of the editor lived in `modules/components/`, which is gone: the HUD never loaded that directory.)
 
 ### Module Pattern
 
@@ -243,7 +243,7 @@ Debounce slider changes (200ms) to avoid flooding the serial port with writes wh
 For pedal and handbrake response curves. The existing `pedal-curves.js` renders curves as Canvas paths — extend this into a reusable interactive editor:
 
 ```javascript
-// modules/components/moza-curve-editor.js
+// modules/js/moza-curve-editor.js
 export class MozaCurveEditor {
     constructor(canvas, { axis, onCurveChange }) {
         // 200×200 canvas

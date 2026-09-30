@@ -3,7 +3,7 @@
  *
  * Regression: when the K10 web API hasn't returned a curated track map
  * for the current track (first frame, no entry for this track, offline),
- * poll-engine.js and drive-hud.js used to ignore the plugin-provided
+ * poll-engine.js used to ignore the plugin-provided
  * TrackMap.SvgPath entirely. Telemetry dots drew on the map but the
  * track line itself never rendered because the path's `d` attribute
  * stayed empty.
@@ -16,7 +16,7 @@
 
 import { test, expect } from '@playwright/test';
 
-// Mirrors the mapPath selection in poll-engine.js and drive-hud.js
+// Mirrors the mapPath selection in poll-engine.js
 function resolveMapPath(apiCache, trackName, props) {
   const apiSvg = (apiCache && apiCache[trackName]) || '';
   const pluginSvg = (props && props['RacingDesk.Plugin.TrackMap.SvgPath']) || '';

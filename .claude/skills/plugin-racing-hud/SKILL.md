@@ -102,16 +102,19 @@ Racing HUDs exist in a unique space: they must convey dense, rapidly-changing da
 - Smooth crossfade transition
 - Example: Rating card cycles between iR/SR gauges and position/gap display
 
-### Broadcast vs Driver Mode
+### Broadcast vs Glance Layout (Drive Mode)
 
-| Aspect | Broadcast Mode | Drive HUD Mode |
+| Aspect | Broadcast Mode | Glance layout (Ctrl+Shift+F, and an iPad) |
 |--------|---------------|----------------|
-| Target viewer | Stream audience | The driver |
-| Information density | High (all panels, effects, branding) | Minimal (only what helps driving) |
-| Visual effects | Full WebGL pipeline (bloom, glow, ambient) | Reduced (no distracting effects) |
-| Panels shown | All enabled panels | Track map, delta, position, spotter, sectors, incidents |
-| Branding | Logo, manufacturer, game logo visible | Hidden |
-| Commentary | AI commentary panel visible | Hidden |
+| Target viewer | Stream audience | The driver, at a glance |
+| Information density | High (all panels, effects, branding), placed by the layout settings | The same panels, every one, as the cells of one grid that fills the screen |
+| Visual effects | Full WebGL pipeline (bloom, glow, ambient) | The HUD's own, except the glare pass and the rig's screen capture; the iPad's menu can switch them off |
+| Panels shown | All enabled panels | Every panel, whatever the settings hide from the rig's screen |
+| Branding | Logo, manufacturer, game logo visible | The Racing Desk mark and the car's badge |
+| Commentary | AI commentary panel visible | The card, over the pit box |
+| Flags | Overlay on the gaps block | The whole background is the flag |
+
+See `apps/overlay/CLAUDE.md`, The glance layout.
 
 ### Transparency and Compositing
 

@@ -99,7 +99,7 @@ The platform serves as a broadcast tool. Key concepts:
 - **Stream Deck integration** — Remote control of overlay panels
 - **Commentary panel** — AI-generated commentary slides in based on telemetry events
 - **Race control banner** — Full-width flag/caution messages
-- **Drive HUD mode** — Stripped-down fullscreen display for the driver (not broadcast)
+- **Glance layout (drive mode)** — Every panel of the HUD as one full-screen grid for the driver (not broadcast); what an iPad is shown
 
 ### Driver Performance Analysis
 

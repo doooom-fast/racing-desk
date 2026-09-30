@@ -50,6 +50,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `car-controls.js` | What the controls panel shows of the car's ABS / TC / brake bias / other dials / DRS / push-to-pass, from the host's `RacingDesk.Plugin.CarControls` (see The controls panel) |
 | `lap-delta.js` | The gap to his best lap of the session and to the optimal lap, worked out from his own laps, and how a delta is written and labelled (see The delta) |
 | `laps-panel.js` | The glance layout's laps panel: the times, the sectors, the three gaps and the fuel to the flag (see The glance layout) |
+| `gap-trend.js` | Whether the cars ahead and behind are closing or dropping away, lap on lap: the ▼ or ▲ beside their iRating in the gaps block of the glance layout (see The glance layout) |
 
 Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
 
@@ -117,16 +118,19 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   (below), iRating and safety rating (`#ratingPage`, which on the rig takes turns with the position block; here both are
   up), the car's controls, the pedals, the Racing Desk mark and the car's badge, the clock (`#raceTimerBlock`), the pit
   box (its tyres, fuel and weather side by side, not tabs), the datastream, the incidents. Landscape:
-  `hero×8 gaps×4 tacho×5 lb×7 / map×8 local×4 laps×5 lb / map local rating×5 lb / ctrl×6 pedals×4 brand×2 car×2 timer×3 lb /
-  pit×10 ds×4 inc×3 lb`; portrait: `hero×14 gaps×10 / tacho×8 map×11 local×5 / lb×15 laps×9 / lb rating×9 /
-  ctrl×8 pedals×8 brand×2 car×2 timer×4 / pit×13 ds×6 inc×5`. The tracks are `fr`, the edge round the grid
+  `hero×7 gaps×4 tacho×6 lb×7 / map×7 local×4 laps×6 lb / map local rating×6 lb / ctrl×6 pedals×4 brand×2 car×2 timer×3 lb /
+  pit×10 ds×4 inc×3 lb` (rows 20 / 24 / 10 / 13 / 29 fr); portrait: `hero×14 gaps×10 / tacho×8 map×11 local×5 / lb×15 laps×9 /
+  lb rating×9 / ctrl×8 pedals×6 brand×2 car×3 timer×5 / pit×13 ds×6 inc×5`. The tracks are `fr`, the edge round the grid
   `clamp(8px, 1.2vmin, 14px)` and the gutters `clamp(5px, 0.75vmin, 9px)`; nothing is set per device. Every panel is a cell
   whatever the rig's settings hide from its own screen (`settings.js` `applySettings` shows them all in drive mode, and
   leaving drive mode puts the settings' choice back), and nothing in a cell is a touch target.
-- **What comes and goes** is laid over the cells, as it is over the game on the rig: the spotter's calls over the foot of
-  the track (where the cars it calls are), race control over its top, the finish (`#raceEndScreen`) over the track and the
-  local view, the commentary card over the pit box, the pit limiter and the grid from the top edge. An absolute box placed
-  in a grid area takes that area for its frame.
+- **What comes and goes** is laid over the cells, as it is over the game on the rig: the spotter's calls over the datastream
+  (the least glanced-at cell, and not the circuit), race control over the top of the track, the finish (`#raceEndScreen`)
+  over the track and the local view, the commentary card over the pit box, the pit limiter and the grid from the top edge.
+  An absolute box placed in a grid area takes that area for its frame. Race control's sentence wraps to as many lines as
+  the cell asks and none of it is cut off (`Full course yellow — hold position` had read `FULL COURSE YELLOV`); a flag
+  that replaces the one it is about (yellow, then blue) takes it away at once (`poll-engine.js`), so it never says yellow
+  over a blue screen (this is the rig's HUD too).
 - **The glass**: each panel is the rig's — near-black at nine-tenths, an edge, and over it ambient.css's light (the
   overhead glow and sweep of its plastic mode, and its specular streak), tinted by the ambient colour. On the rig the WebGL
   glare pass adds to it by where a panel is on the screen; in the glance layout that pass is skipped (`webgl.js`) and each
@@ -136,8 +140,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
 - **Flags are the background**: `poll-engine.js` writes the flag on show (the gaps block's, held as long as it holds it) to
   `body[data-flag]`, written only when it changes. The page behind the panels takes it full-bleed — the edge and every
   gutter — as the flag's own colour or pattern (checkered a checkerboard, the meatball an orange disc on black, debris the
-  yellow and red surface flag), moving slowly on a composited layer, and the glass of every panel takes its colour; gone
-  when the flag clears. A blue flag rings the screen and leaves the panels as they are. `currentFlagState` is all the
+  yellow and red surface flag), moving slowly on a composited layer, and the glass of every panel takes its colour, over
+  a base that is opaque (a chequered board at four in a hundred showed through it, and lowered the contrast of the
+  gaps); the car's badge is its maker's colour over an opaque base (`car-logos.js` sets it as `--logo-tint` beside its
+  inline background, which a stylesheet cannot get under); gone when the flag clears. A blue flag rings the screen and
+  leaves the panels as they are. `currentFlagState` is all the
   payload says: a local yellow and a full-course caution are both `yellow`, and there is no "one to go" in it (the plugin
   would have to send iRacing's `SessionFlags` bits for either).
 - **Effects**: the HUD's own, on an iPad too — the tacho's redline flash and glow, the pit limiter's blue, the gaps' and the
@@ -147,17 +154,41 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   cannot work without the game behind it is not there: the screen-capture colour of the rig's own ambient light (the iPad
   takes the plugin's sample instead) and the glare pass.
 - **Every cell is a size container** (`container-type: size`) and what is in it is sized in `cq` units, with floors: no
-  label under 11px, no number under 20px, the place at 80px or more. A cq unit on the container itself would resolve
-  against the page, so a cell's own padding, gap and font-size are in px or set on its children; a short or narrow cell
-  gives something up by `@container` query (the laps panel's heading, the yaw trace, the iRating thousands, the clutch's
-  label). The HUD's zoom setting is the rig screen's and is undone here.
+  label under 11px, **no number under 20px** (the tyres' wear and temperature, the fuel, the laps panel, the datastream,
+  the pedals' percentages, the incidents' counts, the tacho's revs, the clock, the sectors and every other value), the
+  place at 80px or more. The exceptions are named in `tests/unit/drive-view.spec.mjs`: the leaderboard's rows (a list of
+  a dozen, 14px in their own type, their lap and gap columns the 0.84 of that) and what is a caption to a name whatever
+  it says (a driver's iRating, the car's model, an axis' thousands, a sector's number, the tank's size, the track's name,
+  the strategy call in the pit box at 14px). A cq unit on the container itself would resolve against the page, so a
+  cell's own padding, gap and font-size are in px or set on its children. **A cell that cannot hold a number at 20px
+  gives up the least useful thing in it by `@container` query, and never shrinks the number**: the laps panel drops
+  its heading and third row of times, then the sectors' gaps, then its second row; the datastream its yaw trace, then the
+  wheel's torque, then the peak g; the pit box its two services (below 262px), its pit window when a strategy call has
+  taken the room (below 225px); the pedals the clutch's channel (below 250px); the rating panel its bar. The test
+  holds every piece of text in every cell to the box its ancestors let show (an ellipsis, an overflow, the cell), at the
+  seven iPad sizes and at the rig's own 1920x1080 and 2560x1080. The HUD's zoom setting is the rig screen's and is undone
+  here.
 - **The hero**: in a race the place, big; out of one (`body.session-nonrace`, which `poll-engine.js` sets from
   `DS.SessionMode`, written only when it changes) the place is a rank of best laps and the big number is the delta.
 - **The laps panel** (`#lapsPanel`, `modules/js/laps-panel.js`; shown only in the glance layout): the lap of how many, his
   last, best and optimal laps (the optimal the plugin's `DS.SectorBests` added up), each sector's time and its gap to his
   best of it in the gaps block's colours, his gaps to his best of the session, the optimal lap and his best ever, and the
-  laps of fuel against the laps to go (in a race to time, the time left over his last lap), green with a lap to spare,
-  amber just, red short.
+  laps of fuel against the laps to go to the flag (in a race to time, the time left over his last lap), green with a lap
+  to spare, amber just, red short. What is left to go is a span of its own that a narrow panel leaves out: the clock has it.
+- **The clock** (`#raceTimerBlock`) says what it is (`#raceTimerKey`, written by `poll-engine.js` in the glance layout
+  only): the laps to go in a lap race (the time on the lap is in the hero), the time left in a race to a time and in
+  qualifying, the clock in practice, and under it the last lap. On the rig the cell is as it was, with no key.
+- **The gaps** are the car ahead's and the car behind's, each with its iRating and, beside it, which way the gap is going
+  (`gap-trend.js`): the gap taken at the start of every lap for the car that is there, and what is said through a lap is
+  how it changed from the lap before to this one's start, `▼0.5/lap` shrinking and `▲0.3/lap` growing, green when that is
+  good for him (closing on the car ahead, pulling away from the one behind) and red when it is not, nothing for under
+  0.05s a lap, and a different car in the place starts it again. The other cars' pace is their last lap in the
+  leaderboard's column, coloured as it always was. Out of a race the block is his three sectors, a line each.
+- **The pit box** shows what its tabs do on the rig, side by side: the four tyres (wear in the ring, temperature under it,
+  the laps on this set in the heading, `Strategy.StintLaps`), the fuel (tank, level and its size, per lap, laps left, the
+  pit's add, the pit window `Strategy.PitWindowOpen/Close` as `L18–24` or `by L24`, the two services), the weather. The
+  strategist's call for tyres or fuel (`Strategy.TireHealthState`, `FuelHealthState`) is read where it is on the rig,
+  above the rings or the tank, worded for a screen with nothing to press (`Change · ~12 laps`, `Stop · ~6 laps`).
 - **The maps** (`webgl-helpers.js`, "The maps in the glance layout"): the full circuit's viewBox is fitted to the outline,
   the local view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels (the
   outline's three layers at 12 / 7 / 1.5px, the sectors at 8px, the car at 7px and the others at 5px) is worked out from
@@ -168,12 +199,36 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   screen minus the dashboard that the rig's HUD does.
 - **The menu** (remote-server.js) is laid over the Racing Desk mark: the whole square answers a tap and its list opens on
   the side with the more room. On the rig there is no menu, and the mark is just the mark.
-- **Tests**: `tests/unit/drive-view.spec.mjs` serves the real page through `remote-server.js` at seven iPad sizes, in a
-  race, under a yellow flag, out of a race and with three cars' controls, and holds it to: every panel a cell, inside the
-  screen, none on another, the cells the screen, nothing cut off by its cell, nothing under the floors, the HUD's own type,
-  colours and glass (compared with the HUD's page, item by item); the flags as the background and gone when cleared; the
-  laps panel's numbers; every panel shown whatever the settings hide, and the settings back after; the menu the one touch
-  target. Golden frames of the glance layout at 1180x820 and 820x1180 are in `tests/golden/glance.spec.mjs`.
+- **Data**: the plugin sends 330 keys; the glance layout reads the ones a driver reads at a glance, every one the rig's
+  HUD reads (all its panels are here) and what the panels above add. By panel: position, places since the start, lap, live
+  lap, the delta (`Position`, `DS.StartPosition`, `PositionDelta`, `CurrentLap`, `CurrentLapTime`, `DS.LapDelta`); the gaps,
+  the drivers' names and iRatings and the sectors (`iRacing_Opponent_*`, `DS.Sector*`); the tacho (`GameData.Gear`, `Rpms`, `SpeedMph`,
+  `DS.RpmRatio`, `CarSettings_MaxRPM`); the leaderboard and its sparklines (`Leaderboard`, `Grid.SessionState`, `DS.SessionMode`); both maps
+  (`TrackMap.*`); the laps panel (`LastLapTime`, `BestLapTime`, `DS.SectorBests`, `DS.TrackPct`, `DS.FuelLapsRemaining`,
+  `RemainingLaps`, `RemainingTime`, `TotalLaps`, `DS.IsLapRace`); the ratings (`iRacing_DriverInfo_IRating`,
+  `_SafetyRating`, `DS.EstimatedIRatingDelta`); the car's controls (`CarControls`, `DS.AbsActive`, `TcActive`); the pedals (`GameData.Throttle`, `Brake`, `Clutch`);
+  the pit box (`DS.Fuel*`, `Tyre*` wear and temperature, `Strategy.*`, `AirTemp`, `TrackTemp`, `WeatherWet`,
+  `PitBox.FastRepairRequested`, `WindshieldRequested`); the datastream (`DS.LatG`, `LongG`, `YawRate`, `SteerTorque`);
+  the incidents (`DS.Incident*`); the flags (`currentFlagState`); the danger rings on both maps (`DS.IncidentCoach.*`); the ambient colour (`DS.Ambient*`); the spotter, the
+  commentary and race control. **Left out**, and why: the pit menu's controls and their state (`PitBox.PitSv*`, `Has*`,
+  `Tire*` requests, `TiresRequested`, `FuelRequested`, and the requested tyre pressures `PitBox.Pressure*`: the rig's pit
+  box does not show pressures either, and there is nothing to press on a screen with no touch targets); `Strategy.GripScore`
+  and `CanMakeItToEnd` (the strategy engine's own reasoning: what he sees is its call, and the fuel against the laps to
+  go in green, amber or red); the pre-formatted copies of numbers shown from their raw values (`DS.*Display`,
+  `GapAheadFormatted`, `BBNorm`); `Session.*`, duplicates of `DS.*`; `DS.IRatingFieldSize` and `LicenseString`; the Moza wheel base's connection state (the desk's).
+  What is not in the payload at all: a fastest-lap holder, sector times of the other cars, and any pace of theirs beyond
+  the last lap.
+- **Tests**: `tests/unit/drive-view.spec.mjs` serves the real page through `remote-server.js` at the seven iPad sizes and
+  the rig's own two screens, in a race, at P12 and P21, with a prototype's dials, a formula car's DRS, under a yellow flag,
+  with the strategist calling, and out of a race, and holds it to: every panel a cell, inside the screen, none on another,
+  the cells the screen, nothing cut off by its cell or out of sight (every line of text against the box its ancestors show),
+  no label under 11px and no number under 20px, the HUD's own type, colours and glass (compared with the HUD's page, item
+  by item); the flags as the background and gone when cleared; race control's whole sentence for each flag at every size;
+  the banner gone when another flag replaces its own; the panels and the badge opaque under every flag; the spotter over
+  the datastream and not the circuit; the clock's key; the strategy calls; the laps panel's numbers; the gaps' trends;
+  the pit box inside its cell at 1920x1080 and 2560x1080 on the rig; every panel shown whatever the settings hide, and the
+  settings back after; the menu the one touch target. `tests/unit/gap-trend.spec.mjs` runs the trend in Node. Golden
+  frames of the glance layout at 1180x820 and 820x1180 are in `tests/golden/glance.spec.mjs`.
 
 ## The delta: what the gap is against
 
@@ -194,10 +249,14 @@ the sector he is in all use it; the laps panel shows all three. Tests: `tests/un
 Each row's line is **that car's places through the race in hand** (`leaderboard.js`, `_trails`): one trail per car, its
 first point the place it held at the first frame of the race in which it has one — the driver's own is `DS.StartPosition`,
 his grid slot — then every change, on the page's own clock (`performance.now()`), the start never dropped (past 64 points
-the oldest change after it goes). The better place is drawn higher, P1 at the top, against the race's time; a dashed
-hairline is where the race began (above it is places gained, below places lost); the scale is the trail's own range, at
-least two places wide. His own line is coloured by where he stands against where he began (gold P1, green, red, blue),
-the rest are white.
+the oldest change after it goes). **A better place is always drawn higher than a worse one, on every row**; a dashed
+hairline is where the race began (above it is places gained, below places lost). **Each row is scaled to its own range**
+(at least two places wide), so the top of a cell is the best place *that car* held, which is P1 only for a car that has
+led: his Tsukuba line, P8 to P4 to P9 to P6, has P4 at the top and P9 at the foot, and a car that swapped P11 and P12
+fills its cell with one step. One scale for the whole field (P1 at the top of every cell) would keep the tops the same on
+every row and make the mid-field's lines a few pixels of movement in a cell built for twenty places: which of the two he
+wants is his to say, and it is a change to `_trailShape` alone. His own line is coloured by where he stands against where
+he began (gold P1, green, red, blue), the rest are white.
 
 - **Only in a race** (`DS.SessionMode` 4, `Grid.SessionState` 4 or 5). In practice, qualifying and warm-up "position" is the
   order of best laps, and a cell that meant two things is how a race he gained a place in drew a staircase down (the HUD's
@@ -206,7 +265,10 @@ the rest are white.
 - **A trail belongs to one session and one green flag**: cleared when the session's type or the plugin's track name
   changes (a frame that names neither says nothing), and at the green flag (`Grid.SessionState` 1-3 becoming 4 in a race,
   seen in `poll-engine.js`, which also clears `_startPosition` there and on a change of session type, so that a heat and a
-  feature of one type at one track are told apart). `resetLeaderboardTrails()` is the way in.
+  feature of one type at one track are told apart). `resetLeaderboardTrails()` is the way in. **The lines stay through the
+  chequered flag and the cool-down** (`Grid.SessionState` 5 and 6: that is when he looks back at how the race went), held
+  where the race ended and not stretched across the clock, until the session or the track changes; nothing is added to a
+  trail after the flag.
 - **The rows are in the order of their places**: each is put in its place before whatever is there (it used to be
   appended to the end, which left the rows of cars gone out of view at the top and cut wanted ones off the bottom when
   the view shifted by several places at once).
