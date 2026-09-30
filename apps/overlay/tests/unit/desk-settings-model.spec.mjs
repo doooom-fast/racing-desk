@@ -79,6 +79,9 @@ test.describe('settings model', () => {
     expect(field.value).toBe('auto');
     expect(field.options).toEqual([['auto', 'Automatic (the screen iRacing is on)']]);
     expect(field.note).toBeNull();
+    // A choice in the file is no claim that a screen is missing when the app has not said which there are.
+    expect(screenField(settingsView({ hudDisplay: '7' })).note).toBeNull();
+    expect(screenField(settingsView({ hudDisplay: '7' })).value).toBe('auto');
   });
 
   test('with the screens the app names, each is offered and the note says where the HUD is', () => {

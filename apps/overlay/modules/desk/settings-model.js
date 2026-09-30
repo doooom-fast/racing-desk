@@ -151,7 +151,8 @@
     const displays = hudScreens && Array.isArray(hudScreens.displays) ? hudScreens.displays : [];
     const options = [...field.options, ...displays.filter((d) => d && typeof d.key === 'string' && d.key !== field.def).map((d) => [d.key, String(d.name)])];
     const connected = options.some(([key]) => key === saved);
-    const missing = saved !== field.def && !connected;
+    // Said only when the app has said which screens there are: without its answer nothing is known to be missing.
+    const missing = !!hudScreens && Array.isArray(hudScreens.displays) && saved !== field.def && !connected;
     const using = hudScreens && hudScreens.using;
     const notes = [];
     if (missing) notes.push('The screen you chose is not connected, so the HUD follows iRacing until it is.');
