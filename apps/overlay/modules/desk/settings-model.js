@@ -17,6 +17,13 @@
       title: 'Layout',
       fields: [
         {
+          // The screens are the app's to say (main.js get-hud-displays), so the choices are given to settingsView; the
+          // one option here is what the file holds when nothing is chosen. A key is the screen's, as the app names it.
+          key: 'hudDisplay', label: 'HUD screen', type: 'select', screens: true, def: 'auto',
+          hint: 'Which screen the HUD is drawn on. Automatic is the screen iRacing is on.',
+          options: [['auto', 'Automatic (the screen iRacing is on)']],
+        },
+        {
           key: 'layoutPosition', label: 'Position', type: 'select', def: 'top-right',
           hint: 'Where the main HUD sits. The other panels place themselves around it.',
           options: [
@@ -119,6 +126,9 @@
   // What the control for `field` shows for this settings file.
   function currentValue(field, settings) {
     const raw = settings ? settings[field.key] : undefined;
+    // A screen is kept by the app's key for it, whatever is connected: a screen that is not there now is still the
+    // choice, and is not lost by looking at the page.
+    if (field.screens) return typeof raw === 'string' && raw.trim() ? raw.trim() : field.def;
     switch (field.type) {
       case SWITCH:
         return field.def === false ? raw === true : raw !== false;
@@ -134,11 +144,35 @@
     }
   }
 
-  function settingsView(settings) {
+  // The HUD screen's control, given the screens the app says are connected ({ displays: [{ key, name }], using:
+  // { name, why } | null }, from main.js): Automatic and one option for each. A saved choice that is not one of them
+  // stays the control's value, as an option of its own, "not connected" where the app has said which screens there are:
+  // the HUD is following iRacing meanwhile and the file keeps the choice for when the screen is back, and choosing
+  // Automatic is then a change like any other, which clears it.
+  function screenField(field, saved, hudScreens) {
+    const displays = hudScreens && Array.isArray(hudScreens.displays) ? hudScreens.displays : [];
+    const options = [...field.options, ...displays.filter((d) => d && typeof d.key === 'string' && d.key !== field.def).map((d) => [d.key, String(d.name)])];
+    const listed = options.some(([key]) => key === saved);
+    // Said only when the app has said which screens there are: without its answer nothing is known to be missing.
+    const missing = !!hudScreens && Array.isArray(hudScreens.displays) && saved !== field.def && !listed;
+    if (saved !== field.def && !listed) options.push([saved, missing ? 'The screen you chose (not connected)' : 'The screen you chose']);
+    const using = hudScreens && hudScreens.using;
+    const notes = [];
+    if (missing) notes.push('The screen you chose is not connected, so the HUD follows iRacing until it is.');
+    if (using && using.name) notes.push(`Now on ${using.name}${using.why ? `: ${using.why}` : ''}.`);
+    return { ...field, options, value: saved, note: notes.join(' ') || null };
+  }
+
+  // `extra.hudScreens` is what the app says of the screens; without it the HUD screen offers Automatic alone.
+  function settingsView(settings, extra) {
+    const hudScreens = extra && extra.hudScreens;
     return SETTINGS_SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
-      fields: section.fields.map((field) => ({ ...field, value: currentValue(field, settings) })),
+      fields: section.fields.map((field) => {
+        const value = currentValue(field, settings);
+        return field.screens ? screenField(field, value, hudScreens) : { ...field, value };
+      }),
     }));
   }
 
@@ -155,6 +189,8 @@
         return Math.min(field.max, Math.max(field.min, n));
       }
       case 'select':
+        // A screen's key is the app's to check: one that is not connected is kept, not turned into Automatic.
+        if (field.screens) return typeof raw === 'string' && raw.trim() ? raw.trim() : field.def;
         return field.options.some(([value]) => value === raw) ? raw : field.def;
       default:
         return String(raw == null ? '' : raw).trim();

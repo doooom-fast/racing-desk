@@ -66,4 +66,61 @@ test.describe('settings model', () => {
     expect(parseControlValue(fieldFor('logoSubtitle'), '  by DOOOOM ')).toBe('by DOOOOM');
     expect(parseControlValue(fieldFor('logoSubtitle'), null)).toBe('');
   });
+  // ── The HUD's screen ──
+  const SCREENS = {
+    displays: [{ key: '2', name: '1440 × 1080 (left, primary)' }, { key: '1', name: '3440 × 1440 (right)' }],
+    using: { name: '3440 × 1440 (right)', why: 'iRacing is running on it' },
+  };
+  const screenField = (view) => view.flatMap((s) => s.fields).find((f) => f.key === 'hudDisplay');
+
+  test('the HUD screen is in Layout, Automatic by default, and without the app\'s answer offers Automatic alone', () => {
+    expect(SETTINGS_SECTIONS[0].fields.map((f) => f.key)).toContain('hudDisplay');
+    const field = screenField(settingsView({}));
+    expect(field.value).toBe('auto');
+    expect(field.options).toEqual([['auto', 'Automatic (the screen iRacing is on)']]);
+    expect(field.note).toBeNull();
+    // A choice in the file is no claim that a screen is missing when the app has not said which there are: it stays the
+    // control's value, as itself, and can be changed to Automatic.
+    const chosen = screenField(settingsView({ hudDisplay: '7' }));
+    expect(chosen.note).toBeNull();
+    expect(chosen.value).toBe('7');
+    expect(chosen.options).toEqual([['auto', 'Automatic (the screen iRacing is on)'], ['7', 'The screen you chose']]);
+  });
+
+  test('with the screens the app names, each is offered and the note says where the HUD is', () => {
+    const field = screenField(settingsView({ hudDisplay: '2' }, { hudScreens: SCREENS }));
+    expect(field.options.map(([key]) => key)).toEqual(['auto', '2', '1']);
+    expect(field.options.map(([, name]) => name)).toEqual([
+      'Automatic (the screen iRacing is on)', '1440 × 1080 (left, primary)', '3440 × 1440 (right)',
+    ]);
+    expect(field.value).toBe('2');
+    expect(field.note).toBe('Now on 3440 × 1440 (right): iRacing is running on it.');
+  });
+
+  test("a choice that is not connected stays the control's value, as an option that says so, so that Automatic can replace it", () => {
+    const field = screenField(settingsView({ hudDisplay: '7' }, { hudScreens: SCREENS }));
+    // Selected as itself: choosing Automatic is then a change like any other, and clears it from the file. (It showed
+    // Automatic before, and choosing Automatic again fired no change, so the stale key stayed.)
+    expect(field.value).toBe('7');
+    expect(field.options).toEqual([
+      ['auto', 'Automatic (the screen iRacing is on)'], ['2', '1440 × 1080 (left, primary)'], ['1', '3440 × 1440 (right)'],
+      ['7', 'The screen you chose (not connected)'],
+    ]);
+    expect(field.note).toBe('The screen you chose is not connected, so the HUD follows iRacing until it is. Now on 3440 × 1440 (right): iRacing is running on it.');
+    // The file's value is the model's to read, not to change: what a control's value becomes keeps the key.
+    expect(parseControlValue(fieldFor('hudDisplay'), '7')).toBe('7');
+    expect(parseControlValue(fieldFor('hudDisplay'), 'auto')).toBe('auto');
+    expect(parseControlValue(fieldFor('hudDisplay'), '')).toBe('auto');
+    expect(parseControlValue(fieldFor('hudDisplay'), null)).toBe('auto');
+    // Once it is Automatic the extra option is gone, and a screen that is connected needs none.
+    expect(screenField(settingsView({ hudDisplay: 'auto' }, { hudScreens: SCREENS })).options).toHaveLength(3);
+    expect(screenField(settingsView({ hudDisplay: '1' }, { hudScreens: SCREENS })).options).toHaveLength(3);
+  });
+
+  test('a saved value that is not a screen\'s key reads as Automatic, and nothing an answer holds breaks the control', () => {
+    for (const saved of [null, 5, true, {}, '', '  ']) expect(screenField(settingsView({ hudDisplay: saved })).value).toBe('auto');
+    const junk = { displays: [null, { key: 3, name: 'x' }, { key: 'auto', name: 'again' }, { key: '1', name: '3440 × 1440 (right)' }], using: null };
+    expect(screenField(settingsView({}, { hudScreens: junk })).options.map(([key]) => key)).toEqual(['auto', '1']);
+    expect(screenField(settingsView({}, { hudScreens: { displays: 'no' } })).options).toHaveLength(1);
+  });
 });

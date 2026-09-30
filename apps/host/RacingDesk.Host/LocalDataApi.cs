@@ -17,7 +17,11 @@ namespace RacingDesk.Host
     /// <c>GET /racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals}</c>. Rows go out as stored;
     /// the desk's calc layer (packages/calc) does the merging and derivation. Beside them, and not from the
     /// store: <c>GET /racing-desk/data/controls</c>, the canonical list of cars this build carries, with what
-    /// the check of it has said of each car (this run's, and what the store has kept of the runs before).
+    /// the check of it has said of each car (this run's, and what the store has kept of the runs before). And
+    /// <c>GET /racing-desk/data/simwindow</c>, which is Windows's and not the store's: where the sim's window is on
+    /// the screen, in physical pixels, for the HUD to be put on the same screen (see SimWindow.cs); JSON null when the
+    /// sim is not running. And <c>GET /racing-desk/data/monitors</c>, also Windows's: the monitors' rectangles in
+    /// physical pixels, so that a screen can be named by the size it really has (see Monitors.cs).
     ///
     /// One thing is written: <c>POST /racing-desk/data/pedals</c> says which of SmartControl's profiles a car is
     /// driven with. It is for programs on this machine — the app — and not for a page in a browser, which every
@@ -53,6 +57,12 @@ namespace RacingDesk.Host
         /// </summary>
         internal RacingDesk.Core.Cars.CarControlsFollower Cars { get; set; } = RacingDesk.Plugin.Engine.TelemetryCapture.Cars;
 
+        /// <summary>Where the sim's window is looked up, for <c>simwindow</c>: Windows's, unless a test gives another.</summary>
+        internal ISimWindowSource SimWindows { get; set; } = new Win32SimWindowSource();
+
+        /// <summary>Where the monitors are listed, for <c>monitors</c>: Windows's, unless a test gives another.</summary>
+        internal IMonitorSource Monitors { get; set; } = new Win32MonitorSource();
+
         /// <summary>Claims /data/ requests and answers them off the telemetry thread.</summary>
         public bool TryHandle(HttpListenerContext ctx)
         {
@@ -81,6 +91,23 @@ namespace RacingDesk.Host
                     string car = ctx.Request.QueryString["car"];
                     var kept = KeptRemarks(cars?.List ?? RacingDesk.Core.Cars.CarList.Empty);
                     Write(res, 200, json => CarListApi.Write(json, cars?.List, car, cars?.Remarks, cars?.CarPath, kept));
+                    return;
+                }
+
+                if (route == "simwindow" && ctx.Request.HttpMethod == "GET")
+                {
+                    // Not the store's, so it is answered before there is one. A look that cannot be made is a 500
+                    // (Find throws), which the HUD takes for "not known" and not for "the sim is closed", which is null.
+                    var found = SimWindows?.Find();
+                    Write(res, 200, json => SimWindowApi.Write(json, found));
+                    return;
+                }
+
+                if (route == "monitors" && ctx.Request.HttpMethod == "GET")
+                {
+                    // Windows's too, and answered before there is a store. A look that fails is a 500.
+                    var listed = Monitors?.List();
+                    Write(res, 200, json => MonitorsApi.Write(json, listed));
                     return;
                 }
 

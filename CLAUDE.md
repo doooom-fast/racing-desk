@@ -59,7 +59,9 @@ The host also serves the store read-only at
 SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk). One thing is written
 through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only —
 a request that names an `Origin`, or comes from another machine, gets 403, so the desk page sends it through main.js.
-Beside them, `GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
+Beside them, `GET /racing-desk/data/simwindow` says where the sim's window is and `GET /racing-desk/data/monitors` lists
+the monitors, both in physical pixels (see **The HUD is on the screen iRacing is on**, under Desk), and
+`GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
 before there is a store) with what the check of it has said of each car: this run's, and what the store has kept of
 the runs before (see The car's controls).
 
@@ -323,7 +325,8 @@ that, or after a load that failed, once more each time he gets in the car. A pag
 ended (`unresponsive` → `forcefullyCrashRenderer`), and is loaded again as one that died. In dev mode the window stays as
 `dev-mode.js` put it. `tests/unit/hud-main-wiring.spec.mjs` reads `main.js` and holds it to this: the window made
 with `show: false`, nothing in `main.js` showing or hiding it, the switches going through `hud.toggle`, quitting
-the overlay through `hud.putAway`, and `app.quit()` called from five places and no more.
+the overlay through `hud.putAway`, and `app.quit()` called from five places and no more — and, for the screen
+(next), the window moved by nothing in `main.js` (no `setBounds`) and `getPrimaryDisplay()` used once, for an id.
 **The HUD's keys are held only while he is in the car** (`modules/js/hud-keys.js`, `HUD_KEYS` in `main.js`,
 `tests/unit/hud-keys.spec.mjs`). A key the app registers is taken from every other program on the machine for as
 long as it is held — Ctrl+Shift+V is paste-as-text in a browser, Ctrl+Shift+P a command palette — and the app used
@@ -332,6 +335,90 @@ to hold twelve from start to quit. It holds one, Ctrl+Shift+O (the desk); the HU
 in (`onInCar`) and let go when he gets out. In dev mode they are held throughout.
 **A limit:** beside SimHub the HUD reads SimHub's plugin on `:8889`; if SimHub goes in mid-session the HUD is
 hidden, though the app's own host on `:18889` has the same telemetry. There is no falling back to it.
+
+**The HUD is on the screen iRacing is on** (`modules/js/hud-display.js`, `tests/unit/hud-display.spec.mjs`). It used to
+be put on the primary screen, always, so it was on the wrong monitor whenever the primary was not the one the sim runs
+on. The rig has two screens: the 3440 × 1440 ultrawide at 100 %, where iRacing runs, and a small 1440 × 1080 one at 175 %,
+which Electron sees as **823 × 618**: 1080 / 1.75 is 617.14 and Chromium takes the enclosing rectangle, so a screen's
+size in DIPs is the physical size over the scale, rounded up (`overlay.log` has it as "823x618", and a 1920 × 1080
+screen at 175 % as "1098x618"). **Which of them Windows has as the primary changes**, and `overlay.log` says when:
+the ultrawide was the primary at the app starts up to 2026-09-29 22:40Z (16:40 local); the small screen was at the starts
+of 2026-09-30 00:42Z and 01:28Z (18:42 and 19:28 local), and the HUD was on it, which is when he complained; at 01:29:23Z
+the log has `Display metrics changed (bounds, workArea), reflowing overlay to 3440x1440`, and the primary was the
+ultrawide again. A read-only `EnumDisplayMonitors` query (per-monitor aware) after that found the ultrawide as the
+primary at (0, 0) and the small one to its left at (-1440, 0). Just before the complaint, at 00:19–00:22Z, the log has
+the primary's size changing three times (1098 × 618, 2560 × 1440, 1440 × 1080) while the displays were being set up; a
+query when this was last worked on found a single 3840 × 2160 screen. So the screens are not fixed, the HUD follows
+them as they are and does not read them once, and the rule does not depend on which is the primary; its tests hold both
+layouts. The rule, in the order it is applied:
+1. **A screen he chose** in Settings ("HUD screen", Layout; `hudDisplay` in `overlay-settings.json`: `auto`, or a
+   screen's key), while it is connected. A choice that is not connected is not used and is not lost: it is Automatic
+   until the screen is back, the Settings page shows it as "The screen you chose (not connected)" with a note, and the
+   key stays in the file until he chooses another (Automatic clears it). The key is Electron's `display.id` as text;
+   that Windows keeps it across a restart or a replug has not been checked on this rig, and if it does not the choice
+   reads as not connected and Automatic does the work.
+2. **The screen the sim's window is on**, while the sim runs. Electron cannot see another program's windows, so the
+   app's own host says (`GET /racing-desk/data/simwindow`, `apps/host/RacingDesk.Host/SimWindow.cs`): the main window of
+   `iRacingSim64DX11` or `iRacingSim64` — its frame (`DWMWA_EXTENDED_FRAME_BOUNDS`, else `GetWindowRect`) and the monitor
+   Windows has most of it on, in **physical pixels**, or JSON `null` when there is no such window on screen (the sim
+   closed, minimized, or gone between being listed and being asked). A look that cannot be made at all — the process
+   list will not open — throws, and the route answers 500, which is "did not say" and not "closed". The host is not
+   DPI-aware, so the asking thread is made per-monitor aware for the call (`PerMonitorAwareScope`): a caller that is not
+   gets the 175 % screen's windows and monitor scaled down (measured with a probe of the same calls, on another
+   program's window there: 832 × 578 for a window that is 1456 × 1012). `main.js` turns the rectangle into the screens'
+   own units (`screen.screenToDipRect`) and the screen with most of its area wins; equal shares go to the left one. The
+   host is asked at `localHostUrl()`, for 0.8 s at most. **A host that does not say is not a sim that is closed**: if
+   the sim was last seen on a screen that is still connected, the HUD stays on it (`simKept`; the log says "iRacing
+   was last on it, and the host did not say where it is now"), so a display event, Ctrl+Shift+R or a saved setting
+   while the host is slow or restarting does not move it to where the ini says. Only the host saying `null` sends it
+   to the ini.
+3. **The screen that is the size iRacing is set to run at**, from `Documents\iRacing\rendererDX11Monitor.ini` (its
+   `[Display]` section; read, never written): `fullScreenWidth × Height` when `fullScreen=1`, else `windowedWidth ×
+   Height`, which when `windowedMaximized=1` is the screen it is maximized on (his is maximized at 3440 × 1440, and
+   the size is what tells which). Sizes are matched physically, and within one step of the screen's scale: DIPs by the
+   scale come to at most one step above the physical size (823 × 1.75 is 1440.25, 618 × 1.75 is 1081.5), so 1440 × 1080
+   is the small screen and 823 × 618 is not a size iRacing can be set to. Where the host has said what the panel is
+   (below), the match is exact. A maximized window is also as big as the room a screen has beside its taskbar, so when
+   no screen is that size a screen whose `workArea` is counts. Of several screens of that size the primary one among
+   them, else the first from the left. `windowedXPos/YPos` is not relied on: which screen it names depends on how
+   Windows lays them out, and the size says more.
+4. **The largest screen** by physical pixels, the primary among equals. Nothing known of the screens at all leaves
+   the window alone.
+   With the host absent (dev mode, one that failed to start, or SimHub's plugin on `:8889` answering something that is
+   not a window), slow, or failing, its answer is "did not say" and, with no sim seen before, the ini decides; the log
+   says so. The sim not running is an answer (`null`), and the ini decides too.
+
+   **The screens' sizes.** Electron's are DIPs and cannot be turned back into pixels (1439 is 823 wide too), so the
+   host lists the monitors (`GET /racing-desk/data/monitors`, `Monitors.cs`, `EnumDisplayMonitors`: `[ { x, y, width,
+   height, primary } ]` in physical pixels; 500 when Windows will not list them). `hud-display` asks it once for each
+   layout of the screens that has a screen not at 100 % (with all at 100 % a DIP is a pixel and nothing is asked), in
+   the same round as the sim's window and with the same limit, pairs each monitor with the screen most of it lies on
+   (`matchMonitors`; a pair must agree on its size within a step, and a screen two monitors claim is left) and names the
+   screens by the sizes it gives: "1440 × 1080 (left, primary)". Until it has, and where it does not, a scaled screen is
+   named by the estimate and says "about": "about 1440 × 1082 (left, primary)". Asked again at the next round if it did
+   not say, and when the layout changes; the Settings page (`describe`) waits for it for the same 0.8 s.
+
+   **When it is decided:** at start, with no host asked (the sim is probably not running, and a window made on the
+   right screen has nowhere to jump from); each time he gets in the car, and **before the window is revealed** —
+   `hud-visibility` waits for `beforeReveal` (`hudScreen.refresh()`; `PREPARE_WITHIN_MS`, 2.5 s at the outside: a round
+   is 0.8 s at the most, and one already under way when he gets in is followed by one more, so it is two; a hook that
+   throws or hangs never keeps the HUD off) so it does not come up on the primary and then move; whenever a screen is
+   added, removed or changes (`display-added`, `display-removed`, `display-metrics-changed` for any screen, not only the
+   primary); when `hudDisplay` changes (the desk's save waits for it, so the page can say where the HUD went); and by
+   Ctrl+Shift+R and the `reset-window` action, which put the window back on the screen the rule chooses. A run of
+   asks made while one is under way is one more run, with the screens as they then are.
+   **What is moved:** the window covers the screen's full bounds on Windows and its `workArea` on macOS (as before),
+   moved with `setBounds` — hidden or not, never shown or hidden by this module, which is `hud-visibility`'s alone.
+   On a screen of another scale the first `setBounds` can leave the old size, so the bounds are looked at and set
+   again, three tries at most, and within 2 px is right. Dev mode's window is `dev-mode.js`'s and is left as it put
+   it (no host is asked either). Logged once per change: `HUD screen: 3440 × 1440 (right) — iRacing is running on
+   it`, and the screens (`Screens: about 1440 × 1082 at 175% (0, 0), primary; 3440 × 1440 at 100% (823, 0)`, and again
+   as `1440 × 1080` when the host has given the panel's size). When the screens, or where the HUD is and why, change, the
+   desk window is told (`hud-displays-changed`, `onHudDisplaysChanged` in the preload) and the Settings page, if it is
+   showing, reads the HUD screen list again in place. Not verified in the app (no window is opened here): that
+   Electron's `screenToDipRect` and `setBounds` agree across the two scales on this rig, and the screen key's
+   stability; the real `EnumDisplayMonitors` was run once on this machine (one screen then), not on both screens; the
+   rule, the wiring and the host's routes are tested, the Electron calls are not.
 
 **The main process's log** (`logToFile` in `main.js`, `modules/js/app-log.js`, `tests/unit/hud-log.spec.mjs`): in
 the built app `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside `host.log` — it was written beside `main.js`, which

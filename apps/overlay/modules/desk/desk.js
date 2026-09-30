@@ -619,13 +619,41 @@
     if (bridge) {
       try { saved = await bridge.getSettings(); } catch (_) { saved = null; }
     }
-    const sections = SettingsModel.settingsView(saved || {});
+    const sections = SettingsModel.settingsView(saved || {}, { hudScreens: await hudScreensNow(bridge) });
     $('settings-note').hidden = !!bridge;
     $('settings-sections').innerHTML = SETTINGS_COLUMNS.map((ids) => `<div class="settings-col">${ids.map((id) => {
       const section = sections.find((s) => s.id === id);
       return `<section class="card" id="settings-${esc(id)}"><h2>${esc(section.title)}</h2>${section.fields.map((f) => fieldHtml(f, !bridge)).join('')}</section>`;
     }).join('')}</div>`).join('');
     await renderRemote();
+  }
+
+  // The screens the HUD can be on, and the one it is on, as the app says (main.js get-hud-displays). Null outside the
+  // app, or from one that has no such call: the HUD screen then offers Automatic alone.
+  async function hudScreensNow(bridge) {
+    if (!bridge || typeof bridge.getHudDisplays !== 'function') return null;
+    try {
+      const answer = await bridge.getHudDisplays();
+      return answer && typeof answer === 'object' ? answer : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // The HUD screen's control and the note under it, read again: after the HUD's screen is changed (the app has moved the
+  // HUD by the time the save is answered, and a choice that was not connected is gone from the list once it is
+  // Automatic), and when the app says the screens, or where the HUD is, have changed while the page is open. The
+  // control is kept and its options replaced, so it keeps the focus.
+  async function refreshHudScreenField() {
+    const select = $('setting-hudDisplay');
+    const note = $('setting-hudDisplay-note');
+    const bridge = settingsBridge();
+    if (!select || !note || !bridge) return;
+    const saved = (await bridge.getSettings()) || {};
+    const field = SettingsModel.settingsView(saved, { hudScreens: await hudScreensNow(bridge) }).flatMap((section) => section.fields).find((f) => f.key === 'hudDisplay');
+    select.innerHTML = optionsHtml(field);
+    select.value = field.value;
+    note.textContent = field.note || '';
   }
 
   // ── The HUD on an iPad ───────────────────────────────────
@@ -735,6 +763,10 @@
     changeRemote((bridge) => bridge.renewRemoteServerKey());
   }
 
+  function optionsHtml(f) {
+    return f.options.map(([v, label]) => `<option value="${esc(v)}"${v === f.value ? ' selected' : ''}>${esc(label)}</option>`).join('');
+  }
+
   function fieldHtml(f, disabled) {
     const id = 'setting-' + f.key;
     const attrs = `id="${id}" data-key="${esc(f.key)}"${disabled ? ' disabled' : ''}`;
@@ -744,7 +776,7 @@
         control = `<input type="checkbox" class="switch" ${attrs}${f.value ? ' checked' : ''}>`;
         break;
       case 'select':
-        control = `<select ${attrs}>${f.options.map(([v, label]) => `<option value="${esc(v)}"${v === f.value ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select>`;
+        control = `<select ${attrs}>${optionsHtml(f)}</select>`;
         break;
       case 'range':
         control = `<input type="range" ${attrs} min="${f.min}" max="${f.max}" step="${f.step}" value="${f.value}"><output for="${id}" class="num">${f.value}${esc(f.unit)}</output>`;
@@ -758,6 +790,7 @@
     return `<div class="field">
       <label class="name" for="${id}">${esc(f.label)}</label>
       ${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}
+      ${f.screens ? `<span class="hint" id="${id}-note" role="status">${esc(f.note || '')}</span>` : ''}
       <span class="control">${control}</span>
     </div>`;
   }
@@ -774,6 +807,7 @@
       settings[key] = value;
       await bridge.saveSettings(settings);
       settingsStatus('Saved — the HUD has it.');
+      if (key === 'hudDisplay') await refreshHudScreenField();
     }).catch((err) => settingsStatus(`Not saved: ${err.message}`));
     return settingsSave;
   }
@@ -836,6 +870,10 @@
   });
   window.addEventListener('hashchange', () => showPage(pageFromHash()));
   if (window.racingDesk && window.racingDesk.onShowPage) window.racingDesk.onShowPage((page) => showPage(page));
+  // A screen plugged in or taken out, or the HUD moved, while Settings is open: the HUD screen's list is read again.
+  if (window.racingDesk && window.racingDesk.onHudDisplaysChanged) {
+    window.racingDesk.onHudDisplaysChanged(() => { if (currentPage === 'settings') refreshHudScreenField().catch(() => {}); });
+  }
   $('settings-sections').addEventListener('change', onSettingChange);
   $('settings-remote').addEventListener('change', onRemoteChange);
   $('settings-remote').addEventListener('click', onRemoteClick);
