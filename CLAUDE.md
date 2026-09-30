@@ -358,7 +358,8 @@ layouts. The rule, in the order it is applied:
    that Windows keeps it across a restart or a replug has not been checked on this rig, and if it does not the choice
    reads as not connected and Automatic does the work.
 2. **The screen the sim's window is on**, while the sim runs. Electron cannot see another program's windows, so the
-   app's own host says (`GET /racing-desk/data/simwindow`, `apps/host/RacingDesk.Host/SimWindow.cs`): the main window of
+   app's own host says (`GET /racing-desk/data/simwindow`: the lookup is `apps/core/RacingDesk.Core/Screens/SimWindow.cs`,
+   the answer `apps/host/RacingDesk.Host/SimWindow.cs`): the main window of
    `iRacingSim64DX11` or `iRacingSim64` — its frame (`DWMWA_EXTENDED_FRAME_BOUNDS`, else `GetWindowRect`) and the monitor
    Windows has most of it on, in **physical pixels**, or JSON `null` when there is no such window on screen (the sim
    closed, minimized, or gone between being listed and being asked). A look that cannot be made at all — the process
@@ -389,7 +390,8 @@ layouts. The rule, in the order it is applied:
    says so. The sim not running is an answer (`null`), and the ini decides too.
 
    **The screens' sizes.** Electron's are DIPs and cannot be turned back into pixels (1439 is 823 wide too), so the
-   host lists the monitors (`GET /racing-desk/data/monitors`, `Monitors.cs`, `EnumDisplayMonitors`: `[ { x, y, width,
+   host lists the monitors (`GET /racing-desk/data/monitors`; `EnumDisplayMonitors` in `RacingDesk.Core/Screens/Monitors.cs`,
+   the answer in the host's `Monitors.cs`: `[ { x, y, width,
    height, primary } ]` in physical pixels; 500 when Windows will not list them). `hud-display` asks it once for each
    layout of the screens that has a screen not at 100 % (with all at 100 % a DIP is a pixel and nothing is asked), in
    the same round as the sim's window and with the same limit, pairs each monitor with the screen most of it lies on
@@ -419,6 +421,32 @@ layouts. The rule, in the order it is applied:
    Electron's `screenToDipRect` and `setBounds` agree across the two scales on this rig, and the screen key's
    stability; the real `EnumDisplayMonitors` was run once on this machine (one screen then), not on both screens; the
    rule, the wiring and the host's routes are tested, the Electron calls are not.
+
+   **A recording follows the HUD's screen, and the ambient colour the sim's window** (both looked at the primary or the
+   first screen, always, until 2026-09-29). With the sim running and no screen chosen in Settings the two are the same
+   screen. They differ when he has chosen a screen for the HUD that is not the sim's (the recording is of the chosen
+   screen, the colour is sampled on the sim's, with the region's ratios taken from the HUD's window on the chosen one),
+   and while the sim has no window (the HUD is where the ini or the size puts it, the colour is sampled on the primary).
+   - **A recording** (`recorder.js`'s `getDisplayMedia`, granted without a picker by `setDisplayMediaRequestHandler` in
+     `main.js`) is of the screen the HUD is on: `modules/js/capture-screen.js` matches desktopCapturer's sources to
+     `hudScreen.currentKey()` — the screen the rule last chose, which asks nothing — by `display_id`, which on Windows is
+     Electron's `display.id` as text (Electron's documentation says so; not yet seen on this rig). While the rule has not
+     run, or no source is that screen (it has gone, or the platform's ids do not agree), it is the first screen; the log
+     says which and why (`Screen recording: the HUD's screen (Screen 2)`), and where none matched, the key and every
+     source's `display_id`, so ids that never agree show. In dev mode the key is the rule's choice, not where `dev-mode.js`
+     put the window. `tests/unit/capture-screen.spec.mjs`, and the wiring in `hud-main-wiring.spec.mjs`.
+   - **The ambient colour** (`RacingDesk.Core/Engine/ScreenColorSampler.cs`, in the app's host and in the SimHub plugin
+     alike) is sampled on the monitor the sim's window is on — `RacingDesk.Core/Screens/SimMonitor.cs`, with the same
+     lookup the `simwindow` route makes (it and the monitors' lookup moved from the host into `RacingDesk.Core/Screens/`
+     so both can use them) — and, if the sim's window names no monitor, the listed monitor with most of it; while the sim
+     has no window on screen or the look fails, the primary monitor, from the same `EnumDisplayMonitors` list the
+     `monitors` route gives. Looked for again every 2 s at most (it lists every process; the sampler runs four times a
+     second), and at once after a capture fails — once: a capture that goes on failing (the screen locked) waits the 2 s. The lookup and the capture are both made per-monitor aware on the
+     sampler's own thread, so they agree in physical pixels on screens of different scales; the region the HUD sets is
+     ratios of that monitor, from its own corner. Logged once per change (`ScreenColor: sampling the monitor iRacing is
+     on, 3440x1440 at (0, 0)`). `tests/…/Screens/SimMonitorTests.cs`, with fake window and monitor sources. Not verified
+     on the rig: a capture of the sim's screen beside the 175 % one, and a recording of it — nothing was built or
+     captured here — and the SimHub plugin samples the sim's monitor only once it has been installed again.
 
 **The main process's log** (`logToFile` in `main.js`, `modules/js/app-log.js`, `tests/unit/hud-log.spec.mjs`): in
 the built app `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside `host.log` — it was written beside `main.js`, which
