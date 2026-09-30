@@ -7,6 +7,8 @@
 // iRacing's own paints are uncompressed 24-bit, but a paint folder collects files from everywhere, so run-length
 // encoding, 16- and 32-bit colour and greyscale are all handled. Colour-mapped TGAs are refused by name rather
 // than rendered as noise. As in the Rust, the alpha channel of a 32-bit file is dropped: the preview is opaque RGB.
+// The one reader that wants it — the crop behind the HUD's car badge (logo-livery-picker.js), which must not choose
+// a window that is mostly transparent — asks for it with `keepAlpha`, and gets it as a channel of its own.
 //
 // Decoding 2048x2048 and shipping it to a 280-pixel card would waste most of the work, so the result is
 // downscaled and cached as PNG against the file's size and modification time. The PNG encoder is the few dozen
@@ -70,8 +72,9 @@ function pixelToRgb(src, off, bits, out, o) {
   }
 }
 
-// Decode a TGA into { width, height, rgb }: tightly packed RGB, top row first.
-function decode(bytes) {
+// Decode a TGA into { width, height, rgb }: tightly packed RGB, top row first. With `keepAlpha`, a 32-bit file's
+// alpha comes too, as `alpha` (one byte a pixel, the same order); any other depth has no alpha and gives none.
+function decode(bytes, { keepAlpha = false } = {}) {
   const b = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
   const h = readHeader(b);
 
@@ -104,6 +107,7 @@ function decode(bytes) {
   const data = b.subarray(start);
 
   const rgb = Buffer.alloc(pixels * 3);
+  const alpha = keepAlpha && h.bits === 32 ? Buffer.alloc(pixels) : null;
 
   if (rle) {
     let src = 0;
@@ -118,17 +122,22 @@ function decode(bytes) {
         // Run: one pixel repeated.
         if (src + bpp > data.length) throw other('This TGA ends mid-way through a run.');
         pixelToRgb(data, src, h.bits, one, 0);
+        const a = alpha ? data[src + 3] : 0;
         src += bpp;
         for (let i = 0; i < count; i++) {
           const o = (done + i) * 3;
           rgb[o] = one[0];
           rgb[o + 1] = one[1];
           rgb[o + 2] = one[2];
+          if (alpha) alpha[done + i] = a;
         }
       } else {
         const need = count * bpp;
         if (src + need > data.length) throw other('This TGA ends mid-way through a block.');
-        for (let i = 0; i < count; i++) pixelToRgb(data, src + i * bpp, h.bits, rgb, (done + i) * 3);
+        for (let i = 0; i < count; i++) {
+          pixelToRgb(data, src + i * bpp, h.bits, rgb, (done + i) * 3);
+          if (alpha) alpha[done + i] = data[src + i * bpp + 3];
+        }
         src += need;
       }
       done += count;
@@ -136,25 +145,33 @@ function decode(bytes) {
   } else {
     const need = pixels * bpp;
     if (data.length < need) throw other('This TGA is shorter than its header claims.');
-    for (let i = 0; i < pixels; i++) pixelToRgb(data, i * bpp, h.bits, rgb, i * 3);
+    for (let i = 0; i < pixels; i++) {
+      pixelToRgb(data, i * bpp, h.bits, rgb, i * 3);
+      if (alpha) alpha[i] = data[i * bpp + 3];
+    }
   }
 
   // Bit 5 of the descriptor: set means the first row stored is the top one. Paint files are usually bottom-up,
   // and getting this wrong silently shows the car upside down.
   const topDown = (h.descriptor & 0x20) !== 0;
   if (!topDown) {
-    const stride = h.width * 3;
-    const row = Buffer.alloc(stride);
-    for (let y = 0; y < Math.floor(h.height / 2); y++) {
-      const top = y * stride;
-      const bottom = (h.height - 1 - y) * stride;
-      rgb.copy(row, 0, top, top + stride);
-      rgb.copy(rgb, top, bottom, bottom + stride);
-      row.copy(rgb, bottom);
-    }
+    flipRows(rgb, h.width * 3, h.height);
+    if (alpha) flipRows(alpha, h.width, h.height);
   }
 
-  return { width: h.width, height: h.height, rgb };
+  return alpha ? { width: h.width, height: h.height, rgb, alpha } : { width: h.width, height: h.height, rgb };
+}
+
+// Turn a buffer of `height` rows of `stride` bytes upside down, in place.
+function flipRows(buf, stride, height) {
+  const row = Buffer.alloc(stride);
+  for (let y = 0; y < Math.floor(height / 2); y++) {
+    const top = y * stride;
+    const bottom = (height - 1 - y) * stride;
+    buf.copy(row, 0, top, top + stride);
+    buf.copy(buf, top, bottom, bottom + stride);
+    row.copy(buf, bottom);
+  }
 }
 
 // Average down to fit `maxEdge`, so a 2048 sheet does not travel to a 280-pixel card.

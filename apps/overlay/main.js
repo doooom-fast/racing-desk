@@ -28,6 +28,7 @@ const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
 const { createCarNames } = require('./modules/js/paints/car-names');
 const rigApi       = require('./modules/js/rig-api');
+const logoLivery   = require('./modules/js/logo-livery');
 
 // ── Log ─────────────────────────────────────────────────────
 // From source, racing-desk-debug.log beside this file. In the built app, overlay.log beside the host's log in
@@ -339,7 +340,8 @@ const hud = hudVisibility.createHudVisibility({
   onInCar: (inCar) => hudKeys.hold(inCar),
   // Got in: the window is put on the screen the sim is on before it is revealed, not after.
   beforeReveal: () => hudScreen.refresh(),
-  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
+  // The same answer is what the livery behind the car badge goes by (livery, below): which car he is in, and when.
+  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()).then((payload) => { livery.feed(payload); return payload; }),
   loadPage: () => loadDashboard(),
   keepVisible: isDev,
   onSwitch: () => tickHudSwitch(),
@@ -584,6 +586,8 @@ async function startRemoteServer(port) {
       telemetryUrl: settings.simhubUrl,
       key: remoteServerKey(),
       log: logToFile,
+      // The crop behind the car badge, for the iPad, from this process's memory (livery, below).
+      crop: () => livery.current(),
     });
   } catch (err) {
     remoteServerError = err.message;
@@ -1512,8 +1516,9 @@ ipcMain.handle('get-dashboard-mode', async () => {
 // the host the app found or started serves the names at /racing-desk/data/cars. Asked with a 3 s limit and kept
 // for a minute; with no host answering the list shows folder names. The install is the one the iracing://
 // registration points at, unless `paints.installDir` in overlay-settings.json names another.
+const carNames = createCarNames({ host: () => hostUrl || localHostUrl() });
 const paintsCommands = paints.createCommands({
-  carNames: createCarNames({ host: () => hostUrl || localHostUrl() }),
+  carNames,
   installRoot: () => (loadSettingsSync().paints || {}).installDir,
   // The hashes of the library's paints, beside the backups: a library is hundreds of files, hashed in this
   // process, and is hashed once.
@@ -1534,6 +1539,30 @@ const paintsStore = {
   // Refuses when the file is there but unreadable, rather than replace the HUD's settings with { paints }.
   set: (obj) => saveSettingsKeySync('paints', obj),
 };
+
+// ── The livery behind the car badge (modules/js/logo-livery.js) ──
+// The square under the car's logo on the HUD shows a section of the paint the sim is showing on his car — the
+// paint folder's car_<customer id>.tga for the car he is in, cropped to a window with artwork in it — chosen here,
+// in a worker, when he gets in the car and when the car changes, and never by the page: the page reads no file and
+// builds no path. It is handed to the HUD's page as a data URL (logo-livery, and get-logo-livery for a page that
+// loaded after), and served to the iPad from memory at one fixed address (remote-server.js, /livery-crop.png). The
+// paint folder and the customer id are the desk's paint settings; the car's folder is what the host's car-controls
+// key names, or the store's name for the car. With any of the three missing the badge is the maker's colour, as it
+// was. No log line carries the customer id or the paint's path.
+const livery = logoLivery.createLogoLivery({
+  paintDir: () => (loadSettingsSync().paints || {}).paintDir,
+  customerId: () => (loadSettingsSync().paints || {}).customerId,
+  carNames,
+  onCrop: (crop) => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('logo-livery', crop ? crop.dataUrl : null);
+  },
+  log: logToFile,
+});
+
+ipcMain.handle('get-logo-livery', async () => {
+  const crop = livery.current();
+  return crop ? crop.dataUrl : null;
+});
 
 // These are the desk window's. The HUD shares the preload, and has no business with the paint folder.
 const fromDesk = (event) => !!deskWindow && !deskWindow.isDestroyed() && event.sender === deskWindow.webContents;

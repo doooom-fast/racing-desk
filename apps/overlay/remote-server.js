@@ -10,6 +10,9 @@
 //                           theirs: a request carrying a query (?action=…) is refused, so nothing on the network
 //                           can change a setting, a pedal profile or the wheel base through here
 //   GET /modules/… /images/… /fonts/…   what the page is made of, and no other file of the app's
+//   GET /livery-crop.png    the crop of the car's paint behind the HUD's car badge, as the main process holds it in
+//                           memory (modules/js/logo-livery.js): one fixed address, no query, nothing from disk, and
+//                           404 while there is none. The page asks for it again when the car changes
 //   GET /api/action/<name>  the HUD's actions, for a program on this machine (a Stream Deck button), which says so
 //                           with the header X-Racing-Desk: 1. Refused to anything that comes over the network, and
 //                           to anything a browser sends: a page cannot put that header on a link, an image or a
@@ -29,6 +32,8 @@ const DEFAULT_PORT = 9090;
 const TELEMETRY_DEFAULT = 'http://localhost:8889';
 const TELEMETRY_PATH = '/racing-desk/';
 const DASHBOARD_FILE = 'dashboard.html';
+// The crop behind the car badge, from memory (never a file): the page asks for it here and nowhere else.
+const CROP_PATH = '/livery-crop.png';
 const PROXY_TIMEOUT_MS = 3000;
 const ACTION_HEADER = 'x-racing-desk';
 // Asking Windows for its adapters takes a couple of milliseconds of the main process; the answer keeps.
@@ -407,7 +412,8 @@ function proxyTelemetry(config, res) {
 }
 
 // The whole of what the server does with a request. `config` is { appDir, telemetryBase, key, dispatchAction,
-// addresses() } — and `get`, for the tests, in place of http.get.
+// addresses(), crop() } — and `get`, for the tests, in place of http.get. `crop()` is the crop of the car's paint
+// behind the badge as the main process holds it, { png, id } or null; left out, there is never one.
 function handleRequest(config, req, res) {
   let url;
   let pathname;
@@ -466,6 +472,30 @@ function handleRequest(config, req, res) {
       return;
     }
     proxyTelemetry(config, res);
+    return;
+  }
+
+  // The crop behind the car badge: what the main process holds, whole, from memory. The address is the one and
+  // takes no query; nothing in the request names a file, and nothing on disk is read for it.
+  if (pathname === CROP_PATH) {
+    if (url.search.length) {
+      sendText(res, 404, 'Not found');
+      return;
+    }
+    let crop = null;
+    try { crop = typeof config.crop === 'function' ? config.crop() : null; } catch (e) { crop = null; }
+    if (!crop || !Buffer.isBuffer(crop.png) || !crop.png.length) {
+      sendText(res, 404, 'No livery crop to show.');
+      return;
+    }
+    res.writeHead(200, {
+      ...NO_STORE,
+      'Content-Type': 'image/png',
+      'Content-Length': crop.png.length,
+      // The page keeps the crop it has when it is told the same one again; the tag says which it is and no more.
+      ETag: `"${String(crop.id == null ? crop.png.length : crop.id).replace(/[^\w.-]/g, '')}"`,
+    });
+    res.end(crop.png);
     return;
   }
 
@@ -540,7 +570,8 @@ function getInfo() {
   };
 }
 
-// opts: { port, appDir, telemetryUrl (as the settings hold it), key, log, host (the tests' — 127.0.0.1) }
+// opts: { port, appDir, telemetryUrl (as the settings hold it), key, log, crop (the badge's crop, from memory),
+// host (the tests' — 127.0.0.1) }
 function start(opts = {}) {
   if (_server) return Promise.resolve(getInfo());
   // Two starts at once are one start: the second would otherwise leave a listener nothing could stop.
@@ -570,6 +601,7 @@ function listen(opts) {
       get dispatchAction() { return _dispatchAction; },
       addresses: () => keptAddresses(),
       names: () => [os.hostname()],
+      crop: typeof opts.crop === 'function' ? opts.crop : () => null,
     };
     const server = http.createServer((req, res) => {
       try {
@@ -627,7 +659,7 @@ function setActionDispatcher(fn) {
 }
 
 module.exports = {
-  DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM,
+  DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM, CROP_PATH,
   start, stop, isRunning, getInfo, getLanAddress, setActionDispatcher,
   // The parts, for the tests.
   newKey, isKey, lanAddresses, telemetryBase, namesThisMachine, isLocal, fromBrowser, staticFile, injectRemoteOverrides,

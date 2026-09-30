@@ -86,6 +86,24 @@ test.describe('decode', () => {
     }
   });
 
+  test('keepAlpha: a 32-bit file\'s alpha comes as a channel of its own, flipped with the rows; other depths give none', () => {
+    // Two rows of one pixel, bottom-up: the row stored first is the bottom one, red at alpha 10; the top is
+    // green at alpha 250.
+    const bottomUp = Buffer.concat([header({ w: 1, h: 2, bits: 32, imageType: 2, topDown: false }), Buffer.from([0, 0, 255, 10, 0, 255, 0, 250])]);
+    const img = tga.decode(bottomUp, { keepAlpha: true });
+    expect([...img.rgb]).toEqual([0, 255, 0, 255, 0, 0]);
+    expect([...img.alpha]).toEqual([250, 10]);
+    // Without asking, the alpha is dropped as it always was.
+    expect(tga.decode(bottomUp).alpha).toBeUndefined();
+    // Run-length packets carry it too: a run of two at alpha 30, then one literal at alpha 200.
+    const rle = Buffer.concat([header({ w: 3, h: 1, bits: 32, imageType: 10, topDown: true }), Buffer.from([0x80 | 1, 0, 0, 255, 30, 0, 0, 255, 0, 200])]);
+    const run = tga.decode(rle, { keepAlpha: true });
+    expect([...run.rgb]).toEqual([255, 0, 0, 255, 0, 0, 0, 255, 0]);
+    expect([...run.alpha]).toEqual([30, 30, 200]);
+    // 24-bit, 16-bit and greyscale files have no alpha to keep.
+    for (const bits of [24, 16, 8]) expect(tga.decode(build(CARD, { bits }), { keepAlpha: true }).alpha, `${bits}-bit`).toBeUndefined();
+  });
+
   test('16-bit colour widens so white stays white, and greyscale spreads across the channels', () => {
     const img16 = tga.decode(build(CARD, { bits: 16 }));
     expect(Buffer.compare(img16.rgb, CARD_RGB)).toBe(0);

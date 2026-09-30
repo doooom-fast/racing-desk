@@ -502,7 +502,9 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
 - **Read-only from the network.** GET and HEAD only. `/racing-desk/` is proxied to the telemetry the HUD itself
   reads (`localhost:8889`, or a saved `simhubUrl` that ends in `/racing-desk/`) and a request carrying a query is
   refused — the plugin and host take `?action=…` on that same path, wheel-base settings among them, and none of it
-  can be reached through here. Files are served from `modules/`, `images/` and `fonts/` only.
+  can be reached through here. Files are served from `modules/`, `images/` and `fonts/` only; the one other thing
+  served is the crop of his paint behind the car badge, from the main process's memory at `/livery-crop.png` (The
+  livery behind the car badge, below) — no query, nothing from disk, 404 while there is none.
 - **A key in the address.** `http://<rig>:9090/?k=<8 characters>`; the page hands it back as a cookie. Made the
   first time the server starts and kept in `overlay-settings.json` (`remoteServerKey`, with `remoteServer` and
   `remoteServerPort`). Those three are the main process's own: `save-settings` keeps what is on disk for them
@@ -536,6 +538,29 @@ whatever the driver is doing — so nothing but the driver's own switch ever sta
 `modules/js/qr-code.js` (version 3-M, 42 bytes at most); `tests/unit/qr-code.spec.mjs` reads it back by the
 standard's rules, since no reader is on hand. A page cannot keep an iPad awake over plain http, so the card says to
 set Auto-Lock to Never.
+
+**The livery behind the car badge** (`modules/js/logo-livery.js`; asked for 2026-09-30: "the splash of color beneath
+the car logo to be the livery preview cropped to a random artwork filled section"). The square under the car's logo
+on the HUD — the rig's, and the glance layout's on the rig and the iPad — was a flat splash of the maker's colour.
+Now it is a section of the paint the sim is showing on his car: `Documents\iRacing\paint\<car>\car_<customer id>.tga`,
+the very bytes the sim reads, cropped to a window with artwork in it and laid under the logo, with a darkening over
+it so the mark and the car's name read on any paint. **The main process chooses it, never the page**: the page reads
+no file and builds no path. It is chosen from the same telemetry answer `hud-visibility` shows the HUD by — when he
+gets in the car, and when the car changes while he is in it, once each — and kept until the next of those, so it
+does not flicker; the choice is random among the best few windows, so each time he gets in the car it is another
+section. Getting out keeps the last crop (the HUD is hidden then; the iPad shows the last car). The car's folder is
+what the host's car-controls key names for a car the list has (`car`), else the store's name for the telemetry's
+model (`/racing-desk/data/cars`); the paint folder and the customer id are the desk's paint settings (`paints` in
+`overlay-settings.json`, which the Cars page fills from detection the first time it is opened). **With any of the
+three missing, no paint for the car, a paint that cannot be read, or a paint with no artwork, the badge is the
+maker's colour, as it was.** The paint is read and decoded (`paints/tga.js`) in a worker thread
+(`logo-livery-worker.js`), one at a time, so the process that owns the HUD's windows never stops to look at sixteen
+megabytes; a newer car supersedes a pick under way, whose answer is dropped. The worker refuses a file over 70 MB and
+any file outside the paint folder, by the path and by what the path really is (a junction elsewhere). What leaves
+the main process is the crop alone: a 512-pixel PNG, handed to the HUD's page as a data URL (`logo-livery`, and
+`get-logo-livery` for a page that loaded after), and served to the iPad from memory at `/livery-crop.png` (above).
+**No log line carries the customer id or the paint's path**; the reasons the worker gives back have no path in them.
+The picker's rules and the page's side are in `apps/overlay/CLAUDE.md`, The livery behind the car badge.
 
 **Cars** is the one list of cars and the one place to look at a car: its liveries, the view it is driven with, its
 pedals. The list is on the left — every car the rig knows, by the sim's name for it, cars with a livery first, a

@@ -52,6 +52,9 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `laps-panel.js` | The glance layout's laps panel: the times, the sectors, the three gaps and the fuel to the flag (see The glance layout) |
 | `gap-trend.js` | Whether the cars ahead and behind are closing or dropping away, lap on lap: the ▼ or ▲ beside their iRating in the gaps block of the glance layout (see The glance layout) |
 | `session-flags.js` | iRacing's own flag field (`SessionFlags`, the host's `DataCorePlugin.GameRawData.Telemetry.SessionFlags`) read into the flag the page shows: a local yellow apart from a full-course caution, one lap to green, green held, the black flag furled, disqualified, the small notices and the start lights (see Flags) |
+| `logo-livery.js` | **Main process only**: the crop of his own paint behind the car badge — which paint, when it is chosen, what is kept and handed to the page and the iPad (see The livery behind the car badge) |
+| `logo-livery-picker.js` | Pure: the window of a paint sheet with artwork in it, scored, and the crop of it; runs in the worker and in Node tests |
+| `logo-livery-worker.js` | A worker thread: reads one paint inside the paint folder, decodes it with `paints/tga.js`, asks the picker, answers with the PNG and no path |
 
 Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
 
@@ -144,7 +147,8 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   yellow and red surface flag), moving slowly on a composited layer, and the glass of every panel takes its colour, over
   a base that is opaque (a chequered board at four in a hundred showed through it, and lowered the contrast of the
   gaps); the car's badge is its maker's colour over an opaque base (`car-logos.js` sets it as `--logo-tint` beside its
-  inline background, which a stylesheet cannot get under); gone when the flag clears. A blue flag rings the screen and
+  inline background, which a stylesheet cannot get under), and under the logo the crop of his own paint where there is
+  one (The livery behind the car badge, below), whose darkening takes the glass's colour too; gone when the flag clears. A blue flag rings the screen and
   leaves the panels as they are. **Which flag it is comes from iRacing's own flag field** where the host sends it
   (`session-flags.js`, Flags below): a full-course caution (`data-flag="caution"`) has the whole treatment, a local yellow
   (`localyellow`) is the lighter one — thin yellow stripes round the edge, the panels left as they are — one lap to green
@@ -284,6 +288,58 @@ there is, with no such key** (a SimHub plugin from before it, a replay, the demo
   grid's own phases 6 and 7 do (`formation.js`), where the plugin's own `LightsPhase` says nothing (0) and it is not
   qualifying or the demo. Ready and hidden draw nothing new. The mapping of set to "all red" is by the names; it has not been
   watched against a real standing start.
+
+## The livery behind the car badge (`#carLogoSquare`, `#carLivery`)
+
+The square under the car's logo shows a section of the paint the sim is showing on his car, under the logo and the
+car's name, over the maker's colour: the root CLAUDE.md (Desk, The livery behind the car badge) has what is chosen
+and when, and why the main process and never the page does it. This is the page's side and the picker's.
+
+- **The page** (`car-logos.js`): `#carLivery` is the first child of the square (dashboard.html), `.car-livery` in
+  `dashboard.css` — absolute over the whole square, `background-size: cover`, its `::after` a radial and a vertical
+  darkening (16 to 62 in 100 black) so the mark and the name read on any paint, faded in over 0.6 s; the logo and the
+  name sit at `z-index: 1` above it, and the maker's flag canvas, which comes after it in the square, is drawn over
+  it. `setCarLivery(url)` sets the layer's `background-image` and `.has-livery` on the square, or empties both for
+  anything that is not a string: the maker's colour set on the square shows through. In the app the preload's
+  `onLogoLivery` (the main process's `logo-livery` message, the data URL or null) and `getLogoLivery` (for a page that
+  loaded after the crop was chosen) are all it listens to. In the glance layout (`drive-view.css`) the darkening takes
+  the glass's colour as the panels do, and more of it under a flag, over an opaque base — the crop is opaque, so the
+  flag's pattern shows through the badge no more than it did.
+- **On an iPad** the page asks the rig for it: `requestRemoteLivery()`, called by `poll-engine.js` where the car's
+  model changes (in remote mode only), fetches `/livery-crop.png` from the page's own origin — the one address, no
+  query, the key's cookie — at 0, 0.8, 2.5, 6 and 14 s, because the rig chooses a new crop once it has seen the same
+  change and takes a moment over it; an ask before it has gets the last car's crop or a 404, and the asks after put
+  that right. A 200 is shown as a blob URL (the one before is revoked), a 404 empties the layer, and the same crop
+  told again (its `ETag`, the crop's id) is kept as it is. Nothing else is fetched for it.
+- **The picker** (`logo-livery-picker.js`, `chooseWindow` / `chooseCrop`): the sheet is averaged down to 320 across,
+  every pixel gets a luminance, an edge (a step of 24 or more to the next pixel) and a hue bin (twelve round the
+  wheel, three lightnesses for the grey and the near-black), and every window of the badge's shape at 15, 22, 30 and
+  40 in 100 of the shorter edge, stepped a quarter of its width, is scored: edges above all (`0.5 × min(1, edges / 0.3)`),
+  then the spread of its colours (`0.3`), then its count of hues (`0.2`), less what the base or the ground covers past
+  half the window. **Put out**: a window mostly transparent (mean alpha under a half; `tga.decode` keeps a 32-bit
+  file's alpha when asked, `keepAlpha`), one whose commonest colour covers more than 55 in 100 (the base coat), one
+  more than half the sheet's own commonest colour (the template's empty ground) — **unless it is busy throughout**:
+  edges on 15 in 100 of its pixels or more, and the base under 80 in 100. That exemption is what finds the
+  wordmark on a black car: on his Lotus 79 the wordmark windows are seven-tenths black with edges on four-tenths of
+  their pixels, and the rule without it chose nothing on the Lotus, the Nissan GTP and the MX-5's orange-and-white
+  (2026-09-30, the library's paints). Then a window of one hue, and one scoring under 0.5 (dull: two flat colours
+  meeting along a line score about 0.35; his shard fields 0.76 to 0.92, the Lotus's wordmarks about 0.6). The
+  choice is random among the best five that are not the same spot (no two overlapping by more than 35 in 100 of the
+  smaller) and none under 0.7 of the best; the worker is given a seed from the main process's random, so a choice
+  can be repeated in a test (`seeded`). The crop is the window averaged down to 512 across. Sponsor marks come out as
+  the sheet has them, which on some panels is upside down: the sheet is the car unwrapped, and nothing here knows
+  which way a panel faces.
+- **Tests**: `tests/unit/logo-livery-picker.spec.mjs` (sheets made up in the test: a flat body with one busy patch
+  picks the patch; a flat paint, a noisy one, two colours along a line, a transparent sheet give nothing; a two-colour
+  shard field and a mark across the ground are in; the choice random among the best few and the same for the same
+  random; the badge's shape held inside the sheet), `tests/unit/logo-livery.spec.mjs` (the keeper and the real worker
+  over TGAs written to a temp folder: what the payload names, once per car, the paint folder never left, the cap, no
+  id or path in the log), `tests/unit/logo-livery-page.spec.mjs` (the real page: in the app, in a browser, and on an
+  iPad through the real server), the crop's address in `tests/unit/remote-server.spec.mjs`, `keepAlpha` in
+  `tests/unit/paints-tga.spec.mjs`. The golden frames have no paint (their fixture names no car the rig has), so
+  they are unchanged.
+- **Not built**: the helmet and the suit (they come with the livery he applies, not from here); a preview of the
+  crop on the desk; preferring a panel that faces the right way up.
 
 ## The delta: what the gap is against
 

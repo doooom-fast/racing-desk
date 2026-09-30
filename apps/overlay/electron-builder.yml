@@ -34,6 +34,12 @@ extraResources:
 
 asarUnpack:
   - node_modules/ffmpeg-static/**/*
+  # The worker that crops the car's paint for the HUD's badge (modules/js/logo-livery.js) is started by file path,
+  # from the unpacked copy, with the files it requires beside it.
+  - modules/js/logo-livery-worker.js
+  - modules/js/logo-livery-picker.js
+  - modules/js/paints/tga.js
+  - modules/js/paints/error.js
 
 icon: images/branding/icon.png
 

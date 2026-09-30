@@ -81,4 +81,83 @@
     }
   }
 
+  // ═══ THE LIVERY BEHIND THE BADGE ═══
+  // A section of the paint of the car he is in, under the logo (#carLivery in dashboard.html, .car-livery in
+  // dashboard.css). The main process chooses it (modules/js/logo-livery.js) and hands it over as a data URL: in the
+  // app through the preload (logo-livery, and get-logo-livery for a page that loaded after it was chosen); on an iPad
+  // the page fetches it from the rig's own server at one fixed address when the car changes (poll-engine.js asks).
+  // The page reads no file and builds no path. With nothing given — no paint, none chosen yet, a browser — the
+  // layer is empty and the maker's colour set on the square shows.
+  const LIVERY_PATH = '/livery-crop.png';
+  // When the car changes the rig chooses a new crop once it has seen the same change, which takes it a moment, so
+  // the iPad asks a few times over; an ask before the rig has chosen gets the last car's crop or nothing, and the
+  // asks after put that right.
+  const LIVERY_ASK_AT_MS = [0, 800, 2500, 6000, 14000];
+  let _liveryUrl = null;
+  let _liveryEtag = null;
+  let _liveryAsk = 0;
+  let _liveryTimers = [];
+
+  function setCarLivery(url) {
+    const layer = document.getElementById('carLivery');
+    const sq = document.getElementById('carLogoSquare');
+    if (!layer || !sq) return;
+    if (_liveryUrl && _liveryUrl.startsWith('blob:')) {
+      try { URL.revokeObjectURL(_liveryUrl); } catch (e) { /* already gone */ }
+    }
+    _liveryUrl = typeof url === 'string' && url.length ? url : null;
+    if (_liveryUrl) {
+      layer.style.backgroundImage = 'url("' + _liveryUrl + '")';
+      sq.classList.add('has-livery');
+    } else {
+      layer.style.backgroundImage = '';
+      sq.classList.remove('has-livery');
+    }
+  }
+  window.setCarLivery = setCarLivery;
+
+  async function fetchRemoteLivery(ask) {
+    let resp;
+    try {
+      resp = await fetch(location.origin + LIVERY_PATH, { cache: 'no-store', credentials: 'same-origin' });
+    } catch (e) {
+      return;   // the rig did not answer; a later ask may
+    }
+    if (ask !== _liveryAsk) return;   // the car has changed again since
+    if (resp.status === 404) {
+      _liveryEtag = null;
+      if (_liveryUrl) setCarLivery(null);
+      return;
+    }
+    if (!resp.ok) return;
+    const etag = resp.headers.get('ETag');
+    if (etag && etag === _liveryEtag && _liveryUrl) return;   // the crop that is up already
+    let blob;
+    try { blob = await resp.blob(); } catch (e) { return; }
+    if (ask !== _liveryAsk) return;
+    _liveryEtag = etag;
+    setCarLivery(URL.createObjectURL(blob));
+  }
+
+  // On an iPad: the car has changed, ask the rig for its crop.
+  function requestRemoteLivery() {
+    if (!window._remoteMode || typeof fetch !== 'function') return;
+    const ask = ++_liveryAsk;
+    for (const t of _liveryTimers) clearTimeout(t);
+    _liveryTimers = LIVERY_ASK_AT_MS.map((ms) => setTimeout(() => { fetchRemoteLivery(ask); }, ms));
+  }
+  window.requestRemoteLivery = requestRemoteLivery;
+
+  // In the app the main process says: what it has chosen since, and what it had chosen before this page loaded.
+  if (!window._remoteMode && window.racingDesk) {
+    if (typeof window.racingDesk.onLogoLivery === 'function') {
+      try { window.racingDesk.onLogoLivery((url) => setCarLivery(url)); } catch (e) { /* no bridge */ }
+    }
+    if (typeof window.racingDesk.getLogoLivery === 'function') {
+      try {
+        Promise.resolve(window.racingDesk.getLogoLivery()).then((url) => { if (typeof url === 'string' && url.length) setCarLivery(url); }, () => {});
+      } catch (e) { /* no bridge */ }
+    }
+  }
+
   // ═══ TACHOMETER ═══
