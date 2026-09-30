@@ -46,6 +46,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `formation.js` | Pre-race grid + formation lap UI |
 | `idle-nav.js` | Carousel of stats during idle moments |
 | `qr-code.js` | QR for pairing to native apps / sharing |
+| `hud-display.js` | **Which screen the HUD's window is on** — the one he chose, else the one the sim's window is on (asked of the host), else the one iRacing's ini says it runs at, else the largest; not the primary. Pure rule + a keeper that moves the window (never shows it). Root CLAUDE.md, Desk |
 | `car-controls.js` | What the controls panel shows of the car's ABS / TC / brake bias / other dials / DRS / push-to-pass, from the host's `RacingDesk.Plugin.CarControls` (see The controls panel) |
 
 Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud`, `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
@@ -176,6 +177,20 @@ Golden frames pin the replay to a frame, block all non-plugin network, fix `Date
 screenshots with a 100-pixel allowance (runs are pixel-exact; a single colour rule moves ~1.3k px).
 No CI — run locally.
 
+## The HUD's screen
+
+`modules/js/hud-display.js` chooses the screen the transparent window covers, and `main.js` only hands it what Electron
+knows (`connectedDisplays`, `screen.screenToDipRect`) and the settings: nothing in `main.js` calls `setBounds`, and
+`getPrimaryDisplay()` is used once, for the primary's id (`tests/unit/hud-main-wiring.spec.mjs`). The rule and its
+reasons are in the root CLAUDE.md (Desk, "The HUD is on the screen iRacing is on"). Short: a screen chosen in Settings
+(`hudDisplay`, "HUD screen" in Layout, Automatic by default) while it is connected → the screen the sim's window is on
+(the host's `/racing-desk/data/simwindow`) → the screen that is the size `rendererDX11Monitor.ini` says iRacing runs
+at → the largest. It is decided at start, when he gets in the car (`hud-visibility`'s `beforeReveal`, before the
+window is revealed), on any screen being added, removed or changed, on a change of the setting, and by Ctrl+Shift+R.
+`tests/unit/hud-display.spec.mjs` holds the rule with his two screens (823 × 617 at 175 % primary, 3440 × 1440 at
+100 %) and three-monitor, single-monitor, mixed-scale, straddling, disconnected-choice, no-host, slow-host and
+bad-ini cases; the Settings control is in `tests/desk` and `tests/unit/desk-settings-model.spec.mjs`.
+
 ## Hotkeys
 
 | Shortcut | Action |
@@ -183,7 +198,7 @@ No CI — run locally.
 | `Ctrl+Shift+F` | Toggle Drive HUD mode (fullscreen) |
 | `Ctrl+Shift+H` | Switch the HUD off/on, in the car only — out of it the key does nothing, and the tray's "HUD on/off" is the switch |
 | `Ctrl+Shift+G` | Toggle green-screen mode |
-| `Ctrl+Shift+R` | Reset position and size |
+| `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (`hud-display.js`: not the primary one unless that is where the rule puts it) |
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+O` | Open the desk |
 | `Ctrl+Shift+M` | Reset the track map |

@@ -60,7 +60,7 @@ From source the main process logs to `racing-desk-debug.log` in this folder. The
 | `Ctrl+Shift+O` | Open the desk |
 | `Ctrl+Shift+F` | Toggle Drive HUD mode (fullscreen driving-focused display) |
 | `Ctrl+Shift+G` | Toggle green-screen mode (restarts) |
-| `Ctrl+Shift+R` | Put the HUD's window back over the whole primary display |
+| `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (the one iRacing is on) |
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+M` | Reset the track map |
 | `Ctrl+Shift+V` | Start or stop recording |
@@ -264,7 +264,7 @@ In a browser, with no app behind the page, settings fall back to localStorage.
 
 ### Window Position
 
-The HUD's window covers the whole primary display, and the panels place themselves inside it by the Position setting. `Ctrl+Shift+R` puts the window back if something has moved it.
+The HUD's window covers the whole of the screen iRacing is on (or the one chosen under Settings, HUD screen), and the panels place themselves inside it by the Position setting. `Ctrl+Shift+R` puts the window back if something has moved it.
 
 ## ARM Compatibility
 
