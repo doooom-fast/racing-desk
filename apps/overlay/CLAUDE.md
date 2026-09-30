@@ -51,6 +51,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `lap-delta.js` | The gap to his best lap of the session and to the optimal lap, worked out from his own laps, and how a delta is written and labelled (see The delta) |
 | `laps-panel.js` | The glance layout's laps panel: the times, the sectors, the three gaps and the fuel to the flag (see The glance layout) |
 | `gap-trend.js` | Whether the cars ahead and behind are closing or dropping away, lap on lap: the ▼ or ▲ beside their iRating in the gaps block of the glance layout (see The glance layout) |
+| `session-flags.js` | iRacing's own flag field (`SessionFlags`, the host's `DataCorePlugin.GameRawData.Telemetry.SessionFlags`) read into the flag the page shows: a local yellow apart from a full-course caution, one lap to green, green held, the black flag furled, disqualified, the small notices and the start lights (see Flags) |
 
 Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
 
@@ -144,9 +145,12 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   a base that is opaque (a chequered board at four in a hundred showed through it, and lowered the contrast of the
   gaps); the car's badge is its maker's colour over an opaque base (`car-logos.js` sets it as `--logo-tint` beside its
   inline background, which a stylesheet cannot get under); gone when the flag clears. A blue flag rings the screen and
-  leaves the panels as they are. `currentFlagState` is all the
-  payload says: a local yellow and a full-course caution are both `yellow`, and there is no "one to go" in it (the plugin
-  would have to send iRacing's `SessionFlags` bits for either).
+  leaves the panels as they are. **Which flag it is comes from iRacing's own flag field** where the host sends it
+  (`session-flags.js`, Flags below): a full-course caution (`data-flag="caution"`) has the whole treatment, a local yellow
+  (`localyellow`) is the lighter one — thin yellow stripes round the edge, the panels left as they are — one lap to green
+  (`onetogreen`) is yellow and white, green held (`greenheld`) the green, the black flag furled (`furled`) a black and grey
+  ring, disqualified (`disqualify`) black and deep red. With no field in the payload `currentFlagState` is all there is, and
+  `yellow` is what it says for any of them: the page is then what it was.
 - **Effects**: the HUD's own, on an iPad too — the tacho's redline flash and glow, the pit limiter's blue, the gaps' and the
   position's ahead/behind pulses, the leaderboard's P1 shimmer and gain/lose pulses, the incidents' levels, the spotter, the
   maps' close and near cars. The iPad's menu has "Effects: on/off", kept in its own storage (`rd-effects`), for an iPad
@@ -209,7 +213,7 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   `_SafetyRating`, `DS.EstimatedIRatingDelta`); the car's controls (`CarControls`, `DS.AbsActive`, `TcActive`); the pedals (`GameData.Throttle`, `Brake`, `Clutch`);
   the pit box (`DS.Fuel*`, `Tyre*` wear and temperature, `Strategy.*`, `AirTemp`, `TrackTemp`, `WeatherWet`,
   `PitBox.FastRepairRequested`, `WindshieldRequested`); the datastream (`DS.LatG`, `LongG`, `YawRate`, `SteerTorque`);
-  the incidents (`DS.Incident*`); the flags (`currentFlagState`); the danger rings on both maps (`DS.IncidentCoach.*`); the ambient colour (`DS.Ambient*`); the spotter, the
+  the incidents (`DS.Incident*`); the flags (`currentFlagState`, and iRacing's `SessionFlags` where the host sends it); the danger rings on both maps (`DS.IncidentCoach.*`); the ambient colour (`DS.Ambient*`); the spotter, the
   commentary and race control. **Left out**, and why: the pit menu's controls and their state (`PitBox.PitSv*`, `Has*`,
   `Tire*` requests, `TiresRequested`, `FuelRequested`, and the requested tyre pressures `PitBox.Pressure*`: the rig's pit
   box does not show pressures either, and there is nothing to press on a screen with no touch targets); `Strategy.GripScore`
@@ -228,7 +232,41 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   the datastream and not the circuit; the clock's key; the strategy calls; the laps panel's numbers; the gaps' trends;
   the pit box inside its cell at 1920x1080 and 2560x1080 on the rig; every panel shown whatever the settings hide, and the
   settings back after; the menu the one touch target. `tests/unit/gap-trend.spec.mjs` runs the trend in Node. Golden
-  frames of the glance layout at 1180x820 and 820x1180 are in `tests/golden/glance.spec.mjs`.
+  frames of the glance layout at 1180x820 and 820x1180 are in `tests/golden/glance.spec.mjs`. The flag states the field adds are
+  in `tests/unit/session-flags.spec.mjs` (the decoding, bit by bit) and `tests/unit/session-flags-hud.spec.mjs` (what the
+  glance layout and the rig's gaps block draw for each, the notices, the start lights, and the page as it was without the key).
+
+## Flags (`modules/js/session-flags.js`, `window.RacingDeskSessionFlags`)
+
+The payload's one word, `currentFlagState`, cannot tell a local yellow from a full-course caution and leaves out the rest, so
+the host also sends iRacing's `SessionFlags` bitmask whole, under `DataCorePlugin.GameRawData.Telemetry.SessionFlags` and only
+where the sim says it (root CLAUDE.md, Flags). `read(payload)` takes it (an integer of the field's 32 bits, signed or not;
+anything else is not read as one, and a payload without it is `null`), `decode(raw)` says what it means, `flagOf(detail, word)`
+is the flag the page shows, `createNoticeTracker()` the notices said once, `lightsPhaseOf(payload)` the start lights. Pure, so
+it runs in Node; `poll-engine.js` calls it where it used to go by the word alone, and **the word is still read, and is all
+there is, with no such key** (a SimHub plugin from before it, a replay, the demo).
+
+- **The flag, in this order** (the first that is up): red; disqualified (0x20000, `disqualify`); the meatball (0x100000);
+  black (0x10000); the black flag furled (0x80000, `furled`, a warning); one lap to green (0x200, `onetogreen`); a full-course
+  caution (0x4000 or 0x8000, `caution`); a local yellow (0x8 or 0x100, `localyellow`); blue; debris; white (0x2, the last lap);
+  chequered; green held (0x400, `greenheld`); green. `yellow` stays the word's own for "yellow, which one not known", and
+  `orange` (a car ahead being lapped) is in the word and not the field, so it is kept where the field says nothing else is out.
+  0x200 is the SDK's `oneLapToGreen`, not a lap to the finish (that is the white flag).
+- **What each says and looks like**: the gaps block (the rig's and the glance layout's) says `LOCAL YELLOW` / "Local yellow —
+  slow in this sector", `CAUTION` / "Full course caution — hold position", `1 LAP TO GREEN` / "Green flag next lap — be ready",
+  `GREEN HELD`, `BLACK FLAG WARNING` / "Warning — a black flag may follow", `DISQUALIFIED`; the glance layout's background is
+  per state (`drive-view.css`, `body[data-flag]`) and the rig's gaps block has a `.flag-<state>` class for each (`dashboard.css`;
+  `webgl.js` has the WebGL colours and `ambient-light.js` the ambient colour). Race control's banner is up for the caution
+  (worded "Full course caution — hold position"), the black flag furled and disqualified, as it is for red, black, the meatball
+  and chequered; a local yellow and one lap to green are in the gaps block only — a sector and a lap are not events. A local
+  yellow is held for three seconds after it goes, so one that comes and goes with the sector he is in does not flicker.
+- **The small notices** — ten to go (0x800), five to go (0x1000; if both are up, this one) and halfway (0x80, `crossed`) — are
+  a card each in the spotter's stack ("10 laps to go", "5 laps to go", "Halfway", under "Race control"), said once when the
+  bit comes up; a frame with no field forgets what was up. They are not flags: `data-flag` stays as it was.
+- **The start lights**: set (0x40000000) lights the grid's five columns red and go (0x80000000) green with the GO, as the
+  grid's own phases 6 and 7 do (`formation.js`), where the plugin's own `LightsPhase` says nothing (0) and it is not
+  qualifying or the demo. Ready and hidden draw nothing new. The mapping of set to "all red" is by the names; it has not been
+  watched against a real standing start.
 
 ## The delta: what the gap is against
 

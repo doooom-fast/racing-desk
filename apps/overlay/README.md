@@ -288,6 +288,8 @@ On x64 systems, native transparency composites directly — no OBS filter needed
 
 **The HUD is on screen in the garage, or over a replay:** The telemetry it reads sends no `IsOnTrack` — a SimHub plugin installed before 2026-09-29. Install the plugin again from this build.
 
+**A local yellow looks like a full-course caution, and there is no "1 lap to green":** The telemetry it reads sends no `DataCorePlugin.GameRawData.Telemetry.SessionFlags` (iRacing's own flag field) — a SimHub plugin installed before this was added, or an app that has not been built again. Install the plugin again from this build and run `npm run build`; the HUD goes by the one flag word, as it always did, until then.
+
 **Dashboard shows no data:** Open `http://localhost:8889/racing-desk/` in a browser. You should see a JSON blob with 100+ properties. If not, verify the RacingDesk plugin is enabled in SimHub, or that RacingDesk.Host is running.
 
 **Overlay crashes on launch (ARM):** Use `npm run start:safe` for software rendering. Requires Electron 33+.
