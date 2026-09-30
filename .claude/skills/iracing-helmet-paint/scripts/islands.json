@@ -1,0 +1,264 @@
+{
+  "_about": "Named islands of iRacing's helmet sheet (helmet.zip, Helmet.psd, 1024 square). Coordinates are 1024-space pixels; scale for 2048 output. bbox is [x0, y0, x1, y1]; seed is a pixel inside the island, used to flood-fill it out of g_Mask. 'confidence' says whether the role was confirmed in the sim or only read off the sheet.",
+  "size": 1024,
+  "islands": {
+    "shell": {
+      "bbox": [
+        6,
+        567,
+        1018,
+        1020
+      ],
+      "seed": [
+        100,
+        900
+      ],
+      "confidence": "sheet",
+      "note": "The helmet shell. The hole in its middle is the eye port. iRacing's flame patterns start at the bottom centre and lick outward and upward, which reads as chin at the bottom, sides left and right, back along the top edge. Unconfirmed until a probe has been looked at in the sim. The eye port is NOT cut out of g_Mask: it is the mesh-free loop in the wireframe at about x 324-722, y 796-893, ringed by a dense band (the gasket). Nothing that matters should go inside it.",
+      "eyeport": [
+        324,
+        796,
+        722,
+        893
+      ]
+    },
+    "balaclava": {
+      "bbox": [
+        6,
+        160,
+        451,
+        581
+      ],
+      "seed": [
+        233,
+        296
+      ],
+      "confidence": "sheet",
+      "note": "Face sock (the oval) joined to the HANS collar (the U round it). One island."
+    },
+    "visor": {
+      "bbox": [
+        533,
+        46,
+        1020,
+        191
+      ],
+      "seed": [
+        776,
+        110
+      ],
+      "confidence": "sheet",
+      "note": "Visor tint. The template ships a grey texture here; builds keep it unless told otherwise."
+    },
+    "visor_b": {
+      "bbox": [
+        533,
+        178,
+        1020,
+        323
+      ],
+      "seed": [
+        776,
+        250
+      ],
+      "confidence": "guess",
+      "note": "Visor-shaped, not in the wireframe. Probably the visor of another helmet model."
+    },
+    "visor_c": {
+      "bbox": [
+        482,
+        339,
+        969,
+        484
+      ],
+      "seed": [
+        725,
+        410
+      ],
+      "confidence": "guess",
+      "note": "Visor-shaped, partly in the wireframe. Probably the peak or visor of another model."
+    },
+    "sunstrip": {
+      "bbox": [
+        609,
+        9,
+        944,
+        50
+      ],
+      "seed": [
+        776,
+        30
+      ],
+      "confidence": "sheet",
+      "note": "Strip across the top of the visor. iRacing's own 'iRacing' text sits upright on the sheet here, so text upright on the sheet reads upright in the sim. The License guide overlays the same box."
+    },
+    "neck": {
+      "bbox": [
+        348,
+        114,
+        539,
+        344
+      ],
+      "seed": [
+        444,
+        200
+      ],
+      "confidence": "guess"
+    },
+    "brow": {
+      "bbox": [
+        4,
+        4,
+        354,
+        120
+      ],
+      "seed": [
+        180,
+        60
+      ],
+      "confidence": "guess"
+    },
+    "buckle": {
+      "bbox": [
+        360,
+        7,
+        526,
+        119
+      ],
+      "seed": [
+        440,
+        60
+      ],
+      "confidence": "guess"
+    },
+    "strap": {
+      "bbox": [
+        5,
+        128,
+        275,
+        156
+      ],
+      "seed": [
+        140,
+        142
+      ],
+      "confidence": "guess"
+    },
+    "belts": {
+      "bbox": [
+        386,
+        510,
+        626,
+        601
+      ],
+      "seed": [
+        506,
+        555
+      ],
+      "confidence": "sheet",
+      "note": "Seat belt webbing."
+    },
+    "belt_labels": {
+      "bbox": [
+        391,
+        603,
+        625,
+        710
+      ],
+      "seed": [
+        508,
+        656
+      ],
+      "confidence": "sheet",
+      "note": "The two white iRacing belt labels. Sits in the notch cut into the top of the shell."
+    }
+  },
+  "chips": {
+    "_about": "Solid colour-sampling squares, like the pit-box patches on car templates. The sim reads one colour from each; nothing is mapped from them.",
+    "lotus_helmet": {
+      "bbox": [
+        970,
+        402,
+        998,
+        432
+      ],
+      "note": "Layer 'Lotus Helmet'. Colour for the vintage helmet the Lotus 79 driver wears."
+    },
+    "seat_belt": {
+      "bbox": [
+        970,
+        444,
+        998,
+        474
+      ],
+      "note": "Layer 'Seat Belt Color'."
+    },
+    "chip_3": {
+      "bbox": [
+        970,
+        487,
+        998,
+        517
+      ],
+      "note": "Unnamed in the PSD; paint it with the belts until known."
+    }
+  },
+  "anchors": {
+    "_about": "Where marks go on the shell. rot is degrees counter-clockwise on the sheet. All confidence 'guess' until a probe has been checked in the sim; update rot and confidence from what the probe shows.",
+    "side_left": {
+      "at": [
+        170,
+        840
+      ],
+      "rot": 0,
+      "max_w": 300,
+      "confidence": "guess"
+    },
+    "side_right": {
+      "at": [
+        855,
+        840
+      ],
+      "rot": 0,
+      "max_w": 300,
+      "confidence": "guess"
+    },
+    "brow": {
+      "at": [
+        512,
+        752
+      ],
+      "rot": 0,
+      "max_w": 300,
+      "confidence": "guess"
+    },
+    "chin": {
+      "at": [
+        512,
+        955
+      ],
+      "rot": 0,
+      "max_w": 300,
+      "confidence": "guess"
+    },
+    "sunstrip": {
+      "at": [
+        776,
+        30
+      ],
+      "rot": 0,
+      "max_w": 310,
+      "confidence": "sheet"
+    },
+    "top": {
+      "at": [
+        512,
+        753
+      ],
+      "rot": 0,
+      "max_w": 380,
+      "confidence": "guess",
+      "note": "Crown, on the centreline between the belt notch (bottom at y 710) and the eye port (top at y 796). Intent: text reads from the FRONT - someone looking at the driver's face reads it - so the letters' baseline faces the visor. Upright on the sheet does that if the chin-at-bottom reading holds; once the probe is checked, set rot so letter bottoms point at the eye port."
+    }
+  }
+}
