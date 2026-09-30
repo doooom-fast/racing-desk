@@ -268,12 +268,14 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
 
 The payload has long had **one word** for the flags, `currentFlagState` (`none`, `red`, `meatball`, `black`, `yellow`,
 `blue`, `debris`, `white`, `checkered`, `green`, and `orange` where the host sees a car ahead being lapped), made from
-iRacing's `SessionFlags` bitmask (`TelemetrySnapshot.SessionFlags`) in three places that say the same thing
-(`TelemetryFrame.GetFlagState`, the HTTP path in `RacingDeskRuntime.Http.cs`, the plugin's `CurrentFlagState` property).
-It cannot tell a local yellow from a full-course caution (`FLAG_YELLOW` is `0x8 | 0x4000 | 0x8000`), and it has nothing for
-one lap to green, ten and five to go, halfway, green held, the black flag furled, disqualified or the start lights. So the
-host also sends the field itself, and the HUD reads it (`apps/overlay/modules/js/session-flags.js`, see the overlay's
-CLAUDE.md, The glance layout and Flags).
+iRacing's `SessionFlags` bitmask (`TelemetrySnapshot.SessionFlags`) in three places that agree on every flag and differ
+at the edges: `TelemetryFrame.GetFlagState` (the WebSocket frame's word: it never says `orange`, and in demo it reads the
+snapshot's flags), the HTTP path in `RacingDeskRuntime.Http.cs` (it says `orange`, and in demo reads the engine's demo
+flags, `CurrentDemoFlags`) and the plugin's `CurrentFlagState` property (it says `orange` and reads the snapshot's flags
+whatever the demo is doing). It cannot tell a local yellow from a full-course caution (`FLAG_YELLOW` is
+`0x8 | 0x4000 | 0x8000`), and it has nothing for one lap to green, ten and five to go, halfway, green held, the black flag
+furled, disqualified or the start lights. So the host also sends the field itself, and the HUD reads it
+(`apps/overlay/modules/js/session-flags.js`, see the overlay's CLAUDE.md, The glance layout and Flags).
 
 - **What is sent**: `DataCorePlugin.GameRawData.Telemetry.SessionFlags` (`TelemetryFrame.SessionFlagsKey`, the name SimHub
   gives iRacing's variable and the one `IsOnTrack` is sent under), iRacing's `irsdk_Flags` bitmask **whole**, as an
@@ -284,21 +286,34 @@ CLAUDE.md, The glance layout and Flags).
   `IsOnTrack` is, so one made up would put a flag on the HUD that nobody is showing. It goes out from the host's HTTP path
   and from `TelemetryFrame` (the WebSocket feed), which the SimHub plugin carries too. `currentFlagState` is **unchanged**
   and is still what anything that reads the word gets. `tests/…/IRacing/SessionFlagsTests.cs` holds all of this and
-  `HostContractTests` holds it over a real `.ibt` (the key is an integer, and the word is made from the same bits).
+  `HostContractTests` holds it over a real `.ibt`: the key is the recording's own `SessionFlags` for the frame the host
+  has just been given (over the window of a race, and again over a frame where something other than nothing was out),
+  and the word is made from those same bits.
 - **The bits**, as IRSDKSharper names them (`IRacingSdkEnum.Flags`, checked against the assembly): checkered 0x1, white 0x2,
   green 0x4, yellow 0x8 (a local yellow), red 0x10, blue 0x20, debris 0x40, crossed 0x80 (halfway), yellowWaving 0x100,
   **oneLapToGreen 0x200**, greenHeld 0x400, tenToGo 0x800, fiveToGo 0x1000, randomWaving 0x2000, caution 0x4000 and
   cautionWaving 0x8000 (a full-course caution), black 0x10000, disqualify 0x20000, servicible 0x40000 (service allowed, not a
   flag), furled 0x80000 (the black flag rolled up: a warning), repair 0x100000 (the meatball), startHidden / Ready / Set / Go
-  0x10000000 / 0x20000000 / 0x40000000 / 0x80000000. **0x200 is "one lap to green"**, which is what the field is told under a
-  caution or before a start — it is not a lap to the finish, which the SDK has no bit for beyond the white flag (0x2, the
-  last lap).
+  0x10000000 / 0x20000000 / 0x40000000 / 0x80000000.
+- **What 0x200 is, from his recordings** (the newest `.ibt` files, scanned on 2026-09-30). The SDK calls it
+  `oneLapToGreen`, and in his data it is **up whenever the car is not under green, which is most of the time**: every
+  frame of a practice or test session (`0x10040200`), a qualifying out-lap, the grid before every start (standing starts
+  too), the warm-up and the parade (`0x20040200`, `0x40040200`, and `0x20040600` at the end of the parade, with green
+  held), and beside the chequered flag in the cool-down (`0x10040201`, which is also how a lone qualifying ends). Every
+  real frame also has 0x40000 (service allowed) and, before the start lights, 0x10000000. It is not a lap to the finish:
+  the SDK has no bit for that beyond the white flag (0x2, the last lap), so "one lap to go" is not something this field
+  says; the laps to go are the glance layout's clock (`RemainingLaps`, in a lap race). **None of the recordings has a
+  full-course caution in it**, so what 0x200 does under one has never been seen; the HUD takes it by the SDK's name
+  there and nowhere else.
 - **What the HUD shows of it** (the overlay's CLAUDE.md has the detail): a **local yellow** (0x8 or 0x100, with no caution
-  bit) is the lighter yellow — thin stripes round the edge, the panels left as they are, "LOCAL YELLOW — slow in this sector";
-  a **full-course caution** (0x4000 or 0x8000) is the full yellow the glance layout has always given `yellow`, worded "full
-  course caution"; **one lap to green** (0x200) is yellow and white and says "1 LAP TO GREEN"; **green held** (0x400) is the
-  green; the **black flag furled** (0x80000) is "BLACK FLAG WARNING", a grey ring with its own banner; **disqualified**
-  (0x20000) is its own state with its own banner; **ten and five to go and halfway** are a card each in the spotter's stack,
+  bit, and not once the chequered flag is out) is the lighter yellow — thin stripes round the edge, the panels left as they
+  are, "LOCAL YELLOW — slow in this sector"; a **full-course caution** (0x4000 or 0x8000) is the full yellow the glance
+  layout has always given `yellow`, worded "full course caution"; **one lap to green** (0x200 **with** a caution bit) is
+  yellow and white and says "1 LAP TO GREEN", and 0x200 without one is nothing — it is never ranked above the white or the
+  chequered flag, and practice, the grid, the parade and the cool-down show no flag for it; **green held** (0x400) is the
+  green, shown only as the green is, after another flag (it is up at the end of the parade and through the start in
+  his recordings, where nothing is shown); the **black flag furled** (0x80000) is "BLACK FLAG WARNING", a grey ring with
+  its own banner; **disqualified** (0x20000) is its own state with its own banner; **ten and five to go and halfway** are a card each in the spotter's stack,
   said once; the start lights **set** and **go** light the grid's lights when the plugin's own phase says nothing.
 - **With no such key** — a SimHub plugin from before it, a replay of one, a sim that does not say — the HUD is exactly as it
   was, from `currentFlagState`. Beside SimHub the key arrives only once the plugin has been installed again from a build that

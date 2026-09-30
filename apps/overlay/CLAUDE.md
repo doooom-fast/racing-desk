@@ -148,7 +148,7 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   leaves the panels as they are. **Which flag it is comes from iRacing's own flag field** where the host sends it
   (`session-flags.js`, Flags below): a full-course caution (`data-flag="caution"`) has the whole treatment, a local yellow
   (`localyellow`) is the lighter one — thin yellow stripes round the edge, the panels left as they are — one lap to green
-  (`onetogreen`) is yellow and white, green held (`greenheld`) the green, the black flag furled (`furled`) a black and grey
+  under a caution (`onetogreen`) is yellow and white, green held (`greenheld`) the green, the black flag furled (`furled`) a black and grey
   ring, disqualified (`disqualify`) black and deep red. With no field in the payload `currentFlagState` is all there is, and
   `yellow` is what it says for any of them: the page is then what it was.
 - **Effects**: the HUD's own, on an iPad too — the tacho's redline flash and glow, the pit limiter's blue, the gaps' and the
@@ -233,8 +233,10 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   the pit box inside its cell at 1920x1080 and 2560x1080 on the rig; every panel shown whatever the settings hide, and the
   settings back after; the menu the one touch target. `tests/unit/gap-trend.spec.mjs` runs the trend in Node. Golden
   frames of the glance layout at 1180x820 and 820x1180 are in `tests/golden/glance.spec.mjs`. The flag states the field adds are
-  in `tests/unit/session-flags.spec.mjs` (the decoding, bit by bit) and `tests/unit/session-flags-hud.spec.mjs` (what the
-  glance layout and the rig's gaps block draw for each, the notices, the start lights, and the page as it was without the key).
+  in `tests/unit/session-flags.spec.mjs` (the decoding, bit by bit, and the values his recordings have) and
+  `tests/unit/session-flags-hud.spec.mjs` (what the glance layout and the rig's gaps block draw for each, with the recorded
+  values of practice, the grid, the parade and the cool-down; the rig's labels centred; the local yellow's hold; the notices,
+  the start lights, and the page as it was without the key).
 
 ## Flags (`modules/js/session-flags.js`, `window.RacingDeskSessionFlags`)
 
@@ -247,19 +249,34 @@ it runs in Node; `poll-engine.js` calls it where it used to go by the word alone
 there is, with no such key** (a SimHub plugin from before it, a replay, the demo).
 
 - **The flag, in this order** (the first that is up): red; disqualified (0x20000, `disqualify`); the meatball (0x100000);
-  black (0x10000); the black flag furled (0x80000, `furled`, a warning); one lap to green (0x200, `onetogreen`); a full-course
-  caution (0x4000 or 0x8000, `caution`); a local yellow (0x8 or 0x100, `localyellow`); blue; debris; white (0x2, the last lap);
-  chequered; green held (0x400, `greenheld`); green. `yellow` stays the word's own for "yellow, which one not known", and
-  `orange` (a car ahead being lapped) is in the word and not the field, so it is kept where the field says nothing else is out.
-  0x200 is the SDK's `oneLapToGreen`, not a lap to the finish (that is the white flag).
+  black (0x10000); the black flag furled (0x80000, `furled`, a warning); a full-course caution (0x4000 or 0x8000, `caution`,
+  or `onetogreen` when 0x200 is up with it); a local yellow (0x8 or 0x100, `localyellow`, not once the chequered flag is
+  out); blue; debris; white (0x2, the last lap); chequered; green held (0x400, `greenheld`); green. `yellow` stays the
+  word's own for "yellow, which one not known", and `orange` (a car ahead being lapped) is in the word and not the field, so
+  it is kept where the field says nothing else is out.
+- **0x200 is nothing on its own.** It is the SDK's `oneLapToGreen`, and in his recordings it is up whenever the car is not
+  under green: all of practice and test sessions (`0x10040200`), qualifying out-laps, the grid before every start, the
+  warm-up and the parade (`0x20040200`, `0x20040600`), and beside the chequered flag in the cool-down (`0x10040201`). A
+  flag made of it would be on all through practice, tint the glance layout yellow and white, and in the cool-down take the
+  chequered flag's place, which hides the finish screen (`poll-engine.js` hides it when the flag is no longer `checkered`).
+  So it is read only with a full-course caution up (`decode().oneToGreen`), the one place the SDK's name fits and the one
+  combination no recording has; with none it is not a flag and never ranks above the white or the chequered flag. It is not
+  a lap to the finish either (that is the white flag, and the laps to go are the clock's). The same scan has the chequered
+  flag with a yellow waved after it (`0x10040101`), which is why a local yellow does not take the chequered flag's place.
+  The values are held as recorded in `tests/unit/session-flags.spec.mjs` and on the page in `session-flags-hud.spec.mjs`.
 - **What each says and looks like**: the gaps block (the rig's and the glance layout's) says `LOCAL YELLOW` / "Local yellow —
-  slow in this sector", `CAUTION` / "Full course caution — hold position", `1 LAP TO GREEN` / "Green flag next lap — be ready",
-  `GREEN HELD`, `BLACK FLAG WARNING` / "Warning — a black flag may follow", `DISQUALIFIED`; the glance layout's background is
-  per state (`drive-view.css`, `body[data-flag]`) and the rig's gaps block has a `.flag-<state>` class for each (`dashboard.css`;
-  `webgl.js` has the WebGL colours and `ambient-light.js` the ambient colour). Race control's banner is up for the caution
-  (worded "Full course caution — hold position"), the black flag furled and disqualified, as it is for red, black, the meatball
-  and chequered; a local yellow and one lap to green are in the gaps block only — a sector and a lap are not events. A local
-  yellow is held for three seconds after it goes, so one that comes and goes with the sector he is in does not flicker.
+  slow in this sector", `CAUTION` / "Full course caution — hold position", `1 LAP TO GREEN` / "Green flag next lap — be ready"
+  (under a caution only), `GREEN HELD`, `BLACK FLAG WARNING` / "Warning — a black flag may follow", `DISQUALIFIED`; the
+  glance layout's background is per state (`drive-view.css`, `body[data-flag]`) and the rig's gaps block has a
+  `.flag-<state>` class for each (`dashboard.css`, where `.flag-label` is centred and balanced, since the longer labels
+  wrap to two lines in the rig's 272px block; `webgl.js` has the WebGL colours and `ambient-light.js` the ambient colour).
+  Race control's banner is up for the caution (worded "Full course caution — hold position"), the black flag furled and
+  disqualified, as it is for red, black, the meatball and chequered; a local yellow and one lap to green are in the gaps
+  block only — a sector and a lap are not events. A flag is held for a minimum time from when it comes up (`FLAG_HOLD_MS`
+  in `poll-engine.js`; a local yellow's is three seconds, the shortest): one that clears within it stays on show to its
+  end, so a local yellow that comes and goes with the sector he is in does not flicker, and one that has been up longer
+  than that goes the moment it clears. Green held is shown only after another flag (a restart), as a green is; steady, as
+  in the parade and at the start, it is not shown.
 - **The small notices** — ten to go (0x800), five to go (0x1000; if both are up, this one) and halfway (0x80, `crossed`) — are
   a card each in the spotter's stack ("10 laps to go", "5 laps to go", "Halfway", under "Race control"), said once when the
   bit comes up; a frame with no field forgets what was up. They are not flags: `data-flag` stays as it was.
