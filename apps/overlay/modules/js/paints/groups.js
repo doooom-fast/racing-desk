@@ -13,14 +13,14 @@
 // comes with it — is left alone — no backup, no write — which is what makes setting a group twice cost nothing.
 // One car failing does not stop the rest; what happened to each comes back.
 //
-// The helmet comes with the livery, and the group sets the default helmet once, after its cars: the set every car
-// in the group wears when they agree, else the library's default (helmets.chooseDefault). The default that was
-// there is backed up before any car is touched, and every car's backup names that backup, so reverting any one of
-// them puts the default back as well. A default that is the group's already is left as it is, backup and all.
+// The helmet comes with the livery, and the group sees to the default helmet once for all its cars: the set the
+// library's manifest names as its default (apply.js), put in place after the cars where it is missing or is
+// another — never the set the cars wear. The default that was there is backed up before any car is touched, and
+// every car's backup names that backup, so reverting any one of them puts the default back as well. A default in
+// place already is left as it is, backup and all.
 const path = require('path');
 const apply = require('./apply');
 const customer = require('./customer');
-const digest = require('./digest');
 const helmets = require('./helmets');
 const installed = require('./installed');
 const library = require('./library');
@@ -194,15 +194,6 @@ function target(car, installedCars) {
   return carPath ? { simFolder: carPath, createFolder: true } : null;
 }
 
-// Whether two files hold the same bytes; false where either cannot be read.
-function sameBytes(a, b) {
-  try {
-    return digest.fileSha256(a) === digest.fileSha256(b);
-  } catch (e) {
-    return false;
-  }
-}
-
 // Whether what is in the car's folder is this version already, as far as this apply would write it. A version
 // with no spec map writes the paint alone, whatever spec map is in the folder, so for it the paint decides. A
 // version that comes with a helmet (`helmetSource`, the library's file) is on the car only when that helmet is too.
@@ -218,13 +209,14 @@ function alreadyOn(paintDir, simFolder, customerId, version, includeSpec, helmet
   if (!(state.matchKind === 'exact' || (paintAlone && state.matchKind === 'paint-only'))) return false;
   if (!helmetSource) return true;
   // No helmet on the car, or one that cannot be read: the apply puts it there.
-  return sameBytes(path.join(paintDir, simFolder, helmets.installedName(customerId)), helmetSource.path);
+  return apply.sameBytes(path.join(paintDir, simFolder, helmets.installedName(customerId)), helmetSource.path);
 }
 
-// What is said of the default when the group's choice is the default already, and nothing is written.
-function defaultAlready(choice) {
-  if (choice.why === 'agreed') return `Every car in this group wears the ${choice.set} helmet, which is the default already.`;
-  return `The cars in this group wear different helmets, and the library's default, the ${choice.set} helmet, is the default already.`;
+// What is said of the default helmet where the library keeps no helmet list, or one that cannot be read.
+function noList(manifest) {
+  return manifest.reason === 'unreadable' || manifest.reason === 'malformed'
+    ? "The library's helmet list could not be read, so the default helmet was left as it was."
+    : 'The library keeps no helmets, so the default helmet was left as it was.';
 }
 
 // Set a group: `request` is { paintDir, libraryRoot, customerId, groupId, includeSpec, setReadOnlyAfter,
@@ -245,9 +237,11 @@ async function set(request, { lib, store, installedCars = [], base, deps } = {})
   if (pre.blockers.length && !force) throw refused(pre.blockers.join(' '));
   const warnings = [...pre.warnings, ...pre.blockers.map((b) => `Set anyway, over a warning: ${b}`)];
 
-  // Which helmet each car's version comes with, read once for the group, so that the default can be chosen
-  // before any car is touched, and the default that is there backed up before anything is written. A car whose
-  // version has left the library has no say.
+  // Which helmet each car's version comes with, read once for the group. And the default helmet — the set the
+  // library names as its default, whatever the cars wear — looked at before any car is touched, so that where it
+  // is to be put in place the default that is there is backed up first, once, and every car's backup names that
+  // one backup. A default in place already is neither backed up nor written again, as a car already wearing its
+  // version is left alone: setting a group twice costs nothing.
   const manifest = helmets.readManifest(request.libraryRoot);
   const comesWith = new Map();
   for (const entry of group.cars) {
@@ -255,12 +249,9 @@ async function set(request, { lib, store, installedCars = [], base, deps } = {})
     const version = car ? car.versions.find((v) => v.id === entry.versionId) : undefined;
     if (version) comesWith.set(entry.folder, helmets.resolve(request.libraryRoot, car.folder, version.id, manifest));
   }
-  const choice = helmets.chooseDefault(request.libraryRoot, manifest, [...comesWith.values()]);
-  // A default that is the group's already is neither backed up nor written again, as a car already wearing its
-  // version is left alone: setting a group twice costs nothing.
-  const defaultOn = choice.source !== null && sameBytes(path.join(paintDir, helmets.installedName(customerId)), choice.source.path);
+  const fallback = apply.defaultHelmet(paintDir, request.libraryRoot, customerId, manifest);
   const now = deps && typeof deps.now === 'function' ? deps.now : () => new Date();
-  const defaultBackup = choice.source && !defaultOn ? apply.backUpDefault(paintDir, base, customerId, `set ${group.name}`, now) : null;
+  const defaultBackup = fallback.source && !fallback.inPlace ? apply.backUpDefault(paintDir, base, customerId, `set ${group.name}`, now) : null;
 
   const results = [];
   for (const entry of group.cars) {
@@ -304,8 +295,8 @@ async function set(request, { lib, store, installedCars = [], base, deps } = {})
         clearOtherCooked: request.clearOtherCooked,
         force,
         createFolder: where.createFolder,
-        // The group sets the default once, below, for every car; each car's backup names the default's.
-        setDefaultHelmet: false,
+        // The group sees to the default once, below, for every car; each car's backup names the default's.
+        ensureDefaultHelmet: false,
         defaultHelmetBackup: defaultBackup ? defaultBackup.id : null,
       }, version, base, deps);
       result.outcome = 'applied';
@@ -320,18 +311,11 @@ async function set(request, { lib, store, installedCars = [], base, deps } = {})
     }
   }
 
-  // The last choice is the default: the group's helmet, once, after its cars. Whether or not a car needed
-  // writing, the group is what was chosen.
-  const helmet = { set: choice.set, said: choice.said, backupDir: defaultBackup ? defaultBackup.dir : null };
-  if (defaultOn) {
-    helmet.said = defaultAlready(choice);
-  } else if (choice.source) {
-    try {
-      apply.installDefault(paintDir, choice.source.path, customerId, warnings);
-    } catch (e) {
-      helmet.said = `The ${choice.set} helmet could not be made the default (${messageOf(e)}), so the default helmet is as it was.`;
-    }
-  }
+  // The default helmet, once, after the cars: the library's default set, put in place where it was missing or
+  // another, whether or not any car needed writing. What the cars wear has no say in it. A library that keeps no
+  // helmet list has no default to see to, and the group says so once, where each car said it of its own helmet.
+  const done = apply.writeDefault(paintDir, customerId, fallback, warnings);
+  const helmet = { set: fallback.set, put: done.put, said: done.said || noList(manifest), backupDir: defaultBackup ? defaultBackup.dir : null };
 
   const count = (outcome) => results.filter((r) => r.outcome === outcome).length;
   return {
@@ -348,6 +332,5 @@ async function set(request, { lib, store, installedCars = [], base, deps } = {})
 }
 
 module.exports = {
-  STORE_KEY, MAX_NAME, fromLibrary, validate, stored, resolve, list, save, remove, find, target, sameBytes, alreadyOn,
-  defaultAlready, set,
+  STORE_KEY, MAX_NAME, fromLibrary, validate, stored, resolve, list, save, remove, find, target, alreadyOn, set,
 };

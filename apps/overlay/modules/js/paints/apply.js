@@ -17,10 +17,15 @@
 //
 // The helmet comes with the livery (helmets.js says which). An apply that finds one copies it into the car's folder
 // as helmet_<id>.tga after the car's textures, in the same step — backed up first with them, rolled back with them,
-// and put back by the same revert — and then makes it the default, paint/helmet_<id>.tga, for every car without a
-// helmet of its own: whatever the last choice was sets the helmet. The default that was there is backed up first,
-// under a folder of its own (DEFAULT_HELMET_FOLDER), and the car's backup names that backup, so reverting the car
-// puts the default back too. A group sets the default once, after its cars (groups.js), through the same two calls.
+// and put back by the same revert. Helmets are per car, so an apply never changes any other car's helmet.
+//
+// The default helmet, paint/helmet_<id>.tga, worn by every car without one of its own, is the set the library's
+// manifest names as its default — never the set a car was just given (his choice, 2026-09-30, over "the last apply
+// becomes the default"). An apply sees to it: where the default is missing, or is not that set, the set is put in
+// place, the default that was there backed up first under a folder of its own (DEFAULT_HELMET_FOLDER), and the
+// car's backup names that backup, so reverting the car puts the default back too. A group sees to it once for all
+// its cars (groups.js), and the page asks for it on its own after a library update, which may bring a manifest
+// whose default has changed (ensureDefault).
 const fs = require('fs');
 const path = require('path');
 const customer = require('./customer');
@@ -353,9 +358,9 @@ function removeAdded(targetDir, written, backedUp) {
 
 // The request as the UI sends it (src/types.ts ApplyRequest), with serde's defaults: includeSpec true, the rest
 // false. Three keys are not the UI's to send, and index.js sets them whatever the page sent: createFolder, whether
-// the car's folder may be made; setDefaultHelmet, whether the version's helmet becomes the default (a group sets
-// the default once for all its cars, after them); and defaultHelmetBackup, the backup of the default taken for a
-// group, which each car's backup then names.
+// the car's folder may be made; ensureDefaultHelmet, whether this apply sees to the default helmet (a group sees
+// to it once for all its cars); and defaultHelmetBackup, the backup of the default a group took before its cars,
+// which each car's backup then names.
 function normaliseRequest(req) {
   return {
     paintDir: String(req.paintDir),
@@ -369,19 +374,77 @@ function normaliseRequest(req) {
     clearOtherCooked: Boolean(req.clearOtherCooked),
     force: Boolean(req.force),
     createFolder: Boolean(req.createFolder),
-    setDefaultHelmet: req.setDefaultHelmet == null ? true : Boolean(req.setDefaultHelmet),
+    ensureDefaultHelmet: req.ensureDefaultHelmet == null ? true : Boolean(req.ensureDefaultHelmet),
     defaultHelmetBackup: isBackupId(req.defaultHelmetBackup) ? req.defaultHelmetBackup : null,
   };
 }
 
-// What became of the helmet in an apply, for the page: { set, onCar, isDefault, said }, `said` a plain sentence.
-function helmetOutcome(helmet, { onCar, isDefault, wantedDefault, defaultProblem }) {
-  if (!onCar) return { set: helmet.set, onCar: false, isDefault: false, said: helmet.said };
-  let said = `The ${helmet.set} helmet is on the car`;
-  if (isDefault) said += ', and is now the default for every car without a helmet of its own.';
-  else if (wantedDefault) said += `. It could not be made the default (${defaultProblem}), so the default helmet is as it was.`;
-  else said += '.';
-  return { set: helmet.set, onCar: true, isDefault, said };
+// Whether two files hold the same bytes; false where either cannot be read.
+function sameBytes(a, b) {
+  try {
+    return digest.fileSha256(a) === digest.fileSha256(b);
+  } catch (e) {
+    return false;
+  }
+}
+
+// The default helmet as the library names it, and whether it is in place: { set, source, problem, listed, inPlace }.
+// `listed` is whether the library keeps a helmet list at all; `inPlace` whether paint/helmet_<id>.tga is that set,
+// byte for byte — a default that is missing, or is another set, is not.
+function defaultHelmet(paintDir, libraryRoot, customerId, manifest = helmets.readManifest(libraryRoot)) {
+  const found = helmets.resolveDefault(libraryRoot, manifest);
+  const inPlace = found.source !== null && sameBytes(path.join(paintDir, helmets.installedName(customerId)), found.source.path);
+  return { ...found, listed: manifest.found, inPlace };
+}
+
+// What is said of the default helmet, in a sentence: `fallback` is defaultHelmet()'s answer, `put` whether it was
+// written just now, `failure` why it could not be. Nothing where the library keeps no helmets: that is said of
+// the car already, and there is no default to see to.
+function defaultSaid(fallback, put, failure) {
+  if (put) return `The ${fallback.set} helmet is now the default for every car without a helmet of its own.`;
+  if (failure) return `The ${fallback.set} helmet could not be made the default (${failure}), so the default helmet is as it was.`;
+  if (fallback.inPlace) return `The ${fallback.set} helmet is the default for every car without a helmet of its own, as before.`;
+  if (!fallback.listed) return '';
+  if (!fallback.set) return 'The library names no default helmet, so the default helmet was left as it was.';
+  return `${fallback.problem} The default helmet was left as it was.`;
+}
+
+// See to the default helmet: put the set the library names in place where it is missing or is another, with
+// its cooked file dropped. Backed up first by the caller (backUpDefault), where it is to be written. Returns
+// { put, said }; a default that cannot be written is said, in `warnings` too, and never thrown, since the car — or
+// the group — is done whatever happens here.
+function writeDefault(paintDir, customerId, fallback, warnings) {
+  if (!fallback.source || fallback.inPlace) return { put: false, said: defaultSaid(fallback, false, null) };
+  try {
+    installDefault(paintDir, fallback.source.path, customerId, warnings);
+    return { put: true, said: defaultSaid(fallback, true, null) };
+  } catch (e) {
+    const failure = messageOf(e);
+    warnings.push(`The ${fallback.set} helmet could not be made the default (${failure}). The default helmet is as it was.`);
+    return { put: false, said: defaultSaid(fallback, false, failure) };
+  }
+}
+
+// What became of the helmet in an apply, for the page: { set, onCar, defaultSet, defaultPut, said }. `said` is
+// plain sentences: the car's helmet, then the default where this apply saw to it (`done`, writeDefault's answer)
+// and there is something to say — put in place, or left as it was for a reason. A default in place as before is
+// not said again after every apply.
+function helmetOutcome(helmet, fallback, done) {
+  const onCar = helmet.source !== null;
+  const parts = [onCar ? `The ${helmet.set} helmet is on the car.` : helmet.said];
+  if (done && !onCar && helmet.set !== null && helmet.set === fallback.set && !fallback.source) {
+    // The version's set is the default set, and the one thing wrong with it is said once for both.
+    parts.splice(0, 1, `${fallback.problem} The car's helmet and the default helmet were left as they were.`);
+  } else if (done && done.said && (done.put || !fallback.inPlace)) {
+    parts.push(done.said);
+  }
+  return {
+    set: helmet.set,
+    onCar,
+    defaultSet: fallback ? fallback.set : null,
+    defaultPut: !!(done && done.put),
+    said: parts.join(' '),
+  };
 }
 
 // Apply a version to the sim's folder.
@@ -406,9 +469,13 @@ async function apply(req, version, base, deps) {
   if (!toInstall.length) throw refused('This version has no textures to install. Nothing was changed.');
   if (!toInstall.some((f) => f.role === 'car')) throw refused('This version has no car paint. Nothing was changed.');
 
-  // The helmet that comes with the version, from the library as it is now; none leaves the car's helmet alone.
-  const helmet = helmets.resolve(request.libraryRoot, request.carFolder, request.versionId);
-  const setDefault = request.setDefaultHelmet && helmet.source !== null;
+  // The helmet that comes with the version, from the library as it is now; none leaves the car's helmet alone. And
+  // the default helmet, where this apply sees to it (a group sees to it once for all its cars): the set the
+  // library names, put in place when it is missing or is another — never this version's set.
+  const manifest = helmets.readManifest(request.libraryRoot);
+  const helmet = helmets.resolve(request.libraryRoot, request.carFolder, request.versionId, manifest);
+  const fallback = request.ensureDefaultHelmet ? defaultHelmet(paintDir, request.libraryRoot, request.customerId, manifest) : null;
+  const putDefault = fallback !== null && fallback.source !== null && !fallback.inPlace;
 
   const actions = [];
   const warnings = [...pre.warnings];
@@ -421,7 +488,7 @@ async function apply(req, version, base, deps) {
   // 1. Back up before anything is touched: the default helmet, where this apply will replace it, then the car's
   // files, whose backup names the default's so that one revert puts both back.
   let defaultBackup = request.defaultHelmetBackup;
-  if (setDefault && defaultBackup === null) {
+  if (putDefault && defaultBackup === null) {
     defaultBackup = backUpDefault(paintDir, base, request.customerId, `apply ${request.versionId} to ${request.carFolder}`, d.now).id;
   }
   const { dir: backupDir, names: backedUp } = backUp(
@@ -517,20 +584,14 @@ async function apply(req, version, base, deps) {
       + 'used with this paint.');
   }
 
-  // 5. The last choice is the default: the version's helmet becomes every other car's, unless a group is setting
-  // the default once for all of its cars. The car is done whatever happens here, so a default that cannot be
-  // written is said, not thrown.
-  let isDefault = false;
-  let defaultProblem = null;
-  if (setDefault) {
-    try {
-      installDefault(paintDir, helmet.source.path, request.customerId, warnings);
-      isDefault = true;
-      actions.push({ kind: 'helmet-default', detail: `the ${helmet.set} helmet is now the default, for every car without a helmet of its own` });
-    } catch (e) {
-      defaultProblem = messageOf(e);
-      warnings.push(`The ${helmet.set} helmet could not be made the default (${defaultProblem}). The default helmet is as it was.`);
-    }
+  // 5. The default helmet is the set the library names as its default: put in place where it is missing or is
+  // another, for every car without a helmet of its own — never this version's set, and no other car's helmet is
+  // touched. Left to the group where one is setting its cars. The car is done whatever happens here, so a default
+  // that cannot be written is said, not thrown.
+  let done = null;
+  if (fallback !== null) {
+    done = writeDefault(paintDir, request.customerId, fallback, warnings);
+    if (done.put) actions.push({ kind: 'helmet-default', detail: `the ${fallback.set} helmet put in place as the default, for every car without a helmet of its own` });
   }
 
   digest.forgetUnder(targetDir);
@@ -539,8 +600,37 @@ async function apply(req, version, base, deps) {
     backupDir,
     actions,
     warnings,
-    helmet: helmetOutcome(helmet, { onCar: helmet.source !== null, isDefault, wantedDefault: request.setDefaultHelmet, defaultProblem }),
+    helmet: helmetOutcome(helmet, fallback, done),
   };
+}
+
+// See to the default helmet on its own, with no car: the page asks after the library was updated, since the update
+// may bring a manifest whose default has changed. `req` is { paintDir, libraryRoot, customerId }. The set the
+// library names is put in place where it is missing or is another, backed up first (DEFAULT_HELMET_FOLDER), under
+// the same guard an apply has: with the sim running nothing is written, and the next apply sees to it. Returns
+// { set, put, said, backupDir, warnings }, `said` empty where there is nothing to say — the library keeps no
+// helmets, or the default is in place as before.
+async function ensureDefault(req, base, deps) {
+  const d = withDefaults(deps);
+  const paintDir = String(req.paintDir);
+  const libraryRoot = req.libraryRoot == null ? '' : String(req.libraryRoot);
+  const customerId = req.customerId == null ? '' : String(req.customerId);
+  if (!customer.isValid(customerId)) throw refused('The customer id must be digits only. Nothing was changed.');
+  const warnings = [];
+  const fallback = defaultHelmet(paintDir, libraryRoot, customerId);
+  const quiet = { set: fallback.set, put: false, said: '', backupDir: null, warnings };
+  if (!fallback.listed || fallback.inPlace) return quiet;
+  if (!fallback.source) return { ...quiet, said: defaultSaid(fallback, false, null) };
+  if (!isDir(paintDir)) {
+    return { ...quiet, said: `The library's default helmet is now the ${fallback.set} helmet, and the next apply puts it in place: there is no paint folder yet.` };
+  }
+  const pre = await preflightAll(d);
+  if (pre.blockers.length) {
+    return { ...quiet, said: `The library's default helmet is now the ${fallback.set} helmet, and the next apply puts it in place. ${pre.blockers.join(' ')}` };
+  }
+  const backup = backUpDefault(paintDir, base, customerId, 'library update', d.now);
+  const done = writeDefault(paintDir, customerId, fallback, warnings);
+  return { set: fallback.set, put: done.put, said: done.said, backupDir: backup.dir, warnings };
 }
 
 // A manifest with the strictness serde had: every field present and of the right type, or it does not count.
@@ -682,12 +772,13 @@ async function revert(paintDir, base, carFolder, simFolder, customerId, backupId
     backupDir: chosen.path,
     actions,
     warnings,
-    helmet: { set: null, onCar: helmetRestored, isDefault: defaultPut === 'restored', said },
+    helmet: { set: null, onCar: helmetRestored, defaultSet: null, defaultPut: defaultPut === 'restored', said },
   };
 }
 
 module.exports = {
   TMP_EXT, DEFAULT_HELMET_FOLDER, preflight, preflightAll, timestamp, rfc3339Local, backupsBase, backupRoot, newBackupDir,
   backUp, backUpDefault, isBackupId, clearReadOnly, setReadOnly, isReadOnly, installFile, installDefault, restoreDefault,
-  restoreFrom, removeAdded, normaliseRequest, helmetOutcome, apply, listBackups, readManifest, revert,
+  restoreFrom, removeAdded, normaliseRequest, sameBytes, defaultHelmet, defaultSaid, writeDefault, helmetOutcome, apply,
+  ensureDefault, listBackups, readManifest, revert,
 };

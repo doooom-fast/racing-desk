@@ -108,12 +108,11 @@ function createCommands(overrides = {}) {
       const version = car ? car.versions.find((v) => v.id === request.versionId) : undefined;
       if (!version) throw error.other(`${request.carFolder} / ${request.versionId} is no longer in the library.`);
       // Whether a folder may be made is decided here, whatever the page sent: only where there is none, and only
-      // under a name the install has for one of its cars. So is the helmet: one car's apply makes its version's
-      // helmet the default, with a backup of its own, whatever the page sent (a group decides for its cars in
-      // groups.js).
+      // under a name the install has for one of its cars. So is the default helmet: one car's apply sees to it,
+      // with a backup of its own, whatever the page sent (a group sees to it once for its cars in groups.js).
       const missing = !isDir(path.join(String(request.paintDir), String(request.simFolder)));
       const createFolder = missing && (await installPaths()).includes(String(request.simFolder));
-      return apply.apply({ ...request, createFolder, setDefaultHelmet: true, defaultHelmetBackup: null }, version, base(), applyDeps);
+      return apply.apply({ ...request, createFolder, ensureDefaultHelmet: true, defaultHelmetBackup: null }, version, base(), applyDeps);
     },
 
     listBackups: async (carFolder) => apply.listBackups(base(), carFolder),
@@ -165,6 +164,11 @@ function createCommands(overrides = {}) {
       const lib = library.scan(request.libraryRoot, request.paintDir);
       return groups.set(request, { lib, store, installedCars: await installPaths(), base: base(), deps: applyDeps });
     },
+
+    // The default helmet seen to on its own, after a library update that may have changed which set it is. Not in
+    // lib.rs: the Rust knows nothing of helmets.
+    ensureDefaultHelmet: async ({ paintDir, libraryRoot, customerId } = {}) =>
+      apply.ensureDefault({ paintDir, libraryRoot, customerId }, base(), applyDeps),
   };
 }
 

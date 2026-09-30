@@ -1,8 +1,8 @@
 /**
  * The library's helmets: reading its helmet list as far as it can be trusted, which set a version comes with, the
  * file a set is copied from — only one under the library's helmets folder, only a true-colour TGA the sim could
- * load — and the default a group settles on. All in a temp library with generated TGAs; every id is made up, and
- * the library's file names carry a different one from the app's, as the real library's do.
+ * load — and the library's default set. All in a temp library with generated TGAs; every id is made up, and the
+ * library's file names carry a different one from the app's, as the real library's do.
  */
 
 import { test, expect } from '@playwright/test';
@@ -326,74 +326,20 @@ test.describe('what an apply would do about the helmet', () => {
     expect(helmets.resolve(broken, 'lotus79', 'v13-shatter').said).toBe("The library's helmet list could not be read, so the helmet on the car was left as it was.");
   });
 
-  test('the library\'s default, ready to copy, or why not', () => {
+  test('the library\'s default, ready to copy, or why not — the set the list names, never a car\'s', () => {
     const lib = library('default');
     withHelmets(lib, FIVE);
     const m = helmets.readManifest(lib);
     expect(helmets.resolveDefault(lib, m)).toEqual({
       set: 'shatter', source: { path: path.join(lib, 'helmets', 'shatter', `helmet_${LIBRARY_ID}.tga`), size: 30 }, problem: null,
     });
+    // The list's word alone: nothing about which sets the cars wear comes into it.
+    expect(helmets.resolveDefault(lib, { ...m, default: 'white-orange' }).set).toBe('white-orange');
     fs.rmSync(path.join(lib, setFile('shatter')));
     expect(helmets.resolveDefault(lib, m)).toEqual({ set: 'shatter', source: null, problem: "The shatter helmet's file is not in the library." });
     expect(helmets.resolveDefault(lib, { ...m, default: null })).toEqual({ set: null, source: null, problem: 'The library names no default helmet.' });
     expect(helmets.resolveDefault('', helmets.readManifest(''))).toEqual({ set: null, source: null, problem: 'The library names no default helmet.' });
-  });
-});
-
-test.describe('the default a group settles on', () => {
-  const lib = () => {
-    const l = library(`choose-${Math.random().toString(36).slice(2, 8)}`);
-    withHelmets(l, FIVE);
-    return l;
-  };
-
-  test('the set every car wears, when they agree; a car that comes with no helmet does not disagree', () => {
-    const l = lib();
-    const m = helmets.readManifest(l);
-    const resolved = [
-      helmets.resolve(l, 'lotus79', 'v13-shatter', m),
-      helmets.resolve(l, 'porsche963gtp', 'shatter', m),
-      helmets.resolve(l, 'lotus79', 'v12', m),
-    ];
-    expect(helmets.chooseDefault(l, m, resolved)).toEqual({
-      set: 'shatter',
-      source: { path: path.join(l, 'helmets', 'shatter', `helmet_${LIBRARY_ID}.tga`), size: 30 },
-      why: 'agreed',
-      said: 'Every car in this group wears the shatter helmet, so it is now the default for every car without a helmet of its own.',
-    });
-  });
-
-  test('the library\'s default when they differ, and it is said which', () => {
-    const l = lib();
-    const m = helmets.readManifest(l);
-    const resolved = [helmets.resolve(l, 'lotus79', 'v14-inverted', m), helmets.resolve(l, 'mx5-mx52016', 'white-orange', m)];
-    expect(helmets.chooseDefault(l, m, resolved)).toEqual({
-      set: 'shatter',
-      source: { path: path.join(l, 'helmets', 'shatter', `helmet_${LIBRARY_ID}.tga`), size: 30 },
-      why: 'default',
-      said: "The cars in this group wear different helmets, so the library's default, the shatter helmet, is now the default for every car without a helmet of its own.",
-    });
-    // With no default that can be used, the default helmet is left as it is.
-    fs.rmSync(path.join(l, setFile('shatter')));
-    expect(helmets.chooseDefault(l, m, resolved)).toEqual({
-      set: 'shatter', source: null, why: 'unusable',
-      said: "The cars in this group wear different helmets, and the library names no default that can be used, so the default helmet was left as it was.",
-    });
-    expect(helmets.chooseDefault(l, { ...m, default: null }, resolved)).toMatchObject({ set: null, source: null, why: 'unusable' });
-  });
-
-  test('none when no car comes with a helmet; unusable when they agree on one that cannot be copied', () => {
-    const l = lib();
-    const m = helmets.readManifest(l);
-    expect(helmets.chooseDefault(l, m, [helmets.resolve(l, 'lotus79', 'v12', m)])).toEqual({
-      set: null, source: null, why: 'none', said: 'No helmet comes with any livery in this group, so the default helmet was left as it was.',
-    });
-    expect(helmets.chooseDefault(l, m, [])).toMatchObject({ why: 'none' });
-    fs.rmSync(path.join(l, setFile('white-orange')));
-    const gone = [helmets.resolve(l, 'mx5-mx52016', 'white-orange', m)];
-    expect(helmets.chooseDefault(l, m, gone)).toEqual({
-      set: 'white-orange', source: null, why: 'unusable',
-      said: "The white-orange helmet's file is not in the library. The default helmet was left as it was.",
-    });
+    // Nothing here chooses a default from the cars: that was the rule he turned down.
+    expect(helmets.chooseDefault).toBeUndefined();
   });
 });

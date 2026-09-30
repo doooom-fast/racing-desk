@@ -270,7 +270,9 @@ function resolve(libraryRoot, carFolder, versionId, manifest = readManifest(libr
   return { set, body: entry.body, art: entry.art, source: { path: found.path, size: found.size }, said: '' };
 }
 
-// The library's default set, ready to copy, or null with why: { set, source, problem }.
+// The library's default set — the helmet every car without one of its own wears, paint/helmet_<id>.tga — ready
+// to copy, or null with why: { set, source, problem }. It is the set the manifest names as `default` and nothing
+// else: not the set a car was just given, not the set a group's cars agree on (his choice, 2026-09-30).
 function resolveDefault(libraryRoot, manifest = readManifest(libraryRoot)) {
   if (!manifest.found || !manifest.default) return { set: null, source: null, problem: 'The library names no default helmet.' };
   const found = sourceFor(libraryRoot, manifest, manifest.default);
@@ -278,46 +280,7 @@ function resolveDefault(libraryRoot, manifest = readManifest(libraryRoot)) {
   return { set: manifest.default, source: { path: found.path, size: found.size }, problem: null };
 }
 
-// The set a group's cars agree on, or the library's default when they do not: { set, source, why, said }, where
-// `why` is one of agreed, default, none, unusable. `resolved` is resolve()'s answer for each car in the group that
-// has a version; cars whose version comes with no helmet do not disagree.
-function chooseDefault(libraryRoot, manifest, resolved) {
-  const alone = 'so the default helmet was left as it was.';
-  const named = resolved.filter((r) => r.set !== null);
-  if (!named.length) {
-    return { set: null, source: null, why: 'none', said: `No helmet comes with any livery in this group, ${alone}` };
-  }
-  const first = named[0].set;
-  if (named.every((r) => r.set === first)) {
-    const usable = named.find((r) => r.source !== null);
-    if (!usable) {
-      return { set: first, source: null, why: 'unusable', said: `${named[0].said.replace(/ The car's helmet was left as it was\.$/, '')} The default helmet was left as it was.` };
-    }
-    return {
-      set: first,
-      source: usable.source,
-      why: 'agreed',
-      said: `Every car in this group wears the ${first} helmet, so it is now the default for every car without a helmet of its own.`,
-    };
-  }
-  const fallback = resolveDefault(libraryRoot, manifest);
-  if (!fallback.source) {
-    return {
-      set: fallback.set,
-      source: null,
-      why: 'unusable',
-      said: `The cars in this group wear different helmets, and the library names no default that can be used, ${alone}`,
-    };
-  }
-  return {
-    set: fallback.set,
-    source: fallback.source,
-    why: 'default',
-    said: `The cars in this group wear different helmets, so the library's default, the ${fallback.set} helmet, is now the default for every car without a helmet of its own.`,
-  };
-}
-
 module.exports = {
   FOLDER, MANIFEST, MAX_BYTES, MAX_EDGE, MAX_SETS, MAX_VARIANTS, MAX_NAME, DIGITS, fileUnderHelmets, readManifest, setFor,
-  pick, parseHelmet, installedName, cookedName, sourceFor, leftAlone, resolve, resolveDefault, chooseDefault,
+  pick, parseHelmet, installedName, cookedName, sourceFor, leftAlone, resolve, resolveDefault,
 };

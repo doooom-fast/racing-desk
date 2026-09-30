@@ -149,7 +149,7 @@ test.describe('apply', () => {
     expect(report.warnings).toEqual([]);
     expect(Object.keys(report).sort()).toEqual(['actions', 'applied', 'backupDir', 'helmet', 'warnings']);
     // A library that keeps no helmets leaves the car's alone, and says so.
-    expect(report.helmet).toEqual({ set: null, onCar: false, isDefault: false, said: 'The library keeps no helmets, so the helmet on the car was left as it was.' });
+    expect(report.helmet).toEqual({ set: null, onCar: false, defaultSet: null, defaultPut: false, said: 'The library keeps no helmets, so the helmet on the car was left as it was.' });
     expect(exists(path.join(fx.car, `helmet_${CUSTOMER}.tga`))).toBe(false);
     expect(exists(path.join(fx.paint, `helmet_${CUSTOMER}.tga`))).toBe(false);
 
@@ -419,7 +419,7 @@ test.describe('revert', () => {
     expect(report.actions[1].detail).toBe(`car_${CUSTOMER}.tga`);
     expect(report.actions[2].detail).toBe(`helmet_${CUSTOMER}.tga`);
     expect(report.actions[3].detail).toBe('1 file(s) added since that backup were removed');
-    expect(report.helmet).toEqual({ set: null, onCar: true, isDefault: false, said: 'The car\'s helmet is as it was before that apply.' });
+    expect(report.helmet).toEqual({ set: null, onCar: true, defaultSet: null, defaultPut: false, said: 'The car\'s helmet is as it was before that apply.' });
   });
 
   test('a revert is itself undoable: it backs up the current state first', async () => {
@@ -481,7 +481,8 @@ test.describe('revert', () => {
 });
 
 // The helmet comes with the livery. The library keeps helmets/<set>/helmet_<its id>.tga and helmets/manifest.json
-// naming a set per "<car folder>/<version>"; the id in the library's file names is never the app's.
+// naming a set per "<car folder>/<version>" and a default; the id in the library's file names is never the app's.
+// The default helmet is the set the list names as its default, never the set a car was just given.
 test.describe('helmets', () => {
   const LIBRARY_ID = '31337';
   const racing = { ...quiet, simState: async () => ({ simRunning: true, uiRunning: true, matched: ['iRacingSim64DX11.exe'] }) };
@@ -517,26 +518,37 @@ test.describe('helmets', () => {
   const defaultHelmet = (fx) => path.join(fx.paint, `helmet_${CUSTOMER}.tga`);
   const bytes = (p) => fs.readFileSync(p);
   const manifestOf = (dir) => JSON.parse(read(path.join(dir, 'manifest.json')));
-  const ON_CAR_AND_DEFAULT = 'The shatter helmet is on the car, and is now the default for every car without a helmet of its own.';
+  const DEFAULT_PUT = 'The shatter helmet is now the default for every car without a helmet of its own.';
+  const ON_CAR_AND_DEFAULT = `The shatter helmet is on the car. ${DEFAULT_PUT}`;
+  // How the manifest names its default, changed under a library that is there already.
+  const nameDefault = (fx, set) => {
+    const p = path.join(fx.library, 'helmets', 'manifest.json');
+    fs.writeFileSync(p, JSON.stringify({ ...JSON.parse(read(p)), default: set }));
+  };
 
-  test('the helmet that comes with the version goes on the car under the app\'s id, and becomes the default', async () => {
+  test('the helmet that comes with the version goes on the car under the app\'s id, and the library\'s default is put in place', async () => {
     const fx = fixture('helmet-basic');
     withHelmets(fx);
     fs.writeFileSync(path.join(fx.car, `car_${CUSTOMER}.tga`), 'OLD PAINT');
     fs.writeFileSync(path.join(fx.car, `helmet_${CUSTOMER}.mip`), 'cooked helmet');
     fs.writeFileSync(path.join(fx.paint, `helmet_${CUSTOMER}.mip`), 'cooked default');
 
-    const report = await apply.apply(request(fx), makeVersion(fx, 'v13', 'NEW PAINT', 'NEW SPEC'), fx.backups, quiet);
+    // v14 comes with shatter-inverted; the library's default is shatter. The car gets the one, the default is the
+    // other: what the car was given has no say in the default.
+    const report = await apply.apply(request(fx, { versionId: 'v14' }), makeVersion(fx, 'v14', 'NEW PAINT', 'NEW SPEC'), fx.backups, quiet);
     expect(report.warnings).toEqual([]);
-    expect(report.helmet).toEqual({ set: 'shatter', onCar: true, isDefault: true, said: ON_CAR_AND_DEFAULT });
+    expect(report.helmet).toEqual({
+      set: 'shatter-inverted', onCar: true, defaultSet: 'shatter', defaultPut: true,
+      said: `The shatter-inverted helmet is on the car. ${DEFAULT_PUT}`,
+    });
     expect(report.actions.map((a) => a.kind)).toEqual(['backup', 'install', 'install', 'helmet', 'cooked', 'helmet-default']);
-    expect(report.actions[3].detail).toBe(`the shatter helmet -> helmet_${CUSTOMER}.tga`);
+    expect(report.actions[3].detail).toBe(`the shatter-inverted helmet -> helmet_${CUSTOMER}.tga`);
     expect(report.actions[4].detail).toBe('1 cooked .mip file deleted so the sim re-cooks');
-    expect(report.actions[5].detail).toBe('the shatter helmet is now the default, for every car without a helmet of its own');
+    expect(report.actions[5].detail).toBe('the shatter helmet put in place as the default, for every car without a helmet of its own');
 
     // On the car and at the paint root, named with the app's id and not the library's; the cooked files gone so
     // the sim cooks them again.
-    expect(bytes(carHelmet(fx)).equals(SHATTER)).toBe(true);
+    expect(bytes(carHelmet(fx)).equals(INVERTED)).toBe(true);
     expect(bytes(defaultHelmet(fx)).equals(SHATTER)).toBe(true);
     expect(exists(path.join(fx.car, `helmet_${CUSTOMER}.mip`))).toBe(false);
     expect(exists(path.join(fx.paint, `helmet_${CUSTOMER}.mip`))).toBe(false);
@@ -549,20 +561,55 @@ test.describe('helmets', () => {
     expect(m.files.map((f) => f.fileName)).toEqual([`car_${CUSTOMER}.tga`, `helmet_${CUSTOMER}.mip`]);
     expect(apply.isBackupId(m.defaultHelmetBackup)).toBe(true);
     const defaultBackup = path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER, m.defaultHelmetBackup);
-    expect(manifestOf(defaultBackup)).toMatchObject({ carFolder: apply.DEFAULT_HELMET_FOLDER, customerId: CUSTOMER, reason: 'apply v13 to lotus79', files: [], defaultHelmet: true });
+    expect(manifestOf(defaultBackup)).toMatchObject({ carFolder: apply.DEFAULT_HELMET_FOLDER, customerId: CUSTOMER, reason: 'apply v14 to lotus79', files: [], defaultHelmet: true });
     // The default's backups are not the car's: the car lists one backup.
     expect(apply.listBackups(fx.backups, 'lotus79')).toHaveLength(1);
+
+    // Another version on the same car: its helmet goes on, and the default — in place already — is neither backed
+    // up nor written nor said again.
+    const again = await apply.apply(request(fx), makeVersion(fx, 'v13', 'NEW', null), fx.backups, quiet);
+    expect(again.helmet).toEqual({ set: 'shatter', onCar: true, defaultSet: 'shatter', defaultPut: false, said: 'The shatter helmet is on the car.' });
+    expect(again.actions.map((a) => a.kind)).toEqual(['backup', 'install', 'helmet', 'cooked']);
+    expect(bytes(carHelmet(fx)).equals(SHATTER)).toBe(true);
+    expect(manifestOf(again.backupDir).defaultHelmetBackup).toBeNull();
+    expect(fs.readdirSync(path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER))).toHaveLength(1);
   });
 
-  test('read-only afterwards covers the helmet, and the next apply writes over it', async () => {
+  test('the default follows the library\'s list: when the list names another set, the next apply puts it in place, backed up', async () => {
+    const fx = fixture('helmet-default-changes');
+    withHelmets(fx);
+    await apply.apply(request(fx), makeVersion(fx, 'v13', 'NEW', null), fx.backups, quiet);
+    expect(bytes(defaultHelmet(fx)).equals(SHATTER)).toBe(true);
+
+    nameDefault(fx, 'shatter-inverted');
+    const report = await apply.apply(request(fx), makeVersion(fx, 'v13', 'NEWER', null), fx.backups, quiet);
+    expect(report.helmet).toEqual({
+      set: 'shatter', onCar: true, defaultSet: 'shatter-inverted', defaultPut: true,
+      said: 'The shatter helmet is on the car. The shatter-inverted helmet is now the default for every car without a helmet of its own.',
+    });
+    // The car keeps its own helmet: the default is every other car's, and nothing else changed.
+    expect(bytes(carHelmet(fx)).equals(SHATTER)).toBe(true);
+    expect(bytes(defaultHelmet(fx)).equals(INVERTED)).toBe(true);
+    const kept = path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER, manifestOf(report.backupDir).defaultHelmetBackup);
+    expect(bytes(path.join(kept, `helmet_${CUSTOMER}.tga`)).equals(SHATTER)).toBe(true);
+
+    // A default put there by hand that is not the list's is another, and is put right the same way.
+    fs.writeFileSync(defaultHelmet(fx), 'BY HAND');
+    const third = await apply.apply(request(fx), makeVersion(fx, 'v13', 'NEWEST', null), fx.backups, quiet);
+    expect(third.helmet.defaultPut).toBe(true);
+    expect(bytes(defaultHelmet(fx)).equals(INVERTED)).toBe(true);
+  });
+
+  test('read-only afterwards covers the helmet, and the next apply writes over it; the default is not the version\'s', async () => {
     const fx = fixture('helmet-ro');
     withHelmets(fx);
     const report = await apply.apply(request(fx, { setReadOnlyAfter: true }), makeVersion(fx, 'v13', 'NEW', null), fx.backups, quiet);
     expect(isReadOnly(carHelmet(fx))).toBe(true);
     expect(report.actions.at(-2)).toEqual({ kind: 'read-only', detail: '2 installed file(s) set read-only' });
+    expect(report.actions.at(-1).kind).toBe('helmet-default');
     await apply.apply(request(fx, { versionId: 'v14' }), makeVersion(fx, 'v14', 'NEWER', null), fx.backups, quiet);
     expect(bytes(carHelmet(fx)).equals(INVERTED)).toBe(true);
-    expect(bytes(defaultHelmet(fx)).equals(INVERTED)).toBe(true);
+    expect(bytes(defaultHelmet(fx)).equals(SHATTER)).toBe(true);
   });
 
   test('the backup and the undo cover the car\'s helmet and the default, both ways', async () => {
@@ -586,7 +633,7 @@ test.describe('helmets', () => {
     expect(read(defaultHelmet(fx))).toBe('OLD DEFAULT');
     expect(report.actions.map((a) => a.kind)).toEqual(['backup', 'restore', 'restore', 'helmet-default']);
     expect(report.actions[3].detail).toBe('the default helmet was put back as it was');
-    expect(report.helmet).toEqual({ set: null, onCar: true, isDefault: true, said: "The car's helmet is as it was before that apply, and the default helmet is as it was before it." });
+    expect(report.helmet).toEqual({ set: null, onCar: true, defaultSet: null, defaultPut: true, said: "The car's helmet is as it was before that apply, and the default helmet is as it was before it." });
 
     // A revert is undoable whole: the safety backup it took names a backup of the default as it stood, so going
     // back to it brings the applied helmet and the default it set back too.
@@ -612,7 +659,7 @@ test.describe('helmets', () => {
     expect(read(path.join(fx.car, `car_${CUSTOMER}.tga`))).toBe('ORIGINAL');
     expect(report.actions.map((a) => a.kind)).toEqual(['backup', 'restore', 'remove', 'helmet-default']);
     expect(report.actions[3].detail).toBe('the default helmet that apply set was taken away: there was none before it');
-    expect(report.helmet).toEqual({ set: null, onCar: false, isDefault: false, said: 'The helmet that apply put on the car was taken off, and the default helmet it set was taken away.' });
+    expect(report.helmet).toEqual({ set: null, onCar: false, defaultSet: null, defaultPut: false, said: 'The helmet that apply put on the car was taken off, and the default helmet it set was taken away.' });
   });
 
   test('a backup from before the app kept helmets leaves a helmet on the car alone when reverted to', async () => {
@@ -631,47 +678,91 @@ test.describe('helmets', () => {
     expect(read(carHelmet(fx))).toBe('PUT THERE BY HAND');
     expect(read(defaultHelmet(fx))).toBe('DEFAULT BY HAND');
     expect(report.actions.map((a) => a.kind)).toEqual(['backup', 'restore']);
-    expect(report.helmet).toEqual({ set: null, onCar: false, isDefault: false, said: '' });
+    expect(report.helmet).toEqual({ set: null, onCar: false, defaultSet: null, defaultPut: false, said: '' });
   });
 
   test('no helmet list, no entry for the version, or a set file that is missing leaves the car\'s helmet alone, and says so', async () => {
     const version = (fx) => makeVersion(fx, 'v13', 'NEW', null);
-    const untouched = async (fx, said) => {
+    const applied = async (fx) => {
       fs.writeFileSync(carHelmet(fx), 'MY HELMET');
       fs.writeFileSync(defaultHelmet(fx), 'MY DEFAULT');
       const report = await apply.apply(request(fx), version(fx), fx.backups, quiet);
-      expect(report.helmet).toMatchObject({ onCar: false, isDefault: false, said });
       expect(report.warnings).toEqual([]);
-      expect(report.actions.map((a) => a.kind)).toEqual(['backup', 'install', 'cooked']);
+      expect(report.helmet.onCar).toBe(false);
       expect(read(carHelmet(fx))).toBe('MY HELMET');
+      return report;
+    };
+    // Where there is no default to see to either, nothing of the default is written, backed up or named.
+    const defaultAlone = (fx, report) => {
+      expect(report.helmet.defaultPut).toBe(false);
+      expect(report.actions.map((a) => a.kind)).toEqual(['backup', 'install', 'cooked']);
       expect(read(defaultHelmet(fx))).toBe('MY DEFAULT');
       expect(exists(path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER))).toBe(false);
       expect(manifestOf(report.backupDir).defaultHelmetBackup).toBeNull();
-      return report;
     };
 
+    // No list at all: nothing said of the default beyond that.
     const none = fixture('helmet-no-list');
-    expect((await untouched(none, 'The library keeps no helmets, so the helmet on the car was left as it was.')).helmet.set).toBeNull();
+    const noList = await applied(none);
+    expect(noList.helmet).toEqual({ set: null, onCar: false, defaultSet: null, defaultPut: false, said: 'The library keeps no helmets, so the helmet on the car was left as it was.' });
+    defaultAlone(none, noList);
 
-    const entry = fixture('helmet-no-entry');
-    withHelmets(entry, { variants: { 'lotus79/v14': 'shatter-inverted' } });
-    expect((await untouched(entry, 'No helmet comes with this version, so the helmet on the car was left as it was.')).helmet.set).toBeNull();
-
-    const missing = fixture('helmet-no-file');
-    withHelmets(missing, { files: false });
-    expect((await untouched(missing, "The shatter helmet's file is not in the library. The car's helmet was left as it was.")).helmet.set).toBe('shatter');
-
+    // A list that cannot be read: the same, said so.
     const broken = fixture('helmet-broken-list');
     fs.mkdirSync(path.join(broken.library, 'helmets'));
     fs.writeFileSync(path.join(broken.library, 'helmets', 'manifest.json'), '{ no');
-    await untouched(broken, "The library's helmet list could not be read, so the helmet on the car was left as it was.");
+    const unread = await applied(broken);
+    expect(unread.helmet.said).toBe("The library's helmet list could not be read, so the helmet on the car was left as it was.");
+    defaultAlone(broken, unread);
+
+    // No entry for the version: the car's helmet is left alone, and the default — the list's, which is there — is
+    // seen to all the same, since the default is the library's and not this version's.
+    const entry = fixture('helmet-no-entry');
+    withHelmets(entry, { variants: { 'lotus79/v14': 'shatter-inverted' } });
+    const noEntry = await applied(entry);
+    expect(noEntry.helmet).toEqual({
+      set: null, onCar: false, defaultSet: 'shatter', defaultPut: true,
+      said: `No helmet comes with this version, so the helmet on the car was left as it was. ${DEFAULT_PUT}`,
+    });
+    expect(bytes(defaultHelmet(entry)).equals(SHATTER)).toBe(true);
+    expect(read(path.join(entry.backups, apply.DEFAULT_HELMET_FOLDER, manifestOf(noEntry.backupDir).defaultHelmetBackup, `helmet_${CUSTOMER}.tga`))).toBe('MY DEFAULT');
+
+    // The set's file missing — the version's set is the default set here, so one thing is wrong, and it is said once.
+    const missing = fixture('helmet-no-file');
+    withHelmets(missing, { files: false });
+    const noFile = await applied(missing);
+    expect(noFile.helmet).toEqual({
+      set: 'shatter', onCar: false, defaultSet: 'shatter', defaultPut: false,
+      said: "The shatter helmet's file is not in the library. The car's helmet and the default helmet were left as they were.",
+    });
+    defaultAlone(missing, noFile);
+
+    // The version's set missing and the default's there: each said for itself.
+    const one = fixture('helmet-one-file');
+    withHelmets(one, { files: false });
+    fs.mkdirSync(path.join(one.library, 'helmets', 'shatter-inverted'), { recursive: true });
+    fs.writeFileSync(path.join(one.library, 'helmets', 'shatter-inverted', `helmet_${LIBRARY_ID}.tga`), INVERTED);
+    nameDefault(one, 'shatter-inverted');
+    const oneFile = await applied(one);
+    expect(oneFile.helmet.said).toBe("The shatter helmet's file is not in the library. The car's helmet was left as it was. The shatter-inverted helmet is now the default for every car without a helmet of its own.");
+    expect(bytes(defaultHelmet(one)).equals(INVERTED)).toBe(true);
+
+    // The list names no default: said, and the default is left as it is.
+    const unnamed = fixture('helmet-no-default');
+    withHelmets(unnamed, { fallback: null });
+    const noDefault = await apply.apply(request(unnamed), version(unnamed), unnamed.backups, quiet);
+    expect(noDefault.helmet).toEqual({
+      set: 'shatter', onCar: true, defaultSet: null, defaultPut: false,
+      said: 'The shatter helmet is on the car. The library names no default helmet, so the default helmet was left as it was.',
+    });
+    expect(exists(defaultHelmet(unnamed))).toBe(false);
   });
 
-  test('a helmet list that points outside the library\'s helmets folder is refused, and nothing outside it is copied', async () => {
+  test('a helmet list that points outside the library\'s helmets folder is refused, and nothing outside it is copied — as a car\'s helmet or as the default', async () => {
     const fx = fixture('helmet-outside');
     // The file is there, so what stops it is the rule.
     fs.writeFileSync(path.join(fx.base, 'evil.tga'), SHATTER);
-    withHelmets(fx, { variants: { 'lotus79/v13': 'evil' }, files: false });
+    withHelmets(fx, { variants: { 'lotus79/v13': 'evil' }, fallback: 'evil', files: false });
     const raw = JSON.parse(read(path.join(fx.library, 'helmets', 'manifest.json')));
     raw.sets.evil = { file: '../evil.tga', body: [0, 0, 0], art: [0, 0, 0] };
     fs.writeFileSync(path.join(fx.library, 'helmets', 'manifest.json'), JSON.stringify(raw));
@@ -679,12 +770,19 @@ test.describe('helmets', () => {
 
     const report = await apply.apply(request(fx), makeVersion(fx, 'v13', 'NEW', null), fx.backups, quiet);
     expect(report.helmet).toEqual({
-      set: 'evil', onCar: false, isDefault: false,
-      said: "The evil helmet names a file outside the library's helmets folder, so it is not used. The car's helmet was left as it was.",
+      set: 'evil', onCar: false, defaultSet: null, defaultPut: false,
+      said: "The evil helmet names a file outside the library's helmets folder, so it is not used. The car's helmet was left as it was. "
+        + 'The library names no default helmet, so the default helmet was left as it was.',
     });
     expect(read(carHelmet(fx))).toBe('MY HELMET');
     expect(exists(defaultHelmet(fx))).toBe(false);
+    expect(exists(path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER))).toBe(false);
     // Nor is the paint root ever written to from a path the list names: the destination is the app's alone.
+    expect(fs.readdirSync(fx.paint).sort()).toEqual(['lotus79']);
+    // Seen to on its own, the same refusal.
+    expect(await apply.ensureDefault({ paintDir: fx.paint, libraryRoot: fx.library, customerId: CUSTOMER }, fx.backups, quiet)).toEqual({
+      set: null, put: false, said: 'The library names no default helmet, so the default helmet was left as it was.', backupDir: null, warnings: [],
+    });
     expect(fs.readdirSync(fx.paint).sort()).toEqual(['lotus79']);
   });
 
@@ -730,14 +828,14 @@ test.describe('helmets', () => {
     expect(report.applied).toBe(true);
     expect(bytes(carHelmet(fx)).equals(SHATTER)).toBe(true);
     expect(report.helmet.onCar).toBe(true);
-    expect(report.helmet.isDefault).toBe(false);
-    expect(report.helmet.said).toMatch(/^The shatter helmet is on the car\. It could not be made the default \(.+\), so the default helmet is as it was\.$/);
+    expect(report.helmet.defaultPut).toBe(false);
+    expect(report.helmet.said).toMatch(/^The shatter helmet is on the car\. The shatter helmet could not be made the default \(.+\), so the default helmet is as it was\.$/);
     expect(report.warnings).toHaveLength(1);
     expect(report.warnings[0]).toMatch(/^The shatter helmet could not be made the default \(.+\)\. The default helmet is as it was\.$/);
     expect(report.actions.map((a) => a.kind)).toEqual(['backup', 'install', 'helmet', 'cooked']);
   });
 
-  test('a group\'s car leaves the default to the group: setDefaultHelmet false, and its backup names the group\'s', async () => {
+  test('a group\'s car leaves the default to the group: ensureDefaultHelmet false, and its backup names the group\'s', async () => {
     const fx = fixture('helmet-in-group');
     withHelmets(fx);
     fs.writeFileSync(defaultHelmet(fx), 'OLD DEFAULT');
@@ -745,18 +843,73 @@ test.describe('helmets', () => {
     const shared = apply.backUpDefault(fx.paint, fx.backups, CUSTOMER, 'set shatter', frozen);
     expect(shared).toMatchObject({ id: '2026-09-30_120000_000', had: true });
 
-    const report = await apply.apply(request(fx, { setDefaultHelmet: false, defaultHelmetBackup: shared.id }), makeVersion(fx, 'v13', 'NEW', null), fx.backups, quiet);
+    const report = await apply.apply(request(fx, { ensureDefaultHelmet: false, defaultHelmetBackup: shared.id }), makeVersion(fx, 'v13', 'NEW', null), fx.backups, quiet);
     expect(bytes(carHelmet(fx)).equals(SHATTER)).toBe(true);
     expect(read(defaultHelmet(fx))).toBe('OLD DEFAULT');
-    expect(report.helmet).toEqual({ set: 'shatter', onCar: true, isDefault: false, said: 'The shatter helmet is on the car.' });
+    expect(report.helmet).toEqual({ set: 'shatter', onCar: true, defaultSet: null, defaultPut: false, said: 'The shatter helmet is on the car.' });
     expect(manifestOf(report.backupDir).defaultHelmetBackup).toBe(shared.id);
     expect(fs.readdirSync(path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER))).toEqual([shared.id]);
 
     // A backup id that is not one is not taken from the request, and nothing is joined into a path from it.
     expect(apply.normaliseRequest({ ...request(fx), defaultHelmetBackup: '..\\..\\x' }).defaultHelmetBackup).toBeNull();
-    expect(apply.normaliseRequest({ ...request(fx) }).setDefaultHelmet).toBe(true);
+    expect(apply.normaliseRequest({ ...request(fx) }).ensureDefaultHelmet).toBe(true);
     await expect(async () => apply.restoreDefault(fx.paint, fx.backups, CUSTOMER, '../x')).rejects.toThrow('not named as one');
     await expect(async () => apply.restoreDefault(fx.paint, fx.backups, CUSTOMER, '2026-09-30_120000_099')).rejects.toThrow('no longer there');
+  });
+
+  test('seen to on its own, after a library update: put in place when missing or another, backed up, said; nothing where it is in place', async () => {
+    const fx = fixture('helmet-ensure');
+    const ensure = (deps = quiet) => apply.ensureDefault({ paintDir: fx.paint, libraryRoot: fx.library, customerId: CUSTOMER }, fx.backups, deps);
+
+    // A library that keeps no helmets: nothing to see to, nothing said.
+    expect(await ensure()).toEqual({ set: null, put: false, said: '', backupDir: null, warnings: [] });
+    expect(exists(defaultHelmet(fx))).toBe(false);
+    expect(exists(fx.backups)).toBe(false);
+
+    // The list arrives: the default is missing, so it is put in place, with a backup that says there was none.
+    withHelmets(fx);
+    const first = await ensure();
+    expect(first).toMatchObject({ set: 'shatter', put: true, said: DEFAULT_PUT, warnings: [] });
+    expect(first.backupDir.startsWith(path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER))).toBe(true);
+    expect(manifestOf(first.backupDir)).toMatchObject({ reason: 'library update', files: [], defaultHelmet: true });
+    expect(bytes(defaultHelmet(fx)).equals(SHATTER)).toBe(true);
+
+    // In place: nothing written, nothing backed up, nothing said.
+    const written = fs.statSync(defaultHelmet(fx)).mtimeMs;
+    expect(await ensure()).toEqual({ set: 'shatter', put: false, said: '', backupDir: null, warnings: [] });
+    expect(fs.readdirSync(path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER))).toHaveLength(1);
+    expect(fs.statSync(defaultHelmet(fx)).mtimeMs).toBe(written);
+
+    // The list names another set now: with the sim running it is left as it is, and said; once the sim is closed
+    // it is put in place, the old default backed up.
+    nameDefault(fx, 'shatter-inverted');
+    const held = await ensure(racing);
+    expect(held).toEqual({
+      set: 'shatter-inverted', put: false, backupDir: null, warnings: [],
+      said: "The library's default helmet is now the shatter-inverted helmet, and the next apply puts it in place. "
+        + 'iRacing is running. It holds paint files open, so a swap can fail halfway. Close the sim first.',
+    });
+    expect(bytes(defaultHelmet(fx)).equals(SHATTER)).toBe(true);
+    const changed = await ensure();
+    expect(changed).toMatchObject({ set: 'shatter-inverted', put: true, said: 'The shatter-inverted helmet is now the default for every car without a helmet of its own.' });
+    expect(bytes(defaultHelmet(fx)).equals(INVERTED)).toBe(true);
+    expect(bytes(path.join(changed.backupDir, `helmet_${CUSTOMER}.tga`)).equals(SHATTER)).toBe(true);
+
+    // The set's file gone: said, and the default left as it is.
+    fs.rmSync(path.join(fx.library, 'helmets', 'shatter-inverted'), { recursive: true });
+    nameDefault(fx, 'shatter');
+    fs.rmSync(path.join(fx.library, 'helmets', 'shatter'), { recursive: true });
+    expect(await ensure()).toEqual({ set: 'shatter', put: false, said: "The shatter helmet's file is not in the library. The default helmet was left as it was.", backupDir: null, warnings: [] });
+    expect(bytes(defaultHelmet(fx)).equals(INVERTED)).toBe(true);
+
+    // No paint folder yet, and an id that is not one.
+    const bare = fixture('helmet-ensure-bare');
+    withHelmets(bare);
+    fs.rmSync(bare.paint, { recursive: true });
+    expect(await apply.ensureDefault({ paintDir: bare.paint, libraryRoot: bare.library, customerId: CUSTOMER }, bare.backups, quiet)).toMatchObject({
+      put: false, said: "The library's default helmet is now the shatter helmet, and the next apply puts it in place: there is no paint folder yet.",
+    });
+    await expect(apply.ensureDefault({ paintDir: bare.paint, libraryRoot: bare.library, customerId: 'x' }, bare.backups, quiet)).rejects.toThrow('digits only');
   });
 });
 

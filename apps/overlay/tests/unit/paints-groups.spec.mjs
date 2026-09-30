@@ -365,8 +365,9 @@ test.describe('setting a group', () => {
   });
 });
 
-// The helmet comes with the livery, and a group sets the default once for its cars. The library keeps
-// helmets/<set>/helmet_<its id>.tga and helmets/manifest.json; the id in its file names is never the app's.
+// The helmet comes with the livery, and a group sees to the default once for its cars: the set the library names
+// as its default, whatever the cars wear. The library keeps helmets/<set>/helmet_<its id>.tga and
+// helmets/manifest.json; the id in its file names is never the app's.
 const LIBRARY_ID = '31337';
 const apply = require('../../modules/js/paints/apply.js');
 
@@ -399,25 +400,27 @@ const manifestOf = (dir) => JSON.parse(read(path.join(dir, 'manifest.json')));
 const ALL_SHATTER = { 'lotus79/shatter': 'shatter', 'mx5-mx52016/shatter': 'shatter', 'porsche992cup/shatter': 'shatter', 'lotus79/shatter-inverted': 'shatter-inverted', 'mx5-mx52016/Shatter-Inverted': 'shatter-inverted', 'mx5-mx52016/orange-white': 'white-orange' };
 
 test.describe('the helmet comes with the group', () => {
-  test('goes on each car under the app\'s id, and is the default when every car agrees; set again, nothing is written', async () => {
+  test('goes on each car under the app\'s id; the default is the library\'s default set, not the one the cars agree on; set again, nothing is written', async () => {
     const fx = fixture('helmet-agree');
-    withHelmets(fx, ALL_SHATTER, 'shatter-inverted');   // the library's default is another set, so agreeing shows
+    withHelmets(fx, ALL_SHATTER, 'shatter-inverted');   // every car wears shatter; the library's default is another set
     fs.writeFileSync(defaultHelmet(fx), 'OLD DEFAULT');
     const deps = { lib: fx.lib(), store: memoryStore(), installedCars: fx.installed, base: fx.backups, deps: quiet };
 
     const report = await groups.set(request(fx, 'library:shatter'), deps);
     expect(outcomes(report)).toEqual(['lotus79: applied', 'mx5-mx52016: applied', 'porsche992cup: applied']);
     for (const sim of ['lotus79', 'mx5 mx52016', 'porsche992cup']) expect(bytes(helmetOn(fx, sim)).equals(SETS.shatter)).toBe(true);
-    expect(bytes(defaultHelmet(fx)).equals(SETS.shatter)).toBe(true);
-    expect(report.helmet.set).toBe('shatter');
-    expect(report.helmet.said).toBe('Every car in this group wears the shatter helmet, so it is now the default for every car without a helmet of its own.');
+    // The cars all wear shatter, and the default is what the library names: shatter-inverted.
+    expect(bytes(defaultHelmet(fx)).equals(SETS['shatter-inverted'])).toBe(true);
+    expect(report.helmet.set).toBe('shatter-inverted');
+    expect(report.helmet.put).toBe(true);
+    expect(report.helmet.said).toBe('The shatter-inverted helmet is now the default for every car without a helmet of its own.');
     expect(report.helmet.backupDir.startsWith(path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER))).toBe(true);
     expect(read(path.join(report.helmet.backupDir, `helmet_${CUSTOMER}.tga`))).toBe('OLD DEFAULT');
     expect(manifestOf(report.helmet.backupDir).reason).toBe('set shatter');
     // Each car says its helmet is on, and leaves the default to the group; each car's backup names the group's one
     // backup of the default.
     for (const r of report.results) {
-      expect(r.helmet).toEqual({ set: 'shatter', onCar: true, isDefault: false, said: 'The shatter helmet is on the car.' });
+      expect(r.helmet).toEqual({ set: 'shatter', onCar: true, defaultSet: null, defaultPut: false, said: 'The shatter helmet is on the car.' });
       expect(manifestOf(r.backupDir).defaultHelmetBackup).toBe(path.basename(report.helmet.backupDir));
     }
     // The car's own words are of its paint; the helmet is said apart.
@@ -430,7 +433,10 @@ test.describe('the helmet comes with the group', () => {
     const written = fs.statSync(defaultHelmet(fx)).mtimeMs;
     const again = await groups.set(request(fx, 'library:shatter'), deps);
     expect(outcomes(again)).toEqual(['lotus79: already', 'mx5-mx52016: already', 'porsche992cup: already']);
-    expect(again.helmet).toEqual({ set: 'shatter', said: 'Every car in this group wears the shatter helmet, which is the default already.', backupDir: null });
+    expect(again.helmet).toEqual({
+      set: 'shatter-inverted', put: false, backupDir: null,
+      said: 'The shatter-inverted helmet is the default for every car without a helmet of its own, as before.',
+    });
     expect(fs.readdirSync(path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER))).toHaveLength(1);
     expect(fs.statSync(defaultHelmet(fx)).mtimeMs).toBe(written);
 
@@ -449,7 +455,7 @@ test.describe('the helmet comes with the group', () => {
     expect(bytes(helmetOn(fx, 'mx5 mx52016')).equals(SETS.shatter)).toBe(true);
   });
 
-  test('when the cars disagree the library\'s default is the default, and it is said which', async () => {
+  test('when the cars wear different helmets the default is the library\'s default set all the same, and it is said which', async () => {
     const fx = fixture('helmet-differ');
     withHelmets(fx, ALL_SHATTER, 'shatter');
     const store = memoryStore();
@@ -461,39 +467,56 @@ test.describe('the helmet comes with the group', () => {
     expect(bytes(helmetOn(fx, 'lotus79')).equals(SETS['shatter-inverted'])).toBe(true);
     expect(bytes(helmetOn(fx, 'mx5 mx52016')).equals(SETS['white-orange'])).toBe(true);
     expect(bytes(defaultHelmet(fx)).equals(SETS.shatter)).toBe(true);
-    expect(report.helmet.set).toBe('shatter');
-    expect(report.helmet.said).toBe("The cars in this group wear different helmets, so the library's default, the shatter helmet, is now the default for every car without a helmet of its own.");
+    expect(report.helmet).toMatchObject({ set: 'shatter', put: true, said: 'The shatter helmet is now the default for every car without a helmet of its own.' });
     expect(report.results.map((r) => r.helmet.said)).toEqual(['The shatter-inverted helmet is on the car.', 'The white-orange helmet is on the car.']);
     // The default's backup says there was none before it.
     expect(manifestOf(report.helmet.backupDir).files).toEqual([]);
 
     const again = await groups.set(request(fx, made.id), deps);
-    expect(again.helmet.said).toBe("The cars in this group wear different helmets, and the library's default, the shatter helmet, is the default already.");
+    expect(again.helmet.said).toBe('The shatter helmet is the default for every car without a helmet of its own, as before.');
+    expect(again.helmet.put).toBe(false);
     expect(again.helmet.backupDir).toBeNull();
+
+    // The library names another default: the next set puts it in place, and what the cars wear still has no say.
+    const p = path.join(fx.library, 'helmets', 'manifest.json');
+    fs.writeFileSync(p, JSON.stringify({ ...JSON.parse(read(p)), default: 'white-orange' }));
+    const changed = await groups.set(request(fx, made.id), deps);
+    expect(outcomes(changed)).toEqual(['lotus79: already', 'mx5-mx52016: already']);
+    expect(changed.helmet).toMatchObject({ set: 'white-orange', put: true, said: 'The white-orange helmet is now the default for every car without a helmet of its own.' });
+    expect(bytes(defaultHelmet(fx)).equals(SETS['white-orange'])).toBe(true);
+    expect(bytes(path.join(changed.helmet.backupDir, `helmet_${CUSTOMER}.tga`)).equals(SETS.shatter)).toBe(true);
+    expect(bytes(helmetOn(fx, 'lotus79')).equals(SETS['shatter-inverted'])).toBe(true);
   });
 
-  test('a group whose liveries come with no helmet leaves the default alone, and says so; one car with a helmet is enough to agree', async () => {
+  test('a library that keeps no helmets leaves the default alone, and says so; when the list arrives the default is its, whatever one car wears', async () => {
     const fx = fixture('helmet-none');
     fs.writeFileSync(defaultHelmet(fx), 'MY DEFAULT');
     const deps = { lib: fx.lib(), store: memoryStore(), installedCars: fx.installed, base: fx.backups, deps: quiet };
 
     const none = await groups.set(request(fx, 'library:shatter'), deps);
     expect(none.applied).toBe(3);
-    expect(none.helmet).toEqual({ set: null, said: 'No helmet comes with any livery in this group, so the default helmet was left as it was.', backupDir: null });
+    expect(none.helmet).toEqual({ set: null, put: false, said: 'The library keeps no helmets, so the default helmet was left as it was.', backupDir: null });
     expect(none.results.map((r) => r.helmet.said)).toEqual(Array(3).fill('The library keeps no helmets, so the helmet on the car was left as it was.'));
     expect(read(defaultHelmet(fx))).toBe('MY DEFAULT');
     expect(fs.existsSync(path.join(fx.backups, apply.DEFAULT_HELMET_FOLDER))).toBe(false);
     for (const sim of ['lotus79', 'mx5 mx52016', 'porsche992cup']) expect(fs.existsSync(helmetOn(fx, sim))).toBe(false);
 
-    // The list arrives, naming a helmet for one car of the three: that car wears it, and the default is it.
+    // The list arrives, naming a helmet for one car of the three: that car wears it, and the default is the list's.
     withHelmets(fx, { 'porsche992cup/shatter': 'shatter' }, 'shatter-inverted');
     const one = await groups.set(request(fx, 'library:shatter'), deps);
     expect(outcomes(one)).toEqual(['lotus79: already', 'mx5-mx52016: already', 'porsche992cup: applied']);
     expect(one.results[0].helmet).toBeNull();   // a car already done says nothing of a helmet
     expect(one.results[2].helmet.said).toBe('The shatter helmet is on the car.');
-    expect(bytes(defaultHelmet(fx)).equals(SETS.shatter)).toBe(true);
-    expect(one.helmet.said).toBe('Every car in this group wears the shatter helmet, so it is now the default for every car without a helmet of its own.');
+    expect(bytes(helmetOn(fx, 'porsche992cup')).equals(SETS.shatter)).toBe(true);
+    expect(bytes(defaultHelmet(fx)).equals(SETS['shatter-inverted'])).toBe(true);
+    expect(one.helmet.said).toBe('The shatter-inverted helmet is now the default for every car without a helmet of its own.');
     expect(read(path.join(one.helmet.backupDir, `helmet_${CUSTOMER}.tga`))).toBe('MY DEFAULT');
+
+    // A list that cannot be read is said as such.
+    fs.writeFileSync(path.join(fx.library, 'helmets', 'manifest.json'), '{ no');
+    const broken = await groups.set(request(fx, 'library:shatter'), deps);
+    expect(broken.helmet).toEqual({ set: null, put: false, said: "The library's helmet list could not be read, so the default helmet was left as it was.", backupDir: null });
+    expect(bytes(defaultHelmet(fx)).equals(SETS['shatter-inverted'])).toBe(true);
   });
 
   test('with the sim running nothing is touched, the default included', async () => {
@@ -516,7 +539,7 @@ test.describe('through the commands the page calls', () => {
     });
   }
 
-  test('one car\'s apply makes its helmet the default whatever the page sent; a group\'s answer carries its helmet', async () => {
+  test('one car\'s apply sees to the default whatever the page sent; a group\'s answer carries its helmet; the default is seen to on its own', async () => {
     const fx = fixture('commands-helmets');
     withHelmets(fx, ALL_SHATTER);
     const commands = commandsFor(fx);
@@ -524,16 +547,31 @@ test.describe('through the commands the page calls', () => {
       paintDir: fx.paint, libraryRoot: fx.library, carFolder: 'lotus79', simFolder: 'lotus79', versionId: 'shatter-inverted', customerId: CUSTOMER,
       includeSpec: true, setReadOnlyAfter: false, clearOtherCooked: false, force: false,
       // Not the page's to send: both are set in the main process whatever it sent.
-      setDefaultHelmet: false, defaultHelmetBackup: '..\\x',
+      ensureDefaultHelmet: false, defaultHelmetBackup: '..\\x',
     });
-    expect(report.helmet).toEqual({ set: 'shatter-inverted', onCar: true, isDefault: true, said: 'The shatter-inverted helmet is on the car, and is now the default for every car without a helmet of its own.' });
-    expect(bytes(defaultHelmet(fx)).equals(SETS['shatter-inverted'])).toBe(true);
+    expect(report.helmet).toEqual({
+      set: 'shatter-inverted', onCar: true, defaultSet: 'shatter', defaultPut: true,
+      said: 'The shatter-inverted helmet is on the car. The shatter helmet is now the default for every car without a helmet of its own.',
+    });
+    expect(bytes(helmetOn(fx, 'lotus79')).equals(SETS['shatter-inverted'])).toBe(true);
+    expect(bytes(defaultHelmet(fx)).equals(SETS.shatter)).toBe(true);
     expect(apply.isBackupId(manifestOf(report.backupDir).defaultHelmetBackup)).toBe(true);
 
     const set = await paintsIpc.invoke(commands, memoryStore({}), 'setGroup', { request: request(fx, 'library:shatter') });
     expect(outcomes(set)).toEqual(['lotus79: applied', 'mx5-mx52016: applied', 'porsche992cup: applied']);
-    expect(set.helmet.set).toBe('shatter');
+    expect(set.helmet).toEqual({ set: 'shatter', put: false, said: 'The shatter helmet is the default for every car without a helmet of its own, as before.', backupDir: null });
     expect(bytes(defaultHelmet(fx)).equals(SETS.shatter)).toBe(true);
+
+    // On its own, over the bridge, as the page asks after a library update: in place, nothing to say; the list
+    // naming another set, put in place and said.
+    const ask = () => paintsIpc.invoke(commands, memoryStore({}), 'ensureDefaultHelmet', { paintDir: fx.paint, libraryRoot: fx.library, customerId: CUSTOMER, extra: 'not taken' });
+    expect(await ask()).toEqual({ set: 'shatter', put: false, said: '', backupDir: null, warnings: [] });
+    const p = path.join(fx.library, 'helmets', 'manifest.json');
+    fs.writeFileSync(p, JSON.stringify({ ...JSON.parse(read(p)), default: 'white-orange' }));
+    const ensured = await ask();
+    expect(ensured).toMatchObject({ set: 'white-orange', put: true, said: 'The white-orange helmet is now the default for every car without a helmet of its own.', warnings: [] });
+    expect(manifestOf(ensured.backupDir).reason).toBe('library update');
+    expect(bytes(defaultHelmet(fx)).equals(SETS['white-orange'])).toBe(true);
     // The library scan the page reads says which helmet each version comes with.
     const lib = await commands.scanLibrary(fx.library, fx.paint);
     const mx5 = lib.cars.find((c) => c.folder === 'mx5-mx52016');
