@@ -854,6 +854,13 @@ exists; the overlay doesn't use it).
 
 ## Rig facts worth knowing
 
+- **Headless Chromium on this machine draws in software.** Any browser started for a test, a screenshot or a script
+  launches with `--disable-gpu --use-angle=swiftshader --use-gl=angle`: `apps/overlay/tests/software-browser.mjs`
+  exports them (`SOFTWARE_GL_ARGS`), the Playwright config takes them, and every `chromium.launch` call must, since a
+  script that launches with no flags goes round the config (`tests/unit/software-browser.spec.mjs` fails for one that
+  does). The NVIDIA driver stopped responding three times on 2026-09-29 (Display event 4101 at 20:38, 23:00 and 23:01)
+  while headless pages of the WebGL HUD were being screenshotted, once leaving the screen in a mode the monitor could
+  not show. Never launch a browser on the graphics card here, and none while iRacing is running.
 - iRacing install: `C:\Program Files (x86)\Steam\steamapps\common\iRacing` (the uninstall registry
   key points at a stale copy on `D:`).
 - Telemetry: `Documents\iRacing\telemetry\*.ibt` — ~3k files, ~100 GB since Oct 2025.

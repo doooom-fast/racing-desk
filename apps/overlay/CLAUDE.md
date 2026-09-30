@@ -464,6 +464,13 @@ npm run test:golden               # golden frames: dashboard.html + replay harne
 npm run test:golden -- --update-snapshots   # accept new baselines after an intended change
 ```
 
+**Headless Chromium here draws in software.** `playwright.config.mjs` launches every browser with `--disable-gpu
+--use-angle=swiftshader --use-gl=angle` (`tests/software-browser.mjs` exports them as `SOFTWARE_GL_ARGS`), and so must
+any script that calls `chromium.launch` on its own, which goes round the config. The rig's graphics driver stopped
+responding three times on 2026-09-29 while headless pages of the WebGL HUD were being screenshotted.
+`tests/unit/software-browser.spec.mjs` fails for a script in the repo that launches Chromium without them, and checks
+that the browser the tests run in reports SwiftShader.
+
 Golden frames pin the replay to a frame, block all non-plugin network, fix `Date`, and compare
 screenshots with a 100-pixel allowance (runs are pixel-exact; a single colour rule moves ~1.3k px).
 No CI — run locally.
