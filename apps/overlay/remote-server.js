@@ -33,7 +33,9 @@
 //                              drive mode from the start, the iPad's look — the glass at fifteen hundredths, no
 //                              badges, the sectors that fit), in OBS mode's behaviour, and with nothing behind or
 //                              between the panels: no black page, no flag pattern in the gutters, so the game shows
-//                              through. "iPad dashboard" under "HUD drawn by OBS". Never on the iPad's server
+//                              through. "iPad dashboard" under "HUD drawn by OBS". Never on the iPad's server. It is
+//                              given his display settings as /obs is (the allowlist below), not the iPad's few: the page
+//                              runs on the rig next to the sim, so his switch for effects and for ambient light applies
 //   GET /api/settings-display  his display settings, the allowlist alone (DISPLAY_SETTINGS: the zoom, the position,
 //                              the panels, the look, the two panel-background sliders): never a key, the paints, the
 //                              iPad's or the recording's keys. The OBS pages ask every ten seconds

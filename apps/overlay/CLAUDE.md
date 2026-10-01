@@ -42,7 +42,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `obs/auto-record.js` | Pure: when a recording starts and stops by itself — the green flag in a race, pit exit elsewhere; a new session, five seconds after HIS finish in a race (the chequered flag out and his lap count up since; the flag is the session's), leaving the car; held a second by the clock; only its own stopped; a green flag good once per stint |
 | `obs/filing.js` | Pure: the recording's folder name (`<date> <track> <car>`), the same-drive move after the file holds still, the offset from the chapters read back (each paired with the same-named chapter nearest to where it belongs, the median of what agrees) or from the file's end (the pauses allowed for), the words of each chapter |
 | `obs/mp4-info.js` | An MP4's duration and chapters read by seeking, no ffmpeg: a finished Hybrid MP4 or plain MP4 from its `moov`, an unfinished Hybrid MP4 from its fragments |
-| `obs/hud-source.js` | **Main process**: "HUD drawn by OBS" — the one browser source `Racing Desk HUD` (the loopback listener's `/obs` page, at the port the listener is really on) made once, an item of it in each scene that has an item named `game video`, in the collection the switch was turned on in and no other, just above it and fitted to it (the source is the HUD window's size in DIPs, scaled up by OBS), reloaded when OBS answers unless the page is polling, disabled off — applied at every connect, then the window goes back into the capture — and on quit, never removed; what he hid or moved is left (`apply` does the ordering, with `setContentProtection` handed in as `protect`). With "iPad dashboard" chosen (`view`), the source is the `/obs-ipad` page at 1180 by 820, placed once per scene in the bottom-left corner of the game video at two-fifths of its height and never moved or sized again; the state file keeps the scenes placed and his transform of it when the choice goes back to the rig HUD, which puts the item back over the game |
+| `obs/hud-source.js` | **Main process**: "HUD drawn by OBS" — the one browser source `Racing Desk HUD` (the loopback listener's `/obs` page, at the port the listener is really on) made once, an item of it in each scene that has an item named `game video`, in the collection the switch was turned on in and no other, just above it and fitted to it (the source is the HUD window's size in DIPs, scaled up by OBS), reloaded when OBS answers unless the page is polling, disabled off — applied at every connect, then the window goes back into the capture — and on quit, never removed; what he hid or moved is left (`apply` does the ordering, with `setContentProtection` handed in as `protect`). With "iPad dashboard" chosen (`view`), the source is the `/obs-ipad` page at 1180 by 820, placed once per scene in the bottom-left corner of the game video at half its height (`IPAD_PLACE`) and never moved or sized again — not when he sizes the source in OBS (the address and size are put back; the item is scaled inside its bounds and keeps its box), not when he renames a scene; the state file keeps the scenes placed (by the scene's uuid, the name where OBS gives none) and his transform of it when the choice goes back to the rig HUD, which puts the item back over the game; an item with nothing written of it is his unless it still covers the game video as the rig HUD's fit does |
 | `obs/tv-shots.js` | **Main process**: TV shots — the sidecar's moments (places gained, incidents, the pit lane) found again in iRacing's replay by their `sn`/`st` through the host's replay route (the SDK's own commands; no key; refused by the host while he is on track), recorded through a TV camera on his car by its number as one take in the race's folder, the recording paused between moments, a moment the sim does not reach skipped, the take ended where it is when he gets in the car, OBS stops it, iRacing leaves its replay, Stop or the quit; the facecam hidden, kept in `tv-state.json` and put back whatever happened, auto-record held; progress to the desk, the tray and the Stream Deck |
 | `obs/recordings-index.js` | Pure: the recordings folder read by each folder's sidecar header — the race's recording by the session's start and track, the latest for the tray |
 | `hud-notice.js` | The one thing the HUD may be told of recording, for two seconds: "OBS is not open", "OBS didn't start recording" |
@@ -518,7 +518,9 @@ folder, which electron-builder unpacks from the asar, and is installed from ther
 page-only actions pressed on the rig, `hudActions`, which the OBS page asks once a second and does; `window.runHudAction`
 in `keyboard.js`), `/api/settings-display` (the allowlist `DISPLAY_SETTINGS` and the `show*` switches, never a key, a
 folder, an address or a device), `/obs` (hidden from the first paint until the page has started, and while he has the
-HUD away) and `/obs-ipad` (the same page as the glance layout, for "iPad dashboard" under the switch). The iPad's server
+HUD away) and `/obs-ipad` (the same page as the glance layout, for "iPad dashboard" under the switch; it takes the display
+allowlist like `/obs`, so his rig's switches for effects and ambient light apply to it, where the iPad is told none of
+them: the page runs on the rig, next to the sim). The iPad's server
 answers `/api/settings-display` too, with the panel background alone (`IPAD_SETTINGS`), behind the key. It is started
 with retries (`startWithRetry`) until it is up. `tests/unit/remote-server.spec.mjs`, `tests/unit/hud-page-obs.spec.mjs`
 and `tests/unit/hud-page-obs-ipad.spec.mjs` (the real pages through the listener, headless).
@@ -538,13 +540,17 @@ writes it to `:root` as `--panel-alpha` and marks `body.panels-thin` under 90. `
 and `--bg-logo` from it (the secondary panels' own fills in `leaderboard.css`, `datastream.css` and `pitbox.css` read
 it too), scales the glass by `--panel-glass` — down with it, never up: the streak and plastic glow of `ambient.css`,
 the glance layout's tints, inset glow and overhead glow, and its opaque base under a flag — and under 90 lays a soft
-dark `text-shadow` on the panels (it inherits to every word in them; an effect with a shadow of its own keeps it) whose
-alpha is `--panel-shadow`, 0 at 90 and 1 at nought. **90 is the panels as they have always been**, on every surface: the
+`text-shadow` on the panels (it inherits to every word in them; an effect with a shadow of its own keeps it) whose
+alpha is `--panel-shadow`, 0 at 90 and 1 at nought, and whose colour is `--panel-shadow-rgb`: black under the dark theme,
+white under the light one (dark text, so a pale halo and not a smear). **The spotter's card and race control's banner are
+not panels**: their fills are their own and solid, so they keep `--panel-glass` at 1 (their streak and plastic glow are as
+at 90) and `--panel-shadow` at 0, whatever the slider says. **90 is the panels as they have always been**, on every surface: the
 rig's nine-tenths, the iPad's the same, the glance layout's opaque base under a flag opaque at 90 and above, so the
 defaults change nothing and the golden frames are as they were. The rig's page is told by the desk's settings path, the
 iPad by its server's `/api/settings-display` (the panel background alone, asked again every ten seconds), the OBS pages
 by the display-settings allowlist (both sliders, the OBS one drawn by). `tests/unit/panel-background.spec.mjs` holds
-each slider at 0, 50 and 100 on its own surface and not the others', the shadow, and the defaults.
+each slider at 0, 50 and 100 on its own surface and not the others', the shadow in both themes, the two cards, and the
+defaults.
 
 ## Deployment Modes
 

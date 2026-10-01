@@ -9,7 +9,8 @@
  * alone (no menu); and the page behind and between the panels is transparent — no black, no flag pattern in the
  * gutters, no frame at the edge — so the game shows through, which a render over a checkerboard proves. A flag is
  * still read from the flag card, race control's banner and the panels' flag-coloured borders. The rig's page-only
- * actions (its zoom keys) are not done here.
+ * actions (its zoom keys) are not done here. His display settings (the allowlist) reach it as they reach the rig HUD
+ * OBS draws, live: effects off takes the WebGL canvases out, which the iPad (told none of them) draws.
  */
 
 import { test, expect } from '@playwright/test';
@@ -199,6 +200,42 @@ test('the glance layout in OBS mode: hidden out of the car, drawn in it with the
     r.feed.payload = AT_THE_MENUS();
     await expect(page.locator('body')).toHaveClass(/idle-state/, { timeout: 10000 });
     expect(await page.evaluate(() => getComputedStyle(document.body).visibility)).toBe('hidden');
+    expect(errors).toEqual([]);
+  } finally {
+    await r.close();
+  }
+});
+
+test("his display settings reach the dashboard as they reach the rig HUD OBS draws (the allowlist), not the iPad's own defaults: effects off takes the WebGL canvases out and ambient light off stops the light, live; the layout, the glass and the transparent page are as they were", async ({ page }) => {
+  test.setTimeout(60000);
+  // As his own overlay-settings.json has them: ambient light off, effects off. This page runs on the rig next to the sim, so
+  // it keeps to the rig's switches (the iPad draws the effects on its own graphics and is told none of these).
+  const r = await rig({ settings: { showWebGL: false, ambientMode: 'off', theme: 'dark', visualPreset: 'standard' } });
+  try {
+    const { errors } = await open(page, r);
+    r.feed.payload = RACE();
+    await drawn(page);
+    const read = () => page.evaluate(() => {
+      const canvases = [...document.querySelectorAll('.gl-overlay')];
+      return {
+        total: canvases.length,
+        drawn: canvases.filter((c) => c.style.display !== 'none').length,
+        ambient: _settings.ambientMode,
+        webgl: _settings.showWebGL,
+        glance: document.documentElement.classList.contains('rd-glance') && document.body.classList.contains('drive-mode-active'),
+        page: [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor],
+        shine: getComputedStyle(document.body).getPropertyValue('--rd-shine').trim(),
+        tint: +[...getComputedStyle(document.getElementById('positionPage')).backgroundImage.matchAll(/rgba\(\d+, \d+, \d+, ([\d.]+)\)/g)][0][1],
+      };
+    });
+    const his = await read();
+    expect(his.total).toBeGreaterThan(0);
+    expect(his).toMatchObject({ drawn: 0, ambient: 'off', webgl: false, glance: true, page: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], shine: '0.15' });
+    expect(his.tint).toBeCloseTo(0.26 * 0.15, 2);
+    // He turns the effects and the light on at the desk: the page follows by its ask, and is the same layout.
+    r.state.settings = { ...r.state.settings, showWebGL: true, ambientMode: 'reflective' };
+    await expect.poll(async () => (await read()).drawn, { timeout: 10000 }).toBe(his.total);
+    expect(await read()).toMatchObject({ ambient: 'reflective', webgl: true, glance: true, page: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], shine: '0.15' });
     expect(errors).toEqual([]);
   } finally {
     await r.close();

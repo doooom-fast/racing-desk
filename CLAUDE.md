@@ -527,7 +527,7 @@ SQLite in WAL mode and stays as it was at its last commit. **A host that has bee
 first** (`RacingDeskRuntime.StopListening`, wired by `Program.NewStop`: the HTTP and WebSocket listeners close before the
 loops are told, and the orderly stop that can take up to five seconds comes after): `host-launcher.js` takes anything
 that answers `/racing-desk/data/status` with a `schemaVersion` for a host it can use, so an app that started in the
-meantime — the green-screen toggle relaunches it, and it is up within a second — would adopt a host that was about to end
+meantime — the Ctrl+Shift+G restart relaunches it, and it is up within a second — would adopt a host that was about to end
 and have none for the rest of the session. With the ports free it starts a host of its own, and the store serialises
 the two hosts' writes (`tests/…/Transport/StopListeningTests.cs`). The app's will-quit kill is a backstop only while the app is
 still here; a host that outlives the app has nothing of the app left to end it. On 2026-09-29 one did, for minutes,
@@ -755,7 +755,9 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
   in the top right corner; and a sector never cropped in the laps panel (see the overlay's CLAUDE.md). The same look
   is what OBS draws when "iPad dashboard" is chosen under "HUD drawn by OBS" (the loopback listener's `/obs-ipad`,
   `html.rd-glance`): the glance layout in OBS mode over a transparent page, with no flag pattern between the panels,
-  placed once in a corner of the game video and never moved by Racing Desk again (`docs/recording.md`).
+  placed once in a corner of the game video, at half its height, and never moved or sized by Racing Desk again — not
+  for a size he gives the source in OBS, not for a renamed scene (`docs/recording.md`). It takes his display settings
+  like the rig HUD OBS draws: effects off on the rig takes the WebGL canvases out of it, where the iPad is told none.
 
 Tests listen on 127.0.0.1 only. A listener on the network makes Windows ask about the firewall, in a window, over
 whatever the driver is doing — so nothing but the driver's own switch ever starts one. **The listener on this PC**
