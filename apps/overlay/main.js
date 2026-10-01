@@ -29,6 +29,7 @@ const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
 const { createCarNames } = require('./modules/js/paints/car-names');
 const rigApi       = require('./modules/js/rig-api');
+const runtimeActions = require('./modules/js/runtime-actions');
 const logoLivery   = require('./modules/js/logo-livery');
 
 // ── Log ─────────────────────────────────────────────────────
@@ -1617,6 +1618,23 @@ ipcMain.handle('rig:bindPedals', async (event, carPath, profileId) => {
   const problem = rigApi.bindingProblem(carPath, profileId);
   if (problem) return { ok: false, error: problem };
   return rig.bindPedals(carPath, profileId);
+});
+
+// ── IPC: the runtime's ?action= routes, for the HUD ──
+// The runtime (the SimHub plugin, or the host) answers a request for one of its ?action= routes only when a program on this
+// machine made it, and a page's request is not one: it carries an Origin, "null" for a file. So the HUD's own calls —
+// resetmap, restartdemo, setrect, and the pedal profiles — are asked for here, by Node (modules/js/runtime-actions.js), which
+// sends none. Only those routes, with their arguments checked, of a runtime on this machine; answered { ok, body } or
+// { ok: false, error }, and never thrown. The HUD's window and the desk's ask; nothing else has a preload.
+const hudActions = runtimeActions.createRuntimeActions({
+  // The address the HUD reads its telemetry from, which dev mode sends to the replay: the actions go where its polls go.
+  url: () => hudVisibility.telemetryUrl(loadSettingsSync().simhubUrl, { replayPort: devMode ? devMode.readArgs().replayPort : null }),
+});
+const fromHud = (event) => !!overlayWindow && !overlayWindow.isDestroyed() && event.sender === overlayWindow.webContents;
+
+ipcMain.handle('runtime:action', async (event, name, params) => {
+  if (!fromHud(event) && !fromDesk(event)) return { ok: false, error: 'The runtime is asked from the HUD and the desk alone.' };
+  return hudActions.run(name, params);
 });
 
 // ── IPC: Open external URL in user's default browser ──

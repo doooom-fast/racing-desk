@@ -865,7 +865,7 @@
 
   // Reset track map — clears recorded data and restarts capture
   function resetTrackMap() {
-    fetch((window._simhubUrlOverride || SIMHUB_URL) + '?action=resetmap').catch(() => {});
+    runtimeAction('resetmap').catch(() => {});
     _mapLastPath = '';
     _mapHasInit = false;
     _trackPathCoords = [];

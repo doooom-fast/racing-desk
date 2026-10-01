@@ -407,8 +407,10 @@
   // the same setSetting action it already consumes, so the plugin's
   // commentary-filter pipeline keeps working unchanged.
   function updateCommentarySetting(key, value) {
-    var url = (window._simhubUrlOverride || SIMHUB_URL) + '?action=setSetting&key=' + encodeURIComponent(key) + '&value=' + encodeURIComponent(value);
-    fetch(url).catch(function() {});
+    // The runtime has no setSetting route, and never had one in the C# runtime: this was answered with the telemetry and
+    // did nothing. The app's main process passes on only the routes the runtime has (runtime-actions.js), so it is not one
+    // of them, and still does nothing — without a request the runtime has to refuse.
+    runtimeAction('setSetting', { key: key, value: value }).catch(function() {});
   }
 
   // Map from the prefixed OverlaySettings keys (the web UI edits these) to

@@ -7,6 +7,30 @@
 // ═══════════════════════════════════════════════════════════════
 
 const SIMHUB_URL = 'http://localhost:8889/racing-desk/';
+
+// One of the runtime's ?action= routes, asked for by the page: resolves to what the route answered (parsed JSON), rejects
+// with a message when it was refused or not answered. The runtime answers them to a program on this machine alone, and a
+// page's request is not one (it carries an Origin, "null" for this file), so in the app the request is made by main.js
+// (modules/js/runtime-actions.js, through the preload's runtimeAction). Without the app — a browser, the iPad's page, whose
+// server refuses a query — the page asks as it always did, and is refused. `params` is an object of the route's arguments.
+function runtimeAction(name, params) {
+  var bridge = window.racingDesk && window.racingDesk.runtimeAction;
+  if (bridge) {
+    return bridge(name, params || {}).then(function (answer) {
+      if (answer && answer.ok) return answer.body;
+      throw new Error((answer && answer.error) || 'The runtime did not answer.');
+    });
+  }
+  var query = '?action=' + encodeURIComponent(name);
+  Object.keys(params || {}).forEach(function (key) {
+    query += '&' + key + '=' + encodeURIComponent(params[key]);
+  });
+  return fetch((window._simhubUrlOverride || SIMHUB_URL) + query).then(function (r) {
+    if (!r.ok) throw new Error('The runtime answered ' + r.status + '.');
+    return r.json();
+  });
+}
+
 const POLL_MS = 33; // ~30fps when in a car
 const IDLE_POLL_MS = 1000; // slow poll when not in a car — just enough to detect entry
 
