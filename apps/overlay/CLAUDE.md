@@ -23,6 +23,9 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
   like any 100, and the line under the rings says "New set · not measured" (a pair: "New fronts · not measured", rears,
   lefts, rights; an odd change names its corners alone, "New LF, RR", the widest words that stay whole at the 11 px floor on
   the iPad mini) in place of "Tread measured in the pits" until the measurement comes. The sidecar carries the flags as `wNew`.
+  The strategist's offer is for the corners that are not a new set: what the accept button ticks leaves them out
+  (`pitbox.js`: `selectOfferedTires`, `dropNewSetFromOffer`), and a flagged corner that arrives as `null` is still
+  a dash (the flags feed the words only; the ring has no rule of its own).
 
 ## Tech Stack
 
@@ -240,7 +243,8 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   so "Tread measured in the pits" is one dim line under the rings, at the label's floor and never wrapped, as it is
   on the rig — an iPad's heading has no room for it, and in a pit cell under 200px (the 10.2" iPad upright) it gives way
   while a tyre call is up, which would otherwise cut the rings off by 7px; while a corner's 100 is a new set the sim has
-  not measured (`TyreNewSetFlags`) the same line says "New set · not measured" or which tyres; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
+  not measured (`TyreNewSetFlags`) the same line says "New set · not measured" or which tyres, and gives way to a call
+  in that cell just the same — a screenshot with both showed the line over the rings' position labels; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
   pit's add, the pit window `Strategy.PitWindowOpen/Close` as `L18–24` or `by L24`, the two services), the weather. The
   strategist's call for tyres or fuel (`Strategy.TireHealthState`, `FuelHealthState`) is read where it is on the rig,
   above the rings or the tank, worded for a screen with nothing to press (`Change · ~12 laps`, `Stop · ~6 laps`).
