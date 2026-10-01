@@ -9,6 +9,7 @@ using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
+using RacingDesk.Host;
 using RacingDesk.Plugin;
 using RacingDesk.Plugin.Engine;
 using RacingDesk.Plugin.Engine.Moza;
@@ -81,6 +82,8 @@ namespace RacingDesk.Tests.Transport
         private MozaSerialManager? _moza;
         private PedalProfileManager? _pedals;
         private int _httpPort;
+        private Action<Log.Level, string>? _previousSink;
+        private readonly List<string> _logged = new List<string>();
 
         private static int FreePort()
         {
@@ -100,6 +103,10 @@ namespace RacingDesk.Tests.Transport
             int wsPort;
             do wsPort = FreePort(); while (wsPort == _httpPort);
             _ports = new NoPorts();
+            // The log, for the lines that say what was refused.
+            _logged.Clear();
+            _previousSink = Log.Sink;
+            Log.Sink = (level, message) => { lock (_logged) _logged.Add(message); };
             _runtime = new RacingDeskRuntime(new Settings(), new RacingDeskRuntime.Options
             {
                 AssemblyDirectory = _dir,
@@ -109,6 +116,9 @@ namespace RacingDesk.Tests.Transport
                 EnableHardware = false,   // the real Moza manager and the real pedal profiles are never made...
                 EnableSdkBridge = false,
                 LoopbackOnly = true,
+                // The host's own routes, as the host has them: its data API, over a store there is none of. They are what the
+                // runtime hands a request to before the actions are looked at, if the check is not made first.
+                ExtraRoutes = new LocalDataApi(Path.Combine(_dir, "no-store.db")).TryHandle,
             });
             // ...and the ones the routes reach are fakes: a Moza manager that is never started, over no ports (a write is
             // queued and stays queued), and pedal profiles kept in the temp folder, Pit House never looked for.
@@ -126,6 +136,7 @@ namespace RacingDesk.Tests.Transport
         public void StopRuntime()
         {
             _runtime?.Stop();
+            Log.Sink = _previousSink!;
             try { Directory.Delete(_dir, true); } catch { }
         }
 
@@ -203,6 +214,114 @@ namespace RacingDesk.Tests.Transport
                 Assert.That(status, Is.EqualTo(HttpStatusCode.Forbidden), target);
             }
             NothingHappened();
+        }
+
+        /// <summary>
+        /// The host's own routes (the data API) are handed a request before the runtime's actions are, unless the check comes
+        /// first: a request that names an action must be refused to another machine there too, and not answered with the
+        /// store's status, its path and the rest. The data API never reads an action, so nothing is lost by it.
+        /// </summary>
+        [TestCase("/racing-desk/data/status?action=setMozaPedalSetting&key=brake.deadzone&value=9")]
+        [TestCase("/racing-desk/data/controls?action=resetmap")]
+        [TestCase("/racing-desk/data/sessions?x=1&action=mozaReconnect")]
+        [TestCase("/racing-desk/data/pedals?ACTION=setPedalProfile&id=b")]
+        [TestCase("/racing-desk/data/cars?%61ction=listSerialPortDiagnostic&probe=1")]
+        public void ARouteOfTheHost_ThatNamesAnAction_IsRefusedToAnotherMachine_BeforeTheHostSeesIt(string target)
+        {
+            foreach (var (name, looksLike) in OtherMachines)
+            {
+                var (status, body, openToPages) = Ask(target, looksLike);
+
+                Assert.That(status, Is.EqualTo(HttpStatusCode.Forbidden), $"{target}, from {name}: {body}");
+                Assert.That(JObject.Parse(body)["error"]!.ToString(), Does.Contain("this machine"), $"{target}, from {name}");
+                Assert.That(openToPages, Is.False, $"{target}, from {name}: the host's own CORS header was not sent");
+            }
+            NothingHappened();
+        }
+
+        [Test]
+        public void TheHostsReads_AreStillAnswered_ToAnotherMachine_WhoNamesNoAction_AndToThisOne_WhoDoes()
+        {
+            // What the desk reads (from a page, which names an origin) and what is read by the address of the rig: no action in them.
+            foreach (var (target, looksLike) in new (string, Action<HttpRequestMessage>?)[]
+            {
+                ("/racing-desk/data/controls", null),
+                ("/racing-desk/data/controls", r => r.Headers.Host = "192.168.1.20:8889"),
+                ("/racing-desk/data/controls", r => r.Headers.Add("Origin", "null")),
+            })
+            {
+                var (status, body, openToPages) = Ask(target, looksLike);
+
+                Assert.That(status, Is.EqualTo(HttpStatusCode.OK), $"{target}: {body}");
+                Assert.That(openToPages, Is.True, "the desk's page reads it by CORS");
+            }
+
+            // The store is not there, which the host says in its own words: it was reached.
+            var (missing, said, _) = Ask("/racing-desk/data/status", r => r.Headers.Host = "192.168.1.20:8889");
+            Assert.That(missing, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(said, Does.Contain("no local store yet"));
+
+            // A program on this machine that names an action on one of the host's routes is not refused (the host ignores it).
+            Assert.That(Ask("/racing-desk/data/controls?action=listMozaDevices").Status, Is.EqualTo(HttpStatusCode.OK));
+        }
+
+        // ── What the log says of what was refused ────────────────────
+
+        private List<string> Refusals()
+        {
+            lock (_logged) return _logged.Where(l => l.Contains("?action=") && l.Contains(" refused")).ToList();
+        }
+
+        [Test]
+        public void TheLog_KeepsALineForEachAction_WhateverMadeUpNamesWereRefusedBeforeIt()
+        {
+            // A device on the network makes up names until the budget for them is gone; a line for a name that is made up is
+            // no use to anyone, and the ones that are not must not be silenced by them.
+            for (int i = 0; i < 200; i++)
+                Assert.That(Ask($"/racing-desk/?action=madeUp{i}", r => r.Headers.Host = "192.168.1.20:8889").Status, Is.EqualTo(HttpStatusCode.Forbidden));
+            Assert.That(Refusals().Count, Is.EqualTo(RacingDeskRuntime.UnknownActionsLogged), "the made-up names are written down up to the budget, and no more");
+
+            // Every action the runtime has, as its source has them, is asked twice and written down once.
+            foreach (string action in Actions())
+            {
+                Ask(Query(action), r => r.Headers.Host = "192.168.1.20:8889");
+                Ask(Query(action), r => r.Headers.Host = "192.168.1.20:8889");
+            }
+            foreach (string action in Actions())
+                Assert.That(Refusals().Count(l => l.Contains($"?action={action} ")), Is.EqualTo(1), $"{action} has a line, and one");
+        }
+
+        [Test]
+        public void TheLog_WritesAnAppsRefusalOnThisMachine_AsItsOwnLine_AndOnlyOnce()
+        {
+            // The connection is this machine's, and a browser's marks are on it: an app from before the check, as it sends it.
+            Ask("/racing-desk/?action=setrect&x=0.1&y=0.1&w=0.5&h=0.5", r => r.Headers.Add("Origin", "null"));
+            Ask("/racing-desk/?action=setrect&x=0.1&y=0.1&w=0.5&h=0.5", r => r.Headers.Add("Origin", "null"));
+
+            var lines = Refusals();
+            Assert.That(lines.Count, Is.EqualTo(1));
+            Assert.That(lines[0], Does.Contain("?action=setrect refused").And.Contain("this machine's"));
+        }
+
+        [Test]
+        public void ARefusalIsWrittenOncePerKindOfAsker_AndOnlyTheNamesNobodyHasHeardOfAreCounted()
+        {
+            var runtime = _runtime!;
+
+            // A device on the network asked for setrect first; an app on this machine that asks for it is not left without its line.
+            Assert.That(runtime.NoteRefusal("setrect", fromThisMachine: false), Is.True);
+            Assert.That(runtime.NoteRefusal("setrect", fromThisMachine: false), Is.False);
+            Assert.That(runtime.NoteRefusal("setrect", fromThisMachine: true), Is.True);
+            Assert.That(runtime.NoteRefusal("setrect", fromThisMachine: true), Is.False);
+
+            int written = 0;
+            for (int i = 0; i < 1000; i++)
+                if (runtime.NoteRefusal("madeUp" + i, fromThisMachine: false)) written++;
+            Assert.That(written, Is.EqualTo(RacingDeskRuntime.UnknownActionsLogged));
+
+            // The budget is spent; a name the runtime has a route for is written all the same, and a made-up one is not.
+            Assert.That(runtime.NoteRefusal("mozaReconnect", fromThisMachine: false), Is.True);
+            Assert.That(runtime.NoteRefusal("madeUpAfterAll", fromThisMachine: true), Is.False);
         }
 
         // ── This machine ─────────────────────────────────────────────

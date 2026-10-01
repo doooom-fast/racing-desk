@@ -68,16 +68,50 @@ namespace RacingDesk.Plugin
         internal static bool NamesAnAction(string rawUrl, System.Collections.Specialized.NameValueCollection query) =>
             (rawUrl ?? "").IndexOf("action=", StringComparison.OrdinalIgnoreCase) >= 0 || (query != null && query["action"] != null);
 
-        // The actions refused so far, once each in the log: a program on this machine that is refused (an app from before
-        // this check, say) is found by its line, and a device on the LAN that keeps asking does not fill the log.
+        /// <summary>
+        /// The routes this runtime has, by name, for the log alone (what is refused is decided by <see cref="NamesAnAction"/>,
+        /// which does not read this): a name here is always written down, once, whatever else has been refused before it.
+        /// <c>ActionRoutesTests</c> asks every <c>action == "…"</c> of this file from another machine after the made-up names
+        /// are used up, and fails on a route that is missing from this list.
+        /// </summary>
+        private static readonly HashSet<string> KnownActions = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "resetmap", "listtracks", "restartdemo", "setrect",
+            "listPedalProfiles", "setPedalProfile", "bindPedalProfile", "importMozaPedals",
+            "listMozaDevices", "getMozaWheelbaseSettings", "setMozaWheelbaseSetting", "getMozaPedalSettings",
+            "setMozaPedalSetting", "getMozaHandbrakeSettings", "setMozaHandbrakeSetting", "getMozaShifterSettings",
+            "getMozaDashboardSettings", "getMozaWheelSettings", "mozaRefresh", "mozaReconnect", "listSerialPortDiagnostic",
+        };
+
+        /// <summary>How many names that are not this runtime's own are written down: a device on the network can make up as many as it likes.</summary>
+        internal const int UnknownActionsLogged = 16;
+
+        // What has been written down in the log so far, once each: a program on this machine that is refused (an app from
+        // before this check, say) is found by its line, and a device on the LAN that keeps asking does not fill the log. A
+        // name is written once for each kind of asker — a connection from this machine, and one from another — so that a
+        // device on the network that asks for setrect first has not used up the line an older app's setrect would have had.
+        // Only the unknown names are counted against a budget; a name the runtime has a route for is always written.
         private readonly HashSet<string> _refusedActions = new HashSet<string>(StringComparer.Ordinal);
+        private int _refusedUnknownActions;
+
+        /// <summary>Whether a refusal is to be written down now: see <see cref="KnownActions"/> and <see cref="UnknownActionsLogged"/>. The HTTP thread alone asks, so there is no lock.</summary>
+        internal bool NoteRefusal(string name, bool fromThisMachine)
+        {
+            bool known = KnownActions.Contains(name);
+            if (!known && _refusedUnknownActions >= UnknownActionsLogged) return false;
+            if (!_refusedActions.Add(name + (fromThisMachine ? "|here" : "|network"))) return false;
+            if (!known) _refusedUnknownActions++;
+            return true;
+        }
 
         private void RefuseActionNotFromThisMachine(HttpListenerContext ctx, string rawUrl)
         {
             string name = ActionNameForLog(rawUrl);
-            // Bounded: names that are made up are as many as a device on the network cares to send.
-            if (_refusedActions.Count < 64 && _refusedActions.Add(name))
-                Log.Warn($"[RacingDesk] ?action={name} refused: it was not asked for by a program on this machine (a device on the network, or a page in a browser)");
+            bool fromThisMachine = ctx.Request.IsLocal;
+            if (NoteRefusal(name, fromThisMachine))
+                Log.Warn(fromThisMachine
+                    ? $"[RacingDesk] ?action={name} refused: the connection is this machine's, but a browser sent it or it names another host (an app from before this check, or a page in a browser)"
+                    : $"[RacingDesk] ?action={name} refused: it came from another machine (a device on the network)");
 
             byte[] refused = Encoding.UTF8.GetBytes("{\"error\":\"this is for a program on this machine\"}");
             ctx.Response.ContentType = "application/json";
@@ -143,7 +177,26 @@ namespace RacingDesk.Plugin
                         continue;
                     }
 
+                    string rawUrl = ctx.Request.RawUrl ?? "";
+
+                    // Every ?action= route is for a program on this machine, and the check is made here, once, before any
+                    // route is looked at — the host's own (ExtraRoutes) included — so that a route added below, or by the
+                    // host, is behind it without anyone remembering to put it there. They write to the wheel base and the
+                    // pedals, change the pedal profiles and the runtime's state, and several of the reads talk to the
+                    // hardware over serial. This port answers every address (the iPad view reads the telemetry through
+                    // the app, which sends no query), and HTTP.sys hands a localhost prefix any request that says
+                    // Host: localhost, so IsLocal and the Host header are both looked at, and a browser's request is not a
+                    // program's (LocalRequest). An action nobody has heard of is refused to the same people: it is not for
+                    // them to ask for, and it must not get the telemetry (or a host route's answer) as an answer.
+                    if (NamesAnAction(rawUrl, ctx.Request.QueryString) && !LocalRequest.IsFromThisMachine(ctx.Request))
+                    {
+                        RefuseActionNotFromThisMachine(ctx, rawUrl);
+                        continue;
+                    }
+
                     // ── Host-provided routes (e.g. RacingDesk.Host's local data API) ──
+                    // Behind the check above: none of the host's reads, nor its one write (POST data/pedals), takes an
+                    // `action`, so a request that names one is refused to another machine here and not answered by them.
                     if (_options.ExtraRoutes != null)
                     {
                         bool handled = false;
@@ -153,23 +206,6 @@ namespace RacingDesk.Plugin
                     }
 
                     // ── Handle action endpoints ──────────────────────────────
-                    string rawUrl = ctx.Request.RawUrl ?? "";
-
-                    // Every ?action= route is for a program on this machine, and the check is made here, once, before
-                    // any of them is looked at: a route added below is behind it without anyone remembering to put it
-                    // there. They write to the wheel base and the pedals, change the pedal profiles and the runtime's
-                    // state, and several of the reads talk to the hardware over serial. This port answers every
-                    // address (the iPad view reads the telemetry through the app, which sends no query), and HTTP.sys
-                    // hands a localhost prefix any request that says Host: localhost, so IsLocal and the Host header are
-                    // both looked at, and a browser's request is not a program's (LocalRequest). An action nobody has
-                    // heard of is refused to the same people: it is not for them to ask for, and it must not get the
-                    // telemetry as an answer.
-                    if (NamesAnAction(rawUrl, ctx.Request.QueryString) && !LocalRequest.IsFromThisMachine(ctx.Request))
-                    {
-                        RefuseActionNotFromThisMachine(ctx, rawUrl);
-                        continue;
-                    }
-
                     // Extract action from query string
                     string action = "";
                     int qIdx = rawUrl.IndexOf("action=");
