@@ -78,6 +78,69 @@ test('Set up OBS says in one sentence what it will change, and the network sente
   expect(model.setupSentence(onlyWs).split('port 4455').length).toBe(2);
 });
 
+test("the recordings' size: the button's sentence says the recordings keep their size, named as the profile has it, with a quality target, with OBS closed; with OBS open a sentence of its own says it waits", () => {
+  // Nothing known of the encoder (not NVENC, or no profile): not a word of size.
+  expect(model.setupSentence({ ...READY, setup: { ...READY.setup, qualityTarget: null, needed: false } })).toBeNull();
+  expect(model.setupSentence({ ...READY, obs: 'closed', setup: { ...READY.setup, qualityTarget: true, needed: false } })).toBeNull();
+  // OBS closed, everything else done: the one change, and his own Ctrl+Space recordings get it too (one profile).
+  const onlySize = { ...READY, obs: 'closed', setup: { ...READY.setup, qualityTarget: false, capKbps: 100000, outputSize: '2580x1080', needed: true } };
+  // The size is the one the profile records at (his canvas is 3440x1440, his recordings are 2580x1080): never "full size", which reads as the canvas.
+  expect(model.setupSentence(onlySize)).toBe('Set up OBS will keep its recordings at 2580x1080 with a quality target instead of a fixed 100 Mbps. Your own Ctrl+Space recordings keep their size with a quality target too.');
+  // The profile not saying its size: the size is not named, and nothing is said of it being full.
+  expect(model.setupSentence({ ...onlySize, setup: { ...onlySize.setup, outputSize: null } })).toBe('Set up OBS will give its recordings a quality target instead of a fixed 100 Mbps. Your own Ctrl+Space recordings keep their size with a quality target too.');
+  expect(model.sizeNextTimeSentence(onlySize)).toBeNull();
+  const card = model.card(onlySize);
+  expect(card.setup).toEqual({ show: true, enabled: true, sentence: model.setupSentence(onlySize) });
+  // The cap is his, as the setup status read it from the profile; 100 Mbps when it did not say.
+  expect(model.setupSentence({ ...onlySize, setup: { ...onlySize.setup, capKbps: 60000 } })).toMatch(/instead of a fixed 60 Mbps\./);
+  expect(model.setupSentence({ ...onlySize, setup: { ...onlySize.setup, capKbps: null } })).toMatch(/instead of a fixed 100 Mbps\./);
+  // With everything missing, the size change is the last of the list, and the last of what changes for his own recordings.
+  const fresh = { ...READY, obs: 'closed', setup: { ...READY.setup, wsEnabled: false, hybrid: false, replayBuffer: false, folderSet: false, qualityTarget: false, capKbps: 100000, outputSize: '2580x1080', needed: true } };
+  expect(model.setupSentence(fresh)).toBe(
+    "Set up OBS will switch on OBS's WebSocket, set your profile to Hybrid MP4, turn its 20 s replay buffer on, point its recordings at D:\\Racing Desk\\Recordings and keep its recordings at 2580x1080 with a quality target instead of a fixed 100 Mbps. "
+    + 'Your own Ctrl+Space recordings become Hybrid MP4, go to D:\\Racing Desk\\Recordings and keep their size with a quality target too. OBS then answers on port 4455 to anything on your network that knows the password.',
+  );
+  // OBS open: the encoder file can only be written with OBS closed, so the button's sentence leaves the size out — with
+  // nothing else to do there is no button — and the card says in one sentence when the change happens.
+  const openOnlySize = { ...onlySize, obs: 'open' };
+  expect(model.setupSentence(openOnlySize)).toBeNull();
+  expect(model.sizeNextTimeSentence(openOnlySize)).toBe('The size change (a quality target instead of a fixed 100 Mbps; the recordings stay 2580x1080) happens the next time Set up OBS runs with OBS closed.');
+  expect(model.sizeNextTimeSentence({ ...openOnlySize, setup: { ...openOnlySize.setup, outputSize: null } })).toBe('The size change (a quality target instead of a fixed 100 Mbps) happens the next time Set up OBS runs with OBS closed.');
+  const openCard = model.card(openOnlySize);
+  expect(openCard.setup.show).toBe(false);
+  expect(openCard.details).toEqual([
+    'About 9 hours of recording left on D: at 100 Mbps.',
+    'The size change (a quality target instead of a fixed 100 Mbps; the recordings stay 2580x1080) happens the next time Set up OBS runs with OBS closed.',
+  ]);
+  const openAndFolder = { ...openOnlySize, setup: { ...openOnlySize.setup, folderSet: false } };
+  expect(model.setupSentence(openAndFolder)).toBe('Set up OBS will point its recordings at D:\\Racing Desk\\Recordings. Your own Ctrl+Space recordings go to D:\\Racing Desk\\Recordings too.');
+  expect(model.card(openAndFolder).details.slice(-2)).toEqual([model.sizeNextTimeSentence(openAndFolder), model.setupSentence(openAndFolder)]);
+  // Once set, nothing of size on the card.
+  expect(model.card({ ...READY, setup: { ...READY.setup, qualityTarget: true, capKbps: 100000 } }).details.some((d) => /size change/.test(d))).toBe(false);
+});
+
+test('the hours left run at the real rate of his recordings once there is one, and say so in GB an hour; until then at the cap, said as "or more" with nothing of the rate', () => {
+  expect(model.formatGbPerHour(12.5e6)).toBe('45 GB an hour');
+  expect(model.formatGbPerHour(5e6)).toBe('18 GB an hour');
+  expect(model.formatGbPerHour(2.5e6)).toBe('9.0 GB an hour');
+  // The rate the app says it uses: measured from the files, with how many.
+  const measured = { ...READY, rateFrom: 'measured', bytesPerSecond: 5e6, measured: { bytesPerSecond: 5e6, gbPerHour: 18, recordings: 3 }, free: { bytes: 400e9, hoursLeft: 400e9 / 5e6 / 3600, drive: 'D:' } };
+  expect(model.hoursLeftSentence(measured)).toBe('About 22 hours of recording left on D: at 18 GB an hour, measured from your last 3 recordings.');
+  expect(model.hoursLeftSentence({ ...measured, measured: { ...measured.measured, recordings: 1 } })).toBe('About 22 hours of recording left on D: at 18 GB an hour, measured from your last recording.');
+  expect(model.card(measured).details).toEqual(['About 22 hours of recording left on D: at 18 GB an hour, measured from your last 3 recordings.']);
+  // Nothing measured yet, the quality target set: the cap is the most the rate can be, so the hours are that many or more; not a word of the rate (or of size) until a recording says.
+  const capped = { ...READY, rateFrom: 'configured', measured: null, setup: { ...READY.setup, qualityTarget: true, capKbps: 100000 } };
+  expect(model.hoursLeftSentence(capped)).toBe('About 9 hours or more of recording left on D:.');
+  expect(model.hoursLeftSentence(capped)).not.toMatch(/Mbps|GB|rate|cap|least/);
+  // Nothing measured and a fixed bitrate (not set up yet): the sentence as it was.
+  expect(model.hoursLeftSentence({ ...READY, rateFrom: 'configured', measured: null, setup: { ...READY.setup, qualityTarget: false } })).toBe('About 9 hours of recording left on D: at 100 Mbps.');
+  expect(model.hoursLeftSentence(READY)).toBe('About 9 hours of recording left on D: at 100 Mbps.');   // an app that says nothing of where the rate is from
+  // While recording, OBS's own rate, in Mbps.
+  const live = { ...READY, recording: true, owned: true, outputPath: 'D:/x.mp4', rateFrom: 'live', bytesPerSecond: 5.25e6, measured: { bytesPerSecond: 5e6, gbPerHour: 18, recordings: 3 }, free: { bytes: 400e9, hoursLeft: 400e9 / 5.25e6 / 3600, drive: 'D:' } };
+  expect(model.hoursLeftSentence(live)).toBe('About 21 hours of recording left on D: at 42 Mbps.');
+  expect(model.hoursLeftSentence({ ...READY, free: null })).toBeNull();
+});
+
 test('the card: buttons and sentences for the states, the switches, the folder', () => {
   const ready = model.card(READY);
   expect(ready.line).toBe('OBS is open, not recording');
@@ -91,9 +154,13 @@ test('the card: buttons and sentences for the states, the switches, the folder',
     ['recordingAutoRecord', true, true], ['recordingInstantReplay', false, true], ['recordingChapters', true, true], ['obsStartOnRecord', true, true], ['obsStartWithApp', false, true],
     ['obsHudSource', false, true], ['tvShotsHideFacecam', true, true],
   ]);
-  // "HUD drawn by OBS", on: what it has done, from the app's last word on it.
+  // "HUD drawn by OBS", on: what it has done, from the app's last word on it — named for what it draws.
   expect(model.card({ ...READY, obsHudSource: true, obs: 'closed' }).details).toContain('HUD drawn by OBS: the HUD goes into your scenes when OBS opens.');
   expect(model.card({ ...READY, obsHudSource: true }).details).toContain('HUD drawn by OBS: the HUD is being put into your scenes.');
+  expect(model.card({ ...READY, obsHudSource: true, obsHudView: 'ipad', obs: 'closed' }).details).toContain('HUD drawn by OBS: the iPad dashboard goes into your scenes when OBS opens.');
+  expect(model.card({ ...READY, obsHudSource: true, obsHudView: 'ipad' }).details).toContain('HUD drawn by OBS: the iPad dashboard is being put into your scenes.');
+  expect(model.card({ ...READY, obsHudSource: true, obsHudView: 'ipad', hudSource: { last: { ok: true, did: 'The iPad dashboard is a browser source in 3 of your scenes, in its corner over the game.', problems: [] } } }).details)
+    .toContain('HUD drawn by OBS: The iPad dashboard is a browser source in 3 of your scenes, in its corner over the game.');
   expect(model.card({ ...READY, obsHudSource: true, hudSource: { last: { ok: true, did: 'The HUD is a browser source in 3 of your scenes, just above the game.', problems: [] } } }).details)
     .toContain('HUD drawn by OBS: The HUD is a browser source in 3 of your scenes, just above the game.');
   expect(model.card({ ...READY, obsHudSource: true, hudSource: { last: { ok: false, did: null, problems: ['OBS did not take the HUD source: gone'] } } }).details)
@@ -189,6 +256,33 @@ test('without the app the card is read-only and says so', () => {
   expect(card.setup.show).toBe(false);
   expect(card.switches.every((s) => s.enabled === false)).toBe(true);
   expect(card.switches.map((s) => s.value)).toEqual([true, false, true, true, false, false, true]);
+  expect(card.view).toMatchObject({ key: 'obsHudView', value: 'rig', enabled: false });
+  expect(card.panelBackground).toMatchObject({ key: 'obsPanelBackground', value: 90, enabled: false });
+});
+
+test('what OBS draws is a choice under the switch, Rig HUD or iPad dashboard with a sentence each, Rig HUD unless the file says ipad; the panel background for OBS is a slider of its own, 90 unless the file says, held to 0 to 100', () => {
+  expect(model.HUD_VIEW).toMatchObject({ key: 'obsHudView', label: 'What OBS draws', def: 'rig' });
+  expect(model.HUD_VIEW.options.map(([value, label]) => [value, label])).toEqual([['rig', 'Rig HUD'], ['ipad', 'iPad dashboard']]);
+  for (const [, , sentence] of model.HUD_VIEW.options) expect(sentence).toMatch(/^[A-Z][^.]+\.$/);
+  expect(model.HUD_VIEW.options[1][2]).toMatch(/corner/);
+  expect(model.hudViewOf(READY)).toBe('rig');
+  expect(model.hudViewOf({ ...READY, obsHudView: 'ipad' })).toBe('ipad');
+  expect(model.hudViewOf({ ...READY, obsHudView: 'television' })).toBe('rig');
+  expect(model.hudViewOf(null)).toBe('rig');
+  expect(model.card(READY).view).toMatchObject({ key: 'obsHudView', value: 'rig', enabled: true });
+  expect(model.card({ ...READY, obsHudView: 'ipad' }).view.value).toBe('ipad');
+  expect(model.OBS_PANEL_BACKGROUND).toMatchObject({ key: 'obsPanelBackground', def: 90, min: 0, max: 100, step: 5, unit: '%' });
+  expect(model.OBS_PANEL_BACKGROUND.hint).toMatch(/game show through/);
+  expect(model.obsPanelBackgroundOf(READY)).toBe(90);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: 35 })).toBe(35);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: 150 })).toBe(100);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: -1 })).toBe(0);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: 'thin' })).toBe(90);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: NaN })).toBe(90);
+  expect(model.card({ ...READY, obsPanelBackground: 35 }).panelBackground).toMatchObject({ value: 35, enabled: true });
+  // The switches are as they were: the choice and the slider are beside them, not among them.
+  expect(model.SWITCHES.map((s) => s.key)).not.toContain('obsHudView');
+  expect(model.SWITCHES.map((s) => s.key)).not.toContain('obsPanelBackground');
 });
 
 test('Save replay is there while Instant replay is on and pressable while the buffer runs; the card says what the buffer is doing and what was saved', () => {

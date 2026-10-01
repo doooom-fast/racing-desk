@@ -21,9 +21,24 @@
 // is: reloading it would lose the session best, the sparklines and the gap trend. It is disabled when Racing Desk quits,
 // for the same reason.
 //
-// No Electron: the client, the page's address, the HUD's size (in DIPs: the page lays out in CSS pixels, as the rig's
-// own HUD does, and OBS scales the source up to the canvas) and the window's capture are handed in, so
-// tests/unit/obs-hud-source.spec.mjs runs it against the fake obs-websocket server.
+// What OBS draws is his choice, "Rig HUD" or "iPad dashboard" (`view`, 'rig' or 'ipad', from the settings): the rig HUD
+// is the loopback listener's /obs page at the HUD window's size, fitted to the game video as above; the iPad dashboard
+// is its /obs-ipad page (the glance layout the iPad is shown, over a transparent page) at an iPad's size, 1180 by 820
+// (IPAD_SOURCE: the iPad Air and 11" Pro on their side, the size the layout is held to and the golden frames are made
+// at), which is not stretched over the game: the first time Racing Desk adds it to a scene it is put in the bottom-left
+// corner (away from a facecam in the bottom right) at half the game video's height, and after that it is never moved
+// or sized again — his layout in OBS is his: not when he has resized the source in OBS (the address and size are put
+// back, and the item, which is scaled inside its own bounds, keeps its box), and not when a scene is renamed. The state
+// file says which scenes it has been placed in (`ipad`, by the scene's uuid, which a rename keeps; the name where OBS
+// gives none), and when the choice goes back to the rig HUD his transform of it is written there, so that choosing the
+// iPad dashboard again puts it back where he had it, not in the corner. An item that is in a scene with nothing written
+// of it (the state file lost, the switch turned on afresh in another collection and back) is his too, unless it still
+// covers the game video as the rig HUD's fit does, when it is the rig HUD and goes to the corner. A change of choice is
+// the source's address and size changed (SetInputSettings) and, for the rig HUD, the item fitted to the game again.
+//
+// No Electron: the client, the pages' addresses (`url(view)`), the HUD's size (in DIPs: the page lays out in CSS pixels,
+// as the rig's own HUD does, and OBS scales the source up to the canvas), the choice and the window's capture are
+// handed in, so tests/unit/obs-hud-source.spec.mjs runs it against the fake obs-websocket server.
 const path = require('path');
 const nodeFs = require('fs');
 
@@ -31,11 +46,37 @@ const INPUT_NAME = 'Racing Desk HUD';
 const INPUT_KIND = 'browser_source';
 const GAME_VIDEO = /^\s*game\s*video\s*$/i;
 const REFRESH_BUTTON = 'refreshnocache';
+// The iPad dashboard's source: an iPad on its side, in CSS pixels.
+const IPAD_SOURCE = Object.freeze({ width: 1180, height: 820 });
+// Where it goes the first time: the bottom-left corner of the game video, inset by a fiftieth of its shorter side, at
+// half its height (on a 1440-high canvas, 720 by 1036: under a third of an ultrawide's width, and 0.88 of the page's
+// own size). Smaller was too small for a recording: at two-fifths the layout's 11 px labels (the panels' titles, "Per
+// lap") came out at 7.7 px of the canvas, and under 5 px once the video is scaled down for upload; at half they are
+// 9.7 px, and the numbers (20 px and up) 17.6 px and up. It is one drag in OBS to change, and then it is his.
+const IPAD_PLACE = Object.freeze({ height: 0.5, inset: 0.02 });
+const VIEWS = Object.freeze(['rig', 'ipad']);
+// obs-websocket's alignment flags (libobs: OBS_ALIGN_LEFT 1, RIGHT 2, TOP 4, BOTTOM 8; 0 is the centre).
+const ALIGN = Object.freeze({ LEFT: 1, RIGHT: 2, TOP: 4, BOTTOM: 8 });
 
 const NOT_OPEN = "OBS isn't open, so the HUD source waits for it.";
 const LISTENER_DOWN = "The HUD's page is not being served on this PC (another program may hold its port), so OBS was not given the HUD.";
 
-function createHudSource({ client, url, size = () => null, ready = () => true, pageAlive = () => false, state = null, log = () => {} } = {}) {
+const viewOf = (value) => (VIEWS.includes(value) ? value : 'rig');
+
+// The iPad dashboard's places are kept by the scene's uuid (OBS 30 and up give one, and a rename keeps it), by its name
+// where there is none. A record written under the name before the uuid was known is found by it, and moved to the uuid.
+const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+function placeOf(ipad, target) {
+  if (has(ipad, target.key)) return { found: true, value: ipad[target.key] };
+  if (target.key !== target.sceneName && has(ipad, target.sceneName)) return { found: true, value: ipad[target.sceneName] };
+  return { found: false, value: undefined };
+}
+function setPlace(ipad, target, value) {
+  if (target.key !== target.sceneName) delete ipad[target.sceneName];
+  ipad[target.key] = value;
+}
+
+function createHudSource({ client, url, size = () => null, view = () => 'rig', ipadSize = IPAD_SOURCE, ready = () => true, pageAlive = () => false, state = null, log = () => {} } = {}) {
   if (!client) throw new Error('the HUD source needs the OBS client');
   let last = null;     // { at, did, scenes, problems }
   let busy = false;
@@ -43,28 +84,33 @@ function createHudSource({ client, url, size = () => null, ready = () => true, p
   let chain = Promise.resolve();
   let waiting = null;
 
-  const pageUrl = () => (typeof url === 'function' ? url() : url);
+  const pageUrl = (which) => (typeof url === 'function' ? url(which) : url);
+  const viewNow = () => { try { return viewOf(typeof view === 'function' ? view() : view); } catch (e) { return 'rig'; } };
   const hudSize = () => {
     try { const s = typeof size === 'function' ? size() : size; return s && s.width > 0 && s.height > 0 ? { width: Math.round(s.width), height: Math.round(s.height) } : null; } catch (e) { return null; }
   };
+  const ipadSource = () => ({ width: Math.round(ipadSize.width), height: Math.round(ipadSize.height) });
 
-  // What is kept between runs: { collection, off } — the scene collection the HUD was set up in, and the scenes whose item
-  // Racing Desk disabled and so enables again. null while nothing has been written.
+  // What is kept between runs: { collection, off, view, ipad } — the scene collection the HUD was set up in, the scenes
+  // whose item Racing Desk disabled and so enables again, what the source was last set up as, and the scenes the iPad
+  // dashboard has been placed in (each with his transform of it, written when the choice went back to the rig HUD, or
+  // null). null while nothing has been written.
   let mem = null;
   const kept = () => {
     if (state && typeof state.read === 'function') { try { return state.read(); } catch (e) { return null; } }
     return mem;
   };
   const keep = (value) => {
-    if (state && typeof state.write === 'function') { try { state.write(value); } catch (e) { log(`[RacingDesk] HUD source: its state could not be kept: ${e.message}`); } return; }
-    mem = value;
+    const whole = { collection: value.collection || null, off: value.off || [], view: viewOf(value.view), ipad: value.ipad && typeof value.ipad === 'object' ? value.ipad : {} };
+    if (state && typeof state.write === 'function') { try { state.write(whole); } catch (e) { log(`[RacingDesk] HUD source: its state could not be kept: ${e.message}`); } return; }
+    mem = whole;
   };
 
-  function inputSettings() {
-    const s = hudSize() || { width: 1920, height: 1080 };
+  function inputSettings(which) {
+    const s = which === 'ipad' ? ipadSource() : (hudSize() || { width: 1920, height: 1080 });
     // fps_custom off: OBS drives CEF at the canvas's rate. shutdown off: the page keeps its session state (the
     // session best, the sparklines) across scene switches. restart_when_active off: likewise.
-    return { url: pageUrl(), width: s.width, height: s.height, fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false };
+    return { url: pageUrl(which), width: s.width, height: s.height, fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false };
   }
 
   async function scenes() {
@@ -133,6 +179,69 @@ function createHudSource({ client, url, size = () => null, ready = () => true, p
     await client.request('SetSceneItemTransform', { sceneName, sceneItemId: ours.id, sceneItemTransform: next });
   }
 
+  // The game video's box on the canvas: its bounds when it is scaled to bounds (the 2up), else its scaled size; its
+  // top-left corner from its position and alignment (OBS places an item by the point its alignment names).
+  function boxOf(t) {
+    const bounded = t.boundsType && t.boundsType !== 'OBS_BOUNDS_NONE' && t.boundsWidth > 0 && t.boundsHeight > 0;
+    const width = bounded ? t.boundsWidth : (t.width > 0 ? t.width : (t.sourceWidth || 0) * (t.scaleX || 1));
+    const height = bounded ? t.boundsHeight : (t.height > 0 ? t.height : (t.sourceHeight || 0) * (t.scaleY || 1));
+    if (!(width > 0) || !(height > 0)) return null;
+    const align = Number.isInteger(t.alignment) ? t.alignment : 0;
+    const left = (t.positionX || 0) - (align & ALIGN.RIGHT ? width : align & ALIGN.LEFT ? 0 : width / 2);
+    const top = (t.positionY || 0) - (align & ALIGN.BOTTOM ? height : align & ALIGN.TOP ? 0 : height / 2);
+    return { left, top, width, height };
+  }
+
+  // The iPad dashboard's first place in a scene: the bottom-left corner of the game video, at half its height, scaled
+  // inside bounds so the page keeps its shape. Once, and never again (ensure, below).
+  async function placeInCorner(sceneName, ours, game) {
+    if (!game) return false;
+    const answer = await client.request('GetSceneItemTransform', { sceneName, sceneItemId: game.sceneItemId });
+    const box = answer && answer.sceneItemTransform ? boxOf(answer.sceneItemTransform) : null;
+    if (!box) return false;
+    const source = ipadSource();
+    const height = Math.round(box.height * IPAD_PLACE.height);
+    const width = Math.round(height * source.width / source.height);
+    const inset = Math.round(Math.min(box.width, box.height) * IPAD_PLACE.inset);
+    await client.request('SetSceneItemTransform', { sceneName, sceneItemId: ours.id, sceneItemTransform: {
+      positionX: Math.round(box.left + inset), positionY: Math.round(box.top + box.height - inset - height),
+      alignment: ALIGN.TOP | ALIGN.LEFT, rotation: 0, scaleX: 1, scaleY: 1,
+      boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsAlignment: 0, boundsWidth: width, boundsHeight: height,
+    } });
+    return true;
+  }
+
+  // His transform of an item, as it can be set again: the place, the alignment, the rotation, the scale, and the bounds
+  // when there are any (obs-websocket refuses a bounds width or height under one).
+  async function transformOf(sceneName, ours) {
+    const answer = await client.request('GetSceneItemTransform', { sceneName, sceneItemId: ours.id });
+    const t = answer && answer.sceneItemTransform;
+    if (!t) return null;
+    const out = { positionX: t.positionX, positionY: t.positionY, alignment: t.alignment, rotation: t.rotation || 0, scaleX: t.scaleX, scaleY: t.scaleY, boundsType: t.boundsType || 'OBS_BOUNDS_NONE', boundsAlignment: t.boundsAlignment || 0 };
+    if (out.boundsType !== 'OBS_BOUNDS_NONE' && t.boundsWidth > 0 && t.boundsHeight > 0) Object.assign(out, { boundsWidth: t.boundsWidth, boundsHeight: t.boundsHeight });
+    for (const key of Object.keys(out)) if (out[key] === undefined || (typeof out[key] === 'number' && !Number.isFinite(out[key]))) delete out[key];
+    return out;
+  }
+
+  async function restore(sceneName, ours, transform) {
+    await client.request('SetSceneItemTransform', { sceneName, sceneItemId: ours.id, sceneItemTransform: { ...transform } });
+  }
+
+  // Whether the item still covers the game video's box, as the rig HUD's fit leaves it (the game's bounds, or its scaled
+  // size, at its place): to the pixel or two. An iPad dashboard that has been in a corner, or that he has moved or sized,
+  // is never that.
+  async function coversGame(sceneName, ours, game) {
+    if (!game) return false;
+    const [mine, theirs] = await Promise.all([
+      client.request('GetSceneItemTransform', { sceneName, sceneItemId: ours.id }),
+      client.request('GetSceneItemTransform', { sceneName, sceneItemId: game.sceneItemId }),
+    ]);
+    const a = mine && mine.sceneItemTransform ? boxOf(mine.sceneItemTransform) : null;
+    const b = theirs && theirs.sceneItemTransform ? boxOf(theirs.sceneItemTransform) : null;
+    if (!a || !b) return false;
+    return ['left', 'top', 'width', 'height'].every((k) => Math.abs(a[k] - b[k]) <= 2);
+  }
+
   async function refreshInput() {
     await client.request('PressInputPropertiesButton', { inputName: INPUT_NAME, propertyName: REFRESH_BUTTON });
   }
@@ -151,8 +260,9 @@ function createHudSource({ client, url, size = () => null, ready = () => true, p
     const problems = [];
     let created = false;
     let placed = 0;
+    const which = viewNow();
     try {
-      if (!ready() || !pageUrl()) {
+      if (!ready() || !pageUrl(which)) {
         // Nothing serves the page: whatever the source holds from before would show a page that is not there, and the window
         // stays in the capture, which is the HUD OBS can still film.
         const off = await disableNow({ quiet: true });
@@ -172,31 +282,35 @@ function createHudSource({ client, url, size = () => null, ready = () => true, p
       for (const scene of list) {
         const items = await itemsOf(scene.sceneName);
         const game = gameVideoOf(items);
-        if (game) targets.push({ sceneName: scene.sceneName, items, game });
+        if (game) targets.push({ sceneName: scene.sceneName, key: typeof scene.sceneUuid === 'string' && scene.sceneUuid ? scene.sceneUuid : scene.sceneName, items, game });
       }
       if (!targets.length) {
         protect(false);
         return remember({ ok: false, did: `None of the scenes in "${collection || 'this collection'}" has an item named game video to put the HUD above, so it was not added.`, scenes: 0, created, problems });
       }
-      keep({ collection, off: before && Array.isArray(before.off) ? before.off : [] });
+      const known = before !== null;
+      const lastView = known ? viewOf(before.view) : null;
+      const ipad = { ...(known && before.ipad && typeof before.ipad === 'object' ? before.ipad : {}) };
+      keep({ collection, off: known && Array.isArray(before.off) ? before.off : [], view: lastView || which, ipad });
       // Out of the capture before anything is enabled.
       protect(true);
-      const known = before !== null;
       const off = new Set(known && Array.isArray(before.off) ? before.off : []);
       const first = targets.find((t) => t.sceneName === current) || targets[0];
       let input = await findInput();
-      let resized = false;
+      let resized = false;   // the source is not the size it is to be (the screen moved, the choice changed, or he sized it in OBS)
+      let changed = false;   // the page OBS draws changed (the rig HUD to the iPad dashboard, or back)
       if (!input) {
-        await client.request('CreateInput', { sceneName: first.sceneName, inputName: INPUT_NAME, inputKind: INPUT_KIND, inputSettings: inputSettings(), sceneItemEnabled: true });
+        await client.request('CreateInput', { sceneName: first.sceneName, inputName: INPUT_NAME, inputKind: INPUT_KIND, inputSettings: inputSettings(which), sceneItemEnabled: true });
         created = true;
         first.items = await itemsOf(first.sceneName);
-        log(`[RacingDesk] HUD source: made the browser source "${INPUT_NAME}" in "${first.sceneName}"`);
+        log(`[RacingDesk] HUD source: made the browser source "${INPUT_NAME}" in "${first.sceneName}" (${which === 'ipad' ? 'the iPad dashboard' : 'the rig HUD'})`);
       } else {
-        // The address and the size are kept current (the port, the screen); his other settings on it are his.
-        const now = inputSettings();
+        // The address and the size are kept current (the port, the screen, the choice); his other settings on it are his.
+        const now = inputSettings(which);
         let have = null;
         try { have = (await client.request('GetInputSettings', { inputName: INPUT_NAME })).inputSettings; } catch (e) { have = null; }
         resized = !have || have.width !== now.width || have.height !== now.height;
+        changed = lastView !== null && lastView !== which;
         await client.request('SetInputSettings', { inputName: INPUT_NAME, inputSettings: now, overlay: true });
       }
       for (const target of targets) {
@@ -205,11 +319,43 @@ function createHudSource({ client, url, size = () => null, ready = () => true, p
           let ours = ourItemIn(items);
           let isNew = false;
           if (!ours) { ours = await createItem(target.sceneName, items); isNew = true; }
-          // Where he has put it stays where he put it; only a new item, or one the screen's change has made the wrong size,
-          // is placed and fitted.
-          if (isNew || resized || created) {
-            await placeAbove(target.sceneName, ours, target.game);
-            await fitTo(target.sceneName, ours, target.game);
+          if (which === 'ipad') {
+            // The iPad dashboard: placed in the corner the first time it is in a scene, and never moved or sized again —
+            // not when its source's size was changed in OBS and is put back (the item is scaled inside its bounds and keeps
+            // its box), and not when the scene was renamed (the place is kept by the scene's uuid). Only the choice moves
+            // it: from the rig HUD it is put back where he had it, or in the corner if nothing was kept.
+            const was = placeOf(ipad, target);
+            if (isNew || created) {
+              await placeAbove(target.sceneName, ours, target.game);
+              await placeInCorner(target.sceneName, ours, target.game);
+              setPlace(ipad, target, null);
+            } else if (!was.found) {
+              // There, and nothing written of it: the state file was lost, or the switch was turned on afresh in another
+              // collection and back, or OBS gave no uuid and the scene was renamed. It is his, unless it is still the
+              // rig HUD fitted over the game (or the choice has just changed to this).
+              if (changed || await coversGame(target.sceneName, ours, target.game)) {
+                await placeAbove(target.sceneName, ours, target.game);
+                await placeInCorner(target.sceneName, ours, target.game);
+              }
+              setPlace(ipad, target, null);
+            } else if (changed) {
+              if (was.value && typeof was.value === 'object') await restore(target.sceneName, ours, was.value);
+              else await placeInCorner(target.sceneName, ours, target.game);
+              setPlace(ipad, target, null);
+            } else if (target.key !== target.sceneName) {
+              setPlace(ipad, target, was.value);   // a record under the name, now under the uuid
+            }
+          } else {
+            // The rig HUD: where he has put it stays where he put it; only a new item, or one the screen's change (or the
+            // choice's) has made the wrong size, is placed and fitted. Leaving the iPad dashboard, his transform of it
+            // is written down first, for when he chooses it again.
+            if (changed && !isNew && placeOf(ipad, target).found) {
+              try { setPlace(ipad, target, await transformOf(target.sceneName, ours)); } catch (e) { /* kept as it was */ }
+            }
+            if (isNew || resized || created) {
+              await placeAbove(target.sceneName, ours, target.game);
+              await fitTo(target.sceneName, ours, target.game);
+            }
           }
           // Enabled: a new item, and one that Racing Desk switched off (or one nothing is known of, once). Not one he hid.
           if (isNew || (!ours.enabled && (!known || off.has(target.sceneName)))) {
@@ -221,14 +367,16 @@ function createHudSource({ client, url, size = () => null, ready = () => true, p
           problems.push(`The HUD could not be put in the scene "${target.sceneName}": ${e.message}`);
         }
       }
-      keep({ collection, off: [...off] });
+      keep({ collection, off: [...off], view: which, ipad });
       // The page is reloaded unless it is alive and polling: a reconnect in the middle of a race keeps its state. A page
-      // that was just made, or given another size, is loaded afresh anyway.
-      if (created || resized || !pageAlive()) {
+      // that was just made, or given another size or address, is loaded afresh anyway.
+      if (created || resized || changed || !pageAlive()) {
         try { await refreshInput(); } catch (e) { problems.push(`The HUD page was not reloaded in OBS: ${e.message}`); }
       }
-      const did = placed ? `The HUD is a browser source in ${placed === 1 ? 'your scene' : `${placed} of your scenes`}, just above the game.` : 'The HUD was not put in any scene.';
-      return remember({ ok: placed > 0 && problems.length === 0, did, scenes: placed, created, problems });
+      const what = which === 'ipad' ? 'The iPad dashboard' : 'The HUD';
+      const where = which === 'ipad' ? 'in its corner over the game' : 'just above the game';
+      const did = placed ? `${what} is a browser source in ${placed === 1 ? 'your scene' : `${placed} of your scenes`}, ${where}.` : `${what} was not put in any scene.`;
+      return remember({ ok: placed > 0 && problems.length === 0, did, scenes: placed, created, view: which, problems });
     } catch (e) {
       return remember({ ok: false, did: null, scenes: placed, created, problems: [...problems, `OBS did not take the HUD source: ${e.message}`] });
     } finally {
@@ -261,7 +409,7 @@ function createHudSource({ client, url, size = () => null, ready = () => true, p
           problems.push(`The HUD could not be hidden in the scene "${scene.sceneName}": ${e.message}`);
         }
       }
-      if (mine && (before || switched.size)) keep({ collection: before && before.collection ? before.collection : collection, off: [...switched] });
+      if (mine && (before || switched.size)) keep({ ...(before || {}), collection: before && before.collection ? before.collection : collection, off: [...switched] });
       if (quiet) return { ok: problems.length === 0, scenes: off, problems };
       return remember({ ok: problems.length === 0, did: `The HUD source is switched off in ${off === 1 ? 'your scene' : `${off} scenes`}; it stays in OBS, hidden.`, scenes: off, created: false, problems });
     } catch (e) {
@@ -335,10 +483,30 @@ function createHudSource({ client, url, size = () => null, ready = () => true, p
   return { apply, ensure, disable, refresh, status, INPUT_NAME };
 }
 
+// The iPad dashboard's places as the state file holds them: scene → his transform (an object of numbers and the
+// bounds' words) or null. Anything else is not one.
+function ipadOf(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out = {};
+  for (const [scene, t] of Object.entries(value)) {
+    if (typeof scene !== 'string') continue;
+    if (t === null) { out[scene] = null; continue; }
+    if (!t || typeof t !== 'object' || Array.isArray(t)) continue;
+    const kept = {};
+    for (const [key, v] of Object.entries(t)) {
+      if (['boundsType'].includes(key) && typeof v === 'string') kept[key] = v;
+      else if (typeof v === 'number' && Number.isFinite(v)) kept[key] = v;
+    }
+    out[scene] = Object.keys(kept).length ? kept : null;
+  }
+  return out;
+}
+
 /**
- * What the HUD source keeps between runs — { collection, off } — in a file, written whole and atomically (a temp file and a
- * rename). A file that is not there, or cannot be read, is none: the source then enables what it finds disabled, once,
- * rather than leave a HUD that never comes back.
+ * What the HUD source keeps between runs — { collection, off, view, ipad } — in a file, written whole and atomically (a
+ * temp file and a rename). A file that is not there, or cannot be read, is none: the source then enables what it finds
+ * disabled, once, rather than leave a HUD that never comes back. A file from before the choice (no `view`) is the rig
+ * HUD's, with no scene the iPad dashboard was placed in.
  */
 function fileState(file, { fs: fsModule = nodeFs, log = () => {} } = {}) {
   return {
@@ -346,7 +514,12 @@ function fileState(file, { fs: fsModule = nodeFs, log = () => {} } = {}) {
       try {
         const value = JSON.parse(String(fsModule.readFileSync(file, 'utf8')));
         if (!value || typeof value !== 'object') return null;
-        return { collection: typeof value.collection === 'string' ? value.collection : null, off: Array.isArray(value.off) ? value.off.filter((x) => typeof x === 'string') : [] };
+        return {
+          collection: typeof value.collection === 'string' ? value.collection : null,
+          off: Array.isArray(value.off) ? value.off.filter((x) => typeof x === 'string') : [],
+          view: viewOf(value.view),
+          ipad: ipadOf(value.ipad),
+        };
       } catch (e) {
         return null;
       }
@@ -355,7 +528,7 @@ function fileState(file, { fs: fsModule = nodeFs, log = () => {} } = {}) {
       try {
         fsModule.mkdirSync(path.dirname(file), { recursive: true });
         const tmp = `${file}.tmp`;
-        fsModule.writeFileSync(tmp, JSON.stringify({ collection: value.collection || null, off: value.off || [] }));
+        fsModule.writeFileSync(tmp, JSON.stringify({ collection: value.collection || null, off: value.off || [], view: viewOf(value.view), ipad: ipadOf(value.ipad) }));
         fsModule.renameSync(tmp, file);
       } catch (e) {
         log(`[RacingDesk] HUD source: its state file could not be written: ${e.message}`);
@@ -364,4 +537,4 @@ function fileState(file, { fs: fsModule = nodeFs, log = () => {} } = {}) {
   };
 }
 
-module.exports = { INPUT_NAME, INPUT_KIND, REFRESH_BUTTON, NOT_OPEN, LISTENER_DOWN, createHudSource, fileState };
+module.exports = { INPUT_NAME, INPUT_KIND, REFRESH_BUTTON, IPAD_SOURCE, IPAD_PLACE, VIEWS, NOT_OPEN, LISTENER_DOWN, createHudSource, fileState };

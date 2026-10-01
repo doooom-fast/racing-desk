@@ -9,9 +9,14 @@ is what is built as of stage 3 and what is coming. The Electron recorder, its ff
 ## What OBS does
 
 - Captures the sim and the HUD through his own scene collection and profile (`sim race 2k`, `Untitled`), which Racing
-  Desk never writes to, except the three profile keys below when he presses **Set up OBS**.
+  Desk never writes to, except the profile keys below when he presses **Set up OBS**.
 - Encodes and writes the file: NVENC as his profile has it, as **Hybrid MP4** once set up (crash-safe files, and the
-  format chapters need).
+  format chapters need), and once set up **with a quality target** instead of his fixed 100 Mbps — the encoder spends
+  what each moment needs, capped at the 100 Mbps he had (the grid, the pits and a replay take little; a busy lap looks
+  as it did). The size of the picture is not changed: his canvas is 3440x1440, but his profile outputs 2580x1080
+  (`[Video] OutputCX`/`OutputCY`, the canvas scaled to three quarters) and records that, so the file, and the HUD in it,
+  are 2580x1080 today and stay so; the card names the size the profile has, never "full size". His own Ctrl+Space
+  recordings are made with the same profile and get the same.
 - Keeps the replay buffer (20 s), once set up: the instant replay, saved as a clip of its own.
 - Writes the chapters Racing Desk sends into the file (Hybrid MP4), and its own "Start" chapter at 0.
 
@@ -141,11 +146,27 @@ is what is built as of stage 3 and what is coming. The Electron recorder, its ff
   clock, which can be seconds off. The summary's `videoOffsetMs` is what a reader adds to `t`
   (docs/telemetry-sidecar-schema.md).
 - **Keeps a floor under the disk**: no recording starts below about 20 GB free on the drive OBS records to, one Racing
-  Desk started is stopped at about 5 GB and said so in one sentence, and the card shows hours left at the measured rate
-  (his profile's 100 Mbps is 43 GB an hour; OBS itself stops only at 50 MB, with a dialog over the sim). The drive is the
-  one OBS will write to — asked of OBS (`GetRecordDirectory`), else the folder its profile says, else Racing Desk's own
-  setting — and a folder that is not made yet is measured on the nearest one above it. A drive that cannot be measured at
-  all is a recording that does not start, said in a sentence; the floor is never switched off in silence.
+  Desk started is stopped at about 5 GB and said so in one sentence (OBS itself stops only at 50 MB, with a dialog over
+  the sim). The drive is the one OBS will write to — asked of OBS (`GetRecordDirectory`), else the folder its profile
+  says, else Racing Desk's own setting — and a folder that is not made yet is measured on the nearest one above it. A
+  drive that cannot be measured at all is a recording that does not start, said in a sentence; the floor is never
+  switched off in silence.
+- **Knows what his recordings really come to** (`modules/js/obs/recording-rate.js`): with a quality target instead of a
+  fixed bitrate only the files say what a race costs, so the newest five recordings in the recordings folder (the ones
+  Racing Desk filed, their main video, longer than half a minute) are measured — each file's size over its duration,
+  the duration read from the file's own boxes, pooled so a long race weighs more than a short practice — at the app's
+  start, after each filing, when Set up OBS has run, and when the recordings folder has changed since. Only recordings
+  begun after the profile's `recordEncoder.json` was last written count (`measureSince`, the file's modification time,
+  against each sidecar's `startedAt`): OBS writes that file only when the encoder's settings are changed and Set up OBS
+  writes it, so a recording that began later was made with what it says, and one before was not. Without that, the
+  first races with the quality target would be averaged with fixed-bitrate ones (a CBR recording is padded with filler
+  data, so exactly 45 GB an hour at 100 Mbps) and the card would look as if nothing had changed for up to five races;
+  with it, the card says nothing of the rate (the cap's hours, "or more") until a recording made with the new settings
+  has been filed. The hours-left estimate runs at the measured rate once there is one, and until then at the bitrate
+  the profile is capped at (12.5 MB/s at his 100 Mbps, read from the profile's encoder file), which with a quality
+  target is the most it can be; **while recording** it runs at OBS's own bytes over its own seconds (after more than
+  five seconds), and only while: once the recording has ended that rate is of a recording that is over, and the files'
+  say what it came to. The card says which (below).
 - **Starts OBS** only on a press — Record from the desk, the tray or the Stream Deck while he is out of the car, or
   "Open OBS" — detached, minimised to the tray, from its own `bin\64bit` folder, with `--minimize-to-tray` and
   `--disable-updater` and nothing that names a collection, a profile or a password (OBS logs its whole command line).
@@ -171,11 +192,16 @@ is what is built as of stage 3 and what is coming. The Electron recorder, its ff
 - **Settings → Recording**: the state in a sentence; while recording its size, its chapters so far, its file, whether
   it was started in OBS or by itself, the telemetry beside it and the folder it goes to; otherwise where the last
   recording went (its chapters and replays), or why it stayed where OBS wrote it; what the replay buffer is doing and
-  the last replay saved. Record/Stop, Save replay (while Instant replay is on; pressable while the buffer runs), Open
-  OBS (while OBS is not answering), Set up OBS (while something is missing, with one sentence saying what it will
-  change), Open folder, Choose folder, the five switches ("Record by itself", on; "Instant replay", off; "Chapters",
-  on; "Start OBS when I press Record", on; "Start OBS with Racing Desk", off), and the password field only when OBS
-  wants a password Racing Desk does not have.
+  the last replay saved; how much recording is left on the drive, at the real rate of his recordings once there is one
+  ("About 22 hours of recording left on D: at 18 GB an hour, measured from your last 3 recordings."), until then, with
+  the quality target set, at the cap and said as "or more" with not a word of the rate ("About 9 hours or more of
+  recording left on D:."), or at a fixed bitrate before Set up OBS has run ("… at 100 Mbps."); and, with OBS open and
+  the size not yet set, one sentence saying the size change happens the next time Set up OBS runs with OBS closed ("The
+  size change (a quality target instead of a fixed 100 Mbps; the recordings stay 2580x1080) happens …"). Record/Stop, Save
+  replay (while Instant replay is on; pressable while the buffer runs), Open OBS (while OBS is not answering), Set up
+  OBS (while something is missing, with one sentence saying what it will change), Open folder, Choose folder, the five
+  switches ("Record by itself", on; "Instant replay", off; "Chapters", on; "Start OBS when I press Record", on; "Start
+  OBS with Racing Desk", off), and the password field only when OBS wants a password Racing Desk does not have.
 - **The tray**: Record / Stop recording, Save replay (while Instant replay is on), Open OBS.
 - **The Stream Deck**: Toggle Recording, Save Replay, TV Shots and the rest of its buttons, through the app's listener on
   `127.0.0.1:9091` (below), which is always up whatever the iPad view's switch. While a Toggle Recording key is on the deck
@@ -202,9 +228,52 @@ with the file's BOM and every other line kept. While OBS is open the profile key
 there (OBS rewrites that file from memory), so with OBS open and its WebSocket off the card says to quit OBS and press
 again, and a `tasklist` that cannot say whether OBS is open leaves OBS's files alone (OBS writes them from memory when it
 closes). Never a hop through another profile. The card says what will change for his own Ctrl+Space recordings, from what
-is really changing: that they become Hybrid MP4 (the replay buffer changes nothing of theirs), and that they go to the new
-folder. OBS then answers on port 4455 to anything on his network that knows the password — said once on the card. A password
-read from OBS's file replaces one he typed earlier.
+is really changing: that they become Hybrid MP4 (the replay buffer changes nothing of theirs), that they go to the new
+folder, and that they keep their size with a quality target. OBS then answers on port 4455 to anything on his network that
+knows the password — said once on the card. A password read from OBS's file replaces one he typed earlier.
+
+**The recordings' size** is the fourth thing Set up OBS does, and only while OBS is closed. OBS keeps the recording
+encoder's settings in the profile's `recordEncoder.json` and hands the whole file to the encoder `[AdvOut] RecEncoder`
+names (`frontend/utility/AdvancedOutput.cpp:78,121` in 32.1.2; his is `obs_nvenc_h264_tex`, the obs-nvenc plugin). The
+plugin reads its rate control from three keys (`plugins/obs-nvenc/nvenc-properties.c:5-15`): `rate_control` — `CBR`,
+`CQP`, `VBR`, `CQVBR` or `lossless` (`:114-120`, compared without case, `nvenc.c:230-233`) — `target_quality` (1-51 for
+H.264, `:129-130`) and `max_bitrate` (Kbps, `:132`). `CQVBR` is NVENC's VBR with `targetQuality` set and the average
+bitrate and VBV left at zero, capped at `max_bitrate` (`nvenc.c:347-349,366-370`): a quality target with a ceiling.
+Set up OBS writes `rate_control: "CQVBR"`, `target_quality: 16` and `max_bitrate` = the ceiling the file records under
+today (his `bitrate`, 100000 Kbps; a VBR's own cap) into that file, in the one-line JSON OBS writes
+(`obs_data_get_json`: compact, keys in order), changing those three keys and no other — the preset (`p2`), the keyframe
+interval, the B-frames, the lookahead and anything else stay as he has them, and a key the plugin does not read is
+carried (OBS keeps what it does not know and writes it back, `OBSBasicSettings.cpp:1885-1886,3272`) — through a temp
+file and a rename, with the file as it was kept beside it the first time as `recordEncoder.json.before-racing-desk` (so
+it can be put back by renaming it over the other). **A key the file does not have is the plugin's own default**: OBS
+writes only the keys the user changed (`obs_data_get_json` without defaults, `libobs/obs-data.c:578`), and the encoder
+is made from the file with the defaults under it (`nvenc-properties.c:41-47,60`: `rate_control` `cbr`, `bitrate` 10000,
+`max_bitrate` 10000, `target_quality` 20). So a file with no `bitrate` records at 10 Mbps, and that is the cap kept and
+the "fixed N Mbps" the card says (not 100 Mbps, which is in no file but his); and a CQVBR he set up in OBS's own dialog
+and left at its defaults has no `target_quality` and no `max_bitrate` in the file, which is level 20 under a 10 Mbps
+cap: a quality target of his, left alone like any other (his level and his cap are never replaced). 16 is OBS's own
+"Indistinguishable Quality, Large File Size" level for NVENC (`frontend/utility/SimpleOutput.cpp:520,543`:
+`CalcCRF(16)`, which is 16 at any output above 2000 px across): the nearest OBS has to his 100 Mbps CBR, which at the
+2580x1080 60 fps his profile outputs is six tenths of a bit per pixel and all but transparent; the plugin's own default
+for the mode is 20, a step smaller and a step rougher. **The size of the picture is not Set up OBS's to change**: his
+canvas is 3440x1440, but `[Video] OutputCX=2580`, `OutputCY=1080` scale it to three quarters and the recording is not
+rescaled on its own (`RecUseRescale=false`; OBS 32.1.2 rescales a recording only for a scale filter other than disable
+together with a `RecRescaleRes`, `AdvancedOutput.cpp:330,353-358`), so his recordings are 2580x1080 and stay that. The
+card names that size from the profile (`profileOutputSize`: "keep its recordings at 2580x1080 with a quality target
+instead of a fixed 100 Mbps"), and where the profile does not say it names no size; it never says "full size". The keys
+mean nothing to x264 or to Simple output, so for a profile that is not NVENC with Advanced, Standard output nothing is
+written and the card says so; `RecEncoder=none` (the stream's encoder) is left alone too. obs-websocket 5 has no
+request for an encoder's settings (`GetOutputSettings` is the muxer's), and OBS writes the file from memory when its
+Settings are saved, so with OBS open the card says in one sentence that the size change happens the next time Set up
+OBS runs with OBS closed, and the button's own sentence leaves it out. The hours-left line on the card then says "or
+more" (the cap's hours, with nothing of the rate) until a recording made with the new settings has been measured.
+
+**A side effect of CQVBR on the replay buffer.** OBS counts a recording as bitrate-based only for CBR, VBR or ABR
+(`AdvancedOutput.cpp:146-147`, `usesBitrate`), and gives the replay buffer a memory limit only when it is not:
+`max_size_mb` is `RecRBSize` (his 512 MB) instead of 0 (`:883`). The 20 s replay buffer is therefore now also limited to
+512 MB, which holds 20 s at up to about 200 Mbps: well over the 100 Mbps cap, so the instant replay is intact today. If
+the cap or the buffer's length is ever raised, a clip would be cut short by the memory limit without a word, so check
+`RecRBSize` (OBS Settings, Output, Replay Buffer, Maximum Memory) first.
 
 The recording folder is `D:\Racing Desk\Recordings` while there is a D: drive (`recordingFolder` in
 `overlay-settings.json` names another; C: holds about ninety minutes at his bitrate). OBS's own recording folder is
@@ -217,9 +286,11 @@ The iPad's server (port 9090, on the home network, switched on from the desk) ha
 the actions, whatever the iPad switch says; `/api/status` says in the car or not, the HUD on screen or not, whether he
 has put the HUD away (`hudOff`), the page-only actions pressed on the rig (`hudActions`, below) and the recording in
 short; `/api/settings-display` is his display settings through an allowlist — the panels, the zoom, the position, the
-look — and never a key, a folder, an address, a device or anything of the recording's; and `/obs` is the HUD page for OBS
-(next). It never has a key to show and never listens on any other address; the LAN server knows none of the three
-routes. If its port is taken when the app starts it is tried again, two seconds, five, fifteen and then every half
+look, the two panel-background sliders — and never a key, a folder, an address, a device or anything of the recording's;
+`/obs` is the HUD page for OBS (next) and `/obs-ipad` the iPad dashboard for OBS. It never has a key to show and never
+listens on any other address; the LAN server knows neither page, and its own `/api/settings-display` (behind the key,
+like everything on it) answers the iPad the panel background and nothing else. If its port is taken when the app starts
+it is tried again, two seconds, five, fifteen and then every half
 minute, with the port read afresh from the settings at each try, until it is up (the log says so); the HUD source is not
 given to OBS while it is down, and is when it comes up.
 
@@ -239,6 +310,68 @@ once (what was pressed before it began is not done again); the mode presets and 
 reach it by its ten-second ask of the settings. The source is the size of the rig's HUD window in DIPs, which is what the
 rig's page is laid out in, and OBS scales it up to the game (a source in physical pixels would lay the page out larger
 than the rig's, and the recorded HUD would be smaller than the one he sees wherever the screen is not at 100 %).
+
+**What OBS draws is a choice under the switch** (`obsHudView`, asked for 2026-10-01: "I'd like a setting for the hud in
+obs to be the iPad version"): **Rig HUD**, the above, or **iPad dashboard**, the glance layout the iPad is shown. The
+iPad dashboard is the listener's `/obs-ipad` page: the same `dashboard.html`, in drive mode from the start
+(`window._obsGlance`, which `drive-hud.js` reads as it reads `_remoteMode`), with the iPad's look — the glass at
+fifteen hundredths, no badges (so the crop is never asked for), the sectors that fit, the same grid (`html.rd-glance`
+shares the iPad's rules in `drive-view.css`) — and OBS mode's behaviour: no key, no menu, hidden out of the car and while
+he has the HUD away, no voice coach, the display-settings allowlist; the rig's page-only actions are not done on it (the
+glance layout has no zoom, and the rig's zoom key would scale the whole grid). **It keeps to his display settings, as the
+rig HUD OBS draws does, not to the iPad's own defaults** (decided 2026-10-01 after a review pointed out that the iPad is
+told none of the look keys): this page runs on the rig, in OBS's browser next to the sim, so his switches for the rig
+apply to it — effects off (`showWebGL`) takes the WebGL canvases out (the tacho's bloom, the spotter's glow), ambient
+light off (`ambientMode`) stops the light — where the iPad draws those on its own graphics. Rendered with his values
+(ambient light off, effects off) beside the same page with neither: only the WebGL canvases differ; the layout, the glass
+(the overhead glow and the sweep are in the page's CSS, not in the canvases), the flag card, race control's banner and
+the transparent page are the same, and `hud-page-obs-ipad.spec.mjs` holds it, live. **The page behind and between the panels
+is transparent**: no black page, no flag pattern in the gutters and no frame at the edge (those are the iPad's, which
+has no game behind it), so the game shows through the gutters; a flag still reads from the flag card in the gaps block,
+race control's banner and the panels' flag-coloured borders and tint. Never on the iPad's server; the iPad's own view is
+as it was. **The source is an iPad's size, 1180 by 820** (`IPAD_SOURCE`: the iPad Air and 11" Pro on their side, the
+size the layout is held to in `drive-view.spec.mjs` and the golden frames are made at; landscape, as the game is), and
+**it is not stretched over the game**: the first time Racing Desk adds it to a scene it is put in the bottom-left corner
+of the game video (away from a facecam in the bottom right), inset by a fiftieth of the game's shorter side, scaled
+inside bounds at half the game's height (`IPAD_PLACE`; on his 3440 by 1440 canvas that is 1036 by 720, under a third of
+the width: 0.88 of the page's own size, the layout's 11 px labels at 9.7 px of the canvas and its numbers, 20 px and up,
+at 17.6 px. Two-fifths was the first cut and was too small for a recording: 7.7 px labels, under 5 px once the video is
+scaled for upload. It is one drag in OBS to change, and then it is his), and after that **it is never moved or sized by
+Racing Desk again**: his layout in OBS is his. The state file (`hud-source-state.json`: `collection`, `off`, `view`,
+`ipad`) says which scenes it has been placed in, **by the scene's uuid** (OBS 30 and up; the name where OBS gives none),
+so that renaming a scene is not a new scene. A connect, a choice made again, a change of the rig's screen or **a change
+to the source's size in OBS** (a bigger iPad, upright 820 by 1180) only brings the address and the size up to date
+(SetInputSettings) and reloads the page: the item is scaled inside its own bounds and keeps its box, so nothing is moved
+or sized. An item that is in a scene with nothing written of it (the state file lost; the switch turned on afresh in
+another collection and back; a rename with no uuid) is his too, and is only written down — unless it still covers the
+game video as the rig HUD's fit does, when it is the rig HUD left there and goes to the corner. Changing the choice changes the source's address and size and reloads the page: to the iPad
+dashboard, the item is placed in the corner once per scene; back to the rig HUD, the item is fitted over the game again
+(as a rig HUD must be) and his transform of the dashboard is written down per scene, so that choosing the iPad dashboard
+again puts it back where he had it, not in the corner. A game video placed by its centre or its other corners is read
+by its alignment, so the corner is the box it really covers. `obs-hud-source.spec.mjs` holds the placement once, the
+leaving alone (his move, his size for the source, a renamed scene with and without a uuid, a lost state file), the two
+changes of choice and the state file against the fake OBS; `hud-page-obs-ipad.spec.mjs` renders
+the page headless at 1180 by 820 over a magenta-and-cyan board with a yellow flag out and reads the pixels: the board in
+every gutter and along the edge, the panels dark over it.
+
+**How solid the panels are** is two sliders, 0 to 100 (he asked "Does the overlay allow backgrounds to be set to
+transparent?" on 2026-10-01 and chose one slider with OBS separate): **Panel background** in Settings → Look
+(`panelBackground`) for the rig's HUD and the iPad view, and **Panel background in OBS** on the Recording card with the
+switch (`obsPanelBackground`) for the pages OBS draws, whichever of the two, so the recording can be clearer or more
+see-through than what he drives with. Each sets the panels' own background — the base fill and the glass — and nothing
+else (`settings.js` `applyPanelBackground` writes `--panel-alpha`; `base.css` makes the fills, scales the glass down
+with it and never up, and under 90 puts a soft shadow under every number and word in the panels, growing as the
+background goes, so they read over the game: dark under the dark theme and pale under the light one, whose text is dark
+(`--panel-shadow-rgb`)). **The spotter's card and race control's banner are not panels**: they come and go over the game
+and carry what he most needs to read, so their fill is their own and solid whatever the slider says, their glass is not
+thinned either (they keep `--panel-glass` at 1) and they have no shadow under their words. 90 is the panels as they have always been: the rig's `--bg` at
+nine-tenths and the secondary panels' fills the same, the glance layout's base the same under its glass and opaque
+under a flag (opaque at 90 and above; it thins below), so the defaults change no surface and the golden frames are as
+they were. The rig's page gets the slider by the desk's settings path; the iPad is told it by its own server
+(`/api/settings-display` on the iPad's server answers the panel background and nothing else, behind the key, and the
+page asks again every ten seconds); the OBS pages get both through the display-settings allowlist and draw by the OBS
+one. `panel-background.spec.mjs` holds each slider at 0, 50 and 100 on its own surface and not the others', the shadow in
+both themes, the two cards at 0, and the defaults.
 
 Throwing the switch: the HUD's own window is taken out of every screen capture first (`setContentProtection`, which
 takes effect at the next composition), then OBS is given one input, `Racing Desk HUD` — made once; OBS refuses a second
@@ -299,11 +432,14 @@ that its replay controls are out of the shots, and what `IsReplayPlaying` does w
 
 `recordingFolder`, `recordingAutoRecord` (on unless false), `recordingInstantReplay` (false),
 `recordingInstantReplaySeconds` (20), `recordingChapters` (true), `obsStartOnRecord` (true), `obsStartWithApp` (false),
-`obsPath` (null: the default install), `obsHudSource` (false: "HUD drawn by OBS"), `tvShotsHideFacecam` (true),
-`localServerPort` (9091: the listener on this PC), `obsWebSocketPasswordEnc` (only if typed; never sent to a page),
-`recordingSettingsVersion` (4). The Electron recorder's keys, the "native" backend's port and "stop in the pits"
-(`recordingAutoStopOnPit`: his rules stop a recording on a new session, at the end of the race and when he leaves the
-car, and the pit lane is none of those) are deleted.
+`obsPath` (null: the default install), `obsHudSource` (false: "HUD drawn by OBS"), `obsHudView` (`rig`: what OBS draws,
+`rig` or `ipad`; read strictly, anything else is `rig`), `obsPanelBackground` (90: how solid the panels are in the
+picture OBS draws), `tvShotsHideFacecam` (true), `localServerPort` (9091: the listener on this PC),
+`obsWebSocketPasswordEnc` (only if typed; never sent to a page), `recordingSettingsVersion` (5). The Electron recorder's
+keys, the "native" backend's port, "stop in the pits" (`recordingAutoStopOnPit`: his rules stop a recording on a new
+session, at the end of the race and when he leaves the car, and the pit lane is none of those) and `greenScreen` (a key
+nothing read: Ctrl+Shift+G flipped it and restarted the app, and now only restarts the app) are deleted. The rig's and
+the iPad's panel background, `panelBackground` (90), is a key of the HUD's own (Settings → Look), not of the recording's.
 
 ## Coming (not in this stage)
 
@@ -317,11 +453,19 @@ car, and the pit lane is none of those) are deleted.
 
 ## First run (what no test here can check)
 
-With OBS closed, press Set up OBS on the desk and read what it says. Press Record: OBS should appear in the tray and the
-pill should read "Recording"; drive a lap; press Stop; the card should say where the recording went, and that folder
+With OBS closed, press Set up OBS on the desk and read what it says: among its sentences, one that the profile now
+records with a quality target instead of a fixed 100 Mbps, still at 2580x1080 (what his profile outputs today; the
+canvas is 3440x1440), and `recordEncoder.json.before-racing-desk` beside `recordEncoder.json` in
+`%APPDATA%\obs-studio\basic\profiles\Untitled`. Press Record: OBS should appear in the tray and
+the pill should read "Recording"; drive a lap; press Stop; the card should say where the recording went, and that folder
 under `D:\Racing Desk\Recordings` should hold the `.mp4` and the `.telemetry.jsonl` side by side, the sidecar's last
-line saying `"alignment": { "method": "chapters" … }` with the offset. Then, with OBS open, press Ctrl+Space in OBS and
-watch the desk's pill follow it. In OBS's mixer, check that the game audio meter moves (the Volt 2 game-audio device
+line saying `"alignment": { "method": "chapters" … }` with the offset. OBS's log for that session (Help, Log Files)
+should show the encoder's settings as `rate_control: CQVBR`, `cq: 16`, `max_bitrate: 100000`, `preset: p2`, with
+`keyint`, `b-frames` and `lookahead` as before. Until the first race is filed the hours-left line should say "About N hours or more of
+recording left on D:.", with nothing of the rate. While it records it says Mbps, OBS's own rate; once it is filed — with
+Racing Desk still running, no restart — the line should say "at N GB an hour, measured from your last recording", the
+real figure, where the fixed 100 Mbps was 45 GB an hour; only recordings begun after Set up OBS wrote the encoder file
+count, so none made before it is averaged in. The race should look as it did on a busy lap. Then, with OBS open, press Ctrl+Space in OBS and watch the desk's pill follow it. In OBS's mixer, check that the game audio meter moves (the Volt 2 game-audio device
 failed to start on 2026-09-29). Then a session with OBS open and Record by itself on: out of the pits in practice the
 pill should read "Recording" a second later, and getting out of the car should stop it; in a race it should begin at
 the green flag. With Instant replay on, Ctrl+Shift+B in the car should put a `Replay …` clip and its sidecar in the
@@ -332,6 +476,12 @@ Stream Deck app runs the plugin it started with, so after the first start of thi
 keys use the new plugin and the TV Shots action is in its list (the log says so when the plugin was replaced).
 Then "HUD drawn by OBS": switch it on with OBS open, look at OBS's preview — the HUD should be there once, over the
 game and under the facecam, laid out as on the screen — and at a recording made with it on: the HUD once, not twice.
+Then choose "iPad dashboard" under it: the source should become the glance layout in the bottom-left corner of the game
+at half its height and under a third of its width, the game showing through between its panels; drag it where you want
+it and switch scenes, reopen OBS, restart Racing Desk, rename the scene, change the source's size in its properties — it
+should stay put (the address and size are put back, and the picture keeps its box). Then "Panel background in OBS" down
+to 30 or so: the picture's panels should go see-through with a shadow under the numbers while the HUD on the screen
+stays as it is.
 Then TV shots: after a race, open its replay in iRacing, pick the race on the Desk page and press TV shots; the pill
 should count the moments, the facecam should go and come back, and the race's folder should hold `… tv.mp4` and its
 sidecar; watch whether each moment is where the race had it (the first take says whether the sim lands the seeks), that the camera

@@ -55,8 +55,8 @@
       window.racingDesk.onToggleDriveMode(toggleDriveMode);
     }
 
-    // Auto-activate on remote server connections
-    if (window._remoteMode) {
+    // Auto-activate on remote server connections, and in the iPad dashboard OBS draws (remote-server.js, /obs-ipad)
+    if (window._remoteMode || window._obsGlance) {
       setDriveMode(true);
     }
 

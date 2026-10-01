@@ -258,6 +258,9 @@
     // Bonkers pit limiter toggle
     document.body.classList.toggle('bonkers-off', _settings.showBonkers === false);
 
+    // Panel background
+    applyPanelBackground();
+
     // Layout — one arrangement, placed by the position choice. A `layout` block left in the settings by
     // the old group editor is ignored.
     applyLayout();
@@ -297,6 +300,28 @@
       document.body.classList.add('mode-minimal-plus');
     }
   }
+
+  // ── Panel background ──
+  // How solid the panels' own background is (the base fill and the glass), 0 to 100: "Panel background" in Settings →
+  // Look for the rig's HUD and the iPad view (`panelBackground`), and a slider of its own for the HUD drawn by OBS
+  // (`obsPanelBackground`, with the "HUD drawn by OBS" setting, read by the page OBS draws alone, so the recording can
+  // be clearer or more see-through than what he drives with). 90 is what the panels have always been. base.css turns
+  // --panel-alpha into the fills, the glass and, under 90 (body.panels-thin), the soft shadow under the numbers.
+  var PANEL_BACKGROUND_DEFAULT = 90;
+  function panelBackgroundOf(value) {
+    var n = typeof value === 'number' && !isNaN(value) ? value : PANEL_BACKGROUND_DEFAULT;
+    return Math.min(100, Math.max(0, n));
+  }
+  function panelBackgroundNow() {
+    return panelBackgroundOf(window._obsMode ? _settings.obsPanelBackground : _settings.panelBackground);
+  }
+  window.panelBackgroundNow = panelBackgroundNow;
+  function applyPanelBackground() {
+    var pct = panelBackgroundNow();
+    document.documentElement.style.setProperty('--panel-alpha', String(Math.round(pct) / 100));
+    document.body.classList.toggle('panels-thin', pct < PANEL_BACKGROUND_DEFAULT);
+  }
+  window.applyPanelBackground = applyPanelBackground;
 
   function _collapseParentColumns() {
     // When a visual preset mode is active, CSS rules in modes.css handle all
@@ -416,17 +441,18 @@
   // the watcher fires settings-sync. Run on DOMContentLoaded so the
   // panels applySettings() touches actually exist in the DOM.
   function _loadInitialSettings() {
-    if (window._obsMode) {
-      // The page OBS draws (remote-server.js, /obs): his display settings came with the page, and are asked for again
-      // every ten seconds from the same server, so a change made on the desk reaches this copy of the HUD too. Nothing
-      // else of the settings file is ever sent here.
-      _applyObsSettings(window._obsSettings);
-      if (typeof window._obsSettingsUrl === 'string' && typeof fetch === 'function') {
+    if (window._obsMode || window._remoteMode) {
+      // The pages OBS draws (remote-server.js, /obs and /obs-ipad) and the iPad's: what the server lets through of his
+      // settings came with the page (the display allowlist for OBS; the panel background alone for the iPad), and is
+      // asked for again every ten seconds from the same server, so a change made on the desk reaches this copy of the
+      // HUD too. Nothing else of the settings file is ever sent here.
+      _applyDisplaySettings(window._displaySettings);
+      if (typeof window._displaySettingsUrl === 'string' && typeof fetch === 'function') {
         setInterval(function () {
-          fetch(window._obsSettingsUrl, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (saved) { if (saved) _applyObsSettings(saved); })
+          fetch(window._displaySettingsUrl, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (saved) { if (saved) _applyDisplaySettings(saved); })
             .catch(function () {});
-        }, Number(window._obsSettingsEveryMs) > 0 ? Number(window._obsSettingsEveryMs) : 10000);
+        }, Number(window._displaySettingsEveryMs) > 0 ? Number(window._displaySettingsEveryMs) : 10000);
       }
       return;
     }
@@ -445,14 +471,14 @@
       try { applySettings(); } catch (e) {}
     });
   }
-  // What the OBS page was given, applied — only when it differs from what it has, so that the ten-second ask does not
+  // What the page was given, applied — only when it differs from what it has, so that the ten-second ask does not
   // redraw a HUD that has not changed.
-  var _obsApplied = null;
-  function _applyObsSettings(saved) {
+  var _displayApplied = null;
+  function _applyDisplaySettings(saved) {
     if (!saved || typeof saved !== 'object') { try { applySettings(); } catch (e) {} return; }
     var text = JSON.stringify(saved);
-    if (text === _obsApplied) return;
-    _obsApplied = text;
+    if (text === _displayApplied) return;
+    _displayApplied = text;
     Object.assign(_settings, saved);
     try { applySettings(); } catch (e) { console.warn('[settings] apply failed:', e); }
   }

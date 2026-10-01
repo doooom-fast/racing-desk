@@ -11,6 +11,7 @@ const mp4Info = require('./mp4-info');
 const hudSource = require('./hud-source');
 const tvShots = require('./tv-shots');
 const recordingsIndex = require('./recordings-index');
+const recordingRate = require('./recording-rate');
 
 module.exports = {
   createObsClient: client.createObsClient,
@@ -19,6 +20,7 @@ module.exports = {
   createTvShots: tvShots.createTvShots,
   tvShots,
   recordingsIndex,
+  recordingRate,
   launcher,
   client,
   recording,

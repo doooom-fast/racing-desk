@@ -4278,6 +4278,9 @@ async function stubRecording(page, status, answers = {}) {
       const saved = window.__k10 && window.__k10.settings ? window.__k10.settings : {};
       const out = JSON.parse(JSON.stringify(state.status));
       for (const key of ['obsStartOnRecord', 'obsStartWithApp', 'recordingAutoRecord', 'recordingInstantReplay', 'recordingChapters', 'obsHudSource', 'tvShotsHideFacecam']) if (typeof saved[key] === 'boolean') out[key] = saved[key];
+      // And the choice of what OBS draws and the panel background for it, as main.js reads them.
+      out.obsHudView = saved.obsHudView === 'ipad' ? 'ipad' : 'rig';
+      if (typeof saved.obsPanelBackground === 'number') out.obsPanelBackground = saved.obsPanelBackground;
       return out;
     };
     Object.assign(window.racingDesk, {
@@ -4436,6 +4439,54 @@ test('the two switches are saved through the settings file, like the rest of the
   await card.locator('button[data-recording-cmd="openFolder"]').click();
   await card.locator('button[data-recording-cmd="chooseFolder"]').click();
   expect(await recordingCommands(page)).toEqual([['openFolder', undefined], ['chooseFolder', undefined]]);
+});
+
+test('under "HUD drawn by OBS": what OBS draws, Rig HUD or iPad dashboard with a sentence each, and the panel background for OBS as a slider of its own; both saved through the settings file; the card says what the choice is doing', async ({ page }) => {
+  await stubBridge(page, { zoom: 120, obsHudSource: true });
+  await stubRecording(page, { ...OBS_READY, obsHudSource: true, hudSource: { last: { ok: true, did: 'The HUD is a browser source in 3 of your scenes, just above the game.', problems: [] } } });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-recording');
+  // The choice is right under the switch, with its two sentences; the slider under it.
+  const names = await card.locator('.field .name').allTextContents();
+  const at = names.indexOf('HUD drawn by OBS');
+  expect(at).toBeGreaterThan(0);
+  expect(names.slice(at, at + 3)).toEqual(['HUD drawn by OBS', 'What OBS draws', 'Panel background in OBS']);
+  const choice = card.locator('#recording-obsHudView');
+  await expect(choice).toHaveValue('rig');
+  expect(await choice.locator('option').allTextContents()).toEqual(['Rig HUD', 'iPad dashboard']);
+  await expect(card.locator('.recording-hud-view .hint')).toContainText('Rig HUD: The HUD as it is on your screen');
+  await expect(card.locator('.recording-hud-view .hint')).toContainText('iPad dashboard: The glance layout the iPad shows');
+  const slider = card.locator('#recording-obsPanelBackground');
+  await expect(slider).toHaveAttribute('type', 'range');
+  await expect(slider).toHaveValue('90');
+  await expect(card.locator('.recording-panel-background output')).toHaveText('90%');
+  await expect(card.locator('.recording-detail')).toContainText(['HUD drawn by OBS: The HUD is a browser source in 3 of your scenes, just above the game.']);
+  // The iPad dashboard chosen: saved like the switches, and the app's new word is shown.
+  await choice.selectOption('ipad');
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(1);
+  expect((await page.evaluate(() => window.__k10.saved))[0]).toMatchObject({ zoom: 120, obsHudSource: true, obsHudView: 'ipad' });
+  await expect(choice).toHaveValue('ipad');
+  await pushRecording(page, { ...OBS_READY, obsHudSource: true, obsHudView: 'ipad', hudSource: { last: { ok: true, did: 'The iPad dashboard is a browser source in 3 of your scenes, in its corner over the game.', problems: [] } } });
+  await expect(card.locator('.recording-detail')).toContainText(['HUD drawn by OBS: The iPad dashboard is a browser source in 3 of your scenes, in its corner over the game.']);
+  await expect(choice).toHaveValue('ipad');
+  // The slider: its readout follows the thumb, the file is written when it is let go, held to the slider's range.
+  await slider.fill('40');
+  await expect(card.locator('.recording-panel-background output')).toHaveText('40%');
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(2);
+  expect((await page.evaluate(() => window.__k10.saved))[1]).toMatchObject({ obsHudView: 'ipad', obsPanelBackground: 40 });
+  await expect(slider).toHaveValue('40');
+  // Nothing of it is a command to the app.
+  expect(await recordingCommands(page)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('without the app the choice and the slider are there, disabled, at their defaults', async ({ page }) => {
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-recording');
+  await expect(card.locator('#recording-obsHudView')).toBeDisabled();
+  await expect(card.locator('#recording-obsHudView')).toHaveValue('rig');
+  await expect(card.locator('#recording-obsPanelBackground')).toBeDisabled();
+  await expect(card.locator('#recording-obsPanelBackground')).toHaveValue('90');
 });
 
 test('Save replay is on the card while Instant replay is on, pressable while the buffer runs, and is the app\'s command; the three recording switches are saved like the rest', async ({ page }) => {

@@ -571,7 +571,7 @@ SQLite in WAL mode and stays as it was at its last commit. **A host that has bee
 first** (`RacingDeskRuntime.StopListening`, wired by `Program.NewStop`: the HTTP and WebSocket listeners close before the
 loops are told, and the orderly stop that can take up to five seconds comes after): `host-launcher.js` takes anything
 that answers `/racing-desk/data/status` with a `schemaVersion` for a host it can use, so an app that started in the
-meantime — the green-screen toggle relaunches it, and it is up within a second — would adopt a host that was about to end
+meantime — the Ctrl+Shift+G restart relaunches it, and it is up within a second — would adopt a host that was about to end
 and have none for the rest of the session. With the ports free it starts a host of its own, and the store serialises
 the two hosts' writes (`tests/…/Transport/StopListeningTests.cs`). The app's will-quit kill is a backstop only while the app is
 still here; a host that outlives the app has nothing of the app left to end it. On 2026-09-29 one did, for minutes,
@@ -787,19 +787,28 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
   before any of the HUD's scripts run, and `settings.js` leaves the address alone in remote mode. (It used to reset
   it, which had the iPad asking itself for telemetry.) In remote mode there is no voice coach; the HUD's effects and
   its ambient light are there (the colour the plugin samples from the rig's screen) unless "Effects: off" in the menu,
-  which the iPad keeps; and a strip says "No data from the rig" when the numbers stop arriving.
+  which the iPad keeps; and a strip says "No data from the rig" when the numbers stop arriving. Of his settings the
+  iPad is told one thing, the "Panel background" slider of Settings → Look (`panelBackground`, 90 unless he moves it:
+  how solid the panels are, with a shadow under the numbers as it goes down), with the page and again every ten
+  seconds from its server's `/api/settings-display` (`remote-server.js` `IPAD_SETTINGS`), and nothing else.
 - **What he asked for on 2026-09-30** (`html.rd-remote` rules at the end of `drive-view.css`; the rig's own
   Ctrl+Shift+F is as it was): the glass's light — its tint, the overhead glow and the sweep, the specular streak, the
   inset glow — at fifteen hundredths of the rig's (`--rd-shine`), the flags' own treatment of the glass as it was;
   no badges (the Racing Desk mark and the car's maker are not cells on the iPad, and the crop of his paint is never
   asked for), the row they were in being the controls, the pedals and the clock; the menu's sign a small round button
-  in the top right corner; and a sector never cropped in the laps panel (see the overlay's CLAUDE.md).
+  in the top right corner; and a sector never cropped in the laps panel (see the overlay's CLAUDE.md). The same look
+  is what OBS draws when "iPad dashboard" is chosen under "HUD drawn by OBS" (the loopback listener's `/obs-ipad`,
+  `html.rd-glance`): the glance layout in OBS mode over a transparent page, with no flag pattern between the panels,
+  placed once in a corner of the game video, at half its height, and never moved or sized by Racing Desk again — not
+  for a size he gives the source in OBS, not for a renamed scene (`docs/recording.md`). It takes his display settings
+  like the rig HUD OBS draws: effects off on the rig takes the WebGL canvases out of it, where the iPad is told none.
 
 Tests listen on 127.0.0.1 only. A listener on the network makes Windows ask about the firewall, in a window, over
 whatever the driver is doing — so nothing but the driver's own switch ever starts one. **The listener on this PC**
 (`remote-server.js` again, `loopback: true`, port 9091, `localServerPort`) is always up on `127.0.0.1` alone and asks
 Windows nothing: the Stream Deck's buttons, `/api/status`, his display settings through an allowlist
-(`/api/settings-display`) and the HUD page for OBS (`/obs`, "HUD drawn by OBS" in `docs/recording.md`). The code on the card is
+(`/api/settings-display`) and the two pages for OBS (`/obs`, the rig HUD, and `/obs-ipad`, the iPad dashboard: "HUD
+drawn by OBS" in `docs/recording.md`). The code on the card is
 `modules/js/qr-code.js` (version 3-M, 42 bytes at most); `tests/unit/qr-code.spec.mjs` reads it back by the
 standard's rules, since no reader is on hand. A page cannot keep an iPad awake over plain http, so the card says to
 set Auto-Lock to Never.

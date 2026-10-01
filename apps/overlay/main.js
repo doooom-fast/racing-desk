@@ -425,12 +425,9 @@ const HUD_KEYS = {
   'CommandOrControl+Shift+H': () => { dispatchAction('toggle-overlay'); },
   'CommandOrControl+Shift+R': () => { dispatchAction('reset-window'); },
   'CommandOrControl+Shift+G': () => {
-    // Toggle green-screen mode and restart
-    const settings = loadSettingsSync();
-    settings.greenScreen = !settings.greenScreen;
-    saveSettingsSync(settings);
-    const mode = settings.greenScreen ? 'green-screen' : 'transparent';
-    console.log(`[RacingDesk] Toggling to ${mode} mode — restarting...`);
+    // Restart the app. (It flipped a green-screen key as it went, which nothing ever read: the key is gone, migrated
+    // out by recording-settings.js, and the restart is what the key does.)
+    logToFile('[RacingDesk] Ctrl+Shift+G: restarting...');
     // app.exit skips before-quit, and a restart is not a quit: a recording and a replay buffer Racing Desk started are
     // left running in OBS for the relaunched app to take over (leaveForRelaunch), so the race stays one video. This key
     // is held only while he is in the car, so the new instance must not start OBS with the app (--no-obs-start): the
@@ -565,6 +562,15 @@ const recording = obs.createRecordingKeeper({
   // The folder OBS's own profile records into: where the floor looks while OBS is not there to be asked.
   obsFolder: () => obs.launcher.profileRecordFolder({ appData: app.getPath('appData'), readFile: fs.readFileSync }),
   stateFile: recordingStateFile,
+  // The real rate of his newest recordings, from the files (modules/js/obs/recording-rate.js), for the card's GB an hour
+  // and the hours left; until there is one, the bitrate his profile is capped at (setupStatus reads the encoder file,
+  // and keeps it for five seconds).
+  // Only the recordings begun after the profile's encoder file was last written count: those before were made with other
+  // settings (the fixed 100 Mbps, which is 45 GB an hour whatever the racing), and the first race with the quality target
+  // would be averaged with them.
+  measureRate: (root, { since = null } = {}) => obs.recordingRate.measureRate(root, { fs, since }),
+  measureSince: () => obs.launcher.encoderChangedAt({ appData: app.getPath('appData'), readFile: fs.readFileSync, mtimeOf: (file) => fs.statSync(file).mtimeMs }),
+  configuredBytesPerSecond: () => { const cap = setupStatus().capKbps; return Number.isFinite(cap) && cap > 0 ? cap * 125 : null; },
   fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
   inCar: () => hud.state().inCar,
   // A press in the car that finds OBS not answering asks tasklist whether it is open at all, so that "OBS is not open"
@@ -585,10 +591,12 @@ const recording = obs.createRecordingKeeper({
 // quits (CEF has no handler for a page that failed to load). Off: the items are disabled — at every connect, whatever
 // OBS was left showing — and then the window is in the capture again; never removed. Nothing of his is ever removed.
 // The page's address is the port the listener is on (not the one the settings name: it may have been taken), and the HUD
-// is not given to OBS while the listener is not up.
+// is not given to OBS while the listener is not up. Which page is his choice, "Rig HUD" (/obs, the HUD window's size,
+// fitted to the game) or "iPad dashboard" (/obs-ipad, an iPad's size, placed once in a corner: hud-source.js).
 const hudSource = obs.createHudSource({
   client: obsClient,
-  url: () => { const info = localServer.getInfo(); return info.running ? `http://127.0.0.1:${info.port}${remoteServer.OBS_PATH}` : null; },
+  url: (view) => { const info = localServer.getInfo(); return info.running ? `http://127.0.0.1:${info.port}${view === 'ipad' ? remoteServer.OBS_IPAD_PATH : remoteServer.OBS_PATH}` : null; },
+  view: () => hudSourceView(),
   ready: () => localServer.isRunning(),
   pageAlive: () => localServer.servedWithin(OBS_PAGE_ALIVE_MS),
   size: hudSourceSize,
@@ -607,14 +615,19 @@ function hudSourceSize() {
 }
 
 const hudSourceOn = () => loadSettingsSync().obsHudSource === true;
+// What OBS draws with the switch on, 'rig' or 'ipad' (recording-settings.js: 'ipad' only when the file says so).
+const hudSourceView = () => recordingSettings.hudViewOf(loadSettingsSync());
 let hudSourceWas = null;
+let hudViewWas = null;
 
-// The switch as it stands, applied: called at OBS's connect, when the collection changes, when the settings change, when
-// the HUD's screen changes and at start. hudSource.apply does the ordering — the window out of the capture before the
-// source is enabled, and back in only after OBS has stopped drawing it — and applies "off" whatever the last word was, so a
-// HUD left enabled in OBS is switched off at every connect. `fresh`: the switch has just been turned on.
+// The switch as it stands, applied: called at OBS's connect, when the collection changes, when the settings change (the
+// switch, or the choice of what OBS draws), when the HUD's screen changes and at start. hudSource.apply does the ordering
+// — the window out of the capture before the source is enabled, and back in only after OBS has stopped drawing it — and
+// applies "off" whatever the last word was, so a HUD left enabled in OBS is switched off at every connect. `fresh`: the
+// switch has just been turned on.
 function applyHudSource(why, { fresh = false } = {}) {
   hudSourceWas = hudSourceOn();
+  hudViewWas = hudSourceView();
   const protect = (flag) => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     try { overlayWindow.setContentProtection(flag); } catch (err) { logToFile(`[RacingDesk] HUD source: the window could not be ${flag ? 'taken out of' : 'put back into'} the capture: ${err.message}`); }
@@ -699,6 +712,11 @@ function setupStatus() {
   if (profile) {
     try { check = obs.launcher.profileCheck(fs.readFileSync(profile.ini, 'utf8'), folder); } catch (e) { check = null; }
   }
+  // The recordings' size: whether the profile's encoder file has the quality target, for the encoders it means something
+  // to (NVENC, Advanced output); null where it does not, and then nothing is said of size.
+  let encoder = null;
+  try { encoder = obs.launcher.encoderStatus({ appData: app.getPath('appData'), readFile: fs.readFileSync }); } catch (e) { encoder = null; }
+  const qualityTarget = encoder && encoder.applies ? encoder.qualityTarget : null;
   const value = {
     wsState: cfg.state,
     wsEnabled: cfg.state === 'ok' ? cfg.enabled : null,
@@ -710,7 +728,11 @@ function setupStatus() {
     folderSet: check ? check.folder : null,
     folderExists: fs.existsSync(folder),
     obsFound: !!obs.launcher.findObs({ obsPath: loadSettingsSync().obsPath, exists: fs.existsSync }),
-    needed: !(cfg.state === 'ok' && cfg.enabled && check && check.ok),
+    encoder: encoder ? encoder.encoder : null,
+    qualityTarget,
+    capKbps: encoder && encoder.applies ? encoder.capKbps : null,
+    outputSize: encoder && encoder.applies ? encoder.size : null,
+    needed: !(cfg.state === 'ok' && cfg.enabled && check && check.ok && qualityTarget !== false),
   };
   setupLookedAt = { at: now, value };
   return value;
@@ -732,6 +754,8 @@ function recordingStatus() {
     recordingInstantReplay: settings.recordingInstantReplay === true,
     recordingChapters: settings.recordingChapters !== false,
     obsHudSource: settings.obsHudSource === true,
+    obsHudView: recordingSettings.hudViewOf(settings),
+    obsPanelBackground: typeof settings.obsPanelBackground === 'number' && Number.isFinite(settings.obsPanelBackground) ? settings.obsPanelBackground : 90,
     tvShotsHideFacecam: settings.tvShotsHideFacecam !== false,
     hudSource: hudSource.status(),
     tv: tvShots.status(),
@@ -745,8 +769,9 @@ function tellDeskRecording() {
 }
 
 // Set up OBS: one press does what OBS needs — the WebSocket on and its password read, Hybrid MP4, the 20 s replay
-// buffer and the recording folder in his profile — in the file while OBS is closed, over the WebSocket while it is
-// open. The card says in one sentence what it will change before he presses.
+// buffer and the recording folder in his profile, and the recordings' size (a quality target instead
+// of a fixed bitrate, in the profile's encoder file, which only a run with OBS closed can write) — in the files while
+// OBS is closed, over the WebSocket while it is open. The card says in one sentence what it will change before he presses.
 async function setupObs() {
   const folder = recordingFolder();
   setupLookedAt = { at: 0, value: null };
@@ -754,8 +779,11 @@ async function setupObs() {
   // (a tasklist that cannot say, or OBS open and not answering, leaves them alone: OBS would write them over).
   const result = await obs.launcher.setupObs({
     client: obsClient, exec: execFileAsync, appData: app.getPath('appData'), folder,
-    readFile: fs.readFileSync, writeFile: fs.writeFileSync, rename: fs.renameSync, mkdir: fs.mkdirSync,
+    readFile: fs.readFileSync, writeFile: fs.writeFileSync, rename: fs.renameSync, mkdir: fs.mkdirSync, exists: fs.existsSync,
   });
+  setupLookedAt = { at: 0, value: null };
+  // The encoder file may have been written just now: the recordings measured are those since.
+  recording.refreshRate();
   if (result.ran === 'closed') {
     obsFilePassword = result.password;
     logToFile(`[RacingDesk] Set up OBS (closed): ${[...result.did, ...result.problems].join(' ')} (password: ${result.password ? 'set' : 'none'})`);
@@ -1043,6 +1071,8 @@ async function startRemoteServer(port) {
       log: logToFile,
       // The crop behind the car badge, for the iPad, from this process's memory (livery, below).
       crop: () => livery.current(),
+      // His settings whole; the server tells the iPad the panel background and nothing else (remote-server.js, IPAD_SETTINGS).
+      displaySettings: () => loadSettingsSync(),
     });
   } catch (err) {
     remoteServerError = err.message;
@@ -1405,6 +1435,7 @@ function startSettingsWatcher() {
     logToFile('[RacingDesk] settings-sync broadcast (file changed)');
     hudScreen.settingsChanged();
     if ((settings.obsHudSource === true) !== hudSourceWas) applyHudSource('the settings file changed', { fresh: settings.obsHudSource === true });
+    else if (settings.obsHudSource === true && recordingSettings.hudViewOf(settings) !== hudViewWas) applyHudSource('the choice changed in the settings file');
   });
 }
 
@@ -1447,8 +1478,12 @@ ipcMain.handle('save-settings', async (event, settings) => {
     else delete settings[key];
   }
   const hudSourceBefore = onDisk.obsHudSource === true;
+  const hudViewBefore = recordingSettings.hudViewOf(onDisk);
   saveSettingsSync(settings);
   if ((settings.obsHudSource === true) !== hudSourceBefore) applyHudSource('the switch', { fresh: settings.obsHudSource === true });
+  // The choice of what OBS draws, with the switch on: the source's address and size change, and the item is placed or
+  // fitted as the choice asks (hud-source.js). Not `fresh`: the collection it is in stays the one.
+  else if (settings.obsHudSource === true && recordingSettings.hudViewOf(settings) !== hudViewBefore) applyHudSource('the choice');
   // The desk's Settings page saves through here, and the watcher below ignores our own writes — so tell the
   // HUD directly; it re-applies on settings-sync (modules/js/settings.js).
   if (overlayWindow && !overlayWindow.isDestroyed() && event.sender !== overlayWindow.webContents) {

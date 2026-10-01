@@ -15,7 +15,7 @@ import { startFakeObs } from './fake-obs.mjs';
 
 const require = createRequire(import.meta.url);
 const { createObsClient } = require('../../modules/js/obs/client.js');
-const { createHudSource, INPUT_NAME, REFRESH_BUTTON, LISTENER_DOWN } = require('../../modules/js/obs/hud-source.js');
+const { createHudSource, INPUT_NAME, REFRESH_BUTTON, LISTENER_DOWN, IPAD_SOURCE, IPAD_PLACE } = require('../../modules/js/obs/hud-source.js');
 
 const PASSWORD = 'horse-battery';
 const until = async (what, timeoutMs = 4000) => {
@@ -36,16 +36,20 @@ function memory() {
   return { read: () => (saved ? JSON.parse(JSON.stringify(saved)) : null), write: (v) => { saved = JSON.parse(JSON.stringify(v)); }, get: () => saved };
 }
 
-function rig({ port = server.port, url = 'http://127.0.0.1:9091/obs', size = { width: 3440, height: 1440 }, ready = () => true, pageAlive = () => false, state = memory() } = {}) {
+// The two pages the listener serves, by the choice (main.js hands the same in).
+const URLS = { rig: 'http://127.0.0.1:9091/obs', ipad: 'http://127.0.0.1:9091/obs-ipad' };
+
+function rig({ port = server.port, url = URLS.rig, size = { width: 3440, height: 1440 }, view = 'rig', ready = () => true, pageAlive = () => false, state = memory() } = {}) {
   const lines = [];
   const client = createObsClient({ port, password: () => PASSWORD, retryMs: 40, connectTimeoutMs: 500, log: (l) => lines.push(l) });
   const sizeBox = { value: size };
-  const source = createHudSource({ client, url: () => url, size: () => sizeBox.value, ready, pageAlive, state, log: (l) => lines.push(l) });
+  const viewBox = { value: view };
+  const source = createHudSource({ client, url: (which) => (url === URLS.rig ? URLS[which] : url), size: () => sizeBox.value, view: () => viewBox.value, ready, pageAlive, state, log: (l) => lines.push(l) });
   // The window's capture: each call is written down with the number of requests OBS had had by then, to say what came before it.
   const protectCalls = [];
   const protect = (value) => protectCalls.push({ value, at: server.requests.length });
   client.start();
-  return { client, source, lines, state, sizeBox, protect, protectCalls, dispose: () => client.stop() };
+  return { client, source, lines, state, sizeBox, viewBox, protect, protectCalls, dispose: () => client.stop() };
 }
 
 const sceneItems = (name) => server.state.scenes.find((s) => s.sceneName === name).items;
@@ -102,8 +106,8 @@ test('switched on: one browser source, in every scene just above the game video 
     expect(requests('RemoveSceneItem')).toHaveLength(0);
     expect(server.state.inputs.map((i) => i.inputName)).toEqual(['game video', 'Video Capture Device', 'mic', 'game audio', INPUT_NAME]);
     expect(r.source.status().last).toMatchObject({ ok: true, scenes: 3 });
-    // The collection it was set up in is written down.
-    expect(r.state.get()).toEqual({ collection: 'sim race 2k', off: [] });
+    // The collection it was set up in is written down, with what the source was set up as.
+    expect(r.state.get()).toEqual({ collection: 'sim race 2k', off: [], view: 'rig', ipad: {} });
 
     // Again (another connect): nothing is made twice; the address is kept current; the page is reloaded as it is not alive.
     const again = await r.source.apply({ on: true, protect: r.protect });
@@ -376,17 +380,322 @@ test('what the HUD source keeps is a file, written whole through a temp file; on
     const state = fileState(file, { log: (l) => lines.push(l) });
     expect(state.read()).toBeNull();
     state.write({ collection: 'sim race 2k', off: ['Large Video', '2up'] });
-    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ collection: 'sim race 2k', off: ['Large Video', '2up'] });
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ collection: 'sim race 2k', off: ['Large Video', '2up'], view: 'rig', ipad: {} });
     expect(fs.existsSync(`${file}.tmp`)).toBe(false);
-    expect(state.read()).toEqual({ collection: 'sim race 2k', off: ['Large Video', '2up'] });
+    expect(state.read()).toEqual({ collection: 'sim race 2k', off: ['Large Video', '2up'], view: 'rig', ipad: {} });
     fs.writeFileSync(file, '{ not json');
     expect(state.read()).toBeNull();
     fs.writeFileSync(file, JSON.stringify({ collection: 5, off: ['a', 7, null] }));
-    expect(state.read()).toEqual({ collection: null, off: ['a'] });
+    expect(state.read()).toEqual({ collection: null, off: ['a'], view: 'rig', ipad: {} });
+    // The iPad dashboard's places: a scene with his transform (numbers and the bounds' word), one placed and never left
+    // (null), and nothing that is not one of those. A file from before the choice is the rig HUD's.
+    state.write({ collection: 'sim race 2k', off: [], view: 'ipad', ipad: { 'Large Video': { positionX: 40, positionY: 800, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 829, boundsHeight: 576, name: 'no', bad: NaN }, '2up': null, Camera: 'yes', Other: [1] } });
+    expect(state.read()).toEqual({ collection: 'sim race 2k', off: [], view: 'ipad', ipad: { 'Large Video': { positionX: 40, positionY: 800, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 829, boundsHeight: 576 }, '2up': null } });
+    fs.writeFileSync(file, JSON.stringify({ collection: 'x', off: [], view: 'television', ipad: 'none' }));
+    expect(state.read()).toEqual({ collection: 'x', off: [], view: 'rig', ipad: {} });
     const failing = fileState(file, { fs: { ...fs.default, mkdirSync: () => { throw new Error('the disk is read-only'); } }, log: (l) => lines.push(l) });
     failing.write({ collection: 'x', off: [] });
     expect(lines).toEqual(['[RacingDesk] HUD source: its state file could not be written: the disk is read-only']);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ── "iPad dashboard": the other thing OBS may draw ──
+// The loopback listener's /obs-ipad page at an iPad's size, placed once in the bottom-left corner of the game video at
+// half its height and never moved or sized by Racing Desk again; the choice changes the source's address and
+// size, and what he did to the item in OBS is his.
+
+// A scene's key in the state file: its uuid, which the fake makes of its name.
+const uuid = (name) => `uuid-${name}`;
+const corner = (game, { width = IPAD_SOURCE.width, height = IPAD_SOURCE.height } = {}) => {
+  const h = Math.round(game.height * IPAD_PLACE.height);
+  const w = Math.round(h * width / height);
+  const inset = Math.round(Math.min(game.width, game.height) * IPAD_PLACE.inset);
+  return { positionX: game.left + inset, positionY: game.top + game.height - inset - h, alignment: 5, rotation: 0, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsAlignment: 0, boundsWidth: w, boundsHeight: h };
+};
+const LARGE = { left: 0, top: 0, width: 3440, height: 1440 };
+const TWO_UP = { left: 0, top: 360, width: 1720, height: 720 };
+
+test('the iPad dashboard: the source is the /obs-ipad page at 1180 by 820, put in the bottom-left corner of the game video at half its height, once per scene; later connects leave it where it is, and so does a choice made again', async () => {
+  const r = rig({ view: 'ipad' });
+  try {
+    await until(() => r.client.identified());
+    const answer = await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    expect(answer).toMatchObject({ ok: true, created: true, scenes: 3, view: 'ipad', problems: [] });
+    expect(answer.did).toBe('The iPad dashboard is a browser source in 3 of your scenes, in its corner over the game.');
+    expect(IPAD_SOURCE).toEqual({ width: 1180, height: 820 });
+    expect(IPAD_PLACE).toEqual({ height: 0.5, inset: 0.02 });
+    expect(requests('CreateInput')[0].data.inputSettings).toEqual({ url: URLS.ipad, width: 1180, height: 820, fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false });
+    // Above the game, below the facecam, as the rig HUD is.
+    for (const scene of ALL) expect(names(scene), scene).toEqual(['game video', INPUT_NAME, 'Video Capture Device']);
+    // In the corner, scaled inside bounds that keep the page's shape: 720 high by 1036 wide on the 1440 canvas, 29 px in
+    // from the bottom-left; in the 2up, inside the game's own box (360 by 518, 14 px in).
+    expect(ours('Large Video').transform).toMatchObject(corner(LARGE));
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 29, positionY: 1440 - 29 - 720, boundsWidth: 1036, boundsHeight: 720 });
+    expect(ours('Small Video').transform).toMatchObject(corner(LARGE));
+    expect(ours('2up').transform).toMatchObject(corner(TWO_UP));
+    expect(ours('2up').transform).toMatchObject({ positionX: 14, positionY: 360 + 720 - 14 - 360, boundsWidth: 518, boundsHeight: 360 });
+    // Never stretched over the game: nothing fitted it to the game's bounds.
+    expect(ours('2up').transform.boundsWidth).not.toBe(1720);
+    expect(server.state.pressed).toHaveLength(1);
+    // Written down: placed in each scene, nothing of his kept yet.
+    expect(r.state.get()).toEqual({ collection: 'sim race 2k', off: [], view: 'ipad', ipad: { [uuid('Large Video')]: null, [uuid('Small Video')]: null, [uuid('2up')]: null } });
+
+    // He moves it, sizes it, hides it in a scene. Another connect, and the choice made again: his.
+    ours('Large Video').transform.positionX = 2400;
+    ours('Large Video').transform.positionY = 100;
+    ours('Large Video').transform.boundsWidth = 1200;
+    ours('Large Video').transform.boundsHeight = 834;
+    ours('Small Video').enabled = false;
+    server.requests.length = 0;
+    const again = await r.source.apply({ on: true, protect: r.protect });
+    expect(again).toMatchObject({ ok: true, created: false, scenes: 3, view: 'ipad' });
+    expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    expect(requests('SetSceneItemIndex')).toHaveLength(0);
+    expect(requests('SetInputSettings')).toHaveLength(1);
+    expect(requests('SetInputSettings')[0].data.inputSettings).toMatchObject({ url: URLS.ipad, width: 1180, height: 820 });
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 2400, positionY: 100, boundsWidth: 1200, boundsHeight: 834 });
+    expect(ours('Small Video').enabled).toBe(false);
+    // The rig's screen changing is nothing to the iPad dashboard's size or place.
+    r.sizeBox.value = { width: 2752, height: 1152 };
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 2400, positionY: 100 });
+    // A new scene with a game video gets it placed, in its corner, and the others are left alone.
+    server.state.scenes.push({ sceneName: 'Night', items: [{ sceneItemId: 80, sourceName: 'game video', enabled: true, transform: { positionX: 100, positionY: 50, rotation: 0, scaleX: 0.5, scaleY: 0.5, alignment: 5, boundsType: 'OBS_BOUNDS_NONE', boundsAlignment: 0, boundsWidth: 0, boundsHeight: 0, sourceWidth: 3440, sourceHeight: 1440, width: 1720, height: 720 } }] });
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(ours('Night').transform).toMatchObject(corner({ left: 100, top: 50, width: 1720, height: 720 }));
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 2400, positionY: 100 });
+    expect(Object.keys(r.state.get().ipad).sort()).toEqual(['2up', 'Large Video', 'Night', 'Small Video'].map(uuid).sort());
+  } finally { r.dispose(); }
+});
+
+test('the choice changed: from the rig HUD to the iPad dashboard the source gets the other address and size and the item is placed in the corner, once; back to the rig HUD it is fitted over the game again and his place for the dashboard is kept; chosen again, it goes back where he had it', async () => {
+  const state = memory();
+  const r = rig({ state });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });   // the rig HUD, fitted to the game
+    expect(ours('2up').transform).toMatchObject({ boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 1720, boundsHeight: 720 });
+    expect(state.get().view).toBe('rig');
+    // The iPad dashboard chosen on the desk.
+    r.viewBox.value = 'ipad';
+    server.requests.length = 0;
+    const toIpad = await r.source.apply({ on: true, protect: r.protect });
+    expect(toIpad).toMatchObject({ ok: true, created: false, scenes: 3, view: 'ipad' });
+    expect(requests('CreateInput')).toHaveLength(0);
+    expect(requests('SetInputSettings')[0].data.inputSettings).toMatchObject({ url: URLS.ipad, width: 1180, height: 820 });
+    expect(ours('Large Video').transform).toMatchObject(corner(LARGE));
+    expect(ours('2up').transform).toMatchObject(corner(TWO_UP));
+    expect(server.state.pressed).toHaveLength(2);   // the other page: loaded afresh
+    expect(state.get()).toMatchObject({ view: 'ipad', ipad: { [uuid('Large Video')]: null, [uuid('Small Video')]: null, [uuid('2up')]: null } });
+    // He puts it top right in the large scene and leaves the rest.
+    Object.assign(ours('Large Video').transform, { positionX: 2500, positionY: 40, boundsWidth: 900, boundsHeight: 625 });
+    // Back to the rig HUD: fitted over the game, and his place for the dashboard written down.
+    r.viewBox.value = 'rig';
+    server.requests.length = 0;
+    const toRig = await r.source.apply({ on: true, protect: r.protect });
+    expect(toRig).toMatchObject({ ok: true, scenes: 3, view: 'rig' });
+    expect(toRig.did).toBe('The HUD is a browser source in 3 of your scenes, just above the game.');
+    expect(requests('SetInputSettings')[0].data.inputSettings).toMatchObject({ url: URLS.rig, width: 3440, height: 1440 });
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 0, positionY: 0, boundsType: 'OBS_BOUNDS_NONE', scaleX: 1, scaleY: 1 });
+    expect(ours('2up').transform).toMatchObject({ boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 1720, boundsHeight: 720 });
+    expect(state.get().view).toBe('rig');
+    expect(state.get().ipad[uuid('Large Video')]).toEqual({ positionX: 2500, positionY: 40, alignment: 5, rotation: 0, scaleX: 1, scaleY: 1, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsAlignment: 0, boundsWidth: 900, boundsHeight: 625 });
+    expect(state.get().ipad[uuid('2up')]).toMatchObject({ boundsWidth: 518, boundsHeight: 360 });
+    // The iPad dashboard again: where he had it, not the corner.
+    r.viewBox.value = 'ipad';
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 2500, positionY: 40, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 900, boundsHeight: 625 });
+    expect(ours('2up').transform).toMatchObject(corner(TWO_UP));
+    // And a Racing Desk started afresh with the choice already made (the state file read at its start): nothing moved.
+    r.dispose();
+    const next = rig({ state, view: 'ipad' });
+    try {
+      await until(() => next.client.identified());
+      server.requests.length = 0;
+      await next.source.apply({ on: true, protect: next.protect });
+      expect(requests('SetSceneItemTransform')).toHaveLength(0);
+      expect(ours('Large Video').transform).toMatchObject({ positionX: 2500, positionY: 40 });
+    } finally { next.dispose(); }
+  } finally { /* disposed above */ }
+});
+
+test('the game video placed by its centre, or scaled with no bounds: the corner is worked out from the box it really covers', async () => {
+  // The large scene's game video is set by its centre at half size; the small one's by its bottom-right corner.
+  const large = sceneItems('Large Video').find((i) => i.sourceName === 'game video');
+  Object.assign(large.transform, { alignment: 0, positionX: 1720, positionY: 720, scaleX: 0.5, scaleY: 0.5, width: 1720, height: 720 });
+  const small = sceneItems('Small Video').find((i) => i.sourceName === 'game video');
+  Object.assign(small.transform, { alignment: 2 | 8, positionX: 3440, positionY: 1440, scaleX: 1, scaleY: 1, width: 3440, height: 1440 });
+  const r = rig({ view: 'ipad' });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    expect(ours('Large Video').transform).toMatchObject(corner({ left: 860, top: 360, width: 1720, height: 720 }));
+    expect(ours('Small Video').transform).toMatchObject(corner(LARGE));
+  } finally { r.dispose(); }
+});
+
+test('with the switch off the iPad dashboard is switched off as the rig HUD is, and a state file from before the choice is the rig HUD\'s', async () => {
+  const state = memory();
+  state.write({ collection: 'sim race 2k', off: [] });   // a file from before: no view, no places
+  const r = rig({ state, view: 'ipad' });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, protect: r.protect });
+    // Read as the rig HUD's: the choice is a change, and the item (new here) is placed in the corner.
+    expect(ours('Large Video').transform).toMatchObject(corner(LARGE));
+    expect(state.get()).toMatchObject({ view: 'ipad' });
+    const off = await r.source.apply({ on: false, protect: r.protect });
+    expect(off).toMatchObject({ ok: true, scenes: 3 });
+    for (const scene of ALL) expect(ours(scene).enabled, scene).toBe(false);
+    // What was written of the places survives the switching off.
+    expect(state.get()).toMatchObject({ view: 'ipad', ipad: { [uuid('Large Video')]: null, [uuid('Small Video')]: null, [uuid('2up')]: null } });
+    expect(state.get().off.sort()).toEqual(['2up', 'Large Video', 'Small Video']);
+    // On again: enabled, not moved.
+    Object.assign(ours('Large Video').transform, { positionX: 1000 });
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    for (const scene of ALL) expect(ours(scene).enabled, scene).toBe(true);
+    expect(ours('Large Video').transform.positionX).toBe(1000);
+  } finally { r.dispose(); }
+});
+
+// ── What is his stays his: his size for the source, a renamed scene, a state file that was lost ──
+
+// OBS 30 and up give every scene a uuid that a rename keeps; the fake's is made of the name, so here it is made of the
+// scene's place in the list instead. `none` is an OBS that gives no uuid at all.
+function uuidsFollowTheScene({ none = false } = {}) {
+  const original = server.handlers.GetSceneList;
+  server.handlers.GetSceneList = (d, session) => {
+    const answer = original(d, session);
+    return { ...answer, scenes: answer.scenes.map((sc) => { const { sceneUuid, ...rest } = sc; return none ? rest : { ...rest, sceneUuid: `scene-${sc.sceneIndex}` }; }) };
+  };
+}
+const inputNow = () => server.state.inputs.find((i) => i.inputName === INPUT_NAME).settings;
+const HE_PUT_IT = { positionX: 2400, positionY: 100, boundsWidth: 1200, boundsHeight: 834 };
+
+test('he changes the source\'s size in OBS (a bigger iPad, or upright): the next connect puts the address and size back and moves nothing — the item keeps its box, in every scene', async () => {
+  const r = rig({ view: 'ipad' });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    Object.assign(ours('Large Video').transform, HE_PUT_IT);
+    // 1366 by 1024 (an iPad Pro 13" on its side), then 820 by 1180 (an iPad upright): the size the browser source has.
+    for (const size of [{ width: 1366, height: 1024 }, { width: 820, height: 1180 }]) {
+      Object.assign(inputNow(), size);
+      server.requests.length = 0;
+      server.state.pressed.length = 0;
+      const again = await r.source.apply({ on: true, protect: r.protect });
+      expect(again).toMatchObject({ ok: true, created: false, scenes: 3, view: 'ipad', problems: [] });
+      // The size is put back (and the page, drawn at another size, loaded again); nothing is moved or sized in any scene.
+      expect(inputNow()).toMatchObject({ url: URLS.ipad, width: 1180, height: 820 });
+      expect(server.state.pressed).toHaveLength(1);
+      expect(requests('SetSceneItemTransform')).toHaveLength(0);
+      expect(requests('SetSceneItemIndex')).toHaveLength(0);
+      expect(ours('Large Video').transform).toMatchObject(HE_PUT_IT);
+      expect(ours('Small Video').transform).toMatchObject(corner(LARGE));
+      expect(ours('2up').transform).toMatchObject(corner(TWO_UP));
+    }
+  } finally { r.dispose(); }
+});
+
+test('he renames a scene in OBS: the item he moved stays where it is, because the place is kept by the scene\'s uuid; a place written under the name before is found by it and kept by the uuid from then on', async () => {
+  const state = memory();
+  // First run with an OBS that gives no uuid: the places are written under the scenes' names.
+  uuidsFollowTheScene({ none: true });
+  const first = rig({ view: 'ipad', state });
+  try {
+    await until(() => first.client.identified());
+    await first.source.apply({ on: true, fresh: true, protect: first.protect });
+    expect(Object.keys(state.get().ipad).sort()).toEqual(['2up', 'Large Video', 'Small Video']);
+  } finally { first.dispose(); }
+  Object.assign(ours('Large Video').transform, HE_PUT_IT);
+  // The next, with an OBS that gives them (OBS updated): the places are found by name and kept by uuid from then on.
+  uuidsFollowTheScene();
+  const r = rig({ view: 'ipad', state });
+  try {
+    await until(() => r.client.identified());
+    server.requests.length = 0;
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    expect(Object.keys(state.get().ipad).sort()).toEqual(['scene-0', 'scene-1', 'scene-2']);
+    // He renames the large scene (and OBS is on it). Nothing is "never placed", so nothing is moved.
+    server.state.scenes[0].sceneName = 'Race';
+    server.state.currentScene = 'Race';
+    server.requests.length = 0;
+    const renamed = await r.source.apply({ on: true, protect: r.protect });
+    expect(renamed).toMatchObject({ ok: true, scenes: 3, view: 'ipad', problems: [] });
+    expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    expect(requests('SetSceneItemIndex')).toHaveLength(0);
+    expect(ours('Race').transform).toMatchObject(HE_PUT_IT);
+    expect(Object.keys(state.get().ipad).sort()).toEqual(['scene-0', 'scene-1', 'scene-2']);
+    // Choosing the rig HUD writes his place for the renamed scene, and the dashboard comes back to it.
+    r.viewBox.value = 'rig';
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(state.get().ipad['scene-2']).toMatchObject(HE_PUT_IT);   // the list is numbered from the bottom: the large scene is first in the fake, so scene-2
+    r.viewBox.value = 'ipad';
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(ours('Race').transform).toMatchObject(HE_PUT_IT);
+  } finally { r.dispose(); }
+});
+
+test('an OBS that gives no scene uuid, and a scene renamed: the item he moved is left where it is and written down under its new name; nothing is moved for want of a record', async () => {
+  uuidsFollowTheScene({ none: true });
+  const state = memory();
+  const r = rig({ view: 'ipad', state });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    Object.assign(ours('Large Video').transform, HE_PUT_IT);
+    server.state.scenes[0].sceneName = 'Race';
+    server.state.currentScene = 'Race';
+    server.requests.length = 0;
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    expect(ours('Race').transform).toMatchObject(HE_PUT_IT);
+    expect(state.get().ipad.Race).toBeNull();
+  } finally { r.dispose(); }
+});
+
+test('nothing written of an item that is there (the state file lost, or the switch turned on afresh in another collection and back): his item stays where he put it; the rig HUD left fitted over the game goes to the corner', async () => {
+  // The rig HUD, fitted over the game in every scene, by a Racing Desk whose state is then lost.
+  const rigState = memory();
+  const before = rig({ state: rigState });
+  try {
+    await until(() => before.client.identified());
+    await before.source.apply({ on: true, fresh: true, protect: before.protect });
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 0, positionY: 0, scaleX: 1, scaleY: 1 });
+  } finally { before.dispose(); }
+  // The iPad dashboard chosen, with no state (the file lost): the item covers the game, so it is the rig HUD's.
+  const lost = memory();
+  const afterLoss = rig({ view: 'ipad', state: lost });
+  try {
+    await until(() => afterLoss.client.identified());
+    await afterLoss.source.apply({ on: true, protect: afterLoss.protect });
+    for (const scene of ['Large Video', 'Small Video']) expect(ours(scene).transform, scene).toMatchObject(corner(LARGE));
+    expect(ours('2up').transform).toMatchObject(corner(TWO_UP));
+    expect(Object.values(lost.get().ipad)).toEqual([null, null, null]);
+    // He moves two of them and sizes the third.
+    Object.assign(ours('Large Video').transform, HE_PUT_IT);
+    Object.assign(ours('2up').transform, { positionX: 900, positionY: 400, boundsWidth: 700, boundsHeight: 486 });
+    Object.assign(ours('Small Video').transform, { boundsWidth: 1180, boundsHeight: 820 });
+  } finally { afterLoss.dispose(); }
+  // The switch turned on afresh in another collection and back: the state says another collection, so what was written of
+  // this one is gone. His items are not the rig HUD's fit, and stay.
+  const other = memory();
+  other.write({ collection: 'commentary', off: [], view: 'ipad', ipad: {} });
+  const back = rig({ view: 'ipad', state: other });
+  try {
+    await until(() => back.client.identified());
+    server.requests.length = 0;
+    const answer = await back.source.apply({ on: true, fresh: true, protect: back.protect });
+    expect(answer).toMatchObject({ ok: true, scenes: 3, view: 'ipad' });
+    expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    expect(ours('Large Video').transform).toMatchObject(HE_PUT_IT);
+    expect(ours('2up').transform).toMatchObject({ positionX: 900, positionY: 400, boundsWidth: 700, boundsHeight: 486 });
+    expect(ours('Small Video').transform).toMatchObject({ boundsWidth: 1180, boundsHeight: 820 });
+    // Written down as placed now, so that the choice going to the rig HUD and back finds his place.
+    expect(Object.values(other.get().ipad)).toEqual([null, null, null]);
+  } finally { back.dispose(); }
 });

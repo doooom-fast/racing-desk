@@ -11,7 +11,7 @@
   .pitbox-panel.pb-dismissed { opacity: 0 !important; pointer-events: none; }
 
   .pb-inner {
-    background: hsla(0, 0%, 5%, 0.90);
+    background: hsla(0, 0%, 5%, var(--panel-alpha, 0.90));
     border: 1px solid hsla(0, 0%, 100%, 0.14);
     border-radius: 8px;
     padding: 0;

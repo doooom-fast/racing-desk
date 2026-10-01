@@ -76,6 +76,10 @@
           hint: 'Glow behind the panels from the colours on screen.',
           options: [['off', 'Off'], ['auto', 'Auto'], ['reflective', 'Reflective']],
         },
+        {
+          key: 'panelBackground', label: 'Panel background', type: 'range', def: 90, min: 0, max: 100, step: 5, unit: '%',
+          hint: 'How solid the panels are behind the numbers, on the rig and on the iPad. Lower lets the game show through; the numbers get a soft shadow so they still read. The HUD drawn by OBS has a slider of its own, under Recording.',
+        },
         on('showBorders', 'Borders', 'Outlines on the panels.'),
         on('showWebGL', 'WebGL effects', 'Glare, bloom and vignette.'),
         {

@@ -487,9 +487,13 @@ test.describe('"HUD drawn by OBS"', () => {
   test('the source is given where the listener is, whether it is up, whether the page is alive, the HUD\'s size in DIPs and a file to keep what it did; the window\'s capture is its protect callback and the one place it is set', () => {
     expect(code).toMatch(/const hudSource = obs\.createHudSource\(\{/);
     const made = argumentsOf('obs.createHudSource(');
-    // The address is where the listener is, never where the settings say it ought to be (the port may have been taken).
-    expect(made).toMatch(/\burl:\s*\(\) => \{ const info = localServer\.getInfo\(\); return info\.running \? `http:\/\/127\.0\.0\.1:\$\{info\.port\}\$\{remoteServer\.OBS_PATH\}` : null; \}/);
+    // The address is where the listener is, never where the settings say it ought to be (the port may have been taken),
+    // and which page is the choice's: /obs for the rig HUD, /obs-ipad for the iPad dashboard.
+    expect(made).toMatch(/\burl:\s*\(view\) => \{ const info = localServer\.getInfo\(\); return info\.running \? `http:\/\/127\.0\.0\.1:\$\{info\.port\}\$\{view === 'ipad' \? remoteServer\.OBS_IPAD_PATH : remoteServer\.OBS_PATH\}` : null; \}/);
     expect(made).not.toMatch(/localServerPort\(/);
+    // The choice is read from the file each time, strictly (recording-settings.js hudViewOf: 'ipad' only when it says so).
+    expect(made).toMatch(/\bview:\s*\(\) => hudSourceView\(\)/);
+    expect(code).toMatch(/const hudSourceView = \(\) => recordingSettings\.hudViewOf\(loadSettingsSync\(\)\);/);
     expect(made).toMatch(/\bready:\s*\(\) => localServer\.isRunning\(\)/);
     expect(made).toMatch(/\bpageAlive:\s*\(\) => localServer\.servedWithin\(OBS_PAGE_ALIVE_MS\)/);
     expect(made).toMatch(/\bsize:\s*hudSourceSize\b/);
@@ -513,6 +517,15 @@ test.describe('"HUD drawn by OBS"', () => {
     expect(code).toMatch(/obsClient\.on\('CurrentSceneCollectionChanged', \(\) => applyHudSource\('the scene collection changed'\)\);/);
     expect(code).toMatch(/if \(\(settings\.obsHudSource === true\) !== hudSourceBefore\) applyHudSource\('the switch', \{ fresh: settings\.obsHudSource === true \}\);/);
     expect(code).toMatch(/if \(\(settings\.obsHudSource === true\) !== hudSourceWas\) applyHudSource\('the settings file changed', \{ fresh: settings\.obsHudSource === true \}\);/);
+    // The choice of what OBS draws, changed with the switch on: applied, and not as a fresh switch (the collection stays).
+    expect(code).toMatch(/else if \(settings\.obsHudSource === true && recordingSettings\.hudViewOf\(settings\) !== hudViewBefore\) applyHudSource\('the choice'\);/);
+    expect(code).toMatch(/else if \(settings\.obsHudSource === true && recordingSettings\.hudViewOf\(settings\) !== hudViewWas\) applyHudSource\('the choice changed in the settings file'\);/);
+    expect(apply[1]).toMatch(/hudViewWas = hudSourceView\(\);/);
+    // The desk is told the choice and the OBS slider with the rest of the recording's status.
+    expect(code).toMatch(/obsHudView: recordingSettings\.hudViewOf\(settings\),/);
+    expect(code).toMatch(/obsPanelBackground: typeof settings\.obsPanelBackground === 'number'/);
+    // Ctrl+Shift+G is the restart alone: the green-screen key nothing read is gone from the file and from here.
+    expect(code).not.toMatch(/greenScreen/);
     expect(code).toMatch(/if \(hudSourceOn\(\) && obsClient\.identified\(\)\) applyHudSource\('the HUD changed screen'\);/);
     expect(code).toMatch(/onUp: \(\) => \{ if \(hudSourceOn\(\) && obsClient\.identified\(\)\) applyHudSource\('the listener is up'\); \}/);
     // On quit, with the switch on and OBS answering: disabled for good, within a bound — and not by the relaunch Ctrl+Shift+G

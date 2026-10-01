@@ -18,6 +18,21 @@
     { key: 'tvShotsHideFacecam', label: 'Hide the facecam during TV shots', def: true, hint: 'While a TV take is recorded your camera source is hidden in OBS, and shown again after.' },
   ];
 
+  // What OBS draws with "HUD drawn by OBS" on: the choice under the switch (obsHudView), one sentence each.
+  const HUD_VIEW = {
+    key: 'obsHudView', label: 'What OBS draws', def: 'rig',
+    options: [
+      ['rig', 'Rig HUD', 'The HUD as it is on your screen, laid over the whole of the game video in each of your scenes.'],
+      ['ipad', 'iPad dashboard', 'The glance layout the iPad shows, every panel in one grid, as a small source in the bottom-left corner of the game video, placed once; where you move or size it in OBS is yours.'],
+    ],
+  };
+  // How solid the panels are in the picture OBS draws, whichever it draws: a slider of its own, so the recording can be
+  // clearer or more see-through than what he drives with (Settings → Look has the rig's and the iPad's).
+  const OBS_PANEL_BACKGROUND = {
+    key: 'obsPanelBackground', label: 'Panel background in OBS', def: 90, min: 0, max: 100, step: 5, unit: '%',
+    hint: 'How solid the panels are in the picture OBS draws, with either choice. 90 is the panels as they have always been; lower lets the game show through, and the numbers get a soft shadow so they still read. The Look page\'s slider is what you drive with.',
+  };
+
   const NETWORK_SENTENCE = 'OBS then answers on port 4455 to anything on your network that knows the password.';
   const FROM_THE_APP = 'This is switched from the Racing Desk app.';
 
@@ -43,6 +58,53 @@
     if (hours >= 1) return 'about an hour';
     const minutes = Math.round(hours * 60);
     return minutes <= 1 ? 'under a minute' : `${minutes} minutes`;
+  }
+
+  /** "18 GB an hour" from a rate in bytes a second (one decimal under 10). */
+  function formatGbPerHour(bytesPerSecond) {
+    const gb = (Number(bytesPerSecond) || 0) * 3600 / 1e9;
+    return `${gb >= 10 ? Math.round(gb) : gb.toFixed(1)} GB an hour`;
+  }
+
+  /** The bitrate his profile is capped at, in Mbps, as the setup status says it (100 when it does not). */
+  function capMbps(status) {
+    const kbps = status && status.setup ? status.setup.capKbps : null;
+    return Number.isFinite(kbps) && kbps > 0 ? Math.round(kbps / 1000) : 100;
+  }
+
+  /** The size the profile records at ("2580x1080"), as the setup status says it; null when it does not say. */
+  function outputSize(status) {
+    const size = status && status.setup ? status.setup.outputSize : null;
+    return typeof size === 'string' && /^\d+x\d+$/.test(size) ? size : null;
+  }
+
+  /** The recordings' size change, while OBS is open and it has not been made: it waits for a run with OBS closed. */
+  function sizeNextTimeSentence(status) {
+    const setup = status && status.setup;
+    if (!setup || setup.qualityTarget !== false || status.obs !== 'open') return null;
+    const size = outputSize(status);
+    return `The size change (a quality target instead of a fixed ${capMbps(status)} Mbps${size ? `; the recordings stay ${size}` : ''}) happens the next time Set up OBS runs with OBS closed.`;
+  }
+
+  /**
+   * How much recording is left on the drive, in one sentence, at the rate in use: OBS's own while recording; the real
+   * rate of his recordings, measured from the files, once there is one; until then the bitrate the profile is capped
+   * at — and with a quality target that cap is the most it can be, so the hours are that many or more, said without
+   * a word of the rate until a recording has said what it is.
+   */
+  function hoursLeftSentence(status) {
+    if (!status || !status.free || !Number.isFinite(status.free.hoursLeft)) return null;
+    const left = formatHours(status.free.hoursLeft);
+    const drive = status.free.drive || 'the recording drive';
+    const measured = status.measured;
+    if (status.rateFrom === 'measured' && measured && measured.recordings > 0) {
+      const from = measured.recordings === 1 ? 'your last recording' : `your last ${measured.recordings} recordings`;
+      return `About ${left} of recording left on ${drive} at ${formatGbPerHour(measured.bytesPerSecond)}, measured from ${from}.`;
+    }
+    if (status.rateFrom === 'configured' && status.setup && status.setup.qualityTarget === true) {
+      return `About ${left} or more of recording left on ${drive}.`;
+    }
+    return `About ${left} of recording left on ${drive} at ${Math.round((status.bytesPerSecond || 0) * 8 / 1e6)} Mbps.`;
   }
 
   /** The TV shots under way, in a few words; null when none are. */
@@ -127,14 +189,23 @@
     if (setup.replayBuffer !== true) parts.push('turn its 20 s replay buffer on');
     else if (setup.replaySeconds === false) parts.push('set its replay buffer to 20 s');
     if (setup.folderSet !== true) parts.push(`point its recordings at ${status.folder}`);
+    // The recordings' size is set in a file OBS writes from memory, so only with OBS closed: while it is open the card
+    // says so in a sentence of its own (sizeNextTimeSentence) and the button's sentence leaves it out.
+    const size = setup.qualityTarget === false && status.obs !== 'open';
+    if (size) {
+      const at = outputSize(status);
+      parts.push(`${at ? `keep its recordings at ${at} with` : 'give its recordings'} a quality target instead of a fixed ${capMbps(status)} Mbps`);
+    }
     if (!parts.length) return null;
     const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-    // His own Ctrl+Space recordings are made with the same profile: what changes for them is the format and the folder,
-    // and only what is really changing is said (the replay buffer changes nothing of theirs).
+    // His own Ctrl+Space recordings are made with the same profile: what changes for them is the format, the folder and
+    // the size, and only what is really changing is said (the replay buffer changes nothing of theirs).
     const theirs = [];
     if (setup.hybrid !== true) theirs.push('become Hybrid MP4');
     if (setup.folderSet !== true) theirs.push(`go to ${status.folder}`);
-    const profile = theirs.length ? ` Your own Ctrl+Space recordings ${theirs.join(' and ')} too.` : '';
+    if (size) theirs.push('keep their size with a quality target');
+    const joined = theirs.length <= 1 ? theirs.join('') : `${theirs.slice(0, -1).join(', ')} and ${theirs[theirs.length - 1]}`;
+    const profile = theirs.length ? ` Your own Ctrl+Space recordings ${joined} too.` : '';
     return `Set up OBS will ${list}.${profile}${wsOff ? ' ' + NETWORK_SENTENCE : ''}`;
   }
 
@@ -163,15 +234,30 @@
   function hudSourceSentence(status) {
     const hs = status && status.hudSource;
     const last = hs && hs.last;
-    if (status.obs !== 'open') return 'HUD drawn by OBS: the HUD goes into your scenes when OBS opens.';
-    if (!last) return 'HUD drawn by OBS: the HUD is being put into your scenes.';
+    const what = status.obsHudView === 'ipad' ? 'the iPad dashboard' : 'the HUD';
+    if (status.obs !== 'open') return `HUD drawn by OBS: ${what} goes into your scenes when OBS opens.`;
+    if (!last) return `HUD drawn by OBS: ${what} is being put into your scenes.`;
     if (last.problems && last.problems.length) return `HUD drawn by OBS: ${last.problems.join(' ')}`;
-    return `HUD drawn by OBS: ${last.did || 'the HUD is in your scenes.'}`;
+    return `HUD drawn by OBS: ${last.did || `${what} is in your scenes.`}`;
+  }
+
+  /** The choice of what OBS draws, as the card shows it: the file's word, or Rig HUD. */
+  function hudViewOf(status) {
+    return status && HUD_VIEW.options.some(([value]) => value === status.obsHudView) ? status.obsHudView : HUD_VIEW.def;
+  }
+
+  /** The OBS panel-background slider's value, as the card shows it: the file's number, held to the slider, or 90. */
+  function obsPanelBackgroundOf(status) {
+    const n = status ? status.obsPanelBackground : undefined;
+    if (typeof n !== 'number' || Number.isNaN(n)) return OBS_PANEL_BACKGROUND.def;
+    return Math.min(OBS_PANEL_BACKGROUND.max, Math.max(OBS_PANEL_BACKGROUND.min, n));
   }
 
   /** The card: sentences, buttons and switches for a status, or the read-only card without the app. */
   function card(status, { inApp = true } = {}) {
     const switches = SWITCHES.map((s) => ({ ...s, value: status && typeof status[s.key] === 'boolean' ? status[s.key] : s.def, enabled: inApp && !!status }));
+    const view = { ...HUD_VIEW, value: hudViewOf(status), enabled: inApp && !!status };
+    const panelBackground = { ...OBS_PANEL_BACKGROUND, value: obsPanelBackgroundOf(status), enabled: inApp && !!status };
     if (!inApp || !status) {
       return {
         line: FROM_THE_APP,
@@ -185,6 +271,8 @@
         password: { show: false, hint: null },
         folder: status && status.folder ? status.folder : '',
         switches,
+        view,
+        panelBackground,
       };
     }
     const details = [];
@@ -215,10 +303,10 @@
     if (status.obs === 'passwordMissing') details.push("OBS wants a password and Racing Desk has none. Type the password from OBS's WebSocket settings below, or quit OBS and press Set up OBS.");
     if (status.setup && status.setup.wsState === 'unreadable') details.push("OBS's WebSocket settings file could not be read. Type the password below.");
     if (status.setup && status.setup.obsFound === false) details.push('OBS was not found at C:\\Program Files\\obs-studio, so Racing Desk cannot start it. If you open OBS yourself, Racing Desk will find it.');
-    if (status.free && Number.isFinite(status.free.hoursLeft)) {
-      const left = formatHours(status.free.hoursLeft);
-      details.push(`About ${left} of recording left on ${status.free.drive || 'the recording drive'} at ${Math.round((status.bytesPerSecond || 0) * 8 / 1e6)} Mbps.`);
-    }
+    const hoursLeft = hoursLeftSentence(status);
+    if (hoursLeft) details.push(hoursLeft);
+    const sizeNextTime = sizeNextTimeSentence(status);
+    if (sizeNextTime) details.push(sizeNextTime);
     const sentence = setupSentence(status);
     if (sentence) details.push(sentence);
     const recordingNow = status.recording || status.starting;
@@ -238,6 +326,8 @@
       },
       folder: status.folder || '',
       switches,
+      view,
+      panelBackground,
     };
   }
 
@@ -251,7 +341,7 @@
     return { show: true, line, button: { label: recording.take ? 'TV shots again' : 'TV shots', command: 'tvShots', enabled: canStart, hint: canStart ? "From iRacing's replay of this race, through a TV camera, into this recording's folder." : 'Needs OBS open and nothing recording.' } };
   }
 
-  const api = { SWITCHES, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, stateLine, pill, setupSentence, filedSentence, replaySentence, hudSourceSentence, tvLine, tvSentence, raceTv, card };
+  const api = { SWITCHES, HUD_VIEW, OBS_PANEL_BACKGROUND, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, formatGbPerHour, stateLine, pill, setupSentence, sizeNextTimeSentence, hoursLeftSentence, filedSentence, replaySentence, hudSourceSentence, hudViewOf, obsPanelBackgroundOf, tvLine, tvSentence, raceTv, card };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RacingDeskRecordingModel = api;
 })();

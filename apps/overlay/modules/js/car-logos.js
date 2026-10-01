@@ -143,11 +143,12 @@
   // for the crop of his paint behind the badge. In the page OBS draws (window._obsMode) the badge is in the picture,
   // so the crop is fetched from the loopback listener, a few times over the first seconds in case the rig has not
   // chosen it yet. On an iPad the badge is not shown (drive-view.css: he asked for the logos to go, 2026-09-30), so
-  // the crop is never asked for there: nothing is fetched. The way in stays for both; fetchRemoteLivery is what asks.
+  // the crop is never asked for there: nothing is fetched — nor in the iPad dashboard OBS draws (window._obsGlance),
+  // which has no badge either. The way in stays for all three; fetchRemoteLivery is what asks.
   function requestRemoteLivery() {
     for (const t of _liveryTimers) clearTimeout(t);
     _liveryTimers = [];
-    if (!window._obsMode || typeof fetch !== 'function') return;
+    if (!window._obsMode || window._obsGlance || typeof fetch !== 'function') return;
     const ask = ++_liveryAsk;
     _liveryTimers = LIVERY_ASK_AT_MS.map((ms) => setTimeout(() => { fetchRemoteLivery(ask); }, ms));
   }
