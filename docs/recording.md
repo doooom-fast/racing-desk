@@ -9,9 +9,12 @@ is what is built as of stage 3 and what is coming. The Electron recorder, its ff
 ## What OBS does
 
 - Captures the sim and the HUD through his own scene collection and profile (`sim race 2k`, `Untitled`), which Racing
-  Desk never writes to, except the three profile keys below when he presses **Set up OBS**.
+  Desk never writes to, except the profile keys below when he presses **Set up OBS**.
 - Encodes and writes the file: NVENC as his profile has it, as **Hybrid MP4** once set up (crash-safe files, and the
-  format chapters need).
+  format chapters need), and once set up **full size with a quality target** instead of his fixed 100 Mbps — the canvas
+  stays 3440x1440 so the HUD stays crisp, and the encoder spends what each moment needs, capped at the 100 Mbps he had
+  (the grid, the pits and a replay take little; a busy lap looks as it did). His own Ctrl+Space recordings are made
+  with the same profile and get the same.
 - Keeps the replay buffer (20 s), once set up: the instant replay, saved as a clip of its own.
 - Writes the chapters Racing Desk sends into the file (Hybrid MP4), and its own "Start" chapter at 0.
 
@@ -141,11 +144,19 @@ is what is built as of stage 3 and what is coming. The Electron recorder, its ff
   clock, which can be seconds off. The summary's `videoOffsetMs` is what a reader adds to `t`
   (docs/telemetry-sidecar-schema.md).
 - **Keeps a floor under the disk**: no recording starts below about 20 GB free on the drive OBS records to, one Racing
-  Desk started is stopped at about 5 GB and said so in one sentence, and the card shows hours left at the measured rate
-  (his profile's 100 Mbps is 43 GB an hour; OBS itself stops only at 50 MB, with a dialog over the sim). The drive is the
-  one OBS will write to — asked of OBS (`GetRecordDirectory`), else the folder its profile says, else Racing Desk's own
-  setting — and a folder that is not made yet is measured on the nearest one above it. A drive that cannot be measured at
-  all is a recording that does not start, said in a sentence; the floor is never switched off in silence.
+  Desk started is stopped at about 5 GB and said so in one sentence (OBS itself stops only at 50 MB, with a dialog over
+  the sim). The drive is the one OBS will write to — asked of OBS (`GetRecordDirectory`), else the folder its profile
+  says, else Racing Desk's own setting — and a folder that is not made yet is measured on the nearest one above it. A
+  drive that cannot be measured at all is a recording that does not start, said in a sentence; the floor is never
+  switched off in silence.
+- **Knows what his recordings really come to** (`modules/js/obs/recording-rate.js`): with a quality target instead of a
+  fixed bitrate only the files say what a race costs, so the newest five recordings in the recordings folder (the ones
+  Racing Desk filed, their main video, longer than half a minute) are measured — each file's size over its duration,
+  the duration read from the file's own boxes, pooled so a long race weighs more than a short practice — at the app's
+  start, after each filing, and when the recordings folder has changed since. The hours-left estimate runs at that rate
+  once there is a recording to measure, and until then at the bitrate the profile is capped at (12.5 MB/s at his 100
+  Mbps, read from the profile's encoder file), which with a quality target is the most it can be; while recording it
+  runs at OBS's own bytes over its own seconds. The card says which (below).
 - **Starts OBS** only on a press — Record from the desk, the tray or the Stream Deck while he is out of the car, or
   "Open OBS" — detached, minimised to the tray, from its own `bin\64bit` folder, with `--minimize-to-tray` and
   `--disable-updater` and nothing that names a collection, a profile or a password (OBS logs its whole command line).
@@ -171,11 +182,15 @@ is what is built as of stage 3 and what is coming. The Electron recorder, its ff
 - **Settings → Recording**: the state in a sentence; while recording its size, its chapters so far, its file, whether
   it was started in OBS or by itself, the telemetry beside it and the folder it goes to; otherwise where the last
   recording went (its chapters and replays), or why it stayed where OBS wrote it; what the replay buffer is doing and
-  the last replay saved. Record/Stop, Save replay (while Instant replay is on; pressable while the buffer runs), Open
-  OBS (while OBS is not answering), Set up OBS (while something is missing, with one sentence saying what it will
-  change), Open folder, Choose folder, the five switches ("Record by itself", on; "Instant replay", off; "Chapters",
-  on; "Start OBS when I press Record", on; "Start OBS with Racing Desk", off), and the password field only when OBS
-  wants a password Racing Desk does not have.
+  the last replay saved; how much recording is left on the drive, at the real rate of his recordings once there is one
+  ("About 22 hours of recording left on D: at 18 GB an hour, measured from your last 3 recordings."), until then at the
+  cap, said to be the least ("At least about 9 hours … at the 100 Mbps cap; the real rate shows after your first
+  recording."), or at a fixed bitrate before Set up OBS has run ("… at 100 Mbps."); and, with OBS open and the size not
+  yet set, one sentence saying the size change happens the next time Set up OBS runs with OBS closed. Record/Stop, Save
+  replay (while Instant replay is on; pressable while the buffer runs), Open OBS (while OBS is not answering), Set up
+  OBS (while something is missing, with one sentence saying what it will change), Open folder, Choose folder, the five
+  switches ("Record by itself", on; "Instant replay", off; "Chapters", on; "Start OBS when I press Record", on; "Start
+  OBS with Racing Desk", off), and the password field only when OBS wants a password Racing Desk does not have.
 - **The tray**: Record / Stop recording, Save replay (while Instant replay is on), Open OBS.
 - **The Stream Deck**: Toggle Recording, Save Replay, TV Shots and the rest of its buttons, through the app's listener on
   `127.0.0.1:9091` (below), which is always up whatever the iPad view's switch. While a Toggle Recording key is on the deck
@@ -202,9 +217,34 @@ with the file's BOM and every other line kept. While OBS is open the profile key
 there (OBS rewrites that file from memory), so with OBS open and its WebSocket off the card says to quit OBS and press
 again, and a `tasklist` that cannot say whether OBS is open leaves OBS's files alone (OBS writes them from memory when it
 closes). Never a hop through another profile. The card says what will change for his own Ctrl+Space recordings, from what
-is really changing: that they become Hybrid MP4 (the replay buffer changes nothing of theirs), and that they go to the new
-folder. OBS then answers on port 4455 to anything on his network that knows the password — said once on the card. A password
-read from OBS's file replaces one he typed earlier.
+is really changing: that they become Hybrid MP4 (the replay buffer changes nothing of theirs), that they go to the new
+folder, and that they keep full size with a quality target. OBS then answers on port 4455 to anything on his network that
+knows the password — said once on the card. A password read from OBS's file replaces one he typed earlier.
+
+**The recordings' size** is the fourth thing Set up OBS does, and only while OBS is closed. OBS keeps the recording
+encoder's settings in the profile's `recordEncoder.json` and hands the whole file to the encoder `[AdvOut] RecEncoder`
+names (`frontend/utility/AdvancedOutput.cpp:78,121` in 32.1.2; his is `obs_nvenc_h264_tex`, the obs-nvenc plugin). The
+plugin reads its rate control from three keys (`plugins/obs-nvenc/nvenc-properties.c:5-15`): `rate_control` — `CBR`,
+`CQP`, `VBR`, `CQVBR` or `lossless` (`:114-120`, compared without case, `nvenc.c:230-233`) — `target_quality` (1-51 for
+H.264, `:129-130`) and `max_bitrate` (Kbps, `:132`). `CQVBR` is NVENC's VBR with `targetQuality` set and the average
+bitrate and VBV left at zero, capped at `max_bitrate` (`nvenc.c:347-349,366-370`): a quality target with a ceiling.
+Set up OBS writes `rate_control: "CQVBR"`, `target_quality: 16` and `max_bitrate` = the bitrate the file names today
+(his `bitrate`, 100000 Kbps; a VBR's own cap; 100000 when it names none) into that file, in the one-line JSON OBS writes
+(`obs_data_get_json`: compact, keys in order), changing those three keys and no other — the preset (`p2`), the keyframe
+interval, the B-frames, the lookahead and anything else stay as he has them, and a key the plugin does not read is
+carried (OBS keeps what it does not know and writes it back, `OBSBasicSettings.cpp:1885-1886,3272`) — through a temp
+file and a rename, with the file as it was kept beside it the first time as `recordEncoder.json.before-racing-desk` (so
+it can be put back by renaming it over the other). 16 is OBS's own "Indistinguishable Quality, Large File Size" level for
+NVENC (`frontend/utility/SimpleOutput.cpp:520,543`: `CalcCRF(16)`, which is 16 at any output above 2000 px across): the
+nearest OBS has to his 100 Mbps CBR, which at 3440x1440 60 fps is a third of a bit per pixel and all but transparent;
+the plugin's own default for the mode is 20, a step smaller and a step rougher. A quality target with a cap that is
+already in the file — one he tuned himself — is left as it is, whatever its numbers. The keys mean nothing to x264 or to
+Simple output, so for a profile that is not NVENC with Advanced, Standard output nothing is written and the card says
+so; `RecEncoder=none` (the stream's encoder) is left alone too. obs-websocket 5 has no request for an encoder's
+settings (`GetOutputSettings` is the muxer's), and OBS writes the file from memory when its Settings are saved, so with
+OBS open the card says in one sentence that the size change happens the next time Set up OBS runs with OBS closed, and
+the button's own sentence leaves it out. The hours-left line on the card then says "at the 100 Mbps cap" until a
+recording has been measured.
 
 The recording folder is `D:\Racing Desk\Recordings` while there is a D: drive (`recordingFolder` in
 `overlay-settings.json` names another; C: holds about ninety minutes at his bitrate). OBS's own recording folder is
@@ -317,11 +357,16 @@ car, and the pit lane is none of those) are deleted.
 
 ## First run (what no test here can check)
 
-With OBS closed, press Set up OBS on the desk and read what it says. Press Record: OBS should appear in the tray and the
-pill should read "Recording"; drive a lap; press Stop; the card should say where the recording went, and that folder
+With OBS closed, press Set up OBS on the desk and read what it says: four sentences, the last that the profile now
+records full size with a quality target instead of a fixed 100 Mbps, and `recordEncoder.json.before-racing-desk` beside
+`recordEncoder.json` in `%APPDATA%\obs-studio\basic\profiles\Untitled`. Press Record: OBS should appear in the tray and
+the pill should read "Recording"; drive a lap; press Stop; the card should say where the recording went, and that folder
 under `D:\Racing Desk\Recordings` should hold the `.mp4` and the `.telemetry.jsonl` side by side, the sidecar's last
-line saying `"alignment": { "method": "chapters" … }` with the offset. Then, with OBS open, press Ctrl+Space in OBS and
-watch the desk's pill follow it. In OBS's mixer, check that the game audio meter moves (the Volt 2 game-audio device
+line saying `"alignment": { "method": "chapters" … }` with the offset. OBS's log for that session (Help, Log Files)
+should show the encoder's settings as `rate_control: CQVBR`, `cq: 16`, `max_bitrate: 100000`, `preset: p2`, with
+`keyint`, `b-frames` and `lookahead` as before. After the first race the card's hours-left line should say "at N GB an
+hour, measured from your last recording" — the real figure, where the fixed 100 Mbps was 45 GB an hour — and the race
+should look as it did on a busy lap. Then, with OBS open, press Ctrl+Space in OBS and watch the desk's pill follow it. In OBS's mixer, check that the game audio meter moves (the Volt 2 game-audio device
 failed to start on 2026-09-29). Then a session with OBS open and Record by itself on: out of the pits in practice the
 pill should read "Recording" a second later, and getting out of the car should stop it; in a race it should begin at
 the green flag. With Instant replay on, Ctrl+Shift+B in the car should put a `Replay …` clip and its sidecar in the
