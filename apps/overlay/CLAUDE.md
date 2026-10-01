@@ -395,8 +395,9 @@ zoom" in Settings → Look** (`followMapZoom` in `overlay-settings.json`; `modul
   setting changed in place, its glance layout, the iPad told the setting by its server (and a change within its ask),
   and `/obs` through the allowlist — the settled view at each speed, every move within what the ease allows for the
   time it had (no jumps), the car where it was. `desk-settings-model.spec.mjs` holds the control;
-  `remote-server.spec.mjs` the allowlists. The golden frames (the rig's in-car frame at 127 mph and the glance
-  layout's two) were re-made for it: at 127 mph the view is close where it used to be at its widest.
+  `remote-server.spec.mjs` the allowlists. The glance layout's two golden frames were re-made for it (and for the
+  incidents panel): at their 127 mph the view is close where it used to be at its widest. The rig's in-car frame is
+  unchanged: its fixture has no track map (`TrackMap.Ready` 0), so the local view draws nothing there.
 
 ## Flags (`modules/js/session-flags.js`, `window.RacingDeskSessionFlags`)
 
