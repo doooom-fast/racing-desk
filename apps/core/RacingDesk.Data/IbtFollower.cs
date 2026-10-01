@@ -24,12 +24,19 @@ namespace RacingDesk.Data
         public static readonly TimeSpan CurrentWithin = TimeSpan.FromMinutes(2);
         /// <summary>Frames not seen for this long: the sim has gone, and so has the session.</summary>
         public static readonly TimeSpan GoneAfter = TimeSpan.FromSeconds(20);
+        /// <summary>
+        /// A file opened part-way through the session (the host started late) is read from this far back from its
+        /// end, not from its start: the laps worth an outline are the ones just driven, and a whole stint is hundreds
+        /// of megabytes. A lap that began before this is out for not being from the line, and the next is whole.
+        /// </summary>
+        public static readonly TimeSpan LookBack = TimeSpan.FromMinutes(5);
 
         private readonly string _directory;
         private readonly string _dbPath;
         private readonly Action<string> _log;
         private readonly Func<DateTime> _now;
         private readonly int _frameStep;
+        private readonly TimeSpan _currentWithin;
         private readonly object _gate = new object();
         private readonly ManualResetEventSlim _stop = new ManualResetEventSlim();
         private readonly AutoResetEvent _wake = new AutoResetEvent(false);
@@ -46,17 +53,21 @@ namespace RacingDesk.Data
         private int _lapsSaid;
         private bool _hasWhole;        // the store has a whole outline for the layout: nothing to do
         private int _wholeFor;
+        private string _declined;      // a file looked at and left alone (of another layout, or no position in it): not opened again
+        private string _lastProblem;   // what was last logged as going wrong: said once, not at every look
 
         private TrackOutline _current;
 
         /// <param name="dbPath">The store the provisional outline is kept in, through a connection of this thread's own.</param>
-        public IbtFollower(string directory, string dbPath, Action<string> log = null, Func<DateTime> now = null, int frameStep = 3)
+        /// <param name="currentWithin">How recently a file must have been written to be the sim's current one (for tests).</param>
+        public IbtFollower(string directory, string dbPath, Action<string> log = null, Func<DateTime> now = null, int frameStep = 3, TimeSpan? currentWithin = null)
         {
             _directory = directory;
             _dbPath = dbPath;
             _log = log ?? (_ => { });
             _now = now ?? (() => DateTime.UtcNow);
             _frameStep = Math.Max(1, frameStep);
+            _currentWithin = currentWithin ?? CurrentWithin;
         }
 
         /// <summary>Raised on the follower's thread with each new provisional outline.</summary>
@@ -109,8 +120,26 @@ namespace RacingDesk.Data
             {
                 _wake.WaitOne(LookEvery);
                 if (_stop.IsSet) return;
-                try { Look(); }
-                catch (Exception ex) { _log("follower: " + ex.Message); }
+                LookQuietly();
+            }
+        }
+
+        /// <summary>
+        /// A look that says what goes wrong in it once and carries on: a file that cannot be read is the same
+        /// problem at every look until the sim writes another, and one line says it.
+        /// </summary>
+        internal void LookQuietly()
+        {
+            try
+            {
+                Look();
+                _lastProblem = null;
+            }
+            catch (Exception ex)
+            {
+                string said = "follower: " + ex.Message;
+                if (said != _lastProblem) _log(said);
+                _lastProblem = said;
             }
         }
 
@@ -123,6 +152,7 @@ namespace RacingDesk.Data
             if (trackId <= 0 || !simSending)
             {
                 if (!simSending && _file != null) Close();
+                if (!simSending) _declined = null;
                 return;
             }
 
@@ -131,6 +161,7 @@ namespace RacingDesk.Data
             {
                 _wholeFor = trackId;
                 _hasWhole = StoreHasWhole(trackId);
+                _declined = null;
                 if (_hasWhole) { Close(); return; }
             }
 
@@ -138,20 +169,33 @@ namespace RacingDesk.Data
             if (path == null) return;
             if (path != _path)
             {
+                if (string.Equals(path, _declined, StringComparison.OrdinalIgnoreCase)) return;
                 Close();
                 var file = new IbtFile(path, growing: true);
                 var wi = file.SessionInfo?.WeekendInfo;
-                if (wi == null || wi.TrackID != trackId || !file.Vars.ContainsKey("Lat") || !file.Vars.ContainsKey("Lon"))
+                if (wi == null)
                 {
+                    // The sim has made the file and not yet written its session: the next look finds it whole.
                     file.Dispose();
                     return;
                 }
+                if (wi.TrackID != trackId || !file.Vars.ContainsKey("Lat") || !file.Vars.ContainsKey("Lon"))
+                {
+                    file.Dispose();
+                    _declined = path;
+                    _log($"not following {Path.GetFileName(path)}: " + (wi.TrackID != trackId ? "it is of another layout than the one being driven" : "it carries no position"));
+                    return;
+                }
+                // A file already well under way is read from its last minutes, not from its start (from a frame the
+                // reading steps through, as a whole file is read).
+                int start = Math.Max(0, file.RecordCount - (int)(LookBack.TotalSeconds * Math.Max(1, file.TickRate)));
+                start -= start % _frameStep;
                 _path = path;
                 _file = file;
-                _reader = new IbtSequentialReader(file, _frameStep);
+                _reader = new IbtSequentialReader(file, _frameStep, start);
                 _geometry = new GeometryAccumulator(wi.TrackID, wi.TrackDisplayName, IbtIngest.ParseMeters(wi.TrackLength));
                 _lapsSaid = 0;
-                _log($"following {Path.GetFileName(path)} for an outline of {wi.TrackDisplayName}");
+                _log($"following {Path.GetFileName(path)} for an outline of {wi.TrackDisplayName}" + (start > 0 ? $", from {start} frames in" : ""));
             }
 
             _file.Refresh();
@@ -159,9 +203,9 @@ namespace RacingDesk.Data
             if (_geometry.CleanLaps <= _lapsSaid) return;
 
             // A clean lap more: a provisional outline, kept for the map and in the store. The laps so far stay in
-            // the accumulator, so the record is of all of them.
+            // the accumulator, so the record is of all of them. The lap being driven is not judged: it goes on.
             var sectors = _file.SessionInfo?.SplitTimeInfo?.Sectors?.OrderBy(s => s.SectorNum).Select(s => (double)s.SectorStartPct).ToArray();
-            var record = _geometry.Result(_path, sectors, provisional: true);
+            var record = _geometry.Result(_path, sectors, provisional: true, closeOpenLap: false);
             if (record == null) return;
             _lapsSaid = _geometry.CleanLaps;
             var outline = TrackOutlines.ToOutline(record);
@@ -195,15 +239,34 @@ namespace RacingDesk.Data
             }
         }
 
-        /// <summary>The file the sim is writing: the newest .ibt in the folder, written in the last two minutes.</summary>
+        /// <summary>
+        /// The file the sim is writing: the newest .ibt in the folder, written in the last two minutes — or the one
+        /// being followed, for as long as it is the newest.
+        ///
+        /// The folder's listing cannot say when a file the sim holds open was last written: Windows keeps the time
+        /// the file was made, and a length of nought, in the listing until the file is closed or someone asks for the
+        /// file by its path. So the listing only names the newest few, and each of those is asked for itself; a
+        /// follower that went by the listing stopped two minutes after the sim made the file, with the stint
+        /// still going.
+        /// </summary>
         private string CurrentFile(DateTime now)
         {
             if (!Directory.Exists(_directory)) return null;
+            var newest3 = new DirectoryInfo(_directory).EnumerateFiles("*.ibt")
+                .OrderByDescending(f => f.CreationTimeUtc > f.LastWriteTimeUtc ? f.CreationTimeUtc : f.LastWriteTimeUtc)
+                .Take(3).ToList();
             FileInfo newest = null;
-            foreach (var f in new DirectoryInfo(_directory).EnumerateFiles("*.ibt"))
+            foreach (var f in newest3)
+            {
+                try { f.Refresh(); } catch (IOException) { continue; }
+                if (!f.Exists) continue;
                 if (newest == null || f.LastWriteTimeUtc > newest.LastWriteTimeUtc) newest = f;
-            if (newest == null || now - newest.LastWriteTimeUtc > CurrentWithin) return null;
-            return newest.FullName;
+            }
+            if (newest == null) return null;
+            // The sim is sending and the file it is writing is still the newest: it is the current one, whatever its
+            // time says (a stint is longer than the window).
+            if (_path != null && string.Equals(newest.FullName, _path, StringComparison.OrdinalIgnoreCase)) return _path;
+            return now - newest.LastWriteTimeUtc <= _currentWithin ? newest.FullName : null;
         }
 
         private void Close()

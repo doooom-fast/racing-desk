@@ -136,19 +136,24 @@ CREATE TABLE car_list_remarks (
 );
 ";
 
-        // What a track outline was built with (schema v8). checks is the version of the checks every lap in it
-        // passed (GeometryAccumulator.ChecksVersion); a row with fewer is built again from the files, and 0 is a row
-        // from before there were any. provisional is 1 for an outline made from the session being driven, from its
-        // first clean lap on, which the finished file replaces. Two columns added; nothing else is touched. Each is
-        // added only where it is missing, so a store whose version was put back carries on.
-        private void AddGeometryColumns(SqliteTransaction tx)
-        {
-            if (Scalar<long>("SELECT COUNT(*) FROM pragma_table_info('track_geometry') WHERE name = 'checks'", tx) == 0)
-                Exec("ALTER TABLE track_geometry ADD COLUMN checks INTEGER NOT NULL DEFAULT 0", tx);
-            if (Scalar<long>("SELECT COUNT(*) FROM pragma_table_info('track_geometry') WHERE name = 'provisional'", tx) == 0)
-                Exec("ALTER TABLE track_geometry ADD COLUMN provisional INTEGER NOT NULL DEFAULT 0", tx);
-            _geometryColumnsKnown = false;
-        }
+        // What a track outline was built with (schema v8), in a table of its own, so that track_geometry keeps the
+        // columns it had and an earlier build can still write an outline into a store a later one has opened.
+        // checks is the version of the checks every lap in the outline passed (GeometryAccumulator.ChecksVersion): a
+        // row built with fewer is built again from the files, and an outline with no row here was built before there
+        // were any (0). provisional is 1 for an outline made from the session being driven, from its first clean lap
+        // on, which the finished file replaces. looked is the checks a layout was looked at under with no file giving
+        // a lap that passes them: its outline stays as it was, with checks 0, and is not looked for again.
+        // geometry_updated_at is the updated_at of the outline row this describes: an earlier build that writes the
+        // layout's outline again gives it a new time, and what is said here then no longer applies to it.
+        private const string GeometryBuildSchema = @"
+CREATE TABLE IF NOT EXISTS track_geometry_build (
+  track_id INTEGER PRIMARY KEY,
+  geometry_updated_at TEXT NOT NULL,
+  checks INTEGER NOT NULL,
+  provisional INTEGER NOT NULL,
+  looked INTEGER NOT NULL DEFAULT 0
+);
+";
 
         private readonly SqliteConnection _db;
 
@@ -254,8 +259,9 @@ SELECT car_path, brake_force_kg, CASE WHEN brake_force_kg IS NOT NULL THEN bound
                         Exec(CarListRemarksSchema, step);
                         break;
                     case 7:
-                        // What each outline was built with. Every row there is was built before the checks (0).
-                        AddGeometryColumns(step);
+                        // What each outline was built with, in a table of its own. Every outline there is was
+                        // built before the checks, and has no row in it.
+                        Exec(GeometryBuildSchema, step);
                         break;
                 }
                 current++;
@@ -334,7 +340,7 @@ CREATE TABLE ingested_files (
             Exec(RigSchema, tx);
             Exec(PedalFactsSchema, tx);
             Exec(CarListRemarksSchema, tx);
-            AddGeometryColumns(tx);
+            Exec(GeometryBuildSchema, tx);
             Exec("INSERT INTO schema_version(version) VALUES (" + SchemaVersion + ")", tx);
             tx.Commit();
         }
@@ -998,23 +1004,28 @@ WHERE list_hash = $list ORDER BY car_path COLLATE NOCASE, first_seen_at, about")
             return cmd.ExecuteNonQuery();
         }
 
-        // A store from before v8 has no checks or provisional column; it is read as built before the checks and whole.
-        private bool _geometryColumnsKnown, _geometryHasChecks;
-        private bool GeometryHasChecks()
+        // A store from before v8 has no track_geometry_build; its outlines are read as built before the checks and whole.
+        private bool _geometryBuildKnown, _geometryHasBuild;
+        private bool GeometryHasBuild()
         {
-            if (!_geometryColumnsKnown)
+            if (!_geometryBuildKnown)
             {
-                _geometryHasChecks = Scalar<long>("SELECT COUNT(*) FROM pragma_table_info('track_geometry') WHERE name = 'checks'") > 0;
-                _geometryColumnsKnown = true;
+                _geometryHasBuild = Scalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'track_geometry_build'") > 0;
+                _geometryBuildKnown = true;
             }
-            return _geometryHasChecks;
+            return _geometryHasBuild;
         }
+
+        // What track_geometry_build says of an outline counts only for the outline it was written for.
+        private const string GeometryBuildJoin =
+            " LEFT JOIN track_geometry_build b ON b.track_id = g.track_id AND b.geometry_updated_at = g.updated_at";
 
         /// <summary>The stored outline of a layout, by the sim's TrackID, or null.</summary>
         public TrackGeometryRecord GetGeometry(int trackId)
         {
-            string extra = GeometryHasChecks() ? ", checks, provisional" : ", 0, 0";
-            using var cmd = Cmd("SELECT track_id, track_name, length_m, official_length_m, clean_laps, source_ibt, origin_lat, origin_lon, points, sector_starts, updated_at" + extra + " FROM track_geometry WHERE track_id = $t");
+            string extra = GeometryHasBuild() ? ", COALESCE(b.checks, 0), COALESCE(b.provisional, 0) FROM track_geometry g" + GeometryBuildJoin
+                                              : ", 0, 0 FROM track_geometry g";
+            using var cmd = Cmd("SELECT g.track_id, g.track_name, g.length_m, g.official_length_m, g.clean_laps, g.source_ibt, g.origin_lat, g.origin_lon, g.points, g.sector_starts, g.updated_at" + extra + " WHERE g.track_id = $t");
             P(cmd, "$t", trackId);
             using var r = cmd.ExecuteReader();
             if (!r.Read()) return null;
@@ -1063,11 +1074,17 @@ WHERE list_hash = $list ORDER BY car_path COLLATE NOCASE, first_seen_at, about")
             WriteGeometry(g);
         }
 
-        /// <summary>Marks a layout's outline as looked at with the checks of this build, when no file gave it a better one.</summary>
-        public void StampGeometryChecks(int trackId)
+        /// <summary>
+        /// Records that a layout's outline was looked at with the checks of this build and no file gave it a lap that
+        /// passes them. The outline is left as it was — built with fewer checks, and still said to be — so that it is
+        /// not taken for one the checks have passed; it is only not looked for again until the checks change.
+        /// </summary>
+        public void MarkGeometryLooked(int trackId)
         {
-            if (!GeometryHasChecks()) return;
-            Exec("UPDATE track_geometry SET checks = $c WHERE track_id = $t", null, ("$c", GeometryAccumulator.ChecksVersion), ("$t", trackId));
+            if (!GeometryHasBuild()) return;
+            Exec("INSERT OR REPLACE INTO track_geometry_build (track_id, geometry_updated_at, checks, provisional, looked) " +
+                 "SELECT g.track_id, g.updated_at, COALESCE(b.checks, 0), COALESCE(b.provisional, 0), $c FROM track_geometry g" + GeometryBuildJoin + " WHERE g.track_id = $t",
+                null, ("$c", GeometryAccumulator.ChecksVersion), ("$t", trackId));
         }
 
         private void WriteGeometry(TrackGeometryRecord g)
@@ -1075,25 +1092,30 @@ WHERE list_hash = $list ORDER BY car_path COLLATE NOCASE, first_seen_at, about")
             var blob = new byte[g.Points.Length * 4];
             Buffer.BlockCopy(g.Points, 0, blob, 0, blob.Length);
             string sectors = string.Join(",", (g.SectorStartPcts ?? Array.Empty<double>()).Select(x => x.ToString("R", CultureInfo.InvariantCulture)));
-            if (GeometryHasChecks())
-                Exec("INSERT OR REPLACE INTO track_geometry (track_id, track_name, length_m, official_length_m, clean_laps, source_ibt, origin_lat, origin_lon, points, sector_starts, updated_at, checks, provisional) " +
-                     "VALUES ($t, $n, $len, $off, $laps, $src, $lat, $lon, $pts, $sec, $at, $chk, $prov)", null,
-                    ("$t", g.TrackId), ("$n", g.TrackName), ("$len", g.LengthMeters), ("$off", g.OfficialLengthMeters), ("$laps", g.CleanLaps),
-                    ("$src", g.SourceIbt), ("$lat", g.OriginLat), ("$lon", g.OriginLon), ("$pts", blob), ("$sec", sectors), ("$at", Iso(g.UpdatedAtUtc)),
-                    ("$chk", g.Checks), ("$prov", g.Provisional ? 1 : 0));
-            else
-                Exec("INSERT OR REPLACE INTO track_geometry (track_id, track_name, length_m, official_length_m, clean_laps, source_ibt, origin_lat, origin_lon, points, sector_starts, updated_at) " +
-                     "VALUES ($t, $n, $len, $off, $laps, $src, $lat, $lon, $pts, $sec, $at)", null,
-                    ("$t", g.TrackId), ("$n", g.TrackName), ("$len", g.LengthMeters), ("$off", g.OfficialLengthMeters), ("$laps", g.CleanLaps),
-                    ("$src", g.SourceIbt), ("$lat", g.OriginLat), ("$lon", g.OriginLon), ("$pts", blob), ("$sec", sectors), ("$at", Iso(g.UpdatedAtUtc)));
+            string at = Iso(g.UpdatedAtUtc);
+            bool hasBuild = GeometryHasBuild();   // (asked before the transaction: a command made inside one must say so)
+            using var tx = _db.BeginTransaction();
+            // The columns the table has always had; what the outline was built with is beside it.
+            Exec("INSERT OR REPLACE INTO track_geometry (track_id, track_name, length_m, official_length_m, clean_laps, source_ibt, origin_lat, origin_lon, points, sector_starts, updated_at) " +
+                 "VALUES ($t, $n, $len, $off, $laps, $src, $lat, $lon, $pts, $sec, $at)", tx,
+                ("$t", g.TrackId), ("$n", g.TrackName), ("$len", g.LengthMeters), ("$off", g.OfficialLengthMeters), ("$laps", g.CleanLaps),
+                ("$src", g.SourceIbt), ("$lat", g.OriginLat), ("$lon", g.OriginLon), ("$pts", blob), ("$sec", sectors), ("$at", at));
+            if (hasBuild)
+                Exec("INSERT OR REPLACE INTO track_geometry_build (track_id, geometry_updated_at, checks, provisional, looked) VALUES ($t, $at, $chk, $prov, 0)", tx,
+                    ("$t", g.TrackId), ("$at", at), ("$chk", g.Checks), ("$prov", g.Provisional ? 1 : 0));
+            tx.Commit();
         }
 
-        /// <summary>The layouts whose outline was built with fewer checks than this build's, with their names.</summary>
+        /// <summary>
+        /// The layouts whose outline was built with fewer checks than this build's, with their names, that have not
+        /// been looked at under them already (<see cref="MarkGeometryLooked"/>).
+        /// </summary>
         public IReadOnlyList<(int TrackId, string TrackName)> TrackIdsNeedingRebuild()
         {
             var list = new List<(int, string)>();
-            if (!GeometryHasChecks()) return list;
-            using var cmd = Cmd("SELECT track_id, track_name FROM track_geometry WHERE checks < $c ORDER BY updated_at DESC");
+            if (!GeometryHasBuild()) return list;
+            using var cmd = Cmd("SELECT g.track_id, g.track_name FROM track_geometry g" + GeometryBuildJoin +
+                                " WHERE COALESCE(b.checks, 0) < $c AND COALESCE(b.looked, 0) < $c ORDER BY g.updated_at DESC");
             P(cmd, "$c", GeometryAccumulator.ChecksVersion);
             using var r = cmd.ExecuteReader();
             while (r.Read()) list.Add((r.GetInt32(0), r.IsDBNull(1) ? null : r.GetString(1)));

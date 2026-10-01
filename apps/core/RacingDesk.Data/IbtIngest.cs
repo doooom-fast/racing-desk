@@ -295,7 +295,7 @@ namespace RacingDesk.Data
                     TrackGeometryRecord one;
                     try
                     {
-                        one = IngestGeometryOnly(path, trackId, frameStep, ct);
+                        one = IngestGeometryOnly(path, trackId, frameStep, ct, pause);
                         filesRead++;
                     }
                     catch (Exception ex) when (!(ex is OperationCanceledException))
@@ -306,7 +306,8 @@ namespace RacingDesk.Data
                     if (one == null) continue;
                     filesWithLaps++;
                     if (running == null) running = one;
-                    else if (GeometryAccumulator.Agree(running, one)) running = GeometryAccumulator.Merge(running, one);
+                    // The files come newest first: what has been read so far is the newer, and this file the older.
+                    else if (GeometryAccumulator.Agree(running, one)) running = GeometryAccumulator.Merge(running, one, addIsNewer: false);
                     // Else the older file is of another place (a rescan, a north fix): the newer laps stand.
                     if (running.CleanLaps >= EnoughCleanLaps) break;
                 }
@@ -319,7 +320,8 @@ namespace RacingDesk.Data
                 }
                 else
                 {
-                    _store.StampGeometryChecks(trackId);
+                    // The outline stays as it was, still said to be built before these checks; it is only not looked for again.
+                    _store.MarkGeometryLooked(trackId);
                     _log($"outline kept as it was: {name}, no file gave a clean lap under this build's checks ({filesRead} read)");
                 }
             }
@@ -358,7 +360,11 @@ namespace RacingDesk.Data
         /// A file's outline and nothing else, for a layout: null when the file is of another layout, carries no
         /// position, or has no clean lap in it.
         /// </summary>
-        public static TrackGeometryRecord IngestGeometryOnly(string path, int trackId, int frameStep = 3, CancellationToken ct = default)
+        /// <param name="pause">
+        /// While it returns true (the sim is running) the read waits where it is, so that a file begun while the sim
+        /// was closed does not go on being read to the end once he is driving.
+        /// </param>
+        public static TrackGeometryRecord IngestGeometryOnly(string path, int trackId, int frameStep = 3, CancellationToken ct = default, Func<bool> pause = null)
         {
             using var ibt = new IbtFile(path);
             var wi = ibt.SessionInfo?.WeekendInfo;
@@ -366,9 +372,16 @@ namespace RacingDesk.Data
             if (!ibt.Vars.ContainsKey("Lat") || !ibt.Vars.ContainsKey("Lon")) return null;
             var geometry = new GeometryAccumulator(wi.TrackID, wi.TrackDisplayName, ParseMeters(wi.TrackLength));
             using var reader = new IbtSequentialReader(ibt, frameStep);
+            long read = 0;
             while (reader.MoveNext())
             {
-                if ((reader.FrameIndex & 0xFFF) == 0 && ct.IsCancellationRequested) return null;
+                // Looked at every few thousand frames read: cancelled, or the sim has started.
+                if ((++read & 0xFFF) == 0)
+                {
+                    if (ct.IsCancellationRequested) return null;
+                    while (pause != null && pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+                    if (ct.IsCancellationRequested) return null;
+                }
                 geometry.Feed(reader);
             }
             var sectors = ibt.SessionInfo?.SplitTimeInfo?.Sectors?.OrderBy(s => s.SectorNum).Select(s => (double)s.SectorStartPct).ToArray();

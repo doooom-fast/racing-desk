@@ -119,9 +119,14 @@ namespace RacingDesk.Data
         /// compared with the YAML's and the difference noted in <see cref="LengthWarning"/>; the outline is kept
         /// either way.
         /// </summary>
-        public TrackGeometryRecord Result(string sourceIbt, double[] sectorStartPcts, bool provisional = false)
+        /// <param name="closeOpenLap">
+        /// Judge the lap that is still open as the end of the data (the end of a finished file). A file still being
+        /// written passes false: the lap being driven goes on, and what has been read of it is kept for when it
+        /// closes at the line — judging it here would throw its first seconds away and leave it "not from the line".
+        /// </param>
+        public TrackGeometryRecord Result(string sourceIbt, double[] sectorStartPcts, bool provisional = false, bool closeOpenLap = true)
         {
-            CloseLap();
+            if (closeOpenLap) CloseLap();
             if (CleanLaps == 0 || _weight <= 0) return null;
 
             var points = new float[_bins * 3];
@@ -312,9 +317,12 @@ namespace RacingDesk.Data
 
         /// <summary>
         /// One outline from two that agree: the mean of their bins weighted by their clean laps, in the first's
-        /// frame. The source named is the newer file's; the sectors are the newer's where it has them.
+        /// frame. The source named is the newer file's; the sectors are the newer's where it has them. Which is the
+        /// newer file is for the caller to say — the time an outline was built says nothing of it, nor does a path:
+        /// the store merges in the file it was given, which is the newer (<paramref name="addIsNewer"/>), and the
+        /// rebuild reads a layout's files newest first and merges in an older one (false).
         /// </summary>
-        public static TrackGeometryRecord Merge(TrackGeometryRecord into, TrackGeometryRecord add)
+        public static TrackGeometryRecord Merge(TrackGeometryRecord into, TrackGeometryRecord add, bool addIsNewer = true)
         {
             int bins = into.Points.Length / 3;
             var pb = Resampled(add, bins);
@@ -334,7 +342,6 @@ namespace RacingDesk.Data
                 px = x; py = y;
             }
             length += Math.Sqrt((px - points[0]) * (px - points[0]) + (py - points[1]) * (py - points[1]));
-            bool addIsNewer = string.CompareOrdinal(add.SourceIbt ?? "", into.SourceIbt ?? "") > 0 || add.UpdatedAtUtc > into.UpdatedAtUtc;
             var newer = addIsNewer ? add : into;
             return new TrackGeometryRecord
             {

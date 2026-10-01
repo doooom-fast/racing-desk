@@ -313,8 +313,15 @@ Data options:
                 {
                     Log.Warn("[RacingDesk.Host] car names not read: " + ex.Message);
                 }
-                // Outlines built with fewer checks than this build's are built again from their files, before the
-                // new files go in. Whatever goes wrong with them, the new files are still ingested.
+                // The new files go in first: his last sessions are what the desk is for, and the rebuild of the old
+                // outlines (every layout's files, newest first, which can be tens of gigabytes the first time) must
+                // not keep them waiting.
+                string telemetryDir = o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory;
+                var summary = ingest.Run(telemetryDir, o.Step, int.MaxValue, cts.Token, pause: BackgroundIo.SimRunning);
+                if (summary.FilesIngested > 0 || summary.FilesFailed > 0)
+                    Log.Info($"[RacingDesk.Host] ingest: {summary.FilesIngested} new files, {summary.Sessions} sessions, {summary.FilesFailed} unreadable, {summary.Elapsed.TotalSeconds:F0}s");
+                // Outlines built with fewer checks than this build's are built again from their files. Whatever goes
+                // wrong with them, the files above are already in.
                 try
                 {
                     ingest.RebuildGeometry(cts.Token, BackgroundIo.SimRunning, o.Step);
@@ -323,10 +330,6 @@ Data options:
                 {
                     Log.Warn("[RacingDesk.Host] outlines not rebuilt: " + ex.Message);
                 }
-                string telemetryDir = o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory;
-                var summary = ingest.Run(telemetryDir, o.Step, int.MaxValue, cts.Token, pause: BackgroundIo.SimRunning);
-                if (summary.FilesIngested > 0 || summary.FilesFailed > 0)
-                    Log.Info($"[RacingDesk.Host] ingest: {summary.FilesIngested} new files, {summary.Sessions} sessions, {summary.FilesFailed} unreadable, {summary.Elapsed.TotalSeconds:F0}s");
             }
             catch (Exception ex)
             {

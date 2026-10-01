@@ -235,25 +235,43 @@ namespace RacingDesk.Tests.IRacing
             Assert.That(store.GetGeometry(777).Provisional, Is.False);
 
             // A row built with fewer checks is replaced whatever it says.
-            store.Exec("UPDATE track_geometry SET checks = 0 WHERE track_id = 777");
+            store.Exec("DELETE FROM track_geometry_build WHERE track_id = 777");
             Assert.That(store.TrackIdsNeedingRebuild().Select(t => t.TrackId), Is.EqualTo(new[] { 777 }));
             Assert.That(store.MergeGeometry(a), Is.EqualTo(GeometryMerge.Replaced));
-            Assert.That(store.TrackIdsNeedingRebuild(), Is.Empty);
-            store.Exec("UPDATE track_geometry SET checks = 0 WHERE track_id = 777");
-            store.StampGeometryChecks(777);
             Assert.That(store.TrackIdsNeedingRebuild(), Is.Empty);
         }
 
         [Test]
-        public void AVersion7StoreGainsTheTwoColumnsAndItsOutlinesReadAsBuiltBeforeTheChecks()
+        public void AnOutlineLookedAtWithNoFileToBuildItFromIsNotLookedForAgainAndIsNotTakenForOneTheChecksPassed()
         {
             var a = Outline(SyntheticLaps.Laps(2), out _);
+            using var store = new RacingDeskStore(Db);
+            store.MergeGeometry(a);
+            store.Exec("DELETE FROM track_geometry_build WHERE track_id = 777");
+            Assert.That(store.TrackIdsNeedingRebuild().Select(t => t.TrackId), Is.EqualTo(new[] { 777 }));
+
+            store.MarkGeometryLooked(777);
+            Assert.That(store.TrackIdsNeedingRebuild(), Is.Empty, "not looked for again");
+            var kept = store.GetGeometry(777);
+            Assert.That((kept.Checks, kept.Provisional), Is.EqualTo((0, false)), "and still said to be built before these checks");
+            Assert.That(kept.Points, Is.EqualTo(a.Points));
+
+            // A file's outline that has passed them replaces it, and says so.
+            Assert.That(store.MergeGeometry(a), Is.EqualTo(GeometryMerge.Replaced));
+            Assert.That(store.GetGeometry(777).Checks, Is.EqualTo(GeometryAccumulator.ChecksVersion));
+        }
+
+        [Test]
+        public void AVersion7StoreGainsTheTableOfWhatTheOutlinesWereBuiltWithAndItsOutlinesReadAsBuiltBeforeTheChecks()
+        {
+            var a = Outline(SyntheticLaps.Laps(2), out _);
+            string columns;
             using (var store = new RacingDeskStore(Db))
             {
                 store.MergeGeometry(a);
-                // As a version 7 store was: no checks, no provisional.
-                store.Exec("CREATE TABLE tg AS SELECT track_id, track_name, length_m, official_length_m, clean_laps, source_ibt, origin_lat, origin_lon, points, sector_starts, updated_at FROM track_geometry; " +
-                           "DROP TABLE track_geometry; ALTER TABLE tg RENAME TO track_geometry; DELETE FROM schema_version; INSERT INTO schema_version (version) VALUES (7)");
+                columns = store.Scalar<string>("SELECT GROUP_CONCAT(name, ',') FROM pragma_table_info('track_geometry')");
+                // As a version 7 store was: no table of what the outlines were built with.
+                store.Exec("DROP TABLE track_geometry_build; DELETE FROM schema_version; INSERT INTO schema_version (version) VALUES (7)");
             }
             SqliteConnection.ClearAllPools();
             using (var unmigrated = RacingDeskStore.OpenReadOnly(Db))
@@ -265,12 +283,38 @@ namespace RacingDesk.Tests.IRacing
             using (var migrated = new RacingDeskStore(Db))
             {
                 Assert.That(migrated.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(8));
-                Assert.That(migrated.Scalar<string>("SELECT GROUP_CONCAT(name, ',') FROM pragma_table_info('track_geometry')"),
-                    Does.EndWith("updated_at,checks,provisional"));
+                Assert.That(migrated.Scalar<string>("SELECT GROUP_CONCAT(name, ',') FROM pragma_table_info('track_geometry')"), Is.EqualTo(columns),
+                    "the outlines' table is as it was: earlier builds write to it by position");
+                Assert.That(columns, Does.EndWith("sector_starts,updated_at"));
                 var g = migrated.GetGeometry(777);
                 Assert.That((g.CleanLaps, g.Checks, g.Provisional), Is.EqualTo((2, 0, false)));
                 Assert.That(migrated.TrackIdsNeedingRebuild().Select(t => t.TrackId), Is.EqualTo(new[] { 777 }), "and is built again");
             }
+        }
+
+        [Test]
+        public void AnEarlierBuildCanStillWriteAnOutlineIntoAStoreThisOneHasOpened()
+        {
+            var a = Outline(SyntheticLaps.Laps(3), out _);
+            using var store = new RacingDeskStore(Db);
+            store.MergeGeometry(a);
+            Assert.That(store.GetGeometry(777).Checks, Is.EqualTo(GeometryAccumulator.ChecksVersion));
+
+            // What every build up to the one before this wrote an outline with: eleven values, by position.
+            var elsewhere = Outline(SyntheticLaps.Laps(1, shiftX: 60), out _);
+            var blob = new byte[elsewhere.Points.Length * 4];
+            Buffer.BlockCopy(elsewhere.Points, 0, blob, 0, blob.Length);
+            Assert.DoesNotThrow(() => store.Exec(
+                "INSERT OR REPLACE INTO track_geometry VALUES ($t, $n, $len, $off, $laps, $src, $lat, $lon, $pts, $sec, $at)", null,
+                ("$t", 777), ("$n", "Synthetic Circuit"), ("$len", elsewhere.LengthMeters), ("$off", elsewhere.OfficialLengthMeters), ("$laps", 1),
+                ("$src", "older-build.ibt"), ("$lat", elsewhere.OriginLat), ("$lon", elsewhere.OriginLon), ("$pts", blob), ("$sec", "0,0.35,0.7"),
+                ("$at", DateTime.UtcNow.AddMinutes(5).ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture))));
+
+            // What this build said of the outline it had does not apply to the one the earlier build wrote.
+            var g = store.GetGeometry(777);
+            Assert.That((g.CleanLaps, g.SourceIbt), Is.EqualTo((1, "older-build.ibt")));
+            Assert.That((g.Checks, g.Provisional), Is.EqualTo((0, false)), "built by something that had no checks");
+            Assert.That(store.TrackIdsNeedingRebuild().Select(t => t.TrackId), Is.EqualTo(new[] { 777 }));
         }
 
         // ── The ingest ──
@@ -300,7 +344,7 @@ namespace RacingDesk.Tests.IRacing
 
             // Built with fewer checks: the rebuild reads the layout's files newest first, and the newer file's laps
             // stand; the older file, being of another place, is not averaged in.
-            store.Exec("UPDATE track_geometry SET checks = 0");
+            store.Exec("DELETE FROM track_geometry_build");
             log.Clear();
             Assert.That(ingest.RebuildGeometry(frameStep: 3), Is.EqualTo(2));
             Assert.That(log, Has.Some.StartsWith("outline rebuilt: Synthetic Circuit, 2 clean laps of 2 files (2 read)"));
@@ -316,6 +360,76 @@ namespace RacingDesk.Tests.IRacing
             File.SetLastWriteTimeUtc(fresh, DateTime.UtcNow);
             Assert.That(ingest.WantsFile(new FileInfo(fresh), DateTime.UtcNow), Is.False);
             Assert.That(ingest.WantsFile(new FileInfo(fresh), DateTime.UtcNow.AddMinutes(3)), Is.True);
+        }
+
+        [Test]
+        public void TheHostIngestsTheNewFilesBeforeItRebuildsTheOldOutlines()
+        {
+            Assume.That(BackgroundIo.SimRunning(), Is.False, "the host's background thread waits while the sim runs");
+            // Layout 778's file was ingested before and its outline is from before the checks, so it is built again
+            // (on a first run that is every layout's files, tens of gigabytes); layout 777's file is new. The new
+            // file goes in first: the rebuild must not keep his last sessions out of the desk.
+            string telemetry = Path.Combine(_dir, "telemetry");
+            Directory.CreateDirectory(telemetry);
+            string old = SyntheticLaps.Write(Path.Combine(telemetry, "old.ibt"), SyntheticLaps.Yaml(trackId: 778, name: "Another"), SyntheticLaps.Laps(2), March);
+            File.SetLastWriteTimeUtc(old, DateTime.UtcNow.AddHours(-3));
+            using (var store = new RacingDeskStore(Db))
+            {
+                new IbtIngest(store).Run(telemetry, frameStep: 3);
+                store.Exec("DELETE FROM track_geometry_build");
+            }
+            SqliteConnection.ClearAllPools();
+            string fresh = SyntheticLaps.Write(Path.Combine(telemetry, "new.ibt"), SyntheticLaps.Yaml(), SyntheticLaps.Laps(2), March.AddDays(1));
+            File.SetLastWriteTimeUtc(fresh, DateTime.UtcNow.AddHours(-1));
+
+            var lines = new List<string>();
+            var was = RacingDesk.Plugin.Log.Sink;
+            RacingDesk.Plugin.Log.Sink = (level, text) => { lock (lines) lines.Add(text); };
+            try
+            {
+                using var stop = new System.Threading.ManualResetEventSlim();
+                RacingDesk.Host.Program.BackgroundIngest(RacingDesk.Host.HostOptions.Parse(new[] { "--db", Db, "--dir", telemetry }), stop);
+            }
+            finally
+            {
+                RacingDesk.Plugin.Log.Sink = was;
+            }
+            string[] seen;
+            lock (lines) seen = lines.ToArray();
+            int newFiles = Array.FindIndex(seen, l => l.Contains("ingest: 1 new files"));
+            int rebuilt = Array.FindIndex(seen, l => l.Contains("outline rebuilt: Another"));
+            Assert.That(newFiles, Is.GreaterThanOrEqualTo(0), "the new file went in: " + string.Join(" | ", seen));
+            Assert.That(rebuilt, Is.GreaterThan(newFiles), "and the old outline was built again after it: " + string.Join(" | ", seen));
+        }
+
+        [Test]
+        public void TheRebuildKeepsTheNewestFilesNameAndSectorsWhenTheFilesAgree()
+        {
+            // Two files of one layout whose laps agree, the newer saying it is called something else (iRacing renames
+            // a layout between seasons): the row the rebuild leaves has the newer file's, not the older's.
+            string older = SyntheticLaps.Write(Path.Combine(_dir, "zz-older.ibt"), SyntheticLaps.Yaml(name: "Old Name"), SyntheticLaps.Laps(2), March);
+            string newer = SyntheticLaps.Write(Path.Combine(_dir, "aa-newer.ibt"), SyntheticLaps.Yaml(name: "New Name"), SyntheticLaps.Laps(2, scale: 0.997), March.AddDays(10));
+            File.SetLastWriteTimeUtc(older, DateTime.UtcNow.AddHours(-3));
+            File.SetLastWriteTimeUtc(newer, DateTime.UtcNow.AddHours(-1));
+            using var store = new RacingDeskStore(Db);
+            var ingest = new IbtIngest(store);
+            ingest.Run(_dir, frameStep: 3);
+            Assert.That(store.GetGeometry(777).CleanLaps, Is.EqualTo(4), "the two files agree and are averaged");
+
+            store.Exec("DELETE FROM track_geometry_build");
+            Assert.That(ingest.RebuildGeometry(frameStep: 3), Is.EqualTo(1));
+            var rebuilt = store.GetGeometry(777);
+            Assert.That(rebuilt.CleanLaps, Is.EqualTo(4));
+            Assert.That(rebuilt.TrackName, Is.EqualTo("New Name"), "the newest file's");
+            Assert.That(rebuilt.SourceIbt, Is.EqualTo(newer), "the newest file's, though its path sorts before the older's");
+
+            // And merging in the file given, as the store does, takes that one's: the file given is the newer.
+            var a = Outline(SyntheticLaps.Laps(2), out _);
+            var b = Outline(SyntheticLaps.Laps(2, scale: 0.997), out _);
+            a.TrackName = "First"; a.SourceIbt = "z.ibt";
+            b.TrackName = "Second"; b.SourceIbt = "a.ibt";
+            Assert.That(GeometryAccumulator.Merge(a, b).TrackName, Is.EqualTo("Second"));
+            Assert.That(GeometryAccumulator.Merge(a, b, addIsNewer: false).TrackName, Is.EqualTo("First"));
         }
 
         [Test]
@@ -358,8 +472,72 @@ namespace RacingDesk.Tests.IRacing
             Assert.That(store.GetGeometry(777).Checks, Is.Zero, "a file with no clean lap changes nothing");
             Assert.That(ingest.RebuildGeometry(frameStep: 3), Is.Zero);
             Assert.That(log, Has.Some.StartsWith("outline kept as it was: Synthetic Circuit, no file gave a clean lap"));
-            Assert.That(store.GetGeometry(777).Checks, Is.EqualTo(GeometryAccumulator.ChecksVersion));
+            Assert.That(store.GetGeometry(777).Checks, Is.Zero, "it is not taken for an outline the checks passed: nothing here built it with them");
             Assert.That(store.GetGeometry(777).Points, Is.EqualTo(old.Points));
+            Assert.That(store.TrackIdsNeedingRebuild(), Is.Empty, "but it is not looked for again");
+            log.Clear();
+            Assert.That(ingest.RebuildGeometry(frameStep: 3), Is.Zero);
+            Assert.That(log, Is.Empty, "no file read a second time");
+        }
+
+        [Test]
+        public void TheFollowerFollowsALayoutWhoseOutlineWasOnlyLookedAtNotOneBuiltWithTheChecks()
+        {
+            var old = Outline(SyntheticLaps.Laps(2), out _);
+            old.Checks = 0;
+            using (var store = new RacingDeskStore(Db))
+            {
+                store.ReplaceGeometry(old);
+                store.MarkGeometryLooked(777);
+            }
+            SqliteConnection.ClearAllPools();
+
+            var frames = SyntheticLaps.Laps(1);
+            string path = Path.Combine(_dir, "mx5 mx52016_synthetic full 2026-03-01 09-00-00.ibt");
+            File.WriteAllBytes(path, SyntheticLaps.Bytes(SyntheticLaps.Yaml(), frames, March, claimedFrames: 0));
+            File.SetLastWriteTimeUtc(path, March);
+            var log = new List<string>();
+            using var follower = new IbtFollower(_dir, Db, log.Add, () => March);
+            follower.Seen(777);
+            follower.Look();
+            Assert.That(log, Has.Some.StartsWith("following "), "an outline no lap passed the checks for is not a whole one");
+            Assert.That(follower.Current(777)?.CleanLaps, Is.EqualTo(1));
+        }
+
+        // ── A result taken while a lap is being driven ──
+
+        [Test]
+        public void AResultTakenMidLapLeavesTheLapBeingDrivenToCloseAtTheLine()
+        {
+            var frames = SyntheticLaps.Laps(3);
+            string path = Path.Combine(_dir, "mid-lap.ibt");
+            SyntheticLaps.Write(path, SyntheticLaps.Yaml(), frames, March);
+            int perLap = frames.Count / 3;
+            using var ibt = new IbtFile(path);
+
+            TrackGeometryRecord Run(bool closeOpenLap, out GeometryAccumulator acc)
+            {
+                acc = new GeometryAccumulator(777, "Synthetic Circuit", SyntheticLaps.OfficialMeters);
+                using var reader = new IbtSequentialReader(ibt, 3);
+                TrackGeometryRecord midLap = null;
+                while (reader.MoveNext())
+                {
+                    acc.Feed(reader);
+                    // Ten seconds into the second lap.
+                    if (reader.FrameIndex >= perLap + 600 && midLap == null) midLap = acc.Result(path, null, provisional: true, closeOpenLap: closeOpenLap);
+                }
+                Assert.That(midLap, Is.Not.Null);
+                Assert.That(midLap.CleanLaps, Is.EqualTo(1), "the lap that has closed is in");
+                return acc.Result(path, null);
+            }
+
+            var kept = Run(closeOpenLap: false, out var acc);
+            Assert.That(kept.CleanLaps, Is.EqualTo(3), "the lap being driven went on and was whole: " + string.Join(", ", acc.Rejected.Select(r => r.Key + " " + r.Value)));
+
+            // Judged where it stood, its first ten seconds go, and what is left of it is not from the line.
+            var lost = Run(closeOpenLap: true, out acc);
+            Assert.That(lost.CleanLaps, Is.EqualTo(2));
+            Assert.That(acc.Rejected, Does.ContainKey("not from the line"));
         }
 
         // ── Serving them ──

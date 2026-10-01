@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
 using RacingDesk.Data;
@@ -129,9 +130,10 @@ namespace RacingDesk.Tests.IRacing
                 Assert.That(follower.Current(777), Is.Null);
                 Assert.That(log, Has.Some.StartsWith("following mx5 mx52016_synthetic full 2026-03-01 09-00-00.ibt for an outline of Synthetic Circuit"));
 
-                // The first lap closed (the frame after it is the next lap's): an outline, provisional, of one lap.
+                // The first lap closed, and a few seconds of the next one read with it (a look is every ten seconds, and
+                // the lap goes on while it is made): an outline, provisional, of one lap.
                 now = now.AddSeconds(45);
-                Written(perLap + 10);
+                Written(perLap + 300);
                 follower.Seen(777);
                 follower.Look();
                 var first = follower.Current(777);
@@ -152,7 +154,9 @@ namespace RacingDesk.Tests.IRacing
                 follower.Look();
                 Assert.That(outlined, Has.Count.EqualTo(1));
 
-                // Two laps more: refined, and said again.
+                // Two laps more: refined, and said again — every lap, the one that was being driven when the outline
+                // was first made as well as the one after it (a look that threw the open lap away left lap 2 "not from
+                // the line", and the outline refined by every other lap).
                 now = now.AddSeconds(90);
                 Written(frames.Count);
                 follower.Seen(777);
@@ -203,11 +207,105 @@ namespace RacingDesk.Tests.IRacing
             follower.Look();
             Assert.That(follower.Current(777), Is.Null);
             Assert.That(log, Is.Empty);
-            // A file of another layout than the one the sim says is not read either.
+            // A file of another layout than the one the sim says is not read either, and is said to be left alone, once.
             follower.Seen(778);
             follower.Look();
+            follower.Look();
             Assert.That(follower.Current(778), Is.Null);
-            Assert.That(log, Is.Empty);
+            Assert.That(log, Is.EqualTo(new[] { "not following whole.ibt: it is of another layout than the one being driven" }));
+        }
+
+        [Test]
+        public void AFileTheSimHoldsOpenIsFollowedPastTheWindowWithoutItsListedTimeEverMoving()
+        {
+            // The sim holds the file it is writing open, and Windows keeps the time the file was made, and a length of
+            // nought, in the folder's listing until the file is closed or somebody asks for it by its path. Nothing here
+            // sets the file's time (the other tests do, after every write, which is why they never saw this): the
+            // follower has to ask the file itself, and keep to the file it is following while it is the newest.
+            var frames = SyntheticLaps.Laps(3);
+            byte[] whole = SyntheticLaps.Bytes(SyntheticLaps.Yaml(), frames, March, claimedFrames: 0);
+            int framesOffset = whole.Length - frames.Count * SyntheticLaps.FrameSize;
+            int perLap = frames.Count / 3;
+            string path = Path.Combine(_dir, "mx5 mx52016_synthetic full 2026-03-01 09-00-00.ibt");
+            var log = new List<string>();
+            // The window is a second, so that the listing's time is out of it after a second and a half of real time.
+            using var follower = new IbtFollower(_dir, Db, log.Add, () => DateTime.UtcNow, currentWithin: TimeSpan.FromSeconds(1));
+
+            using var writing = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+            void Written(int frameCount)
+            {
+                long have = writing.Position, want = framesOffset + (long)frameCount * SyntheticLaps.FrameSize;
+                writing.Write(whole, (int)have, (int)(want - have));
+                writing.Flush();
+            }
+
+            // The file was made 1.5 s ago and has just been written to: it is the current one, though its listed time is out of the window.
+            Written(perLap / 2);
+            Thread.Sleep(1500);
+            Written(perLap / 2 + 60);
+            follower.Seen(777);
+            follower.Look();
+            Assert.That(log, Has.Some.StartsWith("following "), "a file written to a moment ago is the sim's, whatever the listing says");
+
+            // And again after the window has run out for the listing once more: still the one being followed, still read.
+            Thread.Sleep(1500);
+            Written(perLap + 300);
+            follower.Seen(777);
+            follower.Look();
+            Assert.That(follower.Current(777), Is.Not.Null, "the first lap closed while the file was held open: an outline. " + follower.Trace);
+            Assert.That(follower.Current(777).Provisional, Is.True);
+        }
+
+        [Test]
+        public void AFileWellUnderWayWhenItIsFirstOpenedIsReadFromItsLastMinutesAndNotItsStart()
+        {
+            // Eight laps of forty seconds, five minutes and twenty seconds in all: the look back is five minutes, so the
+            // read begins twenty seconds in, half way round the first lap, and the first lap is out for not being from the line.
+            var frames = SyntheticLaps.Laps(8);
+            string path = Path.Combine(_dir, "mx5 mx52016_synthetic full 2026-03-01 09-00-00.ibt");
+            File.WriteAllBytes(path, SyntheticLaps.Bytes(SyntheticLaps.Yaml(), frames, March, claimedFrames: 0));
+            File.SetLastWriteTimeUtc(path, March);
+            var log = new List<string>();
+            using var follower = new IbtFollower(_dir, Db, log.Add, () => March);
+            follower.Seen(777);
+            follower.Look();
+            int start = frames.Count - (int)(IbtFollower.LookBack.TotalSeconds * SyntheticLaps.TickRate);
+            Assert.That(start, Is.EqualTo(1201));
+            start -= start % 3;   // from a frame the reading of every third steps through: 1200
+            Assert.That(log, Has.Some.EqualTo($"following {Path.GetFileName(path)} for an outline of Synthetic Circuit, from {start} frames in"));
+            Assert.That(follower.Current(777)?.CleanLaps, Is.EqualTo(7), "the seven laps after the one it began in the middle of. " + follower.Trace);
+        }
+
+        [Test]
+        public void AFileThatCannotBeReadIsSaidOnceAndAFileOfAnotherLayoutIsSaidOnceAndNotOpenedAgain()
+        {
+            string bad = Path.Combine(_dir, "cut-short.ibt");
+            File.WriteAllBytes(bad, new byte[100]);
+            File.SetLastWriteTimeUtc(bad, March);
+            var log = new List<string>();
+            var now = March;
+            using var follower = new IbtFollower(_dir, Db, log.Add, () => now);
+            for (int i = 0; i < 4; i++)
+            {
+                follower.Seen(777);
+                follower.LookQuietly();
+            }
+            Assert.That(log.Count(l => l.StartsWith("follower:")), Is.EqualTo(1), "the same trouble at every look is said once: " + string.Join(" | ", log));
+
+            // The sim then writes a file of another layout: one line says it is left alone, and it is not opened again.
+            now = now.AddMinutes(1);
+            string other = Path.Combine(_dir, "mx5 mx52016_other 2026-03-01 09-05-00.ibt");
+            File.WriteAllBytes(other, SyntheticLaps.Bytes(SyntheticLaps.Yaml(trackId: 778, name: "Another"), SyntheticLaps.Laps(1), March, claimedFrames: 0));
+            File.SetLastWriteTimeUtc(other, now);
+            for (int i = 0; i < 4; i++)
+            {
+                follower.Seen(777);
+                follower.LookQuietly();
+            }
+            Assert.That(log.Count(l => l.StartsWith("not following ")), Is.EqualTo(1), string.Join(" | ", log));
+            Assert.That(log.Single(l => l.StartsWith("not following ")), Does.Contain("another layout"));
+            Assert.That(follower.Current(777), Is.Null);
+            Assert.That(log.Any(l => l.Contains("900001") || l.Contains("Test Driver")), Is.False, "no id and no name in the log");
         }
     }
 }
