@@ -16,6 +16,7 @@
 
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'module';
+import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -45,12 +46,16 @@ test.describe('which session is a test drive (session-kind.js)', () => {
     for (const name of ['Practice', 'Lone Qualify', 'Open Qualify', 'Race', 'Warmup', 'Time Trial', 'Time Attack', '']) {
       expect(isTestDrive(name), name).toBe(false);
     }
-    // A source that shortens it, in either case.
-    expect(isTestDrive('Test')).toBe(true);
-    expect(isTestDrive('Testing')).toBe(true);
+    // iRacing's word whatever its case and spacing.
     expect(isTestDrive('offline testing')).toBe(true);
-    // Not by an accident of letters, and not for a frame that does not say.
-    expect(isTestDrive('Fastest Lap Contest')).toBe(false);
+    expect(isTestDrive('  OFFLINE   TESTING ')).toBe(true);
+    // Nothing looser: the overlay also runs for other sims through SimHub, and a word that merely begins "test" in
+    // one of theirs (a "Test Day", say, which can have a full online field) is not iRacing's solo session.
+    for (const name of ['Test', 'Testing', 'Test Day', 'Testing Session', 'Online Testing', 'Offline Testing Session',
+      'Fastest Lap Contest', 'Contest']) {
+      expect(isTestDrive(name), name).toBe(false);
+    }
+    // And not for a frame that does not say.
     expect(isTestDrive(null)).toBe(false);
     expect(isTestDrive(undefined)).toBe(false);
     expect(isTestDrive(4)).toBe(false);
@@ -64,6 +69,15 @@ test.describe('which session is a test drive (session-kind.js)', () => {
     expect(sessionTypeOf(null)).toBe('');
     expect(sessionTypeOf({ 'RacingDesk.Plugin.SessionTypeName': 7 })).toBe('');
   });
+});
+
+test('poll-engine.js reads the session type only through session-kind.js: the one place that picks the demo\'s name or the live one', () => {
+  // The change of session and the test drive read the same word, from the same function the test above holds to the
+  // frame; a second copy of the choice in the page could drift from it and leave that test passing.
+  const code = fs.readFileSync(path.join(OVERLAY, 'modules', 'js', 'poll-engine.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+  expect(code.match(/RacingDeskSessionKind\.sessionTypeOf\(p\)/g)).toHaveLength(1);
+  expect(code).not.toMatch(/\.SessionTypeName/);
 });
 
 // ── The pages ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -221,6 +235,23 @@ test('a frame that names no session type leaves it as it was; the rig\'s own swi
   expect(await look(page)).toMatchObject({ testDrive: false, shown: false });
 });
 
+test('the page reads the session type the way session-kind.js says: the demo\'s name while the demo is on, the live one otherwise', async ({ page }) => {
+  test.setTimeout(60000);
+  // The demo says a test drive while the live key says a race: the demo's is the one the page reads.
+  const demo = (demoName, liveName) => ({
+    ...RACE(), 'RacingDesk.Plugin.DemoMode': 1,
+    'RacingDesk.Plugin.Demo.SessionTypeName': demoName, 'RacingDesk.Plugin.SessionTypeName': liveName,
+  });
+  const feed = await openRig(page, demo('Offline Testing', 'Race'));
+  expect(await look(page)).toMatchObject({ testDrive: true, shown: false });
+  feed.payload = demo('Race', 'Offline Testing');
+  await frames(page);
+  expect(await look(page)).toMatchObject({ testDrive: false, shown: true });
+  feed.payload = RACE();
+  await frames(page);
+  expect(await look(page)).toMatchObject({ testDrive: false, shown: true });
+});
+
 for (const [width, height, what] of [[1920, 1080, 'the rig, 16:9'], [2560, 1080, 'the rig, ultrawide']]) {
   test(`the rig's Ctrl+Shift+F at ${width}x${height} (${what}): a test drive has no leaderboard cell, the other cells take the screen, and a race has it back`, async ({ page }) => {
     test.setTimeout(90000);
@@ -301,6 +332,94 @@ test.describe('the iPad', () => {
       await frames(page);
       expect(await look(page)).toMatchObject({ testDrive: false, shown: true, gridHasLb: true });
       expect(errors).toEqual([]);
+    });
+  }
+
+  // The menu's button (remote-server.js) is a 44px round button over the top right corner of the screen, over the frame
+  // and the corner of whatever cell is there. On its side a test drive puts the tacho in that corner (a race has the
+  // empty end of the leaderboard's header there), and its speed is at its top right: it stops short of the button, as the
+  // gaps block's strip of sectors does upright (drive-view.spec.mjs). Held as: no text on the page is under the button,
+  // and the speed and its unit in particular are clear of it by a few pixels.
+  for (const [width, height, what] of [[1180, 820, 'Air, on its side'], [1366, 1024, '12.9", on its side'], [1024, 768, '9.7", on its side'], [1133, 744, 'mini, on its side'], [820, 1180, 'Air, upright'], [744, 1133, 'mini, upright']]) {
+    test(`${width}x${height} (${what}): in a test drive the menu's button has no text under it, and is clear of the speed and its unit`, async ({ page }) => {
+      test.setTimeout(90000);
+      feed.payload = TEST_DRIVE();
+      await page.addInitScript(() => { try { localStorage.setItem('rd-effects', 'off'); } catch (e) { /* none */ } });
+      await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
+      await page.setViewportSize({ width, height });
+      await page.goto(`http://127.0.0.1:${port}/`);
+      await frames(page);
+      await page.waitForFunction(() => document.getElementById('fullMapSvg').style.getPropertyValue('--px') !== '' && document.getElementById('rd-remote-menu-fab'), null, { timeout: 10000 });
+      await page.waitForTimeout(500);
+      const m = await page.evaluate(() => {
+        const rect = (b) => ({ left: b.left, top: b.top, right: b.right, bottom: b.bottom });
+        const fab = document.getElementById('rd-remote-menu-fab');
+        const f = fab.getBoundingClientRect();
+        const box = (sel) => { const el = document.querySelector(sel); return el && el.getClientRects().length ? rect(el.getBoundingClientRect()) : null; };
+        const under = [];
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const node = walker.currentNode;
+          const el = node.parentElement;
+          if (!node.textContent.trim() || !el || fab.contains(el) || el.closest('script, style')) continue;
+          const cs = getComputedStyle(el);
+          if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          for (const q of range.getClientRects()) {
+            const w = Math.min(q.right, f.right) - Math.max(q.left, f.left);
+            const h = Math.min(q.bottom, f.bottom) - Math.max(q.top, f.top);
+            if (q.width > 0 && w > 1 && h > 1) under.push(`"${node.textContent.trim().slice(0, 20)}" in ${el.className || el.id || el.tagName}`);
+          }
+        }
+        return { fab: rect(f), speed: box('.speed-value'), unit: box('.speed-unit'), under };
+      });
+      expect(m.under, `text under the button: ${JSON.stringify(m)}`).toEqual([]);
+      for (const key of ['speed', 'unit']) {
+        const b = m[key];
+        expect(b, key).not.toBeNull();
+        const apart = b.right <= m.fab.left - 2 || b.left >= m.fab.right + 2 || b.bottom <= m.fab.top - 2 || b.top >= m.fab.bottom + 2;
+        expect(apart, `the ${key} ${JSON.stringify(b)} against the button ${JSON.stringify(m.fab)}`).toBe(true);
+      }
+    });
+  }
+
+  // Upright, a test drive keeps the laps panel and the ratings at the width they have in a race (their numbers are sized
+  // from the cell's height, so a strip the width of the screen is empty glass), and the room the leaderboard had goes to
+  // the following map beside them, which spans both rows, with the tacho and the full map sharing the row above.
+  for (const [width, height, what] of [[820, 1180, 'Air'], [744, 1133, 'mini'], [810, 1080, '10.2"']]) {
+    test(`${width}x${height} (${what}, upright): a test drive gives the following map the room beside the laps panel and the ratings, not a strip of empty glass`, async ({ page }) => {
+      test.setTimeout(90000);
+      feed.payload = TEST_DRIVE();
+      await page.addInitScript(() => { try { localStorage.setItem('rd-effects', 'off'); } catch (e) { /* none */ } });
+      await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
+      await page.setViewportSize({ width, height });
+      await page.goto(`http://127.0.0.1:${port}/`);
+      await frames(page);
+      await page.waitForFunction(() => document.getElementById('fullMapSvg').style.getPropertyValue('--px') !== '', null, { timeout: 10000 });
+      await page.waitForTimeout(500);
+      const rects = () => page.evaluate((cells) => Object.fromEntries(Object.entries(cells).map(([k, sel]) => {
+        const b = document.querySelector(sel).getBoundingClientRect();
+        return [k, { left: b.left, top: b.top, right: b.right, bottom: b.bottom, w: b.width, h: b.height }];
+      })), { laps: '#lapsPanel', rating: '#ratingPage', local: '.map-zoom-panel', map: '.map-panel', tacho: '.tacho-block' });
+      const td = await rects();
+      expect(td.laps.w, 'the laps panel is no strip').toBeLessThan(width * 0.45);
+      expect(td.rating.w, 'the ratings are no strip').toBeLessThan(width * 0.45);
+      expect(td.local.left, 'the following map is beside the laps panel').toBeGreaterThanOrEqual(td.laps.right);
+      expect(Math.abs(td.local.top - td.laps.top)).toBeLessThanOrEqual(2);
+      expect(Math.abs(td.local.bottom - td.rating.bottom)).toBeLessThanOrEqual(2);
+      expect(td.tacho.right).toBeLessThanOrEqual(td.map.left + 1);
+      expect(Math.abs(td.tacho.top - td.map.top)).toBeLessThanOrEqual(2);
+      expect(td.local.right).toBeGreaterThan(width * 0.9);
+      // The laps panel and the ratings are the width they have in a race, and the following map is much the larger.
+      feed.payload = RACE();
+      await frames(page);
+      await page.waitForFunction(() => document.querySelectorAll('#lbRows .lb-row').length >= 3, null, { timeout: 10000 });
+      await page.waitForTimeout(500);
+      const race = await rects();
+      expect(Math.abs(td.laps.w - race.laps.w), 'the laps panel keeps its width').toBeLessThanOrEqual(2);
+      expect(Math.abs(td.rating.w - race.rating.w), 'the ratings keep their width').toBeLessThanOrEqual(2);
+      expect(td.local.w * td.local.h, 'the following map, in a test drive and in a race').toBeGreaterThan(2.5 * race.local.w * race.local.h);
     });
   }
 });

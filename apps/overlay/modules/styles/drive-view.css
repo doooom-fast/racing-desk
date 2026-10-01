@@ -848,8 +848,11 @@ html.rd-glance body.drive-mode-active::before { display: none !important; conten
    body.session-testdrive from it, session-kind.js) has no field to list — one row, and a column of nothing under it.
    He asked for the leaderboard to go in one, on every overlay (2026-10-01). Here the cell goes too, and the 24
    columns are shared out again among the rest: on its side the hero, the maps and the laps panel each gain, and the
-   pit box, the datastream and the incidents share the bottom row; upright the laps panel and the ratings take the
-   full width of the rows the leaderboard had. The rows keep their heights, so nothing else moves up or down. Any
+   pit box, the datastream and the incidents share the bottom row; upright the laps panel and the ratings keep the
+   width they had (their numbers are sized from the cell's height, so a strip the width of the screen would only be
+   empty glass) and the following map, the one that zooms with his speed, takes the rest of their two rows beside
+   them — nine columns by a column of fifteen — with the tacho and the full map sharing the row above (ten columns
+   and fourteen). The rows keep their heights, so nothing else moves up or down. Any
    other session (practice, qualifying, a race with other cars) is the layout above, the moment the frame says so.
    These rules are after the iPad's and outrank them (one class more), so the test drive's grid is the same on the
    rig's Ctrl+Shift+F (with its badges), on an iPad and in the page OBS draws (without). */
@@ -874,19 +877,29 @@ html:is(.rd-remote, .rd-glance) body.drive-mode-active.session-testdrive {
   body.drive-mode-active.session-testdrive {
     grid-template-areas:
       "hero hero hero hero hero hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps gaps gaps gaps"
-      "tacho tacho tacho tacho tacho tacho tacho tacho map map map map map map map map map map map local local local local local"
-      "laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps"
-      "rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating"
+      "tacho tacho tacho tacho tacho tacho tacho tacho tacho tacho map map map map map map map map map map map map map map"
+      "laps laps laps laps laps laps laps laps laps local local local local local local local local local local local local local local local"
+      "rating rating rating rating rating rating rating rating rating local local local local local local local local local local local local local local local"
       "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals brand brand car car car timer timer timer timer timer"
       "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
   }
   html:is(.rd-remote, .rd-glance) body.drive-mode-active.session-testdrive {
     grid-template-areas:
       "hero hero hero hero hero hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps gaps gaps gaps"
-      "tacho tacho tacho tacho tacho tacho tacho tacho map map map map map map map map map map map local local local local local"
-      "laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps"
-      "rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating"
+      "tacho tacho tacho tacho tacho tacho tacho tacho tacho tacho map map map map map map map map map map map map map map"
+      "laps laps laps laps laps laps laps laps laps local local local local local local local local local local local local local local local"
+      "rating rating rating rating rating rating rating rating rating local local local local local local local local local local local local local local local"
       "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals timer timer timer timer timer timer timer"
       "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
   }
+}
+/* On its side, the tacho is the cell in the top right corner, where the iPad's menu button is (remote-server.js: 44px,
+   set in from the corner by the frame — the same inset as the grid's padding — over the corner of whatever cell is
+   there). In a race that corner is the empty end of the leaderboard's header; here it is the speed, and the button
+   struck through the last digit of it. The speed and its unit stop short of the button, by the width of the button and
+   a gutter less the tacho's own side padding (10px); the revs under them are lower than the button reaches and keep
+   the edge. Upright the corner is the gaps block, whose strip of sectors stops short of the button the same way
+   (above). The OBS page has no button, and the rig's own Ctrl+Shift+F neither. */
+@media (orientation: landscape) {
+  html.rd-remote body.drive-mode-active.session-testdrive .tacho-speed-cluster { margin-right: calc(44px + var(--rd-gap) - 10px); }
 }

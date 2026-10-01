@@ -10,11 +10,13 @@
 (function () {
   'use strict';
 
-  // A test drive: the type names it ("Offline Testing"; "Test" or "Testing" from a source that shortens it). Not a
-  // practice, not a qualifying, not a race, and not "fastest" or "contest" by accident of letters.
+  // A test drive: iRacing's own words for it, "Offline Testing", whatever the case, and nothing looser. Both paths send
+  // that exact string (his .ibt files, and the host's tests that read them, have no other); a looser match, any word
+  // that begins "test", would take the field's leaderboard from a sim the overlay also runs for through SimHub (ACC,
+  // AC, rFactor 2 and the rest) whose own "Test Day" or "Testing" may have a full online field.
   function isTestDrive(sessionTypeName) {
     if (typeof sessionTypeName !== 'string' || !sessionTypeName) return false;
-    return /\btest/i.test(sessionTypeName);
+    return /^\s*offline\s+testing\s*$/i.test(sessionTypeName);
   }
 
   // The session's type name as the frame says it, the demo's when the demo is on; '' when the frame does not say.

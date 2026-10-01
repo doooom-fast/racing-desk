@@ -248,9 +248,9 @@
     }
 
     // ─── Session change detection — reset per-session state ───
-    const _currSessionTypeName = _demo
-      ? vs('RacingDesk.Plugin.Demo.SessionTypeName')
-      : vs('RacingDesk.Plugin.SessionTypeName');
+    // (session-kind.js picks the demo's name or the live one: the one place that choice is made, so the test drive
+    // below and the change of session here can never be reading different words.)
+    const _currSessionTypeName = RacingDeskSessionKind.sessionTypeOf(p);
     if (_currSessionTypeName && _currSessionTypeName !== _prevSessionTypeName && _prevSessionTypeName) {
       console.log('[RacingDesk] Session changed:', _prevSessionTypeName, '→', _currSessionTypeName);
       // Capture practice/quali/warmup session end before resetting
