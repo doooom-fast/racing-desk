@@ -176,11 +176,17 @@ let hostChild = null;            // the RacingDesk.Host process this app started
 let hostNote = null;             // why there is no host of our own, shown by the desk when nothing answers
 let deskHost = null;             // the host URL the desk window was loaded with
 let quitting = false;            // set by before-quit, so closing the desk during a quit doesn't quit again
+let relaunchPending = false;     // the Ctrl+Shift+G relaunch is waiting to go (leaveForRelaunch, below); a quit gives it up
 app.on('before-quit', (event) => {
   quitting = true;
+  // A real quit while the Ctrl+Shift+G relaunch is waiting (a STARTED, a filing: seconds at most) is a quit after all: the
+  // relaunch is given up (leaveForRelaunch resolves to false), or the app would end here with the recording and the
+  // replay buffer left running and nothing to take them over.
+  const relaunchGivenUp = relaunchPending;
+  relaunchPending = false;
   // A recording Racing Desk started is stopped before the app goes (StopRecord, STOPPED waited for 3 s at most): a
   // detached OBS would otherwise record on with nothing left to stop it. Once; then the quit goes through.
-  if (typeof recording !== 'undefined' && recording && !stoppedForQuit && (recording.needsStopForQuit() || tvShots.needsStopForQuit() || (hudSourceOn() && obsClient.identified()))) {
+  if (typeof recording !== 'undefined' && recording && !stoppedForQuit && (relaunchGivenUp || recording.needsStopForQuit() || tvShots.needsStopForQuit() || (hudSourceOn() && obsClient.identified()))) {
     event.preventDefault();
     stopOwnedRecording().finally(() => app.quit());
   }
@@ -420,9 +426,12 @@ const HUD_KEYS = {
     // app.exit skips before-quit, and a restart is not a quit: a recording and a replay buffer Racing Desk started are
     // left running in OBS for the relaunched app to take over (leaveForRelaunch), so the race stays one video. This key
     // is held only while he is in the car, so the new instance must not start OBS with the app (--no-obs-start): the
-    // dialogs OBS can open at its start would land over the sim.
-    leaveForRelaunch().finally(() => {
-      app.relaunch({ args: [...process.argv.slice(1).filter((a) => a !== NO_OBS_START), NO_OBS_START] });
+    // dialogs OBS can open at its start would land over the sim; and it must not open the desk over the sim either
+    // (--no-desk): the desk's closing is a quit, and a recording the restart was meant to keep would be stopped by it.
+    // A quit that comes while the relaunch waits gives it up (before-quit): `go` is then false.
+    leaveForRelaunch().then((go) => {
+      if (!go) return;
+      app.relaunch({ args: [...process.argv.slice(1).filter((a) => a !== NO_OBS_START && a !== NO_DESK), NO_OBS_START, NO_DESK] });
       app.exit(0);
     });
   },
@@ -518,6 +527,7 @@ async function openObs() {
 // has to ask. The telemetry is asked until it answers (a host just started answers a few seconds late; up to a
 // minute), and OBS is started only if it says he is out of the car.
 const NO_OBS_START = '--no-obs-start';
+const NO_DESK = '--no-desk';   // no desk window at start; the relaunch Ctrl+Shift+G makes carries it too, for the same reason
 async function startObsWithApp() {
   const asked = Date.now();
   for (;;) {
@@ -798,15 +808,19 @@ function stopOwnedRecording() {
 // on in — and the relaunched app, back within seconds, takes them over when OBS answers, so a restart mid-race leaves the
 // race one video (modules/js/obs/recording.js, leaveForRelaunch). The HUD source stays on: the page in OBS stays loaded
 // and goes on by itself when the new listener is up. A take under way ends and his facecam is shown again, as at a quit:
-// nothing drives the replay once this process is gone. A filing under way is waited for, as at a quit.
+// nothing drives the replay once this process is gone (first, and then the keeper, so that nothing is closed that a quit
+// arriving meanwhile would need). A filing under way is waited for, as at a quit.
+// Resolves to whether the relaunch is to go on. It is not when a quit is under way, or comes while this waits (the tray's
+// Quit, the desk closed: before-quit gives the relaunch up, `relaunchPending`, and takes the quit path, which stops what
+// Racing Desk started and files it — the relaunch must not leave it running with no app).
 function leaveForRelaunch() {
-  if (stoppedForQuit) return Promise.resolve();
-  stoppedForQuit = true;
+  if (stoppedForQuit || relaunchPending) return Promise.resolve(false);
+  relaunchPending = true;
   const tvOff = Promise.race([tvShots.stopForQuit(), new Promise((resolve) => setTimeout(resolve, 1500))]).catch(() => {});
   return Promise.race([
-    Promise.all([recording.leaveForRelaunch(), tvOff]),
+    tvOff.then(() => (relaunchPending ? recording.leaveForRelaunch() : null)),
     new Promise((resolve) => setTimeout(resolve, obs.recording.QUIT_WAIT_MS + obs.recording.FILING_QUIT_WAIT_MS + 500)),
-  ]).catch((err) => logToFile(`[RacingDesk] Recording: could not be left for the relaunch: ${err.message}`));
+  ]).catch((err) => logToFile(`[RacingDesk] Recording: could not be left for the relaunch: ${err.message}`)).then(() => relaunchPending);
 }
 
 // Where the HUD's page reads its telemetry. The settings are read again every ten seconds, not every poll.
@@ -1148,7 +1162,7 @@ app.whenReady().then(async () => {
   if (isDev) hudKeys.hold(true);
 
   await startLocalHost();
-  if (!process.argv.includes('--no-desk')) showDesk();
+  if (!process.argv.includes(NO_DESK)) showDesk();
 });
 
 app.on('will-quit', () => {

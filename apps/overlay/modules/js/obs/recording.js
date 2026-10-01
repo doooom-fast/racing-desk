@@ -66,9 +66,11 @@
 //   end (filing.js, mp4-info.js); the sidecar's summary says which. Quitting waits, for a few seconds, for a filing
 //   still under way: a recording stopped a moment before he closes the desk is filed all the same.
 // - The Ctrl+Shift+G relaunch is not a quit (leaveForRelaunch): the recording and the replay buffer this keeper started
-//   run on in OBS, the state file says both are ours (the buffer as `replayOurs`; with no recording of ours, that alone),
-//   the sidecar is closed with the reason, and the relaunched app's keeper takes them over when OBS answers — the sidecar
-//   gone on in from the same file, the buffer stopped when he leaves the car — so a restart mid-race leaves one video.
+//   run on in OBS, the state file says both are ours (the buffer as a claim, `replayOurs` and `relaunchedAt`, honoured
+//   once and only within two minutes; with no recording of ours, the claim alone — and a file that already names a
+//   recording is kept, with the claim added), the sidecar is closed with the reason, and the relaunched app's keeper takes
+//   them over when OBS answers — the sidecar gone on in from the same file, the buffer stopped when he leaves the car — so
+//   a restart mid-race leaves one video. A real quit that begins while the relaunch still waits wins (stopOwnedForQuit).
 // - A TV take (tv-shots.js): a recording asked for with `take` — the race's folder and the name to file it under
 //   (`<the race's video> tv`) — is one of ours like any other, never starts OBS, gets a sidecar of `kind: 'tv'` with no
 //   chapters (its laps are the replay's), and is filed into that folder under that name. While a take runs auto-record
@@ -106,6 +108,7 @@ const CLAIM_MS = 60000;          // a StartRecord's claim on the STARTED that fo
 const SIDECAR_HZ = 30;
 const AUTO_RETRY_MS = 30000;     // auto-record tries a start that failed again no sooner than this
 const REPLAY_RETRY_MS = 60000;   // the replay buffer that would not start is tried again no sooner than this
+const RELAUNCH_CLAIM_MS = 120000;   // the replay buffer a Ctrl+Shift+G relaunch leaves running is claimed by the relaunched app within this long; later, it is no one's claim
 const REPLAY_SECONDS = 20;
 const RING_EXTRA_S = 10;
 const CHAPTER_FAILED = 702;      // obs-websocket RequestProcessingFailed: the output takes no chapters (not Hybrid MP4), or is paused
@@ -307,18 +310,25 @@ function createRecordingKeeper({
   // The replay buffer: `ours` is OBS's STOPPED and no earlier; `failedAt` is the last start that failed, not the last
   // start; `seconds` is OBS's own RecRBTime where it said, `settingSeconds` the card's.
   const replay = { running: false, ours: false, busy: false, unavailable: null, lastSaved: null, failedAt: 0, saving: false, seconds: null, settingSeconds: REPLAY_SECONDS };
-  let replayClaim = false;     // the state file says the buffer running is ours (left by a relaunch): taken in askReplayStatus
+  // The replay buffer a relaunch left running to this keeper: { at } (when it was left) from the state file until OBS has
+  // answered whether the buffer is running (askReplayStatus), or says it is (a StartReplayBuffer answered 500). A read
+  // that got no answer leaves it where it is.
+  let replayClaim = null;
+  let quitBegun = false;       // stopOwnedForQuit has begun: a relaunch that is still waiting gives itself up (leaveForRelaunch)
   const ring = [];             // { at, payload } for the last seconds, while the replay buffer runs (payload: trimPayload's)
   const offs = [];
   const rules = autoRules || createAutoRecord({ now });
 
   // ── The state file: which recording is ours ──
   // { owned: the file STARTED named, current: the file being written (a split moves it), startedAt, auto, take, folder,
-  //   seenAt, replayOurs }. `take` is { folder, baseName } while the recording is a TV take: one found running after a
-  // restart has lost what was driving it, and is stopped, not kept as a recording of his. `replayOurs` says the replay
-  // buffer running in OBS is this keeper's (started with the car), so that the app relaunched by Ctrl+Shift+G stops it
-  // when he leaves the car, as this one would have. With no recording of ours the file may hold that alone
-  // ({ owned: null, replayOurs: true }): written for a relaunch and nothing else, and read once by the next start.
+  //   seenAt }. `take` is { folder, baseName } while the recording is a TV take: one found running after a restart has
+  // lost what was driving it, and is stopped, not kept as a recording of his.
+  // The Ctrl+Shift+G relaunch adds a claim to it: `replayOurs: true` and `relaunchedAt`, which say the replay buffer
+  // running in OBS is this keeper's (started with the car), so that the app relaunched stops it when he leaves the car,
+  // as this one would have. Only a relaunch writes it (leaveForRelaunch), and only the keeper that finds it within
+  // RELAUNCH_CLAIM_MS of `relaunchedAt` honours it, once: a buffer he started himself, long after, is never made ours by
+  // a file that was left behind. With no recording of ours the file may hold the claim alone
+  // ({ owned: null, replayOurs: true, relaunchedAt }).
   function readState() {
     try {
       const parsed = JSON.parse(String(fsModule.readFileSync(stateFile, 'utf8')));
@@ -339,18 +349,53 @@ function createRecordingKeeper({
       log(`[RacingDesk] Recording: the state file could not be written: ${e.message}`);
     }
   }
-  function writeState() {
+  // The relaunch's claim on the replay buffer, as the file has it: freshly made (`handOn`: a relaunch is under way), or
+  // the one this keeper found and has not used up yet, so that a write in between does not lose it.
+  function claimFields(handOn = false) {
+    if (handOn) return { replayOurs: true, relaunchedAt: now() };
+    if (replayClaim) return { replayOurs: true, relaunchedAt: replayClaim.at };
+    return {};
+  }
+  function writeState(handOn = false) {
     if (!stateFile || !key) return;
-    writeStateJson({ owned: key, current: outputPath, startedAt, auto, take: take || null, folder: session ? session.folder : null, seenAt: lastSeenAt || null, replayOurs: replay.ours });
+    writeStateJson({ owned: key, current: outputPath, startedAt, auto, take: take || null, folder: session ? session.folder : null, seenAt: lastSeenAt || null, ...claimFields(handOn) });
   }
   // The replay buffer alone is ours (nothing of ours is recording): for the relaunch, which hands it on.
   function writeReplayState() {
     if (!stateFile) return;
-    writeStateJson({ owned: null, replayOurs: true, at: now() });
+    writeStateJson({ owned: null, ...claimFields(true) });
   }
   function clearState() {
     if (!stateFile) return;
     try { fsModule.unlinkSync(stateFile); } catch (e) { /* none */ }
+  }
+  // The claim in the file is used up, or too old to be one: a file that held it alone goes, and one that names a
+  // recording is written again without it.
+  function dropClaimFromFile() {
+    const kept = readState();
+    if (!kept || (kept.replayOurs === undefined && kept.relaunchedAt === undefined)) return;
+    if (typeof kept.owned !== 'string') { clearState(); return; }
+    const rest = { ...kept };
+    delete rest.replayOurs;
+    delete rest.relaunchedAt;
+    writeStateJson(rest);
+  }
+  const claimFresh = (at) => { const age = now() - Number(at); return Number.isFinite(age) && Math.abs(age) <= RELAUNCH_CLAIM_MS; };
+  // Whether the Racing Desk before this one left the replay buffer to this keeper, and it has not been settled yet.
+  function replayClaimLive() {
+    if (replayClaim && !claimFresh(replayClaim.at)) replayClaim = null;
+    return replayClaim !== null;
+  }
+  // The claim is settled: the buffer is running, so it is ours (stopped when he leaves the car, or at a quit) — or it is
+  // not, and the claim has nothing to take. Either way the file no longer says it.
+  function settleReplayClaim(running) {
+    const live = replayClaimLive();
+    replayClaim = null;
+    if (live && running) {
+      replay.ours = true;
+      log('[RacingDesk] Replay buffer already running, ours (left by the Racing Desk that was relaunched)');
+    }
+    dropClaimFromFile();
   }
   const samePath = (a, b) => !!a && !!b && String(a).replace(/\//g, '\\').toLowerCase() === String(b).replace(/\//g, '\\').toLowerCase();
   const claimActive = () => !!claim && now() - claim.at <= claimMs;
@@ -896,8 +941,10 @@ function createRecordingKeeper({
     } catch (e) {
       if (e && e.code === 500) {
         // Running already, or still stopping: not ours. The event that says it has stopped is what is waited for, and
-        // the next look starts it.
+        // the next look starts it. Unless the Racing Desk before this one left it to us (a relaunch) and the read of its
+        // status that was to say so got no answer: running is all that claim waited for.
         replay.running = true;
+        if (replayClaimLive()) settleReplayClaim(true);
       } else {
         replay.failedAt = now();
         if (e && e.code === 604) {
@@ -1150,9 +1197,13 @@ function createRecordingKeeper({
     const gen = generation;
     // What the Racing Desk before this one left: a recording of ours (below), and whether the replay buffer running is
     // ours — the Ctrl+Shift+G relaunch leaves both running, and this connect is where they become this keeper's (the
-    // buffer in askReplayStatus, which follows).
+    // buffer in askReplayStatus, which follows at once). A claim made long ago is no claim: a buffer he started himself
+    // in the meantime is his.
     const left = readState();
-    if (left && left.replayOurs === true) replayClaim = true;
+    if (left && left.replayOurs === true) {
+      if (claimFresh(left.relaunchedAt)) replayClaim = { at: Number(left.relaunchedAt) };
+      else { log('[RacingDesk] Replay buffer: the state file\'s claim on it is old, so a buffer running now is not taken as ours'); dropClaimFromFile(); }
+    }
     let s;
     try { s = await client.request('GetRecordStatus'); } catch (e) { return; }
     if (gen !== generation) return;   // a STARTED or STOPPED said how it stands while this was asking
@@ -1216,36 +1267,33 @@ function createRecordingKeeper({
     log(`[RacingDesk] Recording already running${owned ? (leftTake ? ', ours, a TV take' : ', ours') : ' (OBS\'s)'}: ${found || 'path not said'}, ${Math.round((now() - startedAt) / 1000)} s in`);
     bookStatus();
     announce();
-    // The host may not be up yet (Racing Desk's own start): the telemetry is waited for, not asked once.
-    await beginSidecar({ keptFolder: keptIsThis ? kept.folder : null, patient: true, take: leftTake });
-    if (leftTake && recording && owned && key && samePath(key, found)) {
-      log('[RacingDesk] Recording: the TV take a closed Racing Desk left running is stopped');
-      await stop().catch((e) => log(`[RacingDesk] Recording: the left TV take was not stopped: ${e.message}`));
-    }
+    // What is left to do waits for the host, which may not be up yet (Racing Desk's own start: the telemetry is waited for,
+    // not asked once, up to half a minute). It is handed back, not waited for here, so that the replay buffer's state — and
+    // with it the claim a relaunch left on the buffer — is settled first (onClientChange).
+    return async () => {
+      await beginSidecar({ keptFolder: keptIsThis ? kept.folder : null, patient: true, take: leftTake });
+      if (leftTake && recording && owned && key && samePath(key, found)) {
+        log('[RacingDesk] Recording: the TV take a closed Racing Desk left running is stopped');
+        await stop().catch((e) => log(`[RacingDesk] Recording: the left TV take was not stopped: ${e.message}`));
+      }
+    };
   }
 
   async function askReplayStatus() {
+    let answered = false;
     try {
       const r = await client.request('GetReplayBufferStatus');
       replay.running = !!(r && r.outputActive);
       replay.unavailable = null;
+      answered = true;
       if (replay.running) { bookTap(); readReplaySeconds().catch(() => {}); }
     } catch (e) {
-      if (e && e.code === 604) { replay.running = false; replay.unavailable = await noReplayBufferSentence(); }
+      if (e && e.code === 604) { replay.running = false; replay.unavailable = await noReplayBufferSentence(); answered = true; }
     }
     // The buffer the Racing Desk before this one left running (the Ctrl+Shift+G relaunch) is ours again, to be stopped
-    // when he leaves the car; a state file that held that alone has done its work, and one with a recording of ours in
-    // it is written again so that it says so of the buffer too.
-    if (replayClaim) {
-      replayClaim = false;
-      if (replay.running) {
-        replay.ours = true;
-        log('[RacingDesk] Replay buffer already running, ours (left by the Racing Desk that was relaunched)');
-      }
-      const kept = readState();
-      if (kept && kept.owned === null) clearState();
-      else if (kept && owned) writeState();
-    }
+    // when he leaves the car. Only an answer settles that: a read that failed (a timeout, a dropped connection) leaves the
+    // claim, in memory and in the file, for the next read or for the StartReplayBuffer that finds the buffer running.
+    if (answered && replayClaim) settleReplayClaim(replay.running);
     announce();
   }
 
@@ -1255,8 +1303,10 @@ function createRecordingKeeper({
       // Something has changed: a start auto-record gave up on, and a replay buffer that would not start, are tried again.
       autoGaveUp = null;
       replay.failedAt = 0;
-      // The recording first, then the replay buffer's state (after, so that the take-over's requests stay in order).
-      takeOver().catch((e) => log(`[RacingDesk] Recording: take-over failed: ${e.message}`)).finally(() => { if (client.identified()) askReplayStatus().catch(() => {}); });
+      // The recording first, then the replay buffer's state (after, so that the take-over's requests stay in order, and
+      // before the wait for the host that the take-over hands back: a quit in that wait must find the buffer a relaunch
+      // left to us already settled, to stop it with the recording).
+      takeOverAndAskReplay();
     } else if (state.phase === 'closed' || state.phase === 'stopped') {
       // A connection that closed is not a recording that ended (see the rules at the top). What cannot be waited for
       // any more is let go of: a start whose STARTED can no longer come, a stop whose STOPPED can no longer come.
@@ -1566,11 +1616,21 @@ function createRecordingKeeper({
   // ── Quitting ──
   // A start that is under way counts: Racing Desk may be quit between StartRecord and the STARTED that follows it.
   // A filing still under way counts too: a recording stopped a moment before the quit is not filed yet.
+  // A claim a relaunch left on the replay buffer, not yet settled, counts: the buffer may be running, and ours.
   function needsStopForQuit() {
-    return (owned && (recording || starting)) || (!recording && claimActive()) || !!session || (replay.running && replay.ours) || pendingFilings.size > 0;
+    return (owned && (recording || starting)) || (!recording && claimActive()) || !!session || (replay.running && replay.ours) || pendingFilings.size > 0 || replayClaimLive();
   }
 
   async function stopOwnedForQuit() {
+    // A relaunch that is still waiting gives itself up (leaveForRelaunch): this is the quit, and it stops what it stops.
+    quitBegun = true;
+    if (replayClaimLive() && client.identified()) {
+      // The buffer a relaunch left to us, whose state has not been read yet (the connection is new, or the read failed):
+      // asked now, so that it is stopped with the recording and not left running with no app.
+      let timer = null;
+      await Promise.race([askReplayStatus().catch(() => {}), new Promise((resolve) => { timer = unrefed(setTimer(resolve, quitWaitMs)); })]);
+      if (timer !== null) clearTimer(timer);
+    }
     if (!recording && claimActive() && client.identified()) {
       // StartRecord is on its way: its STARTED is waited for a moment, so that what it starts is stopped too.
       await waitFor(() => recording, quitWaitMs);
@@ -1619,25 +1679,46 @@ function createRecordingKeeper({
 
   // ── Relaunching (Ctrl+Shift+G, a key held only in the car) ──
   // A restart is not a quit. The recording and the replay buffer this keeper started run on in OBS; the state file says
-  // both are ours (the buffer as `replayOurs`, alone when nothing of ours is recording), and the relaunched app's keeper
-  // takes them over when OBS answers (takeOver, askReplayStatus) — the sidecar gone on in from the same file (a `resumed`
-  // line, no second header; beginSidecar), the buffer stopped when he leaves the car — so a restart mid-race leaves the
-  // race one video with one sidecar. The sidecar's summary is written now, as at a quit, with the reason. What a quit
-  // waits for is waited for here too: a StartRecord whose STARTED has not come (the file it names is what the state file
-  // must hold), and a filing under way. Nothing is sent to OBS.
+  // both are ours (the buffer as a claim, `replayOurs` and `relaunchedAt`, alone when nothing of ours is recording), and
+  // the relaunched app's keeper takes them over when OBS answers (takeOver, askReplayStatus) — the sidecar gone on in from
+  // the same file (a `resumed` line, no second header; beginSidecar), the buffer stopped when he leaves the car — so a
+  // restart mid-race leaves the race one video with one sidecar. The sidecar's summary is written now, as at a quit, with
+  // the reason. What a quit waits for is waited for here too: a StartRecord whose STARTED has not come (the file it names
+  // is what the state file must hold), and a filing under way. Nothing is sent to OBS.
+  // A real quit that begins while this waits wins: it stops and files what is running (stopOwnedForQuit), so nothing is
+  // written here and the sidecar is left open for it. A state file that already names a recording — one this keeper lost
+  // track of when OBS was out of reach for half a minute, or one the relaunched app has not taken over yet — is kept as
+  // it is, with the claim added: the file is what the next app finds the recording by.
   async function leaveForRelaunch() {
+    if (quitBegun) return { ok: false, cancelled: true };
     if (!recording && claimActive() && client.identified()) await waitFor(() => recording, quitWaitMs);
     await waitForFilings('relaunching');
+    if (quitBegun) return { ok: false, cancelled: true };
+    const handOn = (replay.running && replay.ours) || replayClaimLive();
     if (owned && (recording || starting)) {
       lastSeenAt = now();
-      writeState();
-      log(`[RacingDesk] Recording: relaunching, so the recording Racing Desk started runs on for the relaunched app to take over${replay.running && replay.ours ? ', and so does the replay buffer' : ''}`);
-    } else if (replay.running && replay.ours) {
-      writeReplayState();
+      writeState(handOn);
+      log(`[RacingDesk] Recording: relaunching, so the recording Racing Desk started runs on for the relaunched app to take over${handOn ? ', and so does the replay buffer' : ''}`);
+    } else if (handOn) {
+      const kept = readState();
+      if (kept && typeof kept.owned === 'string') writeStateJson({ ...kept, ...claimFields(true) });
+      else writeReplayState();
       log('[RacingDesk] Recording: relaunching, so the replay buffer Racing Desk started runs on for the relaunched app to take over');
     }
     endSidecar('Racing Desk relaunch');
     return { ok: true };
+  }
+
+  // OBS has answered and is identified: the recording is taken over, then the replay buffer's state is read (and the claim
+  // a relaunch left on it settled), then what the take-over left waiting for the host is done.
+  function takeOverAndAskReplay() {
+    takeOver()
+      .catch((e) => { log(`[RacingDesk] Recording: take-over failed: ${e.message}`); return null; })
+      .then(async (afterwards) => {
+        if (client.identified()) await askReplayStatus().catch(() => {});
+        if (afterwards) await afterwards();
+      })
+      .catch((e) => log(`[RacingDesk] Recording: take-over failed: ${e.message}`));
   }
 
   function start() {
@@ -1649,7 +1730,7 @@ function createRecordingKeeper({
     offs.push(client.onChange(onClientChange));
     refreshFree().then(() => announce());
     bookIdleFree();
-    if (client.identified()) takeOver().catch(() => {});
+    if (client.identified()) takeOverAndAskReplay();
   }
 
   function dispose() {
@@ -1667,7 +1748,7 @@ function createRecordingKeeper({
 
 module.exports = {
   STATE, RECORD_OUTPUT, FLOOR_START_BYTES, FLOOR_STOP_BYTES, DEFAULT_BYTES_PER_SECOND, WAIT_STARTED_MS, WAIT_OBS_MS, WAIT_SAVED_MS, QUIT_WAIT_MS, LOST_AFTER_MS, CLAIM_MS,
-  AUTO_RETRY_MS, REPLAY_RETRY_MS, REPLAY_SECONDS, FILING_QUIT_WAIT_MS, SILENT_LIMIT_MS,
+  AUTO_RETRY_MS, REPLAY_RETRY_MS, REPLAY_SECONDS, FILING_QUIT_WAIT_MS, SILENT_LIMIT_MS, RELAUNCH_CLAIM_MS,
   NOT_OPEN, NOTICE_NOT_OPEN, NOTICE_NOT_STARTED, NOT_STARTED, NOT_ANSWERING, REFUSED_PASSWORD, MISSING_PASSWORD, OPEN_NOT_REACHED, LOST_START, ALREADY, NOT_RECORDING,
   REPLAY_OFF, REPLAY_NOT_RUNNING, REPLAY_NONE, REPLAY_NEXT_START, REPLAY_NOT_SAVED,
   isSimLive, freeSpaceOf, readSidecarEnds, gb, driveOf, createRecordingKeeper,

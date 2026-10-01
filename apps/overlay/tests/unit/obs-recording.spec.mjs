@@ -323,6 +323,7 @@ test('the status says what the card needs, and every change is announced', async
   const r = rig();
   try {
     await until(() => r.keeper.status().obs === 'open');
+    await until(() => r.keeper.status().replay.unavailable !== null);   // the buffer's state is asked after the take-over's: a few round trips after "open", which a loaded machine makes many
     const s = r.keeper.status();
     expect(Object.keys(s).sort()).toEqual(['auto', 'autoHeld', 'autoRecord', 'busy', 'bytes', 'bytesPerSecond', 'chapters', 'elapsedMs', 'filed', 'free', 'kind', 'last', 'lastFiled', 'lowDisk', 'obs', 'obsVersion', 'outputPath', 'owned', 'paused', 'recording', 'replay', 'sidecar', 'startedAt', 'starting', 'stopping']);
     expect(s.replay).toEqual({ on: false, running: false, ours: false, unavailable: 'OBS has no replay buffer. Press Set up OBS, then open OBS again.', lastSaved: null });
@@ -1079,12 +1080,12 @@ test('a recording OBS started by Ctrl+Space during a live session is filed the s
 
 // A keeper over a client whose port the test can move (an OBS that crashed has nothing listening; one that came back
 // has), with the disk, the clock and the sim as fakes.
-function aimedRig({ lostAfterMs = 200, keeper: keeperOptions = {}, payload = RACE_FRAME() } = {}) {
+function aimedRig({ lostAfterMs = 200, keeper: keeperOptions = {}, payload = RACE_FRAME(), settings = {} } = {}) {
   let aim = server.port;
   const lines = [];
   const client = createObsClient({ port: () => aim, password: () => PASSWORD, retryMs: 40, authRetryMs: 100, connectTimeoutMs: 300, log: (l) => lines.push(l) });
   const keeper = createRecordingKeeper({
-    client, settings: () => ({ obsStartOnRecord: true }), recordFolder: () => dir, stateFile: stateFileOf(),
+    client, settings: () => ({ obsStartOnRecord: true, ...settings }), recordFolder: () => dir, stateFile: stateFileOf(),
     freeSpace: async () => 400e9, fetchPayload: async () => payload, inCar: () => true, log: (l) => lines.push(l),
     waitStartedMs: 400, waitStoppedMs: 400, quitWaitMs: 300, statusEveryMs: 60, idleFreeEveryMs: 100000, sidecarHz: 100, lostAfterMs,
     stableMs: 40, stableTimeoutMs: 2000, moveRetryMs: 20, ...keeperOptions,
@@ -1319,7 +1320,9 @@ test('Ctrl+Shift+G is a restart, not a quit: the recording and the replay buffer
     const resumedAt = lines.findIndex((l) => l._type === 'resumed');
     expect(resumedAt).toBeGreaterThan(lines.findIndex((l) => l._type === 'summary'));
     expect(lines.slice(resumedAt + 1).filter((l) => !l._type && Number.isFinite(l.frame)).length).toBeGreaterThanOrEqual(1);
-    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).toMatchObject({ owned: started.path, replayOurs: true });
+    // The claim is used up: the file names the recording and says nothing more of the buffer.
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).toMatchObject({ owned: started.path });
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).not.toHaveProperty('replayOurs');
     // A real quit — the desk closed, the tray's Quit — stops both, as it would have before the restart, and files it.
     fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
     expect(w.keeper.needsStopForQuit()).toBe(true);
@@ -1392,6 +1395,214 @@ test('a relaunch with the replay buffer running and nothing recording: the state
     expect(server.state.replayBuffer).toBe(true);
     expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(1);
   } finally { k.dispose(); }
+});
+
+// ── What the review of the relaunch found ────────────────────────────────────────────────────────────────────────
+
+// Feed a keeper that has no rig round it (aimedRig) the payload every 40 ms until `what`.
+async function feedKeeperUntil(keeper, payload, what, timeoutMs = 4000) {
+  const start = Date.now();
+  while (!what()) {
+    if (Date.now() - start > timeoutMs) throw new Error('waited too long');
+    keeper.feed(payload);
+    await settle(40);
+  }
+}
+const replayAnswers = () => server.requests.filter((q) => q.type === 'GetReplayBufferStatus').length;
+const GRID = () => RACE_FRAME({ 'RacingDesk.Plugin.Grid.SessionState': 2 });
+const BUFFER_ONLY = { recordingInstantReplay: true, recordingAutoRecord: false };
+
+// A first keeper that has the replay buffer running as its own, and is left for a relaunch with nothing of its own
+// recording: the file then holds the claim alone.
+async function leaveBufferForRelaunch() {
+  server.state.profile.AdvOut.RecRB = 'true';
+  const r = rig({ inCar: true, payload: GRID(), settings: BUFFER_ONLY });
+  try {
+    await untilFed(r, () => r.keeper.status().replay.running && r.keeper.status().replay.ours, 3000);
+    await until(() => server.state.replayBuffer);
+    await r.keeper.leaveForRelaunch();
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).toMatchObject({ owned: null, replayOurs: true });
+  } finally { r.dispose(); }
+}
+
+test('Ctrl+Shift+G with OBS out of reach for more than the half minute: the state file keeps naming the recording that was lost track of, with the buffer\'s claim added, and the relaunched keeper takes both', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  const frame = RACE_FRAME();
+  const a = aimedRig({ lostAfterMs: 200, payload: frame, settings: { recordingInstantReplay: true } });
+  let started;
+  try {
+    await until(() => a.keeper.status().obs === 'open');
+    started = await a.keeper.record({ source: 'desk' });
+    expect(started.ok).toBe(true);
+    await feedKeeperUntil(a.keeper, frame, () => a.keeper.status().replay.running && a.keeper.status().replay.ours);
+    await until(() => a.keeper.status().sidecar && a.keeper.status().sidecar.frames >= 2);
+    // Only a relaunch writes a claim on the buffer: the file of a recording that is simply going says nothing of it.
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).not.toHaveProperty('replayOurs');
+    // OBS goes out of reach and stays so: the card stops saying it records, and the state file is kept...
+    a.setAim(await deadPort());
+    for (const s of server.clients()) s.conn.destroy();
+    await until(() => !a.keeper.status().recording, 3000);
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8')).owned).toBe(started.path);
+    // ...but a closed connection says nothing of the buffer, which is Racing Desk's as far as it knows.
+    expect(a.keeper.status().replay).toMatchObject({ running: true, ours: true });
+    // He presses Ctrl+Shift+G: the file that names the recording is not written over by one that names the buffer alone.
+    await a.keeper.leaveForRelaunch();
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).toMatchObject({ owned: started.path, replayOurs: true });
+  } finally { a.dispose(); }
+
+  // OBS answers the relaunched app: the recording is Racing Desk's, not OBS's own, and so is the buffer.
+  const w = rig({ inCar: true, payload: frame, settings: { recordingInstantReplay: true } });
+  try {
+    await until(() => w.keeper.status().recording && w.keeper.status().owned, 3000);
+    await until(() => w.keeper.status().replay.ours, 3000);
+    expect(w.lines.some((l) => /Recording already running, ours/.test(l))).toBe(true);
+    expect(w.lines.some((l) => /already running \(OBS's\)/.test(l))).toBe(false);
+    expect(server.requests.filter((q) => q.type === 'StartRecord')).toHaveLength(1);
+    expect(server.requests.filter((q) => q.type === 'StartReplayBuffer')).toHaveLength(1);
+    // A real quit stops both.
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    await w.keeper.stopOwnedForQuit();
+    expect(server.state.recording).toBe(false);
+    await until(() => !server.state.replayBuffer, 1000);   // OBS's STOPPED comes a moment after the answer
+  } finally { w.dispose(); }
+});
+
+test('a claim on the replay buffer is honoured only from a relaunch that has just left it: an old one, or one with no stamp, is dropped, and a buffer he started himself stays his', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  server.handlers.StartReplayBuffer({});   // he started it himself, in OBS
+  await until(() => server.state.replayBuffer);
+  fs.mkdirSync(path.dirname(stateFileOf()), { recursive: true });
+  // A relaunch that never got to OBS (or a crash): its file is ten minutes old when the next start finds it.
+  fs.writeFileSync(stateFileOf(), JSON.stringify({ owned: null, replayOurs: true, relaunchedAt: Date.now() - 10 * 60 * 1000 }));
+  const a = rig({ inCar: true, payload: GRID(), settings: BUFFER_ONLY });
+  try {
+    await until(() => a.keeper.status().replay.running, 3000);
+    await until(() => !fs.existsSync(stateFileOf()), 2000);
+    await settle(100);
+    expect(a.keeper.status().replay.ours).toBe(false);
+    expect(a.lines.some((l) => /claim on it is old/.test(l))).toBe(true);
+    // Out of the car it is left running: it is his.
+    a.fake.inCar = false;
+    await feedFor(a, 6);
+    expect(server.state.replayBuffer).toBe(true);
+    expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(0);
+  } finally { a.dispose(); }
+
+  // The file a recording of ours leaves with a claim in it that nothing stamped: not honoured either, and written again
+  // without it.
+  const mp4 = `${asSlashes(dir)}/earlier.mp4`;
+  server.startRecording(mp4);
+  fs.writeFileSync(stateFileOf(), JSON.stringify({ owned: mp4.replace(/\//g, '\\'), current: mp4, startedAt: Date.now() - 5000, replayOurs: true }));
+  const b = rig({ inCar: true, payload: GRID(), settings: BUFFER_ONLY });
+  try {
+    await until(() => b.keeper.status().recording && b.keeper.status().owned, 3000);
+    await until(() => b.keeper.status().replay.running, 3000);
+    await settle(150);
+    expect(b.keeper.status().replay.ours).toBe(false);
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).not.toHaveProperty('replayOurs');
+    b.fake.inCar = false;
+    await feedFor(b, 6);
+    expect(server.state.replayBuffer).toBe(true);
+    expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(0);
+  } finally { b.dispose(); }
+});
+
+test('a relaunched keeper whose read of the replay buffer\'s status gets no answer keeps the claim: the buffer is still found to be ours, and stopped when he leaves the car', async () => {
+  await leaveBufferForRelaunch();
+  server.fail('GetReplayBufferStatus', 700, 'OBS is busy');   // the relaunched app's first read of it
+  const askedBefore = replayAnswers();
+  const w = rig({ inCar: true, payload: GRID(), settings: BUFFER_ONLY });
+  try {
+    await until(() => w.keeper.status().obs === 'open');
+    await until(() => replayAnswers() > askedBefore, 3000);
+    await settle(100);
+    // The read that failed has not used the claim up, in the file or in the keeper.
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).toMatchObject({ owned: null, replayOurs: true });
+    expect(w.keeper.status().replay).toMatchObject({ running: false, ours: false });
+    // In the car it is asked to start; OBS says it is running; that is all the claim waited for.
+    await untilFed(w, () => w.keeper.status().replay.ours, 3000);
+    expect(w.lines.some((l) => /Replay buffer already running, ours/.test(l))).toBe(true);
+    await until(() => !fs.existsSync(stateFileOf()), 2000);
+    w.fake.inCar = false;
+    await untilFed(w, () => !server.state.replayBuffer, 3000);
+    expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(1);
+  } finally { w.dispose(); }
+});
+
+test('a quit while the relaunched keeper still waits for the host stops the buffer too, and one that comes while the claim is still unsettled asks for the buffer\'s state itself', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  const frame = RACE_FRAME();
+  const r = rig({ inCar: true, payload: frame, settings: { recordingInstantReplay: true } });
+  let started;
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    started = await r.keeper.record({ source: 'desk' });
+    await untilFed(r, () => r.keeper.status().replay.running && r.keeper.status().replay.ours, 3000);
+    await until(() => server.state.replayBuffer);
+    await r.keeper.leaveForRelaunch();
+  } finally { r.dispose(); }
+  // The relaunched app, with the host not up yet: its take-over waits for the telemetry (up to half a minute) before the
+  // sidecar. The buffer's claim is settled before that wait, so a quit in it finds the buffer ours.
+  const w = rig({ inCar: true, payload: null, settings: { recordingInstantReplay: true }, keeper: { liveEveryMs: 50 } });
+  try {
+    await until(() => w.keeper.status().recording && w.keeper.status().owned, 3000);
+    await until(() => w.keeper.status().replay.ours, 1000);
+    expect(w.keeper.status().sidecar).toBeNull();   // still waiting for the host
+    expect(w.keeper.needsStopForQuit()).toBe(true);
+    await w.keeper.stopOwnedForQuit();
+    expect(server.state.recording).toBe(false);
+    await until(() => !server.state.replayBuffer, 1000);   // OBS's STOPPED comes a moment after the answer
+    expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(1);
+  } finally { w.dispose(); }
+
+  // Another quit: the first read of the buffer got no answer, so the claim is unsettled when the quit comes, and the quit
+  // asks for it, and stops the buffer.
+  fs.rmSync(stateFileOf(), { force: true });
+  server.state.replayBuffer = false;
+  await leaveBufferForRelaunch();
+  server.fail('GetReplayBufferStatus', 700, 'OBS is busy');
+  const askedBefore = replayAnswers();
+  const x = rig({ inCar: true, payload: GRID(), settings: BUFFER_ONLY });
+  try {
+    await until(() => x.keeper.status().obs === 'open');
+    await until(() => replayAnswers() > askedBefore, 3000);
+    await settle(100);
+    expect(x.keeper.status().replay.ours).toBe(false);
+    expect(x.keeper.needsStopForQuit()).toBe(true);
+    const stops = server.requests.filter((q) => q.type === 'StopReplayBuffer').length;
+    await x.keeper.stopOwnedForQuit();
+    await until(() => !server.state.replayBuffer, 1000);   // OBS's STOPPED comes a moment after the answer
+    expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(stops + 1);
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+  } finally { x.dispose(); }
+});
+
+test('a quit that begins while the relaunch still waits for a STARTED wins: the relaunch writes nothing and leaves the sidecar open, and the quit stops the recording and files it', async () => {
+  const r = rig({ inCar: true, payload: RACE_FRAME() });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    server.mode.delayMs = 150;   // OBS takes its time over the STARTED
+    const starting = r.keeper.record({ source: 'desk' });
+    await until(() => server.requests.some((q) => q.type === 'StartRecord'));
+    expect(r.keeper.status().recording).toBe(false);
+    const leaving = r.keeper.leaveForRelaunch();   // Ctrl+Shift+G...
+    const quitting = r.keeper.stopOwnedForQuit();  // ...and the tray's Quit, before the STARTED has come
+    const started = await starting;
+    expect(started.ok).toBe(true);
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    expect(await leaving).toMatchObject({ ok: false, cancelled: true });
+    await quitting;
+    expect(server.state.recording).toBe(false);
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+    const filed = r.keeper.status().lastFiled;
+    expect(filed).not.toBeNull();
+    const lines = linesOf(filed.sidecar);
+    expect(lines.filter((l) => l._type === 'summary')).toHaveLength(1);
+    expect(lines.at(-1)).toMatchObject({ _type: 'summary', reason: 'stopped' });
+    expect(r.lines.some((l) => /relaunching, so the recording/.test(l))).toBe(false);
+    // And once a quit has begun, a relaunch asked for after it does nothing either.
+    expect(await r.keeper.leaveForRelaunch()).toMatchObject({ ok: false, cancelled: true });
+  } finally { r.dispose(); }
 });
 
 test('OBS crashed and is back after more than half a minute: the file it left is filed from the last moment it was seen recording, and its sidecar gets a summary that says so', async () => {

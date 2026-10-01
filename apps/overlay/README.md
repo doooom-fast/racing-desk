@@ -59,7 +59,7 @@ From source the main process logs to `racing-desk-debug.log` in this folder. The
 | `Ctrl+Shift+H` | Switch the HUD off or on — in the car only; out of it, use the tray's "HUD on/off" |
 | `Ctrl+Shift+O` | Open the desk |
 | `Ctrl+Shift+F` | Toggle the glance layout (fullscreen data display, as an iPad is shown) |
-| `Ctrl+Shift+G` | Toggle green-screen mode (restarts the app; a recording or replay buffer it started runs on in OBS and the restarted app takes it over, so the race stays one video) |
+| `Ctrl+Shift+G` | Toggle green-screen mode (restarts the app, without its desk window; a recording or replay buffer it started runs on in OBS and the restarted app takes it over, so the race stays one video) |
 | `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (the one iRacing is on) |
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+V` | Record or stop, in OBS (with OBS closed the HUD says "OBS is not open": OBS is started from the desk, the tray or the Stream Deck) |
