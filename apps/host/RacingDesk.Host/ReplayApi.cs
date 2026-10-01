@@ -31,6 +31,9 @@ namespace RacingDesk.Host
         /// <summary>The live reader, once the host has one; null for a file replay.</summary>
         public IReplayControl Replay { get; set; }
 
+        /// <summary>Called when the route's own check refuses a request (the data API's has passed it, so a browser sent it); the data API writes it down.</summary>
+        public Action Refused { get; set; }
+
         /// <summary>Answers the route whole. The caller has matched the path.</summary>
         public void Handle(HttpListenerContext ctx)
         {
@@ -41,6 +44,7 @@ namespace RacingDesk.Host
                 res.ContentType = "application/json; charset=utf-8";
                 if (!LocalRequest.IsFromThisMachine(ctx.Request))
                 {
+                    try { Refused?.Invoke(); } catch (Exception ex) { Log.Warn($"[RacingDesk.Host] data/replay: {ex.Message}"); }
                     Error(res, 403, NotThisMachine);
                     return;
                 }

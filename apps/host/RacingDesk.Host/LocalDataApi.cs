@@ -24,12 +24,20 @@ namespace RacingDesk.Host
     /// sim is not running. And <c>GET /racing-desk/data/monitors</c>, also Windows's: the monitors' rectangles in
     /// physical pixels, so that a screen can be named by the size it really has (see Monitors.cs).
     ///
+    /// Every route here is for this machine. :8889 answers every address (the iPad reads the telemetry from it), but
+    /// the sessions carry the driver's customer id and the status the store's path, so a request that is not from a
+    /// loopback connection, that names a Host other than this machine's at this port, or that names the origin of a
+    /// web site is refused (403, no CORS header, one line in the log for each route and kind of asker): see
+    /// <see cref="LocalRequest.RefusalOfRead(bool, System.Collections.Specialized.NameValueCollection, int)"/>, which is
+    /// made once for every request under <c>/data/</c> before any route is looked at, a route that is not in
+    /// <see cref="Routes"/> included. The app's own pages are let through, because the desk's page reads them
+    /// (<c>Origin: null</c>, <see cref="LocalRequest.AppOrigins"/>), and a CORS header goes to those and to no other
+    /// origin; a program (the app's Node, the SimHub plugin, curl) says no Origin and is not sent one.
+    ///
     /// One thing is written: <c>POST /racing-desk/data/pedals</c> says which of SmartControl's profiles a car is
-    /// driven with. It is for programs on this machine — the app — and not for a page in a browser, which every
-    /// other route here answers whatever its origin: a request that comes from another machine, that names a
-    /// host other than this machine's own, or that a browser sent (an Origin, a Referer, Sec-Fetch-*) is refused
-    /// (<see cref="LocalRequest"/>, the check the runtime's <c>?action=</c> routes make too). The routes that are
-    /// read stay as they are: the desk's page fetches them, and a page names an origin.
+    /// driven with. It is for programs on this machine — the app — and not for a page in a browser, so beyond the check
+    /// above it refuses a request that a browser sent (an Origin, a Referer, Sec-Fetch-*): <see cref="LocalRequest"/>, the
+    /// check the runtime's <c>?action=</c> routes make too.
     ///
     /// And one more thing, neither the store's nor open to pages: <c>/racing-desk/data/replay</c>, iRacing's replay and
     /// cameras for the app's TV shots (<see cref="ReplayApi"/>), GET and POST both for a program on this machine alone.
@@ -37,6 +45,18 @@ namespace RacingDesk.Host
     internal sealed class LocalDataApi
     {
         private const string Prefix = "/racing-desk/data/";
+
+        /// <summary>
+        /// The routes of this API, by name. The check of who is asking is made before any of them is looked at, so a route
+        /// that is not here is behind it all the same; the list is what the tests ask in turn (a route added to the dispatch
+        /// below and not to this list fails <c>DataRoutesThisMachineTests</c>), and the names the log writes a refusal under.
+        /// </summary>
+        internal static readonly string[] Routes =
+        {
+            "status", "sessions", "session", "schedule", "cars", "views", "pedals", "controls", "simwindow", "monitors", "outline", "replay",
+        };
+
+        private const string NotThisMachine = "this is for the app on this machine";
 
         // A car and a profile's id; anything longer is not one of those.
         private const int MaxBody = 4096;
@@ -55,6 +75,9 @@ namespace RacingDesk.Host
         {
             _dbPath = dbPath;
             _smartControlDb = smartControlDb;
+            // The replay route makes the stricter check of a program's route (no browser's marks) after this API's own; what it
+            // refuses is written down here like the rest.
+            Replay.Refused = () => NoteRefusal("replay", LocalRequest.Refusal.ABrowser);
         }
 
         /// <summary>
@@ -79,13 +102,119 @@ namespace RacingDesk.Host
         /// </summary>
         internal TrackOutlines Outlines { get; set; }
 
-        /// <summary>Claims /data/ requests and answers them off the telemetry thread.</summary>
+        /// <summary>
+        /// Claims /data/ requests, and answers them off the telemetry thread — after the check of who is asking, which every
+        /// one of them has passed before any route is looked at (a refused one is answered here and goes no further).
+        /// A preflight (<c>OPTIONS</c>) is claimed too, so that the runtime's wildcard answer is not the one a page gets.
+        /// </summary>
         public bool TryHandle(HttpListenerContext ctx)
         {
             string path = ctx.Request.Url.AbsolutePath;
             if (!path.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase)) return false;
-            ThreadPool.QueueUserWorkItem(_ => Respond(ctx, path.Substring(Prefix.Length).TrimEnd('/')));
+            string route = path.Substring(Prefix.Length).TrimEnd('/');
+            try
+            {
+                var refusal = LocalRequest.RefusalOfRead(ctx.Request);
+                // A page may not ask the replay (it is for a program, and its own check refuses a page): its preflight is no more answered than the request.
+                if (refusal == LocalRequest.Refusal.None && route == "replay" && ctx.Request.HttpMethod == "OPTIONS") refusal = LocalRequest.Refusal.ABrowser;
+                if (refusal != LocalRequest.Refusal.None)
+                {
+                    Refuse(ctx, route, refusal);
+                    return true;
+                }
+                if (ctx.Request.HttpMethod == "OPTIONS")
+                {
+                    Preflight(ctx);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Whatever went wrong with the check, nothing was answered that it did not pass.
+                Log.Warn($"[RacingDesk.Host] data/{route}: the request could not be checked: {ex.Message}");
+                try { ctx.Response.StatusCode = 500; ctx.Response.OutputStream.Close(); } catch { }
+                return true;
+            }
+            ThreadPool.QueueUserWorkItem(_ => Respond(ctx, route));
             return true;
+        }
+
+        // What has been written down in the log so far, once each. The routes are the list above (anything else is one name)
+        // and the kinds of asker are four, so a device on the network that keeps asking cannot fill the log.
+        private readonly HashSet<string> _refusals = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Writes down that a route was refused, once for each route and kind of asker; true when this call wrote it. Says
+        /// nothing of what was asked beyond the route's name: not the Host, not the Origin, not the query.
+        /// </summary>
+        internal bool NoteRefusal(string route, LocalRequest.Refusal why)
+        {
+            string name = Array.IndexOf(Routes, route) >= 0 ? route : "(not a route of this API)";
+            lock (_refusals)
+                if (!_refusals.Add(name + "|" + why)) return false;
+
+            string by;
+            switch (why)
+            {
+                case LocalRequest.Refusal.AnotherMachine: by = "it came from another machine (a device on the network)"; break;
+                case LocalRequest.Refusal.AnotherHost: by = "it names a host other than this machine's own at this port (the rig's address on the network, or a name pointed at it)"; break;
+                case LocalRequest.Refusal.AWebSite: by = "it names the origin of a web site (a page in a browser; only the app's own pages, whose origin is null, may read it)"; break;
+                default: by = "a browser sent it, where only a program on this machine may ask"; break;
+            }
+            Log.Warn($"[RacingDesk.Host] data/{name} refused: {by}");
+            return true;
+        }
+
+        /// <summary>403, with no CORS header: a page that is refused is not told in a way it may read, and a program is told in words.</summary>
+        private void Refuse(HttpListenerContext ctx, string route, LocalRequest.Refusal why)
+        {
+            NoteRefusal(route, why);
+            var res = ctx.Response;
+            try
+            {
+                res.Headers.Add("Cache-Control", "no-store");
+                res.ContentType = "application/json; charset=utf-8";
+                Error(res, 403, NotThisMachine);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[RacingDesk.Host] data/{route} refusal failed: {ex.Message}");
+                try { res.StatusCode = 403; } catch { }
+            }
+            finally
+            {
+                try { res.OutputStream.Close(); } catch { }
+            }
+        }
+
+        /// <summary>A preflight from the app's own page (the check has passed): what a page of the app may ask, and for it to be read by CORS.</summary>
+        private static void Preflight(HttpListenerContext ctx)
+        {
+            var res = ctx.Response;
+            try
+            {
+                res.Headers.Add("Vary", "Origin");
+                res.Headers.Add("Cache-Control", "no-store");
+                string origin = ctx.Request.Headers["Origin"];
+                if (!string.IsNullOrEmpty(origin))
+                {
+                    res.Headers.Add("Access-Control-Allow-Origin", origin);
+                    res.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
+                    res.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+                    // Electron (Chromium 130+) asks for this of a file page reading localhost.
+                    res.Headers.Add("Access-Control-Allow-Private-Network", "true");
+                }
+                res.StatusCode = 204;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[RacingDesk.Host] data preflight failed: {ex.Message}");
+                try { res.StatusCode = 500; } catch { }
+            }
+            finally
+            {
+                try { res.OutputStream.Close(); } catch { }
+            }
         }
 
         private void Respond(HttpListenerContext ctx, string route)
@@ -95,8 +224,15 @@ namespace RacingDesk.Host
             var res = ctx.Response;
             try
             {
-                res.Headers.Add("Access-Control-Allow-Origin", "*");
-                res.Headers.Add("Access-Control-Allow-Private-Network", "true");
+                // CORS goes to the app's own pages, by name, and to no other origin (the check has passed only those); a
+                // program says no Origin and needs none.
+                res.Headers.Add("Vary", "Origin");
+                string origin = ctx.Request.Headers["Origin"];
+                if (!string.IsNullOrEmpty(origin) && LocalRequest.AnswersToOrigin(origin))
+                {
+                    res.Headers.Add("Access-Control-Allow-Origin", origin);
+                    res.Headers.Add("Access-Control-Allow-Private-Network", "true");
+                }
                 res.Headers.Add("Cache-Control", "no-store");
                 res.ContentType = "application/json; charset=utf-8";
 
@@ -327,10 +463,11 @@ namespace RacingDesk.Host
             var res = ctx.Response;
             var req = ctx.Request;
             // The same check as the runtime's ?action= routes make (LocalRequest): the connection is this machine's, the
-            // Host names it, and no browser sent it.
+            // Host names it, and no browser sent it. (TryHandle's own check has passed: what can fail here is a browser's marks.)
             if (!LocalRequest.IsFromThisMachine(req))
             {
-                Error(res, 403, "this is for the app on this machine");
+                NoteRefusal("pedals", LocalRequest.Refusal.ABrowser);
+                Error(res, 403, NotThisMachine);
                 return;
             }
 

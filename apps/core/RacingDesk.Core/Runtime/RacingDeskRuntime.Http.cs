@@ -182,6 +182,16 @@ namespace RacingDesk.Plugin
                     // file:// → localhost requires Access-Control-Allow-Private-Network
                     if (ctx.Request.HttpMethod == "OPTIONS")
                     {
+                        // A route of the host's own answers its own preflight: the data API's go to the app's pages and to
+                        // no other origin, which the wildcard below would not do. The rest are asked of nobody but the
+                        // runtime's own routes, whose CORS is the wildcard.
+                        if (_options.ExtraRoutes != null)
+                        {
+                            bool preflightHandled = false;
+                            try { preflightHandled = _options.ExtraRoutes(ctx); }
+                            catch (Exception ex) { Log.Warn($"[RacingDesk] Extra route failed: {ex.Message}"); }
+                            if (preflightHandled) { responseHandedOff = true; continue; }
+                        }
                         ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
                         ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
                         ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");

@@ -21,6 +21,7 @@ namespace RacingDesk.Host
   RacingDesk.Host                      follow live iRacing: serve :8889 / :8890, record sessions,
                                     backfill new .ibt files in the background; the local store is
                                     readable at :8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,outline?track=}
+                                    from this machine only: any other address, and any web page, gets a 403
   RacingDesk.Host --ibt <file>         replay a recorded .ibt through the same pipeline
   RacingDesk.Host ingest               backfill the local store from .ibt history
   RacingDesk.Host sessions             list stored sessions

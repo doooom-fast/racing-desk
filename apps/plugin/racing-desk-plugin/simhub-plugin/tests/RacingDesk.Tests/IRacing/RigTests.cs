@@ -517,7 +517,8 @@ INSERT INTO schema_version (version) VALUES (4);
                 Assert.That(store.CarPedalsList(), Is.Empty, "nothing was written by any of them");
 
             // A program on this machine says it is: the app's Node, by the name it was given.
-            var (status, body) = Request("POST", "pedals", Bind(Mx5, "a1"), shape: r => r.Headers.Host = "localhost:18889");
+            // (at the port the request came in on: the data API's own check names it)
+            var (status, body) = Request("POST", "pedals", Bind(Mx5, "a1"), shape: r => r.Headers.Host = "localhost:" + r.RequestUri!.Port);
             Assert.That(status, Is.EqualTo(HttpStatusCode.OK), body);
         }
 
@@ -557,8 +558,11 @@ INSERT INTO schema_version (version) VALUES (4);
             using var store = RacingDeskStore.OpenReadOnly(Db);
             Assert.That(store.CarPedalsList(), Is.Empty, "nothing was written by any of them");
 
-            // Reading is for anybody, as the rest of the data API is.
-            Assert.That(Request("GET", "pedals", origin: "https://example.com").Status, Is.EqualTo(HttpStatusCode.OK));
+            // Reading is for this machine, as the rest of the data API is: a program, and a page of the app (a file, which says
+            // an Origin of null) — and not a page of a web site (DataRoutesThisMachineTests asks every route).
+            Assert.That(Request("GET", "pedals").Status, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(Request("GET", "pedals", origin: "null").Status, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(Request("GET", "pedals", origin: "https://example.com").Status, Is.EqualTo(HttpStatusCode.Forbidden));
         }
     }
 }

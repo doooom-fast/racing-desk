@@ -240,26 +240,29 @@ namespace RacingDesk.Tests.Transport
         }
 
         [Test]
-        public void TheHostsReads_AreStillAnswered_ToAnotherMachine_WhoNamesNoAction_AndToThisOne_WhoDoes()
+        public void TheHostsReads_AreAnsweredToThisMachine_WhoNamesNoAction_AndToThisOne_WhoDoes_AndToNoOtherMachine()
         {
-            // What the desk reads (from a page, which names an origin) and what is read by the address of the rig: no action in them.
-            foreach (var (target, looksLike) in new (string, Action<HttpRequestMessage>?)[]
+            // What the desk reads (from a page, which says Origin: null) and what a program on this machine reads: no action in them.
+            // The reads have a rule of their own, and every route of them is asked of every kind of asker in DataRoutesThisMachineTests.
+            string here = "127.0.0.1:" + _httpPort;
+            foreach (var (target, looksLike, pageOfTheApp) in new (string, Action<HttpRequestMessage>?, bool)[]
             {
-                ("/racing-desk/data/controls", null),
-                ("/racing-desk/data/controls", r => r.Headers.Host = "192.168.1.20:8889"),
-                ("/racing-desk/data/controls", r => r.Headers.Add("Origin", "null")),
+                ("/racing-desk/data/controls", null, false),
+                ("/racing-desk/data/controls", r => r.Headers.Host = here, false),
+                ("/racing-desk/data/controls", r => r.Headers.Add("Origin", "null"), true),
             })
             {
                 var (status, body, openToPages) = Ask(target, looksLike);
 
                 Assert.That(status, Is.EqualTo(HttpStatusCode.OK), $"{target}: {body}");
-                Assert.That(openToPages, Is.True, "the desk's page reads it by CORS");
+                Assert.That(openToPages, Is.EqualTo(pageOfTheApp), "the app's own page reads it by CORS; a program is sent no CORS header, and nobody the wildcard");
             }
 
-            // The store is not there, which the host says in its own words: it was reached.
-            var (missing, said, _) = Ask("/racing-desk/data/status", r => r.Headers.Host = "192.168.1.20:8889");
-            Assert.That(missing, Is.EqualTo(HttpStatusCode.NotFound));
-            Assert.That(said, Does.Contain("no local store yet"));
+            // Another machine's read is refused before the host looks at the store, whatever it names.
+            var (refused, said, openToThem) = Ask("/racing-desk/data/status", r => r.Headers.Host = "192.168.1.20:8889");
+            Assert.That(refused, Is.EqualTo(HttpStatusCode.Forbidden));
+            Assert.That(said, Does.Contain("this machine").And.Not.Contain("no local store"));
+            Assert.That(openToThem, Is.False);
 
             // A program on this machine that names an action on one of the host's routes is not refused (the host ignores it).
             Assert.That(Ask("/racing-desk/data/controls?action=listMozaDevices").Status, Is.EqualTo(HttpStatusCode.OK));
