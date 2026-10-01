@@ -61,6 +61,32 @@ test.describe('what the map cell says', () => {
     expect((await waiting(page)).shown).toBe(false);
     expect(await page.evaluate(() => document.getElementById('fullMapTrackSrc').getAttribute('d').length)).toBeGreaterThan(100);
 
+    // A map that is SimHub's shared one (the host's interim until his first clean lap): drawn as any other, and the cell
+    // says plainly whose it is and until when, in one line over the top of the circuit, at the label's floor.
+    await page.evaluate((p) => { window.__feed.payload = p; }, { ...race, 'RacingDesk.Plugin.TrackMap.Status': 'crowd' });
+    await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('SimHub’s shared map until your first clean lap');
+    const note = await page.evaluate(() => {
+      const el = document.getElementById('fullMapWaiting');
+      const r = el.getBoundingClientRect(), panel = el.parentElement.getBoundingClientRect();
+      const label = document.getElementById('fullMapLabel').getBoundingClientRect();
+      const svg = document.getElementById('fullMapSvg').getBoundingClientRect();
+      return { shown: el.getClientRects().length > 0, note: el.classList.contains('map-note'), size: parseFloat(getComputedStyle(el).fontSize),
+        inPanel: r.top >= panel.top && r.bottom <= panel.bottom, belowCircuit: r.top >= svg.bottom - 1,
+        aboveName: r.bottom <= label.top + 1, path: document.getElementById('fullMapTrackSrc').getAttribute('d').length };
+    });
+    expect(note.shown).toBe(true);
+    expect(note.note).toBe(true);
+    expect(note.size).toBeGreaterThanOrEqual(11);
+    // Under the circuit and above its name, covering nothing: not the top, where race control's banner goes under a flag.
+    expect([note.inPanel, note.belowCircuit, note.aboveName]).toEqual([true, true, true]);
+    expect(note.path).toBeGreaterThan(100);
+    expect((await waiting(page)).text).not.toMatch(/crowd|branch|commit|merge|git/i);
+    // His own outline takes over: the note goes and the map stays.
+    await page.evaluate((p) => { window.__feed.payload = p; }, { ...race, 'RacingDesk.Plugin.TrackMap.Status': 'ready' });
+    await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('');
+    expect(await page.evaluate(() => document.getElementById('fullMapWaiting').classList.contains('map-note'))).toBe(false);
+    expect(await page.evaluate(() => document.getElementById('fullMapTrackSrc').getAttribute('d').length)).toBeGreaterThan(100);
+
     // A host from before the status (none sent), with no map: nothing is said, as nothing was.
     await page.evaluate((p) => { window.__feed.payload = p; }, { ...MOCK_TELEMETRY, 'RacingDesk.Plugin.TrackMap.Ready': 0 });
     await expect.poll(() => page.evaluate(() => document.getElementById('fullMapTrackSrc').getAttribute('d')), { timeout: 10000 }).toBe('');

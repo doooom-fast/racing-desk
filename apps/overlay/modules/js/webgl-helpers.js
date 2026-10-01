@@ -878,12 +878,17 @@
     'first-lap': 'Map after one clean lap',
     'no-host': 'No map yet — the app is starting its maps',
   };
+  // With a map drawn, one note: 'crowd' is SimHub's shared map of the layout, which the host serves until his first
+  // clean lap gives it an outline of his own (root CLAUDE.md, Track maps). Said plainly, over the top of the circuit.
+  const _MAP_NOTE = {
+    'crowd': 'SimHub’s shared map until your first clean lap',
+  };
   const _MAP_NO_HOST_LONG = 'No map — restart the app to bring its maps back';
   const _MAP_NO_HOST_LONG_AFTER_MS = 60000;
   let _mapNoHostSince = 0;
   let _mapWaitingShown = '';
   function _setMapWaiting(status, hasPath) {
-    let text = hasPath ? '' : (_MAP_WAITING[status] || '');
+    let text = hasPath ? (_MAP_NOTE[status] || '') : (_MAP_WAITING[status] || '');
     if (status === 'no-host' && !hasPath) {
       const now = Date.now();
       if (!_mapNoHostSince) _mapNoHostSince = now;
@@ -894,7 +899,10 @@
     if (text === _mapWaitingShown) return;
     _mapWaitingShown = text;
     const el = document.getElementById('fullMapWaiting');
-    if (el) el.textContent = text;
+    if (el) {
+      el.textContent = text;
+      el.classList.toggle('map-note', !!(hasPath && text));
+    }
   }
 
   // Sector colors: 0=none(transparent), 1=pb(purple), 2=faster(green), 3=slower(red)

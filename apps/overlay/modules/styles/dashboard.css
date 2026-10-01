@@ -1384,6 +1384,18 @@
     pointer-events: none;
   }
   .map-panel > .map-waiting:empty { display: none; }
+  /* With a map drawn, a note under it (SimHub's shared map, until his first clean lap): in the column with the
+     circuit and its name, between the two, so it covers nothing of the circuit (the circuit gives up a line) and is
+     not at the top, where race control's banner sits under a flag. */
+  .map-panel > .map-waiting.map-note {
+    position: static;
+    inset: auto;
+    flex: 0 0 auto;
+    width: 100%;
+    margin-top: 2px;
+    padding: 0 6px;
+    line-height: 1.15;
+  }
   /* Full map label: single-line marquee so long names slide past instead of
      wrapping and stealing vertical space from the map above. */
   .map-panel > .map-zoom-label {
