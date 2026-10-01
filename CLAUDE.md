@@ -534,6 +534,49 @@ furled, disqualified or the start lights. So the host also sends the field itsel
   carries it (`apps/plugin/scripts/windows/install.bat`; ask before running it), and the app has to be built again
   (`npm run build`) for its own host and for the HUD.
 
+## Other drivers' names
+
+**A real name of another driver never leaves the source adapters.** Everywhere Racing Desk shows or sends a driver who is
+not him — the leaderboard, the gaps, the spotter, race control and the commentary, the incident coach, the iPad view and
+both OBS pages, the desk's sessions, the recording sidecar and the TV shots, the WebSocket feed, the logs — the name is a
+character's, chosen for that driver from `packages/pseudonyms/names.json`: the people of David Foster Wallace's fiction
+(*Infinite Jest*, *The Broom of the System*, *The Pale King* and the stories) and of *Trainspotting*, and the members, past
+and present, of Sunn O))), Black Sabbath, Type O Negative, Tool and The Cure — 246 real names from public sources, none
+invented, with their sources in the file and its README. His rule (2026-10-01: "iRacing likely won't let us show others'
+names eventually"; iRacing's support article of 2026-09-30 says no display name or customer id may be shown without
+explicit, revocable consent), so there is no switch. **His own name stays his.** Car numbers, cars, classes, iRating and
+licence stay what they are.
+
+- **Where the names are replaced** (`apps/core/RacingDesk.Core/Names/`): on the host's path at the two places the session
+  YAML is parsed — `SdkRawTelemetry.SessionInfo` (live, once per session-info update, before the source, the recorder or
+  the replay route read it) and `IbtFile.SessionInfo` (a replay, the ingest, the follower) — every other driver's
+  `UserName`, `AbbrevName` and `Initials`, and a `TeamName` that is the driver's own name, are rewritten in the model
+  itself (`Pseudonymizer.Apply`; the player's entry, by `DriverCarIdx`, and the pace car are left). On the plugin's path
+  SimHub hands over its opponents with their names, and the engine never reads an opponent's `Name`: it asks the source
+  (`ITelemetrySource.OpponentName`), the plugin's source asks the SDK bridge (`IRacingSdkBridge.OpponentName`), and the
+  bridge has named every car in the session YAML by its customer id and finds the car again by its number, or by the name
+  SimHub gives — a lookup that stays inside the bridge. A car the session does not list (another sim, the bridge not up) is
+  named from the list by its name, salted; a build without the list says "Driver" and four digits. So the readers hold no
+  real name. The store keeps what it was given (sessions stored before this have real names on disk, new ones the
+  characters, and the customer id either way); `GET /racing-desk/data/session?id=` names each grid entry from the
+  stored id, so an old session's rival is the same character the live one shows, and sends no customer id.
+- **One name, one form, everywhere.** The name is the HUD's own style — the first initial, a dot and the surname with its
+  particle (`H. Incandenza`, `J. van Dyne`); a character known by a nickname is shown whole (`Sick Boy`, `Spud`, `Begbie`) —
+  and the same string goes to every reader, so what the HUD matches by name (a threat to a leaderboard row, a gap trend to
+  its car) matches. `leaderboard.js`'s `formatName` no longer shortens: it would have cut a nickname in two.
+- **Randomized, but steady** (`PseudonymBook`, `Pseudonymizer`): a driver's first choice is `HMAC-SHA256(salt, customer id)`
+  modulo the list, with a salt of 32 random bytes made once on this machine and kept at
+  `%LOCALAPPDATA%\Racing Desk\pseudonyms.salt` (the app's host and the SimHub plugin read the same file; it is never sent
+  anywhere, and the id is stored nowhere by the names). When another driver in the session already holds the name, the
+  next probe of the hash, so no two drivers in a session share one; a name once given is kept for the session (iRacing's
+  SessionID and SubSessionID), so a rival is the same character all race and, by the hash, the next time. Nobody can turn a
+  name back into an id without the salt.
+- **The demo's rivals are characters too** (`Names/DemoNames.cs`); the fixtures and tests use characters or a few made-up
+  names, and `NoRealNamesInFixturesTests` scans the tests, fixtures and sources for a driver-shaped string that is neither.
+  The tests run with a book and salt of their own (`TestNames`), so none reads or writes the rig's salt. The full chain,
+  through both paths to the `:8889` JSON, the WebSocket frame, the leaderboard, the gaps, the incident coach, the
+  commentary, the recorder and the data route: `tests/RacingDesk.Tests/Names/`.
+
 ## Tyre wear
 
 **One meaning, everywhere: tread remaining, per corner, 0..100 %, 100 = new; `null` where the sim has not measured it.**
