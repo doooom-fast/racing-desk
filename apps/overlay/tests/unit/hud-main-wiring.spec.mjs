@@ -426,9 +426,14 @@ test.describe('TV shots', () => {
     expect(code).toMatch(/case 'tvShots': \{ const answer = await startTvShots\(\{ source: 'desk', folder:/);
     expect(code).toMatch(/case 'tvShotsCancel': \{ const answer = tvShots\.cancel\(\);/);
     expect(code).toMatch(/case 'recordingFor': return \{ ok: true, recording: recordingForRace\(/);
-    // A take under way is stopped when the app quits.
+    // A take under way ends when the app quits and his facecam is shown again before the quit goes on (bounded), and a
+    // take that has hidden it is something a quit waits for even while nothing is recording (the first seek).
     const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
-    expect(helper[1]).toMatch(/if \(tvShots\.status\(\)\.running\) tvShots\.cancel\(\);/);
+    expect(helper[1]).toMatch(/const tvOff = Promise\.race\(\[tvShots\.stopForQuit\(\), new Promise\(\(resolve\) => setTimeout\(resolve, 1500\)\)\]\)/);
+    expect(helper[1]).toMatch(/Promise\.all\(\[recording\.stopOwnedForQuit\(\), hudOff, tvOff\]\)/);
+    expect(code).toMatch(/recording\.needsStopForQuit\(\) \|\| tvShots\.needsStopForQuit\(\)/);
+    // What a take hid is written to a file of its own, so that a crash does not leave the facecam hidden.
+    expect(made).toMatch(/\bstateFile:\s*path\.join\(app\.getPath\('userData'\), 'tv-state\.json'\)/);
     // Nothing presses a key, in main.js or in the director.
     expect(code).not.toMatch(/keybd_event|SendKeys|sendKey|keyboard-sender/i);
     const director = readFileSync(new URL('../../modules/js/obs/tv-shots.js', import.meta.url), 'utf8');
@@ -459,7 +464,7 @@ test.describe('"HUD drawn by OBS"', () => {
     // On quit, with the switch on and OBS answering: disabled, within a bound.
     const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
     expect(helper[1]).toMatch(/hudSource\.disable\(\)/);
-    expect(code).toMatch(/recording\.needsStopForQuit\(\) \|\| \(hudSourceOn\(\) && obsClient\.identified\(\)\)/);
+    expect(code).toMatch(/recording\.needsStopForQuit\(\) \|\| tvShots\.needsStopForQuit\(\) \|\| \(hudSourceOn\(\) && obsClient\.identified\(\)\)/);
     // Nothing of his is removed from here or from the module.
     expect(code).not.toMatch(/RemoveInput|RemoveSceneItem/);
     const module = readFileSync(new URL('../../modules/js/obs/hud-source.js', import.meta.url), 'utf8');

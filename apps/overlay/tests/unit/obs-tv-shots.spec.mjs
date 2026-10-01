@@ -37,7 +37,7 @@ const REPLAY_PAYLOAD = { ...MOCK_TELEMETRY, 'DataCorePlugin.GameRawData.Telemetr
 
 // A race's sidecar, as the writer makes it: ten frames a second for `seconds`, the sim's clock on each (session 2,
 // from 1000 s), with a place gained at 10 s, an incident at 30 s, the pit lane from 50 to 53 s.
-function writeRaceSidecar(file, { seconds = 60, clock = true } = {}) {
+function writeRaceSidecar(file, { seconds = 60, clock = true, track = 'Circuit Zandvoort' } = {}) {
   const writer = createSidecar({ write: (f, text) => fs.appendFileSync(f, text) });
   const t0 = Date.parse('2026-09-29T20:13:22Z');
   writer.start({ path: file, startedAt: t0, producer: 'obs', obsOutputPath: 'x', kind: 'recording' });
@@ -45,6 +45,7 @@ function writeRaceSidecar(file, { seconds = 60, clock = true } = {}) {
     const t = i / 10;
     const p = {
       ...MOCK_TELEMETRY,
+      'RacingDesk.Plugin.TrackMap.TrackDisplayName': track,
       'DataCorePlugin.GameData.Position': t >= 10 ? 5 : 6,
       'RacingDesk.Plugin.DS.IncidentCount': t >= 30 ? 2 : 0,
       'RacingDesk.Plugin.DS.IsInPitLane': t >= 50 && t < 53 ? 1 : 0,
@@ -57,21 +58,25 @@ function writeRaceSidecar(file, { seconds = 60, clock = true } = {}) {
   return writer.stop({ stoppedAt: t0 + seconds * 1000, reason: 'stopped', videoOffsetMs: 0, alignment: { method: 'end' } });
 }
 
-// The host's replay route, faked: it writes down the commands and lands every seek at once.
-function fakeReplay({ available = true, connected = true, replayPlaying = true, onTrack = false, groups = [{ num: 1, name: 'Cockpit' }, { num: 5, name: 'TV1' }, { num: 6, name: 'TV2' }, { num: 9, name: 'Chase' }], landMs = 0 } = {}) {
-  const state = { sessionNum: 2, sessionTime: 0, speed: 1, group: 1, pending: null };
+// The host's replay route, faked: it writes down the commands and lands every seek at once (or never, or late: `landMs`,
+// `landsAt`). As the host does, it refuses every command with a 409 while he is on track (`state.onTrack`, which a test
+// can turn on partway through a take), and it says the camera system's flags and the session's own track.
+function fakeReplay({ available = true, connected = true, replayPlaying = true, onTrack = false, groups = [{ num: 1, name: 'Cockpit' }, { num: 5, name: 'TV1' }, { num: 6, name: 'TV2' }, { num: 9, name: 'Chase' }], landMs = 0, landsAt = null, weekend = { trackDisplayName: 'Circuit Zandvoort', trackName: 'zandvoort full', subSessionId: 71 }, cameraState = 16, speed = 0 } = {}) {
+  const state = { sessionNum: 2, sessionTime: 0, speed, group: 1, pending: null, onTrack, replayPlaying, cameraState };
   const calls = [];
   return {
     calls, state,
     status: async () => {
       if (state.pending && Date.now() >= state.pending.at) { state.sessionNum = state.pending.sn; state.sessionTime = state.pending.st; state.pending = null; }
-      return { available, connected, replayPlaying, onTrack, sessionNum: 2, sessionTime: 3000, replay: { sessionNum: state.sessionNum, sessionTime: state.sessionTime, speed: state.speed }, camera: { group: state.group }, player: { carNumber: '42' }, groups, reason: available ? undefined : 'iRacing is not running, so its replay cannot be driven.' };
+      return { available, connected, replayPlaying: state.replayPlaying, onTrack: state.onTrack, sessionNum: 2, sessionTime: 3000, replay: { sessionNum: state.sessionNum, sessionTime: state.sessionTime, speed: state.speed, slowMotion: false }, camera: { group: state.group, state: state.cameraState }, weekend, player: { carNumber: '42', carNumberRaw: 42 }, groups, reason: available ? undefined : 'iRacing is not running, so its replay cannot be driven.' };
     },
     command: async (body) => {
+      if (state.onTrack) return { ok: false, error: 'You are in the car, so the replay and the cameras are left alone.', status: 409 };
       calls.push(body);
-      if (body.command === 'seek') state.pending = { sn: body.sessionNum, st: body.sessionTime, at: Date.now() + landMs };
+      if (body.command === 'seek' && (!landsAt || landsAt(body.sessionNum, body.sessionTime))) state.pending = { sn: body.sessionNum, st: body.sessionTime, at: Date.now() + landMs };
       if (body.command === 'speed') state.speed = body.speed;
       if (body.command === 'camera') state.group = body.group;
+      if (body.command === 'cameraState') state.cameraState = body.state;
       return { ok: true };
     },
   };
@@ -107,8 +112,8 @@ function rig({ replay = fakeReplay(), settings = {}, inCar = false, payload = RE
   keeper.start();
   client.start();
   const shots = tv.createTvShots({
-    client, recording: keeper, replay, settings: () => fake.settings, inCar: () => fake.inCar, log: (l) => lines.push(l), onChange: (s) => changes.push(s),
-    leadInS: 0.2, tailS: 0.2, settleMs: 30, landPollMs: 20, landWaitMs: 1500, filingWaitMs: 6000, ...options,
+    client, recording: keeper, replay, settings: () => fake.settings, stateFile: path.join(dir, 'state', 'tv-state.json'), inCar: () => fake.inCar, log: (l) => lines.push(l), onChange: (s) => changes.push(s),
+    leadInS: 0.2, tailS: 0.2, settleMs: 30, landPollMs: 20, landWaitMs: 1500, filingWaitMs: 6000, watchMs: 20, watchStatusMs: 40, ...options,
   });
   // The file OBS "writes" has to be there for the keeper to file: written when the recording begins.
   const writer = setInterval(() => { const s = keeper.status(); if (s.recording && s.outputPath && !fs.existsSync(s.outputPath)) fs.writeFileSync(s.outputPath, buildFinalMp4({ durationMs: 3000, withChapterTrack: false })); }, 20);
@@ -189,14 +194,19 @@ test('a take: the facecam hidden, auto-record held, the replay paused and sought
     expect(fs.existsSync(path.join(r.race, '2026-09-29 22-13-22.mp4'))).toBe(true);
     expect(fs.existsSync(path.join(r.race, '2026-09-29 22-13-22.telemetry.jsonl'))).toBe(true);
 
-    // What was asked of the replay, in order: paused, sought to the first moment's clock, the TV camera on his car;
-    // played and paused for the moment; then the next, on the next TV group.
+    // What was asked of the replay, in order: iRacing's own replay controls hidden (the camera flags it said, with UIHidden
+    // added), paused, sought to the first moment's clock, the TV camera on his car by its number (the driver's focus names
+    // no car); played and paused for the moment; then the next, on the next TV group; and at the end the replay as found.
     const calls = r.replay.calls;
-    expect(calls.slice(0, 3)).toEqual([
+    expect(calls.slice(0, 4)).toEqual([
+      { command: 'cameraState', state: 16 | tv.UI_HIDDEN },
       { command: 'speed', speed: 0 },
       { command: 'seek', sessionNum: 2, sessionTime: plan.moments[0].st },
-      { command: 'camera', focus: 'driver', group: 5, camera: 0 },
+      { command: 'camera', carNumber: 42, group: 5, camera: 0 },
     ]);
+    expect(calls.filter((c) => c.command === 'camera').every((c) => c.focus === undefined && c.carNumber === 42)).toBe(true);
+    expect(calls.slice(-2)).toEqual([{ command: 'cameraState', state: 16 }, { command: 'speed', speed: 0, slowMotion: false }]);
+    expect(r.replay.state.cameraState).toBe(16);
     expect(calls.filter((c) => c.command === 'seek').map((c) => c.sessionTime)).toEqual(plan.moments.map((m) => m.st));
     expect(calls.filter((c) => c.command === 'camera').map((c) => c.group)).toEqual([5, 6, 5]);
     expect(calls.filter((c) => c.command === 'speed' && c.speed === 1)).toHaveLength(3);
@@ -287,6 +297,11 @@ test('refused in words: in the car, OBS closed, a recording running, no sim, iRa
     [fakeReplay({ onTrack: true }), tv.IN_CAR],
     [fakeReplay({ replayPlaying: false }), tv.NOT_REPLAY],
     [{ status: async () => { throw new Error('ECONNREFUSED'); }, command: async () => ({ ok: true }), calls: [] }, tv.NO_HOST],
+    // The host answered, but not with a status: refused (403), or not the app's own host (a SimHub plugin: 404). Not "iRacing isn't running".
+    [{ status: async () => ({ ok: false, error: 'this is for the app on this machine', status: 403 }), command: async () => ({ ok: true }), calls: [] }, 'The app’s own host would not say where the replay is: this is for the app on this machine.'],
+    [{ status: async () => ({ ok: false, error: 'the host answered 404', status: 404 }), command: async () => ({ ok: true }), calls: [] }, 'The app’s own host would not say where the replay is: the host answered 404.'],
+    // Another race's replay is open: a different track than the recording's.
+    [fakeReplay({ weekend: { trackDisplayName: 'Spa-Francorchamps', trackName: 'spa up', subSessionId: 9 } }), tv.OTHER_REPLAY],
   ]) {
     const r2 = rig({ replay });
     try {
@@ -312,4 +327,301 @@ test('refused in words: in the car, OBS closed, a recording running, no sim, iRa
     const shots = tv.createTvShots({ client, recording: keeper, replay: fakeReplay(), log: () => {} });
     expect(await shots.start({ folder: dir })).toEqual({ ok: false, reason: tv.NOT_OPEN });
   } finally { keeper.dispose(); client.stop(); }
+});
+
+// ── What the review of stage 3 found ──
+
+const stateFileOf = () => path.join(dir, 'state', 'tv-state.json');
+const hiddenIn = (file) => JSON.parse(fs.readFileSync(file, 'utf8')).hidden;
+
+test('a long battle is several moments, not one of minutes; the lead-in\'s clock is the frame\'s plus the time to it, from a frame before it or after it', () => {
+  // A place gained every four seconds for two minutes used to merge into one moment as long as the battle.
+  const frames = Array.from({ length: 1301 }, (_, i) => ({ t: i / 10, sn: 2, st: 1000 + i / 10 }));
+  const battle = Array.from({ length: 30 }, (_, i) => ({ type: 'position_change', t: (i + 1) * 4000, from: 9, to: 8, direction: 'gained' }));
+  const { moments } = tv.momentsOf({ markers: battle, frames }, { leadInS: 3, tailS: 3 });
+  expect(moments.length).toBeGreaterThanOrEqual(4);
+  expect(moments.every((m) => m.to - m.from <= tv.MAX_MOMENT_S + 3 + 3 + 1e-9)).toBe(true);
+  expect(moments[0].t).toBe(4);
+  // The frames are three seconds apart here, so the lead-in at 5 s falls between them: the sim's clock there is the frame
+  // before's (1003) and the two seconds on, 1005 — the sign was wrong, and made it 1001.
+  const sparse = [0, 3, 6, 9].map((t) => ({ t, sn: 2, st: 1000 + t }));
+  const marker = [{ type: 'incident', t: 8000, from: 0, to: 1 }];
+  expect(tv.momentsOf({ markers: marker, frames: sparse }, { leadInS: 3, tailS: 3 }).moments[0]).toMatchObject({ from: 5, sn: 2, st: 1005 });
+  // The recording began after the lead-in: the first frame is after it, and the clock before it is the frame's less the gap.
+  const late = [6, 7, 8, 9].map((t) => ({ t, sn: 2, st: 1000 + t }));
+  expect(tv.momentsOf({ markers: marker, frames: late }, { leadInS: 3, tailS: 3 }).moments[0]).toMatchObject({ from: 5, sn: 2, st: 1005 });
+});
+
+test('a sidecar that was resumed has a summary for each stretch: the moments of every one are found, not those of the last', async () => {
+  const file = path.join(dir, 'resumed.telemetry.jsonl');
+  const frame = (i, t, st) => JSON.stringify({ frame: i, t, sn: 2, st });
+  fs.writeFileSync(file, [
+    JSON.stringify({ _type: 'header', track: 'Circuit Zandvoort', car: 'Porsche 911 GT3 R' }),
+    ...Array.from({ length: 200 }, (_, i) => frame(i, i / 10, 1000 + i / 10)),
+    JSON.stringify({ _type: 'summary', markers: [{ type: 'position_change', t: 10000, from: 6, to: 5, direction: 'gained' }] }),
+    JSON.stringify({ _type: 'resumed', at: 20000 }),
+    ...Array.from({ length: 200 }, (_, i) => frame(200 + i, 20 + i / 10, 1020 + i / 10)),
+    JSON.stringify({ _type: 'summary', markers: [{ type: 'incident', t: 30000, from: 0, to: 2 }, { type: 'position_change', t: 10000, from: 6, to: 5, direction: 'gained' }] }),
+  ].join('\n') + '\n');
+  const plan = await tv.readTvPlan(file, { leadInS: 0.2, tailS: 0.2 });
+  expect(plan.problem).toBeNull();
+  expect(plan.moments.map((m) => m.label)).toEqual(['P6 → P5', 'Incident ×2']);   // the repeated one counted once
+});
+
+test('the replay open is of this race: the track the sim says is the recording\'s, by name, by a word of it, or not said', () => {
+  const at = (display, name = '') => ({ trackDisplayName: display, trackName: name });
+  expect(tv.sameTrack('Circuit Zandvoort', at('Circuit Zandvoort'))).toBe(true);
+  expect(tv.sameTrack('zandvoort full', at('Circuit Zandvoort', 'zandvoort full'))).toBe(true);   // SimHub's key where the host sent no display name
+  expect(tv.sameTrack('Zandvoort', at('Circuit Zandvoort'))).toBe(true);
+  expect(tv.sameTrack('Road America', at('Road Atlanta'))).toBe(false);                            // "road" says nothing of which
+  expect(tv.sameTrack('Circuit Zandvoort', at('Spa-Francorchamps', 'spa up'))).toBe(false);
+  expect(tv.sameTrack(null, at('Spa-Francorchamps'))).toBe(true);                                   // unknown on either side is not a difference
+  expect(tv.sameTrack('Circuit Zandvoort', undefined)).toBe(true);
+  expect(tv.sameTrack('Circuit Zandvoort', at('', ''))).toBe(true);
+});
+
+test('he gets in the car partway through a take — the sim says he is on track, or main says he is in the car: no command is sent after that, the recording stops, the facecam and auto-record come back', async () => {
+  test.setTimeout(40000);
+  for (const how of ['the sim says on track', 'main says in the car']) {
+    const r = rig();
+    try {
+      await until(() => r.client.identified());
+      expect((await r.shots.start({ folder: r.race })).ok).toBe(true);
+      // The first moment is playing: speed 1 has been sent, the recording is under way, the facecam is hidden.
+      await until(() => r.replay.calls.some((c) => c.command === 'speed' && c.speed === 1), 10000);
+      expect(r.keeper.status().recording).toBe(true);
+      expect(facecamOf('Large Video').enabled).toBe(false);
+      const sent = r.replay.calls.length;
+      if (how === 'the sim says on track') r.replay.state.onTrack = true; else r.fake.inCar = true;
+      await until(() => r.shots.status().step === 'failed', 10000);
+      expect(r.shots.status().result, how).toMatchObject({ ok: false, cancelled: false, reason: tv.DROVE, moments: 0 });
+      // Nothing was sent to the replay or the cameras after he was in: not the next seek, not the pause after the moment,
+      // not the putting-back (the host would refuse it, and it is his replay now).
+      expect(r.replay.calls.length, how).toBe(sent);
+      expect(requests('StopRecord'), how).toHaveLength(1);
+      expect(r.keeper.status().recording, how).toBe(false);
+      expect(facecamOf('Large Video').enabled, how).toBe(true);
+      expect(r.keeper.status().autoHeld, how).toBeNull();
+      expect(fs.existsSync(stateFileOf()), how).toBe(false);
+    } finally { r.dispose(); }
+    server.requests.length = 0;
+  }
+});
+
+test('he is in the car while the seek is still being waited for: the wait ends at once, nothing is recorded, nothing more is sent', async () => {
+  test.setTimeout(30000);
+  const r = rig({ replay: fakeReplay({ landMs: 60000 }), options: { landWaitMs: 20000 } });
+  try {
+    await until(() => r.client.identified());
+    expect((await r.shots.start({ folder: r.race })).ok).toBe(true);
+    // The seek, and the camera that follows it, have been sent: the wait for the landing is what he interrupts.
+    await until(() => r.replay.calls.some((c) => c.command === 'camera'), 5000);
+    const sent = r.replay.calls.length;
+    r.replay.state.onTrack = true;
+    await until(() => r.shots.status().step === 'failed', 5000);
+    expect(r.shots.status().result).toMatchObject({ ok: false, reason: tv.DROVE, moments: 0 });
+    expect(r.replay.calls.length).toBe(sent);
+    expect(requests('StartRecord')).toHaveLength(0);
+    expect(facecamOf('Large Video').enabled).toBe(true);
+  } finally { r.dispose(); }
+});
+
+test('iRacing leaving its replay ends the take, said twice running; one look is not a verdict', async () => {
+  test.setTimeout(30000);
+  const r = rig();
+  try {
+    await until(() => r.client.identified());
+    expect((await r.shots.start({ folder: r.race })).ok).toBe(true);
+    await until(() => r.replay.calls.some((c) => c.command === 'speed' && c.speed === 1), 10000);
+    r.replay.state.replayPlaying = false;
+    await until(() => r.shots.status().step === 'failed', 5000);
+    expect(r.shots.status().result).toMatchObject({ ok: false, reason: tv.LEFT_REPLAY });
+    expect(facecamOf('Large Video').enabled).toBe(true);
+    expect(r.keeper.status().recording).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('the app quits during a take: his facecam is shown again at once — before the first seek has landed too, when nothing is recording and the keeper would have let the quit go — and the state file says what was hidden until then', async () => {
+  test.setTimeout(30000);
+  const r = rig({ replay: fakeReplay({ landMs: 60000 }), options: { landWaitMs: 20000 } });
+  try {
+    await until(() => r.client.identified());
+    expect((await r.shots.start({ folder: r.race })).ok).toBe(true);
+    await until(() => facecamOf('Large Video').enabled === false);
+    // Written before it was hidden: scene, item and name.
+    expect(hiddenIn(stateFileOf())).toEqual([{ sceneName: 'Large Video', sceneItemId: 2, sourceName: 'Video Capture Device' }]);
+    // The keeper has nothing to stop, which is why the quit used to go through and leave the facecam hidden.
+    expect(r.keeper.needsStopForQuit()).toBe(false);
+    expect(r.shots.needsStopForQuit()).toBe(true);
+    const began = Date.now();
+    await r.shots.stopForQuit();
+    expect(Date.now() - began).toBeLessThan(1500);
+    expect(facecamOf('Large Video').enabled).toBe(true);
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+    expect(r.shots.needsStopForQuit()).toBe(false);
+    // The take ends by itself behind it, with nothing recorded.
+    await until(() => r.shots.status().step === 'cancelled', 5000);
+    expect(requests('StartRecord')).toHaveLength(0);
+  } finally { r.dispose(); }
+  // Quitting during a recorded moment: the take's recording is the keeper's to stop, and is stopped; the facecam is back.
+  const r2 = rig();
+  try {
+    await until(() => r2.client.identified());
+    expect((await r2.shots.start({ folder: r2.race })).ok).toBe(true);
+    await until(() => r2.keeper.status().recording && r2.shots.status().step === 'recording', 10000);
+    expect(r2.shots.needsStopForQuit()).toBe(true);
+    expect(r2.keeper.needsStopForQuit()).toBe(true);
+    await Promise.all([r2.shots.stopForQuit(), r2.keeper.stopOwnedForQuit()]);
+    expect(facecamOf('Large Video').enabled).toBe(true);
+    expect(server.state.recording).toBe(false);
+  } finally { r2.dispose(); }
+});
+
+test('a facecam a take left hidden — Racing Desk crashed, or OBS went away before it could be shown — is shown again at the next start or the next time OBS answers; only the item the file names, by scene, id and name', async () => {
+  test.setTimeout(30000);
+  // What a crashed take left behind: the file, the facecam hidden, and a game video that he has hidden himself.
+  fs.mkdirSync(path.dirname(stateFileOf()), { recursive: true });
+  fs.writeFileSync(stateFileOf(), JSON.stringify({ hidden: [
+    { sceneName: 'Large Video', sceneItemId: 2, sourceName: 'Video Capture Device' },
+    { sceneName: 'Large Video', sceneItemId: 1, sourceName: 'an item that is not that one' },
+    { sceneName: 'A scene that is gone', sceneItemId: 7, sourceName: 'Video Capture Device' },
+  ], at: 1 }));
+  facecamOf('Large Video').enabled = false;
+  server.state.scenes[0].items[0].enabled = false;   // his game video, hidden by him
+  const r = rig();
+  try {
+    await until(() => facecamOf('Large Video').enabled === true);
+    expect(server.state.scenes[0].items[0].enabled).toBe(false);   // not touched: the name did not match
+    await until(() => !fs.existsSync(stateFileOf()));
+  } finally { r.dispose(); }
+  server.state.scenes[0].items[0].enabled = true;
+
+  // OBS busy when the facecam was to be shown: the file stays; the next answer of OBS puts it back.
+  const r2 = rig();
+  try {
+    await until(() => r2.client.identified());
+    expect((await r2.shots.start({ folder: r2.race })).ok).toBe(true);
+    await until(() => facecamOf('Large Video').enabled === false);
+    server.fail('SetSceneItemEnabled', 702, 'OBS is busy');   // the one request that shows it again
+    r2.shots.cancel();
+    await until(() => r2.shots.status().step === 'cancelled', 15000);
+    expect(facecamOf('Large Video').enabled).toBe(false);
+    expect(fs.existsSync(stateFileOf())).toBe(true);
+    // OBS restarts its server (he changes its WebSocket settings): it answers again, and the facecam is back.
+    server.closeAll(1001, 'the server restarted');
+    await until(() => facecamOf('Large Video').enabled === true, 10000);
+    await until(() => !fs.existsSync(stateFileOf()));
+  } finally { r2.dispose(); }
+});
+
+test('a seek the sim does not reach is skipped and said, not recorded where the replay is: some missed, the rest are taken; none reached, nothing is recorded and no take is filed', async () => {
+  test.setTimeout(40000);
+  // The middle moment is from before the replay's memory: the sim never gets there.
+  const r = rig({ replay: fakeReplay({ landsAt: (sn, st) => Math.abs(st - 1029.8) > 0.5 }), options: { landWaitMs: 300 } });
+  try {
+    await until(() => r.client.identified());
+    expect((await r.shots.start({ folder: r.race })).ok).toBe(true);
+    await until(() => r.shots.status().step === 'done', 30000);
+    const s = r.shots.status();
+    expect(s.result).toMatchObject({ ok: true, moments: 2, skipped: 1 });
+    expect(r.changes.some((c) => c.step === 'skipped' && c.label === 'Incident ×2')).toBe(true);
+    // Recording resumed only for the two that were there: resumed once (the third), paused for the second and the third.
+    expect(requests('ResumeRecord')).toHaveLength(1);
+    expect(requests('PauseRecord')).toHaveLength(2);
+    expect(r.replay.calls.filter((c) => c.command === 'speed' && c.speed === 1)).toHaveLength(2);
+    expect(r.lines.some((l) => /the moment is skipped/.test(l))).toBe(true);
+  } finally { r.dispose(); }
+  // None reached: the sim is in another session. Nothing started, nothing filed, the facecam back.
+  fs.rmSync(path.join(r.race, '2026-09-29 22-13-22 tv.mp4'), { force: true });   // the first take's, in the same folder
+  const r2 = rig({ replay: fakeReplay({ landsAt: () => false }), options: { landWaitMs: 200 } });
+  try {
+    await until(() => r2.client.identified());
+    const from = server.requests.length;
+    expect((await r2.shots.start({ folder: r2.race })).ok).toBe(true);
+    await until(() => r2.shots.status().step === 'failed', 20000);
+    expect(r2.shots.status().result).toMatchObject({ ok: false, reason: tv.NOT_LANDED, moments: 0, skipped: 3 });
+    expect(server.requests.slice(from).filter((q) => q.type === 'StartRecord')).toHaveLength(0);
+    expect(facecamOf('Large Video').enabled).toBe(true);
+    expect(fs.existsSync(path.join(r2.race, '2026-09-29 22-13-22 tv.mp4'))).toBe(false);
+  } finally { r2.dispose(); }
+});
+
+test('OBS stopping the take (his Ctrl+Space) or not taking the pause ends the take where it is: the replay is not driven through the rest, and it is not "done"', async () => {
+  test.setTimeout(40000);
+  const r = rig();
+  try {
+    await until(() => r.client.identified());
+    expect((await r.shots.start({ folder: r.race })).ok).toBe(true);
+    await until(() => r.keeper.status().recording && r.shots.status().step === 'recording', 10000);
+    server.stopRecording();   // he pressed Ctrl+Space in OBS
+    await until(() => r.shots.status().step === 'failed', 10000);
+    expect(r.shots.status().result).toMatchObject({ ok: false, reason: tv.OBS_STOPPED });
+    // One moment began; no seek went on to the second and third.
+    expect(r.replay.calls.filter((c) => c.command === 'seek')).toHaveLength(1);
+    expect(facecamOf('Large Video').enabled).toBe(true);
+  } finally { r.dispose(); }
+  server.requests.length = 0;
+  // A pause OBS refuses: the loop would otherwise carry on driving the replay.
+  const r2 = rig();
+  try {
+    await until(() => r2.client.identified());
+    server.fail('PauseRecord', 702, 'the output could not be paused');
+    expect((await r2.shots.start({ folder: r2.race })).ok).toBe(true);
+    await until(() => r2.shots.status().step === 'failed', 20000);
+    expect(r2.shots.status().result.reason).toMatch(/OBS did not take the pause/);
+    expect(r2.replay.calls.filter((c) => c.command === 'seek')).toHaveLength(1);
+    expect(r2.keeper.status().recording).toBe(false);
+    expect(facecamOf('Large Video').enabled).toBe(true);
+  } finally { r2.dispose(); }
+});
+
+test('Stop ends a moment that is playing at once, not when it has played out', async () => {
+  test.setTimeout(40000);
+  // Moments of 40 s: the old wait could not be woken.
+  const r = rig({ options: { leadInS: 20, tailS: 20 } });
+  try {
+    await until(() => r.client.identified());
+    expect((await r.shots.start({ folder: r.race })).ok).toBe(true);
+    await until(() => r.shots.status().step === 'recording' && r.shots.status().index === 1, 10000);
+    const began = Date.now();
+    expect(r.shots.cancel()).toEqual({ ok: true });
+    await until(() => r.shots.status().step === 'cancelled', 15000);
+    expect(Date.now() - began).toBeLessThan(8000);
+    expect(r.shots.status().result).toMatchObject({ ok: false, cancelled: true, moments: 1 });
+    expect(facecamOf('Large Video').enabled).toBe(true);
+    expect(r.keeper.status().recording).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('a take left running by a Racing Desk that was closed in the middle of it is stopped when the next one finds it, and filed as the take it was', async () => {
+  test.setTimeout(30000);
+  const race = path.join(dir, '2026-09-29 22-13 Zandvoort Porsche 911 GT3 Cup (992)');
+  fs.mkdirSync(race, { recursive: true });
+  const mp4 = `${dir.replace(/\\/g, '/')}/take-left.mp4`;
+  fs.writeFileSync(mp4, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+  server.mode.clock = () => Date.now();
+  server.startRecording(mp4);
+  server.state.startedAt = Date.now() - 20_000;
+  fs.mkdirSync(path.join(dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'state', 'recording-state.json'), JSON.stringify({ owned: mp4.replace(/\//g, '\\'), startedAt: Date.now() - 20_000, take: { folder: race, baseName: '2026-09-29 22-13-22 tv' } }));
+  const r = rig();
+  try {
+    await until(() => !server.state.recording, 15000);
+    expect(requests('StopRecord')).toHaveLength(1);
+    expect(r.lines.some((l) => /a TV take/.test(l))).toBe(true);
+    await until(() => fs.existsSync(path.join(race, '2026-09-29 22-13-22 tv.mp4')), 15000);
+    expect(r.keeper.status().lastFiled).toMatchObject({ kind: 'tv', folder: race });
+  } finally { r.dispose(); }
+  // His own recording, with no take in the state file, is left running.
+  const mp4b = `${dir.replace(/\\/g, '/')}/his-own.mp4`;
+  server.startRecording(mp4b);
+  fs.writeFileSync(path.join(dir, 'state', 'recording-state.json'), JSON.stringify({ owned: mp4b.replace(/\//g, '\\'), startedAt: Date.now() - 5_000 }));
+  const before = requests('StopRecord').length;
+  const r2 = rig();
+  try {
+    await until(() => r2.keeper.status().recording);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(server.state.recording).toBe(true);
+    expect(requests('StopRecord')).toHaveLength(before);
+  } finally { r2.dispose(); }
 });

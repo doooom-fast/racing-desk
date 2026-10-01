@@ -273,7 +273,9 @@ function createRecordingKeeper({
   let pendingStart = null;     // { resolve, auto, take } while we wait for STARTED after our StartRecord
   let take = null;             // { folder, baseName } of the recording running, when it is a TV take
   let autoHeld = null;         // a reason while auto-record is held (a TV take): the rules are not asked
-  let pendingStop = null;
+  // Every stop being waited for: a press's, a quit's, a TV take's own. Each is settled by the STOPPED that comes (or by its
+  // own wait running out), so that two stops at once — the quit and the take that ends with it — do not leave one waiting.
+  const pendingStops = new Set();
   let pendingSave = null;      // { resolve, sentAt } while we wait for ReplayBufferSaved after our SaveReplayBuffer
   let generation = 0;          // counts STARTED and STOPPED: a take-over that was asked before one is out of date
   let statusTimer = null;
@@ -306,7 +308,9 @@ function createRecordingKeeper({
   const rules = autoRules || createAutoRecord({ now });
 
   // ── The state file: which recording is ours ──
-  // { owned: the file STARTED named, current: the file being written (a split moves it), startedAt, auto, folder }.
+  // { owned: the file STARTED named, current: the file being written (a split moves it), startedAt, auto, take, folder }.
+  // `take` is { folder, baseName } while the recording is a TV take: one found running after a restart has lost what
+  // was driving it, and is stopped, not kept as a recording of his.
   function readState() {
     try {
       const parsed = JSON.parse(String(fsModule.readFileSync(stateFile, 'utf8')));
@@ -320,7 +324,7 @@ function createRecordingKeeper({
     try {
       fsModule.mkdirSync(path.dirname(stateFile), { recursive: true });
       const tmp = `${stateFile}.tmp`;
-      fsModule.writeFileSync(tmp, JSON.stringify({ owned: key, current: outputPath, startedAt, auto, folder: session ? session.folder : null, seenAt: lastSeenAt || null }));
+      fsModule.writeFileSync(tmp, JSON.stringify({ owned: key, current: outputPath, startedAt, auto, take: take || null, folder: session ? session.folder : null, seenAt: lastSeenAt || null }));
       fsModule.renameSync(tmp, stateFile);
     } catch (e) {
       log(`[RacingDesk] Recording: the state file could not be written: ${e.message}`);
@@ -410,7 +414,7 @@ function createRecordingKeeper({
 
   function settlePending(startValue, stopValue) {
     if (pendingStart) { const p = pendingStart; pendingStart = null; p.resolve(startValue); }
-    if (pendingStop) { const p = pendingStop; pendingStop = null; p.resolve(stopValue); }
+    for (const p of [...pendingStops]) { pendingStops.delete(p); p.resolve(stopValue); }
   }
 
   function unrefed(t) {
@@ -1177,13 +1181,21 @@ function createRecordingKeeper({
     auto = owned && !!((keptIsThis && kept.auto === true) || (claim && claim.auto));
     if (keptIsThis && typeof kept.current === 'string' && kept.current) { outputPath = kept.current; splitSeen = !samePath(kept.current, found); }
     if (keptIsThis && typeof kept.startedAt === 'number' && kept.startedAt > 0 && kept.startedAt <= now()) startedAt = kept.startedAt;
+    // A TV take that Racing Desk left running (it was closed, or it crashed, in the middle of one): nothing drives the
+    // replay any more, so it is filed as the take it was and stopped.
+    const leftTake = keptIsThis && kept.take && typeof kept.take.folder === 'string' && typeof kept.take.baseName === 'string' ? { folder: kept.take.folder, baseName: kept.take.baseName } : null;
+    take = leftTake;
     claim = null;
     if (owned) writeState();
-    log(`[RacingDesk] Recording already running${owned ? ', ours' : ' (OBS\'s)'}: ${found || 'path not said'}, ${Math.round((now() - startedAt) / 1000)} s in`);
+    log(`[RacingDesk] Recording already running${owned ? (leftTake ? ', ours, a TV take' : ', ours') : ' (OBS\'s)'}: ${found || 'path not said'}, ${Math.round((now() - startedAt) / 1000)} s in`);
     bookStatus();
     announce();
     // The host may not be up yet (Racing Desk's own start): the telemetry is waited for, not asked once.
-    await beginSidecar({ keptFolder: keptIsThis ? kept.folder : null, patient: true });
+    await beginSidecar({ keptFolder: keptIsThis ? kept.folder : null, patient: true, take: leftTake });
+    if (leftTake && recording && owned && key && samePath(key, found)) {
+      log('[RacingDesk] Recording: the TV take a closed Racing Desk left running is stopped');
+      await stop().catch((e) => log(`[RacingDesk] Recording: the left TV take was not stopped: ${e.message}`));
+    }
   }
 
   async function askReplayStatus() {
@@ -1212,7 +1224,7 @@ function createRecordingKeeper({
       if (!recording) starting = false;
       stopping = false;
       if (pendingStart) { const p = pendingStart; pendingStart = null; p.resolve('lost'); }
-      if (pendingStop) { const p = pendingStop; pendingStop = null; p.resolve(false); }
+      for (const p of [...pendingStops]) { pendingStops.delete(p); p.resolve(false); }
       if (pendingSave) { const p = pendingSave; pendingSave = null; p.resolve(null); }
       if (recording && lostTimer === null && !disposed) {
         // The last moment OBS is known to have been recording: where its file's end is put if it never says.
@@ -1375,7 +1387,8 @@ function createRecordingKeeper({
     busy = 'stopping';
     let resolveStop;
     const stoppedPromise = new Promise((resolve) => { resolveStop = resolve; });
-    pendingStop = { resolve: resolveStop };
+    const waiting = { resolve: resolveStop };
+    pendingStops.add(waiting);
     announce();
     let said = null;
     // The file ends when the stop is asked for, not when STOPPED comes after the encoder has flushed.
@@ -1385,7 +1398,7 @@ function createRecordingKeeper({
       said = await client.request('StopRecord');
     } catch (e) {
       busy = null;
-      pendingStop = null;
+      pendingStops.delete(waiting);
       if (timed) { stopRequestedAt = null; stopFrom = null; }
       if (e && e.code === 501) {
         // OBS says nothing is recording: believe it.
@@ -1394,7 +1407,7 @@ function createRecordingKeeper({
       }
       return answer(false, `OBS could not stop recording: ${e.message}`);
     }
-    const timer = unrefed(setTimer(() => { if (pendingStop) { const p = pendingStop; pendingStop = null; p.resolve(false); } }, waitStoppedMs));
+    const timer = unrefed(setTimer(() => { if (pendingStops.delete(waiting)) waiting.resolve(false); }, waitStoppedMs));
     const ok = await stoppedPromise;
     clearTimer(timer);
     busy = null;
@@ -1527,10 +1540,11 @@ function createRecordingKeeper({
       log('[RacingDesk] Recording: quitting, so the recording Racing Desk started is stopped');
       let resolveStop;
       const stoppedPromise = new Promise((resolve) => { resolveStop = resolve; });
-      pendingStop = { resolve: resolveStop };
+      const waiting = { resolve: resolveStop };
+      pendingStops.add(waiting);
       if (stopRequestedAt === null) { stopRequestedAt = now(); stopFrom = 'request'; }
       try { await client.request('StopRecord', {}, { timeoutMs: quitWaitMs }); } catch (e) { /* OBS gone, or not recording */ }
-      const timer = unrefed(setTimer(() => { if (pendingStop) { const p = pendingStop; pendingStop = null; p.resolve(false); } }, quitWaitMs));
+      const timer = unrefed(setTimer(() => { if (pendingStops.delete(waiting)) waiting.resolve(false); }, quitWaitMs));
       const ok = await stoppedPromise;
       clearTimer(timer);
       if (!ok) log('[RacingDesk] Recording: OBS did not say the recording stopped within the wait');

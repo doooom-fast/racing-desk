@@ -63,11 +63,13 @@
       const label = tv.label ? ` — ${tv.label}` : '';
       if (tv.step === 'seeking') return `TV shots: finding moment ${tv.index} of ${tv.total} in the replay${label}.`;
       if (tv.step === 'recording') return `TV shots: recording moment ${tv.index} of ${tv.total}${label}.`;
+      if (tv.step === 'skipped') return `TV shots: moment ${tv.index} of ${tv.total} is not in the replay, so it is skipped${label}.`;
       return `${tvLine(status)}.`;
     }
     const r = tv.result;
     if (!r) return null;
-    if (r.ok) return `TV shots done: ${r.moments} ${r.moments === 1 ? 'moment' : 'moments'}${r.video ? `, in ${r.video}` : ''}.`;
+    const missed = r.skipped > 0 ? ` (${r.skipped} ${r.skipped === 1 ? 'was' : 'were'} not in the replay)` : '';
+    if (r.ok) return `TV shots done: ${r.moments} ${r.moments === 1 ? 'moment' : 'moments'}${missed}${r.video ? `, in ${r.video}` : ''}.`;
     if (r.cancelled) return `TV shots stopped after ${r.moments} ${r.moments === 1 ? 'moment' : 'moments'}${r.video ? `; what was recorded is in ${r.video}` : ''}.`;
     return `TV shots were not made: ${r.reason}`;
   }

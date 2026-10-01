@@ -1660,3 +1660,20 @@ test("a chapter that never reached OBS is not in the sidecar's list: a request f
     expect(filed.alignment.dropped).toBeUndefined();
   } finally { r.dispose(); }
 });
+
+test('a quit while a stop is under way — a TV take ending with the app — settles both: neither waits for a STOPPED the other took', async () => {
+  const r = rig();
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    expect((await r.keeper.record({ source: 'desk' })).ok).toBe(true);
+    await until(() => r.keeper.status().recording);
+    // Both at once: the press's stop and the quit's, as the take's own stop and the app's quit are.
+    const both = Promise.all([r.keeper.stop(), r.keeper.stopOwnedForQuit()]);
+    const timedOut = Symbol('timed out');
+    const settled = await Promise.race([both, new Promise((resolve) => setTimeout(() => resolve(timedOut), 3000))]);
+    expect(settled).not.toBe(timedOut);
+    expect(settled[0]).toMatchObject({ ok: true });
+    expect(server.state.recording).toBe(false);
+    expect(r.keeper.status().recording).toBe(false);
+  } finally { r.dispose(); }
+});

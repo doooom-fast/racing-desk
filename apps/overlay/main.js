@@ -180,7 +180,7 @@ app.on('before-quit', (event) => {
   quitting = true;
   // A recording Racing Desk started is stopped before the app goes (StopRecord, STOPPED waited for 3 s at most): a
   // detached OBS would otherwise record on with nothing left to stop it. Once; then the quit goes through.
-  if (typeof recording !== 'undefined' && recording && !stoppedForQuit && (recording.needsStopForQuit() || (hudSourceOn() && obsClient.identified()))) {
+  if (typeof recording !== 'undefined' && recording && !stoppedForQuit && (recording.needsStopForQuit() || tvShots.needsStopForQuit() || (hudSourceOn() && obsClient.identified()))) {
     event.preventDefault();
     stopOwnedRecording().finally(() => app.quit());
   }
@@ -629,6 +629,9 @@ const tvShots = obs.createTvShots({
   recording,
   replay: hostReplay,
   settings: loadSettingsSync,
+  // The facecam a take has hidden is written here before it is hidden and shown again from here at the next start or the
+  // next time OBS answers, whatever became of the take (modules/js/obs/tv-shots.js).
+  stateFile: path.join(app.getPath('userData'), 'tv-state.json'),
   inCar: () => hud.state().inCar,
   log: logToFile,
   onChange: () => { buildTrayMenu(); tellDeskRecording(); },
@@ -764,14 +767,16 @@ let stoppedForQuit = false;
 function stopOwnedRecording() {
   if (stoppedForQuit) return Promise.resolve();
   stoppedForQuit = true;
-  if (tvShots.status().running) tvShots.cancel();
+  // A take under way ends and his facecam is shown again before anything else is waited for (1.5 s at most, as the HUD
+  // source below): left hidden it would be missing from every recording he makes next.
+  const tvOff = Promise.race([tvShots.stopForQuit(), new Promise((resolve) => setTimeout(resolve, 1500))]).catch(() => {});
   // The HUD source is switched off in OBS on the way out: a browser source whose page has gone shows whatever CEF shows
   // for a page that failed to load, and nothing reloads it until Racing Desk is back.
   const hudOff = hudSourceOn() && obsClient.identified()
     ? Promise.race([hudSource.disable(), new Promise((resolve) => setTimeout(resolve, 1500))]).catch(() => {})
     : Promise.resolve();
   return Promise.race([
-    Promise.all([recording.stopOwnedForQuit(), hudOff]),
+    Promise.all([recording.stopOwnedForQuit(), hudOff, tvOff]),
     new Promise((resolve) => setTimeout(resolve, obs.recording.QUIT_WAIT_MS + obs.recording.FILING_QUIT_WAIT_MS + 500)),
   ]).catch((err) => logToFile(`[RacingDesk] Recording: could not be stopped on quit: ${err.message}`));
 }

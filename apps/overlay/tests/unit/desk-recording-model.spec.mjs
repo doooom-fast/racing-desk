@@ -160,6 +160,10 @@ test('TV shots: the pill is theirs while they run, with Stop; the card says how 
   expect(model.pill(done).button.command).toBe('toggle');
   expect(model.card(done).details).toContain('TV shots done: 7 moments, in D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort\\2026-09-29 22-13-22 tv.mp4.');
   expect(model.tvSentence({ tv: { running: false, result: { ok: false, cancelled: true, moments: 2, video: 'x.mp4' } } })).toBe('TV shots stopped after 2 moments; what was recorded is in x.mp4.');
+  // A moment the sim did not reach is skipped, and said, here and in the result.
+  expect(model.tvSentence({ tv: { running: true, step: 'skipped', index: 2, total: 3, label: 'Incident ×2' } })).toBe('TV shots: moment 2 of 3 is not in the replay, so it is skipped — Incident ×2.');
+  expect(model.tvSentence({ tv: { running: false, result: { ok: true, moments: 2, skipped: 1, video: 'x.mp4' } } })).toBe('TV shots done: 2 moments (1 was not in the replay), in x.mp4.');
+  expect(model.tvSentence({ tv: { running: false, result: { ok: true, moments: 2, skipped: 2, video: 'x.mp4' } } })).toBe('TV shots done: 2 moments (2 were not in the replay), in x.mp4.');
   expect(model.tvSentence({ tv: { running: false, result: { ok: false, cancelled: false, moments: 0, reason: "iRacing isn't in its replay." } } })).toBe("TV shots were not made: iRacing isn't in its replay.");
   expect(model.tvSentence({ tv: { running: false, result: null } })).toBeNull();
   expect(model.tvSentence(READY)).toBeNull();
