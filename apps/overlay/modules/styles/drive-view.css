@@ -539,22 +539,42 @@ body.drive-mode-active #datastreamPanel [data-ds-field="dsShowFps"] { display: n
 @container (max-height: 250px) { body.drive-mode-active .ds-row[data-ds-field="dsShowFfb"] { display: none; } }
 @container (max-height: 225px) { body.drive-mode-active .ds-gforce-vals .ds-row:nth-child(3) { display: none; } }
 
-/* ── Incidents: the HUD's own panel as it is on the rig — label, the count coloured by level, the bar to penalty and
-      DQ, what is left of each. It is fixed to a corner there; here it is a cell. ── */
+/* ── Incidents: the HUD's own panel as it is on the rig — the count coloured by level, the bar to penalty and DQ, what
+      is left of each. It is fixed to a corner there; here it is a cell. He asked (2026-10-01) for its header where every
+      other module has its header, and larger fonts on the data. So the header is the datastream's beside it: at the top,
+      on the left, in the same type — the inner card takes the datastream's padding and number size (6.2cqh / 9cqw, the
+      20px floor), and the header is 0.55 of that with the same tracking, colour and rule beneath (.ds-header, above) —
+      where it sat centred in the middle of the cell. The numbers are as large as the cell lets them be, the way the
+      other panels' numbers fill theirs: the count from the cell's height and width (34cqh / 50cqw: 70px in an Air's
+      cell on its side, 60px in a 9.7-inch's, 105px on the rig's 1920x1080), the penalty and DQ counts from the same
+      (12cqh / 20cqw: 24 to 37px), their labels 11px or more; nothing is under 20px. The count floats in the room
+      between the header and the thresholds (auto margins), so the panel reads top to bottom with the thresholds at
+      its foot, and in a session with no limits (a test drive, a practice) the count has the room to itself. Once a
+      limit is hit the number is a word (PENALTY, DQ), read at a label's size; a value that would not fit beside its
+      label goes under it, right-aligned, rather than cropped, and the labels never break.
+      tests/unit/incidents-glance.spec.mjs measures the header against the datastream's and the numbers against the
+      cell at every iPad size, in a race, with both limits hit, and in a test drive. ── */
 body.drive-mode-active #incidentsPanel { grid-area: inc; display: flex; background: none; border: none; }
 body.drive-mode-active .inc-inner {
-  flex: 1;
-  display: flex; flex-direction: column; justify-content: center; gap: 3cqh;
-  padding: 4cqh 8cqw;
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; justify-content: flex-start; gap: 0;
+  padding: 6px 10px; text-align: left;
+  font-size: max(20px, min(6.2cqh, 9cqw));
+  overflow: hidden;
 }
-body.drive-mode-active .inc-label { font-size: max(11px, min(8cqh, 9cqw)); padding-bottom: 0.4em; margin: 0; }
-body.drive-mode-active .inc-count { font-size: max(20px, min(32cqh, 36cqw)); }
-body.drive-mode-active .inc-x { font-size: max(20px, min(15cqh, 17cqw)); }
-body.drive-mode-active .inc-progress { margin: 0; }
+body.drive-mode-active .inc-label { font-size: max(11px, 0.55em); padding-bottom: 0.25em; margin: 0 0 0.25em; text-align: left; line-height: normal; }
+body.drive-mode-active .inc-value-row { margin: auto 0; justify-content: center; gap: 0.2em; }
+body.drive-mode-active .inc-count { font-size: max(20px, min(34cqh, 50cqw)); line-height: 1; }
+body.drive-mode-active .inc-x { font-size: max(20px, min(14cqh, 20cqw)); }
+body.drive-mode-active .inc-progress { margin: 0 0 0.15em; padding: 0 1px; flex: none; }
 body.drive-mode-active .inc-bar-track { height: max(4px, 2.5cqh); }
-body.drive-mode-active .inc-thresholds { margin: 0; gap: 0.35em; }
-body.drive-mode-active .inc-thresh-row { font-size: max(11px, min(8cqh, 9cqw)); align-items: baseline; }
-body.drive-mode-active .inc-thresh-val { font-size: max(20px, min(9cqh, 14cqw)); }
+body.drive-mode-active .inc-thresholds { margin: 0; padding-top: 0.2em; gap: 0.1em; flex: none; }
+body.drive-mode-active .inc-thresh-row { font-size: max(11px, min(7cqh, 9cqw)); align-items: baseline; flex-wrap: wrap; gap: 0 0.4em; line-height: 1.2; }
+body.drive-mode-active .inc-thresh-row > span { white-space: nowrap; }
+body.drive-mode-active .inc-thresh-val { font-size: max(20px, min(12cqh, 20cqw)); margin-left: auto; line-height: 1.15; }
+/* Once a limit is hit the number is a word (PENALTY, DQ): a word is read at a label's size, and the longer one, at the
+   number's size, was wider than the narrowest cell on its side. */
+body.drive-mode-active .inc-thresh-val.thresh-hit { font-size: max(14px, min(8cqh, 11cqw)); letter-spacing: 0.06em; }
 body.drive-mode-active .inc-gl-canvas { inset: 0; width: 100%; height: 100%; }
 
 /* ── What comes and goes, over the grid as it does over the game ───────────────────────────────────────────────────

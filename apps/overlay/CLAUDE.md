@@ -254,6 +254,22 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   note is set and by a `ResizeObserver` when its cell changes size). The iPad's cell and the glance layout's hold it
   whole.
   Nothing resets or records a map any more (`tests/unit/track-map-status.spec.mjs`).
+- **The incidents panel** (`#incidentsPanel`, `.inc-inner`; the rig's own panel, a cell here) has its header where every
+  other panel has its header and the numbers as large as the cell allows (he asked on 2026-10-01: "update incidents
+  panel in ipad overlay to match header location of other modules and larger fonts on the data"). The header is the
+  datastream's beside it: the inner card takes `.ds-inner`'s padding (6px 10px) and number size (`max(20px, min(6.2cqh,
+  9cqw))`), and `.inc-label` is `max(11px, 0.55em)` with the same tracking (0.12em), colour, weight and rule beneath as
+  `.ds-header`, at the top on the left, where it sat centred in the middle of the cell. The count is `max(20px,
+  min(34cqh, 50cqw))` (70px in an Air's cell on its side, 60px in a 9.7-inch's, 105px on the rig's 1920x1080; it was
+  `min(32cqh, 36cqw)`), the penalty and DQ counts `max(20px, min(12cqh, 20cqw))` (24 to 37px; they were `min(9cqh,
+  14cqw)`), their labels 11px or more; the count floats in the room between the header and the thresholds (auto
+  margins), so the thresholds are at the foot and in a session with no limits the count has the room to itself. Once
+  a limit is hit the number is a word (PENALTY, DQ), read at a label's size (`max(14px, min(8cqh, 11cqw))`: at the
+  number's size it was wider than the narrowest cell); a value that would not fit beside its label goes under it,
+  right-aligned, and the labels never break. `tests/unit/incidents-glance.spec.mjs` measures the header against the
+  datastream's (offset from the top and the left of its panel within a pixel, size, tracking, colour, weight, case,
+  family) and the numbers against the cell, at the seven iPad sizes and the rig's two, in a race, with both limits
+  hit and in a test drive, with nothing cropped. The glance golden frames were re-made for it.
 - **The leaderboard** is the HUD's panel and rows, its type sized from the panel (`#lbRows` font-size) and the rows sharing
   its height; `leaderboard.js` counts how many the panel holds at that size (1.9 lines to a row) and not the sum of the
   screen minus the dashboard that the rig's HUD does.
