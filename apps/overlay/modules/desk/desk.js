@@ -7,6 +7,13 @@
   const params = new URLSearchParams(location.search);
   const HOST = (params.get('host') || 'http://localhost:8889').replace(/\/+$/, '');
   const DATA = HOST + '/racing-desk/data/';
+  // The host's data is for this machine: it carries the driver's customer id, and the host answers a request that names
+  // this machine (localhost, 127.0.0.1 or [::1], at the port it listens on) and refuses any other with a 403. So the
+  // desk asks a host on this machine, and says so when it is pointed at another instead of asking it: `?host=` and
+  // main.js's --desk-host name a host here, by another port, and nothing further away.
+  const HOST_IS_HERE = (() => {
+    try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(HOST).hostname); } catch (_) { return false; }
+  })();
   // main.js says why it has no host of its own (no exe built, something else on the port) — shown with the
   // offline message, since that is the window the person is looking at.
   const NOTE = params.get('note');
@@ -64,6 +71,11 @@
   // ── Data ─────────────────────────────────────────────────
 
   async function getJson(route) {
+    if (!HOST_IS_HERE) {
+      const err = new Error(`${route}: ${HOST} is not on this machine`);
+      err.notHere = true;
+      throw err;
+    }
     const res = await fetch(DATA + route, { cache: 'no-store' });
     if (!res.ok) throw new Error(`${route}: HTTP ${res.status}`);
     return res.json();
@@ -75,6 +87,13 @@
     try {
       status = await getJson('status');
     } catch (err) {
+      if (err && err.notHere) {
+        // Nothing to retry: it is not going to be on this machine by waiting.
+        showOffline(`${HOST} is not on this machine, and the host's data (your sessions, with your customer id) is read from this machine only, so the desk does not ask for it. Point it at a host on this machine: localhost or 127.0.0.1, at the port the host listens on.`);
+        return;
+      }
+      // (A refusal has no CORS header, so a page cannot see its status: a host that refuses the desk looks like one that is
+      // not answering. Nothing the desk is pointed at on this machine refuses it.)
       showOffline(`Nothing is answering at ${HOST}.`);
       setTimeout(load, 5000);
       return;

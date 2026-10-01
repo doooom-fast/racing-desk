@@ -261,6 +261,12 @@ function showDesk(page) {
 async function startLocalHost() {
   if (deskHostFlag() || isDev) {
     logToFile(isDev ? '[RacingDesk] Host: dev mode, not starting one' : `[RacingDesk] Host: --desk-host=${deskHostFlag()}, not starting one`);
+    // The host answers this machine alone (its data carries the driver's customer id), so a --desk-host that names another
+    // machine is a host that refuses the desk: the desk says so and does not ask it, and what this process asks of it (the
+    // sim's window, the car names) is a 403 and is carried on without, as with no host.
+    if (deskHostFlag() && !rigApi.isLocal(deskHostFlag())) {
+      logToFile(`[RacingDesk] Host: --desk-host=${deskHostFlag()} is not on this machine, and the host's data is read from this machine only; use localhost or 127.0.0.1`);
+    }
     return;
   }
   try {

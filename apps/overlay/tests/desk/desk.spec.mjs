@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import http from 'node:http';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { answerRuleOrPreflight, corsHeaders } from '../this-machine-rule.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DESK = pathToFileURL(join(here, '..', '..', 'desk.html')).href;
@@ -122,15 +123,21 @@ const SCHEDULE = {
 // RacingDesk.Host refuses it. It has no cars, views or pedals to give. What the host keeps per car reaches the Cars
 // page through the app (window.racingDesk.rig, stubRig below), and a page that asked the host for any of it
 // itself would be at fault: the tests look in `asked` for that.
+//
+// It answers whom RacingDesk.Host answers (tests/this-machine-rule.mjs): a Host that names this machine at its own port
+// and an Origin that is null (the desk is a file) or none; anything else is a 403 with no CORS header, written to
+// `refused`, and a CORS header goes to the origin null by name, never *. So every test here that finds the desk drawn
+// from this host is also a test that the desk's own requests are ones the host answers.
 function startMockHost(history, schedule = SCHEDULE, port = 0) {
   const server = http.createServer((req, res) => {
+    if (answerRuleOrPreflight(req, res, server.address().port, server.refused)) return;
     const url = new URL(req.url, 'http://x');
     const send = (status, body) => {
-      res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.writeHead(status, { 'Content-Type': 'application/json', ...corsHeaders(req) });
       res.end(JSON.stringify(body));
     };
     const route = url.pathname.replace('/racing-desk/data/', '');
-    server.asked.push({ method: req.method, route });
+    server.asked.push({ method: req.method, route, host: req.headers.host, origin: req.headers.origin });
     if (req.method !== 'GET') return send(403, { error: 'Writes are for local programs.' });
     if (route === 'status') return send(200, { schemaVersion: 2, sessions: history.sessions.length, laps: 120, lastSessionAt: history.sessions.at(-1).started_at });
     if (route === 'sessions') return send(200, history.sessions);
@@ -143,6 +150,7 @@ function startMockHost(history, schedule = SCHEDULE, port = 0) {
     send(404, { error: 'unknown data route' });
   });
   server.asked = [];
+  server.refused = [];
   return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server)));
 }
 
@@ -261,6 +269,60 @@ test('passes on why the app has no host of its own', async ({ page }) => {
   await expect(page.locator('#offline')).toBeVisible();
   await expect(page.locator('#offline-reason')).toContainText(`127.0.0.1:${port}`);
   await expect(page.locator('#offline-reason')).toContainText(note);
+});
+
+// ── The host's data is for this machine ──────────────────────
+// RacingDesk.Host answers a Host that names this machine at its own port and an Origin that is null or none, and refuses the
+// rest (apps/host LocalDataApi; tests/this-machine-rule.mjs is the stand-in's copy of the rule). The desk is a file, so its
+// reads say Origin: null and name the host it was given.
+
+test('reads the host as a page of the app: Origin null, the host\'s own address and port, and every read answered', async ({ page }) => {
+  const own = await startMockHost(buildHistory());
+  const port = own.address().port;
+  try {
+    await openDesk(page, `http://127.0.0.1:${port}`);
+    await expect(page.locator('.race-row')).toHaveCount(30);
+    await expect(page.locator('#offline')).toBeHidden();
+
+    const routes = new Set(own.asked.map((a) => a.route.split('?')[0]));
+    expect([...routes].sort()).toEqual(['schedule', 'session', 'sessions', 'status']);
+    for (const a of own.asked) {
+      expect(a.origin, `${a.method} ${a.route}: a file's page says its origin is null`).toBe('null');
+      expect(a.host, `${a.method} ${a.route}: it names the host it was given, at its port`).toBe(`127.0.0.1:${port}`);
+    }
+    expect(own.refused, 'the host refused none of the desk\'s requests').toEqual([]);
+  } finally {
+    await new Promise((resolve) => own.close(resolve));
+  }
+});
+
+test('does not ask a host that is on another machine, and says why', async ({ page }) => {
+  const asked = [];
+  page.on('request', (request) => { if (request.url().startsWith('http://192.168.1.20')) asked.push(request.url()); });
+  await openDesk(page, 'http://192.168.1.20:8889');
+
+  await expect(page.locator('#offline')).toBeVisible();
+  await expect(page.locator('#offline-reason')).toContainText('not on this machine');
+  await expect(page.locator('#offline-reason')).toContainText('192.168.1.20:8889');
+  await page.waitForTimeout(300);
+  expect(asked, 'nothing was sent to it').toEqual([]);
+});
+
+test('a host that refuses the desk, as the host does to a stranger (403, no CORS header), reads as no host', async ({ page }) => {
+  // A refusal says nothing a page may read, so the desk cannot tell it from a host that is not answering; it keeps asking.
+  const refusing = http.createServer((req, res) => {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'this is for the app on this machine' }));
+  });
+  await new Promise((resolve) => refusing.listen(0, '127.0.0.1', resolve));
+  try {
+    await openDesk(page, `http://127.0.0.1:${refusing.address().port}`);
+    await expect(page.locator('#offline')).toBeVisible();
+    await expect(page.locator('#offline-reason')).toContainText(`127.0.0.1:${refusing.address().port}`);
+    await expect(page.locator('.race-row')).toHaveCount(0);
+  } finally {
+    await new Promise((resolve) => refusing.close(resolve));
+  }
 });
 
 test('tells a telemetry-only server (the SimHub plugin) apart from the local host', async ({ page }) => {
