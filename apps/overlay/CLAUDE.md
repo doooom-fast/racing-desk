@@ -132,7 +132,7 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
 
 - **The cells** (24 columns; landscape, then portrait): the position block (`#positionPage`: the place, the places since
   the start, the lap, the live lap, the delta), the gaps ahead and behind (`#gapsBlock`, with its flag overlay), the tacho,
-  the relative leaderboard with its sparklines and the race timeline, the full circuit and the local view, the laps panel
+  the leaderboard with its sparklines and the race timeline, the full circuit and the local view, the laps panel
   (below), iRating and safety rating (`#ratingPage`, which on the rig takes turns with the position block; here both are
   up), the car's controls, the pedals, the Racing Desk mark and the car's badge, the clock (`#raceTimerBlock`), the pit
   box (its tyres, fuel and weather side by side, not tabs), the datastream, the incidents. Landscape:

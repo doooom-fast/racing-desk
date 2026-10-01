@@ -302,11 +302,10 @@
     // ── Focus + row limit logic ──
     const focusMode = _settings.lbFocus || 'me';
 
-    // Update header title based on focus mode
+    // The panel is the standings, whichever row it centres on: it never shows relative (on-track) timings, so it
+    // is called the leaderboard either way.
     const headerEl = document.querySelector('.lb-header');
-    if (headerEl) {
-      headerEl.textContent = focusMode === 'lead' ? 'LEADERBOARD' : 'RELATIVE';
-    }
+    if (headerEl && headerEl.textContent !== 'LEADERBOARD') headerEl.textContent = 'LEADERBOARD';
     let maxRows = _settings.lbMaxRows || 5;
 
     if (driveView) {
