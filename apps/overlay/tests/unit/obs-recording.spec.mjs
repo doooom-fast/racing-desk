@@ -1415,6 +1415,8 @@ test('a chapter OBS refuses because the recording was just paused is not "this f
     const lines = linesOf(r.keeper.status().lastFiled.sidecar);
     const summary = lines.at(-1);
     expect(summary.markers.map((m) => m.type).filter((t) => /^recording_/.test(t))).toEqual(['recording_paused', 'recording_resumed']);
+    // The chapter OBS refused while it was paused is not among the ones it took.
+    expect(summary.chapters.map((c) => c.name)).toEqual(['Lap 10']);
     expect(summary.pauses).toHaveLength(1);
     const pause = summary.pauses[0];
     expect(pause.to - pause.from).toBeGreaterThanOrEqual(200);
@@ -1629,4 +1631,32 @@ test('a sidecar gone on in for a recording of his own goes on from the zero its 
     expect(resumed.t).toBeLessThan(2);
     expect(lines.filter((l) => l._type === 'header')).toHaveLength(1);
   } finally { b.dispose(); }
+});
+
+test("a chapter that never reached OBS is not in the sidecar's list: a request fails, and only what OBS took is paired with the file", async () => {
+  server.state.profile.AdvOut.RecFormat2 = 'hybrid_mp4';
+  const r = rig({ inCar: true, payload: RACE_FRAME() });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    const started = await r.keeper.record({ source: 'desk' });
+    await until(() => r.keeper.status().sidecar && r.keeper.status().sidecar.frames >= 3);
+    server.fail('CreateRecordChapter', 700, 'The request failed.');
+    r.fake.payload = { ...r.fake.payload, 'DataCorePlugin.GameData.CurrentLap': 9 };
+    await until(() => server.requests.some((q) => q.type === 'CreateRecordChapter'), 2000);
+    await settle(120);
+    expect(r.keeper.status().chapters).toBe(0);
+    r.fake.payload = { ...r.fake.payload, 'RacingDesk.Plugin.DS.IsInPitLane': 1 };
+    await until(() => r.keeper.status().chapters === 1, 2000);
+    r.fake.payload = { ...r.fake.payload, 'DataCorePlugin.GameData.CurrentLap': 10 };
+    await until(() => r.keeper.status().chapters === 2, 2000);
+    const theirs = server.state.chapters.map((c) => ({ ms: c.ms + 120, name: c.name }));
+    expect(theirs.map((c) => c.name)).toEqual(['Pit in', 'Lap 10']);
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: (server.mode.clock() - server.state.startedAt) + 1000, chapters: [{ ms: 0, name: 'Start' }, ...theirs] }));
+    await r.keeper.stop();
+    await until(() => r.keeper.status().lastFiled, 3000);
+    const filed = r.keeper.status().lastFiled;
+    expect(linesOf(filed.sidecar).at(-1).chapters.map((c) => c.name)).toEqual(['Pit in', 'Lap 10']);
+    expect(filed.alignment).toMatchObject({ method: 'chapters', pairs: 2 });
+    expect(filed.alignment.dropped).toBeUndefined();
+  } finally { r.dispose(); }
 });
