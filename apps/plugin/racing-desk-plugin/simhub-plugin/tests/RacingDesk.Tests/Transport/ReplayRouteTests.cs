@@ -256,11 +256,18 @@ namespace RacingDesk.Tests.Transport
         public void TheRoute_TakesNoActionQuery_SoTheRuntimesCheckNeverLetsItThroughToAnotherMachine()
         {
             // A request naming an action on this route is refused before the host sees it, like every other route of the host's.
+            // The route would refuse this one too (it is not from this machine), with the same 403: what tells the two apart
+            // is the words. The runtime's say "a program" (RefuseActionNotFromThisMachine), the route's own say "the app"
+            // (ReplayApi), so the test fails if the runtime's check is not the one that answered. The action named is one the
+            // runtime has (the map reset it once had is gone, and a name it has not heard of would do as well).
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{_httpPort}/racing-desk/data/replay?action=resetmap");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{_httpPort}/racing-desk/data/replay?action=restartdemo");
             request.Headers.Host = "192.168.1.20:8889";
             using var response = http.Send(request);
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+            string body = new StreamReader(response.Content.ReadAsStream()).ReadToEnd();
+            Assert.That(JObject.Parse(body)["error"]!.ToString(), Is.EqualTo("this is for a program on this machine"), "the runtime's refusal answered, not the route's own");
+            Assert.That(_replay.Calls, Is.Empty, "nothing was sent to the sim");
         }
 
         /// <summary>A replay control that writes down what it was asked, and reaches no sim.</summary>
