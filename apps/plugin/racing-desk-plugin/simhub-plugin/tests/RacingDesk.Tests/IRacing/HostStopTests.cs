@@ -43,7 +43,7 @@ namespace RacingDesk.Tests.IRacing
             public readonly HostStop Host;
             public DateTime AskedAt, EndedAt;
 
-            public Stopping(TimeSpan grace)
+            public Stopping(TimeSpan grace, Action? release = null)
             {
                 Host = new HostStop(Stop, grace, m =>
                 {
@@ -54,7 +54,7 @@ namespace RacingDesk.Tests.IRacing
                     EndedAt = DateTime.UtcNow;
                     Interlocked.Increment(ref _ends);
                     Ended.Set();
-                });
+                }, release);
             }
 
             public int Ends => Volatile.Read(ref _ends);
@@ -225,6 +225,54 @@ namespace RacingDesk.Tests.IRacing
                 "Ctrl+C — stopping",
                 "the stop was not over 1 s after it was asked for — ending the process; what was being written is left uncommitted",
             }));
+        }
+
+        [Test]
+        public void ThePortsAreLetGoOfFirst_BeforeTheHostHearsTheStop_AndOnce()
+        {
+            // An app that starts while the host is stopping must not find it answering (host-launcher.js would take it for
+            // one it can use, and have none when it ends a few seconds on), so the ports go before anything else does.
+            int released = 0;
+            bool heardTheStopFirst = false;
+            Stopping? stopping = null;
+            stopping = new Stopping(TimeSpan.FromSeconds(1), () =>
+            {
+                heardTheStopFirst |= stopping!.Stop.IsSet;
+                Interlocked.Increment(ref released);
+            });
+
+            stopping.Host.Ask("Ctrl+C");
+            stopping.Host.Ask("--exit-after 10 s");
+
+            Assert.That(stopping.Stop.IsSet, Is.True);
+            Assert.That(released, Is.EqualTo(1), "once, however often the stop is asked for");
+            Assert.That(heardTheStopFirst, Is.False, "before the stop is woken");
+            Assert.That(stopping.Ended.Wait(5000), Is.True);
+        }
+
+        [Test]
+        public void APortsReleaseThatThrowsOrHangsDoesNotKeepTheHostFromStopping()
+        {
+            var grace = TimeSpan.FromSeconds(1);
+            var throwing = new Stopping(grace, () => throw new InvalidOperationException("the listener is gone"));
+
+            Assert.DoesNotThrow(() => throwing.Host.Ask("Ctrl+C"));
+
+            Assert.That(throwing.Stop.IsSet, Is.True, "the host is still told to stop");
+            Assert.That(throwing.Ended.Wait(5000), Is.True, "and still ended at the deadline");
+
+            // One that never returns: the clock was started before it, so the process is ended all the same.
+            using var hang = new ManualResetEventSlim();
+            var hanging = new Stopping(grace, () => hang.Wait());
+            new Thread(() => hanging.Host.Ask("Ctrl+C")) { IsBackground = true, Name = "asker" }.Start();
+            try
+            {
+                Assert.That(hanging.Ended.Wait(5000), Is.True, "the deadline does not wait for the release");
+            }
+            finally
+            {
+                hang.Set();
+            }
         }
 
         [Test]

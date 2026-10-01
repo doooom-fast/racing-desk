@@ -376,6 +376,17 @@ namespace RacingDesk.Plugin
             _screenColorSampler.Dispose();
             _mozaSerial?.Dispose();
             _incidentCoach?.End();
+            StopListening();
+        }
+
+        /// <summary>
+        /// Closes :HttpPort and :WsPort and leaves everything else as it is. A host that has been asked to stop calls
+        /// this first (HostStop): its orderly stop takes up to five seconds, and for as long as it answers on its port
+        /// the app that starts in the meantime takes it for a host it can use, and is left with none when it ends.
+        /// Safe to call again, and before <see cref="Start"/> or after <see cref="Stop"/>.
+        /// </summary>
+        public void StopListening()
+        {
             StopHttpServer();
             _wsServer?.Stop();
         }

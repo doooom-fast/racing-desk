@@ -18,6 +18,7 @@ namespace RacingDesk.Plugin.Transport
         private readonly string _address;
         private WebSocketServer _server;
         private volatile bool _running = false;
+        private readonly object _stopLock = new object();
 
         // Per-client state
         private readonly ConcurrentDictionary<Guid, WsClientConnection> _clients =
@@ -76,38 +77,41 @@ namespace RacingDesk.Plugin.Transport
             }
         }
 
-        /// <summary>Stop the WebSocket server.</summary>
+        /// <summary>Stop the WebSocket server. Once is enough: a second caller, which a host that is stopping has, finds it done.</summary>
         public void Stop()
         {
-            if (!_running) return;
-
-            try
+            lock (_stopLock)
             {
-                _running = false;
+                if (!_running) return;
 
-                // Close all client connections gracefully
-                foreach (var client in _clients.Values)
+                try
                 {
-                    try
+                    _running = false;
+
+                    // Close all client connections gracefully
+                    foreach (var client in _clients.Values)
                     {
-                        client.Socket?.Close();
+                        try
+                        {
+                            client.Socket?.Close();
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warn($"[RacingDesk.WsServer] Error closing client: {ex.Message}");
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        Log.Warn($"[RacingDesk.WsServer] Error closing client: {ex.Message}");
-                    }
+                    _clients.Clear();
+
+                    // Dispose server
+                    _server?.Dispose();
+                    _server = null;
+
+                    Log.Info("[RacingDesk.WsServer] WebSocket server stopped");
                 }
-                _clients.Clear();
-
-                // Dispose server
-                _server?.Dispose();
-                _server = null;
-
-                Log.Info("[RacingDesk.WsServer] WebSocket server stopped");
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"[RacingDesk.WsServer] Error stopping server: {ex.Message}");
+                catch (Exception ex)
+                {
+                    Log.Warn($"[RacingDesk.WsServer] Error stopping server: {ex.Message}");
+                }
             }
         }
 

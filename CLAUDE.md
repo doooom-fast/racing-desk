@@ -352,7 +352,13 @@ flushing what it was recording, when the app goes (`--parent-pid`). **A host sti
 went ends its own process** (`apps/host/RacingDesk.Host/HostStop.cs`, TerminateProcess, so nothing can hold it; the
 same goes for Ctrl+C and `--exit-after`) — its stop still under way, or over with a thread still holding the process —
 and what was being written is left uncommitted: the store is
-SQLite in WAL mode and stays as it was at its last commit. The app's will-quit kill is a backstop only while the app is
+SQLite in WAL mode and stays as it was at its last commit. **A host that has been asked to stop lets go of its ports
+first** (`RacingDeskRuntime.StopListening`, wired by `Program.NewStop`: the HTTP and WebSocket listeners close before the
+loops are told, and the orderly stop that can take up to five seconds comes after): `host-launcher.js` takes anything
+that answers `/racing-desk/data/status` with a `schemaVersion` for a host it can use, so an app that started in the
+meantime — the green-screen toggle relaunches it, and it is up within a second — would adopt a host that was about to end
+and have none for the rest of the session. With the ports free it starts a host of its own, and the store serialises
+the two hosts' writes (`tests/…/Transport/StopListeningTests.cs`). The app's will-quit kill is a backstop only while the app is
 still here; a host that outlives the app has nothing of the app left to end it. On 2026-09-29 one did, for minutes,
 and the next `npm run build` could not replace `e_sqlite3.dll`: IRSDKSharper 1.1.4's `Start()` spins until it sees its
 connection loop's flag set, the loop clears the flag as soon as it has connected, and it connects on its first pass

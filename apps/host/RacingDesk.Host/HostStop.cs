@@ -14,6 +14,13 @@ namespace RacingDesk.Host
     /// that does not finish. A host whose app has gone must not stay behind holding its ports and its DLLs (on
     /// 2026-09-29 one did, and the next build could not replace e_sqlite3.dll). What was being written when it ends is
     /// left uncommitted: the store is SQLite in WAL mode, and stays as it was at its last commit.
+    /// <para>
+    /// The ports go first. The orderly stop can take most of those seconds, and a host that still answers on :8889 or
+    /// :18889 while it does is taken for one the app can use by an app that starts in the meantime (the green-screen
+    /// toggle relaunches it, and the relaunch is up within a second) — which then has none once this one ends. So
+    /// asking for the stop also lets go of the listeners (<c>release</c>), before anything else is done, and the
+    /// newcomer finds the ports free and starts a host of its own.
+    /// </para>
     /// </summary>
     internal sealed class HostStop
     {
@@ -29,6 +36,7 @@ namespace RacingDesk.Host
         private readonly Action<string> _log;
         private readonly Action<string> _warn;
         private readonly Action _end;
+        private readonly Action _release;
         private int _asked;
         private volatile bool _stopped;
 
@@ -36,22 +44,34 @@ namespace RacingDesk.Host
 
         /// <param name="stop">What the host's loops wait on.</param>
         /// <param name="end">Ends the process; by default at once, with nothing run on the way out (tests pass their own).</param>
-        public HostStop(ManualResetEventSlim stop, TimeSpan grace, Action<string> log, Action<string> warn = null, Action end = null)
+        /// <param name="release">Run once, first, when the stop is asked for: lets go of the ports (RacingDeskRuntime.StopListening).</param>
+        public HostStop(ManualResetEventSlim stop, TimeSpan grace, Action<string> log, Action<string> warn = null, Action end = null, Action release = null)
         {
             _stop = stop ?? throw new ArgumentNullException(nameof(stop));
             Grace = grace;
             _log = log ?? (_ => { });
             _warn = warn ?? _log;
             _end = end ?? EndProcess;
+            _release = release ?? (() => { });
         }
 
-        /// <summary>Asks for the stop. The first ask starts the clock; asking again changes nothing.</summary>
+        /// <summary>
+        /// Asks for the stop. The first ask starts the clock, lets go of the ports and then wakes the host's loops;
+        /// asking again changes nothing.
+        /// </summary>
         public void Ask(string why)
         {
             if (Interlocked.Exchange(ref _asked, 1) != 0) return;
             _log(why + " — stopping");
-            try { _stop.Set(); } catch (ObjectDisposedException) { /* the orderly stop is already over */ }
+            // The clock first: whatever the release waits on, the process is not kept for longer than Grace.
             new Thread(Deadline) { IsBackground = true, Name = "stop-deadline" }.Start();
+            try { _release(); }
+            catch (Exception ex)
+            {
+                // The stop goes on without it: the ports are let go of when the orderly stop reaches them, or at the deadline.
+                try { _warn("the ports were not let go of when the stop was asked for: " + ex.Message); } catch { }
+            }
+            try { _stop.Set(); } catch (ObjectDisposedException) { /* the orderly stop is already over */ }
         }
 
         /// <summary>Asks for the stop when process <paramref name="pid"/> exits, or at once when it is not running.</summary>

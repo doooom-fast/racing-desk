@@ -124,7 +124,7 @@ Data options:
             // while the process is ending, and a wait on a disposed one throws on a thread nothing catches on.
             var stop = new ManualResetEventSlim();
             // However the stop is asked for, the process ends within a few seconds of it: see HostStop.
-            var stopping = new HostStop(stop, HostStop.DefaultGrace, m => Log.Info("[RacingDesk.Host] " + m), m => Log.Warn("[RacingDesk.Host] " + m));
+            var stopping = NewStop(runtime, stop, HostStop.DefaultGrace);
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; stopping.Ask("Ctrl+C"); };
             using var exitAfter = o.ExitAfterSeconds > 0
                 ? new Timer(_ => stopping.Ask($"--exit-after {o.ExitAfterSeconds} s"), null, TimeSpan.FromSeconds(o.ExitAfterSeconds), Timeout.InfiniteTimeSpan)
@@ -155,6 +155,12 @@ Data options:
             }
             return 0;
         }
+
+        // The ports go first when the stop is asked for, so that an app starting while this host stops finds them free
+        // and starts a host of its own, instead of taking this one for a host it can use (see HostStop). `end` is for
+        // tests, which must not end the process they run in.
+        internal static HostStop NewStop(RacingDeskRuntime runtime, ManualResetEventSlim stop, TimeSpan grace, Action end = null) =>
+            new HostStop(stop, grace, m => Log.Info("[RacingDesk.Host] " + m), m => Log.Warn("[RacingDesk.Host] " + m), end, runtime.StopListening);
 
         // Live: tick on every SDK telemetry frame while connected; when iRacing isn't running, keep ticking at
         // ~60 Hz with an empty frame, as SimHub does, so idle and demo state stay current.
