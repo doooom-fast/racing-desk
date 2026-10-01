@@ -19,23 +19,32 @@ namespace RacingDesk.Plugin
         /// <summary>Whether :HttpPort is bound and served — false when another host or SimHub got there first.</summary>
         public bool HttpListening => _httpListener != null && _httpListener.IsListening;
 
+        /// <summary>
+        /// The prefixes the state server tries to bind, in order of preference, each entry being what one listener
+        /// is given. HTTP.sys matches a prefix that names a host (<c>localhost</c>) against the Host header of the
+        /// request, so a listener bound by name answers 400 to a client that asks for <c>127.0.0.1</c>: the
+        /// loopback entry therefore names both, and the SimHub plugin, which asks the app's host at
+        /// <see cref="Settings.HostUrl"/> (127.0.0.1), is answered.
+        /// </summary>
+        internal static string[][] HttpPrefixGroups(int port) => new[]
+        {
+            // 1. Wildcard (*) — works if SimHub runs as admin or URL ACL is registered; answers every Host.
+            new[] { $"http://*:{port}/racing-desk/" },
+            // 2. Loopback only — always works without admin, sufficient for the overlay and for the plugin.
+            new[] { $"http://localhost:{port}/racing-desk/", $"http://127.0.0.1:{port}/racing-desk/" },
+            // 3. localhost alone, should the address not be given to this user.
+            new[] { $"http://localhost:{port}/racing-desk/" },
+        };
+
         private void StartHttpServer()
         {
-            // Try binding in order of preference:
-            // 1. Wildcard (*) — works if SimHub runs as admin or URL ACL is registered
-            // 2. localhost only — always works without admin, sufficient for local overlays
-            string[] prefixes = new[]
+            foreach (var group in HttpPrefixGroups(_options.HttpPort))
             {
-                $"http://*:{_options.HttpPort}/racing-desk/",
-                $"http://localhost:{_options.HttpPort}/racing-desk/"
-            };
-
-            foreach (var prefix in prefixes)
-            {
+                string prefix = string.Join(" + ", group);
                 try
                 {
                     _httpListener = new HttpListener();
-                    _httpListener.Prefixes.Add(prefix);
+                    foreach (var p in group) _httpListener.Prefixes.Add(p);
                     _httpListener.Start();
                     _httpThread = new Thread(HttpServerLoop) { IsBackground = true, Name = "RacingDesk-HTTP" };
                     _httpThread.Start();

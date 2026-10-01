@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -95,6 +96,83 @@ namespace RacingDesk.Tests.IRacing
             var parsed = RacingDesk.Plugin.Engine.HostOutlineSource.Parse(body);
             Assert.That((parsed.TrackId, parsed.CleanLaps, parsed.Points.Count), Is.EqualTo((777, 2, 1000)));
             Assert.That(Get(api, "outline?track=778").Status, Is.EqualTo(HttpStatusCode.NotFound));
+        }
+
+        // ── The address the plugin asks, and the addresses the host answers on ──
+
+        // HTTP.sys matches a prefix that names a host ("localhost") against the Host header of the request, and answers
+        // 400 itself to a request for any other name. The host, run by the app and not elevated, can only bind the
+        // loopback prefixes, so the plugin's address has to be one of them. These tests are on 127.0.0.1 alone, never on
+        // a prefix that names a host (HTTP.sys would bind that one on every address).
+
+        private static string AskedHost()
+        {
+            var url = new Uri(new RacingDesk.Plugin.Settings().HostUrl);
+            Assert.That(new RacingDesk.Plugin.Settings().HostUrl, Is.EqualTo(RacingDesk.Plugin.Engine.HostOutlineSource.DefaultHostUrl));
+            return url.Host;
+        }
+
+        [Test]
+        public void EveryPrefixTheHostMayBindAnswersTheAddressTheSimHubPluginAsks()
+        {
+            string asked = AskedHost();
+            Assert.That(asked, Is.EqualTo("127.0.0.1"));
+            var groups = RacingDesk.Plugin.RacingDeskRuntime.HttpPrefixGroups(18889);
+            Assert.That(groups.Length, Is.GreaterThanOrEqualTo(2));
+            // The groups are tried in order, each alone, until one binds: all but the last resort answer the plugin.
+            foreach (var group in groups.Take(groups.Length - 1))
+            {
+                bool wildcard = group.Any(p => p.StartsWith("http://*:") || p.StartsWith("http://+:"));
+                bool names = group.Any(p => !p.Contains("//*") && !p.Contains("//+") && new Uri(p).Host == asked);
+                Assert.That(wildcard || names, Is.True,
+                    $"the prefixes [{string.Join(", ", group)}] are what the host binds when the ones before them are refused, and a request for {asked} would be answered 400 by HTTP.sys");
+            }
+            // The last resort, should the address not be given to the user at all, keeps the overlay's own (localhost) working.
+            Assert.That(groups.Last(), Is.EqualTo(new[] { "http://localhost:18889/racing-desk/" }));
+            // The host's route is under the prefix every group names.
+            Assert.That(groups.SelectMany(g => g).All(p => p.EndsWith(":18889/racing-desk/")), Is.True);
+        }
+
+        [Test]
+        public void TheOutlineIsServedToThePluginsSourceOnThePrefixTheHostBindsForTheAddress()
+        {
+            var outlines = new TrackOutlines(Db);
+            string path = SyntheticLaps.Write(Path.Combine(_dir, "laps.ibt"), SyntheticLaps.Yaml(), SyntheticLaps.Laps(2), March);
+            using (var store = new RacingDeskStore(Db)) store.MergeGeometry(IbtIngest.IngestGeometryOnly(path, 777));
+            SqliteConnection.ClearAllPools();
+            var api = new LocalDataApi(Db) { Outlines = outlines };
+
+            int port = FreePort();
+            // The runtime's own prefix for the address the plugin asks, on a port of the test's.
+            string prefix = RacingDesk.Plugin.RacingDeskRuntime.HttpPrefixGroups(port)
+                .SelectMany(g => g).Distinct().Single(p => p.StartsWith($"http://{AskedHost()}:"));
+            using var listener = new HttpListener();
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serving = Task.Run(() => { while (listener.IsListening) { try { api.TryHandle(listener.GetContext()); } catch { break; } } });
+            try
+            {
+                using var source = new RacingDesk.Plugin.Engine.HostOutlineSource($"http://{AskedHost()}:{port}");
+                var outline = source.Get(777);
+                Assert.That(outline, Is.Not.Null, "the host answers the plugin's source");
+                Assert.That((outline.TrackId, outline.CleanLaps, outline.Points.Count), Is.EqualTo((777, 2, 1000)));
+                Assert.That(source.Get(778), Is.Null, "and says none yet for a layout it has none for");
+            }
+            finally
+            {
+                listener.Stop();
+                serving.Wait(TimeSpan.FromSeconds(5));
+            }
+        }
+
+        [Test]
+        public void TheHostUrlIsNeverSavedSoAnOldAddressIsNotKept()
+        {
+            string saved = Newtonsoft.Json.JsonConvert.SerializeObject(new RacingDesk.Plugin.Settings());
+            Assert.That(saved, Does.Not.Contain("HostUrl"));
+            var loaded = Newtonsoft.Json.JsonConvert.DeserializeObject<RacingDesk.Plugin.Settings>("{\"HostUrl\":\"http://localhost:1\",\"DemoMode\":true}");
+            Assert.That(loaded.DemoMode, Is.True, "the rest of the settings are read");
+            Assert.That(loaded.HostUrl, Is.EqualTo(RacingDesk.Plugin.Engine.HostOutlineSource.DefaultHostUrl), "an address kept by an earlier build is not used");
         }
     }
 }
