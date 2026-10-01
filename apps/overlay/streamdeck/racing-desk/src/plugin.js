@@ -11,6 +11,16 @@ const { connect } = require('../../../modules/js/obs/ws-client');
 
 const DEFAULT_PORT = 9090;
 const ASK_WITHIN_MS = 3000;
+// Recording is answered when OBS has answered: with OBS closed the press starts it (up to 30 s for its WebSocket) and
+// waits for the recording to begin (up to 10 s), so the key waits as long, with a margin. At 3 s it showed a cross for
+// a recording that had begun.
+const RECORDING_ASK_WITHIN_MS = 45000;
+const RECORDING_ACTIONS = new Set(['toggle-recording', 'start-recording', 'stop-recording', 'save-replay-buffer']);
+
+/** How long a press of this action waits for the app's answer. */
+function askWithin(name) {
+  return RECORDING_ACTIONS.has(name) ? RECORDING_ASK_WITHIN_MS : ASK_WITHIN_MS;
+}
 
 // manifest.json's action UUIDs → the app's action names (remote-server.js ACTIONS).
 const ACTIONS = Object.freeze({
@@ -51,7 +61,7 @@ function parseArgs(argv) {
 }
 
 /** Ask the app for an action. True when the app answered and said ok; false for anything else. */
-async function fire(name, port = DEFAULT_PORT, { fetchFn = globalThis.fetch, timeoutMs = ASK_WITHIN_MS } = {}) {
+async function fire(name, port = DEFAULT_PORT, { fetchFn = globalThis.fetch, timeoutMs = askWithin(name) } = {}) {
   const url = `http://127.0.0.1:${port}/api/action/${name}`;
   try {
     const res = await fetchFn(url, { headers: { 'X-Racing-Desk': '1' }, signal: AbortSignal.timeout(timeoutMs) });
@@ -95,7 +105,7 @@ function run({ port, pluginUUID, registerEvent }, { connectFn = connect, fetchFn
   });
 }
 
-module.exports = { ACTIONS, DEFAULT_PORT, parseArgs, fire, run };
+module.exports = { ACTIONS, DEFAULT_PORT, ASK_WITHIN_MS, RECORDING_ASK_WITHIN_MS, askWithin, parseArgs, fire, run };
 
 // Started by the Stream Deck app, with its arguments: run until it lets go, then end as the loop drains (nothing is
 // left alive once the socket is closed; process.exit from inside a socket's close is what Node on Windows trips on).

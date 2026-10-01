@@ -36,6 +36,40 @@ test.describe('the plugin\'s actions', () => {
     for (const name of Object.values(plugin.ACTIONS)) expect(remote.ACTIONS.some((a) => a.name === name), name).toBe(true);
   });
 
+  test('the shipped manifest does not start the plugin with Node\'s inspector open', () => {
+    // "Debug": "enabled" makes the Stream Deck app start the plugin under --inspect: a port on this machine that any
+    // program on it can attach to and run code through. It never ran while the install failed; it does now.
+    expect(manifest.Nodejs).toBeTruthy();
+    expect(manifest.Nodejs.Version).toBe('20');
+    expect(String(manifest.Nodejs.Debug || 'disabled').toLowerCase()).not.toBe('enabled');
+  });
+
+  test('a recording press waits as long as OBS may take to answer — OBS started, its WebSocket up, the recording begun — and the rest wait 3 s', async () => {
+    // With OBS closed, Record starts it (up to 30 s for its WebSocket) and waits for STARTED (up to 10 s). At 3 s the key
+    // showed a cross for a recording that had begun.
+    expect(plugin.askWithin('toggle-recording')).toBeGreaterThanOrEqual(30000 + 10000);
+    for (const name of ['toggle-recording', 'start-recording', 'stop-recording', 'save-replay-buffer']) expect(plugin.askWithin(name), name).toBe(plugin.RECORDING_ASK_WITHIN_MS);
+    for (const name of ['toggle-overlay', 'zoom-in', 'quit', 'toggle-settings']) expect(plugin.askWithin(name), name).toBe(plugin.ASK_WITHIN_MS);
+    expect(plugin.ASK_WITHIN_MS).toBe(3000);
+    // End to end: an app that answers Record after 3.4 s (OBS being started) is a tick, not a cross.
+    const server = http.createServer((req, res) => {
+      const slow = req.url.endsWith('toggle-recording');
+      setTimeout(() => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: true })); }, slow ? 3400 : 0);
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const port = server.address().port;
+    try {
+      expect(await plugin.fire('toggle-recording', port)).toBe(true);
+      // Anything else that is that slow is still a cross at 3 s.
+      expect(await plugin.fire('zoom-in', port, { timeoutMs: 50 })).toBe(true);
+      const slowZoom = http.createServer((req, res) => { setTimeout(() => { res.writeHead(200); res.end('{"ok":true}'); }, 600); });
+      await new Promise((r) => slowZoom.listen(0, '127.0.0.1', r));
+      try { expect(await plugin.fire('zoom-in', slowZoom.address().port, { timeoutMs: 100 })).toBe(false); } finally { await new Promise((r) => slowZoom.close(r)); }
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  });
+
   test('the Stream Deck app\'s arguments are read', () => {
     expect(plugin.parseArgs(['-port', '28196', '-pluginUUID', 'abc', '-registerEvent', 'registerPlugin', '-info', '{"application":{}}'])).toEqual({ port: 28196, pluginUUID: 'abc', registerEvent: 'registerPlugin', info: { application: {} } });
     expect(plugin.parseArgs([])).toEqual({ port: null, pluginUUID: null, registerEvent: 'registerPlugin', info: null });
