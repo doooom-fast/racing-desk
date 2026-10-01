@@ -26,11 +26,15 @@
 // is its /obs-ipad page (the glance layout the iPad is shown, over a transparent page) at an iPad's size, 1180 by 820
 // (IPAD_SOURCE: the iPad Air and 11" Pro on their side, the size the layout is held to and the golden frames are made
 // at), which is not stretched over the game: the first time Racing Desk adds it to a scene it is put in the bottom-left
-// corner (away from a facecam in the bottom right) at two-fifths of the game video's height, and after that it is
-// never moved or sized again — his layout in OBS is his. The state file says which scenes it has been placed in
-// (`ipad`), and when the choice goes back to the rig HUD his transform of it is written there, so that choosing the
-// iPad dashboard again puts it back where he had it, not in the corner. A change of choice is the source's address and
-// size changed (SetInputSettings) and, for the rig HUD, the item fitted to the game again.
+// corner (away from a facecam in the bottom right) at half the game video's height, and after that it is never moved
+// or sized again — his layout in OBS is his: not when he has resized the source in OBS (the address and size are put
+// back, and the item, which is scaled inside its own bounds, keeps its box), and not when a scene is renamed. The state
+// file says which scenes it has been placed in (`ipad`, by the scene's uuid, which a rename keeps; the name where OBS
+// gives none), and when the choice goes back to the rig HUD his transform of it is written there, so that choosing the
+// iPad dashboard again puts it back where he had it, not in the corner. An item that is in a scene with nothing written
+// of it (the state file lost, the switch turned on afresh in another collection and back) is his too, unless it still
+// covers the game video as the rig HUD's fit does, when it is the rig HUD and goes to the corner. A change of choice is
+// the source's address and size changed (SetInputSettings) and, for the rig HUD, the item fitted to the game again.
 //
 // No Electron: the client, the pages' addresses (`url(view)`), the HUD's size (in DIPs: the page lays out in CSS pixels,
 // as the rig's own HUD does, and OBS scales the source up to the canvas), the choice and the window's capture are
@@ -45,9 +49,11 @@ const REFRESH_BUTTON = 'refreshnocache';
 // The iPad dashboard's source: an iPad on its side, in CSS pixels.
 const IPAD_SOURCE = Object.freeze({ width: 1180, height: 820 });
 // Where it goes the first time: the bottom-left corner of the game video, inset by a fiftieth of its shorter side, at
-// two-fifths of its height (on a 1440-high canvas, 576 by 829: a quarter of the width, the numbers' 20 px floor at
-// about 14 px of the canvas).
-const IPAD_PLACE = Object.freeze({ height: 0.4, inset: 0.02 });
+// half its height (on a 1440-high canvas, 720 by 1036: under a third of an ultrawide's width, and 0.88 of the page's
+// own size). Smaller was too small for a recording: at two-fifths the layout's 11 px labels (the panels' titles, "Per
+// lap") came out at 7.7 px of the canvas, and under 5 px once the video is scaled down for upload; at half they are
+// 9.7 px, and the numbers (20 px and up) 17.6 px and up. It is one drag in OBS to change, and then it is his.
+const IPAD_PLACE = Object.freeze({ height: 0.5, inset: 0.02 });
 const VIEWS = Object.freeze(['rig', 'ipad']);
 // obs-websocket's alignment flags (libobs: OBS_ALIGN_LEFT 1, RIGHT 2, TOP 4, BOTTOM 8; 0 is the centre).
 const ALIGN = Object.freeze({ LEFT: 1, RIGHT: 2, TOP: 4, BOTTOM: 8 });
@@ -56,6 +62,19 @@ const NOT_OPEN = "OBS isn't open, so the HUD source waits for it.";
 const LISTENER_DOWN = "The HUD's page is not being served on this PC (another program may hold its port), so OBS was not given the HUD.";
 
 const viewOf = (value) => (VIEWS.includes(value) ? value : 'rig');
+
+// The iPad dashboard's places are kept by the scene's uuid (OBS 30 and up give one, and a rename keeps it), by its name
+// where there is none. A record written under the name before the uuid was known is found by it, and moved to the uuid.
+const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+function placeOf(ipad, target) {
+  if (has(ipad, target.key)) return { found: true, value: ipad[target.key] };
+  if (target.key !== target.sceneName && has(ipad, target.sceneName)) return { found: true, value: ipad[target.sceneName] };
+  return { found: false, value: undefined };
+}
+function setPlace(ipad, target, value) {
+  if (target.key !== target.sceneName) delete ipad[target.sceneName];
+  ipad[target.key] = value;
+}
 
 function createHudSource({ client, url, size = () => null, view = () => 'rig', ipadSize = IPAD_SOURCE, ready = () => true, pageAlive = () => false, state = null, log = () => {} } = {}) {
   if (!client) throw new Error('the HUD source needs the OBS client');
@@ -173,8 +192,8 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
     return { left, top, width, height };
   }
 
-  // The iPad dashboard's first place in a scene: the bottom-left corner of the game video, at two-fifths of its height,
-  // scaled inside bounds so the page keeps its shape. Once, and never again (ensure, below).
+  // The iPad dashboard's first place in a scene: the bottom-left corner of the game video, at half its height, scaled
+  // inside bounds so the page keeps its shape. Once, and never again (ensure, below).
   async function placeInCorner(sceneName, ours, game) {
     if (!game) return false;
     const answer = await client.request('GetSceneItemTransform', { sceneName, sceneItemId: game.sceneItemId });
@@ -206,6 +225,21 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
 
   async function restore(sceneName, ours, transform) {
     await client.request('SetSceneItemTransform', { sceneName, sceneItemId: ours.id, sceneItemTransform: { ...transform } });
+  }
+
+  // Whether the item still covers the game video's box, as the rig HUD's fit leaves it (the game's bounds, or its scaled
+  // size, at its place): to the pixel or two. An iPad dashboard that has been in a corner, or that he has moved or sized,
+  // is never that.
+  async function coversGame(sceneName, ours, game) {
+    if (!game) return false;
+    const [mine, theirs] = await Promise.all([
+      client.request('GetSceneItemTransform', { sceneName, sceneItemId: ours.id }),
+      client.request('GetSceneItemTransform', { sceneName, sceneItemId: game.sceneItemId }),
+    ]);
+    const a = mine && mine.sceneItemTransform ? boxOf(mine.sceneItemTransform) : null;
+    const b = theirs && theirs.sceneItemTransform ? boxOf(theirs.sceneItemTransform) : null;
+    if (!a || !b) return false;
+    return ['left', 'top', 'width', 'height'].every((k) => Math.abs(a[k] - b[k]) <= 2);
   }
 
   async function refreshInput() {
@@ -248,7 +282,7 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
       for (const scene of list) {
         const items = await itemsOf(scene.sceneName);
         const game = gameVideoOf(items);
-        if (game) targets.push({ sceneName: scene.sceneName, items, game });
+        if (game) targets.push({ sceneName: scene.sceneName, key: typeof scene.sceneUuid === 'string' && scene.sceneUuid ? scene.sceneUuid : scene.sceneName, items, game });
       }
       if (!targets.length) {
         protect(false);
@@ -263,8 +297,7 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
       const off = new Set(known && Array.isArray(before.off) ? before.off : []);
       const first = targets.find((t) => t.sceneName === current) || targets[0];
       let input = await findInput();
-      let resized = false;
-      let sizeKnown = true;  // OBS said what size the source has (a size it could not say is "resized" for the rig HUD's fit, and nothing for the iPad dashboard's place)
+      let resized = false;   // the source is not the size it is to be (the screen moved, the choice changed, or he sized it in OBS)
       let changed = false;   // the page OBS draws changed (the rig HUD to the iPad dashboard, or back)
       if (!input) {
         await client.request('CreateInput', { sceneName: first.sceneName, inputName: INPUT_NAME, inputKind: INPUT_KIND, inputSettings: inputSettings(which), sceneItemEnabled: true });
@@ -276,7 +309,6 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
         const now = inputSettings(which);
         let have = null;
         try { have = (await client.request('GetInputSettings', { inputName: INPUT_NAME })).inputSettings; } catch (e) { have = null; }
-        sizeKnown = !!have;
         resized = !have || have.width !== now.width || have.height !== now.height;
         changed = lastView !== null && lastView !== which;
         await client.request('SetInputSettings', { inputName: INPUT_NAME, inputSettings: now, overlay: true });
@@ -289,24 +321,36 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
           if (!ours) { ours = await createItem(target.sceneName, items); isNew = true; }
           if (which === 'ipad') {
             // The iPad dashboard: placed in the corner the first time it is in a scene, and never moved or sized again —
-            // unless the item has since been the rig HUD (fitted over the game), when it is put back where he had it, or
-            // in the corner if nothing was kept.
-            const was = Object.prototype.hasOwnProperty.call(ipad, target.sceneName) ? ipad[target.sceneName] : undefined;
-            if (isNew || created || was === undefined) {
+            // not when its source's size was changed in OBS and is put back (the item is scaled inside its bounds and keeps
+            // its box), and not when the scene was renamed (the place is kept by the scene's uuid). Only the choice moves
+            // it: from the rig HUD it is put back where he had it, or in the corner if nothing was kept.
+            const was = placeOf(ipad, target);
+            if (isNew || created) {
               await placeAbove(target.sceneName, ours, target.game);
               await placeInCorner(target.sceneName, ours, target.game);
-              ipad[target.sceneName] = null;
-            } else if (changed || (resized && sizeKnown)) {
-              if (was && typeof was === 'object') await restore(target.sceneName, ours, was);
+              setPlace(ipad, target, null);
+            } else if (!was.found) {
+              // There, and nothing written of it: the state file was lost, or the switch was turned on afresh in another
+              // collection and back, or OBS gave no uuid and the scene was renamed. It is his, unless it is still the
+              // rig HUD fitted over the game (or the choice has just changed to this).
+              if (changed || await coversGame(target.sceneName, ours, target.game)) {
+                await placeAbove(target.sceneName, ours, target.game);
+                await placeInCorner(target.sceneName, ours, target.game);
+              }
+              setPlace(ipad, target, null);
+            } else if (changed) {
+              if (was.value && typeof was.value === 'object') await restore(target.sceneName, ours, was.value);
               else await placeInCorner(target.sceneName, ours, target.game);
-              ipad[target.sceneName] = null;
+              setPlace(ipad, target, null);
+            } else if (target.key !== target.sceneName) {
+              setPlace(ipad, target, was.value);   // a record under the name, now under the uuid
             }
           } else {
             // The rig HUD: where he has put it stays where he put it; only a new item, or one the screen's change (or the
             // choice's) has made the wrong size, is placed and fitted. Leaving the iPad dashboard, his transform of it
             // is written down first, for when he chooses it again.
-            if (changed && !isNew && Object.prototype.hasOwnProperty.call(ipad, target.sceneName)) {
-              try { ipad[target.sceneName] = await transformOf(target.sceneName, ours); } catch (e) { /* kept as it was */ }
+            if (changed && !isNew && placeOf(ipad, target).found) {
+              try { setPlace(ipad, target, await transformOf(target.sceneName, ours)); } catch (e) { /* kept as it was */ }
             }
             if (isNew || resized || created) {
               await placeAbove(target.sceneName, ours, target.game);
