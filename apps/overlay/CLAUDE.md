@@ -240,7 +240,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   0.05s a lap, and a different car in the place starts it again. The other cars' pace is their last lap in the
   leaderboard's column, coloured as it always was. Out of a race the block is his three sectors, a line each.
 - **The pit box** shows what its tabs do on the rig, side by side: the four tyres (the tread remaining in the ring, as the
-  wire has it — 0..100 %, amber under 35, red under 20, a dash where not measured — temperature under it, the laps on this
+  wire has it — 0..100 %, amber under 35, red under 20, a dash where not measured — its temperature under it **as a
+  caption**, `max(11px, 0.55em)` and dim, since iRacing measures it in the pits with the tread and it is the last stop's
+  reading, not the lap's (he asked on 2026-10-01: "Tires temps aren't live so make them Much smaller"; the rings keep the
+  room, their floor 46px with the wear at 20px in them; `drive-view.spec.mjs` names `.pb-circle-temp` a caption, so the
+  20px number floor is not asked of it), the laps on this
   set in the heading, `Strategy.StintLaps`, and what the number is: iRacing measures tread in the pits and nowhere else,
   so "Tread measured in the pits" is one dim line under the rings, at the label's floor and never wrapped, as it is
   on the rig — an iPad's heading has no room for it, and in a pit cell under 200px (the 10.2" iPad upright) it gives way

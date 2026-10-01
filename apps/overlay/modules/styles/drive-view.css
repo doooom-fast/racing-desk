@@ -452,8 +452,10 @@ body.drive-mode-active #raceTimerBlock .race-timer-lap { font-size: max(20px, mi
 body.drive-mode-active #raceTimerBlock .race-timer-lap .timer-label { font-size: max(11px, min(11cqh, 9cqw)); line-height: 1.2; }
 
 /* ── The pit box: tyres, fuel and weather side by side (on the rig they are tabs) ───────────────────────────────────
-   Every number in it is 20px or more. The tyres' temperatures sit under their rings, the ring is what the cell leaves
-   it, and what the cell cannot hold is given up, least useful first (the two services, then the pit window). */
+   Every number in it is 20px or more, but for the tyres' temperatures, which are a caption under their rings (he
+   asked, 2026-10-01: "Tires temps aren't live so make them Much smaller" — iRacing measures them in the pits with the
+   tread, so they are the last stop's, not the lap's); the ring is what the cell leaves it, and what the cell cannot
+   hold is given up, least useful first (the two services, then the pit window). */
 body.drive-mode-active #pitBoxPanel { grid-area: pit; display: flex; background: none; border: none; }
 body.drive-mode-active .pb-inner { flex: 1; display: flex; min-width: 0; }
 body.drive-mode-active .pb-content { flex: 1; display: grid; grid-template-columns: minmax(0, 40fr) minmax(0, 36fr) minmax(0, 24fr); min-width: 0; }
@@ -489,15 +491,18 @@ body.drive-mode-active .pb-tire-circles {
   flex: 1 1 0; min-height: 0; container-type: size; gap: 2px 6px; padding: 0; align-content: stretch;
   grid-template-rows: repeat(2, minmax(0, 1fr));
 }
+/* The ring is the room its half of the grid has less the caption's line under it; 46px at the least, which holds the
+   wear at its 20px floor. */
 body.drive-mode-active .pb-circle-cell {
-  --pbr: clamp(50px, min(calc(50cqh - 1.35em), 36cqw), 84px);
+  --pbr: clamp(46px, min(calc(50cqh - 0.75em), 36cqw), 84px);
   display: grid; grid-template-columns: minmax(var(--pbr), max-content); justify-content: center; align-content: center; justify-items: center;
   grid-template-rows: var(--pbr) auto; row-gap: 1px; min-height: 0; min-width: 0;
 }
 body.drive-mode-active .pb-wear-ring { grid-area: 1 / 1; width: var(--pbr); height: var(--pbr); }
 body.drive-mode-active .pb-circle-inner { display: contents; }
 body.drive-mode-active .pb-circle-pct { grid-area: 1 / 1; place-self: center; font-size: max(20px, calc(var(--pbr) * 0.34)); letter-spacing: 0.038em; }
-body.drive-mode-active .pb-circle-temp { grid-area: 2 / 1; font-size: 1em; margin: 0; line-height: 1.1; white-space: nowrap; color: var(--text-secondary); }
+/* The temperature: a caption to the ring's number, in the label's size and colour (it is the pits' reading, not live). */
+body.drive-mode-active .pb-circle-temp { grid-area: 2 / 1; font-size: max(11px, 0.55em); margin: 0; line-height: 1.2; white-space: nowrap; color: var(--text-dim); letter-spacing: 0.02em; }
 body.drive-mode-active .pb-circle-pos { position: absolute; top: 0; left: 0; font-size: max(11px, 0.55em); margin: 0; }
 body.drive-mode-active #pbCircleRF .pb-circle-pos, body.drive-mode-active #pbCircleRR .pb-circle-pos { left: auto; right: 0; }
 body.drive-mode-active #pbCircleLR .pb-circle-pos, body.drive-mode-active #pbCircleRR .pb-circle-pos { top: auto; bottom: 0; }

@@ -209,10 +209,11 @@ function measure(page, cells = CELLS) {
 
     // Labels are 11px or more and numbers 20px or more. The exceptions are named: a caption to a name (the car's
     // model, a driver's iRating, an axis, a sector's number, the tank's size, the track's name) is a label whatever it
-    // says, and the leaderboard's rows are a list of a dozen, at 14px.
+    // says, and so is a tyre's temperature under its ring (the pits' reading, not the lap's: he asked for them "Much
+    // smaller", 2026-10-01); the leaderboard's rows are a list of a dozen, at 14px.
     const CAPTION = '.gap-ir, .gap-driver, .car-model-label, .sector-label, .ctrl-mini-label, .pb-circle-pos, .ir-bar-tick-label, ' +
       '.pb-fuel-tank-cap, .map-zoom-label, .panel-label, .ds-label, .pb-label, .laps-k, .pedal-channel-label, .ctrl-label, .lb-header, ' +
-      '.pb-strat-btn';
+      '.pb-strat-btn, .pb-circle-temp';
     const tiny = new Map();
     for (const [name, sel] of Object.entries(cellSelectors)) {
       const cell = document.querySelector(sel);
