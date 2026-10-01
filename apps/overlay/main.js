@@ -4,7 +4,7 @@
 // that renders the HTML dashboard over the sim
 // ═══════════════════════════════════════════════════════════════
 
-const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Menu, Tray, powerMonitor, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, globalShortcut, shell, Menu, Tray, powerMonitor, dialog, safeStorage } = require('electron');
 const path   = require('path');
 const fs     = require('fs');
 const os     = require('os');
@@ -19,6 +19,9 @@ const hudDisplay   = require('./modules/js/hud-display');
 const { createHudKeys } = require('./modules/js/hud-keys');
 const settingsFile = require('./modules/js/settings-file');
 const recordingSettings = require('./modules/js/recording-settings');
+const streamdeckInstall = require('./modules/js/streamdeck-install');
+const obs = require('./modules/js/obs');
+const { spawn, execFile } = require('child_process');
 const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
 const { createCarNames } = require('./modules/js/paints/car-names');
@@ -172,7 +175,15 @@ let hostChild = null;            // the RacingDesk.Host process this app started
 let hostNote = null;             // why there is no host of our own, shown by the desk when nothing answers
 let deskHost = null;             // the host URL the desk window was loaded with
 let quitting = false;            // set by before-quit, so closing the desk during a quit doesn't quit again
-app.on('before-quit', () => { quitting = true; });
+app.on('before-quit', (event) => {
+  quitting = true;
+  // A recording Racing Desk started is stopped before the app goes (StopRecord, STOPPED waited for 3 s at most): a
+  // detached OBS would otherwise record on with nothing left to stop it. Once; then the quit goes through.
+  if (typeof recording !== 'undefined' && recording && !stoppedForQuit && recording.needsStopForQuit()) {
+    event.preventDefault();
+    stopOwnedRecording().finally(() => app.quit());
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════
 // DESK WINDOW — career, form and race history from the local store
@@ -284,23 +295,48 @@ function createTray() {
   const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
   tray = new Tray(path.join(__dirname, 'images', 'branding', iconFile));
   tray.setToolTip('Racing Desk');
-  trayMenu = Menu.buildFromTemplate([
+  buildTrayMenu();
+  tray.on('click', () => showDesk());          // a single click is what people try first on Windows
+  tray.on('double-click', () => showDesk());
+}
+let trayMenu = null;
+
+// The menu is built again whenever the recording changes (recording state is on the tray, the desk's masthead and
+// the Stream Deck, and never on the HUD, which OBS films). "Record" / "Stop recording" go through the same action
+// the Stream Deck's button does; "Open OBS" is there while OBS is not answering.
+function buildTrayMenu() {
+  if (!tray) return;
+  const rec = recording ? recording.status() : null;
+  const items = [
     { label: 'Open desk', click: () => showDesk('desk') },
     { label: 'Cars', click: () => showDesk('cars') },   // liveries, view and pedals: one page
     { label: 'Settings', click: () => showDesk('settings') },
     { type: 'separator' },
+  ];
+  if (rec) {
+    const recordingNow = rec.recording || rec.starting;
+    items.push({ label: recordingNow ? `Stop recording${rec.recording ? ' · ' + trayElapsed(rec.elapsedMs) : ''}` : 'Record', enabled: !rec.busy, click: () => { dispatchAction('toggle-recording', { source: 'tray' }); } });
+    if (rec.obs !== 'open') items.push({ label: 'Open OBS', enabled: rec.busy !== 'starting-obs', click: () => { openObs().catch(() => {}); } });
+    items.push({ type: 'separator' });
+  }
+  items.push(
     // Ticked while the HUD is switched on. Out of the car the window is hidden either way, so the tick is the
     // only place the switch can be seen — and this the only switch that works there: the key and the Stream
     // Deck's button are left alone out of the car (the toggle-overlay action, below).
     { id: 'hud', label: 'HUD on/off', type: 'checkbox', checked: true, click: () => { hud.toggle({ anywhere: true }); tickHudSwitch(); } },
     { type: 'separator' },
     { label: 'Quit Racing Desk', click: () => app.quit() },
-  ]);
+  );
+  trayMenu = Menu.buildFromTemplate(items);
   tray.setContextMenu(trayMenu);
-  tray.on('click', () => showDesk());          // a single click is what people try first on Windows
-  tray.on('double-click', () => showDesk());
+  tickHudSwitch();
 }
-let trayMenu = null;
+
+function trayElapsed(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
 
 // ── The HUD is on the screen iRacing is on ───────────────────
 // modules/js/hud-display.js chooses the screen and moves the window there — never shows or hides it, which is
@@ -372,16 +408,20 @@ const HUD_KEYS = {
     saveSettingsSync(settings);
     const mode = settings.greenScreen ? 'green-screen' : 'transparent';
     console.log(`[RacingDesk] Toggling to ${mode} mode — restarting...`);
-    app.relaunch();
-    app.exit(0);
+    // app.exit skips before-quit, so a recording Racing Desk started is stopped here first (3 s at most).
+    stopOwnedRecording().finally(() => {
+      app.relaunch();
+      app.exit(0);
+    });
   },
   'CommandOrControl+Shift+D': () => { if (overlayWindow) overlayWindow.webContents.send('restart-demo'); },
   'CommandOrControl+Shift+M': () => { if (overlayWindow) overlayWindow.webContents.send('reset-trackmap'); },
   'CommandOrControl+Shift+I': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-rating-editor'); },
   'CommandOrControl+Shift+F': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-drive-mode'); },
-  'CommandOrControl+Shift+V': () => { dispatchAction('toggle-recording'); },
-  'CommandOrControl+Shift+B': () => { dispatchAction('save-replay-buffer'); },
-  'CommandOrControl+Shift+P': () => { dispatchAction('tv-shots'); },
+  // Recording, from the car: Record/Stop never starts OBS from here (the HUD says "OBS is not open" instead).
+  'CommandOrControl+Shift+V': () => { dispatchAction('toggle-recording', { source: 'key' }); },
+  'CommandOrControl+Shift+B': () => { dispatchAction('save-replay-buffer', { source: 'key' }); },
+  'CommandOrControl+Shift+P': () => { dispatchAction('tv-shots', { source: 'key' }); },
   // Quits the overlay, and only the overlay (the quit action, below).
   'CommandOrControl+Shift+Q': () => { dispatchAction('quit'); },
 };
@@ -391,6 +431,199 @@ const hudKeys = createHudKeys({
   unregister: (key) => globalShortcut.unregister(key),
   log: logToFile,
 });
+
+// ── OBS records (modules/js/obs) ───────────────────────────────
+// The client talks obs-websocket 5 to OBS on 127.0.0.1 and tries again every 5 s while OBS is closed, which is how
+// OBS being open is noticed (tasklist runs only on a press). The password is read from OBS's own settings file each
+// time OBS asks, or is the one he typed on the Recording card, kept with safeStorage; it is held in memory by neither
+// this file nor the client, and no log line carries it. The keeper mirrors OBS's recording, writes the sidecar,
+// knows which recordings are Racing Desk's, and keeps the floor under the disk. Recording state is shown on the
+// desk's masthead, the tray and the Stream Deck, never on the HUD, which OBS films.
+const obsPaths = obs.launcher.obsPaths(app.getPath('appData'));
+const recordingStateFile = path.join(app.getPath('userData'), 'recording-state.json');
+let obsFilePassword = null;   // from OBS's config.json the last time Set up OBS ran; otherwise read afresh at Hello
+
+function typedObsPassword() {
+  const enc = loadSettingsSync()[OBS_PASSWORD_KEY];
+  if (typeof enc !== 'string' || !enc || !app.isReady()) return null;
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return null;
+    return safeStorage.decryptString(Buffer.from(enc, 'base64')) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function obsPassword() {
+  const typed = typedObsPassword();
+  if (typed) return typed;
+  const cfg = obs.launcher.readWebSocketConfig(obsPaths.configJson, { readFile: fs.readFileSync });
+  return cfg.state === 'ok' ? cfg.password : obsFilePassword;
+}
+
+function obsPort() {
+  const cfg = obs.launcher.readWebSocketConfig(obsPaths.configJson, { readFile: fs.readFileSync });
+  return cfg.state === 'ok' ? cfg.port : obs.launcher.WS_DEFAULT_PORT;
+}
+
+const obsClient = obs.createObsClient({ port: obsPort, password: obsPassword, log: logToFile });
+
+function recordingFolder() {
+  return recordingSettings.recordingFolder(loadSettingsSync(), { exists: fs.existsSync, home: app.getPath('home') });
+}
+
+const execFileAsync = (cmd, args) => new Promise((resolve, reject) => {
+  execFile(cmd, args, { windowsHide: true, timeout: 5000 }, (err, stdout) => (err ? reject(err) : resolve({ stdout })));
+});
+
+// What a press has to do about OBS when it is not answering: nothing if it is running (its WebSocket may be off, or
+// it may be asking about its last crash), else start it detached and minimised. Only ever from the desk, the tray or
+// the Stream Deck, out of the car (the keeper sees to that); never from the car, auto-record or the app's start
+// unless "Start OBS with Racing Desk" is on.
+async function startObsIfClosed() {
+  const running = await obs.launcher.isObsRunning({ exec: execFileAsync });
+  if (running === true) {
+    const cfg = obs.launcher.readWebSocketConfig(obsPaths.configJson, { readFile: fs.readFileSync });
+    if (cfg.state === 'ok' && !cfg.enabled) return { ok: false, reason: 'OBS is open with its WebSocket switched off. Quit OBS, then press Set up OBS.' };
+    return { ok: true, running: true };
+  }
+  const found = obs.launcher.findObs({ obsPath: loadSettingsSync().obsPath, exists: fs.existsSync });
+  if (!found) return { ok: false, reason: 'OBS was not found at C:\\Program Files\\obs-studio. Set its folder on the Recording card.' };
+  if (obs.launcher.crashedLastTime({ sentinelDir: obsPaths.sentinelDir, readdir: fs.readdirSync })) {
+    logToFile('[RacingDesk] OBS did not close cleanly last time: it will ask about it when it opens');
+  }
+  const started = obs.launcher.startObs({ exe: found.exe, cwd: found.cwd, spawn });
+  logToFile(started.ok ? `[RacingDesk] OBS started (pid ${started.pid}), minimised to the tray` : `[RacingDesk] ${started.reason}`);
+  return started;
+}
+
+// "Open OBS" on the tray and the card: a press, out of the car.
+async function openObs() {
+  if (hud.state().inCar) return { ok: false, reason: 'OBS is not opened from the car' };
+  const answer = await startObsIfClosed();
+  if (answer.ok) obsClient.tryNow();
+  return answer;
+}
+
+const recording = obs.createRecordingKeeper({
+  client: obsClient,
+  settings: loadSettingsSync,
+  recordFolder: recordingFolder,
+  stateFile: recordingStateFile,
+  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
+  inCar: () => hud.state().inCar,
+  startObs: startObsIfClosed,
+  // The two sentences the HUD may show, and no other.
+  notice: (text) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('hud-notice', text); },
+  onChange: () => { buildTrayMenu(); tellDeskRecording(); },
+  log: logToFile,
+});
+
+// What the desk is told of the recording: the keeper's status, what Set up OBS has left to do, and the folder.
+let setupLookedAt = { at: 0, value: null };
+function setupStatus() {
+  const now = Date.now();
+  if (setupLookedAt.value && now - setupLookedAt.at < 5000) return setupLookedAt.value;
+  const folder = recordingFolder();
+  const cfg = obs.launcher.readWebSocketConfig(obsPaths.configJson, { readFile: fs.readFileSync });
+  const profile = obs.launcher.currentProfileIni({ appData: app.getPath('appData'), readFile: fs.readFileSync });
+  let check = null;
+  if (profile) {
+    try { check = obs.launcher.profileCheck(fs.readFileSync(profile.ini, 'utf8'), folder); } catch (e) { check = null; }
+  }
+  const value = {
+    wsState: cfg.state,
+    wsEnabled: cfg.state === 'ok' ? cfg.enabled : null,
+    wsPort: cfg.port,
+    profile: profile ? profile.profile : null,
+    hybrid: check ? check.hybrid : null,
+    replayBuffer: check ? check.replayBuffer : null,
+    folderSet: check ? check.folder : null,
+    folderExists: fs.existsSync(folder),
+    obsFound: !!obs.launcher.findObs({ obsPath: loadSettingsSync().obsPath, exists: fs.existsSync }),
+    needed: !(cfg.state === 'ok' && cfg.enabled && check && check.ok),
+  };
+  setupLookedAt = { at: now, value };
+  return value;
+}
+
+function recordingStatus() {
+  const state = obsClient.state();
+  const settings = loadSettingsSync();
+  return {
+    ...recording.status(),
+    folder: recordingFolder(),
+    setup: setupStatus(),
+    needsPassword: !!(state.authFailed || state.passwordMissing),
+    passwordTyped: typeof settings[OBS_PASSWORD_KEY] === 'string' && settings[OBS_PASSWORD_KEY].length > 0,
+    obsStartOnRecord: settings.obsStartOnRecord !== false,
+    obsStartWithApp: settings.obsStartWithApp === true,
+    obsPath: typeof settings.obsPath === 'string' ? settings.obsPath : null,
+  };
+}
+
+function tellDeskRecording() {
+  if (deskWindow && !deskWindow.isDestroyed()) {
+    try { deskWindow.webContents.send('recording-state', recordingStatus()); } catch (e) { /* closing */ }
+  }
+}
+
+// Set up OBS: one press does what OBS needs — the WebSocket on and its password read, Hybrid MP4, the 20 s replay
+// buffer and the recording folder in his profile — in the file while OBS is closed, over the WebSocket while it is
+// open. The card says in one sentence what it will change before he presses.
+async function setupObs() {
+  const folder = recordingFolder();
+  setupLookedAt = { at: 0, value: null };
+  if (obsClient.identified()) {
+    const result = await obs.launcher.setupWhileOpen(obsClient, { folder });
+    try { fs.mkdirSync(folder, { recursive: true }); } catch (e) { result.problems.push(`The recording folder ${folder} could not be made: ${e.message}`); }
+    logToFile(`[RacingDesk] Set up OBS (open): ${[...result.did, ...result.problems].join(' ')}`);
+    return { ok: result.problems.length === 0, did: result.did, problems: result.problems };
+  }
+  const running = await obs.launcher.isObsRunning({ exec: execFileAsync });
+  if (running === true) {
+    const state = obsClient.state();
+    if (state.authFailed) return { ok: false, did: [], problems: ['OBS refused the password. Type the one from OBS below, or quit OBS and press Set up OBS again.'] };
+    return { ok: false, did: [], problems: ['OBS is open with its WebSocket switched off. Quit OBS, then press Set up OBS again.'] };
+  }
+  const result = obs.launcher.setupWhileClosed({
+    appData: app.getPath('appData'), folder,
+    readFile: fs.readFileSync, writeFile: fs.writeFileSync, rename: fs.renameSync, mkdir: fs.mkdirSync,
+  });
+  obsFilePassword = result.password;
+  logToFile(`[RacingDesk] Set up OBS (closed): ${[...result.did, ...result.problems].join(' ')} (password: ${result.password ? 'set' : 'none'})`);
+  obsClient.passwordChanged();
+  return { ok: result.problems.length === 0, did: result.did, problems: result.problems };
+}
+
+// The password he typed, kept with safeStorage and stripped from every page's copy of the settings; an empty one
+// takes the typed password away and OBS's own file is read again. The value is never logged.
+function setObsPassword(text) {
+  const value = typeof text === 'string' ? text : '';
+  if (!value) {
+    const settings = loadSettingsSync();
+    if (OBS_PASSWORD_KEY in settings) { delete settings[OBS_PASSWORD_KEY]; saveSettingsSync(settings); }
+    obsClient.passwordChanged();
+    return { ok: true };
+  }
+  if (!safeStorage.isEncryptionAvailable()) return { ok: false, reason: 'Windows could not protect the password, so it was not kept.' };
+  saveSettingsKeySync(OBS_PASSWORD_KEY, safeStorage.encryptString(value).toString('base64'));
+  logToFile('[RacingDesk] OBS password typed on the Recording card (password: set)');
+  obsClient.passwordChanged();
+  return { ok: true };
+}
+
+// Quitting: a recording Racing Desk started is stopped (StopRecord, STOPPED waited for 3 s at most); OBS and his own
+// recordings are left as they are.
+let stoppedForQuit = false;
+function stopOwnedRecording() {
+  if (stoppedForQuit) return Promise.resolve();
+  stoppedForQuit = true;
+  return Promise.race([
+    recording.stopOwnedForQuit(),
+    new Promise((resolve) => setTimeout(resolve, obs.recording.QUIT_WAIT_MS + 500)),
+  ]).catch((err) => logToFile(`[RacingDesk] Recording: could not be stopped on quit: ${err.message}`));
+}
 
 // Where the HUD's page reads its telemetry. The settings are read again every ten seconds, not every poll.
 let hudTelemetry = { url: null, readAt: 0 };
@@ -572,11 +805,15 @@ let remoteServerError = null;
 
 // The keys of the settings file that are this process's own: written one at a time, as the switch is thrown.
 const REMOTE_SETTINGS = ['remoteServer', 'remoteServerPort', 'remoteServerKey'];
+// And the OBS WebSocket password he typed, kept with Electron's safeStorage (modules/js/obs): the same rule.
+const OBS_PASSWORD_KEY = 'obsWebSocketPasswordEnc';
+const PRIVATE_SETTINGS = [...REMOTE_SETTINGS, OBS_PASSWORD_KEY];
 
-// The settings as a window is given them: without the key in the iPad's address, which no page has a use for.
+// The settings as a window is given them: without the key in the iPad's address or the OBS password, which no page
+// has a use for.
 function withoutRemoteKey(settings) {
   if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) return settings;
-  const { remoteServerKey, ...rest } = settings;
+  const { remoteServerKey, [OBS_PASSWORD_KEY]: obsPassword, ...rest } = settings;
   return rest;
 }
 
@@ -644,8 +881,16 @@ app.whenReady().then(async () => {
     maybeStartRemoteServer();
     startSettingsWatcher();
 
-    // ── Auto-install Stream Deck plugin on first run ──
-    if (!isDev) autoInstallStreamDeckPlugin();
+    // OBS: the client tries its WebSocket every 5 s from here on; OBS itself is started only on his press, unless
+    // he turned "Start OBS with Racing Desk" on.
+    recording.start();
+    obsClient.start();
+    if (!isDev && loadSettingsSync().obsStartWithApp === true) {
+      startObsIfClosed().then((answer) => { if (!answer.ok) logToFile(`[RacingDesk] OBS with the app: ${answer.reason}`); });
+    }
+
+    // The Stream Deck plugin, from the copy this build carries (not in dev mode, whose folder is the source tree).
+    if (!isDev) installStreamDeckPlugin();
   } catch (err) {
     logToFile(`[RacingDesk] FATAL: createOverlay() threw: ${err.stack || err.message}`);
     app.quit();
@@ -672,6 +917,7 @@ app.whenReady().then(async () => {
 
 app.on('will-quit', () => {
   if (app.isReady()) globalShortcut.unregisterAll();   // a second instance quits before ready
+  if (typeof recording !== 'undefined' && recording) { recording.dispose(); obsClient.stop(); }
   // The host watches this process (--parent-pid) and stops by itself once we're gone, flushing the lap it
   // was recording; a kill now would cut that short. The 3 s backstop only fires if the app is still here. A host
   // that outlives us is not this code's to end: it ends itself if its stop is not over 5 s after we went (HostStop.cs).
@@ -722,9 +968,13 @@ const _actionHandlers = {
   'toggle-rating-editor':   () => _sendRenderer('toggle-rating-editor'),
   'toggle-drive-mode':      () => _sendRenderer('toggle-drive-mode'),
 
-  // ── Recording ──
-  // OBS records; these answer in words until the keeper is wired (modules/js/obs).
-  'toggle-recording':   () => ({ ok: false, reason: 'Recording comes with the next build' }),
+  // ── Recording (modules/js/obs) ──
+  // Record and Stop are OBS's, mirrored by the keeper. Where the press came from decides whether OBS may be started:
+  // the desk, the tray and the Stream Deck may (out of the car), a key in the car may not. The answer is a promise
+  // the Stream Deck's route awaits.
+  'toggle-recording':   ({ source = 'streamdeck' } = {}) => recording.toggle({ source }),
+  'start-recording':    ({ source = 'streamdeck' } = {}) => recording.record({ source }),
+  'stop-recording':     () => recording.stop(),
   'save-replay-buffer': () => ({ ok: false, reason: 'Instant replay comes with a later build' }),
   'tv-shots':           () => ({ ok: false, reason: 'TV shots come with a later build' }),
 
@@ -755,11 +1005,11 @@ function _sendRenderer(channel) {
  * @param {string} name — action name (e.g. 'toggle-overlay')
  * @returns {{ ok: boolean, reason?: string }}
  */
-function dispatchAction(name) {
+function dispatchAction(name, context = {}) {
   const handler = _actionHandlers[name];
   if (!handler) return { ok: false, reason: 'unknown action: ' + name };
   try {
-    return handler();
+    return handler(context);
   } catch (err) {
     logToFile(`[RacingDesk] Action error (${name}): ${err.message}`);
     return { ok: false, reason: err.message };
@@ -773,99 +1023,22 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-// ── Stream Deck plugin auto-install on every launch ──
-// Idempotent: presence of `manifest.json` inside the installed plugin dir is
-// the only "already installed" check. The previous version short-circuited on
-// a settings flag, which got stuck `true` on partial / failed installs and
-// blocked retries forever. Now the only state we trust is the filesystem.
-function autoInstallStreamDeckPlugin() {
-  if (process.platform !== 'win32' && process.platform !== 'darwin') return;
-  const fs = require('fs');
-  const os = require('os');
-
-  const sdPluginsDir = process.platform === 'win32'
-    ? path.join(process.env.APPDATA || '', 'Elgato', 'StreamDeck', 'Plugins')
-    : path.join(os.homedir(), 'Library', 'Application Support',
-        'com.elgato.StreamDeck', 'Plugins');
-
-  if (!fs.existsSync(sdPluginsDir)) {
-    logToFile('[RacingDesk] StreamDeck install: plugins dir not found at ' + sdPluginsDir + ' — Stream Deck app likely not installed; skipping');
-    return;
-  }
-
-  // The plugin was com.k10motorsports.racecor.overlay until 2026-09-27; Stream Deck would show both.
-  const oldDir = path.join(sdPluginsDir, 'com.k10motorsports.racecor.overlay.sdPlugin');
-  if (fs.existsSync(oldDir)) {
-    try {
-      fs.rmSync(oldDir, { recursive: true, force: true });
-      logToFile('[RacingDesk] StreamDeck install: removed the old plugin at ' + oldDir);
-    } catch (err) {
-      logToFile('[RacingDesk] StreamDeck install: old plugin at ' + oldDir + ' could not be removed: ' + err.message);
-    }
-  }
-
-  const installedDir = path.join(sdPluginsDir, 'com.doooom.racingdesk.sdPlugin');
-  const installedManifest = path.join(installedDir, 'manifest.json');
-  if (fs.existsSync(installedManifest)) {
-    logToFile('[RacingDesk] StreamDeck install: already present at ' + installedDir);
-    return;
-  }
-
-  const srcDir = path.join(__dirname, 'streamdeck', 'racing-desk',
-    'com.doooom.racingdesk.sdPlugin');
-  if (!fs.existsSync(path.join(srcDir, 'manifest.json'))) {
-    logToFile('[RacingDesk] StreamDeck install: source not bundled at ' + srcDir + ' — check electron-builder files list');
-    return;
-  }
-
+// ── The Stream Deck plugin, installed at every start ──
+// From the unpacked copy beside the asar (electron-builder.yml asarUnpack): copied when the Stream Deck app has none,
+// or not the one this build carries. modules/js/streamdeck-install.js has the rules; it failed at every start until
+// 2026-09-30, copying from inside the asar.
+function installStreamDeckPlugin() {
   try {
-    fs.cpSync(srcDir, installedDir, { recursive: true });
-    logToFile('[RacingDesk] StreamDeck install: copied to ' + installedDir);
+    const result = streamdeckInstall.install({
+      srcDir: streamdeckInstall.pluginSource(__dirname),
+      pluginsDir: streamdeckInstall.pluginsDir(),
+      log: logToFile,
+    });
+    logToFile(`[RacingDesk] Stream Deck plugin: ${result.did} (${result.reason})`);
   } catch (err) {
-    logToFile('[RacingDesk] Stream Deck plugin install failed: ' + err.message);
+    logToFile(`[RacingDesk] Stream Deck plugin install failed: ${err.message}`);
   }
 }
-
-// ── IPC: Stream Deck plugin install ──
-// Zips the bundled .sdPlugin directory into a .streamDeckPlugin file
-// and opens it, which triggers the Stream Deck app to install the plugin.
-ipcMain.handle('install-streamdeck-plugin', async () => {
-  const fs = require('fs');
-  const os = require('os');
-  const { execSync } = require('child_process');
-  const sdPluginDir = path.join(__dirname, 'streamdeck', 'racing-desk',
-    'com.doooom.racingdesk.sdPlugin');
-
-  if (!fs.existsSync(sdPluginDir)) {
-    logToFile('[RacingDesk] Stream Deck plugin not found at: ' + sdPluginDir);
-    return { ok: false, reason: 'Plugin files not found in app bundle' };
-  }
-
-  const tmpFile = path.join(os.tmpdir(),
-    'com.doooom.racingdesk.streamDeckPlugin');
-
-  try {
-    if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
-
-    const parentDir = path.dirname(sdPluginDir);
-    const dirName = path.basename(sdPluginDir);
-
-    if (process.platform === 'win32') {
-      execSync(`powershell -Command "Compress-Archive -Path '${dirName}' -DestinationPath '${tmpFile}' -Force"`,
-        { cwd: parentDir, timeout: 15000 });
-    } else {
-      execSync(`zip -r "${tmpFile}" "${dirName}"`,
-        { cwd: parentDir, timeout: 15000 });
-    }
-
-    await shell.openPath(tmpFile);
-    logToFile('[RacingDesk] Stream Deck plugin install triggered');
-    return { ok: true };
-  } catch (err) {
-    logToFile('[RacingDesk] Stream Deck plugin install error: ' + err.message);
-    return { ok: false, reason: err.message };
-  }
-});
 
 // ── IPC: In the car or not ──
 // Decided here (hud, above) and sent to the HUD's page as in-race-state on each change, and once more whenever
@@ -873,6 +1046,49 @@ ipcMain.handle('install-streamdeck-plugin', async () => {
 // Nothing a page says shows or hides the window.
 ipcMain.handle('get-in-race-state', async () => {
   return hud.state().inCar;
+});
+
+// ── IPC: Recording, for the desk's Recording card and masthead ──
+// The status as it stands (recording:status) and the commands (recording:command: record, stop, toggle, setup,
+// openObs, openFolder, chooseFolder, password). Each answers in words, never a rejection; the password's value is
+// kept with safeStorage and never logged. Every change is pushed as recording-state. The desk window's alone.
+ipcMain.handle('recording:status', async (event) => {
+  if (!fromDesk(event)) return { error: 'Recording is the desk window\'s.' };
+  return recordingStatus();
+});
+
+ipcMain.handle('recording:command', async (event, command, value) => {
+  if (!fromDesk(event)) return { ok: false, reason: 'Recording is the desk window\'s.' };
+  try {
+    switch (command) {
+      case 'record': return await recording.record({ source: 'desk' });
+      case 'stop': return await recording.stop();
+      case 'toggle': return await recording.toggle({ source: 'desk' });
+      case 'setup': { const answer = await setupObs(); tellDeskRecording(); return answer; }
+      case 'openObs': { const answer = await openObs(); tellDeskRecording(); return answer; }
+      case 'openFolder': {
+        const folder = recordingFolder();
+        try { fs.mkdirSync(folder, { recursive: true }); } catch (e) { return { ok: false, reason: `The folder ${folder} could not be made: ${e.message}` }; }
+        await shell.openPath(folder);
+        return { ok: true };
+      }
+      case 'chooseFolder': {
+        const owner = deskWindow && !deskWindow.isDestroyed() ? deskWindow : null;
+        const options = { title: 'Where recordings go', properties: ['openDirectory', 'createDirectory'], defaultPath: recordingFolder() };
+        const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+        if (result.canceled || !result.filePaths.length) return { ok: false, reason: 'No folder was chosen.' };
+        saveSettingsKeySync('recordingFolder', result.filePaths[0]);
+        setupLookedAt = { at: 0, value: null };
+        recording.refreshFree(result.filePaths[0]).then(() => tellDeskRecording());
+        return { ok: true, folder: result.filePaths[0] };
+      }
+      case 'password': { const answer = setObsPassword(value); tellDeskRecording(); return answer; }
+      default: return { ok: false, reason: `Unknown command: ${String(command)}` };
+    }
+  } catch (err) {
+    logToFile(`[RacingDesk] Recording command ${command} failed: ${err.message}`);
+    return { ok: false, reason: err.message };
+  }
 });
 
 // ── IPC: The HUD's screen ──
@@ -943,7 +1159,7 @@ ipcMain.handle('save-settings', async (event, settings) => {
   // A page saves the file whole, from the copy it read a moment before. The iPad view's keys are not a page's to
   // set, and one changed in that moment — a new key for the address — must not be put back as it was.
   const onDisk = loadSettingsSync();
-  for (const key of REMOTE_SETTINGS) {
+  for (const key of PRIVATE_SETTINGS) {
     if (key in onDisk) settings[key] = onDisk[key];
     else delete settings[key];
   }

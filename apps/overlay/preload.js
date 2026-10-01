@@ -77,6 +77,15 @@ contextBridge.exposeInMainWorld('racingDesk', {
     read: () => ipcRenderer.invoke('rig:read'),
     bindPedals: (carPath, profileId) => ipcRenderer.invoke('rig:bindPedals', carPath, profileId),
   },
+  // Desk window: the recording, which is OBS's (modules/js/obs). status() is the keeper's status with the folder and
+  // what Set up OBS has left to do; command(name, value) is one of record, stop, toggle, setup, openObs, openFolder,
+  // chooseFolder, password, answered { ok, reason? } in words; onState is pushed on every change. The password's
+  // value goes in and never comes back: no status carries it.
+  recording: {
+    status: () => ipcRenderer.invoke('recording:status'),
+    command: (name, value) => ipcRenderer.invoke('recording:command', name, value),
+    onState: (callback) => { ipcRenderer.on('recording-state', (_event, status) => callback(status)); },
+  },
   // The runtime's ?action= routes, for the HUD (config.js's runtimeAction): the runtime answers a request for one only when
   // a program on this machine made it, and a page's request says where it came from, so main.js asks (modules/js/
   // runtime-actions.js). Only resetmap, restartdemo, setrect, listPedalProfiles, setPedalProfile and bindPedalProfile, with
@@ -101,8 +110,6 @@ contextBridge.exposeInMainWorld('racingDesk', {
   onPresetBroadcast: (callback) => { ipcRenderer.on('preset-broadcast', () => callback()); },
   onPresetPractice: (callback) => { ipcRenderer.on('preset-practice', () => callback()); },
   onPresetQualifying: (callback) => { ipcRenderer.on('preset-qualifying', () => callback()); },
-  // Stream Deck plugin install
-  installStreamDeckPlugin: () => ipcRenderer.invoke('install-streamdeck-plugin'),
   // In the car or not. main.js decides (modules/js/hud-visibility.js) and tells the HUD's page, which polls and
   // draws only while he is in; the page tells main nothing. inCarFromMain is how the page knows it has a main
   // process to wait for — on an iPad or in a browser it has none, and decides for itself.

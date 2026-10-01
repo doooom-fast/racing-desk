@@ -4113,3 +4113,200 @@ test('without the app the Cars page says so instead of mounting the manager', as
     await new Promise((resolve) => own.close(resolve));
   }
 });
+
+// ── Settings: Recording (OBS) ────────────────────────────────
+// main.js keeps the recording (modules/js/obs) and answers the desk over window.racingDesk.recording. Here a stand-in
+// keeps a status in the page, records every command, and pushes a new status the way the app does on a change.
+
+const OBS_READY = {
+  obs: 'open', obsVersion: '32.1.2', recording: false, starting: false, stopping: false, paused: false, owned: false, outputPath: null,
+  startedAt: null, elapsedMs: 0, bytes: 0, bytesPerSecond: 12.5e6, free: { bytes: 400e9, hoursLeft: 8.9, drive: 'D:' },
+  lowDisk: null, last: null, busy: null, sidecar: null,
+  folder: 'D:\\Racing Desk\\Recordings',
+  setup: { wsState: 'ok', wsEnabled: true, wsPort: 4455, profile: 'Untitled', hybrid: true, replayBuffer: true, folderSet: true, folderExists: true, obsFound: true, needed: false },
+  needsPassword: false, passwordTyped: false, obsStartOnRecord: true, obsStartWithApp: false, obsPath: null,
+};
+const OBS_CLOSED_FRESH = {
+  ...OBS_READY, obs: 'closed', free: null,
+  setup: { ...OBS_READY.setup, wsEnabled: false, hybrid: false, replayBuffer: false, folderSet: false, folderExists: false, needed: true },
+};
+
+// `answers` maps a command to what the stand-in answers; a command that is not there answers { ok: true } and, for
+// toggle, flips the recording as the app would and pushes the new status.
+async function stubRecording(page, status, answers = {}) {
+  await page.addInitScript(({ initial, planned }) => {
+    const state = { status: initial };
+    window.__recording = { commands: [], push: null, state };
+    // The app reads the two switches from the settings file each time it is asked; so does the stand-in.
+    const withSwitches = () => {
+      const saved = window.__k10 && window.__k10.settings ? window.__k10.settings : {};
+      const out = JSON.parse(JSON.stringify(state.status));
+      for (const key of ['obsStartOnRecord', 'obsStartWithApp']) if (typeof saved[key] === 'boolean') out[key] = saved[key];
+      return out;
+    };
+    Object.assign(window.racingDesk, {
+      recording: {
+        status: async () => withSwitches(),
+        command: async (name, value) => {
+          window.__recording.commands.push([name, value]);
+          if (planned[name]) return planned[name];
+          if (name === 'toggle') {
+            const now = !state.status.recording;
+            state.status = { ...state.status, recording: now, owned: now, startedAt: now ? Date.now() - 61_000 : null, elapsedMs: now ? 61_000 : 0, outputPath: now ? 'D:/Racing Desk/Recordings/2026-09-30 21-00-00.mp4' : null, bytes: now ? 3.1e9 : 0, sidecar: now ? { path: 'x', frames: 1830 } : null };
+            if (window.__recording.push) window.__recording.push(JSON.parse(JSON.stringify(state.status)));
+            return { ok: true };
+          }
+          return { ok: true };
+        },
+        onState: (callback) => { window.__recording.push = callback; },
+      },
+    });
+  }, { initial: status, planned: answers });
+}
+
+const recordingCommands = (page) => page.evaluate(() => window.__recording.commands);
+const pushRecording = (page, status) => page.evaluate((s) => { window.__recording.state.status = s; window.__recording.push(s); }, status);
+
+test('the recording pill is on the masthead of every page; outside the app it is there and says it is the app\'s to switch', async ({ page }) => {
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=desk');
+  const pill = page.locator('#recording-pill');
+  await expect(pill).toBeVisible();
+  await expect(pill.locator('.recording-text')).toHaveText('Recording');
+  await expect(pill.locator('.recording-button')).toHaveText('Record');
+  await expect(pill.locator('.recording-button')).toBeDisabled();
+  await expect(pill).toHaveAttribute('title', 'This is switched from the Racing Desk app.');
+  await page.locator('a[data-page-link="cars"]').click();
+  await expect(pill).toBeVisible();
+  await page.locator('a[data-page-link="settings"]').click();
+  await expect(pill).toBeVisible();
+  // The card, read-only.
+  const card = page.locator('#settings-recording');
+  await expect(card.locator('h2')).toHaveText('Recording');
+  await expect(card.locator('#recording-line')).toHaveText('This is switched from the Racing Desk app.');
+  await expect(card.locator('button[data-recording-cmd="toggle"]')).toBeDisabled();
+  await expect(card.locator('[data-recording-key]:not(:disabled)')).toHaveCount(0);
+  await expect(card.locator('#recording-folder')).toHaveValue('');
+  expect(errors).toEqual([]);
+});
+
+test('with OBS open the pill says so and Record is one press; recording, it counts and offers Stop; the card follows', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRecording(page, OBS_READY);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const pill = page.locator('#recording-pill');
+  await expect(pill.locator('.recording-text')).toHaveText('OBS is open, not recording');
+  await expect(pill).toHaveAttribute('data-state', 'ready');
+  await expect(pill.locator('.recording-button')).toHaveText('Record');
+  await expect(pill.locator('.recording-button')).toBeEnabled();
+  const card = page.locator('#settings-recording');
+  await expect(card.locator('#recording-line')).toHaveText('OBS is open, not recording');
+  await expect(card.locator('.recording-detail')).toHaveText(['About 9 hours of recording left on D: at 100 Mbps.']);
+  await expect(card.locator('button[data-recording-cmd="setup"]')).toHaveCount(0);     // nothing is missing
+  await expect(card.locator('button[data-recording-cmd="openObs"]')).toHaveCount(0);   // OBS is open
+  await expect(card.locator('#recording-password')).toHaveCount(0);
+  await expect(card.locator('#recording-folder')).toHaveValue('D:\\Racing Desk\\Recordings');
+  await expect(card.locator('#recording-obsStartOnRecord')).toBeChecked();
+  await expect(card.locator('#recording-obsStartWithApp')).not.toBeChecked();
+  expect(await recordingCommands(page)).toEqual([]);   // looking at the page asks nothing of OBS
+
+  await pill.locator('.recording-button').click();
+  await expect(pill).toHaveAttribute('data-state', 'recording');
+  await expect(pill.locator('.recording-text')).toHaveText(/^Recording 1:0[1-3]$/);
+  await expect(pill.locator('.recording-button')).toHaveText('Stop');
+  await expect(card.locator('#recording-line')).toHaveText(/^Recording 1:0[1-3]$/);
+  await expect(card.locator('.recording-detail').first()).toHaveText('3.1 GB · D:/Racing Desk/Recordings/2026-09-30 21-00-00.mp4');
+  await expect(card.locator('.recording-detail').nth(1)).toHaveText('Telemetry is being written beside it (1830 frames).');
+  await expect(card.locator('button[data-recording-cmd="toggle"]')).toHaveText('Stop');
+  expect(await recordingCommands(page)).toEqual([['toggle', undefined]]);
+
+  await card.locator('button[data-recording-cmd="toggle"]').click();
+  await expect(pill.locator('.recording-button')).toHaveText('Record');
+  await expect(card.locator('#recording-line')).toHaveText('OBS is open, not recording');
+  expect(await recordingCommands(page)).toEqual([['toggle', undefined], ['toggle', undefined]]);
+  // Nothing was saved to the settings file by any of it.
+  expect(await page.evaluate(() => window.__k10.saved)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('with OBS closed and nothing set up: Open OBS, and Set up OBS with one sentence saying what it will change; its answer is shown', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRecording(page, OBS_CLOSED_FRESH, {
+    setup: { ok: true, did: ["OBS's WebSocket is switched on.", 'The profile "Untitled" now has Hybrid MP4, a 20 s replay buffer, recordings into D:\\Racing Desk\\Recordings.'], problems: [] },
+    openObs: { ok: false, reason: 'OBS was not found at C:\\Program Files\\obs-studio. Set its folder on the Recording card.' },
+  });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-recording');
+  await expect(card.locator('#recording-line')).toHaveText('OBS is not open');
+  await expect(page.locator('#recording-pill')).toHaveAttribute('data-state', 'off');
+  await expect(page.locator('#recording-pill .recording-button')).toBeEnabled();   // the app decides whether OBS may be started
+  await expect(card.locator('.recording-detail')).toHaveText([
+    "Set up OBS will switch on OBS's WebSocket, set your profile to Hybrid MP4, turn its 20 s replay buffer on and point its recordings at D:\\Racing Desk\\Recordings. Your own Ctrl+Space recordings become Hybrid MP4 too. OBS then answers on port 4455 to anything on your network that knows the password.",
+  ]);
+  await expect(card.locator('button[data-recording-cmd="openObs"]')).toBeEnabled();
+  await expect(card.locator('button[data-recording-cmd="setup"]')).toBeEnabled();
+
+  await card.locator('button[data-recording-cmd="setup"]').click();
+  await expect(card.locator('.recording-said')).toHaveText(["OBS's WebSocket is switched on.", 'The profile "Untitled" now has Hybrid MP4, a 20 s replay buffer, recordings into D:\\Racing Desk\\Recordings.']);
+  await expect(card.locator('.recording-error')).toHaveCount(0);
+  expect(await recordingCommands(page)).toEqual([['setup', undefined]]);
+
+  await card.locator('button[data-recording-cmd="openObs"]').click();
+  await expect(card.locator('.recording-error')).toHaveText('OBS was not found at C:\\Program Files\\obs-studio. Set its folder on the Recording card.');
+  await expect(card.locator('.recording-said')).toHaveCount(0);
+  expect(await recordingCommands(page)).toEqual([['setup', undefined], ['openObs', undefined]]);
+  expect(errors).toEqual([]);
+});
+
+test('the password field is there only when OBS wants a password; what is typed goes to the app and is not kept on the page', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRecording(page, { ...OBS_READY, obs: 'authFailed', needsPassword: true });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-recording');
+  await expect(card.locator('#recording-line')).toHaveText('OBS refused the password');
+  await expect(page.locator('#recording-pill')).toHaveAttribute('data-state', 'warn');
+  await expect(card.locator('.recording-detail').first()).toContainText('OBS refused the password Racing Desk has.');
+  const field = card.locator('#recording-password-field');
+  await expect(field).toBeVisible();
+  await expect(field).toHaveAttribute('type', 'password');
+  await expect(card.locator('#recording-password .hint')).toContainText('Tools, WebSocket Server Settings');
+  await field.fill('sixteen-chars-pw');
+  await card.locator('#recording-password button[type="submit"]').click();
+  expect(await recordingCommands(page)).toEqual([['password', 'sixteen-chars-pw']]);
+  // The app says OBS is now open: the field goes.
+  await pushRecording(page, { ...OBS_READY, passwordTyped: true });
+  await expect(card.locator('#recording-password')).toHaveCount(0);
+  await expect(card.locator('#recording-line')).toHaveText('OBS is open, not recording');
+  expect(await page.evaluate(() => document.body.innerHTML.includes('sixteen-chars-pw'))).toBe(false);
+  // The settings file was not written by the page for it.
+  expect(await page.evaluate(() => window.__k10.saved)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('the two switches are saved through the settings file, like the rest of the page', async ({ page }) => {
+  await stubBridge(page, { zoom: 120, obsStartOnRecord: true });
+  await stubRecording(page, OBS_READY);
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-recording');
+  await card.locator('#recording-obsStartWithApp').check();
+  await card.locator('#recording-obsStartOnRecord').uncheck();
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(2);
+  const saved = await page.evaluate(() => window.__k10.saved);
+  expect(saved[0]).toMatchObject({ zoom: 120, obsStartWithApp: true });
+  expect(saved[1]).toMatchObject({ zoom: 120, obsStartWithApp: true, obsStartOnRecord: false });
+  // Choosing the folder and opening it are the app's commands, not keys.
+  await card.locator('button[data-recording-cmd="openFolder"]').click();
+  await card.locator('button[data-recording-cmd="chooseFolder"]').click();
+  expect(await recordingCommands(page)).toEqual([['openFolder', undefined], ['chooseFolder', undefined]]);
+});
+
+test('a recording stopped for the disk, and a recording OBS started, are said on the card', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRecording(page, { ...OBS_READY, lowDisk: 'Recording stopped: only 4.0 GB left on D:.', free: { bytes: 4e9, hoursLeft: 0.09, drive: 'D:' } });
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-recording');
+  await expect(card.locator('.recording-detail')).toHaveText(['Recording stopped: only 4.0 GB left on D:.', 'About 5 minutes of recording left on D: at 100 Mbps.']);
+  await pushRecording(page, { ...OBS_READY, recording: true, owned: false, startedAt: Date.now() - 5000, elapsedMs: 5000, outputPath: 'C:/Users/Driver/Videos/NVIDIA/his.mp4', sidecar: null });
+  await expect(card.locator('.recording-detail').first()).toHaveText('C:/Users/Driver/Videos/NVIDIA/his.mp4 · started in OBS');
+  await expect(card.locator('.recording-detail').nth(1)).toHaveText('No sim session is live, so no telemetry is written beside this one.');
+  await expect(page.locator('#recording-pill .recording-button')).toHaveText('Stop');
+});

@@ -13,6 +13,7 @@
   const STATUS_POLL_MS = 30000;
   const Calc = window.RaceCorCalc;
   const SettingsModel = window.RacingDeskSettingsModel;
+  const RecordingModel = window.RacingDeskRecordingModel;
 
   const $ = (id) => document.getElementById(id);
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -625,6 +626,7 @@
       const section = sections.find((s) => s.id === id);
       return `<section class="card" id="settings-${esc(id)}"><h2>${esc(section.title)}</h2>${section.fields.map((f) => fieldHtml(f, !bridge)).join('')}</section>`;
     }).join('')}</div>`).join('');
+    renderRecordingCard();
     await renderRemote();
   }
 
@@ -827,6 +829,149 @@
     saveSetting(field.key, value);
   }
 
+  // ── Recording ────────────────────────────────────────────
+  // OBS records; the app's keeper (modules/js/obs) mirrors it and says how it stands (window.racingDesk.recording).
+  // The state is on the masthead of every page, as a pill with one button — Record or Stop — and on the Settings
+  // page's Recording card with the rest: Set up OBS, Open OBS, the folder, the switches, the password when OBS wants
+  // one. It is never drawn on the HUD, which OBS films. modules/desk/recording-model.js says what each state reads;
+  // this is the DOM and the asking. Outside the app the pill and the card are there, read-only, and say so.
+
+  function recordingBridge() {
+    const bridge = window.racingDesk;
+    return bridge && bridge.recording && typeof bridge.recording.status === 'function' && typeof bridge.recording.command === 'function' ? bridge.recording : null;
+  }
+
+  let recordingStatus = null;   // the last status the app sent
+  let recordingBusy = false;    // a command is under way
+  let recordingSaid = null;     // what the last command answered: { ok, did, problems, reason }
+  let recordingTicker = null;   // the pill's clock while recording
+
+  async function loadRecording() {
+    const bridge = recordingBridge();
+    if (!bridge) { renderRecording(); return; }
+    try {
+      const status = await bridge.status();
+      recordingStatus = status && typeof status === 'object' && !status.error ? status : null;
+    } catch (_) {
+      recordingStatus = null;
+    }
+    renderRecording();
+  }
+
+  function renderRecording() {
+    renderRecordingPill();
+    if (currentPage === 'settings') renderRecordingCard();
+    const recordingNow = !!(recordingStatus && recordingStatus.recording);
+    if (recordingNow && recordingTicker === null) recordingTicker = setInterval(renderRecordingPill, 1000);
+    if (!recordingNow && recordingTicker !== null) { clearInterval(recordingTicker); recordingTicker = null; }
+  }
+
+  // The status as it stands now: the app's, with the clock run on from when it was sent.
+  function recordingNow() {
+    if (!recordingStatus) return null;
+    if (!recordingStatus.recording || !recordingStatus.startedAt) return recordingStatus;
+    return { ...recordingStatus, elapsedMs: Math.max(0, Date.now() - recordingStatus.startedAt) };
+  }
+
+  function renderRecordingPill() {
+    const el = $('recording-pill');
+    if (!el || !RecordingModel) return;
+    const inApp = !!recordingBridge();
+    const view = RecordingModel.pill(recordingNow(), { inApp });
+    const off = !view.button.enabled || recordingBusy ? ' disabled' : '';
+    el.dataset.state = view.state;
+    el.title = view.detail || '';
+    el.innerHTML = `<span class="recording-dot" aria-hidden="true"></span><span class="recording-text">${esc(view.text)}</span>`
+      + `<button type="button" class="recording-button" data-recording-cmd="${esc(view.button.command)}"${off}>${esc(view.button.label)}</button>`;
+  }
+
+  function renderRecordingCard() {
+    const el = $('settings-recording');
+    if (!el || !RecordingModel) return;
+    const inApp = !!recordingBridge();
+    const status = recordingNow();
+    const view = RecordingModel.card(status, { inApp });
+    const off = recordingBusy ? ' disabled' : '';
+    const button = (cmd, label, enabled) => `<button type="button" data-recording-cmd="${esc(cmd)}"${enabled && !recordingBusy ? '' : ' disabled'}>${esc(label)}</button>`;
+    const said = recordingSaid ? [
+      ...(recordingSaid.did || []).map((s) => `<p class="recording-said" role="status">${esc(s)}</p>`),
+      ...(recordingSaid.problems || []).map((s) => `<p class="recording-error" role="alert">${esc(s)}</p>`),
+      recordingSaid.ok === false && recordingSaid.reason && !(recordingSaid.problems || []).length ? `<p class="recording-error" role="alert">${esc(recordingSaid.reason)}</p>` : '',
+    ].join('') : '';
+    el.innerHTML = `
+      <h2>Recording</h2>
+      <p class="recording-line" id="recording-line">${esc(view.line)}</p>
+      ${view.details.map((d) => `<p class="recording-detail">${esc(d)}</p>`).join('')}
+      ${said}
+      <p class="recording-buttons">
+        ${button('toggle', view.record.label, view.record.enabled)}
+        ${view.openObs.show ? button('openObs', 'Open OBS', view.openObs.enabled) : ''}
+        ${view.setup.show ? button('setup', 'Set up OBS', view.setup.enabled) : ''}
+        ${button('openFolder', 'Open folder', view.openFolder.enabled && inApp)}
+      </p>
+      ${view.password.show ? `
+      <form class="recording-password" id="recording-password">
+        <label class="name" for="recording-password-field">OBS's WebSocket password</label>
+        <span class="hint">${esc(view.password.hint)}</span>
+        <span class="control"><input type="password" id="recording-password-field" autocomplete="off"${off}> <button type="submit"${off}>Keep</button></span>
+      </form>` : ''}
+      <div class="field">
+        <label class="name" for="recording-folder">Folder</label>
+        <span class="hint">One folder per recording goes under it: the video, the telemetry beside it, and later the replays and TV takes of that session.</span>
+        <span class="control"><input type="text" id="recording-folder" value="${esc(view.folder)}" readonly> ${button('chooseFolder', 'Choose…', view.chooseFolder.enabled && inApp)}</span>
+      </div>
+      ${view.switches.map((s) => `
+      <div class="field">
+        <label class="name" for="recording-${esc(s.key)}">${esc(s.label)}</label>
+        <span class="hint">${esc(s.hint)}</span>
+        <span class="control"><input type="checkbox" class="switch" id="recording-${esc(s.key)}" data-recording-key="${esc(s.key)}"${s.value ? ' checked' : ''}${s.enabled && !recordingBusy ? '' : ' disabled'}></span>
+      </div>`).join('')}
+      ${!inApp ? `<p class="remote-say">${esc(RecordingModel.FROM_THE_APP)}</p>` : ''}`;
+  }
+
+  async function recordingCommand(name, value) {
+    const bridge = recordingBridge();
+    if (!bridge || recordingBusy) return;
+    recordingBusy = true;
+    renderRecording();
+    let answer;
+    try {
+      answer = await bridge.command(name, value);
+    } catch (err) {
+      answer = { ok: false, reason: err.message };
+    }
+    recordingBusy = false;
+    const stands = answer !== null && typeof answer === 'object';
+    // What a command answered is shown on the card until the next one: Set up OBS's sentences, or what went wrong.
+    recordingSaid = stands ? { ok: answer.ok !== false, did: answer.did || [], problems: answer.problems || [], reason: answer.reason || null } : { ok: false, reason: 'The app did not answer.' };
+    if (recordingSaid.ok && !recordingSaid.did.length) recordingSaid = null;
+    await loadRecording();
+  }
+
+  function onRecordingClick(ev) {
+    const button = ev.target.closest('[data-recording-cmd]');
+    if (!button || button.disabled) return;
+    recordingCommand(button.dataset.recordingCmd);
+  }
+
+  function onRecordingChange(ev) {
+    const el = ev.target.closest('[data-recording-key]');
+    if (!el || !recordingBridge()) return;
+    const key = el.dataset.recordingKey;
+    if (!RecordingModel.SWITCHES.some((s) => s.key === key)) return;
+    saveSetting(key, !!el.checked).then(loadRecording);
+  }
+
+  function onRecordingSubmit(ev) {
+    const form = ev.target.closest('#recording-password');
+    if (!form) return;
+    ev.preventDefault();
+    const field = form.querySelector('#recording-password-field');
+    const value = field ? field.value : '';
+    if (field) field.value = '';
+    recordingCommand('password', value);
+  }
+
   // ── Wiring ───────────────────────────────────────────────
 
   $('race-list').addEventListener('click', (ev) => {
@@ -877,6 +1022,14 @@
   $('settings-sections').addEventListener('change', onSettingChange);
   $('settings-remote').addEventListener('change', onRemoteChange);
   $('settings-remote').addEventListener('click', onRemoteClick);
+  $('settings-recording').addEventListener('click', onRecordingClick);
+  $('settings-recording').addEventListener('change', onRecordingChange);
+  $('settings-recording').addEventListener('submit', onRecordingSubmit);
+  $('recording-pill').addEventListener('click', onRecordingClick);
+  if (recordingBridge() && typeof recordingBridge().onState === 'function') {
+    recordingBridge().onState((status) => { recordingStatus = status && typeof status === 'object' ? status : null; renderRecording(); });
+  }
+  loadRecording();
   $('settings-sections').addEventListener('input', (ev) => {
     // A slider's readout follows the thumb; the file is written when it is let go (change).
     const el = ev.target;

@@ -85,6 +85,7 @@ test.describe('quitting', () => {
     const quits = code.split('\n').filter((line) => /\bapp\.quit\(\)/.test(line)).map((line) => line.trim());
     expect(quits).toEqual([
       'if (!isFirstInstance) app.quit();',                                  // a second copy, which hands over to the first
+      'stopOwnedRecording().finally(() => app.quit());',                    // the quit going through once the recording Racing Desk started is stopped
       "deskWindow.on('close', () => { if (!quitting) app.quit(); });",
       "{ label: 'Quit Racing Desk', click: () => app.quit() },",
       'app.quit();',                                                        // the HUD's window could not be made
@@ -274,18 +275,80 @@ test.describe('recording', () => {
     expect(code).not.toMatch(/desktopCapturer|setDisplayMediaRequestHandler|setPermissionRequestHandler|setPermissionCheckHandler/);
     expect(code).not.toMatch(/ffmpeg|bundleWriter|rcpdv|replayDirector|keyboardSender|captureScreen/i);
     expect(code).not.toMatch(/50965|hostControlPort|hostControlRequest/);
-    expect(code).not.toMatch(/'(?:start|stop|write)-recording'|'sidecar-(?:start|write|stop)'|'save-replay-buffer',\s*async|'transcode-recording'|'bundle-recording'/);
+    // The old IPC: the page's chunks, the sidecar's lines, the transcode and the bundle. (start-recording and
+    // stop-recording are action names now, for the Stream Deck, and go to the keeper.)
+    expect(code).not.toMatch(/ipcMain\.(?:handle|on)\('(?:start-recording|stop-recording|write-recording-chunk|get-recording-state|sidecar-(?:start|write|stop)|save-replay-buffer|transcode-recording|bundle-recording|read-bundle-header|get-ffmpeg-info)'/);
     expect(code).not.toMatch(/getDisplayMedia|MediaRecorder/);
     const preload = readFileSync(new URL('../../preload.js', import.meta.url), 'utf8');
     expect(preload).not.toMatch(/startRecording|writeRecordingChunk|sidecarWrite|saveReplayBuffer|ReplayDirector|getFfmpegInfo|NativeRecording/);
   });
 
-  test('the HUD keys for recording go through the action dispatcher, not the page', () => {
-    expect(code).toMatch(/'CommandOrControl\+Shift\+V':\s*\(\)\s*=>\s*\{\s*dispatchAction\('toggle-recording'\);\s*\},/);
-    expect(code).toMatch(/'CommandOrControl\+Shift\+B':\s*\(\)\s*=>\s*\{\s*dispatchAction\('save-replay-buffer'\);\s*\},/);
-    expect(code).toMatch(/'CommandOrControl\+Shift\+P':\s*\(\)\s*=>\s*\{\s*dispatchAction\('tv-shots'\);\s*\},/);
-    // Nothing of a recording is sent to the HUD's page to draw: it is in the picture.
-    expect(code).not.toMatch(/webContents\.send\('(?:toggle-recording|save-replay-buffer|recording-state|recording-debug|toggle-replay-director)'/);
+  test('the HUD keys for recording go through the action dispatcher, saying they are keys, so OBS is never started from the car', () => {
+    expect(code).toMatch(/'CommandOrControl\+Shift\+V':\s*\(\)\s*=>\s*\{\s*dispatchAction\('toggle-recording',\s*\{\s*source:\s*'key'\s*\}\);\s*\},/);
+    expect(code).toMatch(/'CommandOrControl\+Shift\+B':\s*\(\)\s*=>\s*\{\s*dispatchAction\('save-replay-buffer',\s*\{\s*source:\s*'key'\s*\}\);\s*\},/);
+    expect(code).toMatch(/'CommandOrControl\+Shift\+P':\s*\(\)\s*=>\s*\{\s*dispatchAction\('tv-shots',\s*\{\s*source:\s*'key'\s*\}\);\s*\},/);
+    // The actions hand the source on to the keeper, which decides; the Stream Deck's route names none and is one.
+    expect(code).toMatch(/'toggle-recording':\s*\(\{\s*source\s*=\s*'streamdeck'\s*\}\s*=\s*\{\}\)\s*=>\s*recording\.toggle\(\{\s*source\s*\}\)/);
+    expect(code).toMatch(/'stop-recording':\s*\(\)\s*=>\s*recording\.stop\(\)/);
+    expect(code).toMatch(/function dispatchAction\(name, context = \{\}\)/);
+    // The tray's Record is a press from the tray.
+    expect(code).toMatch(/dispatchAction\('toggle-recording',\s*\{\s*source:\s*'tray'\s*\}\)/);
+    // Nothing of a recording is sent to the HUD's page to draw: it is in the picture. The two sentences it may be
+    // told go through the keeper's notice, to the one channel.
+    expect(code).not.toMatch(/webContents\.send\('(?:toggle-recording|save-replay-buffer|recording-state|recording-debug|toggle-replay-director)'[^)]*overlayWindow/);
+    const toOverlay = calls(/overlayWindow\.webContents\.send\('([\w-]+)'/g).map((c) => c.match(/'([\w-]+)'/)[1]);
+    expect(toOverlay.filter((ch) => /record|replay|obs/i.test(ch))).toEqual([]);
+    expect(toOverlay).toContain('hud-notice');
+    expect(code).toMatch(/notice:\s*\(text\)\s*=>\s*\{\s*if \(overlayWindow && !overlayWindow\.isDestroyed\(\)\) overlayWindow\.webContents\.send\('hud-notice', text\);\s*\},/);
+  });
+
+  test('OBS is started by nothing but a press: never at start unless he turned that on, never from auto-record or a key', () => {
+    const starts = calls(/startObsIfClosed\(\)/g);
+    // Three callers: Open OBS (a press), the keeper's startObs (a press, out of the car, by its own rule), and the
+    // app's start behind the switch.
+    expect(starts).toHaveLength(3);
+    expect(code).toMatch(/if \(!isDev && loadSettingsSync\(\)\.obsStartWithApp === true\) \{\s*startObsIfClosed\(\)/);
+    expect(code).toMatch(/startObs:\s*startObsIfClosed\s*,/);
+    expect(code).toMatch(/async function openObs\(\)\s*\{\s*if \(hud\.state\(\)\.inCar\) return \{ ok: false, reason: 'OBS is not opened from the car' \};/);
+    // obs64 is spawned in the launcher module and nowhere here.
+    expect(code).not.toMatch(/spawn\(\s*['"`]/);
+    expect(code).not.toMatch(/obs64/);
+    // OBS is never quit or killed from here.
+    expect(code).not.toMatch(/taskkill|obs64.*kill|StopOBS|\.kill\(\s*['"]?obs/i);
+  });
+
+  test('every quit path stops the recording Racing Desk started, and his own are left alone', () => {
+    const beforeQuit = code.match(/app\.on\('before-quit', \(event\) => \{([\s\S]*?)\n\}\);/);
+    expect(beforeQuit).not.toBeNull();
+    expect(beforeQuit[1]).toMatch(/recording\.needsStopForQuit\(\)/);
+    expect(beforeQuit[1]).toMatch(/event\.preventDefault\(\);\s*stopOwnedRecording\(\)\.finally\(\(\) => app\.quit\(\)\);/);
+    // Ctrl+Shift+G relaunches with app.exit, which skips before-quit: the recording is stopped first.
+    const green = code.match(/'CommandOrControl\+Shift\+G': \(\) => \{([\s\S]*?)\n  \},/);
+    expect(green).not.toBeNull();
+    expect(green[1]).toMatch(/stopOwnedRecording\(\)\.finally\(\(\) => \{\s*app\.relaunch\(\);\s*app\.exit\(0\);\s*\}\);/);
+    expect(calls(/app\.exit\(/g)).toHaveLength(1);
+    // will-quit lets the client and the keeper go.
+    expect(code).toMatch(/app\.on\('will-quit', \(\) => \{[\s\S]*?recording\.dispose\(\); obsClient\.stop\(\);/);
+  });
+
+  test('the OBS password reaches no page and no log line: safeStorage, stripped like the iPad\'s key', () => {
+    expect(code).toMatch(/const OBS_PASSWORD_KEY = 'obsWebSocketPasswordEnc';/);
+    expect(code).toMatch(/const PRIVATE_SETTINGS = \[\.\.\.REMOTE_SETTINGS, OBS_PASSWORD_KEY\];/);
+    expect(code).toMatch(/const \{ remoteServerKey, \[OBS_PASSWORD_KEY\]: obsPassword, \.\.\.rest \} = settings;/);
+    expect(code).toMatch(/for \(const key of PRIVATE_SETTINGS\) \{\s*if \(key in onDisk\) settings\[key\] = onDisk\[key\];/);
+    expect(code).toMatch(/safeStorage\.encryptString\(value\)\.toString\('base64'\)/);
+    expect(code).toMatch(/safeStorage\.decryptString\(/);
+    // The client is given a function for the password, never a value; and every log line about it says set or none.
+    expect(code).toMatch(/obs\.createObsClient\(\{\s*port:\s*obsPort,\s*password:\s*obsPassword,\s*log:\s*logToFile\s*\}\)/);
+    const logs = calls(/logToFile\([^;]*\);/g);
+    expect(logs.some((l) => /password: \$\{result\.password \? 'set' : 'none'\}/.test(l))).toBe(true);
+    for (const l of logs) {
+      // A password's value is never interpolated: only whether there is one.
+      expect(l, l).not.toMatch(/typedObsPassword\(|obsPassword\(\)|server_password|\.password(?!\s*\?)|OBS_PASSWORD_KEY\]/);
+    }
+    // The desk's recording commands and status are the desk window's.
+    expect(code).toMatch(/ipcMain\.handle\('recording:status', async \(event\) => \{\s*if \(!fromDesk\(event\)\)/);
+    expect(code).toMatch(/ipcMain\.handle\('recording:command', async \(event, command, value\) => \{\s*if \(!fromDesk\(event\)\)/);
   });
 });
 

@@ -20,6 +20,7 @@
     <a href="#cars" data-page-link="cars">Cars</a>
     <a href="#settings" data-page-link="settings">Settings</a>
   </nav>
+  <div class="recording-pill" id="recording-pill" role="status"></div>
   <div class="ratings" id="ratings"></div>
   <div class="stats" id="stats"></div>
   <div class="freshness">
@@ -60,6 +61,7 @@
   <p class="settings-note" id="settings-note" hidden>This page needs the Racing Desk app. In a browser it only shows the HUD's defaults.</p>
   <p class="settings-intro">The HUD's settings, kept in <code>%APPDATA%\Racing Desk\overlay-settings.json</code>. A change reaches the HUD as you make it.<span id="settings-status" role="status"></span></p>
   <div class="settings-sections" id="settings-sections"></div>
+  <section class="card recording" id="settings-recording"></section>
   <section class="card remote" id="settings-remote"></section>
 </main>
 
@@ -73,6 +75,7 @@
 <script src="modules/desk/paints.bundle.js"></script>
 <script src="modules/js/qr-code.js"></script>
 <script src="modules/desk/settings-model.js"></script>
+<script src="modules/desk/recording-model.js"></script>
 <script src="modules/desk/desk.js"></script>
 </body>
 </html>
