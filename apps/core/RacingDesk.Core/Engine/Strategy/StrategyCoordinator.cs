@@ -27,8 +27,6 @@ namespace RacingDesk.Plugin.Engine.Strategy
         private int    _lastCompletedLaps = -1;
         private double _fuelAtLapStart;
         private bool   _wasInPitLane;
-        /// <summary>A tyre was asked for while the car stood in its stall this stop: the set may be another when it leaves.</summary>
-        private bool   _tyresRequestedAtStop;
 
         // ── Current strategy call ───────────────────────────────────────
         private StrategyCall _currentCall;
@@ -81,8 +79,6 @@ namespace RacingDesk.Plugin.Engine.Strategy
 
             // ── Stint lifecycle: detect pit stop → new stint ────────────
             bool inPit = current.IsInPitLane;
-            // A tyre asked for in the stall: the set may change at this stop (TireTracker.OnNewStint)
-            if (current.IsInPit && current.PitTiresRequested) _tyresRequestedAtStop = true;
             if (_wasInPitLane && !inPit && current.SpeedKmh > 10)
             {
                 // Just left pit lane — start a new stint
@@ -100,8 +96,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
             Tires.UpdateFrame(current);
             Fuel.UpdateFrame(current);
 
-            // iRacing measures tread in the pits and nowhere else, so a tyre call is made when a measurement comes in —
-            // on pit road, where it can be acted on — and not at a lap crossing from a value that has not changed.
+            // iRacing measures tread in the pits and nowhere else, so a tyre wear call is made when a measurement comes in —
+            // on pit road, where it can be acted on — and not at a lap crossing from a value that has not changed
+            // (TireTracker.Evaluate makes the wear calls only on a frame with a new measurement).
             if (Tires.NewMeasurement && CurrentStint != null)
                 EvaluateAndEmit(current);
 
@@ -132,7 +129,6 @@ namespace RacingDesk.Plugin.Engine.Strategy
             _wasInPitLane = false;
             _currentCall = null;
             _moduleCooldowns.Clear();
-            _tyresRequestedAtStop = false;
             Tires.Reset();
             Fuel.OnNewStint();
         }
@@ -158,10 +154,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
             };
 
             _fuelAtLapStart = s.FuelLevel;
-            // The session's first stint takes the tread as measured now; a stint after a stop keeps the measurement, and
-            // keeps what it said of the tyres only where no tyre was asked for at the stop.
-            if (first) Tires.Reset(); else Tires.OnNewStint(_tyresRequestedAtStop);
-            _tyresRequestedAtStop = false;
+            // The session's first stint takes the tread as measured now; a stint after a stop keeps the measurement. The
+            // corners whose tyres were changed are null by then (TyreSetMask, in the runtime, before this reads them).
+            if (first) Tires.Reset(); else Tires.OnNewStint();
             Fuel.OnNewStint();
         }
 
@@ -253,6 +248,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
             {
                 case "fuel": return 3;
                 case "tire": return 2;
+                case "tire-wear": return 2;
                 case "pit":  return 4;
                 default:     return 1;
             }

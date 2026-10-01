@@ -11,9 +11,11 @@ namespace RacingDesk.Plugin.Engine.Strategy
     ///
     /// Tyre wear here is what it is everywhere else: <b>tread remaining, 0..100 %, 100 = new</b>, null where not
     /// measured (<see cref="TyreWear"/>). iRacing measures tread <b>in the pits and nowhere else</b> — the value sits
-    /// still for a whole stint and moves on pit road — so the wear health is rated when a measurement comes in, a
-    /// value that has not changed is not news, and a new set is not judged by the readings of the set that came off.
-    /// New tyres (100) never warn.
+    /// still for a whole stint and moves on pit road — so the wear health is rated when a measurement comes in, and the
+    /// wear calls are made on that frame and not again at a lap crossing from a value that has not changed. A corner
+    /// whose tyre was changed arrives here as null (<see cref="TyreSetMask"/>, before every reader), so a new set is
+    /// not judged by the readings of the set that came off and the corners left on the car keep their verdict. New
+    /// tyres (100) never warn.
     /// </summary>
     public class TireTracker
     {
@@ -54,8 +56,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
         public double?[] TreadRemaining { get; } = new double?[4];
 
         /// <summary>
-        /// True for the frame a measurement came in on — a corner's value changed, or was first said since the last
-        /// <see cref="Reset"/> — and false on every other frame. The coordinator evaluates the tyre calls on it.
+        /// True for the frame a measurement came in on — a corner's value changed to a number, or was first said since
+        /// the last <see cref="Reset"/> — and false on every other frame (a corner going to null is not a measurement).
+        /// The coordinator evaluates the tyre calls on it, and the wear calls are made only then.
         /// </summary>
         public bool NewMeasurement { get; private set; }
 
@@ -69,9 +72,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
         public double EstimatedLapsRemaining { get; private set; } = 99;
 
         /// <summary>
-        /// Tire health from the last measurement: 0 = fine, 1 = worn (a tyre under <see cref="TyreWear.WarnBelowPercent"/>),
-        /// 2 = critical (under <see cref="TyreWear.CriticalBelowPercent"/>; the pit box offers a change). Cleared at a
-        /// stop where a tyre was asked for, until the sim measures again.
+        /// Tire health from the last measurement, of the corners that have one: 0 = fine, 1 = worn (a tyre under
+        /// <see cref="TyreWear.WarnBelowPercent"/>), 2 = critical (under <see cref="TyreWear.CriticalBelowPercent"/>; the
+        /// pit box offers a change). A corner changed at a stop drops out (null) and the rest are rated again.
         /// </summary>
         public int TireHealthState { get; private set; }
 
@@ -106,17 +109,19 @@ namespace RacingDesk.Plugin.Engine.Strategy
             // ── Tread: a measurement, taken as it is ─────────────────────
             // No clamp to 0..1 (the value is 0..100), no spike filter: the step at pit entry is the measurement, and a
             // filter that held it back would hold back the one true reading there is.
+            // A corner that went to null (its tyre was changed: TyreSetMask) is not a measurement, but the health is
+            // rated again from the corners that are left.
             double?[] measured = { s.TyreWearFL, s.TyreWearFR, s.TyreWearRL, s.TyreWearRR };
-            bool changed = false;
+            bool changed = false, gotNumber = false;
             for (int i = 0; i < 4; i++)
             {
                 if (Same(measured[i], TreadRemaining[i])) continue;
                 TreadRemaining[i] = measured[i];
                 changed = true;
+                if (measured[i].HasValue) gotNumber = true;
             }
-            NewMeasurement = changed && TreadRemaining.Any(t => t.HasValue);
-            if (NewMeasurement) RateHealth();
-            else if (changed) { TireHealthState = 0; EstimatedLapsRemaining = 99; } // the sim stopped saying
+            NewMeasurement = gotNumber;
+            if (changed) RateHealth();
 
             // ── Validate & update temperature values ─────────────────────
             double[] rawTemp = { s.TyreTempFL, s.TyreTempFR, s.TyreTempRL, s.TyreTempRR };
@@ -191,21 +196,15 @@ namespace RacingDesk.Plugin.Engine.Strategy
         }
 
         /// <summary>
-        /// A new stint after a stop. <paramref name="tyresChanged"/>: a tyre was asked for at the stop, so the set may be
-        /// another and the reading the sim shows may be the set that came off (iRacing shows the removed set's readings
-        /// after a change) — the health is cleared until the sim measures again. Otherwise the set is the one that was
-        /// measured, and what it measured stands.
+        /// A new stint after a stop. What the sim measured stands: the corners whose tyres were changed are null by now
+        /// (<see cref="TyreSetMask"/> takes the removed set's reading off the snapshot before anything reads it), and the
+        /// health was rated again without them, so there is nothing to clear here.
         /// </summary>
-        public void OnNewStint(bool tyresChanged)
+        public void OnNewStint()
         {
             ResetLapAccumulators();
             GripScore = 0;
             for (int i = 0; i < 4; i++) _treadAtLastLap[i] = null;
-            if (tyresChanged)
-            {
-                TireHealthState = 0;
-                EstimatedLapsRemaining = 99;
-            }
         }
 
         private void ResetLapAccumulators()
@@ -223,7 +222,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
 
         /// <summary>
         /// Evaluate tire state and produce a strategy call if warranted.
-        /// Returns null if no call is needed (everything normal or on cooldown).
+        /// Returns null if no call is needed (everything normal or on cooldown). The wear calls are made on the frame a
+        /// measurement came in (<see cref="NewMeasurement"/>) — on pit road, where they can be acted on — and not again at
+        /// a lap crossing from a value that has not changed; the temperature and grip calls are not tied to it.
         /// </summary>
         public StrategyCall Evaluate(StintData stint)
         {
@@ -231,7 +232,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
             double? worst = Worst();
 
             // ── Critical: a tyre measured under the critical tread ──────
-            if (TireHealthState == 2 && worst.HasValue && (now - _lastWearCall).TotalSeconds >= WearCooldownSec)
+            if (NewMeasurement && TireHealthState == 2 && worst.HasValue && (now - _lastWearCall).TotalSeconds >= WearCooldownSec)
             {
                 _lastWearCall = now;
                 double trend = stint?.LapTimeTrend ?? 0;
@@ -241,27 +242,28 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 string act = _inPitLane ? "Take tyres at this stop." : "Pit for tyres at the first chance.";
                 return new StrategyCall
                 {
-                    Module = "tire",
+                    Module = "tire-wear",   // its own cooldown: a temperature call a minute ago must not swallow the one call a measurement gets
                     Severity = 4,
                     Label = "TYRES",
-                    Message = $"{WorstTireLabel()} measured at {worst.Value:0}% tread{paceNote}. {act}",
+                    Message = $"{WorstTireLabel()} measured at {TyreWear.DisplayPercent(worst.Value)}% tread{paceNote}. {act}",
                     CooldownSeconds = WearCooldownSec
                 };
             }
 
             // ── Worn: a tyre measured under the warning tread ───────────
-            if (TireHealthState == 1 && worst.HasValue && (now - _lastWearCall).TotalSeconds >= WearCooldownSec)
+            if (NewMeasurement && TireHealthState == 1 && worst.HasValue && (now - _lastWearCall).TotalSeconds >= WearCooldownSec)
             {
                 _lastWearCall = now;
                 string lapsNote = EstimatedLapsRemaining > 0 && EstimatedLapsRemaining < 99
                     ? $" — about {EstimatedLapsRemaining:F0} laps before they fall off"
                     : "";
+                string think = _inPitLane ? "Think about tyres at this stop." : "Think about tyres at the next stop.";
                 return new StrategyCall
                 {
-                    Module = "tire",
+                    Module = "tire-wear",
                     Severity = 2,
                     Label = "TYRES",
-                    Message = $"{WorstTireLabel()} measured at {worst.Value:0}% tread{lapsNote}. Think about tyres at the next stop.",
+                    Message = $"{WorstTireLabel()} measured at {TyreWear.DisplayPercent(worst.Value)}% tread{lapsNote}. {think}",
                     CooldownSeconds = WearCooldownSec
                 };
             }
@@ -333,7 +335,8 @@ namespace RacingDesk.Plugin.Engine.Strategy
         {
             double? worst = Worst();
             TireHealthState = TyreWear.IsCritical(worst) ? 2 : TyreWear.IsWorn(worst) ? 1 : 0;
-            if (TireHealthState == 2) EstimatedLapsRemaining = 0;
+            if (!worst.HasValue) EstimatedLapsRemaining = 99;          // nothing measured: nothing to say
+            else if (TireHealthState == 2) EstimatedLapsRemaining = 0;
             else if (EstimatedLapsRemaining <= 0) EstimatedLapsRemaining = 99;
         }
 
@@ -386,13 +389,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 }
             }
 
-            // Factor 4: the tread gone from the worst corner, where it has been measured (a new tyre adds nothing)
-            double? worst = Worst();
-            if (worst.HasValue)
-            {
-                score += (100.0 - worst.Value) / 100.0;
-                factors++;
-            }
+            // (No factor for the tread: iRacing measures it in the pits only, so between stops it says nothing about live
+            // grip, and it is rated once, from the measurement, by TireHealthState — a second threshold of its own here
+            // is what put a "grip" call on a fresh set.)
 
             GripScore = factors > 0 ? Math.Min(1.0, score / factors) : 0;
         }

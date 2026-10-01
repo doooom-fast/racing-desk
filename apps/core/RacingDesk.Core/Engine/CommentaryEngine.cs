@@ -763,7 +763,7 @@ namespace RacingDesk.Plugin.Engine
             string dp = (dataPoint ?? "").ToLower();
             // Tyre wear is tread remaining in percent already (Engine/TyreWear.cs): a whole number, or a dash where the sim has not measured it
             if (dp.Contains("tyrewear"))
-                return double.IsNaN(val) ? "—" : $"{val:0}";
+                return double.IsNaN(val) ? "—" : TyreWear.DisplayPercent(val).ToString(System.Globalization.CultureInfo.InvariantCulture);
             // Percentage fields: display as integer percent
             if (dp.Contains("pct") || dp.Contains("percent") || dp == "fuelpercent" || dp == "fuellevelpct")
                 return $"{val * 100:0}";

@@ -517,6 +517,15 @@ namespace RacingDesk.Plugin.Engine
             {
                 IncidentCount = snap.IncidentCount;
             }
+            // A step that says a tyre is worn (the tyre_wear_high step's 29 and 32) has the rings and the commentary's quad
+            // say it too: the provider's own tread (82 and falling) would otherwise sit green beside the words. A worn
+            // reading only ever takes tread off; the other steps' base set (a stint's wear, nothing under the threshold)
+            // leaves the provider's tread as it is.
+            if (TyreWear.IsWorn(snap.TyreWearFL)) TyreWearFL = Math.Min(TyreWearFL, snap.TyreWearFL.Value);
+            if (TyreWear.IsWorn(snap.TyreWearFR)) TyreWearFR = Math.Min(TyreWearFR, snap.TyreWearFR.Value);
+            if (TyreWear.IsWorn(snap.TyreWearRL)) TyreWearRL = Math.Min(TyreWearRL, snap.TyreWearRL.Value);
+            if (TyreWear.IsWorn(snap.TyreWearRR)) TyreWearRR = Math.Min(TyreWearRR, snap.TyreWearRR.Value);
+
             IsInPitLane = snap.IsInPitLane;
             if (snap.IsInPitLane)
             {

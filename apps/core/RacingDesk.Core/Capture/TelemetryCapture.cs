@@ -125,13 +125,15 @@ namespace RacingDesk.Plugin.Engine
             if (s.TrackId == 0 && _sdkBridge != null && _sdkBridge.IsConnected)
                 s.TrackId = _sdkBridge.TrackId;
             // Tyre wear: tread remaining, 0..100 %, per corner, null where not measured — one meaning, converted here and
-            // in the host's source and nowhere else (Engine/TyreWear.cs; root CLAUDE.md, Tyre wear). SimHub's own
-            // GameData.TyreWear* is that percent already for iRacing, and reads 0 while SimHub has nothing, which is not a
-            // measurement; then iRacing's own three tread bands are asked, made one corner the one way the host makes them.
-            s.TyreWearFL       = TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearFrontLeft"))  ?? RawTreadRemaining(pm, "LF");
-            s.TyreWearFR       = TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearFrontRight")) ?? RawTreadRemaining(pm, "RF");
-            s.TyreWearRL       = TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearRearLeft"))   ?? RawTreadRemaining(pm, "LR");
-            s.TyreWearRR       = TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearRearRight"))  ?? RawTreadRemaining(pm, "RR");
+            // in the host's source and nowhere else (Engine/TyreWear.cs; root CLAUDE.md, Tyre wear). iRacing's own three
+            // tread bands are asked first, made one corner the one way the host makes them, so the plugin and the host
+            // read the same number at the same moment. SimHub's own GameData.TyreWear* comes after, for a game that has
+            // no such bands: it is a percent remaining, but for iRacing it is the middle band alone, was seen to read 0
+            // until a lap was done, and reads 0 while it has nothing, which is not a measurement.
+            s.TyreWearFL       = RawTreadRemaining(pm, "LF") ?? TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearFrontLeft"));
+            s.TyreWearFR       = RawTreadRemaining(pm, "RF") ?? TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearFrontRight"));
+            s.TyreWearRL       = RawTreadRemaining(pm, "LR") ?? TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearRearLeft"));
+            s.TyreWearRR       = RawTreadRemaining(pm, "RR") ?? TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearRearRight"));
 
             // ── Physics: iRacing raw → normalized fallback ───────────────────
             // Fix #14: iRacing reports acceleration in m/s²; dashboard expects G.

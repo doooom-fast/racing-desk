@@ -9,11 +9,13 @@ namespace RacingDesk.Plugin.Engine
     /// <list type="bullet">
     /// <item><see cref="FromBands"/>: iRacing's own variables, <c>LFwearL/M/R</c> and the other corners, a fraction
     /// remaining per tread band (1.0 = new; the header says "percent", the value is a fraction). One corner is the
-    /// mean of its three bands, times a hundred — which is what SimHub publishes for the same tyre, so the host and
-    /// the plugin agree to the number.</item>
-    /// <item><see cref="FromSimHub"/>: SimHub's <c>GameData.TyreWear*</c>, which for iRacing is that percent already
-    /// (checked live beside SimHub 9.12 on 2026-09-17 and 2026-10-01; SimHub's bundled dashes read it as
-    /// <c>100 - [TyreWearFrontLeft]</c>) and reads 0 while SimHub has nothing — so 0 is not a measurement.</item>
+    /// mean of its three bands, times a hundred. The host and the SimHub plugin both read the bands first, so they
+    /// agree to the number (SimHub's own property is the <i>middle</i> band alone: its iRacing reader computes
+    /// <c>LFwearM * 100</c>, and was seen to read 0 until a lap was done).</item>
+    /// <item><see cref="FromSimHub"/>: SimHub's <c>GameData.TyreWear*</c>, which for iRacing is a percent remaining
+    /// (a fresh set read 100 on its wire on 2026-10-01; SimHub's bundled dashes read it as
+    /// <c>100 - [TyreWearFrontLeft]</c>) and reads 0 while SimHub has nothing — so 0 is not a measurement. The plugin
+    /// asks it only where the bands are absent (another game).</item>
     /// </list>
     /// iRacing measures tread <b>in the pits and nowhere else</b> (his .ibt files: the bands sat at one value for
     /// thirty-one laps and moved on the first frame on pit road), so a value is the last measurement, never live
@@ -32,6 +34,9 @@ namespace RacingDesk.Plugin.Engine
         /// <summary>
         /// One corner's tread remaining, 0..100 %, from iRacing's three bands (each a fraction remaining, 1 = new): their
         /// mean, times a hundred. Null where all three are 0 or absent — the sim has not said, which is not a bald tyre.
+        /// (A corner that really is at 0.0 on all three bands reads as not measured too: a variable that is not there
+        /// reads 0 the same way, and a false "critical" on a fresh set is the one error this class exists to prevent. The
+        /// other corners of a set worn that far are under the threshold as well, and the worst of them warns.)
         /// </summary>
         public static double? FromBands(float left, float middle, float right)
         {
@@ -48,6 +53,20 @@ namespace RacingDesk.Plugin.Engine
         {
             if (!(value > 0) || double.IsInfinity(value)) return null;
             return Clamp(value);
+        }
+
+        /// <summary>
+        /// A tread remaining as a whole percent, for the words a warning is printed in. It rounds to the nearest, except
+        /// that it never rounds across a threshold: 34.6 is worn (under 35) and reads 34, 19.7 is critical (under 20) and
+        /// reads 19, so a number printed beside "under 35" is never 35. The page does the same (config.js, tyreWearShown).
+        /// </summary>
+        public static int DisplayPercent(double remaining)
+        {
+            double v = Clamp(remaining);
+            int shown = (int)Math.Round(v, MidpointRounding.AwayFromZero);
+            if (v < CriticalBelowPercent) return Math.Min(shown, (int)CriticalBelowPercent - 1);
+            if (v < WarnBelowPercent) return Math.Min(shown, (int)WarnBelowPercent - 1);
+            return shown;
         }
 
         /// <summary>The corner with the least tread of those measured, or null where none is.</summary>
