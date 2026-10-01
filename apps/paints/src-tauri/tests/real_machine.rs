@@ -11,8 +11,72 @@
 //! ```text
 //! cargo test --test real_machine -- --ignored --nocapture
 //! ```
+//!
+//! `--nocapture` puts everything below in a terminal, or in an agent's transcript, so none of it says a customer
+//! id: the tests report whether one was found, how sure the detection is and how the candidates rank, and the
+//! notes the detection writes (which name the id it found) go through `without_ids`.
 
 use doooom_paints_lib::{customer, library, paths, process, repo, tga, tradingpaints};
+
+/// Every id a customer report names: the one it chose and every candidate.
+fn ids_in(report: &customer::CustomerReport) -> Vec<&str> {
+    report
+        .candidates
+        .iter()
+        .map(|c| c.id.as_str())
+        .chain(report.id.as_deref())
+        .collect()
+}
+
+/// A line of the detection's own words with the ids in it taken out. Longest first, so that an id which is the start
+/// of another does not leave the rest of that one showing.
+fn without_ids(text: &str, ids: &[&str]) -> String {
+    let mut ids: Vec<&str> = ids.iter().copied().filter(|id| !id.is_empty()).collect();
+    ids.sort_by_key(|id| std::cmp::Reverse(id.len()));
+    let mut out = text.to_string();
+    for id in ids {
+        out = out.replace(id, "<id>");
+    }
+    out
+}
+
+// Not `#[ignore]`d: it reads nothing of the machine's. What the others print of an id is held here.
+#[test]
+fn the_report_the_tests_print_says_no_id() {
+    let candidate = |id: &str, paints| customer::IdCandidate {
+        id: id.to_string(),
+        paints,
+        local_spec_maps: 0,
+        car_folders: 1,
+    };
+    let report = customer::CustomerReport {
+        id: Some("424242".to_string()),
+        confidence: Some(customer::Confidence::Certain),
+        source: Some("Trading Paints downloader config".to_string()),
+        // 4242421 begins with the id chosen: the longer one must go whole, not leave a digit behind.
+        candidates: vec![candidate("424242", 9), candidate("4242421", 40)],
+        notes: vec![
+            "Trading Paints is configured for customer 424242, which is where this came from.".to_string(),
+            "Customer 4242421 is the only id with spec maps in .tga form.".to_string(),
+            "No id in this one.".to_string(),
+        ],
+    };
+
+    let ids = ids_in(&report);
+    assert_eq!(ids.len(), 3, "both candidates and the one chosen");
+    let shown: Vec<String> = report.notes.iter().map(|n| without_ids(n, &ids)).collect();
+
+    assert_eq!(
+        shown,
+        vec![
+            "Trading Paints is configured for customer <id>, which is where this came from.",
+            "Customer <id> is the only id with spec maps in .tga form.",
+            "No id in this one.",
+        ]
+    );
+    assert!(shown.iter().all(|line| !line.contains("42424")));
+    assert_eq!(without_ids("nothing to hide", &[]), "nothing to hide");
+}
 
 #[test]
 #[ignore = "reads the real iRacing install"]
@@ -148,24 +212,28 @@ fn detects_a_customer_id_and_says_how_sure_it_is() {
     let report = customer::detect(std::path::Path::new(&paint));
 
     println!("\n-- customer id --");
-    println!("  id:         {:?}", report.id);
+    println!("  found:      {}", report.id.is_some());
     println!("  confidence: {:?}", report.confidence);
     println!("  source:     {:?}", report.source);
+    let ids = ids_in(&report);
     for n in &report.notes {
-        println!("  note: {n}");
+        println!("  note: {}", without_ids(n, &ids));
     }
-    println!("  top candidates by the plan's own heuristic (most paints wins):");
+    println!("  top candidates by the plan's own heuristic (most paints wins), ids left out:");
     let mut by_paints = report.candidates.clone();
     by_paints.sort_by_key(|c| std::cmp::Reverse(c.paints));
-    for c in by_paints.iter().take(5) {
+    for (rank, c) in by_paints.iter().take(5).enumerate() {
         println!(
-            "    {:<10} {:>4} paints  {:>3} local spec maps  {:>3} car folders",
-            c.id, c.paints, c.local_spec_maps, c.car_folders
+            "    #{:<2} {:>4} paints  {:>3} local spec maps  {:>3} car folders",
+            rank + 1,
+            c.paints,
+            c.local_spec_maps,
+            c.car_folders
         );
     }
 
     if let Some(id) = &report.id {
-        assert!(customer::is_valid(id), "detected id is not digits: {id}");
+        assert!(customer::is_valid(id), "the detected id is not digits");
     }
 }
 
@@ -191,8 +259,6 @@ fn frequency_alone_would_pick_the_wrong_id() {
     };
 
     println!("\n-- why detection is not just a frequency count --");
-    println!("  detected:      {detected}");
-    println!("  most frequent: {most_frequent}");
     if detected == most_frequent {
         println!("  they agree on this machine.");
     } else {
@@ -217,7 +283,7 @@ fn reads_the_trading_paints_setup() {
     println!("  config found: {}", tp.config_found);
     println!("  config path:  {:?}", tp.config_path);
     println!("  running:      {}", tp.running);
-    println!("  user id:      {:?}", tp.user_id);
+    println!("  user id:      {}", if tp.user_id.is_some() { "found" } else { "none" });
     println!("  download my schemes:        {:?}", tp.download_my_schemes);
     println!("  delete before downloading:  {:?}", tp.delete_before_downloading);
     println!("  delete once session ends:   {:?}", tp.delete_after_session);

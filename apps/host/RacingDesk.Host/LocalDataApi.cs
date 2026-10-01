@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Text.Json;
 using System.Threading;
+using RacingDesk.Core.Screens;
 using RacingDesk.Data;
 using RacingDesk.Data.Pedals;
 using RacingDesk.Plugin;
@@ -25,8 +26,10 @@ namespace RacingDesk.Host
     ///
     /// One thing is written: <c>POST /racing-desk/data/pedals</c> says which of SmartControl's profiles a car is
     /// driven with. It is for programs on this machine — the app — and not for a page in a browser, which every
-    /// other route here answers whatever its origin: a request that names an origin, or comes from another
-    /// machine, is refused.
+    /// other route here answers whatever its origin: a request that comes from another machine, that names a
+    /// host other than this machine's own, or that a browser sent (an Origin, a Referer, Sec-Fetch-*) is refused
+    /// (<see cref="LocalRequest"/>, the check the runtime's <c>?action=</c> routes make too). The routes that are
+    /// read stay as they are: the desk's page fetches them, and a page names an origin.
     /// </summary>
     internal sealed class LocalDataApi
     {
@@ -313,7 +316,9 @@ namespace RacingDesk.Host
         {
             var res = ctx.Response;
             var req = ctx.Request;
-            if (!req.IsLocal || req.Headers["Origin"] != null)
+            // The same check as the runtime's ?action= routes make (LocalRequest): the connection is this machine's, the
+            // Host names it, and no browser sent it.
+            if (!LocalRequest.IsFromThisMachine(req))
             {
                 Error(res, 403, "this is for the app on this machine");
                 return;

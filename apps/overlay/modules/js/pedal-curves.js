@@ -407,8 +407,7 @@ function renderPedalSettingsCurve() {
 }
 
 function loadPedalProfiles() {
-  var url = (window._simhubUrlOverride || SIMHUB_URL) + '?action=listPedalProfiles';
-  fetch(url).then(function (r) { return r.json(); }).then(function (profiles) {
+  runtimeAction('listPedalProfiles').then(function (profiles) {
     var sel = document.getElementById('settingsPedalProfile');
     if (!sel) return;
     sel.innerHTML = '';
@@ -440,15 +439,13 @@ function loadPedalProfiles() {
 
 function switchPedalProfile(profileId) {
   if (!profileId) return;
-  var url = (window._simhubUrlOverride || SIMHUB_URL) + '?action=setPedalProfile&id=' + encodeURIComponent(profileId);
-  fetch(url).catch(function () {});
+  runtimeAction('setPedalProfile', { id: profileId }).catch(function () {});
 }
 
 function bindPedalProfileToCar() {
   var sel = document.getElementById('settingsPedalProfile');
   if (!sel || !sel.value) return;
-  var url = (window._simhubUrlOverride || SIMHUB_URL) + '?action=bindPedalProfile&id=' + encodeURIComponent(sel.value);
-  fetch(url).then(function () {
+  runtimeAction('bindPedalProfile', { id: sel.value }).then(function () {
     var btn = document.getElementById('pedalBindCarBtn');
     if (btn) { btn.textContent = 'Bound!'; setTimeout(function () { btn.textContent = 'Bind'; }, 2000); }
   }).catch(function () {});

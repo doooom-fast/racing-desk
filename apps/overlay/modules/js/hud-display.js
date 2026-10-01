@@ -24,6 +24,10 @@
 // so it is tested without Electron (tests/unit/hud-display.spec.mjs). createHudDisplay is the part main.js drives:
 // it asks, chooses, moves the window and says once, in the log, each time the choice changes. It never shows or
 // hides the window — that is modules/js/hud-visibility.js's alone; setBounds on a hidden window is not showing it.
+//
+// A recording is of the race, so it follows the sim and not the HUD: a screen he chose for the HUD wins the HUD's place
+// (rule 1) but not the recording's. createHudDisplay keeps the screen the sim's window was last seen on, apart from the
+// decision, and `recordScreen` gives it while the host says the sim is running, else the HUD's own.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -456,7 +460,7 @@ function describeDisplays(displays) {
  *   keepAsIs        dev mode: dev-mode.js puts the window where it wants it
  *   onChange()      the screens, or where the HUD is and why, have changed: the desk's Settings page shows both
  *
- * { initialBounds, place, refresh, reset, settingsChanged, describe }
+ * { initialBounds, place, refresh, reset, settingsChanged, describe, currentKey, recordKey, recordScreen }
  */
 function createHudDisplay({
   getWindow,
@@ -475,6 +479,7 @@ function createHudDisplay({
   log = () => {},
 }) {
   let last = null;            // the last decision
+  let simScreen = null;       // the key of the screen the sim's window was last seen on, while the host says it is running
   let lastLogged = null;      // what was last said of the choice, so that it is said once per change
   let lastDisplays = null;    // and of the screens
   let told = null;            // what onChange was last called for
@@ -669,6 +674,15 @@ function createHudDisplay({
     }
     // The host not saying is not the sim being closed: it is where it was last seen, while that screen is there.
     const simKept = sim.state === 'unknown' && !sim.skipped ? lastSimScreen() : null;
+    // Where the sim is, for a recording, whichever screen the HUD goes on (a screen he chose wins the HUD's place below,
+    // before the sim's window is looked at). The sim saying it is not running, or being on none of the screens, forgets
+    // it; the host not saying leaves it where it was, as the HUD's own is left.
+    if (sim.state === 'running') {
+      const on = simWindow ? matchSimWindow(simWindow, list) : null;
+      simScreen = on ? on.display.key : null;
+    } else if (sim.state === 'not-running') {
+      simScreen = null;
+    }
     choiceUsed = saved();
     const decision = decide(list, simWindow, simKept);
     if (!decision) return null;
@@ -727,7 +741,27 @@ function createHudDisplay({
     };
   }
 
-  return { initialBounds, place: placeNow, refresh, reset, settingsChanged, describe };
+  // The key of the screen the rule last chose for the HUD, or null before it has run. Nothing is asked for it; it is the
+  // last decision, which each of the occasions above makes. In dev mode it is the rule's choice all the same, not where
+  // dev-mode.js put the window. A recording is of this screen only while the sim is not running (recordScreen).
+  function currentKey() {
+    return last ? last.key : null;
+  }
+
+  // The screen a recording is of (capture-screen.js): { key, reason }. The race is what is recorded, so while the host
+  // says the sim is running it is the screen the sim's window is on — `reason: 'sim'` — even where he has chosen another
+  // for the HUD; with the sim not running, not known to be, or on a screen that has since gone, it is the HUD's own,
+  // `reason: 'hud'`, and null before the rule has run. Nothing is asked: it is what the rounds above last found.
+  function recordScreen() {
+    if (simScreen !== null && silentDisplays().some((d) => d.key === simScreen)) return { key: simScreen, reason: 'sim' };
+    return { key: currentKey(), reason: 'hud' };
+  }
+
+  function recordKey() {
+    return recordScreen().key;
+  }
+
+  return { initialBounds, place: placeNow, refresh, reset, settingsChanged, describe, currentKey, recordKey, recordScreen };
 }
 
 module.exports = {

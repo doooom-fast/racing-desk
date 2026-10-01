@@ -22,12 +22,14 @@ const hostLauncher = require('./modules/js/host-launcher');
 const appLog       = require('./modules/js/app-log');
 const hudVisibility = require('./modules/js/hud-visibility');
 const hudDisplay   = require('./modules/js/hud-display');
+const captureScreen = require('./modules/js/capture-screen');
 const { createHudKeys } = require('./modules/js/hud-keys');
 const settingsFile = require('./modules/js/settings-file');
 const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
 const { createCarNames } = require('./modules/js/paints/car-names');
 const rigApi       = require('./modules/js/rig-api');
+const runtimeActions = require('./modules/js/runtime-actions');
 const logoLivery   = require('./modules/js/logo-livery');
 
 // ── Log ─────────────────────────────────────────────────────
@@ -629,21 +631,14 @@ app.whenReady().then(async () => {
     createTray();
 
     // ── Display media handler for screen recording ──
-    // Electron 33+ requires this to allow getDisplayMedia() in the renderer.
-    // Automatically grant access to the primary screen without a picker dialog.
-    session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
-      try {
-        const sources = await desktopCapturer.getSources({ types: ['screen'] });
-        if (sources.length > 0) {
-          callback({ video: sources[0], audio: 'loopback' });
-        } else {
-          callback({ video: null });
-        }
-      } catch (err) {
-        logToFile(`[RacingDesk] Display media handler error: ${err.message}`);
-        callback({ video: null });
-      }
-    });
+    // Electron 33+ requires this to allow getDisplayMedia() in the renderer. A screen is granted without a picker:
+    // the one the sim is on while it runs, else the one the HUD is on (hudScreen.recordScreen(), above), matched to
+    // the capturer's sources by display_id in modules/js/capture-screen.js, else the first.
+    session.defaultSession.setDisplayMediaRequestHandler(captureScreen.createDisplayMediaHandler({
+      getSources: () => desktopCapturer.getSources({ types: ['screen'] }),
+      getDisplayKey: () => hudScreen.recordScreen(),
+      log: logToFile,
+    }));
 
     // ── Media permission handler for facecam + mic ──
     // The overlay window is transparent + focusable:false, so a Chromium
@@ -700,7 +695,8 @@ app.whenReady().then(async () => {
 app.on('will-quit', () => {
   if (app.isReady()) globalShortcut.unregisterAll();   // a second instance quits before ready
   // The host watches this process (--parent-pid) and stops by itself once we're gone, flushing the lap it
-  // was recording; a kill now would cut that short. The 3 s backstop only fires if the app is still here.
+  // was recording; a kill now would cut that short. The 3 s backstop only fires if the app is still here. A host
+  // that outlives us is not this code's to end: it ends itself if its stop is not over 5 s after we went (HostStop.cs).
   hostLauncher.stopHost(hostChild, { graceMs: 3000 });
 });
 
@@ -1620,6 +1616,23 @@ ipcMain.handle('rig:bindPedals', async (event, carPath, profileId) => {
   const problem = rigApi.bindingProblem(carPath, profileId);
   if (problem) return { ok: false, error: problem };
   return rig.bindPedals(carPath, profileId);
+});
+
+// ── IPC: the runtime's ?action= routes, for the HUD ──
+// The runtime (the SimHub plugin, or the host) answers a request for one of its ?action= routes only when a program on this
+// machine made it, and a page's request is not one: it carries an Origin, "null" for a file. So the HUD's own calls —
+// restartdemo, setrect, and the pedal profiles — are asked for here, by Node (modules/js/runtime-actions.js), which
+// sends none. Only those routes, with their arguments checked, of a runtime on this machine; answered { ok, body } or
+// { ok: false, error }, and never thrown. The HUD's window and the desk's ask; nothing else has a preload.
+const hudActions = runtimeActions.createRuntimeActions({
+  // The address the HUD reads its telemetry from, which dev mode sends to the replay: the actions go where its polls go.
+  url: () => hudVisibility.telemetryUrl(loadSettingsSync().simhubUrl, { replayPort: devMode ? devMode.readArgs().replayPort : null }),
+});
+const fromHud = (event) => !!overlayWindow && !overlayWindow.isDestroyed() && event.sender === overlayWindow.webContents;
+
+ipcMain.handle('runtime:action', async (event, name, params) => {
+  if (!fromHud(event) && !fromDesk(event)) return { ok: false, error: 'The runtime is asked from the HUD and the desk alone.' };
+  return hudActions.run(name, params);
 });
 
 // ── IPC: Open external URL in user's default browser ──

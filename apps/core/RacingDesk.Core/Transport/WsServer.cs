@@ -8,15 +8,17 @@ namespace RacingDesk.Plugin.Transport
 {
     /// <summary>
     /// WebSocket server wrapper using Fleck.
-    /// Listens on ws://0.0.0.0:8890/racing-desk (port 8890 for PR 1; PR 5 will migrate to 8889).
+    /// Listens on ws://0.0.0.0:8890/racing-desk (port 8890 for PR 1; PR 5 will migrate to 8889), or on the address given.
     /// Thread-safe; handles client connection/disconnection.
     /// </summary>
     public class WsServer : IWsConnectionSink
     {
         private readonly int _port;
         private readonly string _path;
+        private readonly string _address;
         private WebSocketServer _server;
         private volatile bool _running = false;
+        private readonly object _stopLock = new object();
 
         // Per-client state
         private readonly ConcurrentDictionary<Guid, WsClientConnection> _clients =
@@ -25,10 +27,12 @@ namespace RacingDesk.Plugin.Transport
         private Action<IWsConnection> _onConnectHandler;
         private Action<IWsConnection> _onDisconnectHandler;
 
-        public WsServer(int port = 8890, string path = "/racing-desk")
+        /// <param name="address">The IP address to bind: 0.0.0.0 for every address, 127.0.0.1 for this machine alone.</param>
+        public WsServer(int port = 8890, string path = "/racing-desk", string address = "0.0.0.0")
         {
             _port = port;
             _path = path;
+            _address = address;
         }
 
         /// <summary>Start the WebSocket server.</summary>
@@ -38,7 +42,7 @@ namespace RacingDesk.Plugin.Transport
 
             try
             {
-                var url = $"ws://0.0.0.0:{_port}{_path}";
+                var url = $"ws://{_address}:{_port}{_path}";
                 _server = new WebSocketServer(url);
 
                 _server.Start(socket =>
@@ -73,38 +77,41 @@ namespace RacingDesk.Plugin.Transport
             }
         }
 
-        /// <summary>Stop the WebSocket server.</summary>
+        /// <summary>Stop the WebSocket server. Once is enough: a second caller, which a host that is stopping has, finds it done.</summary>
         public void Stop()
         {
-            if (!_running) return;
-
-            try
+            lock (_stopLock)
             {
-                _running = false;
+                if (!_running) return;
 
-                // Close all client connections gracefully
-                foreach (var client in _clients.Values)
+                try
                 {
-                    try
+                    _running = false;
+
+                    // Close all client connections gracefully
+                    foreach (var client in _clients.Values)
                     {
-                        client.Socket?.Close();
+                        try
+                        {
+                            client.Socket?.Close();
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warn($"[RacingDesk.WsServer] Error closing client: {ex.Message}");
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        Log.Warn($"[RacingDesk.WsServer] Error closing client: {ex.Message}");
-                    }
+                    _clients.Clear();
+
+                    // Dispose server
+                    _server?.Dispose();
+                    _server = null;
+
+                    Log.Info("[RacingDesk.WsServer] WebSocket server stopped");
                 }
-                _clients.Clear();
-
-                // Dispose server
-                _server?.Dispose();
-                _server = null;
-
-                Log.Info("[RacingDesk.WsServer] WebSocket server stopped");
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"[RacingDesk.WsServer] Error stopping server: {ex.Message}");
+                catch (Exception ex)
+                {
+                    Log.Warn($"[RacingDesk.WsServer] Error stopping server: {ex.Message}");
+                }
             }
         }
 

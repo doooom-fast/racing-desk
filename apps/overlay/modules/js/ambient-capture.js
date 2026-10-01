@@ -134,13 +134,8 @@
 
   function sendRectToPlugin(rect) {
     if (!rect) return;
-    const url = (window._simhubUrlOverride || SIMHUB_URL) +
-      '?action=setrect' +
-      '&x=' + rect.x.toFixed(6) +
-      '&y=' + rect.y.toFixed(6) +
-      '&w=' + rect.w.toFixed(6) +
-      '&h=' + rect.h.toFixed(6);
-    fetch(url).catch(err => {
+    // Asked for by the app's main process (config.js runtimeAction): the runtime answers a program on this machine alone.
+    runtimeAction('setrect', { x: rect.x, y: rect.y, w: rect.w, h: rect.h }).catch(err => {
       console.warn('[AmbientCapture] Failed to send rect to plugin:', err);
     });
   }

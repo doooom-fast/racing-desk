@@ -156,7 +156,17 @@ public static byte SwapNibbles(byte b)
 
 ### HTTP API Extensions
 
-Add these endpoints to the existing HTTP server loop in `Plugin.cs`:
+Add these endpoints to the existing HTTP server loop (`RacingDeskRuntime.Http.cs` in `RacingDesk.Core`):
+
+**Every one of them is for a program on this machine and no other** — the writes go to the wheel base and the pedals,
+and the reads ask the hardware or open serial ports — and the port answers every address (the iPad view needs it). The
+runtime checks this once, before any action is looked at (`LocalRequest.IsFromThisMachine`): the connection is this
+machine's, the `Host` is `localhost`, `127.0.0.1` or `[::1]`, and no browser sent the request (no `Origin`, `Referer` or
+`Sec-Fetch-*`). Anything else is `403 {"error":"this is for a program on this machine"}` — an action the runtime has
+no route for as well. Call them with curl, PowerShell or Node, never from a browser's address bar, and not from the
+HUD's page, which carries an `Origin`: the HUD asks main.js (see the `overlay-moza-api` skill). A new action goes below
+that check in the loop, written as `action == "name"` and listed in `KnownActions` (what the log is told by), and
+`ActionRoutesTests` finds it there and asks it from another machine, from a page and from this one.
 
 | Action | Params | Returns |
 |--------|--------|---------|
@@ -172,6 +182,7 @@ Add these endpoints to the existing HTTP server loop in `Plugin.cs`:
 | `getMozaWheelSettings` | — | Steering wheel RGB, buttons, telemetry mode |
 | `mozaRefresh` | — | Force re-poll all device settings |
 | `mozaReconnect` | — | Re-run device discovery |
+| `listSerialPortDiagnostic` | `probe=1` (optional) | Every serial port with its USB description, classification and whether it can be opened; a port another program holds is said so without being opened. Answered to a program on this machine only, like every action here (403 for another address, another `Host`, or a request a browser sent: an `Origin`, a `Referer`, `Sec-Fetch-*`). A Moza read command is written to the ports nothing describes as Moza only with `probe=1` |
 
 Additionally, include a summary in the main poll response:
 

@@ -41,7 +41,7 @@ and are archived in Phase 6 — nothing is deleted before its replacement works.
 ```bash
 npm run test:dotnet                 # dotnet test racing-desk.sln (5 WsTelemetryPublisher failures are pre-existing)
 npm run host                        # live iRacing → :8889/:8890, records sessions, backfills new .ibt
-npm run host -- --ibt <file> --http-port 18889 --ws-port 18890   # replay an .ibt beside SimHub
+npm run host -- --ibt <file> --http-port 18889 --ws-port 18890 --loopback-only   # replay an .ibt beside SimHub, on 127.0.0.1 alone
 npm run ingest                      # backfill racing-desk.db from Documents\iRacing\telemetry
 npm run sessions -- --type Race     # read back stored sessions (--laps <id> for laps)
 npm run parity -- --seconds 120     # live session: diff SimHub's :8889 with the host's :18889
@@ -54,17 +54,77 @@ npm run host -- schedule            # parse the stored PDF and report what the p
 npm run host -- schedule --series "Caterham"   # what one series parsed to, week by week
 ```
 
+A probe the driver or an agent starts by hand (a replay, the parity check) takes `--loopback-only`: the host's HTTP
+and WebSocket ports are then on 127.0.0.1 and no other address (`RacingDeskRuntime.Options.LoopbackOnly`; the tests
+set the same), where the default is every address, and a probe has no business on the network — a firewall prompt in
+a window over whatever the driver is doing is the least of it. The app's own host and the SimHub plugin never take it:
+the iPad view needs the LAN.
+
 The host also serves the store read-only at
 `:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals,outline?track=}` — that's what the desk
 reads, and `outline` is what the SimHub plugin's track map reads (see Track maps). If
 SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk). One thing is written
-through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only —
-a request that names an `Origin`, or comes from another machine, gets 403, so the desk page sends it through main.js.
+through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only,
+by the same check as the runtime's `?action=` routes make (below): a request from another machine, one that names a
+host other than this machine's own, or one a browser sent (`Origin`, `Referer`, `Sec-Fetch-*`) gets 403, so the desk
+page sends it through main.js.
 Beside them, `GET /racing-desk/data/simwindow` says where the sim's window is and `GET /racing-desk/data/monitors` lists
 the monitors, both in physical pixels (see **The HUD is on the screen iRacing is on**, under Desk), and
 `GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
 before there is a store) with what the check of it has said of each car: this run's, and what the store has kept of
 the runs before (see The car's controls).
+
+**The runtime's `?action=` routes are for programs on this machine.** The plugin (`:8889`) and the host (`:8889` or
+`:18889`) take `GET /racing-desk/?action=<name>` on the telemetry's own path. `setMozaWheelbaseSetting`,
+`setMozaPedalSetting` and `setMozaHandbrakeSetting` queue writes to the wheel base, the pedals and the handbrake;
+`mozaRefresh` and `mozaReconnect` make the Moza manager poll again and look for its ports again; `importMozaPedals`
+reads Pit House's files and saves a profile; `setPedalProfile` and `bindPedalProfile` change the active pedal profile
+and the car bindings, which are written to disk; `restartdemo` and `setrect` change the runtime's state; and the reads
+(`getMoza*Settings`, `listMozaDevices`, `listPedalProfiles`, `listSerialPortDiagnostic`, which opens the machine's
+serial ports and with `probe=1` writes to the ones nothing calls Moza) ask the hardware or the machine. (`resetmap` and
+`listtracks` are gone with the recorded maps: see Track maps.) Those ports answer every
+address (the iPad view reads the telemetry through the app, which sends no query), so a request that names an action —
+`action=` anywhere in the address, in any case, or decoded from the query; whether or not the runtime has such a route —
+is checked first, once, before any route is looked at, the host's own data API (`ExtraRoutes`) included, so a
+`…/data/status?action=…` from the LAN is a 403 too (`RacingDeskRuntime.Http.cs`; the check is
+`LocalRequest.IsFromThisMachine`, which the host's `POST …/data/pedals` makes too):
+- the connection is this machine's (`IsLocal`);
+- the `Host` is `localhost`, `127.0.0.1` or `[::1]` (HTTP.sys gives a `localhost` prefix any request that says so, from
+  any address, and a name another site has pointed at the rig is not one of these);
+- no browser sent it: no `Origin`, `Referer` or `Sec-Fetch-Site`/`-Dest`/`-User`. A link, an image or a form carries
+  those without a script to add them, and `<img src="http://localhost:8889/racing-desk/?action=…">` on any site open
+  on the rig would otherwise have turned the wheel base. Node's own `fetch` says `Sec-Fetch-Mode` and no more, and is a
+  program.
+
+Anything else is 403 with no CORS header and a line in the log: once for each action name and each kind of asker (a
+connection from this machine that a browser sent, or from another machine). Every name the runtime has a route for
+(`KnownActions`) is always written; the names it has none of, which a device on the network can make up without end,
+are written for the first 16 and then not. So curl, PowerShell and Node can ask, and an address typed into a browser
+cannot: use curl. The Stream Deck's plugin does not ask the runtime: it asks the app's `/api/action/<name>` on
+`:9090`, which hands the demo action to the HUD, and the HUD's own calls go through `runtime:action`
+(below). A route added to the file is behind the check by being below it; `ActionRoutesTests` reads every
+`action == "…"` in the file, asks each from another machine, from a page and from this one, and fails on one that is
+let through (and on a way of looking at the action it cannot read, and on one missing from `KnownActions`). The HUD is a page — a file, whose requests carry `Origin: null` — so its own calls
+(`restartdemo`, `setrect`, the pedal profiles) are made by the main process: `runtimeAction` in
+`modules/js/config.js` → the preload → `runtime:action` in `main.js` → `modules/js/runtime-actions.js`, which passes on
+only those routes, with their arguments checked, to a runtime on this machine (`tests/unit/runtime-actions.spec.mjs`
+fails on a script that fetches an `?action=` route itself, anywhere under `modules/` or in the inline scripts of
+`dashboard.html` and `desk.html`, and on one that asks `runtimeAction` for a route that is not in `ACTIONS`; a route the
+HUD needs goes in `ACTIONS`). **Install order:** an exe from before this check makes the HUD's calls from the page
+(`Origin: null`), and a runtime with the check refuses them, with nothing visible in the HUD (the calls' errors are
+swallowed): the ambient capture rect, the demo restart and pedal-profile switching stop working,
+and the only trace is one line in SimHub's log for each (`?action=setrect refused: …`). So install the plugin from
+this change only with, or after, an exe built from it; an older plugin with the newer exe works. **Left reachable from
+the network, on purpose:** the telemetry (`GET /racing-desk/` with no action: read-only, and the iPad's path) and the
+`:8890` feed (it reads nothing from its clients). **Left reachable, and Kevin's to decide:** the data API's reads
+above (`status`, `sessions`, `session`, …). Nothing on the LAN reads them (the iPad's proxy forwards `/racing-desk/`
+with no query), and the desk runs on the rig, so its reads come in from this machine with `Host: localhost:…`: a gate
+of `IsLocal` plus a `Host` that names this machine, without the browser test (which the desk's page, whose requests
+carry `Origin: null`, could not pass), would take them off the LAN and break nothing the app does — but it would break
+`--desk-host=` and the desk's `?host=` when they point at another machine's host. They are reads, so they were left as
+they were; note that `sessions` and `session` carry the driver's customer id and `status` the store's path, to any
+device on the LAN, and to any page open on the rig (`Access-Control-Allow-Origin: *`; only routing the desk's reads
+through `main.js`, as its pedals write is, would close that).
 
 Car names (`cars`, schema v4) come from the session YAML of the driver's own sessions, which lists every entrant's
 `CarPath` and `CarScreenName` — nothing of iRacing's is bundled, so a car that has never been in one of those sessions
@@ -422,8 +482,26 @@ overlay is not quitting the app**: Ctrl+Shift+Q (held in the car only), the Stre
 the driver's switch thrown to off, so the HUD comes back the way a switched-off HUD does. No page can ask for the
 app to be quit (`quit-app` and `quitApp` are gone). The host is
 spawned detached — Node otherwise puts it in a job object Windows kills with the app, mid-write — and stops itself,
-flushing what it was recording, when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again
-opens the desk in the running app.
+flushing what it was recording, when the app goes (`--parent-pid`). **A host still there five seconds after the app
+went ends its own process** (`apps/host/RacingDesk.Host/HostStop.cs`, TerminateProcess, so nothing can hold it; the
+same goes for Ctrl+C and `--exit-after`) — its stop still under way, or over with a thread still holding the process —
+and what was being written is left uncommitted: the store is
+SQLite in WAL mode and stays as it was at its last commit. **A host that has been asked to stop lets go of its ports
+first** (`RacingDeskRuntime.StopListening`, wired by `Program.NewStop`: the HTTP and WebSocket listeners close before the
+loops are told, and the orderly stop that can take up to five seconds comes after): `host-launcher.js` takes anything
+that answers `/racing-desk/data/status` with a `schemaVersion` for a host it can use, so an app that started in the
+meantime — the green-screen toggle relaunches it, and it is up within a second — would adopt a host that was about to end
+and have none for the rest of the session. With the ports free it starts a host of its own, and the store serialises
+the two hosts' writes (`tests/…/Transport/StopListeningTests.cs`). The app's will-quit kill is a backstop only while the app is
+still here; a host that outlives the app has nothing of the app left to end it. On 2026-09-29 one did, for minutes,
+and the next `npm run build` could not replace `e_sqlite3.dll`: IRSDKSharper 1.1.4's `Start()` spins until it sees its
+connection loop's flag set, the loop clears the flag as soon as it has connected, and it connects on its first pass
+when the sim's shared memory is already there — as it is beside SimHub, sim running or not, once iRacing has run while
+SimHub is up. The host's main
+thread missed that moment at 19:28:35 and never reached the loop that hears the stop (its log has no "waiting for
+iRacing" line, no ingest and no schedule). `apps/core/RacingDesk.Core/IRacing/SdkStart.cs` lets that wait through, for
+the host's reader and for the runtime's bridge, which the SimHub plugin starts the same way. One instance:
+double-clicking the shortcut again opens the desk in the running app.
 
 **The HUD is on screen only while the driver is in the car.** Its window is made hidden, and
 `modules/js/hud-visibility.js` is the only thing that reveals it (`showInactive`, so the sim keeps the focus): while
@@ -489,7 +567,8 @@ layouts. The rule, in the order it is applied:
    that Windows keeps it across a restart or a replug has not been checked on this rig, and if it does not the choice
    reads as not connected and Automatic does the work.
 2. **The screen the sim's window is on**, while the sim runs. Electron cannot see another program's windows, so the
-   app's own host says (`GET /racing-desk/data/simwindow`, `apps/host/RacingDesk.Host/SimWindow.cs`): the main window of
+   app's own host says (`GET /racing-desk/data/simwindow`: the lookup is `apps/core/RacingDesk.Core/Screens/SimWindow.cs`,
+   the answer `apps/host/RacingDesk.Host/SimWindow.cs`): the main window of
    `iRacingSim64DX11` or `iRacingSim64` — its frame (`DWMWA_EXTENDED_FRAME_BOUNDS`, else `GetWindowRect`) and the monitor
    Windows has most of it on, in **physical pixels**, or JSON `null` when there is no such window on screen (the sim
    closed, minimized, or gone between being listed and being asked). A look that cannot be made at all — the process
@@ -520,7 +599,8 @@ layouts. The rule, in the order it is applied:
    says so. The sim not running is an answer (`null`), and the ini decides too.
 
    **The screens' sizes.** Electron's are DIPs and cannot be turned back into pixels (1439 is 823 wide too), so the
-   host lists the monitors (`GET /racing-desk/data/monitors`, `Monitors.cs`, `EnumDisplayMonitors`: `[ { x, y, width,
+   host lists the monitors (`GET /racing-desk/data/monitors`; `EnumDisplayMonitors` in `RacingDesk.Core/Screens/Monitors.cs`,
+   the answer in the host's `Monitors.cs`: `[ { x, y, width,
    height, primary } ]` in physical pixels; 500 when Windows will not list them). `hud-display` asks it once for each
    layout of the screens that has a screen not at 100 % (with all at 100 % a DIP is a pixel and nothing is asked), in
    the same round as the sim's window and with the same limit, pairs each monitor with the screen most of it lies on
@@ -551,6 +631,41 @@ layouts. The rule, in the order it is applied:
    stability; the real `EnumDisplayMonitors` was run once on this machine (one screen then), not on both screens; the
    rule, the wiring and the host's routes are tested, the Electron calls are not.
 
+   **A recording and the ambient colour follow the sim's screen** (both looked at the primary or the first screen,
+   always, until 2026-09-29). The recording exists to record the race, so a screen he chose in Settings for the HUD is
+   the HUD's place and not the recording's: while the sim runs, the recording and the colour are both of the screen the
+   sim's window is on — with the HUD on the small screen by his choice and the sim on the ultrawide, the recording is
+   of the ultrawide, and the colour's region is ratios taken from the HUD's window on the chosen screen. While the sim
+   has no window the recording is of the screen the HUD is on (where the ini or the size puts it, or the one he chose)
+   and the colour is sampled on the primary.
+   - **A recording** (`recorder.js`'s `getDisplayMedia`, granted without a picker by `setDisplayMediaRequestHandler` in
+     `main.js`) is of `hudScreen.recordScreen()`: `{ key, reason }`, the key of the screen the sim's window was last seen
+     on while the host says the sim is running (`reason: 'sim'`) — kept by `hud-display.js` apart from its decision, which
+     a chosen screen wins before the sim's window is looked at — else the screen the rule last chose for the HUD (`'hud'`;
+     `currentKey()`). It asks nothing: it is what the rounds that decide the HUD's screen (each time he gets in the car,
+     a screen added or removed, Ctrl+Shift+R, a changed choice) last found. The host not saying where the sim is leaves
+     it where it was last seen, as for the HUD; the sim saying it is not running, or being on none of the screens,
+     forgets it, and so does the screen being unplugged. `modules/js/capture-screen.js` matches desktopCapturer's
+     sources to the key by `display_id`, which on Windows is Electron's `display.id` as text (Electron's documentation
+     says so; not yet seen on this rig). While nothing is known (the rule has not run), or no source is that screen (it
+     has gone, or the platform's ids do not agree), it is the first screen; the log says which and why
+     (`Screen recording: the sim's screen (Screen 2)`, or `the HUD's screen`), and where none matched, the key and every
+     source's `display_id`, so ids that never agree show. In dev mode the key is the rule's choice, not where `dev-mode.js`
+     put the window. `tests/unit/capture-screen.spec.mjs` (a chosen small screen and the sim on the ultrawide among
+     them), `hud-display.spec.mjs`, and the wiring in `hud-main-wiring.spec.mjs`.
+   - **The ambient colour** (`RacingDesk.Core/Engine/ScreenColorSampler.cs`, in the app's host and in the SimHub plugin
+     alike) is sampled on the monitor the sim's window is on — `RacingDesk.Core/Screens/SimMonitor.cs`, with the same
+     lookup the `simwindow` route makes (it and the monitors' lookup moved from the host into `RacingDesk.Core/Screens/`
+     so both can use them) — and, if the sim's window names no monitor, the listed monitor with most of it; while the sim
+     has no window on screen or the look fails, the primary monitor, from the same `EnumDisplayMonitors` list the
+     `monitors` route gives. Looked for again every 2 s at most (it lists every process; the sampler runs four times a
+     second), and at once after a capture fails — once: a capture that goes on failing (the screen locked) waits the 2 s. The lookup and the capture are both made per-monitor aware on the
+     sampler's own thread, so they agree in physical pixels on screens of different scales; the region the HUD sets is
+     ratios of that monitor, from its own corner. Logged once per change (`ScreenColor: sampling the monitor iRacing is
+     on, 3440x1440 at (0, 0)`). `tests/…/Screens/SimMonitorTests.cs`, with fake window and monitor sources. Not verified
+     on the rig: a capture of the sim's screen beside the 175 % one, and a recording of it — nothing was built or
+     captured here — and the SimHub plugin samples the sim's monitor only once it has been installed again.
+
 **The main process's log** (`logToFile` in `main.js`, `modules/js/app-log.js`, `tests/unit/hud-log.spec.mjs`): in
 the built app `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside `host.log` — it was written beside `main.js`, which
 in the built app is inside `app.asar`, so nothing was kept; from source it is still
@@ -577,8 +692,8 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
 - **Read-only from the network.** GET and HEAD only. `/racing-desk/` is proxied to the telemetry the HUD itself
   reads (`localhost:8889`, or a saved `simhubUrl` that ends in `/racing-desk/`) and a request carrying a query is
   refused — the plugin and host take `?action=…` on that same path, wheel-base settings among them, and none of it
-  can be reached through here. Files are served from `modules/`, `images/` and `fonts/` only; the one other thing
-  served is the crop of his paint behind the car badge, from the main process's memory at `/livery-crop.png` (The
+  can be reached through here (nor from anywhere but a program on the rig: they refuse the rest themselves). Files
+  are served from `modules/`, `images/` and `fonts/` only; the one other thing served is the crop of his paint behind the car badge, from the main process's memory at `/livery-crop.png` (The
   livery behind the car badge, below) — no query, nothing from disk, 404 while there is none.
 - **A key in the address.** `http://<rig>:9090/?k=<8 characters>`; the page hands it back as a cookie. Made the
   first time the server starts and kept in `overlay-settings.json` (`remoteServerKey`, with `remoteServer` and

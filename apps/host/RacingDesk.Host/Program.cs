@@ -42,6 +42,8 @@ Serve options:
   --exit-after <s>     stop after this many seconds (for scripted checks)
   --no-hardware        don't open Moza serial, pedal profiles or screen sampling
                        (always off in --ibt mode)
+  --loopback-only      listen on 127.0.0.1 and no other address (probes and replays that nothing on the
+                       network has any business reaching); the default is every address, for the iPad view
   --parent-pid <n>     stop when that process exits (the app that started this host)
 
 Data options:
@@ -109,31 +111,23 @@ Data options:
             // The track outlines: the store's, and the one being made from the session he is driving (RunLive's
             // follower). Made whether or not the store exists yet — the follower may be what creates it.
             var outlines = new TrackOutlines(dbPath);
-            var runtime = new RacingDeskRuntime(LoadSettings(settingsPath), new RacingDeskRuntime.Options
-            {
-                AssemblyDirectory = AppContext.BaseDirectory,
-                PluginsDataDirectory = dataDir,
-                HttpPort = o.HttpPort,
-                WsPort = o.WsPort,
-                EnableHardware = !replay && !o.NoHardware,
-                EnableSdkBridge = !replay,
-                Outlines = new LocalOutlineSource(outlines.ForTrack),
-                Host = "host",
-                ExtraRoutes = new LocalDataApi(dbPath) { Outlines = outlines }.TryHandle,
-            });
+            var runtime = new RacingDeskRuntime(LoadSettings(settingsPath), RuntimeOptions(o, dataDir, dbPath, outlines));
 
             bool record = replay ? o.Record : !o.NoRecord;
             using var store = record || (!replay && !o.NoIngest) ? new RacingDeskStore(dbPath) : null;
 
-            using var stop = new ManualResetEventSlim();
-            Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Set(); };
-            if (o.ExitAfterSeconds > 0)
-                new Timer(_ => stop.Set(), null, TimeSpan.FromSeconds(o.ExitAfterSeconds), Timeout.InfiniteTimeSpan);
+            // Not disposed: the schedule, ingest and parent-watch threads may still look at it after Serve has returned,
+            // while the process is ending, and a wait on a disposed one throws on a thread nothing catches on.
+            var stop = new ManualResetEventSlim();
+            // However the stop is asked for, the process ends within a few seconds of it: see HostStop.
+            var stopping = NewStop(runtime, stop, HostStop.DefaultGrace);
+            Console.CancelKeyPress += (_, e) => { e.Cancel = true; stopping.Ask("Ctrl+C"); };
+            using var exitAfter = o.ExitAfterSeconds > 0
+                ? new Timer(_ => stopping.Ask($"--exit-after {o.ExitAfterSeconds} s"), null, TimeSpan.FromSeconds(o.ExitAfterSeconds), Timeout.InfiniteTimeSpan)
+                : null;
             // Started by the app, with no console to send Ctrl+C to: stop when it goes away, however it went, so the
             // orderly shutdown below (flush the lap being recorded, release the serial port) still runs.
-            if (o.ParentPid > 0)
-                new Thread(() => { try { Process.GetProcessById(o.ParentPid).WaitForExit(); } catch { } stop.Set(); })
-                    { IsBackground = true, Name = "parent-watch" }.Start();
+            if (o.ParentPid > 0) stopping.WatchParent(o.ParentPid);
 
             runtime.Start();
             try
@@ -153,9 +147,40 @@ Data options:
                 runtime.Stop();
                 SaveSettings(settingsPath, runtime.Settings);
                 Log.Info("[RacingDesk.Host] stopped");
+                stopping.Stopped();
             }
             return 0;
         }
+
+        /// <summary>
+        /// What the runtime is given for this command line. The ports are every address unless --loopback-only. The
+        /// outlines are the map's source and what the outline route serves: Serve hands in the instance the follower
+        /// writes to, and a caller with none (the tests) gets one over the store alone.
+        /// </summary>
+        internal static RacingDeskRuntime.Options RuntimeOptions(HostOptions o, string dataDir, string dbPath, TrackOutlines outlines = null)
+        {
+            bool replay = o.IbtPath != null;
+            outlines = outlines ?? new TrackOutlines(dbPath);
+            return new RacingDeskRuntime.Options
+            {
+                AssemblyDirectory = AppContext.BaseDirectory,
+                PluginsDataDirectory = dataDir,
+                HttpPort = o.HttpPort,
+                WsPort = o.WsPort,
+                LoopbackOnly = o.LoopbackOnly,
+                EnableHardware = !replay && !o.NoHardware,
+                EnableSdkBridge = !replay,
+                Outlines = new LocalOutlineSource(outlines.ForTrack),
+                Host = "host",
+                ExtraRoutes = new LocalDataApi(dbPath) { Outlines = outlines }.TryHandle,
+            };
+        }
+
+        // The ports go first when the stop is asked for, so that an app starting while this host stops finds them free
+        // and starts a host of its own, instead of taking this one for a host it can use (see HostStop). `end` is for
+        // tests, which must not end the process they run in.
+        internal static HostStop NewStop(RacingDeskRuntime runtime, ManualResetEventSlim stop, TimeSpan grace, Action end = null) =>
+            new HostStop(stop, grace, m => Log.Info("[RacingDesk.Host] " + m), m => Log.Warn("[RacingDesk.Host] " + m), end, runtime.StopListening);
 
         // Live: tick on every SDK telemetry frame while connected; when iRacing isn't running, keep ticking at
         // ~60 Hz with an empty frame, as SimHub does, so idle and demo state stay current.
@@ -229,6 +254,8 @@ Data options:
                 views?.SimGone();
                 pedals?.SimGone();
             };
+            // Returns at once (SdkStart). IRSDKSharper's own Start() could wait for ever, and then the loop below, which
+            // is what hears the stop, was never reached.
             raw.Start();
             Log.Info("[RacingDesk.Host] waiting for iRacing (Ctrl+C to stop)");
 
@@ -510,6 +537,7 @@ Data options:
         public int HttpPort = 8889;
         public int WsPort = 8890;
         public bool NoHardware;
+        public bool LoopbackOnly;
         public int ParentPid;
         public string DataDir;
         public double ExitAfterSeconds;
@@ -565,6 +593,7 @@ Data options:
                     case "--http-port": o.HttpPort = (int)Num(); break;
                     case "--ws-port": o.WsPort = (int)Num(); break;
                     case "--no-hardware": o.NoHardware = true; break;
+                    case "--loopback-only": o.LoopbackOnly = true; break;
                     case "--parent-pid": o.ParentPid = (int)Num(); break;
                     case "--data-dir": o.DataDir = Next(); break;
                     case "--exit-after": o.ExitAfterSeconds = Num(); break;

@@ -88,6 +88,7 @@ namespace RacingDesk.Tests.IRacing
                 WsPort = FreePort(),
                 EnableHardware = false,
                 EnableSdkBridge = false,
+                LoopbackOnly = true,
             });
 
             using var ibt = new IbtFile(race.FullName);
@@ -105,7 +106,7 @@ namespace RacingDesk.Tests.IRacing
                 }
 
                 using var http = new HttpClient();
-                var body = JObject.Parse(http.GetStringAsync($"http://localhost:{httpPort}/racing-desk/").Result);
+                var body = JObject.Parse(http.GetStringAsync($"http://127.0.0.1:{httpPort}/racing-desk/").Result);
                 var fixture = JObject.Parse(File.ReadAllText(fixturePath));
 
                 var hostKeys = body.Properties().Select(p => p.Name).ToHashSet();
@@ -150,7 +151,7 @@ namespace RacingDesk.Tests.IRacing
                         runtime.Tick(source);
                     }
                     TestContext.WriteLine($"SessionFlags checked again at frame {probe} of {ibt.RecordCount}: 0x{RecordedFlags(raw):X}");
-                    var there = JObject.Parse(http.GetStringAsync($"http://localhost:{httpPort}/racing-desk/").Result);
+                    var there = JObject.Parse(http.GetStringAsync($"http://127.0.0.1:{httpPort}/racing-desk/").Result);
                     AssertFlagsAreTheRecordings(there, raw);
                 }
                 Assert.That((string)body["RacingDesk.Plugin.TrackMap.TrackDisplayName"], Is.EqualTo(ibt.SessionInfo.WeekendInfo.TrackDisplayName));

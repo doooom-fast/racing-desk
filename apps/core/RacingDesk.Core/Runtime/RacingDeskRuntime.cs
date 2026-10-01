@@ -33,6 +33,15 @@ namespace RacingDesk.Plugin
             /// <summary>Port for the MessagePack WebSocket feed.</summary>
             public int WsPort { get; set; } = 8890;
             /// <summary>
+            /// Serve :HttpPort and :WsPort on 127.0.0.1 and on no other address, with no fallback. For tests and
+            /// probes, which never listen on the LAN: the test fixtures set it, and RacingDesk.Host takes it as
+            /// <c>--loopback-only</c> (the replay and parity commands in CLAUDE.md do). Off, the HTTP server tries every
+            /// address, then localhost, and the WebSocket binds 0.0.0.0 — a localhost prefix is no way to stay off the
+            /// LAN: HTTP.sys binds it on every address, and hands it any request that says <c>Host: localhost</c>,
+            /// wherever it came from. The shipped host and plugin leave it off, on purpose: the iPad view needs the LAN.
+            /// </summary>
+            public bool LoopbackOnly { get; set; }
+            /// <summary>
             /// Moza serial, pedal profiles and screen colour sampling. Off for test hosts that must never touch
             /// the rig's hardware (e.g. replaying an .ibt beside a running SimHub).
             /// </summary>
@@ -215,7 +224,7 @@ namespace RacingDesk.Plugin
             // Start WebSocket server for overlay (port 8890, PR 5 migrates to 8889)
             try
             {
-                _wsServer = new Transport.WsServer(_options.WsPort, "/racing-desk");
+                _wsServer = new Transport.WsServer(_options.WsPort, "/racing-desk", _options.LoopbackOnly ? "127.0.0.1" : "0.0.0.0");
                 _wsServer.Start();
                 _wsPublisher = new Transport.WsTelemetryPublisher(_wsServer);
                 Log.Info($"[RacingDesk] WebSocket telemetry server started on port {_options.WsPort}");
@@ -379,6 +388,17 @@ namespace RacingDesk.Plugin
             _screenColorSampler.Dispose();
             _mozaSerial?.Dispose();
             _incidentCoach?.End();
+            StopListening();
+        }
+
+        /// <summary>
+        /// Closes :HttpPort and :WsPort and leaves everything else as it is. A host that has been asked to stop calls
+        /// this first (HostStop): its orderly stop takes up to five seconds, and for as long as it answers on its port
+        /// the app that starts in the meantime takes it for a host it can use, and is left with none when it ends.
+        /// Safe to call again, and before <see cref="Start"/> or after <see cref="Stop"/>.
+        /// </summary>
+        public void StopListening()
+        {
             StopHttpServer();
             _wsServer?.Stop();
         }

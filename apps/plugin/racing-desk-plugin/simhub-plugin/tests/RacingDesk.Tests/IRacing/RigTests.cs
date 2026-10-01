@@ -338,19 +338,20 @@ INSERT INTO schema_version (version) VALUES (4);
         }
 
         /// <summary>One request through the host's data API, served the way the runtime hands it requests.</summary>
-        private (HttpStatusCode Status, string Body) Request(string method, string route, string? body = null, string? origin = null, bool smartControl = true)
+        private (HttpStatusCode Status, string Body) Request(string method, string route, string? body = null, string? origin = null, bool smartControl = true, Action<HttpRequestMessage>? shape = null)
         {
             int port = FreePort();
             using var listener = new HttpListener();
-            listener.Prefixes.Add($"http://localhost:{port}/racing-desk/");
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/racing-desk/"); // not localhost: HTTP.sys binds that on every address
             listener.Start();
             var api = new LocalDataApi(Db, smartControl ? SmartControlDb : Path.Combine(_dir, "not-installed.db"));
             var claimed = Task.Run(() => api.TryHandle(listener.GetContext()));
 
             using var http = new HttpClient();
-            using var request = new HttpRequestMessage(new HttpMethod(method), $"http://localhost:{port}/racing-desk/data/{route}");
+            using var request = new HttpRequestMessage(new HttpMethod(method), $"http://127.0.0.1:{port}/racing-desk/data/{route}");
             if (body != null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
             if (origin != null) request.Headers.TryAddWithoutValidation("Origin", origin);
+            shape?.Invoke(request);
             using var response = http.Send(request);
             string text = new StreamReader(response.Content.ReadAsStream(), Encoding.UTF8).ReadToEnd();
             Assert.That(claimed.Result, Is.True, "the data API claims /data/ routes");
@@ -490,6 +491,34 @@ INSERT INTO schema_version (version) VALUES (4);
             Assert.That(status, Is.EqualTo(HttpStatusCode.BadRequest));
             using var refused = JsonDocument.Parse(body);
             Assert.That(refused.RootElement.GetProperty("error").GetString(), Is.EqualTo("SmartControl's profiles can't be read"));
+        }
+
+        [Test]
+        public void RefusesAWriteFromAnotherHost_OrOneThatABrowserMadeWithoutAnOrigin()
+        {
+            StoreWithCars().Dispose();
+            SmartControlHas(("a1", "LightBrake", 45));
+
+            // The same check the runtime's ?action= routes make: the connection, the Host it names, and whether a browser sent it.
+            var refusals = new (string Why, Action<HttpRequestMessage> Shape)[]
+            {
+                ("a device on the LAN, by the rig's address", r => r.Headers.Host = "192.168.1.20:18889"),
+                ("a name another site has pointed at the rig", r => r.Headers.Host = "evil.example"),
+                ("an image or a form on a page, which has a Referer", r => r.Headers.Referrer = new Uri("http://evil.example/page")),
+                ("a link on another site", r => r.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "cross-site")),
+            };
+            foreach (var (why, shape) in refusals)
+            {
+                var (refused, _) = Request("POST", "pedals", Bind(Mx5, "a1"), shape: shape);
+                Assert.That(refused, Is.EqualTo(HttpStatusCode.Forbidden), why);
+            }
+            SqliteConnection.ClearAllPools();
+            using (var store = RacingDeskStore.OpenReadOnly(Db))
+                Assert.That(store.CarPedalsList(), Is.Empty, "nothing was written by any of them");
+
+            // A program on this machine says it is: the app's Node, by the name it was given.
+            var (status, body) = Request("POST", "pedals", Bind(Mx5, "a1"), shape: r => r.Headers.Host = "localhost:18889");
+            Assert.That(status, Is.EqualTo(HttpStatusCode.OK), body);
         }
 
         [Test]

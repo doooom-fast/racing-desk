@@ -11,11 +11,9 @@
   // ── Restart demo ──
   if (k.onRestartDemo) {
     k.onRestartDemo(function() {
-      var baseUrl = window._simhubUrlOverride || SIMHUB_URL;
-      var sep = baseUrl.indexOf('?') === -1 ? '?' : '&';
-      fetch(baseUrl + sep + 'action=restartdemo')
-        .then(function(r) { if (r.ok) console.log('[RacingDesk] Demo restarted'); else console.warn('[RacingDesk] Demo restart failed:', r.status); })
-        .catch(function(err) { console.warn('[RacingDesk] Demo restart error:', err); });
+      runtimeAction('restartdemo')
+        .then(function() { console.log('[RacingDesk] Demo restarted'); })
+        .catch(function(err) { console.warn('[RacingDesk] Demo restart failed:', err); });
     });
   }
 

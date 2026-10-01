@@ -779,14 +779,14 @@ namespace RacingDesk.Tests.Cars
         {
             int port = FreePort();
             using var listener = new HttpListener();
-            listener.Prefixes.Add($"http://localhost:{port}/racing-desk/");
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/racing-desk/"); // not localhost: HTTP.sys binds that on every address
             listener.Start();
             // No store: the list is the assembly's, and is served before there is one.
             var api = new LocalDataApi(Path.Combine(Path.GetTempPath(), "racing-desk-no-store-" + Guid.NewGuid().ToString("N") + ".db")) { Cars = cars };
             var claimed = Task.Run(() => api.TryHandle(listener.GetContext()));
 
             using var http = new HttpClient();
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"http://localhost:{port}/racing-desk/data/{route}");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{port}/racing-desk/data/{route}");
             using var response = http.Send(request);
             string text = new StreamReader(response.Content.ReadAsStream(), Encoding.UTF8).ReadToEnd();
             Assert.That(claimed.Result, Is.True);

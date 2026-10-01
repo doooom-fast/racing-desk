@@ -210,6 +210,23 @@ test.describe('the screen', () => {
     expect(preload).toMatch(/onHudDisplaysChanged:\s*\(callback\)\s*=>\s*\{\s*ipcRenderer\.on\('hud-displays-changed',/);
   });
 
+  // A recording was of the first screen desktopCapturer listed, whichever screen the sim was on. capture-screen.js
+  // matches the sources to the screen it is told (its own spec holds how); what is held here is that main.js hands it the
+  // capturer's screens and hud-display's recording screen — the sim's while it runs, not the HUD's chosen one — and
+  // grants nothing itself.
+  test('a recording is of the screen the sim is on: capture-screen is given the capturer and hud-display\'s recording screen', () => {
+    const made = argumentsOf('setDisplayMediaRequestHandler(');
+    expect(made).toMatch(/^captureScreen\.createDisplayMediaHandler\(\{/);
+    expect(made).toMatch(/\bgetSources:\s*\(\)\s*=>\s*desktopCapturer\.getSources\(\{\s*types:\s*\['screen'\]\s*\}\)\s*,/);
+    expect(made).toMatch(/\bgetDisplayKey:\s*\(\)\s*=>\s*hudScreen\.recordScreen\(\)\s*,/);
+    // Not the HUD's own screen: a screen he chose for the HUD is not where the race is.
+    expect(made).not.toMatch(/currentKey/);
+    expect(made).toMatch(/\blog:\s*logToFile\s*,/);
+    expect(code).toMatch(/const captureScreen = require\('\.\/modules\/js\/capture-screen'\);/);
+    expect(calls(/desktopCapturer\.getSources\(/g)).toHaveLength(1);
+    expect(code).not.toMatch(/sources\[0\]/);
+  });
+
   test('he gets in: hud-visibility has the window put right before it is revealed', () => {
     expect(argumentsOf('hudVisibility.createHudVisibility(')).toMatch(/\bbeforeReveal:\s*\(\)\s*=>\s*hudScreen\.refresh\(\)\s*,/);
     // Asked here, when a screen is added or removed (one helper), and when one changes: nowhere else.

@@ -6,7 +6,10 @@
 // its one-line outcome there too — the packaged app has nowhere else a person can read it.
 //
 // The host is told our pid (--parent-pid) and shuts itself down, flushing what it was recording, when this
-// process goes away by any route: quit, app.exit(), a crash, End task. stopHost() is only the backstop.
+// process goes away by any route: quit, app.exit(), a crash, End task — and if that stop is not over five seconds
+// after we went, it ends its own process (apps/host/RacingDesk.Host/HostStop.cs). That deadline has to be the host's:
+// a host that outlives the app has nothing of the app left to end it. stopHost() is only the backstop for while the
+// app is still here.
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
@@ -129,6 +132,8 @@ async function startHost({
     return result;
   };
 
+  // A host that is stopping has let go of its ports (HostStop asks the runtime to stop listening first), so one that
+  // answers here is not on its way out; the app that relaunches itself starts a host of its own instead.
   const what8889Is = classifyStatus(await probeFn(statusUrl(HOST_PORTS.http)));
   if (what8889Is === 'host') {
     return noSpawn({ url: `http://localhost:${HOST_PORTS.http}`, child: null, reason: 'using the host already on :8889' });

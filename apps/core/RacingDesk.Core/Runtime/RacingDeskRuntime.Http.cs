@@ -21,10 +21,12 @@ namespace RacingDesk.Plugin
 
         /// <summary>
         /// The prefixes the state server tries to bind, in order of preference, each entry being what one listener
-        /// is given. HTTP.sys matches a prefix that names a host (<c>localhost</c>) against the Host header of the
-        /// request, so a listener bound by name answers 400 to a client that asks for <c>127.0.0.1</c>: the
-        /// loopback entry therefore names both, and the SimHub plugin, which asks the app's host at
-        /// <see cref="Settings.HostUrl"/> (127.0.0.1), is answered.
+        /// is given: what the shipped host and the SimHub plugin bind (every address, for the iPad view). HTTP.sys
+        /// matches a prefix that names a host (<c>localhost</c>) against the Host header of the request, so a listener
+        /// bound by name answers 400 to a client that asks for <c>127.0.0.1</c>: the loopback entry therefore names
+        /// both, and the SimHub plugin, which asks the app's host at <see cref="Settings.HostUrl"/> (127.0.0.1), is
+        /// answered. Not for <see cref="Options.LoopbackOnly"/> (tests, probes): that binds 127.0.0.1 alone, with no
+        /// fallback, in <see cref="StartHttpServer"/>.
         /// </summary>
         internal static string[][] HttpPrefixGroups(int port) => new[]
         {
@@ -38,7 +40,13 @@ namespace RacingDesk.Plugin
 
         private void StartHttpServer()
         {
-            foreach (var group in HttpPrefixGroups(_options.HttpPort))
+            // LoopbackOnly (tests, probes): 127.0.0.1 alone, which HTTP.sys binds on that address and no other, and no
+            // fallback. Otherwise the groups above, in order, until one binds.
+            string[][] groups = _options.LoopbackOnly
+                ? new[] { new[] { $"http://127.0.0.1:{_options.HttpPort}/racing-desk/" } }
+                : HttpPrefixGroups(_options.HttpPort);
+
+            foreach (var group in groups)
             {
                 string prefix = string.Join(" + ", group);
                 try
@@ -64,6 +72,83 @@ namespace RacingDesk.Plugin
             }
 
             Log.Warn("[RacingDesk] HTTP server could not start on any prefix — dashboard overlay will not receive data");
+        }
+
+        /// <summary>
+        /// Whether a request is for an <c>?action=</c> route: the address has <c>action=</c> in it anywhere, in any case, or
+        /// the query has an <c>action</c> once it is decoded (<c>%61ction=</c>). More than the dispatch below goes by, on
+        /// purpose: whatever might be taken for an action by one reading is refused by the other.
+        /// </summary>
+        internal static bool NamesAnAction(string rawUrl, System.Collections.Specialized.NameValueCollection query) =>
+            (rawUrl ?? "").IndexOf("action=", StringComparison.OrdinalIgnoreCase) >= 0 || (query != null && query["action"] != null);
+
+        /// <summary>
+        /// The routes this runtime has, by name, for the log alone (what is refused is decided by <see cref="NamesAnAction"/>,
+        /// which does not read this): a name here is always written down, once, whatever else has been refused before it.
+        /// <c>ActionRoutesTests</c> asks every <c>action == "…"</c> of this file from another machine after the made-up names
+        /// are used up, and fails on a route that is missing from this list.
+        /// </summary>
+        private static readonly HashSet<string> KnownActions = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "restartdemo", "setrect",
+            "listPedalProfiles", "setPedalProfile", "bindPedalProfile", "importMozaPedals",
+            "listMozaDevices", "getMozaWheelbaseSettings", "setMozaWheelbaseSetting", "getMozaPedalSettings",
+            "setMozaPedalSetting", "getMozaHandbrakeSettings", "setMozaHandbrakeSetting", "getMozaShifterSettings",
+            "getMozaDashboardSettings", "getMozaWheelSettings", "mozaRefresh", "mozaReconnect", "listSerialPortDiagnostic",
+        };
+
+        /// <summary>How many names that are not this runtime's own are written down: a device on the network can make up as many as it likes.</summary>
+        internal const int UnknownActionsLogged = 16;
+
+        // What has been written down in the log so far, once each: a program on this machine that is refused (an app from
+        // before this check, say) is found by its line, and a device on the LAN that keeps asking does not fill the log. A
+        // name is written once for each kind of asker — a connection from this machine, and one from another — so that a
+        // device on the network that asks for setrect first has not used up the line an older app's setrect would have had.
+        // Only the unknown names are counted against a budget; a name the runtime has a route for is always written.
+        private readonly HashSet<string> _refusedActions = new HashSet<string>(StringComparer.Ordinal);
+        private int _refusedUnknownActions;
+
+        /// <summary>Whether a refusal is to be written down now: see <see cref="KnownActions"/> and <see cref="UnknownActionsLogged"/>. The HTTP thread alone asks, so there is no lock.</summary>
+        internal bool NoteRefusal(string name, bool fromThisMachine)
+        {
+            bool known = KnownActions.Contains(name);
+            if (!known && _refusedUnknownActions >= UnknownActionsLogged) return false;
+            if (!_refusedActions.Add(name + (fromThisMachine ? "|here" : "|network"))) return false;
+            if (!known) _refusedUnknownActions++;
+            return true;
+        }
+
+        private void RefuseActionNotFromThisMachine(HttpListenerContext ctx, string rawUrl)
+        {
+            string name = ActionNameForLog(rawUrl);
+            bool fromThisMachine = ctx.Request.IsLocal;
+            if (NoteRefusal(name, fromThisMachine))
+                Log.Warn(fromThisMachine
+                    ? $"[RacingDesk] ?action={name} refused: the connection is this machine's, but a browser sent it or it names another host (an app from before this check, or a page in a browser)"
+                    : $"[RacingDesk] ?action={name} refused: it came from another machine (a device on the network)");
+
+            byte[] refused = Encoding.UTF8.GetBytes("{\"error\":\"this is for a program on this machine\"}");
+            ctx.Response.ContentType = "application/json";
+            ctx.Response.StatusCode = 403;
+            ctx.Response.ContentLength64 = refused.Length;
+            ctx.Response.OutputStream.Write(refused, 0, refused.Length);
+            ctx.Response.OutputStream.Close();
+        }
+
+        /// <summary>The name an action goes by in the log: letters and digits only, and short, whatever was sent.</summary>
+        internal static string ActionNameForLog(string rawUrl)
+        {
+            string url = rawUrl ?? "";
+            int at = url.IndexOf("action=", StringComparison.OrdinalIgnoreCase);
+            if (at < 0) return "(encoded)";
+            var name = new StringBuilder();
+            for (int i = at + "action=".Length; i < url.Length && name.Length < 40; i++)
+            {
+                char c = url[i];
+                if (!char.IsLetterOrDigit(c) || c > 127) break;
+                name.Append(c);
+            }
+            return name.Length > 0 ? name.ToString() : "(none)";
         }
 
         private void StopHttpServer()
@@ -106,7 +191,26 @@ namespace RacingDesk.Plugin
                         continue;
                     }
 
+                    string rawUrl = ctx.Request.RawUrl ?? "";
+
+                    // Every ?action= route is for a program on this machine, and the check is made here, once, before any
+                    // route is looked at — the host's own (ExtraRoutes) included — so that a route added below, or by the
+                    // host, is behind it without anyone remembering to put it there. They write to the wheel base and the
+                    // pedals, change the pedal profiles and the runtime's state, and several of the reads talk to the
+                    // hardware over serial. This port answers every address (the iPad view reads the telemetry through
+                    // the app, which sends no query), and HTTP.sys hands a localhost prefix any request that says
+                    // Host: localhost, so IsLocal and the Host header are both looked at, and a browser's request is not a
+                    // program's (LocalRequest). An action nobody has heard of is refused to the same people: it is not for
+                    // them to ask for, and it must not get the telemetry (or a host route's answer) as an answer.
+                    if (NamesAnAction(rawUrl, ctx.Request.QueryString) && !LocalRequest.IsFromThisMachine(ctx.Request))
+                    {
+                        RefuseActionNotFromThisMachine(ctx, rawUrl);
+                        continue;
+                    }
+
                     // ── Host-provided routes (e.g. RacingDesk.Host's local data API) ──
+                    // Behind the check above: none of the host's reads, nor its one write (POST data/pedals), takes an
+                    // `action`, so a request that names one is refused to another machine here and not answered by them.
                     if (_options.ExtraRoutes != null)
                     {
                         bool handled = false;
@@ -116,8 +220,6 @@ namespace RacingDesk.Plugin
                     }
 
                     // ── Handle action endpoints ──────────────────────────────
-                    string rawUrl = ctx.Request.RawUrl ?? "";
-
                     // Extract action from query string
                     string action = "";
                     int qIdx = rawUrl.IndexOf("action=");
@@ -388,7 +490,10 @@ namespace RacingDesk.Plugin
 
                     if (action == "listSerialPortDiagnostic" && _mozaSerial != null)
                     {
-                        string json = _mozaSerial.GetSerialPortDiagnosticJson();
+                        // It opens every serial port the machine has, and with probe=1 writes to the ones nothing
+                        // describes as Moza: for a program on this machine, which the check above has seen to.
+                        // What the ports say they are is read from Windows; talking to them is asked for: ?probe=1.
+                        string json = _mozaSerial.GetSerialPortDiagnosticJson(probe: ctx.Request.QueryString["probe"] == "1");
                         byte[] resultBytes = System.Text.Encoding.UTF8.GetBytes(json);
                         ctx.Response.ContentType = "application/json";
                         ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");

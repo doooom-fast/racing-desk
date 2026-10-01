@@ -607,6 +607,105 @@ test.describe('the keeper', () => {
     ]);
   });
 
+  test('currentKey is the screen the rule last chose, and null before it has run: what a recording is of', async () => {
+    const { hud, state, asked } = keeper();
+    expect(hud.currentKey()).toBeNull();
+    hud.initialBounds();
+    expect(hud.currentKey()).toBe('1');   // the ini: the ultrawide
+    state.sim = RUNNING_ON_SMALL;
+    await hud.refresh();
+    expect(hud.currentKey()).toBe('2');
+    state.choice = '1';
+    await hud.settingsChanged();
+    expect(hud.currentKey()).toBe('1');
+    // It asks nothing of its own.
+    const before = { ...asked };
+    hud.currentKey();
+    expect(asked).toEqual(before);
+  });
+
+  // A recording is of the race: where the sim is, whatever screen the HUD was given.
+  test('recordScreen is the HUD\'s screen until the host has said where the sim is, and the sim\'s from then on', async () => {
+    const { hud, state } = keeper();
+    expect(hud.recordScreen()).toEqual({ key: null, reason: 'hud' });
+    hud.initialBounds();
+    expect(hud.recordScreen()).toEqual({ key: '1', reason: 'hud' });   // no host asked: the ini's screen, the HUD's
+    state.sim = RUNNING_ON_SMALL;
+    await hud.refresh();
+    expect(hud.recordScreen()).toEqual({ key: '2', reason: 'sim' });
+    expect(hud.recordKey()).toBe('2');
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.refresh();
+    expect(hud.recordScreen()).toEqual({ key: '1', reason: 'sim' });
+  });
+
+  test('a screen chosen for the HUD does not take the recording from the sim: the HUD on the small screen, the sim on the ultrawide', async () => {
+    const { hud, state } = keeper();
+    state.choice = '2';
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    expect(await hud.refresh()).toMatchObject({ key: '2', reason: 'chosen' });
+    expect(hud.currentKey()).toBe('2');
+    expect(hud.recordScreen()).toEqual({ key: '1', reason: 'sim' });
+    expect(hud.recordKey()).toBe('1');
+    // And the other way about: the HUD on the ultrawide by choice, the sim on the small screen.
+    state.choice = '1';
+    state.sim = RUNNING_ON_SMALL;
+    await hud.settingsChanged();
+    expect(hud.currentKey()).toBe('1');
+    expect(hud.recordKey()).toBe('2');
+  });
+
+  test('with the sim not running the recording is of the HUD\'s screen, chosen or not; with no choice the two are one', async () => {
+    const { hud, state } = keeper();
+    state.choice = '2';
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.refresh();
+    expect(hud.recordKey()).toBe('1');
+    state.sim = NOT_RUNNING;   // the sim closed: the host says so
+    await hud.refresh();
+    expect(hud.recordScreen()).toEqual({ key: '2', reason: 'hud' });
+
+    state.choice = undefined;   // Automatic, the sim running: the HUD is where the sim is
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.settingsChanged();
+    expect(hud.currentKey()).toBe('1');
+    expect(hud.recordKey()).toBe('1');
+  });
+
+  test('a host that does not say leaves the recording where the sim was last seen; the sim off every screen forgets it', async () => {
+    const { hud, state } = keeper();
+    state.choice = '2';
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.refresh();
+    state.sim = HOST_SILENT;
+    await hud.refresh();
+    expect(hud.recordScreen()).toEqual({ key: '1', reason: 'sim' });
+    // Running, but its window on none of the screens: the HUD's own.
+    state.sim = { state: 'running', window: { x: 90000, y: 0, width: 100, height: 100 }, monitor: null };
+    await hud.refresh();
+    expect(hud.recordScreen()).toEqual({ key: '2', reason: 'hud' });
+  });
+
+  test('a screen the sim was on that has been unplugged is not the recording\'s: the HUD\'s', async () => {
+    const { hud, state } = keeper();
+    state.choice = '2';
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.refresh();
+    expect(hud.recordKey()).toBe('1');
+    state.displays = [SMALL];
+    expect(hud.recordScreen()).toEqual({ key: '2', reason: 'hud' });
+  });
+
+  test('recordScreen asks nothing of its own', async () => {
+    const { hud, state, asked } = keeper();
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.refresh();
+    const before = { ...asked };
+    hud.recordScreen();
+    hud.recordKey();
+    expect(asked).toEqual(before);
+  });
+
   test('a window made on the primary screen by the system is moved to the chosen one, and looked at again if it did not take', () => {
     const { hud, win } = keeper();
     win.drift = 1;   // the first try comes out at the small size
