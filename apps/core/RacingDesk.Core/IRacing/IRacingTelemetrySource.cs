@@ -272,7 +272,12 @@ namespace RacingDesk.Plugin.IRacing
         private static TimeSpan Seconds(float[] arr, int idx) =>
             arr != null && idx < arr.Length && arr[idx] > 0 ? TimeSpan.FromSeconds(arr[idx]) : TimeSpan.Zero;
 
-        private static string SessionType(IRacingSdkSessionInfo si, int sessionNum)
+        /// <summary>
+        /// The session YAML's own word for the session the sim is in, sent as SessionTypeName: "Practice", "Lone Qualify",
+        /// "Open Qualify", "Warmup", "Race" — and "Offline Testing" for a test drive (every one of the driver's own
+        /// test-drive .ibt files says so, with WeekendInfo.EventType "Test"), which is how the HUD tells one from a practice.
+        /// </summary>
+        internal static string SessionType(IRacingSdkSessionInfo si, int sessionNum)
         {
             var sessions = si.SessionInfo?.Sessions;
             if (sessions == null) return "";

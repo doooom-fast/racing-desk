@@ -271,6 +271,21 @@
     }
     if (_currSessionTypeName) _prevSessionTypeName = _currSessionTypeName;
 
+    // A test drive (iRacing's solo testing session, "Offline Testing" on both paths: session-kind.js) has no field to
+    // list, so the leaderboard is not shown in one, on any page — the rig's HUD, the glance layout, the iPad and the
+    // pages OBS draws — and in the glance layout its cell goes to the other panels (drive-view.css). Written only when
+    // it changes; a frame that names no type leaves it as it was, and any other session brings the leaderboard back.
+    if (_currSessionTypeName) {
+      const _testDrive = RacingDeskSessionKind.isTestDrive(_currSessionTypeName);
+      if (_testDrive !== _prevTestDrive) {
+        _prevTestDrive = _testDrive;
+        document.body.classList.toggle('session-testdrive', _testDrive);
+        window._lbLastJson = '';   // the leaderboard is drawn again for the session it is now in
+        // The grid has changed shape: the maps are fitted to their cells again.
+        if (document.body.classList.contains('drive-mode-active') && typeof driveViewChanged === 'function') driveViewChanged(true);
+      }
+    }
+
     // The green flag: a race begins from its grid. What tells a heat from a feature of the same type at the same
     // track is nothing but this, so the trails and the start begin again here too. A frame with no state says
     // nothing and does not count as the state before.

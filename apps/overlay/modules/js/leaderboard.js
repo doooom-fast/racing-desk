@@ -253,6 +253,9 @@
   function updateLeaderboard(p) {
     const lbPanel = document.getElementById('leaderboardPanel');
     if (!lbPanel || lbPanel.classList.contains('section-hidden')) return;
+    // A test drive has no field: the panel is not shown (poll-engine.js sets the class; leaderboard.css and
+    // drive-view.css hide it), and its rows are not written while it is away.
+    if (document.body.classList.contains('session-testdrive')) return;
     // Leaderboard comes as raw JSON array from the plugin
     let raw = p['RacingDesk.Plugin.Leaderboard'];
     // If plugin sends leaderboard as a JSON string, parse it

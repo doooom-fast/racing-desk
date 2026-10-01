@@ -257,6 +257,26 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
 - **The leaderboard** is the HUD's panel and rows, its type sized from the panel (`#lbRows` font-size) and the rows sharing
   its height; `leaderboard.js` counts how many the panel holds at that size (1.9 lines to a row) and not the sum of the
   screen minus the dashboard that the rig's HUD does.
+- **A test drive has no leaderboard, on every overlay** (he asked on 2026-10-01: "hide leaderboard on test drives in all
+  overlays"). iRacing's solo testing session shows in the data as the one word both paths send under
+  `RacingDesk.Plugin.SessionTypeName`: the app's host sends the session YAML's `SessionType` of the session the sim is in
+  (`IRacingTelemetrySource.SessionType`), which is `Offline Testing` in every test-drive `.ibt` of his (with
+  `WeekendInfo.EventType: Test`, `SessionName: TESTING`, `Official: 0`; a race weekend's are `Practice`, `Lone Qualify`
+  or `Open Qualify`, `Race`), and the SimHub plugin sends SimHub's `SessionTypeName`, the same string. `DS.SessionMode`
+  is 1 for a test drive and a practice alike, so the word is what is read: `modules/js/session-kind.js`
+  (`isTestDrive`, a word boundary and "test", so "Offline Testing", "Testing" and "Test" and nothing by accident of
+  letters). `poll-engine.js` writes `body.session-testdrive` from it, only when it changes; a frame that names no type
+  leaves it as it was. With the class the panel is not shown — `leaderboard.css` on the rig's HUD and the page OBS
+  draws of it, where the other secondary panels take its place at the edge; `drive-view.css` in the glance layout,
+  where the grid is laid out again without its cell (on its side the hero, the maps and the laps panel each gain, and
+  the pit box, the datastream and the incidents share the bottom row; upright the laps panel and the ratings take the
+  full width of the two rows the leaderboard had; the rows keep their heights) and the maps are fitted to their cells
+  again (`driveViewChanged`) — and `updateLeaderboard` writes no rows while it is away. Any other session brings it
+  back the moment the frame says so. `tests/unit/test-drive.spec.mjs` holds it on the rig's HUD, the rig's
+  Ctrl+Shift+F at 1920x1080 and 2560x1080, the iPad at four sizes (the cells still cover the screen, none over
+  another, nothing cut off) and both pages OBS draws, with a return to practice, qualifying and a race; RacingDesk.Tests
+  `SessionTypeTests` holds the host's word, and reads his newest 300 `.ibt` files to see that every `EventType: Test`
+  has the one `Offline Testing` session and nothing else does (only those fields; nothing of a file is printed).
 - **The menu** (remote-server.js) is a small round button in the top right corner of the iPad's screen, over the frame
   and the corner of whatever cell is there, faint until it is open; its list opens on the side with the more room. On
   the rig there is no menu. Upright, that corner is the gaps block, and its strip of sectors stops short of the button.

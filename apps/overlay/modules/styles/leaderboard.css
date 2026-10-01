@@ -439,6 +439,11 @@
     overflow: hidden;
   }
   .leaderboard-panel.section-hidden { display: none; }
+  /* A test drive (iRacing's solo testing session; poll-engine.js sets the class from the session's type, session-kind.js)
+     has no field to list: the panel is not shown, on the rig's HUD and on the page OBS draws of it alike, and the
+     other secondary panels take its place at the edge. Any other session brings it back. The glance layout has the
+     same rule and gives its cell to the other panels (drive-view.css). */
+  body.session-testdrive .leaderboard-panel { display: none !important; }
   /* Position offsets removed — now handled by .sec-container flex layout */
 
   .lb-inner {

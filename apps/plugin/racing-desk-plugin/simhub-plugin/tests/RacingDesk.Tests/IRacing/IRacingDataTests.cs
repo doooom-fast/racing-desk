@@ -59,6 +59,106 @@ SplitTimeInfo:
         }
     }
 
+    /// <summary>
+    /// How a test drive shows on the host's path: SessionTypeName is the session YAML's own SessionType of the session
+    /// the sim is in, and iRacing's solo testing session is "Offline Testing" (the HUD's session-kind.js reads that word;
+    /// DS.SessionMode cannot tell it from a practice, since both are Practice).
+    /// </summary>
+    [TestFixture]
+    public class SessionTypeTests
+    {
+        private const string TestDrive = @"---
+WeekendInfo:
+ TrackID: 465
+ EventType: Test
+ Official: 0
+SessionInfo:
+ Sessions:
+ - SessionNum: 0
+   SessionName: TESTING
+   SessionType: Offline Testing
+";
+        private const string Weekend = @"---
+WeekendInfo:
+ TrackID: 465
+ EventType: Race
+ Official: 1
+SessionInfo:
+ Sessions:
+ - SessionNum: 0
+   SessionName: PRACTICE
+   SessionType: Practice
+ - SessionNum: 1
+   SessionName: QUALIFY
+   SessionType: Lone Qualify
+ - SessionNum: 2
+   SessionName: RACE
+   SessionType: Race
+";
+
+        [Test]
+        public void ATestDriveIsOfflineTestingAndAWeekendsSessionsAreTheirOwnWords()
+        {
+            var test = SessionInfoYaml.Parse(TestDrive);
+            Assert.That(IRacingTelemetrySource.SessionType(test, 0), Is.EqualTo("Offline Testing"));
+            Assert.That(test.WeekendInfo.EventType, Is.EqualTo("Test"));
+            var weekend = SessionInfoYaml.Parse(Weekend);
+            Assert.That(IRacingTelemetrySource.SessionType(weekend, 0), Is.EqualTo("Practice"));
+            Assert.That(IRacingTelemetrySource.SessionType(weekend, 1), Is.EqualTo("Lone Qualify"));
+            Assert.That(IRacingTelemetrySource.SessionType(weekend, 2), Is.EqualTo("Race"));
+            Assert.That(IRacingTelemetrySource.SessionType(weekend, 7), Is.EqualTo(""), "a session the YAML does not list");
+            Assert.That(IRacingTelemetrySource.SessionType(null, 0), Is.EqualTo(""));
+        }
+
+        [Test]
+        public void TheModeCannotTellATestDriveFromAPractice_SoTheWordIsWhatTheHudReads()
+        {
+            var testDrive = new RacingDesk.Plugin.Engine.TelemetrySnapshot { SessionTypeName = "Offline Testing" };
+            var practice = new RacingDesk.Plugin.Engine.TelemetrySnapshot { SessionTypeName = "Practice" };
+            Assert.That(testDrive.SessionMode, Is.EqualTo(RacingDesk.Plugin.Engine.TelemetrySnapshot.SessionModeEnum.Practice));
+            Assert.That(practice.SessionMode, Is.EqualTo(RacingDesk.Plugin.Engine.TelemetrySnapshot.SessionModeEnum.Practice));
+            Assert.That(testDrive.IsNonRaceSession, Is.True);
+        }
+
+        /// <summary>
+        /// Over his own history: every file iRacing marks as a test (WeekendInfo.EventType "Test") has one session, and it
+        /// is "Offline Testing"; no session of a race weekend or a practice is. Only those fields are read, and nothing of
+        /// the file is printed but how many were looked at.
+        /// </summary>
+        [Test]
+        public void InHisOwnFilesEveryTestDriveIsOfflineTestingAndNothingElseIs()
+        {
+            var files = IbtFileTests.NewestIbt(300).ToList();
+            Assume.That(files, Is.Not.Empty, "no .ibt history on this machine");
+            int tests = 0, others = 0;
+            var wrong = new List<string>();
+            foreach (var f in files)
+            {
+                try
+                {
+                    using var ibt = new IbtFile(f.FullName);
+                    var w = ibt.SessionInfo?.WeekendInfo;
+                    var sessions = ibt.SessionInfo?.SessionInfo?.Sessions;
+                    if (w == null || sessions == null) continue;
+                    bool offline = sessions.Any(s => s.SessionType == "Offline Testing");
+                    if (w.EventType == "Test")
+                    {
+                        tests++;
+                        if (sessions.Count != 1 || !offline) wrong.Add("a test with " + sessions.Count + " session(s), offline testing: " + offline);
+                    }
+                    else
+                    {
+                        others++;
+                        if (offline) wrong.Add("a " + w.EventType + " with an Offline Testing session");
+                    }
+                }
+                catch (InvalidDataException) { /* truncated file — ingest skips these */ }
+            }
+            Assume.That(tests, Is.GreaterThan(0), "no test drive in the newest files");
+            Assert.That(wrong, Is.Empty, tests + " test drives and " + others + " other sessions looked at");
+        }
+    }
+
     /// <summary>Runs against the rig's real .ibt history; skipped where there is none.</summary>
     [TestFixture]
     public class IbtFileTests

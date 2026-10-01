@@ -822,3 +822,51 @@ html:is(.rd-remote, .rd-glance) body.drive-mode-active {
    on the iPad. Hidden out of the car and while he has the HUD away, as the rig HUD OBS draws is (remote-server.js). */
 html.rd-glance body.drive-mode-active { background: transparent !important; }
 html.rd-glance body.drive-mode-active::before { display: none !important; content: none !important; }
+
+/* ═══ A test drive: no leaderboard, and its column goes to the other panels ═══════════════════════════════════════
+   iRacing's solo testing session ("Offline Testing" in the session's type on both paths; poll-engine.js writes
+   body.session-testdrive from it, session-kind.js) has no field to list — one row, and a column of nothing under it.
+   He asked for the leaderboard to go in one, on every overlay (2026-10-01). Here the cell goes too, and the 24
+   columns are shared out again among the rest: on its side the hero, the maps and the laps panel each gain, and the
+   pit box, the datastream and the incidents share the bottom row; upright the laps panel and the ratings take the
+   full width of the rows the leaderboard had. The rows keep their heights, so nothing else moves up or down. Any
+   other session (practice, qualifying, a race with other cars) is the layout above, the moment the frame says so.
+   These rules are after the iPad's and outrank them (one class more), so the test drive's grid is the same on the
+   rig's Ctrl+Shift+F (with its badges), on an iPad and in the page OBS draws (without). */
+body.drive-mode-active.session-testdrive #leaderboardPanel { display: none !important; }
+body.drive-mode-active.session-testdrive {
+  grid-template-areas:
+    "hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho tacho"
+    "map map map map map map map map map local local local local local local laps laps laps laps laps laps laps laps laps"
+    "map map map map map map map map map local local local local local local rating rating rating rating rating rating rating rating rating"
+    "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals brand brand brand car car car timer timer timer timer"
+    "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
+}
+html:is(.rd-remote, .rd-glance) body.drive-mode-active.session-testdrive {
+  grid-template-areas:
+    "hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho tacho"
+    "map map map map map map map map map local local local local local local laps laps laps laps laps laps laps laps laps"
+    "map map map map map map map map map local local local local local local rating rating rating rating rating rating rating rating rating"
+    "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals timer timer timer timer timer timer timer"
+    "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
+}
+@media (orientation: portrait) {
+  body.drive-mode-active.session-testdrive {
+    grid-template-areas:
+      "hero hero hero hero hero hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps gaps gaps gaps"
+      "tacho tacho tacho tacho tacho tacho tacho tacho map map map map map map map map map map map local local local local local"
+      "laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps"
+      "rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating"
+      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals brand brand car car car timer timer timer timer timer"
+      "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
+  }
+  html:is(.rd-remote, .rd-glance) body.drive-mode-active.session-testdrive {
+    grid-template-areas:
+      "hero hero hero hero hero hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps gaps gaps gaps"
+      "tacho tacho tacho tacho tacho tacho tacho tacho map map map map map map map map map map map local local local local local"
+      "laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps laps"
+      "rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating rating"
+      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals timer timer timer timer timer timer timer"
+      "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
+  }
+}
