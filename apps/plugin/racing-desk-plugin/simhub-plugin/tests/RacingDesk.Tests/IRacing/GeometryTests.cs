@@ -438,6 +438,8 @@ namespace RacingDesk.Tests.IRacing
             var log = new List<string>();
             using var store = new RacingDeskStore(Db);
             var ingest = new IbtIngest(store, log.Add);
+            // The watch has the store's connection to itself: what the test looks at is looked at through another.
+            using var reading = RacingDeskStore.OpenReadOnly(Db);
             using var cts = new System.Threading.CancellationTokenSource();
             var watching = System.Threading.Tasks.Task.Run(() => ingest.WatchFinished(_dir, cts.Token, pause: null, frameStep: 3, every: TimeSpan.FromMilliseconds(100)));
 
@@ -445,12 +447,14 @@ namespace RacingDesk.Tests.IRacing
             string fresh = SyntheticLaps.Write(Path.Combine(_dir, "fresh.ibt"), SyntheticLaps.Yaml(), SyntheticLaps.Laps(1), March);
             File.SetLastWriteTimeUtc(fresh, DateTime.UtcNow);
             System.Threading.Thread.Sleep(400);
-            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM ingested_files"), Is.Zero);
+            Assert.That(reading.Scalar<long>("SELECT COUNT(*) FROM ingested_files"), Is.Zero);
             string settled = SyntheticLaps.Write(Path.Combine(_dir, "settled.ibt"), SyntheticLaps.Yaml(), SyntheticLaps.Laps(2), March.AddDays(1));
-            for (int i = 0; i < 100 && store.Scalar<long>("SELECT COUNT(*) FROM ingested_files WHERE path = $p".Replace("$p", "'" + settled.Replace("'", "''") + "'")) == 0; i++)
+            for (int i = 0; i < 100 && reading.Scalar<long>("SELECT COUNT(*) FROM ingested_files WHERE path = $p".Replace("$p", "'" + settled.Replace("'", "''") + "'")) == 0; i++)
                 System.Threading.Thread.Sleep(100);
-            Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM ingested_files"), Is.EqualTo(1), "the settled file, and not the fresh one");
-            Assert.That(store.GetGeometry(777)?.CleanLaps, Is.EqualTo(2));
+            Assert.That(reading.Scalar<long>("SELECT COUNT(*) FROM ingested_files"), Is.EqualTo(1), "the settled file, and not the fresh one");
+            // (the outline is kept just after the file is marked, so it is waited for)
+            for (int i = 0; i < 50 && reading.GetGeometry(777) == null; i++) System.Threading.Thread.Sleep(100);
+            Assert.That(reading.GetGeometry(777)?.CleanLaps, Is.EqualTo(2));
             Assert.That(log, Has.Some.StartsWith("1 new files, 1 sessions, 0 unreadable"));
 
             cts.Cancel();
