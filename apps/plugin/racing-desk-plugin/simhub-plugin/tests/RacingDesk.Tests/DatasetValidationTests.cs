@@ -189,22 +189,29 @@ namespace RacingDesk.Tests
         }
 
         [Test]
-        public void CommentaryTopics_TyreWearUsesLessThanOperator()
+        public void CommentaryTopics_TyreWearIsPercentRemainingAndWornIsLow()
         {
+            // Tyre wear is tread remaining, 0..100 %, 100 = new (root CLAUDE.md, Tyre wear): a worn tyre is under a
+            // threshold in percent, and the worst corner of the four is what a topic looks at.
             var tyreWearTopics = _topics.Where(t =>
                 t.Triggers?.Any(tr =>
                     tr.DataPoint?.ToLower().Contains("tyrewear") == true) == true).ToList();
+            Assert.That(tyreWearTopics, Is.Not.Empty, "a tyre wear topic");
 
             foreach (var topic in tyreWearTopics)
             {
                 var tyreTriggers = topic.Triggers.Where(tr =>
-                    tr.DataPoint?.ToLower().Contains("tyrewear") == true);
+                    tr.DataPoint?.ToLower().Contains("tyrewear") == true).ToList();
 
                 foreach (var trigger in tyreTriggers)
                 {
                     Assert.AreEqual("<", trigger.Condition,
                         $"Topic '{topic.Id}' tyre wear trigger should use '<' not '>'");
+                    Assert.That(trigger.Value, Is.GreaterThanOrEqualTo(1.0),
+                        $"Topic '{topic.Id}' tyre wear threshold is in percent (new tyres read 100), not a fraction");
                 }
+                Assert.That(tyreTriggers.Any(tr => tr.DataPoint.ToLower() == "tyrewearworst"), Is.True,
+                    $"Topic '{topic.Id}' looks at the worst corner of the four, so none is left out");
             }
         }
 
