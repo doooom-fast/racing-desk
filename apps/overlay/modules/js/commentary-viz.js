@@ -491,11 +491,13 @@
     return              { hue: 0,   sat: 70, label: 'danger' };       // red   > 132°C
   }
 
-  // Tyre wear color (percentage 0-100)
+  // Tyre wear colour: tread remaining, 0..100 % as the wire has it (null: not measured), at the engine's own two
+  // thresholds (root CLAUDE.md, Tyre wear) — amber under 35, red under 20, green above.
   function _tyreWearColor(pct) {
-    if (pct > 50)  return { hue: 123, sat: 45 };  // green
-    if (pct > 25)  return { hue: 45,  sat: 90 };  // amber
-    return           { hue: 0,   sat: 70 };        // red
+    if (pct == null) return { hue: 0,   sat: 0 };   // not measured
+    if (pct < 20)    return { hue: 0,   sat: 70 };  // red
+    if (pct < 35)    return { hue: 45,  sat: 90 };  // amber
+    return             { hue: 123, sat: 45 };        // green
   }
 
   function _renderQuad(cfg) {
@@ -520,7 +522,8 @@
 
     for (let i = 0; i < 4; i++) {
       const [x, y] = positions[i];
-      const val = arr[i] || 0;
+      // A tread not measured stays null (a dash in the cell); a temperature missing is 0
+      const val = isTemp ? (arr[i] || 0) : (arr[i] == null ? null : +arr[i]);
       const col = isTemp ? _tyreTempColor(val) : _tyreWearColor(val);
       const hue = col.hue;
       const sat = col.sat;
@@ -536,8 +539,8 @@
         // Hotter = brighter fill; cold = very faint
         intensity = val <= 0 ? 0 : Math.max(0.12, Math.min(0.55, (val - 100) / 300));
       } else {
-        // Lower wear = brighter fill (more alarming)
-        intensity = Math.max(0.12, 0.55 - (val / 100) * 0.4);
+        // Less tread = brighter fill (more alarming); not measured is faint
+        intensity = val == null ? 0.12 : Math.max(0.12, 0.55 - (val / 100) * 0.4);
       }
 
       // Cell base
@@ -565,7 +568,7 @@
       ctx.font = `bold ${11 * dpr}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const dispVal = isTemp ? Math.round(val) + '°' : Math.round(val) + '%';
+      const dispVal = isTemp ? Math.round(val) + '°' : (val == null ? '—' : Math.round(val) + '%');
       ctx.fillText(dispVal, cx, cy - 2 * dpr);
 
       // Corner label

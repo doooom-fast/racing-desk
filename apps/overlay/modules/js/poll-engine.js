@@ -444,18 +444,22 @@
     }
 
     // ─── Tyres ───
-    // Backend sends wear as 0=new, 1=gone. Convert to remaining % for display
-    // (100 = full life, 0 = destroyed) so bar width + color thresholds are correct.
+    // Tyre wear on the wire is tread remaining, 0..100 %, 100 = new, from the host, the SimHub plugin and the demo
+    // alike (root CLAUDE.md, Tyre wear); null, or 0, is not measured. It is read as it is — nothing in the HUD
+    // converts it — and the pit box's rings are where it is shown (pitbox.js). The tyre cells below are the old
+    // panel's, which dashboard.html no longer has: updateTyreCell returns at once.
+    const wearOf = (k) => { const x = p[k]; return x == null || x === '' || !(+x > 0) ? null : Math.max(0, Math.min(100, +x)); };
+    const wearPct = (k) => { const w = wearOf(k); return w == null ? -1 : w; };
     if (_demo) {
-      updateTyreCell(0, +v('RacingDesk.Plugin.Demo.TyreTempFL'), (1 - (+v('RacingDesk.Plugin.Demo.TyreWearFL') || 0)) * 100);
-      updateTyreCell(1, +v('RacingDesk.Plugin.Demo.TyreTempFR'), (1 - (+v('RacingDesk.Plugin.Demo.TyreWearFR') || 0)) * 100);
-      updateTyreCell(2, +v('RacingDesk.Plugin.Demo.TyreTempRL'), (1 - (+v('RacingDesk.Plugin.Demo.TyreWearRL') || 0)) * 100);
-      updateTyreCell(3, +v('RacingDesk.Plugin.Demo.TyreTempRR'), (1 - (+v('RacingDesk.Plugin.Demo.TyreWearRR') || 0)) * 100);
+      updateTyreCell(0, +v('RacingDesk.Plugin.Demo.TyreTempFL'), wearPct('RacingDesk.Plugin.Demo.TyreWearFL'));
+      updateTyreCell(1, +v('RacingDesk.Plugin.Demo.TyreTempFR'), wearPct('RacingDesk.Plugin.Demo.TyreWearFR'));
+      updateTyreCell(2, +v('RacingDesk.Plugin.Demo.TyreTempRL'), wearPct('RacingDesk.Plugin.Demo.TyreWearRL'));
+      updateTyreCell(3, +v('RacingDesk.Plugin.Demo.TyreTempRR'), wearPct('RacingDesk.Plugin.Demo.TyreWearRR'));
     } else {
-      updateTyreCell(0, +v('DataCorePlugin.GameData.TyreTempFrontLeft'), (p['DataCorePlugin.GameData.TyreWearFrontLeft'] != null ? (1 - +p['DataCorePlugin.GameData.TyreWearFrontLeft']) * 100 : -1));
-      updateTyreCell(1, +v('DataCorePlugin.GameData.TyreTempFrontRight'), (p['DataCorePlugin.GameData.TyreWearFrontRight'] != null ? (1 - +p['DataCorePlugin.GameData.TyreWearFrontRight']) * 100 : -1));
-      updateTyreCell(2, +v('DataCorePlugin.GameData.TyreTempRearLeft'), (p['DataCorePlugin.GameData.TyreWearRearLeft'] != null ? (1 - +p['DataCorePlugin.GameData.TyreWearRearLeft']) * 100 : -1));
-      updateTyreCell(3, +v('DataCorePlugin.GameData.TyreTempRearRight'), (p['DataCorePlugin.GameData.TyreWearRearRight'] != null ? (1 - +p['DataCorePlugin.GameData.TyreWearRearRight']) * 100 : -1));
+      updateTyreCell(0, +v('DataCorePlugin.GameData.TyreTempFrontLeft'), wearPct('DataCorePlugin.GameData.TyreWearFrontLeft'));
+      updateTyreCell(1, +v('DataCorePlugin.GameData.TyreTempFrontRight'), wearPct('DataCorePlugin.GameData.TyreWearFrontRight'));
+      updateTyreCell(2, +v('DataCorePlugin.GameData.TyreTempRearLeft'), wearPct('DataCorePlugin.GameData.TyreWearRearLeft'));
+      updateTyreCell(3, +v('DataCorePlugin.GameData.TyreTempRearRight'), wearPct('DataCorePlugin.GameData.TyreWearRearRight'));
     }
 
     // ─── Controls (BB / TC / ABS) ───
@@ -1269,9 +1273,10 @@
         tyreTemps: _demo
           ? [+v('RacingDesk.Plugin.Demo.TyreTempFL'), +v('RacingDesk.Plugin.Demo.TyreTempFR'), +v('RacingDesk.Plugin.Demo.TyreTempRL'), +v('RacingDesk.Plugin.Demo.TyreTempRR')]
           : [+v('DataCorePlugin.GameData.TyreTempFrontLeft'), +v('DataCorePlugin.GameData.TyreTempFrontRight'), +v('DataCorePlugin.GameData.TyreTempRearLeft'), +v('DataCorePlugin.GameData.TyreTempRearRight')],
+        // Tread remaining as it is on the wire (0..100 %; null where not measured), for the tyre_wear_high quad
         tyreWears: _demo
-          ? [(1 - (+v('RacingDesk.Plugin.Demo.TyreWearFL') || 0)) * 100, (1 - (+v('RacingDesk.Plugin.Demo.TyreWearFR') || 0)) * 100, (1 - (+v('RacingDesk.Plugin.Demo.TyreWearRL') || 0)) * 100, (1 - (+v('RacingDesk.Plugin.Demo.TyreWearRR') || 0)) * 100]
-          : [(p['DataCorePlugin.GameData.TyreWearFrontLeft'] != null ? (1 - +p['DataCorePlugin.GameData.TyreWearFrontLeft']) * 100 : 100), (p['DataCorePlugin.GameData.TyreWearFrontRight'] != null ? (1 - +p['DataCorePlugin.GameData.TyreWearFrontRight']) * 100 : 100), (p['DataCorePlugin.GameData.TyreWearRearLeft'] != null ? (1 - +p['DataCorePlugin.GameData.TyreWearRearLeft']) * 100 : 100), (p['DataCorePlugin.GameData.TyreWearRearRight'] != null ? (1 - +p['DataCorePlugin.GameData.TyreWearRearRight']) * 100 : 100)]
+          ? [wearOf('RacingDesk.Plugin.Demo.TyreWearFL'), wearOf('RacingDesk.Plugin.Demo.TyreWearFR'), wearOf('RacingDesk.Plugin.Demo.TyreWearRL'), wearOf('RacingDesk.Plugin.Demo.TyreWearRR')]
+          : [wearOf('DataCorePlugin.GameData.TyreWearFrontLeft'), wearOf('DataCorePlugin.GameData.TyreWearFrontRight'), wearOf('DataCorePlugin.GameData.TyreWearRearLeft'), wearOf('DataCorePlugin.GameData.TyreWearRearRight')]
       });
     }
 

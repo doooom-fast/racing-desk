@@ -167,6 +167,13 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
     const vs = (k) => (p[k] != null ? '' + p[k] : '');
     const n = (k) => +v(k) || 0;
     const game = (k, demoK) => (isDemo ? n('RacingDesk.Plugin.Demo.' + demoK) : n('DataCorePlugin.GameData.' + k));
+    // Tyre wear as it is on the wire — tread remaining, 0..100 %, 100 = new (root CLAUDE.md, Tyre wear) — and null,
+    // not 0, where the sim has not measured it (0 is never a measurement).
+    const wear = (k, demoK) => {
+      const raw = p[isDemo ? 'RacingDesk.Plugin.Demo.' + demoK : 'DataCorePlugin.GameData.' + k];
+      const x = Number(raw);
+      return raw == null || raw === '' || !(x > 0) ? null : Math.max(0, Math.min(100, x));
+    };
 
     const elapsedMs = at - startedAt;
     const pos = isDemo ? n('RacingDesk.Plugin.Demo.Position') : n('DataCorePlugin.GameData.Position');
@@ -226,8 +233,8 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
       // Tyre temps and wear
       tFL: game('TyreTempFrontLeft', 'TyreTempFL'), tFR: game('TyreTempFrontRight', 'TyreTempFR'),
       tRL: game('TyreTempRearLeft', 'TyreTempRL'), tRR: game('TyreTempRearRight', 'TyreTempRR'),
-      wFL: game('TyreWearFrontLeft', 'TyreWearFL'), wFR: game('TyreWearFrontRight', 'TyreWearFR'),
-      wRL: game('TyreWearRearLeft', 'TyreWearRL'), wRR: game('TyreWearRearRight', 'TyreWearRR'),
+      wFL: wear('TyreWearFrontLeft', 'TyreWearFL'), wFR: wear('TyreWearFrontRight', 'TyreWearFR'),
+      wRL: wear('TyreWearRearLeft', 'TyreWearRL'), wRR: wear('TyreWearRearRight', 'TyreWearRR'),
       // In-car adjustments
       bb: isDemo ? n('RacingDesk.Plugin.Demo.BrakeBias') : n('DataCorePlugin.GameRawData.Telemetry.dcBrakeBias'),
       tc: isDemo ? n('RacingDesk.Plugin.Demo.TC') : n('DataCorePlugin.GameRawData.Telemetry.dcTractionControl'),

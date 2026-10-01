@@ -466,7 +466,10 @@ body.drive-mode-active .pb-page::before {
   font-size: max(11px, 0.55em); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim);
   margin-bottom: 0.25em; line-height: 1.2;
 }
-body.drive-mode-active #pbPageTyres::before { content: 'Tyres' attr(data-age); }
+/* The tyres' heading carries the laps on this set and what the rings' number is (" · as measured in the pits", for
+   iRacing, which measures tread there and nowhere else); one line, clipped before it would wrap into the rings' room. */
+body.drive-mode-active #pbPageTyres::before { content: 'Tyres' attr(data-age) attr(data-measured); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+body.drive-mode-active .pb-wear-note { display: none; }
 body.drive-mode-active #pbPageFuel::before { content: 'Fuel'; }
 body.drive-mode-active #pbPageWeather::before { content: 'Weather'; }
 body.drive-mode-active .pb-row,
