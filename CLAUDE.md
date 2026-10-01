@@ -123,7 +123,7 @@ this change only with, or after, an exe built from it; an older plugin with the 
 the network, on purpose:** the telemetry (`GET /racing-desk/` with no action: read-only, and the iPad's path) and the
 `:8890` feed (it reads nothing from its clients).
 
-**The host's data reads are for programs on this machine too, by a rule of their own** (Kevin said yes, 2026-10-01: they
+**The host's data reads are for programs on this machine too, by a rule of their own** (asked for and approved, 2026-10-01: they
 carry the driver's customer id — `sessions`, `session` — and the store's path — `status` — and they were open to any
 device on the LAN and, by `Access-Control-Allow-Origin: *`, to any web page open on the rig). `LocalDataApi.TryHandle`
 asks it of every request under `/racing-desk/data/` before any route is looked at, so a route added later, and a name that
