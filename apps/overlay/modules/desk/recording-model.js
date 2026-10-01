@@ -18,6 +18,21 @@
     { key: 'tvShotsHideFacecam', label: 'Hide the facecam during TV shots', def: true, hint: 'While a TV take is recorded your camera source is hidden in OBS, and shown again after.' },
   ];
 
+  // What OBS draws with "HUD drawn by OBS" on: the choice under the switch (obsHudView), one sentence each.
+  const HUD_VIEW = {
+    key: 'obsHudView', label: 'What OBS draws', def: 'rig',
+    options: [
+      ['rig', 'Rig HUD', 'The HUD as it is on your screen, laid over the whole of the game video in each of your scenes.'],
+      ['ipad', 'iPad dashboard', 'The glance layout the iPad shows, every panel in one grid, as a small source in the bottom-left corner of the game video, placed once; where you move or size it in OBS is yours.'],
+    ],
+  };
+  // How solid the panels are in the picture OBS draws, whichever it draws: a slider of its own, so the recording can be
+  // clearer or more see-through than what he drives with (Settings → Look has the rig's and the iPad's).
+  const OBS_PANEL_BACKGROUND = {
+    key: 'obsPanelBackground', label: 'Panel background in OBS', def: 90, min: 0, max: 100, step: 5, unit: '%',
+    hint: 'How solid the panels are in the picture OBS draws, with either choice. 90 is the panels as they have always been; lower lets the game show through, and the numbers get a soft shadow so they still read. The Look page\'s slider is what you drive with.',
+  };
+
   const NETWORK_SENTENCE = 'OBS then answers on port 4455 to anything on your network that knows the password.';
   const FROM_THE_APP = 'This is switched from the Racing Desk app.';
 
@@ -163,15 +178,30 @@
   function hudSourceSentence(status) {
     const hs = status && status.hudSource;
     const last = hs && hs.last;
-    if (status.obs !== 'open') return 'HUD drawn by OBS: the HUD goes into your scenes when OBS opens.';
-    if (!last) return 'HUD drawn by OBS: the HUD is being put into your scenes.';
+    const what = status.obsHudView === 'ipad' ? 'the iPad dashboard' : 'the HUD';
+    if (status.obs !== 'open') return `HUD drawn by OBS: ${what} goes into your scenes when OBS opens.`;
+    if (!last) return `HUD drawn by OBS: ${what} is being put into your scenes.`;
     if (last.problems && last.problems.length) return `HUD drawn by OBS: ${last.problems.join(' ')}`;
-    return `HUD drawn by OBS: ${last.did || 'the HUD is in your scenes.'}`;
+    return `HUD drawn by OBS: ${last.did || `${what} is in your scenes.`}`;
+  }
+
+  /** The choice of what OBS draws, as the card shows it: the file's word, or Rig HUD. */
+  function hudViewOf(status) {
+    return status && HUD_VIEW.options.some(([value]) => value === status.obsHudView) ? status.obsHudView : HUD_VIEW.def;
+  }
+
+  /** The OBS panel-background slider's value, as the card shows it: the file's number, held to the slider, or 90. */
+  function obsPanelBackgroundOf(status) {
+    const n = status ? status.obsPanelBackground : undefined;
+    if (typeof n !== 'number' || Number.isNaN(n)) return OBS_PANEL_BACKGROUND.def;
+    return Math.min(OBS_PANEL_BACKGROUND.max, Math.max(OBS_PANEL_BACKGROUND.min, n));
   }
 
   /** The card: sentences, buttons and switches for a status, or the read-only card without the app. */
   function card(status, { inApp = true } = {}) {
     const switches = SWITCHES.map((s) => ({ ...s, value: status && typeof status[s.key] === 'boolean' ? status[s.key] : s.def, enabled: inApp && !!status }));
+    const view = { ...HUD_VIEW, value: hudViewOf(status), enabled: inApp && !!status };
+    const panelBackground = { ...OBS_PANEL_BACKGROUND, value: obsPanelBackgroundOf(status), enabled: inApp && !!status };
     if (!inApp || !status) {
       return {
         line: FROM_THE_APP,
@@ -185,6 +215,8 @@
         password: { show: false, hint: null },
         folder: status && status.folder ? status.folder : '',
         switches,
+        view,
+        panelBackground,
       };
     }
     const details = [];
@@ -238,6 +270,8 @@
       },
       folder: status.folder || '',
       switches,
+      view,
+      panelBackground,
     };
   }
 
@@ -251,7 +285,7 @@
     return { show: true, line, button: { label: recording.take ? 'TV shots again' : 'TV shots', command: 'tvShots', enabled: canStart, hint: canStart ? "From iRacing's replay of this race, through a TV camera, into this recording's folder." : 'Needs OBS open and nothing recording.' } };
   }
 
-  const api = { SWITCHES, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, stateLine, pill, setupSentence, filedSentence, replaySentence, hudSourceSentence, tvLine, tvSentence, raceTv, card };
+  const api = { SWITCHES, HUD_VIEW, OBS_PANEL_BACKGROUND, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, stateLine, pill, setupSentence, filedSentence, replaySentence, hudSourceSentence, hudViewOf, obsPanelBackgroundOf, tvLine, tvSentence, raceTv, card };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RacingDeskRecordingModel = api;
 })();

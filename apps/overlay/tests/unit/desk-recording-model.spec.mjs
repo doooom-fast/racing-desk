@@ -91,9 +91,13 @@ test('the card: buttons and sentences for the states, the switches, the folder',
     ['recordingAutoRecord', true, true], ['recordingInstantReplay', false, true], ['recordingChapters', true, true], ['obsStartOnRecord', true, true], ['obsStartWithApp', false, true],
     ['obsHudSource', false, true], ['tvShotsHideFacecam', true, true],
   ]);
-  // "HUD drawn by OBS", on: what it has done, from the app's last word on it.
+  // "HUD drawn by OBS", on: what it has done, from the app's last word on it — named for what it draws.
   expect(model.card({ ...READY, obsHudSource: true, obs: 'closed' }).details).toContain('HUD drawn by OBS: the HUD goes into your scenes when OBS opens.');
   expect(model.card({ ...READY, obsHudSource: true }).details).toContain('HUD drawn by OBS: the HUD is being put into your scenes.');
+  expect(model.card({ ...READY, obsHudSource: true, obsHudView: 'ipad', obs: 'closed' }).details).toContain('HUD drawn by OBS: the iPad dashboard goes into your scenes when OBS opens.');
+  expect(model.card({ ...READY, obsHudSource: true, obsHudView: 'ipad' }).details).toContain('HUD drawn by OBS: the iPad dashboard is being put into your scenes.');
+  expect(model.card({ ...READY, obsHudSource: true, obsHudView: 'ipad', hudSource: { last: { ok: true, did: 'The iPad dashboard is a browser source in 3 of your scenes, in its corner over the game.', problems: [] } } }).details)
+    .toContain('HUD drawn by OBS: The iPad dashboard is a browser source in 3 of your scenes, in its corner over the game.');
   expect(model.card({ ...READY, obsHudSource: true, hudSource: { last: { ok: true, did: 'The HUD is a browser source in 3 of your scenes, just above the game.', problems: [] } } }).details)
     .toContain('HUD drawn by OBS: The HUD is a browser source in 3 of your scenes, just above the game.');
   expect(model.card({ ...READY, obsHudSource: true, hudSource: { last: { ok: false, did: null, problems: ['OBS did not take the HUD source: gone'] } } }).details)
@@ -189,6 +193,33 @@ test('without the app the card is read-only and says so', () => {
   expect(card.setup.show).toBe(false);
   expect(card.switches.every((s) => s.enabled === false)).toBe(true);
   expect(card.switches.map((s) => s.value)).toEqual([true, false, true, true, false, false, true]);
+  expect(card.view).toMatchObject({ key: 'obsHudView', value: 'rig', enabled: false });
+  expect(card.panelBackground).toMatchObject({ key: 'obsPanelBackground', value: 90, enabled: false });
+});
+
+test('what OBS draws is a choice under the switch, Rig HUD or iPad dashboard with a sentence each, Rig HUD unless the file says ipad; the panel background for OBS is a slider of its own, 90 unless the file says, held to 0 to 100', () => {
+  expect(model.HUD_VIEW).toMatchObject({ key: 'obsHudView', label: 'What OBS draws', def: 'rig' });
+  expect(model.HUD_VIEW.options.map(([value, label]) => [value, label])).toEqual([['rig', 'Rig HUD'], ['ipad', 'iPad dashboard']]);
+  for (const [, , sentence] of model.HUD_VIEW.options) expect(sentence).toMatch(/^[A-Z][^.]+\.$/);
+  expect(model.HUD_VIEW.options[1][2]).toMatch(/corner/);
+  expect(model.hudViewOf(READY)).toBe('rig');
+  expect(model.hudViewOf({ ...READY, obsHudView: 'ipad' })).toBe('ipad');
+  expect(model.hudViewOf({ ...READY, obsHudView: 'television' })).toBe('rig');
+  expect(model.hudViewOf(null)).toBe('rig');
+  expect(model.card(READY).view).toMatchObject({ key: 'obsHudView', value: 'rig', enabled: true });
+  expect(model.card({ ...READY, obsHudView: 'ipad' }).view.value).toBe('ipad');
+  expect(model.OBS_PANEL_BACKGROUND).toMatchObject({ key: 'obsPanelBackground', def: 90, min: 0, max: 100, step: 5, unit: '%' });
+  expect(model.OBS_PANEL_BACKGROUND.hint).toMatch(/game show through/);
+  expect(model.obsPanelBackgroundOf(READY)).toBe(90);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: 35 })).toBe(35);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: 150 })).toBe(100);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: -1 })).toBe(0);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: 'thin' })).toBe(90);
+  expect(model.obsPanelBackgroundOf({ ...READY, obsPanelBackground: NaN })).toBe(90);
+  expect(model.card({ ...READY, obsPanelBackground: 35 }).panelBackground).toMatchObject({ value: 35, enabled: true });
+  // The switches are as they were: the choice and the slider are beside them, not among them.
+  expect(model.SWITCHES.map((s) => s.key)).not.toContain('obsHudView');
+  expect(model.SWITCHES.map((s) => s.key)).not.toContain('obsPanelBackground');
 });
 
 test('Save replay is there while Instant replay is on and pressable while the buffer runs; the card says what the buffer is doing and what was saved', () => {

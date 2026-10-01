@@ -972,7 +972,7 @@
         <label class="name" for="recording-${esc(s.key)}">${esc(s.label)}</label>
         <span class="hint">${esc(s.hint)}</span>
         <span class="control"><input type="checkbox" class="switch" id="recording-${esc(s.key)}" data-recording-key="${esc(s.key)}"${s.value ? ' checked' : ''}${s.enabled && !recordingBusy ? '' : ' disabled'}></span>
-      </div>`).join('')}
+      </div>${s.key === 'obsHudSource' ? hudViewHtml(view) : ''}`).join('')}
       ${!inApp ? `<p class="remote-say">${esc(RecordingModel.FROM_THE_APP)}</p>` : ''}`;
     // A card that would read the same is left alone, and one that has to change keeps what he is typing: the password
     // field, its text and its focus, which a rebuilt form would have emptied under his hands.
@@ -989,6 +989,26 @@
         try { again.setSelectionRange(typing.from, typing.to); } catch (_) { /* not selectable */ }
       }
     }
+  }
+
+  // Under the "HUD drawn by OBS" switch: what OBS draws (Rig HUD or iPad dashboard, a sentence each) and how solid the
+  // panels are in its picture (a slider of its own; Settings → Look has the one he drives with). Both are keys of the
+  // settings file, saved like the switches.
+  function hudViewHtml(view) {
+    const choice = view.view;
+    const slider = view.panelBackground;
+    const off = (field) => (field.enabled && !recordingBusy ? '' : ' disabled');
+    return `
+      <div class="field recording-hud-view">
+        <label class="name" for="recording-${esc(choice.key)}">${esc(choice.label)}</label>
+        <span class="hint">${choice.options.map(([, label, hint]) => `${esc(label)}: ${esc(hint)}`).join(' ')}</span>
+        <span class="control"><select id="recording-${esc(choice.key)}" data-recording-key="${esc(choice.key)}"${off(choice)}>${choice.options.map(([value, label]) => `<option value="${esc(value)}"${value === choice.value ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></span>
+      </div>
+      <div class="field recording-panel-background">
+        <label class="name" for="recording-${esc(slider.key)}">${esc(slider.label)}</label>
+        <span class="hint">${esc(slider.hint)}</span>
+        <span class="control"><input type="range" id="recording-${esc(slider.key)}" data-recording-key="${esc(slider.key)}" min="${slider.min}" max="${slider.max}" step="${slider.step}" value="${slider.value}"${off(slider)}><output for="recording-${esc(slider.key)}" class="num">${slider.value}${esc(slider.unit)}</output></span>
+      </div>`;
   }
 
   async function recordingCommand(name, value) {
@@ -1022,8 +1042,26 @@
     const el = ev.target.closest('[data-recording-key]');
     if (!el || !recordingBridge()) return;
     const key = el.dataset.recordingKey;
+    if (key === RecordingModel.HUD_VIEW.key) {
+      saveSetting(key, RecordingModel.hudViewOf({ obsHudView: el.value })).then(loadRecording);
+      return;
+    }
+    if (key === RecordingModel.OBS_PANEL_BACKGROUND.key) {
+      const value = RecordingModel.obsPanelBackgroundOf({ obsPanelBackground: el.value === '' ? NaN : Number(el.value) });
+      el.value = value;
+      saveSetting(key, value).then(loadRecording);
+      return;
+    }
     if (!RecordingModel.SWITCHES.some((s) => s.key === key)) return;
     saveSetting(key, !!el.checked).then(loadRecording);
+  }
+
+  function onRecordingInput(ev) {
+    // The OBS slider's readout follows the thumb; the file is written when it is let go (change).
+    const el = ev.target;
+    if (el.type !== 'range' || el.dataset.recordingKey !== RecordingModel.OBS_PANEL_BACKGROUND.key) return;
+    const out = el.parentNode.querySelector('output');
+    if (out) out.textContent = el.value + RecordingModel.OBS_PANEL_BACKGROUND.unit;
   }
 
   function onRecordingSubmit(ev) {
@@ -1088,6 +1126,7 @@
   $('settings-remote').addEventListener('click', onRemoteClick);
   $('settings-recording').addEventListener('click', onRecordingClick);
   $('settings-recording').addEventListener('change', onRecordingChange);
+  $('settings-recording').addEventListener('input', onRecordingInput);
   $('settings-recording').addEventListener('submit', onRecordingSubmit);
   $('recording-pill').addEventListener('click', onRecordingClick);
   $('detail').addEventListener('click', onRecordingClick);
