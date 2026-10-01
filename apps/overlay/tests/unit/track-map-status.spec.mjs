@@ -44,8 +44,15 @@ test.describe('what the map cell says', () => {
     expect((await waiting(page)).shown).toBe(true);
     expect((await waiting(page)).size).toBeGreaterThanOrEqual(11);
 
+    // No host: said in what he can see and do, not in the name of a part of the app. The app is running (it is what is
+    // showing this), so it is "starting its maps" at first and, when that has gone on for a minute, a thing to restart.
     await page.evaluate((p) => { window.__feed.payload = p; }, { ...MOCK_TELEMETRY, 'RacingDesk.Plugin.TrackMap.Ready': 0, 'RacingDesk.Plugin.TrackMap.Status': 'no-host' });
-    await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('The map needs the app’s host');
+    await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('No map yet — the app is starting its maps');
+    expect((await waiting(page)).text).not.toMatch(/host/i);
+    await page.evaluate(() => { window.__realNow = Date.now; Date.now = () => window.__realNow.call(Date) + 61000; });
+    await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('No map — restart the app to bring its maps back');
+    expect((await waiting(page)).text).not.toMatch(/host/i);
+    await page.evaluate(() => { Date.now = window.__realNow; });
 
     // A map: the line goes, whatever the status says.
     const race = frame({ order: fieldWith(4), state: 4, mode: 4, start: 7, lap: 12 });
@@ -101,6 +108,30 @@ test.describe('crossing the line', () => {
     }
     expect(Math.max(...off), `off by: ${off.map((s) => s.toFixed(2)).join(' ')}`).toBeLessThan(1.2);
     expect(read('modules/js/webgl-helpers.js')).not.toMatch(/jump > 15|jump > 20|resetTrackMap/);
+  });
+});
+
+test.describe('a teleport', () => {
+  test('takes the trail away: a car put in the pits is not drawn with a quarter of the lap behind it', async ({ page }) => {
+    test.setTimeout(60000);
+    await loadDashboard(page, frame({ order: fieldWith(4), state: 4, mode: 4, start: 7, lap: 12, playerPct: 0.3 }));
+    await expect.poll(() => page.evaluate(() => document.getElementById('fullMapTrackSrc').getAttribute('d').length), { timeout: 10000 }).toBeGreaterThan(100);
+    const trail = () => page.evaluate(() => (document.getElementById('fullMapTrail')?.getAttribute('points') || '').trim().split(/\s+/).filter(Boolean).length);
+    const put = async (pct, wait = 300) => {
+      const p = at(pct);
+      await page.evaluate((f) => { window.__feed.payload = f; }, frame({ order: fieldWith(4), state: 4, mode: 4, start: 7, lap: 12, playerPct: pct, extra: { 'RacingDesk.Plugin.TrackMap.PlayerX': +p.x.toFixed(2), 'RacingDesk.Plugin.TrackMap.PlayerY': +p.y.toFixed(2) } }));
+      await page.waitForTimeout(wait);
+    };
+    // Driven along, a few percent of the lap at a time: a trail grows behind the car.
+    for (let pct = 0.3; pct <= 0.46; pct += 0.01) await put(pct);
+    const driven = await trail();
+    expect(driven, 'a trail behind a car that is being driven').toBeGreaterThan(20);
+    // Put in the pits on the other side of the lap, and left there: the trail is not drawn from where the car was to
+    // where it is (a quarter of the lap, 60 of the circuit's 240 points, which is what it was clamped to). What is
+    // left is the last few points of the low-pass catching up with the car.
+    await put(0.8, 1500);
+    const teleported = await trail();
+    expect(teleported, `before ${driven} points, after ${teleported}`).toBeLessThanOrEqual(12);
   });
 });
 

@@ -718,6 +718,12 @@
   var _trailStartIdx = -1;  // index in _trackPathCoords where current trail begins
   var _trailFading = false;  // true while trail is shrinking toward player
   const _TRAIL_FADE_SPEED = 12; // indices to advance _trailStartIdx per frame during fade
+  // Where the car was on the outline a frame ago, and how far round the lap one frame may take it: a car does not
+  // drive a fiftieth of the lap in a frame, so more than that is a teleport (a reset or a tow to the pits, out of the
+  // car and back in) and the trail that was behind the car is not behind it any more.
+  var _prevPlayerIdx = -1;
+  const _TRAIL_TELEPORT_LAP_FRACTION = 0.02;
+  function _forgetTrail() { _trailStartIdx = -1; _trailFading = false; _prevPlayerIdx = -1; }
 
   // 25% of the track path length (in coordinate indices)
   function _trailMaxLen() {
@@ -865,13 +871,26 @@
 
   // What the map cell says while there is no map, by the host's TrackMap.Status: the outline is the host's, from
   // the driver's own laps, and there is nothing to reset or record here.
+  // 'no-host' is the app's own maps not answering the telemetry source: the app is running (it is what is showing this),
+  // so a minute of it is a start that has not finished or a part of the app that has stopped, and restarting the app
+  // starts it again. What it says is what he can do about it, in his words, and not the name of a part of the app.
   const _MAP_WAITING = {
     'first-lap': 'Map after one clean lap',
-    'no-host': 'The map needs the app’s host',
+    'no-host': 'No map yet — the app is starting its maps',
   };
+  const _MAP_NO_HOST_LONG = 'No map — restart the app to bring its maps back';
+  const _MAP_NO_HOST_LONG_AFTER_MS = 60000;
+  let _mapNoHostSince = 0;
   let _mapWaitingShown = '';
   function _setMapWaiting(status, hasPath) {
-    const text = hasPath ? '' : (_MAP_WAITING[status] || '');
+    let text = hasPath ? '' : (_MAP_WAITING[status] || '');
+    if (status === 'no-host' && !hasPath) {
+      const now = Date.now();
+      if (!_mapNoHostSince) _mapNoHostSince = now;
+      if (now - _mapNoHostSince >= _MAP_NO_HOST_LONG_AFTER_MS) text = _MAP_NO_HOST_LONG;
+    } else {
+      _mapNoHostSince = 0;
+    }
     if (text === _mapWaitingShown) return;
     _mapWaitingShown = text;
     const el = document.getElementById('fullMapWaiting');
@@ -1014,6 +1033,7 @@
       _mapLastPath = '';
       _mapHasInit = false;
       _trackPathCoords = [];
+      _forgetTrail();
       // Clear the source paths — the <use> layers pointing at them
       // (outer/middle/inner × full/zoom) clear in lockstep.
       ['fullMapTrackSrc', 'zoomMapTrackSrc'].forEach(function(id) {
@@ -1038,6 +1058,7 @@
       _mapHasInit = false;
       // Parse coordinates for snapping and off-track detection
       _trackPathCoords = _parsePathCoords(svgPath);
+      _forgetTrail();   // the indices of the trail were of the outline before
       // The three rendered layers (outer / middle / inner) are <use>
       // elements that reference a single source <path> in <defs>. Update
       // the two source paths (full + zoom) and all six rendered layers
@@ -1173,6 +1194,14 @@
     // Find player's nearest point on track (used for off-track detection + trail)
     var playerNearest = _trackPathCoords.length > 10 ? _nearestTrackPoint(sx, sy) : null;
     var playerIdx = playerNearest ? playerNearest.idx : -1;
+
+    // A teleport: the trail was anchored behind the car, and the car is somewhere else. Round the loop the short way
+    // (a step across the line is a step); more than a fiftieth of the lap in one frame is no drive.
+    if (playerIdx >= 0 && _prevPlayerIdx >= 0 && _trackPathCoords.length > 10) {
+      var _n = _trackPathCoords.length, _d = Math.abs(playerIdx - _prevPlayerIdx);
+      if (Math.min(_d, _n - _d) > _n * _TRAIL_TELEPORT_LAP_FRACTION) { _trailStartIdx = -1; _trailFading = false; }
+    }
+    _prevPlayerIdx = playerIdx;
 
     // Off-track detection
     let isOffTrack = playerNearest ? playerNearest.dist > _OFF_TRACK_DIST : false;
