@@ -26,8 +26,5 @@
     "@playwright/test": "^1.58.2",
     "@racing-desk/replay": "*",
     "@racing-desk/calc": "*"
-  },
-  "dependencies": {
-    "ffmpeg-static": "^5.2.0"
   }
 }

@@ -119,54 +119,10 @@ contextBridge.exposeInMainWorld('racingDesk', {
     ipcRenderer.on('logo-livery', (_event, dataUrl) => callback(dataUrl));
   },
   getLogoLivery: () => ipcRenderer.invoke('get-logo-livery'),
-  // Screen recording
-  startRecording: (opts) => ipcRenderer.invoke('start-recording', opts),
-  stopRecording: () => ipcRenderer.invoke('stop-recording'),
-  writeRecordingChunk: (buf) => ipcRenderer.invoke('write-recording-chunk', buf),
-  getRecordingState: () => ipcRenderer.invoke('get-recording-state'),
-  // Native-backend recording (WinUI host owns the FFmpeg pipeline).
-  // Renderer calls these instead of the in-process recorder when
-  // recordingBackend === 'native'. Host port is discovered via
-  // settings.hostControlPort. See docs/recording-migration.md.
-  startNativeRecording: (opts) => ipcRenderer.invoke('start-native-recording', opts),
-  stopNativeRecording: () => ipcRenderer.invoke('stop-native-recording'),
-  getNativeRecordingState: () => ipcRenderer.invoke('get-native-recording-state'),
-  onToggleRecording: (callback) => {
-    ipcRenderer.on('toggle-recording', () => callback());
-  },
-  onRecordingDebug: (callback) => {
-    ipcRenderer.on('recording-debug', (_event, data) => callback(data));
-    return () => {
-      ipcRenderer.removeAllListeners('recording-debug');
-    };
-  },
-  // FFmpeg transcode
-  getFfmpegInfo: () => ipcRenderer.invoke('get-ffmpeg-info'),
-  transcodeRecording: (webmPath, opts) => ipcRenderer.invoke('transcode-recording', webmPath, opts),
-  onTranscodeProgress: (callback) => {
-    ipcRenderer.on('transcode-progress', (_event, progress) => callback(progress));
-  },
-  // Telemetry sidecar (JSONL alongside video)
-  sidecarStart: (filePath) => ipcRenderer.invoke('sidecar-start', filePath),
-  sidecarWrite: (filePath, chunk) => ipcRenderer.send('sidecar-write', filePath, chunk),
-  sidecarStop: (filePath) => ipcRenderer.invoke('sidecar-stop', filePath),
-  // Replay buffer
-  saveReplayBuffer: (opts) => ipcRenderer.invoke('save-replay-buffer', opts),
-  onSaveReplayBuffer: (callback) => {
-    ipcRenderer.on('save-replay-buffer', () => callback());
-  },
-  // Replay Director (Phase 5)
-  startReplayDirector: (sidecarPath) => ipcRenderer.invoke('start-replay-director', sidecarPath),
-  cancelReplayDirector: () => ipcRenderer.invoke('cancel-replay-director'),
-  getReplayDirectorState: () => ipcRenderer.invoke('get-replay-director-state'),
-  parseSidecarMoments: (sidecarPath) => ipcRenderer.invoke('parse-sidecar-moments', sidecarPath),
-  onReplayDirectorProgress: (callback) => {
-    ipcRenderer.on('replay-director-progress', (_event, progress) => callback(progress));
-  },
-  onReplayDirectorRecord: (callback) => {
-    ipcRenderer.on('replay-director-record', (_event, data) => callback(data));
-  },
-  onToggleReplayDirector: (callback) => {
-    ipcRenderer.on('toggle-replay-director', () => callback());
+  // Recording is OBS's, kept by the main process (modules/js/obs): the page records nothing and is told nothing of a
+  // recording's state, which OBS would film. The one thing it may be told is a sentence to show for two seconds —
+  // "OBS is not open", "OBS didn't start recording" — which hud-notice.js draws.
+  onHudNotice: (callback) => {
+    ipcRenderer.on('hud-notice', (_event, text) => callback(text));
   },
 });

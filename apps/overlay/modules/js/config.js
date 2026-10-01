@@ -669,30 +669,8 @@ const _defaultSettings = {
   coachTone: 'coach',    // 'broadcast', 'coach', 'mentor'
   coachDepth: 'standard', // 'quick', 'standard', 'deep'
   theme: 'dark',               // 'dark' or 'light'
-  // Screen recording
-  recordingQuality: 'high',     // 'low', 'medium', 'high'
-  recordingMic: true,           // include microphone audio
-  recordingMicDevice: '',       // WinRT DeviceInformation.Id from host picker (or Chromium id for legacy saves)
-  recordingMicLabel: '',        // Friendly name; overlay uses this to resolve to a Chromium deviceId at record-start
-  recordingSystemAudioDevice: '',// WinRT DeviceInformation.Id for the virtual audio cable
-  recordingSystemAudioLabel: '',// Friendly name companion to recordingSystemAudioDevice
-  recordingMicVolume: 0.8,      // 0.0–1.0 — mic gain in the mix
-  recordingSystemVolume: 1.0,   // 0.0–1.0 — system/game audio gain
-  recordingWebcamDevice: '',    // WinRT DeviceInformation.Id — empty = no facecam
-  recordingWebcamLabel: '',     // Friendly name companion to recordingWebcamDevice
-  recordingFacecam: null,       // { width, height, x, y, margin, ... }
-  recordingFacecamSize: 'medium', // 'small', 'medium', 'large'
-  recordingFacecamPos: 'bottom-right', // 'bottom-right', 'bottom-left', 'top-right', 'top-left'
-  recordingDirectory: '',       // empty = system Videos folder
-  recordingOutputFormat: 'mp4', // 'mp4' (transcode) or 'webm' (raw)
-  recordingEncoder: 'auto',    // 'auto', 'h264_nvenc', 'h264_qsv', 'h264_amf', 'libx264'
-  recordingDeleteSource: true,  // delete .webm after successful MP4 transcode
-  // Phase 4: Smart recording
-  recordingAutoRecord: false,   // auto-start/stop based on pit lane + session
-  recordingAutoStopOnPit: true, // stop recording on pit entry (stint split)
-  // Phase 4: Replay buffer
-  replayBufferEnabled: false,   // keep rolling buffer in memory
-  replayBufferDuration: 60,     // buffer length in seconds (30–120)
+  // Recording has no defaults here: OBS records, and the main process keeps the recording settings
+  // (modules/js/recording-settings.js lists them). The page reads none of them.
   // Commentary — the authoritative copy lives here, and nothing relays it to the
   // plugin: the runtime has no setSetting route (settings.js).
   commentaryPromptDuration: 15,        // seconds a prompt stays on screen (5–120)
@@ -708,6 +686,10 @@ const _defaultSettings = {
 };
 
 let _settings = Object.assign({}, _defaultSettings);
+// A top-level `let` in a classic script is not a property of window, so `window._settings` was undefined from the
+// first recording code in April 2026 until 2026-09-30, and every module that read it (ambient-capture.js's capture
+// rect among them) got nothing. settings.js assigns into this object, never replaces it, so the reference stays current.
+window._settings = _settings;
 
 // Discord state
 let _discordUser = null;

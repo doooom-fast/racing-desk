@@ -22,7 +22,6 @@ files:
   - streamdeck/racing-desk/com.doooom.racingdesk.sdPlugin/**/*
   - "!streamdeck/racing-desk/com.doooom.racingdesk.sdPlugin/logs/**/*"
   - "!**/node_modules/**/*"
-  - node_modules/ffmpeg-static/**/*
   - "!**/tests/**/*"
   - "!**/test-results/**/*"
   - "!playwright.config.*"
@@ -33,7 +32,9 @@ extraResources:
     to: host
 
 asarUnpack:
-  - node_modules/ffmpeg-static/**/*
+  # The Stream Deck plugin is copied into the Stream Deck app's plugin folder by file (modules/js/streamdeck-install.js),
+  # and Electron's asar layer does not serve the directory walk a copy needs, so it is unpacked.
+  - streamdeck/racing-desk/com.doooom.racingdesk.sdPlugin/**/*
   # The worker that crops the car's paint for the HUD's badge (modules/js/logo-livery.js) is started by file path,
   # from the unpacked copy, with the files it requires beside it.
   - modules/js/logo-livery-worker.js

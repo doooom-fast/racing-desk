@@ -1,0 +1,30 @@
+/* ═══════════════════════════════════════════════
+   HUD NOTICE
+   One sentence from the main process, shown for two seconds: "OBS is not open" or "OBS didn't start recording".
+   Nothing of a recording's state is drawn on the HUD, which is in every recording.
+   ═══════════════════════════════════════════════ */
+
+.hud-notice {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  z-index: 60;
+  padding: 7px 14px;
+  background: hsla(0, 0%, 8%, 0.82);
+  border: 1px solid hsla(0, 0%, 100%, 0.18);
+  border-radius: var(--corner-r, 8px);
+  color: hsl(0, 0%, 92%);
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  pointer-events: none;     /* click-through, like the rest of the HUD */
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  user-select: none;
+}
+
+.hud-notice.hud-notice-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}

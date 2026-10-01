@@ -482,8 +482,7 @@
       if (carModel && !_demo && typeof recordCarSession === 'function') recordCarSession(carModel);
     }
 
-    // Expose latest car + track + game on window so the recorder/sidecar
-    // can stamp recording metadata at start time without polling p[].
+    // The latest car, track and game on window, for anything that wants them without polling p[].
     // Pattern matches `window._currentGameId` above.
     window._currentCarModel = carModel || null;
     window._currentTrackName = ds('DataCorePlugin.GameData.TrackName', 'Demo.TrackName') || null;
@@ -1381,19 +1380,8 @@
     setApiFps(+v('DataCorePlugin.GameRawData.Telemetry.FrameRate') || 0);
     updateFps();
 
-    // ─── Telemetry sidecar (write frame when recording) ───
-    try {
-      if (typeof window.sidecarCaptureFrame === 'function' && typeof window.recorderIsRecording === 'function' && window.recorderIsRecording()) {
-        window.sidecarCaptureFrame(p, !!_demo);
-      }
-    } catch(e) { console.error('[RacingDesk] Sidecar error:', e); }
-
-    // ─── Auto-record triggers (Phase 4) ───
-    try {
-      if (typeof window.checkAutoRecordTriggers === 'function') {
-        window.checkAutoRecordTriggers(p, !!_demo, _inPitLane, sessNum, serverEndOfRace);
-      }
-    } catch(e) { console.error('[RacingDesk] Auto-record error:', e); }
+    // Recording is not the page's: OBS records the screen and the main process writes the telemetry sidecar
+    // beside it (modules/js/obs). Nothing of a recording is drawn here, because the HUD is in the picture.
 
     } catch (err) {
       console.error('[K10 render] Error in frame #' + _pollFrame + ':', err);

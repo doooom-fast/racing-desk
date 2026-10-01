@@ -166,9 +166,12 @@ const ACTIONS = Object.freeze([
   { name: 'pitbox-next-tab', label: 'Pit Box Next', category: 'pitbox' },
   { name: 'pitbox-prev-tab', label: 'Pit Box Prev', category: 'pitbox' },
   { name: 'dismiss-commentary', label: 'Dismiss Commentary', category: 'commentary' },
+  // Recording is OBS's (modules/js/obs): Record and Stop are one action, the Stream Deck's "Toggle Recording" button.
   { name: 'toggle-recording', label: 'Record', category: 'recording' },
+  { name: 'start-recording', label: 'Record', category: 'recording' },
+  { name: 'stop-recording', label: 'Stop recording', category: 'recording' },
   { name: 'save-replay-buffer', label: 'Save Replay', category: 'recording' },
-  { name: 'toggle-replay-director', label: 'Replay Director', category: 'recording' },
+  { name: 'tv-shots', label: 'TV shots', category: 'recording' },
   { name: 'restart-demo', label: 'Restart Demo', category: 'demo' },
   { name: 'reset-trackmap', label: 'Reset Track Map', category: 'demo' },
   { name: 'toggle-rating-editor', label: 'Rating Editor', category: 'editor' },
@@ -451,7 +454,14 @@ function handleRequest(config, req, res) {
     const name = pathname.slice('/api/action/'.length).replace(/\/$/, '');
     if (!ACTIONS.some((a) => a.name === name)) sendJson(res, 404, { ok: false, reason: `unknown action: ${name}` });
     else if (typeof config.dispatchAction !== 'function') sendJson(res, 503, { ok: false, reason: 'action dispatcher not initialized' });
-    else sendJson(res, 200, config.dispatchAction(name));
+    else {
+      // A recording action waits on OBS (modules/js/obs), so an answer may be a promise: the Stream Deck's tick or cross
+      // goes by what it resolves to, as it did by what was returned.
+      Promise.resolve().then(() => config.dispatchAction(name)).then(
+        (answer) => sendJson(res, 200, answer),
+        (err) => sendJson(res, 500, { ok: false, reason: err && err.message ? err.message : String(err) }),
+      );
+    }
     return;
   }
 
