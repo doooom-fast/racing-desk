@@ -42,8 +42,8 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `obs/auto-record.js` | Pure: when a recording starts and stops by itself — the green flag in a race, pit exit elsewhere; a new session, five seconds after HIS finish in a race (the chequered flag out and his lap count up since; the flag is the session's), leaving the car; held a second by the clock; only its own stopped; a green flag good once per stint |
 | `obs/filing.js` | Pure: the recording's folder name (`<date> <track> <car>`), the same-drive move after the file holds still, the offset from the chapters read back (each paired with the same-named chapter nearest to where it belongs, the median of what agrees) or from the file's end (the pauses allowed for), the words of each chapter |
 | `obs/mp4-info.js` | An MP4's duration and chapters read by seeking, no ffmpeg: a finished Hybrid MP4 or plain MP4 from its `moov`, an unfinished Hybrid MP4 from its fragments |
-| `obs/hud-source.js` | **Main process**: "HUD drawn by OBS" — the one browser source `Racing Desk HUD` (the loopback listener's `/obs` page) made once, an item of it in each of his scenes just above `game video` and fitted to it, reloaded at every connect, disabled off and on quit, never removed; main.js takes the HUD's window out of the capture (`setContentProtection`) before it is enabled |
-| `obs/tv-shots.js` | **Main process**: TV shots — the sidecar's moments (places gained, incidents, the pit lane) found again in iRacing's replay by their `sn`/`st` through the host's replay route (the SDK's own commands; no key), recorded through a TV camera as one take in the race's folder, the recording paused between moments, the facecam hidden and put back, auto-record held; progress to the desk, the tray and the Stream Deck |
+| `obs/hud-source.js` | **Main process**: "HUD drawn by OBS" — the one browser source `Racing Desk HUD` (the loopback listener's `/obs` page, at the port the listener is really on) made once, an item of it in each scene that has an item named `game video`, in the collection the switch was turned on in and no other, just above it and fitted to it (the source is the HUD window's size in DIPs, scaled up by OBS), reloaded when OBS answers unless the page is polling, disabled off — applied at every connect, then the window goes back into the capture — and on quit, never removed; what he hid or moved is left (`apply` does the ordering, with `setContentProtection` handed in as `protect`) |
+| `obs/tv-shots.js` | **Main process**: TV shots — the sidecar's moments (places gained, incidents, the pit lane) found again in iRacing's replay by their `sn`/`st` through the host's replay route (the SDK's own commands; no key; refused by the host while he is on track), recorded through a TV camera on his car by its number as one take in the race's folder, the recording paused between moments, a moment the sim does not reach skipped, the take ended where it is when he gets in the car, OBS stops it, iRacing leaves its replay, Stop or the quit; the facecam hidden, kept in `tv-state.json` and put back whatever happened, auto-record held; progress to the desk, the tray and the Stream Deck |
 | `obs/recordings-index.js` | Pure: the recordings folder read by each folder's sidecar header — the race's recording by the session's start and track, the latest for the tray |
 | `hud-notice.js` | The one thing the HUD may be told of recording, for two seconds: "OBS is not open", "OBS didn't start recording" |
 | `telemetry-sidecar.js` | Pure: the `.telemetry.jsonl` beside the video, written by the keeper; every frame carries the sim's `SessionNum` and `SessionTime` (`docs/telemetry-sidecar-schema.md`) |
@@ -444,8 +444,11 @@ folder, which electron-builder unpacks from the asar, and is installed from ther
 (`tests/unit/streamdeck-install.spec.mjs` runs the built plugin against a fake Stream Deck app).
 
 `remote-server.js` is two servers of one kind (`createServer`): the iPad's on the home network, and the loopback one on
-`127.0.0.1:9091` for the programs on this machine — the actions, `/api/status`, `/api/settings-display` (the allowlist
-`DISPLAY_SETTINGS` and the `show*` switches, never a key, a folder, an address or a device) and `/obs`.
+`127.0.0.1:9091` for the programs on this machine — the actions, `/api/status` (with his HUD switch, `hudOff`, and the
+page-only actions pressed on the rig, `hudActions`, which the OBS page asks once a second and does; `window.runHudAction`
+in `keyboard.js`), `/api/settings-display` (the allowlist `DISPLAY_SETTINGS` and the `show*` switches, never a key, a
+folder, an address or a device) and `/obs` (hidden from the first paint until the page has started, and while he has the
+HUD away). It is started with retries (`startWithRetry`) until it is up.
 `tests/unit/remote-server.spec.mjs` and `tests/unit/hud-page-obs.spec.mjs` (the real page through the listener, headless).
 
 ## Deployment Modes

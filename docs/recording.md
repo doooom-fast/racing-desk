@@ -200,27 +200,50 @@ pointed at it so that every file move into a recording's folder is a rename on t
 
 The iPad's server (port 9090, on the home network, switched on from the desk) has a twin that is always up, on
 `127.0.0.1` alone, port 9091 (`localServerPort`), for the programs on this machine: the Stream Deck's buttons ask it for
-the actions, whatever the iPad switch says; `/api/status` says in the car or not, the HUD on screen or not, and the
-recording in short; `/api/settings-display` is his display settings through an allowlist — the panels, the zoom, the
-position, the look — and never a key, a folder, an address, a device or anything of the recording's; and `/obs` is the
-HUD page for OBS (next). It never has a key to show and never listens on any other address; the LAN server knows none
-of the three routes.
+the actions, whatever the iPad switch says; `/api/status` says in the car or not, the HUD on screen or not, whether he
+has put the HUD away (`hudOff`), the page-only actions pressed on the rig (`hudActions`, below) and the recording in
+short; `/api/settings-display` is his display settings through an allowlist — the panels, the zoom, the position, the
+look — and never a key, a folder, an address, a device or anything of the recording's; and `/obs` is the HUD page for OBS
+(next). It never has a key to show and never listens on any other address; the LAN server knows none of the three
+routes. If its port is taken when the app starts it is tried again, two seconds, five, fifteen and then every half
+minute, with the port read afresh from the settings at each try, until it is up (the log says so); the HUD source is not
+given to OBS while it is down, and is when it comes up.
 
 ## HUD drawn by OBS (`modules/js/obs/hud-source.js`)
 
 Off unless he turns the switch on (the Recording card). The HUD is then in the picture as a browser source of OBS's
-own, from `http://127.0.0.1:9091/obs`, instead of through his screen capture: the page told it is OBS's
-(`window._obsMode`), its telemetry from the same listener, his display settings with it and asked for again every ten
-seconds (a change on the desk reaches this copy too), no background, no iPad menu, the voice coach off (the rig is
-already talking), the livery crop fetched from the listener, nothing asked of the runtime, and hidden out of the car
-(a window is hidden then; a browser source is not, and a frozen HUD over the garage would be filmed). Throwing the
-switch: the HUD's own window is taken out of every screen capture first (`setContentProtection`, which takes effect at
-the next composition), then OBS is given one input, `Racing Desk HUD` — made once; OBS refuses a second of that name —
-as a scene item in each of his scenes (CreateSceneItem), put just above his `game video` (his facecam stays above the
-HUD) and given the game video's place and size (his 2up scene scales the HUD with the game), enabled, and reloaded
-(`refreshnocache`: CEF 127 in OBS 32 has no handler for a page that failed to load, so the page is reloaded at every
-connect and the source switched off when Racing Desk quits). Off again, the items are disabled and never removed;
-nothing of his is ever removed. The card says in one sentence what it did. Not seen on this rig: how CEF 127 lays the
+own, from `http://127.0.0.1:9091/obs` (the port the listener is really on), instead of through his screen capture: the
+page told it is OBS's (`window._obsMode`), its telemetry from the same listener, his display settings with it and asked
+for again every ten seconds (a change on the desk reaches this copy too), no background, no iPad menu, the voice coach
+off (the rig is already talking), the livery crop fetched from the listener, nothing asked of the runtime. It is not
+drawn at all until the page has started and said he is in the car (its markup is hidden from the first paint, so that a
+page loading in OBS does not put the HUD's skeleton over the game or the garage), nor while he has the HUD away
+(Ctrl+Shift+H, the tray, the Stream Deck, Quit Overlay: the page asks `/api/status` once a second). The page-only actions
+pressed on the rig — Zoom In and Out, Cycle Rating and Logo, the pit box tabs, Dismiss Commentary — change the rig's page
+and are saved nowhere, so the app notes the last sixteen of them with a number in the status and the OBS page does each
+once (what was pressed before it began is not done again); the mode presets and the panels' switches are saved, and
+reach it by its ten-second ask of the settings. The source is the size of the rig's HUD window in DIPs, which is what the
+rig's page is laid out in, and OBS scales it up to the game (a source in physical pixels would lay the page out larger
+than the rig's, and the recorded HUD would be smaller than the one he sees wherever the screen is not at 100 %).
+
+Throwing the switch: the HUD's own window is taken out of every screen capture first (`setContentProtection`, which
+takes effect at the next composition), then OBS is given one input, `Racing Desk HUD` — made once; OBS refuses a second
+of that name — as a scene item (CreateSceneItem), put just above his `game video` (his facecam stays above the HUD) and
+given its place and size (his 2up scene scales the HUD with the game), and reloaded (`refreshnocache`: CEF 127 in OBS
+32 has no handler for a page that failed to load, so the page is reloaded when OBS answers, unless it is polling, which
+a reconnect in the middle of a race leaves alone: the HUD in OBS keeps its session best and its sparklines). It goes into
+the scene collection the switch was turned on in and no other (kept in `hud-source-state.json`; on another collection a
+connect, or a change of collection, leaves it alone and the window stays in the capture there), and into the scenes of
+that collection that have an item named `game video` and no other: nothing is guessed from the captures a scene has (his
+"sim video with voice" has a SimHub window and a game capture of another name). An item that is there is left where he has
+put it and enabled again only if Racing Desk is what disabled it (on the way out, or when the switch went off), so a
+scene he hid it in stays so; it is fitted again only when the HUD's size has changed (the HUD moved screens).
+
+Off again, OBS is told first — at every connect, whatever the last word was, so an item left enabled (the switch turned
+off while OBS was closed, a crash, a restart) is switched off — and the window goes back into the capture after, so that
+the two HUDs are never in the picture together. The items are disabled and never removed; nothing of his is ever removed.
+The source is also disabled when Racing Desk quits, except for the Ctrl+Shift+G relaunch, which is back within seconds and
+leaves the page in OBS loaded. The card says in one sentence what it did. Not seen on this rig: how CEF 127 lays the
 HUD out (its `zoom`), and that `setContentProtection` leaves the window out of his display capture — the first run
 with the switch on tells.
 
@@ -228,20 +251,35 @@ with the switch on tells.
 
 After a race, from the desk's race detail (the race's recording), the tray or the Stream Deck (the latest recording):
 the moments the recording's telemetry sidecar found — the places gained, the incidents, the pit stops; merged within
-five seconds, at most twenty, the biggest first — recorded again from iRacing's own replay through a TV camera, as one
-take in the race's folder, `<the race's video> tv.mp4` with its sidecar (`kind: "tv"`, no chapters). The replay is
-driven through the app's own host, which sends the SDK's own commands (`POST /racing-desk/data/replay`: seek by the
-sidecar's `sn` and `st` — the frame three seconds before each moment — speed, the camera focused on his car in TV1,
-TV2, TV3 in turn; for a program on this machine alone, like the `?action=` routes). No key is pressed. Only out of the
-car, with OBS answering, nothing recording and iRacing in its replay (open the replay in iRacing first); otherwise one
-sentence says what is missing. For the take auto-record is held, and his facecam is hidden in the scene being recorded
-("Hide the facecam during TV shots", on) and put back after, whatever happened. The replay is paused and the first
-moment sought and waited for (the sim says where it is); the recording starts; each moment plays at real speed and the
-replay pauses; between moments the recording is paused and resumed once the next seek has landed, so the take holds
-the moments and nothing of the seeking; after the last the recording stops and is filed. Progress is on the desk's
+five seconds for up to half a minute of markers, at most twenty, the biggest first; the markers of every summary line of
+the sidecar, so that a recording Racing Desk resumed is not shortened to its last stretch — recorded again from
+iRacing's own replay through a TV camera, as one take in the race's folder, `<the race's video> tv.mp4` with its sidecar
+(`kind: "tv"`, no chapters). The replay is driven through the app's own host, which sends the SDK's own commands
+(`POST /racing-desk/data/replay`: seek by the sidecar's `sn` and `st` — the frame three seconds before each moment —
+speed, the camera focused on his car by its number (the driver's focus names no car) in TV1, TV2, TV3 in turn, and
+the camera flags: iRacing's own replay controls are hidden for the take and the flags and the play speed put back; for a
+program on this machine alone, like the `?action=` routes, and refused with a 409 while the sim says he is on track). No
+key is pressed. Only out of the car, with OBS answering, nothing recording and iRacing in its replay of this race (the
+track the sim says is the sidecar's); otherwise one sentence says what is missing. For the take auto-record is held, and
+his facecam is hidden in the scene being recorded ("Hide the facecam during TV shots", on) and put back as soon as the
+recording has stopped. The replay is paused and the first moment sought and waited for (the sim says where it is); the
+recording starts; each moment plays at real speed and the replay pauses; between moments the recording is paused and
+resumed once the next seek has landed, so the take holds the moments and nothing of the seeking. A moment the sim does
+not reach within fifteen seconds is skipped, said and counted ("2 moments (1 was not in the replay)"); with none reached
+nothing is recorded and no take is filed. After the last the recording stops and is filed.
+
+The take ends where it is, with a sentence saying why, when he gets in the car (main's signal or the sim's own, looked at
+before every command and every half second while a moment plays; nothing more is sent to the replay after that), when
+iRacing leaves its replay (twice running), when OBS stops the take (his Ctrl+Space) or does not take the pause or the
+resume, when he presses Stop (the moment that is playing is cut short) and when the app quits. His facecam is written
+to `tv-state.json` (scene, item id, name) before it is hidden and cleared when it is shown again; a quit shows it again at
+once (and waits for a take that has hidden it, even before the first seek has landed), and what a crash or an OBS that went
+away left hidden is shown again at the next start of the app or the next time OBS answers — only an item still hidden that
+the file names, by scene, id and name. A take left running by a Racing Desk that was closed in the middle of it is kept in
+`recording-state.json` with its `take`, and is stopped and filed as the take it was when the next one finds it. Progress is on the desk's
 pill (with Stop), the Recording card, the race detail, the tray and the Stream Deck's key. Not seen on this rig: that
-iRacing lands a `ReplaySearchSessionTime` where the sidecar's clock says (the first take tells; a seek that the sim
-does not confirm within fifteen seconds is recorded where the replay is, and said in the log).
+iRacing lands a `ReplaySearchSessionTime` where the sidecar's clock says, that the camera follows his car by its number,
+that its replay controls are out of the shots, and what `IsReplayPlaying` does while a seek lands (the first take tells).
 
 ## Settings (`overlay-settings.json`, migrated once by `modules/js/recording-settings.js`)
 
@@ -275,9 +313,12 @@ pill should read "Recording" a second later, and getting out of the car should s
 the green flag. With Instant replay on, Ctrl+Shift+B in the car should put a `Replay …` clip and its sidecar in the
 recording's folder. Open the finished MP4 in a player that lists chapters (VLC, DaVinci Resolve) and see the laps.
 
-Then, with the iPad view off, press a Stream Deck key: it should answer (the listener on this PC is what it asks now).
+Then, with the iPad view off, press a Stream Deck key: it should answer (the listener on this PC is what it asks now). The
+Stream Deck app runs the plugin it started with, so after the first start of this build it has to be restarted before its
+keys use the new plugin and the TV Shots action is in its list (the log says so when the plugin was replaced).
 Then "HUD drawn by OBS": switch it on with OBS open, look at OBS's preview — the HUD should be there once, over the
 game and under the facecam, laid out as on the screen — and at a recording made with it on: the HUD once, not twice.
 Then TV shots: after a race, open its replay in iRacing, pick the race on the Desk page and press TV shots; the pill
 should count the moments, the facecam should go and come back, and the race's folder should hold `… tv.mp4` and its
-sidecar; watch whether each moment is where the race had it (the first take says whether the sim lands the seeks).
+sidecar; watch whether each moment is where the race had it (the first take says whether the sim lands the seeks), that the camera
+follows his car, and that iRacing's replay bar is not in the shots; and that getting into the car during a take stops it.
