@@ -27,7 +27,7 @@ repo's home is `DOOOOM/racing-desk`.
 | `apps/host/RacingDesk.Host/` | Standalone host: live iRacing or `.ibt` replay → same `:8889` contract, records sessions | — |
 | `apps/plugin/` | SimHub plugin — now a thin adapter over RacingDesk.Core (SimHub dashes, actions, events). `racing-desk.sln` at the root builds all .NET projects | [`apps/plugin/CLAUDE.md`](apps/plugin/CLAUDE.md) |
 | `packages/calc/` | Calc engines ported from prodrive-server (verbatim, with their tests) plus the local model that turns stored sessions into their inputs; bundled into the desk | — |
-| `apps/edit/` | Node CLI for `.rcpdv` bundle editing | [`apps/edit/CLAUDE.md`](apps/edit/CLAUDE.md) |
+| `apps/edit/` | Node CLI that cuts a recording by its telemetry sidecar (loose files by folder; the `.rcpdv` bundle is gone) | [`apps/edit/CLAUDE.md`](apps/edit/CLAUDE.md) |
 | `apps/livery/` | Python CLI: livery spec (YAML, car space) → the TGA paint + spec map iRacing loads, self-checked, installed into `Documents\iRacing\paint` | [`apps/livery/docs/DESIGN.md`](apps/livery/docs/DESIGN.md), skill `livery-pipeline` |
 | `docs/` | Cross-app context; `docs/archive/` is superseded | [`docs/README.md`](docs/README.md) |
 | `.claude/skills/` | Project skills (overlay, plugin, racing domain, bundle format) | — |
@@ -556,28 +556,14 @@ layouts. The rule, in the order it is applied:
    stability; the real `EnumDisplayMonitors` was run once on this machine (one screen then), not on both screens; the
    rule, the wiring and the host's routes are tested, the Electron calls are not.
 
-   **A recording and the ambient colour follow the sim's screen** (both looked at the primary or the first screen,
-   always, until 2026-09-29). The recording exists to record the race, so a screen he chose in Settings for the HUD is
-   the HUD's place and not the recording's: while the sim runs, the recording and the colour are both of the screen the
-   sim's window is on — with the HUD on the small screen by his choice and the sim on the ultrawide, the recording is
-   of the ultrawide, and the colour's region is ratios taken from the HUD's window on the chosen screen. While the sim
-   has no window the recording is of the screen the HUD is on (where the ini or the size puts it, or the one he chose)
-   and the colour is sampled on the primary.
-   - **A recording** (`recorder.js`'s `getDisplayMedia`, granted without a picker by `setDisplayMediaRequestHandler` in
-     `main.js`) is of `hudScreen.recordScreen()`: `{ key, reason }`, the key of the screen the sim's window was last seen
-     on while the host says the sim is running (`reason: 'sim'`) — kept by `hud-display.js` apart from its decision, which
-     a chosen screen wins before the sim's window is looked at — else the screen the rule last chose for the HUD (`'hud'`;
-     `currentKey()`). It asks nothing: it is what the rounds that decide the HUD's screen (each time he gets in the car,
-     a screen added or removed, Ctrl+Shift+R, a changed choice) last found. The host not saying where the sim is leaves
-     it where it was last seen, as for the HUD; the sim saying it is not running, or being on none of the screens,
-     forgets it, and so does the screen being unplugged. `modules/js/capture-screen.js` matches desktopCapturer's
-     sources to the key by `display_id`, which on Windows is Electron's `display.id` as text (Electron's documentation
-     says so; not yet seen on this rig). While nothing is known (the rule has not run), or no source is that screen (it
-     has gone, or the platform's ids do not agree), it is the first screen; the log says which and why
-     (`Screen recording: the sim's screen (Screen 2)`, or `the HUD's screen`), and where none matched, the key and every
-     source's `display_id`, so ids that never agree show. In dev mode the key is the rule's choice, not where `dev-mode.js`
-     put the window. `tests/unit/capture-screen.spec.mjs` (a chosen small screen and the sim on the ultrawide among
-     them), `hud-display.spec.mjs`, and the wiring in `hud-main-wiring.spec.mjs`.
+   **The ambient colour follows the sim's screen** (it looked at the primary or the first screen, always, until
+   2026-09-29). A screen he chose in Settings for the HUD is the HUD's place: while the sim runs the colour is sampled on
+   the screen the sim's window is on — with the HUD on the small screen by his choice and the sim on the ultrawide, the
+   colour's region is ratios taken from the HUD's window on the chosen screen. While the sim has no window the colour is
+   sampled on the primary. (A recording was of the sim's screen by the same rule, through the Electron recorder's
+   `getDisplayMedia`; since 2026-09-30 OBS records, through his own display capture, and the app grants no screen
+   capture at all — `docs/recording.md`. `hud-display.js` still keeps `recordScreen()`, the screen the sim was last seen
+   on, for whatever asks it next.)
    - **The ambient colour** (`RacingDesk.Core/Engine/ScreenColorSampler.cs`, in the app's host and in the SimHub plugin
      alike) is sampled on the monitor the sim's window is on — `RacingDesk.Core/Screens/SimMonitor.cs`, with the same
      lookup the `simwindow` route makes (it and the monitors' lookup moved from the host into `RacingDesk.Core/Screens/`

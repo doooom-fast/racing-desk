@@ -4,7 +4,7 @@ A standalone Electron overlay that renders real-time sim racing telemetry as a t
 
 This is the Electron half of The Racing Desk: the HUD (`dashboard.html`) and the desk window (`desk.html`), one app. It is built by `npm run build` at the monorepo root into `dist/win-unpacked/Racing Desk.exe` and starts its own RacingDesk.Host — there is no installer; see the root `CLAUDE.md`, Desk. **The HUD is on screen only while the driver is in the car** ([below](#when-the-hud-is-on-screen)). A sibling repo, [`prodrive-overlay-showcase`](https://github.com/DOOOOM/prodrive-overlay-showcase), holds the same code with a `showcase-bootstrap.js` that drives it from synthesized data — used in the marketing-site iframe.
 
-**Beyond the live HUD,** today's overlay also handles **race recording** (produces `.rcpdv` bundles = MP4 + telemetry sidecar via `recorder.js` + `ffmpeg-encoder.js`), **in-overlay replay** (`replay-director.js` for scrubbing the captured race), **Race Coach** (live Claude AI commentary via direct calls to `api.anthropic.com` from `race-coach.js` — uses your own Anthropic API key), **voice commentary** (`voice-coach.js`), and **incident coaching** (`incident-coach.js`). 51 modules in `modules/js/` total — the table below covers the live-HUD subset.
+**Beyond the live HUD,** today's overlay also drives **recording in OBS** (the main process talks obs-websocket to OBS, writes the telemetry sidecar beside the file and stops what it started on quit — `docs/recording.md` at the root), **Race Coach** (live Claude AI commentary via direct calls to `api.anthropic.com` from `race-coach.js` — uses your own Anthropic API key), **voice commentary** (`voice-coach.js`), and **incident coaching** (`incident-coach.js`). 51 modules in `modules/js/` total — the table below covers the live-HUD subset.
 
 ![Dashboard Screenshot](../racing-desk-plugin/docs/dashboard-screenshot.png)
 
@@ -63,9 +63,9 @@ From source the main process logs to `racing-desk-debug.log` in this folder. The
 | `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (the one iRacing is on) |
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+M` | Reset the track map |
-| `Ctrl+Shift+V` | Start or stop recording |
-| `Ctrl+Shift+B` | Save the replay buffer |
-| `Ctrl+Shift+P` | Start or stop the replay director |
+| `Ctrl+Shift+V` | Record or stop, in OBS (with OBS closed the HUD says "OBS is not open": OBS is started from the desk, the tray or the Stream Deck) |
+| `Ctrl+Shift+B` | Save the instant replay (a later build) |
+| `Ctrl+Shift+P` | TV shots (a later build, from the desk after the race) |
 | `Ctrl+Shift+I` | Held by the app; nothing listens for it now |
 | `Ctrl+Shift+Q` | Quit the overlay: the HUD is put away, and the app keeps running. Bring it back with `Ctrl+Shift+H` in the car, or the tray's "HUD on/off" |
 
@@ -181,7 +181,7 @@ The Electron main process captures a configurable screen region at ~4fps using `
 │  │ • WebGL2 shader pipeline            │ │
 │  │ • Polling loop (fetchProps ~30fps)  │ │
 │  │ • Settings overlay UI               │ │
-│  │ • Recording → .rcpdv bundles        │ │
+│  │ • Recording → OBS (obs-websocket)   │ │
 │  │ • Race Coach → Anthropic API        │ │
 │  └─────────────────────────────────────┘ │
 └──────────────────────────────────────────┘
@@ -231,19 +231,15 @@ Additional modules in `modules/js/`, not represented in the live-HUD table above
 | `race-coach.js` | **Live Claude API integration.** POSTs to `https://api.anthropic.com/v1/messages` with rolling race context (lap times, position, incidents, fuel/tyre state, commentary log). Configurable model (Haiku 4.5 / Sonnet 4.6), tone, depth. **User supplies their own Anthropic API key**; The Racing Desk does not proxy. |
 | `voice-coach.js` | Synthesized voice prompts for in-race coaching at quiet moments |
 | `incident-coach.js` | Highlights what just went wrong and how to recover |
-| `recorder.js` | Screen capture for `.rcpdv` race bundles |
-| `replay-buffer.js` | Rolling N-second buffer in RAM for instant replay clips |
-| `replay-director.js` | Timeline of a recorded race for in-overlay scrubbing |
-| `ffmpeg-encoder.js` | Mux MP4 + telemetry sidecar into the final `.rcpdv` |
-| `bundle-writer.js` | Writes the `.rcpdv` bundle directory with metadata.json |
-| `telemetry-sidecar.js` | Writes the `.telemetry.jsonl` paired with the recorded MP4 |
+| `obs/client.js`, `obs/launcher.js`, `obs/recording.js` | Main process: OBS driven over obs-websocket — the recording mirrored, started and stopped, OBS set up and started on a press, the floor under the disk (`docs/recording.md`) |
+| `telemetry-sidecar.js` | Pure: the `.telemetry.jsonl` written beside the video by the main process, the sim's clock on every frame |
 | `token-loader.js` | Fetches design tokens from server (`/api/v1/tokens/native`) |
 | `pedal-curves.js` | Renders pedal-input traces (throttle / brake / clutch) |
 | `formation.js` | Pre-race grid + formation lap UI |
 | `idle-nav.js` | Carousel of stats during idle moments |
 | `qr-code.js` | QR for pairing to native apps / sharing |
 
-Race-bundle (`.rcpdv`) format: folder containing `video.mp4` + `telemetry.jsonl` + `metadata.json`. Recording is opt-in via overlay settings → Recording. Bundles land in `%APPDATA%\RacingDesk\overlay\bundles\` (Windows). Consumed by [`prodrive-windows`](https://github.com/DOOOOM/prodrive-windows) Library + Editor pages, [`prodrive-macos`](https://github.com/DOOOOM/prodrive-macos) Library + Editor (basic playback live), and [`prodrive-edit`](https://github.com/DOOOOM/prodrive-edit) CLI for AI-driven highlight reels.
+Recordings are OBS's files, in `D:\Racing Desk\Recordings`, with the `.telemetry.jsonl` beside each; the `.rcpdv` bundle is gone (2026-09-30). The editor (`apps/edit`) pairs the two by folder.
 
 ### iRacing data sync — moved out
 

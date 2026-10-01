@@ -23,7 +23,7 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 - **Canvas 2D** — fallback and auxiliary rendering
 - **Plain CSS** — `.css` files loaded via `<link>` (NOT CSS modules), custom properties for theming
 - **No build step** — JS modules loaded directly by HTML, no bundler
-- **ffmpeg** — bundled binary, used by `ffmpeg-encoder.js` for race-bundle recording
+- **OBS** records (`docs/recording.md` at the root): the main process drives it over obs-websocket 5 (`modules/js/obs/`), with a WebSocket client of its own over `net` — Electron's Node has none and `ws` is not in the tree. No ffmpeg, no recorder in the page.
 - **Anthropic SDK** — direct API calls from `race-coach.js` for live AI commentary (uses user's own API key)
 
 ## 53 modules in `modules/js/`
@@ -35,15 +35,16 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `race-coach.js` | **Live Claude API integration** — POSTs to `https://api.anthropic.com/v1/messages` with rolling race context (lap times, position, incidents, fuel, tyre, commentary log). Configurable tone/depth/model. Uses `claude-haiku-4-5` for short prompts, `claude-sonnet-4-6` for post-race summaries. **User supplies their own Anthropic API key**; The Racing Desk does not proxy. |
 | `voice-coach.js` | Synthesized voice prompts for in-race coaching at quiet moments |
 | `incident-coach.js` | Highlights what just went wrong and how to recover |
-| `recorder.js` | Screen capture for `.rcpdv` race bundles |
-| `capture-screen.js` | Main process: which screen a recording is granted — the one the sim is on while it runs, else the one the HUD is on (`hudScreen.recordScreen()`), matched to desktopCapturer's sources by `display_id`, else the first. Root CLAUDE.md, Desk |
-| `replay-buffer.js` | Rolling N-second buffer in RAM for instant replay clips |
-| `replay-director.js` | Timeline of a recorded race for in-overlay scrubbing |
-| `ffmpeg-encoder.js` | Mux MP4 + telemetry sidecar into the final `.rcpdv` bundle |
+| `obs/client.js` | **Main process**: the obs-websocket 5 client — Hello, the challenge-and-salt authentication, requests by id, events by name, tried again every 5 s while OBS is closed; the password is a function asked at Hello and logged as `set` or `none`, never as itself |
+| `obs/ws-client.js`, `obs/ws-frames.js` | A WebSocket client over a plain socket and the RFC 6455 framing it and the Stream Deck plugin use |
+| `obs/launcher.js` | **Main process**: where obs64.exe is, starting it detached and minimised on a press, whether it runs (tasklist, on a press only), Set up OBS: the WebSocket switched on in obs-websocket's `config.json` and the password read into memory, Hybrid MP4 / the 20 s replay buffer / the recording folder in the profile's `basic.ini` while OBS is closed or over the WebSocket while open. Every file and spawn is handed in |
+| `obs/recording.js` | **Main process**: the keeper — OBS's recording mirrored whoever pressed, Record/Stop, OBS started only from the desk, the tray or the Stream Deck out of the car, ownership by outputPath in a state file and stopped on every quit path, take-over on connect, the floor under the disk (20 GB to start, 5 GB to stop), the sidecar at 30 Hz for a live sim session. Nothing drawn on the HUD |
+| `hud-notice.js` | The one thing the HUD may be told of recording, for two seconds: "OBS is not open", "OBS didn't start recording" |
+| `telemetry-sidecar.js` | Pure: the `.telemetry.jsonl` beside the video, written by the keeper; every frame carries the sim's `SessionNum` and `SessionTime` (`docs/telemetry-sidecar-schema.md`) |
+| `recording-settings.js` | The recording keys of `overlay-settings.json` and the once-only migration from the Electron recorder's; the default folder is `D:\Racing Desk\Recordings` |
+| `streamdeck-install.js` | The Stream Deck plugin copied from the unpacked folder into the Stream Deck app at every start |
 | `token-loader.js` | Fetches design tokens from server (`/api/v1/tokens/native`) |
-| `telemetry-sidecar.js` | Writes the `.telemetry.jsonl` paired with the recorded MP4 |
 | `pedal-curves.js` | Renders pedal-input traces (throttle / brake / clutch) |
-| `bundle-writer.js` | Writes the `.rcpdv` bundle directory with metadata.json |
 | `formation.js` | Pre-race grid + formation lap UI |
 | `idle-nav.js` | Carousel of stats during idle moments |
 | `qr-code.js` | QR for pairing to native apps / sharing |
@@ -414,17 +415,23 @@ he began (gold P1, green, red, blue), the rest are white.
   into view has its history); a row's SVG nodes (hairline, line, dot) are made once and written to only when the trail has
   changed or a second has gone by. Tests: `tests/unit/leaderboard-trails.spec.mjs`.
 
-## Race-bundle (`.rcpdv`) output
+## Recording
 
-Format: folder containing `video.mp4` + `telemetry.jsonl` + `metadata.json`. Recording is opt-in via overlay settings → Recording. Bundles land in `%APPDATA%\RacingDesk\overlay\bundles\`.
+OBS records; this app drives it and writes the telemetry sidecar beside the file. The whole of it is in
+[`../../docs/recording.md`](../../docs/recording.md): the obs-websocket client, the keeper, the launcher, what Set up OBS
+changes, where the state is shown (the desk's masthead on every page, the Recording card under Settings, the tray, the
+Stream Deck — never the HUD, which OBS films), the settings and what is coming. The sidecar's schema is
+[`../../docs/telemetry-sidecar-schema.md`](../../docs/telemetry-sidecar-schema.md); the `.rcpdv` bundle is gone.
 
-Consumed by:
-
-- [`prodrive-windows`](https://github.com/DOOOOM/prodrive-windows) Library + Editor pages
-- [`prodrive-macos`](https://github.com/DOOOOM/prodrive-macos) Library + Editor (basic playback live)
-- [`prodrive-edit`](../edit/CLAUDE.md) CLI for AI-driven highlight reels
-
-Schema documented in [`../../docs/telemetry-sidecar-schema.md`](../../docs/telemetry-sidecar-schema.md).
+The desk's Recording card is its own model (`modules/desk/recording-model.js`, pure: the sentences, the buttons, the
+switches, what Set up OBS will change in one sentence) because half of it is commands, not keys of the settings file;
+`tests/unit/desk-recording-model.spec.mjs` and the Recording tests in `tests/desk/desk.spec.mjs`. The password he types
+goes to main (`recording:command`, `password`), is kept with safeStorage under `obsWebSocketPasswordEnc`, and is stripped
+from every page's copy of the settings like `remoteServerKey` (`tests/unit/hud-main-wiring.spec.mjs` holds main.js to it).
+The Stream Deck plugin (`streamdeck/racing-desk/src/plugin.js`) speaks the Stream Deck app's own WebSocket protocol with
+no SDK, is built by `npm run build` (`streamdeck/build.mjs`, esbuild) into the `.sdPlugin` folder, which electron-builder
+unpacks from the asar, and is installed from there at every app start (`tests/unit/streamdeck-install.spec.mjs` runs the
+built plugin against a fake Stream Deck app).
 
 ## Deployment Modes
 
@@ -531,9 +538,9 @@ page reads the list of screens again in place when the app says they changed (`h
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+O` | Open the desk |
 | `Ctrl+Shift+M` | Reset the track map |
-| `Ctrl+Shift+V` | Start or stop recording |
-| `Ctrl+Shift+B` | Save the replay buffer |
-| `Ctrl+Shift+P` | Start or stop the replay director |
+| `Ctrl+Shift+V` | Record or stop, in OBS. With OBS closed it starts nothing: the HUD says "OBS is not open" (OBS is started from the desk, the tray or the Stream Deck, out of the car) |
+| `Ctrl+Shift+B` | Save the instant replay (a later build; answers so for now) |
+| `Ctrl+Shift+P` | TV shots (a later build, from the desk after the race; answers so for now) |
 | `Ctrl+Shift+I` | Held by the app; nothing listens for it now |
 | `Ctrl+Shift+Q` | Quit the overlay: the HUD is put away (`hud.putAway`), the app keeps running |
 
@@ -547,4 +554,4 @@ The previous Electron BrowserWindow + DOM-scraping iRacing client (`iracing-clie
 1. **Chrome extension** in [`prodrive-server/apps/web/browser-extension/`](https://github.com/DOOOOM/prodrive-server) scrapes members-ng.iracing.com and posts to `/api/iracing/extension-sync`
 2. **Plugin push** — the SimHub plugin posts session data to `/api/iracing/import` after each race via Bearer auth
 
-The overlay is back to being purely the live-HUD-and-recording client.
+The overlay is the live HUD and the desk; OBS records (docs/recording.md).
