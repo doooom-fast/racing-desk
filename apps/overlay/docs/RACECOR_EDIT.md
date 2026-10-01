@@ -12,7 +12,7 @@ Standalone Node.js ESM command-line tool that replaces the manual video editing 
 
 Requires Node ≥ 20 and FFmpeg on PATH. Claude integration is optional.
 
-See also: [premiere-replacement-plan.md](premiere-replacement-plan.md) (original design), [GETTING_STARTED_RECORDING.md](GETTING_STARTED_RECORDING.md) (end-to-end walkthrough).
+See also: [premiere-replacement-plan.md](premiere-replacement-plan.md) (original design), [docs/recording.md](../../../docs/recording.md) (how recording works now: OBS records, Racing Desk writes the telemetry beside the file).
 
 ---
 

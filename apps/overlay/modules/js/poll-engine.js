@@ -302,8 +302,8 @@
     // All games are now allowed without connection checks
 
     // In the car or not, by this frame: modules/js/in-car.js (demo mode counts, so the HUD can be looked at).
-    // _isIdle gates the heavy render below; body.idle-state is kept as a state flag other modules read (e.g.
-    // replay-buffer). There is no idle logo — out of the car the window is hidden entirely. Neither that nor
+    // _isIdle gates the heavy render below; body.idle-state is kept as a state flag for the page's own tests
+    // and styles to read. There is no idle logo — out of the car the window is hidden entirely. Neither that nor
     // whether this page polls is decided per frame: see _setInCar, above.
     const nowIdle = !RacingDeskInCar.inCar(p);
     if (nowIdle !== _isIdle) {

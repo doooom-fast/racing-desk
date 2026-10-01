@@ -3,7 +3,7 @@
 **Status:** Implemented  
 **Author:** kevin  
 **Date:** April 15, 2026  
-**Implementation docs:** [RACECOR_EDIT.md](RACECOR_EDIT.md), [GETTING_STARTED_RECORDING.md](GETTING_STARTED_RECORDING.md)
+**Implementation docs:** [RACECOR_EDIT.md](RACECOR_EDIT.md), [docs/recording.md](../../../docs/recording.md) (recording is OBS's now)
 
 ---
 
@@ -123,7 +123,7 @@ You can't run cockpit and TV view simultaneously during a live race without a se
 
 **This is fully automated.** With the 4090's NVENC encoder (zero GPU cost) and iRacing's keyboard-controllable replay system, the overlay handles the entire replay pass without any manual work. A 20-minute race with 3 minutes of TV-view moments takes about 4 minutes to process (3 min of playback + jump/settle time).
 
-See `obs-replacement-plan.md` Phase 5 for the full technical details on replay keyboard automation.
+(The replay keyboard automation this pointed at was in a plan that is gone; TV shots are being rebuilt on the iRacing SDK's own replay commands — see [docs/recording.md](../../../docs/recording.md).)
 
 ### Fallback: Manual Replay Recording
 

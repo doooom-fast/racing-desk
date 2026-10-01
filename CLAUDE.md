@@ -562,8 +562,7 @@ layouts. The rule, in the order it is applied:
    colour's region is ratios taken from the HUD's window on the chosen screen. While the sim has no window the colour is
    sampled on the primary. (A recording was of the sim's screen by the same rule, through the Electron recorder's
    `getDisplayMedia`; since 2026-09-30 OBS records, through his own display capture, and the app grants no screen
-   capture at all — `docs/recording.md`. `hud-display.js` still keeps `recordScreen()`, the screen the sim was last seen
-   on, for whatever asks it next.)
+   capture at all — `docs/recording.md`; `hud-display.js` no longer keeps the sim's screen for a recording.)
    - **The ambient colour** (`RacingDesk.Core/Engine/ScreenColorSampler.cs`, in the app's host and in the SimHub plugin
      alike) is sampled on the monitor the sim's window is on — `RacingDesk.Core/Screens/SimMonitor.cs`, with the same
      lookup the `simwindow` route makes (it and the monitors' lookup moved from the host into `RacingDesk.Core/Screens/`

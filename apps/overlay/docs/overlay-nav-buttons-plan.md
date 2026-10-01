@@ -272,7 +272,7 @@ Key point: clicking a nav button does NOT toggle the overlay's global interactiv
 
 | Button | Icon | Label | Action | IPC |
 |--------|------|-------|--------|-----|
-| Record | red circle | Record | Toggle recording on/off | `racingDesk.startRecording()` / `racingDesk.stopRecording()` |
+| Record | red circle | Record | Toggle recording on/off (OBS records) | the `toggle-recording` action, and the desk's Recording card |
 | Replay Director | play+camera | Replay | Start automated replay director | `racingDesk.startReplayDirector()` |
 | Export | share arrow | Export | Open export/clip panel | `racingDesk.openExportPanel()` |
 
