@@ -279,7 +279,7 @@ namespace RacingDesk.Plugin.IRacing
         /// </summary>
         internal static string SessionType(IRacingSdkSessionInfo si, int sessionNum)
         {
-            var sessions = si.SessionInfo?.Sessions;
+            var sessions = si?.SessionInfo?.Sessions;
             if (sessions == null) return "";
             foreach (var s in sessions)
                 if (s.SessionNum == sessionNum) return s.SessionType ?? "";
