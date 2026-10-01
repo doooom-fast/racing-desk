@@ -74,7 +74,9 @@ Beside them, `GET /racing-desk/data/simwindow` says where the sim's window is an
 the monitors, both in physical pixels (see **The HUD is on the screen iRacing is on**, under Desk), and
 `GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
 before there is a store) with what the check of it has said of each car: this run's, and what the store has kept of
-the runs before (see The car's controls).
+the runs before (see The car's controls), and `GET /racing-desk/data/brakeforce` the brake force the pedals are at now
+as the host follows it from SmartControl Live's keys, for the HUD's datastream (`{ car, force_kg }`, null each while not
+known; see Per car, for the rig).
 
 **The runtime's `?action=` routes are for programs on this machine.** The plugin (`:8889`) and the host (`:8889` or
 `:18889`) take `GET /racing-desk/?action=<name>` on the telemetry's own path. `setMozaWheelbaseSetting`,
@@ -359,8 +361,13 @@ or to the pedals.
   - Nothing here may hold up or end the telemetry: SmartControl's database is read on a thread of its own and
     never waited for, and what is thrown while following the car is logged and goes no further.
   - Not yet: putting a car's force or profile *back* when he gets in. That presses keys or writes SmartControl's
-    database, and waits on the experiments in the plan (does Live act on a key a program sends?) and on him. Nor
-    is any of this said on the HUD.
+    database, and waits on the experiments in the plan (does Live act on a key a program sends?) and on him.
+  - **What the HUD says of it** (since 2026-10-01): the force the run's keys have left the pedals at, as "Brake max"
+    in the datastream — `CarPedalsRecorder.Now`, served at `GET /racing-desk/data/brakeforce` (`{ car, force_kg }`,
+    null each while not known: no key has set a force this run, a step key was held, between cars) to the app's main
+    process, which hands it to the page (`apps/overlay/modules/js/rig-limits.js`; the overlay's CLAUDE.md, The
+    datastream's rig limits). A dash until a key sets a force; never the store's last-driven-with number, which the
+    pedals are not put back to.
 
 ## Season schedule
 
@@ -419,11 +426,13 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
     That is as far as his own files go (§10 of the findings): the sim does not say which dials a fixed setup locks.
 - **What is sent**: one key, `RacingDesk.Plugin.CarControls` (`TelemetryFrame.CarControlsKey`), an object on `:8889`
   and its text on the MessagePack feed: `car`, `name`, `kind`, `fixedSetup`, `abs`, `tc`, `bb` (each
-  `{ id, label, state: none|on|off|value|mode, value?, text, fill?, locked?, var?, by? }`), `more` (the car's other
-  controls in the list's order), `drs` and `p2p`. **It is sent only where there is something true to say**: for a
-  car the list has, not in the demo, and each reading only if it can be read — a control the list says can be
-  turned whose variable the car does not publish is left out, and the HUD shows a dash for it. DRS is
-  0 nothing, 1 next zone, 2 open it, 3 open; push-to-pass has its seconds left (999 is practice, no limit).
+  `{ id, label, state: none|on|off|value|mode|unread, value?, text?, fill?, locked?, var?, by? }`), `more` (the car's
+  other controls, every one the list gives it, in the list's order), `drs` and `p2p`. **It is sent only where there is
+  something true to say**: for a car the list has, not in the demo. A control the car has by the list whose value
+  cannot be read — the list gives no variable, the car is not publishing it, a frame of garbage — is sent as `unread`
+  with its id, label and variable and no value, text, bar or lock, so the HUD can show its label over a dash (he asked
+  for a panel for every adjustment, 2026-10-01); a fixed primary with no reading is still `on`. DRS is 0 nothing, 1
+  next zone, 2 open it, 3 open; push-to-pass has its seconds left (999 is practice, no limit).
   `Cars/CarControlsWireTests.cs` holds what the host writes to `apps/overlay/tests/unit/fixtures/car-controls-wire.json`,
   which is what the HUD's tests are built from: change the shape, and the C# test fails until
   `UPDATE_CAR_CONTROLS_WIRE=1 dotnet test … --filter CarControlsWireTests` rewrites the file, and the HUD's tests
