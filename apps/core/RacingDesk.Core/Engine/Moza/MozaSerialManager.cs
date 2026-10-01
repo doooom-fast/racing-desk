@@ -179,6 +179,12 @@ namespace RacingDesk.Plugin.Engine.Moza
         //  PUBLIC API — WRITE SETTINGS
         // ═══════════════════════════════════════════════════════════════
 
+        /// <summary>Writes queued for the next poll cycle and not yet sent: what a test looks at to see that a request wrote nothing.</summary>
+        internal int PendingWrites => _writeQueue.Count;
+
+        /// <summary>Whether a re-discovery of the ports has been asked for and not yet done (<see cref="ForceRediscovery"/>).</summary>
+        internal bool RediscoveryAsked => _retryHeldPorts;
+
         /// <summary>
         /// Queues a single-byte write command to a device for the next poll cycle.
         /// </summary>
