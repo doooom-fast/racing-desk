@@ -14,7 +14,7 @@ namespace RacingDesk.Data
     /// </summary>
     public sealed class RacingDeskStore : IDisposable
     {
-        public const int SchemaVersion = 7;
+        public const int SchemaVersion = 8;
 
         // Car names by iRacing's folder name for the car (schema v4). session_cars is which stored session had
         // which car in its entry list. cars.seen counts the sessions among them, not the rows: a session is
@@ -136,6 +136,20 @@ CREATE TABLE car_list_remarks (
 );
 ";
 
+        // What a track outline was built with (schema v8). checks is the version of the checks every lap in it
+        // passed (GeometryAccumulator.ChecksVersion); a row with fewer is built again from the files, and 0 is a row
+        // from before there were any. provisional is 1 for an outline made from the session being driven, from its
+        // first clean lap on, which the finished file replaces. Two columns added; nothing else is touched. Each is
+        // added only where it is missing, so a store whose version was put back carries on.
+        private void AddGeometryColumns(SqliteTransaction tx)
+        {
+            if (Scalar<long>("SELECT COUNT(*) FROM pragma_table_info('track_geometry') WHERE name = 'checks'", tx) == 0)
+                Exec("ALTER TABLE track_geometry ADD COLUMN checks INTEGER NOT NULL DEFAULT 0", tx);
+            if (Scalar<long>("SELECT COUNT(*) FROM pragma_table_info('track_geometry') WHERE name = 'provisional'", tx) == 0)
+                Exec("ALTER TABLE track_geometry ADD COLUMN provisional INTEGER NOT NULL DEFAULT 0", tx);
+            _geometryColumnsKnown = false;
+        }
+
         private readonly SqliteConnection _db;
 
         // Statements the header pass runs tens of thousands of times: prepared once, kept until the store closes.
@@ -239,6 +253,10 @@ SELECT car_path, brake_force_kg, CASE WHEN brake_force_kg IS NOT NULL THEN bound
                         // What the check of the car list has said. A table of its own; nothing else is touched.
                         Exec(CarListRemarksSchema, step);
                         break;
+                    case 7:
+                        // What each outline was built with. Every row there is was built before the checks (0).
+                        AddGeometryColumns(step);
+                        break;
                 }
                 current++;
                 Exec("INSERT INTO schema_version(version) VALUES (" + current + ")", step);
@@ -316,6 +334,7 @@ CREATE TABLE ingested_files (
             Exec(RigSchema, tx);
             Exec(PedalFactsSchema, tx);
             Exec(CarListRemarksSchema, tx);
+            AddGeometryColumns(tx);
             Exec("INSERT INTO schema_version(version) VALUES (" + SchemaVersion + ")", tx);
             tx.Commit();
         }
@@ -979,9 +998,23 @@ WHERE list_hash = $list ORDER BY car_path COLLATE NOCASE, first_seen_at, about")
             return cmd.ExecuteNonQuery();
         }
 
+        // A store from before v8 has no checks or provisional column; it is read as built before the checks and whole.
+        private bool _geometryColumnsKnown, _geometryHasChecks;
+        private bool GeometryHasChecks()
+        {
+            if (!_geometryColumnsKnown)
+            {
+                _geometryHasChecks = Scalar<long>("SELECT COUNT(*) FROM pragma_table_info('track_geometry') WHERE name = 'checks'") > 0;
+                _geometryColumnsKnown = true;
+            }
+            return _geometryHasChecks;
+        }
+
+        /// <summary>The stored outline of a layout, by the sim's TrackID, or null.</summary>
         public TrackGeometryRecord GetGeometry(int trackId)
         {
-            using var cmd = Cmd("SELECT track_id, track_name, length_m, official_length_m, clean_laps, source_ibt, origin_lat, origin_lon, points, sector_starts, updated_at FROM track_geometry WHERE track_id = $t");
+            string extra = GeometryHasChecks() ? ", checks, provisional" : ", 0, 0";
+            using var cmd = Cmd("SELECT track_id, track_name, length_m, official_length_m, clean_laps, source_ibt, origin_lat, origin_lon, points, sector_starts, updated_at" + extra + " FROM track_geometry WHERE track_id = $t");
             P(cmd, "$t", trackId);
             using var r = cmd.ExecuteReader();
             if (!r.Read()) return null;
@@ -996,32 +1029,86 @@ WHERE list_hash = $list ORDER BY car_path COLLATE NOCASE, first_seen_at, about")
                 SectorStartPcts = r.IsDBNull(9) || r.GetString(9).Length == 0 ? Array.Empty<double>()
                     : r.GetString(9).Split(',').Select(x => double.Parse(x, CultureInfo.InvariantCulture)).ToArray(),
                 UpdatedAtUtc = DateTime.Parse(r.GetString(10), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
+                Checks = r.GetInt32(11), Provisional = r.GetInt32(12) != 0,
             };
         }
 
-        /// <summary>The stored outline for a track, found by iRacing's internal track name (e.g. "virginia 2022 full").</summary>
-        public TrackGeometryRecord GetGeometryByTrackName(string trackName)
+        /// <summary>
+        /// Keeps an outline with what the store has for its layout. One with none takes it. One built with fewer
+        /// checks, or from the session being driven (which each clean lap of the session refines, and the finished
+        /// file replaces), is replaced. A provisional one never replaces a whole one. Otherwise the two are compared
+        /// along the lap: if they agree (within a few metres, bin by bin) their laps are averaged together, and if
+        /// they do not — a rescan, a north fix — the one given, being from the newer file, is kept and the old one goes.
+        /// </summary>
+        public GeometryMerge MergeGeometry(TrackGeometryRecord g)
         {
-            if (string.IsNullOrEmpty(trackName)) return null;
-            using var cmd = Cmd("SELECT track_id FROM sessions WHERE track_name = $n ORDER BY started_at DESC LIMIT 1");
-            P(cmd, "$n", trackName);
-            var id = cmd.ExecuteScalar();
-            return id is long trackId && trackId > 0 ? GetGeometry((int)trackId) : null;
+            if (g == null || g.CleanLaps == 0 || g.Points == null) throw new ArgumentException("an outline with laps in it", nameof(g));
+            var existing = GetGeometry(g.TrackId);
+            if (existing == null) { WriteGeometry(g); return GeometryMerge.New; }
+            if (existing.Checks < g.Checks || existing.Provisional) { WriteGeometry(g); return GeometryMerge.Replaced; }
+            if (g.Provisional) return GeometryMerge.Kept;
+            if (GeometryAccumulator.Agree(existing, g))
+            {
+                WriteGeometry(GeometryAccumulator.Merge(existing, g));
+                return GeometryMerge.Averaged;
+            }
+            WriteGeometry(g);
+            return GeometryMerge.Replaced;
         }
 
-        /// <summary>Keeps the outline built from the most clean laps.</summary>
-        public bool SaveGeometryIfBetter(TrackGeometryRecord g)
+        /// <summary>Writes an outline as it is, whatever the store has for the layout.</summary>
+        public void ReplaceGeometry(TrackGeometryRecord g)
         {
-            if (g == null || g.CleanLaps == 0) return false;
-            long existing = Scalar<long>("SELECT COALESCE((SELECT clean_laps FROM track_geometry WHERE track_id = " + g.TrackId + "), 0)");
-            if (existing >= g.CleanLaps) return false;
+            if (g == null || g.CleanLaps == 0 || g.Points == null) throw new ArgumentException("an outline with laps in it", nameof(g));
+            WriteGeometry(g);
+        }
+
+        /// <summary>Marks a layout's outline as looked at with the checks of this build, when no file gave it a better one.</summary>
+        public void StampGeometryChecks(int trackId)
+        {
+            if (!GeometryHasChecks()) return;
+            Exec("UPDATE track_geometry SET checks = $c WHERE track_id = $t", null, ("$c", GeometryAccumulator.ChecksVersion), ("$t", trackId));
+        }
+
+        private void WriteGeometry(TrackGeometryRecord g)
+        {
             var blob = new byte[g.Points.Length * 4];
             Buffer.BlockCopy(g.Points, 0, blob, 0, blob.Length);
-            Exec("INSERT OR REPLACE INTO track_geometry VALUES ($t, $n, $len, $off, $laps, $src, $lat, $lon, $pts, $sec, $at)", null,
-                ("$t", g.TrackId), ("$n", g.TrackName), ("$len", g.LengthMeters), ("$off", g.OfficialLengthMeters), ("$laps", g.CleanLaps),
-                ("$src", g.SourceIbt), ("$lat", g.OriginLat), ("$lon", g.OriginLon), ("$pts", blob),
-                ("$sec", string.Join(",", g.SectorStartPcts.Select(x => x.ToString("R", CultureInfo.InvariantCulture)))), ("$at", Iso(g.UpdatedAtUtc)));
-            return true;
+            string sectors = string.Join(",", (g.SectorStartPcts ?? Array.Empty<double>()).Select(x => x.ToString("R", CultureInfo.InvariantCulture)));
+            if (GeometryHasChecks())
+                Exec("INSERT OR REPLACE INTO track_geometry (track_id, track_name, length_m, official_length_m, clean_laps, source_ibt, origin_lat, origin_lon, points, sector_starts, updated_at, checks, provisional) " +
+                     "VALUES ($t, $n, $len, $off, $laps, $src, $lat, $lon, $pts, $sec, $at, $chk, $prov)", null,
+                    ("$t", g.TrackId), ("$n", g.TrackName), ("$len", g.LengthMeters), ("$off", g.OfficialLengthMeters), ("$laps", g.CleanLaps),
+                    ("$src", g.SourceIbt), ("$lat", g.OriginLat), ("$lon", g.OriginLon), ("$pts", blob), ("$sec", sectors), ("$at", Iso(g.UpdatedAtUtc)),
+                    ("$chk", g.Checks), ("$prov", g.Provisional ? 1 : 0));
+            else
+                Exec("INSERT OR REPLACE INTO track_geometry (track_id, track_name, length_m, official_length_m, clean_laps, source_ibt, origin_lat, origin_lon, points, sector_starts, updated_at) " +
+                     "VALUES ($t, $n, $len, $off, $laps, $src, $lat, $lon, $pts, $sec, $at)", null,
+                    ("$t", g.TrackId), ("$n", g.TrackName), ("$len", g.LengthMeters), ("$off", g.OfficialLengthMeters), ("$laps", g.CleanLaps),
+                    ("$src", g.SourceIbt), ("$lat", g.OriginLat), ("$lon", g.OriginLon), ("$pts", blob), ("$sec", sectors), ("$at", Iso(g.UpdatedAtUtc)));
+        }
+
+        /// <summary>The layouts whose outline was built with fewer checks than this build's, with their names.</summary>
+        public IReadOnlyList<(int TrackId, string TrackName)> TrackIdsNeedingRebuild()
+        {
+            var list = new List<(int, string)>();
+            if (!GeometryHasChecks()) return list;
+            using var cmd = Cmd("SELECT track_id, track_name FROM track_geometry WHERE checks < $c ORDER BY updated_at DESC");
+            P(cmd, "$c", GeometryAccumulator.ChecksVersion);
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add((r.GetInt32(0), r.IsDBNull(1) ? null : r.GetString(1)));
+            return list;
+        }
+
+        /// <summary>The files a layout was driven in, newest first, each once.</summary>
+        public IReadOnlyList<string> IbtPathsForTrack(int trackId)
+        {
+            using var cmd = Cmd("SELECT ibt_path FROM sessions WHERE source = 'ibt' AND track_id = $t AND ibt_path IS NOT NULL GROUP BY ibt_path ORDER BY MAX(started_at) DESC");
+            P(cmd, "$t", trackId);
+            using var r = cmd.ExecuteReader();
+            var list = new List<string>();
+            while (r.Read()) list.Add(r.GetString(0));
+            return list;
         }
 
         public IReadOnlyList<SessionRecord> RecentSessions(int limit, string sessionType = null)

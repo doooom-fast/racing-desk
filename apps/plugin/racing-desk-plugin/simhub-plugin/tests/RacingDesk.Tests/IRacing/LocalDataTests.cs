@@ -56,7 +56,10 @@ namespace RacingDesk.Tests.IRacing
 
             var g = result.Geometry;
             Assert.That(g, Is.Not.Null);
-            Assert.That(Math.Abs(g.LengthMeters - g.OfficialLengthMeters) / g.OfficialLengthMeters, Is.LessThan(0.01), "outline within 1% of official length");
+            // The YAML's length is a warning and not a gate (Okayama's is 4% out); his race files are within it all the same.
+            Assert.That(Math.Abs(g.LengthMeters - g.OfficialLengthMeters) / g.OfficialLengthMeters, Is.LessThan(0.05), "outline near the official length");
+            Assert.That(g.Checks, Is.EqualTo(GeometryAccumulator.ChecksVersion));
+            Assert.That(g.Provisional, Is.False);
         }
 
         [Test]
@@ -118,10 +121,12 @@ namespace RacingDesk.Tests.IRacing
                 Assert.That(stored.BestLapSeconds, Is.EqualTo(race0.BestLapSeconds).Within(1e-3));
                 Assert.That(store.Laps(stored.Id).Select(l => l.LapTimeSeconds), Is.EqualTo(race0.Laps.Select(l => l.LapTimeSeconds)).Within(1e-6));
 
-                Assert.That(store.SaveGeometryIfBetter(result.Geometry), Is.True);
-                Assert.That(store.SaveGeometryIfBetter(result.Geometry), Is.False, "same clean-lap count is not an improvement");
+                Assert.That(store.MergeGeometry(result.Geometry), Is.EqualTo(GeometryMerge.New));
                 var geo = store.GetGeometry(result.Geometry.TrackId);
                 Assert.That(geo.Points, Is.EqualTo(result.Geometry.Points));
+                Assert.That(geo.Checks, Is.EqualTo(GeometryAccumulator.ChecksVersion));
+                Assert.That(store.MergeGeometry(result.Geometry), Is.EqualTo(GeometryMerge.Averaged), "the same place again: averaged in");
+                Assert.That(store.GetGeometry(result.Geometry.TrackId).CleanLaps, Is.EqualTo(result.Geometry.CleanLaps * 2));
             }
         }
 

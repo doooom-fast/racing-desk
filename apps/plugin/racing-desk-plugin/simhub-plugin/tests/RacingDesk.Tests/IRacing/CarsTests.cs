@@ -487,7 +487,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
 
             using (var again = new RacingDeskStore(Db))
             {
-                Assert.That(again.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6,7"));
+                Assert.That(again.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6,7,8"));
                 Assert.That(Car(again, Mx5).Seen, Is.EqualTo(4), "opening it again seeds nothing twice");
             }
         }
@@ -543,7 +543,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             Assert.That(openers.Select(o => o.Result), Is.EqualTo(new[] { (long)RacingDeskStore.SchemaVersion, RacingDeskStore.SchemaVersion }));
 
             using var after = new RacingDeskStore(Db);
-            Assert.That(after.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6,7"));
+            Assert.That(after.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6,7,8"));
             Assert.That(after.Cars().Select(c => (c.CarPath, c.Seen)), Is.EqualTo(new[] { (Mx5, 1) }));
         }
 

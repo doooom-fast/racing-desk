@@ -123,7 +123,7 @@ namespace RacingDesk.Tests.IRacing
 
             using (var migrated = new RacingDeskStore(Db))
             {
-                Assert.That(migrated.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("6,7"));
+                Assert.That(migrated.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("6,7,8"));
                 Assert.That(migrated.Scalar<long>("SELECT COUNT(*) FROM car_list_remarks"), Is.Zero);
                 Assert.That(migrated.Scalar<string>("SELECT GROUP_CONCAT(name || ' ' || type || CASE WHEN \"notnull\" THEN ' not null' ELSE '' END, ', ') FROM pragma_table_info('car_list_remarks')"),
                     Is.EqualTo("car_path TEXT not null, about TEXT not null, list_hash TEXT not null, remark TEXT not null, first_seen_at TEXT not null, last_seen_at TEXT not null"));
@@ -133,15 +133,15 @@ namespace RacingDesk.Tests.IRacing
 
             // Opened again, it is not migrated again.
             using (var again = new RacingDeskStore(Db))
-                Assert.That(again.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("6,7"));
+                Assert.That(again.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("6,7,8"));
         }
 
         [Test]
-        public void AFreshStoreHasTheTableAtVersion7()
+        public void AFreshStoreHasTheTableAtVersion8()
         {
-            Assert.That(RacingDeskStore.SchemaVersion, Is.EqualTo(7));
+            Assert.That(RacingDeskStore.SchemaVersion, Is.EqualTo(8));
             using var store = new RacingDeskStore(Db);
-            Assert.That(store.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(7));
+            Assert.That(store.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(8));
             Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE name = 'car_list_remarks'"), Is.EqualTo(1));
             Assert.That(store.CarListRemarksAgainst(Hash), Is.Empty);
         }
@@ -156,7 +156,7 @@ namespace RacingDesk.Tests.IRacing
             {
                 store.SaveCarView(new CarView { CarPath = Mx5, DriverHeight = -0.06, VanishY = 0, HeadHorizon = 0, Fov = 69, Chosen = true, SeenAtUtc = June });
                 store.KeepCarListRemarks(new[] { Said(Mx5, "unknown", "is not in the list", June) });
-                store.Exec("DELETE FROM schema_version; INSERT INTO schema_version (version) VALUES (8)");
+                store.Exec("DELETE FROM schema_version; INSERT INTO schema_version (version) VALUES (9)");
             }
             SqliteConnection.ClearAllPools();
             string otherTables = Dump("car_list_remarks");
@@ -165,7 +165,7 @@ namespace RacingDesk.Tests.IRacing
 
             using (var later = new RacingDeskStore(Db))
             {
-                Assert.That(later.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(8));
+                Assert.That(later.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(9));
                 Assert.That(later.Scalar<long>("SELECT COUNT(*) FROM schema_version"), Is.EqualTo(1), "not migrated");
                 Assert.That(later.KeepCarListRemarks(new[]
                 {
@@ -182,7 +182,7 @@ namespace RacingDesk.Tests.IRacing
             Assert.That(Dump("car_list_remarks"), Is.EqualTo(otherTables), "nothing else in it is touched");
             Assert.That(Names(), Is.EqualTo(namesBefore), "nor is a table or an index added");
             using var again = new RacingDeskStore(Db);
-            Assert.That(again.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(8), "and it is still the version it was");
+            Assert.That(again.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(9), "and it is still the version it was");
         }
 
         [Test]
@@ -191,14 +191,14 @@ namespace RacingDesk.Tests.IRacing
             // A later store that somehow has no such table — this code makes none in a store it does not migrate — is
             // read as having nothing kept and is not written to.
             using (var store = new RacingDeskStore(Db))
-                store.Exec("DROP TABLE car_list_remarks; DELETE FROM schema_version; INSERT INTO schema_version (version) VALUES (8)");
+                store.Exec("DROP TABLE car_list_remarks; DELETE FROM schema_version; INSERT INTO schema_version (version) VALUES (9)");
             SqliteConnection.ClearAllPools();
             string before = Dump();
             string namesBefore = Names();
 
             using (var later = new RacingDeskStore(Db))
             {
-                Assert.That(later.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(8));
+                Assert.That(later.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(9));
                 Assert.That(later.KeepCarListRemarks(new[] { Said(Mx5, "unknown", "x", June) }), Is.Zero);
                 Assert.That(later.CarListRemarksAgainst(Hash), Is.Empty);
             }
