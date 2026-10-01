@@ -261,6 +261,24 @@ namespace RacingDesk.Tests.IRacing
         }
 
         [Test]
+        public void TheSdkBridgeForgetsTheLayoutWhenTheSimGoesSoTheNextSimIsNotTakenForTheLastOne()
+        {
+            // The map is keyed by the bridge's TrackID where SimHub does not say one. It is written when the session
+            // YAML has been parsed, which is a moment after the SDK connects: a bridge that kept the last layout
+            // would show it (and place every car on it) under the new session's name until then.
+            var bridge = new IRacingSdkBridge { TrackId = 509, TrackLengthMeters = 4650 };
+            bridge.OnConnected();
+            bridge.OnDisconnected();
+            Assert.That((bridge.IsConnected, bridge.TrackId, bridge.TrackLengthMeters), Is.EqualTo((false, 0, 0.0)));
+            bridge.OnConnected();
+            Assert.That(bridge.IsConnected, Is.True);
+            Assert.That(bridge.TrackId, Is.Zero, "connected, and its session not yet parsed: no layout, not the old one");
+            bridge.TrackId = 77;
+            bridge.Stop();   // not started: nothing to stop, and the layout is as it was
+            Assert.That(bridge.TrackId, Is.EqualTo(77));
+        }
+
+        [Test]
         public void ABodyWithTooFewPointsIsNoOutline()
         {
             Assert.That(HostOutlineSource.Parse("{\"trackId\":1,\"points\":[[0,0,0],[1,1,0.5]]}"), Is.Null);

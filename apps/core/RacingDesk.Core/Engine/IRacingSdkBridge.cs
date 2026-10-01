@@ -69,10 +69,13 @@ namespace RacingDesk.Plugin.Engine
         // Track info
         public string TrackCountry { get; private set; } = "";
         public string TrackDisplayName { get; private set; } = "";
-        /// <summary>iRacing's TrackID, the exact layout: what the track map is keyed by. 0 until the session says.</summary>
-        public int TrackId { get; private set; }
+        /// <summary>
+        /// iRacing's TrackID, the exact layout: what the track map is keyed by. 0 until the session says, and again
+        /// from the moment the sim goes: the session of the sim that has closed is not the one the next will have.
+        /// </summary>
+        public int TrackId { get; internal set; }
         /// <summary>The layout's length as the session YAML gives it ("4.02 km"), in metres; 0 until the session says.</summary>
-        public double TrackLengthMeters { get; private set; }
+        public double TrackLengthMeters { get; internal set; }
 
         // ═══════════════════════════════════════════════════════════════
         //  LIFECYCLE
@@ -121,6 +124,8 @@ namespace RacingDesk.Plugin.Engine
 
             IsStarted = false;
             IsConnected = false;
+            TrackId = 0;
+            TrackLengthMeters = 0;
 
             Log.Info("[RacingDesk] IRacingSdkBridge stopped");
         }
@@ -236,15 +241,19 @@ namespace RacingDesk.Plugin.Engine
         //  EVENT HANDLERS (called from IRSDKSharper background thread)
         // ═══════════════════════════════════════════════════════════════
 
-        private void OnConnected()
+        internal void OnConnected()
         {
             IsConnected = true;
             Log.Info("[RacingDesk] iRacing SDK connected");
         }
 
-        private void OnDisconnected()
+        internal void OnDisconnected()
         {
             IsConnected = false;
+            // The layout the sim had is not the layout the next sim will have, and the session of the next is not
+            // parsed until a moment after it connects: until then the map has no layout to ask for, not the old one.
+            TrackId = 0;
+            TrackLengthMeters = 0;
             Log.Info("[RacingDesk] iRacing SDK disconnected");
         }
 
