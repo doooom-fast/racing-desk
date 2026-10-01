@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using IRSDKSharper;
+using RacingDesk.Plugin.IRacing;
 
 namespace RacingDesk.Plugin.Engine
 {
@@ -93,7 +94,9 @@ namespace RacingDesk.Plugin.Engine
             // from the SimHub DataUpdate thread for tighter timing.
             // The SDK keeps the memory mapped view open so reads are always fresh.
 
-            _sdk.Start();
+            // Not _sdk.Start() alone: its wait can last for ever, and this is the host's main thread, or SimHub's
+            // plugin Init (IRacing/SdkStart.cs).
+            SdkStart.Start(_sdk);
             IsStarted = true;
 
             Log.Info("[RacingDesk] IRacingSdkBridge started");

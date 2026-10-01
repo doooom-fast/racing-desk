@@ -348,8 +348,20 @@ overlay is not quitting the app**: Ctrl+Shift+Q (held in the car only), the Stre
 the driver's switch thrown to off, so the HUD comes back the way a switched-off HUD does. No page can ask for the
 app to be quit (`quit-app` and `quitApp` are gone). The host is
 spawned detached — Node otherwise puts it in a job object Windows kills with the app, mid-write — and stops itself,
-flushing what it was recording, when the app goes (`--parent-pid`). One instance: double-clicking the shortcut again
-opens the desk in the running app.
+flushing what it was recording, when the app goes (`--parent-pid`). **A host still there five seconds after the app
+went ends its own process** (`apps/host/RacingDesk.Host/HostStop.cs`, TerminateProcess, so nothing can hold it; the
+same goes for Ctrl+C and `--exit-after`) — its stop still under way, or over with a thread still holding the process —
+and what was being written is left uncommitted: the store is
+SQLite in WAL mode and stays as it was at its last commit. The app's will-quit kill is a backstop only while the app is
+still here; a host that outlives the app has nothing of the app left to end it. On 2026-09-29 one did, for minutes,
+and the next `npm run build` could not replace `e_sqlite3.dll`: IRSDKSharper 1.1.4's `Start()` spins until it sees its
+connection loop's flag set, the loop clears the flag as soon as it has connected, and it connects on its first pass
+when the sim's shared memory is already there — as it is beside SimHub, sim running or not, once iRacing has run while
+SimHub is up. The host's main
+thread missed that moment at 19:28:35 and never reached the loop that hears the stop (its log has no "waiting for
+iRacing" line, no ingest and no schedule). `apps/core/RacingDesk.Core/IRacing/SdkStart.cs` lets that wait through, for
+the host's reader and for the runtime's bridge, which the SimHub plugin starts the same way. One instance:
+double-clicking the shortcut again opens the desk in the running app.
 
 **The HUD is on screen only while the driver is in the car.** Its window is made hidden, and
 `modules/js/hud-visibility.js` is the only thing that reveals it (`showInactive`, so the sim keeps the focus): while

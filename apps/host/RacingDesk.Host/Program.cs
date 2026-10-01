@@ -120,15 +120,18 @@ Data options:
             bool record = replay ? o.Record : !o.NoRecord;
             using var store = record || (!replay && !o.NoIngest) ? new RacingDeskStore(dbPath) : null;
 
-            using var stop = new ManualResetEventSlim();
-            Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Set(); };
-            if (o.ExitAfterSeconds > 0)
-                new Timer(_ => stop.Set(), null, TimeSpan.FromSeconds(o.ExitAfterSeconds), Timeout.InfiniteTimeSpan);
+            // Not disposed: the schedule, ingest and parent-watch threads may still look at it after Serve has returned,
+            // while the process is ending, and a wait on a disposed one throws on a thread nothing catches on.
+            var stop = new ManualResetEventSlim();
+            // However the stop is asked for, the process ends within a few seconds of it: see HostStop.
+            var stopping = new HostStop(stop, HostStop.DefaultGrace, m => Log.Info("[RacingDesk.Host] " + m), m => Log.Warn("[RacingDesk.Host] " + m));
+            Console.CancelKeyPress += (_, e) => { e.Cancel = true; stopping.Ask("Ctrl+C"); };
+            using var exitAfter = o.ExitAfterSeconds > 0
+                ? new Timer(_ => stopping.Ask($"--exit-after {o.ExitAfterSeconds} s"), null, TimeSpan.FromSeconds(o.ExitAfterSeconds), Timeout.InfiniteTimeSpan)
+                : null;
             // Started by the app, with no console to send Ctrl+C to: stop when it goes away, however it went, so the
             // orderly shutdown below (flush the lap being recorded, release the serial port) still runs.
-            if (o.ParentPid > 0)
-                new Thread(() => { try { Process.GetProcessById(o.ParentPid).WaitForExit(); } catch { } stop.Set(); })
-                    { IsBackground = true, Name = "parent-watch" }.Start();
+            if (o.ParentPid > 0) stopping.WatchParent(o.ParentPid);
 
             runtime.Start();
             try
@@ -148,6 +151,7 @@ Data options:
                 runtime.Stop();
                 SaveSettings(settingsPath, runtime.Settings);
                 Log.Info("[RacingDesk.Host] stopped");
+                stopping.Stopped();
             }
             return 0;
         }
@@ -211,6 +215,8 @@ Data options:
                 views?.SimGone();
                 pedals?.SimGone();
             };
+            // Returns at once (SdkStart). IRSDKSharper's own Start() could wait for ever, and then the loop below, which
+            // is what hears the stop, was never reached.
             raw.Start();
             Log.Info("[RacingDesk.Host] waiting for iRacing (Ctrl+C to stop)");
 
