@@ -317,6 +317,7 @@ function buildTrayMenu() {
   if (rec) {
     const recordingNow = rec.recording || rec.starting;
     items.push({ label: recordingNow ? `Stop recording${rec.recording ? ' · ' + trayElapsed(rec.elapsedMs) : ''}` : 'Record', enabled: !rec.busy, click: () => { dispatchAction('toggle-recording', { source: 'tray' }); } });
+    if (rec.replay && rec.replay.on) items.push({ label: 'Save replay', enabled: !!rec.replay.running && !rec.busy, click: () => { dispatchAction('save-replay-buffer', { source: 'tray' }); } });
     if (rec.obs !== 'open') items.push({ label: 'Open OBS', enabled: rec.busy !== 'starting-obs', click: () => { openObs().catch(() => {}); } });
     items.push({ type: 'separator' });
   }
@@ -389,8 +390,9 @@ const hud = hudVisibility.createHudVisibility({
   onInCar: (inCar) => hudKeys.hold(inCar),
   // Got in: the window is put on the screen the sim is on before it is revealed, not after.
   beforeReveal: () => hudScreen.refresh(),
-  // The same answer is what the livery behind the car badge goes by (livery, below): which car he is in, and when.
-  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()).then((payload) => { livery.feed(payload); return payload; }),
+  // The same answer is what the livery behind the car badge goes by (livery, below): which car he is in, and when —
+  // and what auto-record and the replay buffer go by (recording.feed: the keeper, below).
+  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()).then((payload) => { livery.feed(payload); recording.feed(payload); return payload; }),
   loadPage: () => loadDashboard(),
   keepVisible: isDev,
   onSwitch: () => tickHudSwitch(),
@@ -439,9 +441,10 @@ const hudKeys = createHudKeys({
 // The client talks obs-websocket 5 to OBS on 127.0.0.1 and tries again every 5 s while OBS is closed, which is how
 // OBS being open is noticed (tasklist runs only on a press). The password is read from OBS's own settings file each
 // time OBS asks, or is the one he typed on the Recording card, kept with safeStorage; it is held in memory by neither
-// this file nor the client, and no log line carries it. The keeper mirrors OBS's recording, writes the sidecar,
-// knows which recordings are Racing Desk's, and keeps the floor under the disk. Recording state is shown on the
-// desk's masthead, the tray and the Stream Deck, never on the HUD, which OBS films.
+// this file nor the client, and no log line carries it. The keeper mirrors OBS's recording, writes the sidecar and
+// the chapters, files each recording in its folder, knows which recordings are Racing Desk's, keeps the floor under
+// the disk, records by itself from the payload it is fed (hud, above) and keeps the replay buffer with the car.
+// Recording state is shown on the desk's masthead, the tray and the Stream Deck, never on the HUD, which OBS films.
 const obsPaths = obs.launcher.obsPaths(app.getPath('appData'));
 const recordingStateFile = path.join(app.getPath('userData'), 'recording-state.json');
 let obsFilePassword = null;   // from OBS's config.json the last time Set up OBS ran; otherwise read afresh at Hello
@@ -590,6 +593,9 @@ function recordingStatus() {
     obsStartOnRecord: settings.obsStartOnRecord !== false,
     obsStartWithApp: settings.obsStartWithApp === true,
     obsPath: typeof settings.obsPath === 'string' ? settings.obsPath : null,
+    recordingAutoRecord: settings.recordingAutoRecord !== false,
+    recordingInstantReplay: settings.recordingInstantReplay === true,
+    recordingChapters: settings.recordingChapters !== false,
   };
 }
 
@@ -1004,7 +1010,7 @@ const _actionHandlers = {
   'toggle-recording':   ({ source = 'streamdeck' } = {}) => recording.toggle({ source }),
   'start-recording':    ({ source = 'streamdeck' } = {}) => recording.record({ source }),
   'stop-recording':     () => recording.stop(),
-  'save-replay-buffer': () => ({ ok: false, reason: 'Instant replay comes with a later build' }),
+  'save-replay-buffer': ({ source = 'streamdeck' } = {}) => recording.saveReplay({ source }),
   'tv-shots':           () => ({ ok: false, reason: 'TV shots come with a later build' }),
 
   // ── New actions (not bound to hotkeys) ──
@@ -1078,8 +1084,8 @@ ipcMain.handle('get-in-race-state', async () => {
 });
 
 // ── IPC: Recording, for the desk's Recording card and masthead ──
-// The status as it stands (recording:status) and the commands (recording:command: record, stop, toggle, setup,
-// openObs, openFolder, chooseFolder, password). Each answers in words, never a rejection; the password's value is
+// The status as it stands (recording:status) and the commands (recording:command: record, stop, toggle, saveReplay,
+// setup, openObs, openFolder, chooseFolder, password). Each answers in words, never a rejection; the password's value is
 // kept with safeStorage and never logged. Every change is pushed as recording-state. The desk window's alone.
 ipcMain.handle('recording:status', async (event) => {
   if (!fromDesk(event)) return { error: 'Recording is the desk window\'s.' };
@@ -1093,6 +1099,7 @@ ipcMain.handle('recording:command', async (event, command, value) => {
       case 'record': return await recording.record({ source: 'desk' });
       case 'stop': return await recording.stop();
       case 'toggle': return await recording.toggle({ source: 'desk' });
+      case 'saveReplay': return await recording.saveReplay({ source: 'desk' });
       case 'setup': { const answer = await setupObs(); tellDeskRecording(); return answer; }
       case 'openObs': { const answer = await openObs(); tellDeskRecording(); return answer; }
       case 'openFolder': {

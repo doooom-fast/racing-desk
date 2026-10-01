@@ -13,9 +13,11 @@ const READY = {
   obs: 'open', obsVersion: '32.1.2', recording: false, starting: false, stopping: false, paused: false, owned: false, outputPath: null,
   startedAt: null, elapsedMs: 0, bytes: 0, bytesPerSecond: 12.5e6, free: { bytes: 400e9, hoursLeft: 400e9 / 12.5e6 / 3600, drive: 'D:' },
   lowDisk: null, last: null, busy: null, sidecar: null,
+  auto: false, autoRecord: true, chapters: 0, filed: null, lastFiled: null, replay: { on: false, running: false, unavailable: null, lastSaved: null },
   folder: 'D:\\Racing Desk\\Recordings',
   setup: { wsState: 'ok', wsEnabled: true, wsPort: 4455, profile: 'Untitled', hybrid: true, replayBuffer: true, folderSet: true, folderExists: true, obsFound: true, needed: false },
   needsPassword: false, passwordTyped: false, obsStartOnRecord: true, obsStartWithApp: false, obsPath: null,
+  recordingAutoRecord: true, recordingInstantReplay: false, recordingChapters: true,
 };
 
 test('time and size read as a person says them', () => {
@@ -81,13 +83,20 @@ test('the card: buttons and sentences for the states, the switches, the folder',
   expect(ready.password.show).toBe(false);
   expect(ready.details).toEqual(['About 9 hours of recording left on D: at 100 Mbps.']);   // 400 GB at 12.5 MB/s
   expect(ready.folder).toBe('D:\\Racing Desk\\Recordings');
-  expect(ready.switches.map((s) => [s.key, s.value, s.enabled])).toEqual([['obsStartOnRecord', true, true], ['obsStartWithApp', false, true]]);
+  expect(ready.switches.map((s) => [s.key, s.value, s.enabled])).toEqual([
+    ['recordingAutoRecord', true, true], ['recordingInstantReplay', false, true], ['recordingChapters', true, true], ['obsStartOnRecord', true, true], ['obsStartWithApp', false, true],
+  ]);
+  expect(ready.saveReplay).toEqual({ show: false, enabled: false });
 
   const recording = model.card({ ...READY, recording: true, owned: true, elapsedMs: 754_000, bytes: 3.1e9, outputPath: 'D:/Racing Desk/Recordings/a.mp4', sidecar: { path: 'x', frames: 1200 } });
   expect(recording.line).toBe('Recording 12:34');
   expect(recording.record).toEqual({ label: 'Stop', enabled: true });
   expect(recording.details[0]).toBe('3.1 GB · D:/Racing Desk/Recordings/a.mp4');
   expect(recording.details[1]).toBe('Telemetry is being written beside it (1200 frames).');
+  // With chapters, a folder to go to, and started by itself.
+  const chaptered = model.card({ ...READY, recording: true, owned: true, auto: true, elapsedMs: 754_000, bytes: 3.1e9, chapters: 7, outputPath: 'D:/Racing Desk/Recordings/a.mp4', sidecar: { path: 'x', frames: 1200 }, filed: { folder: 'D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort Porsche 992 Cup' } });
+  expect(chaptered.details[0]).toBe('3.1 GB · 7 chapters · D:/Racing Desk/Recordings/a.mp4 · started by itself');
+  expect(chaptered.details[1]).toBe('Telemetry is being written beside it (1200 frames). It goes to D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort Porsche 992 Cup when it stops.');
   expect(recording.setup.enabled).toBe(false);
   expect(recording.chooseFolder.enabled).toBe(false);
 
@@ -128,8 +137,41 @@ test('without the app the card is read-only and says so', () => {
   const card = model.card(null, { inApp: false });
   expect(card.line).toBe('This is switched from the Racing Desk app.');
   expect(card.record.enabled).toBe(false);
+  expect(card.saveReplay.show).toBe(false);
   expect(card.openObs.show).toBe(false);
   expect(card.setup.show).toBe(false);
   expect(card.switches.every((s) => s.enabled === false)).toBe(true);
-  expect(card.switches.map((s) => s.value)).toEqual([true, false]);
+  expect(card.switches.map((s) => s.value)).toEqual([true, false, true, true, false]);
+});
+
+test('Save replay is there while Instant replay is on and pressable while the buffer runs; the card says what the buffer is doing and what was saved', () => {
+  const off = model.card(READY);
+  expect(off.saveReplay).toEqual({ show: false, enabled: false });
+  expect(model.replaySentence(READY)).toBeNull();
+  const waiting = model.card({ ...READY, replay: { on: true, running: false, unavailable: null, lastSaved: null } });
+  expect(waiting.saveReplay).toEqual({ show: true, enabled: false });
+  expect(waiting.details).toContain('Instant replay runs while you are in the car.');
+  const running = model.card({ ...READY, replay: { on: true, running: true, unavailable: null, lastSaved: null } });
+  expect(running.saveReplay).toEqual({ show: true, enabled: true });
+  expect(running.details).toContain('Instant replay is on: Ctrl+Shift+B, the tray or the Stream Deck saves the last seconds.');
+  const none = model.card({ ...READY, replay: { on: true, running: false, unavailable: 'OBS has no replay buffer. Press Set up OBS, then open OBS again.', lastSaved: null } });
+  expect(none.details).toContain('OBS has no replay buffer. Press Set up OBS, then open OBS again.');
+  expect(none.saveReplay.enabled).toBe(false);
+  const saved = model.card({ ...READY, replay: { on: true, running: true, unavailable: null, lastSaved: { path: 'D:\\R\\Replay 2026-09-30 21-20-00.mp4', sidecar: 'x', at: 1, frames: 600 } } });
+  expect(saved.details).toContain('Replay saved: D:\\R\\Replay 2026-09-30 21-20-00.mp4');
+  // Not pressable while busy, or with OBS gone.
+  expect(model.card({ ...READY, busy: 'saving', replay: { on: true, running: true, unavailable: null, lastSaved: null } }).saveReplay.enabled).toBe(false);
+  expect(model.card({ ...READY, obs: 'closed', replay: { on: true, running: true, unavailable: null, lastSaved: null } }).saveReplay.enabled).toBe(false);
+});
+
+test('where the last recording went is said once it is not recording: the folder with its chapters and replays, or where it stayed and why', () => {
+  const filed = { at: 1, folder: 'D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort Porsche 992 Cup', video: 'x', sidecar: 'y', chapters: 7, clips: 1, alignment: { method: 'chapters' }, why: null };
+  expect(model.filedSentence({ ...READY, lastFiled: filed })).toBe('The last recording is in D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort Porsche 992 Cup (7 chapters, 1 replay).');
+  expect(model.filedSentence({ ...READY, lastFiled: { ...filed, chapters: 1, clips: 0 } })).toBe('The last recording is in D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort Porsche 992 Cup (1 chapter).');
+  expect(model.filedSentence({ ...READY, lastFiled: { ...filed, chapters: 0, clips: 0 } })).toBe('The last recording is in D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort Porsche 992 Cup.');
+  expect(model.filedSentence({ ...READY, lastFiled: { ...filed, folder: null, video: 'C:/Users/x/Videos/NVIDIA/a.mp4', why: 'c: and d: are different drives' } })).toBe('The last recording stayed where OBS wrote it, C:/Users/x/Videos/NVIDIA/a.mp4: c: and d: are different drives.');
+  expect(model.filedSentence(READY)).toBeNull();
+  expect(model.card({ ...READY, lastFiled: filed }).details[0]).toMatch(/^The last recording is in /);
+  // While recording it is not said: the recording's own sentences are.
+  expect(model.card({ ...READY, recording: true, owned: true, lastFiled: filed, outputPath: 'a.mp4' }).details.join(' ')).not.toMatch(/The last recording/);
 });

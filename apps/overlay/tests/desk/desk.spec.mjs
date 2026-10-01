@@ -4122,9 +4122,11 @@ const OBS_READY = {
   obs: 'open', obsVersion: '32.1.2', recording: false, starting: false, stopping: false, paused: false, owned: false, outputPath: null,
   startedAt: null, elapsedMs: 0, bytes: 0, bytesPerSecond: 12.5e6, free: { bytes: 400e9, hoursLeft: 8.9, drive: 'D:' },
   lowDisk: null, last: null, busy: null, sidecar: null,
+  auto: false, autoRecord: true, chapters: 0, filed: null, lastFiled: null, replay: { on: false, running: false, unavailable: null, lastSaved: null },
   folder: 'D:\\Racing Desk\\Recordings',
   setup: { wsState: 'ok', wsEnabled: true, wsPort: 4455, profile: 'Untitled', hybrid: true, replayBuffer: true, folderSet: true, folderExists: true, obsFound: true, needed: false },
   needsPassword: false, passwordTyped: false, obsStartOnRecord: true, obsStartWithApp: false, obsPath: null,
+  recordingAutoRecord: true, recordingInstantReplay: false, recordingChapters: true,
 };
 const OBS_CLOSED_FRESH = {
   ...OBS_READY, obs: 'closed', free: null,
@@ -4141,7 +4143,7 @@ async function stubRecording(page, status, answers = {}) {
     const withSwitches = () => {
       const saved = window.__k10 && window.__k10.settings ? window.__k10.settings : {};
       const out = JSON.parse(JSON.stringify(state.status));
-      for (const key of ['obsStartOnRecord', 'obsStartWithApp']) if (typeof saved[key] === 'boolean') out[key] = saved[key];
+      for (const key of ['obsStartOnRecord', 'obsStartWithApp', 'recordingAutoRecord', 'recordingInstantReplay', 'recordingChapters']) if (typeof saved[key] === 'boolean') out[key] = saved[key];
       return out;
     };
     Object.assign(window.racingDesk, {
@@ -4297,6 +4299,37 @@ test('the two switches are saved through the settings file, like the rest of the
   await card.locator('button[data-recording-cmd="openFolder"]').click();
   await card.locator('button[data-recording-cmd="chooseFolder"]').click();
   expect(await recordingCommands(page)).toEqual([['openFolder', undefined], ['chooseFolder', undefined]]);
+});
+
+test('Save replay is on the card while Instant replay is on, pressable while the buffer runs, and is the app\'s command; the three recording switches are saved like the rest', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRecording(page, { ...OBS_READY, recordingInstantReplay: true, replay: { on: true, running: false, unavailable: null, lastSaved: null } }, { saveReplay: { ok: true, path: 'D:/Racing Desk/Recordings/Replays/Replay 2026-09-30 21-20-00.mp4' } });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-recording');
+  const save = card.locator('button[data-recording-cmd="saveReplay"]');
+  await expect(save).toHaveText('Save replay');
+  await expect(save).toBeDisabled();
+  await expect(card.locator('.recording-detail')).toContainText(['Instant replay runs while you are in the car.']);
+  await pushRecording(page, { ...OBS_READY, recordingInstantReplay: true, replay: { on: true, running: true, unavailable: null, lastSaved: null } });
+  await expect(save).toBeEnabled();
+  await save.click();
+  expect(await recordingCommands(page)).toEqual([['saveReplay', undefined]]);
+  await pushRecording(page, { ...OBS_READY, recordingInstantReplay: true, replay: { on: true, running: true, unavailable: null, lastSaved: { path: 'D:/Racing Desk/Recordings/Replays/Replay 2026-09-30 21-20-00.mp4', sidecar: 'x', at: 1, frames: 600 } } });
+  await expect(card.locator('.recording-detail')).toContainText(['Replay saved: D:/Racing Desk/Recordings/Replays/Replay 2026-09-30 21-20-00.mp4']);
+  // The three switches.
+  await expect(card.locator('#recording-recordingAutoRecord')).toBeChecked();
+  await expect(card.locator('#recording-recordingInstantReplay')).toBeChecked();
+  await expect(card.locator('#recording-recordingChapters')).toBeChecked();
+  await card.locator('#recording-recordingAutoRecord').uncheck();
+  await card.locator('#recording-recordingChapters').uncheck();
+  await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(2);
+  const saved = await page.evaluate(() => window.__k10.saved);
+  expect(saved[1]).toMatchObject({ zoom: 120, recordingAutoRecord: false, recordingChapters: false });
+  // With Instant replay off the button goes.
+  await pushRecording(page, { ...OBS_READY, lastFiled: { at: 1, folder: 'D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort Porsche 992 Cup', video: 'x', sidecar: 'y', chapters: 7, clips: 1, alignment: { method: 'chapters' }, why: null } });
+  await expect(card.locator('button[data-recording-cmd="saveReplay"]')).toHaveCount(0);
+  await expect(card.locator('.recording-detail').first()).toHaveText('The last recording is in D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort Porsche 992 Cup (7 chapters, 1 replay).');
+  expect(errors).toEqual([]);
 });
 
 test('a recording stopped for the disk, and a recording OBS started, are said on the card', async ({ page }) => {

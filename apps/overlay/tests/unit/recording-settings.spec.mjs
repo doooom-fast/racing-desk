@@ -33,14 +33,15 @@ test.describe('the migration', () => {
     for (const key of ['recordingBackend', 'hostControlPort', 'recordingQuality', 'recordingEncoder', 'recordingOutputFormat', 'recordingDeleteSource',
       'recordingMic', 'recordingMicDevice', 'recordingMicLabel', 'recordingMicVolume', 'recordingSystemAudioDevice', 'recordingSystemAudioLabel',
       'recordingSystemVolume', 'recordingWebcamDevice', 'recordingWebcamLabel', 'recordingFacecamSize', 'recordingFacecamPos',
-      'replayBufferSeconds', 'replayBufferDuration', 'replayBufferEnabled', 'recordingDirectory']) {
+      'replayBufferSeconds', 'replayBufferDuration', 'replayBufferEnabled', 'recordingDirectory', 'recordingAutoStopOnPit']) {
       expect(key in settings, key).toBe(false);
     }
     expect(removed).toContain('recordingBackend');
     expect(removed).toContain('hostControlPort');
-    // Kept as they are.
+    // Kept as it is.
     expect(settings.recordingAutoRecord).toBe(true);
-    expect(settings.recordingAutoStopOnPit).toBe(false);
+    // "Stop in the pits" went with his rules of 2026-09-30 (stage 2).
+    expect(removed).toContain('recordingAutoStopOnPit');
     // Renamed.
     expect(settings.recordingInstantReplay).toBe(false);
     expect(renamed).toEqual([['replayBufferEnabled', 'recordingInstantReplay']]);
@@ -52,7 +53,7 @@ test.describe('the migration', () => {
     expect(settings.obsPath).toBeNull();
     expect(settings.obsHudSource).toBe(false);
     expect(added.sort()).toEqual(['obsHudSource', 'obsPath', 'obsStartOnRecord', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds']);
-    expect(settings.recordingSettingsVersion).toBe(2);
+    expect(settings.recordingSettingsVersion).toBe(3);
     // The HUD's own keys, the paints and the iPad's are untouched.
     expect(settings.zoom).toBe(165);
     expect(settings.showSpotter).toBe(false);
@@ -79,8 +80,15 @@ test.describe('the migration', () => {
     const second = rs.migrate(first.settings);
     expect(second.changed).toBe(false);
     expect(second.settings).toEqual(first.settings);
-    expect(rs.migrate({ recordingSettingsVersion: 2, recordingBackend: 'native' }).changed).toBe(false);
-    expect(rs.migrate({ recordingSettingsVersion: 3 }).changed).toBe(false);
+    expect(rs.migrate({ recordingSettingsVersion: 3, recordingBackend: 'native' }).changed).toBe(false);
+    expect(rs.migrate({ recordingSettingsVersion: 4 }).changed).toBe(false);
+    // A file at version 2 (stage 1) loses "stop in the pits" and nothing else, and comes to 3.
+    const fromTwo = rs.migrate({ recordingSettingsVersion: 2, recordingAutoRecord: true, recordingAutoStopOnPit: true, recordingInstantReplay: false, obsStartOnRecord: false, zoom: 120 });
+    expect(fromTwo.changed).toBe(true);
+    expect(fromTwo.removed).toEqual(['recordingAutoStopOnPit']);
+    expect(fromTwo.renamed).toEqual([]);
+    expect(fromTwo.added.sort()).toEqual(['obsHudSource', 'obsPath', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds']);
+    expect(fromTwo.settings).toMatchObject({ recordingSettingsVersion: 3, recordingAutoRecord: true, recordingInstantReplay: false, obsStartOnRecord: false, zoom: 120 });
   });
 
   test('a missing or empty file gets the OBS keys and the version, and nothing else', () => {
@@ -106,7 +114,7 @@ test.describe('the file', () => {
     const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'));
     expect('recordingBackend' in onDisk).toBe(false);
     expect('hostControlPort' in onDisk).toBe(false);
-    expect(onDisk.recordingSettingsVersion).toBe(2);
+    expect(onDisk.recordingSettingsVersion).toBe(3);
     expect(onDisk.remoteServerKey).toBe('abcd2345');
     expect(fs.existsSync(`${file}.tmp`)).toBe(false);
     const mtime = fs.statSync(file).mtimeMs;
@@ -119,7 +127,7 @@ test.describe('the file', () => {
     const missing = path.join(dir, 'overlay-settings.json');
     const made = rs.migrateFile(missing, { settingsFile });
     expect(made.state).toBe('missing');
-    expect(JSON.parse(fs.readFileSync(missing, 'utf8')).recordingSettingsVersion).toBe(2);
+    expect(JSON.parse(fs.readFileSync(missing, 'utf8')).recordingSettingsVersion).toBe(3);
 
     const broken = path.join(dir, 'broken.json');
     fs.writeFileSync(broken, '{ not json');

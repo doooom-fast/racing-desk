@@ -290,9 +290,16 @@ test.describe('recording', () => {
     // The actions hand the source on to the keeper, which decides; the Stream Deck's route names none and is one.
     expect(code).toMatch(/'toggle-recording':\s*\(\{\s*source\s*=\s*'streamdeck'\s*\}\s*=\s*\{\}\)\s*=>\s*recording\.toggle\(\{\s*source\s*\}\)/);
     expect(code).toMatch(/'stop-recording':\s*\(\)\s*=>\s*recording\.stop\(\)/);
+    expect(code).toMatch(/'save-replay-buffer':\s*\(\{\s*source\s*=\s*'streamdeck'\s*\}\s*=\s*\{\}\)\s*=>\s*recording\.saveReplay\(\{\s*source\s*\}\)/);
     expect(code).toMatch(/function dispatchAction\(name, context = \{\}\)/);
-    // The tray's Record is a press from the tray.
+    // The tray's Record and Save replay are presses from the tray.
     expect(code).toMatch(/dispatchAction\('toggle-recording',\s*\{\s*source:\s*'tray'\s*\}\)/);
+    expect(code).toMatch(/dispatchAction\('save-replay-buffer',\s*\{\s*source:\s*'tray'\s*\}\)/);
+    // Auto-record and the replay buffer are fed the payload the HUD's keeper polls, and nothing else polls for them.
+    expect(code).toMatch(/livery\.feed\(payload\);\s*recording\.feed\(payload\);/);
+    expect(calls(/recording\.feed\(/g)).toHaveLength(1);
+    // The desk's Save replay is the same keeper call, from the desk.
+    expect(code).toMatch(/case 'saveReplay': return await recording\.saveReplay\(\{ source: 'desk' \}\);/);
     // Nothing of a recording is sent to the HUD's page to draw: it is in the picture. The two sentences it may be
     // told go through the keeper's notice, to the one channel.
     expect(code).not.toMatch(/webContents\.send\('(?:toggle-recording|save-replay-buffer|recording-state|recording-debug|toggle-replay-director)'[^)]*overlayWindow/);

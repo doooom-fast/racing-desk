@@ -8,14 +8,16 @@
 // the file for ever, and `recordingBackend: "native"` with `hostControlPort: 50965` named a server nothing has
 // listened on since July. The replay buffer is OBS's too; its switch keeps its meaning under a new name.
 //
-// Run once by main.js at start, before anything reads the file; `recordingSettingsVersion` says it has been.
+// Run once by main.js at start, before anything reads the file; `recordingSettingsVersion` says it has been. Version 3
+// (stage 2) takes `recordingAutoStopOnPit` out: his rules of 2026-09-30 stop a recording on a new session, at the end
+// of the race and when he leaves the car, and the pit lane is none of those.
 const path = require('path');
 
-const VERSION = 2;
+const VERSION = 3;
 
-// Deleted: the Electron recorder's own, and the old WinUI app's control server.
+// Deleted: the Electron recorder's own, the old WinUI app's control server, and "stop in the pits".
 const DELETED = Object.freeze([
-  'recordingBackend', 'hostControlPort',
+  'recordingBackend', 'hostControlPort', 'recordingAutoStopOnPit',
   'recordingQuality', 'recordingEncoder', 'recordingOutputFormat', 'recordingDeleteSource',
   'recordingMic', 'recordingMicDevice', 'recordingMicLabel', 'recordingMicVolume',
   'recordingSystemAudioDevice', 'recordingSystemAudioLabel', 'recordingSystemVolume',
@@ -40,7 +42,7 @@ const ADDED = Object.freeze({
   obsHudSource: false,                 // the HUD as an OBS browser source (a later build)
 });
 
-// Kept as they are: recordingAutoRecord, recordingAutoStopOnPit.
+// Kept as it is: recordingAutoRecord (on unless set to false; the keeper reads `!== false`).
 
 const DEFAULT_FOLDER_DRIVE = 'D:\\';
 const DEFAULT_FOLDER_ON_D = 'D:\\Racing Desk\\Recordings';

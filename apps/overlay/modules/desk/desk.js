@@ -834,8 +834,8 @@
   // ── Recording ────────────────────────────────────────────
   // OBS records; the app's keeper (modules/js/obs) mirrors it and says how it stands (window.racingDesk.recording).
   // The state is on the masthead of every page, as a pill with one button — Record or Stop — and on the Settings
-  // page's Recording card with the rest: Set up OBS, Open OBS, the folder, the switches, the password when OBS wants
-  // one. It is never drawn on the HUD, which OBS films. modules/desk/recording-model.js says what each state reads;
+  // page's Recording card with the rest: Save replay, Set up OBS, Open OBS, the folder, the switches, the password
+  // when OBS wants one. It is never drawn on the HUD, which OBS films. modules/desk/recording-model.js says what each state reads;
   // this is the DOM and the asking. Outside the app the pill and the card are there, read-only, and say so.
 
   function recordingBridge() {
@@ -918,6 +918,7 @@
       ${said}
       <p class="recording-buttons">
         ${button('toggle', view.record.label, view.record.enabled)}
+        ${view.saveReplay.show ? button('saveReplay', 'Save replay', view.saveReplay.enabled) : ''}
         ${view.openObs.show ? button('openObs', 'Open OBS', view.openObs.enabled) : ''}
         ${view.setup.show ? button('setup', 'Set up OBS', view.setup.enabled) : ''}
         ${button('openFolder', 'Open folder', view.openFolder.enabled && inApp)}

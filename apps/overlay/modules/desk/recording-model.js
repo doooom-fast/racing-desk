@@ -9,6 +9,9 @@
   'use strict';
 
   const SWITCHES = [
+    { key: 'recordingAutoRecord', label: 'Record by itself', def: true, hint: 'In a race from the green flag; in practice and qualifying from pit exit. It stops on a new session, five seconds after the end of the race, and when you leave the car, and stops only the recordings it started. OBS has to be open already.' },
+    { key: 'recordingInstantReplay', label: 'Instant replay', def: false, hint: "OBS's replay buffer runs while you are in the car. Ctrl+Shift+B, the tray or the Stream Deck saves the last 20 seconds as a clip, with its telemetry beside it." },
+    { key: 'recordingChapters', label: 'Chapters', def: true, hint: 'A chapter in the video for each lap, incident, pit stop and place gained, which a player or editor can jump to. Hybrid MP4 only, which Set up OBS sets.' },
     { key: 'obsStartOnRecord', label: 'Start OBS when I press Record', def: true, hint: 'From the desk, the tray or the Stream Deck, out of the car. A key in the car never starts OBS: the HUD says "OBS is not open" instead.' },
     { key: 'obsStartWithApp', label: 'Start OBS with Racing Desk', def: false, hint: 'Off unless you turn it on. OBS opens minimised to the tray when Racing Desk starts.' },
   ];
@@ -97,6 +100,27 @@
     return `Set up OBS will ${list}.${profile}${wsOff ? ' ' + NETWORK_SENTENCE : ''}`;
   }
 
+  /** Where the last recording went, in one sentence; null while there is none to say. */
+  function filedSentence(status) {
+    const filed = status && status.lastFiled;
+    if (!filed) return null;
+    const bits = [];
+    if (filed.chapters) bits.push(`${filed.chapters} ${filed.chapters === 1 ? 'chapter' : 'chapters'}`);
+    if (filed.clips) bits.push(`${filed.clips} ${filed.clips === 1 ? 'replay' : 'replays'}`);
+    const extra = bits.length ? ` (${bits.join(', ')})` : '';
+    if (filed.folder) return `The last recording is in ${filed.folder}${extra}.`;
+    return `The last recording stayed where OBS wrote it, ${filed.video}${filed.why ? `: ${filed.why}` : ''}.`;
+  }
+
+  /** The replay buffer, in one sentence; null when Instant replay is off. */
+  function replaySentence(status) {
+    const replay = status && status.replay;
+    if (!replay || !replay.on) return null;
+    if (replay.unavailable) return replay.unavailable;
+    if (replay.running) return 'Instant replay is on: Ctrl+Shift+B, the tray or the Stream Deck saves the last seconds.';
+    return 'Instant replay runs while you are in the car.';
+  }
+
   /** The card: sentences, buttons and switches for a status, or the read-only card without the app. */
   function card(status, { inApp = true } = {}) {
     const switches = SWITCHES.map((s) => ({ ...s, value: status && typeof status[s.key] === 'boolean' ? status[s.key] : s.def, enabled: inApp && !!status }));
@@ -105,6 +129,7 @@
         line: FROM_THE_APP,
         details: [],
         record: { label: 'Record', enabled: false },
+        saveReplay: { show: false, enabled: false },
         openObs: { show: false, enabled: false },
         setup: { show: false, enabled: false, sentence: null },
         openFolder: { enabled: false },
@@ -118,12 +143,20 @@
     if (status.recording) {
       const bits = [];
       if (status.bytes) bits.push(formatBytes(status.bytes));
+      if (status.chapters) bits.push(`${status.chapters} ${status.chapters === 1 ? 'chapter' : 'chapters'}`);
       if (status.outputPath) bits.push(status.outputPath);
       if (!status.owned) bits.push('started in OBS');
+      else if (status.auto) bits.push('started by itself');
       if (bits.length) details.push(bits.join(' · '));
-      if (status.sidecar) details.push(`Telemetry is being written beside it (${status.sidecar.frames} frames).`);
+      if (status.sidecar) details.push(`Telemetry is being written beside it (${status.sidecar.frames} frames).${status.filed && status.filed.folder ? ` It goes to ${status.filed.folder} when it stops.` : ''}`);
       else details.push('No sim session is live, so no telemetry is written beside this one.');
+    } else {
+      const filed = filedSentence(status);
+      if (filed) details.push(filed);
     }
+    const replay = replaySentence(status);
+    if (replay) details.push(replay);
+    if (status.replay && status.replay.lastSaved && status.replay.lastSaved.path) details.push(`Replay saved: ${status.replay.lastSaved.path}`);
     if (status.lowDisk) details.push(status.lowDisk);
     if (status.last && status.last.ok === false && status.last.text) details.push(status.last.text);
     if (status.obs === 'authFailed') details.push("OBS refused the password Racing Desk has. Type the password from OBS's WebSocket settings below, or quit OBS and press Set up OBS.");
@@ -142,6 +175,7 @@
       line: stateLine(status),
       details,
       record: { label: recordingNow ? 'Stop' : 'Record', enabled: !status.busy },
+      saveReplay: { show: !!(status.replay && status.replay.on), enabled: !!(status.replay && status.replay.running) && !status.busy && status.obs === 'open' },
       openObs: { show: status.obs !== 'open', enabled: !status.busy },
       setup: { show: !!sentence || needsPassword, enabled: !status.busy && !status.recording, sentence },
       openFolder: { enabled: true },
@@ -155,7 +189,7 @@
     };
   }
 
-  const api = { SWITCHES, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, stateLine, pill, setupSentence, card };
+  const api = { SWITCHES, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, stateLine, pill, setupSentence, filedSentence, replaySentence, card };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RacingDeskRecordingModel = api;
 })();
