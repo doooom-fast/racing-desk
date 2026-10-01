@@ -236,8 +236,10 @@ carried (OBS keeps what it does not know and writes it back, `OBSBasicSettings.c
 file and a rename, with the file as it was kept beside it the first time as `recordEncoder.json.before-racing-desk` (so
 it can be put back by renaming it over the other). 16 is OBS's own "Indistinguishable Quality, Large File Size" level for
 NVENC (`frontend/utility/SimpleOutput.cpp:520,543`: `CalcCRF(16)`, which is 16 at any output above 2000 px across): the
-nearest OBS has to his 100 Mbps CBR, which at 3440x1440 60 fps is a third of a bit per pixel and all but transparent;
-the plugin's own default for the mode is 20, a step smaller and a step rougher. A quality target with a cap that is
+nearest OBS has to his 100 Mbps CBR, which at the 2580x1080 60 fps his profile outputs (the canvas is 3440x1440;
+`[Video] OutputCX=2580`, `OutputCY=1080` scale it, and `RecUseRescale=false` records at that) is six tenths of a bit per
+pixel and all but transparent; the plugin's own default for the mode is 20, a step smaller and a step rougher. The
+output size is OBS's Video setting and Set up OBS does not touch it: "full size" is whatever that is set to. A quality target with a cap that is
 already in the file — one he tuned himself — is left as it is, whatever its numbers. The keys mean nothing to x264 or to
 Simple output, so for a profile that is not NVENC with Advanced, Standard output nothing is written and the card says
 so; `RecEncoder=none` (the stream's encoder) is left alone too. obs-websocket 5 has no request for an encoder's

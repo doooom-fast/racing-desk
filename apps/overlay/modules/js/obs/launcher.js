@@ -43,9 +43,10 @@ const ENCODER_FILE = 'recordEncoder.json';
 const ENCODER_KEEP = `${ENCODER_FILE}.before-racing-desk`;
 const QUALITY_RATE_CONTROL = 'CQVBR';
 // OBS's own "Indistinguishable Quality, Large File Size" level for NVENC (frontend/utility/SimpleOutput.cpp:520,543:
-// CalcCRF(16) → cqp 16 at any output above 2000 px across): the nearest OBS has to his 100 Mbps CBR, which at
-// 3440x1440 60 fps is a third of a bit per pixel and all but transparent. On the same 1-51 scale as CQP
-// (nvenc-properties.c:129-130,137); lower is better, and OBS's own default for the mode is 20.
+// CalcCRF(16) → cqp 16 at any output above 2000 px across): the nearest OBS has to his 100 Mbps CBR, which at the
+// 2580x1080 60 fps his profile outputs (the canvas is 3440x1440; [Video] OutputCX/OutputCY scale it) is six tenths
+// of a bit per pixel and all but transparent. On the same 1-51 scale as CQP (nvenc-properties.c:129-130,137); lower
+// is better, and OBS's own default for the mode is 20.
 const QUALITY_TARGET = 16;
 const QUALITY_CAP_KBPS = 100000;   // the cap when the file names no bitrate of his to keep
 // The ids the obs-nvenc plugin registers (nvenc.c:1392-1489, nvenc-compat.c:299-400): the only encoders the keys mean
