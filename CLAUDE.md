@@ -145,7 +145,8 @@ then delete the sessions it had just stored from the same file.
 ## Track maps
 
 The map on the HUD and the iPad is one outline per layout, keyed by the sim's `TrackID`, derived from `Lat`/`Lon` in
-his own `.ibt` files and nothing else: the sim's `.dat` packs are not decoded, iRacing's map drawings need a login
+his own `.ibt` files. The one exception is a layout he has not yet driven a clean lap on: until he has, SimHub's
+crowd-sourced map stands in, read from SimHub's own file each session and kept in memory only (below). The sim's `.dat` packs are not decoded, iRacing's map drawings need a login
 and are not keyed to `LapDistPct`, and live shared memory has no position at all. Nothing is recorded or dead-reckoned
 at runtime any more, so a spin on the first lap, a start from pit exit or an old recording cannot bend the map, and
 crossing the line is one more step along a closed loop (`TrackMapProvider.InterpolateOnOutline` takes the segment from
