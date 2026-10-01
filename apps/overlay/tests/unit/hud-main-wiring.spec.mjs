@@ -304,11 +304,24 @@ test.describe('recording', () => {
 
   test('OBS is started by nothing but a press: never at start unless he turned that on, never from auto-record or a key', () => {
     const starts = calls(/startObsIfClosed\(\)/g);
-    // Three callers: Open OBS (a press), the keeper's startObs (a press, out of the car, by its own rule), and the
-    // app's start behind the switch.
-    expect(starts).toHaveLength(3);
-    expect(code).toMatch(/if \(!isDev && loadSettingsSync\(\)\.obsStartWithApp === true\) \{\s*startObsIfClosed\(\)/);
+    // Two callers: Open OBS (a press) and the app's start behind the switch (startObsWithApp, below); and the keeper's
+    // startObs (a press, out of the car, by its own rule), handed the function itself.
+    expect(starts).toHaveLength(2);
+    expect(code).toMatch(/if \(!isDev && loadSettingsSync\(\)\.obsStartWithApp === true\) \{\s*startObsWithApp\(\)/);
     expect(code).toMatch(/startObs:\s*startObsIfClosed\s*,/);
+    // One start at a time, and never a second OBS: the launcher's starter (a tasklist that cannot say starts nothing).
+    expect(code).toMatch(/const obsStarter = obs\.launcher\.createStarter\(\{/);
+    expect(code).toMatch(/const startObsIfClosed = \(\) => obsStarter\.startIfClosed\(\);/);
+    // The app's own start asks the telemetry first and starts OBS only if it says he is out of the car, and never from
+    // the relaunch Ctrl+Shift+G makes (--no-obs-start): that key is held only in the car.
+    const withApp = code.match(/async function startObsWithApp\(\) \{([\s\S]*?)\n\}\n/);
+    expect(withApp).not.toBeNull();
+    expect(withApp[1]).toMatch(/hudVisibility\.fetchPayload\(hudTelemetryUrl\(\)\)/);
+    expect(withApp[1]).toMatch(/obs\.launcher\.startWithApp\(\{/);
+    expect(withApp[1]).toMatch(/relaunched:\s*process\.argv\.includes\(NO_OBS_START\)/);
+    expect(withApp[1]).toMatch(/inCar:\s*RacingDeskInCar\.inCar\(payload\)/);
+    expect(withApp[1].indexOf('startWithApp(')).toBeLessThan(withApp[1].indexOf('await startObsIfClosed()'));
+    expect(code).toMatch(/const NO_OBS_START = '--no-obs-start';/);
     expect(code).toMatch(/async function openObs\(\)\s*\{\s*if \(hud\.state\(\)\.inCar\) return \{ ok: false, reason: 'OBS is not opened from the car' \};/);
     // obs64 is spawned in the launcher module and nowhere here.
     expect(code).not.toMatch(/spawn\(\s*['"`]/);
@@ -325,10 +338,33 @@ test.describe('recording', () => {
     // Ctrl+Shift+G relaunches with app.exit, which skips before-quit: the recording is stopped first.
     const green = code.match(/'CommandOrControl\+Shift\+G': \(\) => \{([\s\S]*?)\n  \},/);
     expect(green).not.toBeNull();
-    expect(green[1]).toMatch(/stopOwnedRecording\(\)\.finally\(\(\) => \{\s*app\.relaunch\(\);\s*app\.exit\(0\);\s*\}\);/);
+    // ...and the new instance does not start OBS with the app: this key is held only in the car (--no-obs-start).
+    expect(green[1]).toMatch(/stopOwnedRecording\(\)\.finally\(\(\) => \{\s*app\.relaunch\(\{ args: \[\.\.\.process\.argv\.slice\(1\)\.filter\(\(a\) => a !== NO_OBS_START\), NO_OBS_START\] \}\);\s*app\.exit\(0\);\s*\}\);/);
+    expect(calls(/app\.relaunch\(/g)).toHaveLength(1);
     expect(calls(/app\.exit\(/g)).toHaveLength(1);
     // will-quit lets the client and the keeper go.
     expect(code).toMatch(/app\.on\('will-quit', \(\) => \{[\s\S]*?recording\.dispose\(\); obsClient\.stop\(\);/);
+  });
+
+  test('Set up OBS goes through the launcher, which leaves OBS\'s files alone while it may be open; a password read from the file replaces one typed', () => {
+    const setup = code.match(/async function setupObs\(\) \{([\s\S]*?)\n\}\n/);
+    expect(setup).not.toBeNull();
+    expect(setup[1]).toMatch(/obs\.launcher\.setupObs\(\{/);
+    expect(setup[1]).not.toMatch(/setupWhileClosed|writeFile\(|isObsRunning/);
+    expect(setup[1]).toMatch(/if \(result\.password && typeof loadSettingsSync\(\)\[OBS_PASSWORD_KEY\] === 'string'\) \{[\s\S]*?delete settings\[OBS_PASSWORD_KEY\];/);
+  });
+
+  test('the Stream Deck\'s Open Settings opens the desk\'s Settings page, not the old app\'s protocol', () => {
+    expect(code).not.toMatch(/racing-desk-native/);
+    const settings = code.match(/'toggle-settings': \(\) => \{([\s\S]*?)\n  \},/);
+    expect(settings).not.toBeNull();
+    expect(settings[1]).toMatch(/showDesk\('settings'\);/);
+  });
+
+  test('a press in the car that finds OBS not answering asks tasklist before anything goes on the HUD, and the floor looks where OBS records', () => {
+    const made = argumentsOf('obs.createRecordingKeeper(');
+    expect(made).toMatch(/obsRunning:\s*\(\) => obs\.launcher\.isObsRunning\(\{ exec: execFileAsync \}\),/);
+    expect(made).toMatch(/obsFolder:\s*\(\) => obs\.launcher\.profileRecordFolder\(/);
   });
 
   test('the OBS password reaches no page and no log line: safeStorage, stripped like the iPad\'s key', () => {

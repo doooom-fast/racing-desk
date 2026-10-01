@@ -275,3 +275,159 @@ test.describe('Set up OBS while OBS is open', () => {
     expect(client.profile.AdvOut.RecFilePath).toBe('C:/x');
   });
 });
+
+// ── What the review of stage 1 found ─────────────────────────────────────────────────────────────────────────────
+
+test.describe('starting OBS on a press: never a second, never one that cannot answer', () => {
+  const running = '"obs64.exe","1234","Console","1","300,000 K"\r\n';
+  const notRunning = 'INFO: No tasks are running which match the specified criteria.\r\n';
+
+  // Everything handed in: an install in the temp folder, a tasklist that answers what it is told, a spawn that records.
+  function press({ tasklist = notRunning, enabled = true, config = undefined, delayMs = 0 } = {}) {
+    const install = path.join(root, 'obs-studio');
+    const exe = path.join(install, 'bin', '64bit', 'obs64.exe');
+    fs.mkdirSync(path.dirname(exe), { recursive: true });
+    fs.writeFileSync(exe, '');
+    const paths = launcher.obsPaths(appData);
+    if (config === 'missing') fs.rmSync(paths.configJson);
+    else if (config !== undefined) fs.writeFileSync(paths.configJson, config);
+    else fs.writeFileSync(paths.configJson, WS_FILE(enabled));
+    const spawned = [];
+    const asked = [];
+    const logged = [];
+    const exec = async (file, args) => {
+      asked.push([file, ...args]);
+      if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+      if (tasklist instanceof Error) throw tasklist;
+      return { stdout: tasklist };
+    };
+    const spawn = (e, args, opts) => { spawned.push({ exe: e, args, opts }); return { pid: 77, unref() {} }; };
+    const deps = { exec, paths, obsPath: install, exists: f.exists, readdir: f.readdir, readFile: f.readFile, spawn, log: (l) => logged.push(l) };
+    return { deps, spawned, asked, logged };
+  }
+
+  test('a tasklist that cannot say whether OBS runs is "not known": nothing is started', async () => {
+    const p = press({ tasklist: new Error('tasklist timed out') });
+    const answer = await launcher.startIfClosed(p.deps);
+    expect(answer).toEqual({ ok: false, reason: 'Racing Desk could not tell whether OBS is open.' });
+    expect(p.spawned).toEqual([]);
+  });
+
+  test('OBS closed: started detached, once; with its WebSocket switched off (or no settings file yet) it is not, and the sentence is to press Set up OBS first', async () => {
+    const on = press({ enabled: true });
+    expect(await launcher.startIfClosed(on.deps)).toEqual({ ok: true, pid: 77 });
+    expect(on.spawned).toHaveLength(1);
+    expect(on.spawned[0].args).toEqual(['--minimize-to-tray', '--disable-updater']);
+    expect(on.logged.some((l) => /OBS started \(pid 77\)/.test(l))).toBe(true);
+
+    const off = press({ enabled: false });
+    expect(await launcher.startIfClosed(off.deps)).toEqual({ ok: false, reason: launcher.WS_OFF_FIRST });
+    expect(launcher.WS_OFF_FIRST).toMatch(/Press Set up OBS first\.$/);
+    expect(off.spawned).toEqual([]);
+
+    const none = press({ config: 'missing' });
+    expect((await launcher.startIfClosed(none.deps)).reason).toBe(launcher.WS_OFF_FIRST);
+    expect(none.spawned).toEqual([]);
+
+    // A settings file that cannot be read says nothing about the switch: OBS is started (the password may be typed).
+    const odd = press({ config: '{ broken' });
+    expect((await launcher.startIfClosed(odd.deps)).ok).toBe(true);
+  });
+
+  test('OBS running: nothing is started; with its WebSocket off the card is told so, else it is open and may be asking about a crash', async () => {
+    const open = press({ tasklist: running, enabled: true });
+    expect(await launcher.startIfClosed(open.deps)).toEqual({ ok: true, running: true });
+    const off = press({ tasklist: running, enabled: false });
+    expect(await launcher.startIfClosed(off.deps)).toEqual({ ok: false, reason: launcher.WS_OFF_OPEN });
+    expect(open.spawned.length + off.spawned.length).toBe(0);
+  });
+
+  test('OBS not found: said in words he can follow, and nothing else is opened', async () => {
+    const p = press();
+    const answer = await launcher.startIfClosed({ ...p.deps, obsPath: null, exists: () => false });
+    expect(answer.ok).toBe(false);
+    expect(answer.reason).toBe(launcher.NOT_FOUND);
+    expect(launcher.NOT_FOUND).not.toMatch(/Set its folder|below/);
+  });
+
+  test('two presses together, the tray\'s Open OBS and the Stream Deck\'s Record, share one start: one tasklist, one OBS', async () => {
+    const p = press({ enabled: true, delayMs: 60 });
+    const starter = launcher.createStarter(p.deps);
+    const [a, b, c] = await Promise.all([starter.startIfClosed(), starter.startIfClosed(), starter.startIfClosed()]);
+    expect(p.spawned).toHaveLength(1);
+    expect(p.asked).toHaveLength(1);
+    expect(a).toEqual({ ok: true, pid: 77 });
+    expect(b).toBe(a);
+    expect(c).toBe(a);
+    // The press after that asks again (OBS may have been closed since).
+    await starter.startIfClosed();
+    expect(p.asked).toHaveLength(2);
+  });
+
+  test('a start that throws is an answer, not a rejection', async () => {
+    const p = press();
+    const starter = launcher.createStarter({ ...p.deps, exists: () => { throw new Error('disk'); } });
+    expect(await starter.startIfClosed()).toMatchObject({ ok: false });
+  });
+});
+
+test.describe("Racing Desk's own start: never from the relaunch a key in the car makes, never while he is in the car", () => {
+  test('the decision, by what is known', () => {
+    const base = { enabled: true, relaunched: false, answered: true, inCar: false };
+    expect(launcher.startWithApp(base)).toMatchObject({ start: true });
+    expect(launcher.startWithApp({ ...base, enabled: false })).toMatchObject({ start: false, wait: false });
+    // The relaunch of Ctrl+Shift+G, which is a key held only in the car: a new instance whose telemetry may say anything.
+    expect(launcher.startWithApp({ ...base, relaunched: true })).toMatchObject({ start: false, wait: false });
+    expect(launcher.startWithApp({ ...base, relaunched: true, answered: false, inCar: false })).toMatchObject({ start: false, wait: false });
+    // No answer from the telemetry yet (a host just started answers late) says nothing about the car: wait.
+    expect(launcher.startWithApp({ ...base, answered: false })).toMatchObject({ start: false, wait: true });
+    // In the car: not now, and not later by waiting.
+    expect(launcher.startWithApp({ ...base, inCar: true })).toMatchObject({ start: false, wait: false });
+  });
+});
+
+test.describe('Set up OBS, whichever way OBS stands', () => {
+  const folder = () => path.join(root, 'Recordings');
+  const closedClient = (over = {}) => ({ identified: () => false, state: () => ({ authFailed: false, passwordMissing: false, ...over }), request: async () => { throw new Error('not connected'); } });
+  const filesOf = () => {
+    const { configJson, profilesDir } = launcher.obsPaths(appData);
+    return [fs.readFileSync(configJson, 'utf8'), fs.readFileSync(path.join(profilesDir, 'Untitled', 'basic.ini'), 'utf8')];
+  };
+  const setup = (client, exec) => launcher.setupObs({ client, exec, appData, folder: folder(), ...f });
+
+  test('a tasklist that cannot say leaves OBS\'s files exactly as they were', async () => {
+    const before = filesOf();
+    const result = await setup(closedClient(), async () => { throw new Error('tasklist timed out'); });
+    expect(result.ok).toBe(false);
+    expect(result.did).toEqual([]);
+    expect(result.problems).toEqual(["Racing Desk could not tell whether OBS is open. OBS's files were left as they are."]);
+    expect(filesOf()).toEqual(before);
+    expect(fs.existsSync(folder())).toBe(false);
+  });
+
+  test('OBS open and not answering: the files are left, and the sentence is about what is wrong', async () => {
+    const before = filesOf();
+    const open = async () => ({ stdout: '"obs64.exe","1","Console","1","1 K"\r\n' });
+    expect((await setup(closedClient(), open)).problems[0]).toBe('OBS is open with its WebSocket switched off. Quit OBS, then press Set up OBS again.');
+    expect((await setup(closedClient({ authFailed: true }), open)).problems[0]).toMatch(/^OBS refused the password\./);
+    expect((await setup(closedClient({ passwordMissing: true }), open)).problems[0]).toMatch(/^OBS wants a password and Racing Desk has none\./);
+    expect(filesOf()).toEqual(before);
+  });
+
+  test('OBS closed: the files are written, and the password comes back for memory and nowhere else', async () => {
+    const closed = async () => ({ stdout: 'INFO: No tasks are running which match the specified criteria.\r\n' });
+    const result = await setup(closedClient(), closed);
+    expect(result).toMatchObject({ ok: true, ran: 'closed', password: 'sixteen-chars-pw' });
+    expect(JSON.parse(filesOf()[0]).server_enabled).toBe(true);
+    for (const s of [...result.did, ...result.problems]) expect(s).not.toContain('sixteen-chars-pw');
+  });
+});
+
+test('the folder the current profile records into, from its basic.ini: Advanced or Simple output', () => {
+  expect(launcher.profileRecordFolder({ appData, readFile: f.readFile })).toBe('C:/Users/Driver/Videos/NVIDIA');
+  const { profilesDir } = launcher.obsPaths(appData);
+  const ini = path.join(profilesDir, 'Untitled', 'basic.ini');
+  fs.writeFileSync(ini, fs.readFileSync(ini, 'utf8').replace('Mode=Advanced', 'Mode=Simple'));
+  expect(launcher.profileRecordFolder({ appData, readFile: f.readFile })).toBe('C:\\Users\\Driver\\Videos');
+  expect(launcher.profileRecordFolder({ appData: path.join(root, 'nope'), readFile: (p) => fs.readFileSync(p) })).toBeNull();
+});

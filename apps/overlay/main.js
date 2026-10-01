@@ -21,6 +21,7 @@ const settingsFile = require('./modules/js/settings-file');
 const recordingSettings = require('./modules/js/recording-settings');
 const streamdeckInstall = require('./modules/js/streamdeck-install');
 const obs = require('./modules/js/obs');
+const RacingDeskInCar = require('./modules/js/in-car');
 const { spawn, execFile } = require('child_process');
 const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
@@ -408,9 +409,11 @@ const HUD_KEYS = {
     saveSettingsSync(settings);
     const mode = settings.greenScreen ? 'green-screen' : 'transparent';
     console.log(`[RacingDesk] Toggling to ${mode} mode — restarting...`);
-    // app.exit skips before-quit, so a recording Racing Desk started is stopped here first (3 s at most).
+    // app.exit skips before-quit, so a recording Racing Desk started is stopped here first (3 s at most). This key is
+    // held only while he is in the car, so the new instance must not start OBS with the app (--no-obs-start): the
+    // dialogs OBS can open at its start would land over the sim.
     stopOwnedRecording().finally(() => {
-      app.relaunch();
+      app.relaunch({ args: [...process.argv.slice(1).filter((a) => a !== NO_OBS_START), NO_OBS_START] });
       app.exit(0);
     });
   },
@@ -476,26 +479,22 @@ const execFileAsync = (cmd, args) => new Promise((resolve, reject) => {
   execFile(cmd, args, { windowsHide: true, timeout: 5000 }, (err, stdout) => (err ? reject(err) : resolve({ stdout })));
 });
 
-// What a press has to do about OBS when it is not answering: nothing if it is running (its WebSocket may be off, or
-// it may be asking about its last crash), else start it detached and minimised. Only ever from the desk, the tray or
-// the Stream Deck, out of the car (the keeper sees to that); never from the car, auto-record or the app's start
-// unless "Start OBS with Racing Desk" is on.
-async function startObsIfClosed() {
-  const running = await obs.launcher.isObsRunning({ exec: execFileAsync });
-  if (running === true) {
-    const cfg = obs.launcher.readWebSocketConfig(obsPaths.configJson, { readFile: fs.readFileSync });
-    if (cfg.state === 'ok' && !cfg.enabled) return { ok: false, reason: 'OBS is open with its WebSocket switched off. Quit OBS, then press Set up OBS.' };
-    return { ok: true, running: true };
-  }
-  const found = obs.launcher.findObs({ obsPath: loadSettingsSync().obsPath, exists: fs.existsSync });
-  if (!found) return { ok: false, reason: 'OBS was not found at C:\\Program Files\\obs-studio. Set its folder on the Recording card.' };
-  if (obs.launcher.crashedLastTime({ sentinelDir: obsPaths.sentinelDir, readdir: fs.readdirSync })) {
-    logToFile('[RacingDesk] OBS did not close cleanly last time: it will ask about it when it opens');
-  }
-  const started = obs.launcher.startObs({ exe: found.exe, cwd: found.cwd, spawn });
-  logToFile(started.ok ? `[RacingDesk] OBS started (pid ${started.pid}), minimised to the tray` : `[RacingDesk] ${started.reason}`);
-  return started;
-}
+// What a press has to do about OBS when it is not answering (modules/js/obs/launcher.js): nothing if it is running (its
+// WebSocket may be off, or it may be asking about its last crash), else start it detached and minimised — and never a
+// second one, whether tasklist cannot say or two presses come together. Only ever from the desk, the tray or the
+// Stream Deck, out of the car (the keeper sees to that); never from the car, auto-record or the app's start unless
+// "Start OBS with Racing Desk" is on, and then only once the telemetry says he is out of the car.
+const obsStarter = obs.launcher.createStarter({
+  exec: execFileAsync,
+  paths: obsPaths,
+  obsPath: () => loadSettingsSync().obsPath,
+  exists: fs.existsSync,
+  readdir: fs.readdirSync,
+  readFile: fs.readFileSync,
+  spawn,
+  log: logToFile,
+});
+const startObsIfClosed = () => obsStarter.startIfClosed();
 
 // "Open OBS" on the tray and the card: a press, out of the car.
 async function openObs() {
@@ -505,13 +504,45 @@ async function openObs() {
   return answer;
 }
 
+// "Start OBS with Racing Desk": never from the relaunch Ctrl+Shift+G makes (a key held only in the car), and never
+// while he is in the car — a Racing Desk restarted mid-session would open OBS over the sim, with whatever dialog it
+// has to ask. The telemetry is asked until it answers (a host just started answers a few seconds late; up to a
+// minute), and OBS is started only if it says he is out of the car.
+const NO_OBS_START = '--no-obs-start';
+async function startObsWithApp() {
+  const asked = Date.now();
+  for (;;) {
+    const payload = await hudVisibility.fetchPayload(hudTelemetryUrl()).catch(() => null);
+    const decision = obs.launcher.startWithApp({
+      enabled: loadSettingsSync().obsStartWithApp === true,
+      relaunched: process.argv.includes(NO_OBS_START),
+      answered: !!payload,
+      inCar: RacingDeskInCar.inCar(payload),
+    });
+    if (decision.start) {
+      const answer = await startObsIfClosed();
+      if (answer.ok) obsClient.tryNow();
+      else logToFile(`[RacingDesk] OBS with the app: ${answer.reason}`);
+      return;
+    }
+    if (!decision.wait) { logToFile(`[RacingDesk] OBS is not started with the app: ${decision.why}`); return; }
+    if (Date.now() - asked > 60000) { logToFile('[RacingDesk] OBS is not started with the app: the telemetry did not answer in a minute'); return; }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+}
+
 const recording = obs.createRecordingKeeper({
   client: obsClient,
   settings: loadSettingsSync,
   recordFolder: recordingFolder,
+  // The folder OBS's own profile records into: where the floor looks while OBS is not there to be asked.
+  obsFolder: () => obs.launcher.profileRecordFolder({ appData: app.getPath('appData'), readFile: fs.readFileSync }),
   stateFile: recordingStateFile,
   fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
   inCar: () => hud.state().inCar,
+  // A press in the car that finds OBS not answering asks tasklist whether it is open at all, so that "OBS is not open"
+  // is not put on the HUD (and into the video) when it is.
+  obsRunning: () => obs.launcher.isObsRunning({ exec: execFileAsync }),
   startObs: startObsIfClosed,
   // The two sentences the HUD may show, and no other.
   notice: (text) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('hud-notice', text); },
@@ -574,26 +605,27 @@ function tellDeskRecording() {
 async function setupObs() {
   const folder = recordingFolder();
   setupLookedAt = { at: 0, value: null };
-  if (obsClient.identified()) {
-    const result = await obs.launcher.setupWhileOpen(obsClient, { folder });
-    try { fs.mkdirSync(folder, { recursive: true }); } catch (e) { result.problems.push(`The recording folder ${folder} could not be made: ${e.message}`); }
-    logToFile(`[RacingDesk] Set up OBS (open): ${[...result.did, ...result.problems].join(' ')}`);
-    return { ok: result.problems.length === 0, did: result.did, problems: result.problems };
-  }
-  const running = await obs.launcher.isObsRunning({ exec: execFileAsync });
-  if (running === true) {
-    const state = obsClient.state();
-    if (state.authFailed) return { ok: false, did: [], problems: ['OBS refused the password. Type the one from OBS below, or quit OBS and press Set up OBS again.'] };
-    return { ok: false, did: [], problems: ['OBS is open with its WebSocket switched off. Quit OBS, then press Set up OBS again.'] };
-  }
-  const result = obs.launcher.setupWhileClosed({
-    appData: app.getPath('appData'), folder,
+  // modules/js/obs/launcher.js: over the WebSocket while OBS answers, in its files only while it is known to be closed
+  // (a tasklist that cannot say, or OBS open and not answering, leaves them alone: OBS would write them over).
+  const result = await obs.launcher.setupObs({
+    client: obsClient, exec: execFileAsync, appData: app.getPath('appData'), folder,
     readFile: fs.readFileSync, writeFile: fs.writeFileSync, rename: fs.renameSync, mkdir: fs.mkdirSync,
   });
-  obsFilePassword = result.password;
-  logToFile(`[RacingDesk] Set up OBS (closed): ${[...result.did, ...result.problems].join(' ')} (password: ${result.password ? 'set' : 'none'})`);
-  obsClient.passwordChanged();
-  return { ok: result.problems.length === 0, did: result.did, problems: result.problems };
+  if (result.ran === 'closed') {
+    obsFilePassword = result.password;
+    logToFile(`[RacingDesk] Set up OBS (closed): ${[...result.did, ...result.problems].join(' ')} (password: ${result.password ? 'set' : 'none'})`);
+    // The password in OBS's own file is the one it has now: one typed earlier, which would be tried first and may be
+    // the one OBS refused, is dropped.
+    if (result.password && typeof loadSettingsSync()[OBS_PASSWORD_KEY] === 'string') {
+      const settings = loadSettingsSync();
+      delete settings[OBS_PASSWORD_KEY];
+      saveSettingsSync(settings);
+    }
+    obsClient.passwordChanged();
+  } else {
+    logToFile(`[RacingDesk] Set up OBS (${result.ran || 'not done'}): ${[...result.did, ...result.problems].join(' ')}`);
+  }
+  return { ok: result.ok, did: result.did, problems: result.problems };
 }
 
 // The password he typed, kept with safeStorage and stripped from every page's copy of the settings; an empty one
@@ -886,7 +918,7 @@ app.whenReady().then(async () => {
     recording.start();
     obsClient.start();
     if (!isDev && loadSettingsSync().obsStartWithApp === true) {
-      startObsIfClosed().then((answer) => { if (!answer.ok) logToFile(`[RacingDesk] OBS with the app: ${answer.reason}`); });
+      startObsWithApp().catch((err) => logToFile(`[RacingDesk] OBS with the app: ${err.message}`));
     }
 
     // The Stream Deck plugin, from the copy this build carries (not in dev mode, whose folder is the source tree).
@@ -936,14 +968,11 @@ const _actionHandlers = {
   // The driver's switch, not the window's: see hud, above. From Ctrl+Shift+H and the Stream Deck, so only in the
   // car: out of it the switch is left as it was and the answer says so ({ ok: false, reason: 'out of the car' }).
   'toggle-overlay': () => hud.toggle(),
+  // "Open Settings" on the Stream Deck: the desk's Settings page. (It opened racing-desk-native://settings, the old
+  // WinUI app's protocol, which is not this app.)
   'toggle-settings': () => {
-    // Settings UI lives in the WinUI host now. Deep-link via the
-    // racing-desk-native:// protocol scheme the host registers — activating
-    // the URI brings the host window to the front (single-instance
-    // behavior) and the host's protocol handler can route to Settings.
-    // Falls back gracefully if the host isn't installed.
     try {
-      shell.openExternal('racing-desk-native://settings');
+      showDesk('settings');
       return { ok: true };
     } catch (err) {
       logToFile(`[RacingDesk] toggle-settings failed: ${err.message}`);
@@ -1079,7 +1108,8 @@ ipcMain.handle('recording:command', async (event, command, value) => {
         if (result.canceled || !result.filePaths.length) return { ok: false, reason: 'No folder was chosen.' };
         saveSettingsKeySync('recordingFolder', result.filePaths[0]);
         setupLookedAt = { at: 0, value: null };
-        recording.refreshFree(result.filePaths[0]).then(() => tellDeskRecording());
+        // Hours left are about the drive OBS records to, which is this folder only once Set up OBS has pointed it here.
+        recording.refreshFree().then(() => tellDeskRecording());
         return { ok: true, folder: result.filePaths[0] };
       }
       case 'password': { const answer = setObsPassword(value); tellDeskRecording(); return answer; }

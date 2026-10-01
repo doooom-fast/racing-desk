@@ -20,6 +20,10 @@
 //   OBS saves to disk at once and takes up at its next start. Never a hop through another profile.
 // - .sentinel: a folder OBS keeps a run_ file in while it runs. Non-empty with OBS not running means OBS did not
 //   close cleanly last time and will ask about it when it starts.
+// - Never a second OBS, and never OBS's files edited while it may be open: a tasklist that cannot say whether OBS runs
+//   is "not known", and then nothing is started and nothing is written. Presses that come together share one start.
+// - Never an OBS that could not answer: with its WebSocket switched off (the file says so, or has no such file yet) a
+//   press says to press Set up OBS first and starts nothing.
 const path = require('path');
 
 const DEFAULT_OBS_DIR = 'C:\\Program Files\\obs-studio';
@@ -28,6 +32,11 @@ const BIN = path.join('bin', '64bit');
 const LAUNCH_FLAGS = Object.freeze(['--minimize-to-tray', '--disable-updater']);
 const REPLAY_SECONDS = '20';
 const WS_DEFAULT_PORT = 4455;
+
+const NOT_KNOWN = 'Racing Desk could not tell whether OBS is open.';
+const WS_OFF_OPEN = 'OBS is open with its WebSocket switched off. Quit OBS, then press Set up OBS.';
+const WS_OFF_FIRST = "OBS's WebSocket is switched off, so Racing Desk could not use an OBS it started. Press Set up OBS first.";
+const NOT_FOUND = `OBS was not found at ${DEFAULT_OBS_DIR}, so Racing Desk cannot start it. If you open OBS yourself, Racing Desk will find it.`;
 
 // ── Where things are ─────────────────────────────────────────
 
@@ -88,6 +97,64 @@ function startObs({ exe, cwd, spawn, flags = LAUNCH_FLAGS }) {
   } catch (err) {
     return { ok: false, reason: `OBS could not be started: ${err.message}` };
   }
+}
+
+/**
+ * What a press has to do about OBS when it is not answering: nothing if it is running (its WebSocket may be off, or it
+ * may be asking about its last crash), else start it detached and minimised. Resolves { ok, running?, pid?, reason? }.
+ * Never a second OBS: a tasklist that cannot say is "not known" and starts nothing. Never an OBS that cannot answer:
+ * with the WebSocket switched off the sentence is to press Set up OBS first.
+ */
+async function startIfClosed({ exec, paths, obsPath = null, exists, readdir, readFile, spawn, log = () => {} }) {
+  const running = await isObsRunning({ exec });
+  if (running === null) return { ok: false, reason: NOT_KNOWN };
+  const cfg = readWebSocketConfig(paths.configJson, { readFile });
+  if (running === true) {
+    if (cfg.state === 'ok' && !cfg.enabled) return { ok: false, reason: WS_OFF_OPEN };
+    return { ok: true, running: true };
+  }
+  if ((cfg.state === 'ok' && !cfg.enabled) || cfg.state === 'missing') return { ok: false, reason: WS_OFF_FIRST };
+  const found = findObs({ obsPath, exists });
+  if (!found) return { ok: false, reason: NOT_FOUND };
+  if (crashedLastTime({ sentinelDir: paths.sentinelDir, readdir })) {
+    log('[RacingDesk] OBS did not close cleanly last time: it will ask about it when it opens');
+  }
+  const started = startObs({ exe: found.exe, cwd: found.cwd, spawn });
+  log(started.ok ? `[RacingDesk] OBS started (pid ${started.pid}), minimised to the tray` : `[RacingDesk] ${started.reason}`);
+  return started;
+}
+
+/**
+ * startIfClosed with its inputs given once, and one start at a time: a press that comes while another is still asking
+ * tasklist (the tray's Open OBS and the Stream Deck's Record together) is given that one's answer, not a second launch.
+ * `obsPath` may be a function, read afresh at each start.
+ */
+function createStarter(deps) {
+  let inFlight = null;
+  return {
+    startIfClosed() {
+      if (!inFlight) {
+        inFlight = startIfClosed({ ...deps, obsPath: typeof deps.obsPath === 'function' ? deps.obsPath() : deps.obsPath })
+          .catch((e) => ({ ok: false, reason: `OBS could not be started: ${e.message}` }))
+          .finally(() => { inFlight = null; });
+      }
+      return inFlight;
+    },
+  };
+}
+
+/**
+ * What Racing Desk's own start does about OBS, with "Start OBS with Racing Desk" on: { start } when it may; { wait }
+ * when the telemetry has not answered yet (a host just started answers a few seconds late, and no answer says nothing
+ * about the car); otherwise why not. Never from the relaunch Ctrl+Shift+G makes — a key held only in the car — and
+ * never while he is in the car: OBS's modal dialogs (the crash question, a failed replay buffer) land over the sim.
+ */
+function startWithApp({ enabled, relaunched = false, answered, inCar }) {
+  if (!enabled) return { start: false, wait: false, why: 'the switch is off' };
+  if (relaunched) return { start: false, wait: false, why: 'this start is the relaunch a key in the car makes' };
+  if (!answered) return { start: false, wait: true, why: 'the telemetry has not answered yet' };
+  if (inCar) return { start: false, wait: false, why: 'he is in the car' };
+  return { start: true, wait: false, why: null };
 }
 
 // ── The WebSocket's settings file ────────────────────────────
@@ -257,6 +324,17 @@ function profileCheck(iniText, folder) {
   return { hybrid, replayBuffer, folder: folderOk, recFilePath: adv.RecFilePath, ok: hybrid && replayBuffer && folderOk };
 }
 
+/** The folder the current profile records into, as its basic.ini says (Advanced or Simple output); null if unknown. */
+function profileRecordFolder({ appData, readFile }) {
+  const profile = currentProfileIni({ appData, readFile });
+  if (!profile) return null;
+  let text;
+  try { text = String(readFile(profile.ini, 'utf8')); } catch (e) { return null; }
+  const mode = readIniKeys(text, 'Output', ['Mode']).Mode;
+  const folder = mode === 'Simple' ? readIniKeys(text, 'SimpleOutput', ['FilePath']).FilePath : readIniKeys(text, 'AdvOut', ['RecFilePath']).RecFilePath;
+  return folder || null;
+}
+
 /**
  * Everything Set up OBS does while OBS is closed: the WebSocket switched on and its password read; the profile keys
  * written into the current profile's basic.ini; the recording folder made. Returns { did, problems, password,
@@ -354,10 +432,39 @@ async function setupWhileOpen(client, { folder }) {
   return { did, problems };
 }
 
+/**
+ * Set up OBS, whichever way OBS stands: over the WebSocket while it answers; in OBS's files while it is closed; and
+ * nothing at all while it may be open and cannot be talked to (its WebSocket off, a password refused, tasklist not
+ * saying), because OBS writes its files from memory when it closes and would undo what was written. Resolves
+ * { ok, did, problems, ran, password? } — `password` is the one read from OBS's file, for memory and nothing else.
+ */
+async function setupObs({ client, exec, appData, folder, readFile, writeFile, rename, mkdir }) {
+  if (client.identified()) {
+    const result = await setupWhileOpen(client, { folder });
+    try { mkdir(folder, { recursive: true }); } catch (e) { result.problems.push(`The recording folder ${folder} could not be made: ${e.message}`); }
+    return { ok: result.problems.length === 0, did: result.did, problems: result.problems, ran: 'open' };
+  }
+  const running = await isObsRunning({ exec });
+  if (running !== false) {
+    const state = client.state();
+    const problem = running === null
+      ? `${NOT_KNOWN} OBS's files were left as they are.`
+      : state.authFailed
+        ? 'OBS refused the password. Type the one from OBS below, or quit OBS and press Set up OBS again.'
+        : state.passwordMissing
+          ? 'OBS wants a password and Racing Desk has none. Type the one from OBS below, or quit OBS and press Set up OBS again.'
+          : 'OBS is open with its WebSocket switched off. Quit OBS, then press Set up OBS again.';
+    return { ok: false, did: [], problems: [problem], ran: null };
+  }
+  const result = setupWhileClosed({ appData, folder, readFile, writeFile, rename, mkdir });
+  return { ok: result.problems.length === 0, did: result.did, problems: result.problems, password: result.password, ran: 'closed' };
+}
+
 module.exports = {
   DEFAULT_OBS_DIR, EXE, BIN, LAUNCH_FLAGS, REPLAY_SECONDS, WS_DEFAULT_PORT,
-  obsPaths, findObs, isObsRunning, crashedLastTime, startObs,
+  NOT_KNOWN, WS_OFF_OPEN, WS_OFF_FIRST, NOT_FOUND,
+  obsPaths, findObs, isObsRunning, crashedLastTime, startObs, startIfClosed, createStarter, startWithApp,
   readWebSocketConfig, enableWebSocket,
-  currentProfileIni, readIniKeys, setIniKeys, toForwardSlashes, profileWanted, profileCheck,
-  setupWhileClosed, setupWhileOpen,
+  currentProfileIni, readIniKeys, setIniKeys, toForwardSlashes, profileWanted, profileCheck, profileRecordFolder,
+  setupWhileClosed, setupWhileOpen, setupObs,
 };
