@@ -8,12 +8,14 @@
 //
 // What changed with OBS (schemaVersion stays 1; all additive, and a reader that defaults a missing field to 0 is
 // right): every frame carries the sim's own clock, `sn` (SessionNum) and `st` (SessionTime), which is how a moment
-// in the sidecar is found again in iRacing's replay; the header says who produced it (`producer: "obs"`), the OBS
-// file (`obsOutputPath`), when the video began (`videoStartUtc`) and the offset to add to `t` (`videoOffsetMs`,
-// 0 until a better one is read back from the finished file); `flag` is the payload's one word, `currentFlagState`
-// (`DS.FlagState`, which it read before, was never sent, so every frame said "green"); `gear` is the string the
-// HUD shows ("N", "R", "3": it used to turn "N" into 0); `closestCar` is no longer written (`DS.ClosestCarDistance`
-// was never sent either).
+// in the sidecar is found again in iRacing's replay; the header says who produced it (`producer: "obs"`), what it is
+// beside (`kind`: a recording, or a clip the replay buffer saved), the OBS file (`obsOutputPath`), when the video
+// began (`videoStartUtc`) and the offset to add to `t` (`videoOffsetMs`, 0 to begin with); the summary carries the
+// offset as it was found once the file was finished — from the chapters Racing Desk sent, read back from the
+// file's chapter track, or from the file's end — with `alignment` saying which, and `chapters` (each with its t);
+// `flag` is the payload's one word, `currentFlagState` (`DS.FlagState`, which it read before, was never sent, so
+// every frame said "green"); `gear` is the string the HUD shows ("N", "R", "3": it used to turn "N" into 0);
+// `closestCar` is no longer written (`DS.ClosestCarDistance` was never sent either).
 const SCHEMA_VERSION = 1;
 const FLUSH_EVERY = 30;   // frames: a write a second at 30 Hz
 
@@ -23,7 +25,20 @@ const KEYS = Object.freeze({
   sessionNum: 'DataCorePlugin.GameRawData.Telemetry.SessionNum',
   sessionTime: 'DataCorePlugin.GameRawData.Telemetry.SessionTime',
   flag: 'currentFlagState',
+  // The track's name: SimHub's key, else the host's (which sends no DataCorePlugin.GameData.TrackName), else the map's.
+  track: ['DataCorePlugin.GameData.TrackName', 'RacingDesk.Plugin.Session.TrackName', 'RacingDesk.Plugin.TrackMap.TrackName'],
+  car: 'DataCorePlugin.GameData.CarModel',
 });
+
+/** The track and the car a payload names, as the header and the recording's folder read them; null where it does not say. */
+function trackAndCar(p) {
+  if (!p || typeof p !== 'object') return { track: null, car: null };
+  const isDemo = flag(p[KEYS.demoMode]);
+  const first = (keys) => { for (const k of keys) { if (p[k] !== undefined && p[k] !== null && String(p[k]).trim() !== '') return String(p[k]); } return null; };
+  const car = isDemo ? first(['RacingDesk.Plugin.Demo.CarModel', KEYS.car]) : first([KEYS.car, 'RacingDesk.Plugin.Demo.CarModel']);
+  const track = isDemo ? first(['RacingDesk.Plugin.Demo.TrackName', ...KEYS.track]) : first([...KEYS.track, 'RacingDesk.Plugin.Demo.TrackName']);
+  return { track, car };
+}
 
 function flag(value) {
   if (value === true) return true;
@@ -38,17 +53,23 @@ function numberOrNull(value) {
 }
 
 /**
- * createSidecar({ write, now })
- *   start({ path, startedAt, producer, obsOutputPath, videoOffsetMs, resume })
+ * createSidecar({ write, now, onMarker })
+ *   start({ path, startedAt, producer, obsOutputPath, videoOffsetMs, resume, kind })
  *                               resume: the file has frames already (Racing Desk was restarted mid-recording, or lost
  *                               OBS for a while): a `resumed` line is written in place of a second header, and the
  *                               frames after it are numbered from 0 again, with `t` still from the video's start
- *   frame(payload)              one line, from the payload the HUD reads; the header is written with the first
- *   marker({ type, ... })       a marker of the caller's (a file change, a chapter)
- *   stop({ stoppedAt, reason })  flush, the summary line, and done
+ *                               kind: 'recording' (OBS's recording) or 'replay' (a clip the replay buffer saved)
+ *   frame(payload, { at })      one line, from the payload the HUD reads; the header is written with the first; a
+ *                               marker it finds (a lap, an incident, a place, the pit lane) is handed to onMarker
+ *   marker({ type, ... })       a marker of the caller's (a file change)
+ *   chapter({ name, at })       a chapter the caller sent to OBS, kept with its t for the summary
+ *   relocate(newPath)           the file was moved (flushed first); what follows is written to the new path
+ *   stop({ stoppedAt, reason, obsOutputPath, videoOffsetMs, alignment })
+ *                               flush, the summary line — with the offset and how it was found, and the chapters —
+ *                               and done
  *   flush(), isActive(), state()
  */
-function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {}) {
+function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMarker = null } = {}) {
   if (typeof write !== 'function') throw new Error('createSidecar needs write(path, text)');
   let active = false;
   let path = null;
@@ -59,10 +80,18 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
   let frameIndex = 0;
   let buffer = [];
   let markers = [];
+  let chapters = [];
   let prevIncidents = -1;
   let prevPosition = -1;
   let prevLap = -1;
   let prevInPit = null;
+
+  function noteMarker(m) {
+    markers.push(m);
+    if (typeof onMarker === 'function') {
+      try { onMarker(m); } catch (e) { /* the caller's */ }
+    }
+  }
 
   function line(obj) {
     buffer.push(JSON.stringify(obj));
@@ -80,37 +109,37 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
     if (headerWritten) return;
     headerWritten = true;
     const isDemo = !!p && flag(p[KEYS.demoMode]);
-    const pick = (game, demo) => (p ? (isDemo ? (p[demo] || p[game]) : (p[game] || p[demo])) || null : null);
-    const car = pick('DataCorePlugin.GameData.CarModel', 'RacingDesk.Plugin.Demo.CarModel');
-    const track = pick('DataCorePlugin.GameData.TrackName', 'RacingDesk.Plugin.Demo.TrackName');
+    const { car, track } = trackAndCar(p);
     write(path, JSON.stringify({
       _type: 'header',
       schemaVersion: SCHEMA_VERSION,
       startedAt: new Date(startedAt).toISOString(),
-      car: car === undefined ? null : car,
-      track: track === undefined ? null : track,
+      car,
+      track,
       gameId: p && p[KEYS.gameId] ? String(p[KEYS.gameId]) : null,
       isDemo,
       producer: header.producer,
+      kind: header.kind,
       obsOutputPath: header.obsOutputPath,
       videoStartUtc: new Date(startedAt).toISOString(),
       videoOffsetMs: header.videoOffsetMs,
     }) + '\n');
   }
 
-  function start({ path: file, startedAt: at = now(), producer = 'obs', obsOutputPath = null, videoOffsetMs = 0, resume = false } = {}) {
+  function start({ path: file, startedAt: at = now(), producer = 'obs', obsOutputPath = null, videoOffsetMs = 0, resume = false, kind = 'recording' } = {}) {
     if (active) stop({ reason: 'started again' });
     if (typeof file !== 'string' || !file) throw new Error('a sidecar needs a path');
     active = true;
     path = file;
     startedAt = at;
-    header = { producer, obsOutputPath, videoOffsetMs };
+    header = { producer, obsOutputPath, videoOffsetMs, kind };
     // A file that already has its header is not given a second: the editor reads one header first and a summary last.
     headerWritten = !!resume;
     resumed = !!resume;
     frameIndex = 0;
     buffer = [];
     markers = [];
+    chapters = [];
     prevIncidents = -1;
     prevPosition = -1;
     prevLap = -1;
@@ -139,10 +168,10 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
     const t = +(elapsedMs / 1000).toFixed(3);
 
     // ── Markers ──
-    if (prevIncidents >= 0 && incidents > prevIncidents) markers.push({ type: 'incident', frame: frameIndex, t: elapsedMs, from: prevIncidents, to: incidents });
-    if (prevPosition > 0 && pos > 0 && pos !== prevPosition) markers.push({ type: 'position_change', frame: frameIndex, t: elapsedMs, from: prevPosition, to: pos, direction: pos < prevPosition ? 'gained' : 'lost' });
-    if (prevLap > 0 && lap > prevLap) markers.push({ type: 'new_lap', frame: frameIndex, t: elapsedMs, lap });
-    if (prevInPit !== null && prevInPit !== inPit) markers.push({ type: inPit ? 'pit_entry' : 'pit_exit', frame: frameIndex, t: elapsedMs });
+    if (prevIncidents >= 0 && incidents > prevIncidents) noteMarker({ type: 'incident', frame: frameIndex, t: elapsedMs, from: prevIncidents, to: incidents });
+    if (prevPosition > 0 && pos > 0 && pos !== prevPosition) noteMarker({ type: 'position_change', frame: frameIndex, t: elapsedMs, from: prevPosition, to: pos, direction: pos < prevPosition ? 'gained' : 'lost' });
+    if (prevLap > 0 && lap > prevLap) noteMarker({ type: 'new_lap', frame: frameIndex, t: elapsedMs, lap });
+    if (prevInPit !== null && prevInPit !== inPit) noteMarker({ type: inPit ? 'pit_entry' : 'pit_exit', frame: frameIndex, t: elapsedMs });
     prevIncidents = incidents;
     prevPosition = pos;
     prevLap = lap;
@@ -211,7 +240,23 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
     return true;
   }
 
-  function stop({ stoppedAt = now(), reason = null, obsOutputPath = null } = {}) {
+  // A chapter the caller asked OBS to write, at the moment it was asked: the pairs of (its t here, its time in the
+  // finished file) are what the video offset is read back from.
+  function chapter({ name, at = now() } = {}) {
+    if (!active || typeof name !== 'string' || !name) return false;
+    chapters.push({ name, frame: frameIndex, t: Math.max(0, at - startedAt) });
+    return true;
+  }
+
+  // The file has been moved (the caller flushed, then renamed it): the summary goes to where it is now.
+  function relocate(newPath) {
+    if (!active || typeof newPath !== 'string' || !newPath) return false;
+    flush();
+    path = newPath;
+    return true;
+  }
+
+  function stop({ stoppedAt = now(), reason = null, obsOutputPath = null, videoOffsetMs = null, alignment = null } = {}) {
     if (!active) return null;
     if (!headerWritten) writeHeader(null);
     const summary = {
@@ -219,14 +264,17 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
       frames: frameIndex,
       durationMs: Math.max(0, stoppedAt - startedAt),
       markers,
+      chapters,
       stoppedAt: new Date(stoppedAt).toISOString(),
       obsOutputPath: obsOutputPath || header.obsOutputPath,
+      videoOffsetMs: Number.isFinite(videoOffsetMs) ? Math.round(videoOffsetMs) : header.videoOffsetMs,
+      alignment: alignment && typeof alignment === 'object' ? alignment : { method: 'none' },
     };
     if (reason) summary.reason = reason;
     if (resumed) summary.resumed = true;
     line(summary);
     flush();
-    const result = { path, frames: frameIndex, markers: markers.length };
+    const result = { path, frames: frameIndex, markers: markers.length, chapters: chapters.length };
     active = false;
     path = null;
     header = null;
@@ -234,10 +282,10 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
   }
 
   function state() {
-    return { active, path, frames: frameIndex, markers: markers.length, startedAt };
+    return { active, path, frames: frameIndex, markers: markers.length, chapters: chapters.map((c) => ({ ...c })), startedAt };
   }
 
-  return { start, frame, marker, stop, flush, isActive: () => active, state };
+  return { start, frame, marker, chapter, relocate, stop, flush, isActive: () => active, state };
 }
 
 /** The sidecar's path for a video file: the same name with .telemetry.jsonl in place of the extension. */
@@ -245,4 +293,4 @@ function sidecarPathFor(videoPath) {
   return String(videoPath).replace(/\.[a-z0-9]{2,5}$/i, '') + '.telemetry.jsonl';
 }
 
-module.exports = { SCHEMA_VERSION, FLUSH_EVERY, KEYS, createSidecar, sidecarPathFor };
+module.exports = { SCHEMA_VERSION, FLUSH_EVERY, KEYS, trackAndCar, createSidecar, sidecarPathFor };

@@ -9,7 +9,7 @@ import { createRequire } from 'module';
 import { MOCK_TELEMETRY, MOCK_DEMO } from '../helpers.mjs';
 
 const require = createRequire(import.meta.url);
-const { createSidecar, sidecarPathFor, KEYS, FLUSH_EVERY } = require('../../modules/js/telemetry-sidecar.js');
+const { createSidecar, sidecarPathFor, trackAndCar, KEYS, FLUSH_EVERY } = require('../../modules/js/telemetry-sidecar.js');
 
 const RACE = {
   ...MOCK_TELEMETRY,
@@ -111,7 +111,7 @@ test('the header is written at once; frames every 30, and the rest on stop', () 
   const result = sidecar.stop({ reason: 'stopped' });
   expect(writes).toHaveLength(3);
   expect(writes[2].text.split('\n').filter(Boolean)).toHaveLength(6);   // five frames and the summary
-  expect(result).toEqual({ path: 'x.telemetry.jsonl', frames: 35, markers: 0 });
+  expect(result).toEqual({ path: 'x.telemetry.jsonl', frames: 35, markers: 0, chapters: 0 });
   expect(sidecar.isActive()).toBe(false);
   // Stopped, it takes no frame and stops no more.
   expect(sidecar.frame(RACE)).toBe(false);
@@ -178,4 +178,65 @@ test('resumed: a file that has its header is gone on in, with a resumed line and
   expect(frame.t).toBeCloseTo(5.2, 1);
   expect(summary).toMatchObject({ _type: 'summary', frames: 1, reason: 'stopped', resumed: true });
   expect(writes.every((w) => w.path === 'r.telemetry.jsonl')).toBe(true);
+});
+
+test('the summary says how the offset was found and lists the chapters sent, each with its t; the header says what the file is beside', () => {
+  const { sidecar, lines, tick } = harness();
+  sidecar.start({ path: 'r.telemetry.jsonl', obsOutputPath: 'r.mp4' });
+  tick(1000);
+  sidecar.frame(RACE);
+  tick(500);
+  expect(sidecar.chapter({ name: 'Lap 9' })).toBe(true);
+  tick(10000);
+  sidecar.chapter({ name: 'Pit in' });
+  expect(sidecar.chapter({ name: '' })).toBe(false);
+  expect(sidecar.state().chapters).toEqual([{ name: 'Lap 9', frame: 1, t: 1500 }, { name: 'Pit in', frame: 1, t: 11500 }]);
+  sidecar.stop({ reason: 'stopped', videoOffsetMs: 2237.4, alignment: { method: 'chapters', pairs: 2, spreadMs: 17 } });
+  const [header, , summary] = lines();
+  expect(header.kind).toBe('recording');
+  expect(summary).toMatchObject({ _type: 'summary', videoOffsetMs: 2237, alignment: { method: 'chapters', pairs: 2, spreadMs: 17 }, chapters: [{ name: 'Lap 9', frame: 1, t: 1500 }, { name: 'Pit in', frame: 1, t: 11500 }] });
+  // With no offset found the summary says so, and carries the header's 0.
+  const plain = harness();
+  plain.sidecar.start({ path: 'p.telemetry.jsonl', kind: 'replay' });
+  plain.sidecar.frame(RACE);
+  plain.sidecar.stop();
+  expect(plain.lines()[0].kind).toBe('replay');
+  expect(plain.lines().at(-1)).toMatchObject({ videoOffsetMs: 0, alignment: { method: 'none' }, chapters: [] });
+});
+
+test('a marker found in a frame is handed to onMarker as it is found; relocate moves what follows to the new path after flushing', () => {
+  const writes = [];
+  const found = [];
+  let clock = 1_700_000_000_000;
+  const sidecar = createSidecar({ write: (path, text) => writes.push({ path, text }), now: () => clock, onMarker: (m) => found.push(m) });
+  sidecar.start({ path: 'a.telemetry.jsonl' });
+  sidecar.frame(RACE);
+  clock += 1000;
+  sidecar.frame({ ...RACE, 'DataCorePlugin.GameData.CurrentLap': 9 });
+  expect(found).toEqual([{ type: 'new_lap', frame: 1, t: 1000, lap: 9 }]);
+  expect(writes).toHaveLength(1);   // the header alone; the two frames are buffered
+  expect(sidecar.relocate('b/a.telemetry.jsonl')).toBe(true);
+  expect(writes).toHaveLength(2);   // the frames were flushed to the old path first
+  expect(writes[1].path).toBe('a.telemetry.jsonl');
+  sidecar.stop();
+  expect(writes[2].path).toBe('b/a.telemetry.jsonl');
+  expect(JSON.parse(writes[2].text.trim())._type).toBe('summary');
+  expect(sidecar.relocate('c')).toBe(false);
+});
+
+test('the track is read from SimHub\'s key, else the host\'s, else the map\'s; the car from the sim\'s model', () => {
+  expect(trackAndCar({ 'DataCorePlugin.GameData.TrackName': 'zandvoort gp', 'DataCorePlugin.GameData.CarModel': 'Porsche 911 GT3 R' })).toEqual({ track: 'zandvoort gp', car: 'Porsche 911 GT3 R' });
+  expect(trackAndCar({ 'RacingDesk.Plugin.Session.TrackName': 'Zandvoort', 'DataCorePlugin.GameData.CarModel': 'x' })).toEqual({ track: 'Zandvoort', car: 'x' });
+  expect(trackAndCar({ 'RacingDesk.Plugin.TrackMap.TrackName': 'tsukuba 2000full' })).toEqual({ track: 'tsukuba 2000full', car: null });
+  expect(trackAndCar({ 'RacingDesk.Plugin.DemoMode': 1, 'RacingDesk.Plugin.Demo.CarModel': 'BMW M4 GT3', 'RacingDesk.Plugin.Demo.TrackName': 'Spa' })).toEqual({ track: 'Spa', car: 'BMW M4 GT3' });
+  expect(trackAndCar(null)).toEqual({ track: null, car: null });
+  expect(trackAndCar({ 'DataCorePlugin.GameData.TrackName': '  ' })).toEqual({ track: null, car: null });
+  // The header reads the same.
+  const { sidecar, lines } = harness();
+  sidecar.start({ path: 'h.telemetry.jsonl' });
+  const hostOnly = { ...RACE };
+  delete hostOnly['DataCorePlugin.GameData.TrackName'];
+  sidecar.frame({ ...hostOnly, 'RacingDesk.Plugin.Session.TrackName': 'Zandvoort' });
+  sidecar.stop();
+  expect(lines()[0].track).toBe('Zandvoort');
 });
