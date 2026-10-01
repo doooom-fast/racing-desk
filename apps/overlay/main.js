@@ -632,11 +632,11 @@ app.whenReady().then(async () => {
 
     // ── Display media handler for screen recording ──
     // Electron 33+ requires this to allow getDisplayMedia() in the renderer. A screen is granted without a picker:
-    // the one the HUD is on (hudScreen, above), matched to the capturer's sources by display_id in
-    // modules/js/capture-screen.js, else the first.
+    // the one the sim is on while it runs, else the one the HUD is on (hudScreen.recordScreen(), above), matched to
+    // the capturer's sources by display_id in modules/js/capture-screen.js, else the first.
     session.defaultSession.setDisplayMediaRequestHandler(captureScreen.createDisplayMediaHandler({
       getSources: () => desktopCapturer.getSources({ types: ['screen'] }),
-      getDisplayKey: () => hudScreen.currentKey(),
+      getDisplayKey: () => hudScreen.recordScreen(),
       log: logToFile,
     }));
 

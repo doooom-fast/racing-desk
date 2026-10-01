@@ -1,6 +1,7 @@
 /**
- * Which screen a recording is of (modules/js/capture-screen.js): the one the HUD is on — the screen hud-display.js
- * chose — matched to desktopCapturer's sources by display_id, else the first. It used to be the first, always.
+ * Which screen a recording is of (modules/js/capture-screen.js): the one the sim is on while it runs, else the one the
+ * HUD is on — both found by hud-display.js (`recordScreen`) — matched to desktopCapturer's sources by display_id, else
+ * the first. It used to be the first, always.
  *
  * No Electron: the sources are fakes shaped as desktopCapturer gives them on Windows, the screens are handed to
  * hud-display as plain objects, and the callback records what it was given.
@@ -94,6 +95,27 @@ test.describe('the handler', () => {
     expect(unnamed.said).toEqual(["[RacingDesk] Screen recording: the first screen: none of the screens is the HUD's (the HUD's is 1; the screens are ?, ?) (Entire screen)"]);
   });
 
+  test("grants the sim's screen when it is told that is the one, and says so", async () => {
+    const { ask, said } = handler({ key: { key: '1', reason: 'sim' } });
+    expect(await ask()).toEqual({ video: ULTRAWIDE_SOURCE, audio: 'loopback' });
+    expect(said).toEqual(["[RacingDesk] Screen recording: the sim's screen (Screen 2)"]);
+
+    // Where its id matches none of the screens it says whose id it was, and what the screens' are.
+    const gone = handler({ key: { key: '3', reason: 'sim' } });
+    expect((await gone.ask()).video).toBe(SMALL_SOURCE);
+    expect(gone.said).toEqual(["[RacingDesk] Screen recording: the first screen: none of the screens is the sim's (the sim's is 3; the screens are 2, 1) (Screen 1)"]);
+  });
+
+  test("a screen told as the HUD's, as an object or as a bare key, is the HUD's screen; a missing key is the first screen", async () => {
+    const asObject = handler({ key: { key: '1', reason: 'hud' } });
+    expect((await asObject.ask()).video).toBe(ULTRAWIDE_SOURCE);
+    expect(asObject.said).toEqual(["[RacingDesk] Screen recording: the HUD's screen (Screen 2)"]);
+
+    const none = handler({ key: { key: null, reason: 'hud' } });
+    expect((await none.ask()).video).toBe(SMALL_SOURCE);
+    expect(none.said).toEqual(['[RacingDesk] Screen recording: the first screen: the HUD has no screen yet (Screen 1)']);
+  });
+
   test('a key that cannot be read is no key: the first screen', async () => {
     const { ask } = handler({ key: () => { throw new Error('gone'); } });
     expect(await ask()).toEqual({ video: SMALL_SOURCE, audio: 'loopback' });
@@ -111,7 +133,7 @@ test.describe('the handler', () => {
   });
 });
 
-test.describe("with hud-display's choice", () => {
+test.describe("with hud-display's recording screen", () => {
   function fakeWindow() {
     const win = { bounds: { x: 0, y: 0, width: 823, height: 618 } };
     win.isDestroyed = () => false;
@@ -123,33 +145,55 @@ test.describe("with hud-display's choice", () => {
   // Physical pixels to the screens' own units: the ultrawide begins at 1440 physical, 823 in DIPs.
   const toDip = (r) => (r.x >= 1440 ? { x: 823 + (r.x - 1440), y: r.y, width: r.width, height: r.height } : { x: r.x / 1.75, y: r.y / 1.75, width: r.width / 1.75, height: r.height / 1.75 });
 
-  function rig() {
+  function rig({ choice } = {}) {
     const state = { sim: { state: 'not-running' } };
     const hud = createHudDisplay({
       getWindow: fakeWindow,
       getDisplays: () => [SMALL, ULTRAWIDE],
+      getChoice: () => choice,
       askSimWindow: async () => state.sim,
       askMonitors: async () => ({ state: 'unknown' }),
       toDipRect: toDip,
       platform: 'win32',
       askWithinMs: 40,
     });
-    const { ask } = handler({ key: () => hud.currentKey() });
-    return { hud, state, ask };
+    // As main.js wires it: the handler asks the keeper where the recording goes.
+    const { ask, said } = handler({ key: () => hud.recordScreen() });
+    return { hud, state, ask, said };
   }
+
+  const RUNNING_ON_ULTRAWIDE = { state: 'running', window: { x: 1440, y: 0, width: 3440, height: 1440 }, monitor: { x: 1440, y: 0, width: 3440, height: 1440 } };
+  const RUNNING_ON_SMALL = { state: 'running', window: { x: 0, y: 0, width: 1440, height: 1080 }, monitor: { x: 0, y: 0, width: 1440, height: 1080 } };
 
   test('the sim on the ultrawide, listed second: the recording is of the ultrawide, and follows the sim to the small screen', async () => {
     const { hud, state, ask } = rig();
     // Before the rule has run there is no HUD screen, and the first is granted.
     expect((await ask()).video).toBe(SMALL_SOURCE);
 
-    state.sim = { state: 'running', window: { x: 1440, y: 0, width: 3440, height: 1440 }, monitor: { x: 1440, y: 0, width: 3440, height: 1440 } };
+    state.sim = RUNNING_ON_ULTRAWIDE;
     await hud.refresh();
     expect(hud.currentKey()).toBe('1');
     expect((await ask()).video).toBe(ULTRAWIDE_SOURCE);
 
-    state.sim = { state: 'running', window: { x: 0, y: 0, width: 1440, height: 1080 }, monitor: { x: 0, y: 0, width: 1440, height: 1080 } };
+    state.sim = RUNNING_ON_SMALL;
     await hud.refresh();
     expect((await ask()).video).toBe(SMALL_SOURCE);
+  });
+
+  // The recorder is there to record the race. A screen he chose for the HUD is where the HUD goes, not where the race is:
+  // with the HUD on the small screen and the sim on the ultrawide, the bundle must hold the sim and not the desktop.
+  test('a small screen chosen for the HUD, the sim on the ultrawide: the recording is of the ultrawide', async () => {
+    const { hud, state, ask, said } = rig({ choice: '2' });
+    state.sim = RUNNING_ON_ULTRAWIDE;
+    await hud.refresh();
+    expect(hud.currentKey()).toBe('2');   // the HUD is on the small screen, by his choice
+    expect((await ask()).video).toBe(ULTRAWIDE_SOURCE);
+    expect(said.at(-1)).toBe("[RacingDesk] Screen recording: the sim's screen (Screen 2)");
+
+    // The sim closes: nothing is being raced, and the recording is of the screen the HUD is on.
+    state.sim = { state: 'not-running' };
+    await hud.refresh();
+    expect((await ask()).video).toBe(SMALL_SOURCE);
+    expect(said.at(-1)).toBe("[RacingDesk] Screen recording: the HUD's screen (Screen 1)");
   });
 });

@@ -36,7 +36,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `voice-coach.js` | Synthesized voice prompts for in-race coaching at quiet moments |
 | `incident-coach.js` | Highlights what just went wrong and how to recover |
 | `recorder.js` | Screen capture for `.rcpdv` race bundles |
-| `capture-screen.js` | Main process: which screen a recording is granted — the one the HUD is on (`hudScreen.currentKey()`), matched to desktopCapturer's sources by `display_id`, else the first. Root CLAUDE.md, Desk |
+| `capture-screen.js` | Main process: which screen a recording is granted — the one the sim is on while it runs, else the one the HUD is on (`hudScreen.recordScreen()`), matched to desktopCapturer's sources by `display_id`, else the first. Root CLAUDE.md, Desk |
 | `replay-buffer.js` | Rolling N-second buffer in RAM for instant replay clips |
 | `replay-director.js` | Timeline of a recorded race for in-overlay scrubbing |
 | `ffmpeg-encoder.js` | Mux MP4 + telemetry sidecar into the final `.rcpdv` bundle |

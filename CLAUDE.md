@@ -496,19 +496,28 @@ layouts. The rule, in the order it is applied:
    stability; the real `EnumDisplayMonitors` was run once on this machine (one screen then), not on both screens; the
    rule, the wiring and the host's routes are tested, the Electron calls are not.
 
-   **A recording follows the HUD's screen, and the ambient colour the sim's window** (both looked at the primary or the
-   first screen, always, until 2026-09-29). With the sim running and no screen chosen in Settings the two are the same
-   screen. They differ when he has chosen a screen for the HUD that is not the sim's (the recording is of the chosen
-   screen, the colour is sampled on the sim's, with the region's ratios taken from the HUD's window on the chosen one),
-   and while the sim has no window (the HUD is where the ini or the size puts it, the colour is sampled on the primary).
+   **A recording and the ambient colour follow the sim's screen** (both looked at the primary or the first screen,
+   always, until 2026-09-29). The recording exists to record the race, so a screen he chose in Settings for the HUD is
+   the HUD's place and not the recording's: while the sim runs, the recording and the colour are both of the screen the
+   sim's window is on — with the HUD on the small screen by his choice and the sim on the ultrawide, the recording is
+   of the ultrawide, and the colour's region is ratios taken from the HUD's window on the chosen screen. While the sim
+   has no window the recording is of the screen the HUD is on (where the ini or the size puts it, or the one he chose)
+   and the colour is sampled on the primary.
    - **A recording** (`recorder.js`'s `getDisplayMedia`, granted without a picker by `setDisplayMediaRequestHandler` in
-     `main.js`) is of the screen the HUD is on: `modules/js/capture-screen.js` matches desktopCapturer's sources to
-     `hudScreen.currentKey()` — the screen the rule last chose, which asks nothing — by `display_id`, which on Windows is
-     Electron's `display.id` as text (Electron's documentation says so; not yet seen on this rig). While the rule has not
-     run, or no source is that screen (it has gone, or the platform's ids do not agree), it is the first screen; the log
-     says which and why (`Screen recording: the HUD's screen (Screen 2)`), and where none matched, the key and every
+     `main.js`) is of `hudScreen.recordScreen()`: `{ key, reason }`, the key of the screen the sim's window was last seen
+     on while the host says the sim is running (`reason: 'sim'`) — kept by `hud-display.js` apart from its decision, which
+     a chosen screen wins before the sim's window is looked at — else the screen the rule last chose for the HUD (`'hud'`;
+     `currentKey()`). It asks nothing: it is what the rounds that decide the HUD's screen (each time he gets in the car,
+     a screen added or removed, Ctrl+Shift+R, a changed choice) last found. The host not saying where the sim is leaves
+     it where it was last seen, as for the HUD; the sim saying it is not running, or being on none of the screens,
+     forgets it, and so does the screen being unplugged. `modules/js/capture-screen.js` matches desktopCapturer's
+     sources to the key by `display_id`, which on Windows is Electron's `display.id` as text (Electron's documentation
+     says so; not yet seen on this rig). While nothing is known (the rule has not run), or no source is that screen (it
+     has gone, or the platform's ids do not agree), it is the first screen; the log says which and why
+     (`Screen recording: the sim's screen (Screen 2)`, or `the HUD's screen`), and where none matched, the key and every
      source's `display_id`, so ids that never agree show. In dev mode the key is the rule's choice, not where `dev-mode.js`
-     put the window. `tests/unit/capture-screen.spec.mjs`, and the wiring in `hud-main-wiring.spec.mjs`.
+     put the window. `tests/unit/capture-screen.spec.mjs` (a chosen small screen and the sim on the ultrawide among
+     them), `hud-display.spec.mjs`, and the wiring in `hud-main-wiring.spec.mjs`.
    - **The ambient colour** (`RacingDesk.Core/Engine/ScreenColorSampler.cs`, in the app's host and in the SimHub plugin
      alike) is sampled on the monitor the sim's window is on — `RacingDesk.Core/Screens/SimMonitor.cs`, with the same
      lookup the `simwindow` route makes (it and the monitors' lookup moved from the host into `RacingDesk.Core/Screens/`
