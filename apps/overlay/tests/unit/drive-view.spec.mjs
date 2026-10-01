@@ -569,7 +569,7 @@ test.describe('the flag is the background', () => {
     await page.waitForTimeout(500);
     const yellow = await look();
     expect(yellow.flag).toBe('yellow');
-    expect(yellow.opacity).toBe('1');
+    expect(+yellow.opacity).toBeCloseTo(0.15, 2);                   // on an iPad the pattern behind the panels is at fifteen hundredths (below)
     expect(yellow.pattern).toContain('rgb(253, 205, 13)');          // hsl(48, 98%, 52%), the flag's yellow
     expect(yellow.tint).toContain('rgba(245, 205, 40, 0.34)');      // the glass takes the flag's colour
     expect(yellow.panel).toBe('rgb(15, 15, 15)');                   // over a panel the numbers stay legible on, and nothing shows through it
@@ -579,7 +579,7 @@ test.describe('the flag is the background', () => {
     await page.waitForTimeout(500);
     const blue = await look();
     expect(blue.flag).toBe('blue');
-    expect(blue.opacity).toBe('1');
+    expect(+blue.opacity).toBeCloseTo(0.15, 2);
     expect(blue.pattern).toContain('rgb(29, 98, 237)');             // hsl(220, 85%, 52%)
     expect(blue.panel).toBe(none.panel);
 
@@ -588,6 +588,62 @@ test.describe('the flag is the background', () => {
     await expect.poll(() => page.evaluate(() => document.body.dataset.flag), { timeout: 8000 }).toBe('none');
     await page.waitForTimeout(500);
     expect((await look()).opacity).toBe('0');
+  });
+
+  test('on an iPad the flag behind and between the panels is at fifteen hundredths, and a thin frame at the edge carries it whole', async ({ page }) => {
+    test.setTimeout(90000);
+    // What he asked for: the shiny backgrounds "brought back to about 15% opacity". The glass was; the stripes in every
+    // gutter were not. Every layer that draws the flag's pattern on the page is at 0.15 or under, but for the frame,
+    // which is a few pixels at the screen's edge and no wider — never a gutter — and may be at full strength.
+    // Every layer on the page that draws the flag's pattern: the same image as the page's own flag layer (body::before,
+    // whose background is --rd-flag-bg). Race control's banner has stripes of its own, and the panels their tint:
+    // neither is the flag's pattern, and neither is what he asked to have brought down.
+    const layers = () => page.evaluate(() => {
+      const pattern = getComputedStyle(document.body, '::before').backgroundImage;
+      const out = [];
+      for (const el of document.querySelectorAll('body, body *')) {
+        for (const pseudo of [null, '::before', '::after']) {
+          const cs = getComputedStyle(el, pseudo);
+          if (pseudo && cs.content === 'none') continue;
+          if (cs.backgroundImage !== pattern) continue;
+          out.push({ el: (el.id || el.className || el.tagName) + (pseudo || ''), opacity: +cs.opacity, padding: parseFloat(cs.paddingTop) || 0,
+            masked: (cs.webkitMaskImage !== 'none' && cs.webkitMaskImage !== '') || (cs.maskImage && cs.maskImage !== 'none'), position: cs.position });
+        }
+      }
+      return { pattern, out };
+    });
+    await openAt(page, 1180, 820, RACE());
+    for (const flag of ['yellow', 'green', 'white', 'checkered', 'blue']) {
+      await serve(page, RACE({ flag }));
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => document.body.dataset.flag)).toBe(flag);
+      const { pattern, out: found } = await layers();
+      expect(pattern, `${flag}: a pattern`).toMatch(/gradient/);
+      expect(found.length, `${flag}: the pattern is drawn`).toBeGreaterThanOrEqual(2);
+      for (const layer of found) {
+        if (layer.masked) {
+          // The frame: at the screen's edge, a few pixels, the rest of the box masked out.
+          expect(layer.position, `${flag}: ${layer.el}`).toBe('fixed');
+          expect(layer.padding, `${flag}: ${layer.el} is a thin frame`).toBeGreaterThan(0);
+          expect(layer.padding, `${flag}: ${layer.el} is a thin frame`).toBeLessThanOrEqual(6);
+        } else {
+          expect(layer.opacity, `${flag}: ${layer.el} at fifteen hundredths`).toBeLessThanOrEqual(0.16);
+        }
+      }
+      expect(found.some((l) => l.masked), `${flag}: the frame is there`).toBe(true);
+    }
+    // Cleared, the frame goes too.
+    await serve(page, RACE({ flag: 'none' }));
+    await expect.poll(() => page.evaluate(() => document.body.dataset.flag), { timeout: 8000 }).toBe('none');
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => getComputedStyle(document.body, '::after').opacity)).toBe('0');
+    // On the rig's own glance layout the flag is as it was: full strength in the gutters, and no frame.
+    await page.evaluate(() => document.documentElement.classList.remove('rd-remote'));
+    await serve(page, RACE({ flag: 'yellow' }));
+    await page.waitForTimeout(500);
+    const rig = await page.evaluate(() => [getComputedStyle(document.body, '::before').opacity, getComputedStyle(document.body, '::after').content]);
+    expect(rig).toEqual(['1', 'none']);
+    await page.evaluate(() => document.documentElement.classList.add('rd-remote'));
   });
 
   test('the checkered flag is a checkerboard, and the meatball an orange disc on black', async ({ page }) => {
