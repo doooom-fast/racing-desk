@@ -83,10 +83,6 @@ namespace RacingDesk.Tests.TestHelpers
                 case "tracktemp":             return s.TrackTemp;
                 case "energyersbattery":      return s.ErsBattery;
                 case "powermguk":             return s.MgukPower;
-                case "tyrewearfl":            return s.TyreWearFL;
-                case "tyrewearfr":            return s.TyreWearFR;
-                case "tyrewearrl":            return s.TyreWearRL;
-                case "tyrewearrr":            return s.TyreWearRR;
                 case "tyretempfl":            return s.TyreTempFL;
                 case "tyretempfr":            return s.TyreTempFR;
                 case "tyretemprl":            return s.TyreTempRL;

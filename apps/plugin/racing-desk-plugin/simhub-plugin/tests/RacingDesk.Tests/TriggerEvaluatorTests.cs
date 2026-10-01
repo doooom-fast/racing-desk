@@ -59,43 +59,6 @@ namespace RacingDesk.Tests
 
         #endregion
 
-        #region Tyre Wear (tread remaining, 0..100 %: worn is low)
-
-        // These run against the test project's own copy of the evaluator (TestHelpers). The shipped evaluator, the
-        // real topics file, the host's conversion and the strategist are held in IRacing/TyreWearTests.cs.
-
-        [Test]
-        public void TyreWear_WithLowWear_DoesNotTrigger()
-        {
-            // Fresh tyres: 70% tread remaining (30% worn)
-            _baseCurrent.TyreWearFL = 70;
-            var trigger = new TriggerCondition { Condition = "<", DataPoint = "TyreWearFL", Value = 35 };
-            Assert.IsFalse(TriggerEvaluator.Evaluate(trigger, _baseCurrent, _basePrevious),
-                "Fresh tyres (70% remaining) should not trigger wear warning with threshold 35");
-        }
-
-        [Test]
-        public void TyreWear_WithHighWear_TriggersCorrectly()
-        {
-            // Worn tyres: 30% tread remaining (70% worn)
-            _baseCurrent.TyreWearFL = 30;
-            var trigger = new TriggerCondition { Condition = "<", DataPoint = "TyreWearFL", Value = 35 };
-            Assert.IsTrue(TriggerEvaluator.Evaluate(trigger, _baseCurrent, _basePrevious),
-                "Worn tyres (30% remaining) should trigger wear warning with threshold 35");
-        }
-
-        [Test]
-        public void TyreWear_AtExactThreshold_TriggersCorrectly()
-        {
-            // Exactly at threshold: 35% tread remaining
-            _baseCurrent.TyreWearFL = 35;
-            var trigger = new TriggerCondition { Condition = "<", DataPoint = "TyreWearFL", Value = 35 };
-            // < is not <=, so 35 < 35 is false
-            Assert.IsFalse(TriggerEvaluator.Evaluate(trigger, _baseCurrent, _basePrevious));
-        }
-
-        #endregion
-
         #region Threshold Value Fixes
 
         [TestCase("VertAccel", 9.0, 10.0, false)] // Below threshold — should NOT trigger

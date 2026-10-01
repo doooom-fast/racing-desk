@@ -23,10 +23,6 @@ namespace RacingDesk.Tests.TestHelpers
         public bool   IsInPit           { get; set; }
         public bool   IsInPitLane       { get; set; }
         public string SessionTypeName   { get; set; }
-        public double TyreWearFL        { get; set; }
-        public double TyreWearFR        { get; set; }
-        public double TyreWearRL        { get; set; }
-        public double TyreWearRR        { get; set; }
 
         // ── Physics — iRacing raw, with cross-game normalized fallback ───────
         public double LatAccel          { get; set; }
