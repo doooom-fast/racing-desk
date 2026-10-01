@@ -7,6 +7,10 @@
 // the replay clips, not a TV take), and only ones longer than half a minute: a mis-press says nothing of a race. An
 // unfinished Hybrid MP4 (OBS crashed) counts by the length its fragments reach. The files are pooled — the sum of
 // bytes over the sum of seconds — so a long race weighs more than a short practice.
+//
+// `since` (ms since the epoch) is when the encoder settings the recordings are made with began: a recording begun
+// before it was made with other settings (a fixed 100 Mbps, say, which is 45 GB an hour whatever the racing) and says
+// nothing of the new ones, so it is left out, and so is one whose start is not known. Without `since` every one counts.
 const fs = require('fs');
 const { listRecordings } = require('./recordings-index');
 const { readMp4Info } = require('./mp4-info');
@@ -16,14 +20,17 @@ const MIN_SECONDS = 30;
 
 /**
  * { bytesPerSecond, gbPerHour, recordings, bytes, seconds, used: [{ video, bytes, durationMs, complete }] } from the
- * newest `newest` recordings under `root` that have a video with a length; null while there is none.
+ * newest `newest` recordings under `root` that have a video with a length (and began at or after `since`, when it is given);
+ * null while there is none.
  */
-function measureRate(root, { fs: fsModule = fs, readMp4 = (file) => readMp4Info(file, { fs: fsModule }), newest = NEWEST, minSeconds = MIN_SECONDS } = {}) {
+function measureRate(root, { fs: fsModule = fs, readMp4 = (file) => readMp4Info(file, { fs: fsModule }), newest = NEWEST, minSeconds = MIN_SECONDS, since = null } = {}) {
   if (!root) return null;
   const used = [];
+  const from = Number.isFinite(since) ? since : null;
   for (const r of listRecordings(root, { fs: fsModule })) {
     if (used.length >= newest) break;
     if (!r.video) continue;
+    if (from !== null && !(Number.isFinite(r.startedAt) && r.startedAt >= from)) continue;
     let bytes;
     try { bytes = fsModule.statSync(r.video).size; } catch (e) { continue; }
     let info = null;

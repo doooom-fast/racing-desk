@@ -40,11 +40,11 @@ const WS_FILE = (enabled, password = 'sixteen-chars-pw') => JSON.stringify({
   alerts_enabled: false, auth_required: true, first_load: false, server_enabled: enabled, server_password: password, server_port: 4455,
 }, null, 2) + '\n';
 
-const BASIC_INI = '\ufeff[General]\nName=Untitled\n\n[Output]\nMode=Advanced\nFilenameFormatting=%CCYY-%MM-%DD %hh-%mm-%ss\n\n[SimpleOutput]\nFilePath=C:\\\\Users\\\\Driver\\\\Videos\nRecFormat2=mp4\nRecRB=false\nRecRBTime=20\n\n[AdvOut]\nRecType=Standard\nRecFilePath=C:/Users/Driver/Videos/NVIDIA\nRecFormat2=mp4\nRecEncoder=obs_nvenc_h264_tex\nRecSplitFileTime=15\nRecRB=false\nRecRBTime=20\nRecRBSize=512\n\n[Video]\nBaseCX=3440\n\n[Hotkeys]\nOBSBasic.StartRecording={"bindings":[{"control":true,"key":"OBS_KEY_SPACE"}]}\n';
+const BASIC_INI = '\ufeff[General]\nName=Untitled\n\n[Output]\nMode=Advanced\nFilenameFormatting=%CCYY-%MM-%DD %hh-%mm-%ss\n\n[SimpleOutput]\nFilePath=C:\\\\Users\\\\Driver\\\\Videos\nRecFormat2=mp4\nRecRB=false\nRecRBTime=20\n\n[AdvOut]\nRecType=Standard\nRecFilePath=C:/Users/Driver/Videos/NVIDIA\nRecFormat2=mp4\nRecEncoder=obs_nvenc_h264_tex\nRecSplitFileTime=15\nRecRB=false\nRecRBTime=20\nRecRBSize=512\n\n[Video]\nBaseCX=3440\nBaseCY=1440\nOutputCX=2580\nOutputCY=1080\n\n[Hotkeys]\nOBSBasic.StartRecording={"bindings":[{"control":true,"key":"OBS_KEY_SPACE"}]}\n';
 const USER_INI = '[General]\n\n[BasicWindow]\nSysTrayEnabled=true\n\n[Basic]\nProfile=Untitled\nProfileDir=Untitled\nSceneCollection=sim race 2k\nSceneCollectionFile=sim_race_2k.json\n';
 // His recording encoder's file as OBS 32.1.2 writes it (one line, no spaces, only the keys he changed): 100 Mbps CBR, preset p2.
 const ENCODER_JSON = '{"rate_control":"CBR","bitrate":100000,"preset":"p2"}';
-const QUALITY_SENTENCE = 'The profile "Untitled" now records full size with a quality target instead of a fixed 100 Mbps (its encoder settings as they were are kept beside it as recordEncoder.json.before-racing-desk).';
+const QUALITY_SENTENCE = 'The profile "Untitled" now records with a quality target instead of a fixed 100 Mbps, still at 2580x1080 (its encoder settings as they were are kept beside it as recordEncoder.json.before-racing-desk).';
 
 let root;
 let appData;
@@ -494,7 +494,7 @@ test.describe('Set up OBS, whichever way OBS stands', () => {
     expect(result).toMatchObject({ ok: true, ran: 'open' });
     expect(result.did).toEqual([
       `The profile already records Hybrid MP4 with a replay buffer into ${folder()}.`,
-      'The size change (full size with a quality target instead of a fixed 100 Mbps) happens the next time Set up OBS runs with OBS closed.',
+      'The size change (a quality target instead of a fixed 100 Mbps; the recordings stay 2580x1080) happens the next time Set up OBS runs with OBS closed.',
     ]);
     expect(filesOf().slice(2)).toEqual(before.slice(2));   // the encoder file and the profile folder: nothing written, no copy made
     // Once the quality target is in the file, nothing is said of size.
@@ -507,22 +507,71 @@ test.describe("the recording encoder's file (recordEncoder.json)", () => {
   test('is read as the plugin reads it: the rate control, the quality level, the cap it has or would get', () => {
     const read = launcher.readEncoderFile(encoderFile(), { readFile: f.readFile });
     expect(read).toEqual({ state: 'ok', json: { rate_control: 'CBR', bitrate: 100000, preset: 'p2' }, text: ENCODER_JSON });
-    expect(launcher.encoderCheck(read.json)).toEqual({ rateControl: 'CBR', targetQuality: null, maxBitrate: null, bitrate: 100000, capKbps: 100000, qualityTarget: false });
-    // The cap is what the file names today: a VBR's own cap, else the CBR bitrate, else 100 Mbps.
+    // A key the file lacks is the plugin's own default (OBS writes only the keys he changed): level 20, and a 10 Mbps cap.
+    expect(launcher.encoderCheck(read.json)).toEqual({ rateControl: 'CBR', targetQuality: 20, maxBitrate: 10000, bitrate: 100000, capKbps: 100000, qualityTarget: false });
+    // The cap is what the file records under today: a VBR's own cap, else the CBR bitrate.
     expect(launcher.encoderCheck({ rate_control: 'VBR', bitrate: 40000, max_bitrate: 60000 }).capKbps).toBe(60000);
     expect(launcher.encoderCheck({ rate_control: 'CBR', bitrate: 40000 }).capKbps).toBe(40000);
-    expect(launcher.encoderCheck({}).capKbps).toBe(100000);
-    expect(launcher.encoderCheck(null).capKbps).toBe(100000);
     expect(launcher.encoderWanted(read.json)).toEqual({ rate_control: 'CQVBR', target_quality: 16, max_bitrate: 100000 });
-    // A quality target with a cap is one, whatever its numbers (one he tuned is his), as the plugin compares the mode: without case.
+    // A quality target is one, whatever its numbers (one he tuned is his), as the plugin compares the mode: without case.
     expect(launcher.encoderCheck({ rate_control: 'cqvbr', target_quality: 20, max_bitrate: 80000 })).toMatchObject({ qualityTarget: true, capKbps: 80000 });
-    expect(launcher.encoderCheck({ rate_control: 'CQVBR', target_quality: 16 })).toMatchObject({ qualityTarget: false });   // no cap: not what Set up OBS makes
-    expect(launcher.encoderCheck({ rate_control: 'CQP', cqp: 18 })).toMatchObject({ qualityTarget: false, capKbps: 100000 });
+    expect(launcher.encoderCheck({ rate_control: 'CQP', cqp: 18 })).toMatchObject({ qualityTarget: false, capKbps: 10000 });
     expect(launcher.readEncoderFile(path.join(root, 'nowhere.json'), { readFile: f.readFile })).toEqual({ state: 'missing', json: null, text: null });
     fs.writeFileSync(encoderFile(), '{not json');
     expect(launcher.readEncoderFile(encoderFile(), { readFile: f.readFile }).state).toBe('unreadable');
     fs.writeFileSync(encoderFile(), '[1,2]');
     expect(launcher.readEncoderFile(encoderFile(), { readFile: f.readFile }).state).toBe('unreadable');
+  });
+
+  test("a key the file does not have is the plugin's default: a file with no bitrate records at 10 Mbps, and a CQVBR left at the defaults is a quality target of his", () => {
+    // No bitrate (or no file, or nothing in it): the plugin records 10 Mbps CBR (nvenc-properties.c:41-42,60), so that is the cap kept, not 100 Mbps.
+    for (const json of [{}, null, { preset: 'p5' }, { rate_control: 'CBR' }, { bitrate: 0 }, { bitrate: '100000' }]) {
+      expect(launcher.encoderCheck(json)).toMatchObject({ bitrate: 10000, capKbps: 10000, qualityTarget: false });
+      expect(launcher.encoderWanted(json)).toEqual({ rate_control: 'CQVBR', target_quality: 16, max_bitrate: 10000 });
+    }
+    // A CQVBR he chose in OBS and left at its defaults has no target_quality and no max_bitrate in the file (OBS writes only what he changed):
+    // that is level 20 under a 10 Mbps cap, a quality target, and his.
+    expect(launcher.encoderCheck({ rate_control: 'CQVBR' })).toMatchObject({ qualityTarget: true, targetQuality: 20, maxBitrate: 10000, capKbps: 10000 });
+    expect(launcher.encoderCheck({ rate_control: 'CQVBR', target_quality: 16 })).toMatchObject({ qualityTarget: true, targetQuality: 16, capKbps: 10000 });
+    expect(launcher.encoderCheck({ rate_control: 'CQVBR', max_bitrate: 80000 })).toMatchObject({ qualityTarget: true, targetQuality: 20, capKbps: 80000 });
+    for (const text of ['{"rate_control":"CQVBR"}', '{"rate_control":"CQVBR","target_quality":16,"preset":"p6"}', '{"rate_control":"cqvbr","max_bitrate":80000,"bitrate":100000}']) {
+      fs.writeFileSync(encoderFile(), text);
+      expect(launcher.setEncoderQuality(encoderFile(), f)).toMatchObject({ changed: false, state: 'ok', kept: false });
+      expect(fs.readFileSync(encoderFile(), 'utf8')).toBe(text);   // his target (and his cap) untouched
+      expect(fs.existsSync(`${encoderFile()}.before-racing-desk`)).toBe(false);
+    }
+    // A CBR file that names no bitrate is capped at what it records at, and the sentence says so: 10 Mbps, not 100.
+    fs.writeFileSync(encoderFile(), '{"rate_control":"CBR","preset":"p2"}');
+    const result = launcher.setupWhileClosed({ appData, folder: path.join(root, 'R'), ...f });
+    expect(JSON.parse(fs.readFileSync(encoderFile(), 'utf8'))).toMatchObject({ rate_control: 'CQVBR', target_quality: 16, max_bitrate: 10000, preset: 'p2' });
+    expect(result.did.some((d) => /instead of a fixed 10 Mbps/.test(d))).toBe(true);
+    expect(result.did.join(' ')).not.toMatch(/100 Mbps/);
+  });
+
+  test('the size the profile records at: the output as OBS scales it, or a rescale of the recording on its own', () => {
+    expect(launcher.profileOutputSize(BASIC_INI)).toBe('2580x1080');   // his: the canvas is 3440x1440
+    expect(launcher.profileOutputSize(BASIC_INI.replace('OutputCX=2580\nOutputCY=1080\n', ''))).toBeNull();
+    // A rescale on the recording is the size when its filter is not "disable" (0; a key that is not there is 0).
+    const rescaled = (filter) => BASIC_INI.replace('RecType=Standard', `RecType=Standard\nRecRescaleRes=1920x1080${filter === null ? '' : `\nRecRescaleFilter=${filter}`}`);
+    expect(launcher.profileOutputSize(rescaled(null))).toBe('2580x1080');
+    expect(launcher.profileOutputSize(rescaled(0))).toBe('2580x1080');
+    expect(launcher.profileOutputSize(rescaled(3))).toBe('1920x1080');
+  });
+
+  test('when the encoder file was last written, for the profiles it applies to; none otherwise', () => {
+    const at = new Date('2026-10-01T12:00:00Z');
+    fs.utimesSync(encoderFile(), at, at);
+    const mtimeOf = (p) => fs.statSync(p).mtimeMs;
+    expect(launcher.encoderChangedAt({ appData, readFile: f.readFile, mtimeOf })).toBe(at.getTime());
+    // No file: nothing to say, and every recording counts.
+    fs.unlinkSync(encoderFile());
+    expect(launcher.encoderChangedAt({ appData, readFile: f.readFile, mtimeOf })).toBeNull();
+    // A profile the keys mean nothing to (x264), or none at all.
+    fs.writeFileSync(encoderFile(), ENCODER_JSON);
+    const { profilesDir } = launcher.obsPaths(appData);
+    fs.writeFileSync(path.join(profilesDir, 'Untitled', 'basic.ini'), BASIC_INI.replace('RecEncoder=obs_nvenc_h264_tex', 'RecEncoder=obs_x264'));
+    expect(launcher.encoderChangedAt({ appData, readFile: f.readFile, mtimeOf })).toBeNull();
+    expect(launcher.encoderChangedAt({ appData: path.join(root, 'nope'), readFile: (p) => fs.readFileSync(p), mtimeOf })).toBeNull();
   });
 
   test('the quality target is written atomically, changing only the three rate-control keys; every other key, known to OBS or not, is kept in its place', () => {
@@ -558,7 +607,8 @@ test.describe("the recording encoder's file (recordEncoder.json)", () => {
   test('a missing file is made with the three keys and no copy; an unreadable one is left as it is and said so', () => {
     fs.unlinkSync(encoderFile());
     expect(launcher.setEncoderQuality(encoderFile(), f)).toMatchObject({ changed: true, state: 'missing', kept: false });
-    expect(fs.readFileSync(encoderFile(), 'utf8')).toBe('{"rate_control":"CQVBR","target_quality":16,"max_bitrate":100000}');
+    // With no file the plugin records at its own 10 Mbps CBR, so that is the cap kept (not his 100 Mbps, which is in no file).
+    expect(fs.readFileSync(encoderFile(), 'utf8')).toBe('{"rate_control":"CQVBR","target_quality":16,"max_bitrate":10000}');
     expect(fs.existsSync(`${encoderFile()}.before-racing-desk`)).toBe(false);
     fs.writeFileSync(encoderFile(), '{"rate_control":');
     const result = launcher.setEncoderQuality(encoderFile(), f);
@@ -593,7 +643,7 @@ test.describe("the recording encoder's file (recordEncoder.json)", () => {
     expect(launcher.setupWhileClosed({ appData, folder: path.join(root, 'R'), ...f }).did.some((s) => /size/.test(s))).toBe(false);
     // His: NVENC, not set up yet, the cap being his 100 Mbps.
     fs.writeFileSync(ini, BASIC_INI);
-    expect(launcher.encoderStatus({ appData, readFile: f.readFile })).toEqual({ applies: true, encoder: 'obs_nvenc_h264_tex', state: 'ok', profile: 'Untitled', file: encoderFile(), qualityTarget: false, capKbps: 100000, bitrateKbps: 100000 });
+    expect(launcher.encoderStatus({ appData, readFile: f.readFile })).toEqual({ applies: true, encoder: 'obs_nvenc_h264_tex', state: 'ok', profile: 'Untitled', file: encoderFile(), qualityTarget: false, capKbps: 100000, bitrateKbps: 100000, size: '2580x1080' });
     launcher.setupWhileClosed({ appData, folder: path.join(root, 'R'), ...f });
     expect(launcher.encoderStatus({ appData, readFile: f.readFile })).toMatchObject({ applies: true, qualityTarget: true, capKbps: 100000 });
     // No profile at all: nothing applies.

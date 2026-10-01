@@ -24,7 +24,9 @@
 //   target with a bitrate cap (nvenc.c:230-231,347-349,366-370). Set up OBS writes those three keys and no other,
 //   only while OBS is closed (obs-websocket 5 has no request for an encoder's settings, and OBS writes the file from
 //   memory when its Settings are saved), atomically, keeping the file as it was beside it the first time. A quality
-//   target he has tuned himself (any CQVBR with a cap) is left as it is.
+//   target he has tuned himself (any CQVBR) is left as it is. OBS writes only the keys the user changed, so a key that
+//   is not in the file is the plugin's own default (NVENC_DEFAULTS), and is read as that: a file with no bitrate records
+//   at 10 Mbps, and a CQVBR with no cap has the plugin's 10 Mbps one.
 // - .sentinel: a folder OBS keeps a run_ file in while it runs. Non-empty with OBS not running means OBS did not
 //   close cleanly last time and will ask about it when it starts.
 // - Never a second OBS, and never OBS's files edited while it may be open: a tasklist that cannot say whether OBS runs
@@ -48,7 +50,10 @@ const QUALITY_RATE_CONTROL = 'CQVBR';
 // of a bit per pixel and all but transparent. On the same 1-51 scale as CQP (nvenc-properties.c:129-130,137); lower
 // is better, and OBS's own default for the mode is 20.
 const QUALITY_TARGET = 16;
-const QUALITY_CAP_KBPS = 100000;   // the cap when the file names no bitrate of his to keep
+// What the obs-nvenc plugin reads for a key the file does not have (nvenc-properties.c:41-47,60). OBS writes into
+// recordEncoder.json only the keys the user changed (obs_data_get_json without defaults, libobs/obs-data.c:578), so a
+// file is mostly what it leaves out; the encoder is made from the file with these under it.
+const NVENC_DEFAULTS = Object.freeze({ rate_control: 'cbr', bitrate: 10000, max_bitrate: 10000, target_quality: 20 });
 // The ids the obs-nvenc plugin registers (nvenc.c:1392-1489, nvenc-compat.c:299-400): the only encoders the keys mean
 // anything to. The compat ids are rerouted to the obs_nvenc_* ones and read the same settings.
 const NVENC_IDS = Object.freeze([
@@ -379,6 +384,23 @@ function profileEncoder(iniText) {
   return { id, advanced, standard, sameAsStream: id === 'none', nvenc, applies: advanced && standard && nvenc };
 }
 
+/**
+ * The size of the video the profile records, "2580x1080", or null where the profile does not say. The recording is the
+ * size of OBS's output ([Video] OutputCX x OutputCY: his canvas is 3440x1440 and the output scales it), unless the
+ * recording is rescaled on its own: a scale filter other than "disable" (0, which an absent key reads as) and a size
+ * in RecRescaleRes (AdvancedOutput.cpp:330,353-358).
+ */
+function profileOutputSize(iniText) {
+  const adv = readIniKeys(iniText, 'AdvOut', ['RecRescaleFilter', 'RecRescaleRes']);
+  const rescale = String(adv.RecRescaleRes || '').trim().match(/^(\d+)x(\d+)$/);
+  const filter = Number(adv.RecRescaleFilter);
+  if (adv.RecRescaleFilter !== null && Number.isInteger(filter) && filter !== 0 && rescale && +rescale[1] > 0 && +rescale[2] > 0) return `${+rescale[1]}x${+rescale[2]}`;
+  const video = readIniKeys(iniText, 'Video', ['OutputCX', 'OutputCY']);
+  const cx = Number(video.OutputCX);
+  const cy = Number(video.OutputCY);
+  return Number.isInteger(cx) && cx > 0 && Number.isInteger(cy) && cy > 0 ? `${cx}x${cy}` : null;
+}
+
 /** { state: 'ok' | 'missing' | 'unreadable', json, text }: the encoder file as OBS would parse it (an object, or nothing). */
 function readEncoderFile(file, { readFile }) {
   let text;
@@ -396,25 +418,26 @@ function readEncoderFile(file, { readFile }) {
 const posInt = (v) => Number.isInteger(v) && v > 0;
 
 /**
- * What the encoder's rate control is, as the plugin reads it (nvenc-properties.c:5-15; the mode is compared without
- * case, nvenc.c:230-233): { rateControl, targetQuality, maxBitrate, bitrate, capKbps, qualityTarget }. `qualityTarget`
- * is any CQVBR with a quality level and a cap — one he has tuned himself counts, and is left alone. `capKbps` is the
- * cap it has, or would get: what the file names today (the VBR cap, else the CBR bitrate), else 100 Mbps.
+ * What the encoder's rate control is, as the plugin reads it (nvenc-properties.c:5-15, a key the file lacks being the
+ * plugin's default, NVENC_DEFAULTS; the mode is compared without case, nvenc.c:230-233): { rateControl, targetQuality,
+ * maxBitrate, bitrate, capKbps, qualityTarget }. `qualityTarget` is any CQVBR: one he has tuned himself, or left at the
+ * plugin's own level and 10 Mbps cap, is his, and is left alone. `capKbps` is the ceiling the file records under today,
+ * which is what Set up OBS keeps: a VBR's or CQVBR's own cap, else the fixed bitrate (the default 10 Mbps where the
+ * file names none).
  */
 function encoderCheck(json) {
   const j = json && typeof json === 'object' ? json : {};
-  const rateControl = typeof j.rate_control === 'string' ? j.rate_control : null;
-  const cqvbr = rateControl !== null && rateControl.toLowerCase() === QUALITY_RATE_CONTROL.toLowerCase();
-  const vbr = rateControl !== null && rateControl.toLowerCase() === 'vbr';
-  const targetQuality = posInt(j.target_quality) ? j.target_quality : null;
-  const maxBitrate = posInt(j.max_bitrate) ? j.max_bitrate : null;
-  const bitrate = posInt(j.bitrate) ? j.bitrate : null;
-  const qualityTarget = cqvbr && targetQuality !== null && maxBitrate !== null;
-  const capKbps = (cqvbr || vbr) && maxBitrate !== null ? maxBitrate : (bitrate !== null ? bitrate : QUALITY_CAP_KBPS);
-  return { rateControl, targetQuality, maxBitrate, bitrate, capKbps, qualityTarget };
+  const rateControl = typeof j.rate_control === 'string' ? j.rate_control : NVENC_DEFAULTS.rate_control;
+  const cqvbr = rateControl.toLowerCase() === QUALITY_RATE_CONTROL.toLowerCase();
+  const vbr = rateControl.toLowerCase() === 'vbr';
+  const targetQuality = posInt(j.target_quality) ? j.target_quality : NVENC_DEFAULTS.target_quality;
+  const maxBitrate = posInt(j.max_bitrate) ? j.max_bitrate : NVENC_DEFAULTS.max_bitrate;
+  const bitrate = posInt(j.bitrate) ? j.bitrate : NVENC_DEFAULTS.bitrate;
+  const capKbps = cqvbr || vbr ? maxBitrate : bitrate;
+  return { rateControl, targetQuality, maxBitrate, bitrate, capKbps, qualityTarget: cqvbr };
 }
 
-/** The three keys Set up OBS writes, for a file as it is: the quality target, capped at what the file names today. */
+/** The three keys Set up OBS writes, for a file as it is: the quality target, capped at what the file records under today. */
 function encoderWanted(json) {
   return { rate_control: QUALITY_RATE_CONTROL, target_quality: QUALITY_TARGET, max_bitrate: encoderCheck(json).capKbps };
 }
@@ -447,11 +470,12 @@ function setEncoderQuality(file, { readFile, writeFile, rename, exists }) {
 
 /**
  * Where the current profile's recording stands on size, for the card and the keeper: { applies, encoder, state,
- * qualityTarget, capKbps, bitrateKbps, file }. `applies` false is a profile the keys mean nothing to (Simple output,
- * a custom FFmpeg output, the stream encoder, x264...): nothing is said of size then. Reading only.
+ * qualityTarget, capKbps, bitrateKbps, size, file }. `applies` false is a profile the keys mean nothing to (Simple
+ * output, a custom FFmpeg output, the stream encoder, x264...): nothing is said of size then. `size` is the video's, as
+ * the profile has it ("2580x1080"), null when it does not say. Reading only.
  */
 function encoderStatus({ appData, readFile }) {
-  const none = { applies: false, encoder: null, state: null, qualityTarget: null, capKbps: null, bitrateKbps: null, file: null, profile: null };
+  const none = { applies: false, encoder: null, state: null, qualityTarget: null, capKbps: null, bitrateKbps: null, size: null, file: null, profile: null };
   const profile = currentProfileIni({ appData, readFile });
   if (!profile) return none;
   let ini;
@@ -463,12 +487,34 @@ function encoderStatus({ appData, readFile }) {
   return {
     applies: true, encoder: enc.id, state: read.state, profile: profile.profile, file: profile.encoder,
     qualityTarget: read.state === 'unreadable' ? null : check.qualityTarget,
-    capKbps: check.capKbps, bitrateKbps: check.bitrate,
+    capKbps: check.capKbps, bitrateKbps: check.bitrate, size: profileOutputSize(ini),
   };
 }
 
-const mbps = (kbps) => `${Math.round((Number(kbps) || QUALITY_CAP_KBPS) / 1000)} Mbps`;
-const SIZE_NEXT_TIME = (capKbps) => `The size change (full size with a quality target instead of a fixed ${mbps(capKbps)}) happens the next time Set up OBS runs with OBS closed.`;
+/**
+ * When the profile's encoder file was last written, in ms: the moment the settings the next recording is made with
+ * began (OBS writes the file only when the encoder's settings are changed in its Settings, and Set up OBS writes it;
+ * both are while OBS is not recording, so a recording that began after was made with what the file says). Null where
+ * the keys mean nothing (not NVENC, not Advanced output) or the file is not there: every recording counts then.
+ * `mtimeOf(file)` is fs.statSync(file).mtimeMs.
+ */
+function encoderChangedAt({ appData, readFile, mtimeOf }) {
+  const profile = currentProfileIni({ appData, readFile });
+  if (!profile) return null;
+  let ini;
+  try { ini = String(readFile(profile.ini, 'utf8')); } catch (e) { return null; }
+  if (!profileEncoder(ini).applies) return null;
+  try {
+    const at = mtimeOf(profile.encoder);
+    return Number.isFinite(at) ? at : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+const mbps = (kbps) => `${Math.round((Number(kbps) || NVENC_DEFAULTS.bitrate) / 1000)} Mbps`;
+// The size is said as it is — the recordings stay what the profile makes them, which is not always the canvas — never as "full size".
+const SIZE_NEXT_TIME = (capKbps, size = null) => `The size change (a quality target instead of a fixed ${mbps(capKbps)}${size ? `; the recordings stay ${size}` : ''}) happens the next time Set up OBS runs with OBS closed.`;
 
 /**
  * Everything Set up OBS does while OBS is closed: the WebSocket switched on and its password read; the profile keys
@@ -540,7 +586,8 @@ function setupWhileClosed({ appData, folder, readFile, writeFile, rename, mkdir,
         if (result.state === 'unreadable') problems.push(result.reason);
         else if (result.changed) {
           const kept = result.kept ? ` (its encoder settings as they were are kept beside it as ${ENCODER_KEEP})` : '';
-          did.push(`The profile "${profile.profile}" now records full size with a quality target instead of a fixed ${mbps(result.before.capKbps)}${kept}.`);
+          const size = profileOutputSize(ini);
+          did.push(`The profile "${profile.profile}" now records with a quality target instead of a fixed ${mbps(result.before.capKbps)}${size ? `, still at ${size}` : ''}${kept}.`);
         }
       } else if (enc.advanced && enc.standard && enc.id && !enc.sameAsStream) {
         did.push(`The recordings' size was left as it is: the profile records with ${enc.id}, not NVENC.`);
@@ -611,7 +658,7 @@ async function setupObs({ client, exec, appData, folder, readFile, writeFile, re
     // saved: the size change waits for a run with OBS closed, said in one sentence. Reading the file is fine.
     try {
       const enc = encoderStatus({ appData, readFile });
-      if (enc.applies && enc.qualityTarget === false) result.did.push(SIZE_NEXT_TIME(enc.capKbps));
+      if (enc.applies && enc.qualityTarget === false) result.did.push(SIZE_NEXT_TIME(enc.capKbps, enc.size));
     } catch (e) { /* nothing to say of it */ }
     return { ok: result.problems.length === 0, did: result.did, problems: result.problems, ran: 'open' };
   }
@@ -633,11 +680,11 @@ async function setupObs({ client, exec, appData, folder, readFile, writeFile, re
 
 module.exports = {
   DEFAULT_OBS_DIR, EXE, BIN, LAUNCH_FLAGS, REPLAY_SECONDS, WS_DEFAULT_PORT,
-  ENCODER_FILE, ENCODER_KEEP, QUALITY_RATE_CONTROL, QUALITY_TARGET, QUALITY_CAP_KBPS, NVENC_IDS, SIZE_NEXT_TIME,
+  ENCODER_FILE, ENCODER_KEEP, QUALITY_RATE_CONTROL, QUALITY_TARGET, NVENC_DEFAULTS, NVENC_IDS, SIZE_NEXT_TIME,
   NOT_KNOWN, WS_OFF_OPEN, WS_OFF_FIRST, NOT_FOUND,
   obsPaths, findObs, isObsRunning, crashedLastTime, startObs, startIfClosed, createStarter, startWithApp,
   readWebSocketConfig, enableWebSocket,
   currentProfileIni, readIniKeys, setIniKeys, toForwardSlashes, profileWanted, profileCheck, profileRecordFolder,
-  profileEncoder, readEncoderFile, encoderCheck, encoderWanted, setEncoderQuality, encoderStatus,
+  profileEncoder, profileOutputSize, readEncoderFile, encoderCheck, encoderWanted, setEncoderQuality, encoderStatus, encoderChangedAt,
   setupWhileClosed, setupWhileOpen, setupObs,
 };

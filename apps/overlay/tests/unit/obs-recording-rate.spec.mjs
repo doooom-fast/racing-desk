@@ -83,6 +83,35 @@ test('nothing to measure says so: no folder, no recording, a recording with no v
   expect(measureRate(root, { fs })).toMatchObject({ recordings: 1, bytesPerSecond: 1e5 });
 });
 
+test('only the recordings begun since the encoder settings changed count: the first race with the quality target is not averaged with fixed-bitrate ones', () => {
+  // Four recordings at a fixed bitrate (7.5 MB a minute here, standing for the 45 GB an hour of 100 Mbps with its filler data) before the file changed at noon on the 30th ...
+  for (let i = 1; i <= 4; i++) {
+    recording(`2026-09-2${i} 21-00 Spa`, { startedAt: `2026-09-2${i}T19:00:00Z`, durationMs: 60000, bytes: 7.5e6 });
+  }
+  const since = Date.parse('2026-09-30T12:00:00Z');
+  // ... none made since: nothing to measure (the card then says nothing of size), where without `since` they are the rate.
+  expect(measureRate(root, { fs, since })).toBeNull();
+  expect(measureRate(root, { fs })).toMatchObject({ recordings: 4, bytesPerSecond: 1.25e5 });
+  // The first recording with the quality target: 3 MB a minute, alone, not pooled with the four (which would say 110 kB/s).
+  recording('2026-09-30 21-00 Spa', { startedAt: '2026-09-30T19:00:00Z', durationMs: 60000, bytes: 3e6 });
+  const first = measureRate(root, { fs, since });
+  expect(first).toMatchObject({ recordings: 1, bytesPerSecond: 5e4 });
+  expect(measureRate(root, { fs }).recordings).toBe(5);
+  // One begun exactly when the file was written counts; one a moment before does not.
+  recording('2026-09-30 12-00 Spa', { startedAt: '2026-09-30T12:00:00Z', durationMs: 60000, bytes: 3.6e6 });
+  recording('2026-09-30 11-59 Spa', { startedAt: '2026-09-30T11:59:59Z', durationMs: 60000, bytes: 7.5e6 });
+  const edge = measureRate(root, { fs, since });
+  expect(edge.recordings).toBe(2);
+  expect(edge.used.map((u) => path.basename(path.dirname(u.video)))).toEqual(['2026-09-30 21-00 Spa', '2026-09-30 12-00 Spa']);
+  // A recording whose sidecar does not say when it began cannot be placed after the change, so it is left out.
+  const noStart = recording('2026-10-01 09-00 Spa', { startedAt: 'not a time', durationMs: 60000, bytes: 7.5e6 });
+  expect(fs.existsSync(noStart)).toBe(true);
+  expect(measureRate(root, { fs, since }).recordings).toBe(2);
+  // A `since` that is not a number is no filter.
+  expect(measureRate(root, { fs, since: null }).recordings).toBe(5);
+  expect(measureRate(root, { fs, since: NaN }).recordings).toBe(5);
+});
+
 test('only the newest few count, and an unfinished Hybrid MP4 counts by the length its fragments reach', () => {
   expect(NEWEST).toBe(5);
   for (let i = 0; i < 7; i++) {

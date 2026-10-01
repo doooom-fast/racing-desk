@@ -78,13 +78,16 @@ test('Set up OBS says in one sentence what it will change, and the network sente
   expect(model.setupSentence(onlyWs).split('port 4455').length).toBe(2);
 });
 
-test("the recordings' size: the button's sentence says the recordings keep full size with a quality target, with OBS closed; with OBS open a sentence of its own says it waits", () => {
+test("the recordings' size: the button's sentence says the recordings keep their size, named as the profile has it, with a quality target, with OBS closed; with OBS open a sentence of its own says it waits", () => {
   // Nothing known of the encoder (not NVENC, or no profile): not a word of size.
   expect(model.setupSentence({ ...READY, setup: { ...READY.setup, qualityTarget: null, needed: false } })).toBeNull();
   expect(model.setupSentence({ ...READY, obs: 'closed', setup: { ...READY.setup, qualityTarget: true, needed: false } })).toBeNull();
   // OBS closed, everything else done: the one change, and his own Ctrl+Space recordings get it too (one profile).
-  const onlySize = { ...READY, obs: 'closed', setup: { ...READY.setup, qualityTarget: false, capKbps: 100000, needed: true } };
-  expect(model.setupSentence(onlySize)).toBe('Set up OBS will keep its recordings full size with a quality target instead of a fixed 100 Mbps. Your own Ctrl+Space recordings keep full size with a quality target too.');
+  const onlySize = { ...READY, obs: 'closed', setup: { ...READY.setup, qualityTarget: false, capKbps: 100000, outputSize: '2580x1080', needed: true } };
+  // The size is the one the profile records at (his canvas is 3440x1440, his recordings are 2580x1080): never "full size", which reads as the canvas.
+  expect(model.setupSentence(onlySize)).toBe('Set up OBS will keep its recordings at 2580x1080 with a quality target instead of a fixed 100 Mbps. Your own Ctrl+Space recordings keep their size with a quality target too.');
+  // The profile not saying its size: the size is not named, and nothing is said of it being full.
+  expect(model.setupSentence({ ...onlySize, setup: { ...onlySize.setup, outputSize: null } })).toBe('Set up OBS will give its recordings a quality target instead of a fixed 100 Mbps. Your own Ctrl+Space recordings keep their size with a quality target too.');
   expect(model.sizeNextTimeSentence(onlySize)).toBeNull();
   const card = model.card(onlySize);
   expect(card.setup).toEqual({ show: true, enabled: true, sentence: model.setupSentence(onlySize) });
@@ -92,21 +95,22 @@ test("the recordings' size: the button's sentence says the recordings keep full 
   expect(model.setupSentence({ ...onlySize, setup: { ...onlySize.setup, capKbps: 60000 } })).toMatch(/instead of a fixed 60 Mbps\./);
   expect(model.setupSentence({ ...onlySize, setup: { ...onlySize.setup, capKbps: null } })).toMatch(/instead of a fixed 100 Mbps\./);
   // With everything missing, the size change is the last of the list, and the last of what changes for his own recordings.
-  const fresh = { ...READY, obs: 'closed', setup: { ...READY.setup, wsEnabled: false, hybrid: false, replayBuffer: false, folderSet: false, qualityTarget: false, capKbps: 100000, needed: true } };
+  const fresh = { ...READY, obs: 'closed', setup: { ...READY.setup, wsEnabled: false, hybrid: false, replayBuffer: false, folderSet: false, qualityTarget: false, capKbps: 100000, outputSize: '2580x1080', needed: true } };
   expect(model.setupSentence(fresh)).toBe(
-    "Set up OBS will switch on OBS's WebSocket, set your profile to Hybrid MP4, turn its 20 s replay buffer on, point its recordings at D:\\Racing Desk\\Recordings and keep its recordings full size with a quality target instead of a fixed 100 Mbps. "
-    + 'Your own Ctrl+Space recordings become Hybrid MP4, go to D:\\Racing Desk\\Recordings and keep full size with a quality target too. OBS then answers on port 4455 to anything on your network that knows the password.',
+    "Set up OBS will switch on OBS's WebSocket, set your profile to Hybrid MP4, turn its 20 s replay buffer on, point its recordings at D:\\Racing Desk\\Recordings and keep its recordings at 2580x1080 with a quality target instead of a fixed 100 Mbps. "
+    + 'Your own Ctrl+Space recordings become Hybrid MP4, go to D:\\Racing Desk\\Recordings and keep their size with a quality target too. OBS then answers on port 4455 to anything on your network that knows the password.',
   );
   // OBS open: the encoder file can only be written with OBS closed, so the button's sentence leaves the size out — with
   // nothing else to do there is no button — and the card says in one sentence when the change happens.
   const openOnlySize = { ...onlySize, obs: 'open' };
   expect(model.setupSentence(openOnlySize)).toBeNull();
-  expect(model.sizeNextTimeSentence(openOnlySize)).toBe('The size change (full size with a quality target instead of a fixed 100 Mbps) happens the next time Set up OBS runs with OBS closed.');
+  expect(model.sizeNextTimeSentence(openOnlySize)).toBe('The size change (a quality target instead of a fixed 100 Mbps; the recordings stay 2580x1080) happens the next time Set up OBS runs with OBS closed.');
+  expect(model.sizeNextTimeSentence({ ...openOnlySize, setup: { ...openOnlySize.setup, outputSize: null } })).toBe('The size change (a quality target instead of a fixed 100 Mbps) happens the next time Set up OBS runs with OBS closed.');
   const openCard = model.card(openOnlySize);
   expect(openCard.setup.show).toBe(false);
   expect(openCard.details).toEqual([
     'About 9 hours of recording left on D: at 100 Mbps.',
-    'The size change (full size with a quality target instead of a fixed 100 Mbps) happens the next time Set up OBS runs with OBS closed.',
+    'The size change (a quality target instead of a fixed 100 Mbps; the recordings stay 2580x1080) happens the next time Set up OBS runs with OBS closed.',
   ]);
   const openAndFolder = { ...openOnlySize, setup: { ...openOnlySize.setup, folderSet: false } };
   expect(model.setupSentence(openAndFolder)).toBe('Set up OBS will point its recordings at D:\\Racing Desk\\Recordings. Your own Ctrl+Space recordings go to D:\\Racing Desk\\Recordings too.');
@@ -115,7 +119,7 @@ test("the recordings' size: the button's sentence says the recordings keep full 
   expect(model.card({ ...READY, setup: { ...READY.setup, qualityTarget: true, capKbps: 100000 } }).details.some((d) => /size change/.test(d))).toBe(false);
 });
 
-test('the hours left run at the real rate of his recordings once there is one, and say so in GB an hour; until then at the cap, said to be the least', () => {
+test('the hours left run at the real rate of his recordings once there is one, and say so in GB an hour; until then at the cap, said as "or more" with nothing of the rate', () => {
   expect(model.formatGbPerHour(12.5e6)).toBe('45 GB an hour');
   expect(model.formatGbPerHour(5e6)).toBe('18 GB an hour');
   expect(model.formatGbPerHour(2.5e6)).toBe('9.0 GB an hour');
@@ -124,9 +128,10 @@ test('the hours left run at the real rate of his recordings once there is one, a
   expect(model.hoursLeftSentence(measured)).toBe('About 22 hours of recording left on D: at 18 GB an hour, measured from your last 3 recordings.');
   expect(model.hoursLeftSentence({ ...measured, measured: { ...measured.measured, recordings: 1 } })).toBe('About 22 hours of recording left on D: at 18 GB an hour, measured from your last recording.');
   expect(model.card(measured).details).toEqual(['About 22 hours of recording left on D: at 18 GB an hour, measured from your last 3 recordings.']);
-  // Nothing measured yet, the quality target set: the cap is the most the rate can be, so the hours are the least; nothing of size until a recording says.
+  // Nothing measured yet, the quality target set: the cap is the most the rate can be, so the hours are that many or more; not a word of the rate (or of size) until a recording says.
   const capped = { ...READY, rateFrom: 'configured', measured: null, setup: { ...READY.setup, qualityTarget: true, capKbps: 100000 } };
-  expect(model.hoursLeftSentence(capped)).toBe('At least about 9 hours of recording left on D: at the 100 Mbps cap; the real rate shows after your first recording.');
+  expect(model.hoursLeftSentence(capped)).toBe('About 9 hours or more of recording left on D:.');
+  expect(model.hoursLeftSentence(capped)).not.toMatch(/Mbps|GB|rate|cap|least/);
   // Nothing measured and a fixed bitrate (not set up yet): the sentence as it was.
   expect(model.hoursLeftSentence({ ...READY, rateFrom: 'configured', measured: null, setup: { ...READY.setup, qualityTarget: false } })).toBe('About 9 hours of recording left on D: at 100 Mbps.');
   expect(model.hoursLeftSentence(READY)).toBe('About 9 hours of recording left on D: at 100 Mbps.');   // an app that says nothing of where the rate is from

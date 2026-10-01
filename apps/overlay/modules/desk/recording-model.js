@@ -57,17 +57,25 @@
     return Number.isFinite(kbps) && kbps > 0 ? Math.round(kbps / 1000) : 100;
   }
 
+  /** The size the profile records at ("2580x1080"), as the setup status says it; null when it does not say. */
+  function outputSize(status) {
+    const size = status && status.setup ? status.setup.outputSize : null;
+    return typeof size === 'string' && /^\d+x\d+$/.test(size) ? size : null;
+  }
+
   /** The recordings' size change, while OBS is open and it has not been made: it waits for a run with OBS closed. */
   function sizeNextTimeSentence(status) {
     const setup = status && status.setup;
     if (!setup || setup.qualityTarget !== false || status.obs !== 'open') return null;
-    return `The size change (full size with a quality target instead of a fixed ${capMbps(status)} Mbps) happens the next time Set up OBS runs with OBS closed.`;
+    const size = outputSize(status);
+    return `The size change (a quality target instead of a fixed ${capMbps(status)} Mbps${size ? `; the recordings stay ${size}` : ''}) happens the next time Set up OBS runs with OBS closed.`;
   }
 
   /**
    * How much recording is left on the drive, in one sentence, at the rate in use: OBS's own while recording; the real
    * rate of his recordings, measured from the files, once there is one; until then the bitrate the profile is capped
-   * at — and with a quality target that cap is the most it can be, so the hours are the least.
+   * at — and with a quality target that cap is the most it can be, so the hours are that many or more, said without
+   * a word of the rate until a recording has said what it is.
    */
   function hoursLeftSentence(status) {
     if (!status || !status.free || !Number.isFinite(status.free.hoursLeft)) return null;
@@ -79,7 +87,7 @@
       return `About ${left} of recording left on ${drive} at ${formatGbPerHour(measured.bytesPerSecond)}, measured from ${from}.`;
     }
     if (status.rateFrom === 'configured' && status.setup && status.setup.qualityTarget === true) {
-      return `At least about ${left} of recording left on ${drive} at the ${capMbps(status)} Mbps cap; the real rate shows after your first recording.`;
+      return `About ${left} or more of recording left on ${drive}.`;
     }
     return `About ${left} of recording left on ${drive} at ${Math.round((status.bytesPerSecond || 0) * 8 / 1e6)} Mbps.`;
   }
@@ -169,7 +177,10 @@
     // The recordings' size is set in a file OBS writes from memory, so only with OBS closed: while it is open the card
     // says so in a sentence of its own (sizeNextTimeSentence) and the button's sentence leaves it out.
     const size = setup.qualityTarget === false && status.obs !== 'open';
-    if (size) parts.push(`keep its recordings full size with a quality target instead of a fixed ${capMbps(status)} Mbps`);
+    if (size) {
+      const at = outputSize(status);
+      parts.push(`${at ? `keep its recordings at ${at} with` : 'give its recordings'} a quality target instead of a fixed ${capMbps(status)} Mbps`);
+    }
     if (!parts.length) return null;
     const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
     // His own Ctrl+Space recordings are made with the same profile: what changes for them is the format, the folder and
@@ -177,7 +188,7 @@
     const theirs = [];
     if (setup.hybrid !== true) theirs.push('become Hybrid MP4');
     if (setup.folderSet !== true) theirs.push(`go to ${status.folder}`);
-    if (size) theirs.push('keep full size with a quality target');
+    if (size) theirs.push('keep their size with a quality target');
     const joined = theirs.length <= 1 ? theirs.join('') : `${theirs.slice(0, -1).join(', ')} and ${theirs[theirs.length - 1]}`;
     const profile = theirs.length ? ` Your own Ctrl+Space recordings ${joined} too.` : '';
     return `Set up OBS will ${list}.${profile}${wsOff ? ' ' + NETWORK_SENTENCE : ''}`;

@@ -281,6 +281,74 @@ test('the rate the hours left run at: the real one from his recordings once ther
   } finally { r.dispose(); }
 });
 
+test("OBS's live rate is of the recording running, and no other: after a race that ran past five seconds the estimate is the files', not the old live rate", async () => {
+  let answer = null;
+  const clock = { now: 0 };
+  const r = rig({ keeper: { measureRate: () => answer, configuredBytesPerSecond: () => 12.5e6 } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    server.mode.clock = () => clock.now;
+    const started = await r.keeper.record({ source: 'desk' });
+    // OBS says 50 MB over ten seconds: 5 MB/s, once it has been recording for more than five.
+    clock.now = 10000;
+    server.state.bytes = 50e6;
+    await until(() => r.keeper.status().rateFrom === 'live', 3000);
+    expect(r.keeper.status()).toMatchObject({ recording: true, rateFrom: 'live', bytesPerSecond: 5e6 });
+    expect(r.keeper.status().free.hoursLeft).toBeCloseTo(400e9 / 5e6 / 3600, 3);
+    // It ends and is filed; the files say 2 MB/s (18 GB an hour is 5; this is 7.2). Not the 5 the race had at the end: that was of the race.
+    answer = { bytesPerSecond: 2e6, gbPerHour: 7.2, recordings: 1, bytes: 120e6, seconds: 60, used: [] };
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    await r.keeper.stop();
+    await until(() => r.keeper.status().lastFiled, 3000);
+    expect(r.keeper.status()).toMatchObject({ recording: false, rateFrom: 'measured', bytesPerSecond: 2e6, measured: { gbPerHour: 7.2, recordings: 1 } });
+    expect(r.keeper.status().free.hoursLeft).toBeCloseTo(400e9 / 2e6 / 3600, 3);
+    // Nothing measurable (the files are gone, or too short): the cap, never the live rate of a recording that is over.
+    answer = null;
+    const later = new Date(Date.now() + 60000);
+    fs.utimesSync(dir, later, later);   // the folder has changed since it was last measured (a recording taken away)
+    r.keeper.refreshRate();
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'configured', measured: null, bytesPerSecond: 12.5e6 });
+    // And a recording that ends for a reason of its own (OBS saying it is not recording) does not keep it either.
+    clock.now = 20000;
+    const second = await r.keeper.record({ source: 'desk' });
+    clock.now = 40000;
+    server.state.bytes = 100e6;
+    await until(() => r.keeper.status().rateFrom === 'live', 3000);
+    server.stopRecording();
+    await until(() => !r.keeper.status().recording, 3000);
+    expect(second.ok).toBe(true);
+    expect(r.keeper.status()).toMatchObject({ recording: false, rateFrom: 'configured', bytesPerSecond: 12.5e6 });
+  } finally { r.dispose(); }
+});
+
+test('the recordings measured are those begun since the encoder settings did: measured again when that moves, and not again when nothing has', async () => {
+  const calls = [];
+  let since = null;
+  // The fixed-bitrate ones (four, 45 GB an hour) are all there are until the encoder file is written; none of them counts after.
+  const r = rig({ keeper: {
+    measureRate: (root, opts) => { calls.push({ root, since: opts.since }); return opts.since === null ? { bytesPerSecond: 12.5e6, gbPerHour: 45, recordings: 4 } : null; },
+    measureSince: () => since, configuredBytesPerSecond: () => 12.5e6,
+  } });
+  try {
+    expect(calls).toEqual([{ root: dir, since: null }]);
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'measured', measured: { recordings: 4 } });
+    // Set up OBS writes the encoder file: the new settings begin then, and what was measured is of the old ones.
+    since = Date.parse('2026-10-01T12:00:00Z');
+    r.keeper.refreshRate();
+    expect(calls.at(-1)).toEqual({ root: dir, since });
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'configured', measured: null, bytesPerSecond: 12.5e6 });
+    // Nothing moved since: no more reading of the files.
+    const seen = calls.length;
+    r.keeper.refreshRate();
+    expect(calls.length).toBe(seen);
+    // A time that is not a time is no filter, and a reader that cannot say is no measure.
+    since = 'noon';
+    r.keeper.refreshRate();
+    expect(calls.at(-1)).toEqual({ root: dir, since: null });
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'measured' });
+  } finally { r.dispose(); }
+});
+
 test('a recording already running when OBS answers is taken over: its path, its start, and ours if the state file says so', async () => {
   const mp4 = `${dir.replace(/\\/g, '/')}/earlier.mp4`;
   server.mode.clock = () => Date.now();

@@ -226,7 +226,8 @@ function createRecordingKeeper({
   stateFile,
   fs: fsModule = fs,
   freeSpace = (folder) => freeSpaceOf(folder, fsModule),
-  measureRate = null,                  // (recordings folder) → recording-rate.js's answer, or null; null: never measured
+  measureRate = null,                  // (recordings folder, { since }) → recording-rate.js's answer, or null; null: never measured
+  measureSince = () => null,           // when the encoder settings the next recording is made with began (ms); only recordings begun after count
   configuredBytesPerSecond = () => null,   // the bitrate the profile is capped at, in bytes a second; null when it cannot be read
   fetchPayload = async () => null,
   inCar = () => false,
@@ -280,7 +281,7 @@ function createRecordingKeeper({
   let bytes = 0;
   let bytesPerSecond = null;
   let measured = null;         // recording-rate.js's answer for the recordings folder: { bytesPerSecond, gbPerHour, recordings, ... }
-  let measuredFolderAt = null; // the recordings folder's mtime when it was last measured: unchanged is nothing to measure again
+  let measuredFor = null;      // the recordings folder's mtime and the encoder settings' start when it was last measured: both unchanged is nothing to measure again
   let free = null;             // { bytes, at, folder }
   let lowDisk = null;
   let last = null;             // the last answer to a press
@@ -424,9 +425,10 @@ function createRecordingKeeper({
     return 'closed';
   }
 
-  // The rate the estimate runs at, and where it is from: OBS's own while recording; else the files'; else the cap.
+  // The rate the estimate runs at, and where it is from: OBS's own while recording; else the files'; else the cap. OBS's
+  // own is of the recording running and of no other: once it has ended the files say what it came to.
   function rateInUse() {
-    if (bytesPerSecond) return { rate: bytesPerSecond, from: 'live' };
+    if (recording && bytesPerSecond) return { rate: bytesPerSecond, from: 'live' };
     if (measured && measured.bytesPerSecond > 0) return { rate: measured.bytesPerSecond, from: 'measured' };
     let configured = null;
     try { configured = configuredBytesPerSecond(); } catch (e) { configured = null; }
@@ -434,16 +436,21 @@ function createRecordingKeeper({
   }
 
   // The real rate of his recordings, read again only when the folder has changed since (a folder's mtime moves when a
-  // recording is filed into it, or one is taken away); `force` reads it whatever the mtime says.
+  // recording is filed into it, or one is taken away) or the encoder settings have (the recordings made with the old ones
+  // say nothing of the new: `since` is when these began); `force` reads it whatever the mtime says.
   function remeasure(force = false) {
     if (!measureRate) return;
     const root = recordFolder();
     if (!root) { measured = null; return; }
     let at = null;
     try { at = fsModule.statSync(root).mtimeMs; } catch (e) { at = null; }
-    if (!force && at !== null && at === measuredFolderAt) return;
-    measuredFolderAt = at;
-    try { measured = measureRate(root) || null; } catch (e) { measured = null; }
+    let since = null;
+    try { since = measureSince(); } catch (e) { since = null; }
+    if (!Number.isFinite(since)) since = null;
+    const seen = at === null ? null : `${at}|${since}`;
+    if (!force && seen !== null && seen === measuredFor) return;
+    measuredFor = seen;
+    try { measured = measureRate(root, { since }) || null; } catch (e) { measured = null; }
   }
 
   function status() {
@@ -1122,6 +1129,7 @@ function createRecordingKeeper({
     // A recording that was lost track of, not ended, is remembered, to be filed when OBS next answers (fileLeftover).
     if (keepState && key && session) abandoned = { key, files: [...session.files], folder: session.folder, endedAt: lastSeenAt || at };
     recording = false; starting = false; stopping = false; paused = false;
+    bytesPerSecond = null;   // OBS's own rate was of this recording; the next estimate is the files'
     cancelLost();
     unbookStatus();
     if (file) fileSidecar(reason, { endedAt: end, lastFile, endFrom: from });
@@ -1780,7 +1788,14 @@ function createRecordingKeeper({
     endSidecar('disposed');
   }
 
-  return { start, dispose, record, stop, toggle, saveReplay, feed, status, stopOwnedForQuit, needsStopForQuit, leaveForRelaunch, refreshFree, holdAuto };
+  // The rate is measured again when something it depends on has changed (Set up OBS has put the quality target in the
+  // encoder file, which begins a new run of recordings to measure); a no-op where nothing has.
+  function refreshRate() {
+    remeasure();
+    announce();
+  }
+
+  return { start, dispose, record, stop, toggle, saveReplay, feed, status, stopOwnedForQuit, needsStopForQuit, leaveForRelaunch, refreshFree, refreshRate, holdAuto };
 }
 
 module.exports = {

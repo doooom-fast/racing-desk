@@ -560,7 +560,11 @@ const recording = obs.createRecordingKeeper({
   // The real rate of his newest recordings, from the files (modules/js/obs/recording-rate.js), for the card's GB an hour
   // and the hours left; until there is one, the bitrate his profile is capped at (setupStatus reads the encoder file,
   // and keeps it for five seconds).
-  measureRate: (root) => obs.recordingRate.measureRate(root, { fs }),
+  // Only the recordings begun after the profile's encoder file was last written count: those before were made with other
+  // settings (the fixed 100 Mbps, which is 45 GB an hour whatever the racing), and the first race with the quality target
+  // would be averaged with them.
+  measureRate: (root, { since = null } = {}) => obs.recordingRate.measureRate(root, { fs, since }),
+  measureSince: () => obs.launcher.encoderChangedAt({ appData: app.getPath('appData'), readFile: fs.readFileSync, mtimeOf: (file) => fs.statSync(file).mtimeMs }),
   configuredBytesPerSecond: () => { const cap = setupStatus().capKbps; return Number.isFinite(cap) && cap > 0 ? cap * 125 : null; },
   fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
   inCar: () => hud.state().inCar,
@@ -715,6 +719,7 @@ function setupStatus() {
     encoder: encoder ? encoder.encoder : null,
     qualityTarget,
     capKbps: encoder && encoder.applies ? encoder.capKbps : null,
+    outputSize: encoder && encoder.applies ? encoder.size : null,
     needed: !(cfg.state === 'ok' && cfg.enabled && check && check.ok && qualityTarget !== false),
   };
   setupLookedAt = { at: now, value };
@@ -750,7 +755,7 @@ function tellDeskRecording() {
 }
 
 // Set up OBS: one press does what OBS needs — the WebSocket on and its password read, Hybrid MP4, the 20 s replay
-// buffer and the recording folder in his profile, and the recordings' size (full size with a quality target instead
+// buffer and the recording folder in his profile, and the recordings' size (a quality target instead
 // of a fixed bitrate, in the profile's encoder file, which only a run with OBS closed can write) — in the files while
 // OBS is closed, over the WebSocket while it is open. The card says in one sentence what it will change before he presses.
 async function setupObs() {
@@ -763,6 +768,8 @@ async function setupObs() {
     readFile: fs.readFileSync, writeFile: fs.writeFileSync, rename: fs.renameSync, mkdir: fs.mkdirSync, exists: fs.existsSync,
   });
   setupLookedAt = { at: 0, value: null };
+  // The encoder file may have been written just now: the recordings measured are those since.
+  recording.refreshRate();
   if (result.ran === 'closed') {
     obsFilePassword = result.password;
     logToFile(`[RacingDesk] Set up OBS (closed): ${[...result.did, ...result.problems].join(' ')} (password: ${result.password ? 'set' : 'none'})`);
