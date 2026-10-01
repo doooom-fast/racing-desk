@@ -23,7 +23,7 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 - **Canvas 2D** — fallback and auxiliary rendering
 - **Plain CSS** — `.css` files loaded via `<link>` (NOT CSS modules), custom properties for theming
 - **No build step** — JS modules loaded directly by HTML, no bundler
-- **OBS** records (`docs/recording.md` at the root): the main process drives it over obs-websocket 5 (`modules/js/obs/`), with a WebSocket client of its own over `net` — Electron's Node has none and `ws` is not in the tree. No ffmpeg, no recorder in the page. OBS may also draw the HUD itself, from the page `remote-server.js` serves on `127.0.0.1:9091/obs` (`window._obsMode`: the rig's layout, hidden out of the car, the voice coach off, the display settings through an allowlist), behind the switch "HUD drawn by OBS".
+- **OBS** records (`docs/recording.md` at the root): the main process drives it over obs-websocket 5 (`modules/js/obs/`), with a WebSocket client of its own over `net` — Electron's Node has none and `ws` is not in the tree. No ffmpeg, no recorder in the page. OBS may also draw the HUD itself, from the page `remote-server.js` serves on `127.0.0.1:9091/obs` (`window._obsMode`: the rig's layout, hidden out of the car, the voice coach off, the display settings through an allowlist), behind the switch "HUD drawn by OBS" — or, by the choice under it, the iPad dashboard from `/obs-ipad` (`window._obsGlance`: the glance layout over a transparent page, placed once in a corner of the game).
 - **Anthropic SDK** — direct API calls from `race-coach.js` for live AI commentary (uses user's own API key)
 
 ## 53 modules in `modules/js/`
@@ -42,7 +42,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `obs/auto-record.js` | Pure: when a recording starts and stops by itself — the green flag in a race, pit exit elsewhere; a new session, five seconds after HIS finish in a race (the chequered flag out and his lap count up since; the flag is the session's), leaving the car; held a second by the clock; only its own stopped; a green flag good once per stint |
 | `obs/filing.js` | Pure: the recording's folder name (`<date> <track> <car>`), the same-drive move after the file holds still, the offset from the chapters read back (each paired with the same-named chapter nearest to where it belongs, the median of what agrees) or from the file's end (the pauses allowed for), the words of each chapter |
 | `obs/mp4-info.js` | An MP4's duration and chapters read by seeking, no ffmpeg: a finished Hybrid MP4 or plain MP4 from its `moov`, an unfinished Hybrid MP4 from its fragments |
-| `obs/hud-source.js` | **Main process**: "HUD drawn by OBS" — the one browser source `Racing Desk HUD` (the loopback listener's `/obs` page, at the port the listener is really on) made once, an item of it in each scene that has an item named `game video`, in the collection the switch was turned on in and no other, just above it and fitted to it (the source is the HUD window's size in DIPs, scaled up by OBS), reloaded when OBS answers unless the page is polling, disabled off — applied at every connect, then the window goes back into the capture — and on quit, never removed; what he hid or moved is left (`apply` does the ordering, with `setContentProtection` handed in as `protect`) |
+| `obs/hud-source.js` | **Main process**: "HUD drawn by OBS" — the one browser source `Racing Desk HUD` (the loopback listener's `/obs` page, at the port the listener is really on) made once, an item of it in each scene that has an item named `game video`, in the collection the switch was turned on in and no other, just above it and fitted to it (the source is the HUD window's size in DIPs, scaled up by OBS), reloaded when OBS answers unless the page is polling, disabled off — applied at every connect, then the window goes back into the capture — and on quit, never removed; what he hid or moved is left (`apply` does the ordering, with `setContentProtection` handed in as `protect`). With "iPad dashboard" chosen (`view`), the source is the `/obs-ipad` page at 1180 by 820, placed once per scene in the bottom-left corner of the game video at two-fifths of its height and never moved or sized again; the state file keeps the scenes placed and his transform of it when the choice goes back to the rig HUD, which puts the item back over the game |
 | `obs/tv-shots.js` | **Main process**: TV shots — the sidecar's moments (places gained, incidents, the pit lane) found again in iRacing's replay by their `sn`/`st` through the host's replay route (the SDK's own commands; no key; refused by the host while he is on track), recorded through a TV camera on his car by its number as one take in the race's folder, the recording paused between moments, a moment the sim does not reach skipped, the take ended where it is when he gets in the car, OBS stops it, iRacing leaves its replay, Stop or the quit; the facecam hidden, kept in `tv-state.json` and put back whatever happened, auto-record held; progress to the desk, the tray and the Stream Deck |
 | `obs/recordings-index.js` | Pure: the recordings folder read by each folder's sidecar header — the race's recording by the session's start and track, the latest for the tray |
 | `hud-notice.js` | The one thing the HUD may be told of recording, for two seconds: "OBS is not open", "OBS didn't start recording" |
@@ -261,7 +261,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   and the corner of whatever cell is there, faint until it is open; its list opens on the side with the more room. On
   the rig there is no menu. Upright, that corner is the gaps block, and its strip of sectors stops short of the button.
 - **On an iPad only** (`html.rd-remote`, the rules at the end of `drive-view.css`; the rig's own Ctrl+Shift+F keeps
-  everything it had), what he asked for on 2026-09-30: the glass's light at fifteen hundredths of the rig's
+  everything it had; the iPad dashboard OBS draws, `html.rd-glance` from the loopback listener's `/obs-ipad`, shares
+  the look — the glass, no badges, the row, the sectors — and has none of what is the iPad's alone: no menu, no flag
+  pattern behind or between the panels, no frame, and a transparent page in place of the black one, so the game shows
+  through the gutters; `hud-page-obs-ipad.spec.mjs` renders it over a board and reads the pixels), what he asked for on
+  2026-09-30: the glass's light at fifteen hundredths of the rig's
   (`--rd-shine: 0.15` — the tint, the overhead glow and the sweep, the specular streak and the inset glow all take
   the one factor; the flags' own treatment of the glass does not), the flag's pattern behind and between the panels
   at fifteen hundredths too, under every flag (`body::before` at 0.15; the first cut's renders had the stripes at
@@ -513,9 +517,34 @@ folder, which electron-builder unpacks from the asar, and is installed from ther
 `127.0.0.1:9091` for the programs on this machine — the actions, `/api/status` (with his HUD switch, `hudOff`, and the
 page-only actions pressed on the rig, `hudActions`, which the OBS page asks once a second and does; `window.runHudAction`
 in `keyboard.js`), `/api/settings-display` (the allowlist `DISPLAY_SETTINGS` and the `show*` switches, never a key, a
-folder, an address or a device) and `/obs` (hidden from the first paint until the page has started, and while he has the
-HUD away). It is started with retries (`startWithRetry`) until it is up.
-`tests/unit/remote-server.spec.mjs` and `tests/unit/hud-page-obs.spec.mjs` (the real page through the listener, headless).
+folder, an address or a device), `/obs` (hidden from the first paint until the page has started, and while he has the
+HUD away) and `/obs-ipad` (the same page as the glance layout, for "iPad dashboard" under the switch). The iPad's server
+answers `/api/settings-display` too, with the panel background alone (`IPAD_SETTINGS`), behind the key. It is started
+with retries (`startWithRetry`) until it is up. `tests/unit/remote-server.spec.mjs`, `tests/unit/hud-page-obs.spec.mjs`
+and `tests/unit/hud-page-obs-ipad.spec.mjs` (the real pages through the listener, headless).
+
+The Recording card also holds, under the "HUD drawn by OBS" switch, the choice of what OBS draws (`obsHudView`: Rig HUD
+or iPad dashboard, a sentence each) and the "Panel background in OBS" slider (`obsPanelBackground`), both keys of the
+settings file saved like the switches (`recording-model.js` `HUD_VIEW`, `OBS_PANEL_BACKGROUND`).
+
+## Panel background
+
+How solid the panels' own background is — the base fill and the glass, nothing else — is a slider, 0 to 100, and there
+are two: "Panel background" in Settings → Look (`panelBackground`, `settings-model.js`) for the rig's HUD and the iPad
+view, and "Panel background in OBS" on the Recording card (`obsPanelBackground`) for the pages OBS draws, whichever of
+the two, so a recording can be clearer or more see-through than what he drives with. `settings.js`
+(`applyPanelBackground`, from `applySettings`) reads the one the page goes by (`window._obsMode` reads the OBS one),
+writes it to `:root` as `--panel-alpha` and marks `body.panels-thin` under 90. `base.css` makes `--bg`, `--bg-panel`
+and `--bg-logo` from it (the secondary panels' own fills in `leaderboard.css`, `datastream.css` and `pitbox.css` read
+it too), scales the glass by `--panel-glass` — down with it, never up: the streak and plastic glow of `ambient.css`,
+the glance layout's tints, inset glow and overhead glow, and its opaque base under a flag — and under 90 lays a soft
+dark `text-shadow` on the panels (it inherits to every word in them; an effect with a shadow of its own keeps it) whose
+alpha is `--panel-shadow`, 0 at 90 and 1 at nought. **90 is the panels as they have always been**, on every surface: the
+rig's nine-tenths, the iPad's the same, the glance layout's opaque base under a flag opaque at 90 and above, so the
+defaults change nothing and the golden frames are as they were. The rig's page is told by the desk's settings path, the
+iPad by its server's `/api/settings-display` (the panel background alone, asked again every ten seconds), the OBS pages
+by the display-settings allowlist (both sliders, the OBS one drawn by). `tests/unit/panel-background.spec.mjs` holds
+each slider at 0, 50 and 100 on its own surface and not the others', the shadow, and the defaults.
 
 ## Deployment Modes
 
@@ -618,7 +647,7 @@ page reads the list of screens again in place when the app says they changed (`h
 |----------|--------|
 | `Ctrl+Shift+F` | Toggle the glance layout (fullscreen): every panel of the HUD as one grid filling the screen, as an iPad is shown |
 | `Ctrl+Shift+H` | Switch the HUD off/on, in the car only — out of it the key does nothing, and the tray's "HUD on/off" is the switch |
-| `Ctrl+Shift+G` | Toggle green-screen mode, which restarts the app. A restart is not a quit: a recording and a replay buffer Racing Desk started run on in OBS and the relaunched app takes them over when OBS answers, so the race stays one video and its sidecar is gone on in (`docs/recording.md`). The relaunched app opens no desk window (`--no-desk`, as it starts no OBS: `--no-obs-start`), because closing the desk is a quit; a real quit while the relaunch is still waiting gives it up and stops what Racing Desk started |
+| `Ctrl+Shift+G` | Restart the app. (It toggled a `greenScreen` key as it went, which nothing read; the key is gone, migrated out of the settings file.) A restart is not a quit: a recording and a replay buffer Racing Desk started run on in OBS and the relaunched app takes them over when OBS answers, so the race stays one video and its sidecar is gone on in (`docs/recording.md`). The relaunched app opens no desk window (`--no-desk`, as it starts no OBS: `--no-obs-start`), because closing the desk is a quit; a real quit while the relaunch is still waiting gives it up and stops what Racing Desk started |
 | `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (`hud-display.js`: not the primary one unless that is where the rule puts it) |
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+O` | Open the desk |

@@ -217,9 +217,11 @@ The iPad's server (port 9090, on the home network, switched on from the desk) ha
 the actions, whatever the iPad switch says; `/api/status` says in the car or not, the HUD on screen or not, whether he
 has put the HUD away (`hudOff`), the page-only actions pressed on the rig (`hudActions`, below) and the recording in
 short; `/api/settings-display` is his display settings through an allowlist — the panels, the zoom, the position, the
-look — and never a key, a folder, an address, a device or anything of the recording's; and `/obs` is the HUD page for OBS
-(next). It never has a key to show and never listens on any other address; the LAN server knows none of the three
-routes. If its port is taken when the app starts it is tried again, two seconds, five, fifteen and then every half
+look, the two panel-background sliders — and never a key, a folder, an address, a device or anything of the recording's;
+`/obs` is the HUD page for OBS (next) and `/obs-ipad` the iPad dashboard for OBS. It never has a key to show and never
+listens on any other address; the LAN server knows neither page, and its own `/api/settings-display` (behind the key,
+like everything on it) answers the iPad the panel background and nothing else. If its port is taken when the app starts
+it is tried again, two seconds, five, fifteen and then every half
 minute, with the port read afresh from the settings at each try, until it is up (the log says so); the HUD source is not
 given to OBS while it is down, and is when it comes up.
 
@@ -239,6 +241,51 @@ once (what was pressed before it began is not done again); the mode presets and 
 reach it by its ten-second ask of the settings. The source is the size of the rig's HUD window in DIPs, which is what the
 rig's page is laid out in, and OBS scales it up to the game (a source in physical pixels would lay the page out larger
 than the rig's, and the recorded HUD would be smaller than the one he sees wherever the screen is not at 100 %).
+
+**What OBS draws is a choice under the switch** (`obsHudView`, asked for 2026-10-01: "I'd like a setting for the hud in
+obs to be the iPad version"): **Rig HUD**, the above, or **iPad dashboard**, the glance layout the iPad is shown. The
+iPad dashboard is the listener's `/obs-ipad` page: the same `dashboard.html`, in drive mode from the start
+(`window._obsGlance`, which `drive-hud.js` reads as it reads `_remoteMode`), with the iPad's look — the glass at
+fifteen hundredths, no badges (so the crop is never asked for), the sectors that fit, the same grid (`html.rd-glance`
+shares the iPad's rules in `drive-view.css`) — and OBS mode's behaviour: no key, no menu, hidden out of the car and while
+he has the HUD away, no voice coach, the display-settings allowlist; the rig's page-only actions are not done on it (the
+glance layout has no zoom, and the rig's zoom key would scale the whole grid). **The page behind and between the panels
+is transparent**: no black page, no flag pattern in the gutters and no frame at the edge (those are the iPad's, which
+has no game behind it), so the game shows through the gutters; a flag still reads from the flag card in the gaps block,
+race control's banner and the panels' flag-coloured borders and tint. Never on the iPad's server; the iPad's own view is
+as it was. **The source is an iPad's size, 1180 by 820** (`IPAD_SOURCE`: the iPad Air and 11" Pro on their side, the
+size the layout is held to in `drive-view.spec.mjs` and the golden frames are made at; landscape, as the game is), and
+**it is not stretched over the game**: the first time Racing Desk adds it to a scene it is put in the bottom-left corner
+of the game video (away from a facecam in the bottom right), inset by a fiftieth of the game's shorter side, scaled
+inside bounds at two-fifths of the game's height (`IPAD_PLACE`; on his 3440 by 1440 canvas that is 829 by 576, a
+quarter of the width, with the layout's 20 px numbers at about 14 px of the canvas — big enough to read, small enough to
+leave the game), and after that **it is never moved or sized by Racing Desk again**: his layout in OBS is his. The state
+file (`hud-source-state.json`: `collection`, `off`, `view`, `ipad`) says which scenes it has been placed in; a connect,
+a choice made again or a change of the rig's screen only brings the address and the size up to date
+(SetInputSettings). Changing the choice changes the source's address and size and reloads the page: to the iPad
+dashboard, the item is placed in the corner once per scene; back to the rig HUD, the item is fitted over the game again
+(as a rig HUD must be) and his transform of the dashboard is written down per scene, so that choosing the iPad dashboard
+again puts it back where he had it, not in the corner. A game video placed by its centre or its other corners is read
+by its alignment, so the corner is the box it really covers. `obs-hud-source.spec.mjs` holds the placement once, the
+leaving alone, the two changes of choice and the state file against the fake OBS; `hud-page-obs-ipad.spec.mjs` renders
+the page headless at 1180 by 820 over a magenta-and-cyan board with a yellow flag out and reads the pixels: the board in
+every gutter and along the edge, the panels dark over it.
+
+**How solid the panels are** is two sliders, 0 to 100 (he asked "Does the overlay allow backgrounds to be set to
+transparent?" on 2026-10-01 and chose one slider with OBS separate): **Panel background** in Settings → Look
+(`panelBackground`) for the rig's HUD and the iPad view, and **Panel background in OBS** on the Recording card with the
+switch (`obsPanelBackground`) for the pages OBS draws, whichever of the two, so the recording can be clearer or more
+see-through than what he drives with. Each sets the panels' own background — the base fill and the glass — and nothing
+else (`settings.js` `applyPanelBackground` writes `--panel-alpha`; `base.css` makes the fills, scales the glass down
+with it and never up, and under 90 puts a soft dark shadow under every number and word in the panels, growing as the
+background goes, so they read over the game). 90 is the panels as they have always been: the rig's `--bg` at
+nine-tenths and the secondary panels' fills the same, the glance layout's base the same under its glass and opaque
+under a flag (opaque at 90 and above; it thins below), so the defaults change no surface and the golden frames are as
+they were. The rig's page gets the slider by the desk's settings path; the iPad is told it by its own server
+(`/api/settings-display` on the iPad's server answers the panel background and nothing else, behind the key, and the
+page asks again every ten seconds); the OBS pages get both through the display-settings allowlist and draw by the OBS
+one. `panel-background.spec.mjs` holds each slider at 0, 50 and 100 on its own surface and not the others', the shadow,
+and the defaults.
 
 Throwing the switch: the HUD's own window is taken out of every screen capture first (`setContentProtection`, which
 takes effect at the next composition), then OBS is given one input, `Racing Desk HUD` — made once; OBS refuses a second
@@ -299,11 +346,14 @@ that its replay controls are out of the shots, and what `IsReplayPlaying` does w
 
 `recordingFolder`, `recordingAutoRecord` (on unless false), `recordingInstantReplay` (false),
 `recordingInstantReplaySeconds` (20), `recordingChapters` (true), `obsStartOnRecord` (true), `obsStartWithApp` (false),
-`obsPath` (null: the default install), `obsHudSource` (false: "HUD drawn by OBS"), `tvShotsHideFacecam` (true),
-`localServerPort` (9091: the listener on this PC), `obsWebSocketPasswordEnc` (only if typed; never sent to a page),
-`recordingSettingsVersion` (4). The Electron recorder's keys, the "native" backend's port and "stop in the pits"
-(`recordingAutoStopOnPit`: his rules stop a recording on a new session, at the end of the race and when he leaves the
-car, and the pit lane is none of those) are deleted.
+`obsPath` (null: the default install), `obsHudSource` (false: "HUD drawn by OBS"), `obsHudView` (`rig`: what OBS draws,
+`rig` or `ipad`; read strictly, anything else is `rig`), `obsPanelBackground` (90: how solid the panels are in the
+picture OBS draws), `tvShotsHideFacecam` (true), `localServerPort` (9091: the listener on this PC),
+`obsWebSocketPasswordEnc` (only if typed; never sent to a page), `recordingSettingsVersion` (5). The Electron recorder's
+keys, the "native" backend's port, "stop in the pits" (`recordingAutoStopOnPit`: his rules stop a recording on a new
+session, at the end of the race and when he leaves the car, and the pit lane is none of those) and `greenScreen` (a key
+nothing read: Ctrl+Shift+G flipped it and restarted the app, and now only restarts the app) are deleted. The rig's and
+the iPad's panel background, `panelBackground` (90), is a key of the HUD's own (Settings → Look), not of the recording's.
 
 ## Coming (not in this stage)
 
@@ -332,6 +382,10 @@ Stream Deck app runs the plugin it started with, so after the first start of thi
 keys use the new plugin and the TV Shots action is in its list (the log says so when the plugin was replaced).
 Then "HUD drawn by OBS": switch it on with OBS open, look at OBS's preview — the HUD should be there once, over the
 game and under the facecam, laid out as on the screen — and at a recording made with it on: the HUD once, not twice.
+Then choose "iPad dashboard" under it: the source should become the glance layout in the bottom-left corner of the game
+at about a quarter of its width, the game showing through between its panels; drag it where you want it and switch
+scenes, reopen OBS, restart Racing Desk — it should stay put. Then "Panel background in OBS" down to 30 or so: the
+picture's panels should go see-through with a shadow under the numbers while the HUD on the screen stays as it is.
 Then TV shots: after a race, open its replay in iRacing, pick the race on the Desk page and press TV shots; the pill
 should count the moments, the facecam should go and come back, and the race's folder should hold `… tv.mp4` and its
 sidecar; watch whether each moment is where the race had it (the first take says whether the sim lands the seeks), that the camera
