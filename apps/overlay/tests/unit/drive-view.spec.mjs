@@ -36,7 +36,12 @@ const IPADS = [
   [1180, 820, 'Air, landscape'], [820, 1180, 'Air, portrait'], [1366, 1024, '12.9" Pro, landscape'],
   [1024, 768, '9.7", landscape'], [744, 1133, 'mini, portrait'], [1133, 744, 'mini, landscape'], [810, 1080, '10.2", portrait'],
 ];
+// The rig's own screens are opened as the rig has them (from the file, drive mode switched on: no server, no
+// html.rd-remote, so the two badges are cells and the glass is the rig's), not through the iPad's server.
 const RIG = [[1920, 1080, 'the rig, 16:9'], [2560, 1080, 'the rig, ultrawide']];
+// (his own screen as well, for the sectors: the ratings panel is cut off by its cell on it, as it was before the iPad's
+// changes, which is not what these tests are about)
+const RIG_SECTORS = [...RIG, [3440, 1440, 'the rig, his ultrawide']];
 const SIZES = [...IPADS, ...RIG];
 
 // The strategy engine calling for tyres and for fuel, with a pit window and a stint of 14 laps: more lines in the pit box.
@@ -88,6 +93,23 @@ async function openAt(page, width, height, first, { effects = false } = {}) {
   await drawn(page);
 }
 
+// The rig's own Ctrl+Shift+F: the page from the file, as the HUD has it, with drive mode switched on.
+async function openRig(page, width, height, first) {
+  payload = first;
+  await page.route(/^https?:\/\/(?!localhost:8889)/, (route) => route.abort());
+  await page.route('http://localhost:8889/racing-desk/', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) }));
+  await page.setViewportSize({ width, height });
+  await page.goto(pathToFileURL(path.join(OVERLAY, 'dashboard.html')).href);
+  await page.evaluate(() => { _settings.showWebGL = false; });
+  await page.waitForFunction(() => typeof _isIdle !== 'undefined' && _isIdle === false && _pollFrame > 6, null, { timeout: 10000 });
+  // The circuit's name slides when it is wider than its label, and is measured when the HUD is first drawn, in its own
+  // narrow label: switched to the glance layout a short name goes on sliding, a few pixels, for seconds. The text is
+  // read where it stands, so the slide is held still (it is the HUD's, and not what these tests are of).
+  await page.addStyleTag({ content: '.map-panel > .map-zoom-label .map-zoom-label-inner { animation: none !important; transform: none !important; }' });
+  await page.evaluate(() => setDriveMode(true));
+  await drawn(page);
+}
+
 // What the page has been given is what it has drawn: the leaderboard has its rows, the maps are fitted.
 async function drawn(page) {
   await page.waitForFunction(() => {
@@ -115,9 +137,11 @@ const CELLS = {
   local: '.map-zoom-panel', laps: '#lapsPanel', rating: '#ratingPage', ctrl: '.car-controls', pedals: '.pedals-area',
   timer: '#raceTimerBlock', pit: '#pitBoxPanel', ds: '#datastreamPanel', inc: '#incidentsPanel',
 };
+// On the rig's own screen the two badges are cells too.
+const CELLS_RIG = { ...CELLS, brand: '#brandLogoSquare', car: '#carLogoSquare' };
 
 // Everything the rules are held to, measured in the page. Each is a list of what breaks it: nothing, when it holds.
-function measure(page) {
+function measure(page, cells = CELLS) {
   return page.evaluate((cellSelectors) => {
     const vw = innerWidth, vh = innerHeight;
     const shown = (el) => el.getClientRects().length > 0;
@@ -239,23 +263,27 @@ function measure(page) {
     out.delta = parseFloat(getComputedStyle(delta).fontSize);
     out.kind = document.body.classList.contains('session-race') ? 'race' : document.body.classList.contains('session-nonrace') ? 'nonrace' : 'none';
     return out;
-  }, CELLS);
+  }, cells);
 }
 
 const describeSize = ([w, h, what]) => `${w}x${h} (${what})`;
 
 for (const size of SIZES) {
   const [width, height] = size;
+  // The rig's screens are the rig's own layout (with its two badges), opened from the file; an iPad's, through the server.
+  const rig = RIG.includes(size);
+  const cellsOf = rig ? CELLS_RIG : CELLS;
   test(`${describeSize(size)}: every panel is a cell, the cells are the screen, nothing is cut off or too small to read`, async ({ page }) => {
     test.setTimeout(90000);
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await openAt(page, width, height, RACE());
+    if (rig) await openRig(page, width, height, RACE());
+    else await openAt(page, width, height, RACE());
 
     // The grid, and the HUD's own wrappers out of the way.
     expect(await page.evaluate(() => getComputedStyle(document.body).display)).toBe('grid');
     expect(await page.evaluate(() => getComputedStyle(document.getElementById('dashboard')).display)).toBe('contents');
-    expect(await page.evaluate(() => document.documentElement.classList.contains('rd-remote'))).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.classList.contains('rd-remote'))).toBe(!rig);
 
     // Every size is held to a race and a practice; the cases that fill a cell the most (a place of three glyphs, a car
     // with a row of dials beneath, the flag's glass) to the sizes they are tightest at, the small ones and the upright.
@@ -274,10 +302,10 @@ for (const size of SIZES) {
     ];
     for (const [name, next] of cases) {
       if (next) await serve(page, next());
-      const m = await measure(page);
+      const m = await measure(page, cellsOf);
       const label = `${describeSize(size)}, ${name}`;
       expect(m.outside, `${label}: cells outside the screen`).toEqual([]);
-      expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn`).toEqual(Object.keys(CELLS).sort());
+      expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn`).toEqual(Object.keys(cellsOf).sort());
       expect(m.overlapping, `${label}: cells on top of one another`).toEqual([]);
       // The cells are the screen: what is not a cell is the edge round the grid and the gutters between the cells.
       expect(m.covered, `${label}: the cells cover the screen (${JSON.stringify(m.cells)})`).toBeGreaterThanOrEqual(0.86);
@@ -832,23 +860,18 @@ test.describe('the strategy engine\'s calls in the pit box', () => {
   });
 });
 
-// ── The rig's own screen: Ctrl+Shift+F on 1920x1080 and on the ultrawide, from the file, not through the server ───────
+// ── The rig's own screen: Ctrl+Shift+F on 1920x1080, the ultrawide and his own, from the file, not through the server ──
+// Every panel including the two badges (the rig keeps them), so a change that crops the car's badge or the row of
+// controls here is caught: these are the rig's layout and not the iPad's.
 for (const [width, height, what] of RIG) {
   test(`${width}x${height} (${what}): the glance layout of the rig's own HUD holds every panel`, async ({ page }) => {
     test.setTimeout(60000);
-    payload = RACE({ controls: WIRE.porsche963gtp, extra: CALLS });
-    await page.route(/^https?:\/\/(?!localhost:8889)/, (route) => route.abort());
-    await page.route('http://localhost:8889/racing-desk/', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) }));
-    await page.setViewportSize({ width, height });
-    await page.goto(pathToFileURL(path.join(OVERLAY, 'dashboard.html')).href);
-    await page.evaluate(() => { _settings.showWebGL = false; });
-    await page.waitForFunction(() => typeof _isIdle !== 'undefined' && _isIdle === false && _pollFrame > 6, null, { timeout: 10000 });
-    await page.evaluate(() => setDriveMode(true));
-    await drawn(page);
-    const m = await measure(page);
+    await openRig(page, width, height, RACE({ controls: WIRE.porsche963gtp, extra: CALLS }));
+    expect(await page.evaluate(() => document.documentElement.classList.contains('rd-remote'))).toBe(false);
+    const m = await measure(page, CELLS_RIG);
     const label = `${width}x${height}`;
     expect(m.outside, `${label}: outside`).toEqual([]);
-    expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn`).toEqual(Object.keys(CELLS).sort());
+    expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn, the badges too`).toEqual(Object.keys(CELLS_RIG).sort());
     expect(m.overlapping, `${label}: overlapping`).toEqual([]);
     expect.soft(m.overflowing, `${label}: content cut off by its cell`).toEqual([]);
     expect.soft(m.cutOff, `${label}: text cut off or left out of sight`).toEqual([]);
@@ -866,6 +889,106 @@ for (const [width, height, what] of RIG) {
     });
     expect(pit.low, `${label}: the pit box's contents are inside it`).toEqual([]);
     expect(pit.services.filter((s) => s === 'below'), `${label}: the services are inside the pit box or left out, never below it`).toEqual([]);
+  });
+}
+
+// ── A layout with many sectors, and sectors a minute long: every one is read, in the laps panel and in the strip ─────
+// The laps panel is a cell of a fixed size and gives up what it cannot hold in stages (laps-panel.js, tried one on top
+// of the other until the panel holds what is left: the sectors' gaps, then each sector a line, the rows of times, the
+// fuel, the spacing, and last the sectors' names); the gaps block's strip of sectors, out of a race, goes on in
+// another column. A Nordschleife has 10 sectors, the 24 hour layout 14, and a minute is a short sector there.
+function timedSectors(n, base) {
+  const extra = { 'RacingDesk.Plugin.DS.SectorCount': n, 'RacingDesk.Plugin.DS.SectorBoundaryPcts': Array.from({ length: n - 1 }, (_, i) => ((i + 1) / n).toFixed(3)).join(',') };
+  for (let i = 1; i <= n; i++) {
+    extra[`RacingDesk.Plugin.DS.SectorSplitS${i}`] = base + i * 1.111;
+    extra[`RacingDesk.Plugin.DS.SectorDeltaS${i}`] = i % 2 ? -0.123 : 0.456;
+    extra[`RacingDesk.Plugin.DS.SectorStateS${i}`] = i % 2 ? 2 : 3;
+  }
+  extra['RacingDesk.Plugin.DS.SectorBests'] = Array.from({ length: n }, (_, i) => (base + i).toFixed(3)).join(',');
+  return extra;
+}
+const practiceWith = (extra) => frame({ order: fieldWith(4), session: 'Practice', state: 4, mode: 1, start: 4, lap: 6, extra });
+
+// What is on show of the laps panel's sectors and the gaps block's strip.
+function sectorsShown(page) {
+  return page.evaluate(() => {
+    const panel = document.getElementById('lapsPanel');
+    const pr = panel.getBoundingClientRect();
+    const inside = (q, r) => q.left >= r.left - 0.5 && q.right <= r.right + 0.5 && q.top >= r.top - 0.5 && q.bottom <= r.bottom + 0.5;
+    const shown = (e) => e.getClientRects().length > 0;
+    const cells = [...document.querySelectorAll('#lapsSectors .sector-cell')];
+    const times = cells.map((c) => c.children[1]);
+    const gb = document.getElementById('gapsBlock').getBoundingClientRect();
+    const strip = [...document.querySelectorAll('#gapsBlock .sector-indicator .sector-cell')];
+    const fab = document.getElementById('rd-remote-menu-fab')?.getBoundingClientRect();
+    const meets = (a, b) => a && Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+    return {
+      fit: +panel.dataset.fit,
+      panelHolds: panel.scrollHeight <= panel.clientHeight + 1 && panel.scrollWidth <= panel.clientWidth + 1,
+      count: cells.length,
+      timesShown: times.filter((t) => shown(t) && inside(t.getBoundingClientRect(), pr)).length,
+      sizes: times.map((t) => parseFloat(getComputedStyle(t).fontSize)),
+      fuel: shown(document.getElementById('lapsFuel')),
+      stripCount: strip.length,
+      stripInside: strip.filter((c) => shown(c) && inside(c.getBoundingClientRect(), gb)).length,
+      stripUnderMenu: strip.filter((c) => meets(fab, c.getBoundingClientRect())).length,
+    };
+  });
+}
+
+async function holdsEverySector(page, label, cells, n, base) {
+  const s = await sectorsShown(page);
+  const m = await measure(page, cells);
+  expect(s.count, `${label}: the panel has a cell for each sector`).toBe(n);
+  expect(s.panelHolds, `${label}: the laps panel holds what it shows (it gave up ${s.fit} stages)`).toBe(true);
+  expect(s.timesShown, `${label}: every sector's time is in the panel (it gave up ${s.fit} stages)`).toBe(n);
+  expect(Math.min(...s.sizes), `${label}: a sector's time is 20px or more`).toBeGreaterThanOrEqual(20 - 0.01);
+  expect(s.stripCount, `${label}: the strip has a cell for each sector`).toBe(n);
+  expect(s.stripInside, `${label}: every sector of the gaps block's strip is in the block`).toBe(n);
+  expect(s.stripUnderMenu, `${label}: none of them is under the menu's button`).toBe(0);
+  const mine = (c) => /lapsPanel|laps-|gapsBlock|^laps:|^gaps:/.test(c);
+  expect(m.overflowing.filter(mine), `${label}: nothing in the laps panel or the strip is cut off by its cell`).toEqual([]);
+  expect(m.cutOff.filter(mine), `${label}: no text of theirs is cut off`).toEqual([]);
+  expect(m.small.filter(mine), `${label}: nor too small`).toEqual([]);
+  if (n <= 4) expect(s.fuel, `${label}: the fuel against the laps to go stays while there are few sectors`).toBe(true);
+  return s;
+}
+
+for (const size of IPADS) {
+  const [width, height] = size;
+  test(`${describeSize(size)}: a layout with many sectors, and sectors a minute long, is read whole in the laps panel and the gaps block's strip`, async ({ page }) => {
+    test.setTimeout(150000);
+    await openAt(page, width, height, practiceWith(timedSectors(3, 31.2)));
+    for (const n of [3, 4, 7, 10, 14]) {
+      for (const base of [31.2, 71.1]) {
+        await serve(page, practiceWith(timedSectors(n, base)));
+        const label = `${describeSize(size)}, ${n} sectors from ${base} s`;
+        const s = await holdsEverySector(page, label, CELLS, n, base);
+        // The Air on its side gives up nothing at the three sectors the layout has by default.
+        if (width === 1180 && height === 820 && n === 3 && base < 60) expect(s.fit, `${label}: nothing given up`).toBe(0);
+      }
+    }
+    // A sector not yet timed is as wide as one that is, so the panel does not change when the last of them is: it was
+    // at the size where the three of them just fitted, and went from the whole panel to the short one (and back).
+    const blank = timedSectors(3, 31.2);
+    blank['RacingDesk.Plugin.DS.SectorSplitS3'] = 0; blank['RacingDesk.Plugin.DS.SectorDeltaS3'] = 0; blank['RacingDesk.Plugin.DS.SectorStateS3'] = 0;
+    await serve(page, practiceWith(blank));
+    const before = (await sectorsShown(page)).fit;
+    await serve(page, practiceWith(timedSectors(3, 31.2)));
+    expect((await sectorsShown(page)).fit, `${describeSize(size)}: the panel is the same before and after the last sector is timed`).toBe(before);
+  });
+}
+
+for (const [width, height, what] of RIG_SECTORS) {
+  test(`${width}x${height} (${what}): a layout with many sectors, and sectors a minute long, is read whole on the rig's own glance layout`, async ({ page }) => {
+    test.setTimeout(150000);
+    await openRig(page, width, height, practiceWith(timedSectors(3, 31.2)));
+    for (const n of [3, 7, 10, 14]) {
+      for (const base of [31.2, 71.1]) {
+        await serve(page, practiceWith(timedSectors(n, base)));
+        await holdsEverySector(page, `${width}x${height}, ${n} sectors from ${base} s`, CELLS_RIG, n, base);
+      }
+    }
   });
 }
 
