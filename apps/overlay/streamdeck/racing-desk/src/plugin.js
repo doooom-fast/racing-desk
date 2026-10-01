@@ -37,7 +37,6 @@ const ACTIONS = Object.freeze({
   'com.doooom.racingdesk.toggle-rating-editor': 'toggle-rating-editor',
   'com.doooom.racingdesk.zoom-in': 'zoom-in',
   'com.doooom.racingdesk.zoom-out': 'zoom-out',
-  'com.doooom.racingdesk.reset-trackmap': 'reset-trackmap',
   'com.doooom.racingdesk.restart-demo': 'restart-demo',
   'com.doooom.racingdesk.cycle-rating': 'cycle-rating',
   'com.doooom.racingdesk.cycle-car-logo': 'cycle-car-logo',

@@ -25,9 +25,6 @@ contextBridge.exposeInMainWorld('racingDesk', {
   onRestartDemo: (callback) => {
     ipcRenderer.on('restart-demo', () => callback());
   },
-  onResetTrackmap: (callback) => {
-    ipcRenderer.on('reset-trackmap', () => callback());
-  },
   // iRating / Safety Rating
   getRatingData: () => ipcRenderer.invoke('get-rating-data'),
   saveRatingData: (data) => ipcRenderer.invoke('save-rating-data', data),
@@ -89,7 +86,7 @@ contextBridge.exposeInMainWorld('racingDesk', {
   },
   // The runtime's ?action= routes, for the HUD (config.js's runtimeAction): the runtime answers a request for one only when
   // a program on this machine made it, and a page's request says where it came from, so main.js asks (modules/js/
-  // runtime-actions.js). Only resetmap, restartdemo, setrect, listPedalProfiles, setPedalProfile and bindPedalProfile, with
+  // runtime-actions.js). Only restartdemo, setrect, listPedalProfiles, setPedalProfile and bindPedalProfile, with
   // their arguments. Resolves to { ok: true, body } or { ok: false, error }; what went wrong is an answer, not a rejection.
   runtimeAction: (name, params) => ipcRenderer.invoke('runtime:action', name, params),
   // Ambient light — screen capture moved to C# plugin (ScreenColorSampler).

@@ -21,8 +21,9 @@
      ctrl×6   pedals×4 brand×2 car×2 timer×3 lb           lb                 rating×9
      pit×10            ds×4     inc×3   lb                ctrl×8 pedals×6 brand×2 car×3 timer×5
                                                           pit×13        ds×6    inc×5
-   On an iPad the menu (remote-server.js) is laid over the brand square, the one touch target on the screen. What
-   comes and goes is laid over the cells, as it is over the game on the rig (the end of this file).
+   On an iPad the menu (remote-server.js) is a small round button laid over the top right corner, the one touch target
+   on the screen, and the badges are not shown. What comes and goes is laid over the cells, as it is over the game on
+   the rig (the end of this file).
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 body.drive-mode-active {
@@ -111,17 +112,18 @@ body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: flex !im
    datastream, pit box, incidents) take the same background on the card. */
 body.drive-mode-active :is(.car-controls, .pedals-area, .map-panel, .map-zoom-panel, #positionPage, #ratingPage,
   #gapsBlock, .tacho-block, #raceTimerBlock, #lapsPanel, .lb-inner, .ds-inner, .pb-inner, .inc-inner) {
+  /* --rd-shine is how much of the light the glass shows: 1 on the rig, and on an iPad 0.15 (the end of this file). */
   background:
     linear-gradient(180deg,
-      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.26) 0%,
-      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.16) 55%,
-      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.20) 100%),
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.26 * var(--rd-shine, 1))) 0%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.16 * var(--rd-shine, 1))) 55%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.20 * var(--rd-shine, 1))) 100%),
     var(--bg);
   border: 1px solid rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.30);
   border-radius: var(--corner-r);
   box-shadow:
-    inset 0 0 36px 6px rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.14 + var(--ambient-lum) * 0.18)),
-    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    inset 0 0 36px 6px rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc((0.14 + var(--ambient-lum) * 0.18) * var(--rd-shine, 1))),
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.10 * var(--rd-shine, 1)));
   transition: background 0.6s ease, border-color 0.6s ease;
 }
 body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) {
@@ -147,7 +149,7 @@ body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-panel, .datastream
     linear-gradient(155deg, transparent 8%,
       rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.10) 30%,
       rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.04) 55%, transparent 72%);
-  opacity: calc(0.45 + var(--ambient-lum) * 0.5);
+  opacity: calc((0.45 + var(--ambient-lum) * 0.5) * var(--rd-shine, 1));
 }
 /* The specular streak is ambient.css's ::after, the rig's own, and shows as it is. */
 body.drive-mode-active.ambient-off :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel,
@@ -212,7 +214,10 @@ body.drive-mode-active #gapsBlock .gap-ir[data-trend]::after { content: attr(dat
 body.drive-mode-active #gapsBlock .gap-ir[data-trend]:not(:empty)::after { content: ' · ' attr(data-trend); }
 body.drive-mode-active #gapsBlock .gap-ir[data-trend-cls="good"]::after { color: var(--green); }
 body.drive-mode-active #gapsBlock .gap-ir[data-trend-cls="bad"]::after { color: var(--red); }
-body.drive-mode-active #gapsBlock .sector-indicator { flex-direction: column; }
+/* Out of a race the block is the layout's sectors, a line each. The strip is as tall as the block and no taller
+   (min-height: 0: a flex item is otherwise never shorter than what is in it, and its wrap never happens), so a layout
+   with more sectors than there are lines goes on in another column and none runs off the bottom. */
+body.drive-mode-active #gapsBlock .sector-indicator { flex-direction: column; min-height: 0; }
 /* Upright, the block is wide and short: ahead beside behind, as on the rig. */
 @media (orientation: portrait) {
   body.drive-mode-active #gapsBlock { flex-direction: row; }
@@ -252,6 +257,11 @@ body.drive-mode-active .tacho-bar-track { flex: 1 1 0; min-height: 12px; gap: ma
 body.drive-mode-active .map-panel { grid-area: map; display: flex; flex-direction: column; padding: 8px; }
 body.drive-mode-active .map-panel .map-svg { width: 100%; flex: 1 1 0; }
 body.drive-mode-active .map-panel > .map-zoom-label { font-size: max(11px, min(4.4cqmin, 18px)); letter-spacing: 0.12em; }
+/* Why there is no map yet, over the empty circuit. */
+body.drive-mode-active .map-panel > .map-waiting { font-size: max(11px, min(4.4cqmin, 18px)); letter-spacing: 0.12em; }
+/* The note under a drawn circuit (SimHub's map, until his first clean lap) is a sentence on one line: plain case and
+   close letters, at the label's size and the same 11px floor. */
+body.drive-mode-active .map-panel > .map-waiting.map-note { letter-spacing: 0.02em; }
 body.drive-mode-active .map-panel .map-track-outer  { stroke-width: calc(12 * var(--px, 0.2)); }
 body.drive-mode-active .map-panel .map-track        { stroke-width: calc(7 * var(--px, 0.2)); }
 body.drive-mode-active .map-panel .map-track-inner  { stroke-width: calc(1.5 * var(--px, 0.2)); }
@@ -322,12 +332,41 @@ body.drive-mode-active .laps-panel > * { font-size: max(20px, min(7.9cqh, 7.6cqw
 .laps-v.delta-slower, .laps-v.red { color: var(--red); }
 .laps-v.amber { color: var(--amber); }
 .laps-v.dim, .laps-v.delta-even { color: var(--text-secondary); }
-.laps-sectors { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.25em; }
-.laps-sectors .sector-cell { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0.05em 0; min-width: 0; }
-.laps-sectors .sector-time, .laps-sectors .sector-delta { letter-spacing: -0.04em; }
+/* The sectors, as many as the layout has, and none of them cropped: a sector is never narrower than its number
+   (he had "sector numbers get cropped when they're too many digits"). The numbers come down from the panel's size
+   towards the 20px floor as the sectors get more (--sectors is their count, laps-panel.js sets it), every cell is as
+   wide as the widest time (--tw, in characters), and the cells wrap to more lines where one line cannot hold them.
+   What the panel cannot hold at that size it gives up, least useful first, and laps-panel.js tries the stages below
+   in this order until the panel holds what is left (it looks at whether the panel overflows, so a layout with few
+   sectors, or a tall cell, gives up nothing): the sectors' gaps to his best (.laps-fit-gaps); then each sector a line
+   of its own — its name beside its time, two or three to a line — with the heading and the third row of times gone
+   (.laps-sectors-wrapped); the second row of times; the first row (the last lap and the gap to his best are in the
+   clock and the hero too); the fuel; the space between the lines; and, last, the sectors' names. A number is never
+   smaller than 20px in any of them. */
+.laps-sectors { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.15em 0.25em; }
+.laps-sectors .sector-cell { flex: 1 1 auto; min-width: max-content; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0.05em 0.2em; }
+.laps-sectors .sector-time, .laps-sectors .sector-delta { letter-spacing: -0.04em; white-space: nowrap; }
 .laps-sectors .sector-label { font-size: max(11px, 0.55em); margin: 0; line-height: 1.2; }
-.laps-sectors .sector-time { font-size: 1em; line-height: 1.15; }
-.laps-sectors .sector-delta { font-size: 1em; line-height: 1.15; min-height: 1.15em; }
+.laps-sectors .sector-time,
+.laps-sectors .sector-delta { font-size: max(20px, min(1em, calc((100cqw - 20px) / (var(--sectors, 3) * 4.6)))); line-height: 1.15; }
+.laps-sectors .sector-time { min-width: calc(var(--tw, 1) * 1ch); text-align: center; }
+.laps-sectors .sector-delta { min-height: 1.15em; }
+.laps-panel.laps-fit-gaps .laps-sectors .sector-delta { display: none; }
+.laps-panel.laps-sectors-wrapped .laps-sectors { gap: 0.1em 0.5em; }
+.laps-panel.laps-sectors-wrapped .laps-sectors .sector-cell { flex-direction: row; align-items: baseline; gap: 0.3em; padding: 0 0.2em; }
+.laps-panel.laps-sectors-wrapped .laps-sectors .sector-delta,
+.laps-panel.laps-sectors-wrapped .laps-head,
+.laps-panel.laps-sectors-wrapped .laps-col .laps-row:nth-child(3) { display: none; }
+.laps-panel.laps-fit-row2 .laps-col .laps-row:nth-child(2) { display: none; }
+.laps-panel.laps-fit-times .laps-cols { display: none; }
+.laps-panel.laps-fit-fuel .laps-fuel { display: none; }
+.laps-panel.laps-fit-tight { gap: 0; padding-block: 3px; }
+.laps-panel.laps-fit-tight .laps-sectors { gap: 0 0.5em; }
+.laps-panel.laps-fit-tight .laps-sectors .sector-cell { padding: 0 0.2em; }
+.laps-panel.laps-fit-tight .laps-sectors .sector-time { line-height: 1; }
+/* The last stage: the names go and the times stay, in order, the one he is in outlined — two to a line where a name
+   and a time were one, which is what a dozen sectors of a minute need in the smallest cell. */
+.laps-panel.laps-fit-bare .laps-sectors .sector-label { display: none; }
 .laps-fuel { border-top: 1px solid hsla(0, 0%, 100%, 0.08); padding-top: 0.15em; align-items: baseline; }
 .laps-fuel .laps-k { flex: none; }
 .laps-fuel .laps-v { min-width: 0; }
@@ -706,3 +745,65 @@ body.drive-mode-active #gapsBlock.flag-active .flag-overlay { background: hsla(0
 }
 html.rd-effects-off body.drive-mode-active::before { animation: none !important; }
 html.rd-effects-off body.drive-mode-active .gl-overlay { display: none !important; }
+
+/* ═══ On an iPad (html.rd-remote, which remote-server.js sets; the rig's own Ctrl+Shift+F is as it was) ═══════════
+   What he asked for on 2026-09-30: "we don't need the super shiny backgrounds, it's pretty noisy. I'd like them
+   brought back to about 15% opacity", and "we don't need the logos". So the glass's light — its tint, the overhead
+   glow and the sweep, the specular streak, the inset glow — is at fifteen hundredths of the rig's (--rd-shine, used
+   by the glass rules above); the flags' own treatment of the glass is as it was. The two badges, the Racing Desk mark
+   and the car's maker with the car's name, are not cells here, and the row they were in is the controls, the pedals
+   and the clock. The menu's sign (remote-server.js) is a small round button in the top right corner. */
+html.rd-remote body.drive-mode-active { --rd-shine: 0.15; }
+html.rd-remote body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel,
+  .incidents-panel, .laps-panel)::after { opacity: calc((0.25 + var(--ambient-lum) * 0.35) * var(--rd-shine, 1)) !important; }
+/* The flag behind and between the panels at fifteen hundredths too, under every flag: the renders of the first cut had
+   the stripes at full strength in every gutter and round the edge, which is the noise he asked to have brought down.
+   A flag is still read at a glance from the flag card in the gaps block, race control's banner and the panels'
+   flag-coloured borders, which are as strong as they were; and a thin frame at the very edge of the screen — four
+   pixels of the frame round the grid, never a gutter — carries the flag's own pattern at full strength, so a white or
+   a chequered flag, whose stripes at fifteen hundredths are near the dark, is still seen at the edge of the eye. */
+html.rd-remote body.drive-mode-active[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::before { opacity: 0.15; }
+/* (body::after is also where remote-server.js writes "No data from the rig" when the rig stops answering: while it
+   does, there is no flag, and the frame's rules step aside for it.) */
+html.rd-remote body.drive-mode-active:not(.rd-no-data)::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  box-sizing: border-box;
+  padding: 4px;
+  opacity: 0;
+  background: var(--rd-flag-bg, transparent);
+  background-size: var(--rd-flag-size, auto);
+  /* The ring: the whole box less its content box. */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  transition: opacity 0.35s ease;
+}
+html.rd-remote body.drive-mode-active:not(.rd-no-data)[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::after { opacity: 1; }
+html.rd-remote body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: none !important; }
+html.rd-remote body.drive-mode-active {
+  grid-template-areas:
+    "hero hero hero hero hero hero hero gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho lb lb lb lb lb lb lb"
+    "map map map map map map map local local local local laps laps laps laps laps laps lb lb lb lb lb lb lb"
+    "map map map map map map map local local local local rating rating rating rating rating rating lb lb lb lb lb lb lb"
+    "ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals timer timer timer timer timer lb lb lb lb lb lb lb"
+    "pit pit pit pit pit pit pit pit pit pit ds ds ds ds inc inc inc lb lb lb lb lb lb lb";
+}
+@media (orientation: portrait) {
+  /* Upright, the gaps block is the corner the menu's button is over, and its strip of sectors runs to the block's right
+     edge: the strip stops short of the button (44px, and the frame it is set in from the screen's edge). */
+  html.rd-remote body.drive-mode-active #gapsBlock .sector-indicator { padding-right: calc(44px + var(--rd-gap)); }
+  html.rd-remote body.drive-mode-active {
+    grid-template-areas:
+      "hero hero hero hero hero hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps gaps gaps gaps"
+      "tacho tacho tacho tacho tacho tacho tacho tacho map map map map map map map map map map map local local local local local"
+      "lb lb lb lb lb lb lb lb lb lb lb lb lb lb lb laps laps laps laps laps laps laps laps laps"
+      "lb lb lb lb lb lb lb lb lb lb lb lb lb lb lb rating rating rating rating rating rating rating rating rating"
+      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals timer timer timer timer timer timer timer"
+      "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
+  }
+}

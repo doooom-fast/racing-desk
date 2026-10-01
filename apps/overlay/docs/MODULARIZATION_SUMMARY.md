@@ -47,7 +47,7 @@ All modules load via `<script src>` and `<link rel="stylesheet" href>` tags with
 
 | File | Lines | Dependencies | Purpose |
 |------|-------|--------------|---------|
-| `keyboard.js` | 8 | none | Global keyboard shortcut handler (Ctrl+Shift+M for map reset) |
+| `keyboard.js` | 8 | none | Actions the hotkeys, Stream Deck plugin and HTTP action API reach (the map reset went in 2026-09: maps come from his own .ibt files) |
 | `webgl-helpers.js` | 608 | config.js | Tachometer segments, pedal histograms, pedal trace, commentary SVG icons, lap/gap formatting, RGB→HSL conversion, track map rendering |
 
 ### Settings & Connections

@@ -66,6 +66,9 @@ namespace RacingDesk.Plugin.Engine
 
         /// <summary>iRacing's display name for the track a source may expose from its session info.</summary>
         public const string TrackDisplayNameProperty = "RacingDesk.WeekendInfo.TrackDisplayName";
+
+        /// <summary>iRacing's TrackID — the exact layout — a source may expose from its session info; else the SDK bridge's.</summary>
+        public const string TrackIdProperty = "RacingDesk.WeekendInfo.TrackID";
         private static string _lastSectorTrackId = "";
 
         // ── Fix #2: Caching for iRating / SR / license string ──────────────────
@@ -118,6 +121,9 @@ namespace RacingDesk.Plugin.Engine
             if (string.IsNullOrEmpty(s.TrackDisplayName) && _sdkBridge != null && _sdkBridge.IsConnected)
                 s.TrackDisplayName = _sdkBridge.TrackDisplayName;
             s.TrackDisplayName = s.TrackDisplayName ?? "";
+            s.TrackId          = GetPluginProp<int>(pm, TrackIdProperty);
+            if (s.TrackId == 0 && _sdkBridge != null && _sdkBridge.IsConnected)
+                s.TrackId = _sdkBridge.TrackId;
             s.TyreWearFL       = GetNorm<double>(d, "TyreWearFrontLeft");
             s.TyreWearFR       = GetNorm<double>(d, "TyreWearFrontRight");
             s.TyreWearRL       = GetNorm<double>(d, "TyreWearRearLeft");
@@ -385,22 +391,7 @@ namespace RacingDesk.Plugin.Engine
                 Log.Warn($"[RacingDesk] Opponent extraction failed: {ex.Message}");
             }
 
-            // ── World velocity (for track map dead reckoning) ─────────────────
-            // iRacing: reads raw directly
-            // Other games: try normalized motion properties if available, else 0
             GameId detectedGame = DetectGame(s.GameName);
-            if (detectedGame == GameId.IRacing)
-            {
-                s.VelocityX = GetRaw<float>(pm, "VelocityX");
-                s.VelocityZ = GetRaw<float>(pm, "VelocityZ");
-                s.Yaw       = GetRaw<float>(pm, "Yaw");
-            }
-            else
-            {
-                s.VelocityX = GetNorm<float>(d, "VelocityX");
-                s.VelocityZ = GetNorm<float>(d, "VelocityZ");
-                s.Yaw       = GetNorm<float>(d, "Yaw");
-            }
 
             // ── Game-aware driver controls and telemetry ─────────────────────
             // Steering angle: game-specific raw → iRacing radians, ACC degrees

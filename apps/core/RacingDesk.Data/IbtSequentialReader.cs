@@ -5,7 +5,11 @@ using RacingDesk.Plugin.IRacing;
 
 namespace RacingDesk.Data
 {
-    /// <summary>Streams an .ibt's frames front to back, optionally every Nth frame — for backfill.</summary>
+    /// <summary>
+    /// Streams an .ibt's frames front to back, optionally every Nth frame — for backfill, and for following a file
+    /// the sim is still writing: it reads to the file's record count as it stands, and after <see cref="IbtFile.Refresh"/>
+    /// carries on from where it stopped.
+    /// </summary>
     public sealed class IbtSequentialReader : IRawTelemetry, IDisposable
     {
         private readonly IbtFile _file;
@@ -14,16 +18,21 @@ namespace RacingDesk.Data
         private readonly int _step;
         private int _next;
 
-        public IbtSequentialReader(IbtFile file, int step = 1)
+        /// <param name="startFrame">The first frame read; the ones before it are left alone.</param>
+        public IbtSequentialReader(IbtFile file, int step = 1, int startFrame = 0)
         {
             _file = file;
             _step = Math.Max(1, step);
+            _next = Math.Max(0, startFrame);
             _frame = new byte[file.BufferLength];
-            _stream = new FileStream(file.Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 20, FileOptions.SequentialScan);
+            _stream = new FileStream(file.Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20, FileOptions.SequentialScan);
             _stream.Position = file.BufferOffset;
         }
 
         public int FrameIndex { get; private set; } = -1;
+
+        /// <summary>The frame the next <see cref="MoveNext"/> would read.</summary>
+        public int NextFrame => _next;
 
         public bool MoveNext()
         {

@@ -1,6 +1,6 @@
 // The runtime's ?action= routes, asked for by this process on the HUD's behalf.
 //
-//   GET <runtime>/racing-desk/?action=resetmap
+//   GET <runtime>/racing-desk/?action=restartdemo
 //   GET <runtime>/racing-desk/?action=setrect&x=0.1&y=0.2&w=0.5&h=0.4
 //   403 { "error": "this is for a program on this machine" }     to anything that is not one
 //
@@ -24,7 +24,6 @@ const MAX_LENGTH = 200;   // of a profile's id or a car's name: short names, and
 // What each route takes. 'ratio' is a finite number, a share of the screen as the page measured it (a drag that ends outside
 // the window leaves the 0 to 1 a little, and the screen sampler clamps it to the monitor); 'name' a short string with nothing in it that is not printable.
 const ACTIONS = Object.freeze({
-  resetmap: Object.freeze({}),
   restartdemo: Object.freeze({}),
   setrect: Object.freeze({ x: 'ratio', y: 'ratio', w: 'ratio', h: 'ratio' }),
   listPedalProfiles: Object.freeze({}),

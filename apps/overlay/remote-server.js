@@ -188,7 +188,6 @@ const ACTIONS = Object.freeze([
   { name: 'save-replay-buffer', label: 'Save Replay', category: 'recording' },
   { name: 'tv-shots', label: 'TV shots', category: 'recording' },
   { name: 'restart-demo', label: 'Restart Demo', category: 'demo' },
-  { name: 'reset-trackmap', label: 'Reset Track Map', category: 'demo' },
   { name: 'toggle-rating-editor', label: 'Rating Editor', category: 'editor' },
   { name: 'preset-broadcast', label: 'Broadcast Mode', category: 'preset' },
   { name: 'preset-practice', label: 'Practice Mode', category: 'preset' },
@@ -363,21 +362,21 @@ body.rd-no-data::after {
   cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent;
 }
 .rd-rm-btn:active { background: rgba(255,255,255,0.08); }
-/* In the glance layout (modules/styles/drive-view.css) the menu is laid over the Racing Desk mark, the one touch
-   target on the screen: the whole square answers a tap, and the menu's sign sits in its corner. Its list opens from
-   it, upward or downward, where there is room (the script below). */
+/* In the glance layout (modules/styles/drive-view.css) the menu's sign is a small round button in the top right
+   corner, over the frame and the corner of whatever cell is there — the one touch target on the screen, faint until
+   it is open. (It was laid over the Racing Desk mark; the mark is not shown on an iPad any more.) Its list opens from
+   it, downward or upward, where there is room (the script below). */
 body.drive-mode-active #rd-remote-menu-fab {
-  grid-area: brand; position: relative; inset: auto; z-index: 20;
-  width: auto; height: auto; min-width: 44px; min-height: 44px;
-  display: flex; align-items: flex-start; justify-content: flex-end;
-  padding: 3px 7px;
-  border-radius: var(--corner-r, 8px);
-  background: transparent; border: 1px solid transparent;
-  color: rgba(255,255,255,0.62);
-  font: 400 clamp(18px, 2.8vmin, 30px)/1 system-ui, sans-serif;
-  opacity: 1;
+  position: fixed; inset: auto; z-index: 99999;
+  top: max(var(--rd-frame, 8px), env(safe-area-inset-top)); right: max(var(--rd-frame, 8px), env(safe-area-inset-right));
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0;
+  border-radius: 50%;
+  background: rgba(19,19,22,0.55); border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.6);
+  font: 400 22px/42px system-ui, sans-serif; text-align: center;
+  opacity: 0.55;
 }
-body.drive-mode-active #rd-remote-menu-fab.open { color: #dc3714; border-color: rgba(220,55,20,0.6); }
+body.drive-mode-active #rd-remote-menu-fab.open { opacity: 1; color: #dc3714; border-color: rgba(220,55,20,0.6); }
 html, body { overscroll-behavior: none; touch-action: manipulation; }
 </style>
 <script>

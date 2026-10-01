@@ -1,52 +1,75 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace RacingDesk.Plugin.Engine
 {
     /// <summary>
-    /// Records a track outline from telemetry world positions (first lap),
-    /// then interpolates car positions along it each frame.
+    /// The track map: a layout's outline, and every car placed along it each frame.
     ///
-    /// Data flow:
-    ///   1. Each frame, Feed() receives the player's world X/Z + LapDistPct.
-    ///   2. During the first recording lap, samples are collected at ~2m intervals.
-    ///   3. When the lap completes (LapDistPct wraps), the outline is finalised:
-    ///      coordinates are normalised to a 0–100 SVG viewBox with 5% padding.
-    ///   4. On subsequent frames, each car's LapDistPct is interpolated along the
-    ///      recorded outline to produce XY pixel positions.
-    ///   5. The plugin exposes: SvgPath, PlayerXY, and a compact OpponentXY array
-    ///      as string properties the dashboard reads each frame.
+    /// The outline is the host's, derived from the driver's own Lat/Lon telemetry and keyed by the sim's TrackID
+    /// (<see cref="IOutlineSource"/>: the host's own store in the host, the host over loopback in the SimHub
+    /// plugin). Nothing is recorded here any more — no dead reckoning, no files read or written — so a spin on the
+    /// first lap, a start from the pit lane or an old recording cannot bend the map. Where the host has no outline
+    /// yet the map says so (<see cref="Status"/>), and the first clean lap of the session gives one.
     ///
-    /// SimHub stores its own track outlines in PluginsData\Common\TrackMaps\
-    /// or PluginsData\IRacing\MapRecords\. If we find a matching file on disk
-    /// we load it instead of recording — so the map appears from lap 1.
+    ///   1. <see cref="OnTrackChanged"/> clears the map and asks the source, on a pool thread; while there is
+    ///      nothing it asks again every 5 s, and with an outline every 60 s, swapping it when it has gained laps.
+    ///      An outline marked <see cref="TrackOutline.Crowd"/> is SimHub's shared map, the host's interim until
+    ///      his first clean lap: drawn like any other, said to be so (<see cref="StatusCrowd"/>), asked past
+    ///      every 5 s, and replaced by his own the moment the host has one; never the other way about.
+    ///   2. The outline is normalised to a 0–100 SVG viewBox with 5% padding, and a closed path is built.
+    ///   3. Each frame, every car's LapDistPct is interpolated along the outline — round the whole loop, the last
+    ///      point back to the first included, so crossing the line is one more step and not a jump.
+    ///   4. SvgPath, PlayerX/Y, PlayerHeading and the opponents go out as properties the HUD reads each frame.
     /// </summary>
     public class TrackMapProvider
     {
-        // ── Recording state ────────────────────────────────────────────────
-        private readonly List<TrackPoint> _samples = new List<TrackPoint>();
-        private bool _recording = false;
-        private bool _ready = false;
-        private double _lastSampleDist = -1;
-        private string _currentTrackId = "";
-        private string _simhubDir = "";
+        // ── What the map goes on ──────────────────────────────────────────
+        private IOutlineSource _outlines;
+        private int _currentTrackId;
+        private string _currentTrackName = "";
+        private TrackOutline _applied;
+        private bool _ready;
+        private string _status = StatusNone;
 
-        // ── Dead reckoning from car-local VelocityX/Z + heading ──────────
-        private double _drX = 0, _drZ = 0;           // accumulated world position
-        private DateTime _drLastTick = DateTime.MinValue;
-#pragma warning disable CS0414 // assigned but never read — reserved for future dead-reckoning rotation
-        private double _lastYaw = double.NaN;         // heading (radians) for local→world
-#pragma warning restore CS0414
+        // Asking the source: never on the telemetry thread, and one ask at a time.
+        private readonly object _askGate = new object();
+        private bool _asking;
+        private DateTime _askDue = DateTime.MinValue;
+        private (int TrackId, TrackOutline Outline, string Status)? _answer;
+        private bool _saidNoHost;
+        private Func<DateTime> _now = () => DateTime.UtcNow;
 
-        // ── Finalised outline (normalised to 0–100) ───────────────────────
+        /// <summary>The map has an outline and places the cars on it.</summary>
+        public const string StatusReady = "ready";
+        /// <summary>
+        /// The map is drawn, on SimHub's shared map of the layout (<see cref="TrackOutline.Crowd"/>): the interim until
+        /// the first clean lap gives the host an outline of his own, which the map says is coming.
+        /// </summary>
+        public const string StatusCrowd = "crowd";
+        /// <summary>The host has no outline of this layout yet: the first clean lap of the session gives one.</summary>
+        public const string StatusFirstLap = "first-lap";
+        /// <summary>The host could not be reached (SimHub without the app running): the maps are the app's.</summary>
+        public const string StatusNoHost = "no-host";
+        /// <summary>No track, or no source at all.</summary>
+        public const string StatusNone = "none";
+
+        private static readonly TimeSpan AskAgainWithout = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan AskAgainWith = TimeSpan.FromSeconds(60);
+
+        /// <summary>What the map says with the outline it has: ready, or crowd while the outline is SimHub's shared map.</summary>
+        private string ReadyStatus => _applied != null && _applied.Crowd ? StatusCrowd : StatusReady;
+
+        // ── The outline, normalised to 0–100 ───────────────────────────────
         private TrackPoint[] _outline = new TrackPoint[0];
         private string _svgPath = "";
 
         // ── Per-frame car positions ────────────────────────────────────────
         private double _playerX, _playerY;
+        private bool _hasPlayerPos;
         private readonly List<OpponentPos> _opponents = new List<OpponentPos>();
         private readonly Dictionary<int, OpponentPos> _oppSmoothed = new Dictionary<int, OpponentPos>();
         private int _oppCleanupCounter = 0;
@@ -55,27 +78,26 @@ namespace RacingDesk.Plugin.Engine
         private static TrackPoint[] _demoOutline;
         private static string _demoSvgPath;
         private bool _demoMode = false;
-        private bool _demoUsesRealMap = false;  // true when demo loaded a cached map instead of the fake circuit
-
-        /// <summary>Default track ID used when demo mode starts (tries to load from cache).</summary>
-        private const string DemoDefaultTrackId = "sebring international";
-
-        // Min distance² between samples (world units) to avoid over-sampling
-        private const double MinSampleDistSq = 4.0; // ~2m apart
-
-        // Car reset detection — if player teleports to pit during recording, restart
-        private bool _wasOnTrack = false;  // was the player on track (not in pit) last frame?
 
         // ── Public read-only state ─────────────────────────────────────────
 
-        /// <summary>True when we have a valid track outline (recorded or loaded).</summary>
+        /// <summary>True when there is an outline to place the cars on.</summary>
         public bool IsReady => _ready;
 
-        /// <summary>The track ID / name used to key the current map (matches the name the plugin saved/loaded under).</summary>
-        public string TrackName => _currentTrackId;
+        /// <summary>Why there is or is not a map: ready, crowd, first-lap, no-host, none.</summary>
+        public string Status => _demoMode ? StatusReady : _status;
+
+        /// <summary>The sim's name for the layout the map is of (the plugin's track slug, e.g. "algarve gp").</summary>
+        public string TrackName => _currentTrackName;
+
+        /// <summary>The sim's TrackID the map is keyed by; 0 while none.</summary>
+        public int TrackId => _currentTrackId;
+
+        /// <summary>The outline in use: its laps and its age, for the log and for tests.</summary>
+        public TrackOutline Outline => _applied;
 
         /// <summary>SVG path data string for the track outline, in a 0 0 100 100 viewBox.</summary>
-        public string SvgPath => _demoMode && !_demoUsesRealMap ? DemoSvgPath : _svgPath;
+        public string SvgPath => _demoMode ? DemoSvgPath : _svgPath;
 
         /// <summary>Player X position in SVG coords (0–100).</summary>
         public double PlayerX => _playerX;
@@ -83,7 +105,7 @@ namespace RacingDesk.Plugin.Engine
         /// <summary>Player Y position in SVG coords (0–100).</summary>
         public double PlayerY => _playerY;
 
-        /// <summary>Player heading in degrees (0 = north, clockwise positive). Used for driving-direction map rotation.</summary>
+        /// <summary>Player heading in degrees (0 = up on the map, clockwise positive), for the local view's rotation.</summary>
         public double PlayerHeadingDeg { get; private set; }
 
         /// <summary>
@@ -97,91 +119,64 @@ namespace RacingDesk.Plugin.Engine
 
         // ── Initialisation ─────────────────────────────────────────────────
 
-        /// <summary>
-        /// Call once at plugin init to set the SimHub install directory.
-        /// This is used to locate existing track map files.
-        /// </summary>
-        public void SetSimHubDirectory(string dir)
+        /// <summary>Where outlines come from. Set once by the host; null means the map has none to ask.</summary>
+        public IOutlineSource Outlines
         {
-            _simhubDir = dir ?? "";
+            get => _outlines;
+            set { _outlines = value; _askDue = DateTime.MinValue; }
+        }
+
+        /// <summary>The clock, for tests.</summary>
+        internal Func<DateTime> Clock { set => _now = value ?? (() => DateTime.UtcNow); }
+
+        /// <summary>An ask is on its way to the source and not yet answered; for a test.</summary>
+        internal bool Asking { get { lock (_askGate) return _asking; } }
+
+        /// <summary>Where the asking has got to, for a test.</summary>
+        internal string Trace
+        {
+            get
+            {
+                lock (_askGate)
+                    return $"source {(_outlines == null ? "none" : _outlines.GetType().Name)}, track {_currentTrackId}, asking {_asking}, due {_askDue:HH:mm:ss}, now {_now():HH:mm:ss}, answer {(_answer == null ? "none" : _answer.Value.Status)}, status {_status}, ready {_ready}";
+            }
         }
 
         /// <summary>
-        /// Call when a new session starts (track changes).
-        /// Attempts to load an existing map file; if none found, starts recording.
+        /// Call when the layout changes. Clears the map and asks the source for the layout's outline.
         /// </summary>
-        public void OnTrackChanged(string trackId)
+        public void OnTrackChanged(int trackId, string trackName)
         {
             // Don't let a stale track-change event nuke demo mode
             if (_demoMode) return;
 
-            _currentTrackId = trackId ?? "";
-            _samples.Clear();
+            _currentTrackId = trackId;
+            _currentTrackName = trackName ?? "";
             _outline = new TrackPoint[0];
             _svgPath = "";
             _ready = false;
-            _recording = false;
-            _lastSampleDist = -1;
-            _drX = 0; _drZ = 0;
-            _drLastTick = DateTime.MinValue;
-            _lastYaw = double.NaN;
-
-            // Prefer the outline derived from the driver's own telemetry (GPS-accurate, north-up)
-            if (TryLoadFromLocalOutline(trackId))
-            {
-                Log.Info($"[RacingDesk] Loaded track map for '{trackId}' from local telemetry outline");
-                return;
-            }
-
-            // Try to load from SimHub's map cache
-            if (TryLoadFromSimHub(trackId))
-            {
-                Log.Info($"[RacingDesk] Loaded track map for '{trackId}' from SimHub cache");
-                return;
-            }
-
-            // Try to load from our bundled trackmaps directory (racingdesk-data/trackmaps/)
-            if (TryLoadFromBundledMaps(trackId))
-            {
-                Log.Info($"[RacingDesk] Loaded track map for '{trackId}' from bundled maps");
-                return;
-            }
-
-            // Try to load from our own cache
-            if (TryLoadFromOwnCache(trackId))
-            {
-                Log.Info($"[RacingDesk] Loaded track map for '{trackId}' from local cache");
-                return;
-            }
-
-            // No cached map — start recording
-            _recording = true;
-            Log.Info($"[RacingDesk] Recording track map for '{trackId}' — drive one clean lap");
+            _applied = null;
+            _hasPlayerPos = false;
+            _playerX = 0; _playerY = 0;
+            _opponents.Clear();
+            _oppSmoothed.Clear();
+            OpponentData = "";
+            lock (_askGate) _answer = null;
+            _status = _outlines == null || trackId <= 0 ? StatusNone : StatusFirstLap;
+            _saidNoHost = false;
+            _askDue = DateTime.MinValue;
+            Log.Info($"[RacingDesk] Track map: '{_currentTrackName}' (id {trackId}), asking for its outline");
         }
 
         /// <summary>
-        /// Enable demo mode. Attempts to load a real bundled track map first;
-        /// falls back to the hardcoded fictitious circuit if none is found.
+        /// Enable demo mode: the demo's own circuit, and the demo's cars on it.
         /// </summary>
         public void SetDemoMode(bool enabled)
         {
             _demoMode = enabled;
-            _demoUsesRealMap = false;
             if (enabled)
             {
-                // Try to load a real cached map for the demo track (bundled maps have been removed)
-                if (TryLoadFromOwnCache(DemoDefaultTrackId))
-                {
-                    _demoUsesRealMap = true;
-                    _currentTrackId = DemoDefaultTrackId;
-                    Log.Info($"[RacingDesk] Demo mode: loaded cached map '{DemoDefaultTrackId}'");
-                }
-                else
-                {
-                    // No cached map available — use hardcoded fallback
-                    EnsureDemoOutline();
-                    Log.Info("[RacingDesk] Demo mode: no cached map found, using fallback circuit");
-                }
+                EnsureDemoOutline();
                 _ready = true;
             }
         }
@@ -189,12 +184,10 @@ namespace RacingDesk.Plugin.Engine
         // ── Per-frame update ───────────────────────────────────────────────
 
         /// <summary>
-        /// Called every evaluation frame with the player's velocity and all car positions.
-        /// Dead-reckons a world position from VelocityX/Z to build the track outline.
+        /// Called every frame with the driver's and every car's LapDistPct: places each on the outline. Takes the
+        /// source's answer when one has arrived, and asks again when it is due.
         /// </summary>
         public void Update(
-            double velocityX, double velocityZ,
-            double yaw,
             double playerLapDistPct,
             float[] carIdxLapDistPct,
             bool[] carIdxOnPitRoad,
@@ -204,75 +197,20 @@ namespace RacingDesk.Plugin.Engine
         {
             if (_demoMode) return; // demo positions handled separately
 
-            // Heading is computed below from the SVG outline (not raw yaw) so the
-            // rotation is consistent with the track's SVG coordinate system.
-            // Raw yaw is only used for dead reckoning world-space integration.
+            TakeAnswer();
+            AskIfDue();
 
-            // ── Dead reckoning: rotate car-local velocity by heading → world position ──
-            // iRacing VelocityX = lateral (car-local), VelocityZ = forward (car-local)
-            // Yaw = heading angle (radians, 0 = north, clockwise positive)
-            DateTime now = DateTime.UtcNow;
-            if (_drLastTick != DateTime.MinValue)
-            {
-                double dt = (now - _drLastTick).TotalSeconds;
-                if (dt > 0 && dt < 1.0) // sanity: skip if paused or huge gap
-                {
-                    double heading = yaw;
-                    if (double.IsNaN(heading) || heading == 0)
-                    {
-                        _drX += velocityX * dt;
-                        _drZ += velocityZ * dt;
-                    }
-                    else
-                    {
-                        double cosH = Math.Cos(heading);
-                        double sinH = Math.Sin(heading);
-                        _drX += (velocityZ * sinH + velocityX * cosH) * dt;
-                        _drZ += (velocityZ * cosH - velocityX * sinH) * dt;
-                    }
-                }
-            }
-            _drLastTick = now;
-
-            // ── Car reset / tow detection ─────────────────────────────────
-            // If player was on track and suddenly teleports to pit lane with no velocity,
-            // they've reset their car. Clear recording and start fresh.
-            if (_recording && _wasOnTrack && playerInPitLane && _samples.Count > 5)
-            {
-                bool noVelocity = Math.Abs(velocityX) < 0.5 && Math.Abs(velocityZ) < 0.5;
-                if (noVelocity)
-                {
-                    Log.Info("[RacingDesk] Car reset detected during map recording — restarting");
-                    _samples.Clear();
-                    _lastSampleDist = -1;
-                    _drX = 0; _drZ = 0;
-                    _drLastTick = DateTime.MinValue;
-                    _lastYaw = double.NaN;
-                }
-            }
-            _wasOnTrack = !playerInPitLane;
-
-            // ── Recording phase ────────────────────────────────────────────
-            // Skip samples while player is in pit lane — prevents pit road spurs
-            // in the track outline that cause extra lines and shape corruption.
-            bool hasVelocity = Math.Abs(velocityX) > 0.01 || Math.Abs(velocityZ) > 0.01;
-            if (_recording && hasVelocity && !playerInPitLane)
-            {
-                RecordSample(_drX, _drZ, playerLapDistPct);
-            }
-
-            // ── Interpolation phase ────────────────────────────────────────
             if (!_ready || _outline.Length < 4) return;
 
-            // Player position — with sanity clamping and smoothing
+            // Player position — low-pass filtered. Along a closed loop there is no jump to guard against.
             var pp = InterpolatePosition(playerLapDistPct);
             pp.X = Math.Max(0, Math.Min(100, pp.X));
             pp.Y = Math.Max(0, Math.Min(100, pp.Y));
-            double jumpDist = Math.Sqrt((_playerX - pp.X) * (_playerX - pp.X) + (_playerY - pp.Y) * (_playerY - pp.Y));
-            if (_playerX > 0 && _playerY > 0 && jumpDist > 15.0)
+            if (!_hasPlayerPos)
             {
-                _playerX += (pp.X - _playerX) * 0.15;
-                _playerY += (pp.Y - _playerY) * 0.15;
+                _playerX = pp.X;
+                _playerY = pp.Y;
+                _hasPlayerPos = true;
             }
             else
             {
@@ -280,9 +218,8 @@ namespace RacingDesk.Plugin.Engine
                 _playerY += (pp.Y - _playerY) * 0.5;
             }
 
-            // Compute heading from a small forward sample on the SVG outline.
-            // This ensures the heading is in SVG coordinate space, so the dashboard
-            // rotation correctly shows the car always driving upward.
+            // Heading from a small forward step along the SVG outline, so the local view's rotation is in the
+            // map's own space and the car always drives upward.
             double aheadPct = (playerLapDistPct + 0.005) % 1.0;
             var ahead = InterpolatePosition(aheadPct);
             double hdx = ahead.X - pp.X;
@@ -294,8 +231,7 @@ namespace RacingDesk.Plugin.Engine
                 PlayerHeadingDeg = angleRad * (180.0 / Math.PI);
             }
 
-            // Opponents — with smoothing to reduce jitter
-            // Reuse _opponents list but apply per-car low-pass filter
+            // Opponents, each low-pass filtered on its own. The arrays are as long as the sim's (never a fixed 64).
             var newOpps = new List<OpponentPos>();
             if (carIdxLapDistPct != null)
             {
@@ -310,17 +246,11 @@ namespace RacingDesk.Plugin.Engine
                     op.Y = Math.Max(0, Math.Min(100, op.Y));
                     bool inPit = carIdxOnPitRoad != null && i < carIdxOnPitRoad.Length && carIdxOnPitRoad[i];
 
-                    // Apply per-car smoothing via the _oppSmoothed dictionary
                     double sx = op.X, sy = op.Y;
                     if (_oppSmoothed.TryGetValue(i, out var prev))
                     {
-                        double odx = op.X - prev.X;
-                        double ody = op.Y - prev.Y;
-                        double oDist = Math.Sqrt(odx * odx + ody * ody);
-                        // Large jump = glitch or pit teleport — slow blend; else normal blend
-                        double alpha = oDist > 15.0 ? 0.10 : 0.40;
-                        sx = prev.X + odx * alpha;
-                        sy = prev.Y + ody * alpha;
+                        sx = prev.X + (op.X - prev.X) * 0.4;
+                        sy = prev.Y + (op.Y - prev.Y) * 0.4;
                     }
                     _oppSmoothed[i] = new OpponentPos { X = sx, Y = sy, InPit = inPit };
 
@@ -349,37 +279,6 @@ namespace RacingDesk.Plugin.Engine
         }
 
         /// <summary>
-        /// Reset the track map and restart recording from scratch.
-        /// Call this when the map looks corrupted (wonky outlines, extra lines, etc.).
-        /// </summary>
-        public void ResetTrackMap()
-        {
-            Log.Info("[RacingDesk] Track map reset — will re-record next clean lap");
-            _samples.Clear();
-            _outline = new TrackPoint[0];
-            _svgPath = "";
-            _ready = false;
-            _recording = true;
-            _lastSampleDist = -1;
-            _drX = 0; _drZ = 0;
-            _drLastTick = DateTime.MinValue;
-            _lastYaw = double.NaN;
-            _playerX = 0; _playerY = 0;
-            _opponents.Clear();
-            _oppSmoothed.Clear();
-            OpponentData = "";
-            _wasOnTrack = false;
-
-            // Delete cached file so the bad data doesn't reload
-            try
-            {
-                string path = GetOwnCachePath(_currentTrackId);
-                if (File.Exists(path)) File.Delete(path);
-            }
-            catch { }
-        }
-
-        /// <summary>
         /// Update demo mode positions based on simulated track positions.
         /// Called from DemoTelemetryProvider.
         /// </summary>
@@ -387,17 +286,8 @@ namespace RacingDesk.Plugin.Engine
         {
             if (!_demoMode) return;
 
-            // Pick the right outline: real cached map if loaded, else hardcoded fallback
-            TrackPoint[] outline;
-            if (_demoUsesRealMap && _outline != null && _outline.Length >= 2)
-            {
-                outline = _outline;
-            }
-            else
-            {
-                EnsureDemoOutline();
-                outline = _demoOutline;
-            }
+            EnsureDemoOutline();
+            var outline = _demoOutline;
 
             var pp = InterpolateOnOutline(outline, playerTrackPct);
             _playerX = pp.X;
@@ -431,120 +321,103 @@ namespace RacingDesk.Plugin.Engine
             BuildOpponentData();
         }
 
-        // ── Recording ──────────────────────────────────────────────────────
+        // ── Asking the source ───────────────────────────────────────────────
 
-        private void RecordSample(double wx, double wz, double dist)
+        private void AskIfDue()
         {
-            // Detect lap completion (dist wraps from ~1.0 to ~0.0)
-            if (_lastSampleDist > 0.95 && dist < 0.05 && _samples.Count > 20)
+            if (_outlines == null || _currentTrackId <= 0) return;
+            var now = _now();
+            if (now < _askDue) return;
+            lock (_askGate)
             {
-                FinaliseRecording();
-                return;
+                if (_asking) return;
+                _asking = true;
             }
-
-            // Reject samples where LapDistPct goes backwards significantly
-            // (happens with pit lane data bleed-in or teleport glitches)
-            if (_lastSampleDist >= 0 && dist < _lastSampleDist - 0.01 && !(dist < 0.05 && _lastSampleDist > 0.95))
-            {
-                // Not a normal lap wrap — skip this sample
-                return;
-            }
-
-            // Check minimum distance from last sample and reject outlier jumps
-            if (_samples.Count > 0)
-            {
-                var last = _samples[_samples.Count - 1];
-                double dx = wx - last.WorldX;
-                double dz = wz - last.WorldZ;
-                double distSq = dx * dx + dz * dz;
-                // Too close — skip
-                if (distSq < MinSampleDistSq)
-                {
-                    _lastSampleDist = dist;
-                    return;
-                }
-                // Too far (>200m jump) — likely a dead-reckoning glitch, skip
-                if (distSq > 40000.0)
-                {
-                    _lastSampleDist = dist;
-                    return;
-                }
-            }
-
-            _samples.Add(new TrackPoint
-            {
-                WorldX = wx,
-                WorldZ = wz,
-                LapDistPct = dist
-            });
-
-            _lastSampleDist = dist;
+            // Not asked again until the answer is in (TakeAnswer sets when); meanwhile _asking holds it.
+            _askDue = DateTime.MaxValue;
+            int trackId = _currentTrackId;
+            var source = _outlines;
+            ThreadPool.QueueUserWorkItem(_ => Ask(source, trackId));
         }
 
-        private void FinaliseRecording()
+        private void Ask(IOutlineSource source, int trackId)
         {
-            _recording = false;
-
-            if (_samples.Count < 10)
+            TrackOutline outline = null;
+            string status;
+            try
             {
-                Log.Warn("[RacingDesk] Track recording too short, discarding");
-                _recording = true; // retry next lap
-                _samples.Clear();
-                return;
+                outline = source.Get(trackId);
+                status = outline == null ? StatusFirstLap : outline.Crowd ? StatusCrowd : StatusReady;
             }
-
-            // Validate the recording isn't degenerate (straight line)
-            if (!ValidateTrackShape(_samples))
+            catch (Exception ex)
             {
-                Log.Warn("[RacingDesk] Track recording looks like a straight line (bad velocity data?), retrying next lap");
-                _recording = true;
-                _samples.Clear();
-                return;
+                status = StatusNoHost;
+                if (!_saidNoHost)
+                {
+                    _saidNoHost = true;
+                    Log.Info($"[RacingDesk] Track map: the host did not answer for its outline ({ex.GetType().Name}); the maps are the app's, and it is asked again");
+                }
             }
-
-            // Sort by LapDistPct to ensure monotonic order
-            _samples.Sort((a, b) => a.LapDistPct.CompareTo(b.LapDistPct));
-
-            // Normalise to 0–100 SVG viewBox with 5% padding
-            NormaliseAndBuild(_samples);
-
-            // Save to both caches
-            SaveToOwnCache(_currentTrackId);
-            SaveToBundledMaps(_currentTrackId);
-
-            Log.Info($"[RacingDesk] Track map recorded: {_outline.Length} points");
+            lock (_askGate)
+            {
+                _answer = (trackId, outline, status);
+                _asking = false;
+            }
         }
 
-        /// <summary>
-        /// Check if the recorded points form a real circuit (2D shape)
-        /// rather than a degenerate straight line.
-        /// Uses the ratio of bounding box dimensions — a real track has
-        /// both width and height, while a line is very narrow in one axis.
-        /// </summary>
-        private static bool ValidateTrackShape(List<TrackPoint> pts)
+        /// <summary>Takes the source's answer on the telemetry thread. Public so a host can apply one it already has.</summary>
+        public void TakeAnswer()
         {
-            if (pts.Count < 20) return false;
-
-            double minX = double.MaxValue, maxX = double.MinValue;
-            double minZ = double.MaxValue, maxZ = double.MinValue;
-
-            foreach (var p in pts)
+            (int TrackId, TrackOutline Outline, string Status)? answer;
+            lock (_askGate)
             {
-                if (p.WorldX < minX) minX = p.WorldX;
-                if (p.WorldX > maxX) maxX = p.WorldX;
-                if (p.WorldZ < minZ) minZ = p.WorldZ;
-                if (p.WorldZ > maxZ) maxZ = p.WorldZ;
+                answer = _answer;
+                _answer = null;
             }
+            if (answer == null) return;
+            if (answer.Value.TrackId == _currentTrackId) Apply(answer.Value.Outline, answer.Value.Status);
+            // Asked again in five seconds while there is nothing, in a minute once there is (it may have gained laps);
+            // with SimHub's shared map up, every five seconds still, so his own takes its place within seconds.
+            _askDue = _now() + (_ready && _applied != null && !_applied.Crowd ? AskAgainWith : AskAgainWithout);
+        }
 
-            double rangeX = maxX - minX;
-            double rangeZ = maxZ - minZ;
-            double maxRange = Math.Max(rangeX, rangeZ);
-            double minRange = Math.Min(rangeX, rangeZ);
-
-            // If the narrower dimension is less than 5% of the wider, it's a line
-            if (maxRange < 0.01) return false; // all points at same location
-            double ratio = minRange / maxRange;
-            return ratio > 0.05;
+        /// <summary>An outline for the current layout, applied now (a test's, or an answer taken by hand).</summary>
+        public void Apply(TrackOutline outline, string status)
+        {
+            if (outline == null)
+            {
+                // A map already drawn stays up through a host that is slow to answer, or a miss.
+                _status = _ready ? ReadyStatus : status;
+                return;
+            }
+            if (outline.TrackId != _currentTrackId && _currentTrackId > 0) return;
+            if (outline.Crowd && _applied != null && !_applied.Crowd)
+            {
+                // His own outline is never replaced by the shared map.
+                _status = StatusReady;
+                return;
+            }
+            if (_applied != null && outline.SameAs(_applied))
+            {
+                _status = ReadyStatus;
+                return;
+            }
+            if (outline.Points == null || outline.Points.Count < 10)
+            {
+                _status = _ready ? ReadyStatus : StatusFirstLap;
+                return;
+            }
+            var points = new List<TrackPoint>(outline.Points.Count);
+            foreach (var p in outline.Points) points.Add(new TrackPoint { WorldX = p.X, WorldZ = p.Z, LapDistPct = p.Pct });
+            points.Sort((a, b) => a.LapDistPct.CompareTo(b.LapDistPct));
+            NormaliseAndBuild(points);
+            _applied = outline;
+            _status = ReadyStatus;
+            _hasPlayerPos = false;
+            Log.Info(outline.Crowd
+                ? $"[RacingDesk] Track map: SimHub's shared map of '{_currentTrackName}', until the first clean lap gives an outline of his own"
+                : $"[RacingDesk] Track map: outline of '{_currentTrackName}' from {outline.CleanLaps} clean lap{(outline.CleanLaps == 1 ? "" : "s")}" +
+                  (outline.Provisional ? ", from the session being driven" : ""));
         }
 
         // ── Normalisation ──────────────────────────────────────────────────
@@ -633,6 +506,19 @@ namespace RacingDesk.Plugin.Engine
             return InterpolateOnOutline(_outline, lapDistPct);
         }
 
+        /// <summary>
+        /// Where a fraction of the lap is on the outline. The outline is a loop: the segment from the last point
+        /// back to the first is one of its segments, so a fraction past the last point slides on towards the line
+        /// and does not hold on the last point until the fraction wraps.
+        /// </summary>
+        internal static (double X, double Y) InterpolateAlong(IReadOnlyList<(double X, double Y, double Pct)> outline, double lapDistPct)
+        {
+            var pts = new TrackPoint[outline.Count];
+            for (int i = 0; i < pts.Length; i++) pts[i] = new TrackPoint { X = outline[i].X, Y = outline[i].Y, LapDistPct = outline[i].Pct };
+            var p = InterpolateOnOutline(pts, lapDistPct);
+            return (p.X, p.Y);
+        }
+
         private static TrackPoint InterpolateOnOutline(TrackPoint[] outline, double lapDistPct)
         {
             if (outline == null || outline.Length < 2)
@@ -641,45 +527,32 @@ namespace RacingDesk.Plugin.Engine
             lapDistPct = lapDistPct % 1.0;
             if (lapDistPct < 0) lapDistPct += 1.0;
 
-            // Handle near-wrap: if lapDistPct is very close to 0 or 1, snap to endpoints
+            int n = outline.Length;
+            // Before the first point: on the closing segment, from the last point round to the first.
             if (lapDistPct < outline[0].LapDistPct)
-            {
-                // Before the first sample — interpolate between last and first (wrap)
-                double d0 = outline[outline.Length - 1].LapDistPct;
-                double d1 = outline[0].LapDistPct + 1.0;
-                double range = d1 - d0;
-                if (range <= 0) range = 1;
-                double t = (lapDistPct + 1.0 - d0) / range;
-                t = Math.Max(0, Math.Min(1, t));
-                return new TrackPoint
-                {
-                    X = outline[outline.Length - 1].X + (outline[0].X - outline[outline.Length - 1].X) * t,
-                    Y = outline[outline.Length - 1].Y + (outline[0].Y - outline[outline.Length - 1].Y) * t
-                };
-            }
+                return OnSegment(outline[n - 1], outline[0], outline[n - 1].LapDistPct, outline[0].LapDistPct + 1.0, lapDistPct + 1.0);
 
-            // Binary search for the segment containing this lapDistPct
-            int lo = 0, hi = outline.Length - 1;
-            while (lo < hi - 1)
+            // The segment whose start is the last point at or before this fraction.
+            int lo = 0, hi = n - 1;
+            while (lo < hi)
             {
-                int mid = (lo + hi) / 2;
+                int mid = (lo + hi + 1) / 2;
                 if (outline[mid].LapDistPct <= lapDistPct) lo = mid;
-                else hi = mid;
+                else hi = mid - 1;
             }
+            // Past the last point: on the closing segment too.
+            if (lo == n - 1)
+                return OnSegment(outline[n - 1], outline[0], outline[n - 1].LapDistPct, outline[0].LapDistPct + 1.0, lapDistPct);
 
-            double d0b = outline[lo].LapDistPct;
-            double d1b = outline[hi].LapDistPct;
-            double rangeb = d1b - d0b;
-            if (rangeb <= 0) rangeb = 1;
+            return OnSegment(outline[lo], outline[lo + 1], outline[lo].LapDistPct, outline[lo + 1].LapDistPct, lapDistPct);
+        }
 
-            double tb = (lapDistPct - d0b) / rangeb;
-            tb = Math.Max(0, Math.Min(1, tb));
-
-            return new TrackPoint
-            {
-                X = outline[lo].X + (outline[hi].X - outline[lo].X) * tb,
-                Y = outline[lo].Y + (outline[hi].Y - outline[lo].Y) * tb
-            };
+        private static TrackPoint OnSegment(TrackPoint a, TrackPoint b, double pctA, double pctB, double pct)
+        {
+            double range = pctB - pctA;
+            double t = range <= 0 ? 0 : (pct - pctA) / range;
+            t = Math.Max(0, Math.Min(1, t));
+            return new TrackPoint { X = a.X + (b.X - a.X) * t, Y = a.Y + (b.Y - a.Y) * t };
         }
 
         // ── Opponent data serialisation ────────────────────────────────────
@@ -701,472 +574,6 @@ namespace RacingDesk.Plugin.Engine
             OpponentData = sb.ToString();
         }
 
-        // ── File I/O: Track maps directory (CSV files loaded directly at runtime) ────
-
-        /// <summary>
-        /// Resolve the trackmaps directory. Checks two locations in order:
-        ///   1. {SimHub}/racingdesk-data/trackmaps/  (post-build copy location)
-        ///   2. {SimHub}/trackmaps/  (simple flat folder)
-        /// Returns the first one that exists, or the primary path if neither does.
-        /// </summary>
-        private string GetTrackmapsDir()
-        {
-            if (string.IsNullOrEmpty(_simhubDir)) return "";
-
-            // Primary: nested under racingdesk-data
-            string primary = Path.Combine(_simhubDir, "racingdesk-data", "trackmaps");
-            if (Directory.Exists(primary)) return primary;
-
-            // Fallback: flat trackmaps folder in SimHub root
-            string flat = Path.Combine(_simhubDir, "trackmaps");
-            if (Directory.Exists(flat)) return flat;
-
-            // Return the primary path (will be created on first save)
-            return primary;
-        }
-
-        /// <summary>
-        /// Returns all directories that may contain track maps (for UI display).
-        /// </summary>
-        public List<string> GetTrackMapSearchPaths()
-        {
-            var paths = new List<string>();
-            if (string.IsNullOrEmpty(_simhubDir)) return paths;
-            paths.Add(Path.Combine(_simhubDir, "racingdesk-data", "trackmaps"));
-            paths.Add(Path.Combine(_simhubDir, "trackmaps"));
-            paths.Add(GetOwnCacheDir());
-            return paths;
-        }
-
-        private string GetTrackmapPath(string trackId)
-        {
-            string safe = trackId;
-            foreach (char c in Path.GetInvalidFileNameChars())
-                safe = safe.Replace(c, '_');
-            return Path.Combine(GetTrackmapsDir(), safe + ".csv");
-        }
-
-        /// <summary>
-        /// Try to load a track map from the trackmaps directory.
-        /// Scans both the primary and flat locations. Uses CSV format (WorldX,WorldZ,LapDistPct).
-        /// </summary>
-        private bool TryLoadFromBundledMaps(string trackId)
-        {
-            if (string.IsNullOrEmpty(_simhubDir)) return false;
-
-            // Check both possible trackmaps directories
-            string[] dirs = new[]
-            {
-                Path.Combine(_simhubDir, "racingdesk-data", "trackmaps"),
-                Path.Combine(_simhubDir, "trackmaps"),
-            };
-
-            string tidLower = (trackId ?? "").ToLowerInvariant().Replace(" ", "");
-
-            foreach (string dir in dirs)
-            {
-                if (!Directory.Exists(dir)) continue;
-
-                // Exact match first
-                string safe = trackId ?? "";
-                foreach (char c in Path.GetInvalidFileNameChars())
-                    safe = safe.Replace(c, '_');
-                string exactPath = Path.Combine(dir, safe + ".csv");
-                if (File.Exists(exactPath) && TryLoadCsvMap(exactPath))
-                    return true;
-
-                // Fuzzy match: look for files containing the track ID
-                if (string.IsNullOrEmpty(tidLower)) continue;
-                foreach (string file in Directory.GetFiles(dir, "*.csv"))
-                {
-                    string name = Path.GetFileNameWithoutExtension(file).ToLowerInvariant().Replace(" ", "");
-                    if (name.Contains(tidLower) || tidLower.Contains(name))
-                    {
-                        if (TryLoadCsvMap(file))
-                            return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Load a CSV track map file (WorldX,WorldZ,LapDistPct per line).
-        /// Shared between bundled maps and K10 cache loading.
-        /// </summary>
-        private bool TryLoadCsvMap(string filePath)
-        {
-            try
-            {
-                var points = new List<TrackPoint>();
-                foreach (string line in File.ReadAllLines(filePath))
-                {
-                    string[] parts = line.Split(',');
-                    if (parts.Length < 3) continue;
-                    if (!double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double wx)) continue;
-                    if (!double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double wz)) continue;
-                    if (!double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out double dist)) continue;
-                    points.Add(new TrackPoint { WorldX = wx, WorldZ = wz, LapDistPct = dist });
-                }
-                if (points.Count < 10) return false;
-                points.Sort((a, b) => a.LapDistPct.CompareTo(b.LapDistPct));
-                NormaliseAndBuild(points);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Save a recorded track map to the racingdesk-data/trackmaps directory
-        /// as a CSV file so it is available locally without requiring the web API.
-        /// </summary>
-        private void SaveToBundledMaps(string trackId)
-        {
-            if (string.IsNullOrEmpty(_simhubDir)) return;
-
-            try
-            {
-                string dir = Path.Combine(_simhubDir, "racingdesk-data", "trackmaps");
-                Directory.CreateDirectory(dir);
-
-                string safe = trackId;
-                foreach (char c in Path.GetInvalidFileNameChars())
-                    safe = safe.Replace(c, '_');
-                string path = Path.Combine(dir, safe + ".csv");
-
-                var sb = new StringBuilder(_samples.Count * 40);
-                foreach (var s in _samples)
-                {
-                    sb.Append(s.WorldX.ToString("F4", CultureInfo.InvariantCulture));
-                    sb.Append(',');
-                    sb.Append(s.WorldZ.ToString("F4", CultureInfo.InvariantCulture));
-                    sb.Append(',');
-                    sb.AppendLine(s.LapDistPct.ToString("F6", CultureInfo.InvariantCulture));
-                }
-
-                File.WriteAllText(path, sb.ToString());
-                Log.Info($"[RacingDesk] Track map saved to {path}");
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"[RacingDesk] Failed to save track map to trackmaps dir: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Returns a list of all track IDs that have maps in the trackmaps directory.
-        /// </summary>
-        public List<string> GetBundledTrackIds()
-        {
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var ids = new List<string>();
-
-            // Scan all trackmaps directories
-            string[] dirs = string.IsNullOrEmpty(_simhubDir) ? new string[0] : new[]
-            {
-                Path.Combine(_simhubDir, "racingdesk-data", "trackmaps"),
-                Path.Combine(_simhubDir, "trackmaps"),
-            };
-
-            foreach (string dir in dirs)
-            {
-                if (!Directory.Exists(dir)) continue;
-                foreach (string file in Directory.GetFiles(dir, "*.csv"))
-                {
-                    string name = Path.GetFileNameWithoutExtension(file);
-                    if (seen.Add(name))
-                        ids.Add(name);
-                }
-            }
-
-            ids.Sort(StringComparer.OrdinalIgnoreCase);
-            return ids;
-        }
-
-        /// <summary>
-        /// Returns track IDs that exist only in the local K10 cache (recorded during gameplay)
-        /// but not yet in the trackmaps directory.
-        /// </summary>
-        public List<string> GetLocalOnlyTrackIds()
-        {
-            var localOnly = new List<string>();
-            string cacheDir = GetOwnCacheDir();
-            if (!Directory.Exists(cacheDir)) return localOnly;
-
-            var inDir = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            string[] dirs = string.IsNullOrEmpty(_simhubDir) ? new string[0] : new[]
-            {
-                Path.Combine(_simhubDir, "racingdesk-data", "trackmaps"),
-                Path.Combine(_simhubDir, "trackmaps"),
-            };
-
-            foreach (string dir in dirs)
-            {
-                if (!Directory.Exists(dir)) continue;
-                foreach (string file in Directory.GetFiles(dir, "*.csv"))
-                    inDir.Add(Path.GetFileNameWithoutExtension(file));
-            }
-
-            foreach (string file in Directory.GetFiles(cacheDir, "*.csv"))
-            {
-                string name = Path.GetFileNameWithoutExtension(file);
-                if (!inDir.Contains(name))
-                    localOnly.Add(name);
-            }
-
-            localOnly.Sort(StringComparer.OrdinalIgnoreCase);
-            return localOnly;
-        }
-
-        /// <summary>
-        /// Copies all local-only track maps (not already in trackmaps dir) to the specified directory.
-        /// Returns the number of files copied.
-        /// </summary>
-        public int ExportLocalMapsTo(string destinationDir)
-        {
-            if (string.IsNullOrEmpty(destinationDir)) return 0;
-
-            string cacheDir = GetOwnCacheDir();
-            if (!Directory.Exists(cacheDir)) return 0;
-
-            var inDir = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            string[] dirs = string.IsNullOrEmpty(_simhubDir) ? new string[0] : new[]
-            {
-                Path.Combine(_simhubDir, "racingdesk-data", "trackmaps"),
-                Path.Combine(_simhubDir, "trackmaps"),
-            };
-
-            foreach (string dir in dirs)
-            {
-                if (!Directory.Exists(dir)) continue;
-                foreach (string file in Directory.GetFiles(dir, "*.csv"))
-                    inDir.Add(Path.GetFileNameWithoutExtension(file));
-            }
-
-            Directory.CreateDirectory(destinationDir);
-            int count = 0;
-
-            foreach (string file in Directory.GetFiles(cacheDir, "*.csv"))
-            {
-                string name = Path.GetFileNameWithoutExtension(file);
-                if (inDir.Contains(name)) continue;
-
-                string dest = Path.Combine(destinationDir, Path.GetFileName(file));
-                File.Copy(file, dest, true);
-                count++;
-            }
-
-            return count;
-        }
-
-        // ── Local outline (from the host's telemetry store) ─────────────────
-
-        /// <summary>
-        /// Supplies an outline for a track id as (X east, Z, LapDistPct) points in metres, or null. Set by the host;
-        /// RacingDesk.Host reads it from outlines derived from the driver's .ibt Lat/Lon.
-        /// </summary>
-        public Func<string, IReadOnlyList<(double X, double Z, double Pct)>> LocalOutlineSource { get; set; }
-
-        private bool TryLoadFromLocalOutline(string trackId)
-        {
-            if (LocalOutlineSource == null || string.IsNullOrEmpty(trackId)) return false;
-            try
-            {
-                var outline = LocalOutlineSource(trackId);
-                if (outline == null || outline.Count < 10) return false;
-                var points = new List<TrackPoint>(outline.Count);
-                foreach (var p in outline) points.Add(new TrackPoint { WorldX = p.X, WorldZ = p.Z, LapDistPct = p.Pct });
-                NormaliseAndBuild(points);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"[RacingDesk] Local outline for '{trackId}' unusable: {ex.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Try to load from SimHub's built-in track map storage.
-        /// </summary>
-        private bool TryLoadFromSimHub(string trackId)
-        {
-            if (string.IsNullOrEmpty(_simhubDir) || string.IsNullOrEmpty(trackId))
-                return false;
-
-            // SimHub stores map records in several possible locations
-            string[] searchPaths = new[]
-            {
-                Path.Combine(_simhubDir, "PluginsData", "IRacing", "MapRecords"),
-                Path.Combine(_simhubDir, "PluginsData", "Common", "TrackMaps"),
-                Path.Combine(_simhubDir, "PluginsData", "Common", "PersistantTracker"),
-            };
-
-            foreach (string dir in searchPaths)
-            {
-                if (!Directory.Exists(dir)) continue;
-
-                // Look for files matching the track ID
-                foreach (string file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
-                {
-                    string name = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
-                    string tid = trackId.ToLowerInvariant().Replace(" ", "");
-                    if (name.Contains(tid) || tid.Contains(name))
-                    {
-                        if (TryParseMapFile(file))
-                            return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        private bool TryParseMapFile(string filePath)
-        {
-            try
-            {
-                string content = File.ReadAllText(filePath);
-
-                // Try to parse as JSON array of {x, y} or {X, Y} or [x, y] points
-                var points = ParseCoordinateJson(content);
-                if (points.Count < 10) return false;
-
-                // Assign evenly-spaced LapDistPct values
-                // (TrackPoint is a struct, so we must replace the whole element)
-                for (int i = 0; i < points.Count; i++)
-                {
-                    var pt = points[i];
-                    pt.LapDistPct = (double)i / points.Count;
-                    points[i] = pt;
-                }
-
-                NormaliseAndBuild(points);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"[RacingDesk] Failed to parse map file '{filePath}': {ex.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Parses various JSON formats that SimHub and community map tools use:
-        ///   - Array of objects: [{"x": 1.0, "y": 2.0}, ...]
-        ///   - Array of arrays:  [[1.0, 2.0], [3.0, 4.0], ...]
-        ///   - Object with points array: {"points": [...], ...}
-        /// Uses simple string parsing to avoid needing Newtonsoft.Json dependency.
-        /// </summary>
-        private static List<TrackPoint> ParseCoordinateJson(string json)
-        {
-            var points = new List<TrackPoint>();
-
-            // Strip whitespace for easier parsing
-            json = json.Trim();
-
-            // Look for arrays of numbers — extract all number pairs
-            // Pattern: find sequences of two adjacent numbers
-            var numbers = new List<double>();
-            int idx = 0;
-            while (idx < json.Length)
-            {
-                // Skip to next digit or minus sign
-                while (idx < json.Length && !char.IsDigit(json[idx]) && json[idx] != '-' && json[idx] != '.')
-                    idx++;
-
-                if (idx >= json.Length) break;
-
-                // Extract number
-                int start = idx;
-                if (json[idx] == '-') idx++;
-                while (idx < json.Length && (char.IsDigit(json[idx]) || json[idx] == '.' || json[idx] == 'e' || json[idx] == 'E' || json[idx] == '+' || json[idx] == '-'))
-                {
-                    if ((json[idx] == '-' || json[idx] == '+') && idx > start && json[idx - 1] != 'e' && json[idx - 1] != 'E')
-                        break;
-                    idx++;
-                }
-
-                string numStr = json.Substring(start, idx - start);
-                if (double.TryParse(numStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double val))
-                {
-                    numbers.Add(val);
-                }
-            }
-
-            // Pair up as X, Y coordinates
-            for (int i = 0; i + 1 < numbers.Count; i += 2)
-            {
-                points.Add(new TrackPoint { WorldX = numbers[i], WorldZ = numbers[i + 1] });
-            }
-
-            return points;
-        }
-
-        // ── File I/O: our own cache ────────────────────────────────────────
-
-        private string _cacheDir;
-
-        /// <summary>
-        /// Where recorded / fetched outlines are cached. The host sets this from its data directory
-        /// (SimHub: ProgramDataSimHubPluginsDataRacingDeskTrackMaps).
-        /// </summary>
-        public void SetCacheDirectory(string dir) => _cacheDir = dir;
-
-        private string GetOwnCacheDir()
-        {
-            return _cacheDir ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "SimHub", "PluginsData", "RacingDesk", "TrackMaps");
-        }
-
-        private string GetOwnCachePath(string trackId)
-        {
-            // Sanitise track ID for filename
-            string safe = trackId;
-            foreach (char c in Path.GetInvalidFileNameChars())
-                safe = safe.Replace(c, '_');
-            return Path.Combine(GetOwnCacheDir(), safe + ".csv");
-        }
-
-        private bool TryLoadFromOwnCache(string trackId)
-        {
-            string path = GetOwnCachePath(trackId);
-            if (!File.Exists(path)) return false;
-            return TryLoadCsvMap(path);
-        }
-
-        private void SaveToOwnCache(string trackId)
-        {
-            try
-            {
-                string dir = GetOwnCacheDir();
-                Directory.CreateDirectory(dir);
-                string path = GetOwnCachePath(trackId);
-
-                var sb = new StringBuilder(_samples.Count * 40);
-                foreach (var s in _samples)
-                {
-                    sb.Append(s.WorldX.ToString("F4", CultureInfo.InvariantCulture));
-                    sb.Append(',');
-                    sb.Append(s.WorldZ.ToString("F4", CultureInfo.InvariantCulture));
-                    sb.Append(',');
-                    sb.AppendLine(s.LapDistPct.ToString("F6", CultureInfo.InvariantCulture));
-                }
-
-                File.WriteAllText(path, sb.ToString());
-                Log.Info($"[RacingDesk] Track map saved to {path}");
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"[RacingDesk] Failed to save track map: {ex.Message}");
-            }
-        }
-
         // ── Demo track outline ─────────────────────────────────────────────
 
         private static string DemoSvgPath
@@ -1182,9 +589,10 @@ namespace RacingDesk.Plugin.Engine
         {
             if (_demoOutline != null) return;
 
-            // Sebring International — 80 points sampled from bundled CSV,
-            // normalised to 0–100 viewBox with 5% padding.
-            // Third value is LapDistPct from the original recording.
+            // The demo's circuit: 80 points of a loop, normalised to the 0–100 viewBox with 5% padding, with the
+            // fraction of the lap each is at. They are Sebring International, sampled from one of the plugin's old
+            // recordings (the base of this file said so), and the only trace of a real circuit still carried in the
+            // code; whether to keep it for the demo or draw a made-up loop in its place is the driver's to say.
             double[][] raw = new double[][]
             {
                 new[]{58.9, 71.8, 0.0481}, new[]{64.0, 72.1, 0.0596}, new[]{69.0, 72.2, 0.0708}, new[]{73.7, 71.2, 0.0805},
@@ -1227,7 +635,7 @@ namespace RacingDesk.Plugin.Engine
 
         private struct TrackPoint
         {
-            public double WorldX, WorldZ;  // raw world coordinates (recording phase)
+            public double WorldX, WorldZ;  // the outline's own metres
             public double X, Y;            // normalised SVG coordinates (0–100)
             public double LapDistPct;      // 0.0–1.0 fraction around the lap
         }

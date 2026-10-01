@@ -122,7 +122,7 @@ INSERT INTO schema_version (version) VALUES (4);
 
             using var store = new RacingDeskStore(Db);
 
-            Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6,7"));
+            Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(version) FROM (SELECT version FROM schema_version ORDER BY version)"), Is.EqualTo("3,4,5,6,7,8"));
             Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(name) FROM pragma_table_info('ingested_files')"),
                 Is.EqualTo("path,length,mtime,sessions,error,ingested_at"), "as every host since the first has known it");
             Assert.That(store.Scalar<string>("SELECT GROUP_CONCAT(path || '|' || length || '|' || mtime, ' ') FROM (SELECT * FROM car_scans ORDER BY path)"),
@@ -318,7 +318,7 @@ INSERT INTO schema_version (version) VALUES (4);
             SqliteConnection.ClearAllPools();
 
             using var migrated = new RacingDeskStore(Db);
-            Assert.That(migrated.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(7));
+            Assert.That(migrated.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(8));
             var mazda = migrated.CarPedalFactsOf(Mx5);
             Assert.That((mazda.ForceKg, mazda.ForceAtUtc, mazda.GivenBy, mazda.HasAbs), Is.EqualTo(((double?)45, (DateTime?)June, "driver", (bool?)null)));
             var lotus = migrated.CarPedalFactsOf(Lotus);

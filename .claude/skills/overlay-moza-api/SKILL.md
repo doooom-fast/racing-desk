@@ -74,7 +74,7 @@ The overlay follows its established polling pattern (no WebSocket, no push). Moz
    carries an `Origin` — `null`, for the HUD's file — so it gets `403`. The page asks the main process instead:
    `runtimeAction(name, params)` (`modules/js/config.js`) → the preload's `runtimeAction` → `runtime:action` in `main.js`
    → `modules/js/runtime-actions.js`, which makes the request with Node. It passes on only the routes in its `ACTIONS`
-   (today: `resetmap`, `restartdemo`, `setrect`, `listPedalProfiles`, `setPedalProfile`, `bindPedalProfile`), with the
+   (today: `restartdemo`, `setrect`, `listPedalProfiles`, `setPedalProfile`, `bindPedalProfile`), with the
    arguments each takes and no others, to a runtime on this machine. A Moza route the panel needs is added there, with
    its arguments (a key is a short name, a value a number), and to `tests/unit/runtime-actions.spec.mjs`, which says on
    purpose which routes the page may ask for. A script that fetches an `?action=` URL itself fails that spec.

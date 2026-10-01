@@ -139,14 +139,20 @@
     setCarLivery(URL.createObjectURL(blob));
   }
 
-  // On an iPad, or in the page OBS draws: the car has changed, ask the rig for its crop.
+  // The car has changed (or he is back in it): the page that is not the rig's own window asks the server it came from
+  // for the crop of his paint behind the badge. In the page OBS draws (window._obsMode) the badge is in the picture,
+  // so the crop is fetched from the loopback listener, a few times over the first seconds in case the rig has not
+  // chosen it yet. On an iPad the badge is not shown (drive-view.css: he asked for the logos to go, 2026-09-30), so
+  // the crop is never asked for there: nothing is fetched. The way in stays for both; fetchRemoteLivery is what asks.
   function requestRemoteLivery() {
-    if ((!window._remoteMode && !window._obsMode) || typeof fetch !== 'function') return;
-    const ask = ++_liveryAsk;
     for (const t of _liveryTimers) clearTimeout(t);
+    _liveryTimers = [];
+    if (!window._obsMode || typeof fetch !== 'function') return;
+    const ask = ++_liveryAsk;
     _liveryTimers = LIVERY_ASK_AT_MS.map((ms) => setTimeout(() => { fetchRemoteLivery(ask); }, ms));
   }
   window.requestRemoteLivery = requestRemoteLivery;
+  window._fetchRemoteLivery = fetchRemoteLivery;
 
   // In the app the main process says: what it has chosen since, and what it had chosen before this page loaded.
   if (!window._remoteMode && !window._obsMode && window.racingDesk) {

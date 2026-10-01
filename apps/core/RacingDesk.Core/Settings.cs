@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace RacingDesk.Plugin
 {
@@ -9,6 +10,15 @@ namespace RacingDesk.Plugin
         /// race time. A PDF dropped into %LOCALAPPDATA%\RacingDesk\schedule by hand is used just the same.
         /// </summary>
         public string ScheduleUrl { get; set; } = "https://us.v-cdn.net/6034148/uploads/597LPPDHT83M/2026s4.pdf";
+
+        /// <summary>
+        /// Where the app's host serves its store on this machine. The SimHub plugin asks it for the track map's
+        /// outlines (the host runs beside SimHub on :18889 while SimHub holds :8889). Loopback only, and the address
+        /// the host answers on (<c>RacingDeskRuntime.HttpPrefixGroups</c> names it). It is the app's, not a
+        /// setting: never saved, so that SimHub does not keep an old address after the app moves.
+        /// </summary>
+        [JsonIgnore]
+        public string HostUrl { get; set; } = "http://127.0.0.1:18889";
 
         /// <summary>How long (seconds) each prompt stays on screen before auto-clearing.</summary>
         public double PromptDisplaySeconds { get; set; } = 15.0;

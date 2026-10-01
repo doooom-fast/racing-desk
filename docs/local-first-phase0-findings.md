@@ -32,7 +32,8 @@
    (one codebase, both hosts), no dependency swap.
 3. **Track geometry source order flips.** The plan preferred the sim's on-disk map data, with runtime
    recording as fallback. Actual order: **`.ibt` Lat/Lon → live dead reckoning.** The sim's `.dat` is
-   out.
+   out. *(2026-09-30: the dead reckoning is gone too; the first session at a layout is followed through
+   the `.ibt` the sim is writing. Root `CLAUDE.md`, Track maps.)*
 4. **Cold-start backfill depends on a non-default-looking setting** *(moot under single-user scope)*. Months of `.ibt` exist here because
    `irsdkAutoLogDisk=1`. Whether that's iRacing's default on a fresh install is **unverified**; if not,
    a typical new user has little or nothing to backfill.
@@ -58,7 +59,7 @@ history already exist.
 
 | Gain | Size of it | Cheaper route |
 |---|---|---|
-| Maps for layouts never driven | 425 installed layouts, 71 driven under current names → **354 without `.ibt` geometry** | One out-lap in a test session produces the `.ibt`; the live dead-reckoned map covers the first lap |
+| Maps for layouts never driven | 425 installed layouts, 71 driven under current names → **354 without `.ibt` geometry** | One out-lap in a test session produces the `.ibt`; from the first clean lap of that session the `.ibt` being written gives a provisional map (`IbtFollower`, 2026-09-30; the dead-reckoned first lap is gone). Until that lap, SimHub's shared map of the layout, read from SimHub's own download folder and kept in memory only (`CrowdMaps`, 2026-10-01: he said "Simhub using crowd maps yes") |
 | Track edges, width, pit lane, maybe turn positions — richer rendering than a driven line | **Unknown.** Contents are unverified. Layout files have a 605 KB median — small enough to suggest layout metadata rather than meshes, but that's a guess | None from `.ibt`: lap-to-lap spread is ~1 m, so driven laps don't reveal track width. Render from the driven line, as the plan already assumes |
 | S6 archetypes (curvature, elevation) for tracks never raced | Same 354 layouts | Public real-world geometry (e.g. OpenStreetMap `highway=raceway`) for real circuits — not iRacing's data |
 
@@ -81,8 +82,9 @@ stopped at the header — see *Decisions needed*.
 
 Disk telemetry records `Lat` / `Lon` (double, degrees) and `Alt` (float, m) every frame at 60 Hz,
 alongside `LapDistPct`. Present in 3,028 of 3,029 readable files. These are **disk-only** variables —
-live shared memory doesn't have them, which is why `TrackMapProvider.cs` dead-reckons from
-`VelocityX/Z` + heading.
+live shared memory doesn't have them, which is why `TrackMapProvider.cs` dead-reckoned from
+`VelocityX/Z` + heading until 2026-09-30, when that went: the host reads the `.ibt` the sim is writing
+instead (root `CLAUDE.md`, Track maps).
 
 Method (`ibt-geometry.mjs`): keep laps that are fully `PlayerTrackSurface == OnTrack`, never on pit
 road, and cover `LapDistPct` 0→1 monotonically; project to local metres; resample each lap into

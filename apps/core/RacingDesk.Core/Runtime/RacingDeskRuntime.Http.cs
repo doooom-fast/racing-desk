@@ -19,26 +19,40 @@ namespace RacingDesk.Plugin
         /// <summary>Whether :HttpPort is bound and served — false when another host or SimHub got there first.</summary>
         public bool HttpListening => _httpListener != null && _httpListener.IsListening;
 
+        /// <summary>
+        /// The prefixes the state server tries to bind, in order of preference, each entry being what one listener
+        /// is given: what the shipped host and the SimHub plugin bind (every address, for the iPad view). HTTP.sys
+        /// matches a prefix that names a host (<c>localhost</c>) against the Host header of the request, so a listener
+        /// bound by name answers 400 to a client that asks for <c>127.0.0.1</c>: the loopback entry therefore names
+        /// both, and the SimHub plugin, which asks the app's host at <see cref="Settings.HostUrl"/> (127.0.0.1), is
+        /// answered. Not for <see cref="Options.LoopbackOnly"/> (tests, probes): that binds 127.0.0.1 alone, with no
+        /// fallback, in <see cref="StartHttpServer"/>.
+        /// </summary>
+        internal static string[][] HttpPrefixGroups(int port) => new[]
+        {
+            // 1. Wildcard (*) — works if SimHub runs as admin or URL ACL is registered; answers every Host.
+            new[] { $"http://*:{port}/racing-desk/" },
+            // 2. Loopback only — always works without admin, sufficient for the overlay and for the plugin.
+            new[] { $"http://localhost:{port}/racing-desk/", $"http://127.0.0.1:{port}/racing-desk/" },
+            // 3. localhost alone, should the address not be given to this user.
+            new[] { $"http://localhost:{port}/racing-desk/" },
+        };
+
         private void StartHttpServer()
         {
-            // Try binding in order of preference:
-            // 1. Wildcard (*) — works if SimHub runs as admin or URL ACL is registered
-            // 2. localhost only — always works without admin, sufficient for local overlays
-            // LoopbackOnly (tests, probes): 127.0.0.1 alone, which HTTP.sys binds on that address and no other.
-            string[] prefixes = _options.LoopbackOnly
-                ? new[] { $"http://127.0.0.1:{_options.HttpPort}/racing-desk/" }
-                : new[]
-                {
-                    $"http://*:{_options.HttpPort}/racing-desk/",
-                    $"http://localhost:{_options.HttpPort}/racing-desk/"
-                };
+            // LoopbackOnly (tests, probes): 127.0.0.1 alone, which HTTP.sys binds on that address and no other, and no
+            // fallback. Otherwise the groups above, in order, until one binds.
+            string[][] groups = _options.LoopbackOnly
+                ? new[] { new[] { $"http://127.0.0.1:{_options.HttpPort}/racing-desk/" } }
+                : HttpPrefixGroups(_options.HttpPort);
 
-            foreach (var prefix in prefixes)
+            foreach (var group in groups)
             {
+                string prefix = string.Join(" + ", group);
                 try
                 {
                     _httpListener = new HttpListener();
-                    _httpListener.Prefixes.Add(prefix);
+                    foreach (var p in group) _httpListener.Prefixes.Add(p);
                     _httpListener.Start();
                     _httpThread = new Thread(HttpServerLoop) { IsBackground = true, Name = "RacingDesk-HTTP" };
                     _httpThread.Start();
@@ -76,7 +90,7 @@ namespace RacingDesk.Plugin
         /// </summary>
         private static readonly HashSet<string> KnownActions = new HashSet<string>(StringComparer.Ordinal)
         {
-            "resetmap", "listtracks", "restartdemo", "setrect",
+            "restartdemo", "setrect",
             "listPedalProfiles", "setPedalProfile", "bindPedalProfile", "importMozaPedals",
             "listMozaDevices", "getMozaWheelbaseSettings", "setMozaWheelbaseSetting", "getMozaPedalSettings",
             "setMozaPedalSetting", "getMozaHandbrakeSettings", "setMozaHandbrakeSetting", "getMozaShifterSettings",
@@ -214,31 +228,6 @@ namespace RacingDesk.Plugin
                         int start = qIdx + 7; // "action=".Length
                         int end = rawUrl.IndexOf('&', start);
                         action = end >= 0 ? rawUrl.Substring(start, end - start) : rawUrl.Substring(start);
-                    }
-
-                    if (action == "resetmap")
-                    {
-                        _trackMap.ResetTrackMap();
-                        byte[] okBytes = System.Text.Encoding.UTF8.GetBytes("{\"ok\":true}");
-                        ctx.Response.ContentType = "application/json";
-                        ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
-                        ctx.Response.StatusCode = 200;
-                        ctx.Response.OutputStream.Write(okBytes, 0, okBytes.Length);
-                        ctx.Response.OutputStream.Close();
-                        continue;
-                    }
-
-                    if (action == "listtracks")
-                    {
-                        var ids = _trackMap.GetBundledTrackIds();
-                        string json = "[" + string.Join(",", ids.ConvertAll(id => "\"" + id.Replace("\"", "\\\"") + "\"")) + "]";
-                        byte[] listBytes = System.Text.Encoding.UTF8.GetBytes(json);
-                        ctx.Response.ContentType = "application/json";
-                        ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
-                        ctx.Response.StatusCode = 200;
-                        ctx.Response.OutputStream.Write(listBytes, 0, listBytes.Length);
-                        ctx.Response.OutputStream.Close();
-                        continue;
                     }
 
                     if (action == "restartdemo")
@@ -976,6 +965,10 @@ namespace RacingDesk.Plugin
 
                     // ── Track map ──
                     Jp(sb, "RacingDesk.Plugin.TrackMap.Ready", _trackMap.IsReady ? 1 : 0);
+                    // Why there is or is not a map: ready, crowd (drawn, on SimHub's shared map until his first clean
+                    // lap), first-lap (the host has no outline of this layout yet), no-host (the host could not be
+                    // reached), none.
+                    Jp(sb, "RacingDesk.Plugin.TrackMap.Status", Escape(_trackMap.Status ?? ""));
                     Jp(sb, "RacingDesk.Plugin.TrackMap.TrackName", Escape(_trackMap.TrackName ?? ""));
                     Jp(sb, "RacingDesk.Plugin.TrackMap.TrackSlug", Escape(_lastRawTrackSlug ?? ""));
                     Jp(sb, "RacingDesk.Plugin.TrackMap.TrackDisplayName", Escape(s.TrackDisplayName ?? ""));

@@ -36,7 +36,12 @@ const IPADS = [
   [1180, 820, 'Air, landscape'], [820, 1180, 'Air, portrait'], [1366, 1024, '12.9" Pro, landscape'],
   [1024, 768, '9.7", landscape'], [744, 1133, 'mini, portrait'], [1133, 744, 'mini, landscape'], [810, 1080, '10.2", portrait'],
 ];
+// The rig's own screens are opened as the rig has them (from the file, drive mode switched on: no server, no
+// html.rd-remote, so the two badges are cells and the glass is the rig's), not through the iPad's server.
 const RIG = [[1920, 1080, 'the rig, 16:9'], [2560, 1080, 'the rig, ultrawide']];
+// (his own screen as well, for the sectors: the ratings panel is cut off by its cell on it, as it was before the iPad's
+// changes, which is not what these tests are about)
+const RIG_SECTORS = [...RIG, [3440, 1440, 'the rig, his ultrawide']];
 const SIZES = [...IPADS, ...RIG];
 
 // The strategy engine calling for tyres and for fuel, with a pit window and a stint of 14 laps: more lines in the pit box.
@@ -88,6 +93,23 @@ async function openAt(page, width, height, first, { effects = false } = {}) {
   await drawn(page);
 }
 
+// The rig's own Ctrl+Shift+F: the page from the file, as the HUD has it, with drive mode switched on.
+async function openRig(page, width, height, first) {
+  payload = first;
+  await page.route(/^https?:\/\/(?!localhost:8889)/, (route) => route.abort());
+  await page.route('http://localhost:8889/racing-desk/', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) }));
+  await page.setViewportSize({ width, height });
+  await page.goto(pathToFileURL(path.join(OVERLAY, 'dashboard.html')).href);
+  await page.evaluate(() => { _settings.showWebGL = false; });
+  await page.waitForFunction(() => typeof _isIdle !== 'undefined' && _isIdle === false && _pollFrame > 6, null, { timeout: 10000 });
+  // The circuit's name slides when it is wider than its label, and is measured when the HUD is first drawn, in its own
+  // narrow label: switched to the glance layout a short name goes on sliding, a few pixels, for seconds. The text is
+  // read where it stands, so the slide is held still (it is the HUD's, and not what these tests are of).
+  await page.addStyleTag({ content: '.map-panel > .map-zoom-label .map-zoom-label-inner { animation: none !important; transform: none !important; }' });
+  await page.evaluate(() => setDriveMode(true));
+  await drawn(page);
+}
+
 // What the page has been given is what it has drawn: the leaderboard has its rows, the maps are fitted.
 async function drawn(page) {
   await page.waitForFunction(() => {
@@ -107,16 +129,19 @@ async function serve(page, next) {
   await drawn(page);
 }
 
-// Every panel of the HUD, and the one each is.
+// Every panel of the HUD, and the one each is. On an iPad (which is what this server serves) the two badges, the
+// Racing Desk mark and the car's maker, are not shown — he asked for the logos to go — so they are not cells here;
+// the rig's own Ctrl+Shift+F keeps them.
 const CELLS = {
   hero: '#positionPage', gaps: '#gapsBlock', tacho: '.tacho-block', lb: '#leaderboardPanel', map: '.map-panel',
   local: '.map-zoom-panel', laps: '#lapsPanel', rating: '#ratingPage', ctrl: '.car-controls', pedals: '.pedals-area',
-  brand: '#brandLogoSquare', car: '#carLogoSquare', timer: '#raceTimerBlock', pit: '#pitBoxPanel', ds: '#datastreamPanel',
-  inc: '#incidentsPanel',
+  timer: '#raceTimerBlock', pit: '#pitBoxPanel', ds: '#datastreamPanel', inc: '#incidentsPanel',
 };
+// On the rig's own screen the two badges are cells too.
+const CELLS_RIG = { ...CELLS, brand: '#brandLogoSquare', car: '#carLogoSquare' };
 
 // Everything the rules are held to, measured in the page. Each is a list of what breaks it: nothing, when it holds.
-function measure(page) {
+function measure(page, cells = CELLS) {
   return page.evaluate((cellSelectors) => {
     const vw = innerWidth, vh = innerHeight;
     const shown = (el) => el.getClientRects().length > 0;
@@ -238,23 +263,27 @@ function measure(page) {
     out.delta = parseFloat(getComputedStyle(delta).fontSize);
     out.kind = document.body.classList.contains('session-race') ? 'race' : document.body.classList.contains('session-nonrace') ? 'nonrace' : 'none';
     return out;
-  }, CELLS);
+  }, cells);
 }
 
 const describeSize = ([w, h, what]) => `${w}x${h} (${what})`;
 
 for (const size of SIZES) {
   const [width, height] = size;
+  // The rig's screens are the rig's own layout (with its two badges), opened from the file; an iPad's, through the server.
+  const rig = RIG.includes(size);
+  const cellsOf = rig ? CELLS_RIG : CELLS;
   test(`${describeSize(size)}: every panel is a cell, the cells are the screen, nothing is cut off or too small to read`, async ({ page }) => {
     test.setTimeout(90000);
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await openAt(page, width, height, RACE());
+    if (rig) await openRig(page, width, height, RACE());
+    else await openAt(page, width, height, RACE());
 
     // The grid, and the HUD's own wrappers out of the way.
     expect(await page.evaluate(() => getComputedStyle(document.body).display)).toBe('grid');
     expect(await page.evaluate(() => getComputedStyle(document.getElementById('dashboard')).display)).toBe('contents');
-    expect(await page.evaluate(() => document.documentElement.classList.contains('rd-remote'))).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.classList.contains('rd-remote'))).toBe(!rig);
 
     // Every size is held to a race and a practice; the cases that fill a cell the most (a place of three glyphs, a car
     // with a row of dials beneath, the flag's glass) to the sizes they are tightest at, the small ones and the upright.
@@ -273,10 +302,10 @@ for (const size of SIZES) {
     ];
     for (const [name, next] of cases) {
       if (next) await serve(page, next());
-      const m = await measure(page);
+      const m = await measure(page, cellsOf);
       const label = `${describeSize(size)}, ${name}`;
       expect(m.outside, `${label}: cells outside the screen`).toEqual([]);
-      expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn`).toEqual(Object.keys(CELLS).sort());
+      expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn`).toEqual(Object.keys(cellsOf).sort());
       expect(m.overlapping, `${label}: cells on top of one another`).toEqual([]);
       // The cells are the screen: what is not a cell is the edge round the grid and the gutters between the cells.
       expect(m.covered, `${label}: the cells cover the screen (${JSON.stringify(m.cells)})`).toBeGreaterThanOrEqual(0.86);
@@ -426,12 +455,14 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     expect(await shown()).toEqual([true, true, true]);
   });
 
-  test('the menu is laid over the Racing Desk mark, the only touch target, and its list opens on screen from it', async ({ page }) => {
+  test('the menu is a small round button in the top right corner, the only touch target, and its list opens on screen from it', async ({ page }) => {
     const fab = await page.locator('#rd-remote-menu-fab').boundingBox();
-    const brand = await page.locator('#brandLogoSquare').boundingBox();
     expect(fab.width).toBeGreaterThanOrEqual(44);
     expect(fab.height).toBeGreaterThanOrEqual(44);
-    expect(Math.abs(fab.x - brand.x) + Math.abs(fab.y - brand.y) + Math.abs(fab.width - brand.width) + Math.abs(fab.height - brand.height)).toBeLessThan(2);
+    expect(fab.x + fab.width).toBeGreaterThan(1180 - 60);
+    expect(fab.y).toBeLessThan(60);
+    // The badges are not on an iPad, and the menu is where the Racing Desk mark no longer is.
+    expect(await page.evaluate(() => ['brandLogoSquare', 'carLogoSquare'].map((id) => document.getElementById(id).getClientRects().length))).toEqual([0, 0]);
     await page.locator('#rd-remote-menu-fab').click();
     const panel = await page.locator('#rd-remote-menu-panel').boundingBox();
     expect(panel.y + panel.height <= fab.y || panel.y >= fab.y + fab.height).toBe(true);
@@ -538,7 +569,7 @@ test.describe('the flag is the background', () => {
     await page.waitForTimeout(500);
     const yellow = await look();
     expect(yellow.flag).toBe('yellow');
-    expect(yellow.opacity).toBe('1');
+    expect(+yellow.opacity).toBeCloseTo(0.15, 2);                   // on an iPad the pattern behind the panels is at fifteen hundredths (below)
     expect(yellow.pattern).toContain('rgb(253, 205, 13)');          // hsl(48, 98%, 52%), the flag's yellow
     expect(yellow.tint).toContain('rgba(245, 205, 40, 0.34)');      // the glass takes the flag's colour
     expect(yellow.panel).toBe('rgb(15, 15, 15)');                   // over a panel the numbers stay legible on, and nothing shows through it
@@ -548,7 +579,7 @@ test.describe('the flag is the background', () => {
     await page.waitForTimeout(500);
     const blue = await look();
     expect(blue.flag).toBe('blue');
-    expect(blue.opacity).toBe('1');
+    expect(+blue.opacity).toBeCloseTo(0.15, 2);
     expect(blue.pattern).toContain('rgb(29, 98, 237)');             // hsl(220, 85%, 52%)
     expect(blue.panel).toBe(none.panel);
 
@@ -557,6 +588,122 @@ test.describe('the flag is the background', () => {
     await expect.poll(() => page.evaluate(() => document.body.dataset.flag), { timeout: 8000 }).toBe('none');
     await page.waitForTimeout(500);
     expect((await look()).opacity).toBe('0');
+  });
+
+  test('on an iPad the flag behind and between the panels is at fifteen hundredths, and a thin frame at the edge carries it whole', async ({ page }) => {
+    test.setTimeout(90000);
+    // What he asked for: the shiny backgrounds "brought back to about 15% opacity". The glass was; the stripes in every
+    // gutter were not. Every layer that draws the flag's pattern on the page is at 0.15 or under, but for the frame,
+    // which is a few pixels at the screen's edge and no wider — never a gutter — and may be at full strength.
+    // Every layer on the page that draws the flag's pattern: the same image as the page's own flag layer (body::before,
+    // whose background is --rd-flag-bg). Race control's banner has stripes of its own, and the panels their tint:
+    // neither is the flag's pattern, and neither is what he asked to have brought down.
+    const layers = () => page.evaluate(() => {
+      const pattern = getComputedStyle(document.body, '::before').backgroundImage;
+      const out = [];
+      for (const el of document.querySelectorAll('body, body *')) {
+        for (const pseudo of [null, '::before', '::after']) {
+          const cs = getComputedStyle(el, pseudo);
+          if (pseudo && cs.content === 'none') continue;
+          if (cs.backgroundImage !== pattern) continue;
+          out.push({ el: (el.id || el.className || el.tagName) + (pseudo || ''), opacity: +cs.opacity, padding: parseFloat(cs.paddingTop) || 0,
+            masked: (cs.webkitMaskImage !== 'none' && cs.webkitMaskImage !== '') || (cs.maskImage && cs.maskImage !== 'none'), position: cs.position,
+            // What makes a masked box a ring and not a whole screen: the second mask taken out of the first.
+            composite: cs.maskComposite || cs.webkitMaskComposite || '', size: cs.maskSize || cs.webkitMaskSize || '' });
+        }
+      }
+      return { pattern, out };
+    });
+    await openAt(page, 1180, 820, RACE());
+    for (const flag of ['yellow', 'green', 'white', 'checkered', 'blue']) {
+      await serve(page, RACE({ flag }));
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => document.body.dataset.flag)).toBe(flag);
+      const { pattern, out: found } = await layers();
+      expect(pattern, `${flag}: a pattern`).toMatch(/gradient/);
+      expect(found.length, `${flag}: the pattern is drawn`).toBeGreaterThanOrEqual(2);
+      for (const layer of found) {
+        if (layer.masked) {
+          // The frame: at the screen's edge, a few pixels, the rest of the box masked out.
+          expect(layer.position, `${flag}: ${layer.el}`).toBe('fixed');
+          expect(layer.padding, `${flag}: ${layer.el} is a thin frame`).toBeGreaterThan(0);
+          expect(layer.padding, `${flag}: ${layer.el} is a thin frame`).toBeLessThanOrEqual(6);
+          // A ring, not the whole box: with the masks added together (the default) it would be every gutter again.
+          expect(layer.composite.split(',')[0].trim(), `${flag}: ${layer.el} is a ring, one mask taken out of the other`).toMatch(/^(exclude|xor)$/);
+        } else {
+          expect(layer.opacity, `${flag}: ${layer.el} at fifteen hundredths`).toBeLessThanOrEqual(0.16);
+        }
+      }
+      expect(found.some((l) => l.masked), `${flag}: the frame is there`).toBe(true);
+    }
+    // Cleared, the frame goes too.
+    await serve(page, RACE({ flag: 'none' }));
+    await expect.poll(() => page.evaluate(() => document.body.dataset.flag), { timeout: 8000 }).toBe('none');
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => getComputedStyle(document.body, '::after').opacity)).toBe('0');
+    // On the rig's own glance layout the flag is as it was: full strength in the gutters, and no frame.
+    await page.evaluate(() => document.documentElement.classList.remove('rd-remote'));
+    await serve(page, RACE({ flag: 'yellow' }));
+    await page.waitForTimeout(500);
+    const rig = await page.evaluate(() => [getComputedStyle(document.body, '::before').opacity, getComputedStyle(document.body, '::after').content]);
+    expect(rig).toEqual(['1', 'none']);
+    await page.evaluate(() => document.documentElement.classList.add('rd-remote'));
+  });
+
+  test('on an iPad the pixels in the gutters between the panels are at fifteen hundredths and the pixels at the edge carry the flag', async ({ page }) => {
+    test.setTimeout(150000);
+    // The computed styles above say what the layers are; this looks at what is drawn. A frame whose mask stopped taking
+    // the inside out (an engine that does not honour mask-composite, or a refactor of the shorthand) would still pass
+    // every one of them, with the stripes at full strength in every gutter, which is what he complained of. In the
+    // gutter between the relative and the laps panel (a straight one the length of the laps panel, and not under the
+    // race's results, which cover the map and the local view once the flag is chequered), whatever the flag, nothing
+    // is bright: the pattern is at 0.15 over the HUD's dark. And along the screen's edge, a few pixels wide, the flag's
+    // pattern is there whole.
+    const sample = async () => {
+      const shot = (await page.screenshot()).toString('base64');
+      return page.evaluate(async ({ b64 }) => {
+        const img = new Image();
+        img.src = 'data:image/png;base64,' + b64;
+        await img.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width; canvas.height = img.height;
+        const g = canvas.getContext('2d', { willReadFrequently: true });
+        g.drawImage(img, 0, 0);
+        const bright = (x, y) => { const d = g.getImageData(x, y, 1, 1).data; return Math.max(d[0], d[1], d[2]); };
+        const a = document.getElementById('leaderboardPanel').getBoundingClientRect();
+        const b = document.getElementById('lapsPanel').getBoundingClientRect();
+        // The gutter between them: the column midway between the two panels, down the length of both (so a panel's
+        // glow at its own edge is not what is judged).
+        const [first, second] = a.left < b.left ? [a, b] : [b, a];
+        const left = Math.ceil(first.right), right = Math.floor(second.left);
+        const top = Math.ceil(Math.max(a.top, b.top)) + 4, bottom = Math.floor(Math.min(a.bottom, b.bottom)) - 4;
+        let gutter = 0, gutterPixels = 0;
+        const mid = Math.round((left + right) / 2);
+        for (let y = top; y < bottom; y += 1) { gutter = Math.max(gutter, bright(mid, y)); gutterPixels++; }
+        // The edge: the screen's outermost columns and rows (the frame is 4px of them).
+        let edge = 0;
+        for (let y = 0; y < img.height; y += 1) edge = Math.max(edge, bright(1, y), bright(img.width - 2, y));
+        for (let x = 0; x < img.width; x += 1) edge = Math.max(edge, bright(x, 1), bright(x, img.height - 2));
+        return { gutter, edge, gutterWidth: right - left, gutterPixels, size: [img.width, img.height] };
+      }, { b64: shot });
+    };
+    for (const [width, height] of [[1180, 820], [820, 1180]]) {
+      await openAt(page, width, height, RACE());
+      await page.waitForTimeout(500);
+      const dark = await sample();   // no flag yet: what the dark is
+      expect(dark.gutterWidth, `${width}x${height}: a gutter to look at, between the relative and the laps`).toBeGreaterThanOrEqual(3);
+      expect(dark.gutterPixels, `${width}x${height}: a gutter long enough to cross the stripes`).toBeGreaterThan(80);
+      expect(dark.gutter, `${width}x${height}: no flag, a dark gutter`).toBeLessThan(60);
+      for (const flag of ['yellow', 'green', 'white', 'checkered', 'blue']) {
+        await serve(page, RACE({ flag }));
+        await page.waitForTimeout(600);
+        const m = await sample();
+        // At 0.15 over the dark the brightest a stripe gets is the dark and 15% of the flag's lightest colour (a 245 white,
+        // a 253 yellow): under 80. At full strength it is the flag's own colour, over 150 for every one of the five.
+        expect(m.gutter, `${width}x${height} ${flag}: the gutter's brightest pixel (the dark is ${dark.gutter})`).toBeLessThan(80);
+        expect(m.edge, `${width}x${height} ${flag}: the edge's brightest pixel: the frame carries the flag`).toBeGreaterThan(150);
+      }
+    }
   });
 
   test('the checkered flag is a checkerboard, and the meatball an orange disc on black', async ({ page }) => {
@@ -638,7 +785,7 @@ test.describe('what the background flag and the race-control banner say together
     expect(await banner()).toBe(true);
   });
 
-  test('under a flag the panels and the car\'s badge are opaque: the pattern does not show through them', async ({ page }) => {
+  test('under a flag the panels are opaque: the pattern does not show through them', async ({ page }) => {
     test.setTimeout(60000);
     await openAt(page, 1180, 820, RACE({ controls: WIRE.porsche963gtp }));
     const panels = () => page.evaluate((cells) => {
@@ -651,23 +798,97 @@ test.describe('what the background flag and the race-control banner say together
         if (name === 'inc') { out.inc = getComputedStyle(el.querySelector('.inc-inner')).backgroundColor; continue; }
         out[name] = getComputedStyle(el).backgroundColor;
       }
-      out.badge = getComputedStyle(document.getElementById('carLogoSquare')).backgroundColor;
-      out.badgeImage = getComputedStyle(document.getElementById('carLogoSquare')).backgroundImage;
       return out;
     }, CELLS);
     const opaque = (c) => /^rgb\(/.test(c);
-    const none = await panels();
-    // The badge is the maker's colour over an opaque base, with a flag or without one.
-    expect(none.badge).toBe('rgb(5, 6, 8)');
-    expect(none.badgeImage).toContain('linear-gradient');
     for (const flag of ['checkered', 'meatball', 'yellow', 'white', 'debris']) {
       await serve(page, RACE({ flag, controls: WIRE.porsche963gtp }));
       await page.waitForTimeout(500);
       const p = await panels();
-      const seen = Object.entries(p).filter(([k, v]) => k !== 'badgeImage' && !opaque(v) && v !== 'rgba(0, 0, 0, 0)').map(([k, v]) => `${k}: ${v}`);
+      const seen = Object.entries(p).filter(([k, v]) => !opaque(v) && v !== 'rgba(0, 0, 0, 0)').map(([k, v]) => `${k}: ${v}`);
       expect(seen, `${flag}: every panel's base is opaque`).toEqual([]);
-      expect(p.badge, `${flag}: the badge's base is opaque`).toBe('rgb(5, 6, 8)');
-      expect(p.badgeImage, `${flag}: and the maker's colour is over it`).toContain('linear-gradient');
+    }
+  });
+
+  test('the glass shows fifteen hundredths of the rig\'s light, and the badges are not there', async ({ page }) => {
+    await openAt(page, 1180, 820, RACE());
+    const glass = await page.evaluate(() => {
+      const hero = document.getElementById('positionPage');
+      const panel = document.querySelector('.map-panel');   // a .panel: the glow and the streak are its pseudo-elements
+      const alpha = (image) => [...image.matchAll(/rgba\(\d+, \d+, \d+, ([\d.]+)\)/g)].map((m) => +m[1]);
+      return {
+        shine: getComputedStyle(document.body).getPropertyValue('--rd-shine').trim(),
+        tint: alpha(getComputedStyle(hero).backgroundImage),
+        glow: +getComputedStyle(panel, '::before').opacity,
+        streak: +getComputedStyle(panel, '::after').opacity,
+        lum: +getComputedStyle(document.documentElement).getPropertyValue('--ambient-lum') || 0,
+        brand: document.getElementById('brandLogoSquare').getClientRects().length,
+        car: document.getElementById('carLogoSquare').getClientRects().length,
+        row: getComputedStyle(document.body).gridTemplateAreas.includes('brand'),
+      };
+    });
+    expect(glass.shine).toBe('0.15');
+    // The tint the rig has at 0.26 / 0.16 / 0.20, the overhead glow at 0.45 + lum × 0.5, the streak at 0.25 + lum × 0.35.
+    // (an alpha is kept to the nearest 1/255 when it is read back)
+    expect(glass.tint).toHaveLength(3);
+    expect(glass.tint[0]).toBeCloseTo(0.26 * 0.15, 2);
+    expect(glass.tint[1]).toBeCloseTo(0.16 * 0.15, 2);
+    expect(glass.tint[2]).toBeCloseTo(0.20 * 0.15, 2);
+    expect(glass.glow).toBeCloseTo((0.45 + glass.lum * 0.5) * 0.15, 2);
+    expect(glass.streak).toBeCloseTo((0.25 + glass.lum * 0.35) * 0.15, 2);
+    expect([glass.brand, glass.car, glass.row]).toEqual([0, 0, false]);
+    // On the rig's own glance layout (no rd-remote) the glass is as it was, and the badges are cells.
+    await page.evaluate(() => document.documentElement.classList.remove('rd-remote'));
+    const rig = await page.evaluate(() => {
+      const hero = document.getElementById('positionPage');
+      return {
+        shine: getComputedStyle(document.body).getPropertyValue('--rd-shine').trim(),
+        tint: [...getComputedStyle(hero).backgroundImage.matchAll(/rgba\(\d+, \d+, \d+, ([\d.]+)\)/g)].map((m) => +m[1]),
+        brand: document.getElementById('brandLogoSquare').getClientRects().length,
+        row: getComputedStyle(document.body).gridTemplateAreas.includes('brand'),
+      };
+    });
+    expect(rig.shine).toBe('');
+    expect(rig.tint).toEqual([0.26, 0.16, 0.2]);
+    expect([rig.brand > 0, rig.row]).toEqual([true, true]);
+    await page.evaluate(() => document.documentElement.classList.add('rd-remote'));
+  });
+
+  test('a layout with many sectors, and sector times past a minute, never has a sector cropped', async ({ page }) => {
+    test.setTimeout(60000);
+    // Six sectors, each over a minute, with a gap on each: the widest the cells get.
+    const six = {};
+    for (let i = 1; i <= 6; i++) {
+      six[`RacingDesk.Plugin.DS.SectorSplitS${i}`] = 60 + i * 1.111;
+      six[`RacingDesk.Plugin.DS.SectorDeltaS${i}`] = i % 2 ? -0.123 : 0.456;
+      six[`RacingDesk.Plugin.DS.SectorStateS${i}`] = i % 2 ? 2 : 3;
+    }
+    const wide = { 'RacingDesk.Plugin.DS.SectorCount': 6, 'RacingDesk.Plugin.DS.SectorBoundaryPcts': '0.15,0.3,0.5,0.65,0.85', ...six };
+    for (const [width, height] of [[1180, 820], [820, 1180], [1133, 744], [744, 1133]]) {
+      await openAt(page, width, height, RACE({ extra: wide }));
+      await page.waitForTimeout(300);
+      const m = await measure(page);
+      const sectors = await page.evaluate(() => {
+        const box = document.getElementById('lapsSectors');
+        const cells = [...box.children];
+        const r = box.getBoundingClientRect();
+        return {
+          count: cells.length,
+          times: cells.map((c) => c.children[1].textContent),
+          sizes: cells.map((c) => parseFloat(getComputedStyle(c.children[1]).fontSize)),
+          clipped: cells.filter((c) => { const q = c.getBoundingClientRect(); return q.left < r.left - 0.5 || q.right > r.right + 0.5; }).length,
+          overflow: cells.filter((c) => c.scrollWidth > c.clientWidth + 1).length,
+          wrapped: document.getElementById('lapsPanel').classList.contains('laps-sectors-wrapped'),
+          boundaries: window._sectorBoundaries,
+        };
+      });
+      expect(sectors.count, `${width}x${height}`).toBe(6);
+      expect(sectors.times[0]).toBe('1:01.111');
+      expect(sectors.sizes.every((s) => s >= 20), `${width}x${height}: ${sectors.sizes}`).toBe(true);
+      expect(sectors.clipped + sectors.overflow, `${width}x${height}: a sector cropped`).toBe(0);
+      expect(m.cutOff.filter((c) => c.startsWith('laps')), `${width}x${height}`).toEqual([]);
+      expect(m.overflowing.filter((c) => c.includes('laps')), `${width}x${height}`).toEqual([]);
+      expect(sectors.boundaries).toEqual([0.15, 0.3, 0.5, 0.65, 0.85]);
     }
   });
 
@@ -755,23 +976,18 @@ test.describe('the strategy engine\'s calls in the pit box', () => {
   });
 });
 
-// ── The rig's own screen: Ctrl+Shift+F on 1920x1080 and on the ultrawide, from the file, not through the server ───────
+// ── The rig's own screen: Ctrl+Shift+F on 1920x1080, the ultrawide and his own, from the file, not through the server ──
+// Every panel including the two badges (the rig keeps them), so a change that crops the car's badge or the row of
+// controls here is caught: these are the rig's layout and not the iPad's.
 for (const [width, height, what] of RIG) {
   test(`${width}x${height} (${what}): the glance layout of the rig's own HUD holds every panel`, async ({ page }) => {
     test.setTimeout(60000);
-    payload = RACE({ controls: WIRE.porsche963gtp, extra: CALLS });
-    await page.route(/^https?:\/\/(?!localhost:8889)/, (route) => route.abort());
-    await page.route('http://localhost:8889/racing-desk/', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) }));
-    await page.setViewportSize({ width, height });
-    await page.goto(pathToFileURL(path.join(OVERLAY, 'dashboard.html')).href);
-    await page.evaluate(() => { _settings.showWebGL = false; });
-    await page.waitForFunction(() => typeof _isIdle !== 'undefined' && _isIdle === false && _pollFrame > 6, null, { timeout: 10000 });
-    await page.evaluate(() => setDriveMode(true));
-    await drawn(page);
-    const m = await measure(page);
+    await openRig(page, width, height, RACE({ controls: WIRE.porsche963gtp, extra: CALLS }));
+    expect(await page.evaluate(() => document.documentElement.classList.contains('rd-remote'))).toBe(false);
+    const m = await measure(page, CELLS_RIG);
     const label = `${width}x${height}`;
     expect(m.outside, `${label}: outside`).toEqual([]);
-    expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn`).toEqual(Object.keys(CELLS).sort());
+    expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn, the badges too`).toEqual(Object.keys(CELLS_RIG).sort());
     expect(m.overlapping, `${label}: overlapping`).toEqual([]);
     expect.soft(m.overflowing, `${label}: content cut off by its cell`).toEqual([]);
     expect.soft(m.cutOff, `${label}: text cut off or left out of sight`).toEqual([]);
@@ -789,6 +1005,106 @@ for (const [width, height, what] of RIG) {
     });
     expect(pit.low, `${label}: the pit box's contents are inside it`).toEqual([]);
     expect(pit.services.filter((s) => s === 'below'), `${label}: the services are inside the pit box or left out, never below it`).toEqual([]);
+  });
+}
+
+// ── A layout with many sectors, and sectors a minute long: every one is read, in the laps panel and in the strip ─────
+// The laps panel is a cell of a fixed size and gives up what it cannot hold in stages (laps-panel.js, tried one on top
+// of the other until the panel holds what is left: the sectors' gaps, then each sector a line, the rows of times, the
+// fuel, the spacing, and last the sectors' names); the gaps block's strip of sectors, out of a race, goes on in
+// another column. A Nordschleife has 10 sectors, the 24 hour layout 14, and a minute is a short sector there.
+function timedSectors(n, base) {
+  const extra = { 'RacingDesk.Plugin.DS.SectorCount': n, 'RacingDesk.Plugin.DS.SectorBoundaryPcts': Array.from({ length: n - 1 }, (_, i) => ((i + 1) / n).toFixed(3)).join(',') };
+  for (let i = 1; i <= n; i++) {
+    extra[`RacingDesk.Plugin.DS.SectorSplitS${i}`] = base + i * 1.111;
+    extra[`RacingDesk.Plugin.DS.SectorDeltaS${i}`] = i % 2 ? -0.123 : 0.456;
+    extra[`RacingDesk.Plugin.DS.SectorStateS${i}`] = i % 2 ? 2 : 3;
+  }
+  extra['RacingDesk.Plugin.DS.SectorBests'] = Array.from({ length: n }, (_, i) => (base + i).toFixed(3)).join(',');
+  return extra;
+}
+const practiceWith = (extra) => frame({ order: fieldWith(4), session: 'Practice', state: 4, mode: 1, start: 4, lap: 6, extra });
+
+// What is on show of the laps panel's sectors and the gaps block's strip.
+function sectorsShown(page) {
+  return page.evaluate(() => {
+    const panel = document.getElementById('lapsPanel');
+    const pr = panel.getBoundingClientRect();
+    const inside = (q, r) => q.left >= r.left - 0.5 && q.right <= r.right + 0.5 && q.top >= r.top - 0.5 && q.bottom <= r.bottom + 0.5;
+    const shown = (e) => e.getClientRects().length > 0;
+    const cells = [...document.querySelectorAll('#lapsSectors .sector-cell')];
+    const times = cells.map((c) => c.children[1]);
+    const gb = document.getElementById('gapsBlock').getBoundingClientRect();
+    const strip = [...document.querySelectorAll('#gapsBlock .sector-indicator .sector-cell')];
+    const fab = document.getElementById('rd-remote-menu-fab')?.getBoundingClientRect();
+    const meets = (a, b) => a && Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+    return {
+      fit: +panel.dataset.fit,
+      panelHolds: panel.scrollHeight <= panel.clientHeight + 1 && panel.scrollWidth <= panel.clientWidth + 1,
+      count: cells.length,
+      timesShown: times.filter((t) => shown(t) && inside(t.getBoundingClientRect(), pr)).length,
+      sizes: times.map((t) => parseFloat(getComputedStyle(t).fontSize)),
+      fuel: shown(document.getElementById('lapsFuel')),
+      stripCount: strip.length,
+      stripInside: strip.filter((c) => shown(c) && inside(c.getBoundingClientRect(), gb)).length,
+      stripUnderMenu: strip.filter((c) => meets(fab, c.getBoundingClientRect())).length,
+    };
+  });
+}
+
+async function holdsEverySector(page, label, cells, n, base) {
+  const s = await sectorsShown(page);
+  const m = await measure(page, cells);
+  expect(s.count, `${label}: the panel has a cell for each sector`).toBe(n);
+  expect(s.panelHolds, `${label}: the laps panel holds what it shows (it gave up ${s.fit} stages)`).toBe(true);
+  expect(s.timesShown, `${label}: every sector's time is in the panel (it gave up ${s.fit} stages)`).toBe(n);
+  expect(Math.min(...s.sizes), `${label}: a sector's time is 20px or more`).toBeGreaterThanOrEqual(20 - 0.01);
+  expect(s.stripCount, `${label}: the strip has a cell for each sector`).toBe(n);
+  expect(s.stripInside, `${label}: every sector of the gaps block's strip is in the block`).toBe(n);
+  expect(s.stripUnderMenu, `${label}: none of them is under the menu's button`).toBe(0);
+  const mine = (c) => /lapsPanel|laps-|gapsBlock|^laps:|^gaps:/.test(c);
+  expect(m.overflowing.filter(mine), `${label}: nothing in the laps panel or the strip is cut off by its cell`).toEqual([]);
+  expect(m.cutOff.filter(mine), `${label}: no text of theirs is cut off`).toEqual([]);
+  expect(m.small.filter(mine), `${label}: nor too small`).toEqual([]);
+  if (n <= 4) expect(s.fuel, `${label}: the fuel against the laps to go stays while there are few sectors`).toBe(true);
+  return s;
+}
+
+for (const size of IPADS) {
+  const [width, height] = size;
+  test(`${describeSize(size)}: a layout with many sectors, and sectors a minute long, is read whole in the laps panel and the gaps block's strip`, async ({ page }) => {
+    test.setTimeout(150000);
+    await openAt(page, width, height, practiceWith(timedSectors(3, 31.2)));
+    for (const n of [3, 4, 7, 10, 14]) {
+      for (const base of [31.2, 71.1]) {
+        await serve(page, practiceWith(timedSectors(n, base)));
+        const label = `${describeSize(size)}, ${n} sectors from ${base} s`;
+        const s = await holdsEverySector(page, label, CELLS, n, base);
+        // The Air on its side gives up nothing at the three sectors the layout has by default.
+        if (width === 1180 && height === 820 && n === 3 && base < 60) expect(s.fit, `${label}: nothing given up`).toBe(0);
+      }
+    }
+    // A sector not yet timed is as wide as one that is, so the panel does not change when the last of them is: it was
+    // at the size where the three of them just fitted, and went from the whole panel to the short one (and back).
+    const blank = timedSectors(3, 31.2);
+    blank['RacingDesk.Plugin.DS.SectorSplitS3'] = 0; blank['RacingDesk.Plugin.DS.SectorDeltaS3'] = 0; blank['RacingDesk.Plugin.DS.SectorStateS3'] = 0;
+    await serve(page, practiceWith(blank));
+    const before = (await sectorsShown(page)).fit;
+    await serve(page, practiceWith(timedSectors(3, 31.2)));
+    expect((await sectorsShown(page)).fit, `${describeSize(size)}: the panel is the same before and after the last sector is timed`).toBe(before);
+  });
+}
+
+for (const [width, height, what] of RIG_SECTORS) {
+  test(`${width}x${height} (${what}): a layout with many sectors, and sectors a minute long, is read whole on the rig's own glance layout`, async ({ page }) => {
+    test.setTimeout(150000);
+    await openRig(page, width, height, practiceWith(timedSectors(3, 31.2)));
+    for (const n of [3, 7, 10, 14]) {
+      for (const base of [31.2, 71.1]) {
+        await serve(page, practiceWith(timedSectors(n, base)));
+        await holdsEverySector(page, `${width}x${height}, ${n} sectors from ${base} s`, CELLS_RIG, n, base);
+      }
+    }
   });
 }
 

@@ -213,7 +213,7 @@ namespace RacingDesk.Data
         public bool IsPlayer { get; set; }
     }
 
-    /// <summary>A track outline derived from the user's own Lat/Lon telemetry.</summary>
+    /// <summary>A track outline derived from the user's own Lat/Lon telemetry, keyed by the sim's TrackID: the exact layout.</summary>
     public sealed class TrackGeometryRecord
     {
         public int TrackId { get; set; }
@@ -228,5 +228,22 @@ namespace RacingDesk.Data
         public float[] Points { get; set; }
         public double[] SectorStartPcts { get; set; }
         public DateTime UpdatedAtUtc { get; set; }
+        /// <summary>The checks it was built with (<see cref="GeometryAccumulator.ChecksVersion"/>); 0 for a row from before there were any.</summary>
+        public int Checks { get; set; }
+        /// <summary>Made from the session being driven, from its first clean lap: the finished file replaces it.</summary>
+        public bool Provisional { get; set; }
+    }
+
+    /// <summary>What <see cref="RacingDeskStore.MergeGeometry"/> did with an outline.</summary>
+    public enum GeometryMerge
+    {
+        /// <summary>The layout had none: this one is kept.</summary>
+        New,
+        /// <summary>The one kept was built with fewer checks, or from the session being driven, or disagreed with this newer one: this one is kept instead.</summary>
+        Replaced,
+        /// <summary>The two agree: their laps are averaged together.</summary>
+        Averaged,
+        /// <summary>A provisional outline, where a whole one is kept already: nothing changes.</summary>
+        Kept,
     }
 }

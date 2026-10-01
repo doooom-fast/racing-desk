@@ -426,7 +426,6 @@ const HUD_KEYS = {
     });
   },
   'CommandOrControl+Shift+D': () => { if (overlayWindow) overlayWindow.webContents.send('restart-demo'); },
-  'CommandOrControl+Shift+M': () => { if (overlayWindow) overlayWindow.webContents.send('reset-trackmap'); },
   'CommandOrControl+Shift+I': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-rating-editor'); },
   'CommandOrControl+Shift+F': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-drive-mode'); },
   // Recording, from the car: Record/Stop never starts OBS from here (the HUD says "OBS is not open" instead).
@@ -1183,7 +1182,6 @@ const _actionHandlers = {
 
   // ── Renderer IPC passthrough ──
   'restart-demo':           () => _sendRenderer('restart-demo'),
-  'reset-trackmap':         () => _sendRenderer('reset-trackmap'),
   'toggle-rating-editor':   () => _sendRenderer('toggle-rating-editor'),
   'toggle-drive-mode':      () => _sendRenderer('toggle-drive-mode'),
 
@@ -1551,7 +1549,7 @@ ipcMain.handle('rig:bindPedals', async (event, carPath, profileId) => {
 // ── IPC: the runtime's ?action= routes, for the HUD ──
 // The runtime (the SimHub plugin, or the host) answers a request for one of its ?action= routes only when a program on this
 // machine made it, and a page's request is not one: it carries an Origin, "null" for a file. So the HUD's own calls —
-// resetmap, restartdemo, setrect, and the pedal profiles — are asked for here, by Node (modules/js/runtime-actions.js), which
+// restartdemo, setrect, and the pedal profiles — are asked for here, by Node (modules/js/runtime-actions.js), which
 // sends none. Only those routes, with their arguments checked, of a runtime on this machine; answered { ok, body } or
 // { ok: false, error }, and never thrown. The HUD's window and the desk's ask; nothing else has a preload.
 const hudActions = runtimeActions.createRuntimeActions({

@@ -43,6 +43,18 @@ namespace RacingDesk.Plugin.IRacing
         /// </summary>
         public string CarPath => GameRunning ? _me?.CarPath?.Trim() : null;
 
+        /// <summary>iRacing's TrackID: the exact layout. 0 until the session says.</summary>
+        public int TrackId => GameRunning ? _raw.SessionInfo?.WeekendInfo?.TrackID ?? 0 : 0;
+
+        /// <summary>
+        /// The session's names for the layout, as iRacing's YAML gives them and SimHub names its files by: the track's
+        /// folder name ("algarve gp"), its configuration ("Grand Prix"; "" for a layout with one) and its length
+        /// ("4.5789 km"). Null until the session says.
+        /// </summary>
+        public string TrackName => GameRunning ? _raw.SessionInfo?.WeekendInfo?.TrackName : null;
+        public string TrackConfigName => GameRunning ? _raw.SessionInfo?.WeekendInfo?.TrackConfigName : null;
+        public string TrackLength => GameRunning ? _raw.SessionInfo?.WeekendInfo?.TrackLength : null;
+
         /// <summary>The session runs a fixed setup: the garage's values are the series'. Null until the session says.</summary>
         public bool? FixedSetup
         {
@@ -135,9 +147,6 @@ namespace RacingDesk.Plugin.IRacing
             _data.AirTemperature = Float("AirTemp");
             _data.RoadTemperature = Float("TrackTempCrew");
             _data.ABSActive = Bool("BrakeABSactive");
-            _data.VelocityX = Float("VelocityX");
-            _data.VelocityZ = Float("VelocityZ");
-            _data.Yaw = Float("Yaw");
             _data.YawVelocity = Float("YawRate");
             _data.TyreTempFrontLeft = Temp(Float("LFtempCM"), imperial);
             _data.TyreTempFrontRight = Temp(Float("RFtempCM"), imperial);
@@ -163,6 +172,7 @@ namespace RacingDesk.Plugin.IRacing
                 case "DataCorePlugin.GameData.TrackCountry": return si.WeekendInfo?.TrackCountry;
                 case "DataCorePlugin.GameData.FramesPerSecond": return (double)Float("FrameRate");
                 case TelemetryCapture.TrackDisplayNameProperty: return si.WeekendInfo?.TrackDisplayName;
+                case TelemetryCapture.TrackIdProperty: return si.WeekendInfo?.TrackID ?? 0;
                 case TelemetryCapture.SectorBoundariesProperty:
                 {
                     var sectors = si.SplitTimeInfo?.Sectors;
@@ -319,9 +329,6 @@ namespace RacingDesk.Plugin.IRacing
             public float RoadTemperature { get; set; }
             public bool ABSActive { get; set; }
             public bool TCActive { get; set; }
-            public float VelocityX { get; set; }
-            public float VelocityZ { get; set; }
-            public float Yaw { get; set; }
             public float YawVelocity { get; set; }
             public float TyreTempFrontLeft { get; set; }
             public float TyreTempFrontRight { get; set; }

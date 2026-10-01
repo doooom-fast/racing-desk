@@ -172,6 +172,13 @@ namespace RacingDesk.Data
             return summary;
         }
 
+        /// <summary>A file written in the last two minutes may still be the sim's: it is left for later.</summary>
+        public static readonly TimeSpan SettleTime = TimeSpan.FromMinutes(2);
+
+        /// <summary>Whether a file is one to read now: settled, and not read before at this length and time.</summary>
+        public bool WantsFile(FileInfo f, DateTime nowUtc, bool force = false) =>
+            nowUtc - f.LastWriteTimeUtc >= SettleTime && (force || !_store.IsIngested(f.FullName, f.Length, f.LastWriteTimeUtc));
+
         public IngestSummary Run(string directory, int frameStep = 3, int limit = int.MaxValue, CancellationToken ct = default,
             bool force = false, Func<bool> pause = null)
         {
@@ -195,29 +202,42 @@ namespace RacingDesk.Data
                     _log("resumed");
                 }
                 summary.FilesSeen++;
-                // A file still being written by iRacing changes size; leave it for the next run.
-                if (DateTime.UtcNow - f.LastWriteTimeUtc < TimeSpan.FromMinutes(2) || (!force && _store.IsIngested(f.FullName, f.Length, f.LastWriteTimeUtc)))
+                // The file as it is now, not as it was when the folder was listed: a pass over the history takes
+                // long enough for the sim to have written more files, and more of a file, since.
+                try { f.Refresh(); } catch { /* read as listed */ }
+                if (!f.Exists) { summary.FilesSkipped++; continue; }
+                if (!WantsFile(f, DateTime.UtcNow, force))
                 {
                     summary.FilesSkipped++;
                     continue;
                 }
+                long length = f.Length;
+                DateTime mtime = f.LastWriteTimeUtc;
 
                 try
                 {
                     var result = IngestFile(f.FullName, frameStep, ct);
                     if (ct.IsCancellationRequested) break;
-                    _store.SaveIngestedFile(f.FullName, f.Length, f.LastWriteTimeUtc, result.Sessions, null, result.Cars, result.RecordedAtUtc);
-                    if (_store.SaveGeometryIfBetter(result.Geometry)) summary.GeometryUpdates++;
+                    // Written to while it was read: what was read is not the file, and it is read again next time.
+                    var after = new FileInfo(f.FullName);
+                    if (after.Exists && (after.Length != length || after.LastWriteTimeUtc != mtime))
+                    {
+                        _log($"{f.Name} was being written while it was read; left for the next pass");
+                        summary.FilesSkipped++;
+                        continue;
+                    }
+                    _store.SaveIngestedFile(f.FullName, length, mtime, result.Sessions, null, result.Cars, result.RecordedAtUtc);
+                    if (KeepGeometry(result.Geometry, f.Name)) summary.GeometryUpdates++;
                     summary.FilesIngested++;
                     summary.Sessions += result.Sessions.Count;
                     summary.Laps += result.Sessions.Sum(s => s.Laps.Count);
-                    summary.BytesRead += f.Length;
+                    summary.BytesRead += length;
                 }
                 catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
                     summary.FilesFailed++;
                     _log($"skip {f.Name}: {ex.GetType().Name}: {ex.Message}");
-                    _store.SaveIngestedFile(f.FullName, f.Length, f.LastWriteTimeUtc, Array.Empty<SessionRecord>(), ex.GetType().Name + ": " + ex.Message);
+                    _store.SaveIngestedFile(f.FullName, length, mtime, Array.Empty<SessionRecord>(), ex.GetType().Name + ": " + ex.Message);
                 }
 
                 if ((summary.FilesIngested + summary.FilesFailed) % 100 == 0 && summary.FilesIngested > 0)
@@ -226,6 +246,146 @@ namespace RacingDesk.Data
 
             summary.Elapsed = clock.Elapsed;
             return summary;
+        }
+
+        /// <summary>A file's outline into the store, with the file's name in the log line and no more.</summary>
+        private bool KeepGeometry(TrackGeometryRecord geometry, string fileName)
+        {
+            if (geometry == null) return false;
+            var did = _store.MergeGeometry(geometry);
+            if (did == GeometryMerge.Kept) return false;
+            string what = did == GeometryMerge.New ? "outline made" : did == GeometryMerge.Averaged ? "outline averaged in" : "outline replaced";
+            _log($"{what}: {geometry.TrackName}, {geometry.CleanLaps} clean laps, from {fileName}");
+            return true;
+        }
+
+        /// <summary>Clean laps enough for an outline; a layout's older files are not read past this.</summary>
+        public const int EnoughCleanLaps = 12;
+
+        /// <summary>
+        /// Builds again every outline the store holds that was built with fewer checks than this build's, from the
+        /// layout's files newest first — the newest file's laps win, older files are averaged in only where they
+        /// agree, and no more files are read once there are laps enough. Geometry only: the sessions are as they
+        /// were. Low I/O priority, paused while the sim runs, one line per layout, and a layout no file gives a
+        /// clean lap for keeps the outline it had, marked looked at.
+        /// </summary>
+        public int RebuildGeometry(CancellationToken ct = default, Func<bool> pause = null, int frameStep = 3)
+        {
+            var layouts = _store.TrackIdsNeedingRebuild();
+            if (layouts.Count == 0) return 0;
+            using var lowIo = BackgroundIo.Enter();
+            int rebuilt = 0;
+            _log($"{layouts.Count} outlines to build again with this build's checks");
+            foreach (var (trackId, name) in layouts)
+            {
+                if (ct.IsCancellationRequested) break;
+                TrackGeometryRecord running = null;
+                int filesRead = 0, filesWithLaps = 0;
+                foreach (string path in _store.IbtPathsForTrack(trackId))
+                {
+                    if (ct.IsCancellationRequested) break;
+                    if (pause != null && pause())
+                    {
+                        _log("outlines: paused while iRacing is running");
+                        while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+                        if (ct.IsCancellationRequested) break;
+                        _log("outlines: resumed");
+                    }
+                    if (!File.Exists(path)) continue;
+                    TrackGeometryRecord one;
+                    try
+                    {
+                        one = IngestGeometryOnly(path, trackId, frameStep, ct, pause);
+                        filesRead++;
+                    }
+                    catch (Exception ex) when (!(ex is OperationCanceledException))
+                    {
+                        _log($"outlines: skip {Path.GetFileName(path)}: {ex.GetType().Name}: {ex.Message}");
+                        continue;
+                    }
+                    if (one == null) continue;
+                    filesWithLaps++;
+                    if (running == null) running = one;
+                    // The files come newest first: what has been read so far is the newer, and this file the older.
+                    else if (GeometryAccumulator.Agree(running, one)) running = GeometryAccumulator.Merge(running, one, addIsNewer: false);
+                    // Else the older file is of another place (a rescan, a north fix): the newer laps stand.
+                    if (running.CleanLaps >= EnoughCleanLaps) break;
+                }
+                if (ct.IsCancellationRequested) break;
+                if (running != null)
+                {
+                    _store.ReplaceGeometry(running);
+                    rebuilt++;
+                    _log($"outline rebuilt: {running.TrackName ?? name}, {running.CleanLaps} clean laps of {filesWithLaps} files ({filesRead} read)");
+                }
+                else
+                {
+                    // The outline stays as it was, still said to be built before these checks; it is only not looked for again.
+                    _store.MarkGeometryLooked(trackId);
+                    _log($"outline kept as it was: {name}, no file gave a clean lap under this build's checks ({filesRead} read)");
+                }
+            }
+            return rebuilt;
+        }
+
+        /// <summary>
+        /// Every minute while the sim is closed, reads the files written since the last pass: a session's file goes
+        /// in the same evening, not at the next start. Returns when <paramref name="ct"/> is cancelled.
+        /// </summary>
+        public void WatchFinished(string directory, CancellationToken ct, Func<bool> pause = null, int frameStep = 3, TimeSpan? every = null)
+        {
+            var period = every ?? TimeSpan.FromSeconds(60);
+            while (!ct.IsCancellationRequested)
+            {
+                if (ct.WaitHandle.WaitOne(period)) return;
+                try
+                {
+                    if (pause != null && pause()) continue;
+                    if (!Directory.Exists(directory)) continue;
+                    var now = DateTime.UtcNow;
+                    bool any = new DirectoryInfo(directory).EnumerateFiles("*.ibt").Any(f => WantsFile(f, now));
+                    if (!any) continue;
+                    var summary = Run(directory, frameStep, int.MaxValue, ct, pause: pause);
+                    if (summary.FilesIngested > 0 || summary.FilesFailed > 0)
+                        _log($"{summary.FilesIngested} new files, {summary.Sessions} sessions, {summary.FilesFailed} unreadable, {summary.Elapsed.TotalSeconds:F0}s");
+                }
+                catch (Exception ex) when (!(ex is OperationCanceledException))
+                {
+                    _log("watch: " + ex.Message);
+                }
+            }
+        }
+
+        /// <summary>
+        /// A file's outline and nothing else, for a layout: null when the file is of another layout, carries no
+        /// position, or has no clean lap in it.
+        /// </summary>
+        /// <param name="pause">
+        /// While it returns true (the sim is running) the read waits where it is, so that a file begun while the sim
+        /// was closed does not go on being read to the end once he is driving.
+        /// </param>
+        public static TrackGeometryRecord IngestGeometryOnly(string path, int trackId, int frameStep = 3, CancellationToken ct = default, Func<bool> pause = null)
+        {
+            using var ibt = new IbtFile(path);
+            var wi = ibt.SessionInfo?.WeekendInfo;
+            if (wi == null || wi.TrackID != trackId) return null;
+            if (!ibt.Vars.ContainsKey("Lat") || !ibt.Vars.ContainsKey("Lon")) return null;
+            var geometry = new GeometryAccumulator(wi.TrackID, wi.TrackDisplayName, ParseMeters(wi.TrackLength));
+            using var reader = new IbtSequentialReader(ibt, frameStep);
+            long read = 0;
+            while (reader.MoveNext())
+            {
+                // Looked at every few thousand frames read: cancelled, or the sim has started.
+                if ((++read & 0xFFF) == 0)
+                {
+                    if (ct.IsCancellationRequested) return null;
+                    while (pause != null && pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+                    if (ct.IsCancellationRequested) return null;
+                }
+                geometry.Feed(reader);
+            }
+            var sectors = ibt.SessionInfo?.SplitTimeInfo?.Sectors?.OrderBy(s => s.SectorNum).Select(s => (double)s.SectorStartPct).ToArray();
+            return geometry.Result(path, sectors);
         }
 
         public sealed class FileResult
@@ -276,7 +436,8 @@ namespace RacingDesk.Data
             return ibt.SessionStartUtc.AddSeconds(offset);
         }
 
-        private static double ParseMeters(string trackLength)
+        /// <summary>"4.02 km" → 4020; 0 when the YAML gives none.</summary>
+        public static double ParseMeters(string trackLength)
         {
             if (string.IsNullOrEmpty(trackLength)) return 0;
             return double.TryParse(trackLength.Split(' ')[0], System.Globalization.NumberStyles.Float,

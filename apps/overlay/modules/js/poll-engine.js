@@ -658,6 +658,9 @@
       if (s2 > 0) _bounds.push(s2);
       if (s3 > s2) _bounds.push(s3);
     }
+    // The same boundaries colour the circuit's sectors on the map (webgl-helpers.js splits the outline by them, in a
+    // race and out of one): the session's own, never equal fractions.
+    if (_bounds.length > 0 && String(window._sectorBoundaries) !== String(_bounds)) window._sectorBoundaries = _bounds;
     _lapDeltaTracker.feed({
       session: _currSessionTypeName + '|' + (vs('RacingDesk.Plugin.TrackMap.TrackName') || vs('DataCorePlugin.GameData.TrackName')),
       pct: isFinite(_trackPct) ? _trackPct : NaN,
@@ -962,12 +965,8 @@
       // state: 0=none, 1=pb (session best / purple), 2=faster (green), 3=slower (yellow)
       const stateClass = ['', 'sector-pb', 'sector-faster', 'sector-slower'];
 
-      // Store for track map sector coloring + boundaries for path splitting
+      // Store for track map sector coloring (the boundaries the map splits by are the session's own, set above)
       window._sectorData = { curSector, splits, deltas, states, sectorCount };
-      // Equal-fraction boundaries for track map (N-1 boundaries for N sectors)
-      const boundaries = [];
-      for (let bi = 1; bi < sectorCount; bi++) boundaries.push(bi / sectorCount);
-      window._sectorBoundaries = boundaries;
 
       // Read current lap time for live sector elapsed
       const currentLapTime = _demo
@@ -1299,7 +1298,9 @@
     const mapPath = pluginPath || '';
     const mapPX = +v('RacingDesk.Plugin.TrackMap.PlayerX') || 50;
     const mapPY = +v('RacingDesk.Plugin.TrackMap.PlayerY') || 50;
-    try { updateTrackMap(mapPath, mapPX, mapPY, mapOpp, speed, mapHeading); } catch(e) { console.error('[RacingDesk] Track map error:', e); }
+    // Why there is or is not a map (ready, first-lap, no-host, none); a host from before it says nothing.
+    const mapStatus = vs('RacingDesk.Plugin.TrackMap.Status') || '';
+    try { updateTrackMap(mapPath, mapPX, mapPY, mapOpp, speed, mapHeading, mapStatus); } catch(e) { console.error('[RacingDesk] Track map error:', e); }
     const fullMapLbl = document.getElementById('fullMapLabel');
     if (fullMapLbl && _curTrackName) _setFullMapLabel(fullMapLbl, trackDisplayName(p, _curTrackName));
 

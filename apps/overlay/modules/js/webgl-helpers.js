@@ -718,6 +718,12 @@
   var _trailStartIdx = -1;  // index in _trackPathCoords where current trail begins
   var _trailFading = false;  // true while trail is shrinking toward player
   const _TRAIL_FADE_SPEED = 12; // indices to advance _trailStartIdx per frame during fade
+  // Where the car was on the outline a frame ago, and how far round the lap one frame may take it: a car does not
+  // drive a fiftieth of the lap in a frame, so more than that is a teleport (a reset or a tow to the pits, out of the
+  // car and back in) and the trail that was behind the car is not behind it any more.
+  var _prevPlayerIdx = -1;
+  const _TRAIL_TELEPORT_LAP_FRACTION = 0.02;
+  function _forgetTrail() { _trailStartIdx = -1; _trailFading = false; _prevPlayerIdx = -1; }
 
   // 25% of the track path length (in coordinate indices)
   function _trailMaxLen() {
@@ -863,27 +869,75 @@
     return best;
   }
 
-  // Reset track map — clears recorded data and restarts capture
-  function resetTrackMap() {
-    runtimeAction('resetmap').catch(() => {});
-    _mapLastPath = '';
-    _mapHasInit = false;
-    _trackPathCoords = [];
-    _trailStartIdx = -1;
-    // Clear the source paths only — the three <use> layers pointing at
-    // each one follow automatically.
-    ['fullMapTrackSrc', 'zoomMapTrackSrc'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.setAttribute('d', '');
-    });
-    // Clear trail polylines
-    if (_fullMapTrailEl) { _fullMapTrailEl.setAttribute('points', ''); }
-    if (_zoomMapTrailEl) { _zoomMapTrailEl.setAttribute('points', ''); }
-    // Clear opponent dots
-    const fg = document.getElementById('fullMapOpponents');
-    const zg = document.getElementById('zoomMapOpponents');
-    if (fg) fg.innerHTML = '';
-    if (zg) zg.innerHTML = '';
+  // What the map cell says while there is no map, by the host's TrackMap.Status: the outline is the host's, from
+  // the driver's own laps, and there is nothing to reset or record here.
+  // 'no-host' is the app's own maps not answering the telemetry source: the app is running (it is what is showing this),
+  // so a minute of it is a start that has not finished or a part of the app that has stopped, and restarting the app
+  // starts it again. What it says is what he can do about it, in his words, and not the name of a part of the app.
+  const _MAP_WAITING = {
+    'first-lap': 'Map after one clean lap',
+    'no-host': 'No map yet — the app is starting its maps',
+  };
+  // With a map drawn, one note: 'crowd' is SimHub's shared map of the layout, which the host serves until his first
+  // clean lap gives it an outline of his own (root CLAUDE.md, Track maps). Said plainly, in one line under the
+  // circuit and above its name: a line is all the circuit gives up for it, in the rig's small cell as in the glance
+  // layout's, so where the cell is narrower than the line the line slides, as the circuit's name does (_fitMapNote).
+  const _MAP_NOTE = {
+    'crowd': 'SimHub’s map until your first clean lap',
+  };
+  const _MAP_NO_HOST_LONG = 'No map — restart the app to bring its maps back';
+  const _MAP_NO_HOST_LONG_AFTER_MS = 60000;
+  let _mapNoHostSince = 0;
+  let _mapWaitingShown = '';
+  let _mapNoteWatcher = null;
+
+  // The note is one line (nowrap). If its cell is narrower than the line, the line slides: pause, slide, pause,
+  // return, as the circuit's name does (poll-engine.js _setFullMapLabel). Measured when the note is set and whenever
+  // its cell changes size (the rig's small cell, the glance layout, the iPad turned), so it is never cut short unseen.
+  function _fitMapNote(el) {
+    const inner = el.querySelector('.map-note-inner');
+    el.classList.remove('is-marquee');
+    el.style.removeProperty('--marquee-distance');
+    el.style.removeProperty('--marquee-duration');
+    if (!inner) return;
+    const overflow = inner.scrollWidth - el.clientWidth;
+    if (overflow > 2) {
+      const duration = Math.max(10, Math.min(24, 8 + overflow / 30));
+      el.style.setProperty('--marquee-distance', '-' + (overflow + 6) + 'px');
+      el.style.setProperty('--marquee-duration', duration.toFixed(1) + 's');
+      el.classList.add('is-marquee');
+    }
+  }
+  function _setMapWaiting(status, hasPath) {
+    let text = hasPath ? (_MAP_NOTE[status] || '') : (_MAP_WAITING[status] || '');
+    if (status === 'no-host' && !hasPath) {
+      const now = Date.now();
+      if (!_mapNoHostSince) _mapNoHostSince = now;
+      if (now - _mapNoHostSince >= _MAP_NO_HOST_LONG_AFTER_MS) text = _MAP_NO_HOST_LONG;
+    } else {
+      _mapNoHostSince = 0;
+    }
+    if (text === _mapWaitingShown) return;
+    _mapWaitingShown = text;
+    const el = document.getElementById('fullMapWaiting');
+    if (!el) return;
+    const note = !!(hasPath && text);
+    el.classList.toggle('map-note', note);
+    if (note) {
+      el.textContent = '';
+      const inner = document.createElement('span');
+      inner.className = 'map-note-inner';
+      inner.textContent = text;
+      el.appendChild(inner);
+      requestAnimationFrame(function() { _fitMapNote(el); });
+      if (!_mapNoteWatcher && typeof ResizeObserver === 'function') {
+        _mapNoteWatcher = new ResizeObserver(function() { _fitMapNote(el); });
+        _mapNoteWatcher.observe(el);
+      }
+    } else {
+      el.textContent = text;
+      _fitMapNote(el);
+    }
   }
 
   // Sector colors: 0=none(transparent), 1=pb(purple), 2=faster(green), 3=slower(red)
@@ -891,9 +945,9 @@
   const _sectorActiveColor = 'hsla(0,0%,100%,0.25)';
 
   // Split an SVG path string into N sector sub-paths.
-  // boundaryPcts is an array of N-1 boundary percentages (e.g. [0.33, 0.67] for 3 sectors).
-  // Falls back to equal thirds if no boundaries provided.
-  // Track map points are evenly distributed by LapDistPct, so point index ≈ pct * count.
+  // boundaryPcts is an array of N-1 boundary percentages: the session's own (SplitTimeInfo, which poll-engine.js
+  // keeps in window._sectorBoundaries), e.g. [0.35, 0.70]. Falls back to equal thirds if none are given.
+  // The host's outline has one point per LapDistPct bin, so point index ≈ pct * count.
   function _splitPathIntoSectors(svgPath, boundaryPcts) {
     const coords = svgPath.match(/[\d.]+[,\s]+[\d.]+/g);
     if (!coords || coords.length < 6) return [];
@@ -1013,12 +1067,16 @@
   // Smoothed heading for local map rotation
   let _mapSmoothedHeading = 0;
 
-  function updateTrackMap(svgPath, playerX, playerY, opponentStr, speedMph, headingDeg) {
+  function updateTrackMap(svgPath, playerX, playerY, opponentStr, speedMph, headingDeg, status) {
+    // While there is no map the cell says why (the host's TrackMap.Status); with one it says nothing.
+    _setMapWaiting(status, !!svgPath);
+
     // No track map available — clear outline, hide markers, center dots
     if (!svgPath && _mapLastPath !== '') {
       _mapLastPath = '';
       _mapHasInit = false;
       _trackPathCoords = [];
+      _forgetTrail();
       // Clear the source paths — the <use> layers pointing at them
       // (outer/middle/inner × full/zoom) clear in lockstep.
       ['fullMapTrackSrc', 'zoomMapTrackSrc'].forEach(function(id) {
@@ -1043,6 +1101,7 @@
       _mapHasInit = false;
       // Parse coordinates for snapping and off-track detection
       _trackPathCoords = _parsePathCoords(svgPath);
+      _forgetTrail();   // the indices of the trail were of the outline before
       // The three rendered layers (outer / middle / inner) are <use>
       // elements that reference a single source <path> in <defs>. Update
       // the two source paths (full + zoom) and all six rendered layers
@@ -1161,27 +1220,15 @@
       }
     }
 
-    // Smoothing: reject large jumps, low-pass filter coordinates
+    // A low-pass filter on the position. The host places the car along a closed loop, the line included, so there
+    // is no jump at the line to guard against: a step is a step, and a slow blend after one would be a slide.
     if (!_mapHasInit) {
       _mapSmoothedX = playerX;
       _mapSmoothedY = playerY;
       _mapHasInit = true;
     } else {
-      const dx = playerX - _mapSmoothedX;
-      const dy = playerY - _mapSmoothedY;
-      const jump = Math.sqrt(dx * dx + dy * dy);
-
-      // Detect lap boundary crossing or pit exit: large position jump (>15 SVG units)
-      // indicates S/F line or pit exit. Reset trail to prevent lines crossing the map.
-      if (jump > 15) {
-        _trailStartIdx = -1;  // Reset trail to current position
-        _trailFading = false;
-      }
-
-      // If jump is huge (>20 SVG units), blend slowly (glitch recovery)
-      const alpha = jump > 20 ? 0.08 : 0.45;
-      _mapSmoothedX += dx * alpha;
-      _mapSmoothedY += dy * alpha;
+      _mapSmoothedX += (playerX - _mapSmoothedX) * 0.45;
+      _mapSmoothedY += (playerY - _mapSmoothedY) * 0.45;
     }
 
     const sx = _mapSmoothedX;
@@ -1190,6 +1237,14 @@
     // Find player's nearest point on track (used for off-track detection + trail)
     var playerNearest = _trackPathCoords.length > 10 ? _nearestTrackPoint(sx, sy) : null;
     var playerIdx = playerNearest ? playerNearest.idx : -1;
+
+    // A teleport: the trail was anchored behind the car, and the car is somewhere else. Round the loop the short way
+    // (a step across the line is a step); more than a fiftieth of the lap in one frame is no drive.
+    if (playerIdx >= 0 && _prevPlayerIdx >= 0 && _trackPathCoords.length > 10) {
+      var _n = _trackPathCoords.length, _d = Math.abs(playerIdx - _prevPlayerIdx);
+      if (Math.min(_d, _n - _d) > _n * _TRAIL_TELEPORT_LAP_FRACTION) { _trailStartIdx = -1; _trailFading = false; }
+    }
+    _prevPlayerIdx = playerIdx;
 
     // Off-track detection
     let isOffTrack = playerNearest ? playerNearest.dist > _OFF_TRACK_DIST : false;

@@ -62,7 +62,6 @@ From source the main process logs to `racing-desk-debug.log` in this folder. The
 | `Ctrl+Shift+G` | Toggle green-screen mode (restarts) |
 | `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (the one iRacing is on) |
 | `Ctrl+Shift+D` | Restart demo sequence |
-| `Ctrl+Shift+M` | Reset the track map |
 | `Ctrl+Shift+V` | Record or stop, in OBS (with OBS closed the HUD says "OBS is not open": OBS is started from the desk, the tray or the Stream Deck) |
 | `Ctrl+Shift+B` | Save the instant replay: the last seconds from OBS's replay buffer, with its telemetry beside it |
 | `Ctrl+Shift+P` | TV shots are made from the desk after the race, with iRacing in its replay; in the car the key answers so |

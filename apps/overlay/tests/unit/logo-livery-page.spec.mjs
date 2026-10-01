@@ -1,11 +1,10 @@
 /**
  * The livery behind the car badge, on the page (modules/js/car-logos.js; #carLivery in dashboard.html): the real
  * dashboard.html, headless. In the app the crop the main process chose is laid under the logo, over the maker's
- * colour, and taken away when it says there is none. On an iPad the page asks the rig for it at its one address when
- * the car changes, through remote-server.js's real server on 127.0.0.1, and shows the maker's colour when the rig has
- * none, and asks again when he is back in the car. In a browser with nothing behind it the badge is the maker's colour
- * and nothing is asked for. In the glance layout the darkening over the crop deepens under the flags the panels take a
- * heavier tint under, and under no others.
+ * colour, and taken away when it says there is none. On an iPad the badge is not shown (he asked for the logos to go,
+ * 2026-09-30), so the crop is never asked for, through remote-server.js's real server on 127.0.0.1. In a browser with
+ * nothing behind it the badge is the maker's colour and nothing is asked for. In the glance layout on the rig the
+ * darkening over the crop deepens under the flags the panels take a heavier tint under, and under no others.
  */
 
 import { test, expect } from '@playwright/test';
@@ -225,9 +224,12 @@ test.describe('on an iPad', () => {
     await new Promise((resolve) => { telemetry.close(resolve); telemetry.closeAllConnections(); });
   });
 
-  test('the page asks the rig for the crop when the car changes, shows it in the glance layout, and shows the maker\'s colour when the rig has none', async ({ page }) => {
+  // He asked for the logos to go from the iPad (2026-09-30): the car's badge is not shown there, so the crop of the
+  // paint under it is never asked for — not when the car changes, not when he gets back in the car.
+  test('the badge is not shown and the crop is never asked for: when the car changes, nor back in the car', async ({ page }) => {
     test.setTimeout(60000);
-    payload = PORSCHE;
+    const onTrack = (value) => ({ ...PORSCHE, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': value });
+    payload = onTrack(1);
     crop = { png: cropOf(200, 30, 30), id: '1-1' };
     const requested = [];
     page.on('request', (r) => requested.push(r.url()));
@@ -235,76 +237,28 @@ test.describe('on an iPad', () => {
     await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
     await page.setViewportSize({ width: 1180, height: 820 });
     await page.goto(`http://127.0.0.1:${port}/?k=${KEY}`);
-
-    // Asked at the one address, exactly, with no query; shown as a blob of what came back.
-    const cropUrl = `http://127.0.0.1:${port}${remote.CROP_PATH}`;
-    await expect.poll(() => requested.filter((u) => u === cropUrl).length, { timeout: 15000 }).toBeGreaterThan(0);
-    await expect.poll(() => badge(page), { timeout: 15000 }).toMatchObject({ hasLivery: true, opacity: '1' });
-    const shown = await badge(page);
-    expect(shown.image).toMatch(/^url\("blob:http:\/\/127\.0\.0\.1:\d+\/[\w-]+"\)$/);
-    expect(shown.fit).toBe('cover');
-    expect(shown.covers).toBe(true);
-    expect(shown.under).toBe(true);
-    expect(shown.label).toBe('911 GT3 R');
-    expect(requested.filter((u) => CROP_URL.test(u)).every((u) => u === cropUrl)).toBe(true);
-    // The glance layout is on, and the layer's darkening takes the glass's colour there (drive-view.css).
+    await expect.poll(() => badge(page).then((b) => b.label), { timeout: 15000 }).toBe('911 GT3 R');
     expect(await page.evaluate(() => document.body.classList.contains('drive-mode-active'))).toBe(true);
-    expect(shown.darkened).toContain('gradient');
-    // The same crop, told again, is kept as it is: the page compares the tag and does not make a new blob.
-    const before = requested.filter((u) => u === cropUrl).length;
-    await page.evaluate(() => window.requestRemoteLivery());
-    await expect.poll(() => requested.filter((u) => u === cropUrl).length, { timeout: 5000 }).toBeGreaterThan(before);
-    await page.waitForTimeout(300);
-    expect((await badge(page)).image).toBe(shown.image);
+    const notDrawn = () => page.evaluate(() => ['brandLogoSquare', 'carLogoSquare'].map((id) => document.getElementById(id).getClientRects().length));
+    expect(await notDrawn()).toEqual([0, 0]);
 
-    // Under a flag the darkening over the crop deepens with the glass, as the panels do.
-    const flagged = { ...PORSCHE, currentFlagState: 'yellow' };
-    payload = flagged;
-    await expect.poll(() => page.evaluate(() => document.body.getAttribute('data-flag')), { timeout: 10000 }).toBe('yellow');
-    expect((await badge(page)).darkened).not.toBe(shown.darkened);
-    expect((await badge(page)).image).toBe(shown.image);
-
-    // Another car, for which the rig has nothing: 404, and the maker's colour.
-    crop = null;
-    payload = BMW;
-    await expect.poll(() => badge(page), { timeout: 15000 }).toMatchObject({ hasLivery: false, image: '', label: 'M4 GT3' });
-
-    // Back in a car with a paint: the new crop.
-    crop = { png: cropOf(30, 30, 200), id: '2-1' };
-    payload = PORSCHE;
-    await expect.poll(() => badge(page), { timeout: 15000 }).toMatchObject({ hasLivery: true, label: '911 GT3 R' });
-    expect((await badge(page)).image).toMatch(/^url\("blob:/);
-    expect((await badge(page)).image).not.toBe(shown.image);
-  });
-
-  test('back in the car, the same car after the garage, the page asks the rig again and shows the section it has chosen since', async ({ page }) => {
-    test.setTimeout(60000);
-    const onTrack = (value) => ({ ...PORSCHE, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': value });
-    payload = onTrack(1);
-    crop = { png: cropOf(200, 30, 30), id: '5-1' };
-    const requested = [];
-    page.on('request', (r) => requested.push(r.url()));
-    await page.addInitScript(() => { try { localStorage.setItem('rd-effects', 'off'); } catch (e) { /* none */ } });
-    await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
-    await page.setViewportSize({ width: 1180, height: 820 });
-    await page.goto(`http://127.0.0.1:${port}/?k=${KEY}`);
-    const cropUrl = `http://127.0.0.1:${port}${remote.CROP_PATH}`;
-    await expect.poll(() => badge(page), { timeout: 15000 }).toMatchObject({ hasLivery: true, label: '911 GT3 R' });
-    const first = (await badge(page)).image;
-
-    // Out of the car — the garage screen, the car still named — and the page has noticed.
+    // The car changes; he leaves the car and gets back in. Nothing is asked for.
+    payload = { ...BMW, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': 1 };
+    await expect.poll(() => badge(page).then((b) => b.label), { timeout: 15000 }).toBe('M4 GT3');
     payload = onTrack(0);
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('idle-state')), { timeout: 15000 }).toBe(true);
-    await page.waitForTimeout(1000);
-    const asked = requested.filter((u) => u === cropUrl).length;
-    // The rig chooses another section of the same car's paint as he gets back in, and the page asks for it then.
-    crop = { png: cropOf(30, 200, 30), id: '5-2' };
     payload = onTrack(1);
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('idle-state')), { timeout: 15000 }).toBe(false);
-    await expect.poll(() => requested.filter((u) => u === cropUrl).length, { timeout: 10000 }).toBeGreaterThan(asked);
-    await expect.poll(() => badge(page).then((b) => b.image), { timeout: 10000 }).not.toBe(first);
-    expect((await badge(page)).image).toMatch(/^url\("blob:/);
-    expect((await badge(page)).label).toBe('911 GT3 R');
-    expect(requested.filter((u) => CROP_URL.test(u)).every((u) => u === cropUrl)).toBe(true);
+    await page.waitForTimeout(1500);
+    expect(requested.filter((u) => CROP_URL.test(u))).toEqual([]);
+    const b = await badge(page);
+    expect(b.hasLivery).toBe(false);
+    expect(b.image).toBe('');
+    expect(await notDrawn()).toEqual([0, 0]);
+    // The way in is still there and does nothing; the colour of the car's maker is still set for the map's car.
+    await page.evaluate(() => window.requestRemoteLivery());
+    await page.waitForTimeout(500);
+    expect(requested.filter((u) => CROP_URL.test(u))).toEqual([]);
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--map-player-color').trim())).not.toBe('');
   });
 });

@@ -72,6 +72,13 @@ namespace RacingDesk.Host
         /// <summary>iRacing's replay and cameras, for <c>replay</c>: given the live reader by the host once it has one.</summary>
         internal ReplayApi Replay { get; } = new ReplayApi();
 
+        /// <summary>
+        /// The track outlines, for <c>outline?track=</c>: the store's, the one being made from the session he is
+        /// driving, and, while he has none of his own for the layout, SimHub's shared map of it, marked
+        /// <c>crowd</c>. The SimHub plugin asks this for its map; the iPad's proxy never reaches it.
+        /// </summary>
+        internal TrackOutlines Outlines { get; set; }
+
         /// <summary>Claims /data/ requests and answers them off the telemetry thread.</summary>
         public bool TryHandle(HttpListenerContext ctx)
         {
@@ -119,6 +126,26 @@ namespace RacingDesk.Host
                     // Windows's too, and answered before there is a store. A look that fails is a 500.
                     var listed = Monitors?.List();
                     Write(res, 200, json => MonitorsApi.Write(json, listed));
+                    return;
+                }
+
+                if (route == "outline" && ctx.Request.HttpMethod == "GET")
+                {
+                    // A layout's outline by the sim's TrackID, from the store or the session being driven (or, with
+                    // neither, SimHub's shared map, marked crowd) — so it is answered before there is a store, and
+                    // 404 while there is no outline yet.
+                    if (!int.TryParse(ctx.Request.QueryString["track"], NumberStyles.Integer, CultureInfo.InvariantCulture, out int trackId) || trackId <= 0)
+                    {
+                        Error(res, 400, "track required: the sim's TrackID");
+                        return;
+                    }
+                    var outline = Outlines?.ForTrack(trackId);
+                    if (outline == null)
+                    {
+                        Error(res, 404, "no outline yet");
+                        return;
+                    }
+                    Write(res, 200, json => WriteOutline(json, outline));
                     return;
                 }
 
@@ -476,6 +503,33 @@ namespace RacingDesk.Host
         }
 
         private static string Iso(DateTime utc) => utc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);
+
+        // { trackId, cleanLaps, lengthM, officialLengthM, provisional, crowd, updatedAt, points: [[x, z, pct], …] } —
+        // x east and z south in metres, to the centimetre, and the fraction of the lap each point is at. crowd is
+        // SimHub's shared map standing in until the first clean lap (cleanLaps 0): the same coordinates, the same shape.
+        internal static void WriteOutline(Utf8JsonWriter json, RacingDesk.Plugin.Engine.TrackOutline outline)
+        {
+            json.WriteStartObject();
+            json.WriteNumber("trackId", outline.TrackId);
+            json.WriteNumber("cleanLaps", outline.CleanLaps);
+            json.WriteNumber("lengthM", Math.Round(outline.LengthMeters, 1));
+            json.WriteNumber("officialLengthM", Math.Round(outline.OfficialLengthMeters, 1));
+            json.WriteBoolean("provisional", outline.Provisional);
+            json.WriteBoolean("crowd", outline.Crowd);
+            json.WriteString("updatedAt", Iso(outline.UpdatedAtUtc));
+            json.WritePropertyName("points");
+            json.WriteStartArray();
+            foreach (var (x, z, pct) in outline.Points)
+            {
+                json.WriteStartArray();
+                json.WriteNumberValue(Math.Round(x, 2));
+                json.WriteNumberValue(Math.Round(z, 2));
+                json.WriteNumberValue(Math.Round(pct, 5));
+                json.WriteEndArray();
+            }
+            json.WriteEndArray();
+            json.WriteEndObject();
+        }
 
         /// <summary>How the profile a car was given stands in SmartControl today.</summary>
         internal static string ProfileNow(CarPedals car, SmartControlSnapshot smartControl)

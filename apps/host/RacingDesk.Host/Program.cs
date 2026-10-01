@@ -9,6 +9,7 @@ using RacingDesk.Data;
 using RacingDesk.Data.Pedals;
 using RacingDesk.Data.Schedule;
 using RacingDesk.Plugin;
+using RacingDesk.Plugin.Engine;
 using RacingDesk.Plugin.IRacing;
 
 namespace RacingDesk.Host
@@ -19,7 +20,7 @@ namespace RacingDesk.Host
 
   RacingDesk.Host                      follow live iRacing: serve :8889 / :8890, record sessions,
                                     backfill new .ibt files in the background; the local store is
-                                    readable at :8889/racing-desk/data/{status,sessions,session?id=,schedule,cars}
+                                    readable at :8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,outline?track=}
   RacingDesk.Host --ibt <file>         replay a recorded .ibt through the same pipeline
   RacingDesk.Host ingest               backfill the local store from .ibt history
   RacingDesk.Host sessions             list stored sessions
@@ -107,9 +108,14 @@ Data options:
 
             bool replay = o.IbtPath != null;
             string dbPath = o.Db ?? RacingDeskStore.DefaultPath;
-            // The host's own routes: the data API, and the replay route the live reader is handed to (RunLive).
-            var api = new LocalDataApi(dbPath);
-            var runtime = new RacingDeskRuntime(LoadSettings(settingsPath), RuntimeOptions(o, dataDir, dbPath, api));
+            // The track outlines: the store's, the one being made from the session he is driving (RunLive's follower),
+            // and until there is either, SimHub's shared map (RunLive's crowd maps). Made whether or not the store
+            // exists yet — the follower may be what creates it.
+            var outlines = new TrackOutlines(dbPath);
+            // The host's own routes, on one data API: the outlines (the outline route), and the replay route the live
+            // reader is handed to (RunLive).
+            var api = new LocalDataApi(dbPath) { Outlines = outlines };
+            var runtime = new RacingDeskRuntime(LoadSettings(settingsPath), RuntimeOptions(o, dataDir, dbPath, outlines, api));
 
             bool record = replay ? o.Record : !o.NoRecord;
             using var store = record || (!replay && !o.NoIngest) ? new RacingDeskStore(dbPath) : null;
@@ -138,7 +144,7 @@ Data options:
                     return 1;
                 }
                 if (replay) PlayIbt(o, runtime, record ? store : null, stop);
-                else RunLive(o, runtime, store, stop, api);
+                else RunLive(o, runtime, store, outlines, stop, api);
             }
             finally
             {
@@ -150,10 +156,19 @@ Data options:
             return 0;
         }
 
-        /// <summary>What the runtime is given for this command line. The ports are every address unless --loopback-only.</summary>
-        internal static RacingDeskRuntime.Options RuntimeOptions(HostOptions o, string dataDir, string dbPath, LocalDataApi api = null)
+        /// <summary>
+        /// What the runtime is given for this command line. The ports are every address unless --loopback-only. The
+        /// outlines are the map's source and what the outline route serves: Serve hands in the instance the follower
+        /// writes to, and a caller with none (the tests) gets one over the store alone. The data API is the host's
+        /// own routes (the outlines, the replay route RunLive hands the live reader to): Serve hands in its one
+        /// instance, and a caller with none gets one over the outlines.
+        /// </summary>
+        internal static RacingDeskRuntime.Options RuntimeOptions(HostOptions o, string dataDir, string dbPath, TrackOutlines outlines = null, LocalDataApi api = null)
         {
             bool replay = o.IbtPath != null;
+            outlines = outlines ?? new TrackOutlines(dbPath);
+            api = api ?? new LocalDataApi(dbPath);
+            api.Outlines = api.Outlines ?? outlines;
             return new RacingDeskRuntime.Options
             {
                 AssemblyDirectory = AppContext.BaseDirectory,
@@ -163,8 +178,9 @@ Data options:
                 LoopbackOnly = o.LoopbackOnly,
                 EnableHardware = !replay && !o.NoHardware,
                 EnableSdkBridge = !replay,
-                TrackOutline = File.Exists(dbPath) ? new TrackOutlines(dbPath).ForTrack : null,
-                ExtraRoutes = (api ?? new LocalDataApi(dbPath)).TryHandle,
+                Outlines = new LocalOutlineSource(outlines.ForTrack),
+                Host = "host",
+                ExtraRoutes = api.TryHandle,
             };
         }
 
@@ -176,13 +192,29 @@ Data options:
 
         // Live: tick on every SDK telemetry frame while connected; when iRacing isn't running, keep ticking at
         // ~60 Hz with an empty frame, as SimHub does, so idle and demo state stay current.
-        private static void RunLive(HostOptions o, RacingDeskRuntime runtime, RacingDeskStore store, ManualResetEventSlim stop, LocalDataApi api = null)
+        private static void RunLive(HostOptions o, RacingDeskRuntime runtime, RacingDeskStore store, TrackOutlines outlines, ManualResetEventSlim stop, LocalDataApi api = null)
         {
             using var raw = new SdkRawTelemetry();
             // The replay route drives the sim's replay and cameras through this reader, for the app's TV shots; a file
             // replay (PlayIbt) hands it nothing, and the route says so.
             if (api != null) api.Replay.Replay = raw;
             var source = new IRacingTelemetrySource(raw);
+            // The first session at a layout, followed as it is driven: the sim's own file is read behind it, on a
+            // thread of its own, and from the first clean lap there is an outline for the map. The telemetry thread
+            // only says which layout it is.
+            using var laps = store != null
+                ? new IbtFollower(o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory, o.Db ?? RacingDeskStore.DefaultPath, m => Log.Info("[RacingDesk.Host] " + m))
+                : null;
+            if (laps != null)
+            {
+                outlines.Live = laps.Current;
+                laps.Outlined += outline => outlines.Forget(outline.TrackId);
+                laps.Start();
+            }
+            // Until that first clean lap, SimHub's shared map of the layout, read from SimHub's folder and kept in
+            // memory for the session: the interim the outlines serve only while there is nothing of his own.
+            var crowd = new CrowdMaps(CrowdMaps.DefaultDirectory, m => Log.Info("[RacingDesk.Host] " + m));
+            outlines.Crowd = crowd.Current;
             var recorder = store != null && !o.NoRecord
                 ? new LiveRecorder(store, "live", _ => DateTime.UtcNow, m => Log.Info("[RacingDesk.Host] " + m))
                 : null;
@@ -219,6 +251,8 @@ Data options:
                 // exception out of this handler would.
                 try
                 {
+                    laps?.Seen(source.TrackId);
+                    crowd.Seen(source.TrackId, source.TrackName, source.TrackConfigName, source.TrackLength);
                     views?.SeeCar(source.CarPath);
                     pedals?.See(source.CarPath, source.HasAbsSetting, source.AbsWorking, source.LapsCompleted, source.Driving,
                         source.HasPrototypeControls);
@@ -235,6 +269,7 @@ Data options:
                 lock (gate) recorder?.Flush();
                 views?.SimGone();
                 pedals?.SimGone();
+                crowd.Gone();
             };
             // Returns at once (SdkStart). IRSDKSharper's own Start() could wait for ever, and then the loop below, which
             // is what hears the stop, was never reached.
@@ -253,7 +288,8 @@ Data options:
             Thread ingest = null;
             if (store != null && !o.NoIngest)
             {
-                ingest = new Thread(() => BackgroundIngest(o, stop)) { IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = "ibt-ingest" };
+                // One pass over the history, then a watch for the files the sim writes while the host runs.
+                ingest = new Thread(() => { BackgroundIngest(o, stop); BackgroundWatch(o, stop); }) { IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = "ibt-ingest" };
                 ingest.Start();
             }
 
@@ -321,14 +357,45 @@ Data options:
                 {
                     Log.Warn("[RacingDesk.Host] car names not read: " + ex.Message);
                 }
-                var summary = ingest
-                    .Run(o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory, o.Step, int.MaxValue, cts.Token, pause: BackgroundIo.SimRunning);
+                // The new files go in first: his last sessions are what the desk is for, and the rebuild of the old
+                // outlines (every layout's files, newest first, which can be tens of gigabytes the first time) must
+                // not keep them waiting.
+                string telemetryDir = o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory;
+                var summary = ingest.Run(telemetryDir, o.Step, int.MaxValue, cts.Token, pause: BackgroundIo.SimRunning);
                 if (summary.FilesIngested > 0 || summary.FilesFailed > 0)
                     Log.Info($"[RacingDesk.Host] ingest: {summary.FilesIngested} new files, {summary.Sessions} sessions, {summary.FilesFailed} unreadable, {summary.Elapsed.TotalSeconds:F0}s");
+                // Outlines built with fewer checks than this build's are built again from their files. Whatever goes
+                // wrong with them, the files above are already in.
+                try
+                {
+                    ingest.RebuildGeometry(cts.Token, BackgroundIo.SimRunning, o.Step);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("[RacingDesk.Host] outlines not rebuilt: " + ex.Message);
+                }
             }
             catch (Exception ex)
             {
                 Log.Warn("[RacingDesk.Host] background ingest stopped: " + ex.Message);
+            }
+        }
+
+        // For as long as the host runs, after the pass over the history: a session's file goes in once the sim has
+        // closed and the file has settled, the same evening and not at the next start. Its own connection, as above.
+        internal static void BackgroundWatch(HostOptions o, ManualResetEventSlim stop)
+        {
+            using var cts = new CancellationTokenSource();
+            using var reg = new Timer(_ => { if (stop.IsSet) cts.Cancel(); }, null, 500, 500);
+            try
+            {
+                using var store = new RacingDeskStore(o.Db ?? RacingDeskStore.DefaultPath);
+                var ingest = new IbtIngest(store, m => Log.Info("[RacingDesk.Host] ingest: " + m));
+                ingest.WatchFinished(o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory, cts.Token, BackgroundIo.SimRunning, o.Step);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("[RacingDesk.Host] the watch for new files stopped: " + ex.Message);
             }
         }
 

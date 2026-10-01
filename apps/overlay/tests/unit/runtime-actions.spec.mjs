@@ -37,17 +37,17 @@ function recorder(answer = { status: 200, text: '{"ok":true}' }) {
 
 // ── What may be asked ──
 
-test('the routes are the six the HUD uses, and none that writes to the hardware', () => {
+test('the routes are the five the HUD uses, and none that writes to the hardware', () => {
   expect(Object.keys(ACTIONS).sort()).toEqual([
-    'bindPedalProfile', 'listPedalProfiles', 'resetmap', 'restartdemo', 'setPedalProfile', 'setrect',
+    'bindPedalProfile', 'listPedalProfiles', 'restartdemo', 'setPedalProfile', 'setrect',
   ]);
   expect(TIMEOUT_MS).toBe(3000);
   expect(MAX_LENGTH).toBe(200);
 });
 
 test('a route is asked for with the arguments it takes', () => {
-  expect(problemWith('resetmap', {})).toBeNull();
-  expect(problemWith('resetmap')).toBeNull();
+  expect(problemWith('restartdemo', {})).toBeNull();
+  expect(problemWith('restartdemo')).toBeNull();
   expect(problemWith('restartdemo', null)).toBeNull();
   expect(problemWith('listPedalProfiles', {})).toBeNull();
   expect(problemWith('setrect', { x: 0.1, y: 0.2, w: 0.5, h: 0.4 })).toBeNull();
@@ -60,16 +60,16 @@ test('a route is asked for with the arguments it takes', () => {
 test('a route the page has no business with is not asked for, whatever it is called', () => {
   for (const name of [
     'setMozaWheelbaseSetting', 'setMozaPedalSetting', 'setMozaHandbrakeSetting', 'mozaReconnect', 'mozaRefresh', 'importMozaPedals',
-    'listMozaDevices', 'getMozaWheelbaseSettings', 'listSerialPortDiagnostic', 'listtracks', 'setSetting', 'quit',
-    '', ' resetmap', 'RESETMAP', 'resetmap&action=mozaReconnect', '__proto__', 'constructor', 'toString', 'hasOwnProperty',
-    null, undefined, 7, {}, ['resetmap'],
+    'listMozaDevices', 'getMozaWheelbaseSettings', 'listSerialPortDiagnostic', 'listtracks', 'resetmap', 'setSetting', 'quit',
+    '', ' restartdemo', 'RESTARTDEMO', 'restartdemo&action=mozaReconnect', '__proto__', 'constructor', 'toString', 'hasOwnProperty',
+    null, undefined, 7, {}, ['restartdemo'],
   ]) {
     expect(problemWith(name, {}), String(name)).toBe('That is not a route the page may ask for.');
   }
 });
 
 test('an argument the route does not take, or one that is missing or wrong, is refused in words', () => {
-  expect(problemWith('resetmap', { x: 1 })).toBe('resetmap takes no "x".');
+  expect(problemWith('restartdemo', { x: 1 })).toBe('restartdemo takes no "x".');
   expect(problemWith('setPedalProfile', { id: 'a', key: 'b' })).toBe('setPedalProfile takes no "key".');
   expect(problemWith('setPedalProfile', { id: 'a', action: 'mozaReconnect' })).toBe('setPedalProfile takes no "action".');
   expect(problemWith('setPedalProfile', {})).toBe('setPedalProfile needs "id".');
@@ -90,7 +90,7 @@ test('an argument the route does not take, or one that is missing or wrong, is r
 // ── The request, as it leaves ──
 
 test('the request is a GET of the route with its arguments, written here and not as they came', () => {
-  expect(actionRequest(URL_8889, 'resetmap', {})).toEqual({ url: `${URL_8889}?action=resetmap`, method: 'GET', headers: { Accept: 'application/json' } });
+  expect(actionRequest(URL_8889, 'restartdemo', {})).toEqual({ url: `${URL_8889}?action=restartdemo`, method: 'GET', headers: { Accept: 'application/json' } });
   expect(actionRequest('http://localhost:8889/racing-desk', 'restartdemo').url).toBe(`${URL_8889}?action=restartdemo`);   // no path doubled
   expect(actionRequest('http://localhost:18889/racing-desk/', 'restartdemo').url).toBe('http://localhost:18889/racing-desk/?action=restartdemo');
   expect(actionRequest(URL_8889, 'setrect', { x: 0.1, y: 0.25, w: 0.5, h: 1 }).url)
@@ -102,7 +102,7 @@ test('the request is a GET of the route with its arguments, written here and not
   // Only what the route takes goes into it, in the route's order.
   expect(actionRequest(URL_8889, 'bindPedalProfile', { car: 'mx5', id: 'a', extra: 'b' }).url).toBe(`${URL_8889}?action=bindPedalProfile&id=a&car=mx5`);
   // Nothing a browser says: Node adds the Host and the Connection, and never an Origin.
-  expect(Object.keys(actionRequest(URL_8889, 'resetmap', {}).headers)).toEqual(['Accept']);
+  expect(Object.keys(actionRequest(URL_8889, 'restartdemo', {}).headers)).toEqual(['Accept']);
 });
 
 test('the answer is the route\'s own on 200, and in words on anything else', () => {
@@ -121,10 +121,10 @@ test('the runtime is asked where the HUD reads its telemetry now, and never with
   const { sent, send: sendRequest } = recorder();
   const actions = createRuntimeActions({ url: () => where, send: sendRequest });
 
-  expect(await actions.run('resetmap', {})).toEqual({ ok: true, body: { ok: true } });
+  expect(await actions.run('restartdemo', {})).toEqual({ ok: true, body: { ok: true } });
   where = 'http://localhost:9999/racing-desk/';   // dev mode: the replay's port
   await actions.run('setPedalProfile', { id: 'a' });
-  expect(sent.map((s) => s.request.url)).toEqual([`${URL_8889}?action=resetmap`, 'http://localhost:9999/racing-desk/?action=setPedalProfile&id=a']);
+  expect(sent.map((s) => s.request.url)).toEqual([`${URL_8889}?action=restartdemo`, 'http://localhost:9999/racing-desk/?action=setPedalProfile&id=a']);
   expect(sent.map((s) => s.timeoutMs)).toEqual([3000, 3000]);
 
   const refused = await actions.run('setMozaWheelbaseSetting', { key: 'ffbStrength', value: 100 });
@@ -136,24 +136,24 @@ test('a runtime on another machine is not asked', async () => {
   const { sent, send: sendRequest } = recorder();
   for (const url of ['http://192.168.1.20:8889/racing-desk/', 'http://rig.example:8889/racing-desk/', 'http://localhost.evil.example/racing-desk/']) {
     const actions = createRuntimeActions({ url, send: sendRequest });
-    expect(await actions.run('resetmap', {}), url).toEqual({ ok: false, error: 'The runtime is not on this machine, so it was not asked.' });
+    expect(await actions.run('restartdemo', {}), url).toEqual({ ok: false, error: 'The runtime is not on this machine, so it was not asked.' });
   }
   for (const url of ['http://localhost:8889/racing-desk/', 'http://127.0.0.1:8889/racing-desk/', 'http://[::1]:8889/racing-desk/']) {
-    expect((await createRuntimeActions({ url, send: sendRequest }).run('resetmap', {})).ok, url).toBe(true);
+    expect((await createRuntimeActions({ url, send: sendRequest }).run('restartdemo', {})).ok, url).toBe(true);
   }
   expect(sent).toHaveLength(3);
 });
 
 test('nothing to ask, nobody answering and a slow runtime are answers, not rejections', async () => {
-  expect(await createRuntimeActions({ url: () => '', send: recorder().send }).run('resetmap', {})).toEqual({ ok: false, error: 'There is no runtime to ask.' });
-  expect(await createRuntimeActions({ url: () => { throw new Error('no settings'); }, send: recorder().send }).run('resetmap', {}))
+  expect(await createRuntimeActions({ url: () => '', send: recorder().send }).run('restartdemo', {})).toEqual({ ok: false, error: 'There is no runtime to ask.' });
+  expect(await createRuntimeActions({ url: () => { throw new Error('no settings'); }, send: recorder().send }).run('restartdemo', {}))
     .toEqual({ ok: false, error: 'There is no runtime to ask.' });
   const refusing = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:8889'), { code: 'ECONNREFUSED' });
-  expect(await createRuntimeActions({ url: URL_8889, send: async () => { throw refusing; } }).run('resetmap', {}))
+  expect(await createRuntimeActions({ url: URL_8889, send: async () => { throw refusing; } }).run('restartdemo', {}))
     .toEqual({ ok: false, error: 'Nothing is answering where the runtime should be.' });
-  expect(await createRuntimeActions({ url: URL_8889, send: async () => { throw new Error('timeout'); } }).run('resetmap', {}))
+  expect(await createRuntimeActions({ url: URL_8889, send: async () => { throw new Error('timeout'); } }).run('restartdemo', {}))
     .toEqual({ ok: false, error: 'The runtime did not answer within 3 s.' });
-  expect(await createRuntimeActions({ url: URL_8889, send: async () => { throw new Error('socket hang up'); } }).run('resetmap', {}))
+  expect(await createRuntimeActions({ url: URL_8889, send: async () => { throw new Error('socket hang up'); } }).run('restartdemo', {}))
     .toEqual({ ok: false, error: 'The runtime could not be asked: socket hang up' });
 });
 
@@ -188,12 +188,12 @@ test('as it leaves Node: a request the runtime takes, where the same with a page
 
     // What a page would send: the same request with one of its marks. The stand-in refuses each, as the runtime does.
     for (const marks of [{ Origin: 'null' }, { Referer: 'file:///C:/app/dashboard.html' }, { 'Sec-Fetch-Site': 'cross-site' }]) {
-      const fromAPage = actionRequest(runtime.url, 'resetmap', {});
+      const fromAPage = actionRequest(runtime.url, 'restartdemo', {});
       fromAPage.headers = { ...fromAPage.headers, ...marks };
       expect((await send(fromAPage, 1000)).status, JSON.stringify(marks)).toBe(403);
     }
     const asPage = createRuntimeActions({ url: runtime.url, send: (request, ms) => send({ ...request, headers: { ...request.headers, Origin: 'null' } }, ms) });
-    expect(await asPage.run('resetmap', {})).toEqual({ ok: false, error: 'The runtime refused the request: it is for programs on this machine alone.' });
+    expect(await asPage.run('restartdemo', {})).toEqual({ ok: false, error: 'The runtime refused the request: it is for programs on this machine alone.' });
   } finally {
     await runtime.close();
   }
@@ -253,9 +253,9 @@ test('in the app the page asks main.js, and gets the route\'s answer or a reject
   expect(calls).toEqual([['listPedalProfiles', {}], ['setPedalProfile', { id: 'a' }]]);
 
   const refusing = pageRuntimeAction({ window: { racingDesk: { runtimeAction: async () => ({ ok: false, error: 'The runtime did not answer within 3 s.' }) } }, fetch: () => { throw new Error('the page fetched'); } });
-  await expect(refusing('resetmap')).rejects.toThrow('The runtime did not answer within 3 s.');
+  await expect(refusing('restartdemo')).rejects.toThrow('The runtime did not answer within 3 s.');
   const silent = pageRuntimeAction({ window: { racingDesk: { runtimeAction: async () => undefined } }, fetch: () => { throw new Error('the page fetched'); } });
-  await expect(silent('resetmap')).rejects.toThrow('The runtime did not answer.');
+  await expect(silent('restartdemo')).rejects.toThrow('The runtime did not answer.');
 });
 
 test('without the app the page asks as it always did, and is refused where the runtime refuses it', async () => {
@@ -269,8 +269,8 @@ test('without the app the page asks as it always did, and is refused where the r
 
   asked.length = 0;
   const onAnIpad = pageRuntimeAction({ window: { _simhubUrlOverride: 'http://192.168.1.50:9090/racing-desk/' }, fetch: answer(403, { error: 'x' }) });
-  await expect(onAnIpad('resetmap')).rejects.toThrow('The runtime answered 403.');
-  expect(asked).toEqual(['http://192.168.1.50:9090/racing-desk/?action=resetmap']);
+  await expect(onAnIpad('restartdemo')).rejects.toThrow('The runtime answered 403.');
+  expect(asked).toEqual(['http://192.168.1.50:9090/racing-desk/?action=restartdemo']);
 });
 
 // ── What the page's scripts do ──
@@ -295,25 +295,29 @@ function routesAskedFor(code) {
   return [...withoutComments(code).matchAll(/\bruntimeAction\(\s*(['"`])([^'"`]+)\1/g)].map((m) => m[2]);
 }
 
-// Every script the page runs, as { name, code }: each .js under modules/ at any depth (the folders of tests left out), and the
-// inline scripts of each of the app's own pages.
+// Every script the page runs, as { name, code }: each .js under modules/ at any depth (the folders of tests left out), the
+// inline scripts of each of the app's own pages, and the Cars island's source (apps/paints/src, which the desk runs as
+// modules/desk/paints.bundle.js). A generated bundle is not read as itself: it is minified onto one line, where a quote
+// and an `action=` a kilobyte apart (React's own `t.action=null`) read as one string, so its source is read instead.
 function pageScripts() {
   const appDir = fileURLToPath(new URL('../../', import.meta.url));
   const scripts = [];
-  const walk = (dir) => {
+  const walk = (dir, root, isScript) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name !== '__tests__' && entry.name !== 'node_modules') walk(full);
-      } else if (entry.name.endsWith('.bundle.js')) {
-        // Generated (calc.bundle.js, paints.bundle.js: git-ignored, built from packages/calc and apps/paints/src, which
-        // are read by their own tests). React's minified `t.action=null` is not a route, and the guard read it as one.
-      } else if (entry.name.endsWith('.js')) {
-        scripts.push({ name: relative(appDir, full).replace(/\\/g, '/'), code: readFileSync(full, 'utf8') });
+        if (entry.name !== '__tests__' && entry.name !== 'node_modules') walk(full, root, isScript);
+      } else if (isScript(entry.name)) {
+        const code = readFileSync(full, 'utf8');
+        // Built from a source that is read in its place (calc.bundle.js from packages/calc, paints.bundle.js from
+        // apps/paints/src; both git-ignored, both begin with this line).
+        if (/^\/\/ Generated by /.test(code)) continue;
+        scripts.push({ name: relative(root, full).replace(/\\/g, '/'), code });
       }
     }
   };
-  walk(join(appDir, 'modules'));
+  walk(join(appDir, 'modules'), appDir, (file) => file.endsWith('.js'));
+  walk(join(appDir, '..', 'paints', 'src'), join(appDir, '..'), (file) => /\.(js|ts|tsx)$/.test(file));
   for (const page of readdirSync(appDir).filter((file) => file.endsWith('.html'))) {
     inlineScripts(readFileSync(join(appDir, page), 'utf8')).forEach((code, i) => scripts.push({ name: `${page} (inline script ${i + 1})`, code }));
   }
@@ -327,8 +331,8 @@ test('the guards read what they are meant to: nested scripts, inline scripts, an
   expect(namesAnActionRoute("fetch('http://localhost:8889/racing-desk/?action=setMozaPedalSetting&key=a')")).toBe(true);
   expect(namesAnActionRoute('fetch(`${base}?action=${name}`)')).toBe(true);
   expect(namesAnActionRoute("// fetch('?action=x')\n/* '?action=y' */ const a = 1; // 'action='")).toBe(false);
-  expect(inlineScripts('<script src="a.js"></script><script>fetch("?action=resetmap")</script><script type="module"> </script>')).toEqual(['fetch("?action=resetmap")']);
-  expect(routesAskedFor("runtimeAction('resetmap'); runtimeAction( \"setSetting\", {}); function runtimeAction(name, params) {}")).toEqual(['resetmap', 'setSetting']);
+  expect(inlineScripts('<script src="a.js"></script><script>fetch("?action=restartdemo")</script><script type="module"> </script>')).toEqual(['fetch("?action=restartdemo")']);
+  expect(routesAskedFor("runtimeAction('restartdemo'); runtimeAction( \"setSetting\", {}); function runtimeAction(name, params) {}")).toEqual(['restartdemo', 'setSetting']);
 
   // The list of scripts goes down into the folders, and the inline scripts of a page are among what is read.
   const names = pageScripts().map((script) => script.name);
@@ -336,6 +340,9 @@ test('the guards read what they are meant to: nested scripts, inline scripts, an
   expect(names).toContain('modules/js/paints/apply.js');
   expect(names).toContain('modules/desk/desk.js');
   expect(names.some((name) => name.includes('__tests__'))).toBe(false);
+  // The Cars island is read as its source, never as the bundle built from it (which may or may not be there).
+  expect(names).toContain('paints/src/island.tsx');
+  expect(names).not.toContain('modules/desk/paints.bundle.js');
 });
 
 test('no script of the page fetches an ?action= route itself: it asks through runtimeAction', () => {
@@ -346,6 +353,6 @@ test('no script of the page fetches an ?action= route itself: it asks through ru
 test('every route a script asks runtimeAction for is one the main process passes on', () => {
   const asked = pageScripts().flatMap(({ name, code }) => routesAskedFor(code).map((route) => ({ name, route })));
   // The scan finds the HUD's own calls (a regex that found none would pass for all of them).
-  expect(new Set(asked.map(({ route }) => route))).toEqual(new Set(['resetmap', 'restartdemo', 'setrect', 'listPedalProfiles', 'setPedalProfile', 'bindPedalProfile']));
+  expect(new Set(asked.map(({ route }) => route))).toEqual(new Set(['restartdemo', 'setrect', 'listPedalProfiles', 'setPedalProfile', 'bindPedalProfile']));
   expect(asked.filter(({ route }) => !Object.prototype.hasOwnProperty.call(ACTIONS, route))).toEqual([]);
 });

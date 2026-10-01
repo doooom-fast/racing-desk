@@ -116,7 +116,9 @@ test.describe('a local yellow is lighter than a full-course caution, and both ar
     const local = await look(page);
     expect(local.flag).toBe('localyellow');
     expect(local.gapsClass).toBe('flag-localyellow');
-    expect(local.opacity).toBe('1');
+    // On an iPad the pattern behind the panels is at fifteen hundredths under every flag, this one too (drive-view.spec.mjs
+    // holds every flag to it, and the thin frame at the screen's edge to full strength).
+    expect(+local.opacity).toBeCloseTo(0.15, 2);
     expect(local.pattern).toContain(CAUTION_STRIPE);
     expect(local.pattern, 'yellow stripes with the dark between them, not a solid fill').toContain('rgba(0, 0, 0, 0)');
     expect(local.tint, 'the panels are not lit by it: a yellow that is a sector, not the track').toBe(none.tint);

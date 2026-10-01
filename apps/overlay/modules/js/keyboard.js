@@ -35,13 +35,6 @@
     });
   }
 
-  // ── Reset track map ──
-  if (k.onResetTrackmap) {
-    k.onResetTrackmap(function() {
-      if (typeof resetTrackMap === 'function') resetTrackMap();
-    });
-  }
-
   // ── Pitbox tab cycling ──
   if (k.onPitboxNextTab) k.onPitboxNextTab(_pageActions['pitbox-next-tab']);
   if (k.onPitboxPrevTab) k.onPitboxPrevTab(_pageActions['pitbox-prev-tab']);

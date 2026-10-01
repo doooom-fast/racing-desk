@@ -178,12 +178,16 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   the strategy call in the pit box at 14px). A cq unit on the container itself would resolve against the page, so a
   cell's own padding, gap and font-size are in px or set on its children. **A cell that cannot hold a number at 20px
   gives up the least useful thing in it by `@container` query, and never shrinks the number**: the laps panel drops
-  its heading and third row of times, then the sectors' gaps, then its second row; the datastream its yaw trace, then the
+  its heading and third row of times, then the sectors' gaps, then its second row, and past that (a layout with many
+  sectors) gives up more, by measurement (below); the datastream its yaw trace, then the
   wheel's torque, then the peak g; the pit box its two services (below 262px), its pit window when a strategy call has
   taken the room (below 225px); the pedals the clutch's channel (below 250px); the rating panel its bar. The test
   holds every piece of text in every cell to the box its ancestors let show (an ellipsis, an overflow, the cell), at the
-  seven iPad sizes and at the rig's own 1920x1080 and 2560x1080. The HUD's zoom setting is the rig screen's and is undone
-  here.
+  seven iPad sizes and at the rig's own 1920x1080 and 2560x1080 (opened as the rig has them, with the badges). The HUD's
+  zoom setting is the rig screen's and is undone here. **Known and not fixed:** on his own 3440x1440 screen the rig's
+  Ctrl+Shift+F cuts the ratings panel off (its row is 103px in an 85px cell), and a short circuit name goes on sliding in
+  the map's label after the switch to this layout (the marquee is measured in the HUD's narrow label); neither was
+  touched by the iPad's changes, and the tests do not open 3440x1440 for the whole layout.
 - **The hero**: in a race the place, big; out of one (`body.session-nonrace`, which `poll-engine.js` sets from
   `DS.SessionMode`, written only when it changes) the place is a rank of best laps and the big number is the delta.
 - **The laps panel** (`#lapsPanel`, `modules/js/laps-panel.js`; shown only in the glance layout): the lap of how many, his
@@ -191,6 +195,25 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   best of it in the gaps block's colours, his gaps to his best of the session, the optimal lap and his best ever, and the
   laps of fuel against the laps to go to the flag (in a race to time, the time left over his last lap), green with a lap
   to spare, amber just, red short. What is left to go is a span of its own that a narrow panel leaves out: the clock has it.
+  **A sector is never narrower than its number** (he had "sector numbers get cropped when they're too many digits",
+  2026-09-30): the cells are a wrapping row with `min-width: max-content`, every one as wide as the widest time (`--tw`,
+  so a sector not yet timed is as wide as one that is and nothing moves when it is), their numbers come down from the
+  panel's size towards the 20px floor as the sectors get more (`--sectors` on `#lapsSectors`), and the cells wrap to
+  more lines. **What the panel cannot hold it gives up, in stages** (`FIT` in `laps-panel.js`, one class each on the
+  panel, tried one on top of the other, and the panel asked after each whether it overflows, until it holds what is
+  left; asked when a time changes width, when the number of sectors does and when the cell is resized, and the stage
+  reached is `data-fit`): the sectors' gaps to his best (`laps-fit-gaps`); each sector a line of its own, its name beside
+  its time, with the heading and the third row of times gone (`laps-sectors-wrapped`); the second row of times
+  (`laps-fit-row2`); the first row, the last lap and the gap to his best (`laps-fit-times`: the clock and the hero have
+  them too); the fuel (`laps-fit-fuel`); the space between the lines (`laps-fit-tight`); and last the sectors' names
+  (`laps-fit-bare`, the times stay in order with the one he is in outlined). A layout with three sectors, or a tall
+  cell, gives up nothing. Which of these is shown at a size is a trade he has not been asked about: the order is
+  the least useful first by guess, and `tests/unit/drive-view.spec.mjs` holds only that nothing is cropped and no
+  number is under 20px, at 3, 4, 7, 10 and 14 sectors of half a minute and of over a minute, on every iPad size and on
+  the rig's three. **The gaps block's strip of sectors** (practice and qualifying: labels, coloured by what he did in
+  each) is as tall as its block (`min-height: 0`) so that its cells wrap into more columns, and in portrait on an
+  iPad stops short of the menu's button, which is over that corner. The rig's gaps block wraps its sector labels the
+  same way (`dashboard.css`, `.sector-indicator`).
 - **The clock** (`#raceTimerBlock`) says what it is (`#raceTimerKey`, written by `poll-engine.js` in the glance layout
   only): the laps to go in a lap race (the time on the lap is in the hero), the time left in a race to a time and in
   qualifying, the clock in practice, and under it the last lap. On the rig the cell is as it was, with no key.
@@ -209,12 +232,51 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   the local view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels (the
   outline's three layers at 12 / 7 / 1.5px, the sectors at 8px, the car at 7px and the others at 5px) is worked out from
   `--px` on the svg, the units of the map to a pixel. Told by `driveViewChanged` (drive-hud.js), on resize, and on a new
-  path; out of drive mode the maps are the HUD's own again.
+  path; out of drive mode the maps are the HUD's own again. The outline is the host's, from his own laps (root
+  CLAUDE.md, Track maps), and the host places the cars along it as a closed loop, so the page keeps a plain low-pass on
+  the car's position and has no jump rule and no slow blend (crossing the line is one more step). The trail behind the
+  car (a quarter of the lap at most, from where it was last anchored) is let go when the car is put somewhere else —
+  a step of more than a fiftieth of the lap in one frame is a teleport, a reset or a tow to the pits — and when the
+  outline changes, so a car put in the pits is not drawn with a quarter of the lap behind it. The circuit's
+  sectors are split by the session's own boundaries (`window._sectorBoundaries`, from `DS.SectorBoundaryPcts`, in a
+  race and out of one), never equal fractions. While there is no map the cell says why, from `TrackMap.Status`
+  (`#fullMapWaiting`, `.map-waiting`: "Map after one clean lap", "No map yet — the app is starting its maps", and
+  after a minute of that "No map — restart the app to bring its maps back"), and nothing once there is one — but
+  for `crowd`, which is a map drawn on SimHub's shared map of the layout (root CLAUDE.md, Track maps): the same
+  element, as `.map-note`, says "SimHub's map until your first clean lap" under the circuit and above its name,
+  in the column with them so it covers nothing (not the top, where race control's banner sits under a flag), at the
+  label's 11px floor, until his own outline takes over; a host from before the status says nothing. It is **one
+  line, never more** (`white-space: nowrap`): the rig's default cell is 96 px wide and 98 high, where a note that
+  wrapped to three or five lines took the circuit down to a fifth of its height, so the circuit gives up one line
+  for it and no more (`track-map-status.spec.mjs` holds the circuit's height with the note to 72 % of what it is
+  without, in the default layout and in the glance layout at an iPad's size), and a cell narrower than the line
+  slides it, as the circuit's name is slid (`_fitMapNote` in `webgl-helpers.js`: `.is-marquee`, measured when the
+  note is set and by a `ResizeObserver` when its cell changes size). The iPad's cell and the glance layout's hold it
+  whole.
+  Nothing resets or records a map any more (`tests/unit/track-map-status.spec.mjs`).
 - **The leaderboard** is the HUD's panel and rows, its type sized from the panel (`#lbRows` font-size) and the rows sharing
   its height; `leaderboard.js` counts how many the panel holds at that size (1.9 lines to a row) and not the sum of the
   screen minus the dashboard that the rig's HUD does.
-- **The menu** (remote-server.js) is laid over the Racing Desk mark: the whole square answers a tap and its list opens on
-  the side with the more room. On the rig there is no menu, and the mark is just the mark.
+- **The menu** (remote-server.js) is a small round button in the top right corner of the iPad's screen, over the frame
+  and the corner of whatever cell is there, faint until it is open; its list opens on the side with the more room. On
+  the rig there is no menu. Upright, that corner is the gaps block, and its strip of sectors stops short of the button.
+- **On an iPad only** (`html.rd-remote`, the rules at the end of `drive-view.css`; the rig's own Ctrl+Shift+F keeps
+  everything it had), what he asked for on 2026-09-30: the glass's light at fifteen hundredths of the rig's
+  (`--rd-shine: 0.15` — the tint, the overhead glow and the sweep, the specular streak and the inset glow all take
+  the one factor; the flags' own treatment of the glass does not), the flag's pattern behind and between the panels
+  at fifteen hundredths too, under every flag (`body::before` at 0.15; the first cut's renders had the stripes at
+  full strength in every gutter, which is the noise he meant), with a thin frame at the very edge of the screen —
+  four pixels of the frame round the grid, never a gutter, `body::after` masked to a ring — carrying the flag's own
+  pattern at full strength so a white or a chequered flag is still seen (`drive-view.spec.mjs` holds it twice: the
+  computed layers, the frame's `mask-composite` being `exclude`, and the pixels of a screenshot under each of the five
+  flags — the gutter between the relative and the laps panel under 80 of 255, the edge over 150 — so a frame whose
+  mask stopped taking the inside out, in an engine that does not honour it, would be caught); the flag card in the gaps block, race
+  control's banner and the panels' flag-coloured borders are as strong as they were, and no badges: the Racing Desk mark and the car's
+  maker are not shown, the row they were in is the controls, the pedals and the clock (landscape `ctrl×7 pedals×5
+  timer×5`, portrait `ctrl×9 pedals×8 timer×7`), their WebGL canvases (the chevron drift, the maker's flag) are not
+  started, and the crop of his paint is never asked for (`car-logos.js` `requestRemoteLivery` fetches nothing on an
+  iPad; in the page OBS draws, where the badge is in the picture, the same call fetches the crop from the loopback
+  listener).
 - **Data**: the plugin sends 330 keys; the glance layout reads the ones a driver reads at a glance, every one the rig's
   HUD reads (all its panels are here) and what the panels above add. By panel: position, places since the start, lap, live
   lap, the delta (`Position`, `DS.StartPosition`, `PositionDelta`, `CurrentLap`, `CurrentLapTime`, `DS.LapDelta`); the gaps,
@@ -234,9 +296,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   `GapAheadFormatted`, `BBNorm`); `Session.*`, duplicates of `DS.*`; `DS.IRatingFieldSize` and `LicenseString`; the Moza wheel base's connection state (the desk's).
   What is not in the payload at all: a fastest-lap holder, sector times of the other cars, and any pace of theirs beyond
   the last lap.
-- **Tests**: `tests/unit/drive-view.spec.mjs` serves the real page through `remote-server.js` at the seven iPad sizes and
-  the rig's own two screens, in a race, at P12 and P21, with a prototype's dials, a formula car's DRS, under a yellow flag,
-  with the strategist calling, and out of a race, and holds it to: every panel a cell, inside the screen, none on another,
+- **Tests**: `tests/unit/drive-view.spec.mjs` serves the real page through `remote-server.js` at the seven iPad sizes, and
+  opens the rig's own two screens (1920x1080, 2560x1080) from the file with drive mode switched on — no server and no
+  `html.rd-remote`, so the two badges are cells and the glass is the rig's — in a race, at P12 and P21, with a prototype's
+  dials, a formula car's DRS, under a yellow flag, with the strategist calling, and out of a race, and holds it to: every
+  panel a cell, inside the screen, none on another,
   the cells the screen, nothing cut off by its cell or out of sight (every line of text against the box its ancestors show),
   no label under 11px and no number under 20px, the HUD's own type, colours and glass (compared with the HUD's page, item
   by item); the flags as the background and gone when cleared; race control's whole sentence for each flag at every size;
@@ -321,13 +385,15 @@ and when, and why the main process and never the page does it. This is the page'
   at the widest of them (`BADGE_ASPECT` in the picker, 1.5 to 1: 512 across and 341 high), the layer is `cover`, so a
   narrower badge shows the middle of it, and the picker scores that middle too (below), so the section has artwork in
   it in every badge.
-- **On an iPad** the page asks the rig for it: `requestRemoteLivery()`, called by `poll-engine.js` where the car's
-  model changes and where the page's in-car state goes from out to in (in remote mode only; the rig chooses another
-  section each time he gets in the car, the same car after the garage included), fetches `/livery-crop.png` from the
-  page's own origin — the one address, no query, the key's cookie — at 0, 0.8, 2.5, 6 and 14 s, because the rig chooses
-  a new crop once it has seen the same change and takes a moment over it; an ask before it has gets the last car's crop
-  (or a 404, once the rig has taken that away for the car having changed), and the asks after put that right. A 200 is shown as a blob URL (the one before is revoked), a 404 empties the layer, and the same crop
-  told again (its `ETag`, the crop's id) is kept as it is. Nothing else is fetched for it.
+- **On an iPad** the badge is not shown at all (he asked for the logos to go, 2026-09-30; The glance layout, above), so
+  the crop is never asked for: `requestRemoteLivery()`, which `poll-engine.js` calls where the car's model changes
+  and where the page's in-car state goes from out to in, fetches nothing there. The server still serves `/livery-crop.png`
+  from the main process's memory — the one address, no query, the key's cookie — and `fetchRemoteLivery`
+  (`window._fetchRemoteLivery`) is what reads it: a 200 as a blob URL, a 404 as the layer emptied, the same crop
+  told again (its `ETag`) kept as it is. **In the page OBS draws** (`window._obsMode`, served by the loopback listener
+  at `/obs`) the badge is in the picture, so the same `requestRemoteLivery()` does fetch: a few asks over the first
+  seconds (`LIVERY_ASK_AT_MS`), in case the rig has not chosen the crop yet, from the listener the page came from
+  (`tests/unit/hud-page-obs.spec.mjs`).
 - **The picker** (`logo-livery-picker.js`, `chooseWindow` / `chooseCrop`): the sheet is averaged down to 320 across,
   every pixel gets a luminance, an edge (a step of 24 or more to the next pixel) and a hue bin (twelve round the
   wheel, and one for everything with no hue to speak of: grey, white and near-black are one colour, so black-and-white
@@ -556,7 +622,6 @@ page reads the list of screens again in place when the app says they changed (`h
 | `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (`hud-display.js`: not the primary one unless that is where the rule puts it) |
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+O` | Open the desk |
-| `Ctrl+Shift+M` | Reset the track map |
 | `Ctrl+Shift+V` | Record or stop, in OBS. With OBS closed it starts nothing: the HUD says "OBS is not open" (OBS is started from the desk, the tray or the Stream Deck, out of the car) |
 | `Ctrl+Shift+B` | Save the instant replay: the last seconds from OBS's replay buffer as a clip, with its telemetry beside it, into the recording's folder (Instant replay on, OBS open; never starts OBS) |
 | `Ctrl+Shift+P` | TV shots are made from the desk after the race, with iRacing in its replay; in the car the key answers so |
@@ -564,7 +629,8 @@ page reads the list of screens again in place when the app says they changed (`h
 | `Ctrl+Shift+Q` | Quit the overlay: the HUD is put away (`hud.putAway`), the app keeps running |
 
 `Ctrl+Shift+O` is held while the app runs; the rest only while the driver is in the car
-(`modules/js/hud-keys.js`). No key quits the app.
+(`modules/js/hud-keys.js`). No key quits the app. `Ctrl+Shift+M`, which reset the track map, is held by nothing: the map
+is the host's, from the driver's own laps, and there is nothing to reset (root CLAUDE.md, Track maps).
 
 ## What this repo does NOT do anymore
 

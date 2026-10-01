@@ -57,7 +57,7 @@ namespace RacingDesk.Tests.Transport
             // The ones that write to the hardware and the pedal profiles are certainly among them.
             Assert.That(found, Is.SupersetOf(new[]
             {
-                "resetmap", "listtracks", "restartdemo", "setrect",
+                "restartdemo", "setrect",
                 "listPedalProfiles", "setPedalProfile", "bindPedalProfile", "importMozaPedals",
                 "listMozaDevices", "getMozaWheelbaseSettings", "setMozaWheelbaseSetting", "getMozaPedalSettings",
                 "setMozaPedalSetting", "getMozaHandbrakeSettings", "setMozaHandbrakeSetting", "getMozaShifterSettings",
@@ -203,10 +203,10 @@ namespace RacingDesk.Tests.Transport
             {
                 "/racing-desk/?action=somethingNew",                // a route added tomorrow, below the check
                 "/racing-desk/?action=",                             // an action with no name
-                "/racing-desk/?x=1&action=resetmap&y=2",             // not the first parameter
-                "/racing-desk/?ACTION=resetmap",                     // in capitals: the dispatch is exact, the check is not
-                "/racing-desk/?%61ction=resetmap",                   // spelt in percent-encoding
-                "/racing-desk/action=resetmap",                      // in the path
+                "/racing-desk/?x=1&action=restartdemo&y=2",          // not the first parameter
+                "/racing-desk/?ACTION=restartdemo",                  // in capitals: the dispatch is exact, the check is not
+                "/racing-desk/?%61ction=restartdemo",                // spelt in percent-encoding
+                "/racing-desk/action=restartdemo",                   // in the path
                 "/racing-desk/data/status?action=setMozaPedalSetting&key=brake.deadzone&value=9",
             })
             {
@@ -222,7 +222,7 @@ namespace RacingDesk.Tests.Transport
         /// store's status, its path and the rest. The data API never reads an action, so nothing is lost by it.
         /// </summary>
         [TestCase("/racing-desk/data/status?action=setMozaPedalSetting&key=brake.deadzone&value=9")]
-        [TestCase("/racing-desk/data/controls?action=resetmap")]
+        [TestCase("/racing-desk/data/controls?action=restartdemo")]
         [TestCase("/racing-desk/data/sessions?x=1&action=mozaReconnect")]
         [TestCase("/racing-desk/data/pedals?ACTION=setPedalProfile&id=b")]
         [TestCase("/racing-desk/data/cars?%61ction=listSerialPortDiagnostic&probe=1")]

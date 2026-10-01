@@ -928,10 +928,12 @@
     flex: 1;
   }
 
-  /* F1-style sector indicator (shown during practice/qualifying/testing) */
+  /* F1-style sector indicator (shown during practice/qualifying/testing). A layout with more sectors than
+     fit across the block wraps them to another line; none is cropped. */
   .sector-indicator {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 3px;
     flex: 1;
     width: 100%;
@@ -1365,6 +1367,61 @@
     overflow: hidden;
   }
   .map-svg { width: 92%; flex: 1 1 0; min-height: 0; }
+  /* While there is no map: why, centred over the empty circuit, and nothing at all once there is one. */
+  .map-panel > .map-waiting {
+    position: absolute;
+    inset: 0 0 1.6em 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    text-align: center;
+    text-wrap: balance;
+    font-size: max(11px, var(--fs-xs));
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+  .map-panel > .map-waiting:empty { display: none; }
+  /* With a map drawn, a note under it (SimHub's map, until his first clean lap): in the column with the circuit and
+     its name, between the two, so it covers nothing of the circuit and is not at the top, where race control's banner
+     sits under a flag. One line, never more: the circuit gives up one line for it and no more, in the rig's small cell
+     (96px wide, where a note that wrapped took the circuit down to a fifth of its height) as in the glance layout. A
+     cell narrower than the line slides it, as the circuit's name is slid (webgl-helpers.js _fitMapNote). */
+  .map-panel > .map-waiting.map-note {
+    position: static;
+    inset: auto;
+    display: block;
+    flex: 0 0 auto;
+    width: 100%;
+    margin-top: 2px;
+    padding: 0 6px;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-wrap: nowrap;
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
+  .map-panel > .map-waiting.map-note .map-note-inner {
+    display: inline-block;
+    will-change: transform;
+  }
+  .map-panel > .map-waiting.map-note.is-marquee {
+    text-align: left;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+  }
+  .map-panel > .map-waiting.map-note.is-marquee .map-note-inner {
+    animation: track-name-marquee var(--marquee-duration, 14s) ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .map-panel > .map-waiting.map-note.is-marquee .map-note-inner {
+      animation: none;
+      transform: translateX(0);
+    }
+  }
   /* Full map label: single-line marquee so long names slide past instead of
      wrapping and stealing vertical space from the map above. */
   .map-panel > .map-zoom-label {

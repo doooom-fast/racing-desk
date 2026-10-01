@@ -237,7 +237,7 @@ test.describe('the telemetry', () => {
       '/racing-desk/?action=setSetting&key=promptDuration&value=1',
       '/racing-desk/?action=bindPedalProfile&id=x',
       '/racing-desk/?action=setMozaPedalSetting&name=brake&value=0',
-      '/racing-desk/?action=resetmap',
+      '/racing-desk/?action=restartdemo',
       '/racing-desk?x=1',
     ]) {
       const answer = await ask(target, onTheRig);   // even from the rig

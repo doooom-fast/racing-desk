@@ -43,7 +43,7 @@ namespace RacingDesk.Plugin.IRacing
         public int TickRate { get; }
         public int BufferLength { get; }
         public int BufferOffset { get; }
-        public int RecordCount { get; }
+        public int RecordCount { get; private set; }
         public int LapCount { get; }
         public DateTime SessionStartUtc { get; }
         public double SessionStartTime { get; }
@@ -51,10 +51,18 @@ namespace RacingDesk.Plugin.IRacing
         public string SessionInfoYamlText { get; }
         public IReadOnlyDictionary<string, IbtVar> Vars => _vars;
 
-        public IbtFile(string path)
+        /// <summary>The file is still being written: its records are counted from its length, not its header.</summary>
+        public bool Growing { get; }
+
+        /// <param name="growing">
+        /// The sim is still writing the file. Its sub-header says 0 records until the sim closes it, so the count is
+        /// what the length holds (a partial last record left out), and <see cref="Refresh"/> reads the length again.
+        /// </param>
+        public IbtFile(string path, bool growing = false)
         {
             Path = path;
-            _stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 16, FileOptions.RandomAccess);
+            Growing = growing;
+            _stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16, FileOptions.RandomAccess);
             try
             {
                 var h = ReadAt(0, HeaderSize);
@@ -72,12 +80,12 @@ namespace RacingDesk.Plugin.IRacing
                 LapCount = BitConverter.ToInt32(h, 136);
                 RecordCount = BitConverter.ToInt32(h, 140);
 
-                if (numVars <= 0 || numVars > 4096 || BufferLength <= 0 || sessionInfoLen < 0)
+                if (numVars <= 0 || numVars > 4096 || BufferLength <= 0 || sessionInfoLen < 0 || BufferOffset < HeaderSize)
                     throw new InvalidDataException($"{path}: not a valid .ibt header");
 
-                // Files cut short by a crash report more records than they hold.
+                // Files cut short by a crash report more records than they hold; one still being written reports none.
                 long available = (_stream.Length - BufferOffset) / BufferLength;
-                if (available < RecordCount) RecordCount = (int)Math.Max(0, available);
+                if (growing || available < RecordCount) RecordCount = (int)Math.Max(0, available);
 
                 var vb = ReadAt(varHeaderOffset, numVars * VarHeaderSize);
                 for (int i = 0; i < numVars; i++)
@@ -143,6 +151,21 @@ namespace RacingDesk.Plugin.IRacing
                 }
                 return _sessionInfo;
             }
+        }
+
+        /// <summary>
+        /// For a growing file: counts its records again from its length now. Returns how many there are. A file
+        /// opened as finished keeps its count.
+        /// </summary>
+        public int Refresh()
+        {
+            if (!Growing) return RecordCount;
+            lock (_stream)
+            {
+                long available = (_stream.Length - BufferOffset) / BufferLength;
+                RecordCount = (int)Math.Max(0, Math.Min(int.MaxValue, available));
+            }
+            return RecordCount;
         }
 
         /// <summary>Reads frame <paramref name="index"/> into <paramref name="buffer"/> (at least <see cref="BufferLength"/> bytes).</summary>
