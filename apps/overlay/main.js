@@ -18,6 +18,7 @@ const hudVisibility = require('./modules/js/hud-visibility');
 const hudDisplay   = require('./modules/js/hud-display');
 const { createHudKeys } = require('./modules/js/hud-keys');
 const settingsFile = require('./modules/js/settings-file');
+const recordingSettings = require('./modules/js/recording-settings');
 const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
 const { createCarNames } = require('./modules/js/paints/car-names');
@@ -122,6 +123,22 @@ function saveSettingsKeySync(key, value) {
   settingsFile.setKey(getSettingsPath(), key, value);
   _lastSelfSettingsWriteAt = Date.now();
 }
+
+// The recording keys, brought from the Electron recorder's days to OBS's (modules/js/recording-settings.js): once,
+// before anything reads the file. A file that cannot be read is left as it is.
+(function migrateRecordingSettings() {
+  try {
+    const result = recordingSettings.migrateFile(getSettingsPath(), { settingsFile });
+    if (result.changed) {
+      _lastSelfSettingsWriteAt = Date.now();
+      logToFile(`[RacingDesk] Recording settings brought to version ${recordingSettings.VERSION}: ${result.removed.length} removed, ${result.renamed.length} renamed, ${result.added.length} added`);
+    } else if (result.state === 'unreadable') {
+      logToFile('[RacingDesk] Recording settings: the settings file could not be read, so it was left as it is');
+    }
+  } catch (err) {
+    logToFile(`[RacingDesk] Recording settings could not be migrated: ${err.message}`);
+  }
+})();
 
 // ── iRating / Safety Rating persistence ──────────────────────
 function getRatingPath() {
