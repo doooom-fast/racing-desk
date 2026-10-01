@@ -166,6 +166,53 @@ namespace RacingDesk.Tests.IRacing
         }
 
         [Test]
+        public void TheOutlineIsAnsweredToThePluginThroughTheRuntimesCheckOfWhoIsAsking()
+        {
+            // The runtime refuses every ?action= route to anything that is not a program on this machine, before the
+            // host's own routes see the request (ActionRoutesTests). The plugin's request names no action and comes
+            // from this machine: it is answered — through the runtime as the host runs it, not the data API alone.
+            var outlines = new TrackOutlines(Db);
+            string path = SyntheticLaps.Write(Path.Combine(_dir, "laps.ibt"), SyntheticLaps.Yaml(), SyntheticLaps.Laps(2), March);
+            using (var store = new RacingDeskStore(Db)) store.MergeGeometry(IbtIngest.IngestGeometryOnly(path, 777));
+            SqliteConnection.ClearAllPools();
+
+            int httpPort = FreePort(), wsPort;
+            do wsPort = FreePort(); while (wsPort == httpPort);
+            var runtime = new RacingDesk.Plugin.RacingDeskRuntime(new RacingDesk.Plugin.Settings(), new RacingDesk.Plugin.RacingDeskRuntime.Options
+            {
+                AssemblyDirectory = _dir,
+                PluginsDataDirectory = _dir,
+                HttpPort = httpPort,
+                WsPort = wsPort,
+                EnableHardware = false,
+                EnableSdkBridge = false,
+                LoopbackOnly = true,
+                ExtraRoutes = new LocalDataApi(Db) { Outlines = outlines }.TryHandle,
+            });
+            runtime.Start();
+            try
+            {
+                Assert.That(runtime.HttpListening, Is.True);
+                using var source = new RacingDesk.Plugin.Engine.HostOutlineSource($"http://127.0.0.1:{httpPort}");
+                var outline = source.Get(777);
+                Assert.That(outline, Is.Not.Null, "the plugin's request names no action, and the runtime hands it to the host's route");
+                Assert.That((outline.TrackId, outline.CleanLaps, outline.Points.Count), Is.EqualTo((777, 2, 1000)));
+                Assert.That(source.Get(778), Is.Null, "a layout there is no outline of is the route's 404, not a refusal");
+
+                // The same route with an action in it, from another machine, is refused before the host sees it.
+                using var http = new HttpClient();
+                using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{httpPort}/racing-desk/data/outline?track=777&action=restartdemo");
+                request.Headers.Host = "192.168.1.20:18889";
+                using var response = http.Send(request);
+                Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+            }
+            finally
+            {
+                runtime.Stop();
+            }
+        }
+
+        [Test]
         public void TheHostUrlIsNeverSavedSoAnOldAddressIsNotKept()
         {
             string saved = Newtonsoft.Json.JsonConvert.SerializeObject(new RacingDesk.Plugin.Settings());
