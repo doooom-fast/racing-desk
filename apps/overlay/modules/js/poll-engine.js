@@ -446,9 +446,10 @@
     // ─── Tyres ───
     // Tyre wear on the wire is tread remaining, 0..100 %, 100 = new, from the host, the SimHub plugin and the demo
     // alike (root CLAUDE.md, Tyre wear); null, or 0, is not measured. It is read as it is — nothing in the HUD
-    // converts it — and the pit box's rings are where it is shown (pitbox.js). The tyre cells below are the old
-    // panel's, which dashboard.html no longer has: updateTyreCell returns at once.
-    const wearOf = (k) => { const x = p[k]; return x == null || x === '' || !(+x > 0) ? null : Math.max(0, Math.min(100, +x)); };
+    // converts it — through parseTyreWear (config.js, the one reader every panel uses), and the pit box's rings are where
+    // it is shown (pitbox.js). The tyre cells below are the old panel's, which dashboard.html no longer has:
+    // updateTyreCell returns at once.
+    const wearOf = (k) => parseTyreWear(p[k]);
     const wearPct = (k) => { const w = wearOf(k); return w == null ? -1 : w; };
     if (_demo) {
       updateTyreCell(0, +v('RacingDesk.Plugin.Demo.TyreTempFL'), wearPct('RacingDesk.Plugin.Demo.TyreWearFL'));

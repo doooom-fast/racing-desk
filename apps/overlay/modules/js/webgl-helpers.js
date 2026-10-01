@@ -669,8 +669,8 @@
     if (index < wearFills.length) {
       wearFills[index].style.width = Math.max(0, Math.min(100, wearPct)) + '%';
       // Colour by tread remaining at the engine's thresholds: red under 20, amber under 35, green above
-      if (wearPct < 20) wearFills[index].style.background = 'var(--red)';
-      else if (wearPct < 35) wearFills[index].style.background = 'var(--amber)';
+      if (wearPct < TYRE_WEAR_CRIT_BELOW) wearFills[index].style.background = 'var(--red)';
+      else if (wearPct < TYRE_WEAR_WARN_BELOW) wearFills[index].style.background = 'var(--amber)';
       else wearFills[index].style.background = 'var(--green)';
     }
   }

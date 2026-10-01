@@ -474,6 +474,9 @@ body.drive-mode-active .pb-wear-note {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 body.drive-mode-active .pb-wear-note.hidden { display: none; }
+/* A cell too short for the rings at their floor, the call above them and the note (the 10.2" iPad upright, 195px, was the
+   one that overflowed by 7px): the note gives way while the call is up, which is the news, and is back with the rings alone. */
+@container (max-height: 200px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-wear-note { display: none; } }
 body.drive-mode-active #pbPageFuel::before { content: 'Fuel'; }
 body.drive-mode-active #pbPageWeather::before { content: 'Weather'; }
 body.drive-mode-active .pb-row,

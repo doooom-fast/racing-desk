@@ -7,7 +7,8 @@
 // is handed in — write(path, text) — so the rules run in Node (tests/unit/telemetry-sidecar.spec.mjs).
 //
 // What changed with OBS (schemaVersion stays 1; all additive, and a reader that defaults a missing field to 0 is
-// right): every frame carries the sim's own clock, `sn` (SessionNum) and `st` (SessionTime), which is how a moment
+// right — except the tyre wear, wFL..wRR, where null is "not measured" and 0 would be a bald tyre; the header's `tyreWear`
+// says which meaning a file has): every frame carries the sim's own clock, `sn` (SessionNum) and `st` (SessionTime), which is how a moment
 // in the sidecar is found again in iRacing's replay; the header says who produced it (`producer: "obs"`), what it is
 // beside (`kind`: a recording, or a clip the replay buffer saved), the OBS file (`obsOutputPath`), when the video
 // began (`videoStartUtc`) and the offset to add to `t` (`videoOffsetMs`, 0 to begin with); the summary carries the
@@ -126,6 +127,9 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
       track,
       gameId: p && p[KEYS.gameId] ? String(p[KEYS.gameId]) : null,
       isDemo,
+      // What wFL..wRR mean in this file (docs/telemetry-sidecar-schema.md): a file without this field was written before
+      // 2026-10-01, when the meaning was mixed (a host's 0..100 remaining, a plugin's 0..100 or a 0..1 worn from its old fallback).
+      tyreWear: 'percent-remaining',
       producer: header.producer,
       kind: header.kind,
       obsOutputPath: header.obsOutputPath,

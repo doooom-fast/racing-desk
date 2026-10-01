@@ -14,6 +14,7 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import fs from 'node:fs';
 import { frame, fieldWith } from '../frames.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -88,9 +89,32 @@ test.describe('the wire\'s tread, as it is', () => {
     expect(parseFloat(r[2][2])).toBeCloseTo(C * 0.85, 2);
     expect(parseFloat(r[0][2])).toBeCloseTo(0, 6);
 
-    // At the thresholds: 35 is not under 35, 20 is not under 20.
+    // At the thresholds: 35 is not under 35, 20 is not under 20 — and a tyre under one never prints as the number (34.9 is
+    // amber and says 34, 19.9 is red and says 19).
     await serve(page, RACE({ [FL]: 35, [FR]: 34.9, [RL]: 20, [RR]: 19.9 }));
-    expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['35%', 'ok'], ['35%', 'warn'], ['20%', 'warn'], ['20%', 'crit']]);
+    expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['35%', 'ok'], ['34%', 'warn'], ['20%', 'warn'], ['19%', 'crit']]);
+  });
+
+  test('a printed number never rounds across a threshold, and his fresh tyres read 100', async ({ page }) => {
+    await open(page, RACE({ [FL]: 34.6, [FR]: 19.7, [RL]: 99.98, [RR]: 20.4 }));
+    expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['34%', 'warn'], ['19%', 'crit'], ['100%', 'ok'], ['20%', 'warn']]);
+    // The same table as the engine's TyreWear.DisplayPercent (TyreWearTests.ThePrintedPercentNeverRoundsAcrossAThreshold)
+    const shown = await page.evaluate(() => [100, 99.98, 64.4, 35, 34.6, 34.5, 20, 19.7, 15.4, 0, 250].map(tyreWearShown));
+    expect(shown).toEqual([100, 100, 64, 35, 34, 34, 20, 19, 15, 0, 100]);
+  });
+
+  test('the page\'s two thresholds are the engine\'s', async ({ page }) => {
+    // One pair everywhere: Engine/TyreWear.cs is the source, config.js (which every panel reads) must say the same two numbers
+    const cs = fs.readFileSync(path.join(OVERLAY, '..', 'core', 'RacingDesk.Core', 'Engine', 'TyreWear.cs'), 'utf8');
+    const warn = parseFloat(/WarnBelowPercent\s*=\s*([\d.]+)/.exec(cs)[1]);
+    const crit = parseFloat(/CriticalBelowPercent\s*=\s*([\d.]+)/.exec(cs)[1]);
+    await open(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }));
+    expect(await page.evaluate(() => [TYRE_WEAR_WARN_BELOW, TYRE_WEAR_CRIT_BELOW])).toEqual([warn, crit]);
+    // and no panel keeps a number of its own: the rings, the quad and the old cells read them
+    for (const file of ['pitbox.js', 'commentary-viz.js', 'webgl-helpers.js']) {
+      const src = fs.readFileSync(path.join(OVERLAY, 'modules', 'js', file), 'utf8');
+      expect(src, file).toMatch(/TYRE_WEAR_(WARN|CRIT)_BELOW/);
+    }
   });
 
   test('not measured is a dash and an empty ring: null, 0, or no key at all', async ({ page }) => {
@@ -106,6 +130,42 @@ test.describe('the wire\'s tread, as it is', () => {
   test('a fraction is not converted: the page shows what it is sent, so a 0..1 value upstream is seen as a bald tyre here', async ({ page }) => {
     await open(page, RACE({ [FL]: 0.91, [FR]: 0.88, [RL]: 0.94, [RR]: 0.93 }));
     expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['1%', 'crit'], ['1%', 'crit'], ['1%', 'crit'], ['1%', 'crit']]);
+  });
+
+  test('a corner the engine has taken off the wire (a new set: null) is a dash while the others keep their numbers', async ({ page }) => {
+    await open(page, RACE({ [FL]: null, [FR]: 16, [RL]: null, [RR]: 62 }, { [HEALTH]: 2, [LAPS]: 0 }));
+    expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['—', 'ok'], ['16%', 'crit'], ['—', 'ok'], ['62%', 'ok']]);
+    await serve(page, RACE({ [FL]: null, [FR]: null, [RL]: null, [RR]: null }, { [HEALTH]: 0, [LAPS]: 99 }));
+    expect((await rings(page)).map((x) => x[0])).toEqual(['—', '—', '—', '—']);
+    expect(await strategist(page)).toEqual([false, expect.any(String)]);
+  });
+
+  test('the commentary\'s quad says a dash where nothing is measured, and never four red 0%', async ({ page }) => {
+    await open(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }));
+    await page.evaluate(() => {
+      // The quad has a size to draw into only while a card is up (the page lays it out at nothing now): give it one
+      document.getElementById('commentaryViz').getBoundingClientRect = () => ({ width: 160, height: 100, left: 0, top: 0, right: 160, bottom: 100 });
+      window.__quad = [];
+      const fill = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (t, ...rest) { window.__quad.push(String(t)); return fill.call(this, t, ...rest); };
+    });
+    const texts = (data) => page.evaluate((d) => {
+      window.__quad.length = 0;
+      window.updateCommentaryVizData(d);
+      window.showCommentaryViz('tyre_wear_high', 200);
+      const out = window.__quad.slice();
+      window.hideCommentaryViz();
+      return out;
+    }, data);
+    // The quad renders before the first telemetry has supplied its tread (or with a value that is not a list)
+    const none = await texts({});
+    expect(none.filter((t) => /%$|—/.test(t))).toEqual(['—', '—', '—', '—']);
+    expect(none.join(' ')).not.toContain('0%');
+    const notAList = await texts({ tyreWears: 'x' });
+    expect(notAList.filter((t) => /%$|—/.test(t))).toEqual(['—', '—', '—', '—']);
+    // And with the engine's numbers, the whole percent that is printed beside the colour
+    const some = await texts({ tyreWears: [34.6, null, 19.7, 100] });
+    expect(some.filter((t) => /%$|—/.test(t))).toEqual(['34%', '—', '19%', '100%']);
   });
 
   test('the strategist\'s offer is the engine\'s TireHealthState, and its laps are shown only where there is a number', async ({ page }) => {
@@ -135,6 +195,10 @@ test.describe('the wire\'s tread, as it is', () => {
     await open(page, demo([82, 79, 86, 85]));
     expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['82%', 'ok'], ['79%', 'ok'], ['86%', 'ok'], ['85%', 'ok']]);
     expect(await strategist(page)).toEqual([false, expect.any(String)]);
+    // Amber, and nothing offered: the live offer comes at 20 (TireHealthState 2), and the demo is no different
+    await serve(page, demo([40, 30, 60, 25]));
+    expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['40%', 'ok'], ['30%', 'warn'], ['60%', 'ok'], ['25%', 'warn']]);
+    expect(await strategist(page)).toEqual([false, expect.any(String)]);
     await serve(page, demo([40, 30, 60, 18]));
     expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['40%', 'ok'], ['30%', 'warn'], ['60%', 'ok'], ['18%', 'crit']]);
     expect(await strategist(page)).toEqual([true, 'Accept tire change · ~4 laps left']);   // the worst, 18, a fifth of a lap a point
@@ -148,6 +212,22 @@ test.describe('what the number is', () => {
     await serve(page, RACE({}, { 'RacingDesk.Plugin.DemoMode': 1, 'RacingDesk.Plugin.Demo.TyreWearFL': 82, 'RacingDesk.Plugin.Demo.CarModel': 'BMW M4 GT3' }));
     expect(await note(page)).toEqual([false, '']);
     await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }));
+    expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
+  });
+
+  test('on the smallest pit box (810x1080, the 10.2" iPad upright) the note gives way to a tyre call there is no room beside, and is back without the call', async ({ page }) => {
+    const set = (wear, extra = {}) => RACE({ [FL]: wear, [FR]: 100, [RL]: 100, [RR]: 100 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 14, ...extra });
+    await open(page, set(100));
+    await page.setViewportSize({ width: 810, height: 1080 });
+    await page.evaluate(() => setDriveMode(true));
+    await drawn(page);
+    expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
+    await serve(page, set(15, { [HEALTH]: 2, [LAPS]: 12 }));
+    expect(await strategist(page)).toEqual([true, expect.stringContaining('Change')]);
+    expect((await note(page))[0], 'with the call up there is no room for the line').toBe(false);
+    // and the rings are whole: no cell is cut off by the pit box
+    expect(await page.evaluate(() => [...document.querySelectorAll('.pb-circle-cell')].map((c) => c.scrollHeight - c.clientHeight <= 5))).toEqual([true, true, true, true]);
+    await serve(page, set(100, { [HEALTH]: 0, [LAPS]: 99 }));
     expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
   });
 

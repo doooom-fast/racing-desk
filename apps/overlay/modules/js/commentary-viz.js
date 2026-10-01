@@ -141,7 +141,7 @@
       case 'sessionTime': return t.sessionTime || '';
       case 'trackTemp':   return t.trackTemp || 0;
       case 'tyreTemp':    return t.tyreTemps || [0,0,0,0];
-      case 'tyreWear':    return t.tyreWears || [0,0,0,0];
+      case 'tyreWear':    return t.tyreWears || [null,null,null,null];   // not measured: a dash, never a 0 (which is a bald tyre)
       default:            return 0;
     }
   }
@@ -492,17 +492,18 @@
   }
 
   // Tyre wear colour: tread remaining, 0..100 % as the wire has it (null: not measured), at the engine's own two
-  // thresholds (root CLAUDE.md, Tyre wear) — amber under 35, red under 20, green above.
+  // thresholds (root CLAUDE.md, Tyre wear; config.js) — amber under 35, red under 20, green above.
   function _tyreWearColor(pct) {
     if (pct == null) return { hue: 0,   sat: 0 };   // not measured
-    if (pct < 20)    return { hue: 0,   sat: 70 };  // red
-    if (pct < 35)    return { hue: 45,  sat: 90 };  // amber
+    if (pct < TYRE_WEAR_CRIT_BELOW) return { hue: 0,   sat: 70 };  // red
+    if (pct < TYRE_WEAR_WARN_BELOW) return { hue: 45,  sat: 90 };  // amber
     return             { hue: 123, sat: 45 };        // green
   }
 
   function _renderQuad(cfg) {
     const vals = _getVizValue(cfg.src);
-    const arr = Array.isArray(vals) ? vals : [0, 0, 0, 0];
+    // (a value that is not a list is every corner not measured: dashes. 0 would be four bald tyres, in red.)
+    const arr = Array.isArray(vals) ? vals : [null, null, null, null];
 
     const c = _prepCanvas();
     if (!c) return;
@@ -568,7 +569,7 @@
       ctx.font = `bold ${11 * dpr}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const dispVal = isTemp ? Math.round(val) + '°' : (val == null ? '—' : Math.round(val) + '%');
+      const dispVal = isTemp ? Math.round(val) + '°' : (val == null ? '—' : tyreWearShown(val) + '%');
       ctx.fillText(dispVal, cx, cy - 2 * dpr);
 
       // Corner label

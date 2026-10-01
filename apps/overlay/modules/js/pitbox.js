@@ -291,16 +291,11 @@
   // nothing; a tyre with no tread at all is not a thing the sim reports). iRacing measures tread in the pits and
   // nowhere else, so the number is the last measurement: the page says so (the note under the rings, the heading in
   // the glance layout) and the warnings come from the strategy engine, which rates a measurement, not from here.
-  // The two thresholds are the engine's (Engine/TyreWear.cs): amber under 35, red under 20.
-  var WEAR_WARN_BELOW = 35, WEAR_CRIT_BELOW = 20;
-
-  // The wire's value as it is: a number 0..100, or null where there is no measurement.
-  function _parseWear(val) {
-    if (val == null || val === '') return null;
-    var v = parseFloat(val);
-    if (isNaN(v) || !(v > 0)) return null;
-    return Math.max(0, Math.min(100, v));
-  }
+  // The two thresholds are the engine's (Engine/TyreWear.cs): amber under 35, red under 20 — TYRE_WEAR_WARN_BELOW and
+  // TYRE_WEAR_CRIT_BELOW, and the wire's number is read by parseTyreWear, all three in config.js, where every panel
+  // that shows tread reads it from.
+  var WEAR_WARN_BELOW = TYRE_WEAR_WARN_BELOW, WEAR_CRIT_BELOW = TYRE_WEAR_CRIT_BELOW;
+  var _parseWear = parseTyreWear;
 
   function updateWearRing(ringEl, valEl, remaining) {
     if (!ringEl || !valEl) return;
@@ -312,7 +307,7 @@
       return;
     }
     var pct = Math.max(0, Math.min(100, remaining));
-    var shown = Math.round(pct);
+    var shown = tyreWearShown(pct);
     // dashoffset: 0 = full circle, CIRCUMFERENCE = empty circle
     ringEl.style.strokeDashoffset = RING_CIRCUMFERENCE * (1 - pct / 100);
     ringEl.className.baseVal = 'pb-ring-fill' +
@@ -373,7 +368,8 @@
     // ── Strategist tire suggestion ──
     // Show the "accept" button when the strategy engine flags tire health
     // as needing attention (TireHealthState >= 2 means "change recommended": a tyre measured under 20% tread).
-    // In demo mode, the page plays the strategist itself when a demo tyre is under the worn threshold.
+    // In demo mode, the page plays the strategist itself when a demo tyre is under the critical threshold: the same
+    // tread the live offer comes at (the engine's TireHealthState 2), not the worn one that only turns the ring amber.
     var st = function(key) { return d['RacingDesk.Plugin.Strategy.' + key]; };
     var tireHealth = parseInt(st('TireHealthState')) || 0;
     var tireLapsLeft = st('TireLapsRemaining');
@@ -385,10 +381,10 @@
       var demoWearFR = _parseWear(demoTyre('TyreWearFR'));
       var demoWearRL = _parseWear(demoTyre('TyreWearRL'));
       var demoWearRR = _parseWear(demoTyre('TyreWearRR'));
-      if ((demoWearFL !== null && demoWearFL < WEAR_WARN_BELOW) ||
-          (demoWearFR !== null && demoWearFR < WEAR_WARN_BELOW) ||
-          (demoWearRL !== null && demoWearRL < WEAR_WARN_BELOW) ||
-          (demoWearRR !== null && demoWearRR < WEAR_WARN_BELOW)) {
+      if ((demoWearFL !== null && demoWearFL < WEAR_CRIT_BELOW) ||
+          (demoWearFR !== null && demoWearFR < WEAR_CRIT_BELOW) ||
+          (demoWearRL !== null && demoWearRL < WEAR_CRIT_BELOW) ||
+          (demoWearRR !== null && demoWearRR < WEAR_CRIT_BELOW)) {
         shouldSuggest = true;
         // Laps left from the worst tyre: a fifth of a lap per point of tread, for the show
         var worstWear = Math.min(

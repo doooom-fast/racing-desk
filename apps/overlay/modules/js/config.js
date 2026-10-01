@@ -31,6 +31,34 @@ function runtimeAction(name, params) {
   });
 }
 
+// ── Tyre wear: one meaning, one reader ──
+// Tyre wear on the wire is tread remaining, per corner, 0..100 %, 100 = new, null where the sim has not measured it (root
+// CLAUDE.md, Tyre wear). The pit box's rings, the commentary's quad and the old tyre cells all read the wire through these
+// three, so a number cannot mean one thing in one panel and another in the next, and nothing here converts it. The two
+// thresholds are the engine's (Engine/TyreWear.cs; tests/unit/tyre-wear.spec.mjs holds the two sets of numbers to each other).
+const TYRE_WEAR_WARN_BELOW = 35;   // a tyre under this is worn: amber
+const TYRE_WEAR_CRIT_BELOW = 20;   // a tyre under this is critical: red
+
+// The wire's value as it is: a number 0..100, or null where there is no measurement — null, '', NaN, and 0. The engine
+// sends null for what it has not measured (SimHub's own property reads 0 while it has nothing, and a tyre bald on every
+// band is read as not measured too), so a 0 here is a plugin from before that, and is not a tyre.
+function parseTyreWear(val) {
+  if (val == null || val === '') return null;
+  const v = parseFloat(val);
+  if (isNaN(v) || !(v > 0)) return null;
+  return Math.max(0, Math.min(100, v));
+}
+
+// A tread as the whole percent it is printed: the nearest, but never across a threshold, so 34.6 (worn: under 35) does not
+// read 35 beside an amber ring and 19.7 (critical) does not read 20. The engine's words do the same (TyreWear.DisplayPercent).
+function tyreWearShown(pct) {
+  const v = Math.max(0, Math.min(100, pct));
+  const shown = Math.round(v);
+  if (v < TYRE_WEAR_CRIT_BELOW) return Math.min(shown, TYRE_WEAR_CRIT_BELOW - 1);
+  if (v < TYRE_WEAR_WARN_BELOW) return Math.min(shown, TYRE_WEAR_WARN_BELOW - 1);
+  return shown;
+}
+
 const POLL_MS = 33; // ~30fps when in a car
 const IDLE_POLL_MS = 1000; // slow poll when not in a car — just enough to detect entry
 
