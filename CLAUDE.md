@@ -99,9 +99,12 @@ Anything else is 403 with no CORS header and a line in the log: once for each ac
 connection from this machine that a browser sent, or from another machine). Every name the runtime has a route for
 (`KnownActions`) is always written; the names it has none of, which a device on the network can make up without end,
 are written for the first 16 and then not. So curl, PowerShell and Node can ask, and an address typed into a browser
-cannot: use curl. The Stream Deck's plugin does not ask the runtime: it asks the app's `/api/action/<name>` on
-`:9090`, which hands the demo and track-map actions to the HUD, and the HUD's own calls go through `runtime:action`
-(below). A route added to the file is behind the check by being below it; `ActionRoutesTests` reads every
+cannot: use curl. The Stream Deck's plugin does not ask the runtime: it asks the app's `/api/action/<name>` on its
+loopback listener, `127.0.0.1:9091` (always up; the iPad's server on `:9090` answers the same actions while its switch
+is on), which hands the demo and track-map actions to the HUD, and the HUD's own calls go through `runtime:action`
+(below). The host has one more route for a program on this machine, behind the same check: `/racing-desk/data/replay`
+(GET and POST), iRacing's replay and cameras through the SDK's own commands, for the app's TV shots
+(`docs/recording.md`). A route added to the file is behind the check by being below it; `ActionRoutesTests` reads every
 `action == "…"` in the file, asks each from another machine, from a page and from this one, and fails on one that is
 let through (and on a way of looking at the action it cannot read, and on one missing from `KnownActions`). The HUD is a page — a file, whose requests carry `Origin: null` — so its own calls
 (`resetmap`, `restartdemo`, `setrect`, the pedal profiles) are made by the main process: `runtimeAction` in
@@ -634,7 +637,10 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
   which the iPad keeps; and a strip says "No data from the rig" when the numbers stop arriving.
 
 Tests listen on 127.0.0.1 only. A listener on the network makes Windows ask about the firewall, in a window, over
-whatever the driver is doing — so nothing but the driver's own switch ever starts one. The code on the card is
+whatever the driver is doing — so nothing but the driver's own switch ever starts one. **The listener on this PC**
+(`remote-server.js` again, `loopback: true`, port 9091, `localServerPort`) is always up on `127.0.0.1` alone and asks
+Windows nothing: the Stream Deck's buttons, `/api/status`, his display settings through an allowlist
+(`/api/settings-display`) and the HUD page for OBS (`/obs`, "HUD drawn by OBS" in `docs/recording.md`). The code on the card is
 `modules/js/qr-code.js` (version 3-M, 42 bytes at most); `tests/unit/qr-code.spec.mjs` reads it back by the
 standard's rules, since no reader is on hand. A page cannot keep an iPad awake over plain http, so the card says to
 set Auto-Lock to Never.

@@ -3,7 +3,7 @@
 OBS records; Racing Desk drives it, writes the telemetry beside the file, records by itself, keeps the replay buffer
 with the car, writes chapters, files each recording in a folder of its own, and shows what is going on everywhere but
 the HUD. Decided 2026-09-30 ("refactor the recording using obs as the main recording and composition surface"); this
-is what is built as of stage 2 and what is coming. The Electron recorder, its ffmpeg, the `.rcpdv` bundles and the old
+is what is built as of stage 3 and what is coming. The Electron recorder, its ffmpeg, the `.rcpdv` bundles and the old
 "native" backend are gone.
 
 ## What OBS does
@@ -163,16 +163,18 @@ is what is built as of stage 2 and what is coming. The Electron recorder, its ff
   on; "Start OBS when I press Record", on; "Start OBS with Racing Desk", off), and the password field only when OBS
   wants a password Racing Desk does not have.
 - **The tray**: Record / Stop recording, Save replay (while Instant replay is on), Open OBS.
-- **The Stream Deck**: Toggle Recording (and the rest of its buttons), through the app's action route on `:9090`, **which
-  answers only while the iPad view is switched on** until the always-on loopback listener of stage 3 (with the iPad view off
-  every key shows a cross). The plugin shows no recording state on the key yet either — only a tick or a cross after a press;
-  the key's state comes with that listener (`/api/status`). A recording press waits up to 45 s for the answer (OBS started,
-  its WebSocket up, the recording begun), the other keys 3 s. Open Settings opens the desk's Settings page. The plugin is
-  built by `npm run build` (`apps/overlay/streamdeck/build.mjs`, esbuild, no SDK: it speaks the Stream Deck app's own
-  WebSocket protocol) and installed at every app start from the unpacked copy (`modules/js/streamdeck-install.js`); its
-  manifest does not turn Node's inspector on.
+- **The Stream Deck**: Toggle Recording, Save Replay, TV Shots and the rest of its buttons, through the app's listener on
+  `127.0.0.1:9091` (below), which is always up whatever the iPad view's switch. While a Toggle Recording key is on the deck
+  the plugin asks that listener every two seconds how the recording stands (`/api/status`) and writes it on the key: the
+  time while recording, "OBS off" while OBS is not open, "TV 3/7" during a take. A recording press waits up to 45 s for
+  the answer (OBS started, its WebSocket up, the recording begun), the other keys 3 s. Open Settings opens the desk's
+  Settings page. The plugin is built by `npm run build` (`apps/overlay/streamdeck/build.mjs`, esbuild, no SDK: it speaks
+  the Stream Deck app's own WebSocket protocol) and installed at every app start from the unpacked copy
+  (`modules/js/streamdeck-install.js`); its manifest does not turn Node's inspector on.
+- **The race detail on the Desk page**: which recording in the recordings folder is the race's (by the session's start
+  and track), Open folder beside it, and **TV shots** (below).
 - **In the car**: Ctrl+Shift+V records or stops (OBS open), Ctrl+Shift+B saves the replay, Ctrl+Shift+P answers that
-  TV shots come with a later build. Neither starts OBS.
+  TV shots are made from the desk after the race. Neither starts OBS.
 - **Never on the HUD.** OBS films the screen the HUD is on, so a red dot or a timer there would be in every video. The
   HUD may show two sentences, for two seconds: "OBS is not open" and "OBS didn't start recording".
 
@@ -194,14 +196,62 @@ The recording folder is `D:\Racing Desk\Recordings` while there is a D: drive (`
 `overlay-settings.json` names another; C: holds about ninety minutes at his bitrate). OBS's own recording folder is
 pointed at it so that every file move into a recording's folder is a rename on the same drive.
 
+## The listener on this PC (`remote-server.js`, loopback)
+
+The iPad's server (port 9090, on the home network, switched on from the desk) has a twin that is always up, on
+`127.0.0.1` alone, port 9091 (`localServerPort`), for the programs on this machine: the Stream Deck's buttons ask it for
+the actions, whatever the iPad switch says; `/api/status` says in the car or not, the HUD on screen or not, and the
+recording in short; `/api/settings-display` is his display settings through an allowlist — the panels, the zoom, the
+position, the look — and never a key, a folder, an address, a device or anything of the recording's; and `/obs` is the
+HUD page for OBS (next). It never has a key to show and never listens on any other address; the LAN server knows none
+of the three routes.
+
+## HUD drawn by OBS (`modules/js/obs/hud-source.js`)
+
+Off unless he turns the switch on (the Recording card). The HUD is then in the picture as a browser source of OBS's
+own, from `http://127.0.0.1:9091/obs`, instead of through his screen capture: the page told it is OBS's
+(`window._obsMode`), its telemetry from the same listener, his display settings with it and asked for again every ten
+seconds (a change on the desk reaches this copy too), no background, no iPad menu, the voice coach off (the rig is
+already talking), the livery crop fetched from the listener, nothing asked of the runtime, and hidden out of the car
+(a window is hidden then; a browser source is not, and a frozen HUD over the garage would be filmed). Throwing the
+switch: the HUD's own window is taken out of every screen capture first (`setContentProtection`, which takes effect at
+the next composition), then OBS is given one input, `Racing Desk HUD` — made once; OBS refuses a second of that name —
+as a scene item in each of his scenes (CreateSceneItem), put just above his `game video` (his facecam stays above the
+HUD) and given the game video's place and size (his 2up scene scales the HUD with the game), enabled, and reloaded
+(`refreshnocache`: CEF 127 in OBS 32 has no handler for a page that failed to load, so the page is reloaded at every
+connect and the source switched off when Racing Desk quits). Off again, the items are disabled and never removed;
+nothing of his is ever removed. The card says in one sentence what it did. Not seen on this rig: how CEF 127 lays the
+HUD out (its `zoom`), and that `setContentProtection` leaves the window out of his display capture — the first run
+with the switch on tells.
+
+## TV shots (`modules/js/obs/tv-shots.js`)
+
+After a race, from the desk's race detail (the race's recording), the tray or the Stream Deck (the latest recording):
+the moments the recording's telemetry sidecar found — the places gained, the incidents, the pit stops; merged within
+five seconds, at most twenty, the biggest first — recorded again from iRacing's own replay through a TV camera, as one
+take in the race's folder, `<the race's video> tv.mp4` with its sidecar (`kind: "tv"`, no chapters). The replay is
+driven through the app's own host, which sends the SDK's own commands (`POST /racing-desk/data/replay`: seek by the
+sidecar's `sn` and `st` — the frame three seconds before each moment — speed, the camera focused on his car in TV1,
+TV2, TV3 in turn; for a program on this machine alone, like the `?action=` routes). No key is pressed. Only out of the
+car, with OBS answering, nothing recording and iRacing in its replay (open the replay in iRacing first); otherwise one
+sentence says what is missing. For the take auto-record is held, and his facecam is hidden in the scene being recorded
+("Hide the facecam during TV shots", on) and put back after, whatever happened. The replay is paused and the first
+moment sought and waited for (the sim says where it is); the recording starts; each moment plays at real speed and the
+replay pauses; between moments the recording is paused and resumed once the next seek has landed, so the take holds
+the moments and nothing of the seeking; after the last the recording stops and is filed. Progress is on the desk's
+pill (with Stop), the Recording card, the race detail, the tray and the Stream Deck's key. Not seen on this rig: that
+iRacing lands a `ReplaySearchSessionTime` where the sidecar's clock says (the first take tells; a seek that the sim
+does not confirm within fifteen seconds is recorded where the replay is, and said in the log).
+
 ## Settings (`overlay-settings.json`, migrated once by `modules/js/recording-settings.js`)
 
 `recordingFolder`, `recordingAutoRecord` (on unless false), `recordingInstantReplay` (false),
 `recordingInstantReplaySeconds` (20), `recordingChapters` (true), `obsStartOnRecord` (true), `obsStartWithApp` (false),
-`obsPath` (null: the default install), `obsHudSource` (false), `obsWebSocketPasswordEnc` (only if typed; never sent
-to a page), `recordingSettingsVersion` (3). The Electron recorder's keys, the "native" backend's port and "stop in the
-pits" (`recordingAutoStopOnPit`: his rules stop a recording on a new session, at the end of the race and when he
-leaves the car, and the pit lane is none of those) are deleted.
+`obsPath` (null: the default install), `obsHudSource` (false: "HUD drawn by OBS"), `tvShotsHideFacecam` (true),
+`localServerPort` (9091: the listener on this PC), `obsWebSocketPasswordEnc` (only if typed; never sent to a page),
+`recordingSettingsVersion` (4). The Electron recorder's keys, the "native" backend's port and "stop in the pits"
+(`recordingAutoStopOnPit`: his rules stop a recording on a new session, at the end of the race and when he leaves the
+car, and the pit lane is none of those) are deleted.
 
 ## Coming (not in this stage)
 
@@ -210,11 +260,8 @@ leaves the car, and the pit lane is none of those) are deleted.
   `pauses` before it, for a recording that was paused — is for the editor's stage, and until then its cuts are as
   far off as the offset (up to about four seconds for a plain keyframe wait).
 
-- **TV shots**, rebuilt on the iRacing SDK's own replay commands through the host (seek by the sidecar's `sn` and
-  `st`, PauseRecord/ResumeRecord between moments, the facecam hidden), from the desk's race detail, the tray and the
-  Stream Deck; the take goes into the recording's folder as `… tv.mp4` with its sidecar.
-- **The always-on loopback listener** (the Stream Deck with the iPad view off) and **the HUD as an OBS browser
-  source**, behind a switch, off by default.
+- **The editor cutting from a TV take**: `apps/edit` names the take by `tv` in the file name and takes it for the TV
+  view, but applies none of the take's sidecar (its `pauses`, its own offset) yet.
 
 ## First run (what no test here can check)
 
@@ -227,3 +274,10 @@ failed to start on 2026-09-29). Then a session with OBS open and Record by itsel
 pill should read "Recording" a second later, and getting out of the car should stop it; in a race it should begin at
 the green flag. With Instant replay on, Ctrl+Shift+B in the car should put a `Replay …` clip and its sidecar in the
 recording's folder. Open the finished MP4 in a player that lists chapters (VLC, DaVinci Resolve) and see the laps.
+
+Then, with the iPad view off, press a Stream Deck key: it should answer (the listener on this PC is what it asks now).
+Then "HUD drawn by OBS": switch it on with OBS open, look at OBS's preview — the HUD should be there once, over the
+game and under the facecam, laid out as on the screen — and at a recording made with it on: the HUD once, not twice.
+Then TV shots: after a race, open its replay in iRacing, pick the race on the Desk page and press TV shots; the pill
+should count the moments, the facecam should go and come back, and the race's folder should hold `… tv.mp4` and its
+sidecar; watch whether each moment is where the race had it (the first take says whether the sim lands the seeks).

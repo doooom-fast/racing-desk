@@ -12,13 +12,16 @@
 - **Where:** `<video>.telemetry.jsonl`, the video's name with its extension swapped, beside the file OBS wrote — written
   there, and moved with the video into the recording's folder (`D:\Racing Desk\Recordings\<date track car>\`) once the
   recording has stopped (docs/recording.md). A replay clip saved while the buffer runs gets a sidecar of its own
-  (`Replay <date>.telemetry.jsonl`, `kind: "replay"`) in the same folder, or in `Replays` under the recordings folder.
+  (`Replay <date>.telemetry.jsonl`, `kind: "replay"`) in the same folder, or in `Replays` under the recordings folder. A TV
+  take (docs/recording.md, TV shots) is `<the recording's video> tv.mp4` in the same folder with `<…> tv.telemetry.jsonl`
+  beside it (`kind: "tv"`): its frames are what the sim showed in the replay while the take was recorded, its `pauses` are
+  the seeks between the moments, and it has no chapters.
 
 ## Since OBS (2026-09-30): what changed, all additive (schemaVersion stays 1)
 
 - Every frame carries the sim's own clock, `sn` (iRacing's `SessionNum`) and `st` (`SessionTime`, seconds), present only
   where the sim said them: a moment in the sidecar is found again in iRacing's replay by them.
-- The header carries `producer` (`"obs"`), `kind` (`"recording"`, or `"replay"` for a clip the replay buffer saved),
+- The header carries `producer` (`"obs"`), `kind` (`"recording"`, `"replay"` for a clip the replay buffer saved, or `"tv"` for a TV take),
   `obsOutputPath` (the file OBS wrote), `videoStartUtc` (when the recording's STARTED event arrived, the same instant as
   `startedAt`; for a clip, the clip's start worked out from its end) and `videoOffsetMs` (`0`: a provisional value; **a
   reader takes the summary's**).
@@ -89,7 +92,7 @@ Lazy-written on the first `captureFrame()` after `start()`. Reads car / track fr
 | `gameId` | `string \| null` | `iracing`, `acc`, etc. |
 | `isDemo` | `boolean` | `true` when DemoMode was active |
 | `producer` | `string` | `"obs"` (added 2026-09-30) |
-| `kind` | `string` | `"recording"`, or `"replay"` for a clip the replay buffer saved (added 2026-10-01) |
+| `kind` | `string` | `"recording"`, `"replay"` for a clip the replay buffer saved, or `"tv"` for a TV take (added 2026-10-01) |
 | `obsOutputPath` | `string \| null` | The file OBS wrote, as `RecordStateChanged` STARTED named it (a clip: as `ReplayBufferSaved` named it) |
 | `videoStartUtc` | `string` | When STARTED arrived, ISO-8601: a provisional video start (a clip: its end less its duration) |
 | `videoOffsetMs` | `number` | `0`, provisional: **the summary's is the one to use** |

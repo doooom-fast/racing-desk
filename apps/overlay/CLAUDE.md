@@ -23,7 +23,7 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 - **Canvas 2D** — fallback and auxiliary rendering
 - **Plain CSS** — `.css` files loaded via `<link>` (NOT CSS modules), custom properties for theming
 - **No build step** — JS modules loaded directly by HTML, no bundler
-- **OBS** records (`docs/recording.md` at the root): the main process drives it over obs-websocket 5 (`modules/js/obs/`), with a WebSocket client of its own over `net` — Electron's Node has none and `ws` is not in the tree. No ffmpeg, no recorder in the page.
+- **OBS** records (`docs/recording.md` at the root): the main process drives it over obs-websocket 5 (`modules/js/obs/`), with a WebSocket client of its own over `net` — Electron's Node has none and `ws` is not in the tree. No ffmpeg, no recorder in the page. OBS may also draw the HUD itself, from the page `remote-server.js` serves on `127.0.0.1:9091/obs` (`window._obsMode`: the rig's layout, hidden out of the car, the voice coach off, the display settings through an allowlist), behind the switch "HUD drawn by OBS".
 - **Anthropic SDK** — direct API calls from `race-coach.js` for live AI commentary (uses user's own API key)
 
 ## 53 modules in `modules/js/`
@@ -42,6 +42,9 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `obs/auto-record.js` | Pure: when a recording starts and stops by itself — the green flag in a race, pit exit elsewhere; a new session, five seconds after HIS finish in a race (the chequered flag out and his lap count up since; the flag is the session's), leaving the car; held a second by the clock; only its own stopped; a green flag good once per stint |
 | `obs/filing.js` | Pure: the recording's folder name (`<date> <track> <car>`), the same-drive move after the file holds still, the offset from the chapters read back (each paired with the same-named chapter nearest to where it belongs, the median of what agrees) or from the file's end (the pauses allowed for), the words of each chapter |
 | `obs/mp4-info.js` | An MP4's duration and chapters read by seeking, no ffmpeg: a finished Hybrid MP4 or plain MP4 from its `moov`, an unfinished Hybrid MP4 from its fragments |
+| `obs/hud-source.js` | **Main process**: "HUD drawn by OBS" — the one browser source `Racing Desk HUD` (the loopback listener's `/obs` page) made once, an item of it in each of his scenes just above `game video` and fitted to it, reloaded at every connect, disabled off and on quit, never removed; main.js takes the HUD's window out of the capture (`setContentProtection`) before it is enabled |
+| `obs/tv-shots.js` | **Main process**: TV shots — the sidecar's moments (places gained, incidents, the pit lane) found again in iRacing's replay by their `sn`/`st` through the host's replay route (the SDK's own commands; no key), recorded through a TV camera as one take in the race's folder, the recording paused between moments, the facecam hidden and put back, auto-record held; progress to the desk, the tray and the Stream Deck |
+| `obs/recordings-index.js` | Pure: the recordings folder read by each folder's sidecar header — the race's recording by the session's start and track, the latest for the tray |
 | `hud-notice.js` | The one thing the HUD may be told of recording, for two seconds: "OBS is not open", "OBS didn't start recording" |
 | `telemetry-sidecar.js` | Pure: the `.telemetry.jsonl` beside the video, written by the keeper; every frame carries the sim's `SessionNum` and `SessionTime` (`docs/telemetry-sidecar-schema.md`) |
 | `recording-settings.js` | The recording keys of `overlay-settings.json` and the once-only migration from the Electron recorder's; the default folder is `D:\Racing Desk\Recordings` |
@@ -427,25 +430,34 @@ Stream Deck — never the HUD, which OBS films), the settings and what is coming
 [`../../docs/telemetry-sidecar-schema.md`](../../docs/telemetry-sidecar-schema.md); the `.rcpdv` bundle is gone.
 
 The desk's Recording card is its own model (`modules/desk/recording-model.js`, pure: the sentences, the buttons —
-Record/Stop, Save replay, Open OBS, Set up OBS, the folder — the five switches, where the last recording went, what Set
-up OBS will change in one sentence) because half of it is commands, not keys of the settings file;
-`tests/unit/desk-recording-model.spec.mjs` and the Recording tests in `tests/desk/desk.spec.mjs`. The password he types
+Record/Stop, Save replay, Open OBS, Set up OBS, the folder — the seven switches, where the last recording went, what Set
+up OBS will change in one sentence, what "HUD drawn by OBS" did, how the TV shots are going, and the race detail's TV
+shots button for a race whose recording the app found) because half of it is commands, not keys of the settings file;
+`tests/unit/desk-recording-model.spec.mjs` and the Recording tests in `tests/desk/desk.spec.mjs`. While TV shots run the
+masthead's pill is theirs, with Stop. The password he types
 goes to main (`recording:command`, `password`), is kept with safeStorage under `obsWebSocketPasswordEnc`, and is stripped
 from every page's copy of the settings like `remoteServerKey` (`tests/unit/hud-main-wiring.spec.mjs` holds main.js to it).
 The Stream Deck plugin (`streamdeck/racing-desk/src/plugin.js`) speaks the Stream Deck app's own WebSocket protocol with
-no SDK, is built by `npm run build` (`streamdeck/build.mjs`, esbuild) into the `.sdPlugin` folder, which electron-builder
-unpacks from the asar, and is installed from there at every app start (`tests/unit/streamdeck-install.spec.mjs` runs the
-built plugin against a fake Stream Deck app).
+no SDK, asks the app's loopback listener (`127.0.0.1:9091`, always up) and writes the recording's state on the Toggle
+Recording key from `/api/status`, is built by `npm run build` (`streamdeck/build.mjs`, esbuild) into the `.sdPlugin`
+folder, which electron-builder unpacks from the asar, and is installed from there at every app start
+(`tests/unit/streamdeck-install.spec.mjs` runs the built plugin against a fake Stream Deck app).
+
+`remote-server.js` is two servers of one kind (`createServer`): the iPad's on the home network, and the loopback one on
+`127.0.0.1:9091` for the programs on this machine — the actions, `/api/status`, `/api/settings-display` (the allowlist
+`DISPLAY_SETTINGS` and the `show*` switches, never a key, a folder, an address or a device) and `/obs`.
+`tests/unit/remote-server.spec.mjs` and `tests/unit/hud-page-obs.spec.mjs` (the real page through the listener, headless).
 
 ## Deployment Modes
 
-`dashboard.html` powers four modes:
+`dashboard.html` powers six modes:
 
 1. **Electron Overlay** (primary) — standalone app, always-on-top, click-through, hotkeys
 2. **SimHub Dashboard Template** — installs as a SimHub template, uses `$prop()` API instead of HTTP
 3. **Browser Access** — open in any browser while SimHub runs, falls back to HTTP polling
 4. **LAN Remote** — built-in HTTP server for serving to other devices on the network
 5. **Showcase mode** — sibling `prodrive-overlay-showcase` repo runs this same dashboard with `showcase-bootstrap.js` driving from synthesized data, embedded in the marketing-site iframe
+6. **OBS browser source** — the same page from the loopback listener's `/obs`, drawn by OBS over the game when "HUD drawn by OBS" is on (`window._obsMode`)
 
 ## Code Style
 
@@ -544,7 +556,7 @@ page reads the list of screens again in place when the app says they changed (`h
 | `Ctrl+Shift+M` | Reset the track map |
 | `Ctrl+Shift+V` | Record or stop, in OBS. With OBS closed it starts nothing: the HUD says "OBS is not open" (OBS is started from the desk, the tray or the Stream Deck, out of the car) |
 | `Ctrl+Shift+B` | Save the instant replay: the last seconds from OBS's replay buffer as a clip, with its telemetry beside it, into the recording's folder (Instant replay on, OBS open; never starts OBS) |
-| `Ctrl+Shift+P` | TV shots (a later build, from the desk after the race; answers so for now) |
+| `Ctrl+Shift+P` | TV shots are made from the desk after the race, with iRacing in its replay; in the car the key answers so |
 | `Ctrl+Shift+I` | Held by the app; nothing listens for it now |
 | `Ctrl+Shift+Q` | Quit the overlay: the HUD is put away (`hud.putAway`), the app keeps running |
 
