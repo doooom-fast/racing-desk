@@ -400,6 +400,37 @@ test.describe('recording', () => {
   });
 });
 
+test.describe('"HUD drawn by OBS"', () => {
+  // modules/js/obs/hud-source.js does the OBS side; main.js throws the switch: the window out of the capture first
+  // (setContentProtection takes effect at the next composition), then the source; off, the items disabled, never removed.
+  test('the window is taken out of the capture before the source is enabled, on the switch, at the connect and at start; the source is switched off on quit', () => {
+    expect(code).toMatch(/const hudSource = obs\.createHudSource\(\{/);
+    const made = argumentsOf('obs.createHudSource(');
+    expect(made).toMatch(/\burl:\s*\(\)\s*=>\s*`http:\/\/127\.0\.0\.1:\$\{localServerPort\(\)\}\$\{remoteServer\.OBS_PATH\}`/);
+    expect(made).toMatch(/\bsize:\s*hudSourceSize\b/);
+    const apply = code.match(/function applyHudSource\(why\) \{([\s\S]*?)\n\}/);
+    expect(apply).not.toBeNull();
+    expect(apply[1].indexOf('setContentProtection(on)')).toBeGreaterThanOrEqual(0);
+    expect(apply[1].indexOf('setContentProtection(on)')).toBeLessThan(apply[1].indexOf('hudSource.ensure()'));
+    expect(apply[1]).toMatch(/on \? hudSource\.ensure\(\) : \(changed \? hudSource\.disable\(\)/);
+    // The one place the window's capture protection is set.
+    expect(calls(/setContentProtection\(/g)).toHaveLength(1);
+    // Thrown: at start, when OBS answers, when the desk saves the switch, when the file changes.
+    expect(code).toMatch(/applyHudSource\('start'\)/);
+    expect(code).toMatch(/if \(state\.phase === 'identified'\) applyHudSource\('OBS answered'\);/);
+    expect(code).toMatch(/if \(\(settings\.obsHudSource === true\) !== hudSourceBefore\) applyHudSource\('the switch'\);/);
+    expect(code).toMatch(/if \(\(settings\.obsHudSource === true\) !== hudSourceWas\) applyHudSource\('the settings file changed'\);/);
+    // On quit, with the switch on and OBS answering: disabled, within a bound.
+    const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
+    expect(helper[1]).toMatch(/hudSource\.disable\(\)/);
+    expect(code).toMatch(/recording\.needsStopForQuit\(\) \|\| \(hudSourceOn\(\) && obsClient\.identified\(\)\)/);
+    // Nothing of his is removed from here or from the module.
+    expect(code).not.toMatch(/RemoveInput|RemoveSceneItem/);
+    const module = readFileSync(new URL('../../modules/js/obs/hud-source.js', import.meta.url), 'utf8');
+    expect(module).not.toMatch(/RemoveInput|RemoveSceneItem|RemoveScene/);
+  });
+});
+
 test.describe('the loopback listener', () => {
   // remote-server.js's second server: on 127.0.0.1 alone, always up, for the Stream Deck and for OBS (the HUD page at
   // /obs). It is given the app's state and his settings whole; the server keeps the allowlist of what a page may see.

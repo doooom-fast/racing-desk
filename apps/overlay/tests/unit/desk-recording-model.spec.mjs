@@ -89,7 +89,16 @@ test('the card: buttons and sentences for the states, the switches, the folder',
   expect(ready.folder).toBe('D:\\Racing Desk\\Recordings');
   expect(ready.switches.map((s) => [s.key, s.value, s.enabled])).toEqual([
     ['recordingAutoRecord', true, true], ['recordingInstantReplay', false, true], ['recordingChapters', true, true], ['obsStartOnRecord', true, true], ['obsStartWithApp', false, true],
+    ['obsHudSource', false, true], ['tvShotsHideFacecam', true, true],
   ]);
+  // "HUD drawn by OBS", on: what it has done, from the app's last word on it.
+  expect(model.card({ ...READY, obsHudSource: true, obs: 'closed' }).details).toContain('HUD drawn by OBS: the HUD goes into your scenes when OBS opens.');
+  expect(model.card({ ...READY, obsHudSource: true }).details).toContain('HUD drawn by OBS: the HUD is being put into your scenes.');
+  expect(model.card({ ...READY, obsHudSource: true, hudSource: { last: { ok: true, did: 'The HUD is a browser source in 3 of your scenes, just above the game.', problems: [] } } }).details)
+    .toContain('HUD drawn by OBS: The HUD is a browser source in 3 of your scenes, just above the game.');
+  expect(model.card({ ...READY, obsHudSource: true, hudSource: { last: { ok: false, did: null, problems: ['OBS did not take the HUD source: gone'] } } }).details)
+    .toContain('HUD drawn by OBS: OBS did not take the HUD source: gone');
+  expect(model.card({ ...READY, hudSource: { last: { ok: true, did: 'x', problems: [] } } }).details.some((d) => /HUD drawn/.test(d))).toBe(false);   // off: not a word
   expect(ready.saveReplay).toEqual({ show: false, enabled: false });
 
   const recording = model.card({ ...READY, recording: true, owned: true, elapsedMs: 754_000, bytes: 3.1e9, outputPath: 'D:/Racing Desk/Recordings/a.mp4', sidecar: { path: 'x', frames: 1200 } });
@@ -145,7 +154,7 @@ test('without the app the card is read-only and says so', () => {
   expect(card.openObs.show).toBe(false);
   expect(card.setup.show).toBe(false);
   expect(card.switches.every((s) => s.enabled === false)).toBe(true);
-  expect(card.switches.map((s) => s.value)).toEqual([true, false, true, true, false]);
+  expect(card.switches.map((s) => s.value)).toEqual([true, false, true, true, false, false, true]);
 });
 
 test('Save replay is there while Instant replay is on and pressable while the buffer runs; the card says what the buffer is doing and what was saved', () => {

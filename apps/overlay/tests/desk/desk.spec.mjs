@@ -4143,7 +4143,7 @@ async function stubRecording(page, status, answers = {}) {
     const withSwitches = () => {
       const saved = window.__k10 && window.__k10.settings ? window.__k10.settings : {};
       const out = JSON.parse(JSON.stringify(state.status));
-      for (const key of ['obsStartOnRecord', 'obsStartWithApp', 'recordingAutoRecord', 'recordingInstantReplay', 'recordingChapters']) if (typeof saved[key] === 'boolean') out[key] = saved[key];
+      for (const key of ['obsStartOnRecord', 'obsStartWithApp', 'recordingAutoRecord', 'recordingInstantReplay', 'recordingChapters', 'obsHudSource', 'tvShotsHideFacecam']) if (typeof saved[key] === 'boolean') out[key] = saved[key];
       return out;
     };
     Object.assign(window.racingDesk, {

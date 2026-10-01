@@ -8,14 +8,17 @@ const recording = require('./recording');
 const autoRecord = require('./auto-record');
 const filing = require('./filing');
 const mp4Info = require('./mp4-info');
+const hudSource = require('./hud-source');
 
 module.exports = {
   createObsClient: client.createObsClient,
   createRecordingKeeper: recording.createRecordingKeeper,
+  createHudSource: hudSource.createHudSource,
   launcher,
   client,
   recording,
   autoRecord,
   filing,
   mp4Info,
+  hudSource,
 };

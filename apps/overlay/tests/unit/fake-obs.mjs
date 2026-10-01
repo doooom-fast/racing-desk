@@ -42,8 +42,31 @@ export async function startFakeObs({
     profile: { AdvOut: { RecFormat2: 'mp4', RecRB: 'false', RecRBTime: '20', RecFilePath: 'C:/Users/Driver/Videos/NVIDIA' }, SimpleOutput: { FilePath: 'C:/Users/Driver/Videos' } },
     outputs: [{ outputName: 'adv_file_output', outputKind: 'ffmpeg_muxer', outputActive: false }],
     clock: 0,
+    // His collection, as sim race 2k has it: three scenes, each with the game's display capture at the bottom and the
+    // facecam above it; the mic and the game audio beside. Items are listed bottom to top, as obs-websocket lists them.
+    inputs: [
+      { inputName: 'game video', inputKind: 'monitor_capture', settings: { monitor_id: 'LG' } },
+      { inputName: 'Video Capture Device', inputKind: 'dshow_input', settings: { video_device_id: 'j5' } },
+      { inputName: 'mic', inputKind: 'wasapi_input_capture', settings: {} },
+      { inputName: 'game audio', inputKind: 'wasapi_output_capture', settings: {} },
+    ],
+    scenes: [
+      { sceneName: 'Large Video', items: [item(1, 'game video', { positionX: 0, positionY: 0, width: 3440, height: 1440 }), item(2, 'Video Capture Device', { positionX: 3000, positionY: 1100, width: 400, height: 300 })] },
+      { sceneName: 'Small Video', items: [item(3, 'game video', { positionX: 0, positionY: 0, width: 3440, height: 1440 }), item(4, 'Video Capture Device', { positionX: 3100, positionY: 1200, width: 300, height: 220 })] },
+      { sceneName: '2up', items: [item(5, 'game video', { positionX: 0, positionY: 360, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 1720, boundsHeight: 720, width: 1720, height: 720 }), item(6, 'Video Capture Device', { positionX: 1720, positionY: 360, width: 1720, height: 720 })] },
+    ],
+    currentScene: 'Large Video',
+    nextItemId: 100,
+    pressed: [],     // { inputName, propertyName }
   };
   const mode = { neverStarts: false, notReadyOnce: false, delayMs: 0, clock: () => Date.now(), writeClip: null, noReplayBuffer: false };
+  // A scene item as the fake keeps it: the source's name, enabled, and a transform of the fields obs-websocket gives.
+  function item(id, sourceName, transform) {
+    return { sceneItemId: id, sourceName, enabled: true, transform: { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1, alignment: 5, boundsType: 'OBS_BOUNDS_NONE', boundsAlignment: 0, boundsWidth: 0, boundsHeight: 0, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0, cropToBounds: false, sourceWidth: 3440, sourceHeight: 1440, width: 3440, height: 1440, ...transform } };
+  }
+  const sceneNamed = (name) => { const sc = state.scenes.find((x) => x.sceneName === name); if (!sc) throw { code: STATUS.RESOURCE_NOT_FOUND, comment: `No source was found by the name of \`${name}\`.` }; return sc; };
+  const itemIn = (sc, id) => { const it = sc.items.find((x) => x.sceneItemId === id); if (!it) throw { code: STATUS.RESOURCE_NOT_FOUND, comment: `No scene items were found in scene \`${sc.sceneName}\` with id \`${id}\`.` }; return it; };
+  const inputNamed = (name) => { const inp = state.inputs.find((x) => x.inputName === name); if (!inp) throw { code: STATUS.RESOURCE_NOT_FOUND, comment: `No input was found by the name of \`${name}\`.` }; return inp; };
   const requests = [];
   const events = [];
   const failures = new Map();
@@ -142,6 +165,46 @@ export async function startFakeObs({
       return {};
     },
     GetLastReplayBufferReplay: () => ({ savedReplayPath: state.lastReplay || '' }),
+    // ── Scenes and inputs, as obs-websocket answers (Obs_ArrayHelper.cpp, Obs_ObjectHelper.cpp) ──
+    GetSceneList: () => ({ currentProgramSceneName: state.currentScene, currentProgramSceneUuid: 'uuid-' + state.currentScene, currentPreviewSceneName: null, currentPreviewSceneUuid: null, scenes: state.scenes.map((sc, i) => ({ sceneName: sc.sceneName, sceneUuid: 'uuid-' + sc.sceneName, sceneIndex: state.scenes.length - i - 1 })) }),
+    GetCurrentProgramScene: () => ({ sceneName: state.currentScene, sceneUuid: 'uuid-' + state.currentScene, currentProgramSceneName: state.currentScene, currentProgramSceneUuid: 'uuid-' + state.currentScene }),
+    GetInputList: (d) => ({ inputs: state.inputs.filter((i) => !d.inputKind || i.inputKind === d.inputKind).map((i) => ({ inputName: i.inputName, inputUuid: 'uuid-' + i.inputName, inputKind: i.inputKind, unversionedInputKind: i.inputKind })) }),
+    GetInputSettings: (d) => { const inp = inputNamed(d.inputName); return { inputSettings: { ...inp.settings }, inputKind: inp.inputKind }; },
+    SetInputSettings: (d) => { const inp = inputNamed(d.inputName); inp.settings = d.overlay === false ? { ...d.inputSettings } : { ...inp.settings, ...d.inputSettings }; return {}; },
+    CreateInput: (d) => {
+      if (state.inputs.some((i) => i.inputName === d.inputName)) throw { code: 601, comment: 'A source already exists by that input name.' };   // ResourceAlreadyExists
+      const sc = sceneNamed(d.sceneName);
+      state.inputs.push({ inputName: d.inputName, inputKind: d.inputKind, settings: { ...(d.inputSettings || {}) } });
+      const it = item(state.nextItemId++, d.inputName, { sourceWidth: (d.inputSettings || {}).width || 0, sourceHeight: (d.inputSettings || {}).height || 0, width: (d.inputSettings || {}).width || 0, height: (d.inputSettings || {}).height || 0 });
+      it.enabled = d.sceneItemEnabled !== false;
+      sc.items.push(it);
+      return { inputUuid: 'uuid-' + d.inputName, sceneItemId: it.sceneItemId };
+    },
+    GetSceneItemList: (d) => ({ sceneItems: sceneNamed(d.sceneName).items.map((it, i) => ({ sceneItemId: it.sceneItemId, sceneItemIndex: i, sceneItemEnabled: it.enabled, sceneItemLocked: false, sceneItemTransform: { ...it.transform }, sceneItemBlendMode: 'OBS_BLEND_NORMAL', sourceName: it.sourceName, sourceUuid: 'uuid-' + it.sourceName, sourceType: 'OBS_SOURCE_TYPE_INPUT', inputKind: (state.inputs.find((x) => x.inputName === it.sourceName) || {}).inputKind || null, isGroup: null })) }),
+    GetSceneItemId: (d) => { const sc = sceneNamed(d.sceneName); const it = sc.items.find((x) => x.sourceName === d.sourceName); if (!it) throw { code: STATUS.RESOURCE_NOT_FOUND }; return { sceneItemId: it.sceneItemId }; },
+    CreateSceneItem: (d) => {
+      const sc = sceneNamed(d.sceneName);
+      const inp = inputNamed(d.sourceName);
+      const it = item(state.nextItemId++, d.sourceName, { sourceWidth: inp.settings.width || 3440, sourceHeight: inp.settings.height || 1440, width: inp.settings.width || 3440, height: inp.settings.height || 1440 });
+      it.enabled = d.sceneItemEnabled !== false;
+      sc.items.push(it);   // on top
+      return { sceneItemId: it.sceneItemId };
+    },
+    SetSceneItemEnabled: (d) => { itemIn(sceneNamed(d.sceneName), d.sceneItemId).enabled = !!d.sceneItemEnabled; return {}; },
+    GetSceneItemEnabled: (d) => ({ sceneItemEnabled: itemIn(sceneNamed(d.sceneName), d.sceneItemId).enabled }),
+    SetSceneItemIndex: (d) => {
+      // obs_sceneitem_set_order_position: the item is taken out and put at the position, 0 the bottom.
+      const sc = sceneNamed(d.sceneName);
+      const it = itemIn(sc, d.sceneItemId);
+      sc.items.splice(sc.items.indexOf(it), 1);
+      sc.items.splice(Math.max(0, Math.min(sc.items.length, d.sceneItemIndex)), 0, it);
+      return {};
+    },
+    GetSceneItemTransform: (d) => ({ sceneItemTransform: { ...itemIn(sceneNamed(d.sceneName), d.sceneItemId).transform } }),
+    SetSceneItemTransform: (d) => { const it = itemIn(sceneNamed(d.sceneName), d.sceneItemId); Object.assign(it.transform, d.sceneItemTransform || {}); return {}; },
+    PressInputPropertiesButton: (d) => { inputNamed(d.inputName); state.pressed.push({ inputName: d.inputName, propertyName: d.propertyName }); return {}; },
+    RemoveInput: () => { throw { code: 702, comment: 'the tests never remove anything of his' }; },
+    RemoveSceneItem: () => { throw { code: 702, comment: 'the tests never remove anything of his' }; },
     // Chapters: Hybrid MP4 alone takes them (RequestProcessingFailed otherwise), not while paused, not while not recording.
     CreateRecordChapter: (d) => {
       if (!state.recording) throw { code: STATUS.OUTPUT_NOT_RUNNING };

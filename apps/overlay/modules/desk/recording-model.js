@@ -14,6 +14,8 @@
     { key: 'recordingChapters', label: 'Chapters', def: true, hint: 'A chapter in the video for each lap, incident, pit stop and place gained, which a player or editor can jump to. Hybrid MP4 only, which Set up OBS sets.' },
     { key: 'obsStartOnRecord', label: 'Start OBS when I press Record', def: true, hint: 'From the desk, the tray or the Stream Deck, out of the car. A key in the car never starts OBS: the HUD says "OBS is not open" instead.' },
     { key: 'obsStartWithApp', label: 'Start OBS with Racing Desk', def: false, hint: 'Off unless you turn it on. OBS opens minimised to the tray when Racing Desk starts.' },
+    { key: 'obsHudSource', label: 'HUD drawn by OBS', def: false, hint: "Off unless you turn it on. OBS draws the HUD itself, from a page Racing Desk serves on this PC, as a browser source named Racing Desk HUD in each of your scenes just above the game, and the HUD's own window is left out of your screen capture. Off, the HUD is in the picture through your screen capture, as before. Nothing of yours is removed either way." },
+    { key: 'tvShotsHideFacecam', label: 'Hide the facecam during TV shots', def: true, hint: 'While a TV take is recorded your camera source is hidden in OBS, and shown again after.' },
   ];
 
   const NETWORK_SENTENCE = 'OBS then answers on port 4455 to anything on your network that knows the password.';
@@ -122,6 +124,16 @@
     return 'Instant replay runs while you are in the car.';
   }
 
+  /** What "HUD drawn by OBS" has done, in one sentence, while the switch is on. */
+  function hudSourceSentence(status) {
+    const hs = status && status.hudSource;
+    const last = hs && hs.last;
+    if (status.obs !== 'open') return 'HUD drawn by OBS: the HUD goes into your scenes when OBS opens.';
+    if (!last) return 'HUD drawn by OBS: the HUD is being put into your scenes.';
+    if (last.problems && last.problems.length) return `HUD drawn by OBS: ${last.problems.join(' ')}`;
+    return `HUD drawn by OBS: ${last.did || 'the HUD is in your scenes.'}`;
+  }
+
   /** The card: sentences, buttons and switches for a status, or the read-only card without the app. */
   function card(status, { inApp = true } = {}) {
     const switches = SWITCHES.map((s) => ({ ...s, value: status && typeof status[s.key] === 'boolean' ? status[s.key] : s.def, enabled: inApp && !!status }));
@@ -159,6 +171,7 @@
     if (replay) details.push(replay);
     if (status.replay && status.replay.lastSaved && status.replay.lastSaved.path) details.push(`Replay saved: ${status.replay.lastSaved.path}`);
     if (status.lowDisk) details.push(status.lowDisk);
+    if (status.obsHudSource === true) details.push(hudSourceSentence(status));
     if (status.last && status.last.ok === false && status.last.text) details.push(status.last.text);
     if (status.obs === 'authFailed') details.push("OBS refused the password Racing Desk has. Type the password from OBS's WebSocket settings below, or quit OBS and press Set up OBS.");
     if (status.obs === 'passwordMissing') details.push("OBS wants a password and Racing Desk has none. Type the password from OBS's WebSocket settings below, or quit OBS and press Set up OBS.");
@@ -190,7 +203,7 @@
     };
   }
 
-  const api = { SWITCHES, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, stateLine, pill, setupSentence, filedSentence, replaySentence, card };
+  const api = { SWITCHES, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, stateLine, pill, setupSentence, filedSentence, replaySentence, hudSourceSentence, card };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RacingDeskRecordingModel = api;
 })();
