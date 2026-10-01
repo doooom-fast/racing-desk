@@ -4,8 +4,10 @@
  * converts nothing: the pit box's rings show the number, amber under 35 and red under 20, and the strategist's
  * offer of a change comes from the engine's TireHealthState, not from the page. iRacing measures tread in the pits
  * and nowhere else, so the page says what the number is, in one dim line under the rings, on the rig and in the
- * glance layout. The real dashboard.html from the file, headless, over a stand-in for the plugin on
- * localhost:8889 (routed, nothing listens); every other address is shut.
+ * glance layout — and while a corner's 100 is a new set the sim has not measured yet (the engine's TyreNewSetFlags,
+ * after a stop with the tyre ticked or a reset to the pits), the line says "new set" instead. The real dashboard.html
+ * from the file, headless, over a stand-in for the plugin on localhost:8889 (routed, nothing listens); every other
+ * address is shut.
  *
  * A flip anywhere — the host or the plugin sending a fraction, or wear instead of tread, or the page inverting —
  * fails here: a new tyre is 100% and green with nothing offered, a worn one is low and red.
@@ -26,6 +28,7 @@ const RL = 'DataCorePlugin.GameData.TyreWearRearLeft';
 const RR = 'DataCorePlugin.GameData.TyreWearRearRight';
 const HEALTH = 'RacingDesk.Plugin.Strategy.TireHealthState';
 const LAPS = 'RacingDesk.Plugin.Strategy.TireLapsRemaining';
+const NEWSET = 'RacingDesk.Plugin.TyreNewSetFlags';   // which corners' 100 is a new set the sim has not measured: 0x01 FL, 0x02 FR, 0x04 RL, 0x08 RR
 
 let payload;
 
@@ -132,12 +135,46 @@ test.describe('the wire\'s tread, as it is', () => {
     expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['1%', 'crit'], ['1%', 'crit'], ['1%', 'crit'], ['1%', 'crit']]);
   });
 
-  test('a corner the engine has taken off the wire (a new set: null) is a dash while the others keep their numbers', async ({ page }) => {
-    await open(page, RACE({ [FL]: null, [FR]: 16, [RL]: null, [RR]: 62 }, { [HEALTH]: 2, [LAPS]: 0 }));
-    expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['—', 'ok'], ['16%', 'crit'], ['—', 'ok'], ['62%', 'ok']]);
-    await serve(page, RACE({ [FL]: null, [FR]: null, [RL]: null, [RR]: null }, { [HEALTH]: 0, [LAPS]: 99 }));
-    expect((await rings(page)).map((x) => x[0])).toEqual(['—', '—', '—', '—']);
+  test('a new set the engine has put on the wire (100, flagged) is 100%, green and full, with "new set" under the rings, while the others keep their numbers and their verdict', async ({ page }) => {
+    // Two lefts changed at a stop (0x05), the right front measured at 16 and left on: the lefts read the new set's 100, the
+    // offer for the right front stands (the engine's TireHealthState), and the line under the rings says which tyres are new.
+    await open(page, RACE({ [FL]: 100, [FR]: 16, [RL]: 100, [RR]: 62 }, { [NEWSET]: 0x05, [HEALTH]: 2, [LAPS]: 0 }));
+    const r = await rings(page);
+    expect(r.map((x) => x.slice(0, 2))).toEqual([['100%', 'ok'], ['16%', 'crit'], ['100%', 'ok'], ['62%', 'ok']]);
+    expect(parseFloat(r[0][2])).toBeCloseTo(0, 6);   // a full ring, as any 100 is
+    expect(await note(page)).toEqual([true, 'New lefts · not measured']);
+    expect(await strategist(page)).toEqual([true, 'Accept tire change']);
+
+    // All four, after a reset to the pits: 100 everywhere, nothing offered, "new set"
+    await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { [NEWSET]: 0x0F, [HEALTH]: 0, [LAPS]: 99 }));
+    expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok']]);
+    expect(await note(page)).toEqual([true, 'New set · not measured']);
     expect(await strategist(page)).toEqual([false, expect.any(String)]);
+
+    // The sim measures the set at the next stop: the real numbers replace the 100s and the line is the measurement's again
+    await serve(page, RACE({ [FL]: 91, [FR]: 90, [RL]: 92, [RR]: 93 }, { [NEWSET]: 0, [HEALTH]: 0, [LAPS]: 99 }));
+    expect((await rings(page)).map((x) => x[0])).toEqual(['91%', '90%', '92%', '93%']);
+    expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
+
+    // A plugin from before the key says nothing about new sets: the measurement's words
+    await serve(page, RACE({ [FL]: 91, [FR]: 90, [RL]: 92, [RR]: 93 }, { [NEWSET]: undefined }));
+    expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
+
+    // The words for the set, each pair and an odd change: PitSvFlags' bits, 0x01 FL, 0x02 FR, 0x04 RL, 0x08 RR. An odd change
+    // (one tyre, three, a diagonal) names its corners alone: no honest suffix fits beside them at the glance layout's floor.
+    expect(await page.evaluate(() => [0, 0x0F, 0x03, 0x0C, 0x05, 0x0A, 0x01, 0x09, 0x07, '', null, 'x'].map((f) => tyreNewSetNote(parseTyreNewSet(f)))))
+      .toEqual(['', 'New set · not measured', 'New fronts · not measured', 'New rears · not measured', 'New lefts · not measured',
+        'New rights · not measured', 'New LF', 'New LF, RR', 'New LF, RF, LR', '', '', '']);
+    expect(await page.evaluate(() => TYRE_NEW_SET_KEY)).toBe('RacingDesk.Plugin.TyreNewSetFlags');
+  });
+
+  test('the new-set line is for the live sim only: the demo, whose tread moves every lap, says nothing of it', async ({ page }) => {
+    await open(page, RACE({}, {
+      'RacingDesk.Plugin.DemoMode': 1, [NEWSET]: 0x0F,
+      'RacingDesk.Plugin.Demo.TyreWearFL': 100, 'RacingDesk.Plugin.Demo.TyreWearFR': 100, 'RacingDesk.Plugin.Demo.TyreWearRL': 100, 'RacingDesk.Plugin.Demo.TyreWearRR': 100,
+      'RacingDesk.Plugin.Demo.CarModel': 'BMW M4 GT3',
+    }));
+    expect(await note(page)).toEqual([false, '']);
   });
 
   test('the commentary\'s quad says a dash where nothing is measured, and never four red 0%', async ({ page }) => {
@@ -254,6 +291,21 @@ test.describe('what the number is', () => {
         oneLine: true, underTheRings: true, whole: true,
       });
       expect((await look()).size).toBeGreaterThanOrEqual(11);
+
+      // After a reset to the pits: the rings 100 %, and the line says "new set", in the same place, whole, at the same floor
+      await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 0, [NEWSET]: 0x0F }));
+      const fresh = await look();
+      expect(fresh).toEqual({
+        heading: '"Tyres"', text: 'New set · not measured', shown: true, nowrap: 'nowrap', size: expect.any(Number),
+        oneLine: true, underTheRings: true, whole: true,
+      });
+      expect(fresh.size).toBeGreaterThanOrEqual(11);
+      expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok']]);
+      // and the widest of the words — a pair's, and an odd change's three corners — fit whole too
+      for (const [flags, text] of [[0x03, 'New fronts · not measured'], [0x0A, 'New rights · not measured'], [0x07, 'New LF, RF, LR']]) {
+        await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 93 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 0, [NEWSET]: flags }));
+        expect(await look(), text).toMatchObject({ text, shown: true, oneLine: true, whole: true });
+      }
     });
   }
 });

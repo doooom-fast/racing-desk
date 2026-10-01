@@ -75,12 +75,18 @@ test('tyre wear is the wire\'s tread remaining, null where it is not measured an
     'DataCorePlugin.GameData.TyreWearRearLeft': null, 'DataCorePlugin.GameData.TyreWearRearRight': 0 });
   sidecar.frame({ ...RACE, 'DataCorePlugin.GameData.TyreWearFrontLeft': 64.4, 'DataCorePlugin.GameData.TyreWearFrontRight': undefined,
     'DataCorePlugin.GameData.TyreWearRearLeft': undefined, 'DataCorePlugin.GameData.TyreWearRearRight': undefined });
+  // Two lefts changed at a stop and not measured yet: the engine sends 100 for them and says which (0x05)
+  sidecar.frame({ ...RACE, 'DataCorePlugin.GameData.TyreWearFrontLeft': 100, 'DataCorePlugin.GameData.TyreWearFrontRight': 15,
+    'DataCorePlugin.GameData.TyreWearRearLeft': 100, 'DataCorePlugin.GameData.TyreWearRearRight': 62, 'RacingDesk.Plugin.TyreNewSetFlags': 5 });
   sidecar.stop();
-  const [header, first, second] = lines();
+  const [header, first, second, third] = lines();
   expect(header.tyreWear).toBe('percent-remaining');
   expect([first.wFL, first.wFR, first.wRL, first.wRR]).toEqual([100, 15, null, null]);
+  expect(first.wNew).toBe(0);   // no key: every number is the sim's own (a plugin from before the key says the same)
   expect(second.wFL).toBe(64.4);
   expect([second.wFR, second.wRL, second.wRR]).toEqual([null, null, null]);   // no key at all: not measured
+  expect([third.wFL, third.wFR, third.wRL, third.wRR]).toEqual([100, 15, 100, 62]);
+  expect(third.wNew).toBe(5);   // the 100s on FL and RL are a new set's, not measured: PitSvFlags' bits, 0x01 FL, 0x04 RL
 });
 
 test('markers: an incident, a place gained and lost, a new lap, pit entry and exit, and one of the caller\'s', () => {

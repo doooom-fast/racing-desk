@@ -8,7 +8,8 @@
 //
 // What changed with OBS (schemaVersion stays 1; all additive, and a reader that defaults a missing field to 0 is
 // right — except the tyre wear, wFL..wRR, where null is "not measured" and 0 would be a bald tyre; the header's `tyreWear`
-// says which meaning a file has): every frame carries the sim's own clock, `sn` (SessionNum) and `st` (SessionTime), which is how a moment
+// says which meaning a file has; `wNew` says which of the four are a new set's 100 the sim has not measured yet, 0 where
+// every number is its own): every frame carries the sim's own clock, `sn` (SessionNum) and `st` (SessionTime), which is how a moment
 // in the sidecar is found again in iRacing's replay; the header says who produced it (`producer: "obs"`), what it is
 // beside (`kind`: a recording, or a clip the replay buffer saved), the OBS file (`obsOutputPath`), when the video
 // began (`videoStartUtc`) and the offset to add to `t` (`videoOffsetMs`, 0 to begin with); the summary carries the
@@ -239,6 +240,10 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
       tRL: game('TyreTempRearLeft', 'TyreTempRL'), tRR: game('TyreTempRearRight', 'TyreTempRR'),
       wFL: wear('TyreWearFrontLeft', 'TyreWearFL'), wFR: wear('TyreWearFrontRight', 'TyreWearFR'),
       wRL: wear('TyreWearRearLeft', 'TyreWearRL'), wRR: wear('TyreWearRearRight', 'TyreWearRR'),
+      // Which of wFL..wRR are a new set's 100 by assumption, not the sim's measurement (the tyre was changed and the sim has
+      // not measured it since): the engine's RacingDesk.Plugin.TyreNewSetFlags, PitSvFlags' bits, 0x01 FL, 0x02 FR, 0x04 RL,
+      // 0x08 RR. 0 where every number is the sim's own; 0 in the demo and from a plugin before the key (a reader may default it to 0).
+      wNew: isDemo ? 0 : n('RacingDesk.Plugin.TyreNewSetFlags'),
       // In-car adjustments
       bb: isDemo ? n('RacingDesk.Plugin.Demo.BrakeBias') : n('DataCorePlugin.GameRawData.Telemetry.dcBrakeBias'),
       tc: isDemo ? n('RacingDesk.Plugin.Demo.TC') : n('DataCorePlugin.GameRawData.Telemetry.dcTractionControl'),

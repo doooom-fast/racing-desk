@@ -17,7 +17,12 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 - **Tyre wear** (`GameData.TyreWear*`, `Demo.TyreWear*`) is tread remaining, 0..100 %, 100 = new, `null` where the sim has
   not measured it, and the page converts nothing: every panel reads it through `parseTyreWear` and prints it through
   `tyreWearShown`, with `TYRE_WEAR_WARN_BELOW`/`TYRE_WEAR_CRIT_BELOW`, all in `config.js` (root CLAUDE.md, Tyre wear;
-  `tests/unit/tyre-wear.spec.mjs`). A corner the engine has taken off the wire after a tyre change is `null`, and shows as a dash.
+  `tests/unit/tyre-wear.spec.mjs`). A corner whose tyre the engine saw changed (a stop with it ticked, or a reset to the
+  pits) comes as a new set's 100 until the sim measures it, and `RacingDesk.Plugin.TyreNewSetFlags` says which corners
+  (`PitSvFlags`' bits, 0x01 FL … 0x08 RR; `parseTyreNewSet`, `tyreNewSetNote` in `config.js`): the ring is 100 % and green
+  like any 100, and the line under the rings says "New set · not measured" (a pair: "New fronts · not measured", rears,
+  lefts, rights; an odd change names its corners alone, "New LF, RR", the widest words that stay whole at the 11 px floor on
+  the iPad mini) in place of "Tread measured in the pits" until the measurement comes. The sidecar carries the flags as `wNew`.
 
 ## Tech Stack
 
@@ -234,7 +239,8 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   set in the heading, `Strategy.StintLaps`, and what the number is: iRacing measures tread in the pits and nowhere else,
   so "Tread measured in the pits" is one dim line under the rings, at the label's floor and never wrapped, as it is
   on the rig — an iPad's heading has no room for it, and in a pit cell under 200px (the 10.2" iPad upright) it gives way
-  while a tyre call is up, which would otherwise cut the rings off by 7px; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
+  while a tyre call is up, which would otherwise cut the rings off by 7px; while a corner's 100 is a new set the sim has
+  not measured (`TyreNewSetFlags`) the same line says "New set · not measured" or which tyres; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
   pit's add, the pit window `Strategy.PitWindowOpen/Close` as `L18–24` or `by L24`, the two services), the weather. The
   strategist's call for tyres or fuel (`Strategy.TireHealthState`, `FuelHealthState`) is read where it is on the rig,
   above the rings or the tank, worded for a screen with nothing to press (`Change · ~12 laps`, `Stop · ~6 laps`).

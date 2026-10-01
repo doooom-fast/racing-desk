@@ -290,7 +290,9 @@
   // comes. null is not measured, and 0 is not a measurement either (SimHub's own property reads 0 while it has
   // nothing; a tyre with no tread at all is not a thing the sim reports). iRacing measures tread in the pits and
   // nowhere else, so the number is the last measurement: the page says so (the note under the rings, the heading in
-  // the glance layout) and the warnings come from the strategy engine, which rates a measurement, not from here.
+  // the glance layout) and the warnings come from the strategy engine, which rates a measurement, not from here. A
+  // corner whose tyre was changed comes as a new set's 100 (green, full) until the sim measures it, and the note under
+  // the rings says "new set" from the engine's TyreNewSetFlags (config.js, parseTyreNewSet): the ring has no rule of its own.
   // The two thresholds are the engine's (Engine/TyreWear.cs): amber under 35, red under 20 — TYRE_WEAR_WARN_BELOW and
   // TYRE_WEAR_CRIT_BELOW, and the wire's number is read by parseTyreWear, all three in config.js, where every panel
   // that shows tread reads it from.
@@ -461,8 +463,11 @@
     // What the number is: iRacing measures tread in the pits and nowhere else, so the rings show the last measurement,
     // not live wear. Said in one dim line under the rings, on the rig and in the glance layout alike (the glance
     // layout's heading has no room for it on an iPad); not in the demo, whose tread is made up and moves every lap,
-    // and not for a sim that measures as it goes.
-    var measuredNote = (!_demo && gameId === 'iracing') ? 'Tread measured in the pits' : '';
+    // and not for a sim that measures as it goes. While a corner's 100 is a new set the sim has not measured yet (the
+    // engine's TyreNewSetFlags: a stop with the tyre ticked, or a reset to the pits), the line says that instead —
+    // "New set · not measured", or which tyres — and is back to the measurement's words when the sim measures.
+    var newSetCorners = parseTyreNewSet(_demo ? 0 : d[TYRE_NEW_SET_KEY]);
+    var measuredNote = (!_demo && gameId === 'iracing') ? (tyreNewSetNote(newSetCorners) || 'Tread measured in the pits') : '';
     if (_lastMeasuredNote !== measuredNote) {
       _lastMeasuredNote = measuredNote;
       if (_els.wearNote) {
