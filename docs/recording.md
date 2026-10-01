@@ -52,39 +52,80 @@ is what is built as of stage 2 and what is coming. The Electron recorder, its ff
 - **Records by itself** ("Record by itself", on; `modules/js/obs/auto-record.js`, pure, fed the payload main.js polls
   twice a second in the car): in a race from the green flag — iRacing's SessionState reaching Racing while he is in the
   car; the grid, the warm-up and the formation lap start nothing, and a pit-lane start sees the same flag — and in
-  practice, qualifying and a warm-up from pit exit. It stops on a new session number, five seconds after the chequered
-  flag (or the cool-down) is first seen, and when he leaves the car; never on a state change within a session, so a red
-  flag ends nothing. Each start and stop is held about a second by the clock. It stops only the recordings it started
+  practice, qualifying and a warm-up from pit exit. It stops on a new session number, five seconds after **his own**
+  finish in a race, and when he leaves the car; never on a state change within a session, so a red flag ends nothing.
+  His finish is the chequered flag being out and his lap count having gone up since, which is him crossing the line:
+  the flag, and SessionState 5, are the session's and come when the leader finishes, so a car a lap down still has a
+  lap to drive, and the cool-down (SessionState 6) is only the backstop. Practice and qualifying have no end of their
+  own — time runs out during a flying lap and the flag comes out in it — so only a new session or leaving the car
+  stops those. Each start and stop is held about a second by the clock. It stops only the recordings it started
   (`auto` in the state file): one he began on the desk or with Ctrl+Space runs on. A green flag is good once per stint,
-  so a Stop he presses mid-race is not undone a second later. It never starts OBS: with OBS closed the HUD says "OBS is
-  not open" once per session, and the start is tried again no sooner than half a minute on while the flag holds.
+  so a Stop he presses mid-race is not undone a second later. It never starts OBS and never asks tasklist (that is for
+  presses): with OBS closed the HUD says "OBS is not open" once per session, and the start is tried again no sooner
+  than half a minute on while the flag holds. When OBS answers a start and does not carry it out (its Settings window
+  left open, a folder that is gone: a dialog over the sim at every try) it asks once, says "OBS didn't start
+  recording" once, and does not ask again that session; a new session, a reconnect, a new stint in the car or any
+  recording event from OBS lets it try again. A gap in the telemetry is not him leaving the car — main.js's in-car
+  signal turns false after three silent seconds — so for a minute of silence the keeper goes by what the last payload
+  that answered said of him.
 - **Keeps the replay buffer with the car** ("Instant replay", off unless he turns it on): `StartReplayBuffer` when he
-  gets in the car, `StopReplayBuffer` when he gets out (or the switch goes off) if Racing Desk started it; one OBS
-  started itself is left alone. With no replay buffer in OBS (`RecRB` off) the card says to press Set up OBS, and it
-  is not asked for again and again. **Save replay** — Ctrl+Shift+B in the car, the tray, the Stream Deck, the card —
-  is `SaveReplayBuffer`; the clip OBS saves (`Replay <date>.mp4`, by his profile's prefix) gets a sidecar of its own
-  from the last seconds of telemetry kept in memory while the buffer runs, lined up from the clip's end (its duration
-  read from the file; the moment the save was asked is its end), and is moved into the recording's folder, else into
-  `Replays` under the recordings folder. A clip saved with no sim session live is left as it is.
+  gets in the car and a live sim session has him in it (the demo is "in the car" too and gets none), `StopReplayBuffer`
+  when he gets out (or the switch goes off) if Racing Desk started it; one OBS started itself is left alone. The buffer
+  is Racing Desk's from the answer to its StartReplayBuffer until OBS's STOPPED, no earlier: STARTING and STOPPING say
+  the output is not active (obs-websocket's `outputActive` is false for every state but STARTED), and STARTING comes
+  after the answer, so going by the flag would drop ownership at once and leave the buffer, its encoder and the 30 Hz
+  poll running after he leaves the car and after Racing Desk quits. A start that failed is tried again no sooner than a
+  minute on; one that did not fail is not held back. With no replay buffer in OBS the card says to press Set up OBS —
+  or, when OBS's profile has one (Set up OBS ran while OBS was open), that instant replay starts the next time OBS opens
+  — and it is not asked for again and again. **Save replay** — Ctrl+Shift+B in the car, the tray, the Stream Deck, the
+  card — is `SaveReplayBuffer`; the clip OBS saves (`Replay <date>.mp4`, by his profile's prefix) gets a sidecar of its
+  own from the last seconds of telemetry kept in memory while the buffer runs and he is in the car (only the keys a
+  frame is made of, for as long as OBS's own buffer — its RecRBTime, read from the profile — and ten seconds more, so
+  that the wait for the clip to be written does not shorten it), lined up from the clip's end (its duration read from
+  the file; the moment the save was asked is its end), and is moved into the recording's folder, else into `Replays`
+  under the recordings folder. A clip saved with no sim session live is left as it is.
 - **Writes chapters** ("Chapters", on): a chapter per lap ("Lap 12"), incident ("Incident ×2"), pit in and out, and
   place gained ("P5 → P4"), sent with `CreateRecordChapter` as the sidecar finds each, while the recording is not
-  paused; no "Start" chapter (OBS adds its own). Hybrid MP4 alone takes them: the first refusal ends them for that
-  file. Each is kept in the sidecar's summary with the t it was sent at.
+  paused; no "Start" chapter (OBS adds its own). Hybrid MP4 alone takes them: a refusal ends them for that file —
+  unless OBS is paused, which it answers the same way (702) before the PAUSED event may have arrived, and which is
+  asked about first. Each is kept in the sidecar's summary with the t it was sent at, once OBS has taken it: one that
+  never got there (the connection dropped) is not listed, or it would be paired with the wrong chapter of the file.
 - **Files each recording** (`modules/js/obs/filing.js`): one folder per recording under the recordings folder,
   `<date> <track> <car>` (`2026-09-29 22-13 Zandvoort Porsche 911 GT3 Cup (992)`; the date alone where the sim did not
   say), made when the sidecar begins and only when the file OBS writes is on the recordings folder's drive, so that
   every move is a rename. After STOPPED the file is waited for until its size has held still for two seconds, then
   moved with its sidecar into the folder, where the session's replay clips already are. Across drives nothing is
   copied (a 24 GB file would take minutes): the file stays where OBS wrote it, its sidecar beside it, and the card says
-  so. OBS closing mid-recording (a crash, a quit) files what it wrote too.
+  so. A video whose sidecar cannot follow it (a lock on the sidecar that outlasts the tries) goes back where OBS wrote
+  it and the card says why, since the editor pairs the files of a folder; a folder made for a recording that went
+  nowhere is not left empty. OBS quitting mid-recording (`ExitStarted`) files what it wrote at once. A recording whose
+  end OBS never told — it crashed, or it was stopped while the WebSocket was down — is filed when OBS next answers and
+  is not recording that file, or, for one of Racing Desk's, when Racing Desk next starts and finds it in the state
+  file: moved with its sidecar, lined up from its end — the last moment OBS was seen recording: the connection closing,
+  the last look every ten seconds, kept in the state file as `seenAt` — marked approximate, and one more summary line
+  (`refiled: true`) added to the sidecar. An unfinished Hybrid MP4 has no chapters to read back. **Quitting waits for a
+  recording that has just stopped to be filed**, up to eight seconds (the file holds still for two, and is moved), so
+  that closing the desk a moment after he gets out of the car does not leave the file in OBS's folder with a sidecar
+  that has no summary.
 - **Lines the telemetry up with the video** (`modules/js/obs/mp4-info.js`, no ffmpeg: the file's boxes are read by
   seeking, never the video). STARTED is only a provisional t = 0: an output joining a running encoder waits for the
   next keyframe. Once the file is finished the chapters Racing Desk sent are read back from its chapter track and
-  paired, in order and by name, with the t each was sent at: the offset is the median of (file time − t), and the
+  paired by name with the t each was sent at — each of ours with the chapter of that name nearest to where it belongs
+  (names that occur once in each list, a lap's, say where), neither used twice, a pair more than a second from the
+  median dropped, and the whole pairing not believed if half were: the offset is the median of (file time − t), and the
   summary says `alignment: { method: 'chapters', pairs, spreadMs }`. With no pair — a plain MP4, Chapters off, a
-  replay clip, a file OBS never finalised — the file is lined up from its end: the moment it stopped (or the clip was
-  saved) less its duration (a finished file's `mvhd`; an unfinished Hybrid MP4's fragments, marked `approximate`).
-  The summary's `videoOffsetMs` is what a reader adds to `t` (docs/telemetry-sidecar-schema.md).
+  replay clip, a file OBS never finalised — the file is lined up from its end: the moment its recording ended less its
+  duration (a finished file's `mvhd`; an unfinished Hybrid MP4's fragments, marked `approximate`). A recording ends when
+  StopRecord was sent, or when OBS said STOPPING for a stop made in OBS (`endFrom: 'request'` or `'event'`) — not at
+  STOPPED, which comes after the encoder has flushed and the file is closed — or at the last moment OBS was seen
+  recording, for one whose end was not told (`'lastSeen'`, approximate); a clip's end is the moment the save was asked.
+  A recording that was **paused** (OBS's own button, or a later stage's TV takes) has the pause written down — markers
+  and `pauses` in the summary — and allowed for: the file's clock stands still for it and the sidecar's does not, so
+  the chapters are paired with the pauses taken out and the end alignment puts them back, marked approximate;
+  `videoOffsetMs` is the offset for the frames before the first pause. A sidecar gone on in (Racing Desk restarted,
+  OBS unreachable for a while) goes on from the zero its header says, not the one a take-over works out from OBS's
+  clock, which can be seconds off. The summary's `videoOffsetMs` is what a reader adds to `t`
+  (docs/telemetry-sidecar-schema.md).
 - **Keeps a floor under the disk**: no recording starts below about 20 GB free on the drive OBS records to, one Racing
   Desk started is stopped at about 5 GB and said so in one sentence, and the card shows hours left at the measured rate
   (his profile's 100 Mbps is 43 GB an hour; OBS itself stops only at 50 MB, with a dialog over the sim). The drive is the
@@ -163,6 +204,11 @@ pits" (`recordingAutoStopOnPit`: his rules stop a recording on a new session, at
 leaves the car, and the pit lane is none of those) are deleted.
 
 ## Coming (not in this stage)
+
+- **The editor applying `videoOffsetMs`.** `apps/edit/src/ingest/parse-telemetry.js` keeps the last summary as
+  `sidecarSummary` and reads each frame's `t` as it is; adding the summary's `videoOffsetMs` (ms) to `t` (s) — less the
+  `pauses` before it, for a recording that was paused — is for the editor's stage, and until then its cuts are as
+  far off as the offset (up to about four seconds for a plain keyframe wait).
 
 - **TV shots**, rebuilt on the iRacing SDK's own replay commands through the host (seek by the sidecar's `sn` and
   `st`, PauseRecord/ResumeRecord between moments, the facecam hidden), from the desk's race detail, the tray and the

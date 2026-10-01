@@ -652,15 +652,16 @@ function setObsPassword(text) {
   return { ok: true };
 }
 
-// Quitting: a recording Racing Desk started is stopped (StopRecord, STOPPED waited for 3 s at most); OBS and his own
-// recordings are left as they are.
+// Quitting: a recording Racing Desk started is stopped (StopRecord, STOPPED waited for 3 s at most) and the recording
+// that has just stopped is filed (the file held still for two seconds, moved with its sidecar: up to 8 s more, a few
+// seconds usually); OBS and his own recordings are left as they are.
 let stoppedForQuit = false;
 function stopOwnedRecording() {
   if (stoppedForQuit) return Promise.resolve();
   stoppedForQuit = true;
   return Promise.race([
     recording.stopOwnedForQuit(),
-    new Promise((resolve) => setTimeout(resolve, obs.recording.QUIT_WAIT_MS + 500)),
+    new Promise((resolve) => setTimeout(resolve, obs.recording.QUIT_WAIT_MS + obs.recording.FILING_QUIT_WAIT_MS + 500)),
   ]).catch((err) => logToFile(`[RacingDesk] Recording: could not be stopped on quit: ${err.message}`));
 }
 

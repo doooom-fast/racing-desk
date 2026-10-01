@@ -20,6 +20,8 @@ const require = createRequire(import.meta.url);
 const { createObsClient } = require('../../modules/js/obs/client.js');
 const keeperModule = require('../../modules/js/obs/recording.js');
 const { createRecordingKeeper, isSimLive } = keeperModule;
+const { createAutoRecord } = require('../../modules/js/obs/auto-record.js');
+const { createInCarSignal } = require('../../modules/js/in-car.js');
 
 const PASSWORD = 'horse-battery';
 const LIVE = { ...MOCK_TELEMETRY, 'DataCorePlugin.GameRawData.Telemetry.SessionNum': 2, 'DataCorePlugin.GameRawData.Telemetry.SessionTime': 500.25, currentFlagState: 'green' };
@@ -44,25 +46,25 @@ test.afterEach(async () => {
 });
 
 // A keeper over a real client against the fake, with the disk, the clock, the sim and OBS's start as fakes.
-function rig({ connect = true, freeBytes = 400e9, payload = LIVE, inCar = false, settings = {}, startObs, port, obsRunning = false, lostAfterMs, stateFile } = {}) {
+function rig({ connect = true, freeBytes = 400e9, payload = LIVE, inCar = false, settings = {}, startObs, port, obsRunning = false, lostAfterMs, stateFile, keeper: keeperOptions = {}, fsModule } = {}) {
   const lines = [];
   const notices = [];
   const changes = [];
   const fake = {
     free: freeBytes, payload, inCar, settings: { obsStartOnRecord: true, ...settings },
-    startObsCalls: 0, obsRunning, freeAsked: [], freeFor: null, profileFolder: null,
+    startObsCalls: 0, obsRunning, obsRunningCalls: 0, settingsReads: 0, fetchCalls: 0, freeAsked: [], freeFor: null, profileFolder: null,
   };
   const client = createObsClient({ port: port || server.port, password: () => PASSWORD, retryMs: 40, authRetryMs: 100, connectTimeoutMs: 500, log: (l) => lines.push(l) });
   const keeper = createRecordingKeeper({
     client,
-    settings: () => fake.settings,
+    settings: () => { fake.settingsReads++; return fake.settings; },
     recordFolder: () => dir,
     obsFolder: () => fake.profileFolder,
     stateFile: stateFile || path.join(dir, 'state', 'recording-state.json'),
     freeSpace: async (folder) => { fake.freeAsked.push(folder); return fake.freeFor ? fake.freeFor(folder) : fake.free; },
-    fetchPayload: async () => fake.payload,
+    fetchPayload: async () => { fake.fetchCalls++; if (fake.onFetch) fake.onFetch(); return fake.payload; },
     inCar: () => fake.inCar,
-    obsRunning: async () => fake.obsRunning,
+    obsRunning: async () => { fake.obsRunningCalls++; return fake.obsRunning; },
     startObs: startObs || (async () => { fake.startObsCalls++; return { ok: true }; }),
     notice: (t) => notices.push(t),
     log: (l) => lines.push(l),
@@ -70,6 +72,8 @@ function rig({ connect = true, freeBytes = 400e9, payload = LIVE, inCar = false,
     waitStartedMs: 400, waitStoppedMs: 400, waitObsMs: 600, waitSavedMs: 600, quitWaitMs: 300, statusEveryMs: 60, idleFreeEveryMs: 100000, sidecarHz: 100,
     stableMs: 40, stableTimeoutMs: 2000, moveRetryMs: 20, autoRetryMs: 300, replayRetryMs: 300,
     ...(lostAfterMs ? { lostAfterMs } : {}),
+    ...(fsModule ? { fs: fsModule } : {}),
+    ...keeperOptions,
   });
   keeper.start();
   if (connect) client.start();
@@ -812,12 +816,13 @@ test('the replay buffer runs with the car while Instant replay is on; the switch
     expect(r.keeper.needsStopForQuit()).toBe(true);
     r.fake.inCar = false;
     await untilFed(r, () => !r.keeper.status().replay.running, 2000);
-    expect(server.state.replayBuffer).toBe(false);
+    await until(() => !server.state.replayBuffer);   // OBS stops it after it has answered: STOPPING, then STOPPED
     // In the car again, then the switch off: stopped though he is still in the car.
     r.fake.inCar = true;
     await untilFed(r, () => r.keeper.status().replay.running, 2000);
     r.fake.settings.recordingInstantReplay = false;
     await untilFed(r, () => !r.keeper.status().replay.running, 2000);
+    await until(() => !server.state.replayBuffer);
     // One OBS started itself is left alone when he gets out, and is not Racing Desk's to stop at quit.
     r.fake.settings.recordingInstantReplay = true;
     server.handlers.StartReplayBuffer({});
@@ -1068,4 +1073,560 @@ test('a recording OBS started by Ctrl+Space during a live session is filed the s
     expect(filed.alignment).toMatchObject({ method: 'chapters', pairs: 1 });
     expect(fs.existsSync(path.join(filed.folder, 'his.telemetry.jsonl'))).toBe(true);
   } finally { r.dispose(); }
+});
+
+// ── What the review of stage 2 found ─────────────────────────────────────────────────────────────────────────────
+
+// A keeper over a client whose port the test can move (an OBS that crashed has nothing listening; one that came back
+// has), with the disk, the clock and the sim as fakes.
+function aimedRig({ lostAfterMs = 200, keeper: keeperOptions = {}, payload = RACE_FRAME() } = {}) {
+  let aim = server.port;
+  const lines = [];
+  const client = createObsClient({ port: () => aim, password: () => PASSWORD, retryMs: 40, authRetryMs: 100, connectTimeoutMs: 300, log: (l) => lines.push(l) });
+  const keeper = createRecordingKeeper({
+    client, settings: () => ({ obsStartOnRecord: true }), recordFolder: () => dir, stateFile: stateFileOf(),
+    freeSpace: async () => 400e9, fetchPayload: async () => payload, inCar: () => true, log: (l) => lines.push(l),
+    waitStartedMs: 400, waitStoppedMs: 400, quitWaitMs: 300, statusEveryMs: 60, idleFreeEveryMs: 100000, sidecarHz: 100, lostAfterMs,
+    stableMs: 40, stableTimeoutMs: 2000, moveRetryMs: 20, ...keeperOptions,
+  });
+  keeper.start();
+  client.start();
+  return { client, keeper, lines, setAim: (p) => { aim = p; }, dispose: () => { keeper.dispose(); client.stop(); } };
+}
+const deadPort = async () => { const probe = await startFakeObs({ password: PASSWORD }); const port = probe.port; await probe.close(); return port; };
+const FRAGMENTED_1500 = () => buildFragmentedMp4({ fragments: [{ samples: 60, sampleDuration: 1000 }, { samples: 30, sampleDuration: 1000 }] });   // 1.5 s
+const replayEvents = () => server.events.filter((e) => e.eventType === 'ReplayBufferStateChanged').map((e) => e.eventData);
+
+test('the replay buffer Racing Desk starts stays its own through the order OBS reports it in — the answer, STARTING (inactive), STARTED — and is stopped when he leaves the car and when Racing Desk quits', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  const r = rig({ inCar: true, payload: RACE_FRAME(), settings: { recordingInstantReplay: true } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await untilFed(r, () => r.keeper.status().replay.running, 2000);
+    await until(() => replayEvents().some((e) => e.outputState === 'OBS_WEBSOCKET_OUTPUT_STARTED'));
+    await settle(60);
+    // As obs-websocket sends them: STARTING says the output is not active, and it comes after the answer.
+    expect(replayEvents().slice(0, 2)).toEqual([
+      { outputActive: false, outputState: 'OBS_WEBSOCKET_OUTPUT_STARTING' },
+      { outputActive: true, outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED' },
+    ]);
+    expect(r.keeper.status().replay.running).toBe(true);
+    expect(r.keeper.needsStopForQuit()).toBe(true);   // ours still: STARTING did not take it away
+    // He leaves the car: the buffer is stopped, not left running with its encoder and the 30 Hz poll.
+    r.fake.inCar = false;
+    await untilFed(r, () => !server.state.replayBuffer, 2000);
+    expect(r.keeper.status().replay.running).toBe(false);
+    expect(replayEvents().map((e) => e.outputState).slice(2, 4)).toEqual(['OBS_WEBSOCKET_OUTPUT_STOPPING', 'OBS_WEBSOCKET_OUTPUT_STOPPED']);
+    expect(replayEvents().find((e) => e.outputState === 'OBS_WEBSOCKET_OUTPUT_STOPPING').outputActive).toBe(false);
+    // Back in: started again, and Racing Desk's quit stops it too.
+    r.fake.inCar = true;
+    await untilFed(r, () => server.state.replayBuffer && r.keeper.status().replay.running, 2000);
+    await until(() => replayEvents().filter((e) => e.outputState === 'OBS_WEBSOCKET_OUTPUT_STARTED').length === 2);
+    await settle(60);
+    expect(r.keeper.needsStopForQuit()).toBe(true);
+    await r.keeper.stopOwnedForQuit();
+    await until(() => !server.state.replayBuffer);
+  } finally { r.dispose(); }
+});
+
+test('a buffer is started again the moment he is back in the car: only a start that failed is held back', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  const r = rig({ inCar: true, payload: RACE_FRAME(), settings: { recordingInstantReplay: true }, keeper: { replayRetryMs: 5000 } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await untilFed(r, () => r.keeper.status().replay.running, 2000);
+    r.fake.inCar = false;
+    await untilFed(r, () => !server.state.replayBuffer, 2000);
+    // Out for under a second, back in: not another minute of "The replay buffer isn't running."
+    r.fake.inCar = true;
+    await untilFed(r, () => server.state.replayBuffer && r.keeper.status().replay.running, 1500);
+    expect(server.requests.filter((q) => q.type === 'StartReplayBuffer')).toHaveLength(2);
+  } finally { r.dispose(); }
+});
+
+test('the demo is "in the car" and has no replay buffer: Instant replay starts only for a live sim session', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  const r = rig({ inCar: true, payload: { ...RACE_FRAME(), 'RacingDesk.Plugin.DemoMode': 1 }, settings: { recordingInstantReplay: true } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await feedFor(r, 10, 40);
+    expect(server.requests.filter((q) => q.type === 'StartReplayBuffer')).toHaveLength(0);
+    expect(r.keeper.status().replay.running).toBe(false);
+    r.fake.payload = RACE_FRAME();
+    await untilFed(r, () => r.keeper.status().replay.running, 2000);
+  } finally { r.dispose(); }
+});
+
+test('the 30 Hz poll does not read the settings file each time, and a buffer he started himself keeps no poll going while he is out of the car', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  const r = rig({ inCar: true, payload: RACE_FRAME(), settings: { recordingInstantReplay: true } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await untilFed(r, () => r.keeper.status().replay.running, 2000);
+    const reads = r.fake.settingsReads;
+    const polls = r.fake.fetchCalls;
+    await settle(400);
+    expect(r.fake.fetchCalls - polls).toBeGreaterThan(15);   // the tap is running
+    expect(r.fake.settingsReads - reads).toBeLessThan(6);    // and does not read the file at its rate
+  } finally { r.dispose(); }
+
+  // A buffer OBS started on its own, he is not in the car: nothing is polled; in the car, it is.
+  server.state.replayBuffer = false;
+  server.handlers.StartReplayBuffer({});
+  await until(() => server.state.replayBuffer);
+  const w = rig({ inCar: false, payload: RACE_FRAME(), settings: { recordingInstantReplay: true } });
+  try {
+    await until(() => w.keeper.status().replay.running);
+    await settle(300);
+    expect(w.fake.fetchCalls).toBe(0);
+    w.fake.inCar = true;
+    await untilFed(w, () => w.fake.fetchCalls > 5, 2000);
+  } finally { w.dispose(); }
+});
+
+test("the ring is as long as OBS's own buffer (its RecRBTime), not the card's setting and a few seconds", async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  server.state.profile.AdvOut.RecRBTime = '60';
+  server.mode.writeClip = (clip) => fs.writeFileSync(clip, buildFinalMp4({ durationMs: 60000, withChapterTrack: false }));
+  let jump = 0;
+  const r = rig({ inCar: true, payload: RACE_FRAME(), settings: { recordingInstantReplay: true }, keeper: { now: () => Date.now() + jump } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await untilFed(r, () => r.keeper.status().replay.running, 2000);
+    await until(() => server.requests.some((q) => q.type === 'GetProfileParameter' && q.data.parameterName === 'RecRBTime'));
+    await settle(80);
+    // Each poll is nearly a second on: eighty seconds of telemetry in a moment. The card says 20 s and OBS's buffer is 60.
+    const polled = r.fake.fetchCalls;
+    r.fake.onFetch = () => { jump += 990; };
+    await until(() => r.fake.fetchCalls >= polled + 80, 8000);
+    r.fake.onFetch = null;
+    const saved = await r.keeper.saveReplay({ source: 'key' });
+    expect(saved.ok).toBe(true);
+    await until(() => r.keeper.status().replay.lastSaved, 5000);
+    const frames = linesOf(r.keeper.status().replay.lastSaved.sidecar).filter((l) => !l._type);
+    // The clip is sixty seconds long, and its sidecar starts with it: a ring of the card's twenty seconds and ten more
+    // would have begun half a minute in.
+    expect(frames[0].t).toBeLessThan(5);
+    expect(frames.length).toBeGreaterThan(55);
+  } finally { r.dispose(); }
+});
+
+test('with no replay buffer in OBS but one in its profile (Set up OBS ran while it was open), the card says it comes with the next start, not to press a button that is not there', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  server.mode.noReplayBuffer = true;
+  const r = rig({ inCar: true, payload: RACE_FRAME(), settings: { recordingInstantReplay: true } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await until(() => r.keeper.status().replay.unavailable);
+    expect(r.keeper.status().replay.unavailable).toBe('Instant replay starts the next time OBS opens.');
+    expect(await r.keeper.saveReplay({ source: 'key' })).toMatchObject({ ok: false, reason: 'Instant replay starts the next time OBS opens.' });
+    await feedFor(r, 6, 40);
+    expect(r.keeper.status().replay.unavailable).toBe('Instant replay starts the next time OBS opens.');
+    // The profile says nothing of one either: the other sentence.
+    server.state.profile.AdvOut.RecRB = 'false';
+    for (const s of server.clients()) s.conn.destroy();
+    await until(() => r.keeper.status().replay.unavailable === 'OBS has no replay buffer. Press Set up OBS, then open OBS again.', 3000);
+  } finally { r.dispose(); }
+});
+
+test('quitting waits for a recording that has just stopped to be filed: it is moved, its sidecar has its summary, and the quit is bounded', async () => {
+  const r = rig({ inCar: true, payload: RACE_FRAME(), keeper: { stableMs: 300, stableTimeoutMs: 3000 } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    const started = await r.keeper.record({ source: 'desk' });
+    await until(() => r.keeper.status().sidecar && r.keeper.status().sidecar.frames >= 2);
+    await until(() => folderOf(r));
+    const folder = folderOf(r);
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    // He finishes and closes the desk: STOPPED has come, and the file has still to hold still for 300 ms.
+    await r.keeper.stop();
+    expect(r.keeper.status().recording).toBe(false);
+    expect(r.keeper.needsStopForQuit()).toBe(true);
+    await r.keeper.stopOwnedForQuit();
+    const video = path.join(folder, path.basename(started.path));
+    expect(fs.existsSync(video)).toBe(true);
+    expect(fs.existsSync(started.path)).toBe(false);
+    expect(linesOf(video.replace(/\.mp4$/, '.telemetry.jsonl')).at(-1)).toMatchObject({ _type: 'summary', alignment: { method: 'end', endFrom: 'request' } });
+    expect(r.keeper.needsStopForQuit()).toBe(false);
+  } finally { r.dispose(); }
+
+  // A filing that cannot finish is waited for only so long.
+  const w = rig({ inCar: true, payload: RACE_FRAME(), keeper: { stableMs: 1500, stableTimeoutMs: 5000, filingQuitWaitMs: 150 } });
+  try {
+    await until(() => w.keeper.status().obs === 'open');
+    const started = await w.keeper.record({ source: 'desk' });
+    await until(() => w.keeper.status().sidecar && w.keeper.status().sidecar.frames >= 2);
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    await w.keeper.stop();
+    const began = Date.now();
+    await w.keeper.stopOwnedForQuit();
+    expect(Date.now() - began).toBeLessThan(900);
+    expect(w.lines.some((l) => /filing was not finished in time/.test(l))).toBe(true);
+  } finally { w.dispose(); }
+});
+
+test('OBS crashed and is back after more than half a minute: the file it left is filed from the last moment it was seen recording, and its sidecar gets a summary that says so', async () => {
+  const a = aimedRig({ lostAfterMs: 200 });
+  try {
+    await until(() => a.keeper.status().obs === 'open');
+    const started = await a.keeper.record({ source: 'desk' });
+    await until(() => a.keeper.status().sidecar && a.keeper.status().sidecar.frames >= 3);
+    fs.writeFileSync(started.path, FRAGMENTED_1500());   // what a crash leaves: a Hybrid MP4 never finalised
+    const folder = a.keeper.status().filed.folder;
+    a.setAim(await deadPort());
+    server.state.recording = false;                       // when OBS is back it is not recording
+    const cutAt = Date.now();
+    for (const s of server.clients()) s.conn.destroy();
+    await until(() => !a.keeper.status().recording, 3000);
+    expect(fs.existsSync(stateFileOf())).toBe(true);
+    // The video is still where OBS wrote it, and the sidecar already ends with the reason.
+    expect(fs.existsSync(started.path)).toBe(true);
+    expect(sidecarOf(started.path.replace(/\//g, path.sep)).at(-1)).toMatchObject({ _type: 'summary', reason: 'OBS went away' });
+    await settle(250);
+    // OBS is back, and is not recording.
+    a.setAim(server.port);
+    await until(() => a.keeper.status().lastFiled, 4000);
+    const filed = a.keeper.status().lastFiled;
+    expect(filed.folder).toBe(folder);
+    expect(path.dirname(filed.video)).toBe(folder);
+    expect(fs.existsSync(started.path)).toBe(false);
+    expect(filed.alignment).toMatchObject({ method: 'end', endFrom: 'lastSeen', approximate: true, durationMs: 1500 });
+    const lines = linesOf(filed.sidecar);
+    expect(lines.filter((l) => l._type === 'summary')).toHaveLength(2);
+    expect(lines.at(-1)).toMatchObject({ _type: 'summary', refiled: true, reason: 'OBS went away', alignment: { method: 'end', endFrom: 'lastSeen' } });
+    expect(lines.at(-1).obsOutputPath).toBe(filed.video);
+    // The end is when the connection was lost: not the half second after, when OBS came back and was asked.
+    expect(Math.abs(Date.parse(lines.at(-1).stoppedAt) - cutAt)).toBeLessThan(250);
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+  } finally { a.dispose(); }
+});
+
+test('OBS crashed and is back within half a minute: the end is when it was last seen recording, not when it was asked again', async () => {
+  const a = aimedRig({ lostAfterMs: 5000 });
+  try {
+    await until(() => a.keeper.status().obs === 'open');
+    const started = await a.keeper.record({ source: 'desk' });
+    await until(() => a.keeper.status().sidecar && a.keeper.status().sidecar.frames >= 3);
+    fs.writeFileSync(started.path, FRAGMENTED_1500());
+    a.setAim(await deadPort());
+    server.state.recording = false;
+    const cutAt = Date.now();
+    for (const s of server.clients()) s.conn.destroy();
+    await settle(700);                                    // OBS takes its time to come back
+    a.setAim(server.port);
+    await until(() => a.keeper.status().lastFiled, 4000);
+    const filed = a.keeper.status().lastFiled;
+    expect(filed.alignment).toMatchObject({ method: 'end', endFrom: 'lastSeen', approximate: true, durationMs: 1500 });
+    const summary = linesOf(filed.sidecar).at(-1);
+    expect(summary).toMatchObject({ _type: 'summary', reason: 'OBS stopped while Racing Desk was away' });
+    expect(Math.abs(Date.parse(summary.stoppedAt) - cutAt)).toBeLessThan(250);
+    expect(Date.now() - Date.parse(summary.stoppedAt)).toBeGreaterThan(600);
+  } finally { a.dispose(); }
+});
+
+test('Racing Desk restarted after the crash: a recording of ours in the state file, with a sidecar that has no summary, is filed when OBS answers and is not recording it', async () => {
+  const began = Date.now() - 90_000;
+  const mp4 = path.join(dir, 'crashed.mp4');
+  fs.writeFileSync(mp4, FRAGMENTED_1500());
+  const folder = path.join(dir, '2026-09-30 21-00 Zandvoort Porsche 911 GT3 R');
+  fs.mkdirSync(folder, { recursive: true });
+  const header = { _type: 'header', schemaVersion: 1, startedAt: new Date(began).toISOString(), car: 'Porsche 911 GT3 R', track: 'Zandvoort', producer: 'obs', kind: 'recording', obsOutputPath: asSlashes(mp4), videoOffsetMs: 0 };
+  const frames = [0, 1, 2, 3].map((i) => ({ t: i * 0.033, frame: i, pos: 3 }));
+  fs.writeFileSync(mp4.replace(/\.mp4$/, '.telemetry.jsonl'), [header, ...frames].map((l) => JSON.stringify(l)).join('\n') + '\n{"t":0.1');   // the last line cut short
+  const seenAt = began + 80_000;
+  fs.mkdirSync(path.join(dir, 'state'), { recursive: true });
+  fs.writeFileSync(stateFileOf(), JSON.stringify({ owned: mp4, current: mp4, startedAt: began, auto: true, folder, seenAt }));
+  const r = rig({ inCar: false, payload: null });
+  try {
+    await until(() => r.keeper.status().lastFiled, 4000);
+    const filed = r.keeper.status().lastFiled;
+    expect(filed.folder).toBe(folder);
+    expect(fs.existsSync(mp4)).toBe(false);
+    expect(fs.existsSync(path.join(folder, 'crashed.mp4'))).toBe(true);
+    const lines = fs.readFileSync(path.join(folder, 'crashed.telemetry.jsonl'), 'utf8').split('\n').filter(Boolean);
+    const summary = JSON.parse(lines.at(-1));
+    expect(summary).toMatchObject({ _type: 'summary', refiled: true, frames: 4, reason: 'OBS went away', alignment: { method: 'end', endFrom: 'lastSeen', approximate: true, durationMs: 1500 } });
+    expect(Date.parse(summary.stoppedAt)).toBe(seenAt);
+    expect(summary.videoOffsetMs).toBe(Math.round(began - (seenAt - 1500)));
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('the end of the file is when the stop was asked for, or OBS said it was stopping: not when STOPPED came after the encoder had flushed', async () => {
+  server.state.profile.AdvOut.RecFormat2 = 'mp4';
+  const r = rig({ inCar: true, payload: RACE_FRAME(), keeper: { waitStoppedMs: 2000 } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    const started = await r.keeper.record({ source: 'desk' });
+    await until(() => r.keeper.status().sidecar && r.keeper.status().sidecar.frames >= 2);
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    server.mode.delayMs = 500;                            // the flush: STOPPED comes half a second after the request
+    const asked = Date.now();
+    await r.keeper.stop();
+    expect(Date.now() - asked).toBeGreaterThanOrEqual(450);
+    await until(() => r.keeper.status().lastFiled, 3000);
+    const summary = linesOf(r.keeper.status().lastFiled.sidecar).at(-1);
+    expect(Math.abs(Date.parse(summary.stoppedAt) - asked)).toBeLessThan(200);
+    expect(summary.alignment).toMatchObject({ method: 'end', endFrom: 'request', durationMs: 3000 });
+    expect(summary.alignment.approximate).toBeUndefined();
+
+    // A stop made in OBS: the end is when STOPPING arrived.
+    server.mode.delayMs = 0;
+    const hisFile = `${asSlashes(dir)}/his.mp4`;
+    server.startRecording(hisFile);
+    await until(() => r.keeper.status().recording && r.keeper.status().sidecar);
+    fs.writeFileSync(hisFile, buildFinalMp4({ durationMs: 2000, withChapterTrack: false }));
+    server.stopRecording();
+    await until(() => r.keeper.status().lastFiled && /his\.mp4$/.test(r.keeper.status().lastFiled.video), 3000);
+    expect(linesOf(r.keeper.status().lastFiled.sidecar).at(-1).alignment).toMatchObject({ method: 'end', endFrom: 'event' });
+  } finally { r.dispose(); }
+});
+
+test('a chapter OBS refuses because the recording was just paused is not "this file takes no chapters": the next one after the resume is taken; the pause is written down and allowed for', async () => {
+  server.state.profile.AdvOut.RecFormat2 = 'hybrid_mp4';
+  const r = rig({ inCar: true, payload: RACE_FRAME() });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    const started = await r.keeper.record({ source: 'desk' });
+    await until(() => r.keeper.status().sidecar && r.keeper.status().sidecar.frames >= 3);
+    // OBS is paused and its PAUSED has not reached us yet: the chapter is answered 702, as obs-websocket does.
+    server.state.paused = true;
+    r.fake.payload = { ...r.fake.payload, 'DataCorePlugin.GameData.CurrentLap': 9 };
+    await until(() => server.requests.some((q) => q.type === 'CreateRecordChapter'), 2000);
+    await until(() => server.requests.filter((q) => q.type === 'GetRecordStatus').length >= 1, 2000);
+    await settle(150);
+    expect(r.lines.some((l) => /takes no chapters/.test(l))).toBe(false);
+    expect(r.keeper.status().chapters).toBe(0);
+    server.state.paused = false;
+    r.fake.payload = { ...r.fake.payload, 'DataCorePlugin.GameData.CurrentLap': 10 };
+    await until(() => r.keeper.status().chapters === 1, 2000);
+    expect(server.state.chapters.map((c) => c.name)).toEqual(['Lap 10']);
+
+    // A pause, the proper way: the events come, and the sidecar says so.
+    server.handlers.PauseRecord();
+    await until(() => r.keeper.status().paused);
+    await settle(250);
+    server.handlers.ResumeRecord();
+    await until(() => !r.keeper.status().paused);
+    await settle(60);
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    await r.keeper.stop();
+    await until(() => r.keeper.status().lastFiled, 3000);
+    const lines = linesOf(r.keeper.status().lastFiled.sidecar);
+    const summary = lines.at(-1);
+    expect(summary.markers.map((m) => m.type).filter((t) => /^recording_/.test(t))).toEqual(['recording_paused', 'recording_resumed']);
+    expect(summary.pauses).toHaveLength(1);
+    const pause = summary.pauses[0];
+    expect(pause.to - pause.from).toBeGreaterThanOrEqual(200);
+    expect(summary.alignment).toMatchObject({ method: 'end', approximate: true });
+    // The file holds the recording less the pause, so it began that much earlier than its length says.
+    const startedAt = Date.parse(lines[0].startedAt);
+    const expected = startedAt - (Date.parse(summary.stoppedAt) - 3000 - (pause.to - pause.from));
+    expect(Math.abs(summary.videoOffsetMs - expected)).toBeLessThanOrEqual(2);
+  } finally { r.dispose(); }
+});
+
+test('OBS answers StartRecord and starts nothing: auto-record asks once, says so once, and does not ask again this session; a new session, a reconnect or a stint of his lets it try', async () => {
+  const r = rig({ inCar: true, payload: RACE_FRAME(), keeper: { autoRetryMs: 200 } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    server.mode.neverStarts = true;
+    await untilFed(r, () => r.lines.some((l) => /not started: OBS didn't start recording/.test(l)), 4000);
+    await feedFor(r, 40, 40);   // 1.6 s more under the green flag, with a retry every 200 ms had it not given up
+    expect(server.requests.filter((q) => q.type === 'StartRecord')).toHaveLength(1);
+    expect(r.notices).toEqual(["OBS didn't start recording"]);
+    // A reconnect is something changed: tried again.
+    for (const s of server.clients()) s.conn.destroy();
+    await until(() => server.identified() === 1 && r.keeper.status().obs === 'open', 3000);
+    await untilFed(r, () => server.requests.filter((q) => q.type === 'StartRecord').length === 2, 4000);
+    await until(() => r.lines.filter((l) => /not started: OBS didn't start recording/.test(l)).length === 2, 3000);
+    // The HUD was told once, for the session, however many tries.
+    expect(r.notices).toEqual(["OBS didn't start recording"]);
+    // A new session: the green flag counts again, and OBS now starts.
+    server.mode.neverStarts = false;
+    r.fake.payload = RACE_FRAME({ 'DataCorePlugin.GameRawData.Telemetry.SessionNum': 3 });
+    await untilFed(r, () => r.keeper.status().recording, 4000);
+    expect(r.keeper.status()).toMatchObject({ owned: true, auto: true });
+  } finally { r.dispose(); }
+});
+
+test('auto-record with OBS closed never asks tasklist, says "OBS is not open" once a session, and says nothing false when OBS refuses the password', async () => {
+  const closed = await startFakeObs({ password: PASSWORD });
+  const port = closed.port;
+  await closed.close();
+  const r = rig({ port, inCar: true, payload: RACE_FRAME(), obsRunning: true, keeper: { autoRetryMs: 100 } });
+  try {
+    await until(() => r.keeper.status().obs === 'closed');
+    await feedFor(r, 40, 40);
+    expect(r.fake.obsRunningCalls).toBe(0);
+    expect(r.notices).toEqual(['OBS is not open']);
+    // A press does ask: tasklist is for presses.
+    await r.keeper.record({ source: 'key' });
+    expect(r.fake.obsRunningCalls).toBe(1);
+    // A new session: the sentence once more, not at every try.
+    r.fake.payload = RACE_FRAME({ 'DataCorePlugin.GameRawData.Telemetry.SessionNum': 3 });
+    await feedFor(r, 40, 40);
+    expect(r.notices.filter((n) => n === 'OBS is not open').length).toBeLessThanOrEqual(2);
+    expect(r.fake.obsRunningCalls).toBe(1);
+  } finally { r.dispose(); }
+
+  const other = await startFakeObs({ password: 'another-password' });
+  const w = rig({ port: other.port, inCar: true, payload: RACE_FRAME(), obsRunning: true, keeper: { autoRetryMs: 100 } });
+  try {
+    await until(() => w.keeper.status().obs === 'authFailed');
+    await feedFor(w, 40, 40);
+    expect(w.notices).toEqual([]);
+    expect(w.fake.obsRunningCalls).toBe(0);
+    expect(w.keeper.status().last).toMatchObject({ ok: false, text: 'OBS refused the password. Type the one from OBS on the Recording card.' });
+  } finally { w.dispose(); await other.close(); }
+});
+
+test('the telemetry has a gap: auto-record goes on through it with the real in-car signal turning false after three silent seconds, stops when a payload says he is out, and gives up after a minute of silence', async () => {
+  const signal = createInCarSignal({ leaveMs: 50, staleMs: 100 });
+  const r = rig({ inCar: false, payload: RACE_FRAME(), keeper: { autoRules: createAutoRecord({ debounceMs: 150 }), silentLimitMs: 900 } });
+  // main.js hands the payload to the keeper, then to the signal, in that order.
+  const pump = (p) => { r.keeper.feed(p); r.fake.inCar = signal.feed(p); };
+  const pumpFor = async (n, p) => { for (let i = 0; i < n; i++) { pump(typeof p === 'function' ? p() : p); await settle(40); } };
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    for (let i = 0; i < 80 && !r.keeper.status().recording; i++) { pump(RACE_FRAME()); await settle(40); }
+    expect(r.keeper.status()).toMatchObject({ recording: true, owned: true, auto: true });
+    // The host does not answer for 480 ms: the signal says out after 100 ms of it. Nothing stops.
+    await pumpFor(12, null);
+    expect(signal.inCar()).toBe(false);
+    expect(r.keeper.status().recording).toBe(true);
+    expect(server.requests.filter((q) => q.type === 'StopRecord')).toHaveLength(0);
+    // It answers again, in the car: still recording. Then it says he is out of the car: the stop.
+    await pumpFor(5, RACE_FRAME());
+    expect(r.keeper.status().recording).toBe(true);
+    await pumpFor(30, RACE_FRAME({ 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': 0 }));
+    expect(r.keeper.status().recording).toBe(false);
+    expect(r.lines.some((l) => /Auto-record: out of the car, stopping/.test(l))).toBe(true);
+    // A start again, and then silence that does not end: after the limit it is out.
+    for (let i = 0; i < 80 && !r.keeper.status().recording; i++) { pump(RACE_FRAME()); await settle(40); }
+    expect(r.keeper.status().recording).toBe(true);
+    await pumpFor(40, null);   // 1.6 s of silence, with a limit of 0.9 s
+    expect(r.keeper.status().recording).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('a poll that got no answer when a recording begins is not "no sim session": the telemetry is asked again; an answer that says there is no sim is believed at once; a take-over waits for the host', async () => {
+  const r = rig({ payload: null, keeper: { liveEveryMs: 30 } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    setTimeout(() => { r.fake.payload = RACE_FRAME(); }, 150);
+    await r.keeper.record({ source: 'desk' });
+    await until(() => r.keeper.status().sidecar, 3000);
+    expect(r.lines.some((l) => /no sim session is live/.test(l))).toBe(false);
+    await r.keeper.stop();
+    // The host answers that no sim is running: one question, no more.
+    r.fake.payload = { 'DataCorePlugin.GameRunning': 0 };
+    const asked = r.fake.fetchCalls;
+    await r.keeper.record({ source: 'desk' });
+    await settle(250);
+    expect(r.fake.fetchCalls - asked).toBe(1);
+    expect(r.lines.some((l) => /no sim session is live/.test(l))).toBe(true);
+    await r.keeper.stop();
+  } finally { r.dispose(); }
+
+  // Racing Desk starts with OBS recording, and the host is not up for a moment.
+  const mp4 = `${asSlashes(dir)}/running.mp4`;
+  server.startRecording(mp4);
+  const w = rig({ payload: null, keeper: { liveEveryMs: 30 } });
+  try {
+    await until(() => w.keeper.status().recording);
+    setTimeout(() => { w.fake.payload = RACE_FRAME(); }, 300);
+    await until(() => w.keeper.status().sidecar, 3000);
+    expect(w.lines.some((l) => /no sim session is live/.test(l))).toBe(false);
+  } finally { w.dispose(); }
+});
+
+test('a live payload that does not name the car yet is not filed under the demo\'s car', async () => {
+  const r = rig({ inCar: true, payload: { ...RACE_FRAME(), 'DataCorePlugin.GameData.CarModel': '', 'RacingDesk.Plugin.Demo.CarModel': 'BMW M4 GT3' } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await r.keeper.record({ source: 'desk' });
+    await until(() => r.keeper.status().filed);
+    const folder = r.keeper.status().filed.folder;
+    expect(path.basename(folder)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}-\d{2} Zandvoort$/);
+    expect(sidecarOf(r.keeper.status().outputPath.replace(/\//g, path.sep))[0]).toMatchObject({ _type: 'header', car: null, track: 'Zandvoort' });
+    await r.keeper.stop();
+  } finally { r.dispose(); }
+});
+
+test('auto-record\'s claim on the STARTED that follows its start is let go when its ten seconds are up: a recording he starts after closing the dialog is his', async () => {
+  const r = rig({ inCar: true, payload: RACE_FRAME() });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    server.mode.neverStarts = true;
+    await untilFed(r, () => r.lines.some((l) => /not started: OBS didn't start recording/.test(l)), 4000);
+    server.mode.neverStarts = false;
+    server.startRecording();                              // his Ctrl+Space, within the minute
+    await until(() => r.keeper.status().recording);
+    expect(r.keeper.status()).toMatchObject({ owned: false, auto: false });
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('a video whose sidecar cannot follow it goes back where OBS wrote it, the problem is said, and no empty folder is left behind', async () => {
+  const lockedSidecar = (from) => /telemetry\.jsonl$/.test(String(from));
+  const heldFs = { ...fs, renameSync: (from, to) => { if (lockedSidecar(from)) { const e = new Error('held by another program'); e.code = 'EPERM'; throw e; } return fs.renameSync(from, to); } };
+  const r = rig({ inCar: true, payload: RACE_FRAME(), fsModule: heldFs });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    const started = await r.keeper.record({ source: 'desk' });
+    await until(() => r.keeper.status().sidecar && r.keeper.status().sidecar.frames >= 2);
+    const folder = r.keeper.status().filed.folder;
+    expect(fs.existsSync(folder)).toBe(true);
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 2000, withChapterTrack: false }));
+    await r.keeper.stop();
+    await until(() => r.keeper.status().lastFiled, 5000);
+    const filed = r.keeper.status().lastFiled;
+    expect(filed.folder).toBeNull();
+    expect(filed.why).toMatch(/telemetry could not be moved with the video/);
+    expect(fs.existsSync(started.path)).toBe(true);        // the video is where OBS wrote it
+    expect(fs.existsSync(started.path.replace(/\.mp4$/, '.telemetry.jsonl'))).toBe(true);   // beside its sidecar
+    expect(fs.existsSync(folder)).toBe(false);             // and no folder is left with nothing in it
+  } finally { r.dispose(); }
+
+  // A video that cannot be moved at all leaves no empty folder either.
+  const lockedVideo = { ...fs, renameSync: (from, to) => { if (/\.mp4$/.test(String(from))) { const e = new Error('held'); e.code = 'EPERM'; throw e; } return fs.renameSync(from, to); } };
+  const w = rig({ inCar: true, payload: RACE_FRAME(), fsModule: lockedVideo });
+  try {
+    await until(() => w.keeper.status().obs === 'open');
+    const started = await w.keeper.record({ source: 'desk' });
+    await until(() => w.keeper.status().sidecar && w.keeper.status().sidecar.frames >= 2);
+    const folder = w.keeper.status().filed.folder;
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 2000, withChapterTrack: false }));
+    await w.keeper.stop();
+    await until(() => w.keeper.status().lastFiled, 5000);
+    expect(fs.existsSync(folder)).toBe(false);
+    expect(w.keeper.status().lastFiled.folder).toBeNull();
+  } finally { w.dispose(); }
+});
+
+test('a sidecar gone on in for a recording of his own goes on from the zero its header says, not from the one the take-over works out for itself', async () => {
+  const mp4 = `${asSlashes(dir)}/his.mp4`;
+  server.startRecording(mp4);
+  const a = rig({ inCar: true, payload: RACE_FRAME() });
+  let began = 0;
+  try {
+    await until(() => a.keeper.status().sidecar && a.keeper.status().sidecar.frames >= 3);
+    began = Date.parse(sidecarOf(path.join(dir, 'his.mp4'))[0].startedAt);
+  } finally { a.dispose(); }
+  // OBS's own clock puts the start of the video three seconds before the moment the first run first saw the recording
+  // (it could as well be after: the keyframe wait). The take-over would count t from there.
+  server.state.startedAt = began - 3000;
+  const b = rig({ inCar: true, payload: RACE_FRAME() });
+  try {
+    await until(() => b.keeper.status().sidecar && b.keeper.status().sidecar.frames >= 2);
+    b.keeper.dispose();   // the sidecar's buffered lines, the resumed line among them, are written when it ends
+    const lines = sidecarOf(path.join(dir, 'his.mp4'));
+    const resumed = lines.find((l) => l._type === 'resumed');
+    expect(resumed).toBeTruthy();
+    // Resumed a moment after the first run began, by the header's zero: well under the three seconds the other zero adds.
+    expect(resumed.t).toBeGreaterThanOrEqual(0);
+    expect(resumed.t).toBeLessThan(2);
+    expect(lines.filter((l) => l._type === 'header')).toHaveLength(1);
+  } finally { b.dispose(); }
 });

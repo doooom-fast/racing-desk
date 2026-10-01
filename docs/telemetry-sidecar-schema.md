@@ -28,14 +28,22 @@
   `{ method: "chapters", pairs, spreadMs, fileChapters }` from the chapters Racing Desk sent read back from the file's
   chapter track and paired by name — the tightest; `{ method: "end", videoStartUtc, durationMs, approximate? }` from the
   file's end — a plain MP4, Chapters off, a clip (`endFrom: "request" | "event"`), a file OBS never finalised
-  (`approximate: true`); `{ method: "none", why }` when neither could be had, and `videoOffsetMs` is the header's 0), and
+  (`approximate: true`); `{ method: "none", why }` when neither could be had, and `videoOffsetMs` is the header's 0; an
+  `end` alignment says where the end came from, `endFrom`: `"request"` (StopRecord was sent), `"event"` (OBS's
+  STOPPING, for a stop made in OBS) or `"lastSeen"` (the last moment OBS was seen recording, for a recording whose end
+  it never told: always `approximate`); a `chapters` alignment says `dropped` when it set aside a pair that strayed), and
   **`chapters`** (`[{ name, frame, t }]`: each chapter sent to OBS, with the t it was sent at in ms; OBS's own "Start" at 0
-  is not among them).
+  is not among them; a chapter is listed once OBS has taken it, so one that never reached OBS is not), and **`pauses`**
+  (`[{ from, to }]`, ms of `t`, present when the recording was paused: the video's clock stood still for each, so video
+  time is `t + videoOffsetMs` less the lengths of the pauses before it; `videoOffsetMs` is the offset for the frames
+  before the first pause, and an alignment of a paused recording is `approximate`).
 - `flag` is the payload's one word, `currentFlagState` (it read `DS.FlagState`, which no host sends, so every frame said `green`);
   `none` where there is no word.
 - `gear` is the **string** the HUD shows: `"N"`, `"R"`, `"3"` (it turned `N` into `0`). A reader that wants a number takes `R` as
   `-1`, `N` as `0`.
 - `closestCar` is no longer written (`DS.ClosestCarDistance` was never sent either). A reader defaults it to 0.
+- Markers `{ type: 'recording_paused' }` and `{ type: 'recording_resumed' }` (with `frame` and `t`) are added when OBS pauses
+  and resumes the recording.
 - A marker `{ type: 'file_changed', path, frame, t }` is added when OBS begins a new file mid-recording (file splitting).
   The sidecar stays one file, named for the file the recording began with.
 - A recording Racing Desk lost for a while — it was restarted mid-recording, or OBS could not be reached for half a minute
@@ -43,7 +51,13 @@
   "t" }` line (`t`: seconds into the video when it was found again) in place of a second header, and the frames after it
   are numbered from 0 again, with `t` still counted from the video's start. Its final summary carries `resumed: true`. A file
   can therefore hold more than one summary (the one before the gap says why it ended, `OBS went away`): a reader takes the
-  header from the first line and the last summary as the file's.
+  header from the first line and the last summary as the file's. `t` goes on from the zero the **header** says
+  (`startedAt`), also for a recording of his own that Racing Desk found again, so the frames before and after the gap
+  share one offset.
+- A recording whose end OBS never told (it crashed, or was stopped while the WebSocket was down) is filed when OBS next
+  answers and is not recording it, or when Racing Desk next starts and finds it in its state file: one more summary line
+  is appended — the earlier summary's, with the offset, the `alignment` (`endFrom: "lastSeen"`), the file's new path and
+  `refiled: true` — and a last line cut short by a crash is left on a line of its own, which a reader skips.
 
 ## Layout
 
@@ -147,8 +161,10 @@ Written by `stop()` after flushing the buffer.
 | `reason` | `string` | Only when the recording ended for one: `OBS went away`, `Racing Desk quit`, `started again`, `OBS said it was not recording`, `saved` (a clip) |
 | `resumed` | `boolean` | `true` on the summary of a sidecar that was gone on in (it counts only the frames since the `resumed` line) |
 | `videoOffsetMs` | `number` | Milliseconds to add to `t` for video time, as found once the file was finished (added 2026-10-01) |
-| `alignment` | `object` | How it was found: `{ method: "chapters", pairs, spreadMs, fileChapters }`, `{ method: "end", videoStartUtc, durationMs, approximate?, endFrom? }` or `{ method: "none", why }` (added 2026-10-01) |
-| `chapters` | `Chapter[]` | `{ name, frame, t }` for each chapter sent to OBS, `t` in ms from the provisional start (added 2026-10-01) |
+| `alignment` | `object` | How it was found: `{ method: "chapters", pairs, spreadMs, fileChapters, dropped?, approximate? }`, `{ method: "end", videoStartUtc, durationMs, approximate?, endFrom? }` (`endFrom`: `"request"`, `"event"`, `"lastSeen"`; for a clip `"request"` or `"event"` too) or `{ method: "none", why }` (added 2026-10-01) |
+| `chapters` | `Chapter[]` | `{ name, frame, t }` for each chapter OBS took, `t` in ms from the provisional start (added 2026-10-01) |
+| `pauses` | `{ from, to }[]` | Present when the recording was paused: ms of `t`, the video's clock stood still for each (added 2026-10-01) |
+| `refiled` | `boolean` | `true` on a summary added later, when a recording whose end OBS never told was found and filed (added 2026-10-01) |
 
 ### Marker shape
 
@@ -159,6 +175,8 @@ type Marker =
   | { type: 'new_lap',          frame: number, t: number, lap: number }
   | { type: 'pit_entry',        frame: number, t: number }
   | { type: 'pit_exit',         frame: number, t: number }
+  | { type: 'recording_paused',  frame: number, t: number }   // OBS paused the recording (the video's clock stops)
+  | { type: 'recording_resumed', frame: number, t: number }
   | { type: 'file_changed',     frame: number, t: number, path: string };   // OBS began a new file (a split)
 ```
 

@@ -43,7 +43,7 @@ export async function startFakeObs({
     outputs: [{ outputName: 'adv_file_output', outputKind: 'ffmpeg_muxer', outputActive: false }],
     clock: 0,
   };
-  const mode = { neverStarts: false, notReadyOnce: false, delayMs: 0, clock: () => Date.now(), writeClip: null };
+  const mode = { neverStarts: false, notReadyOnce: false, delayMs: 0, clock: () => Date.now(), writeClip: null, noReplayBuffer: false };
   const requests = [];
   const events = [];
   const failures = new Map();
@@ -71,7 +71,7 @@ export async function startFakeObs({
       setTimeout(() => stopRecording(), mode.delayMs);
       return { outputPath: p };
     },
-    PauseRecord: () => { if (!state.recording) throw { code: STATUS.OUTPUT_NOT_RUNNING }; if (state.paused) throw { code: STATUS.OUTPUT_PAUSED }; state.paused = true; emit('RecordStateChanged', { outputActive: true, outputState: 'OBS_WEBSOCKET_OUTPUT_PAUSED', outputPath: null }, INTENT.OUTPUTS); return {}; },
+    PauseRecord: () => { if (!state.recording) throw { code: STATUS.OUTPUT_NOT_RUNNING }; if (state.paused) throw { code: STATUS.OUTPUT_PAUSED }; state.paused = true; emit('RecordStateChanged', { outputActive: false, outputState: 'OBS_WEBSOCKET_OUTPUT_PAUSED', outputPath: null }, INTENT.OUTPUTS); return {}; },
     ResumeRecord: () => { if (!state.recording) throw { code: STATUS.OUTPUT_NOT_RUNNING }; if (!state.paused) throw { code: STATUS.OUTPUT_NOT_PAUSED }; state.paused = false; emit('RecordStateChanged', { outputActive: true, outputState: 'OBS_WEBSOCKET_OUTPUT_RESUMED', outputPath: null }, INTENT.OUTPUTS); return {}; },
     GetOutputList: () => ({ outputs: state.outputs.map((o) => ({ ...o, outputActive: o.outputName === 'adv_file_output' ? state.recording : o.outputActive })) }),
     GetOutputSettings: (d) => {
@@ -99,18 +99,35 @@ export async function startFakeObs({
       return {};
     },
     GetProfileList: () => ({ currentProfileName: 'Untitled', profiles: ['Untitled', 'yersy'] }),
-    GetReplayBufferStatus: () => { if (state.profile.AdvOut.RecRB !== 'true') throw { code: STATUS.INVALID_RESOURCE_STATE, comment: 'There is no replay buffer' }; return { outputActive: state.replayBuffer }; },
+    // The replay buffer's outputs are built when OBS starts, from its profile: `mode.noReplayBuffer` is an OBS that started
+    // before its profile said RecRB (Set up OBS over the WebSocket changes the profile, not the outputs).
+    GetReplayBufferStatus: () => { if (state.profile.AdvOut.RecRB !== 'true' || mode.noReplayBuffer) throw { code: STATUS.INVALID_RESOURCE_STATE, comment: 'There is no replay buffer' }; return { outputActive: state.replayBuffer }; },
+    // As obs-websocket does it: the request only queues the start on OBS's UI thread (obs_frontend_replay_buffer_start is
+    // an invokeMethod), so the answer comes first, then STARTING (outputActive false, like every state but STARTED), then
+    // STARTED. The output is active once STARTED has been sent. A stop likewise: the answer, STOPPING (inactive), STOPPED.
     StartReplayBuffer: () => {
-      if (state.profile.AdvOut.RecRB !== 'true') throw { code: STATUS.INVALID_RESOURCE_STATE, comment: 'There is no replay buffer' };
-      if (state.replayBuffer) throw { code: STATUS.OUTPUT_RUNNING };
-      state.replayBuffer = true;
-      emit('ReplayBufferStateChanged', { outputActive: true, outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED' });
+      if (state.profile.AdvOut.RecRB !== 'true' || mode.noReplayBuffer) throw { code: STATUS.INVALID_RESOURCE_STATE, comment: 'There is no replay buffer' };
+      if (state.replayBuffer || state.replayBufferStarting) throw { code: STATUS.OUTPUT_RUNNING };
+      state.replayBufferStarting = true;
+      setTimeout(() => {
+        emit('ReplayBufferStateChanged', { outputActive: false, outputState: 'OBS_WEBSOCKET_OUTPUT_STARTING' });
+        setTimeout(() => {
+          state.replayBufferStarting = false;
+          state.replayBuffer = true;
+          emit('ReplayBufferStateChanged', { outputActive: true, outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED' });
+        }, mode.delayMs);
+      }, 0);
       return {};
     },
     StopReplayBuffer: () => {
       if (!state.replayBuffer) throw { code: STATUS.OUTPUT_NOT_RUNNING };
-      state.replayBuffer = false;
-      emit('ReplayBufferStateChanged', { outputActive: false, outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPED' });
+      setTimeout(() => {
+        emit('ReplayBufferStateChanged', { outputActive: false, outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPING' });
+        setTimeout(() => {
+          state.replayBuffer = false;
+          emit('ReplayBufferStateChanged', { outputActive: false, outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPED' });
+        }, mode.delayMs);
+      }, 0);
       return {};
     },
     // The clip is "written" by the test's mode.writeClip(path) before the saved event, as OBS's mux thread does.
@@ -128,7 +145,9 @@ export async function startFakeObs({
     // Chapters: Hybrid MP4 alone takes them (RequestProcessingFailed otherwise), not while paused, not while not recording.
     CreateRecordChapter: (d) => {
       if (!state.recording) throw { code: STATUS.OUTPUT_NOT_RUNNING };
-      if (state.paused) throw { code: STATUS.OUTPUT_PAUSED };
+      // obs_frontend_recording_add_chapter returns false for a paused recording, and obs-websocket answers any false with
+      // RequestProcessingFailed (702): there is no 502 for a chapter.
+      if (state.paused) throw { code: STATUS.REQUEST_PROCESSING_FAILED, comment: 'Verify that the output being used supports chapter markers.' };
       if (state.profile.AdvOut.RecFormat2 !== 'hybrid_mp4') throw { code: STATUS.REQUEST_PROCESSING_FAILED, comment: 'Verify that the output being used supports chapter markers.' };
       const name = typeof d.chapterName === 'string' && d.chapterName ? d.chapterName : `Unnamed ${state.chapters.length + 1}`;
       state.chapters.push({ name, ms: Math.max(0, mode.clock() - state.startedAt) });
@@ -160,7 +179,7 @@ export async function startFakeObs({
   function stopRecording() {
     if (!state.recording) return;
     const p = state.path;
-    emit('RecordStateChanged', { outputActive: true, outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPING', outputPath: null });
+    emit('RecordStateChanged', { outputActive: false, outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPING', outputPath: null });
     state.recording = false;
     state.paused = false;
     emit('RecordStateChanged', { outputActive: false, outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPED', outputPath: p });

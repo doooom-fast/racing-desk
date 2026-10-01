@@ -349,6 +349,11 @@ test.describe('recording', () => {
     expect(green[1]).toMatch(/stopOwnedRecording\(\)\.finally\(\(\) => \{\s*app\.relaunch\(\{ args: \[\.\.\.process\.argv\.slice\(1\)\.filter\(\(a\) => a !== NO_OBS_START\), NO_OBS_START\] \}\);\s*app\.exit\(0\);\s*\}\);/);
     expect(calls(/app\.relaunch\(/g)).toHaveLength(1);
     expect(calls(/app\.exit\(/g)).toHaveLength(1);
+    // The wait for the stop is not the whole wait: a recording that has just stopped is filed before the app goes, and
+    // the cap on the quit allows for that (the keeper itself is bounded by the same constant).
+    const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
+    expect(helper).not.toBeNull();
+    expect(helper[1]).toMatch(/obs\.recording\.QUIT_WAIT_MS \+ obs\.recording\.FILING_QUIT_WAIT_MS/);
     // will-quit lets the client and the keeper go.
     expect(code).toMatch(/app\.on\('will-quit', \(\) => \{[\s\S]*?recording\.dispose\(\); obsClient\.stop\(\);/);
   });
