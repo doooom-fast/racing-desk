@@ -60,6 +60,11 @@ namespace RacingDesk.Plugin.Engine.Moza
 
         private readonly IMozaPortSystem _portSystem;
         private readonly Func<DateTime> _utcNow;
+        private readonly Func<IReadOnlyList<string>> _runningMozaProcesses;
+
+        // The programs the warning about Moza software was last logged for, so that it is logged once for each set of
+        // them and not at every discovery cycle. Pit House runs all day on the rig: the cycle is 10 s. Poll thread only.
+        private string _pitHouseLogged = "";
 
         // ── Logging callback (injected by Plugin.cs) ──────────────────
         private readonly Action<string> _logInfo;
@@ -110,13 +115,18 @@ namespace RacingDesk.Plugin.Engine.Moza
         {
         }
 
-        /// <summary>For tests: stands in for the machine's serial ports and the clock.</summary>
-        internal MozaSerialManager(Action<string> logInfo, Action<string> logWarn, IMozaPortSystem portSystem, Func<DateTime> utcNow)
+        /// <summary>
+        /// For tests: stands in for the machine's serial ports, the clock and the list of Moza programs that are running
+        /// (by default, the machine's own).
+        /// </summary>
+        internal MozaSerialManager(Action<string> logInfo, Action<string> logWarn, IMozaPortSystem portSystem, Func<DateTime> utcNow,
+            Func<IReadOnlyList<string>> runningMozaProcesses = null)
         {
             _logInfo = logInfo ?? (_ => { });
             _logWarn = logWarn ?? (_ => { });
             _portSystem = portSystem;
             _utcNow = utcNow;
+            _runningMozaProcesses = runningMozaProcesses ?? RunningMozaProcesses;
         }
 
         /// <summary>
@@ -784,31 +794,49 @@ namespace RacingDesk.Plugin.Engine.Moza
             "Nextmotion",            // older Moza companion
         };
 
+        /// <summary>The Moza programs that are running on this machine, by file name.</summary>
+        private static IReadOnlyList<string> RunningMozaProcesses()
+        {
+            var offenders = new List<string>();
+            foreach (var name in PitHouseProcessCandidates)
+            {
+                var processes = System.Diagnostics.Process.GetProcessesByName(name);
+                if (processes.Length > 0)
+                {
+                    offenders.Add(name + ".exe");
+                    foreach (var p in processes) p.Dispose();
+                }
+            }
+            return offenders;
+        }
+
+        /// <summary>
+        /// Keeps <see cref="PitHouseWarning"/> as the machine is, at every discovery cycle, and logs it once for each set
+        /// of programs that is running — not at every cycle. It is a way of finding out why a port is held, and Pit House
+        /// holds the base's two for as long as it runs, which on the rig is all day.
+        /// </summary>
         private void CheckForPitHouse()
         {
             try
             {
-                var offenders = new List<string>();
-                foreach (var name in PitHouseProcessCandidates)
-                {
-                    var processes = System.Diagnostics.Process.GetProcessesByName(name);
-                    if (processes.Length > 0)
-                    {
-                        offenders.Add(name + ".exe");
-                        foreach (var p in processes) p.Dispose();
-                    }
-                }
+                var offenders = _runningMozaProcesses();
 
                 if (offenders.Count > 0)
                 {
+                    string who = string.Join(", ", offenders);
                     PitHouseWarning = "Moza software is running and holding serial ports: "
-                        + string.Join(", ", offenders)
+                        + who
                         + ". Quit these processes (Pit House + its background service) so the plugin can access the hardware.";
-                    _logWarn($"[MozaSerial] {PitHouseWarning}");
+                    if (who != _pitHouseLogged)
+                    {
+                        _pitHouseLogged = who;
+                        _logWarn($"[MozaSerial] {PitHouseWarning}");
+                    }
                 }
                 else
                 {
                     PitHouseWarning = "";
+                    _pitHouseLogged = "";   // said again if it comes back
                 }
             }
             catch { /* ignore — process enumeration can fail */ }

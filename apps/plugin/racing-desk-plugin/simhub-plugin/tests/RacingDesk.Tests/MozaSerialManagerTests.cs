@@ -18,9 +18,12 @@ namespace RacingDesk.Tests
         private DateTime _now;
         private readonly List<string> _infos = new List<string>();
         private readonly List<string> _warns = new List<string>();
+        private readonly List<string> _mozaPrograms = new List<string>();
 
         // Every manager here reaches the fake's ports, never the machine's: Start() and the
-        // diagnostic would otherwise open the rig's ports and write probe packets to them.
+        // diagnostic would otherwise open the rig's ports and write probe packets to them. And
+        // it sees the Moza programs the test says are running, not the machine's own — on the
+        // rig Pit House always is.
         [SetUp]
         public void SetUp()
         {
@@ -28,11 +31,13 @@ namespace RacingDesk.Tests
             _now = new DateTime(2026, 9, 29, 12, 0, 0, DateTimeKind.Utc);
             _infos.Clear();
             _warns.Clear();
+            _mozaPrograms.Clear();
             _manager = new MozaSerialManager(
                 msg => { lock (_infos) _infos.Add(msg); },
                 msg => { lock (_warns) _warns.Add(msg); },
                 _fake,
-                () => _now);
+                () => _now,
+                () => _mozaPrograms.ToArray());
         }
 
         [TearDown]
@@ -575,8 +580,8 @@ namespace RacingDesk.Tests
 
         private int WarnsAbout(string text) => _warns.Count(w => w.Contains(text));
 
-        // The warnings about ports: not the one CheckForPitHouse gives, which goes by the machine's processes
-        private List<string> PortWarns => _warns.Where(w => !w.Contains("Moza software is running")).ToList();
+        // The warnings about ports. No Moza program is running unless a test says so, so these are all there are.
+        private List<string> PortWarns => _warns.ToList();
 
         [Test]
         public void HeldPort_IsLoggedOnceARun_AndNeverOpened()
@@ -704,6 +709,62 @@ namespace RacingDesk.Tests
             Assert.That(_fake.Opens, Has.Count.EqualTo(1));
             Assert.That(WarnsAbout("COM6 is held by another program"), Is.EqualTo(1));
             Assert.That(WarnsAbout("Failed to open"), Is.EqualTo(0));
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  The warning about Moza software
+        //  CheckForPitHouse runs at every discovery cycle, 10 s apart, and Pit House runs all
+        //  day on the rig: the warning is logged once for each set of programs, not 8,600 times
+        //  a day. PitHouseWarning itself is kept as the machine is.
+        // ═══════════════════════════════════════════════════════════════
+
+        private int PitHouseWarns => _warns.Count(w => w.Contains("Moza software is running"));
+
+        [Test]
+        public void PitHouseWarning_IsLoggedOnce_WhileTheSameProgramsRun()
+        {
+            _mozaPrograms.AddRange(new[] { "PitHouse.exe", "MozaBackgroundSystem.exe" });
+
+            Cycles(360); // an hour
+
+            Assert.That(PitHouseWarns, Is.EqualTo(1), string.Join("\n", _warns));
+            Assert.That(_warns.Single(), Does.Contain("PitHouse.exe, MozaBackgroundSystem.exe"));
+            // The warning itself is kept, for the diagnostic, as long as they run
+            Assert.That(_manager.PitHouseWarning, Does.Contain("PitHouse.exe, MozaBackgroundSystem.exe"));
+        }
+
+        [Test]
+        public void PitHouseWarning_IsLoggedAgain_WhenTheSetOfProgramsChanges_OrTheyComeBack()
+        {
+            _mozaPrograms.Add("PitHouse.exe");
+            Cycles(5);
+            Assert.That(PitHouseWarns, Is.EqualTo(1));
+
+            _mozaPrograms.Add("MozaService.exe"); // another one starts: a different set
+            Cycles(5);
+            Assert.That(PitHouseWarns, Is.EqualTo(2));
+            Assert.That(_warns.Last(), Does.Contain("PitHouse.exe, MozaService.exe"));
+
+            _mozaPrograms.Clear(); // Pit House quit: nothing to say, and the warning is gone
+            Cycles(5);
+            Assert.That(PitHouseWarns, Is.EqualTo(2));
+            Assert.That(_manager.PitHouseWarning, Is.Empty);
+
+            _mozaPrograms.Add("PitHouse.exe"); // and back
+            Cycles(5);
+            Assert.That(PitHouseWarns, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void PitHouseWarning_IsKeptEveryCycle_ForTheDiagnostic_WhetherOrNotItWasLogged()
+        {
+            _mozaPrograms.Add("PitHouse.exe");
+            Cycles(3);
+            Assert.That(PitHouseWarns, Is.EqualTo(1));
+
+            var parsed = Newtonsoft.Json.Linq.JObject.Parse(_manager.GetSerialPortDiagnosticJson());
+
+            Assert.That((string?)parsed["pitHouseWarning"], Does.Contain("PitHouse.exe"));
         }
 
         // The real CheckAccess, on things that are not devices: a port that is not there, and files —
