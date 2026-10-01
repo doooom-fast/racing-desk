@@ -570,7 +570,9 @@ namespace RacingDesk.Plugin.Engine
             if (_demoOutline != null) return;
 
             // The demo's circuit: 80 points of a loop, normalised to the 0–100 viewBox with 5% padding, with the
-            // fraction of the lap each is at. It is the demo's alone and stands for no real layout.
+            // fraction of the lap each is at. They are Sebring International, sampled from one of the plugin's old
+            // recordings (the base of this file said so), and the only trace of a real circuit still carried in the
+            // code; whether to keep it for the demo or draw a made-up loop in its place is the driver's to say.
             double[][] raw = new double[][]
             {
                 new[]{58.9, 71.8, 0.0481}, new[]{64.0, 72.1, 0.0596}, new[]{69.0, 72.2, 0.0708}, new[]{73.7, 71.2, 0.0805},

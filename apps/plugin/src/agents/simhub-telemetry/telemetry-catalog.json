@@ -104,11 +104,11 @@
         {"name": "Yaw", "type": "float", "unit": "radians", "wired": false, "desc": "Car heading angle in world space. Not read: the track map no longer dead-reckons a lap"},
         {"name": "YawNorth", "type": "float", "unit": "radians", "wired": false, "desc": "Yaw angle relative to geographic north"},
         {"name": "VelocityX", "type": "float", "unit": "m/s", "wired": false, "desc": "Forward velocity in the car's own frame (X forward, Y sideways, Z vertical, measured on the driver's own file). Not read: the track map is from Lat/Lon in the .ibt files"},
-        {"name": "VelocityX_ST", "type": "float[6]", "unit": "m/s", "wired": false, "desc": "Sub-tick lateral velocity samples"},
+        {"name": "VelocityX_ST", "type": "float[6]", "unit": "m/s", "wired": false, "desc": "Sub-tick forward velocity samples"},
         {"name": "VelocityY", "type": "float", "unit": "m/s", "wired": false, "desc": "Sideways velocity in the car's own frame"},
-        {"name": "VelocityY_ST", "type": "float[6]", "unit": "m/s", "wired": false, "desc": "Sub-tick vertical velocity samples"},
+        {"name": "VelocityY_ST", "type": "float[6]", "unit": "m/s", "wired": false, "desc": "Sub-tick sideways velocity samples"},
         {"name": "VelocityZ", "type": "float", "unit": "m/s", "wired": false, "desc": "Vertical velocity in the car's own frame. Not read"},
-        {"name": "VelocityZ_ST", "type": "float[6]", "unit": "m/s", "wired": false, "desc": "Sub-tick forward velocity samples"}
+        {"name": "VelocityZ_ST", "type": "float[6]", "unit": "m/s", "wired": false, "desc": "Sub-tick vertical velocity samples"}
       ]
     },
     {

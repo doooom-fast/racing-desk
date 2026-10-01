@@ -77,8 +77,10 @@ driven live and then read from its `.ibt`, or written to several files, is one (
 `packages/calc` merges them).
 
 Schema changes add tables and leave the old ones as they were (v5 took `cars_scanned` back out of `ingested_files`;
-v8 added two columns to `track_geometry`), so an earlier build can still record and ingest into a store a later one
-has opened.
+v8 keeps what each track outline was built with in `track_geometry_build`, beside `track_geometry`, which has the
+columns it always had), so an earlier build can still record and ingest into a store a later one has opened: an
+earlier build writes an outline by position, eleven values, and a column added to that table would make it fail and
+then delete the sessions it had just stored from the same file.
 
 ## Track maps
 
@@ -93,7 +95,8 @@ data?… get rid of all of it").
 - **The host is the one source** (`RacingDesk.Data`: `GeometryAccumulator`, `IbtIngest`, `IbtFollower`,
   `TrackOutlines`; the store's `track_geometry`). `TrackMapProvider` takes an `IOutlineSource`: the host's own
   (`LocalOutlineSource` over `TrackOutlines`), and in the SimHub plugin `HostOutlineSource`, which asks the app's host
-  over loopback (`Settings.HostUrl`, `http://127.0.0.1:18889`, where the host runs beside SimHub) at
+  over loopback (`Settings.HostUrl`, `http://127.0.0.1:18889`, where the host runs beside SimHub; the address is the
+  app's and is never saved in SimHub's settings) at
   `GET /racing-desk/data/outline?track=<TrackID>` → `{ trackId, cleanLaps, lengthM, officialLengthM, provisional,
   updatedAt, points: [[x, z, pct], …] }` (metres east and south, so the map is north-up), 404 while there is none, 400
   without an id. The plugin reads no file of his and no store. Asked on a pool thread, never SimHub's `DataUpdate`
@@ -101,7 +104,12 @@ data?… get rid of all of it").
   laps. The iPad's proxy serves `/racing-desk/` alone and refuses queries, so the route is never reachable from the
   network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was, plus
   `TrackMap.Status`: `ready`, `first-lap` (no outline of this layout yet: the map cell says "Map after one clean
-  lap"), `no-host` (the app is not running beside SimHub: "The map needs the app's host"), `none`.
+  lap"), `no-host` (the app's host does not answer the plugin: the cell says "No map yet — the app is starting its
+  maps", and after a minute of it "No map — restart the app to bring its maps back"), `none`. The host answers on the
+  address the plugin asks, `127.0.0.1`, as well as on `localhost`: HTTP.sys matches a prefix that names a host
+  against the request's Host header and answers 400 itself to any other name, so `RacingDeskRuntime.HttpPrefixGroups`
+  gives the loopback listener both (`OutlineRouteTests` holds the plugin's address to every prefix the host may bind).
+  The plugin's layout is the SDK bridge's `TrackId`, which is forgotten when the sim goes.
 - **Which laps are in** (`GeometryAccumulator.CloseLap`, `ChecksVersion` 1): a lap from the line to the line (first
   sample within 0.01 of pct 0, last at 0.99 or past), never on pit road, on the track surface but for six frames, with
   a position at every sample (one `0,0` puts the whole lap out), never under 3 m/s after its first second (a spin to a
@@ -110,18 +118,27 @@ data?… get rid of all of it").
   within 25 m, bin by bin). A rescan or iRacing's north fix moves a layout's Lat/Lon between files that share a name:
   laps that disagree are never averaged, and when files disagree the newest file's laps win. The YAML `TrackLength` is
   said in the log when the outline differs from it by more than a hundredth (Okayama's is 4 % out) and is never a gate.
-  A single clean lap is an outline. `track_geometry.checks` is the checks a row was built with (0 for every row from
-  before them); at start the host builds every such row again from the layout's files, newest first, stopping at twelve
-  clean laps, and a layout no file gives a clean lap for keeps its old outline marked looked at. The sessions are not
-  touched. One line per layout in `host.log`; no names or ids.
+  A single clean lap is an outline. `track_geometry_build.checks` is the checks a row was built with (no row, or a
+  row for an outline an earlier build has since written over, is 0: built before them); the host builds every such
+  outline again from the layout's files once the new files are in — newest first, the newest file's name, sectors and
+  laps winning, stopping at twelve clean laps, waiting where it is when the sim starts. A layout no file gives a clean
+  lap for keeps its old outline, still said to be built before the checks (`looked` says it was looked at, so it is not
+  read again; the follower may still make it a new one). The sessions are not touched. One line per layout in
+  `host.log`; no names or ids.
 - **The first session at a layout** (`IbtFollower`): the sim writes the session's `.ibt` as it goes, so the host reads
-  it behind the sim — on a thread of its own at background I/O priority, every 10 s, a few seconds' worth of frames
-  (`IbtFile(path, growing: true)` counts the records from the length, since the sub-header says 0 until the sim closes
-  the file) — and from the first clean lap there is a provisional outline for the map (`track_geometry.provisional`),
-  refined by each clean lap after. The finished file, ingested once it has settled, replaces it; a provisional one
-  never replaces a whole one. The finished files go in while the host runs (`IbtIngest.WatchFinished`, every minute
-  while the sim is closed, files written more than two minutes ago), not only at the next start; a file written to
-  while it was being read is read again next time.
+  it behind the sim — on a thread of its own at background I/O priority, every 10 s (`IbtFile(path, growing: true)`
+  counts the records from the length, since the sub-header says 0 until the sim closes the file). A file the follower
+  opens when it is already well under way is read from its last five minutes, not its start, and after that what the
+  sim has written since each look; the lap being driven is left to close at the line and not judged where it stands.
+  From the first clean lap there is a provisional outline for the map (`track_geometry_build.provisional`), refined by
+  each clean lap after. **The sim's file is asked for itself, never judged by the folder's listing**: Windows keeps the
+  time a file was made, and a length of nought, in the listing for as long as the sim holds the file open, so a
+  follower that went by it stopped two minutes after the sim made the file; the newest few are asked by their path, and
+  the file being followed stays the current one for as long as it is the newest. What goes wrong with a file is said
+  once, a file of another layout is said once and not opened again. The finished file, ingested once it has settled,
+  replaces the provisional outline; a provisional one never replaces a whole one. The finished files go in while the
+  host runs (`IbtIngest.WatchFinished`, every minute while the sim is closed, files written more than two minutes
+  ago), not only at the next start; a file written to while it was being read is read again next time.
 - **The old maps are set aside, never deleted** (`TrackMapSetAside`, at every runtime start): every `*.csv` in
   `<assembly>\racingdesk-data\trackmaps`, `<assembly>\trackmaps` and `<data>\TrackMaps` — SimHub's
   `Program Files (x86)\SimHub\racingdesk-data\trackmaps` and `ProgramData\SimHub\PluginsData\RacingDesk\TrackMaps`

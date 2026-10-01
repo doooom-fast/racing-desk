@@ -170,12 +170,16 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   the strategy call in the pit box at 14px). A cq unit on the container itself would resolve against the page, so a
   cell's own padding, gap and font-size are in px or set on its children. **A cell that cannot hold a number at 20px
   gives up the least useful thing in it by `@container` query, and never shrinks the number**: the laps panel drops
-  its heading and third row of times, then the sectors' gaps, then its second row; the datastream its yaw trace, then the
+  its heading and third row of times, then the sectors' gaps, then its second row, and past that (a layout with many
+  sectors) gives up more, by measurement (below); the datastream its yaw trace, then the
   wheel's torque, then the peak g; the pit box its two services (below 262px), its pit window when a strategy call has
   taken the room (below 225px); the pedals the clutch's channel (below 250px); the rating panel its bar. The test
   holds every piece of text in every cell to the box its ancestors let show (an ellipsis, an overflow, the cell), at the
-  seven iPad sizes and at the rig's own 1920x1080 and 2560x1080. The HUD's zoom setting is the rig screen's and is undone
-  here.
+  seven iPad sizes and at the rig's own 1920x1080 and 2560x1080 (opened as the rig has them, with the badges). The HUD's
+  zoom setting is the rig screen's and is undone here. **Known and not fixed:** on his own 3440x1440 screen the rig's
+  Ctrl+Shift+F cuts the ratings panel off (its row is 103px in an 85px cell), and a short circuit name goes on sliding in
+  the map's label after the switch to this layout (the marquee is measured in the HUD's narrow label); neither was
+  touched by the iPad's changes, and the tests do not open 3440x1440 for the whole layout.
 - **The hero**: in a race the place, big; out of one (`body.session-nonrace`, which `poll-engine.js` sets from
   `DS.SessionMode`, written only when it changes) the place is a rank of best laps and the big number is the delta.
 - **The laps panel** (`#lapsPanel`, `modules/js/laps-panel.js`; shown only in the glance layout): the lap of how many, his
@@ -184,12 +188,24 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   laps of fuel against the laps to go to the flag (in a race to time, the time left over his last lap), green with a lap
   to spare, amber just, red short. What is left to go is a span of its own that a narrow panel leaves out: the clock has it.
   **A sector is never narrower than its number** (he had "sector numbers get cropped when they're too many digits",
-  2026-09-30): the cells are a wrapping row with `min-width: max-content`, their numbers come down from the panel's size
-  towards the 20px floor as the sectors get more (`--sectors` on `#lapsSectors`), and when the row still cannot hold
-  them at the floor they wrap to another line, which `laps-panel.js` sees (the last cell lower than the first, looked
-  for when a cell has changed or the screen has) and says on the panel (`laps-sectors-wrapped`), which then gives up
-  the sectors' gaps, its heading and its third row of times for the room. The rig's gaps block wraps its sector
-  labels the same way (`dashboard.css`, `.sector-indicator`).
+  2026-09-30): the cells are a wrapping row with `min-width: max-content`, every one as wide as the widest time (`--tw`,
+  so a sector not yet timed is as wide as one that is and nothing moves when it is), their numbers come down from the
+  panel's size towards the 20px floor as the sectors get more (`--sectors` on `#lapsSectors`), and the cells wrap to
+  more lines. **What the panel cannot hold it gives up, in stages** (`FIT` in `laps-panel.js`, one class each on the
+  panel, tried one on top of the other, and the panel asked after each whether it overflows, until it holds what is
+  left; asked when a time changes width, when the number of sectors does and when the cell is resized, and the stage
+  reached is `data-fit`): the sectors' gaps to his best (`laps-fit-gaps`); each sector a line of its own, its name beside
+  its time, with the heading and the third row of times gone (`laps-sectors-wrapped`); the second row of times
+  (`laps-fit-row2`); the first row, the last lap and the gap to his best (`laps-fit-times`: the clock and the hero have
+  them too); the fuel (`laps-fit-fuel`); the space between the lines (`laps-fit-tight`); and last the sectors' names
+  (`laps-fit-bare`, the times stay in order with the one he is in outlined). A layout with three sectors, or a tall
+  cell, gives up nothing. Which of these is shown at a size is a trade he has not been asked about: the order is
+  the least useful first by guess, and `tests/unit/drive-view.spec.mjs` holds only that nothing is cropped and no
+  number is under 20px, at 3, 4, 7, 10 and 14 sectors of half a minute and of over a minute, on every iPad size and on
+  the rig's three. **The gaps block's strip of sectors** (practice and qualifying: labels, coloured by what he did in
+  each) is as tall as its block (`min-height: 0`) so that its cells wrap into more columns, and in portrait on an
+  iPad stops short of the menu's button, which is over that corner. The rig's gaps block wraps its sector labels the
+  same way (`dashboard.css`, `.sector-indicator`).
 - **The clock** (`#raceTimerBlock`) says what it is (`#raceTimerKey`, written by `poll-engine.js` in the glance layout
   only): the laps to go in a lap race (the time on the lap is in the hero), the time left in a race to a time and in
   qualifying, the clock in practice, and under it the last lap. On the rig the cell is as it was, with no key.
@@ -210,18 +226,22 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   `--px` on the svg, the units of the map to a pixel. Told by `driveViewChanged` (drive-hud.js), on resize, and on a new
   path; out of drive mode the maps are the HUD's own again. The outline is the host's, from his own laps (root
   CLAUDE.md, Track maps), and the host places the cars along it as a closed loop, so the page keeps a plain low-pass on
-  the car's position and has no jump rule and no slow blend (crossing the line is one more step). The circuit's
+  the car's position and has no jump rule and no slow blend (crossing the line is one more step). The trail behind the
+  car (a quarter of the lap at most, from where it was last anchored) is let go when the car is put somewhere else —
+  a step of more than a fiftieth of the lap in one frame is a teleport, a reset or a tow to the pits — and when the
+  outline changes, so a car put in the pits is not drawn with a quarter of the lap behind it. The circuit's
   sectors are split by the session's own boundaries (`window._sectorBoundaries`, from `DS.SectorBoundaryPcts`, in a
   race and out of one), never equal fractions. While there is no map the cell says why, from `TrackMap.Status`
-  (`#fullMapWaiting`, `.map-waiting`: "Map after one clean lap", "The map needs the app's host"), and nothing once
-  there is one; a host from before the status says nothing. Nothing resets or records a map any more
+  (`#fullMapWaiting`, `.map-waiting`: "Map after one clean lap", "No map yet — the app is starting its maps", and
+  after a minute of that "No map — restart the app to bring its maps back"), and nothing once there is one; a host
+  from before the status says nothing. Nothing resets or records a map any more
   (`tests/unit/track-map-status.spec.mjs`).
 - **The leaderboard** is the HUD's panel and rows, its type sized from the panel (`#lbRows` font-size) and the rows sharing
   its height; `leaderboard.js` counts how many the panel holds at that size (1.9 lines to a row) and not the sum of the
   screen minus the dashboard that the rig's HUD does.
 - **The menu** (remote-server.js) is a small round button in the top right corner of the iPad's screen, over the frame
   and the corner of whatever cell is there, faint until it is open; its list opens on the side with the more room. On
-  the rig there is no menu.
+  the rig there is no menu. Upright, that corner is the gaps block, and its strip of sectors stops short of the button.
 - **On an iPad only** (`html.rd-remote`, the rules at the end of `drive-view.css`; the rig's own Ctrl+Shift+F keeps
   everything it had), what he asked for on 2026-09-30: the glass's light at fifteen hundredths of the rig's
   (`--rd-shine: 0.15` — the tint, the overhead glow and the sweep, the specular streak and the inset glow all take
@@ -248,9 +268,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   `GapAheadFormatted`, `BBNorm`); `Session.*`, duplicates of `DS.*`; `DS.IRatingFieldSize` and `LicenseString`; the Moza wheel base's connection state (the desk's).
   What is not in the payload at all: a fastest-lap holder, sector times of the other cars, and any pace of theirs beyond
   the last lap.
-- **Tests**: `tests/unit/drive-view.spec.mjs` serves the real page through `remote-server.js` at the seven iPad sizes and
-  the rig's own two screens, in a race, at P12 and P21, with a prototype's dials, a formula car's DRS, under a yellow flag,
-  with the strategist calling, and out of a race, and holds it to: every panel a cell, inside the screen, none on another,
+- **Tests**: `tests/unit/drive-view.spec.mjs` serves the real page through `remote-server.js` at the seven iPad sizes, and
+  opens the rig's own two screens (1920x1080, 2560x1080) from the file with drive mode switched on — no server and no
+  `html.rd-remote`, so the two badges are cells and the glass is the rig's — in a race, at P12 and P21, with a prototype's
+  dials, a formula car's DRS, under a yellow flag, with the strategist calling, and out of a race, and holds it to: every
+  panel a cell, inside the screen, none on another,
   the cells the screen, nothing cut off by its cell or out of sight (every line of text against the box its ancestors show),
   no label under 11px and no number under 20px, the HUD's own type, colours and glass (compared with the HUD's page, item
   by item); the flags as the background and gone when cleared; race control's whole sentence for each flag at every size;
