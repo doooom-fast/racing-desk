@@ -60,6 +60,34 @@ namespace RacingDesk.Plugin
             Log.Warn("[RacingDesk] HTTP server could not start on any prefix — dashboard overlay will not receive data");
         }
 
+        /// <summary>
+        /// Whether a request is from a program on this machine, for the routes that act on the machine's hardware: the
+        /// connection is the machine's own (<c>IsLocal</c>: its two addresses are the same, or loopback — which a LAN
+        /// device that says <c>Host: localhost</c> is not), the Host it names is localhost, 127.0.0.1 or [::1] (a name
+        /// pointed at the machine by another site is not), and it carries no Origin (a page in a browser).
+        /// </summary>
+        internal static bool IsFromThisMachine(bool isLocal, string hostHeader, string origin)
+        {
+            if (!isLocal || !string.IsNullOrEmpty(origin)) return false;
+            if (string.IsNullOrWhiteSpace(hostHeader)) return false;
+
+            string host = hostHeader.Trim();
+            if (host.StartsWith("[", StringComparison.Ordinal))
+            {
+                int close = host.IndexOf(']');
+                if (close < 0) return false;
+                string rest = host.Substring(close + 1);
+                if (rest.Length > 0 && rest[0] != ':') return false;
+                host = host.Substring(0, close + 1);
+            }
+            else
+            {
+                int colon = host.LastIndexOf(':');
+                if (colon >= 0) host = host.Substring(0, colon);
+            }
+            return host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || host == "127.0.0.1" || host == "[::1]";
+        }
+
         private void StopHttpServer()
         {
             try { _httpListener?.Stop(); }
@@ -407,7 +435,22 @@ namespace RacingDesk.Plugin
 
                     if (action == "listSerialPortDiagnostic" && _mozaSerial != null)
                     {
-                        string json = _mozaSerial.GetSerialPortDiagnosticJson();
+                        // It opens every serial port the machine has, and with probe=1 writes to the ones nothing
+                        // describes as Moza. This port answers every address (the iPad view needs it), and HTTP.sys hands
+                        // a localhost prefix any request that says Host: localhost, so the route is for a program on this
+                        // machine and no other: not the LAN, not a page in a browser.
+                        var request = ctx.Request;
+                        if (!IsFromThisMachine(request.IsLocal, request.Headers["Host"], request.Headers["Origin"]))
+                        {
+                            byte[] refusedBytes = System.Text.Encoding.UTF8.GetBytes("{\"error\":\"this is for a program on this machine\"}");
+                            ctx.Response.ContentType = "application/json";
+                            ctx.Response.StatusCode = 403;
+                            ctx.Response.OutputStream.Write(refusedBytes, 0, refusedBytes.Length);
+                            ctx.Response.OutputStream.Close();
+                            continue;
+                        }
+                        // What the ports say they are is read from Windows; talking to them is asked for: ?probe=1.
+                        string json = _mozaSerial.GetSerialPortDiagnosticJson(probe: request.QueryString["probe"] == "1");
                         byte[] resultBytes = System.Text.Encoding.UTF8.GetBytes(json);
                         ctx.Response.ContentType = "application/json";
                         ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");

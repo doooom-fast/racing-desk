@@ -712,6 +712,50 @@ namespace RacingDesk.Tests
         }
 
         // ═══════════════════════════════════════════════════════════════
+        //  The diagnostic (?action=listSerialPortDiagnostic)
+        //  It used to open every port the machine lists — each held one threw, and SimHub logs
+        //  the throw with its stack — and write Moza read commands to every port nothing
+        //  describes as Moza, to whoever asked. A held port is now found without opening it,
+        //  and the commands are written only when the caller asks for them.
+        // ═══════════════════════════════════════════════════════════════
+
+        private static Newtonsoft.Json.Linq.JToken PortEntry(string json, string portName) =>
+            Newtonsoft.Json.Linq.JObject.Parse(json)["ports"]!.Single(p => (string?)p["portName"] == portName);
+
+        [Test]
+        public void Diagnostic_HeldPort_IsReportedAsAccessDenied_WithoutBeingOpened()
+        {
+            RigPortsHeldByPitHouse();
+
+            string json = _manager.GetSerialPortDiagnosticJson();
+
+            Assert.That(_fake.Opens, Is.Empty, "nothing was opened, so nothing threw for SimHub to log");
+            foreach (string port in new[] { "COM6", "COM13" })
+            {
+                Assert.That((string?)PortEntry(json, port)["portOpenStatus"], Is.EqualTo("AccessDenied"));
+                Assert.That((string?)PortEntry(json, port)["portOpenError"], Does.Contain("Another program holds the port"));
+            }
+        }
+
+        [Test]
+        public void Diagnostic_WritesToNoPort_UnlessAskedTo()
+        {
+            _fake.Add("COM20", string.Format(Generic, 20)); // nothing says it is Moza
+            _fake.OpenSucceeds = true;                      // a port that can be had, without being a real one
+
+            string json = _manager.GetSerialPortDiagnosticJson();
+
+            Assert.That((string?)PortEntry(json, "COM20")["portOpenStatus"], Is.EqualTo("Open"));
+            Assert.That(_fake.Opens, Is.EqualTo(new[] { "COM20" }), "opened once, to see that it can be, and nothing sent to it");
+            Assert.That(_warns, Has.None.Contains("Probe"));
+
+            _fake.Opens.Clear();
+            _manager.GetSerialPortDiagnosticJson(probe: true);
+
+            Assert.That(_fake.Opens, Is.EqualTo(new[] { "COM20", "COM20" }), "asked to, it opens it again to talk to it");
+        }
+
+        // ═══════════════════════════════════════════════════════════════
         //  The warning about Moza software
         //  CheckForPitHouse runs at every discovery cycle, 10 s apart, and Pit House runs all
         //  day on the rig: the warning is logged once for each set of programs, not 8,600 times
@@ -814,6 +858,8 @@ namespace RacingDesk.Tests
             public readonly List<string> Checks = new List<string>();
             public readonly List<string> Opens = new List<string>();
             public Func<string, Exception> OpenFailure = name => new IOException($"The port '{name}' does not exist.");
+            /// <summary>Open gives back a port object that was never opened, which cannot be written to.</summary>
+            public bool OpenSucceeds;
 
             public void Add(string name, string description)
             {
@@ -842,6 +888,7 @@ namespace RacingDesk.Tests
                 Opens.Add(portName);
                 if (Held.Contains(portName))
                     throw new UnauthorizedAccessException($"Access to the port '{portName}' is denied.");
+                if (OpenSucceeds) return new SerialPort(portName);
                 throw OpenFailure(portName);
             }
         }

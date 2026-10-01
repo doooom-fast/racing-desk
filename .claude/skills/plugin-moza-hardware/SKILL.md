@@ -172,6 +172,7 @@ Add these endpoints to the existing HTTP server loop in `Plugin.cs`:
 | `getMozaWheelSettings` | — | Steering wheel RGB, buttons, telemetry mode |
 | `mozaRefresh` | — | Force re-poll all device settings |
 | `mozaReconnect` | — | Re-run device discovery |
+| `listSerialPortDiagnostic` | `probe=1` (optional) | Every serial port with its USB description, classification and whether it can be opened; a port another program holds is said so without being opened. Answered to a program on this machine only (403 for another address, another `Host` or a request that names an `Origin`). A Moza read command is written to the ports nothing describes as Moza only with `probe=1` |
 
 Additionally, include a summary in the main poll response:
 

@@ -306,8 +306,11 @@ namespace RacingDesk.Plugin.Engine.Moza
         /// Diagnostic endpoint: returns detailed information about all COM ports detected on the system,
         /// their USB descriptions, regex matches, and classification attempts.
         /// Useful for debugging device detection when hardware is connected but not recognized.
+        /// A port another program holds is found with CheckAccess and reported as such, without opening it (an open that
+        /// is refused throws, and SimHub logs every exception with its stack). Ports that nothing describes as Moza are
+        /// talked to — a Moza read command is written to each — only when <paramref name="probe"/> asks for it.
         /// </summary>
-        public string GetSerialPortDiagnosticJson()
+        public string GetSerialPortDiagnosticJson(bool probe = false)
         {
             var portDiagnostics = new List<object>();
             var portWmiInfo = GetUsbPortWmiInfo();
@@ -389,6 +392,11 @@ namespace RacingDesk.Plugin.Engine.Moza
                 {
                     portOpenStatus = "AlreadyOpen";
                 }
+                else if (_portSystem.CheckAccess(portName) == MozaPortAccess.Held)
+                {
+                    portOpenStatus = "AccessDenied";
+                    portOpenError = "Another program holds the port (Windows gives a serial port to one handle at a time)";
+                }
                 else
                 {
                     // Attempt to open the port briefly to test access
@@ -437,7 +445,7 @@ namespace RacingDesk.Plugin.Engine.Moza
                 // owned by us (we'd collide with live polling) or wasn't
                 // openable (Pit House/another app holds it).
                 string probedDeviceType = null;
-                bool needsProbe = (classificationResult == "NoMatch" || matchedViaFallback)
+                bool needsProbe = probe && (classificationResult == "NoMatch" || matchedViaFallback)
                     && portOpenStatus == "Open";
                 if (needsProbe)
                 {
