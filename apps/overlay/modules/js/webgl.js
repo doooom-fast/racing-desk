@@ -1359,7 +1359,8 @@
        barely perceptible at 3-4% opacity, drifting so slowly
        you only notice after 4-5 minutes of watching.
        ════════════════════════════════════════════ */
-    const brandLogoCtx = initGL('brandLogoGlCanvas');
+    // Not on an iPad: the brand square is not shown there (drive-view.css), and its canvas would draw into a hidden box.
+    const brandLogoCtx = window._remoteMode ? null : initGL('brandLogoGlCanvas');
     let _brandLogoTime = 0;
 
     if (brandLogoCtx) {
@@ -2388,7 +2389,8 @@
     // Shows for 5 seconds on: practice pit exit, quali first timed lap,
     // race green lights. Fades out over 1s via CSS transition.
     // ═══════════════════════════════════════════════════════════════
-    const mfrFlagCtx = initGL('mfrFlagCanvas');
+    // Not on an iPad either: the car's badge, where the maker's flag flies, is not shown there.
+    const mfrFlagCtx = window._remoteMode ? null : initGL('mfrFlagCanvas');
     let _mfrFlagActive = false;
     let _mfrFlagTime = 0;
     let _mfrFlagDuration = 5.0; // seconds before fade-out starts

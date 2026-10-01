@@ -54,9 +54,14 @@
   }
 
   // The sector cells: one per sector the plugin has, each its time and its gap to his best of it, coloured as the
-  // gaps block colours them (purple a best, green quicker, yellow slower), and the one he is in outlined.
+  // gaps block colours them (purple a best, green quicker, yellow slower), and the one he is in outlined. A sector is
+  // never narrower than its number (drive-view.css): the numbers come down to the 20px floor as the sectors get more,
+  // and past that the cells wrap to another line — which is looked for here, when a cell has changed or the screen
+  // has, and said on the panel (laps-sectors-wrapped) so that it gives up what the line needs the room of.
   let _sectorCount = -1;
   const _sectorLast = [];
+  let _measureWrap = false;
+  window.addEventListener('resize', () => { _measureWrap = true; });
   function sectors(p, dsPre, count, current, invalid) {
     const box = el('lapsSectors');
     if (!box) return;
@@ -64,12 +69,14 @@
       _sectorCount = count;
       box.textContent = '';
       _sectorLast.length = 0;
+      box.style.setProperty('--sectors', String(Math.max(1, count)));
       for (let i = 1; i <= count; i++) {
         const cell = document.createElement('div');
         cell.className = 'sector-cell';
         cell.innerHTML = '<div class="sector-label">S' + i + '</div><div class="sector-time">—</div><div class="sector-delta"></div>';
         box.appendChild(cell);
       }
+      _measureWrap = true;
     }
     const STATE = ['', 'sector-pb', 'sector-faster', 'sector-slower'];
     for (let i = 1; i <= count; i++) {
@@ -84,8 +91,20 @@
       const cell = box.children[i - 1];
       if (!cell) continue;
       cell.className = cls;
-      cell.children[1].textContent = sectorTime(split);
+      const time = sectorTime(split);
+      if (cell.children[1].textContent !== time) { cell.children[1].textContent = time; _measureWrap = true; }
       cell.children[2].textContent = dText;
+    }
+    if (_measureWrap) {
+      _measureWrap = false;
+      const panel = el('lapsPanel');
+      const first = box.firstElementChild, last = box.lastElementChild;
+      if (panel && first && last && first !== last) {
+        // Measured as the cells lie when nothing has been given up, so the answer is the same from either state.
+        panel.classList.remove('laps-sectors-wrapped');
+        const wrapped = last.offsetTop > first.offsetTop + 1;
+        panel.classList.toggle('laps-sectors-wrapped', wrapped);
+      }
     }
   }
 

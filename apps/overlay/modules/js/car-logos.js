@@ -139,14 +139,15 @@
     setCarLivery(URL.createObjectURL(blob));
   }
 
-  // On an iPad: the car has changed, ask the rig for its crop.
+  // On an iPad the car's badge is not shown (drive-view.css: he asked for the logos to go, 2026-09-30), so the crop
+  // of the paint under it is never asked for: nothing is fetched. The way in stays, for the page that calls it;
+  // fetchRemoteLivery is what would ask, and nothing calls it now.
   function requestRemoteLivery() {
-    if (!window._remoteMode || typeof fetch !== 'function') return;
-    const ask = ++_liveryAsk;
     for (const t of _liveryTimers) clearTimeout(t);
-    _liveryTimers = LIVERY_ASK_AT_MS.map((ms) => setTimeout(() => { fetchRemoteLivery(ask); }, ms));
+    _liveryTimers = [];
   }
   window.requestRemoteLivery = requestRemoteLivery;
+  window._fetchRemoteLivery = fetchRemoteLivery;
 
   // In the app the main process says: what it has chosen since, and what it had chosen before this page loaded.
   if (!window._remoteMode && window.racingDesk) {
