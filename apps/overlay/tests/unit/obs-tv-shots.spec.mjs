@@ -241,6 +241,8 @@ test('stopped part-way: the recording stops, what was recorded is filed, the fac
     expect((await r.shots.start({ folder: r.race })).ok).toBe(true);
     expect((await r.shots.start({ folder: r.race }))).toEqual({ ok: false, reason: 'TV shots are being recorded already.' });
     await until(() => r.shots.status().step === 'recording' && r.shots.status().index === 1, 10000);
+    // The file is there, as OBS's is from its STARTED: the rig writes it within 20 ms, and a stop before that has nothing to file.
+    await until(() => { const s = r.keeper.status(); return !!s.outputPath && fs.existsSync(s.outputPath); });
     expect(r.shots.cancel()).toEqual({ ok: true });
     expect(r.shots.status().step).toBe('cancelling');
     await until(() => r.shots.status().step === 'cancelled', 20000);
