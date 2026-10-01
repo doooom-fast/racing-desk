@@ -258,20 +258,36 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   Nothing resets or records a map any more (`tests/unit/track-map-status.spec.mjs`).
 - **The incidents panel** (`#incidentsPanel`, `.inc-inner`; the rig's own panel, a cell here) has its header where every
   other panel has its header and the numbers as large as the cell allows (he asked on 2026-10-01: "update incidents
-  panel in ipad overlay to match header location of other modules and larger fonts on the data"). The header is the
-  datastream's beside it: the inner card takes `.ds-inner`'s padding (6px 10px) and number size (`max(20px, min(6.2cqh,
-  9cqw))`), and `.inc-label` is `max(11px, 0.55em)` with the same tracking (0.12em), colour, weight and rule beneath as
-  `.ds-header`, at the top on the left, where it sat centred in the middle of the cell. The count is `max(20px,
-  min(34cqh, 50cqw))` (70px in an Air's cell on its side, 60px in a 9.7-inch's, 105px on the rig's 1920x1080; it was
-  `min(32cqh, 36cqw)`), the penalty and DQ counts `max(20px, min(12cqh, 20cqw))` (24 to 37px; they were `min(9cqh,
-  14cqw)`), their labels 11px or more; the count floats in the room between the header and the thresholds (auto
-  margins), so the thresholds are at the foot and in a session with no limits the count has the room to itself. Once
-  a limit is hit the number is a word (PENALTY, DQ), read at a label's size (`max(14px, min(8cqh, 11cqw))`: at the
-  number's size it was wider than the narrowest cell); a value that would not fit beside its label goes under it,
-  right-aligned, and the labels never break. `tests/unit/incidents-glance.spec.mjs` measures the header against the
+  panel in ipad overlay to match header location of other modules and larger fonts on the data"). The header is where
+  the datastream's beside it is: the inner card takes `.ds-inner`'s padding (6px 10px) and number size (`max(20px,
+  min(6.2cqh, 9cqw))`), and `.inc-label` is `max(11px, 0.55em)` with the same weight and rule beneath as `.ds-header`,
+  at the top on the left, where it sat centred in the middle of the cell. Its type is the HUD's own incidents header's
+  (0.12em, 0.35: the datastream's and the leaderboard's are the same), **not** the `.panel-label`'s (0.08em,
+  `var(--text-dim)`: Tyres, Fuel, Weather, the ratings, the gaps), which is fainter than the three and tighter: the
+  glance layout's type is held to the rig HUD's (`drive-view.spec.mjs`, "the HUD's type and its colours") and on the
+  rig those three headers are in that older style too. Making the iPad's headers one look would mean changing the
+  rig's HUD (`.ds-header`, `.inc-label`, `.lb-header` in `datastream.css` and `leaderboard.css`) or relaxing that
+  test; he asked for the header's location, which is the other modules'. **The count** is a custom property, `--inc-count`, the lesser of what the cell's height leaves it (40cqh: under the
+  header, over the bar and the two limits) and what its width does (two digits and the x take 1.3 times its size
+  across the card, so `72cqw − 18px`, six per cent under what was measured to fit): 83px in an Air's cell on its side
+  (it was 70, `min(34cqh, 50cqw)`), 98px in a 12.9-inch Pro's, 85px upright; the x goes with it at four-tenths. A
+  session with no limits (a test drive, a practice) has no bar and no limits under it, and the count has their room
+  too (66cqh): 153px in a test drive on an Air on its side. `incidents.js` writes the two things the stylesheet sizes
+  by: `inc-no-limits` on the panel, and `data-digits` (1 to 4, four for four or more) — three digits (a long test
+  drive; a race is DQ'd long before) are sized at `52cqw − 14px` and four at `40cqw − 12px`, so the count is never cut
+  off. The penalty and DQ counts are `max(20px, min(14.7cqh, 27cqw))` (25 to 43px; they were `min(9cqh, 14cqw)`), their
+  labels 11px or more; the count floats in the room between the header and the thresholds (auto margins), so the
+  thresholds are at the foot. Once a limit is hit the number is a word (PENALTY, DQ), read at a label's size
+  (`max(14px, min(8cqh, 11cqw))`: at the number's size it was wider than the narrowest cell); a value that would not
+  fit beside its label goes under it, right-aligned, and the labels never break. Probed in the page's own layout at
+  the seven iPad sizes (the count's size at which the card first overflows), the count is within 1 to 6 % of the most
+  the card holds: the margin that is left is for the iPad's own font, whose digits may be wider than the headless
+  browser's fallback. `tests/unit/incidents-glance.spec.mjs` measures the header against the
   datastream's (offset from the top and the left of its panel within a pixel, size, tracking, colour, weight, case,
-  family) and the numbers against the cell, at the seven iPad sizes and the rig's two, in a race, with both limits
-  hit and in a test drive, with nothing cropped. The glance golden frames were re-made for it.
+  family) and the leaderboard's (tracking in em, colour), and the numbers against the cell, at the
+  seven iPad sizes and the rig's two, in a race, with two digits, with both limits hit, with a DQ limit alone, in a
+  test drive and in long ones (three and four digits), with the count and its x inside the card and nothing cropped.
+  The glance golden frames were re-made for it.
 - **The leaderboard** is the HUD's panel and rows, its type sized from the panel (`#lbRows` font-size) and the rows sharing
   its height; `leaderboard.js` counts how many the panel holds at that size (1.9 lines to a row) and not the sum of the
   screen minus the dashboard that the rig's HUD does.
@@ -282,17 +298,26 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   `WeekendInfo.EventType: Test`, `SessionName: TESTING`, `Official: 0`; a race weekend's are `Practice`, `Lone Qualify`
   or `Open Qualify`, `Race`), and the SimHub plugin sends SimHub's `SessionTypeName`, the same string. `DS.SessionMode`
   is 1 for a test drive and a practice alike, so the word is what is read: `modules/js/session-kind.js`
-  (`isTestDrive`, a word boundary and "test", so "Offline Testing", "Testing" and "Test" and nothing by accident of
-  letters). `poll-engine.js` writes `body.session-testdrive` from it, only when it changes; a frame that names no type
+  (`isTestDrive`: iRacing's own words, "Offline Testing", whatever the case and spacing, and nothing looser — the
+  overlay also runs for other sims through SimHub, and a word that merely begins "test" in one of theirs, a "Test Day"
+  with a full online field, is not iRacing's solo session; `sessionTypeOf` picks the demo's name or the live one, and
+  `poll-engine.js` uses it for both the change of session and this, so they cannot read different words).
+  `poll-engine.js` writes `body.session-testdrive` from it, only when it changes; a frame that names no type
   leaves it as it was. With the class the panel is not shown — `leaderboard.css` on the rig's HUD and the page OBS
   draws of it, where the other secondary panels take its place at the edge; `drive-view.css` in the glance layout,
-  where the grid is laid out again without its cell (on its side the hero, the maps and the laps panel each gain, and
-  the pit box, the datastream and the incidents share the bottom row; upright the laps panel and the ratings take the
-  full width of the two rows the leaderboard had; the rows keep their heights) and the maps are fitted to their cells
-  again (`driveViewChanged`) — and `updateLeaderboard` writes no rows while it is away. Any other session brings it
-  back the moment the frame says so. `tests/unit/test-drive.spec.mjs` holds it on the rig's HUD, the rig's
+  where the grid is laid out again without its cell and the maps are fitted to their cells again
+  (`driveViewChanged`) — and `updateLeaderboard` writes no rows while it is away. On its side the hero, the maps and
+  the laps panel each gain, and the pit box, the datastream and the incidents share the bottom row; the tacho is in
+  the top right corner, where the iPad's menu button is, so its speed and unit stop short of the button
+  (`html.rd-remote ... .tacho-speed-cluster`, landscape only: the OBS page has no button). Upright the laps panel and
+  the ratings keep the width they have in a race (their numbers are sized from the cell's height, so a strip the
+  width of the screen was empty glass) and **the following map takes the rest of their two rows beside them**, nine
+  columns by fifteen, with the tacho and the full map sharing the row above (ten columns and fourteen); the rows keep
+  their heights. Any other session brings the leaderboard back the moment the frame says so.
+  `tests/unit/test-drive.spec.mjs` holds it on the rig's HUD, the rig's
   Ctrl+Shift+F at 1920x1080 and 2560x1080, the iPad at four sizes (the cells still cover the screen, none over
-  another, nothing cut off) and both pages OBS draws, with a return to practice, qualifying and a race; RacingDesk.Tests
+  another, nothing cut off), the menu's button against every piece of text on the page at six sizes, the upright
+  layout at three, and both pages OBS draws, with a return to practice, qualifying and a race; RacingDesk.Tests
   `SessionTypeTests` holds the host's word, and reads his newest 300 `.ibt` files to see that every `EventType: Test`
   has the one `Offline Testing` session and nothing else does (only those fields; nothing of a file is printed).
 - **The menu** (remote-server.js) is a small round button in the top right corner of the iPad's screen, over the frame
@@ -365,36 +390,50 @@ to that speed change". Most dashboards go the other way (wider at speed, to see 
 curve did (closest at a standstill, widest at 75 mph and above), so which way it goes is one setting, **"Following map
 zoom" in Settings → Look** (`followMapZoom` in `overlay-settings.json`; `modules/desk/settings-model.js`): `closer`
 ("Closer at speed", his ask and the default), `wider` ("Wider at speed"), `fixed` ("Fixed", one view at every speed).
+**"Wider at speed" is the map as it was, curve for curve** — the one setting that gives him the view he drove with for
+months; **"Fixed" is a third view, not that one** (the old map was never fixed: it widened with speed up to 75 mph).
 
 - **The curve** (`targetRadius(speedMph, mode)`): the view is a radius in the map's own units (the outline is drawn in
   a 0–100 space; on the rig the view is 2r across with the car at its centre, in the glance layout 2r across by its
   cell's shape with the car two-thirds down, as before). The bounds are the two the local view has always had, so
   neither end is new on his rig: `R_CLOSE` 5.6 (the closest: an eleventh of the map across, never a blur of track) and
-  `R_WIDE` 16.7 (the widest: a third of the map, never the whole circuit, which the full map beside it is). Between
-  them the radius is linear in speed from 0 to `SPEED_MAX_MPH`, 150 mph (the top of what his cars do, so the view
-  goes on changing the whole way up a straight), clamped beyond: closer `r = R_WIDE − t·(R_WIDE − R_CLOSE)` with
-  `t = clamp(speed/150, 0, 1)`, wider the same the other way up, fixed `R_FIXED` 11.15, the middle. A speed that is
-  no number is a standstill; a mode that is none of the three is `closer`.
+  `R_WIDE` 50/3 (the widest: a third of the map, never the whole circuit, which the full map beside it is). Between
+  them: **closer** is linear in speed from 0 to `SPEED_MAX_MPH`, 150 mph, clamped beyond (`r = R_WIDE − t·(R_WIDE −
+  R_CLOSE)`, `t = clamp(speed/150, 0, 1)`); **wider** is the old curve exactly (`r = R_CLOSE + t·(R_WIDE − R_CLOSE)`,
+  `t = clamp(speed/75, 0, 1)`, `WIDER_MAX_MPH`: the line `5.6 + (min(speed, 75)/75)·(50/3 − 5.6)` that this replaced,
+  held to it at every speed by a test), with the ease below in place of the old per-frame blend; **fixed** is
+  `R_FIXED` 11.15, the middle. A speed that is no number is a standstill; a mode that is none of the three is
+  `closer`. Why 150 and linear in the radius: it is the plain reading of "in relation to that speed change", and a
+  speed most of his cars reach on a straight — the fastest (the GTPs, a GT3 down Le Mans' or Daytona's longest
+  straights) pass it and the view stays at its closest there; any higher a ceiling and the slower cars never get
+  close. (Magnification is 1/r, so a given change in mph zooms more at 140 mph than at 20; an even ratio per mph
+  would be `r = R_WIDE·(R_CLOSE/R_WIDE)^t`, which is a one-line change in `targetRadius` if it is ever wanted.)
 - **The ease** (`ease`, `follower`): the drawn radius follows the target with a first-order ease of time constant
   `TAU_S` 0.4 s — 63 % of a step in 0.4 s, 90 % in 0.93 s, 99 % in 1.85 s — by the page's own clock
-  (`performance.now()`), so a slow frame moves it as far as the time says and no further and a step is never a jump;
-  the first frame sets it outright; a frame after a pause eases as if a second had passed at most, so a page that
-  was in the background does not jump when it comes back; a change of the setting eases to the new view too.
-  Telemetry noise of a mile an hour or two moves the target by less than a tenth of a unit, and the ease takes the
-  rest out. `webgl-helpers.js` keeps one `follower` and asks it each frame with the speed, `_settings.followMapZoom`
-  and the clock; everything else of the local view (the rotation to heading up, the cell's shape, `--px`) is as it was.
+  (`performance.now()`). A frame counts for the time since the one before it, `MAX_STEP_S` 0.1 s at most, so one
+  late frame (an iPad's Wi-Fi, a browser source in OBS) moves the view by about a fifth of what is left and the rest
+  comes over the next frames, as the car's own position does (`_mapSmoothedX`): a step is never a jump, and a stall
+  is not a pop. The first frame sets it outright, and so does a frame after `RESTART_AFTER_S`, two seconds, with none
+  (the page was in the background: the radius it held is from a speed long ago). A change of the setting eases to the
+  new view too. Telemetry noise of a mile an hour or two moves the target by less than a tenth of a unit, and the
+  ease takes the rest out. `webgl-helpers.js` keeps one `follower` and asks it each frame with the speed,
+  `_settings.followMapZoom` and the clock; everything else of the local view (the rotation to heading up, the cell's
+  shape, `--px`) is as it was, except that the view's box, its pivot and the car's dot are written to a thousandth of
+  a unit, not a tenth: at the closest the view is 11 units across and scrolls fastest at speed, where steps of a tenth
+  were jerks of two or three pixels (and the dot and the box's centre each rounded on their own and shimmered).
 - **Where the setting goes**: `config.js` `_defaultSettings` has `closer`; the desk's Settings → Look offers the three;
   the pages OBS draws get it through the display allowlist (`remote-server.js` `DISPLAY_SETTINGS`), and the iPad
   through `IPAD_SETTINGS`, which now lets each key through only as the kind of value it is (a number for the panel
   background, one of the three words for this). **A settings file from before the setting is given `closer` once**
   (`migrate`, `migrateFile` through `settings-file.js`; `main.js` `migrateFollowMapZoom`, at start, before anything
   reads the file; a value that is none of the three is put to `closer`; a file that cannot be read is left as it is).
-- **Tests**: `tests/unit/map-zoom.spec.mjs` — the curve in Node (the bounds, each direction, fixed, proportion,
-  clamping, the ease's time constant, the follower, noise), the migration (the function, the file, a first run, an
-  unreadable file, main.js's call), and the pages: the rig's HUD up and down a speed ramp in each mode and with the
-  setting changed in place, its glance layout, the iPad told the setting by its server (and a change within its ask),
-  and `/obs` through the allowlist — the settled view at each speed, every move within what the ease allows for the
-  time it had (no jumps), the car where it was. `desk-settings-model.spec.mjs` holds the control;
+- **Tests**: `tests/unit/map-zoom.spec.mjs` — the curve in Node (the bounds, each direction, the old curve exactly,
+  fixed, proportion, clamping, the ease's time constant, the follower, one late frame, a page back from the
+  background, noise), the migration (the function, the file, a first run, an unreadable file, main.js's call), and the
+  pages: the rig's HUD up and down a speed ramp in each mode and with the setting changed in place, its glance
+  layout, the iPad told the setting by its server (and a change within its ask), and `/obs` through the allowlist —
+  the settled view at each speed, every move within what the ease allows for the time it had (no jumps), the car at
+  the middle of its view to a thousandth of a unit. `desk-settings-model.spec.mjs` holds the control;
   `remote-server.spec.mjs` the allowlists. The glance layout's two golden frames were re-made for it (and for the
   incidents panel): at their 127 mph the view is close where it used to be at its widest. The rig's in-car frame is
   unchanged: its fixture has no track map (`TrackMap.Ready` 0), so the local view draws nothing there.
@@ -602,7 +641,7 @@ folder, an address or a device), `/obs` (hidden from the first paint until the p
 HUD away) and `/obs-ipad` (the same page as the glance layout, for "iPad dashboard" under the switch; it takes the display
 allowlist like `/obs`, so his rig's switches for effects and ambient light apply to it, where the iPad is told none of
 them: the page runs on the rig, next to the sim). The iPad's server
-answers `/api/settings-display` too, with the panel background alone (`IPAD_SETTINGS`), behind the key. It is started
+answers `/api/settings-display` too, with the panel background and the following map's zoom and no more (`IPAD_SETTINGS`), behind the key. It is started
 with retries (`startWithRetry`) until it is up. `tests/unit/remote-server.spec.mjs`, `tests/unit/hud-page-obs.spec.mjs`
 and `tests/unit/hud-page-obs-ipad.spec.mjs` (the real pages through the listener, headless).
 
@@ -628,7 +667,7 @@ not panels**: their fills are their own and solid, so they keep `--panel-glass` 
 at 90) and `--panel-shadow` at 0, whatever the slider says. **90 is the panels as they have always been**, on every surface: the
 rig's nine-tenths, the iPad's the same, the glance layout's opaque base under a flag opaque at 90 and above, so the
 defaults change nothing and the golden frames are as they were. The rig's page is told by the desk's settings path, the
-iPad by its server's `/api/settings-display` (the panel background alone, asked again every ten seconds), the OBS pages
+iPad by its server's `/api/settings-display` (the panel background and the following map's zoom, asked again every ten seconds), the OBS pages
 by the display-settings allowlist (both sliders, the OBS one drawn by). `tests/unit/panel-background.spec.mjs` holds
 each slider at 0, 50 and 100 on its own surface and not the others', the shadow in both themes, the two cards, and the
 defaults.

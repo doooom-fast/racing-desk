@@ -368,7 +368,7 @@ thinned either (they keep `--panel-glass` at 1) and they have no shadow under th
 nine-tenths and the secondary panels' fills the same, the glance layout's base the same under its glass and opaque
 under a flag (opaque at 90 and above; it thins below), so the defaults change no surface and the golden frames are as
 they were. The rig's page gets the slider by the desk's settings path; the iPad is told it by its own server
-(`/api/settings-display` on the iPad's server answers the panel background and nothing else, behind the key, and the
+(`/api/settings-display` on the iPad's server answers the panel background and the following map's zoom and nothing else, behind the key, and the
 page asks again every ten seconds); the OBS pages get both through the display-settings allowlist and draw by the OBS
 one. `panel-background.spec.mjs` holds each slider at 0, 50 and 100 on its own surface and not the others', the shadow in
 both themes, the two cards at 0, and the defaults.
