@@ -33,9 +33,14 @@
 //   claim auto-record made is let go once its ten seconds are up: the STARTED that follows is then not its, so a
 //   Ctrl+Space he presses after closing the dialog that held it up is not stopped when he leaves the car.
 // - The floor: no recording starts below about 20 GB free on the drive OBS records to (asked of OBS), and one of
-//   ours is stopped at about 5 GB and said so in one sentence. At his 100 Mbps a drive fills at 43 GB an hour, and
-//   OBS itself stops only at 50 MB, with a dialog over the sim. A folder that is not made yet is measured on the
-//   nearest folder above it; a drive that cannot be measured at all is a recording that does not start.
+//   ours is stopped at about 5 GB and said so in one sentence. OBS itself stops only at 50 MB, with a dialog over
+//   the sim. A folder that is not made yet is measured on the nearest folder above it; a drive that cannot be
+//   measured at all is a recording that does not start.
+// - The rate the hours-left estimate runs at: while recording, OBS's own bytes over its own seconds; otherwise the
+//   real rate of his newest recordings (recording-rate.js: size over duration, read from the files, measured at the
+//   start, after each filing and when the recordings folder has changed), and until there is one, the bitrate his
+//   profile is capped at (12.5 MB/s at 100 Mbps). With a quality target instead of a fixed bitrate only the files say
+//   what a race comes to, so the card shows GB an hour from them once there is a recording to measure.
 // - Only a recording made while a sim session is live is filed — the sidecar, the chapters, the folder: his other
 //   collections' recordings are left alone.
 // - Auto-record (auto-record.js has the rules: the green flag in a race, pit exit elsewhere; stops on a new session
@@ -95,7 +100,7 @@ const STATE = Object.freeze({
 const RECORD_OUTPUT = 'adv_file_output';
 const FLOOR_START_BYTES = 20e9;
 const FLOOR_STOP_BYTES = 5e9;
-const DEFAULT_BYTES_PER_SECOND = 12.5e6;   // his profile: 100 Mbps CBR
+const DEFAULT_BYTES_PER_SECOND = 12.5e6;   // his profile's cap: 100 Mbps, when the profile cannot be read
 const WAIT_STARTED_MS = 10000;
 const WAIT_STOPPED_MS = 10000;
 const WAIT_OBS_MS = 30000;
@@ -221,6 +226,8 @@ function createRecordingKeeper({
   stateFile,
   fs: fsModule = fs,
   freeSpace = (folder) => freeSpaceOf(folder, fsModule),
+  measureRate = null,                  // (recordings folder) → recording-rate.js's answer, or null; null: never measured
+  configuredBytesPerSecond = () => null,   // the bitrate the profile is capped at, in bytes a second; null when it cannot be read
   fetchPayload = async () => null,
   inCar = () => false,
   obsRunning = async () => null,
@@ -272,6 +279,8 @@ function createRecordingKeeper({
   let startedAt = 0;
   let bytes = 0;
   let bytesPerSecond = null;
+  let measured = null;         // recording-rate.js's answer for the recordings folder: { bytesPerSecond, gbPerHour, recordings, ... }
+  let measuredFolderAt = null; // the recordings folder's mtime when it was last measured: unchanged is nothing to measure again
   let free = null;             // { bytes, at, folder }
   let lowDisk = null;
   let last = null;             // the last answer to a press
@@ -415,8 +424,30 @@ function createRecordingKeeper({
     return 'closed';
   }
 
+  // The rate the estimate runs at, and where it is from: OBS's own while recording; else the files'; else the cap.
+  function rateInUse() {
+    if (bytesPerSecond) return { rate: bytesPerSecond, from: 'live' };
+    if (measured && measured.bytesPerSecond > 0) return { rate: measured.bytesPerSecond, from: 'measured' };
+    let configured = null;
+    try { configured = configuredBytesPerSecond(); } catch (e) { configured = null; }
+    return { rate: Number.isFinite(configured) && configured > 0 ? configured : defaultBytesPerSecond, from: 'configured' };
+  }
+
+  // The real rate of his recordings, read again only when the folder has changed since (a folder's mtime moves when a
+  // recording is filed into it, or one is taken away); `force` reads it whatever the mtime says.
+  function remeasure(force = false) {
+    if (!measureRate) return;
+    const root = recordFolder();
+    if (!root) { measured = null; return; }
+    let at = null;
+    try { at = fsModule.statSync(root).mtimeMs; } catch (e) { at = null; }
+    if (!force && at !== null && at === measuredFolderAt) return;
+    measuredFolderAt = at;
+    try { measured = measureRate(root) || null; } catch (e) { measured = null; }
+  }
+
   function status() {
-    const rate = bytesPerSecond || defaultBytesPerSecond;
+    const { rate, from } = rateInUse();
     const set = settings();
     return {
       obs: obsPhase(),
@@ -426,6 +457,8 @@ function createRecordingKeeper({
       elapsedMs: recording ? Math.max(0, now() - startedAt) : 0,
       bytes: recording ? bytes : 0,
       bytesPerSecond: rate,
+      rateFrom: from,
+      measured: measured ? { bytesPerSecond: measured.bytesPerSecond, gbPerHour: measured.gbPerHour, recordings: measured.recordings } : null,
       free: free ? { bytes: free.bytes, hoursLeft: free.bytes / rate / 3600, drive: driveOf(free.folder) } : null,
       lowDisk,
       last,
@@ -456,7 +489,7 @@ function createRecordingKeeper({
       obs: s.obs === 'connecting' ? 'closed' : s.obs,
       v: s.obsVersion,
       recording: s.recording, starting: s.starting, stopping: s.stopping, paused: s.paused, owned: s.owned, auto: s.auto,
-      outputPath: s.outputPath, bytes: s.bytes, rate: Math.round(s.bytesPerSecond), kind: s.kind, autoHeld: s.autoHeld,
+      outputPath: s.outputPath, bytes: s.bytes, rate: Math.round(s.bytesPerSecond), rateFrom: s.rateFrom, measured: s.measured && s.measured.recordings, kind: s.kind, autoHeld: s.autoHeld,
       free: s.free && { bytes: s.free.bytes, drive: s.free.drive },
       lowDisk: s.lowDisk, last: s.last && { ok: s.last.ok, text: s.last.text }, busy: s.busy, sidecar: !!s.sidecar,
       chapters: s.chapters, filed: s.filed, lastFiled: s.lastFiled && s.lastFiled.at, replay: s.replay, autoRecord: s.autoRecord,
@@ -750,6 +783,9 @@ function createRecordingKeeper({
       chapters: result ? result.chapters : 0, clips: s.clips.length, alignment, why: moved.size ? null : why, kind: s.kind || 'recording',
     };
     log(`[RacingDesk] Recording: filed ${firstNow}${moved.size ? '' : ' (left where OBS wrote it)'}; offset ${videoOffsetMs === null ? 'not found' : `${videoOffsetMs} ms by ${alignment.method}`}; ${result ? `${result.frames} frames, ${result.chapters} chapters` : ''}`);
+    // One more recording to measure the real rate from (the one just filed, where it went into the folder).
+    remeasure(true);
+    if (measured) log(`[RacingDesk] Recording: the last ${measured.recordings} ${measured.recordings === 1 ? 'recording comes' : 'recordings come'} to ${measured.gbPerHour.toFixed(1)} GB an hour`);
     announce();
   }
 
@@ -1022,7 +1058,7 @@ function createRecordingKeeper({
     freeTimer = unrefed(setTimer(async () => {
       freeTimer = null;
       if (disposed) return;
-      if (!recording) { await refreshFree(); announce(); }
+      if (!recording) { await refreshFree(); remeasure(); announce(); }
       bookIdleFree();
     }, idleFreeEveryMs));
   }
@@ -1728,6 +1764,7 @@ function createRecordingKeeper({
     offs.push(client.on('ReplayBufferSaved', onReplaySaved));
     offs.push(client.on('ExitStarted', onExitStarted));
     offs.push(client.onChange(onClientChange));
+    remeasure(true);
     refreshFree().then(() => announce());
     bookIdleFree();
     if (client.identified()) takeOverAndAskReplay();

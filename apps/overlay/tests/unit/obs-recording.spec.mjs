@@ -246,6 +246,41 @@ test('the floor: no start below 20 GB; one of ours stops at 5 GB and says so; OB
   } finally { r.dispose(); }
 });
 
+test('the rate the hours left run at: the real one from his recordings once there is one, else the cap the profile names, else 100 Mbps; measured again after a filing', async () => {
+  const measures = [];
+  let answer = null;
+  let cap = 7.5e6;   // 60 Mbps
+  const r = rig({ keeper: { measureRate: (root) => { measures.push(root); return answer; }, configuredBytesPerSecond: () => cap, idleFreeEveryMs: 100 } });
+  try {
+    // Measured once at the start (nothing there yet), the cap in use.
+    expect(measures).toEqual([dir]);
+    await until(() => r.keeper.status().obs === 'open');
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'configured', measured: null, bytesPerSecond: 7.5e6 });
+    expect(r.keeper.status().free.hoursLeft).toBeCloseTo(400e9 / 7.5e6 / 3600, 3);
+    cap = null;
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'configured', bytesPerSecond: 12.5e6 });
+    // A recording filed: measured again, from the files, and the estimate runs at that.
+    answer = { bytesPerSecond: 5e6, gbPerHour: 18, recordings: 1, bytes: 300e6, seconds: 60, used: [] };
+    const started = await r.keeper.record({ source: 'desk' });
+    await until(() => r.keeper.status().sidecar && r.keeper.status().sidecar.frames >= 2);
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    await r.keeper.stop();
+    await until(() => r.keeper.status().lastFiled, 3000);
+    // Measured again by the filing (and perhaps once by the idle look, the folder having gained the recording's own folder).
+    expect(measures.length).toBeGreaterThanOrEqual(2);
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'measured', measured: { bytesPerSecond: 5e6, gbPerHour: 18, recordings: 1 }, bytesPerSecond: 5e6 });
+    expect(r.keeper.status().free.hoursLeft).toBeCloseTo(400e9 / 5e6 / 3600, 3);
+    expect(r.lines.some((l) => /the last 1 recording comes to 18\.0 GB an hour/.test(l))).toBe(true);
+    // The folder unchanged since: the idle look (every 100 ms here) does not read the files again; a folder added to it does.
+    await settle(350);
+    const settled = measures.length;
+    await settle(350);
+    expect(measures.length).toBe(settled);
+    fs.mkdirSync(path.join(dir, '2026-09-30 10-00 Spa'));
+    await until(() => measures.length > settled, 3000);
+  } finally { r.dispose(); }
+});
+
 test('a recording already running when OBS answers is taken over: its path, its start, and ours if the state file says so', async () => {
   const mp4 = `${dir.replace(/\\/g, '/')}/earlier.mp4`;
   server.mode.clock = () => Date.now();
@@ -325,7 +360,8 @@ test('the status says what the card needs, and every change is announced', async
     await until(() => r.keeper.status().obs === 'open');
     await until(() => r.keeper.status().replay.unavailable !== null);   // the buffer's state is asked after the take-over's: a few round trips after "open", which a loaded machine makes many
     const s = r.keeper.status();
-    expect(Object.keys(s).sort()).toEqual(['auto', 'autoHeld', 'autoRecord', 'busy', 'bytes', 'bytesPerSecond', 'chapters', 'elapsedMs', 'filed', 'free', 'kind', 'last', 'lastFiled', 'lowDisk', 'obs', 'obsVersion', 'outputPath', 'owned', 'paused', 'recording', 'replay', 'sidecar', 'startedAt', 'starting', 'stopping']);
+    expect(Object.keys(s).sort()).toEqual(['auto', 'autoHeld', 'autoRecord', 'busy', 'bytes', 'bytesPerSecond', 'chapters', 'elapsedMs', 'filed', 'free', 'kind', 'last', 'lastFiled', 'lowDisk', 'measured', 'obs', 'obsVersion', 'outputPath', 'owned', 'paused', 'rateFrom', 'recording', 'replay', 'sidecar', 'startedAt', 'starting', 'stopping']);
+    expect(s).toMatchObject({ rateFrom: 'configured', measured: null, bytesPerSecond: 12.5e6 });   // nothing measured, no profile to read: the 100 Mbps cap
     expect(s.replay).toEqual({ on: false, running: false, ours: false, unavailable: 'OBS has no replay buffer. Press Set up OBS, then open OBS again.', lastSaved: null });
     expect(s.autoRecord).toBe(true);
     expect(s.obsVersion).toBe('32.1.2');
