@@ -779,9 +779,6 @@ html.rd-remote body.drive-mode-active::after {
   transition: opacity 0.35s ease;
 }
 html.rd-remote body.drive-mode-active[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::after { opacity: 1; }
-@media (prefers-reduced-motion: no-preference) {
-  html.rd-remote body.drive-mode-active[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::after { animation: none; }
-}
 html.rd-remote body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: none !important; }
 html.rd-remote body.drive-mode-active {
   grid-template-areas:

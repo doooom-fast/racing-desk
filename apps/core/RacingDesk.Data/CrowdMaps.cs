@@ -89,6 +89,7 @@ namespace RacingDesk.Data
         private DateTime _since;
         private DateTime _due;
         private TrackOutline _current;
+        private bool _looking;                             // a look is under way, outside the lock: one at a time
         private (long Length, DateTime Written)? _tried;   // the file as it was when last read: an unchanged one is not read again
         private string _said;                              // what was last said of this layout's file, said once
 
@@ -148,20 +149,39 @@ namespace RacingDesk.Data
 
         /// <summary>
         /// The shared map of a layout, for <see cref="TrackOutlines.Crowd"/>: the one read this session, or the
-        /// folder looked at when a look is due. Null for any other layout, and while there is nothing.
+        /// folder looked at when a look is due. Null for any other layout, and while there is nothing. The folder
+        /// and the file are read outside the lock, one look at a time, so the telemetry thread's <see cref="Seen"/>
+        /// never waits on a file; what the look found is kept only if the layout is still the one it was for.
         /// </summary>
         public TrackOutline Current(int trackId)
         {
+            string fileName;
+            int wanted;
+            double official;
+            (long, DateTime)? tried;
             lock (_gate)
             {
                 if (trackId <= 0 || trackId != _trackId) return null;
                 if (_current != null) return _current;
-                if (_fileName == null) return null;
+                if (_fileName == null || _looking) return null;
                 var now = _now();
                 if (now < _due) return null;
                 Looks++;
                 _due = now + (now - _since < LookOftenFor ? LookOften : LookSeldom);
-                _current = Look();
+                _looking = true;
+                fileName = _fileName;
+                wanted = _trackId;
+                official = _officialMeters;
+                tried = _tried;
+            }
+            var look = Look(fileName, wanted, official, tried);
+            lock (_gate)
+            {
+                _looking = false;
+                if (wanted != _trackId || fileName != _fileName) return null;   // another session by now: nothing of this look is kept
+                if (look.Stamp != null) _tried = look.Stamp;
+                if (look.Said != null) Say(look.Said);
+                if (look.Outline != null) _current = look.Outline;
                 return _current;
             }
         }
@@ -181,34 +201,28 @@ namespace RacingDesk.Data
                 : trackName + "-" + trackConfigName + "-" + length + ".shtl";
         }
 
-        private TrackOutline Look()
+        /// <summary>One look at the folder, outside the lock: what was found, the file's stamp if it was read, and what to say.</summary>
+        private (TrackOutline Outline, (long, DateTime)? Stamp, string Said) Look(string fileName, int trackId, double officialMeters, (long, DateTime)? tried)
         {
             FileInfo file;
             try
             {
                 var folder = new DirectoryInfo(_directory);
-                if (!folder.Exists) return null;
+                if (!folder.Exists) return (null, null, null);
                 // The file with the name, to the letter: Windows would find it whatever its case, and this does not.
-                file = folder.EnumerateFiles(_fileName).FirstOrDefault(f => string.Equals(f.Name, _fileName, StringComparison.Ordinal));
-                if (file == null) return null;
+                file = folder.EnumerateFiles(fileName).FirstOrDefault(f => string.Equals(f.Name, fileName, StringComparison.Ordinal));
+                if (file == null) return (null, null, null);
             }
             catch (Exception ex)
             {
                 // A name Windows will not have as a file's: there is no file to find.
-                Say($"shared map {_fileName}: not looked for ({ex.GetType().Name})");
-                return null;
+                return (null, null, $"shared map {fileName}: not looked for ({ex.GetType().Name})");
             }
             var stamp = (file.Length, file.LastWriteTimeUtc);
-            if (_tried != null && _tried.Value == stamp) return null;
-            _tried = stamp;
-            var outline = Read(file.FullName, _trackId, _officialMeters, out string why, out int records);
-            if (outline == null)
-            {
-                Say($"shared map {_fileName}: not used, {why}");
-                return null;
-            }
-            _log($"shared map {_fileName}: SimHub's, from {records} drivers' laps, {outline.Points.Count} points; the map until the first clean lap");
-            return outline;
+            if (tried != null && tried.Value == stamp) return (null, null, null);   // the same file as was refused: not read again
+            var outline = Read(file.FullName, trackId, officialMeters, out string why, out int records);
+            if (outline == null) return (null, stamp, $"shared map {fileName}: not used, {why}");
+            return (outline, stamp, $"shared map {fileName}: SimHub's, from {records} drivers' laps, {outline.Points.Count} points; the map until the first clean lap");
         }
 
         private void Say(string what)
