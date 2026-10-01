@@ -234,9 +234,12 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   sectors are split by the session's own boundaries (`window._sectorBoundaries`, from `DS.SectorBoundaryPcts`, in a
   race and out of one), never equal fractions. While there is no map the cell says why, from `TrackMap.Status`
   (`#fullMapWaiting`, `.map-waiting`: "Map after one clean lap", "No map yet — the app is starting its maps", and
-  after a minute of that "No map — restart the app to bring its maps back"), and nothing once there is one; a host
-  from before the status says nothing. Nothing resets or records a map any more
-  (`tests/unit/track-map-status.spec.mjs`).
+  after a minute of that "No map — restart the app to bring its maps back"), and nothing once there is one — but
+  for `crowd`, which is a map drawn on SimHub's shared map of the layout (root CLAUDE.md, Track maps): the same
+  element, as `.map-note`, says "SimHub's shared map until your first clean lap" under the circuit and above its
+  name, in the column with them so it covers nothing (not the top, where race control's banner sits under a flag),
+  at the label's 11px floor, until his own outline takes over; a host from before the status says nothing.
+  Nothing resets or records a map any more (`tests/unit/track-map-status.spec.mjs`).
 - **The leaderboard** is the HUD's panel and rows, its type sized from the panel (`#lbRows` font-size) and the rows sharing
   its height; `leaderboard.js` counts how many the panel holds at that size (1.9 lines to a row) and not the sum of the
   screen minus the dashboard that the rig's HUD does.
@@ -246,7 +249,12 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
 - **On an iPad only** (`html.rd-remote`, the rules at the end of `drive-view.css`; the rig's own Ctrl+Shift+F keeps
   everything it had), what he asked for on 2026-09-30: the glass's light at fifteen hundredths of the rig's
   (`--rd-shine: 0.15` — the tint, the overhead glow and the sweep, the specular streak and the inset glow all take
-  the one factor; the flags' own treatment of the glass does not), and no badges: the Racing Desk mark and the car's
+  the one factor; the flags' own treatment of the glass does not), the flag's pattern behind and between the panels
+  at fifteen hundredths too, under every flag (`body::before` at 0.15; the first cut's renders had the stripes at
+  full strength in every gutter, which is the noise he meant), with a thin frame at the very edge of the screen —
+  four pixels of the frame round the grid, never a gutter, `body::after` masked to a ring — carrying the flag's own
+  pattern at full strength so a white or a chequered flag is still seen; the flag card in the gaps block, race
+  control's banner and the panels' flag-coloured borders are as strong as they were, and no badges: the Racing Desk mark and the car's
   maker are not shown, the row they were in is the controls, the pedals and the clock (landscape `ctrl×7 pedals×5
   timer×5`, portrait `ctrl×9 pedals×8 timer×7`), their WebGL canvases (the chevron drift, the maker's flag) are not
   started, and the crop of his paint is never asked for (`car-logos.js` `requestRemoteLivery` fetches nothing).

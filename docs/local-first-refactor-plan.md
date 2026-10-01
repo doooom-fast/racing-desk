@@ -203,7 +203,9 @@ Two local sources, in order of preference *(revised after Phase 0)*:
    position, so that outline was dead-reckoned from velocity and yaw, started wherever the car was and
    bent wherever it spun. The first session at a layout is now followed through the `.ibt` the sim is
    writing (`IbtFollower`), and from its first clean lap there is a provisional outline; the SimHub
-   plugin asks the app's host for every outline over loopback. Root `CLAUDE.md`, Track maps.
+   plugin asks the app's host for every outline over loopback. Until that first clean lap the host
+   serves SimHub's own crowd-sourced map of the layout, read from SimHub's download folder and
+   never stored (`CrowdMaps`, 2026-10-01). Root `CLAUDE.md`, Track maps.
 
 Sector boundaries come from `SplitTimeInfo` in the session YAML — also local, also already parsed.
 

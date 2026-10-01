@@ -158,14 +158,16 @@ data?… get rid of all of it").
   over loopback (`Settings.HostUrl`, `http://127.0.0.1:18889`, where the host runs beside SimHub; the address is the
   app's and is never saved in SimHub's settings) at
   `GET /racing-desk/data/outline?track=<TrackID>` → `{ trackId, cleanLaps, lengthM, officialLengthM, provisional,
-  updatedAt, points: [[x, z, pct], …] }` (metres east and south, so the map is north-up), 404 while there is none, 400
-  without an id. The plugin reads no file of his and no store. Asked on a pool thread, never SimHub's `DataUpdate`
-  thread; again every 5 s while there is nothing and every 60 s once there is, swapping the outline when it has gained
-  laps. The iPad's proxy serves `/racing-desk/` alone and refuses queries, so the route is never reachable from the
+  crowd, updatedAt, points: [[x, z, pct], …] }` (metres east and south, so the map is north-up), 404 while there is
+  none, 400 without an id. The plugin reads no file of his and no store. Asked on a pool thread, never SimHub's
+  `DataUpdate` thread; again every 5 s while there is nothing (and while what there is is SimHub's shared map, below)
+  and every 60 s once there is his own, swapping the outline when it has gained laps. The iPad's proxy serves
+  `/racing-desk/` alone and refuses queries, so the route is never reachable from the
   network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was, plus
-  `TrackMap.Status`: `ready`, `first-lap` (no outline of this layout yet: the map cell says "Map after one clean
-  lap"), `no-host` (the app's host does not answer the plugin: the cell says "No map yet — the app is starting its
-  maps", and after a minute of it "No map — restart the app to bring its maps back"), `none`. The host answers on the
+  `TrackMap.Status`: `ready`, `crowd` (drawn, on SimHub's shared map: the cell says "SimHub's shared map until your
+  first clean lap" under the circuit, above its name), `first-lap` (no outline of this layout yet: the map cell says "Map
+  after one clean lap"), `no-host` (the app's host does not answer the plugin: the cell says "No map yet — the app is
+  starting its maps", and after a minute of it "No map — restart the app to bring its maps back"), `none`. The host answers on the
   address the plugin asks, `127.0.0.1`, as well as on `localhost`: HTTP.sys matches a prefix that names a host
   against the request's Host header and answers 400 itself to any other name, so `RacingDeskRuntime.HttpPrefixGroups`
   gives the loopback listener both (`OutlineRouteTests` holds the plugin's address to every prefix the host may bind).
@@ -199,6 +201,28 @@ data?… get rid of all of it").
   replaces the provisional outline; a provisional one never replaces a whole one. The finished files go in while the
   host runs (`IbtIngest.WatchFinished`, every minute while the sim is closed, files written more than two minutes
   ago), not only at the next start; a file written to while it was being read is read again next time.
+- **Until that first clean lap, SimHub's shared map** (`CrowdMaps`, `RacingDesk.Data`, host only; he said "Simhub
+  using crowd maps yes" on 2026-09-30). SimHub downloads a crowd-sourced map of the layout a second after the sim
+  connects, to `Program Files (x86)\SimHub\PluginsData\IRacing\MapRecordsCloud\<TrackName>[-<TrackConfigName>]-<metres>.shtl`:
+  the session YAML's three names to the letter (iRacing's own two spaces in "Historic Circa  95" included), the
+  `TrackLength` "4.5789 km" as `4578.9` and a whole number with no `.0` (`algarve gp-Grand Prix-4578.9.shtl`,
+  `bathurst-6144.1.shtl`, `crandon full-Crandon Off-Road Full-2360.shtl`); every one of the eighty files on the rig
+  is made again from his `.ibt` files' YAML by that rule and no other, so that rule is all that is normalised and
+  nothing is matched loosely — the file with the exact name or none, never a near one, and a rescan like
+  `lagunaseca 2026` never takes a `lagunaseca` map. The file is gzip of SimHub's lap-record JSON, `CarCoordinates:
+  [{ Value: [x east, altitude, z south], p: LapDistPct }, …]`, a point every 2 m from the line at the origin, the
+  filler `[0,0,0]` at p 1 last (the whole shape, and what the survey found, is in `CrowdMaps.cs`); against his own
+  GPS lap at Algarve it fits at scale 1.0009, x east and z south (RMS 5.7 m), which is the outline's own frame, so it
+  is served as one is. While the store and the follower have nothing of a layout, `TrackOutlines` consults it last:
+  looked for every 5 s for the session's first minute (SimHub may still be downloading) and every 30 s after; read
+  read-only, a 2 MB packed and 8 MB unpacked cap; checked (p from 0 to 1 with no hole over 2 % of the lap, 100
+  points or more, no step over 50 m, closed within 50 m, the length within 5 % of the session's — the files are
+  within 1 %); a file refused is said once in `host.log`, by its name and why, and not read again until it changes.
+  Served as an outline marked `crowd` (`cleanLaps` 0, `provisional`), which the plugin, the HUD and the iPad draw as
+  any other; `TrackMap.Status` is `crowd`, the map asks again every 5 s under it, so the follower's first outline (or
+  the store's) replaces it within seconds, and his own is never replaced by it. Kept in memory for the session only:
+  never written to the store, a cache or a file, and nothing in SimHub's folder is touched. The line in the log has
+  the file's name and nothing else (no path, no id, no driver).
 - **The old maps are set aside, never deleted** (`TrackMapSetAside`, at every runtime start): every `*.csv` in
   `<assembly>\racingdesk-data\trackmaps`, `<assembly>\trackmaps` and `<data>\TrackMaps` — SimHub's
   `Program Files (x86)\SimHub\racingdesk-data\trackmaps` and `ProgramData\SimHub\PluginsData\RacingDesk\TrackMaps`
@@ -210,7 +234,9 @@ data?… get rid of all of it").
 - **Tests**: `tests/…/IRacing/GeometryTests.cs` (synthetic laps round a made-up circuit: each check, agreement, merging,
   the store, the rebuild, the watch, `TrackOutlines`), `IbtFollowerTests.cs` (a file that grows), `OutlineRouteTests.cs`,
   `TrackMapProviderTests.cs` (the loop, the asking, the status, the plugin's source over a listener on 127.0.0.1),
-  `TrackMapSetAsideTests.cs`; on the overlay `tests/unit/track-map-status.spec.mjs`.
+  `CrowdMapsTests.cs` (made-up `.shtl` files in a folder of the test's: the name rule, the shape, every refusal, exact
+  matching, a file that comes later, the hand-over to his own, nothing written), `TrackMapSetAsideTests.cs`; on the
+  overlay `tests/unit/track-map-status.spec.mjs`.
 
 **Per car, for the rig** (schema v5 to v7; plan in `docs/view-and-pedals-plan.md`). Nothing here writes to iRacing's files
 or to the pedals.

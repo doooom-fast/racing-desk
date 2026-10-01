@@ -59,7 +59,7 @@ history already exist.
 
 | Gain | Size of it | Cheaper route |
 |---|---|---|
-| Maps for layouts never driven | 425 installed layouts, 71 driven under current names → **354 without `.ibt` geometry** | One out-lap in a test session produces the `.ibt`; from the first clean lap of that session the `.ibt` being written gives a provisional map (`IbtFollower`, 2026-09-30; the dead-reckoned first lap is gone) |
+| Maps for layouts never driven | 425 installed layouts, 71 driven under current names → **354 without `.ibt` geometry** | One out-lap in a test session produces the `.ibt`; from the first clean lap of that session the `.ibt` being written gives a provisional map (`IbtFollower`, 2026-09-30; the dead-reckoned first lap is gone). Until that lap, SimHub's shared map of the layout, read from SimHub's own download folder and kept in memory only (`CrowdMaps`, 2026-10-01: he said "Simhub using crowd maps yes") |
 | Track edges, width, pit lane, maybe turn positions — richer rendering than a driven line | **Unknown.** Contents are unverified. Layout files have a 605 KB median — small enough to suggest layout metadata rather than meshes, but that's a guess | None from `.ibt`: lap-to-lap spread is ~1 m, so driven laps don't reveal track width. Render from the driven line, as the plan already assumes |
 | S6 archetypes (curvature, elevation) for tracks never raced | Same 354 layouts | Public real-world geometry (e.g. OpenStreetMap `highway=raceway`) for real circuits — not iRacing's data |
 
