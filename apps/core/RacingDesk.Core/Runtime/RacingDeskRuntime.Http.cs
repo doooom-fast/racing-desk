@@ -24,11 +24,14 @@ namespace RacingDesk.Plugin
             // Try binding in order of preference:
             // 1. Wildcard (*) — works if SimHub runs as admin or URL ACL is registered
             // 2. localhost only — always works without admin, sufficient for local overlays
-            string[] prefixes = new[]
-            {
-                $"http://*:{_options.HttpPort}/racing-desk/",
-                $"http://localhost:{_options.HttpPort}/racing-desk/"
-            };
+            // LoopbackOnly (tests, probes): 127.0.0.1 alone, which HTTP.sys binds on that address and no other.
+            string[] prefixes = _options.LoopbackOnly
+                ? new[] { $"http://127.0.0.1:{_options.HttpPort}/racing-desk/" }
+                : new[]
+                {
+                    $"http://*:{_options.HttpPort}/racing-desk/",
+                    $"http://localhost:{_options.HttpPort}/racing-desk/"
+                };
 
             foreach (var prefix in prefixes)
             {
