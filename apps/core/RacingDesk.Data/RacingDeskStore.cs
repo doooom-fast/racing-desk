@@ -1158,6 +1158,30 @@ FROM sessions WHERE ($type IS NULL OR session_type = $type) ORDER BY started_at 
             return list;
         }
 
+        /// <summary>
+        /// A stored session's entry list, by finishing position. The names are as they were stored: a session stored before
+        /// other drivers were renamed (root CLAUDE.md, Other drivers' names) still has theirs on disk, so a reader that
+        /// shows or sends them names each by its <c>CustId</c> first (LocalDataApi does).
+        /// </summary>
+        public IReadOnlyList<GridEntryRecord> GridEntries(long sessionId)
+        {
+            using var cmd = Cmd(@"SELECT car_idx, cust_id, name, irating, license, car_class_id, car_screen_name, finish_position, class_position,
+  laps_complete, fastest_lap_s, incidents, reason_out, is_player FROM grid_entries WHERE session_id = $s ORDER BY finish_position, car_idx");
+            P(cmd, "$s", sessionId);
+            var list = new List<GridEntryRecord>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                list.Add(new GridEntryRecord
+                {
+                    CarIdx = r.GetInt32(0), CustId = r.IsDBNull(1) ? 0 : r.GetInt64(1), Name = Str(r, 2),
+                    IRating = r.IsDBNull(3) ? 0 : r.GetInt32(3), License = Str(r, 4), CarClassId = r.IsDBNull(5) ? 0 : r.GetInt32(5),
+                    CarScreenName = Str(r, 6), FinishPosition = r.IsDBNull(7) ? 0 : r.GetInt32(7), ClassPosition = r.IsDBNull(8) ? 0 : r.GetInt32(8),
+                    LapsComplete = r.IsDBNull(9) ? 0 : r.GetInt32(9), FastestLapSeconds = r.IsDBNull(10) ? 0 : r.GetDouble(10),
+                    Incidents = r.IsDBNull(11) ? 0 : r.GetInt32(11), ReasonOut = Str(r, 12), IsPlayer = !r.IsDBNull(13) && r.GetInt32(13) != 0,
+                });
+            return list;
+        }
+
         public IReadOnlyList<LapRecord> Laps(long sessionId)
         {
             using var cmd = Cmd("SELECT lap, lap_time_s, clean, incidents, fuel_used_l, pitted, start_session_time, position FROM laps WHERE session_id = $s ORDER BY lap");

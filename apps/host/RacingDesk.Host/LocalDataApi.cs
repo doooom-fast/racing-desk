@@ -358,8 +358,7 @@ namespace RacingDesk.Host
                             json.WritePropertyName("incidents");
                             store.WriteJson(json, "SELECT session_time, lap, lap_dist_pct, points FROM incidents WHERE session_id = $id ORDER BY session_time", ("$id", id));
                             json.WritePropertyName("grid");
-                            store.WriteJson(json, @"SELECT car_idx, irating, license, car_class_id, car_screen_name, finish_position, class_position,
-  laps_complete, fastest_lap_s, incidents, reason_out, is_player FROM grid_entries WHERE session_id = $id ORDER BY finish_position", ("$id", id));
+                            WriteGrid(json, store.GridEntries(id));
                             json.WriteEndObject();
                         });
                         return;
@@ -504,6 +503,38 @@ namespace RacingDesk.Host
         }
 
         /// <summary>A string, or null for JSON's null. Anything else is not what was asked for.</summary>
+        /// <summary>
+        /// A stored session's entry list. Every other driver is named by the characters' list from the customer id the store
+        /// kept (root CLAUDE.md, Other drivers' names), so a session stored before the names were replaced shows the same
+        /// character for a rival that a live session does, and the name on disk goes no further than the store. His own
+        /// entry keeps his name. The customer ids themselves are not sent.
+        /// </summary>
+        private static void WriteGrid(Utf8JsonWriter json, IReadOnlyList<GridEntryRecord> grid)
+        {
+            var names = RacingDesk.Core.Names.PseudonymBook.Default.NewSession();
+            json.WriteStartArray();
+            foreach (var g in grid)
+            {
+                json.WriteStartObject();
+                json.WriteNumber("car_idx", g.CarIdx);
+                string name = g.IsPlayer ? g.Name : (g.CustId > 0 || !string.IsNullOrWhiteSpace(g.Name) ? names.For(g.CustId, g.Name) : null);
+                if (name == null) json.WriteNull("name"); else json.WriteString("name", name);
+                json.WriteNumber("irating", g.IRating);
+                if (g.License == null) json.WriteNull("license"); else json.WriteString("license", g.License);
+                json.WriteNumber("car_class_id", g.CarClassId);
+                if (g.CarScreenName == null) json.WriteNull("car_screen_name"); else json.WriteString("car_screen_name", g.CarScreenName);
+                json.WriteNumber("finish_position", g.FinishPosition);
+                json.WriteNumber("class_position", g.ClassPosition);
+                json.WriteNumber("laps_complete", g.LapsComplete);
+                json.WriteNumber("fastest_lap_s", g.FastestLapSeconds);
+                json.WriteNumber("incidents", g.Incidents);
+                if (g.ReasonOut == null) json.WriteNull("reason_out"); else json.WriteString("reason_out", g.ReasonOut);
+                json.WriteNumber("is_player", g.IsPlayer ? 1 : 0);
+                json.WriteEndObject();
+            }
+            json.WriteEndArray();
+        }
+
         private static string Text(JsonElement body, string name, out bool given)
         {
             given = body.TryGetProperty(name, out var value);
