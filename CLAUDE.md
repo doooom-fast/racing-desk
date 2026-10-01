@@ -55,7 +55,8 @@ npm run host -- schedule --series "Caterham"   # what one series parsed to, week
 ```
 
 The host also serves the store read-only at
-`:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals}` — that's what the desk reads. If
+`:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals,outline?track=}` — that's what the desk
+reads, and `outline` is what the SimHub plugin's track map reads (see Track maps). If
 SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk). One thing is written
 through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only —
 a request that names an `Origin`, or comes from another machine, gets 403, so the desk page sends it through main.js.
@@ -75,8 +76,64 @@ sessions a car was entered in (`session_cars`), `driven` those the driver drove 
 driven live and then read from its `.ibt`, or written to several files, is one (`subsession_id:session_num`, as
 `packages/calc` merges them).
 
-Schema changes add tables and leave the old ones as they were (v5 took `cars_scanned` back out of `ingested_files`),
-so an earlier build can still record and ingest into a store a later one has opened.
+Schema changes add tables and leave the old ones as they were (v5 took `cars_scanned` back out of `ingested_files`;
+v8 added two columns to `track_geometry`), so an earlier build can still record and ingest into a store a later one
+has opened.
+
+## Track maps
+
+The map on the HUD and the iPad is one outline per layout, keyed by the sim's `TrackID`, derived from `Lat`/`Lon` in
+his own `.ibt` files and nothing else: the sim's `.dat` packs are not decoded, iRacing's map drawings need a login
+and are not keyed to `LapDistPct`, and live shared memory has no position at all. Nothing is recorded or dead-reckoned
+at runtime any more, so a spin on the first lap, a start from pit exit or an old recording cannot bend the map, and
+crossing the line is one more step along a closed loop (`TrackMapProvider.InterpolateOnOutline` takes the segment from
+the last point back to the first) and not a jump. He asked for this on 2026-09-30 ("why are we still recording map
+data?… get rid of all of it").
+
+- **The host is the one source** (`RacingDesk.Data`: `GeometryAccumulator`, `IbtIngest`, `IbtFollower`,
+  `TrackOutlines`; the store's `track_geometry`). `TrackMapProvider` takes an `IOutlineSource`: the host's own
+  (`LocalOutlineSource` over `TrackOutlines`), and in the SimHub plugin `HostOutlineSource`, which asks the app's host
+  over loopback (`Settings.HostUrl`, `http://127.0.0.1:18889`, where the host runs beside SimHub) at
+  `GET /racing-desk/data/outline?track=<TrackID>` → `{ trackId, cleanLaps, lengthM, officialLengthM, provisional,
+  updatedAt, points: [[x, z, pct], …] }` (metres east and south, so the map is north-up), 404 while there is none, 400
+  without an id. The plugin reads no file of his and no store. Asked on a pool thread, never SimHub's `DataUpdate`
+  thread; again every 5 s while there is nothing and every 60 s once there is, swapping the outline when it has gained
+  laps. The iPad's proxy serves `/racing-desk/` alone and refuses queries, so the route is never reachable from the
+  network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was, plus
+  `TrackMap.Status`: `ready`, `first-lap` (no outline of this layout yet: the map cell says "Map after one clean
+  lap"), `no-host` (the app is not running beside SimHub: "The map needs the app's host"), `none`.
+- **Which laps are in** (`GeometryAccumulator.CloseLap`, `ChecksVersion` 1): a lap from the line to the line (first
+  sample within 0.01 of pct 0, last at 0.99 or past), never on pit road, on the track surface but for six frames, with
+  a position at every sample (one `0,0` puts the whole lap out), never under 3 m/s after its first second (a spin to a
+  halt, a tow, a reset), no step over 15 m between samples, closed (its ends as near as their fractions of the lap
+  say, give or take 10 m), and in agreement with the laps already in (median within 8 m and the 95th percentile
+  within 25 m, bin by bin). A rescan or iRacing's north fix moves a layout's Lat/Lon between files that share a name:
+  laps that disagree are never averaged, and when files disagree the newest file's laps win. The YAML `TrackLength` is
+  said in the log when the outline differs from it by more than a hundredth (Okayama's is 4 % out) and is never a gate.
+  A single clean lap is an outline. `track_geometry.checks` is the checks a row was built with (0 for every row from
+  before them); at start the host builds every such row again from the layout's files, newest first, stopping at twelve
+  clean laps, and a layout no file gives a clean lap for keeps its old outline marked looked at. The sessions are not
+  touched. One line per layout in `host.log`; no names or ids.
+- **The first session at a layout** (`IbtFollower`): the sim writes the session's `.ibt` as it goes, so the host reads
+  it behind the sim — on a thread of its own at background I/O priority, every 10 s, a few seconds' worth of frames
+  (`IbtFile(path, growing: true)` counts the records from the length, since the sub-header says 0 until the sim closes
+  the file) — and from the first clean lap there is a provisional outline for the map (`track_geometry.provisional`),
+  refined by each clean lap after. The finished file, ingested once it has settled, replaces it; a provisional one
+  never replaces a whole one. The finished files go in while the host runs (`IbtIngest.WatchFinished`, every minute
+  while the sim is closed, files written more than two minutes ago), not only at the next start; a file written to
+  while it was being read is read again next time.
+- **The old maps are set aside, never deleted** (`TrackMapSetAside`, at every runtime start): every `*.csv` in
+  `<assembly>\racingdesk-data\trackmaps`, `<assembly>\trackmaps` and `<data>\TrackMaps` — SimHub's
+  `Program Files (x86)\SimHub\racingdesk-data\trackmaps` and `ProgramData\SimHub\PluginsData\RacingDesk\TrackMaps`
+  for the plugin, `%LOCALAPPDATA%\Racing Desk\TrackMaps` and `resources\host\racingdesk-data\trackmaps` for the app —
+  moves to `%LOCALAPPDATA%\Racing Desk\track-maps-set-aside\<yyyy-mm-dd_hhmmss>\<simhub|host>\<folder>\`. One line in
+  the log; a file held open is tried again at the next start. SimHub's own `PluginsData\IRacing\MapRecords` is not
+  touched and no longer read. The `resetmap` and `listtracks` actions, Ctrl+Shift+M and the Stream Deck's "Reset
+  Track Map" are gone: there is nothing to reset.
+- **Tests**: `tests/…/IRacing/GeometryTests.cs` (synthetic laps round a made-up circuit: each check, agreement, merging,
+  the store, the rebuild, the watch, `TrackOutlines`), `IbtFollowerTests.cs` (a file that grows), `OutlineRouteTests.cs`,
+  `TrackMapProviderTests.cs` (the loop, the asking, the status, the plugin's source over a listener on 127.0.0.1),
+  `TrackMapSetAsideTests.cs`; on the overlay `tests/unit/track-map-status.spec.mjs`.
 
 **Per car, for the rig** (schema v5 to v7; plan in `docs/view-and-pedals-plan.md`). Nothing here writes to iRacing's files
 or to the pedals.
@@ -386,9 +443,10 @@ the overlay through `hud.putAway`, and `app.quit()` called from five places and 
 **The HUD's keys are held only while he is in the car** (`modules/js/hud-keys.js`, `HUD_KEYS` in `main.js`,
 `tests/unit/hud-keys.spec.mjs`). A key the app registers is taken from every other program on the machine for as
 long as it is held — Ctrl+Shift+V is paste-as-text in a browser, Ctrl+Shift+P a command palette — and the app used
-to hold twelve from start to quit. It holds one, Ctrl+Shift+O (the desk); the HUD's eleven
-(H, R, G, D, M, I, F, V, B, P, and Q, which puts the HUD away) are registered when `hud-visibility` says he has got
-in (`onInCar`) and let go when he gets out. In dev mode they are held throughout.
+to hold twelve from start to quit. It holds one, Ctrl+Shift+O (the desk); the HUD's ten
+(H, R, G, D, I, F, V, B, P, and Q, which puts the HUD away) are registered when `hud-visibility` says he has got
+in (`onInCar`) and let go when he gets out. In dev mode they are held throughout. (M, which reset the track map, is held
+by nothing: the map is the host's, from his own laps, and there is nothing to reset.)
 **A limit:** beside SimHub the HUD reads SimHub's plugin on `:8889`; if SimHub goes in mid-session the HUD is
 hidden, though the app's own host on `:18889` has the same telemetry. There is no falling back to it.
 
@@ -532,6 +590,12 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
   it, which had the iPad asking itself for telemetry.) In remote mode there is no voice coach; the HUD's effects and
   its ambient light are there (the colour the plugin samples from the rig's screen) unless "Effects: off" in the menu,
   which the iPad keeps; and a strip says "No data from the rig" when the numbers stop arriving.
+- **What he asked for on 2026-09-30** (`html.rd-remote` rules at the end of `drive-view.css`; the rig's own
+  Ctrl+Shift+F is as it was): the glass's light — its tint, the overhead glow and the sweep, the specular streak, the
+  inset glow — at fifteen hundredths of the rig's (`--rd-shine`), the flags' own treatment of the glass as it was;
+  no badges (the Racing Desk mark and the car's maker are not cells on the iPad, and the crop of his paint is never
+  asked for), the row they were in being the controls, the pedals and the clock; the menu's sign a small round button
+  in the top right corner; and a sector never cropped in the laps panel (see the overlay's CLAUDE.md).
 
 Tests listen on 127.0.0.1 only. A listener on the network makes Windows ask about the firewall, in a window, over
 whatever the driver is doing — so nothing but the driver's own switch ever starts one. The code on the card is

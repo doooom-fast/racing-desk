@@ -198,9 +198,12 @@ Two local sources, in order of preference *(revised after Phase 0)*:
    *The sim's own map data is not used (decided 2026-09-16):* it lives in signed, zstd-compressed
    `.dat` packs, and decoding them means reverse-engineering iRacing's asset format for gains a test
    out-lap mostly covers (Phase 0 findings).
-2. **Live SDK world position.** `TrackMapProvider.cs` already records an outline from world X/Z +
-   `LapDistPct` and normalises it to a 0–100 viewBox. It works today and needs no permission from
-   anyone: it is generated at runtime, on the user's machine, from the session they are driving.
+2. ~~**Live SDK world position.** `TrackMapProvider.cs` already records an outline from world X/Z +
+   `LapDistPct` and normalises it to a 0–100 viewBox.~~ Gone on 2026-09-30: live shared memory has no
+   position, so that outline was dead-reckoned from velocity and yaw, started wherever the car was and
+   bent wherever it spun. The first session at a layout is now followed through the `.ibt` the sim is
+   writing (`IbtFollower`), and from its first clean lap there is a provisional outline; the SimHub
+   plugin asks the app's host for every outline over loopback. Root `CLAUDE.md`, Track maps.
 
 Sector boundaries come from `SplitTimeInfo` in the session YAML — also local, also already parsed.
 

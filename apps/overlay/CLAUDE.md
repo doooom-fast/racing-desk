@@ -183,6 +183,13 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   best of it in the gaps block's colours, his gaps to his best of the session, the optimal lap and his best ever, and the
   laps of fuel against the laps to go to the flag (in a race to time, the time left over his last lap), green with a lap
   to spare, amber just, red short. What is left to go is a span of its own that a narrow panel leaves out: the clock has it.
+  **A sector is never narrower than its number** (he had "sector numbers get cropped when they're too many digits",
+  2026-09-30): the cells are a wrapping row with `min-width: max-content`, their numbers come down from the panel's size
+  towards the 20px floor as the sectors get more (`--sectors` on `#lapsSectors`), and when the row still cannot hold
+  them at the floor they wrap to another line, which `laps-panel.js` sees (the last cell lower than the first, looked
+  for when a cell has changed or the screen has) and says on the panel (`laps-sectors-wrapped`), which then gives up
+  the sectors' gaps, its heading and its third row of times for the room. The rig's gaps block wraps its sector
+  labels the same way (`dashboard.css`, `.sector-indicator`).
 - **The clock** (`#raceTimerBlock`) says what it is (`#raceTimerKey`, written by `poll-engine.js` in the glance layout
   only): the laps to go in a lap race (the time on the lap is in the hero), the time left in a race to a time and in
   qualifying, the clock in practice, and under it the last lap. On the rig the cell is as it was, with no key.
@@ -201,12 +208,27 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   the local view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels (the
   outline's three layers at 12 / 7 / 1.5px, the sectors at 8px, the car at 7px and the others at 5px) is worked out from
   `--px` on the svg, the units of the map to a pixel. Told by `driveViewChanged` (drive-hud.js), on resize, and on a new
-  path; out of drive mode the maps are the HUD's own again.
+  path; out of drive mode the maps are the HUD's own again. The outline is the host's, from his own laps (root
+  CLAUDE.md, Track maps), and the host places the cars along it as a closed loop, so the page keeps a plain low-pass on
+  the car's position and has no jump rule and no slow blend (crossing the line is one more step). The circuit's
+  sectors are split by the session's own boundaries (`window._sectorBoundaries`, from `DS.SectorBoundaryPcts`, in a
+  race and out of one), never equal fractions. While there is no map the cell says why, from `TrackMap.Status`
+  (`#fullMapWaiting`, `.map-waiting`: "Map after one clean lap", "The map needs the app's host"), and nothing once
+  there is one; a host from before the status says nothing. Nothing resets or records a map any more
+  (`tests/unit/track-map-status.spec.mjs`).
 - **The leaderboard** is the HUD's panel and rows, its type sized from the panel (`#lbRows` font-size) and the rows sharing
   its height; `leaderboard.js` counts how many the panel holds at that size (1.9 lines to a row) and not the sum of the
   screen minus the dashboard that the rig's HUD does.
-- **The menu** (remote-server.js) is laid over the Racing Desk mark: the whole square answers a tap and its list opens on
-  the side with the more room. On the rig there is no menu, and the mark is just the mark.
+- **The menu** (remote-server.js) is a small round button in the top right corner of the iPad's screen, over the frame
+  and the corner of whatever cell is there, faint until it is open; its list opens on the side with the more room. On
+  the rig there is no menu.
+- **On an iPad only** (`html.rd-remote`, the rules at the end of `drive-view.css`; the rig's own Ctrl+Shift+F keeps
+  everything it had), what he asked for on 2026-09-30: the glass's light at fifteen hundredths of the rig's
+  (`--rd-shine: 0.15` — the tint, the overhead glow and the sweep, the specular streak and the inset glow all take
+  the one factor; the flags' own treatment of the glass does not), and no badges: the Racing Desk mark and the car's
+  maker are not shown, the row they were in is the controls, the pedals and the clock (landscape `ctrl×7 pedals×5
+  timer×5`, portrait `ctrl×9 pedals×8 timer×7`), their WebGL canvases (the chevron drift, the maker's flag) are not
+  started, and the crop of his paint is never asked for (`car-logos.js` `requestRemoteLivery` fetches nothing).
 - **Data**: the plugin sends 330 keys; the glance layout reads the ones a driver reads at a glance, every one the rig's
   HUD reads (all its panels are here) and what the panels above add. By panel: position, places since the start, lap, live
   lap, the delta (`Position`, `DS.StartPosition`, `PositionDelta`, `CurrentLap`, `CurrentLapTime`, `DS.LapDelta`); the gaps,
@@ -313,13 +335,12 @@ and when, and why the main process and never the page does it. This is the page'
   at the widest of them (`BADGE_ASPECT` in the picker, 1.5 to 1: 512 across and 341 high), the layer is `cover`, so a
   narrower badge shows the middle of it, and the picker scores that middle too (below), so the section has artwork in
   it in every badge.
-- **On an iPad** the page asks the rig for it: `requestRemoteLivery()`, called by `poll-engine.js` where the car's
-  model changes and where the page's in-car state goes from out to in (in remote mode only; the rig chooses another
-  section each time he gets in the car, the same car after the garage included), fetches `/livery-crop.png` from the
-  page's own origin — the one address, no query, the key's cookie — at 0, 0.8, 2.5, 6 and 14 s, because the rig chooses
-  a new crop once it has seen the same change and takes a moment over it; an ask before it has gets the last car's crop
-  (or a 404, once the rig has taken that away for the car having changed), and the asks after put that right. A 200 is shown as a blob URL (the one before is revoked), a 404 empties the layer, and the same crop
-  told again (its `ETag`, the crop's id) is kept as it is. Nothing else is fetched for it.
+- **On an iPad** the badge is not shown at all (he asked for the logos to go, 2026-09-30; The glance layout, above), so
+  the crop is never asked for: `requestRemoteLivery()`, which `poll-engine.js` still calls where the car's model changes
+  and where the page's in-car state goes from out to in, fetches nothing. The server still serves `/livery-crop.png`
+  from the main process's memory — the one address, no query, the key's cookie — and `fetchRemoteLivery`
+  (`window._fetchRemoteLivery`) is what would read it: a 200 as a blob URL, a 404 as the layer emptied, the same crop
+  told again (its `ETag`) kept as it is. Nothing calls it.
 - **The picker** (`logo-livery-picker.js`, `chooseWindow` / `chooseCrop`): the sheet is averaged down to 320 across,
   every pixel gets a luminance, an edge (a step of 24 or more to the next pixel) and a hue bin (twelve round the
   wheel, and one for everything with no hue to speak of: grey, white and near-black are one colour, so black-and-white
@@ -529,7 +550,6 @@ page reads the list of screens again in place when the app says they changed (`h
 | `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (`hud-display.js`: not the primary one unless that is where the rule puts it) |
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+O` | Open the desk |
-| `Ctrl+Shift+M` | Reset the track map |
 | `Ctrl+Shift+V` | Start or stop recording |
 | `Ctrl+Shift+B` | Save the replay buffer |
 | `Ctrl+Shift+P` | Start or stop the replay director |
@@ -537,7 +557,8 @@ page reads the list of screens again in place when the app says they changed (`h
 | `Ctrl+Shift+Q` | Quit the overlay: the HUD is put away (`hud.putAway`), the app keeps running |
 
 `Ctrl+Shift+O` is held while the app runs; the rest only while the driver is in the car
-(`modules/js/hud-keys.js`). No key quits the app.
+(`modules/js/hud-keys.js`). No key quits the app. `Ctrl+Shift+M`, which reset the track map, is held by nothing: the map
+is the host's, from the driver's own laps, and there is nothing to reset (root CLAUDE.md, Track maps).
 
 ## What this repo does NOT do anymore
 
