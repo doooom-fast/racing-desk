@@ -165,8 +165,8 @@ machine's, the `Host` is `localhost`, `127.0.0.1` or `[::1]`, and no browser sen
 `Sec-Fetch-*`). Anything else is `403 {"error":"this is for a program on this machine"}` — an action the runtime has
 no route for as well. Call them with curl, PowerShell or Node, never from a browser's address bar, and not from the
 HUD's page, which carries an `Origin`: the HUD asks main.js (see the `overlay-moza-api` skill). A new action goes below
-that check in the loop, written as `action == "name"`, and `ActionRoutesTests` finds it there and asks it from another
-machine, from a page and from this one.
+that check in the loop, written as `action == "name"` and listed in `KnownActions` (what the log is told by), and
+`ActionRoutesTests` finds it there and asks it from another machine, from a page and from this one.
 
 | Action | Params | Returns |
 |--------|--------|---------|

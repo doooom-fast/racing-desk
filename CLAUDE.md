@@ -84,7 +84,8 @@ and the car bindings, which are written to disk; `resetmap` (which deletes the c
 and with `probe=1` writes to the ones nothing calls Moza) ask the hardware or the machine. Those ports answer every
 address (the iPad view reads the telemetry through the app, which sends no query), so a request that names an action —
 `action=` anywhere in the address, in any case, or decoded from the query; whether or not the runtime has such a route —
-is checked first, once, before any route is looked at (`RacingDeskRuntime.Http.cs`; the check is
+is checked first, once, before any route is looked at, the host's own data API (`ExtraRoutes`) included, so a
+`…/data/status?action=…` from the LAN is a 403 too (`RacingDeskRuntime.Http.cs`; the check is
 `LocalRequest.IsFromThisMachine`, which the host's `POST …/data/pedals` makes too):
 - the connection is this machine's (`IsLocal`);
 - the `Host` is `localhost`, `127.0.0.1` or `[::1]` (HTTP.sys gives a `localhost` prefix any request that says so, from
@@ -94,19 +95,35 @@ is checked first, once, before any route is looked at (`RacingDeskRuntime.Http.c
   on the rig would otherwise have turned the wheel base. Node's own `fetch` says `Sec-Fetch-Mode` and no more, and is a
   program.
 
-Anything else is 403 with no CORS header and a line in the log, once for each action name. So curl, PowerShell, Node
-and the Stream Deck's plugin can ask, and an address typed into a browser cannot: use curl. A route added to the file
-is behind the check by being below it; `ActionRoutesTests` reads every `action == "…"` in the file, asks each from
-another machine, from a page and from this one, and fails on one that is let through (and on a way of looking at the
-action it cannot read). The HUD is a page — a file, whose requests carry `Origin: null` — so its own calls
+Anything else is 403 with no CORS header and a line in the log: once for each action name and each kind of asker (a
+connection from this machine that a browser sent, or from another machine). Every name the runtime has a route for
+(`KnownActions`) is always written; the names it has none of, which a device on the network can make up without end,
+are written for the first 16 and then not. So curl, PowerShell and Node can ask, and an address typed into a browser
+cannot: use curl. The Stream Deck's plugin does not ask the runtime: it asks the app's `/api/action/<name>` on
+`:9090`, which hands the demo and track-map actions to the HUD, and the HUD's own calls go through `runtime:action`
+(below). A route added to the file is behind the check by being below it; `ActionRoutesTests` reads every
+`action == "…"` in the file, asks each from another machine, from a page and from this one, and fails on one that is
+let through (and on a way of looking at the action it cannot read, and on one missing from `KnownActions`). The HUD is a page — a file, whose requests carry `Origin: null` — so its own calls
 (`resetmap`, `restartdemo`, `setrect`, the pedal profiles) are made by the main process: `runtimeAction` in
 `modules/js/config.js` → the preload → `runtime:action` in `main.js` → `modules/js/runtime-actions.js`, which passes on
 only those routes, with their arguments checked, to a runtime on this machine (`tests/unit/runtime-actions.spec.mjs`
-fails on a script that fetches an `?action=` route itself; a route the HUD needs goes in `ACTIONS`). **Left reachable
-from the network, on purpose:** the telemetry (`GET /racing-desk/` with no action: read-only, and the iPad's path), the
-`:8890` feed (it reads nothing from its clients) and the data API's reads above, which the desk fetches from its page
-(which names an origin, `null`) — note that `sessions` and `session` carry the driver's customer id, to any page or
-device that asks.
+fails on a script that fetches an `?action=` route itself, anywhere under `modules/` or in the inline scripts of
+`dashboard.html` and `desk.html`, and on one that asks `runtimeAction` for a route that is not in `ACTIONS`; a route the
+HUD needs goes in `ACTIONS`). **Install order:** an exe from before this check makes the HUD's calls from the page
+(`Origin: null`), and a runtime with the check refuses them, with nothing visible in the HUD (the calls' errors are
+swallowed): the ambient capture rect, the track-map reset, the demo restart and pedal-profile switching stop working,
+and the only trace is one line in SimHub's log for each (`?action=setrect refused: …`). So install the plugin from
+this change only with, or after, an exe built from it; an older plugin with the newer exe works. **Left reachable from
+the network, on purpose:** the telemetry (`GET /racing-desk/` with no action: read-only, and the iPad's path) and the
+`:8890` feed (it reads nothing from its clients). **Left reachable, and Kevin's to decide:** the data API's reads
+above (`status`, `sessions`, `session`, …). Nothing on the LAN reads them (the iPad's proxy forwards `/racing-desk/`
+with no query), and the desk runs on the rig, so its reads come in from this machine with `Host: localhost:…`: a gate
+of `IsLocal` plus a `Host` that names this machine, without the browser test (which the desk's page, whose requests
+carry `Origin: null`, could not pass), would take them off the LAN and break nothing the app does — but it would break
+`--desk-host=` and the desk's `?host=` when they point at another machine's host. They are reads, so they were left as
+they were; note that `sessions` and `session` carry the driver's customer id and `status` the store's path, to any
+device on the LAN, and to any page open on the rig (`Access-Control-Allow-Origin: *`; only routing the desk's reads
+through `main.js`, as its pedals write is, would close that).
 
 Car names (`cars`, schema v4) come from the session YAML of the driver's own sessions, which lists every entrant's
 `CarPath` and `CarScreenName` — nothing of iRacing's is bundled, so a car that has never been in one of those sessions
