@@ -9,8 +9,12 @@
 // Outputs:
 //   • session.json — metadata, event stream, source file inventory
 //
-// The telemetry JSONL comes from the overlay's telemetry-sidecar.js
-// (Phase 4 of the recording pipeline).
+// The telemetry JSONL comes from the overlay's telemetry-sidecar.js,
+// written by Racing Desk beside the file OBS records (docs/recording.md):
+// one folder per recording holds the video, its sidecar, and the
+// replay clips ("Replay …", each with a sidecar of its own) and the TV
+// take ("… tv.mp4") of that session. The recording's own sidecar is the
+// one read; a clip's is read only when there is no other.
 // ═══════════════════════════════════════════════════════════════
 
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
@@ -36,8 +40,9 @@ export async function ingest(dir, opts = {}) {
     throw new Error('No telemetry sidecar (.telemetry.jsonl) found in ' + dir);
   }
 
-  // Use the most recent sidecar if multiple exist
-  const sidecarFile = sidecarFiles.sort().pop();
+  // The recording's own sidecar, not a replay clip's or the TV take's, when there is one; else the most recent.
+  const mainSidecars = sidecarFiles.filter((f) => !isClipName(f) && !isTvName(f));
+  const sidecarFile = (mainSidecars.length ? mainSidecars : sidecarFiles).sort().pop();
   const sidecarPath = join(dir, sidecarFile);
 
   // ── Parse JSONL ───────────────────────────────────────────
@@ -52,7 +57,10 @@ export async function ingest(dir, opts = {}) {
     try {
       const obj = JSON.parse(line);
       if (obj._type === 'summary') {
-        summary = obj;
+        summary = obj;          // the last one is the file's (a resumed recording has more than one)
+      } else if (obj._type) {
+        // The header, a resumed line: not frames. (The header used to be pushed as frame 0.)
+        continue;
       } else {
         frames.push(obj);
       }
@@ -81,13 +89,16 @@ export async function ingest(dir, opts = {}) {
   const events = detectEvents(frames);
 
   // ── Classify video sources ────────────────────────────────
-  const sources = { cockpit: null, tvView: null, audio: [] };
+  // Replay clips are not the TV view: they are the instant replays saved during the recording.
+  const sources = { cockpit: null, tvView: null, clips: [], audio: [] };
 
   for (const vf of videoFiles) {
     const fullPath = join(dir, vf);
     const lower = vf.toLowerCase();
 
-    if (lower.includes('replay') || lower.includes('tv') || lower.includes('broadcast')) {
+    if (isClipName(vf)) {
+      sources.clips.push({ file: vf, path: fullPath });
+    } else if (isTvName(vf) || lower.includes('broadcast')) {
       sources.tvView = { file: vf, path: fullPath };
     } else if (!sources.cockpit) {
       sources.cockpit = { file: vf, path: fullPath };
@@ -143,6 +154,16 @@ export async function ingest(dir, opts = {}) {
   // ── Write session.json ────────────────────────────────────
   writeFileSync(session.outputPath, JSON.stringify(session, null, 2));
   return session;
+}
+
+/** A replay clip saved by OBS's replay buffer: "Replay 2026-09-30 21-20-05.mp4" (and its sidecar). */
+export function isClipName(name) {
+  return /^replay\b/i.test(basename(String(name)));
+}
+
+/** The TV take: "… tv.mp4" (and its sidecar), as the replay director names it. */
+export function isTvName(name) {
+  return /\btv(\.telemetry)?\.[a-z0-9]+$/i.test(basename(String(name)));
 }
 
 /**

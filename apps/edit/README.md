@@ -6,10 +6,10 @@ A CLI tool. Not user-facing today; consumed by internal workflows + future overl
 
 ## Where this fits
 
-This pipeline consumes the **`.rcpdv` race-bundle** format produced by the [`prodrive-overlay`](https://github.com/DOOOOM/prodrive-overlay) when recording is enabled. A bundle is a folder containing `video.mp4` + `telemetry.jsonl` + `metadata.json` — see the bundle/sidecar schemas in the [agents](https://github.com/DOOOOM/prodrive-agents) submodule.
+This pipeline reads the folder Racing Desk files each OBS recording in (`docs/recording.md`): the `.mp4` OBS wrote, its `.telemetry.jsonl` sidecar, the replay clips (`Replay …`) and the TV take (`… tv.mp4`) of that session. The `.rcpdv` bundle is gone. The sidecar's shape is in [`docs/telemetry-sidecar-schema.md`](../../docs/telemetry-sidecar-schema.md).
 
 ```
-prodrive-overlay → records → .rcpdv (mp4 + jsonl + meta)
+OBS records, Racing Desk files → <date track car>\ (mp4 + telemetry.jsonl + clips + tv)
                               │
                               ▼
                      prodrive-edit (this repo)
