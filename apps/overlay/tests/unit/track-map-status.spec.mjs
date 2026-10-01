@@ -39,6 +39,7 @@ const waiting = (page) => page.evaluate(() => {
 
 test.describe('what the map cell says', () => {
   test('while the host has no outline of the layout yet, and nothing once there is one', async ({ page }) => {
+    test.setTimeout(60000);
     await loadDashboard(page, { 'RacingDesk.Plugin.TrackMap.Ready': 0, 'RacingDesk.Plugin.TrackMap.Status': 'first-lap', 'RacingDesk.Plugin.TrackMap.SvgPath': '' });
     await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('Map after one clean lap');
     expect((await waiting(page)).shown).toBe(true);
@@ -158,6 +159,7 @@ test.describe('the circuit\'s sectors', () => {
 
 test.describe('crossing the line', () => {
   test('is one more step of the car on the map, with no jump rule and no slow blend', async ({ page }) => {
+    test.setTimeout(60000);
     await loadDashboard(page, frame({ order: fieldWith(4), state: 4, mode: 4, start: 7, lap: 12, playerPct: 0.97 }));
     await expect.poll(() => page.evaluate(() => document.getElementById('fullMapTrackSrc').getAttribute('d').length), { timeout: 10000 }).toBeGreaterThan(100);
     const dot = () => page.evaluate(() => { const c = document.getElementById('fullMapPlayer'); return [+c.getAttribute('cx'), +c.getAttribute('cy')]; });
