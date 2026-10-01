@@ -246,6 +246,109 @@ test('the floor: no start below 20 GB; one of ours stops at 5 GB and says so; OB
   } finally { r.dispose(); }
 });
 
+test('the rate the hours left run at: the real one from his recordings once there is one, else the cap the profile names, else 100 Mbps; measured again after a filing', async () => {
+  const measures = [];
+  let answer = null;
+  let cap = 7.5e6;   // 60 Mbps
+  const r = rig({ keeper: { measureRate: (root) => { measures.push(root); return answer; }, configuredBytesPerSecond: () => cap, idleFreeEveryMs: 100 } });
+  try {
+    // Measured once at the start (nothing there yet), the cap in use.
+    expect(measures).toEqual([dir]);
+    await until(() => r.keeper.status().obs === 'open');
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'configured', measured: null, bytesPerSecond: 7.5e6 });
+    expect(r.keeper.status().free.hoursLeft).toBeCloseTo(400e9 / 7.5e6 / 3600, 3);
+    cap = null;
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'configured', bytesPerSecond: 12.5e6 });
+    // A recording filed: measured again, from the files, and the estimate runs at that.
+    answer = { bytesPerSecond: 5e6, gbPerHour: 18, recordings: 1, bytes: 300e6, seconds: 60, used: [] };
+    const started = await r.keeper.record({ source: 'desk' });
+    await until(() => r.keeper.status().sidecar && r.keeper.status().sidecar.frames >= 2);
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    await r.keeper.stop();
+    await until(() => r.keeper.status().lastFiled, 3000);
+    // Measured again by the filing (and perhaps once by the idle look, the folder having gained the recording's own folder).
+    expect(measures.length).toBeGreaterThanOrEqual(2);
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'measured', measured: { bytesPerSecond: 5e6, gbPerHour: 18, recordings: 1 }, bytesPerSecond: 5e6 });
+    expect(r.keeper.status().free.hoursLeft).toBeCloseTo(400e9 / 5e6 / 3600, 3);
+    expect(r.lines.some((l) => /the last 1 recording comes to 18\.0 GB an hour/.test(l))).toBe(true);
+    // The folder unchanged since: the idle look (every 100 ms here) does not read the files again; a folder added to it does.
+    await settle(350);
+    const settled = measures.length;
+    await settle(350);
+    expect(measures.length).toBe(settled);
+    fs.mkdirSync(path.join(dir, '2026-09-30 10-00 Spa'));
+    await until(() => measures.length > settled, 3000);
+  } finally { r.dispose(); }
+});
+
+test("OBS's live rate is of the recording running, and no other: after a race that ran past five seconds the estimate is the files', not the old live rate", async () => {
+  let answer = null;
+  const clock = { now: 0 };
+  const r = rig({ keeper: { measureRate: () => answer, configuredBytesPerSecond: () => 12.5e6 } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    server.mode.clock = () => clock.now;
+    const started = await r.keeper.record({ source: 'desk' });
+    // OBS says 50 MB over ten seconds: 5 MB/s, once it has been recording for more than five.
+    clock.now = 10000;
+    server.state.bytes = 50e6;
+    await until(() => r.keeper.status().rateFrom === 'live', 3000);
+    expect(r.keeper.status()).toMatchObject({ recording: true, rateFrom: 'live', bytesPerSecond: 5e6 });
+    expect(r.keeper.status().free.hoursLeft).toBeCloseTo(400e9 / 5e6 / 3600, 3);
+    // It ends and is filed; the files say 2 MB/s (18 GB an hour is 5; this is 7.2). Not the 5 the race had at the end: that was of the race.
+    answer = { bytesPerSecond: 2e6, gbPerHour: 7.2, recordings: 1, bytes: 120e6, seconds: 60, used: [] };
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    await r.keeper.stop();
+    await until(() => r.keeper.status().lastFiled, 3000);
+    expect(r.keeper.status()).toMatchObject({ recording: false, rateFrom: 'measured', bytesPerSecond: 2e6, measured: { gbPerHour: 7.2, recordings: 1 } });
+    expect(r.keeper.status().free.hoursLeft).toBeCloseTo(400e9 / 2e6 / 3600, 3);
+    // Nothing measurable (the files are gone, or too short): the cap, never the live rate of a recording that is over.
+    answer = null;
+    const later = new Date(Date.now() + 60000);
+    fs.utimesSync(dir, later, later);   // the folder has changed since it was last measured (a recording taken away)
+    r.keeper.refreshRate();
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'configured', measured: null, bytesPerSecond: 12.5e6 });
+    // And a recording that ends for a reason of its own (OBS saying it is not recording) does not keep it either.
+    clock.now = 20000;
+    const second = await r.keeper.record({ source: 'desk' });
+    clock.now = 40000;
+    server.state.bytes = 100e6;
+    await until(() => r.keeper.status().rateFrom === 'live', 3000);
+    server.stopRecording();
+    await until(() => !r.keeper.status().recording, 3000);
+    expect(second.ok).toBe(true);
+    expect(r.keeper.status()).toMatchObject({ recording: false, rateFrom: 'configured', bytesPerSecond: 12.5e6 });
+  } finally { r.dispose(); }
+});
+
+test('the recordings measured are those begun since the encoder settings did: measured again when that moves, and not again when nothing has', async () => {
+  const calls = [];
+  let since = null;
+  // The fixed-bitrate ones (four, 45 GB an hour) are all there are until the encoder file is written; none of them counts after.
+  const r = rig({ keeper: {
+    measureRate: (root, opts) => { calls.push({ root, since: opts.since }); return opts.since === null ? { bytesPerSecond: 12.5e6, gbPerHour: 45, recordings: 4 } : null; },
+    measureSince: () => since, configuredBytesPerSecond: () => 12.5e6,
+  } });
+  try {
+    expect(calls).toEqual([{ root: dir, since: null }]);
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'measured', measured: { recordings: 4 } });
+    // Set up OBS writes the encoder file: the new settings begin then, and what was measured is of the old ones.
+    since = Date.parse('2026-10-01T12:00:00Z');
+    r.keeper.refreshRate();
+    expect(calls.at(-1)).toEqual({ root: dir, since });
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'configured', measured: null, bytesPerSecond: 12.5e6 });
+    // Nothing moved since: no more reading of the files.
+    const seen = calls.length;
+    r.keeper.refreshRate();
+    expect(calls.length).toBe(seen);
+    // A time that is not a time is no filter, and a reader that cannot say is no measure.
+    since = 'noon';
+    r.keeper.refreshRate();
+    expect(calls.at(-1)).toEqual({ root: dir, since: null });
+    expect(r.keeper.status()).toMatchObject({ rateFrom: 'measured' });
+  } finally { r.dispose(); }
+});
+
 test('a recording already running when OBS answers is taken over: its path, its start, and ours if the state file says so', async () => {
   const mp4 = `${dir.replace(/\\/g, '/')}/earlier.mp4`;
   server.mode.clock = () => Date.now();
@@ -325,7 +428,8 @@ test('the status says what the card needs, and every change is announced', async
     await until(() => r.keeper.status().obs === 'open');
     await until(() => r.keeper.status().replay.unavailable !== null);   // the buffer's state is asked after the take-over's: a few round trips after "open", which a loaded machine makes many
     const s = r.keeper.status();
-    expect(Object.keys(s).sort()).toEqual(['auto', 'autoHeld', 'autoRecord', 'busy', 'bytes', 'bytesPerSecond', 'chapters', 'elapsedMs', 'filed', 'free', 'kind', 'last', 'lastFiled', 'lowDisk', 'obs', 'obsVersion', 'outputPath', 'owned', 'paused', 'recording', 'replay', 'sidecar', 'startedAt', 'starting', 'stopping']);
+    expect(Object.keys(s).sort()).toEqual(['auto', 'autoHeld', 'autoRecord', 'busy', 'bytes', 'bytesPerSecond', 'chapters', 'elapsedMs', 'filed', 'free', 'kind', 'last', 'lastFiled', 'lowDisk', 'measured', 'obs', 'obsVersion', 'outputPath', 'owned', 'paused', 'rateFrom', 'recording', 'replay', 'sidecar', 'startedAt', 'starting', 'stopping']);
+    expect(s).toMatchObject({ rateFrom: 'configured', measured: null, bytesPerSecond: 12.5e6 });   // nothing measured, no profile to read: the 100 Mbps cap
     expect(s.replay).toEqual({ on: false, running: false, ours: false, unavailable: 'OBS has no replay buffer. Press Set up OBS, then open OBS again.', lastSaved: null });
     expect(s.autoRecord).toBe(true);
     expect(s.obsVersion).toBe('32.1.2');

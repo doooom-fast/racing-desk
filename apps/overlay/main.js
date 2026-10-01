@@ -554,6 +554,15 @@ const recording = obs.createRecordingKeeper({
   // The folder OBS's own profile records into: where the floor looks while OBS is not there to be asked.
   obsFolder: () => obs.launcher.profileRecordFolder({ appData: app.getPath('appData'), readFile: fs.readFileSync }),
   stateFile: recordingStateFile,
+  // The real rate of his newest recordings, from the files (modules/js/obs/recording-rate.js), for the card's GB an hour
+  // and the hours left; until there is one, the bitrate his profile is capped at (setupStatus reads the encoder file,
+  // and keeps it for five seconds).
+  // Only the recordings begun after the profile's encoder file was last written count: those before were made with other
+  // settings (the fixed 100 Mbps, which is 45 GB an hour whatever the racing), and the first race with the quality target
+  // would be averaged with them.
+  measureRate: (root, { since = null } = {}) => obs.recordingRate.measureRate(root, { fs, since }),
+  measureSince: () => obs.launcher.encoderChangedAt({ appData: app.getPath('appData'), readFile: fs.readFileSync, mtimeOf: (file) => fs.statSync(file).mtimeMs }),
+  configuredBytesPerSecond: () => { const cap = setupStatus().capKbps; return Number.isFinite(cap) && cap > 0 ? cap * 125 : null; },
   fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()),
   inCar: () => hud.state().inCar,
   // A press in the car that finds OBS not answering asks tasklist whether it is open at all, so that "OBS is not open"
@@ -695,6 +704,11 @@ function setupStatus() {
   if (profile) {
     try { check = obs.launcher.profileCheck(fs.readFileSync(profile.ini, 'utf8'), folder); } catch (e) { check = null; }
   }
+  // The recordings' size: whether the profile's encoder file has the quality target, for the encoders it means something
+  // to (NVENC, Advanced output); null where it does not, and then nothing is said of size.
+  let encoder = null;
+  try { encoder = obs.launcher.encoderStatus({ appData: app.getPath('appData'), readFile: fs.readFileSync }); } catch (e) { encoder = null; }
+  const qualityTarget = encoder && encoder.applies ? encoder.qualityTarget : null;
   const value = {
     wsState: cfg.state,
     wsEnabled: cfg.state === 'ok' ? cfg.enabled : null,
@@ -706,7 +720,11 @@ function setupStatus() {
     folderSet: check ? check.folder : null,
     folderExists: fs.existsSync(folder),
     obsFound: !!obs.launcher.findObs({ obsPath: loadSettingsSync().obsPath, exists: fs.existsSync }),
-    needed: !(cfg.state === 'ok' && cfg.enabled && check && check.ok),
+    encoder: encoder ? encoder.encoder : null,
+    qualityTarget,
+    capKbps: encoder && encoder.applies ? encoder.capKbps : null,
+    outputSize: encoder && encoder.applies ? encoder.size : null,
+    needed: !(cfg.state === 'ok' && cfg.enabled && check && check.ok && qualityTarget !== false),
   };
   setupLookedAt = { at: now, value };
   return value;
@@ -743,8 +761,9 @@ function tellDeskRecording() {
 }
 
 // Set up OBS: one press does what OBS needs — the WebSocket on and its password read, Hybrid MP4, the 20 s replay
-// buffer and the recording folder in his profile — in the file while OBS is closed, over the WebSocket while it is
-// open. The card says in one sentence what it will change before he presses.
+// buffer and the recording folder in his profile, and the recordings' size (a quality target instead
+// of a fixed bitrate, in the profile's encoder file, which only a run with OBS closed can write) — in the files while
+// OBS is closed, over the WebSocket while it is open. The card says in one sentence what it will change before he presses.
 async function setupObs() {
   const folder = recordingFolder();
   setupLookedAt = { at: 0, value: null };
@@ -752,8 +771,11 @@ async function setupObs() {
   // (a tasklist that cannot say, or OBS open and not answering, leaves them alone: OBS would write them over).
   const result = await obs.launcher.setupObs({
     client: obsClient, exec: execFileAsync, appData: app.getPath('appData'), folder,
-    readFile: fs.readFileSync, writeFile: fs.writeFileSync, rename: fs.renameSync, mkdir: fs.mkdirSync,
+    readFile: fs.readFileSync, writeFile: fs.writeFileSync, rename: fs.renameSync, mkdir: fs.mkdirSync, exists: fs.existsSync,
   });
+  setupLookedAt = { at: 0, value: null };
+  // The encoder file may have been written just now: the recordings measured are those since.
+  recording.refreshRate();
   if (result.ran === 'closed') {
     obsFilePassword = result.password;
     logToFile(`[RacingDesk] Set up OBS (closed): ${[...result.did, ...result.problems].join(' ')} (password: ${result.password ? 'set' : 'none'})`);
