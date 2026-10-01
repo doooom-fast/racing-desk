@@ -152,3 +152,30 @@ test('started again while active, the first is closed with a summary before the 
   expect(all.filter((l) => l._type === 'summary')).toHaveLength(2);
   expect(all[2]).toMatchObject({ _type: 'summary', reason: 'started again', frames: 1 });
 });
+
+test('resumed: a file that has its header is gone on in, with a resumed line and no second header; t goes on from the video\'s start', () => {
+  const { sidecar, writes, lines, tick } = harness();
+  // The first run of the recording: header, a frame, a summary.
+  sidecar.start({ path: 'r.telemetry.jsonl', obsOutputPath: 'r.mp4' });
+  tick(100);
+  sidecar.frame(RACE);
+  sidecar.stop({ reason: 'OBS went away' });
+  const first = lines().length;
+  expect(first).toBe(3);
+  // Racing Desk finds OBS still recording the same file, 20 s in: the video began 20 s ago.
+  tick(5000);
+  sidecar.start({ path: 'r.telemetry.jsonl', startedAt: 1_700_000_000_000, obsOutputPath: 'r.mp4', resume: true });
+  tick(100);
+  sidecar.frame(RACE);
+  sidecar.stop({ reason: 'stopped' });
+  const all = lines();
+  expect(all.filter((l) => l._type === 'header')).toHaveLength(1);
+  const [, , , resumed, frame, summary] = all;
+  expect(resumed).toMatchObject({ _type: 'resumed', schemaVersion: 1 });
+  expect(typeof resumed.resumedAt).toBe('string');
+  expect(resumed.t).toBeCloseTo(5.1, 1);          // seconds into the video when it was found again
+  expect(frame).toMatchObject({ frame: 0 });
+  expect(frame.t).toBeCloseTo(5.2, 1);
+  expect(summary).toMatchObject({ _type: 'summary', frames: 1, reason: 'stopped', resumed: true });
+  expect(writes.every((w) => w.path === 'r.telemetry.jsonl')).toBe(true);
+});

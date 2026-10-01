@@ -26,6 +26,13 @@
   `-1`, `N` as `0`.
 - `closestCar` is no longer written (`DS.ClosestCarDistance` was never sent either). A reader defaults it to 0.
 - A marker `{ type: 'file_changed', path, frame, t }` is added when OBS begins a new file mid-recording (file splitting).
+  The sidecar stays one file, named for the file the recording began with.
+- A recording Racing Desk lost for a while — it was restarted mid-recording, or OBS could not be reached for half a minute
+  and then answered again still recording the same file — goes on in the same sidecar: a `{ "_type": "resumed", "resumedAt",
+  "t" }` line (`t`: seconds into the video when it was found again) in place of a second header, and the frames after it
+  are numbered from 0 again, with `t` still counted from the video's start. Its final summary carries `resumed: true`. A file
+  can therefore hold more than one summary (the one before the gap says why it ended, `OBS went away`): a reader takes the
+  header from the first line and the last summary as the file's.
 
 ## Layout
 
@@ -38,6 +45,8 @@ A `.telemetry.jsonl` file is one JSON value per line:
 ...
 { "_type": "summary", "frames": N, ... }    ← final line on stop()
 ```
+
+(A resumed recording has a `{ "_type": "resumed", ... }` line after a summary, more frames, and a last summary: see above.)
 
 Frame rows are sorted by `t` ascending. The header and summary are filtered out by the consumer's index builder.
 
@@ -123,7 +132,8 @@ Written by `stop()` after flushing the buffer.
 | `markers` | `Marker[]` | Detected events (incidents, position changes, lap completions, pit entry/exit, file changes) |
 | `stoppedAt` | `string` | ISO-8601, when the recording ended (added 2026-09-30) |
 | `obsOutputPath` | `string \| null` | The last file OBS wrote (differs from the header's after a split) |
-| `reason` | `string` | Only when the recording ended for one: `OBS went away`, `Racing Desk quit`, `started again` |
+| `reason` | `string` | Only when the recording ended for one: `OBS went away`, `Racing Desk quit`, `started again`, `OBS said it was not recording` |
+| `resumed` | `boolean` | `true` on the summary of a sidecar that was gone on in (it counts only the frames since the `resumed` line) |
 
 ### Marker shape
 

@@ -39,7 +39,10 @@ function numberOrNull(value) {
 
 /**
  * createSidecar({ write, now })
- *   start({ path, startedAt, producer, obsOutputPath, videoOffsetMs })
+ *   start({ path, startedAt, producer, obsOutputPath, videoOffsetMs, resume })
+ *                               resume: the file has frames already (Racing Desk was restarted mid-recording, or lost
+ *                               OBS for a while): a `resumed` line is written in place of a second header, and the
+ *                               frames after it are numbered from 0 again, with `t` still from the video's start
  *   frame(payload)              one line, from the payload the HUD reads; the header is written with the first
  *   marker({ type, ... })       a marker of the caller's (a file change, a chapter)
  *   stop({ stoppedAt, reason })  flush, the summary line, and done
@@ -52,6 +55,7 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
   let startedAt = 0;
   let header = null;         // the header's fields until it is written
   let headerWritten = false;
+  let resumed = false;
   let frameIndex = 0;
   let buffer = [];
   let markers = [];
@@ -94,14 +98,16 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
     }) + '\n');
   }
 
-  function start({ path: file, startedAt: at = now(), producer = 'obs', obsOutputPath = null, videoOffsetMs = 0 } = {}) {
+  function start({ path: file, startedAt: at = now(), producer = 'obs', obsOutputPath = null, videoOffsetMs = 0, resume = false } = {}) {
     if (active) stop({ reason: 'started again' });
     if (typeof file !== 'string' || !file) throw new Error('a sidecar needs a path');
     active = true;
     path = file;
     startedAt = at;
     header = { producer, obsOutputPath, videoOffsetMs };
-    headerWritten = false;
+    // A file that already has its header is not given a second: the editor reads one header first and a summary last.
+    headerWritten = !!resume;
+    resumed = !!resume;
     frameIndex = 0;
     buffer = [];
     markers = [];
@@ -109,6 +115,9 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
     prevPosition = -1;
     prevLap = -1;
     prevInPit = null;
+    if (resume) {
+      line({ _type: 'resumed', schemaVersion: SCHEMA_VERSION, resumedAt: new Date(now()).toISOString(), t: +((now() - at) / 1000).toFixed(3) });
+    }
   }
 
   function frame(p, { at = now() } = {}) {
@@ -214,6 +223,7 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {})
       obsOutputPath: obsOutputPath || header.obsOutputPath,
     };
     if (reason) summary.reason = reason;
+    if (resumed) summary.resumed = true;
     line(summary);
     flush();
     const result = { path, frames: frameIndex, markers: markers.length };

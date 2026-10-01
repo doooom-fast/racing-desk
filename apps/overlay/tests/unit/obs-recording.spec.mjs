@@ -3,8 +3,8 @@
  * 127.0.0.1: the mirror follows OBS whoever pressed; Record and Stop from the desk, the tray, the Stream Deck and
  * the in-car key; OBS started on a press and never from the car; the ten seconds without STARTED; what is ours and
  * what is OBS's own, kept in the state file and taken over on connect; the floor under the disk; the sidecar beside
- * the file at 30 Hz with the sim's clock in it; and quitting, which stops what we started and nothing else.
- * Every path is in a temp folder; the clock and the disk are fakes.
+ * the file at 30 Hz with the sim's clock in it; a dropped connection, which is not OBS going away; and quitting, which
+ * stops what we started and nothing else. Every path is in a temp folder; the clock and the disk are fakes.
  */
 
 import { test, expect } from '@playwright/test';
@@ -43,28 +43,31 @@ test.afterEach(async () => {
 });
 
 // A keeper over a real client against the fake, with the disk, the clock, the sim and OBS's start as fakes.
-function rig({ connect = true, freeBytes = 400e9, payload = LIVE, inCar = false, settings = {}, startObs, port } = {}) {
+function rig({ connect = true, freeBytes = 400e9, payload = LIVE, inCar = false, settings = {}, startObs, port, obsRunning = false, lostAfterMs, stateFile } = {}) {
   const lines = [];
   const notices = [];
   const changes = [];
   const fake = {
     free: freeBytes, payload, inCar, settings: { obsStartOnRecord: true, ...settings },
-    startObsCalls: 0,
+    startObsCalls: 0, obsRunning, freeAsked: [], freeFor: null, profileFolder: null,
   };
   const client = createObsClient({ port: port || server.port, password: () => PASSWORD, retryMs: 40, authRetryMs: 100, connectTimeoutMs: 500, log: (l) => lines.push(l) });
   const keeper = createRecordingKeeper({
     client,
     settings: () => fake.settings,
     recordFolder: () => dir,
-    stateFile: path.join(dir, 'state', 'recording-state.json'),
-    freeSpace: async () => fake.free,
+    obsFolder: () => fake.profileFolder,
+    stateFile: stateFile || path.join(dir, 'state', 'recording-state.json'),
+    freeSpace: async (folder) => { fake.freeAsked.push(folder); return fake.freeFor ? fake.freeFor(folder) : fake.free; },
     fetchPayload: async () => fake.payload,
     inCar: () => fake.inCar,
+    obsRunning: async () => fake.obsRunning,
     startObs: startObs || (async () => { fake.startObsCalls++; return { ok: true }; }),
     notice: (t) => notices.push(t),
     log: (l) => lines.push(l),
     onChange: (s) => changes.push(s),
     waitStartedMs: 400, waitStoppedMs: 400, waitObsMs: 600, quitWaitMs: 300, statusEveryMs: 60, idleFreeEveryMs: 100000, sidecarHz: 100,
+    ...(lostAfterMs ? { lostAfterMs } : {}),
   });
   keeper.start();
   if (connect) client.start();
@@ -283,7 +286,8 @@ test('OBS beginning a new file (a split) is followed; OBS going away mid-recordi
     const next = `${dir.replace(/\\/g, '/')}/split-2.mp4`;
     server.emit('RecordFileChanged', { newOutputPath: next });
     await until(() => r.keeper.status().outputPath === next);
-    expect(JSON.parse(fs.readFileSync(path.join(dir, 'state', 'recording-state.json'), 'utf8')).owned).toBe(next);
+    // The recording is known by the file STARTED named; the state file also says which file is being written.
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'state', 'recording-state.json'), 'utf8'))).toMatchObject({ owned: started.path, current: next });
     await server.exitStarted();
     await until(() => !r.keeper.status().recording);
     const lines = sidecarOf(started.path.replace(/\//g, path.sep));
@@ -291,7 +295,8 @@ test('OBS beginning a new file (a split) is followed; OBS going away mid-recordi
     expect(summary).toMatchObject({ _type: 'summary', reason: 'OBS went away', obsOutputPath: next });
     expect(summary.markers.some((m) => m.type === 'file_changed' && m.path === next)).toBe(true);
     expect(fs.existsSync(path.join(dir, 'state', 'recording-state.json'))).toBe(false);
-    expect(r.keeper.status()).toMatchObject({ recording: false, owned: false, obs: 'closed' });
+    expect(r.keeper.status()).toMatchObject({ recording: false, owned: false });
+    await until(() => r.client.state().lastClose && r.client.state().lastClose.code === 1001);   // and then the socket closed, as OBS's does on exit
   } finally { r.dispose(); }
 });
 
@@ -322,5 +327,378 @@ test('the status says what the card needs, and every change is announced', async
     expect(r.changes.length).toBeGreaterThan(before);
     expect(r.changes.at(-1).recording).toBe(true);
     await r.keeper.stop();
+  } finally { r.dispose(); }
+});
+
+// ── What the review of stage 1 found ─────────────────────────────────────────────────────────────────────────────
+
+const stateFileOf = () => path.join(dir, 'state', 'recording-state.json');
+const asSlashes = (p) => p.replace(/\\/g, '/');
+
+test('a dropped connection is not OBS going away: the recording stays ours, in the state file, with its sidecar going, and quitting stops it', async () => {
+  const r = rig();
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    const started = await r.keeper.record({ source: 'desk' });
+    expect(started.ok).toBe(true);
+    await until(() => r.keeper.status().sidecar && r.keeper.status().sidecar.frames >= 3);
+    const before = r.keeper.status().sidecar.frames;
+    // Any of: he saves OBS's WebSocket settings (it restarts its server, closing every session with 1001), a session is
+    // kicked, a socket is cut. OBS goes on recording.
+    for (const s of server.clients()) s.conn.destroy();
+    await until(() => r.client.state().lastClose);
+    expect(r.keeper.status()).toMatchObject({ recording: true, owned: true });
+    expect(fs.existsSync(stateFileOf())).toBe(true);
+    expect(r.lines.some((l) => /went away/.test(l))).toBe(false);
+    // Back: still ours, and not taken over as "OBS's".
+    await until(() => r.keeper.status().obs === 'open');
+    await settle(150);
+    expect(r.keeper.status()).toMatchObject({ recording: true, owned: true, outputPath: started.path });
+    expect(r.lines.some((l) => /already running \(OBS's\)/.test(l))).toBe(false);
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8')).owned).toBe(started.path);
+    // The sidecar went on through the gap, in the one file: one header, frames, and no summary yet.
+    await until(() => r.keeper.status().sidecar.frames > before);
+    // Quitting stops it — which it would not, had the drop disowned it.
+    expect(r.keeper.needsStopForQuit()).toBe(true);
+    const stops = server.requests.filter((q) => q.type === 'StopRecord').length;
+    await r.keeper.stopOwnedForQuit();
+    expect(server.requests.filter((q) => q.type === 'StopRecord')).toHaveLength(stops + 1);
+    expect(server.state.recording).toBe(false);
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+    const lines = sidecarOf(started.path.replace(/\//g, path.sep));
+    expect(lines.filter((l) => l._type === 'header')).toHaveLength(1);
+    expect(lines.filter((l) => l._type === 'summary')).toHaveLength(1);
+    expect(lines.at(-1)).toMatchObject({ _type: 'summary', reason: 'stopped' });
+  } finally { r.dispose(); }
+});
+
+test('the floor stops a recording of ours that came back after a drop, as it would have before it', async () => {
+  const r = rig();
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await r.keeper.record({ source: 'desk' });
+    for (const s of server.clients()) s.conn.destroy();
+    await until(() => r.client.state().lastClose);
+    await until(() => r.keeper.status().obs === 'open' && server.identified() === 1);
+    r.fake.free = 4e9;
+    await until(() => !r.keeper.status().recording, 3000);
+    expect(r.keeper.status().lowDisk).toMatch(/^Recording stopped: only 4\.0 GB left/);
+    expect(server.state.recording).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('OBS out of reach for good: after a while the card stops saying it records, the state file is kept, and the next connection takes the recording over as Racing Desk\'s, its sidecar gone on in, not given a second header', async () => {
+  let aim = server.port;
+  const lines = [];
+  const client = createObsClient({ port: () => aim, password: () => PASSWORD, retryMs: 40, authRetryMs: 100, connectTimeoutMs: 300, log: (l) => lines.push(l) });
+  const keeper = createRecordingKeeper({
+    client, settings: () => ({ obsStartOnRecord: true }), recordFolder: () => dir, stateFile: stateFileOf(),
+    freeSpace: async () => 400e9, fetchPayload: async () => LIVE, log: (l) => lines.push(l),
+    waitStartedMs: 400, waitStoppedMs: 400, quitWaitMs: 300, statusEveryMs: 60, idleFreeEveryMs: 100000, sidecarHz: 100, lostAfterMs: 200,
+  });
+  keeper.start();
+  client.start();
+  try {
+    await until(() => keeper.status().obs === 'open');
+    const started = await keeper.record({ source: 'desk' });
+    await until(() => keeper.status().sidecar && keeper.status().sidecar.frames >= 2);
+    const probe = await startFakeObs({ password: PASSWORD });
+    aim = probe.port;
+    const deadPort = probe.port;
+    await probe.close();                              // nothing listens there
+    for (const s of server.clients()) s.conn.destroy();
+    await until(() => !keeper.status().recording, 3000);
+    expect(keeper.status()).toMatchObject({ recording: false, owned: false, sidecar: null });
+    expect(fs.existsSync(stateFileOf())).toBe(true);   // kept: OBS may well be recording still
+    expect(sidecarOf(started.path.replace(/\//g, path.sep)).at(-1)).toMatchObject({ _type: 'summary', reason: 'OBS went away' });
+    expect(aim).toBe(deadPort);
+    // OBS answers again, still recording that file.
+    aim = server.port;
+    await until(() => keeper.status().recording, 3000);
+    expect(keeper.status()).toMatchObject({ recording: true, owned: true, outputPath: started.path });
+    await until(() => keeper.status().sidecar && keeper.status().sidecar.frames >= 2);
+    await keeper.stopOwnedForQuit();
+    const lines2 = sidecarOf(started.path.replace(/\//g, path.sep));
+    expect(lines2.filter((l) => l._type === 'header')).toHaveLength(1);
+    expect(lines2.filter((l) => l._type === 'resumed')).toHaveLength(1);
+    expect(lines2.filter((l) => l._type === 'summary')).toHaveLength(2);
+    expect(lines2.at(-1)).toMatchObject({ _type: 'summary', resumed: true });
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+  } finally { keeper.dispose(); client.stop(); }
+});
+
+test('quitting with OBS out of reach keeps the state file: the next start finds the recording and takes it over as Racing Desk\'s', async () => {
+  const r = rig();
+  let second = null;
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    const started = await r.keeper.record({ source: 'desk' });
+    r.client.stop();                                   // the quit finds OBS out of reach
+    await until(() => !r.client.identified());
+    const asked = server.requests.length;
+    await r.keeper.stopOwnedForQuit();
+    expect(server.requests.length).toBe(asked);        // nothing could be asked of OBS
+    expect(server.state.recording).toBe(true);
+    expect(fs.existsSync(stateFileOf())).toBe(true);
+    r.dispose();
+    // Racing Desk starts again, and OBS answers.
+    second = rig();
+    await until(() => second.keeper.status().recording);
+    expect(second.keeper.status()).toMatchObject({ owned: true, outputPath: started.path });
+    expect(second.lines.some((l) => /already running, ours/.test(l))).toBe(true);
+  } finally { r.dispose(); if (second) second.dispose(); }
+});
+
+test('a state file from a recording that is not running any more is cleared when OBS answers', async () => {
+  fs.mkdirSync(path.join(dir, 'state'), { recursive: true });
+  fs.writeFileSync(stateFileOf(), JSON.stringify({ owned: `${asSlashes(dir)}/gone.mp4`, startedAt: 1 }));
+  const r = rig();
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await until(() => !fs.existsSync(stateFileOf()));
+    expect(r.keeper.status().recording).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('StartRecord sent: a STARTED that comes late is still ours, and a quit before it waits for it and stops what it started', async () => {
+  const r = rig();
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    // Late: OBS is slower than the keeper's wait.
+    server.mode.delayMs = 700;
+    const late = await r.keeper.record({ source: 'desk' });
+    expect(late).toMatchObject({ ok: false, reason: "OBS didn't start recording. It may be showing a message." });
+    await until(() => r.keeper.status().recording, 3000);
+    expect(r.keeper.status().owned).toBe(true);
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8')).owned).toBe(r.keeper.status().outputPath);
+    server.mode.delayMs = 0;
+    await r.keeper.stop();
+    expect(r.keeper.status().recording).toBe(false);
+
+    // Quit between StartRecord and STARTED.
+    server.mode.delayMs = 120;
+    const pressed = r.keeper.record({ source: 'desk' });
+    await until(() => server.requests.some((q) => q.type === 'StartRecord') && r.keeper.status().busy === 'starting');
+    expect(r.keeper.status().recording).toBe(false);
+    expect(r.keeper.needsStopForQuit()).toBe(true);
+    await r.keeper.stopOwnedForQuit();
+    expect(server.state.recording).toBe(false);        // STARTED was waited for, and what it started was stopped
+    expect(server.requests.filter((q) => q.type === 'StopRecord').length).toBeGreaterThanOrEqual(2);
+    await pressed;
+  } finally { r.dispose(); }
+});
+
+test('a connection cut between StartRecord and STARTED is not "OBS didn\'t start recording": no wait for STARTED, nothing on the HUD, and the recording that follows is ours', async () => {
+  const r = rig();
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    server.mode.delayMs = 300;
+    const began = Date.now();
+    const pressed = r.keeper.record({ source: 'desk' });
+    await until(() => server.requests.some((q) => q.type === 'StartRecord'));
+    for (const s of server.clients()) s.conn.destroy();
+    const answered = await pressed;
+    expect(answered).toMatchObject({ ok: false, reason: 'OBS stopped answering before it said the recording had started.' });
+    expect(Date.now() - began).toBeLessThan(380);       // not the whole wait for STARTED (400 ms here)
+    expect(r.notices).toEqual([]);
+    expect(r.keeper.status()).toMatchObject({ starting: false, busy: null });
+    // OBS does start it, and the client is back by then: it is ours.
+    await until(() => r.keeper.status().recording, 3000);
+    expect(r.keeper.status().owned).toBe(true);
+  } finally { r.dispose(); }
+});
+
+test('the claim a StartRecord makes on the STARTED that follows lasts a minute, not for ever: a STARTED long after is OBS\'s own', async () => {
+  expect(keeperModule.CLAIM_MS).toBe(60000);
+  let clock = 1_000_000;
+  const client = createObsClient({ port: server.port, password: () => PASSWORD, retryMs: 40, connectTimeoutMs: 500 });
+  const keeper = createRecordingKeeper({
+    client, recordFolder: () => dir, stateFile: stateFileOf(), freeSpace: async () => 400e9, fetchPayload: async () => ({ 'DataCorePlugin.GameRunning': 0 }),
+    now: () => clock, waitStartedMs: 150, idleFreeEveryMs: 100000, statusEveryMs: 100000,
+  });
+  keeper.start();
+  client.start();
+  try {
+    await until(() => keeper.status().obs === 'open');
+    server.mode.neverStarts = true;
+    await keeper.record({ source: 'desk' });
+    clock += 61_000;
+    server.startRecording();
+    await until(() => keeper.status().recording);
+    expect(keeper.status().owned).toBe(false);
+  } finally { keeper.dispose(); client.stop(); }
+});
+
+test('a take-over that a STOPPED overtakes does not bring the recording back, and starts no sidecar', async () => {
+  const mp4 = `${asSlashes(dir)}/racing.mp4`;
+  server.startRecording(mp4);
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  const original = server.handlers.GetOutputSettings;
+  server.handlers.GetOutputSettings = async (d) => { await held; return original(d); };
+  const r = rig();
+  try {
+    await until(() => server.requests.some((q) => q.type === 'GetOutputSettings'));
+    server.stopRecording();                            // STOPPED arrives while the take-over waits for the path
+    release();
+    await settle(250);
+    expect(r.keeper.status()).toMatchObject({ recording: false, sidecar: null });
+    expect(r.lines.some((l) => /already running/.test(l))).toBe(false);
+    expect(fs.existsSync(mp4.replace(/\.mp4$/, '.telemetry.jsonl'))).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('OBS saying nothing is recording, with no STOPPED to say so, ends the recording at the next look', async () => {
+  const r = rig();
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    const started = await r.keeper.record({ source: 'desk' });
+    server.state.recording = false;                    // as if the event was missed
+    await until(() => !r.keeper.status().recording, 3000);
+    expect(r.keeper.status()).toMatchObject({ owned: false, sidecar: null });
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+    expect(sidecarOf(started.path.replace(/\//g, path.sep)).at(-1)).toMatchObject({ _type: 'summary', reason: 'OBS said it was not recording' });
+  } finally { r.dispose(); }
+});
+
+test('a split recording stays ours: the file STARTED named is its key, a restart takes it over by that, and STOPPED does not point back at the first file', async () => {
+  const first = `${asSlashes(dir)}/split-1.mp4`;
+  const second = `${asSlashes(dir)}/split-2.mp4`;
+  server.startRecording(first);
+  fs.mkdirSync(path.join(dir, 'state'), { recursive: true });
+  // What a keeper that started it and saw the split wrote. OBS's settings still name the first file (mp4_output does not
+  // update its "path" when it splits), so that is what GetOutputSettings answers.
+  fs.writeFileSync(stateFileOf(), JSON.stringify({ owned: first.replace(/\//g, '\\'), current: second, startedAt: Date.now() }));
+  const r = rig();
+  try {
+    await until(() => r.keeper.status().recording);
+    expect(r.keeper.status()).toMatchObject({ owned: true, outputPath: second });
+    server.emit('RecordFileChanged', { newOutputPath: `${asSlashes(dir)}/split-3.mp4` });
+    await until(() => r.keeper.status().outputPath.endsWith('split-3.mp4'));
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).toMatchObject({ current: `${asSlashes(dir)}/split-3.mp4` });
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8')).owned.replace(/\\/g, '/')).toBe(first);   // the key is still the first file
+    server.stopRecording();                         // STOPPED carries OBS's last file name: the first one
+    await until(() => !r.keeper.status().recording);
+    expect(r.keeper.status().outputPath).toBe(`${asSlashes(dir)}/split-3.mp4`);
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('the 20 GB floor is measured where OBS records, asked of OBS, and not on Racing Desk\'s own folder', async () => {
+  server.state.recordDirectory = 'X:/OBS Videos';
+  const r = rig();
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    r.fake.freeFor = (folder) => (/OBS Videos/.test(folder) ? 15e9 : 400e9);   // OBS's drive is nearly full; Racing Desk's folder is not
+    const refused = await r.keeper.record({ source: 'desk' });
+    expect(refused).toMatchObject({ ok: false });
+    expect(refused.reason).toBe('Only 15 GB free on X:. Recording needs about 20 GB.');
+    expect(server.requests.map((q) => q.type)).toContain('GetRecordDirectory');
+    expect(server.requests.filter((q) => q.type === 'StartRecord')).toHaveLength(0);
+    expect(r.keeper.status().free).toMatchObject({ bytes: 15e9, drive: 'X:' });
+    expect(r.fake.freeAsked.at(-1)).toBe('X:/OBS Videos');
+  } finally { r.dispose(); }
+});
+
+test('with OBS not there to be asked the floor goes by the folder its profile says, then Racing Desk\'s', async () => {
+  const closed = await startFakeObs({ password: PASSWORD });
+  const port = closed.port;
+  await closed.close();
+  const r = rig({ port });
+  try {
+    r.fake.profileFolder = 'C:/Users/Driver/Videos/NVIDIA';
+    await r.keeper.refreshFree();
+    expect(r.fake.freeAsked.at(-1)).toBe('C:/Users/Driver/Videos/NVIDIA');
+    r.fake.profileFolder = null;
+    await r.keeper.refreshFree();
+    expect(r.fake.freeAsked.at(-1)).toBe(dir);
+  } finally { r.dispose(); }
+});
+
+test('a folder that is not made yet is measured on the one above it, and a drive that cannot be measured at all is a recording that does not start', async () => {
+  // freeSpaceOf: the folder is missing (OBS makes it when it starts; Set up OBS may not have run), so the nearest
+  // folder above it is asked. It used to answer null here, which switched the floor off without a word.
+  const missing = path.join(dir, 'not', 'made', 'yet');
+  const bytes = await keeperModule.freeSpaceOf(missing);
+  expect(typeof bytes).toBe('number');
+  expect(bytes).toBeGreaterThan(0);
+  // Only statfs that fails everywhere gives null.
+  expect(await keeperModule.freeSpaceOf(missing, { statfs: (p, cb) => cb(new Error('ENOENT')) })).toBeNull();
+  expect(await keeperModule.freeSpaceOf('')).toBeNull();
+
+  const r = rig({ freeBytes: null });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    const answer = await r.keeper.record({ source: 'desk' });
+    expect(answer.ok).toBe(false);
+    expect(answer.reason).toMatch(/^Racing Desk could not tell how much room is left on .*, so it did not start recording\.$/);
+    expect(server.requests.filter((q) => q.type === 'StartRecord')).toHaveLength(0);
+  } finally { r.dispose(); }
+});
+
+test('"OBS is not open" goes on the HUD only when tasklist says OBS is not running; open and not reached, or refusing the password, it is said in words', async () => {
+  const closed = await startFakeObs({ password: PASSWORD });
+  const port = closed.port;
+  await closed.close();
+  const r = rig({ port, obsRunning: true });
+  try {
+    await until(() => r.keeper.status().obs === 'closed');
+    // OBS is open (recording by Ctrl+Space, say) with its WebSocket off: the sentence would be false, and filmed.
+    expect(await r.keeper.record({ source: 'key' })).toMatchObject({ ok: false, reason: 'OBS is open but Racing Desk cannot reach it.' });
+    expect(r.notices).toEqual([]);
+    // tasklist cannot say: nothing is put on the HUD either.
+    r.fake.obsRunning = null;
+    expect(await r.keeper.record({ source: 'key' })).toMatchObject({ ok: false, reason: "OBS isn't open" });
+    expect(r.notices).toEqual([]);
+    // It says OBS is not running: now the HUD is told.
+    r.fake.obsRunning = false;
+    expect(await r.keeper.record({ source: 'key' })).toMatchObject({ ok: false, reason: "OBS isn't open" });
+    expect(r.notices).toEqual(['OBS is not open']);
+  } finally { r.dispose(); }
+
+  // Open, refusing the password: the sentence is about the password.
+  const other = await startFakeObs({ password: 'another-password' });
+  const w = rig({ port: other.port, obsRunning: true });
+  try {
+    await until(() => w.keeper.status().obs === 'authFailed');
+    expect(await w.keeper.record({ source: 'key' })).toMatchObject({ ok: false, reason: 'OBS refused the password. Type the one from OBS on the Recording card.' });
+    expect(w.notices).toEqual([]);
+  } finally { w.dispose(); await other.close(); }
+});
+
+test('Record with OBS open and refusing the password says so at once, not after half a minute and a sentence about a crash', async () => {
+  const other = await startFakeObs({ password: 'another-password' });
+  const w = rig({ port: other.port, startObs: async () => ({ ok: true, running: true }) });
+  try {
+    await until(() => w.keeper.status().obs === 'authFailed');
+    const began = Date.now();
+    const answer = await w.keeper.record({ source: 'desk' });
+    expect(answer).toMatchObject({ ok: false, reason: 'OBS refused the password. Type the one from OBS on the Recording card.' });
+    expect(Date.now() - began).toBeLessThan(300);      // the keeper's wait for OBS is 600 ms here
+    expect(w.notices).toEqual([]);
+  } finally { w.dispose(); await other.close(); }
+
+  // And with no password to give at all.
+  const none = await startFakeObs({ password: PASSWORD });
+  const client = createObsClient({ port: none.port, password: () => null, retryMs: 40, authRetryMs: 100, connectTimeoutMs: 500 });
+  const keeper = createRecordingKeeper({ client, recordFolder: () => dir, freeSpace: async () => 400e9, startObs: async () => ({ ok: true, running: true }), waitObsMs: 600, idleFreeEveryMs: 100000 });
+  keeper.start();
+  client.start();
+  try {
+    await until(() => keeper.status().obs === 'passwordMissing');
+    expect(await keeper.record({ source: 'desk' })).toMatchObject({ ok: false, reason: 'OBS wants a password and Racing Desk has none. Type the one from OBS on the Recording card.' });
+  } finally { keeper.dispose(); client.stop(); await none.close(); }
+});
+
+test('OBS being looked for every few seconds is not announced every time: the desk and the tray are told of changes, not of tries', async () => {
+  const closed = await startFakeObs({ password: PASSWORD });
+  const port = closed.port;
+  await closed.close();
+  const r = rig({ port });
+  try {
+    await until(() => r.client.state().attempts >= 8, 3000);   // eight tries at 40 ms
+    // Looking for OBS and not finding it, again and again, is one thing to say, not sixteen.
+    expect(r.changes.length).toBeLessThanOrEqual(3);
+    expect(r.changes.every((s) => s.obs === 'connecting' || s.obs === 'closed')).toBe(true);
   } finally { r.dispose(); }
 });

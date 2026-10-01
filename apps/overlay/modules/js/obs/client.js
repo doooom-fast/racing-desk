@@ -204,17 +204,23 @@ function createObsClient({
     if (!running || ws) return;
     attempts++;
     setPhase('connecting');
+    let mine;
     try {
-      ws = connect({ host, port: portNow(), path: '/', protocols: [PROTOCOL], timeoutMs: connectTimeoutMs });
+      mine = connect({ host, port: portNow(), path: '/', protocols: [PROTOCOL], timeoutMs: connectTimeoutMs });
     } catch (err) {
       ws = null;
       onClose({ code: 1006, reason: err.message });
       return;
     }
-    ws.on('open', () => setPhase('hello'));
-    ws.on('message', onMessage);
-    ws.on('error', () => {});
-    ws.on('close', onClose);
+    ws = mine;
+    // Each socket's events count only while it is the current one. A socket let go of (passwordChanged, stop) says
+    // 'close' a moment later, when its server's answer comes, and by then `ws` may be a new connection that this
+    // must not null, nor mark closed, nor book a retry for.
+    const current = (fn) => (...args) => { if (ws === mine) fn(...args); };
+    mine.on('open', current(() => setPhase('hello')));
+    mine.on('message', current(onMessage));
+    mine.on('error', () => {});
+    mine.on('close', current(onClose));
   }
 
   function start() {

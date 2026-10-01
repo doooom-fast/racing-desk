@@ -237,6 +237,38 @@ test.describe('the password', () => {
   });
 });
 
+test('a password changed while connected: the socket let go of says close late, and that does not touch the new connection', async () => {
+  // passwordChanged lets go of the open socket and connects again at once. The old socket's own 'close' comes only
+  // when OBS answers the close frame, by which time `ws` is the new connection: it was nulled, marked closed and
+  // left unidentified, an orphan beside a second connection.
+  const server = await startFakeObs({ password: PASSWORD });
+  let pw = PASSWORD;
+  const { client } = makeClient(server, { password: () => pw, retryMs: 40 });
+  try {
+    client.start();
+    await until(() => client.identified());
+    const phases = [];
+    client.onChange((s) => phases.push(s.phase));
+    client.passwordChanged();
+    await until(() => client.identified());
+    const settled = phases.length;
+    await new Promise((r) => setTimeout(r, 400));   // long enough for the old socket's close and for a retry to have happened
+    expect(client.identified()).toBe(true);
+    expect(phases.slice(settled)).toEqual([]);      // no flip to closed once the new connection was identified
+    expect(server.clients()).toHaveLength(1);        // the old one is gone; no orphan was left beside the new one
+    expect((await client.request('GetVersion')).obsVersion).toBe('32.1.2');
+    // And one more change of the password, to be sure it is not luck.
+    client.passwordChanged();
+    await until(() => client.identified());
+    await new Promise((r) => setTimeout(r, 300));
+    expect(client.identified()).toBe(true);
+    expect(server.clients()).toHaveLength(1);
+  } finally {
+    client.stop();
+    await server.close();
+  }
+});
+
 test('with nothing listening it keeps trying every retryMs and connects once something does', async () => {
   const probe = await startFakeObs({ password: PASSWORD });
   const port = probe.port;
