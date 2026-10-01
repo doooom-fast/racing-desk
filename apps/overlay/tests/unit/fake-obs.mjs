@@ -10,7 +10,7 @@ import { startWsServer } from './ws-fake-server.mjs';
 
 const OP = { HELLO: 0, IDENTIFY: 1, IDENTIFIED: 2, REIDENTIFY: 3, EVENT: 5, REQUEST: 6, RESPONSE: 7 };
 export const CLOSE = { NOT_IDENTIFIED: 4008, AUTH_FAILED: 4009, UNSUPPORTED_RPC: 4010 };
-export const STATUS = { SUCCESS: 100, UNKNOWN_REQUEST: 204, NOT_READY: 207, OUTPUT_RUNNING: 500, OUTPUT_NOT_RUNNING: 501, OUTPUT_PAUSED: 502, OUTPUT_NOT_PAUSED: 503, RESOURCE_NOT_FOUND: 600, INVALID_RESOURCE_STATE: 604 };
+export const STATUS = { SUCCESS: 100, UNKNOWN_REQUEST: 204, NOT_READY: 207, OUTPUT_RUNNING: 500, OUTPUT_NOT_RUNNING: 501, OUTPUT_PAUSED: 502, OUTPUT_NOT_PAUSED: 503, RESOURCE_NOT_FOUND: 600, INVALID_RESOURCE_STATE: 604, REQUEST_PROCESSING_FAILED: 702 };
 export const INTENT = { GENERAL: 1, CONFIG: 2, OUTPUTS: 64 };
 
 export function authString(password, salt, challenge) {
@@ -36,18 +36,20 @@ export async function startFakeObs({
   const salt = crypto.randomBytes(32).toString('base64');
   const state = {
     recording: false, paused: false, path: null, startedAt: 0, bytes: 0,
-    replayBuffer: false,
+    replayBuffer: false, lastReplay: null,
+    chapters: [],      // { name, ms } since the recording began, as CreateRecordChapter asked
     recordDirectory,
     profile: { AdvOut: { RecFormat2: 'mp4', RecRB: 'false', RecRBTime: '20', RecFilePath: 'C:/Users/Driver/Videos/NVIDIA' }, SimpleOutput: { FilePath: 'C:/Users/Driver/Videos' } },
     outputs: [{ outputName: 'adv_file_output', outputKind: 'ffmpeg_muxer', outputActive: false }],
     clock: 0,
   };
-  const mode = { neverStarts: false, notReadyOnce: false, delayMs: 0, clock: () => Date.now() };
+  const mode = { neverStarts: false, notReadyOnce: false, delayMs: 0, clock: () => Date.now(), writeClip: null };
   const requests = [];
   const events = [];
   const failures = new Map();
   const sessions = new Set();
   let fileNo = 0;
+  let clipNo = 0;
 
   const handlers = {
     GetVersion: () => ({ obsVersion, obsWebSocketVersion: wsVersion, rpcVersion, availableRequests: Object.keys(handlers), supportedImageFormats: [], platform: 'windows', platformDescription: 'Windows 11' }),
@@ -98,8 +100,40 @@ export async function startFakeObs({
     },
     GetProfileList: () => ({ currentProfileName: 'Untitled', profiles: ['Untitled', 'yersy'] }),
     GetReplayBufferStatus: () => { if (state.profile.AdvOut.RecRB !== 'true') throw { code: STATUS.INVALID_RESOURCE_STATE, comment: 'There is no replay buffer' }; return { outputActive: state.replayBuffer }; },
-    StartReplayBuffer: () => { if (state.replayBuffer) throw { code: STATUS.OUTPUT_RUNNING }; state.replayBuffer = true; return {}; },
-    StopReplayBuffer: () => { if (!state.replayBuffer) throw { code: STATUS.OUTPUT_NOT_RUNNING }; state.replayBuffer = false; return {}; },
+    StartReplayBuffer: () => {
+      if (state.profile.AdvOut.RecRB !== 'true') throw { code: STATUS.INVALID_RESOURCE_STATE, comment: 'There is no replay buffer' };
+      if (state.replayBuffer) throw { code: STATUS.OUTPUT_RUNNING };
+      state.replayBuffer = true;
+      emit('ReplayBufferStateChanged', { outputActive: true, outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED' });
+      return {};
+    },
+    StopReplayBuffer: () => {
+      if (!state.replayBuffer) throw { code: STATUS.OUTPUT_NOT_RUNNING };
+      state.replayBuffer = false;
+      emit('ReplayBufferStateChanged', { outputActive: false, outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPED' });
+      return {};
+    },
+    // The clip is "written" by the test's mode.writeClip(path) before the saved event, as OBS's mux thread does.
+    SaveReplayBuffer: () => {
+      if (!state.replayBuffer) throw { code: STATUS.OUTPUT_NOT_RUNNING };
+      const clip = `${state.recordDirectory.replace(/[\\/]+$/, '')}/Replay 2026-09-30 21-20-${String(clipNo++).padStart(2, '0')}.mp4`;
+      setTimeout(() => {
+        if (mode.writeClip) mode.writeClip(clip);
+        state.lastReplay = clip;
+        emit('ReplayBufferSaved', { savedReplayPath: clip });
+      }, mode.delayMs);
+      return {};
+    },
+    GetLastReplayBufferReplay: () => ({ savedReplayPath: state.lastReplay || '' }),
+    // Chapters: Hybrid MP4 alone takes them (RequestProcessingFailed otherwise), not while paused, not while not recording.
+    CreateRecordChapter: (d) => {
+      if (!state.recording) throw { code: STATUS.OUTPUT_NOT_RUNNING };
+      if (state.paused) throw { code: STATUS.OUTPUT_PAUSED };
+      if (state.profile.AdvOut.RecFormat2 !== 'hybrid_mp4') throw { code: STATUS.REQUEST_PROCESSING_FAILED, comment: 'Verify that the output being used supports chapter markers.' };
+      const name = typeof d.chapterName === 'string' && d.chapterName ? d.chapterName : `Unnamed ${state.chapters.length + 1}`;
+      state.chapters.push({ name, ms: Math.max(0, mode.clock() - state.startedAt) });
+      return {};
+    },
   };
 
   function emit(eventType, eventData, eventIntent = INTENT.OUTPUTS) {
@@ -118,6 +152,7 @@ export async function startFakeObs({
     state.paused = false;
     state.startedAt = mode.clock();
     state.bytes = 0;
+    state.chapters = [];
     state.path = filePath || `${state.recordDirectory.replace(/[\\/]+$/, '')}/2026-09-30 21-00-${String(fileNo++).padStart(2, '0')}.mp4`;
     emit('RecordStateChanged', { outputActive: true, outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED', outputPath: state.path });
   }
