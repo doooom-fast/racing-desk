@@ -559,11 +559,9 @@
 
 
   function formatName(fullName) {
-    // Format: "F. LastName" where F is first initial
-    const parts = fullName.trim().split(/\s+/);
-    if (parts.length === 0) return fullName;
-    if (parts.length === 1) return fullName;
-    const firstName = parts[0];
-    const lastName = parts[parts.length - 1];
-    return firstName.charAt(0).toUpperCase() + '. ' + lastName;
+    // The name is shown as the source sends it. Every other driver's is a character's from packages/pseudonyms, already in
+    // this board's style (the initial, a dot, the surname: "H. Incandenza"), and a character known by a nickname alone
+    // ("Sick Boy") is sent whole and must stay whole — the shortening this did to real names would have cut it in two. The
+    // incident coach matches its threats to these rows by this text, so the text is the one the source chose.
+    return typeof fullName === 'string' ? fullName.trim() : '';
   }
