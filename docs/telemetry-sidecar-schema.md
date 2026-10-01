@@ -135,7 +135,7 @@ Field names are intentionally short to keep file size down — at 30fps this acc
 | `remLaps` | `number` | `DataCorePlugin.GameData.RemainingLaps` | (added 2026-04-26) |
 | **Tires** (added 2026-04-26) | | | |
 | `tFL`, `tFR`, `tRL`, `tRR` | `number` | `DataCorePlugin.GameData.TyreTemp{FL,FR,RL,RR}` | °C |
-| `wFL`, `wFR`, `wRL`, `wRR` | `number` | `DataCorePlugin.GameData.TyreWear{FL,FR,RL,RR}` | 0..1 |
+| `wFL`, `wFR`, `wRL`, `wRR` | `number \| null` | `DataCorePlugin.GameData.TyreWear{FrontLeft,FrontRight,RearLeft,RearRight}` | Tread remaining, 0..100 %, 100 = new, as the sim last measured it (iRacing measures in the pits only); `null` where not measured (0 on the wire is not a measurement). Root CLAUDE.md, Tyre wear. Was recorded as 0..1 before 2026-10-01 |
 | **In-car adjustments** (added 2026-04-26) | | | |
 | `bb` | `number` | `dcBrakeBias` | Raw plugin value (~30..70 percent) |
 | `tc` | `number` | `dcTractionControl` | 0..12 typical |

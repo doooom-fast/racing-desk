@@ -534,6 +534,66 @@ furled, disqualified or the start lights. So the host also sends the field itsel
   carries it (`apps/plugin/scripts/windows/install.bat`; ask before running it), and the app has to be built again
   (`npm run build`) for its own host and for the HUD.
 
+## Tyre wear
+
+**One meaning, everywhere: tread remaining, per corner, 0..100 %, 100 = new; `null` where the sim has not measured it.**
+That is what `DataCorePlugin.GameData.TyreWear{FrontLeft,FrontRight,RearLeft,RearRight}` carry on `:8889` and the
+`:8890` feed, what `RacingDesk.Plugin.Demo.TyreWear{FL,FR,RL,RR}` carry, what `TelemetrySnapshot.TyreWear*` hold
+(`double?`), and what every reader — the pit box's rings, the commentary's quad, the trigger, the strategist, the
+recording's sidecar — takes as it is. Nothing converts it but two functions in `apps/core/RacingDesk.Core/Engine/TyreWear.cs`,
+called once at each source and nowhere else (he asked on 2026-10-01: "100% tires are reading as totally worn … we've tried
+to fix that a number of times so it seems to getting flipped back and forth in multiple places" — it had four meanings,
+0..1 remaining, 0..1 worn, 0..100 remaining and "0 is no data", and each fix flipped one reader to match whatever it saw):
+
+- **The host** (`IRacingTelemetrySource.TreadRemaining`): iRacing's own variables, `LFwearL/M/R` and the other corners, are a
+  fraction remaining per tread band, 1.0 = new (the header says "percent"; the value is a fraction — his recordings start at
+  0.9998). One corner is **the mean of its three bands, times a hundred** (`TyreWear.FromBands`), which is the number SimHub
+  publishes for the same tyre, so the host and the plugin agree. All three bands at 0, or absent, is not a bald tyre: it is
+  not measured, `null`.
+- **The SimHub plugin** (`TelemetryCapture`): SimHub's own `GameData.TyreWear*` is that percent already for iRacing — read
+  live beside SimHub 9.12 (the parity run of 2026-09-17; both servers sent 100 for a fresh set in the pit lane on
+  2026-10-01), and SimHub's bundled dashes compute wear as `100 - [TyreWearFrontLeft]` — and reads **0 while SimHub has
+  nothing**, which its own dashes treat as unknown. So 0 is `null` (`TyreWear.FromSimHub`), and the sim's bands are then
+  asked, through the same `FromBands`. **0 is never a measurement**, on the wire or on the page.
+- **The demo** (`DemoTelemetryProvider`, `DemoSequence`): the same percent. The provider's set starts at 82/79/86/85 and
+  loses two or three points a lap to a floor of 10; the sequence's base set is 62/59/66/65 and its `tyre_wear_high` step
+  has the fronts at 29 and 32.
+
+**iRacing measures tread in the pits and nowhere else.** In his `.ibt` files the bands sat at one value for thirty-one laps
+and moved on the first frame on pit road, before the stall; two fourteen-lap races never moved at all. So the number is
+**the last measurement, never live wear**, and the code says so rather than pretend: the pit box writes "Tread as measured
+in the pits" under the rings on the rig and " · as measured in the pits" into the tyres' heading in the glance layout (for
+iRacing, out of the demo); the strategist (`Engine/Strategy/TireTracker.cs`) rates the health **when a measurement comes
+in** (a value changed, or was first said), the coordinator makes the tyre call on that frame — on pit road, where it can be
+acted on — and a value that has not changed is not news at a lap crossing. After a stop where a tyre was asked for
+(`PitSvFlags` while in the stall) the health is cleared until the sim measures again, because iRacing then shows the
+readings of the set that came off (reported by others; none of his own sessions has changed tyres, so this is the one
+part not seen on his data); after a stop without one the measurement and its verdict stand. There is no spike filter: the
+step at pit entry is the one true reading. The laps-left estimate is 99 (nothing to say) between iRacing's stops and 0 for
+a tyre measured critical, and the pit box shows laps only in between.
+
+**Every warning fires at the worn end, at two numbers** (`TyreWear.WarnBelowPercent` 35, `CriticalBelowPercent` 20):
+the rings are amber under 35 and red under 20 (`pitbox.js`), as is the commentary's quad (`commentary-viz.js`); the
+`tyre_wear_high` topic has one trigger, `TyreWearWorst < 35` — the worst corner of the four, so none is left out (the rear
+right had no trigger before) — and prints the percent whole ("worst tyre measured at 30% tread"); the strategist's
+`TireHealthState` is 1 under 35 and 2 under 20 (the pit box's "Accept tire change"), with a severity-2 call at 1 and a
+severity-4 call at 2 ("Front-left measured at 15% tread. Take tyres at this stop." on pit road, "Pit for tyres at the first
+chance." elsewhere). A tyre not measured (`null`, NaN to the trigger) satisfies nothing. **Fresh tyres never warn.**
+
+**Tests, which fail on any single flip** (a fraction, a worn-fraction, an inversion, a 0 for new):
+`tests/…/IRacing/TyreWearTests.cs` — the conversion; raw SDK bands of new and of worn tyres through the host's source and
+capture to the WebSocket frame and, over a runtime on 127.0.0.1, to the HTTP wire (100, 15, `null`); SimHub's property
+and its bands through the capture; the host and the plugin agreeing to a number; the real topics file against new, worn,
+each corner, unmeasured and 0..1 snapshots; the exposition's formatting; the strategist's measurement rule, stop-with-tyres
+rule, reset and the coordinator's call on pit road; the demo's values and the sequence's step. `apps/overlay/tests/unit/
+tyre-wear.spec.mjs` — the real page over a stand-in plugin: 100 is 100 % and green with nothing offered, 30 amber, 15 red,
+64.4 is 64 %, `null`/0/no key a dash, 0.91 is 1 % and red (no conversion on the page), the strategist from
+`TireHealthState`, the demo's keys, the note on the rig and in the glance heading. `DatasetValidationTests` and
+`validate_datasets.py` hold the topic to `<`, a percent threshold and the worst corner. Fixtures that encoded the old
+meanings and were put right: `tests/helpers.mjs` (0.91 → 91 …, demo 0.80 → 80 …), `tests/golden/fixtures/base-payload.json`
+(0 → 100, demo 0.82 → 82 …), `issue-11-display-units.spec.mjs` (its copy of the fallback is gone), `TriggerEvaluatorTests`
+(0.35 → 35), `drive-view.spec.mjs` (the heading's words).
+
 ## Desk
 
 ```bash

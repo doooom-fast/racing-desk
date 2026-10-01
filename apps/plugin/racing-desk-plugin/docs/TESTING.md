@@ -46,7 +46,7 @@ All 200+ tests complete in under 2 seconds.
 ### Key Test Categories
 
 **TriggerEvaluatorTests** exercises every condition type with known inputs and verifies the expected boolean result. Includes regression tests for every threshold that was corrected during development:
-- Tyre wear inversion (must use `<`, not `>`)
+- Tyre wear: tread remaining in percent, worn is low (`<` a percent threshold; the chain from the SDK to the wire and the strategist is in `IRacing/TyreWearTests.cs`)
 - Fahrenheit temperature thresholds (must be >= 200)
 - Kerb hit sensitivity (thresholdDelta >= 10)
 - Heavy braking threshold (value <= -38)
@@ -67,7 +67,7 @@ python3 tests/validate_datasets.py
 
 28 tests across 4 test classes:
 
-**TestTopicsDataset** — Structural validation of `commentary_topics.json`: required fields present, categories are valid enum values, trigger conditions are in the known set, severities are 1-5, cooldowns are positive. Includes all threshold regression tests (tyre wear direction, temperature units, delta thresholds).
+**TestTopicsDataset** — Structural validation of `commentary_topics.json`: required fields present, categories are valid enum values, trigger conditions are in the known set, severities are 1-5, cooldowns are positive. Includes all threshold regression tests (tyre wear direction and scale — a percent, the worst corner — temperature units, delta thresholds).
 
 **TestFragmentsDataset** — Every topic has matching fragments. Minimum combination count (100+ per topic). No empty openers or bodies. At most one empty closer per topic. No orphan fragments (fragments for topics that don't exist).
 

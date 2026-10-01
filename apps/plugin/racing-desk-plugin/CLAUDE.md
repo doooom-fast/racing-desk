@@ -66,7 +66,8 @@ cd simhub-plugin/tests/RacingDesk.Tests && dotnet test
 ```
 
 ~147 NUnit tests (including parameterized `[TestCase]` expansions) covering:
-- **TriggerEvaluatorTests** (~47) — all 18 trigger conditions with regression tests for corrected thresholds (tyre wear inversion, Fahrenheit temps ≥200, kerb delta ≥10, heavy braking ≤-38, spin yaw ≥3.0, proximity ≤0.008)
+- **TriggerEvaluatorTests** (~47) — all 18 trigger conditions with regression tests for corrected thresholds (tyre wear as tread remaining in percent, worn is low; Fahrenheit temps ≥200, kerb delta ≥10, heavy braking ≤-38, spin yaw ≥3.0, proximity ≤0.008)
+- **TyreWearTests** (`IRacing/`) — tyre wear's one meaning end to end: raw SDK bands through the host to the HTTP and WebSocket wire, SimHub's property through the capture, the real topic, the strategist, the demo (root CLAUDE.md, Tyre wear)
 - **ColorResolverTests** (~42) — category-to-hue mapping, severity-to-alpha, `#AARRGGBB` format, flag collision detection (15° tolerance)
 - **NormalizeColorTests** (~26) — hex format conversion edge cases
 - **FragmentAssemblerTests** (~18) — sentence composition, placeholder substitution (`{ahead}`, `{behind}`, `{value}`), repetition avoidance (ring buffer)

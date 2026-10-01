@@ -14,6 +14,8 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 - **Backoff**: Exponential on failure (1s → 2s → 4s → 8s, capped at 10s). In the app it is dropped when the main process says he is back in the car, and the page polls at once (`startConnectionClean()` in `game-detect.js`)
 - **Demo mode**: Reads from `RacingDesk.Plugin.Demo.*` properties instead — switching is transparent
 - **Contract rule**: Any change to JSON property names consumed by this overlay must be coordinated with the plugin
+- **Tyre wear** (`GameData.TyreWear*`, `Demo.TyreWear*`) is tread remaining, 0..100 %, 100 = new, `null` where the sim has
+  not measured it, and the page converts nothing (root CLAUDE.md, Tyre wear; `tests/unit/tyre-wear.spec.mjs`)
 
 ## Tech Stack
 
@@ -223,8 +225,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   good for him (closing on the car ahead, pulling away from the one behind) and red when it is not, nothing for under
   0.05s a lap, and a different car in the place starts it again. The other cars' pace is their last lap in the
   leaderboard's column, coloured as it always was. Out of a race the block is his three sectors, a line each.
-- **The pit box** shows what its tabs do on the rig, side by side: the four tyres (wear in the ring, temperature under it,
-  the laps on this set in the heading, `Strategy.StintLaps`), the fuel (tank, level and its size, per lap, laps left, the
+- **The pit box** shows what its tabs do on the rig, side by side: the four tyres (the tread remaining in the ring, as the
+  wire has it — 0..100 %, amber under 35, red under 20, a dash where not measured — temperature under it, the laps on this
+  set in the heading, `Strategy.StintLaps`, and what the number is: iRacing measures tread in the pits and nowhere else,
+  so the heading reads "Tyres · 14 laps · as measured in the pits", one line, clipped before it would wrap, where the rig's
+  layout has the same words in a dim line under the rings; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
   pit's add, the pit window `Strategy.PitWindowOpen/Close` as `L18–24` or `by L24`, the two services), the weather. The
   strategist's call for tyres or fuel (`Strategy.TireHealthState`, `FuelHealthState`) is read where it is on the rig,
   above the rings or the tank, worded for a screen with nothing to press (`Change · ~12 laps`, `Stop · ~6 laps`).

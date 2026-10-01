@@ -48,7 +48,7 @@ Sim racing telemetry captures real-time data from the virtual car at high freque
 - Steering angle — Wheel position
 - Lateral/longitudinal G-force — Vehicle dynamics
 - Tire temperatures (4 corners × inner/mid/outer) — Grip and wear indicators
-- Tire wear (4 corners, 0-1) — Remaining rubber life
+- Tire wear (4 corners, tread remaining 0-100 %, 100 = new, null until measured; iRacing measures it in the pits only) — root CLAUDE.md, Tyre wear
 - Fuel level (liters) + consumption per lap — Pit strategy input
 - Lap time, sector times, best lap — Performance tracking
 - Position, gap to car ahead/behind — Race situation
@@ -119,7 +119,7 @@ The platform computes driver profiles from race history:
 
 ## Rules
 
-1. **Telemetry units matter** — Temperatures in °F (iRacing default, not °C). Speed in mph unless specified. Fuel in liters. Wear as 0-1 fraction.
+1. **Telemetry units matter** — Temperatures in °F (iRacing default, not °C). Speed in mph unless specified. Fuel in liters. Tyre wear as tread remaining in percent (0-100, 100 = new), never a fraction and never "worn".
 2. **iRating is per-category** — Never combine or average iRating across categories. Display and track separately.
 3. **Incident severity is fixed** — 1x=off-track, 2x=loss of control, 4x=contact. Don't change these definitions.
 4. **Color-flag collision avoidance** — Any new sentiment or category color must be checked against flag hues with a 15° tolerance buffer.

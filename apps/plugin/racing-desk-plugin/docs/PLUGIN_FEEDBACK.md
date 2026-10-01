@@ -202,6 +202,12 @@ In `ShowPrompt()`:
 
 **Critical inversion bug: TyreWear values**
 
+> **Superseded, 2026-10-01.** The scale below was wrong: SimHub's `TyreWearFrontLeft` for iRacing is **0–100 percent**
+> remaining, not a 0–1 fraction, so the `< 0.35` fix never fired, and the flip-flopping it started (each fix turning one
+> reader round to match whatever value it happened to see) is what made 100% tyres read as worn. Tyre wear now has one
+> meaning everywhere — tread remaining, 0..100 %, 100 = new, null where not measured — converted once at each source
+> (root CLAUDE.md, Tyre wear). The topic's trigger is `TyreWearWorst < 35`.
+
 iRacing's `TyreWearFrontLeft` (and all wear fields) reports **remaining tyre life** as a 0.0–1.0 fraction: 1.0 = brand new, 0.0 = destroyed. The current trigger `> 0.65` fires when 65% life **remains** (only 35% worn), which is far too early and was causing "high tyre wear" prompts on nearly-new tyres.
 
 Fix: Change condition to `< 0.35` — fires when less than 35% life remaining (= 65% worn). Update the exposition text to say "remaining" not "worn", or invert the displayed percentage.
