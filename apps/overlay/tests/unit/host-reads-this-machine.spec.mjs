@@ -1,29 +1,34 @@
 /**
- * The host's data is for this machine (apps/host LocalDataApi): it answers a request from a loopback connection whose Host
- * names this machine at the port it listens on, and whose Origin is null or none; anything else is a 403 with no CORS
- * header. Every program of the app that asks it — the main process's readers and the probe of the status route — makes
- * such a request, and this holds them to it: each is run, over a real socket on 127.0.0.1, against a stand-in host that
- * makes the host's check (tests/this-machine-rule.mjs) and refuses what the real host refuses. The desk's own page is
- * held to it in tests/desk/desk.spec.mjs, and the rule over the real host's socket in the .NET tests
- * (DataRoutesThisMachineTests).
+ * The host's data is for programs on this machine (apps/host LocalDataApi): it answers a request from a loopback connection
+ * whose Host names this machine at the port it listens on and that no browser sent (no Origin of any kind, the app's own page's
+ * `null` included, and none of a browser's other marks); anything else is a 403 with no CORS header, and nothing is sent one.
+ * Every program of the app that asks it — the main process's readers, the desk's reads it makes for the page, and the probe of
+ * the status route — makes such a request, and this holds them to it: each is run, over a real socket on 127.0.0.1, against a
+ * stand-in host that makes the host's check (tests/this-machine-rule.mjs) and refuses what the real host refuses. The desk's
+ * own page is held to it in tests/desk/desk.spec.mjs, the pages of a web site in host-data-pages.spec.mjs, and the rule over
+ * the real host's socket in the .NET tests (DataRoutesThisMachineTests).
  */
 
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'module';
 import http from 'node:http';
-import { refusalOfRead, answerRuleOrPreflight } from '../this-machine-rule.mjs';
+import { refusalOfRead, answerRefusal } from '../this-machine-rule.mjs';
 
 const require = createRequire(import.meta.url);
 const { createCarNames } = require('../../modules/js/paints/car-names.js');
 const hudDisplay = require('../../modules/js/hud-display.js');
 const hostLauncher = require('../../modules/js/host-launcher.js');
 const rigApi = require('../../modules/js/rig-api.js');
+const deskReads = require('../../modules/js/desk-reads.js');
 
 const CARS = [{ car_path: 'mx5 mx52016', name: 'Mazda MX-5 Cup', short_name: 'MX-5 Cup', car_id: 67, driven: 668, seen: 702 }];
 const MONITORS = [{ x: -1440, y: 0, width: 1440, height: 1080, primary: false }, { x: 0, y: 0, width: 3440, height: 1440, primary: true }];
 const SIM_WINDOW = { process: 'iRacingSim64DX11', window: { x: 0, y: 0, width: 3440, height: 1440 }, monitor: { x: 0, y: 0, width: 3440, height: 1440 } };
 const ROUTES = {
-  status: { schemaVersion: 8, sessions: 3 },
+  status: { schemaVersion: 8, sessions: 3, db: 'racing-desk.db' },
+  sessions: [{ id: 1, driver_cust_id: 424242, car_path: 'mx5 mx52016' }],
+  schedule: { season: null, series: [] },
+  session: { session: [{ id: 1 }], laps: [], incidents: [], grid: [] },
   cars: CARS,
   views: [],
   pedals: { smartcontrol: { found: false, profiles: [], keys: [] }, cars: [], without_profile: [] },
@@ -37,7 +42,7 @@ const ROUTES = {
 function startHost() {
   const state = { asked: [], refused: [] };
   const server = http.createServer((req, res) => {
-    if (answerRuleOrPreflight(req, res, server.address().port, state.refused)) return;
+    if (answerRefusal(req, res, server.address().port, state.refused)) return;
     state.asked.push({ method: req.method, url: req.url, headers: req.headers });
     const route = new URL(req.url, 'http://x').pathname.replace('/racing-desk/data/', '');
     const chunks = [];
@@ -72,9 +77,9 @@ test('the stand-in refuses what the host refuses (so the readers below passing m
   const port = 8889;
   const asks = (headers, remote) => refusalOfRead(fake(headers, remote), port);
   expect(asks({ host: 'localhost:8889' })).toBeNull();
-  expect(asks({ host: '127.0.0.1:8889', origin: 'null' })).toBeNull();
   expect(asks({ host: '[::1]:8889', origin: '' })).toBeNull();
   expect(asks({ host: 'LOCALHOST:8889' })).toBeNull();
+  expect(asks({ host: 'localhost:8889', 'sec-fetch-mode': 'cors' }), 'Node\'s fetch says Sec-Fetch-Mode and no more').toBeNull();
   expect(asks({ host: 'localhost:8889' }, '192.168.1.20')).toBe('AnotherMachine');
   expect(asks({ host: '192.168.1.20:8889' })).toBe('AnotherHost');
   expect(asks({ host: 'evil.example:8889' })).toBe('AnotherHost');
@@ -84,9 +89,20 @@ test('the stand-in refuses what the host refuses (so the readers below passing m
   expect(asks({ host: 'localhost:8889', origin: 'https://evil.example' })).toBe('AWebSite');
   expect(asks({ host: 'localhost:8889', origin: 'http://localhost:3000' })).toBe('AWebSite');
   expect(asks({ host: 'localhost:8889', origin: 'Null' })).toBe('AWebSite');
+  // null is the app's own page, and also a web page redirected to the host, sandboxed, or opened from disk: no page reads the host.
+  expect(asks({ host: '127.0.0.1:8889', origin: 'null' })).toBe('AWebSite');
+  // What a browser sends with no Origin: an image, a script or a no-cors fetch, a link, a form.
+  expect(asks({ host: 'localhost:8889', 'sec-fetch-site': 'cross-site' })).toBe('ABrowser');
+  expect(asks({ host: 'localhost:8889', 'sec-fetch-dest': 'image' })).toBe('ABrowser');
+  expect(asks({ host: 'localhost:8889', 'sec-fetch-user': '?1' })).toBe('ABrowser');
+  expect(asks({ host: 'localhost:8889', referer: 'https://evil.example/' })).toBe('ABrowser');
 
-  // Over the socket: a wrong Host and a web site's Origin get the 403, with no CORS header.
-  for (const headers of [{ host: 'evil.example' }, { host: `127.0.0.1:${host.port + 1}` }, { origin: 'https://evil.example' }]) {
+  // Over the socket: a wrong Host, any Origin (null too) and a browser's marks get the 403, with no CORS header.
+  const refusedAsked = [
+    { host: 'evil.example' }, { host: `127.0.0.1:${host.port + 1}` }, { origin: 'https://evil.example' }, { origin: 'null' },
+    { 'sec-fetch-site': 'cross-site' }, { 'sec-fetch-dest': 'image' },
+  ];
+  for (const headers of refusedAsked) {
     const answer = await new Promise((resolve, reject) => {
       http.get(`${host.url}/racing-desk/data/status`, { headers }, (res) => {
         res.resume();
@@ -96,8 +112,25 @@ test('the stand-in refuses what the host refuses (so the readers below passing m
     expect(answer.status, JSON.stringify(headers)).toBe(403);
     expect(Object.keys(answer.headers).filter((k) => k.startsWith('access-control-'))).toEqual([]);
   }
-  expect(host.state.refused).toHaveLength(3);
+  expect(host.state.refused).toHaveLength(refusedAsked.length);
   expect(host.state.asked).toEqual([]);
+});
+
+test('the desk\'s four reads, which the app makes for its page (desk-reads.js), are answered', async () => {
+  const reads = deskReads.createDeskReads({ host: () => host.url });
+  expect(await reads.read('status')).toEqual({ value: ROUTES.status });
+  expect(await reads.read('sessions')).toEqual({ value: ROUTES.sessions });
+  expect(await reads.read('schedule')).toEqual({ value: ROUTES.schedule });
+  expect(await reads.read('session', 1)).toEqual({ value: ROUTES.session });
+  expect(host.state.refused).toEqual([]);
+  expect(host.state.asked.map((a) => a.url)).toEqual([
+    '/racing-desk/data/status', '/racing-desk/data/sessions', '/racing-desk/data/schedule', '/racing-desk/data/session?id=1',
+  ]);
+  // Node adds a Host and no Origin, and no other mark of a browser.
+  for (const a of host.state.asked) {
+    expect(a.headers.host).toBe(`127.0.0.1:${host.port}`);
+    for (const name of ['origin', 'referer', 'sec-fetch-site', 'sec-fetch-dest', 'sec-fetch-user']) expect(a.headers[name], name).toBeUndefined();
+  }
 });
 
 test('the car names the app asks for (paints/car-names.js) are answered', async () => {

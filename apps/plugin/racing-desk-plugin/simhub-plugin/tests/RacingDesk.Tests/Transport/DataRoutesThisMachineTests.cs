@@ -19,11 +19,13 @@ using RacingDesk.Plugin;
 namespace RacingDesk.Tests.Transport
 {
     /// <summary>
-    /// The host's data reads (<c>/racing-desk/data/…</c>) are for this machine. :8889 answers every address, and the
-    /// sessions carry the driver's customer id and the status the store's path, so a read is answered only to a request
-    /// from a loopback connection whose Host names this machine at this port, and whose Origin, if it has one, is the app's
-    /// own (a page that is a file says <c>null</c>); anything else is a 403 with no CORS header, and a CORS header goes to
-    /// the app's own pages and to no other origin.
+    /// The host's data reads (<c>/racing-desk/data/…</c>) are for programs on this machine. :8889 answers every address, and
+    /// the sessions carry the driver's customer id and the status the store's path, so a read is answered only to a request
+    /// from a loopback connection whose Host names this machine at this port and that no browser sent. A page says an
+    /// Origin, and so does the app's own (a file says <c>null</c>, as does a web site's page that is redirected, sandboxed or
+    /// opened from disk: the host cannot tell them apart), and a browser's other requests (an image, a no-cors fetch, a link)
+    /// carry <c>Sec-Fetch-*</c>; so no page reads the host, and nothing is sent a CORS header. The desk asks the app's main
+    /// process, which asks as a program does. Anything else is a 403 with no CORS header.
     ///
     /// The list of routes is the host's own (<see cref="LocalDataApi.Routes"/>), and a test reads the dispatch's source to
     /// see that it is complete: a route added to the dispatch and not to the list fails there, and a route on the list is
@@ -208,6 +210,15 @@ namespace RacingDesk.Tests.Transport
             ("a page of a site on the LAN", r => r.Headers.Add("Origin", "http://192.168.1.20:3000")),
             ("a page whose origin is null, and another's after it", r => { r.Headers.Add("Origin", "null"); r.Headers.Add("Origin", "https://evil.example"); }),
             ("a page that says its origin in capitals", r => r.Headers.Add("Origin", "Null")),
+            // null is what the app's own page says, and what a web site's page says once its fetch has been redirected here (the
+            // browser taints it), when it is in a sandboxed frame, or when it is a file opened from disk: no page of the three is told apart.
+            ("the app's own page (a file), or a web site's page by a redirect or a sandboxed frame: origin null", r => r.Headers.Add("Origin", "null")),
+            ("the app's own page as Chromium sends it", DesksPage),
+            // What a browser sends without an Origin: an image, a script, a no-cors fetch, a link, a form.
+            ("a no-cors fetch or a script of a web site", r => r.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "cross-site")),
+            ("an image of a web site", r => { r.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "cross-site"); r.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "image"); }),
+            ("a link or a form of a web site", r => { r.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "cross-site"); r.Headers.TryAddWithoutValidation("Sec-Fetch-User", "?1"); }),
+            ("a page that says where it came from, and no more", r => r.Headers.TryAddWithoutValidation("Referer", "https://evil.example/page")),
         };
 
         [TestCaseSource(nameof(RouteNames))]
@@ -268,7 +279,7 @@ namespace RacingDesk.Tests.Transport
         private static HttpStatusCode Expected(string route) => route == "outline" ? HttpStatusCode.NotFound : HttpStatusCode.OK;
 
         [TestCaseSource(nameof(RouteNames))]
-        public void ARoute_IsAnsweredToAProgramOnThisMachine_ByEveryNameItHas_WithNoCorsHeader(string route)
+        public void ARoute_IsAnsweredToAProgramOnThisMachine_ByEveryNameItHas_WithNoCorsHeader_AndSendsOneToNobody(string route)
         {
             // (Not [::1]: HTTP.sys turns that Host away itself on a listener that is bound to 127.0.0.1, before the host is asked;
             // the rule's own cases at the end of this file have it.)
@@ -282,24 +293,18 @@ namespace RacingDesk.Tests.Transport
         }
 
         [TestCaseSource(nameof(RouteNames))]
-        public void ARoute_IsAnsweredToTheAppsOwnPage_ByCorsToItsOriginAlone(string route)
+        public void ARoute_IsRefusedToTheAppsOwnPage_TooAndSaysNothingItMayRead(string route)
         {
-            // The desk's page: a file, which says Origin: null, and whatever else a browser says of a fetch.
+            // The desk's page: a file, which says Origin: null. It is refused as every page is, because the host cannot tell it from a
+            // web site's page that says the same; the desk asks the app's main process instead (the readers test, below).
             var answer = Ask("GET", DataUrl(route), DesksPage);
 
-            if (route == "replay")
-            {
-                // The replay is for a program, and its own check turns a page away: the page is told nothing it may read.
-                Assert.That(answer.Status, Is.EqualTo(HttpStatusCode.Forbidden));
-                Assert.That(answer.HasCors, Is.False);
-                return;
-            }
-            Assert.That(answer.Status, Is.EqualTo(Expected(route)), $"{route}: {answer.Body}");
-            Assert.That(answer.Header("Access-Control-Allow-Origin"), Is.EqualTo("null"), $"{route}: to the app's page, by name, and never *");
-            Assert.That(answer.Header("Vary"), Does.Contain("Origin"));
+            Assert.That(answer.Status, Is.EqualTo(HttpStatusCode.Forbidden), $"{route}: {answer.Body}");
+            Assert.That(answer.HasCors, Is.False, $"{route}: nothing is sent a CORS header, not even the origin null ({string.Join(", ", answer.HeaderNames)})");
+            Assert.That(answer.Body, Does.Not.Contain(CustomerId).And.Not.Contain("racing-desk.db"), route);
         }
 
-        /// <summary>Chromium's own request, from the desk's page (a file) to a host on this machine: what <c>desk.js</c>'s <c>fetch(…, { cache: 'no-store' })</c> sends.</summary>
+        /// <summary>Chromium's own request, from a page that is a file to a host on this machine, as the desk's <c>fetch(…, { cache: 'no-store' })</c> was: refused now, for the desk does not ask this way any more.</summary>
         private void DesksPage(HttpRequestMessage r)
         {
             r.Headers.Host = "localhost:" + _httpPort;
@@ -315,18 +320,19 @@ namespace RacingDesk.Tests.Transport
         [Test]
         public void TheReadersOfTheApp_AllGetTheirAnswers()
         {
-            // The desk's page (status, sessions, schedule and one session, as desk.js asks them), read as Chromium sends it.
+            // The desk (status, sessions, schedule and one session) asks the app's main process (desk:read, modules/js/desk-reads.js),
+            // which asks by Node's http.get: a Host and nothing more. The page is not the asker, so no CORS answer is needed or sent.
             foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1" })
             {
-                var answer = Ask("GET", "/racing-desk/data/" + route, DesksPage);
+                var answer = Ask("GET", "/racing-desk/data/" + route, r => r.Headers.Host = "localhost:" + _httpPort);
                 Assert.That(answer.Status, Is.EqualTo(HttpStatusCode.OK), route);
-                Assert.That(answer.Header("Access-Control-Allow-Origin"), Is.EqualTo("null"), route);
+                Assert.That(answer.HasCors, Is.False, route);
             }
 
-            // The app's main process: Node's fetch (Host and Sec-Fetch-Mode, and no Origin) for the replay, the car names, the sim's
+            // The app's main process, the rest of it: Node's fetch (Host and Sec-Fetch-Mode, and no Origin) for the replay, the car names, the sim's
             // window and the monitors, the rig's reads and probes (http.get: a Host and nothing more), and the SimHub plugin's
             // outlines (HttpClient on 127.0.0.1, in OutlineRouteTests, which runs through the runtime with this check).
-            foreach (string route in new[] { "status", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay" })
+            foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay" })
             {
                 var viaFetch = Ask("GET", "/racing-desk/data/" + route, r =>
                 {
@@ -353,31 +359,29 @@ namespace RacingDesk.Tests.Transport
             r.Headers.TryAddWithoutValidation("Access-Control-Request-Private-Network", "true");
         }
 
-        [Test]
-        public void APreflight_IsAnsweredToTheAppsOwnPageAlone_NotWithTheWildcard()
+        [TestCaseSource(nameof(RouteNames))]
+        public void APreflight_IsRefusedToEveryPage_AndIsNotAnsweredWithTheWildcard(string route)
         {
-            var mine = Ask("OPTIONS", "/racing-desk/data/sessions", r => { r.Headers.Host = "localhost:" + _httpPort; Preflight(r, "null"); });
-            Assert.That(mine.Status, Is.EqualTo(HttpStatusCode.NoContent));
-            Assert.That(mine.Header("Access-Control-Allow-Origin"), Is.EqualTo("null"));
-            Assert.That(mine.Header("Access-Control-Allow-Methods"), Does.Contain("GET"));
-            Assert.That(mine.Header("Access-Control-Allow-Private-Network"), Is.EqualTo("true"));
+            // The app's own page (origin null) and a web site's, from this machine's own Host and from the strangers': 403, and nothing
+            // that tells a page it may ask — not the runtime's `*` that the telemetry's preflight is answered with.
+            foreach (string origin in new[] { "null", "https://evil.example", "http://localhost:3000" })
+            {
+                var own = Ask("OPTIONS", DataUrl(route), r => { r.Headers.Host = "localhost:" + _httpPort; Preflight(r, origin); });
+                Assert.That(own.Status, Is.EqualTo(HttpStatusCode.Forbidden), $"{route}, from {origin}");
+                Assert.That(own.HasCors, Is.False, $"{route}, from {origin}: {string.Join(", ", own.HeaderNames)}");
+            }
 
             foreach (var (name, looksLike) in Strangers())
             {
-                var theirs = Ask("OPTIONS", "/racing-desk/data/sessions", r => { Preflight(r, "https://evil.example"); looksLike(r); });
-                Assert.That(theirs.Status, Is.EqualTo(HttpStatusCode.Forbidden), name);
-                Assert.That(theirs.HasCors, Is.False, name);
+                var theirs = Ask("OPTIONS", DataUrl(route), r => { Preflight(r, "https://evil.example"); looksLike(r); });
+                Assert.That(theirs.Status, Is.EqualTo(HttpStatusCode.Forbidden), $"{route}, {name}");
+                Assert.That(theirs.HasCors, Is.False, $"{route}, {name}");
             }
 
-            // A page that is not the app's, from this machine's own Host: it is the origin that is refused.
-            var site = Ask("OPTIONS", "/racing-desk/data/sessions", r => { r.Headers.Host = "localhost:" + _httpPort; Preflight(r, "https://evil.example"); });
-            Assert.That(site.Status, Is.EqualTo(HttpStatusCode.Forbidden));
-            Assert.That(site.HasCors, Is.False);
-
-            // The replay is for a program: no page is told it may ask.
-            var replay = Ask("OPTIONS", "/racing-desk/data/replay", r => { r.Headers.Host = "localhost:" + _httpPort; Preflight(r, "null"); });
-            Assert.That(replay.Status, Is.EqualTo(HttpStatusCode.Forbidden));
-            Assert.That(replay.HasCors, Is.False);
+            // Not even a preflight with no Origin (no program sends one): a preflight is a browser's.
+            var bare = Ask("OPTIONS", DataUrl(route), r => r.Headers.Host = "localhost:" + _httpPort);
+            Assert.That(bare.Status, Is.EqualTo(HttpStatusCode.Forbidden), route);
+            Assert.That(bare.HasCors, Is.False, route);
         }
 
         [Test]
@@ -405,14 +409,17 @@ namespace RacingDesk.Tests.Transport
                 {
                     Ask("GET", DataUrl(route), r => r.Headers.Host = "192.168.1.20:" + _httpPort);               // another host
                     Ask("GET", DataUrl(route), r => r.Headers.Add("Origin", "https://evil.example"));            // a web site
+                    Ask("GET", DataUrl(route), r => r.Headers.Add("Origin", "null"));                            // the app's page, or a web site's that says null: the same kind
+                    Ask("GET", DataUrl(route), r => r.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "image")); // a browser, with no Origin
                 }
 
             foreach (string route in LocalDataApi.Routes)
             {
                 var lines = Refusals(route);
-                Assert.That(lines.Count, Is.EqualTo(2), $"{route}: a line for each kind of asker, and one: " + string.Join(" | ", lines));
+                Assert.That(lines.Count, Is.EqualTo(3), $"{route}: a line for each kind of asker, and one: " + string.Join(" | ", lines));
                 Assert.That(lines.Count(l => l.Contains("another machine") || l.Contains("host other than")), Is.EqualTo(1), route);
-                Assert.That(lines.Count(l => l.Contains("origin of a web site")), Is.EqualTo(1), route);
+                Assert.That(lines.Count(l => l.Contains("names an origin")), Is.EqualTo(1), route);
+                Assert.That(lines.Count(l => l.Contains("a browser sent it")), Is.EqualTo(1), route);
             }
             lock (_logged)
                 Assert.That(_logged.Where(l => l.Contains("refused")), Has.None.Contains("evil.example").And.None.Contains("192.168."), "what the asker said is not written down");
@@ -433,23 +440,25 @@ namespace RacingDesk.Tests.Transport
         [Test]
         public void TheLog_HasTheReplayAndPedalsRefusalsOfAPageToo()
         {
-            // The check of these two is stricter (no browser's marks), and what it refuses is written down all the same.
+            // The two routes that were stricter are behind the same check now, and a page's request to them is written down like the rest.
             Ask("GET", "/racing-desk/data/replay", r => { r.Headers.Host = "localhost:" + _httpPort; r.Headers.Add("Origin", "null"); });
             Ask("GET", "/racing-desk/data/replay", r => { r.Headers.Host = "localhost:" + _httpPort; r.Headers.Add("Origin", "null"); });
             Ask("POST", "/racing-desk/data/pedals", r => { r.Headers.Host = "localhost:" + _httpPort; r.Headers.Add("Origin", "null"); });
+            Ask("POST", "/racing-desk/data/pedals", r => { r.Headers.Host = "localhost:" + _httpPort; r.Headers.TryAddWithoutValidation("Referer", "https://evil.example/"); });
 
             Assert.That(Refusals("replay").Count, Is.EqualTo(1));
-            Assert.That(Refusals("pedals").Count, Is.EqualTo(1));
-            Assert.That(Refusals("replay")[0], Does.Contain("a browser sent it"));
+            Assert.That(Refusals("pedals").Count, Is.EqualTo(2), "an Origin and a Referer alone are two kinds of asker");
+            Assert.That(Refusals("replay")[0], Does.Contain("names an origin"));
         }
 
         // ── The rule itself, where the connection can be made not to be this machine's ──
 
-        private static NameValueCollection Headers(string? host, string? origin)
+        private static NameValueCollection Headers(string? host, string? origin, params (string Name, string Value)[] more)
         {
             var h = new NameValueCollection();
             if (host != null) h.Add("Host", host);
             if (origin != null) h.Add("Origin", origin);
+            foreach (var (name, value) in more) h.Add(name, value);
             return h;
         }
 
@@ -457,9 +466,9 @@ namespace RacingDesk.Tests.Transport
         [TestCase(true, "127.0.0.1:18889", null, 18889, "None", TestName = "a program by 127.0.0.1, at the port beside SimHub")]
         [TestCase(true, "[::1]:8889", null, 8889, "None", TestName = "a program by the IPv6 loopback")]
         [TestCase(true, "LocalHost:8889", "", 8889, "None", TestName = "an empty Origin is no Origin")]
-        [TestCase(true, "localhost:8889", "null", 8889, "None", TestName = "the app's own page, a file")]
+        [TestCase(true, "localhost:8889", "null", 8889, "AWebSite", TestName = "the app's own page, a file: no page reads the host, for a web site's can say null too")]
         [TestCase(false, "localhost:8889", null, 8889, "AnotherMachine", TestName = "a device on the network that says Host: localhost")]
-        [TestCase(false, "192.168.1.20:8889", "null", 8889, "AnotherMachine", TestName = "a device on the network, by the rig's address")]
+        [TestCase(false, "192.168.1.20:8889", "https://evil.example", 8889, "AnotherMachine", TestName = "a device on the network, by the rig's address")]
         [TestCase(true, "192.168.1.20:8889", null, 8889, "AnotherHost", TestName = "the rig's own address on the network")]
         [TestCase(true, "evil.example:8889", null, 8889, "AnotherHost", TestName = "a name another site has pointed at the rig")]
         [TestCase(true, "localhost:8890", null, 8889, "AnotherHost", TestName = "this machine at another port")]
@@ -482,12 +491,34 @@ namespace RacingDesk.Tests.Transport
             Assert.That(LocalRequest.RefusalOfRead(isLocal, Headers(host, origin), port).ToString(), Is.EqualTo(expected));
         }
 
+        [TestCase("Sec-Fetch-Site", "cross-site", TestName = "a no-cors fetch, a script or an image of a web site")]
+        [TestCase("Sec-Fetch-Site", "same-origin", TestName = "a request that says it is of the same origin")]
+        [TestCase("Sec-Fetch-Dest", "image", TestName = "an image")]
+        [TestCase("Sec-Fetch-Dest", "document", TestName = "a navigation")]
+        [TestCase("Sec-Fetch-User", "?1", TestName = "a link a person clicked")]
+        [TestCase("Referer", "https://evil.example/page", TestName = "a request that says the page it was made from")]
+        public void TheRule_RefusesWhatABrowserSent_EvenWithNoOrigin(string header, string value)
+        {
+            Assert.That(LocalRequest.RefusalOfRead(true, Headers("localhost:8889", null, (header, value)), 8889), Is.EqualTo(LocalRequest.Refusal.ABrowser));
+            // The browser's marks are said after the connection and the host, as the origin is.
+            Assert.That(LocalRequest.RefusalOfRead(false, Headers("localhost:8889", null, (header, value)), 8889), Is.EqualTo(LocalRequest.Refusal.AnotherMachine));
+            Assert.That(LocalRequest.RefusalOfRead(true, Headers("evil.example:8889", null, (header, value)), 8889), Is.EqualTo(LocalRequest.Refusal.AnotherHost));
+            Assert.That(LocalRequest.RefusalOfRead(true, Headers("localhost:8889", "https://evil.example", (header, value)), 8889), Is.EqualTo(LocalRequest.Refusal.AWebSite));
+        }
+
+        [Test]
+        public void TheRule_AnswersWhatNodeSends_AndNothingMoreThanThat()
+        {
+            // Node's fetch says Sec-Fetch-Mode and no more; http.get says a Host; the plugin's HttpClient a Host and a user agent.
+            Assert.That(LocalRequest.RefusalOfRead(true, Headers("localhost:8889", null, ("Sec-Fetch-Mode", "cors")), 8889), Is.EqualTo(LocalRequest.Refusal.None));
+            Assert.That(LocalRequest.RefusalOfRead(true, Headers("127.0.0.1:8889", null, ("User-Agent", "node"), ("Accept", "application/json")), 8889), Is.EqualTo(LocalRequest.Refusal.None));
+        }
+
         [Test]
         public void TheRule_RefusesWhatIsNotThere()
         {
             Assert.That(LocalRequest.RefusalOfRead(null), Is.EqualTo(LocalRequest.Refusal.AnotherMachine));
             Assert.That(LocalRequest.RefusalOfRead(true, null!, 8889), Is.EqualTo(LocalRequest.Refusal.AnotherMachine));
-            Assert.That(LocalRequest.AppOrigins, Is.EqualTo(new[] { "null" }), "the app's pages are files; add an origin here only for a page the app serves itself");
         }
 
         [Test]

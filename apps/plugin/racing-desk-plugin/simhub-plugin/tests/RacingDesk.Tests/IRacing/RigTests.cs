@@ -558,10 +558,11 @@ INSERT INTO schema_version (version) VALUES (4);
             using var store = RacingDeskStore.OpenReadOnly(Db);
             Assert.That(store.CarPedalsList(), Is.Empty, "nothing was written by any of them");
 
-            // Reading is for this machine, as the rest of the data API is: a program, and a page of the app (a file, which says
-            // an Origin of null) — and not a page of a web site (DataRoutesThisMachineTests asks every route).
+            // Reading is for programs on this machine, as the rest of the data API is, and for no page: not one of a web site, and
+            // not the app's own (a file, which says an Origin of null: the desk asks through the app). DataRoutesThisMachineTests
+            // asks every route.
             Assert.That(Request("GET", "pedals").Status, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(Request("GET", "pedals", origin: "null").Status, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(Request("GET", "pedals", origin: "null").Status, Is.EqualTo(HttpStatusCode.Forbidden));
             Assert.That(Request("GET", "pedals", origin: "https://example.com").Status, Is.EqualTo(HttpStatusCode.Forbidden));
         }
     }

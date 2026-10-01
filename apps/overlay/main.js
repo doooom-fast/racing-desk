@@ -27,6 +27,7 @@ const paints       = require('./modules/js/paints');
 const paintsIpc    = require('./modules/js/paints-ipc');
 const { createCarNames } = require('./modules/js/paints/car-names');
 const rigApi       = require('./modules/js/rig-api');
+const { createDeskReads, deskHostOf } = require('./modules/js/desk-reads');
 const runtimeActions = require('./modules/js/runtime-actions');
 const logoLivery   = require('./modules/js/logo-livery');
 
@@ -196,11 +197,18 @@ app.on('before-quit', (event) => {
 // DESK WINDOW — career, form and race history from the local store
 // ═══════════════════════════════════════════════════════════════
 
+// --desk-host=http://localhost:18889 points the desk at a RacingDesk.Host you run by hand (and skips starting one). The host
+// answers programs on this machine and no other address (its data carries the driver's customer id), so a flag that names
+// another machine would leave the app with no host that answers it, for the desk, the HUD's screen lookup, the car names and
+// the TV shots alike: it is ignored, once in the log, and the app finds or starts a host of its own as it does with no flag.
+let ignoredDeskHost = null;
 function deskHostFlag() {
-  // --desk-host=http://localhost:18889 points the desk at a RacingDesk.Host you run by hand (and skips
-  // starting one).
-  const flag = process.argv.find((a) => a.startsWith('--desk-host='));
-  return flag ? flag.slice('--desk-host='.length).replace(/\/+$/, '') : null;
+  const { url, ignored } = deskHostOf(process.argv);
+  if (ignored !== undefined && ignored !== ignoredDeskHost) {
+    ignoredDeskHost = ignored;
+    logToFile(`[RacingDesk] Host: --desk-host=${ignored} is ignored: the host's data is for this machine only, so use localhost or 127.0.0.1 at the port a host of this machine listens on`);
+  }
+  return url;
 }
 
 function localHostUrl() {
@@ -261,12 +269,6 @@ function showDesk(page) {
 async function startLocalHost() {
   if (deskHostFlag() || isDev) {
     logToFile(isDev ? '[RacingDesk] Host: dev mode, not starting one' : `[RacingDesk] Host: --desk-host=${deskHostFlag()}, not starting one`);
-    // The host answers this machine alone (its data carries the driver's customer id), so a --desk-host that names another
-    // machine is a host that refuses the desk: the desk says so and does not ask it, and what this process asks of it (the
-    // sim's window, the car names) is a 403 and is carried on without, as with no host.
-    if (deskHostFlag() && !rigApi.isLocal(deskHostFlag())) {
-      logToFile(`[RacingDesk] Host: --desk-host=${deskHostFlag()} is not on this machine, and the host's data is read from this machine only; use localhost or 127.0.0.1`);
-    }
     return;
   }
   try {
@@ -1567,6 +1569,17 @@ ipcMain.handle('paints:openPath', async (event, p) => {
 // { ok: false, error }; neither ever throws, and the page shows what it is given beside the car.
 const rig = rigApi.createRigApi({ host: () => localHostUrl() });
 const RIG_NOT_DESK = 'The Cars page belongs to the desk window.';
+
+// The desk's own reads of the host's store — status, sessions, the schedule, one session's laps — are asked for here too
+// (modules/js/desk-reads.js): the host answers programs on this machine and no page, the desk's included, because a file's page
+// says Origin: null and so does a web page that is redirected, sandboxed or opened from disk. Answered { value }, or
+// { error } with notHere / noAnswer / status; never thrown.
+const deskReader = createDeskReads({ host: () => localHostUrl() });
+
+ipcMain.handle('desk:read', async (event, name, id) => {
+  if (!fromDesk(event)) return { error: 'These reads belong to the desk window.' };
+  return deskReader.read(name, id);
+});
 
 ipcMain.handle('rig:read', async (event) => {
   if (!fromDesk(event)) return rigApi.unread(RIG_NOT_DESK);

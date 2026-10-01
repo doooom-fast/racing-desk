@@ -567,8 +567,10 @@ npm run start:safe                # ARM/software rendering mode
 ```
 
 `npm start` also starts RacingDesk.Host (or uses one already on :8889/:18889; `--desk-host=<url>` to use one you ran
-by hand, on this machine — `localhost` or `127.0.0.1` at its port: the host's data is for this machine only, so the desk
-does not ask a host elsewhere and says so; `tests/this-machine-rule.mjs` is the rule the tests' stand-in hosts keep) and
+by hand, on this machine — `localhost` or `127.0.0.1` at its port: the host's data is for programs on this machine only
+and no page, so a flag that names another machine is ignored and a host of its own is found or started; the desk's reads go
+through `main.js` (`desk:read`, `modules/js/desk-reads.js`); `tests/this-machine-rule.mjs` is the rule the tests' stand-in
+hosts keep) and
 puts a tray icon up — quit from it, or by closing the desk; see the root CLAUDE.md, Desk. Dev mode
 starts no host.
 

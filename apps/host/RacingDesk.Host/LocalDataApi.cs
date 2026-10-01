@@ -24,20 +24,23 @@ namespace RacingDesk.Host
     /// sim is not running. And <c>GET /racing-desk/data/monitors</c>, also Windows's: the monitors' rectangles in
     /// physical pixels, so that a screen can be named by the size it really has (see Monitors.cs).
     ///
-    /// Every route here is for this machine. :8889 answers every address (the iPad reads the telemetry from it), but
-    /// the sessions carry the driver's customer id and the status the store's path, so a request that is not from a
-    /// loopback connection, that names a Host other than this machine's at this port, or that names the origin of a
-    /// web site is refused (403, no CORS header, one line in the log for each route and kind of asker): see
+    /// Every route here is for programs on this machine. :8889 answers every address (the iPad reads the telemetry from
+    /// it), but the sessions carry the driver's customer id and the status the store's path, so a request that is not
+    /// from a loopback connection, that names a Host other than this machine's at this port, or that a browser sent
+    /// (an Origin of any kind, <c>null</c> included; a Referer or Sec-Fetch-* without one) is refused: 403, no CORS
+    /// header, and one line in the log for each route and kind of asker. See
     /// <see cref="LocalRequest.RefusalOfRead(bool, System.Collections.Specialized.NameValueCollection, int)"/>, which is
     /// made once for every request under <c>/data/</c> before any route is looked at, a route that is not in
-    /// <see cref="Routes"/> included. The app's own pages are let through, because the desk's page reads them
-    /// (<c>Origin: null</c>, <see cref="LocalRequest.AppOrigins"/>), and a CORS header goes to those and to no other
-    /// origin; a program (the app's Node, the SimHub plugin, curl) says no Origin and is not sent one.
+    /// <see cref="Routes"/> included. No page may read them, the app's own included, and nothing is sent a CORS header
+    /// (a preflight is refused too): a file's page and a web site's page that is redirected, sandboxed or opened from disk
+    /// all say <c>Origin: null</c>, and the host cannot tell them apart. The desk asks the app's main process (desk:read),
+    /// which asks the host as the app's other programs do (the SimHub plugin, curl): by Node or .NET, with a Host and no
+    /// Origin.
     ///
     /// One thing is written: <c>POST /racing-desk/data/pedals</c> says which of SmartControl's profiles a car is
-    /// driven with. It is for programs on this machine — the app — and not for a page in a browser, so beyond the check
-    /// above it refuses a request that a browser sent (an Origin, a Referer, Sec-Fetch-*): <see cref="LocalRequest"/>, the
-    /// check the runtime's <c>?action=</c> routes make too.
+    /// driven with. It is for programs on this machine — the app — and not for a page in a browser, which the check above
+    /// already turns away; it makes the stricter test of <see cref="LocalRequest.IsFromThisMachine(HttpListenerRequest)"/> as
+    /// well, the one the runtime's <c>?action=</c> routes make too.
     ///
     /// And one more thing, neither the store's nor open to pages: <c>/racing-desk/data/replay</c>, iRacing's replay and
     /// cameras for the app's TV shots (<see cref="ReplayApi"/>), GET and POST both for a program on this machine alone.
@@ -105,7 +108,8 @@ namespace RacingDesk.Host
         /// <summary>
         /// Claims /data/ requests, and answers them off the telemetry thread — after the check of who is asking, which every
         /// one of them has passed before any route is looked at (a refused one is answered here and goes no further).
-        /// A preflight (<c>OPTIONS</c>) is claimed too, so that the runtime's wildcard answer is not the one a page gets.
+        /// A preflight (<c>OPTIONS</c>) is claimed too, and refused: a browser's, and no page may ask, so the runtime's wildcard
+        /// answer is not the one a page gets.
         /// </summary>
         public bool TryHandle(HttpListenerContext ctx)
         {
@@ -115,16 +119,11 @@ namespace RacingDesk.Host
             try
             {
                 var refusal = LocalRequest.RefusalOfRead(ctx.Request);
-                // A page may not ask the replay (it is for a program, and its own check refuses a page): its preflight is no more answered than the request.
-                if (refusal == LocalRequest.Refusal.None && route == "replay" && ctx.Request.HttpMethod == "OPTIONS") refusal = LocalRequest.Refusal.ABrowser;
+                // A preflight is a browser's: no page may ask any of these, so none is answered, as the request it would ask for is not.
+                if (refusal == LocalRequest.Refusal.None && ctx.Request.HttpMethod == "OPTIONS") refusal = LocalRequest.Refusal.ABrowser;
                 if (refusal != LocalRequest.Refusal.None)
                 {
                     Refuse(ctx, route, refusal);
-                    return true;
-                }
-                if (ctx.Request.HttpMethod == "OPTIONS")
-                {
-                    Preflight(ctx);
                     return true;
                 }
             }
@@ -158,7 +157,7 @@ namespace RacingDesk.Host
             {
                 case LocalRequest.Refusal.AnotherMachine: by = "it came from another machine (a device on the network)"; break;
                 case LocalRequest.Refusal.AnotherHost: by = "it names a host other than this machine's own at this port (the rig's address on the network, or a name pointed at it)"; break;
-                case LocalRequest.Refusal.AWebSite: by = "it names the origin of a web site (a page in a browser; only the app's own pages, whose origin is null, may read it)"; break;
+                case LocalRequest.Refusal.AWebSite: by = "it names an origin (a page in a browser, a web site's or a file's: no page reads it, the desk asks through the app)"; break;
                 default: by = "a browser sent it, where only a program on this machine may ask"; break;
             }
             Log.Warn($"[RacingDesk.Host] data/{name} refused: {by}");
@@ -187,52 +186,14 @@ namespace RacingDesk.Host
             }
         }
 
-        /// <summary>A preflight from the app's own page (the check has passed): what a page of the app may ask, and for it to be read by CORS.</summary>
-        private static void Preflight(HttpListenerContext ctx)
-        {
-            var res = ctx.Response;
-            try
-            {
-                res.Headers.Add("Vary", "Origin");
-                res.Headers.Add("Cache-Control", "no-store");
-                string origin = ctx.Request.Headers["Origin"];
-                if (!string.IsNullOrEmpty(origin))
-                {
-                    res.Headers.Add("Access-Control-Allow-Origin", origin);
-                    res.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
-                    res.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
-                    // Electron (Chromium 130+) asks for this of a file page reading localhost.
-                    res.Headers.Add("Access-Control-Allow-Private-Network", "true");
-                }
-                res.StatusCode = 204;
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"[RacingDesk.Host] data preflight failed: {ex.Message}");
-                try { res.StatusCode = 500; } catch { }
-            }
-            finally
-            {
-                try { res.OutputStream.Close(); } catch { }
-            }
-        }
-
         private void Respond(HttpListenerContext ctx, string route)
         {
-            // The replay is for a program on this machine and answers no page: no CORS header of the reads', and its own check.
+            // The replay is for a program on this machine and answers no page, with its own check as well as the one above.
             if (route == "replay") { Replay.Handle(ctx); return; }
             var res = ctx.Response;
             try
             {
-                // CORS goes to the app's own pages, by name, and to no other origin (the check has passed only those); a
-                // program says no Origin and needs none.
-                res.Headers.Add("Vary", "Origin");
-                string origin = ctx.Request.Headers["Origin"];
-                if (!string.IsNullOrEmpty(origin) && LocalRequest.AnswersToOrigin(origin))
-                {
-                    res.Headers.Add("Access-Control-Allow-Origin", origin);
-                    res.Headers.Add("Access-Control-Allow-Private-Network", "true");
-                }
+                // No CORS header, to anybody: the check has let through programs only, and a program needs none.
                 res.Headers.Add("Cache-Control", "no-store");
                 res.ContentType = "application/json; charset=utf-8";
 

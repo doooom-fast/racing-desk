@@ -6,8 +6,12 @@ import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import http from 'node:http';
 import { join, dirname } from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { answerRuleOrPreflight, corsHeaders } from '../this-machine-rule.mjs';
+import { answerRefusal } from '../this-machine-rule.mjs';
+
+const require = createRequire(import.meta.url);
+const { createDeskReads } = require('../../modules/js/desk-reads.js');
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DESK = pathToFileURL(join(here, '..', '..', 'desk.html')).href;
@@ -124,16 +128,17 @@ const SCHEDULE = {
 // page through the app (window.racingDesk.rig, stubRig below), and a page that asked the host for any of it
 // itself would be at fault: the tests look in `asked` for that.
 //
-// It answers whom RacingDesk.Host answers (tests/this-machine-rule.mjs): a Host that names this machine at its own port
-// and an Origin that is null (the desk is a file) or none; anything else is a 403 with no CORS header, written to
-// `refused`, and a CORS header goes to the origin null by name, never *. So every test here that finds the desk drawn
-// from this host is also a test that the desk's own requests are ones the host answers.
+// It answers whom RacingDesk.Host answers (tests/this-machine-rule.mjs): a program on this machine that names this machine at
+// its own port and says no Origin; anything else — a page of any origin, the desk's own (a file, which says null) included —
+// is a 403 with no CORS header, written to `refused`, and nothing is ever sent a CORS header. The desk reads through the
+// app's main process (window.racingDesk.desk, bridged below by openDesk to the real modules/js/desk-reads.js), so every test
+// here that finds the desk drawn from this host is also a test that the app's own requests are ones the host answers.
 function startMockHost(history, schedule = SCHEDULE, port = 0) {
   const server = http.createServer((req, res) => {
-    if (answerRuleOrPreflight(req, res, server.address().port, server.refused)) return;
+    if (answerRefusal(req, res, server.address().port, server.refused)) return;
     const url = new URL(req.url, 'http://x');
     const send = (status, body) => {
-      res.writeHead(status, { 'Content-Type': 'application/json', ...corsHeaders(req) });
+      res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(body));
     };
     const route = url.pathname.replace('/racing-desk/data/', '');
@@ -185,10 +190,28 @@ test.afterAll(async () => {
   await new Promise((resolve) => lotusHost?.close(resolve));
 });
 
+// The app's half of the desk's reads, as main.js has it: the page asks window.racingDesk.desk.read and Node asks the host
+// (modules/js/desk-reads.js, the real one), which sends a Host and no Origin. The host a page is read from is the one
+// openDesk was given for it (`?host=`, as main.js loads the desk with it); a test that wants another bridge puts its own in
+// before openDesk, and this one keeps to what that left (`desk` is only added when there is none).
+const hostOfPage = new WeakMap();
+const bridged = new WeakSet();
+async function bridgeDeskReads(page, hostUrl) {
+  hostOfPage.set(page, hostUrl);
+  if (bridged.has(page)) return;
+  bridged.add(page);
+  const reads = createDeskReads({ host: () => hostOfPage.get(page) });
+  await page.exposeFunction('__deskRead', (name, id) => reads.read(name, id));
+  await page.addInitScript(() => {
+    window.racingDesk = Object.assign(window.racingDesk || {}, { desk: (window.racingDesk || {}).desk || { read: (name, id) => window.__deskRead(name, id) } });
+  });
+}
+
 // `timers` hands the page's clock to the test (page.clock.runFor), for what happens every so often: the time is
 // NOW and moves on from it. Without, the time is NOW for good and the page's timers run as they would.
-async function openDesk(page, hostUrl, query = '', { timers = false } = {}) {
+async function openDesk(page, hostUrl, query = '', { timers = false, bridge = true } = {}) {
   const errors = [];
+  if (bridge) await bridgeDeskReads(page, hostUrl);
   page.on('pageerror', (err) => errors.push(err.message));
   page.on('console', (msg) => {
     if (msg.type() !== 'error' && msg.type() !== 'warning') return;
@@ -271,26 +294,60 @@ test('passes on why the app has no host of its own', async ({ page }) => {
   await expect(page.locator('#offline-reason')).toContainText(note);
 });
 
-// ── The host's data is for this machine ──────────────────────
-// RacingDesk.Host answers a Host that names this machine at its own port and an Origin that is null or none, and refuses the
-// rest (apps/host LocalDataApi; tests/this-machine-rule.mjs is the stand-in's copy of the rule). The desk is a file, so its
-// reads say Origin: null and name the host it was given.
+// ── The host's data is for programs on this machine ──────────
+// RacingDesk.Host answers a program on this machine that names this machine at the host's own port and says no Origin, and
+// refuses every page, the desk's own included (apps/host LocalDataApi; tests/this-machine-rule.mjs is the stand-in's copy of
+// the rule): a file's page says Origin: null, and so does any web page redirected to the host, sandboxed or opened from disk. So
+// the desk's page asks the app's main process (window.racingDesk.desk.read), which asks as Node does; openDesk bridges that to
+// the real modules/js/desk-reads.js.
 
-test('reads the host as a page of the app: Origin null, the host\'s own address and port, and every read answered', async ({ page }) => {
+test('reads the host through the app: no request of the page\'s own, a Host and no Origin from Node, and every read answered', async ({ page }) => {
+  const own = await startMockHost(buildHistory());
+  const port = own.address().port;
+  const fromThePage = [];
+  page.on('request', (request) => { if (request.url().startsWith(`http://127.0.0.1:${port}`)) fromThePage.push(request.url()); });
+  try {
+    await openDesk(page, `http://127.0.0.1:${port}`);
+    await expect(page.locator('.race-row')).toHaveCount(30);
+    await expect(page.locator('#offline')).toBeHidden();
+    // A race's laps are a fourth read.
+    await page.locator('.race-row').first().click();
+    await expect(page.locator('.laps-table tbody tr')).not.toHaveCount(0);
+
+    const routes = new Set(own.asked.map((a) => a.route.split('?')[0]));
+    expect([...routes].sort()).toEqual(['schedule', 'session', 'sessions', 'status']);
+    for (const a of own.asked) {
+      expect(a.origin, `${a.method} ${a.route}: Node sends no Origin`).toBeUndefined();
+      expect(a.host, `${a.method} ${a.route}: it names the host it was given, at its port`).toBe(`127.0.0.1:${port}`);
+    }
+    expect(fromThePage, 'the page asked the host for nothing itself: it would be refused').toEqual([]);
+    expect(own.refused, 'the host refused none of the app\'s requests').toEqual([]);
+  } finally {
+    await new Promise((resolve) => own.close(resolve));
+  }
+});
+
+test('the host refuses the page that asks itself, as it does any page: a fetch from the desk gets a 403 and no CORS header', async ({ page }) => {
+  // What the desk did before it went through the app, and what any page open on the rig could do: the host does not tell a file's
+  // page from a web page that says Origin: null, so neither reads it, and nothing is sent a header that would let one.
   const own = await startMockHost(buildHistory());
   const port = own.address().port;
   try {
     await openDesk(page, `http://127.0.0.1:${port}`);
     await expect(page.locator('.race-row')).toHaveCount(30);
-    await expect(page.locator('#offline')).toBeHidden();
-
-    const routes = new Set(own.asked.map((a) => a.route.split('?')[0]));
-    expect([...routes].sort()).toEqual(['schedule', 'session', 'sessions', 'status']);
-    for (const a of own.asked) {
-      expect(a.origin, `${a.method} ${a.route}: a file's page says its origin is null`).toBe('null');
-      expect(a.host, `${a.method} ${a.route}: it names the host it was given, at its port`).toBe(`127.0.0.1:${port}`);
-    }
-    expect(own.refused, 'the host refused none of the desk\'s requests').toEqual([]);
+    own.asked.length = 0;
+    const seen = await page.evaluate(async (url) => {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        return { read: true, status: res.status, text: await res.text() };
+      } catch (err) {
+        return { read: false, error: String(err) };
+      }
+    }, `http://127.0.0.1:${port}/racing-desk/data/sessions`);
+    expect(seen.read, 'a page cannot read the answer: it has no CORS header').toBe(false);
+    expect(own.asked, 'and the host did not answer the request').toEqual([]);
+    expect(own.refused.map((r) => r.why)).toEqual(['AWebSite']);
+    expect(own.refused[0].origin).toBe('null');
   } finally {
     await new Promise((resolve) => own.close(resolve));
   }
@@ -308,8 +365,8 @@ test('does not ask a host that is on another machine, and says why', async ({ pa
   expect(asked, 'nothing was sent to it').toEqual([]);
 });
 
-test('a host that refuses the desk, as the host does to a stranger (403, no CORS header), reads as no host', async ({ page }) => {
-  // A refusal says nothing a page may read, so the desk cannot tell it from a host that is not answering; it keeps asking.
+test('a host that refuses the app (a 403) is told apart from one that is not answering', async ({ page }) => {
+  // A refusal says nothing a page may read when the page asks itself; the app asks, so the desk sees it and says so.
   const refusing = http.createServer((req, res) => {
     res.writeHead(403, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'this is for the app on this machine' }));
@@ -319,9 +376,24 @@ test('a host that refuses the desk, as the host does to a stranger (403, no CORS
     await openDesk(page, `http://127.0.0.1:${refusing.address().port}`);
     await expect(page.locator('#offline')).toBeVisible();
     await expect(page.locator('#offline-reason')).toContainText(`127.0.0.1:${refusing.address().port}`);
+    await expect(page.locator('#offline-reason')).toContainText('refused');
     await expect(page.locator('.race-row')).toHaveCount(0);
   } finally {
     await new Promise((resolve) => refusing.close(resolve));
+  }
+});
+
+test('a desk page that is not in the app (no bridge) says so and asks nobody', async ({ page }) => {
+  const own = await startMockHost(buildHistory());
+  try {
+    await openDesk(page, `http://127.0.0.1:${own.address().port}`, '', { bridge: false });
+    await expect(page.locator('#offline')).toBeVisible();
+    await expect(page.locator('#offline-reason')).toContainText('not open in it');
+    await page.waitForTimeout(300);
+    expect(own.asked).toEqual([]);
+    expect(own.refused).toEqual([]);
+  } finally {
+    await new Promise((resolve) => own.close(resolve));
   }
 });
 

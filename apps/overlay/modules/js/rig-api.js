@@ -7,8 +7,9 @@
 //   400 { "error": "…" }                   a car or a profile the host doesn't know
 //   403                                    any request that carries an Origin header
 //
-// The 403 is the host's rule that writes are for local programs, not for pages in a browser, so the Cars page does
-// not fetch this: it asks main.js (rig:bindPedals) and the request is made here, by Node, which sends no Origin.
+// The 403 is the host's rule that its data API (the reads as much as this write) is for local programs, not for pages in a
+// browser, so the Cars page does not fetch this: it asks main.js (rig:bindPedals) and the request is made here, by Node,
+// which sends no Origin. The desk's own reads (status, sessions, …) go the same way: desk-reads.js.
 //
 // The page shows whatever comes back beside the car's select, so every outcome is an answer it can read —
 // { ok: true, car } or { ok: false, error } with the error in words — and nothing is thrown: no host, a slow host,
@@ -93,8 +94,10 @@ function send(request, timeoutMs) {
   });
 }
 
-// Whether `base` is a host on this machine. The desk can be pointed at a host elsewhere to read from
-// (settings.simhubUrl); what a car is driven with is this rig's, and is not sent anywhere else.
+// Whether `base` is a host on this machine. The host answers programs on this machine and no other address (its data
+// carries the driver's customer id), so a host elsewhere (a settings.simhubUrl that names another machine, with no host of the
+// app's own found or started) refuses every read: nothing is sent to it, and what a car is driven with is this rig's and is
+// not sent anywhere else either.
 function isLocal(base) {
   try {
     return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(base).hostname);
@@ -260,8 +263,8 @@ function unread(error) {
 // `host` returns where the host is now (it can move while the app runs: :8889, or :18889 beside SimHub). `send` is
 // injectable for the tests.
 function createRigApi({ host, send: sendRequest = send, timeoutMs = TIMEOUT_MS } = {}) {
-  // Where to ask, or why not: { base } or { error }. The desk can be pointed at a host elsewhere; what a car is
-  // driven with is this rig's, and is neither sent to another machine nor taken from one.
+  // Where to ask, or why not: { base } or { error }. A host elsewhere refuses every read and is not asked (see isLocal);
+  // what a car is driven with is this rig's, and is neither sent to another machine nor taken from one.
   function where(verb) {
     let base = null;
     try {
@@ -307,5 +310,5 @@ function createRigApi({ host, send: sendRequest = send, timeoutMs = TIMEOUT_MS }
 
 module.exports = {
   PEDALS_PATH, READS, TIMEOUT_MS, MAX_LENGTH, MAX_CONTROLS_BYTES, bindingProblem, bindingRequest, readRequest, isLocal, send, readAnswer,
-  readRoute, readControls, shapeControls, unread, createRigApi,
+  readRoute, readControls, shapeControls, unread, noAnswer, createRigApi,
 };

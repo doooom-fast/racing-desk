@@ -62,13 +62,13 @@ the iPad view needs the LAN.
 
 The host also serves the store read-only at
 `:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals,outline?track=}` — that's what the desk
-reads, and `outline` is what the SimHub plugin's track map reads (see Track maps) — **to this machine only**: a request
-from another address, naming another host, or from a web site's page gets a 403 with no CORS header (see below, after
-the `?action=` routes). If
+reads (through the app's main process, not from its page), and `outline` is what the SimHub plugin's track map reads (see
+Track maps) — **to programs on this machine only**: a request from another address, naming another host, or that a browser
+sent (any page, the desk's own included) gets a 403 with no CORS header (see below, after the `?action=` routes). If
 SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk). One thing is written
 through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only,
-by the same check as the runtime's `?action=` routes make (below), on top of the one every read has: a request from
-another machine, one that names a host other than this machine's own, or one a browser sent (`Origin`, `Referer`,
+by the same check as the runtime's `?action=` routes make (below), which is now the one every read has too: a request
+from another machine, one that names a host other than this machine's own, or one a browser sent (`Origin`, `Referer`,
 `Sec-Fetch-*`) gets 403, so the desk page sends it through main.js.
 Beside them, `GET /racing-desk/data/simwindow` says where the sim's window is and `GET /racing-desk/data/monitors` lists
 the monitors, both in physical pixels (see **The HUD is on the screen iRacing is on**, under Desk), and
@@ -123,44 +123,54 @@ this change only with, or after, an exe built from it; an older plugin with the 
 the network, on purpose:** the telemetry (`GET /racing-desk/` with no action: read-only, and the iPad's path) and the
 `:8890` feed (it reads nothing from its clients).
 
-**The host's data reads are for this machine too, by a rule of their own** (Kevin said yes, 2026-10-01: they carry
-the driver's customer id — `sessions`, `session` — and the store's path — `status` — and they were open to any device on
-the LAN and, by `Access-Control-Allow-Origin: *`, to any web page open on the rig). `LocalDataApi.TryHandle` asks it of
-every request under `/racing-desk/data/` before any route is looked at, so a route added later, and a name that is no
-route (a 403, not a 404), is behind it with nothing to remember (`LocalRequest.RefusalOfRead`):
+**The host's data reads are for programs on this machine too, by a rule of their own** (Kevin said yes, 2026-10-01: they
+carry the driver's customer id — `sessions`, `session` — and the store's path — `status` — and they were open to any
+device on the LAN and, by `Access-Control-Allow-Origin: *`, to any web page open on the rig). `LocalDataApi.TryHandle`
+asks it of every request under `/racing-desk/data/` before any route is looked at, so a route added later, and a name that
+is no route (a 403, not a 404), is behind it with nothing to remember (`LocalRequest.RefusalOfRead`):
 - the connection is this machine's (`IsLocal`);
 - the `Host` is `localhost`, `127.0.0.1` or `[::1]` **at the port the request came in on** (`localhost:8889` to `:8889`;
   no port, or another, is refused);
-- the `Origin`, when there is one, is `null`: the desk and the HUD are files (`loadFile`), and a file's requests say so.
-  A web site's origin — `https://…`, or `http://localhost:3000`, another site on the rig — is refused. The other
-  browser marks of the `?action=` check (`Referer`, `Sec-Fetch-*`) are *not* held against a read: the desk is a page and
-  carries `Sec-Fetch-*`, and its origin is what a page is told apart by.
+- **no browser sent it**: no `Origin` of any kind, `null` included, and none of the marks a browser puts on a request that
+  has none (`Referer`, `Sec-Fetch-Site/-Dest/-User`: an image, a script, a no-cors fetch, a link, a form, a navigation —
+  typing the host's address into a browser on the rig is refused too). Node's own `fetch` sends `Sec-Fetch-Mode` and no
+  more, which is not held against it.
+
+**No page may read the host, the desk's own included, so there is no CORS answer for anybody.** `Origin: null` is what a
+file's page says (the desk and the HUD are files, `loadFile`), and it is also what a web page's fetch says once it is
+redirected to the host (a second site that answers 302; Chromium marks the fetch tainted), what a `<iframe sandbox>` says,
+and what an `.html` file opened from disk or a `data:` URL says: the host cannot tell the desk from those, so a host that
+answered `null` could be read by any page open on the rig. (Tested in headless Chromium: `host-data-pages.spec.mjs`.) So
+the desk's four reads (`status`, `sessions`, `schedule`, `session?id=`) go through the main process, as the Cars page's
+reads and the pedals write do: `desk.js` → `window.racingDesk.desk.read(name, id)` (preload) → `desk:read` in `main.js`,
+answered to the desk window alone → `modules/js/desk-reads.js`, which asks the host by Node (a `Host` and no `Origin`) and
+answers `{ value }` or `{ error, notHere | noAnswer | status }`, never a rejection. The desk's page fetches nothing (a test
+reads `desk.js` for a `fetch`), and the preflight of a data route is refused (403: the host claims it so that the runtime's
+wildcard preflight, which the telemetry keeps, is not what a page gets).
 
 Anything else is a 403 (`this is for the app on this machine`) with no CORS header, and one log line for each route and
-kind of asker (another machine, another host, a web site; never the Host or Origin the asker said). **CORS goes to the
-app's own pages by name and to no other origin**: an answered request from `Origin: null` is sent `Access-Control-Allow-Origin:
-null` (and `Vary: Origin`), never `*`; a program says no Origin and is sent no CORS header; the preflight of a data route
-is the host's own (`LocalDataApi`, which the runtime asks first for an `OPTIONS` — the telemetry's wildcard preflight is
-unchanged), and the replay's preflight is refused, a page may not ask it. The routes that were stricter stay so,
-and what they refuse is logged the same way: `POST …/data/pedals` and `…/data/replay` also turn away a browser's
-other marks. `LocalDataApi.Routes` is the host's own list; `DataRoutesThisMachineTests` reads the dispatch's source to
-see it is complete, and asks every route, over a real 127.0.0.1 socket, of a LAN host, another name, a wrong port and
-web-site origins (403, no CORS header, nothing of the store in the body), and of the app's page and of programs (answered).
-**Who asks, and why each is let through:** the desk's page (`modules/desk/desk.js`: `status`, `sessions`, `schedule`,
-`session?id=`; `Origin: null`, `Host` as given in `?host=`); the main process, by Node (no Origin, `Host: localhost:<port>`):
-the replay (`askHost`), the car names, the sim's window and the monitors, the Cars page's four reads and its write
-(`rig-api.js`), the probe of `status` (`host-launcher.js`); the SimHub plugin's track map (`HostOutlineSource`, over
-`127.0.0.1`). No page of the HUD or the iPad reads these routes (the iPad's proxy forwards `/racing-desk/` with no query
-and nothing else). **The one gap left, and Kevin's to decide:** `null` is also what a sandboxed iframe on a web page says
-(`<iframe sandbox src=…>`), so a hostile page open in a browser on the rig could still read the data by one — the host
-cannot tell a file from that. The desk's four reads (`status`, `sessions`, `schedule`, `session`) are the only reads a
-page makes; sending them through `main.js`, as the pedals write is, would take `null` off the list (`AppOrigins`) and close it.
-**What remains of `--desk-host=` and the desk's `?host=`:** they name a host on this machine and nothing further —
-`localhost` or `127.0.0.1` at the port a host you ran by hand listens on (`--desk-host=http://localhost:18889` is the
-use). Another machine's host refuses the desk, so the desk does not ask it: it says "not on this machine" (`desk.js`), the
-app logs it at start, and the main process's reads (`rig-api.js` already refused another machine) get a 403 and carry
-on as if there were no host. (A refusal has no CORS header, so a page cannot read its 403: to the desk a host that
-refuses it looks like one that is not answering. Nothing on this machine does.) Reading a host on another machine was a development convenience, not a feature.
+kind of asker (another machine, another host, an origin, a browser's marks; never the Host or Origin the asker said).
+`POST …/data/pedals` and `…/data/replay` keep the stricter test of their own, which the check above now includes.
+`LocalDataApi.Routes` is the host's own list; `DataRoutesThisMachineTests` reads the dispatch's source to see it is complete,
+and asks every route, over a real 127.0.0.1 socket, of a LAN host, another name, a wrong port, web-site origins, `null`, the
+desk's own request as Chromium sends it and a browser's marks (403, no CORS header, nothing of the store in the body), and of
+programs (answered, with no CORS header).
+**Who asks, and why each is let through:** the main process, by Node (no Origin, `Host: localhost:<port>`): the desk's
+reads (`desk-reads.js`), the replay (`askHost`), the car names, the sim's window and the monitors, the Cars page's four
+reads and its write (`rig-api.js`), the probe of `status` (`host-launcher.js`); the SimHub plugin's track map
+(`HostOutlineSource`, over `127.0.0.1`). No page of the HUD or the iPad reads these routes (the iPad's proxy forwards
+`/racing-desk/` with no query and nothing else); `tests/this-machine-rule.mjs` is the stand-in hosts' copy of the rule, so a
+reader that would be refused by the real host fails the tests.
+**What remains of `--desk-host=`, the desk's `?host=` and `settings.simhubUrl`:** a host on this machine and nothing
+further. `--desk-host=http://localhost:18889` (a host you ran by hand, at the port it listens on) still works; a
+`--desk-host=` that names another machine is **ignored**, with one line in the log (`main.js` `deskHostFlag`,
+`desk-reads.js` `deskHostOf`), and the app finds or starts a host of its own, so the desk, the HUD's screen lookup, the car
+names and the TV shots keep working. `?host=` is no longer a way to point the desk anywhere: it is the name of the host the
+app loaded the desk with, shown in the desk's messages, and the reads go to the host main.js has (`localHostUrl()`). The
+last fallback of `localHostUrl()`, `settings.simhubUrl` (when no host was found or started and there is no flag), is the
+telemetry's address and can name another machine; a value that is not on this machine is a host that refuses every read,
+so nothing is sent to it (`desk-reads.js` and `rig-api.js` both refuse it first) and the desk says "not on this machine".
+Reading a host on another machine was a development convenience, not a feature.
 
 Car names (`cars`, schema v4) come from the session YAML of the driver's own sessions, which lists every entrant's
 `CarPath` and `CarScreenName` — nothing of iRacing's is bundled, so a car that has never been in one of those sessions
@@ -536,7 +546,7 @@ npm run build:host                  # just RacingDesk.Host → apps/host/publish
 # with 7za and `-xr!darwin`, then build again.
 npm start -w racing-desk-overlay        # overlay from source: HUD + desk, starts the host too (--no-desk skips the desk,
                                     # Ctrl+Shift+O reopens it; --desk-host=http://localhost:18889 uses a host you ran by hand,
-                                    # on this machine: a host elsewhere refuses the desk, so it is not asked)
+                                    # on this machine: a host elsewhere refuses every read, so the flag is ignored)
 npm test -w @racing-desk/calc          # engines + local model (vitest)
 npm run test:desk                   # desk.html over a mock host, headless, off-machine requests blocked
 ```

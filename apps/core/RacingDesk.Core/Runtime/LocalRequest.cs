@@ -13,8 +13,10 @@ namespace RacingDesk.Plugin
     ///
     /// The host's reads (<c>/racing-desk/data/…</c>: the sessions with the driver's customer id, the store's path) are
     /// for this machine too, by a rule of their own (<see cref="RefusalOfRead(bool, NameValueCollection, int)"/>): the
-    /// desk's page reads them and a page says an Origin, so the browser test above does not apply to them — a page of
-    /// the app is let through, a page of any other origin is not.
+    /// same two tests and the browser test above, and the Host must name this machine at the port the request came in
+    /// on. No page reads them, the app's own included: a file's page says <c>Origin: null</c>, and so does a page of any
+    /// web site that is redirected, sandboxed or opened from disk, so the host cannot tell the desk from those; the desk
+    /// asks the app's main process, which asks the host as a program does.
     /// </summary>
     public static class LocalRequest
     {
@@ -99,13 +101,6 @@ namespace RacingDesk.Plugin
 
         // ── The host's reads ─────────────────────────────────────────
 
-        /// <summary>
-        /// The origins of the app's own pages, the only ones the host's reads answer by CORS: the desk and the HUD are files
-        /// (<c>loadFile</c>), and a page that is a file says <c>Origin: null</c>. The iPad's HUD is served by the app's own
-        /// server and reads the telemetry through it, never these routes.
-        /// </summary>
-        public static readonly string[] AppOrigins = { "null" };
-
         /// <summary>Why a request to the host's data was refused: see <see cref="RefusalOfRead(bool, NameValueCollection, int)"/>.</summary>
         public enum Refusal
         {
@@ -115,9 +110,9 @@ namespace RacingDesk.Plugin
             AnotherMachine,
             /// <summary>The Host names something other than this machine at this port: an address on the network, or a name another site has pointed at the rig.</summary>
             AnotherHost,
-            /// <summary>The request names the origin of a web site: a page in a browser that is not the app's own.</summary>
+            /// <summary>The request names an <c>Origin</c>: a page in a browser, whatever its origin (a web site's, a file's, <c>null</c>); none may read the host's data.</summary>
             AWebSite,
-            /// <summary>A browser sent it, where only a program may ask: the routes that are not reads.</summary>
+            /// <summary>A browser sent it without an Origin (a link, an image, a form, a no-cors fetch, a navigation), or where only a program may ask: the routes that are not reads.</summary>
             ABrowser,
         }
 
@@ -127,28 +122,24 @@ namespace RacingDesk.Plugin
 
         /// <summary>
         /// Whether a read of the host's data (<c>/racing-desk/data/…</c>) may be answered. They carry the driver's customer id
-        /// and the store's path, and :8889 answers every address, so a read is answered only to this machine: the connection
-        /// is its own (<c>IsLocal</c>), the Host names it at the port the request came in on, and the Origin, when there is
-        /// one, is one of the app's own pages (<see cref="AppOrigins"/>) and not that of a web site open on the rig. Unlike
-        /// <see cref="IsFromThisMachine(bool, NameValueCollection)"/> it does not turn away a browser's other marks: the desk
-        /// is a page and carries them (<c>Sec-Fetch-*</c>); the origin is what a page is told apart by, and what it may
-        /// read by CORS.
+        /// and the store's path, and :8889 answers every address, so a read is answered only to a program on this machine: the
+        /// connection is its own (<c>IsLocal</c>), the Host names it at the port the request came in on, and no browser sent it
+        /// (<see cref="SaysItIsABrowser"/>: an Origin, a Referer or <c>Sec-Fetch-Site/-Dest/-User</c>).
+        ///
+        /// There is no page that may ask, the app's own included, and so no CORS answer for any of them. A page of the app is a
+        /// file and says <c>Origin: null</c>, which a web site's page says as well when its fetch is redirected here, when it
+        /// is in a sandboxed frame, or when it is a file opened from disk, so the host cannot tell them apart and answers
+        /// neither; and a browser that sends no Origin (a no-cors fetch, an image, a script, a link, a form) still marks its
+        /// request, and is turned away by the marks. The desk reads through the app's main process (<c>desk:read</c>), which
+        /// asks as a program does.
         /// </summary>
         /// <param name="port">The port the request came in on (<c>LocalEndPoint.Port</c>).</param>
         public static Refusal RefusalOfRead(bool isLocal, NameValueCollection headers, int port)
         {
             if (!isLocal || headers == null) return Refusal.AnotherMachine;
             if (!NamesThisMachineOnPort(headers["Host"], port)) return Refusal.AnotherHost;
-            return AnswersToOrigin(headers["Origin"]) ? Refusal.None : Refusal.AWebSite;
-        }
-
-        /// <summary>Whether a read from this Origin is answered: no Origin (a program) or one of <see cref="AppOrigins"/>.</summary>
-        public static bool AnswersToOrigin(string origin)
-        {
-            if (string.IsNullOrEmpty(origin)) return true;
-            foreach (string own in AppOrigins)
-                if (string.Equals(origin, own, StringComparison.Ordinal)) return true;
-            return false;
+            if (!string.IsNullOrEmpty(headers["Origin"])) return Refusal.AWebSite;
+            return SaysItIsABrowser(headers) ? Refusal.ABrowser : Refusal.None;
         }
     }
 }

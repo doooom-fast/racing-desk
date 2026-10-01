@@ -31,7 +31,7 @@ namespace RacingDesk.Host
         /// <summary>The live reader, once the host has one; null for a file replay.</summary>
         public IReplayControl Replay { get; set; }
 
-        /// <summary>Called when the route's own check refuses a request (the data API's has passed it, so a browser sent it); the data API writes it down.</summary>
+        /// <summary>Called when the route's own check refuses a request; the data API writes it down. The data API's own check (<see cref="LocalRequest.RefusalOfRead(System.Net.HttpListenerRequest)"/>) refuses everything this one does and runs first, so this is a second line that is reached only if the two come apart.</summary>
         public Action Refused { get; set; }
 
         /// <summary>Answers the route whole. The caller has matched the path.</summary>

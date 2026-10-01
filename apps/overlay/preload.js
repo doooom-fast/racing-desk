@@ -74,6 +74,13 @@ contextBridge.exposeInMainWorld('racingDesk', {
     read: () => ipcRenderer.invoke('rig:read'),
     bindPedals: (carPath, profileId) => ipcRenderer.invoke('rig:bindPedals', carPath, profileId),
   },
+  // Desk window: what the desk reads of the host's store, asked for by main.js (modules/js/desk-reads.js) because the host answers
+  // programs on this machine and no page, this one included. read('status' | 'sessions' | 'schedule') or read('session', id)
+  // resolves to { value }, or { error } with `notHere` (the host is on another machine, so it was not asked), `noAnswer` or
+  // `status` (the host's own, 403 and 404 among them). What went wrong is an answer, not a rejection.
+  desk: {
+    read: (name, id) => ipcRenderer.invoke('desk:read', name, id),
+  },
   // Desk window: the recording, which is OBS's (modules/js/obs). status() is the keeper's status with the folder and
   // what Set up OBS has left to do; command(name, value) is one of record, stop, toggle, saveReplay, setup, openObs,
   // openFolder, chooseFolder, password, tvShots ({ folder }), tvShotsCancel, recordingFor ({ startedAt, track }) and

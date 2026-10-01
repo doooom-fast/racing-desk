@@ -182,9 +182,9 @@ namespace RacingDesk.Plugin
                     // file:// → localhost requires Access-Control-Allow-Private-Network
                     if (ctx.Request.HttpMethod == "OPTIONS")
                     {
-                        // A route of the host's own answers its own preflight: the data API's go to the app's pages and to
-                        // no other origin, which the wildcard below would not do. The rest are asked of nobody but the
-                        // runtime's own routes, whose CORS is the wildcard.
+                        // A route of the host's own answers its own preflight: the data API refuses every one (403, no CORS
+                        // header: no page reads it), which the wildcard below would not do. The rest are asked of nobody but
+                        // the runtime's own routes, whose CORS is the wildcard.
                         if (_options.ExtraRoutes != null)
                         {
                             bool preflightHandled = false;

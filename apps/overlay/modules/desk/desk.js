@@ -1,19 +1,15 @@
 // Racing Desk — career, form and race history from the local store.
-// Rows come from RacingDesk.Host (:8889/racing-desk/data/); window.RaceCorCalc (packages/calc) turns
+// Rows come from RacingDesk.Host (:8889/racing-desk/data/), asked for by the app's main process (window.racingDesk.desk.read,
+// modules/js/desk-reads.js): the host answers programs on this machine and no page. window.RaceCorCalc (packages/calc) turns
 // them into everything shown here. No network beyond localhost.
 (function () {
   'use strict';
 
   const params = new URLSearchParams(location.search);
+  // The host the app found or started, as main.js loaded this page (`?host=`): what the desk names in what it says. It asks
+  // for nothing there itself — the host's data is for programs on this machine (it carries the driver's customer id), and a
+  // page, this one included, is refused whatever it names — so the reads go through main.js, which asks the host it has.
   const HOST = (params.get('host') || 'http://localhost:8889').replace(/\/+$/, '');
-  const DATA = HOST + '/racing-desk/data/';
-  // The host's data is for this machine: it carries the driver's customer id, and the host answers a request that names
-  // this machine (localhost, 127.0.0.1 or [::1], at the port it listens on) and refuses any other with a 403. So the
-  // desk asks a host on this machine, and says so when it is pointed at another instead of asking it: `?host=` and
-  // main.js's --desk-host name a host here, by another port, and nothing further away.
-  const HOST_IS_HERE = (() => {
-    try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(HOST).hostname); } catch (_) { return false; }
-  })();
   // main.js says why it has no host of its own (no exe built, something else on the port) — shown with the
   // offline message, since that is the window the person is looking at.
   const NOTE = params.get('note');
@@ -70,15 +66,23 @@
 
   // ── Data ─────────────────────────────────────────────────
 
-  async function getJson(route) {
-    if (!HOST_IS_HERE) {
-      const err = new Error(`${route}: ${HOST} is not on this machine`);
-      err.notHere = true;
+  // One read of the host's store by the app (window.racingDesk.desk.read): 'status', 'sessions', 'schedule', or 'session' with the
+  // stored row's id. Resolves to the host's JSON. Rejects with an error that says why where it is one of three things:
+  // `noApp` (this page is not in Racing Desk: nothing here can read the host), `notHere` (the host is on another machine, so it
+  // was not asked) or `refused` (the host answered 403).
+  async function getJson(route, id) {
+    const bridge = window.racingDesk && window.racingDesk.desk;
+    if (!bridge || typeof bridge.read !== 'function') {
+      const err = new Error(`${route}: this page is not in the Racing Desk app`);
+      err.noApp = true;
       throw err;
     }
-    const res = await fetch(DATA + route, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`${route}: HTTP ${res.status}`);
-    return res.json();
+    const answer = await bridge.read(route, id);
+    if (answer && Object.prototype.hasOwnProperty.call(answer, 'value')) return answer.value;
+    const err = new Error(`${route}: ${(answer && answer.error) || 'no answer'}`);
+    err.notHere = !!(answer && answer.notHere);
+    err.refused = !!(answer && answer.status === 403);
+    throw err;
   }
 
   // `refreshed` is Refresh, which has the Cars page read again by itself.
@@ -87,13 +91,22 @@
     try {
       status = await getJson('status');
     } catch (err) {
-      if (err && err.notHere) {
-        // Nothing to retry: it is not going to be on this machine by waiting.
-        showOffline(`${HOST} is not on this machine, and the host's data (your sessions, with your customer id) is read from this machine only, so the desk does not ask for it. Point it at a host on this machine: localhost or 127.0.0.1, at the port the host listens on.`);
+      if (err && err.noApp) {
+        // Nothing to retry: a page in a browser has no way to read the host, which answers programs on this machine alone.
+        showOffline('The desk reads your sessions (with your customer id) through the Racing Desk app, and this page is not open in it.');
         return;
       }
-      // (A refusal has no CORS header, so a page cannot see its status: a host that refuses the desk looks like one that is
-      // not answering. Nothing the desk is pointed at on this machine refuses it.)
+      if (err && err.notHere) {
+        // Nothing to retry: it is not going to be on this machine by waiting.
+        showOffline(`${HOST} is not on this machine, and the host's data (your sessions, with your customer id) is read from this machine only, so the desk did not ask it.`);
+        return;
+      }
+      if (err && err.refused) {
+        // Something answered, and said no: the host's own words are that it is for programs on this machine. Not an answer a wait changes soon.
+        showOffline(`${HOST} refused the desk (403): the host answers the app on this machine only, and something else may hold that port.`);
+        setTimeout(load, 15000);
+        return;
+      }
       showOffline(`Nothing is answering at ${HOST}.`);
       setTimeout(load, 5000);
       return;
@@ -313,7 +326,7 @@
     let laps = [];
     let incidents = [];
     try {
-      const parts = await Promise.all(e.rowIds.map((rowId) => getJson('session?id=' + rowId)));
+      const parts = await Promise.all(e.rowIds.map((rowId) => getJson('session', Number(rowId))));
       for (const part of parts) {
         laps = laps.concat(part.laps);
         incidents = incidents.concat(part.incidents);
