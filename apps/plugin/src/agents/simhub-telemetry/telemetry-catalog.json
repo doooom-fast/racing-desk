@@ -128,7 +128,7 @@
       "source": "iracing-sdk",
       "fields": [
         {"name": "TyreTempFL/FR/RL/RR", "type": "float", "unit": "°F", "wired": true, "desc": "Per-corner tyre surface temperature (iRacing native = °F)"},
-        {"name": "TyreWearFL/FR/RL/RR", "type": "float", "range": "0–1", "wired": true, "desc": "Per-corner tyre wear remaining (1.0=new, 0.0=worn). Trigger at <0.35"}
+        {"name": "TyreWearFL/FR/RL/RR", "type": "double?", "range": "0–100", "wired": true, "desc": "Per-corner tread remaining in percent (100=new), null where the sim has not measured it; the mean of iRacing's three tread bands times a hundred (SimHub publishes the middle band alone). iRacing measures tread in the pits only. One meaning everywhere (root CLAUDE.md, Tyre wear); the topic fires on the worst corner <35"}
       ]
     },
     {
@@ -155,10 +155,10 @@
       "title": "Tyre Wear — Per Corner Zone (Left / Mid / Right)",
       "source": "iracing-sdk",
       "fields": [
-        {"name": "LFwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Left-front tyre wear per zone (L=left edge, M=centre, R=right edge)"},
-        {"name": "RFwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Right-front tyre wear per zone"},
-        {"name": "LRwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Left-rear tyre wear per zone"},
-        {"name": "RRwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Right-rear tyre wear per zone"}
+        {"name": "LFwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Left-front tread remaining per band as a fraction, 1.0=new (the header says percent; the value is a fraction), L=left edge, M=centre, R=right edge. Updated only when the car is in the pits. The source of TyreWearFL: their mean times a hundred (Engine/TyreWear.cs)"},
+        {"name": "RFwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Right-front tread remaining per band (fraction, 1.0=new; pits only)"},
+        {"name": "LRwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Left-rear tread remaining per band (fraction, 1.0=new; pits only)"},
+        {"name": "RRwearL/M/R", "type": "float", "range": "0–1", "wired": false, "desc": "Right-rear tread remaining per band (fraction, 1.0=new; pits only)"}
       ]
     },
     {
@@ -464,8 +464,8 @@
       "fields": [
         {"name": "DataCorePlugin.GameData.TyreTempFrontLeft/Right", "type": "double", "unit": "°C", "wired": true, "desc": "Front tyre surface temps — cross-game"},
         {"name": "DataCorePlugin.GameData.TyreTempRearLeft/Right", "type": "double", "unit": "°C", "wired": true, "desc": "Rear tyre surface temps — cross-game"},
-        {"name": "DataCorePlugin.GameData.TyreWearFrontLeft/Right", "type": "double", "range": "0–1", "wired": true, "desc": "Front tyre wear — cross-game"},
-        {"name": "DataCorePlugin.GameData.TyreWearRearLeft/Right", "type": "double", "range": "0–1", "wired": true, "desc": "Rear tyre wear — cross-game"},
+        {"name": "DataCorePlugin.GameData.TyreWearFrontLeft/Right", "type": "double?", "range": "0–100", "wired": true, "desc": "Front tread remaining in percent, 100=new; on the wire null until the sim has measured it (SimHub's own 0 is nothing, not a bald tyre). Read as it is by every reader (root CLAUDE.md, Tyre wear)"},
+        {"name": "DataCorePlugin.GameData.TyreWearRearLeft/Right", "type": "double?", "range": "0–100", "wired": true, "desc": "Rear tread remaining in percent, 100=new; null until measured"},
         {"name": "DataCorePlugin.GameData.TyrePressureFrontLeft/Right", "type": "double", "unit": "kPa", "wired": false, "desc": "Front tyre pressures"},
         {"name": "DataCorePlugin.GameData.TyrePressureRearLeft/Right", "type": "double", "unit": "kPa", "wired": false, "desc": "Rear tyre pressures"},
         {"name": "DataCorePlugin.GameData.BrakeTemperatureFrontLeft/Right", "type": "double", "unit": "°C", "wired": false, "desc": "Front brake temps"},
@@ -548,7 +548,7 @@
         {"name": "tc_intervention", "type": "trigger", "wired": true, "desc": "TcActive == true"},
         {"name": "high_cornering_load", "type": "trigger", "wired": true, "desc": "LatAccel extreme > 4.5G"},
         {"name": "heavy_braking", "type": "trigger", "wired": true, "desc": "LongAccel < -38 m/s²"},
-        {"name": "tyre_wear_high", "type": "trigger", "wired": true, "desc": "Any TyreWear < 0.35"},
+        {"name": "tyre_wear_high", "type": "trigger", "wired": true, "desc": "TyreWearWorst < 35 (the worst corner's tread remaining, in percent; not measured never fires)"},
         {"name": "hot_tyres", "type": "trigger", "wired": true, "desc": "Any TyreTemp > 250°F"},
         {"name": "close_battle", "type": "trigger", "wired": true, "desc": "NearestCarDistance < 0.008"},
         {"name": "position_gained", "type": "trigger", "wired": true, "desc": "Position improved"},

@@ -57,8 +57,9 @@
   let _lastDecrement = -1;
   let _lastToggle = -1;
   var _tabOrder = ['tyres', 'fuel', 'weather'];
-  var _lastWindow = null;         // the pit window's words, and the tyres' age, as last written
+  var _lastWindow = null;         // the pit window's words, the tyres' age and what the tread number is, as last written
   var _lastTyreAge = null;
+  var _lastMeasuredNote = null;
   var _pbHidden = false;  // "off" state — pitbox dismissed via tab cycling past the edges
 
   // SVG circle constants — radius 28, circumference = 2πr ≈ 175.93
@@ -105,6 +106,7 @@
       windowRow:   $('pbRowWindow'),
       windowVal:   $('pbWindow'),
       tyresPage:   $('pbPageTyres'),
+      wearNote:    $('pbWearNote'),
       // Weather tab
       weatherIcon: $('pbWeatherIcon'),
       airTemp:     $('pbAirTemp'),
@@ -282,49 +284,35 @@
     rowEl.classList.toggle('hidden', !visible);
   }
 
-  // ── Wear helpers ──
+  // ── Wear ──
+  // Tyre wear on the wire is tread remaining, 0..100 %, 100 = new, per corner — the same number from the host, the
+  // SimHub plugin and the demo (root CLAUDE.md, Tyre wear). Nothing here converts it: the ring is the number as it
+  // comes. null is not measured, and 0 is not a measurement either (SimHub's own property reads 0 while it has
+  // nothing; a tyre with no tread at all is not a thing the sim reports). iRacing measures tread in the pits and
+  // nowhere else, so the number is the last measurement: the page says so (the note under the rings, the heading in
+  // the glance layout) and the warnings come from the strategy engine, which rates a measurement, not from here.
+  // The two thresholds are the engine's (Engine/TyreWear.cs): amber under 35, red under 20 — TYRE_WEAR_WARN_BELOW and
+  // TYRE_WEAR_CRIT_BELOW, and the wire's number is read by parseTyreWear, all three in config.js, where every panel
+  // that shows tread reads it from.
+  var WEAR_WARN_BELOW = TYRE_WEAR_WARN_BELOW, WEAR_CRIT_BELOW = TYRE_WEAR_CRIT_BELOW;
+  var _parseWear = parseTyreWear;
 
-  // Parse demo wear: plugin sends 0=new, 1=gone. Invert to 1=new, 0=gone.
-  function _parseDemoWear(val) {
-    if (val == null || val === '') return null;
-    var v = parseFloat(val);
-    if (isNaN(v)) return null;
-    return Math.max(0, Math.min(1, 1 - v));
-  }
-
-  // Parse tyre wear with null-awareness and raw telemetry fallback.
-  // Returns null when no data available, otherwise 0-1 (1=new, 0=worn).
-  function _parseTyreWear(gameDataVal, rawL, rawM, rawR) {
-    // Try GameData value first
-    if (gameDataVal != null && gameDataVal !== '') {
-      var v = parseFloat(gameDataVal);
-      if (!isNaN(v)) return v;
-    }
-    // Fallback: raw telemetry wear points (average of inner/mid/outer)
-    var l = parseFloat(rawL), m = parseFloat(rawM), r = parseFloat(rawR);
-    if (!isNaN(l) && !isNaN(m) && !isNaN(r) && (l + m + r) > 0) {
-      return (l + m + r) / 3;
-    }
-    return null; // No data available yet
-  }
-
-  function updateWearRing(ringEl, valEl, wear) {
+  function updateWearRing(ringEl, valEl, remaining) {
     if (!ringEl || !valEl) return;
-    if (wear === null || wear === undefined) {
-      // No data — empty ring, placeholder text
+    if (remaining === null || remaining === undefined) {
+      // Not measured — empty ring, placeholder text
       ringEl.style.strokeDashoffset = RING_CIRCUMFERENCE;
       ringEl.className.baseVal = 'pb-ring-fill';
       valEl.textContent = '—';
       return;
     }
-    // iRacing: 1 = new tyre, 0 = fully worn → wear IS remaining life
-    var pct = Math.max(0, Math.min(100, wear * 100));
-    var remaining = Math.round(pct);
+    var pct = Math.max(0, Math.min(100, remaining));
+    var shown = tyreWearShown(pct);
     // dashoffset: 0 = full circle, CIRCUMFERENCE = empty circle
     ringEl.style.strokeDashoffset = RING_CIRCUMFERENCE * (1 - pct / 100);
     ringEl.className.baseVal = 'pb-ring-fill' +
-      (remaining < 20 ? ' crit' : remaining < 40 ? ' warn' : '');
-    valEl.textContent = remaining + '%';
+      (pct < WEAR_CRIT_BELOW ? ' crit' : pct < WEAR_WARN_BELOW ? ' warn' : '');
+    valEl.textContent = shown + '%';
   }
 
   // ── Temperature formatting — respects DisplayUnits ──
@@ -379,33 +367,33 @@
 
     // ── Strategist tire suggestion ──
     // Show the "accept" button when the strategy engine flags tire health
-    // as needing attention (TireHealthState >= 2 means "change recommended").
-    // In demo mode, simulate strategy suggestion when any tire drops below 50% wear.
+    // as needing attention (TireHealthState >= 2 means "change recommended": a tyre measured under 20% tread).
+    // In demo mode, the page plays the strategist itself when a demo tyre is under the critical threshold: the same
+    // tread the live offer comes at (the engine's TireHealthState 2), not the worn one that only turns the ring amber.
     var st = function(key) { return d['RacingDesk.Plugin.Strategy.' + key]; };
     var tireHealth = parseInt(st('TireHealthState')) || 0;
     var tireLapsLeft = st('TireLapsRemaining');
     var shouldSuggest = tireHealth >= 2;
 
-    // Demo mode: simulate strategist when tire wear is notable
+    // Demo mode: the demo's tread (percent remaining, as the live keys are) drives the suggestion
     if (_demo && !shouldSuggest) {
-      var demoWearFL = _parseDemoWear(demoTyre('TyreWearFL'));
-      var demoWearFR = _parseDemoWear(demoTyre('TyreWearFR'));
-      var demoWearRL = _parseDemoWear(demoTyre('TyreWearRL'));
-      var demoWearRR = _parseDemoWear(demoTyre('TyreWearRR'));
-      // Trigger when any tire is below 60% remaining life
-      if ((demoWearFL !== null && demoWearFL < 0.6) ||
-          (demoWearFR !== null && demoWearFR < 0.6) ||
-          (demoWearRL !== null && demoWearRL < 0.6) ||
-          (demoWearRR !== null && demoWearRR < 0.6)) {
+      var demoWearFL = _parseWear(demoTyre('TyreWearFL'));
+      var demoWearFR = _parseWear(demoTyre('TyreWearFR'));
+      var demoWearRL = _parseWear(demoTyre('TyreWearRL'));
+      var demoWearRR = _parseWear(demoTyre('TyreWearRR'));
+      if ((demoWearFL !== null && demoWearFL < WEAR_CRIT_BELOW) ||
+          (demoWearFR !== null && demoWearFR < WEAR_CRIT_BELOW) ||
+          (demoWearRL !== null && demoWearRL < WEAR_CRIT_BELOW) ||
+          (demoWearRR !== null && demoWearRR < WEAR_CRIT_BELOW)) {
         shouldSuggest = true;
-        // Estimate laps remaining from worst tire
+        // Laps left from the worst tyre: a fifth of a lap per point of tread, for the show
         var worstWear = Math.min(
-          demoWearFL !== null ? demoWearFL : 1,
-          demoWearFR !== null ? demoWearFR : 1,
-          demoWearRL !== null ? demoWearRL : 1,
-          demoWearRR !== null ? demoWearRR : 1
+          demoWearFL !== null ? demoWearFL : 100,
+          demoWearFR !== null ? demoWearFR : 100,
+          demoWearRL !== null ? demoWearRL : 100,
+          demoWearRR !== null ? demoWearRR : 100
         );
-        tireLapsLeft = Math.max(1, Math.round(worstWear * 20));
+        tireLapsLeft = Math.max(1, Math.round(worstWear / 5));
       }
     }
 
@@ -425,12 +413,13 @@
     if (shouldSuggest) setTiresSelectable(true);
 
     if (shouldSuggest && _els.stratLabel) {
-      var lapsStr = (tireLapsLeft != null && tireLapsLeft !== '')
-        ? ' · ~' + Math.round(parseFloat(tireLapsLeft)) + ' laps left'
-        : '';
+      // The engine's laps left is 99 where it has nothing to say (iRacing measures tread only in the pits) and 0 for a
+      // tyre measured critical: neither is a number to show.
+      var lapsLeft = (tireLapsLeft != null && tireLapsLeft !== '') ? Math.round(parseFloat(tireLapsLeft)) : NaN;
+      var lapsStr = (lapsLeft > 0 && lapsLeft < 99) ? ' · ~' + lapsLeft + ' laps left' : '';
       // (In the glance layout there is nothing to press: the call is read, and says what to do.)
       _els.stratLabel.textContent = document.body.classList.contains('drive-mode-active')
-        ? 'Change' + (lapsStr ? ' · ~' + Math.round(parseFloat(tireLapsLeft)) + ' laps' : '')
+        ? 'Change' + (lapsStr ? ' · ~' + lapsLeft + ' laps' : '')
         : 'Accept tire change' + lapsStr;
       _stratTires = [true, true, true, true];
     } else {
@@ -459,28 +448,28 @@
     }
 
     // ── Circle wear charts ──
-    // iRacing sends 0-1 where 1=new, 0=worn.
-    // Null-aware parsing: null/undefined = "no data yet" (show —),
-    // 0 = "fully worn" (show 0%).
-    // In demo mode, wear comes from Plugin.Demo.TyreWear* (0=new, 1=worn — inverted).
-    // In live mode, falls back to raw telemetry average if GameData returns null (first lap).
-    var wearFL, wearFR, wearRL, wearRR;
-    if (_demo) {
-      // Demo wear is 0=new, 1=gone — invert to match iRacing's 1=new convention
-      wearFL = _parseDemoWear(demoTyre('TyreWearFL'));
-      wearFR = _parseDemoWear(demoTyre('TyreWearFR'));
-      wearRL = _parseDemoWear(demoTyre('TyreWearRL'));
-      wearRR = _parseDemoWear(demoTyre('TyreWearRR'));
-    } else {
-      wearFL = _parseTyreWear(gd('TyreWearFrontLeft'), dc('LFwearL'), dc('LFwearM'), dc('LFwearR'));
-      wearFR = _parseTyreWear(gd('TyreWearFrontRight'), dc('RFwearL'), dc('RFwearM'), dc('RFwearR'));
-      wearRL = _parseTyreWear(gd('TyreWearRearLeft'), dc('LRwearL'), dc('LRwearM'), dc('LRwearR'));
-      wearRR = _parseTyreWear(gd('TyreWearRearRight'), dc('RRwearL'), dc('RRwearM'), dc('RRwearR'));
-    }
+    // The tread remaining as the wire has it (see _parseWear): the demo's keys and the live keys mean the same thing.
+    var wearFL = _parseWear(_demo ? demoTyre('TyreWearFL') : gd('TyreWearFrontLeft'));
+    var wearFR = _parseWear(_demo ? demoTyre('TyreWearFR') : gd('TyreWearFrontRight'));
+    var wearRL = _parseWear(_demo ? demoTyre('TyreWearRL') : gd('TyreWearRearLeft'));
+    var wearRR = _parseWear(_demo ? demoTyre('TyreWearRR') : gd('TyreWearRearRight'));
     updateWearRing(_els.ringLF, _els.wearLFVal, wearFL);
     updateWearRing(_els.ringRF, _els.wearRFVal, wearFR);
     updateWearRing(_els.ringLR, _els.wearLRVal, wearRL);
     updateWearRing(_els.ringRR, _els.wearRRVal, wearRR);
+
+    // What the number is: iRacing measures tread in the pits and nowhere else, so the rings show the last measurement,
+    // not live wear. Said in one dim line under the rings, on the rig and in the glance layout alike (the glance
+    // layout's heading has no room for it on an iPad); not in the demo, whose tread is made up and moves every lap,
+    // and not for a sim that measures as it goes.
+    var measuredNote = (!_demo && gameId === 'iracing') ? 'Tread measured in the pits' : '';
+    if (_lastMeasuredNote !== measuredNote) {
+      _lastMeasuredNote = measuredNote;
+      if (_els.wearNote) {
+        _els.wearNote.textContent = measuredNote;
+        _els.wearNote.classList.toggle('hidden', !measuredNote);
+      }
+    }
 
     // Tyre temps (inside circle charts)
     var tempFL = _demo ? demoTyre('TyreTempFL') : gd('TyreTempFrontLeft');

@@ -18,7 +18,10 @@ namespace RacingDesk.Plugin.Engine.Strategy
         /// <summary>Per-lap fuel consumption (liters). Index 0 = first lap of stint.</summary>
         public List<double> FuelPerLap { get; } = new List<double>();
 
-        /// <summary>Per-lap tire wear deltas [FL, FR, RL, RR]. Each entry is wear lost that lap.</summary>
+        /// <summary>
+        /// Per-lap tread lost [FL, FR, RL, RR], in points of percent remaining (<see cref="TyreWear"/>). iRacing
+        /// measures tread in the pits only, so between stops every entry is nought there.
+        /// </summary>
         public List<double[]> WearPerLap { get; } = new List<double[]>();
 
         /// <summary>Per-lap tire temperatures [FL, FR, RL, RR] (average over the lap).</summary>
@@ -91,46 +94,32 @@ namespace RacingDesk.Plugin.Engine.Strategy
         }
 
         /// <summary>
-        /// Current tire wear average across all four tires (0 = new, 1 = gone).
-        /// Computed from cumulative wear deltas.
+        /// Laps before any tyre is down to <paramref name="criticalPercent"/> of tread, extrapolated from the tread lost
+        /// over the last five laps. 99 where no tyre has been seen losing tread (iRacing between stops) or none is
+        /// measured; 0 for a tyre already at or under the critical tread.
         /// </summary>
-        public double[] CumulativeWear
+        public double EstimateLapsToCritical(double?[] treadRemaining, double criticalPercent)
         {
-            get
-            {
-                double[] total = new double[4];
-                foreach (var w in WearPerLap)
-                    for (int i = 0; i < 4 && i < w.Length; i++)
-                        total[i] += w[i];
-                return total;
-            }
-        }
-
-        /// <summary>
-        /// Estimates laps remaining before any tire reaches the given wear threshold.
-        /// Uses linear extrapolation from recent wear rate.
-        /// </summary>
-        public double EstimateLapsToWearThreshold(double[] currentWear, double threshold = 0.85)
-        {
-            if (WearPerLap.Count < 2) return 99;
+            if (WearPerLap.Count < 2 || treadRemaining == null) return 99;
 
             // Use last 5 laps for recent wear rate
             int window = Math.Min(5, WearPerLap.Count);
             double minLapsRemaining = double.MaxValue;
 
-            for (int tire = 0; tire < 4; tire++)
+            for (int tire = 0; tire < 4 && tire < treadRemaining.Length; tire++)
             {
+                if (!treadRemaining[tire].HasValue) continue; // not measured: nothing to extrapolate from
+
                 double recentRate = 0;
                 for (int i = WearPerLap.Count - window; i < WearPerLap.Count; i++)
                     recentRate += WearPerLap[i][tire];
                 recentRate /= window;
 
-                if (recentRate <= 0.0001) continue; // tire not wearing
+                if (recentRate <= 0.01) continue; // not seen losing tread (under a hundredth of a point a lap)
 
-                double remaining = currentWear[tire] < threshold
-                    ? (threshold - currentWear[tire]) / recentRate
-                    : 0;
-                minLapsRemaining = Math.Min(minLapsRemaining, remaining);
+                double tread = treadRemaining[tire].Value;
+                double laps = tread > criticalPercent ? (tread - criticalPercent) / recentRate : 0;
+                minLapsRemaining = Math.Min(minLapsRemaining, laps);
             }
 
             return minLapsRemaining == double.MaxValue ? 99 : minLapsRemaining;

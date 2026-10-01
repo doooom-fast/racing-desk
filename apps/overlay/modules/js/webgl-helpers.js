@@ -644,7 +644,8 @@
   }
 
   // Update a single tyre cell: temp value + color class + wear bar.
-  // wearPct is REMAINING life: 100 = brand new, 0 = destroyed, -1 = no data.
+  // wearPct is tread REMAINING, as the wire has it: 100 = brand new, 0 = destroyed, -1 = not measured
+  // (root CLAUDE.md, Tyre wear). dashboard.html has no .tyre-cell any more, so this returns at once.
   function updateTyreCell(index, tempF, wearPct) {
     const cells = document.querySelectorAll('.tyre-cell');
     const wearFills = document.querySelectorAll('.tyre-wear-fill');
@@ -667,10 +668,10 @@
     cell.className = 'tyre-cell ' + getTyreTempClass(tempF);
     if (index < wearFills.length) {
       wearFills[index].style.width = Math.max(0, Math.min(100, wearPct)) + '%';
-      // Color by remaining life: > 50% green, > 25% amber, below = red
-      if (wearPct > 50) wearFills[index].style.background = 'var(--green)';
-      else if (wearPct > 25) wearFills[index].style.background = 'var(--amber)';
-      else wearFills[index].style.background = 'var(--red)';
+      // Colour by tread remaining at the engine's thresholds: red under 20, amber under 35, green above
+      if (wearPct < TYRE_WEAR_CRIT_BELOW) wearFills[index].style.background = 'var(--red)';
+      else if (wearPct < TYRE_WEAR_WARN_BELOW) wearFills[index].style.background = 'var(--amber)';
+      else wearFills[index].style.background = 'var(--green)';
     }
   }
 

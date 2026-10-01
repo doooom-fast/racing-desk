@@ -115,7 +115,7 @@ Several thresholds were corrected based on real-world testing. The test suite in
 
 | Topic | Field | Original | Corrected | Reason |
 |-------|-------|----------|-----------|--------|
-| tyre_wear_high | TyreWearFL/FR/RL | > 0.65 | < 0.35 | iRacing reports remaining life (1.0=new), not wear |
+| tyre_wear_high | TyreWearWorst | > 0.65, then < 0.35 on FL/FR/RL | < 35 | Tyre wear is tread remaining, 0..100 % (100 = new), one meaning everywhere since 2026-10-01 (root CLAUDE.md, Tyre wear): worn is low, the threshold is a percent, and the worst corner of the four is looked at (the rear right had no trigger) |
 | hot_tyres | TyreTempFL/FR | 115 | 250 | Temps are in Fahrenheit, not Celsius |
 | kerb_hit | VertAccel spike | 7.0 | 10.0 | Normal bumps triggered at 7G |
 | ffb_torque_spike | SteeringWheelTorque | 18.0 | 25.0 | Normal cornering forces triggered at 18Nm |

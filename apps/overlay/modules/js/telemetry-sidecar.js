@@ -7,7 +7,8 @@
 // is handed in — write(path, text) — so the rules run in Node (tests/unit/telemetry-sidecar.spec.mjs).
 //
 // What changed with OBS (schemaVersion stays 1; all additive, and a reader that defaults a missing field to 0 is
-// right): every frame carries the sim's own clock, `sn` (SessionNum) and `st` (SessionTime), which is how a moment
+// right — except the tyre wear, wFL..wRR, where null is "not measured" and 0 would be a bald tyre; the header's `tyreWear`
+// says which meaning a file has): every frame carries the sim's own clock, `sn` (SessionNum) and `st` (SessionTime), which is how a moment
 // in the sidecar is found again in iRacing's replay; the header says who produced it (`producer: "obs"`), what it is
 // beside (`kind`: a recording, or a clip the replay buffer saved), the OBS file (`obsOutputPath`), when the video
 // began (`videoStartUtc`) and the offset to add to `t` (`videoOffsetMs`, 0 to begin with); the summary carries the
@@ -126,6 +127,9 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
       track,
       gameId: p && p[KEYS.gameId] ? String(p[KEYS.gameId]) : null,
       isDemo,
+      // What wFL..wRR mean in this file (docs/telemetry-sidecar-schema.md): a file without this field was written before
+      // 2026-10-01, when the meaning was mixed (a host's 0..100 remaining, a plugin's 0..100 or a 0..1 worn from its old fallback).
+      tyreWear: 'percent-remaining',
       producer: header.producer,
       kind: header.kind,
       obsOutputPath: header.obsOutputPath,
@@ -167,6 +171,13 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
     const vs = (k) => (p[k] != null ? '' + p[k] : '');
     const n = (k) => +v(k) || 0;
     const game = (k, demoK) => (isDemo ? n('RacingDesk.Plugin.Demo.' + demoK) : n('DataCorePlugin.GameData.' + k));
+    // Tyre wear as it is on the wire — tread remaining, 0..100 %, 100 = new (root CLAUDE.md, Tyre wear) — and null,
+    // not 0, where the sim has not measured it (0 is never a measurement).
+    const wear = (k, demoK) => {
+      const raw = p[isDemo ? 'RacingDesk.Plugin.Demo.' + demoK : 'DataCorePlugin.GameData.' + k];
+      const x = Number(raw);
+      return raw == null || raw === '' || !(x > 0) ? null : Math.max(0, Math.min(100, x));
+    };
 
     const elapsedMs = at - startedAt;
     const pos = isDemo ? n('RacingDesk.Plugin.Demo.Position') : n('DataCorePlugin.GameData.Position');
@@ -226,8 +237,8 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
       // Tyre temps and wear
       tFL: game('TyreTempFrontLeft', 'TyreTempFL'), tFR: game('TyreTempFrontRight', 'TyreTempFR'),
       tRL: game('TyreTempRearLeft', 'TyreTempRL'), tRR: game('TyreTempRearRight', 'TyreTempRR'),
-      wFL: game('TyreWearFrontLeft', 'TyreWearFL'), wFR: game('TyreWearFrontRight', 'TyreWearFR'),
-      wRL: game('TyreWearRearLeft', 'TyreWearRL'), wRR: game('TyreWearRearRight', 'TyreWearRR'),
+      wFL: wear('TyreWearFrontLeft', 'TyreWearFL'), wFR: wear('TyreWearFrontRight', 'TyreWearFR'),
+      wRL: wear('TyreWearRearLeft', 'TyreWearRL'), wRR: wear('TyreWearRearRight', 'TyreWearRR'),
       // In-car adjustments
       bb: isDemo ? n('RacingDesk.Plugin.Demo.BrakeBias') : n('DataCorePlugin.GameRawData.Telemetry.dcBrakeBias'),
       tc: isDemo ? n('RacingDesk.Plugin.Demo.TC') : n('DataCorePlugin.GameRawData.Telemetry.dcTractionControl'),

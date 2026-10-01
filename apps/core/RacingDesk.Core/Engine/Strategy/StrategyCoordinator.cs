@@ -96,6 +96,12 @@ namespace RacingDesk.Plugin.Engine.Strategy
             Tires.UpdateFrame(current);
             Fuel.UpdateFrame(current);
 
+            // iRacing measures tread in the pits and nowhere else, so a tyre wear call is made when a measurement comes in —
+            // on pit road, where it can be acted on — and not at a lap crossing from a value that has not changed
+            // (TireTracker.Evaluate makes the wear calls only on a frame with a new measurement).
+            if (Tires.NewMeasurement && CurrentStint != null)
+                EvaluateAndEmit(current);
+
             // ── Lap crossing detection ──────────────────────────────────
             if (current.CompletedLaps > _lastCompletedLaps && _lastCompletedLaps >= 0)
             {
@@ -123,7 +129,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
             _wasInPitLane = false;
             _currentCall = null;
             _moduleCooldowns.Clear();
-            Tires.OnNewStint();
+            Tires.Reset();
             Fuel.OnNewStint();
         }
 
@@ -133,6 +139,8 @@ namespace RacingDesk.Plugin.Engine.Strategy
 
         private void StartNewStint(TelemetrySnapshot s)
         {
+            bool first = CurrentStint == null;
+
             // Archive previous stint
             if (CurrentStint != null && CurrentStint.LapsCompleted > 0)
                 CompletedStints.Add(CurrentStint);
@@ -146,7 +154,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
             };
 
             _fuelAtLapStart = s.FuelLevel;
-            Tires.OnNewStint();
+            // The session's first stint takes the tread as measured now; a stint after a stop keeps the measurement. The
+            // corners whose tyres were changed are null by then (TyreSetMask, in the runtime, before this reads them).
+            if (first) Tires.Reset(); else Tires.OnNewStint();
             Fuel.OnNewStint();
         }
 
@@ -238,6 +248,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
             {
                 case "fuel": return 3;
                 case "tire": return 2;
+                case "tire-wear": return 2;
                 case "pit":  return 4;
                 default:     return 1;
             }

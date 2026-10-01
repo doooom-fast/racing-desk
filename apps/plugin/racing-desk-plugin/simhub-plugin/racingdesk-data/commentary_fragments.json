@@ -609,8 +609,8 @@
           "{driver}'s tyres are going.",
           "High tyre wear.",
           "Degradation is real.",
-          "Tyre wear critical.",
-          "{driver}'s tyres are shot.",
+          "The tread is down.",
+          "{driver}'s tyres are worn.",
           "Grip is leaving."
         ],
         "bodies": [
@@ -626,7 +626,7 @@
         "closers": [
           "Manage the tire.",
           "Pace back.",
-          "Time to stop.",
+          "Plan the stop.",
           "Nearly there.",
           ""
         ]

@@ -550,34 +550,22 @@
       "title": "High Tyre Wear",
       "sentiment": "technical_analytical",
       "severity": 2,
-      "eventExposition": "High tyre wear — {driver}'s front left at {value}% life remaining",
+      "eventExposition": "High tyre wear — {driver}'s worst tyre measured at {value}% tread",
       "sessionTypes": [],
-      "description": "Significant tyre wear — car behavior degrading.",
+      "description": "A tyre measured under 35% tread remaining. Tyre wear is tread remaining, 0..100 %, 100 = new, the same for every corner (root CLAUDE.md, Tyre wear); iRacing measures it in the pits and nowhere else, so this is the last measurement. A tyre not yet measured is never under anything.",
       "triggers": [
         {
-          "dataPoint": "TyreWearFL",
+          "dataPoint": "TyreWearWorst",
           "condition": "<",
-          "value": 0.35,
-          "context": "Front left at 35% or less remaining life (65%+ worn)"
-        },
-        {
-          "dataPoint": "TyreWearFR",
-          "condition": "<",
-          "value": 0.35,
-          "context": "Front right at 35% or less remaining life (65%+ worn)"
-        },
-        {
-          "dataPoint": "TyreWearRL",
-          "condition": "<",
-          "value": 0.35,
-          "context": "Rear left at 35% or less remaining life (65%+ worn)"
+          "value": 35,
+          "context": "The corner with the least tread of the four, under 35% remaining (65%+ worn). Percent, not a fraction: new tyres read 100."
         }
       ],
       "commentaryPrompts": [
-        "{driver}'s front left is down to {value}% tyre life. The grip drop-off from this point accelerates — the compound is past its effective window.",
-        "Tyre wear at {value}% for {driver}. The rubber has lost enough depth that the thermal performance changes — grip spikes early in a corner and falls off at exit.",
-        "{driver}'s tyres reading {value}% remaining. At this wear level the contact patch is shrinking and {car} understeers more on entry and oversteers more on power.",
-        "Down to {value}% on the fronts for {driver}. The braking performance degrades significantly from here — stopping distances grow and the ABS works harder."
+        "{driver}'s worst tyre is down to {value}% tread. The grip drop-off from this point accelerates — the compound is past its effective window.",
+        "Tyre wear at {value}% tread for {driver}. The rubber has lost enough depth that the thermal performance changes — grip spikes early in a corner and falls off at exit.",
+        "{driver}'s worst tyre reading {value}% remaining. At this wear level the contact patch is shrinking and {car} understeers more on entry and oversteers more on power.",
+        "Down to {value}% on the worst corner for {driver}. The braking performance degrades significantly from here — stopping distances grow and the ABS works harder."
       ],
       "cooldownMinutes": 6
     },

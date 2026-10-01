@@ -68,6 +68,21 @@ test('the three fields the page-side writer got wrong: the flag is the payload\'
   expect(KEYS.flag).toBe('currentFlagState');
 });
 
+test('tyre wear is the wire\'s tread remaining, null where it is not measured and never 0, and the header says what it means', () => {
+  const { sidecar, lines } = harness();
+  sidecar.start({ path: 'x.telemetry.jsonl' });
+  sidecar.frame({ ...RACE, 'DataCorePlugin.GameData.TyreWearFrontLeft': 100, 'DataCorePlugin.GameData.TyreWearFrontRight': 15,
+    'DataCorePlugin.GameData.TyreWearRearLeft': null, 'DataCorePlugin.GameData.TyreWearRearRight': 0 });
+  sidecar.frame({ ...RACE, 'DataCorePlugin.GameData.TyreWearFrontLeft': 64.4, 'DataCorePlugin.GameData.TyreWearFrontRight': undefined,
+    'DataCorePlugin.GameData.TyreWearRearLeft': undefined, 'DataCorePlugin.GameData.TyreWearRearRight': undefined });
+  sidecar.stop();
+  const [header, first, second] = lines();
+  expect(header.tyreWear).toBe('percent-remaining');
+  expect([first.wFL, first.wFR, first.wRL, first.wRR]).toEqual([100, 15, null, null]);
+  expect(second.wFL).toBe(64.4);
+  expect([second.wFR, second.wRL, second.wRR]).toEqual([null, null, null]);   // no key at all: not measured
+});
+
 test('markers: an incident, a place gained and lost, a new lap, pit entry and exit, and one of the caller\'s', () => {
   const { sidecar, lines, tick } = harness();
   sidecar.start({ path: 'x.telemetry.jsonl' });

@@ -127,8 +127,9 @@ class TestTopicsDataset(unittest.TestCase):
 
     # ── Regression tests ────────────────────────────────────────────────
 
-    def test_tyre_wear_uses_less_than_not_greater(self):
-        """Regression: TyreWear is remaining life (1.0=new). Must use '<' to detect worn."""
+    def test_tyre_wear_is_percent_remaining_and_worn_is_low(self):
+        """Tyre wear is tread remaining, 0..100 % (100 = new; root CLAUDE.md, Tyre wear): a worn tyre is
+        under a threshold in percent, and the worst corner of the four is what the topic looks at."""
         tyre_topics = [
             t for t in self.topics
             if any("tyrewear" in tr.get("dataPoint", "").lower()
@@ -136,14 +137,22 @@ class TestTopicsDataset(unittest.TestCase):
         ]
         self.assertGreater(len(tyre_topics), 0, "No tyre wear topics found")
         for topic in tyre_topics:
-            for trigger in topic["triggers"]:
-                if "tyrewear" in trigger.get("dataPoint", "").lower():
-                    with self.subTest(topic_id=topic["id"], dp=trigger["dataPoint"]):
-                        self.assertEqual(
-                            trigger["condition"], "<",
-                            f"Tyre wear trigger must use '<' (remaining life), "
-                            f"found '{trigger['condition']}' in {topic['id']}",
-                        )
+            tyre_triggers = [tr for tr in topic["triggers"] if "tyrewear" in tr.get("dataPoint", "").lower()]
+            for trigger in tyre_triggers:
+                with self.subTest(topic_id=topic["id"], dp=trigger["dataPoint"]):
+                    self.assertEqual(
+                        trigger["condition"], "<",
+                        f"Tyre wear trigger must use '<' (tread remaining), "
+                        f"found '{trigger['condition']}' in {topic['id']}",
+                    )
+                    self.assertGreaterEqual(
+                        trigger["value"], 1,
+                        f"Tyre wear threshold is in percent (new tyres read 100), not a fraction, in {topic['id']}",
+                    )
+            self.assertTrue(
+                any(tr["dataPoint"].lower() == "tyrewearworst" for tr in tyre_triggers),
+                f"{topic['id']} looks at the worst corner of the four, so none is left out",
+            )
 
     def test_tyre_temp_threshold_is_fahrenheit(self):
         """Regression: Tyre temps come through in °F. Threshold must be >= 200."""

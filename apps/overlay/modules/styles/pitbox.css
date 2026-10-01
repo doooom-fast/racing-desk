@@ -189,6 +189,19 @@
   }
   .pb-ring-fill.warn { stroke: var(--orange, #ff8c00); }
   .pb-ring-fill.crit { stroke: #ef4444; }
+  /* What the number in the ring is (the last measurement, iRacing's, taken in the pits): one dim line under the rings */
+  .pb-wear-note {
+    margin-top: 2px;
+    font-size: 9px;
+    line-height: 1.2;
+    letter-spacing: 0.04em;
+    text-align: center;
+    color: var(--text-dim, hsla(0, 0%, 100%, 0.4));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pb-wear-note.hidden { display: none; }
 
   .pb-circle-inner {
     position: absolute;

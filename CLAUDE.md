@@ -534,6 +534,99 @@ furled, disqualified or the start lights. So the host also sends the field itsel
   carries it (`apps/plugin/scripts/windows/install.bat`; ask before running it), and the app has to be built again
   (`npm run build`) for its own host and for the HUD.
 
+## Tyre wear
+
+**One meaning, everywhere: tread remaining, per corner, 0..100 %, 100 = new; `null` where the sim has not measured it.**
+That is what `DataCorePlugin.GameData.TyreWear{FrontLeft,FrontRight,RearLeft,RearRight}` carry on `:8889` and the
+`:8890` feed, what `RacingDesk.Plugin.Demo.TyreWear{FL,FR,RL,RR}` carry, what `TelemetrySnapshot.TyreWear*` hold
+(`double?`), and what every reader — the pit box's rings, the commentary's quad, the trigger, the strategist, the
+recording's sidecar — takes as it is. Nothing converts it but two functions in `apps/core/RacingDesk.Core/Engine/TyreWear.cs`,
+called once at each source and nowhere else, and nothing takes a reading off the wire but one class,
+`Engine/TyreSetMask.cs`, once, before any reader (he asked on 2026-10-01: "100% tires are reading as totally worn … we've tried
+to fix that a number of times so it seems to getting flipped back and forth in multiple places" — it had four meanings,
+0..1 remaining, 0..1 worn, 0..100 remaining and "0 is no data", and each fix flipped one reader to match whatever it saw):
+
+- **The host** (`IRacingTelemetrySource.TreadRemaining`): iRacing's own variables, `LFwearL/M/R` and the other corners, are a
+  fraction remaining per tread band, 1.0 = new (the header says "percent"; the value is a fraction — his recordings start at
+  0.9998). One corner is **the mean of its three bands, times a hundred** (`TyreWear.FromBands`). All three bands at 0, or
+  absent, is not a bald tyre: it is not measured, `null` (a corner that really is at 0.0 on all three bands reads as not
+  measured too, which is the safe side: a variable that is not there reads 0 the same way, and a false "critical" on a fresh
+  set is the error this exists to prevent; the worst of the corners that are measured still warns).
+- **The SimHub plugin** (`TelemetryCapture`) asks the same bands first, through the same `FromBands`, so it and the host read
+  the same number at the same moment. SimHub's own `GameData.TyreWear*` comes second, for a game with no such bands: it is a
+  percent remaining (a fresh set read 100 on its wire on 2026-10-01, and SimHub's bundled dashes compute wear as
+  `100 - [TyreWearFrontLeft]`), but for iRacing it is **the middle band alone** (its reader, `IRacingManager.GD_TyreWear*`,
+  is `LFwearM * 100`), it was seen to read 0 until a lap was done, and it reads **0 while it has nothing**. So 0 is `null`
+  (`TyreWear.FromSimHub`). **0 is never a measurement**, on the wire or on the page.
+- **The demo** (`DemoTelemetryProvider`, `DemoSequence`): the same percent. The provider's set starts at 82/79/86/85 and
+  loses two or three points a lap to a floor of 10; the sequence's base set is 62/59/66/65 and its `tyre_wear_high` step
+  has the fronts at 29 and 32, which the provider takes on when the step fires (`ApplyDemoStep`), so the rings and the quad
+  say what the card says.
+
+**iRacing measures tread in the pits and nowhere else.** In his `.ibt` files the bands sat at one value for thirty-one laps
+and moved on the first frame on pit road, before the stall; two fourteen-lap races never moved at all. So the number is
+**the last measurement, never live wear**, and the code says so rather than pretend: the pit box writes "Tread measured
+in the pits" in one dim line under the rings, on the rig and in the glance layout (at the label's floor, never wrapped; an
+iPad's heading has no room for it), for iRacing and out of the demo. The strategist (`Engine/Strategy/TireTracker.cs`) rates
+the health **when a measurement comes in** (a corner's value changed to a number, or was first said) and the coordinator
+makes the **wear** call on that frame — on pit road, where it can be acted on, under its own module key (`tire-wear`), so a
+temperature call a minute before cannot swallow it — and **not again at a lap crossing**: a value that has not changed is
+not news, and the pit box's offer comes from the verdict that stands, not from a repeated call. The temperature and grip calls
+are not tied to a measurement. There is no spike filter: the step at pit entry is the one true reading. The tread is **not a
+grip factor** (`GripScore`): between stops it says nothing about live grip, and it was a third threshold (40) that put a
+"grip" call on a fresh set. The laps-left estimate is 99 (nothing to say) between iRacing's stops and 0 for a tyre measured
+critical, and the pit box shows laps only in between.
+
+**A new set is not measured until the sim says so, per corner, at the source.** After a change iRacing keeps showing the
+readings of the set that came off until it measures again at the next stop (reported by others — niklam/iracedeck issue 1108
+and pull request 1188; none of his own sessions has changed tyres, so this is the one part not seen on his data). `TyreSetMask`,
+which `RacingDeskRuntime.Advance` calls on every frame before the wire, the commentary and the strategist read the snapshot, takes
+that reading off: a corner whose tyre is asked for while the car is in its stall (`PitSvFlags`, the pit box's own source for
+"tyres requested", one bit a corner) remembers what the sim shows then; the car leaving pit road makes the corner **`null`**; and it
+stays `null` until the sim's number for that corner moves (the next stop's measurement). A sim that measures in the stall after
+the change is not masked at all; a stop without tyres masks nothing; a stop with two (`0x05`) masks those two corners and the
+strategist rates the car again from the other two (a right rear measured at 15 and left on stays critical, and the pit box
+still offers the change). The wire, the rings (a dash), the quad, the `tyre_wear_high` trigger (NaN), the strategist, the
+sidecar and the commentary all see the same thing, so none of them has a rule about it. The pit box does not say "new set" in
+the dash's place; it is `null`, not measured. Not handled: tyres asked for in the stall and not fitted (the driver left
+without the stop) mask the corners until the next measurement, the safe side; the sim's own counters (`LFTiresUsed` and the
+others, `TireSetsUsed`) are no better: they do not count a reset to the pits, which fits a new set while the readings keep the old set's (his own .ibt files, 2026-10-01: every mask in his 64 newest sessions came from a reset, and in 9 of them the dash showed for 6 to 93 % of his time on track).
+
+**Every warning fires at the worn end, at two numbers** (`TyreWear.WarnBelowPercent` 35, `CriticalBelowPercent` 20; on the
+page `TYRE_WEAR_WARN_BELOW` and `TYRE_WEAR_CRIT_BELOW` in `config.js`, which every panel reads, with `parseTyreWear` the one
+reader of the wire's value and `tyreWearShown` the one printer): the rings are amber under 35 and red under 20 (`pitbox.js`), as
+is the commentary's quad (`commentary-viz.js`; a quad with no data is four dashes, never four 0 %); the `tyre_wear_high`
+topic has one trigger, `TyreWearWorst < 35` — the worst corner of the four, so none is left out (the rear right had no
+trigger before) — and prints the percent whole ("worst tyre measured at 30% tread"); its fragments say worn, not critical,
+because it fires at worn; the strategist's `TireHealthState` is 1 under 35 and 2 under 20 (the pit box's "Accept tire change",
+in the demo too), with a severity-2 call at 1 ("Front-left measured at 30% tread. Think about tyres at this stop." on pit road,
+"…at the next stop." elsewhere) and a severity-4 call at 2 ("Front-left measured at 15% tread. Take tyres at this stop." on pit
+road, "Pit for tyres at the first chance." elsewhere). **A printed number never rounds across a threshold** (34.6 is worn and
+says 34, 19.7 is critical and says 19; `TyreWear.DisplayPercent`, `tyreWearShown`; a fresh 99.98 says 100). A tyre not measured
+(`null`, NaN to the trigger) satisfies nothing. **Fresh tyres never warn.**
+
+**Tests, which fail on any single flip** (a fraction, a worn-fraction, an inversion, a 0 for new, a reading from the set that
+came off):
+`tests/…/IRacing/TyreWearTests.cs` — the conversion and the printed percent; raw SDK bands of new and of worn tyres through the
+host's source and capture to the WebSocket frame and, over a runtime on 127.0.0.1, to the HTTP wire (100, 15, `null`); the
+plugin reading the bands before SimHub's property and the two agreeing to the digit whatever SimHub says; `TyreSetMask` alone
+(four tyres, two, none, a drive-through, a sim that measures in the stall, a corner never measured, a reset) and **a whole
+stop with four new tyres through a runtime, from iRacing's variables to the HTTP wire, the WebSocket frame, the real topic
+file's trigger and the strategist**, then the next stop's measurement; the real topics file against new, worn, each corner,
+unmeasured and 0..1 snapshots; the exposition's formatting; the strategist's measurement rule, the wear calls once and not at
+every lap, the wording, no tread in `GripScore`, and the coordinator's call on pit road; the demo's values and the sequence's
+step reaching the provider. `apps/overlay/tests/unit/tyre-wear.spec.mjs` — the real page over a stand-in plugin: 100 is 100 % and
+green with nothing offered, 30 amber, 15 red, 64.4 is 64 %, a printed number never across a threshold, `null`/0/no key a dash,
+0.91 is 1 % and red (no conversion on the page), the strategist from `TireHealthState`, the demo's keys and the demo's offer at 20,
+the quad's dashes, the page's two thresholds equal to `TyreWear.cs`'s, the note under the rings on the rig and in the glance
+layout. `telemetry-sidecar.spec.mjs` — `wFL`..`wRR` null or the number, and the header's `tyreWear`. `DatasetValidationTests` and
+`validate_datasets.py` hold the topic to `<`, a percent threshold and the worst corner. The test project's own copies of the
+evaluator and the snapshot (`TestHelpers/`) have no tyre wear any more: the tyre cases run against the shipped evaluator in
+`TyreWearTests`, and a data file not found there fails, not skips. Fixtures that encoded the old meanings and were put
+right: `tests/helpers.mjs` (0.91 → 91 …, demo 0.80 → 80 …), `tests/golden/fixtures/base-payload.json` (0 → 100, demo 0.82 →
+82 …), `issue-11-display-units.spec.mjs` (its copy of the fallback is gone), `TriggerEvaluatorTests` (its tyre cases moved);
+the golden frames (`glance-race-*.png`, `in-car-synthetic.png`) carry the note line.
+
 ## Desk
 
 ```bash

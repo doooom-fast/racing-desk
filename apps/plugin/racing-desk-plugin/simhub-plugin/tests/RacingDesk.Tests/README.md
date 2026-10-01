@@ -69,7 +69,7 @@ dotnet test
 - **Proximity**: `close_proximity`
 
 **Critical bug regressions:**
-- Tyre wear inverted (now uses `<` threshold, was `>`)
+- Tyre wear: tread remaining in percent, worn is low, and a new set not measured until the sim says so (`<` a percent threshold; `IRacing/TyreWearTests.cs` holds the whole chain against the shipped evaluator, SDK to wire to strategist, including a full stop with new tyres)
 - Hot tyre temp threshold fixed (now 250°F for Fahrenheit, was 115)
 - Threshold value fixes for kerb hits, FFB spikes, spin catch, heavy braking, qualifying push
 
@@ -142,7 +142,7 @@ dotnet test
 - Severities are 1-5
 - All topics have at least one trigger
 - All trigger conditions are valid
-- **Regression**: Tyre wear uses `<` not `>`
+- **Regression**: Tyre wear uses `<`, a percent threshold, and the worst corner of the four
 - **Regression**: Hot tyre temps have reasonable thresholds (≥200°F)
 
 **Loads and validates `commentary_fragments.json`:**

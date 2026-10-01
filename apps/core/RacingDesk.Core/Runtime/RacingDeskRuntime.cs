@@ -80,6 +80,7 @@ namespace RacingDesk.Plugin
         internal readonly TrackMapProvider _trackMap = new TrackMapProvider();
         internal readonly Engine.IRacingSdkBridge _sdkBridge = new Engine.IRacingSdkBridge();
         internal readonly Engine.Strategy.StrategyCoordinator _strategy = new Engine.Strategy.StrategyCoordinator();
+        internal readonly Engine.TyreSetMask _tyreSets = new Engine.TyreSetMask();
         internal IncidentCoachEngine _incidentCoach;
         internal PedalProfileManager _pedalProfiles;
 
@@ -253,9 +254,19 @@ namespace RacingDesk.Plugin
         /// <param name="liveLeaderboard">Builds the leaderboard JSON for the player's position, or null when unavailable.</param>
         private void Advance(TelemetrySnapshot next, Func<string> trackIdProvider, Func<int, string> liveLeaderboard)
         {
+            var incoming = next ?? new TelemetrySnapshot();
+
+            // A corner whose tyre was changed at the last stop shows the set that came off until the sim measures it
+            // again: that reading is taken off the snapshot here, once, before it is published to the wire, the
+            // commentary and the strategist (Engine/TyreSetMask.cs; root CLAUDE.md, Tyre wear). A new session or another
+            // car forgets what was held back.
+            if (incoming.SessionState < 4 || (!string.IsNullOrEmpty(incoming.CarModel) && incoming.CarModel != _lastCarModel))
+                _tyreSets.Reset();
+            _tyreSets.Apply(incoming);
+
             // Capture current telemetry every frame (cheap snapshot)
             _previous = _current;
-            _current = next ?? new TelemetrySnapshot();
+            _current = incoming;
 
             // ── Start position tracking ──
             // Capture the grid position once when the session goes to Racing (state 4)

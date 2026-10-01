@@ -132,10 +132,15 @@ namespace RacingDesk.Plugin.Engine
         public double TyreTempRL { get; private set; } = 190;
         public double TyreTempRR { get; private set; } = 192;
 
-        public double TyreWearFL { get; private set; } = 0.82;
-        public double TyreWearFR { get; private set; } = 0.79;
-        public double TyreWearRL { get; private set; } = 0.86;
-        public double TyreWearRR { get; private set; } = 0.85;
+        /// <summary>
+        /// Tread remaining, 0..100 %, 100 = new — the one meaning tyre wear has on the wire (Engine/TyreWear.cs). The
+        /// demo's set is part-worn and loses two or three points a lap, so the strategist's call for tyres comes round
+        /// in a quarter of an hour of the demo.
+        /// </summary>
+        public double TyreWearFL { get; private set; } = 82;
+        public double TyreWearFR { get; private set; } = 79;
+        public double TyreWearRL { get; private set; } = 86;
+        public double TyreWearRR { get; private set; } = 85;
 
         public double BrakeBias { get; private set; } = 56.2;
         public double TC        { get; private set; } = 4;
@@ -269,11 +274,11 @@ namespace RacingDesk.Plugin.Engine
                     ABS = 3;
                 }
 
-                // Wear degrades slightly each lap
-                TyreWearFL = Math.Max(0.10, TyreWearFL - 0.018 - _rng.NextDouble() * 0.006);
-                TyreWearFR = Math.Max(0.10, TyreWearFR - 0.020 - _rng.NextDouble() * 0.006);
-                TyreWearRL = Math.Max(0.10, TyreWearRL - 0.014 - _rng.NextDouble() * 0.004);
-                TyreWearRR = Math.Max(0.10, TyreWearRR - 0.015 - _rng.NextDouble() * 0.004);
+                // The tread goes down a couple of points a lap (percent remaining), to a floor of 10
+                TyreWearFL = Math.Max(10, TyreWearFL - 2.8 - _rng.NextDouble() * 0.6);
+                TyreWearFR = Math.Max(10, TyreWearFR - 3.0 - _rng.NextDouble() * 0.6);
+                TyreWearRL = Math.Max(10, TyreWearRL - 2.2 - _rng.NextDouble() * 0.4);
+                TyreWearRR = Math.Max(10, TyreWearRR - 2.3 - _rng.NextDouble() * 0.4);
             }
 
             // Interpolate target speed from track profile
@@ -325,10 +330,11 @@ namespace RacingDesk.Plugin.Engine
             // Tyre temps: base + cornering heat (higher in corners where speed is lower)
             double cornerFactor = Math.Max(0, 1.0 - SpeedMph / 180.0);
             double heatNoise = (_rng.NextDouble() - 0.5) * 3.0;
-            TyreTempFL = 175 + cornerFactor * 55 + heatNoise + (1 - TyreWearFL) * 15;
-            TyreTempFR = 178 + cornerFactor * 58 + heatNoise + (1 - TyreWearFR) * 15;
-            TyreTempRL = 170 + cornerFactor * 40 + heatNoise + (1 - TyreWearRL) * 10;
-            TyreTempRR = 172 + cornerFactor * 42 + heatNoise + (1 - TyreWearRR) * 10;
+            // A worn tyre runs hotter: up to 15 °F more at the fronts for a tyre with no tread left
+            TyreTempFL = 175 + cornerFactor * 55 + heatNoise + (100 - TyreWearFL) * 0.15;
+            TyreTempFR = 178 + cornerFactor * 58 + heatNoise + (100 - TyreWearFR) * 0.15;
+            TyreTempRL = 170 + cornerFactor * 40 + heatNoise + (100 - TyreWearRL) * 0.10;
+            TyreTempRR = 172 + cornerFactor * 42 + heatNoise + (100 - TyreWearRR) * 0.10;
 
             // ── Datastream physics simulation ──
             // Lateral G: higher in corners (when speed is lower), sign alternates with track section
@@ -511,6 +517,15 @@ namespace RacingDesk.Plugin.Engine
             {
                 IncidentCount = snap.IncidentCount;
             }
+            // A step that says a tyre is worn (the tyre_wear_high step's 29 and 32) has the rings and the commentary's quad
+            // say it too: the provider's own tread (82 and falling) would otherwise sit green beside the words. A worn
+            // reading only ever takes tread off; the other steps' base set (a stint's wear, nothing under the threshold)
+            // leaves the provider's tread as it is.
+            if (TyreWear.IsWorn(snap.TyreWearFL)) TyreWearFL = Math.Min(TyreWearFL, snap.TyreWearFL.Value);
+            if (TyreWear.IsWorn(snap.TyreWearFR)) TyreWearFR = Math.Min(TyreWearFR, snap.TyreWearFR.Value);
+            if (TyreWear.IsWorn(snap.TyreWearRL)) TyreWearRL = Math.Min(TyreWearRL, snap.TyreWearRL.Value);
+            if (TyreWear.IsWorn(snap.TyreWearRR)) TyreWearRR = Math.Min(TyreWearRR, snap.TyreWearRR.Value);
+
             IsInPitLane = snap.IsInPitLane;
             if (snap.IsInPitLane)
             {
@@ -537,10 +552,10 @@ namespace RacingDesk.Plugin.Engine
             SessionTime   = 0;
             RemainingTime = 1820;
             LastLapTime   = 92.590;
-            TyreWearFL = 0.82;
-            TyreWearFR = 0.79;
-            TyreWearRL = 0.86;
-            TyreWearRR = 0.85;
+            TyreWearFL = 82;
+            TyreWearFR = 79;
+            TyreWearRL = 86;
+            TyreWearRR = 85;
             GapAhead   = 5.4;
             GapBehind  = 6.2;
             DriverAhead  = "A. Martinez";

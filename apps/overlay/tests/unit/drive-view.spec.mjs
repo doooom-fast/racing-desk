@@ -966,7 +966,8 @@ test.describe('the strategy engine\'s calls in the pit box', () => {
     expect(on[0][1]).toMatch(/Change · ~12 laps/);
     expect(on[1][1]).toMatch(/Stop · ~6 laps/);
     expect(on.map((c) => c[2])).toEqual(['none', 'none']);
-    // The fuel strategy's pit window is a line in the fuel page, and the laps on this set of tyres are in the tyres' heading.
+    // The fuel strategy's pit window is a line in the fuel page, and the laps on this set of tyres are in the tyres' heading
+    // (what the rings' number is — iRacing measures tread in the pits and nowhere else — is a line under the rings: tyre-wear.spec.mjs).
     const more = () => page.evaluate(() => [document.getElementById('pbRowWindow').getClientRects().length > 0, document.getElementById('pbWindow').textContent,
       getComputedStyle(document.getElementById('pbPageTyres'), '::before').content]);
     expect(await more()).toEqual([true, 'L18–24', '"Tyres · 14 laps"']);

@@ -467,6 +467,16 @@ body.drive-mode-active .pb-page::before {
   margin-bottom: 0.25em; line-height: 1.2;
 }
 body.drive-mode-active #pbPageTyres::before { content: 'Tyres' attr(data-age); }
+/* What the rings' number is — iRacing measures tread in the pits and nowhere else — in one dim line under them, at the
+   label's floor; never wrapped, so it takes one line from the rings and no more (an iPad's heading has no room for it). */
+body.drive-mode-active .pb-wear-note {
+  flex: 0 0 auto; margin: 0; font-size: max(11px, 0.55em); line-height: 1.2; letter-spacing: 0.02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+body.drive-mode-active .pb-wear-note.hidden { display: none; }
+/* A cell too short for the rings at their floor, the call above them and the note (the 10.2" iPad upright, 195px, was the
+   one that overflowed by 7px): the note gives way while the call is up, which is the news, and is back with the rings alone. */
+@container (max-height: 200px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-wear-note { display: none; } }
 body.drive-mode-active #pbPageFuel::before { content: 'Fuel'; }
 body.drive-mode-active #pbPageWeather::before { content: 'Weather'; }
 body.drive-mode-active .pb-row,

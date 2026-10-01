@@ -14,7 +14,7 @@ This document lays out what we can build with the data we already have, what der
 
 ### Telemetry (TelemetrySnapshot)
 
-Every frame we capture position, speed, RPM, gear, throttle/brake/clutch (raw + normalized), fuel level, fuel per lap, remaining laps, lap times (current/last/best), delta to best, tire wear (FL/FR/RL/RR, 0-1), tire temps, track temp, wet/dry, G-forces (lat/long/vert), yaw rate, steering angle and torque, ABS/TC active states, driver aid settings (brake bias, TC, ABS, ARB, wing, fuel mix, weight jacker), DRS status, ERS battery, incident count, session flags, and pit stop service requests.
+Every frame we capture position, speed, RPM, gear, throttle/brake/clutch (raw + normalized), fuel level, fuel per lap, remaining laps, lap times (current/last/best), delta to best, tire wear (FL/FR/RL/RR, tread remaining 0-100 %, null until measured), tire temps, track temp, wet/dry, G-forces (lat/long/vert), yaw rate, steering angle and torque, ABS/TC active states, driver aid settings (brake bias, TC, ABS, ARB, wing, fuel mix, weight jacker), DRS status, ERS battery, incident count, session flags, and pit stop service requests.
 
 ### Sector Data (SectorTracker)
 
@@ -48,7 +48,7 @@ The strategist is not one monolithic system — it's a set of focused analyzers 
 **The Problem:** iRacing's tire model (recently updated for GT3 in Season 3 2025) allows harder initial push but accelerates degradation later. Drivers need to know when their tires transition from "fast" to "falling off" — and the transition is gradual, not a cliff.
 
 **What We Already Have:**
-- `TyreWearFL/FR/RL/RR` (0-1 fraction) — direct wear reading per tire
+- `TyreWearFL/FR/RL/RR` (tread remaining, 0-100 %, 100 = new, null until measured) — iRacing measures it in the pits only, so it is the last measurement, not live wear (root CLAUDE.md, Tyre wear)
 - `TyreTempFL/FR/RL/RR` (degrees C) — temperature per tire
 - `TrackTemp` — ambient track surface temperature
 - `WeatherWet` — rain flag
@@ -59,7 +59,7 @@ The strategist is not one monolithic system — it's a set of focused analyzers 
 
 **What We'd Derive:**
 
-**Wear rate per stint** — Track `TyreWear` delta per lap, store as a rolling array. Compute linear and quadratic fits to predict when each tire crosses a threshold (say 50%, 70%, 90% worn). The quadratic fit is important because wear accelerates.
+**Wear rate per stint** — Track `TyreWear` delta per lap, store as a rolling array. Compute linear and quadratic fits to predict when each tire crosses a threshold (say 50%, 30%, 10% tread remaining). The quadratic fit is important because wear accelerates. (In iRacing the value only moves in the pits, so between stops there is no per-lap delta to fit: the tracker rates each measurement as it comes and estimates nothing in between.)
 
 **Grip degradation score** — A composite metric combining:
 - Peak lateral G per lap (averaged over best 3 corners) — drops as tires wear

@@ -91,6 +91,7 @@ Lazy-written on the first `captureFrame()` after `start()`. Reads car / track fr
 | `track` | `string \| null` | `DataCorePlugin.GameData.TrackName` |
 | `gameId` | `string \| null` | `iracing`, `acc`, etc. |
 | `isDemo` | `boolean` | `true` when DemoMode was active |
+| `tyreWear` | `string` | `"percent-remaining"`: what `wFL`..`wRR` mean in this file (added 2026-10-01); absent in an older file, whose meaning is mixed (see the Tires rows) |
 | `producer` | `string` | `"obs"` (added 2026-09-30) |
 | `kind` | `string` | `"recording"`, `"replay"` for a clip the replay buffer saved, or `"tv"` for a TV take (added 2026-10-01) |
 | `obsOutputPath` | `string \| null` | The file OBS wrote, as `RecordStateChanged` STARTED named it (a clip: as `ReplayBufferSaved` named it) |
@@ -135,7 +136,7 @@ Field names are intentionally short to keep file size down — at 30fps this acc
 | `remLaps` | `number` | `DataCorePlugin.GameData.RemainingLaps` | (added 2026-04-26) |
 | **Tires** (added 2026-04-26) | | | |
 | `tFL`, `tFR`, `tRL`, `tRR` | `number` | `DataCorePlugin.GameData.TyreTemp{FL,FR,RL,RR}` | °C |
-| `wFL`, `wFR`, `wRL`, `wRR` | `number` | `DataCorePlugin.GameData.TyreWear{FL,FR,RL,RR}` | 0..1 |
+| `wFL`, `wFR`, `wRL`, `wRR` | `number \| null` | `DataCorePlugin.GameData.TyreWear{FrontLeft,FrontRight,RearLeft,RearRight}` | Tread remaining, 0..100 %, 100 = new, as the sim last measured it (iRacing measures in the pits only); `null` where not measured — **a reader must not default it to 0, which would be a bald tyre** (0 on the wire is not a measurement either). The header's `tyreWear: "percent-remaining"` says a file has this meaning. Root CLAUDE.md, Tyre wear. A file without that header field was written before 2026-10-01 and its meaning is mixed: a host recorded 0..100 remaining, a SimHub plugin 0..100 remaining (SimHub's own number) or 0..1 worn (its old fallback from the sim's bands), and an unmeasured corner as 0 |
 | **In-car adjustments** (added 2026-04-26) | | | |
 | `bb` | `number` | `dcBrakeBias` | Raw plugin value (~30..70 percent) |
 | `tc` | `number` | `dcTractionControl` | 0..12 typical |

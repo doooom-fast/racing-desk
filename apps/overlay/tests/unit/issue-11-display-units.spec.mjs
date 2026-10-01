@@ -1,11 +1,15 @@
 /**
- * Issue #11 — Fuel unit detection and tyre wear fallback
+ * Issue #11 — Fuel unit detection
  *
- * Two bugs fixed:
- * 1. parseInt('0') || 1 evaluates to 1 (metric) even when DisplayUnits=0
- *    (imperial). The fix uses an explicit null/empty check.
- * 2. Tyre wear from GameData is 0 for the whole first lap in iRacing.
- *    The fix averages the three raw zone values (L/M/R) as a fallback.
+ * parseInt('0') || 1 evaluates to 1 (metric) even when DisplayUnits=0 (imperial). The fix uses an explicit
+ * null/empty check.
+ *
+ * The issue's second half, a tyre wear fallback that averaged iRacing's three tread bands when SimHub's value
+ * read 0, used to be re-implemented here (as a plain mean, which the C# then inverted, which the HUD then
+ * inverted again). Tyre wear now has one meaning — tread remaining, 0..100 %, converted once at each source and
+ * nowhere else (root CLAUDE.md, Tyre wear) — and is held by the real code: IRacing/TyreWearTests.cs in the .NET
+ * tests for the host, the plugin's capture (SimHub's value, then the bands), the trigger and the strategist, and
+ * tyre-wear.spec.mjs here for the page.
  */
 
 import { test, expect } from '@playwright/test';
@@ -18,16 +22,6 @@ function parseDisplayUnits(rawValue) {
   return (rawValue !== '' && rawValue !== null && rawValue !== undefined)
     ? parseInt(rawValue)
     : 1;  // default metric
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Re-implementation of the tyre wear fallback from TelemetrySnapshot
-// ─────────────────────────────────────────────────────────────
-
-function resolveTyreWear(gameDataWear, rawL, rawM, rawR) {
-  if (gameDataWear > 0) return gameDataWear;
-  if (rawL > 0 || rawM > 0 || rawR > 0) return (rawL + rawM + rawR) / 3;
-  return 0;
 }
 
 test.describe('Issue #11 — DisplayUnits: imperial zero must not default to metric', () => {
@@ -63,44 +57,5 @@ test.describe('Issue #11 — DisplayUnits: imperial zero must not default to met
   test('fixed logic correctly distinguishes 0 from missing', () => {
     expect(parseDisplayUnits('0')).toBe(0);   // imperial — correct
     expect(parseDisplayUnits('')).toBe(1);     // missing — defaults to metric
-  });
-});
-
-test.describe('Issue #11 — Tyre wear: raw zone fallback when GameData returns 0', () => {
-
-  test('GameData wear > 0 is used directly', () => {
-    expect(resolveTyreWear(0.85, 0, 0, 0)).toBeCloseTo(0.85);
-  });
-
-  test('GameData wear = 0 falls back to average of raw zones', () => {
-    expect(resolveTyreWear(0, 0.90, 0.85, 0.80)).toBeCloseTo(0.85);
-  });
-
-  test('partial raw zone data is still averaged (not zeroed)', () => {
-    // Only outer and middle recorded
-    expect(resolveTyreWear(0, 0.90, 0.85, 0)).toBeCloseTo((0.90 + 0.85 + 0) / 3);
-  });
-
-  test('all raw zones = 0 returns 0 (no data available)', () => {
-    expect(resolveTyreWear(0, 0, 0, 0)).toBe(0);
-  });
-
-  test('GameData takes precedence over non-zero raw zones', () => {
-    // GameData says 0.7 — trust it even if raw zones differ
-    expect(resolveTyreWear(0.7, 0.9, 0.9, 0.9)).toBeCloseTo(0.7);
-  });
-
-  test('result is in [0, 1] range for all valid inputs', () => {
-    const cases = [
-      [0, 0.8, 0.9, 0.7],
-      [0.5, 0, 0, 0],
-      [0, 1.0, 1.0, 1.0],
-      [0, 0, 0, 0],
-    ];
-    for (const [gd, l, m, r] of cases) {
-      const result = resolveTyreWear(gd, l, m, r);
-      expect(result).toBeGreaterThanOrEqual(0);
-      expect(result).toBeLessThanOrEqual(1);
-    }
   });
 });

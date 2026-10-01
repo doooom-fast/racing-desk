@@ -587,6 +587,7 @@ namespace RacingDesk.Plugin
                     Jp(sb, "DataCorePlugin.GameData.TyreTempFrontRight", s.TyreTempFR, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreTempRearLeft", s.TyreTempRL, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreTempRearRight", s.TyreTempRR, ic);
+                    // Tread remaining, 0..100 %, as the sim last measured it; null until it has (Engine/TyreWear.cs).
                     Jp(sb, "DataCorePlugin.GameData.TyreWearFrontLeft", s.TyreWearFL, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreWearFrontRight", s.TyreWearFR, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreWearRearLeft", s.TyreWearRL, ic);
@@ -1052,6 +1053,9 @@ namespace RacingDesk.Plugin
             => sb.Append($"  \"{key}\": {val.ToString(System.Globalization.CultureInfo.InvariantCulture)},\n");
         private static void Jp(StringBuilder sb, string key, double val, System.Globalization.CultureInfo ic)
             => sb.Append($"  \"{key}\": {val.ToString("G", ic)},\n");
+        /// <summary>A number the sim may not have said: <c>null</c> on the wire where it has not (tyre wear not yet measured).</summary>
+        private static void Jp(StringBuilder sb, string key, double? val, System.Globalization.CultureInfo ic)
+            => sb.Append(val.HasValue ? $"  \"{key}\": {val.Value.ToString("G", ic)},\n" : $"  \"{key}\": null,\n");
         private static void Jp(StringBuilder sb, string key, string val)
             => sb.Append($"  \"{key}\": \"{val}\",\n");
 
