@@ -39,10 +39,11 @@ namespace RacingDesk.Plugin.Engine
             TyreTempFR         = 199.0,
             TyreTempRL         = 190.0,
             TyreTempRR         = 192.0,
-            TyreWearFL         = 0.38,
-            TyreWearFR         = 0.41,
-            TyreWearRL         = 0.34,
-            TyreWearRR         = 0.35,
+            // Tread remaining, 0..100 % (Engine/TyreWear.cs): a set with a stint on it, none of it under the 35 the topic fires at
+            TyreWearFL         = 62,
+            TyreWearFR         = 59,
+            TyreWearRL         = 66,
+            TyreWearRR         = 65,
             TrackTemp          = 36.0,
             LapDeltaToBest     = 0.12,
             LapBestTime        = 92.410,
@@ -220,9 +221,10 @@ namespace RacingDesk.Plugin.Engine
             });
 
             // ── 12. TYRE WEAR HIGH — severity 2, blue ────────────────────────────
+            // The fronts measured under 35% tread (percent remaining): the worst, 29, is what the exposition prints
             var tyreWear = Base();
-            tyreWear.TyreWearFL = 0.71;
-            tyreWear.TyreWearFR = 0.68;
+            tyreWear.TyreWearFL = 29;
+            tyreWear.TyreWearFR = 32;
             tyreWear.CurrentLap = 14;
             steps.Add(new Step { TopicId = "tyre_wear_high", Snapshot = tyreWear, DelaySeconds = 20 });
 

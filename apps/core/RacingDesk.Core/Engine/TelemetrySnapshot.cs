@@ -37,10 +37,16 @@ namespace RacingDesk.Plugin.Engine
         public string TrackDisplayName  { get; set; } = "";
         /// <summary>iRacing's TrackID (WeekendInfo.TrackID): the exact layout, which the track map is keyed by. 0 when not known.</summary>
         public int    TrackId           { get; set; }
-        public double TyreWearFL        { get; set; }
-        public double TyreWearFR        { get; set; }
-        public double TyreWearRL        { get; set; }
-        public double TyreWearRR        { get; set; }
+        /// <summary>
+        /// Tread remaining per corner, 0..100 %, 100 = new, as the sim last measured it (iRacing measures in the pits
+        /// and nowhere else); null where it has not been measured. One meaning everywhere: <see cref="TyreWear"/>.
+        /// </summary>
+        public double? TyreWearFL       { get; set; }
+        public double? TyreWearFR       { get; set; }
+        public double? TyreWearRL       { get; set; }
+        public double? TyreWearRR       { get; set; }
+        /// <summary>The corner with the least tread of those measured, 0..100 %; null where none is.</summary>
+        public double? TyreWearWorst    => TyreWear.Worst(TyreWearFL, TyreWearFR, TyreWearRL, TyreWearRR);
 
         // ── Physics — iRacing raw, with cross-game normalized fallback ───────
         // Available: iRacing, AC, ACC, AMS2 (via SimHub motion physics)

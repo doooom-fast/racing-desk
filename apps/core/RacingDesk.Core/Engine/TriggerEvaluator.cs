@@ -88,10 +88,13 @@ namespace RacingDesk.Plugin.Engine
                 case "tracktemp":             return s.TrackTemp;
                 case "energyersbattery":      return s.ErsBattery;
                 case "powermguk":             return s.MgukPower;
-                case "tyrewearfl":            return s.TyreWearFL;
-                case "tyrewearfr":            return s.TyreWearFR;
-                case "tyrewearrl":            return s.TyreWearRL;
-                case "tyrewearrr":            return s.TyreWearRR;
+                // Tread remaining, 0..100 % (Engine/TyreWear.cs). Not measured is NaN, which no comparison is true of: a
+                // tyre the sim has not measured is neither worn nor new, and satisfies no trigger.
+                case "tyrewearfl":            return s.TyreWearFL ?? double.NaN;
+                case "tyrewearfr":            return s.TyreWearFR ?? double.NaN;
+                case "tyrewearrl":            return s.TyreWearRL ?? double.NaN;
+                case "tyrewearrr":            return s.TyreWearRR ?? double.NaN;
+                case "tyrewearworst":         return s.TyreWearWorst ?? double.NaN;
                 case "tyretempfl":            return s.TyreTempFL;
                 case "tyretempfr":            return s.TyreTempFR;
                 case "tyretemprl":            return s.TyreTempRL;

@@ -124,45 +124,14 @@ namespace RacingDesk.Plugin.Engine
             s.TrackId          = GetPluginProp<int>(pm, TrackIdProperty);
             if (s.TrackId == 0 && _sdkBridge != null && _sdkBridge.IsConnected)
                 s.TrackId = _sdkBridge.TrackId;
-            s.TyreWearFL       = GetNorm<double>(d, "TyreWearFrontLeft");
-            s.TyreWearFR       = GetNorm<double>(d, "TyreWearFrontRight");
-            s.TyreWearRL       = GetNorm<double>(d, "TyreWearRearLeft");
-            s.TyreWearRR       = GetNorm<double>(d, "TyreWearRearRight");
-
-            // Fallback for iRacing: GameData.TyreWear* is only updated after a
-            // full lap, so the bars stay at 0 until then. Fall back to the raw
-            // per-zone wear telemetry values (LFwearL/M/R etc.) which ARE live.
-            // IMPORTANT: iRacing raw wear values use 1.0=new, 0.0=worn convention
-            // but our internal convention is 0.0=new, 1.0=fully worn. We must
-            // invert when using the raw telemetry fallback.
-            if (s.TyreWearFL == 0)
-            {
-                float wL = GetRaw<float>(pm, "LFwearL");
-                float wM = GetRaw<float>(pm, "LFwearM");
-                float wR = GetRaw<float>(pm, "LFwearR");
-                if (wL > 0 || wM > 0 || wR > 0) s.TyreWearFL = 1.0 - ((wL + wM + wR) / 3f);
-            }
-            if (s.TyreWearFR == 0)
-            {
-                float wL = GetRaw<float>(pm, "RFwearL");
-                float wM = GetRaw<float>(pm, "RFwearM");
-                float wR = GetRaw<float>(pm, "RFwearR");
-                if (wL > 0 || wM > 0 || wR > 0) s.TyreWearFR = 1.0 - ((wL + wM + wR) / 3f);
-            }
-            if (s.TyreWearRL == 0)
-            {
-                float wL = GetRaw<float>(pm, "LRwearL");
-                float wM = GetRaw<float>(pm, "LRwearM");
-                float wR = GetRaw<float>(pm, "LRwearR");
-                if (wL > 0 || wM > 0 || wR > 0) s.TyreWearRL = 1.0 - ((wL + wM + wR) / 3f);
-            }
-            if (s.TyreWearRR == 0)
-            {
-                float wL = GetRaw<float>(pm, "RRwearL");
-                float wM = GetRaw<float>(pm, "RRwearM");
-                float wR = GetRaw<float>(pm, "RRwearR");
-                if (wL > 0 || wM > 0 || wR > 0) s.TyreWearRR = 1.0 - ((wL + wM + wR) / 3f);
-            }
+            // Tyre wear: tread remaining, 0..100 %, per corner, null where not measured — one meaning, converted here and
+            // in the host's source and nowhere else (Engine/TyreWear.cs; root CLAUDE.md, Tyre wear). SimHub's own
+            // GameData.TyreWear* is that percent already for iRacing, and reads 0 while SimHub has nothing, which is not a
+            // measurement; then iRacing's own three tread bands are asked, made one corner the one way the host makes them.
+            s.TyreWearFL       = TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearFrontLeft"))  ?? RawTreadRemaining(pm, "LF");
+            s.TyreWearFR       = TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearFrontRight")) ?? RawTreadRemaining(pm, "RF");
+            s.TyreWearRL       = TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearRearLeft"))   ?? RawTreadRemaining(pm, "LR");
+            s.TyreWearRR       = TyreWear.FromSimHub(GetNorm<double>(d, "TyreWearRearRight"))  ?? RawTreadRemaining(pm, "RR");
 
             // ── Physics: iRacing raw → normalized fallback ───────────────────
             // Fix #14: iRacing reports acceleration in m/s²; dashboard expects G.
@@ -1060,6 +1029,13 @@ namespace RacingDesk.Plugin.Engine
             }
             return false;
         }
+
+        /// <summary>
+        /// One corner's tread remaining from iRacing's own bands (<c>LFwearL/M/R</c> …), through
+        /// <see cref="TyreWear.FromBands"/>: 0..100 %, null where the sim has not said.
+        /// </summary>
+        private static double? RawTreadRemaining(ITelemetrySource pm, string corner) =>
+            TyreWear.FromBands(GetRaw<float>(pm, corner + "wearL"), GetRaw<float>(pm, corner + "wearM"), GetRaw<float>(pm, corner + "wearR"));
 
         private static T GetRaw<T>(ITelemetrySource pm, string name, string prefix = null)
         {

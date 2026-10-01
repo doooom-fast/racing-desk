@@ -99,6 +99,7 @@ namespace RacingDesk.Plugin.Transport
             dict["DataCorePlugin.GameData.TyreTempFrontRight"] = s.TyreTempFR;
             dict["DataCorePlugin.GameData.TyreTempRearLeft"] = s.TyreTempRL;
             dict["DataCorePlugin.GameData.TyreTempRearRight"] = s.TyreTempRR;
+            // Tread remaining, 0..100 %, as the sim last measured it; null (nil on the feed) until it has (Engine/TyreWear.cs).
             dict["DataCorePlugin.GameData.TyreWearFrontLeft"] = s.TyreWearFL;
             dict["DataCorePlugin.GameData.TyreWearFrontRight"] = s.TyreWearFR;
             dict["DataCorePlugin.GameData.TyreWearRearLeft"] = s.TyreWearRL;

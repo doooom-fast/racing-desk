@@ -15,7 +15,9 @@ namespace RacingDesk.Plugin.IRacing
     ///
     /// Conventions were checked against SimHub 9.12 during a live session (npm run parity, 2026-09-17): TrackName
     /// is iRacing's internal track name; normalized fuel and tyre temperatures follow the display units (gallons
-    /// and °F when imperial) while Computed.Fuel_LitersPerLap stays in litres; tyre wear is percent remaining.
+    /// and °F when imperial) while Computed.Fuel_LitersPerLap stays in litres; tyre wear is tread remaining in
+    /// percent, per corner, from iRacing's three bands (<see cref="TyreWear.FromBands"/>; null where the sim has
+    /// not said), which is what SimHub publishes for the same tyre.
     /// </summary>
     public sealed class IRacingTelemetrySource : ITelemetrySource, RacingDesk.Core.Cars.ICarIdentity
     {
@@ -134,10 +136,10 @@ namespace RacingDesk.Plugin.IRacing
             _data.SessionTypeName = SessionType(si, sessionNum);
             _data.CarModel = _me?.CarScreenName ?? "";
             _data.PlayerName = _me?.UserName ?? "";
-            _data.TyreWearFrontLeft = WearRemainingPercent("LF");
-            _data.TyreWearFrontRight = WearRemainingPercent("RF");
-            _data.TyreWearRearLeft = WearRemainingPercent("LR");
-            _data.TyreWearRearRight = WearRemainingPercent("RR");
+            _data.TyreWearFrontLeft = TreadRemaining("LF");
+            _data.TyreWearFrontRight = TreadRemaining("RF");
+            _data.TyreWearRearLeft = TreadRemaining("LR");
+            _data.TyreWearRearRight = TreadRemaining("RR");
 
             _data.BestLapTime = Float("LapBestLapTime");
             _data.LastLapTime = Float("LapLastLapTime");
@@ -262,12 +264,12 @@ namespace RacingDesk.Plugin.IRacing
 
         private static float Temp(float celsius, bool imperial) => imperial ? celsius * 9f / 5f + 32f : celsius;
 
-        /// <summary>Average of the inner / middle / outer wear readings, as percent remaining.</summary>
-        private double WearRemainingPercent(string corner)
-        {
-            float l = Float(corner + "wearL"), m = Float(corner + "wearM"), r = Float(corner + "wearR");
-            return l + m + r > 0 ? (l + m + r) / 3.0 * 100.0 : 0.0;
-        }
+        /// <summary>
+        /// One corner's tread remaining, 0..100 %, from iRacing's three bands — the one conversion, shared with the
+        /// plugin's capture (<see cref="TyreWear.FromBands"/>). Null where the sim has not said (the bands all 0 or absent).
+        /// </summary>
+        private double? TreadRemaining(string corner) =>
+            TyreWear.FromBands(Float(corner + "wearL"), Float(corner + "wearM"), Float(corner + "wearR"));
 
         private static TimeSpan Seconds(float[] arr, int idx) =>
             arr != null && idx < arr.Length && arr[idx] > 0 ? TimeSpan.FromSeconds(arr[idx]) : TimeSpan.Zero;
@@ -316,10 +318,11 @@ namespace RacingDesk.Plugin.IRacing
             public string SessionTypeName { get; set; } = "";
             public string CarModel { get; set; } = "";
             public string PlayerName { get; set; } = "";
-            public double TyreWearFrontLeft { get; set; }
-            public double TyreWearFrontRight { get; set; }
-            public double TyreWearRearLeft { get; set; }
-            public double TyreWearRearRight { get; set; }
+            /// <summary>Tread remaining, 0..100 % (<see cref="TyreWear"/>); null where the sim has not said.</summary>
+            public double? TyreWearFrontLeft { get; set; }
+            public double? TyreWearFrontRight { get; set; }
+            public double? TyreWearRearLeft { get; set; }
+            public double? TyreWearRearRight { get; set; }
             public float BestLapTime { get; set; }
             public float LastLapTime { get; set; }
             public float CurrentLapTime { get; set; }
