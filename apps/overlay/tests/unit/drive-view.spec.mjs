@@ -607,7 +607,9 @@ test.describe('the flag is the background', () => {
           if (pseudo && cs.content === 'none') continue;
           if (cs.backgroundImage !== pattern) continue;
           out.push({ el: (el.id || el.className || el.tagName) + (pseudo || ''), opacity: +cs.opacity, padding: parseFloat(cs.paddingTop) || 0,
-            masked: (cs.webkitMaskImage !== 'none' && cs.webkitMaskImage !== '') || (cs.maskImage && cs.maskImage !== 'none'), position: cs.position });
+            masked: (cs.webkitMaskImage !== 'none' && cs.webkitMaskImage !== '') || (cs.maskImage && cs.maskImage !== 'none'), position: cs.position,
+            // What makes a masked box a ring and not a whole screen: the second mask taken out of the first.
+            composite: cs.maskComposite || cs.webkitMaskComposite || '', size: cs.maskSize || cs.webkitMaskSize || '' });
         }
       }
       return { pattern, out };
@@ -626,6 +628,8 @@ test.describe('the flag is the background', () => {
           expect(layer.position, `${flag}: ${layer.el}`).toBe('fixed');
           expect(layer.padding, `${flag}: ${layer.el} is a thin frame`).toBeGreaterThan(0);
           expect(layer.padding, `${flag}: ${layer.el} is a thin frame`).toBeLessThanOrEqual(6);
+          // A ring, not the whole box: with the masks added together (the default) it would be every gutter again.
+          expect(layer.composite.split(',')[0].trim(), `${flag}: ${layer.el} is a ring, one mask taken out of the other`).toMatch(/^(exclude|xor)$/);
         } else {
           expect(layer.opacity, `${flag}: ${layer.el} at fifteen hundredths`).toBeLessThanOrEqual(0.16);
         }
@@ -644,6 +648,62 @@ test.describe('the flag is the background', () => {
     const rig = await page.evaluate(() => [getComputedStyle(document.body, '::before').opacity, getComputedStyle(document.body, '::after').content]);
     expect(rig).toEqual(['1', 'none']);
     await page.evaluate(() => document.documentElement.classList.add('rd-remote'));
+  });
+
+  test('on an iPad the pixels in the gutters between the panels are at fifteen hundredths and the pixels at the edge carry the flag', async ({ page }) => {
+    test.setTimeout(150000);
+    // The computed styles above say what the layers are; this looks at what is drawn. A frame whose mask stopped taking
+    // the inside out (an engine that does not honour mask-composite, or a refactor of the shorthand) would still pass
+    // every one of them, with the stripes at full strength in every gutter, which is what he complained of. In the
+    // gutter between the relative and the laps panel (a straight one the length of the laps panel, and not under the
+    // race's results, which cover the map and the local view once the flag is chequered), whatever the flag, nothing
+    // is bright: the pattern is at 0.15 over the HUD's dark. And along the screen's edge, a few pixels wide, the flag's
+    // pattern is there whole.
+    const sample = async () => {
+      const shot = (await page.screenshot()).toString('base64');
+      return page.evaluate(async ({ b64 }) => {
+        const img = new Image();
+        img.src = 'data:image/png;base64,' + b64;
+        await img.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width; canvas.height = img.height;
+        const g = canvas.getContext('2d', { willReadFrequently: true });
+        g.drawImage(img, 0, 0);
+        const bright = (x, y) => { const d = g.getImageData(x, y, 1, 1).data; return Math.max(d[0], d[1], d[2]); };
+        const a = document.getElementById('leaderboardPanel').getBoundingClientRect();
+        const b = document.getElementById('lapsPanel').getBoundingClientRect();
+        // The gutter between them: the column midway between the two panels, down the length of both (so a panel's
+        // glow at its own edge is not what is judged).
+        const [first, second] = a.left < b.left ? [a, b] : [b, a];
+        const left = Math.ceil(first.right), right = Math.floor(second.left);
+        const top = Math.ceil(Math.max(a.top, b.top)) + 4, bottom = Math.floor(Math.min(a.bottom, b.bottom)) - 4;
+        let gutter = 0, gutterPixels = 0;
+        const mid = Math.round((left + right) / 2);
+        for (let y = top; y < bottom; y += 1) { gutter = Math.max(gutter, bright(mid, y)); gutterPixels++; }
+        // The edge: the screen's outermost columns and rows (the frame is 4px of them).
+        let edge = 0;
+        for (let y = 0; y < img.height; y += 1) edge = Math.max(edge, bright(1, y), bright(img.width - 2, y));
+        for (let x = 0; x < img.width; x += 1) edge = Math.max(edge, bright(x, 1), bright(x, img.height - 2));
+        return { gutter, edge, gutterWidth: right - left, gutterPixels, size: [img.width, img.height] };
+      }, { b64: shot });
+    };
+    for (const [width, height] of [[1180, 820], [820, 1180]]) {
+      await openAt(page, width, height, RACE());
+      await page.waitForTimeout(500);
+      const dark = await sample();   // no flag yet: what the dark is
+      expect(dark.gutterWidth, `${width}x${height}: a gutter to look at, between the relative and the laps`).toBeGreaterThanOrEqual(3);
+      expect(dark.gutterPixels, `${width}x${height}: a gutter long enough to cross the stripes`).toBeGreaterThan(80);
+      expect(dark.gutter, `${width}x${height}: no flag, a dark gutter`).toBeLessThan(60);
+      for (const flag of ['yellow', 'green', 'white', 'checkered', 'blue']) {
+        await serve(page, RACE({ flag }));
+        await page.waitForTimeout(600);
+        const m = await sample();
+        // At 0.15 over the dark the brightest a stripe gets is the dark and 15% of the flag's lightest colour (a 245 white,
+        // a 253 yellow): under 80. At full strength it is the flag's own colour, over 150 for every one of the five.
+        expect(m.gutter, `${width}x${height} ${flag}: the gutter's brightest pixel (the dark is ${dark.gutter})`).toBeLessThan(80);
+        expect(m.edge, `${width}x${height} ${flag}: the edge's brightest pixel: the frame carries the flag`).toBeGreaterThan(150);
+      }
+    }
   });
 
   test('the checkered flag is a checkerboard, and the meatball an orange disc on black', async ({ page }) => {
