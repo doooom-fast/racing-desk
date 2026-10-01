@@ -13,6 +13,8 @@
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'module';
 import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 
 const require = createRequire(import.meta.url);
@@ -271,14 +273,76 @@ test('without the app the page asks as it always did, and is refused where the r
   expect(asked).toEqual(['http://192.168.1.50:9090/racing-desk/?action=resetmap']);
 });
 
-test('no script of the page fetches an ?action= route itself: it asks through runtimeAction', () => {
-  const dir = new URL('../../modules/js/', import.meta.url);
-  const own = new Set(['config.js', 'runtime-actions.js']);
-  const offenders = [];
-  for (const file of readdirSync(dir)) {
-    if (!file.endsWith('.js') || own.has(file)) continue;
-    const code = readFileSync(new URL(file, dir), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-    if (/['"`][^'"`\n]*\baction=/.test(code)) offenders.push(file);
+// ── What the page's scripts do ──
+
+// A script's code with its comments taken out.
+function withoutComments(code) {
+  return code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+// The bodies of a page's inline <script>s: what the page's own file runs, which a `src` does not name.
+function inlineScripts(html) {
+  return [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]).filter((body) => body.trim().length > 0);
+}
+
+// Whether a script has an ?action= address of its own to fetch: a string that holds `action=`.
+function namesAnActionRoute(code) {
+  return /['"`][^'"`\n]*\baction=/.test(withoutComments(code));
+}
+
+// The routes a script asks runtimeAction for by name.
+function routesAskedFor(code) {
+  return [...withoutComments(code).matchAll(/\bruntimeAction\(\s*(['"`])([^'"`]+)\1/g)].map((m) => m[2]);
+}
+
+// Every script the page runs, as { name, code }: each .js under modules/ at any depth (the folders of tests left out), and the
+// inline scripts of each of the app's own pages.
+function pageScripts() {
+  const appDir = fileURLToPath(new URL('../../', import.meta.url));
+  const scripts = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== '__tests__' && entry.name !== 'node_modules') walk(full);
+      } else if (entry.name.endsWith('.js')) {
+        scripts.push({ name: relative(appDir, full).replace(/\\/g, '/'), code: readFileSync(full, 'utf8') });
+      }
+    }
+  };
+  walk(join(appDir, 'modules'));
+  for (const page of readdirSync(appDir).filter((file) => file.endsWith('.html'))) {
+    inlineScripts(readFileSync(join(appDir, page), 'utf8')).forEach((code, i) => scripts.push({ name: `${page} (inline script ${i + 1})`, code }));
   }
+  return scripts;
+}
+
+// The two that make the request on a page's behalf: config.js's fallback (a browser, the iPad's page) and the app's own.
+const OWN_SCRIPTS = new Set(['modules/js/config.js', 'modules/js/runtime-actions.js']);
+
+test('the guards read what they are meant to: nested scripts, inline scripts, and a route the HUD may not ask for', () => {
+  expect(namesAnActionRoute("fetch('http://localhost:8889/racing-desk/?action=setMozaPedalSetting&key=a')")).toBe(true);
+  expect(namesAnActionRoute('fetch(`${base}?action=${name}`)')).toBe(true);
+  expect(namesAnActionRoute("// fetch('?action=x')\n/* '?action=y' */ const a = 1; // 'action='")).toBe(false);
+  expect(inlineScripts('<script src="a.js"></script><script>fetch("?action=resetmap")</script><script type="module"> </script>')).toEqual(['fetch("?action=resetmap")']);
+  expect(routesAskedFor("runtimeAction('resetmap'); runtimeAction( \"setSetting\", {}); function runtimeAction(name, params) {}")).toEqual(['resetmap', 'setSetting']);
+
+  // The list of scripts goes down into the folders, and the inline scripts of a page are among what is read.
+  const names = pageScripts().map((script) => script.name);
+  expect(names).toContain('modules/js/config.js');
+  expect(names).toContain('modules/js/paints/apply.js');
+  expect(names).toContain('modules/desk/desk.js');
+  expect(names.some((name) => name.includes('__tests__'))).toBe(false);
+});
+
+test('no script of the page fetches an ?action= route itself: it asks through runtimeAction', () => {
+  const offenders = pageScripts().filter(({ name, code }) => !OWN_SCRIPTS.has(name) && namesAnActionRoute(code)).map(({ name }) => name);
   expect(offenders).toEqual([]);
+});
+
+test('every route a script asks runtimeAction for is one the main process passes on', () => {
+  const asked = pageScripts().flatMap(({ name, code }) => routesAskedFor(code).map((route) => ({ name, route })));
+  // The scan finds the HUD's own calls (a regex that found none would pass for all of them).
+  expect(new Set(asked.map(({ route }) => route))).toEqual(new Set(['resetmap', 'restartdemo', 'setrect', 'listPedalProfiles', 'setPedalProfile', 'bindPedalProfile']));
+  expect(asked.filter(({ route }) => !Object.prototype.hasOwnProperty.call(ACTIONS, route))).toEqual([]);
 });

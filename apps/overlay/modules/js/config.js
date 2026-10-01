@@ -693,10 +693,8 @@ const _defaultSettings = {
   // Phase 4: Replay buffer
   replayBufferEnabled: false,   // keep rolling buffer in memory
   replayBufferDuration: 60,     // buffer length in seconds (30–120)
-  // Commentary — authoritative copy now lives here. settings.js relays each
-  // change to the SimHub plugin via action=setSetting so the plugin's existing
-  // commentary-filtering pipeline keeps working unchanged. If we later decide
-  // the plugin doesn't need these at all, drop _relayCommentaryToPlugin.
+  // Commentary — the authoritative copy lives here, and nothing relays it to the
+  // plugin: the runtime has no setSetting route (settings.js).
   commentaryPromptDuration: 15,        // seconds a prompt stays on screen (5–120)
   commentaryShowTopicTitle: true,      // show topic title above commentary text
   commentaryEventOnlyMode: false,      // suppress periodic commentary; only fire on events

@@ -401,48 +401,12 @@
     if (typeof saveSettings === 'function') saveSettings();
   }
 
-  // ── Commentary settings (authoritative copy in _settings; relayed to plugin) ──
-  // The web app is the authoritative editor — values live in the overlay settings
-  // file under `commentary*` keys. We relay every change to the SimHub plugin via
-  // the same setSetting action it already consumes, so the plugin's
-  // commentary-filter pipeline keeps working unchanged.
-  function updateCommentarySetting(key, value) {
-    // The runtime has no setSetting route, and never had one in the C# runtime: this was answered with the telemetry and
-    // did nothing. The app's main process passes on only the routes the runtime has (runtime-actions.js), so it is not one
-    // of them, and still does nothing — without a request the runtime has to refuse.
-    runtimeAction('setSetting', { key: key, value: value }).catch(function() {});
-  }
-
-  // Map from the prefixed OverlaySettings keys (the web UI edits these) to
-  // the plugin-facing names the SimHub setSetting endpoint expects. When the
-  // commentary keys change in settings, we POST each to the plugin.
-  var _COMMENTARY_PLUGIN_MAP = {
-    commentaryPromptDuration:   'promptDuration',
-    commentaryShowTopicTitle:   'showTopicTitle',
-    commentaryEventOnlyMode:    'eventOnlyMode',
-    commentaryCatStrategy:      'category_strategy',
-    commentaryCatTrack:         'category_track',
-    commentaryCatRivals:        'category_rivals',
-    commentaryCatBehavior:      'category_behavior',
-    commentaryCatHardware:      'category_hardware',
-    commentaryCatGameFeel:      'category_game_feel',
-    commentaryCatCarResponse:   'category_car_response',
-    commentaryCatRacingExperience: 'category_racing_experience',
-    commentaryDriverFirstName:  'driverFirstName',
-    commentaryDriverLastName:   'driverLastName',
-    commentaryDemoMode:         'demoMode',
-  };
-  // Booleans get coerced to '1'/'0' to match the plugin's string parser.
-  function _relayCommentaryToPlugin(settings) {
-    if (!settings) return;
-    Object.keys(_COMMENTARY_PLUGIN_MAP).forEach(function(localKey) {
-      if (!(localKey in settings)) return;
-      var pluginKey = _COMMENTARY_PLUGIN_MAP[localKey];
-      var raw = settings[localKey];
-      var val = (typeof raw === 'boolean') ? (raw ? '1' : '0') : String(raw);
-      updateCommentarySetting(pluginKey, val);
-    });
-  }
+  // ── Commentary settings ──
+  // The web app is the authoritative editor — values live in the overlay settings file under `commentary*` keys. They
+  // used to be relayed to the SimHub plugin through ?action=setSetting; the runtime has no such route and never had one
+  // in the C# runtime (the request was answered with the telemetry, and did nothing), and the app's main process passes
+  // on only the routes the runtime has (runtime-actions.js), so the relay is gone and not kept as a call that is certain
+  // to be refused.
 
   // ── Cold-start load ──
   // Pull the host's persisted overlay-settings.json once on boot, merge
@@ -462,7 +426,6 @@
         Object.assign(_settings, saved);
       }
       try { applySettings(); } catch (e) { console.warn('[settings] initial apply failed:', e); }
-      _relayCommentaryToPlugin(_settings);
     }).catch(function(err) {
       console.warn('[settings] initial getSettings failed:', err);
       try { applySettings(); } catch (e) {}
@@ -475,14 +438,12 @@
   }
 
   // ── Cross-window settings sync ──
-  // When the host changes settings on disk, apply them here, and relay
-  // any commentary keys to the SimHub plugin so its filtering stays in sync.
+  // When the host changes settings on disk, apply them here.
   if (window.racingDesk && window.racingDesk.onSettingsSync) {
     window.racingDesk.onSettingsSync(function(newSettings) {
       if (newSettings && typeof newSettings === 'object') {
         Object.assign(_settings, newSettings);
         applySettings();
-        _relayCommentaryToPlugin(newSettings);
       }
     });
   }
