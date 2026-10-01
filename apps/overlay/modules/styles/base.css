@@ -27,6 +27,9 @@
     --panel-alpha: 0.9;
     --panel-glass: min(1, calc(var(--panel-alpha) / 0.9));
     --panel-shadow: clamp(0, calc((0.9 - var(--panel-alpha)) / 0.9), 1);
+    /* The shadow's colour as three channels: dark under the light text of the dark theme (set under [data-theme="light"]
+       to white, so that the light theme's dark text has a pale halo and not a dark smear). */
+    --panel-shadow-rgb: 0, 0, 0;
 
     --bg: hsla(0, 0%, 8%, var(--panel-alpha));
     --bg-panel: hsla(0, 0%, 6%, var(--panel-alpha));
@@ -71,6 +74,7 @@
   /* Light theme fallback — overridden by remote token CSS when available */
   [data-theme="light"] {
     /* The light panels were at 0.92: the slider's 0.9 keeps them there, and scales them with the dark ones. */
+    --panel-shadow-rgb: 255, 255, 255;
     --bg: hsla(240, 10%, 96%, min(1, calc(0.92 * var(--panel-alpha) / 0.9)));
     --bg-panel: hsla(240, 10%, 94%, min(1, calc(0.92 * var(--panel-alpha) / 0.9)));
     --bg-logo: hsla(240, 5%, 92%, min(1, calc(0.92 * var(--panel-alpha) / 0.9)));
@@ -107,9 +111,18 @@
      own (the tacho's pulse, the redline) keeps its own. */
   body.panels-thin :is(.panel, .tacho-block, .lb-inner, .ds-inner, .pb-inner, .inc-inner, .laps-panel, .logo-square, .race-timeline) {
     text-shadow:
-      0 1px 2px rgba(0, 0, 0, calc(0.9 * var(--panel-shadow))),
-      0 0 3px rgba(0, 0, 0, calc(0.8 * var(--panel-shadow))),
-      0 0 10px rgba(0, 0, 0, calc(0.7 * var(--panel-shadow)));
+      0 1px 2px rgba(var(--panel-shadow-rgb), calc(0.9 * var(--panel-shadow))),
+      0 0 3px rgba(var(--panel-shadow-rgb), calc(0.8 * var(--panel-shadow))),
+      0 0 10px rgba(var(--panel-shadow-rgb), calc(0.7 * var(--panel-shadow)));
+  }
+
+  /* The spotter's card and race control's banner come and go over the game and carry what he most needs to read: their
+     fill is their own and solid, whatever the slider says, so the glass on them is not thinned either, and they have no
+     shadow under their words (they are not panels). */
+  .spotter-panel,
+  .rc-banner {
+    --panel-glass: 1;
+    --panel-shadow: 0;
   }
 
   /* Settings hint text */

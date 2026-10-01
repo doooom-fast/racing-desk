@@ -33,6 +33,9 @@ function freePort() {
 const look = (page) => page.evaluate(() => {
   const alphaOf = (colour) => { const m = colour.match(/rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?\)/); return m ? (m[4] === undefined ? 1 : +m[4]) : null; };
   const panel = document.querySelector('.map-panel');
+  // --panel-glass as the element has it, worked out (a custom property reads back as the words it was written in): a
+  // probe inside it takes it as its opacity.
+  const glassOf = (el) => { const probe = document.createElement('i'); probe.style.opacity = 'var(--panel-glass)'; el.appendChild(probe); const v = +getComputedStyle(probe).opacity; probe.remove(); return v; };
   const shadow = getComputedStyle(document.getElementById('gapsBlock')).textShadow;
   return {
     alpha: getComputedStyle(document.documentElement).getPropertyValue('--panel-alpha').trim(),
@@ -44,6 +47,10 @@ const look = (page) => page.evaluate(() => {
     shadow: shadow === 'none' ? 0 : alphaOf(shadow),
     shadowText: shadow,
     spotter: getComputedStyle(document.getElementById('spotterPanel')).textShadow,
+    // The spotter's card and race control's banner are solid cards, not panels: the glass on them is not thinned.
+    spotterGlass: glassOf(document.getElementById('spotterPanel')),
+    bannerGlass: glassOf(document.getElementById('rcBanner')),
+    panelGlass: glassOf(panel),
   };
 });
 
@@ -118,6 +125,45 @@ test('on the rig: 90 is the panels as they were, and the sliders at 0, 50 and 10
   expect(await page.evaluate(() => window.panelBackgroundNow())).toBe(0);
 });
 
+test("the shadow takes its colour from the theme — a pale halo under the light theme's dark numbers, not a dark smear — and the spotter's card and race control's banner, solid cards that are not panels, keep their glass at 0", async ({ page }) => {
+  test.setTimeout(60000);
+  await openRig(page);
+  const set = async (s) => { await page.evaluate((v) => { Object.assign(_settings, v); applySettings(); }, s); await page.waitForTimeout(800); };
+  await set({ panelBackground: 0 });
+  const dark = await look(page);
+  expect(dark.shadowText).toMatch(/rgba\(0, 0, 0, 0\.9\) 0px 1px 2px/);
+  expect(dark.shadowText).not.toMatch(/255/);
+  // The light theme: dark text, so the halo is white, at the same strength.
+  await set({ panelBackground: 0, theme: 'light' });
+  const light = await look(page);
+  expect(light.shadowText).toMatch(/rgba\(255, 255, 255, 0\.9\) 0px 1px 2px/);
+  expect(light.shadowText).not.toMatch(/rgba\(0, 0, 0/);
+  expect(light.shadow).toBeCloseTo(0.9, 2);
+  expect(light.panel).toBe(0);
+  await set({ panelBackground: 50, theme: 'light' });
+  expect((await look(page)).shadow).toBeGreaterThan(0.3);
+  // At 90 and above the light theme has no shadow either, and its panels are as they were (0.92 at 90).
+  await set({ panelBackground: 90, theme: 'light' });
+  const asBefore = await look(page);
+  expect(asBefore.shadow).toBe(0);
+  expect(asBefore.panel).toBeCloseTo(0.92, 2);
+  // The cards: at 0 the panels' glass is gone (0) and theirs is whole (1), in both themes; no shadow under their words.
+  for (const theme of ['dark', 'light']) {
+    await set({ panelBackground: 0, theme });
+    const at = await look(page);
+    expect(at.panelGlass, theme).toBe(0);
+    expect(at.spotterGlass, theme).toBe(1);
+    expect(at.bannerGlass, theme).toBe(1);
+    expect(at.spotter, theme).toBe('none');
+  }
+  // Their glass streak, drawn when the light is on (ambient.css), is at its full strength at 0, as it is at 90: the
+  // spotter's ::after follows the light's brightness and nothing of the slider.
+  await set({ panelBackground: 0, theme: 'dark' });
+  const streak = await page.evaluate(() => ({ spotter: +getComputedStyle(document.getElementById('spotterPanel'), '::after').opacity, panel: +getComputedStyle(document.querySelector('.map-panel'), '::after').opacity, lum: +getComputedStyle(document.documentElement).getPropertyValue('--ambient-lum') }));
+  expect(streak.panel).toBe(0);
+  expect(streak.spotter).toBeCloseTo(0.25 + streak.lum * 0.35, 2);
+});
+
 // The iPad's server and the loopback one, each over a stand-in telemetry, with his settings as a box the test changes.
 async function servers() {
   const feed = { payload: RACE() };
@@ -144,7 +190,10 @@ async function servers() {
 
 // The panels' colours fade to a new value (background over 0.6 s), and under the whole suite's load the fade may lag the
 // server's answer: the panel's own alpha is waited for, and the rest read after it.
-const panelAt = (page, alpha) => expect.poll(async () => (await look(page)).panel, { timeout: 10000 }).toBeCloseTo(alpha, 2);
+const panelAt = async (page, alpha) => {
+  await expect.poll(async () => (await look(page)).panel, { timeout: 10000 }).toBeCloseTo(alpha, 2);
+  await expect.poll(async () => (await look(page)).lb, { timeout: 10000 }).toBeCloseTo(alpha, 2);
+};
 
 async function openServed(page, url, { width = 1180, height = 820 } = {}) {
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
