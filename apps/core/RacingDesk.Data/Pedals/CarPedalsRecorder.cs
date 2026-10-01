@@ -38,6 +38,20 @@ namespace RacingDesk.Data.Pedals
     }
 
     /// <summary>
+    /// The brake force the pedals are at now, as far as SmartControl Live's keys have said: for the HUD's datastream
+    /// (the host's <c>/racing-desk/data/brakeforce</c>). <see cref="ForceKg"/> is null while it is not known — no key
+    /// has set a force this run (or within a minute of the car before), or a step key was held — and nothing is made up.
+    /// </summary>
+    public sealed class BrakeForceNow
+    {
+        /// <summary>The car being followed; null between cars and before the first.</summary>
+        public string CarPath { get; set; }
+
+        /// <summary>Kilograms, or null while the force is not known.</summary>
+        public double? ForceKg { get; set; }
+    }
+
+    /// <summary>
     /// Follows the pedals per car while the sim runs, and writes nothing of SmartControl's. The brake force is
     /// followed from SmartControl Live's own keys (<see cref="LiveKeyWatcher"/>); whether the car has ABS is
     /// read off the telemetry. What a run leaves is handed over when the car changes or the sim goes.
@@ -96,6 +110,18 @@ namespace RacingDesk.Data.Pedals
         public IReadOnlyList<int> Watched
         {
             get { lock (_gate) return _keys?.Watched ?? Array.Empty<int>(); }
+        }
+
+        /// <summary>
+        /// The brake force the pedals are at now, as the keys have said, and the car it is being followed in: what the
+        /// HUD's datastream shows as the brake's maximum. Not known (null) until a key that sets a force is pressed this
+        /// run, again after a step key is held, and between cars (the sim gone, no car yet: nothing is being followed,
+        /// and what the pedals hold meanwhile is the next car's to carry over, by the minute's rule in Enter); nothing
+        /// is read from the pedals and nothing is made up.
+        /// </summary>
+        public BrakeForceNow Now
+        {
+            get { lock (_gate) return new BrakeForceNow { CarPath = _carPath, ForceKg = _carPath == null ? null : _force?.ForceKg }; }
         }
 
         /// <summary>

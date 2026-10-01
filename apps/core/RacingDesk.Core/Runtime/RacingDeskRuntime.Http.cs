@@ -677,6 +677,8 @@ namespace RacingDesk.Plugin
                     Jp(sb, "RacingDesk.Plugin.DS.LongG", s.LongAccel, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.YawRate", s.YawRate, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.SteerTorque", s.SteeringWheelTorque, ic);
+                    // The wheel's full-output force, in Nm: only where the sim said it, never in demo (the HUD shows a dash without it).
+                    if (!demo && s.GameRunning && s.SteeringWheelMaxForceNm.HasValue) Jp(sb, Transport.TelemetryFrame.SteerMaxForceNmKey, s.SteeringWheelMaxForceNm.Value, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.TrackTemp", s.TrackTemp, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.AirTemp", s.AirTemp, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.WeatherWet", s.WeatherWet ? 1 : 0);

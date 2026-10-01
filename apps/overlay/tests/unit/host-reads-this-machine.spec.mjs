@@ -20,6 +20,7 @@ const hudDisplay = require('../../modules/js/hud-display.js');
 const hostLauncher = require('../../modules/js/host-launcher.js');
 const rigApi = require('../../modules/js/rig-api.js');
 const deskReads = require('../../modules/js/desk-reads.js');
+const rigLimits = require('../../modules/js/rig-limits.js');
 
 const CARS = [{ car_path: 'mx5 mx52016', name: 'Mazda MX-5 Cup', short_name: 'MX-5 Cup', car_id: 67, driven: 668, seen: 702 }];
 const MONITORS = [{ x: -1440, y: 0, width: 1440, height: 1080, primary: false }, { x: 0, y: 0, width: 3440, height: 1440, primary: true }];
@@ -36,6 +37,7 @@ const ROUTES = {
   simwindow: SIM_WINDOW,
   monitors: MONITORS,
   replay: { available: false, connected: false },
+  brakeforce: { car: 'mx5 mx52016', force_kg: 45 },
 };
 
 // The host's data API, as far as its check goes: it asks of every request what the real one asks, before the route.
@@ -166,6 +168,14 @@ test('the Cars page\'s four reads and its one write (rig-api.js) are answered', 
     expect(a.headers.host).toBe(`127.0.0.1:${host.port}`);
     expect(a.headers.origin).toBeUndefined();
   }
+});
+
+test('the brake force the HUD\'s datastream is told (rig-limits.js, asked by the main process) is answered', async () => {
+  expect(await rigLimits.fetchBrakeForce(`${host.url}${rigLimits.BRAKE_FORCE_PATH}`)).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
+  expect(host.state.refused).toEqual([]);
+  expect(host.state.asked.map((a) => a.url)).toEqual(['/racing-desk/data/brakeforce']);
+  expect(host.state.asked[0].headers.host).toBe(`127.0.0.1:${host.port}`);
+  for (const name of ['origin', 'referer', 'sec-fetch-site', 'sec-fetch-dest', 'sec-fetch-user']) expect(host.state.asked[0].headers[name], name).toBeUndefined();
 });
 
 test('main.js\'s own asks of the host (Node\'s fetch: the replay) are answered', async () => {

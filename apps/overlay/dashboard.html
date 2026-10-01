@@ -414,6 +414,19 @@
       <span class="ds-value" id="dsSteerTorque">0.0 Nm</span>
     </div>
 
+    <!-- What the rig is set to, beside the live torque (datastream.js): the wheel's full-output force, iRacing's own
+         SteeringWheelMaxForceNm (the strength slider, per car; DS.SteerMaxForceNm, sent only where the sim says it), and
+         the brake's, SmartControl's force in kg as the app's host follows it from Live's keys (rig-limits.js, through the
+         preload). A dash where not known: nothing is read from the pedals or the wheel base, and nothing made up. -->
+    <div class="ds-row" data-ds-field="dsShowFfbMax">
+      <span class="ds-label">FFB max</span>
+      <span class="ds-value" id="dsFfbMax">—</span>
+    </div>
+    <div class="ds-row" data-ds-field="dsShowBrakeMax">
+      <span class="ds-label">Brake max</span>
+      <span class="ds-value" id="dsBrakeMax">—</span>
+    </div>
+
     <!-- Lap delta -->
     <div class="ds-row" data-ds-field="dsShowDelta">
       <span class="ds-label" id="dsDeltaRef">Delta</span>

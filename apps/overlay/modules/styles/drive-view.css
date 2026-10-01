@@ -545,6 +545,9 @@ body.drive-mode-active .ds-yaw-trail { height: max(10px, 5cqh); }
 @container (max-width: 230px) { body.drive-mode-active .ds-row[data-ds-field="dsShowDelta"] .ds-label { flex: 1 0 100%; } }
 /* What only matters on the rig's own screen (its frame rate). */
 body.drive-mode-active #datastreamPanel [data-ds-field="dsShowFps"] { display: none; }
+/* The rig's limits (the wheel's and the brake's maximum) are the rig HUD's rows: an iPad has no pedals under it, and the
+   cell has no room for two more lines at its smallest. */
+body.drive-mode-active #datastreamPanel :is([data-ds-field="dsShowFfbMax"], [data-ds-field="dsShowBrakeMax"]) { display: none; }
 @container (max-height: 290px) { body.drive-mode-active .ds-yaw-trail { display: none; } }
 @container (max-height: 250px) { body.drive-mode-active .ds-row[data-ds-field="dsShowFfb"] { display: none; } }
 @container (max-height: 225px) { body.drive-mode-active .ds-gforce-vals .ds-row:nth-child(3) { display: none; } }

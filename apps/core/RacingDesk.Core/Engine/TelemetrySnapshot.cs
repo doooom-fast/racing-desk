@@ -94,6 +94,12 @@ namespace RacingDesk.Plugin.Engine
 
         // ── iRacing-only ─────────────────────────────────────────────────────
         public double SteeringWheelTorque { get; set; } // torque (Nm), not angle
+        /// <summary>
+        /// iRacing's <c>SteeringWheelMaxForceNm</c>: the force the sim maps to full output on the wheel — the strength
+        /// slider in Nm, set per car — so the torque above reads against it. Null where the sim did not say (another
+        /// sim, the variable not there, nought): nothing is made up, and the key is then not sent.
+        /// </summary>
+        public double? SteeringWheelMaxForceNm { get; set; }
         public double SteeringWheelAngle { get; set; } // angle (radians)
         public double FrameRate           { get; set; } // game render FPS
         public int    SessionFlags        { get; set; } // yellow/black/etc. bitmask

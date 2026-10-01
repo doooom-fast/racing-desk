@@ -332,7 +332,7 @@ namespace RacingDesk.Tests.Transport
             // The app's main process, the rest of it: Node's fetch (Host and Sec-Fetch-Mode, and no Origin) for the replay, the car names, the sim's
             // window and the monitors, the rig's reads and probes (http.get: a Host and nothing more), and the SimHub plugin's
             // outlines (HttpClient on 127.0.0.1, in OutlineRouteTests, which runs through the runtime with this check).
-            foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay" })
+            foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay", "brakeforce" })
             {
                 var viaFetch = Ask("GET", "/racing-desk/data/" + route, r =>
                 {

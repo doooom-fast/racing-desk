@@ -33,6 +33,15 @@ namespace RacingDesk.Plugin.Transport
         public const string SessionTimeKey = "DataCorePlugin.GameRawData.Telemetry.SessionTime";
 
         /// <summary>
+        /// The force the sim maps to full output on the wheel, in Nm: iRacing's own <c>SteeringWheelMaxForceNm</c>
+        /// (the strength slider, set per car), read under the name SimHub gives the variable and sent to the HUD's
+        /// datastream beside the live torque (<c>DS.SteerTorque</c>). Only where the sim says it, and never in
+        /// demo: the HUD shows a dash without it, never a number of its own.
+        /// </summary>
+        public const string SteerMaxForceNmKey = "RacingDesk.Plugin.DS.SteerMaxForceNm";
+        public const string SteerMaxForceNmVariable = "DataCorePlugin.GameRawData.Telemetry.SteeringWheelMaxForceNm";
+
+        /// <summary>
         /// Converts a TelemetrySnapshot to a flat Dictionary<string, object>.
         /// This mirrors the Jp() calls in Plugin.HttpServerLoop() to ensure wire format parity.
         /// </summary>
@@ -474,6 +483,8 @@ namespace RacingDesk.Plugin.Transport
             // The sim's own clock, for the recording's sidecar: only where the sim said it, never in demo.
             if (!demo && s.GameRunning && s.SessionNum.HasValue) dict[SessionNumKey] = s.SessionNum.Value;
             if (!demo && s.GameRunning && s.SessionTime.HasValue) dict[SessionTimeKey] = s.SessionTime.Value;
+            // The wheel's full-output force, for the datastream: only where the sim said it, never in demo.
+            if (!demo && s.GameRunning && s.SteeringWheelMaxForceNm.HasValue) dict[SteerMaxForceNmKey] = s.SteeringWheelMaxForceNm.Value;
             // The car's controls by the canonical list: only for a car the list has. A JSON object, as text.
             if (!demo && !string.IsNullOrEmpty(s.CarControlsJson)) dict[CarControlsKey] = s.CarControlsJson;
             dict["RacingDesk.Plugin.Grid.GriddedCars"] = s.GriddedCars;

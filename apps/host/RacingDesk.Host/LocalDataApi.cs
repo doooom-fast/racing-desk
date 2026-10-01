@@ -57,6 +57,7 @@ namespace RacingDesk.Host
         internal static readonly string[] Routes =
         {
             "status", "sessions", "session", "schedule", "cars", "views", "pedals", "controls", "simwindow", "monitors", "outline", "replay",
+            "brakeforce",
         };
 
         private const string NotThisMachine = "this is for the app on this machine";
@@ -104,6 +105,14 @@ namespace RacingDesk.Host
         /// <c>crowd</c>. The SimHub plugin asks this for its map; the iPad's proxy never reaches it.
         /// </summary>
         internal TrackOutlines Outlines { get; set; }
+
+        /// <summary>
+        /// The brake force the pedals are at now, for <c>brakeforce</c>: what the host's <see cref="CarPedalsRecorder"/>
+        /// has followed from SmartControl Live's keys (RunLive hands it in). Null, or a reader that answers null, where
+        /// the host has none (a replay, no store): the route then says the force is not known. The app's main process
+        /// asks it for the HUD's datastream; nothing is read from the pedals for it.
+        /// </summary>
+        internal Func<BrakeForceNow> BrakeForce { get; set; }
 
         /// <summary>
         /// Claims /data/ requests, and answers them off the telemetry thread — after the check of who is asking, which every
@@ -223,6 +232,22 @@ namespace RacingDesk.Host
                     // Windows's too, and answered before there is a store. A look that fails is a 500.
                     var listed = Monitors?.List();
                     Write(res, 200, json => MonitorsApi.Write(json, listed));
+                    return;
+                }
+
+                if (route == "brakeforce" && ctx.Request.HttpMethod == "GET")
+                {
+                    // The brake force the pedals are at now, as the host follows it from SmartControl Live's keys
+                    // (CarPedalsRecorder.Now): { car, force_kg }, each null while not known. Not the store's, so answered
+                    // before there is one; a host with no recorder (a replay) answers not known.
+                    var now = BrakeForce?.Invoke();
+                    Write(res, 200, json =>
+                    {
+                        json.WriteStartObject();
+                        json.WriteString("car", now?.CarPath);
+                        Number(json, "force_kg", now?.ForceKg);
+                        json.WriteEndObject();
+                    });
                     return;
                 }
 

@@ -31,6 +31,7 @@ const rigApi       = require('./modules/js/rig-api');
 const { createDeskReads, deskHostOf } = require('./modules/js/desk-reads');
 const runtimeActions = require('./modules/js/runtime-actions');
 const logoLivery   = require('./modules/js/logo-livery');
+const rigLimitsMod = require('./modules/js/rig-limits');
 
 // ── Log ─────────────────────────────────────────────────────
 // From source, racing-desk-debug.log beside this file. In the built app, overlay.log beside the host's log in
@@ -421,14 +422,28 @@ const hudScreen = hudDisplay.createHudDisplay({
 // car, where what they do is seen. A page that has died is loaded again from there too (loadDashboard): two
 // seconds after its process went, and when he gets in the car with none. Dev mode's window stays as dev-mode.js
 // put it.
+// ── What the rig's hardware is set to, for the HUD's datastream (modules/js/rig-limits.js) ──
+// The brake force the pedals are at, as the app's host follows it from SmartControl Live's keys: asked of the host by
+// this process (its data is for programs on this machine, and no page) on the HUD keeper's own poll while he is in the
+// car, and handed to the page as it changes (rig-limits; get-rig-limits for a page that loaded after). Nothing is read
+// from the pedals, and nothing is written to them, SmartControl or the wheel base.
+const rigLimits = rigLimitsMod.createRigLimits({
+  host: () => localHostUrl(),
+  send: (limits) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('rig-limits', limits); },
+  log: logToFile,
+});
+
+ipcMain.handle('get-rig-limits', async () => rigLimits.current());
+
 const hud = hudVisibility.createHudVisibility({
   getWindow: () => overlayWindow,
   onInCar: (inCar) => hudKeys.hold(inCar),
   // Got in: the window is put on the screen the sim is on before it is revealed, not after.
   beforeReveal: () => hudScreen.refresh(),
   // The same answer is what the livery behind the car badge goes by (livery, below): which car he is in, and when —
-  // and what auto-record and the replay buffer go by (recording.feed: the keeper, below).
-  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()).then((payload) => { livery.feed(payload); recording.feed(payload); return payload; }),
+  // what auto-record and the replay buffer go by (recording.feed: the keeper, below) — and when the brake force is
+  // asked of the host for the datastream (rigLimits.feed, above).
+  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()).then((payload) => { livery.feed(payload); recording.feed(payload); rigLimits.feed(payload); return payload; }),
   loadPage: () => loadDashboard(),
   keepVisible: isDev,
   onSwitch: () => tickHudSwitch(),

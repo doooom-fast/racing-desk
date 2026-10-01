@@ -690,6 +690,8 @@ const _defaultSettings = {
   dsShowGforce: true,
   dsShowYaw: true,
   dsShowFfb: true,
+  dsShowFfbMax: true,
+  dsShowBrakeMax: true,
   dsShowDelta: true,
   dsShowTrackTemp: true,
   dsShowFps: true,

@@ -230,6 +230,9 @@ Data options:
             var pedals = store != null
                 ? new CarPedalsRecorder(() => SmartControl.Read(), seen => SavePedals(o, seen), m => Log.Info("[RacingDesk.Host] " + m))
                 : null;
+            // The force the keys have left the pedals at, for the HUD's datastream (the brakeforce route, asked by the
+            // app's main process); a host with no recorder answers not known.
+            if (api != null) api.BrakeForce = () => pedals?.Now;
             // What the check of the car list says of each car, kept for the desk. It is queued on the telemetry thread
             // and written on another, through a connection of its own; a store that will not take it is logged and
             // goes no further. The SimHub plugin has no store, and says it to its log alone.

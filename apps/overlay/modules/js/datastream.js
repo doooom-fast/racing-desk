@@ -29,7 +29,41 @@
   const _elYawRate    = document.getElementById('dsYawRate');
   const _elYawFill    = document.getElementById('dsYawFill');
   const _elSteerTorque = document.getElementById('dsSteerTorque');
+  const _elFfbMax     = document.getElementById('dsFfbMax');
+  const _elBrakeMax   = document.getElementById('dsBrakeMax');
   const _elDelta      = document.getElementById('dsDelta');
+
+  // ── What the rig is set to (the two rows under FFB) ──
+  // The wheel's full-output force is in the telemetry (DS.SteerMaxForceNm: iRacing's own strength slider in Nm, sent
+  // only where the sim says it, never in demo). The brake's is SmartControl's force in kg as the app's host follows it
+  // from Live's keys, handed to this page by the main process (modules/js/rig-limits.js, through the preload): not
+  // asked for here, and not known on a page with no main process behind it (an iPad, OBS, a browser). Either shows a
+  // dash while it is not known; neither is ever made up.
+  let _rigLimits = { brakeKg: null, car: null };
+  function _takeRigLimits(limits) {
+    const kg = limits && typeof limits.brakeKg === 'number' && isFinite(limits.brakeKg) && limits.brakeKg >= 0 ? limits.brakeKg : null;
+    _rigLimits = { brakeKg: kg, car: limits && typeof limits.car === 'string' ? limits.car : null };
+    _drawBrakeMax();
+  }
+  function _drawBrakeMax() {
+    if (!_elBrakeMax) return;
+    const text = _rigLimits.brakeKg === null ? '—' : _rigLimits.brakeKg.toFixed(_rigLimits.brakeKg % 1 ? 1 : 0) + ' kg';
+    if (_elBrakeMax.textContent !== text) _elBrakeMax.textContent = text;
+  }
+  if (window.racingDesk && typeof window.racingDesk.onRigLimits === 'function') {
+    try { window.racingDesk.onRigLimits(_takeRigLimits); } catch (e) { /* no bridge */ }
+    try {
+      if (typeof window.racingDesk.getRigLimits === 'function') window.racingDesk.getRigLimits().then(_takeRigLimits).catch(() => {});
+    } catch (e) { /* no bridge */ }
+  }
+  // The wheel's, as the frame says it: a number above nought, else not known.
+  function _drawFfbMax(p, isDemo) {
+    if (!_elFfbMax) return;
+    const raw = isDemo ? null : p['RacingDesk.Plugin.DS.SteerMaxForceNm'];
+    const nm = typeof raw === 'number' && isFinite(raw) && raw > 0 ? raw : null;
+    const text = nm === null ? '—' : nm.toFixed(1) + ' Nm';
+    if (_elFfbMax.textContent !== text) _elFfbMax.textContent = text;
+  }
   const _elDeltaRef   = document.getElementById('dsDeltaRef');
   const _elTrackTemp  = document.getElementById('dsTrackTemp');
   const _elCtrlABS    = document.getElementById('ctrlABS');
@@ -305,8 +339,10 @@
     // Yaw trail waveform
     renderYawTrail(yawRate);
 
-    // Steering torque
+    // Steering torque, and what the rig is set to beside it
     if (_elSteerTorque) _elSteerTorque.textContent = steerTorque.toFixed(1) + ' Nm';
+    _drawFfbMax(p, isDemo);
+    _drawBrakeMax();
 
     // Lap delta: the one the position block shows (poll-engine.js, lap-delta.js), labelled with what it is against —
     // his best lap of the session, or before he has one his best ever here — and a minus when he is gaining.
