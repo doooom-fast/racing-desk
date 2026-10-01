@@ -56,6 +56,7 @@ export async function startFakeObs({
       { sceneName: '2up', items: [item(5, 'game video', { positionX: 0, positionY: 360, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 1720, boundsHeight: 720, width: 1720, height: 720 }), item(6, 'Video Capture Device', { positionX: 1720, positionY: 360, width: 1720, height: 720 })] },
     ],
     currentScene: 'Large Video',
+    collection: 'sim race 2k',   // the scene collection OBS is on (his others: commentary, sim video with voice)
     nextItemId: 100,
     pressed: [],     // { inputName, propertyName }
   };
@@ -122,6 +123,7 @@ export async function startFakeObs({
       return {};
     },
     GetProfileList: () => ({ currentProfileName: 'Untitled', profiles: ['Untitled', 'yersy'] }),
+    GetSceneCollectionList: () => ({ currentSceneCollectionName: state.collection, sceneCollections: [...new Set([state.collection, 'sim race 2k', 'commentary', 'sim video with voice'])] }),
     // The replay buffer's outputs are built when OBS starts, from its profile: `mode.noReplayBuffer` is an OBS that started
     // before its profile said RecRB (Set up OBS over the WebSocket changes the profile, not the outputs).
     GetReplayBufferStatus: () => { if (state.profile.AdvOut.RecRB !== 'true' || mode.noReplayBuffer) throw { code: STATUS.INVALID_RESOURCE_STATE, comment: 'There is no replay buffer' }; return { outputActive: state.replayBuffer }; },

@@ -205,7 +205,8 @@ test.describe('the screen', () => {
 
   test('the desk is told when the screens, or where the HUD is, have changed: the desk window, if there is one', () => {
     const made = argumentsOf('hudDisplay.createHudDisplay(');
-    expect(made).toMatch(/\bonChange:\s*\(\)\s*=>\s*\{\s*if \(deskWindow && !deskWindow\.isDestroyed\(\)\) deskWindow\.webContents\.send\('hud-displays-changed'\);\s*\},/);
+    // ...and, with "HUD drawn by OBS" on and OBS answering, the HUD source is fitted to the new size (it is its size in DIPs).
+    expect(made).toMatch(/\bonChange:\s*\(\)\s*=>\s*\{\s*if \(deskWindow && !deskWindow\.isDestroyed\(\)\) deskWindow\.webContents\.send\('hud-displays-changed'\);\s*if \(hudSourceOn\(\) && obsClient\.identified\(\)\) applyHudSource\('the HUD changed screen'\);\s*\},/);
     const preload = readFileSync(new URL('../../preload.js', import.meta.url), 'utf8');
     expect(preload).toMatch(/onHudDisplaysChanged:\s*\(callback\)\s*=>\s*\{\s*ipcRenderer\.on\('hud-displays-changed',/);
   });
@@ -346,12 +347,12 @@ test.describe('recording', () => {
     const green = code.match(/'CommandOrControl\+Shift\+G': \(\) => \{([\s\S]*?)\n  \},/);
     expect(green).not.toBeNull();
     // ...and the new instance does not start OBS with the app: this key is held only in the car (--no-obs-start).
-    expect(green[1]).toMatch(/stopOwnedRecording\(\)\.finally\(\(\) => \{\s*app\.relaunch\(\{ args: \[\.\.\.process\.argv\.slice\(1\)\.filter\(\(a\) => a !== NO_OBS_START\), NO_OBS_START\] \}\);\s*app\.exit\(0\);\s*\}\);/);
+    expect(green[1]).toMatch(/stopOwnedRecording\(\{ keepHud: true \}\)\.finally\(\(\) => \{\s*app\.relaunch\(\{ args: \[\.\.\.process\.argv\.slice\(1\)\.filter\(\(a\) => a !== NO_OBS_START\), NO_OBS_START\] \}\);\s*app\.exit\(0\);\s*\}\);/);
     expect(calls(/app\.relaunch\(/g)).toHaveLength(1);
     expect(calls(/app\.exit\(/g)).toHaveLength(1);
     // The wait for the stop is not the whole wait: a recording that has just stopped is filed before the app goes, and
     // the cap on the quit allows for that (the keeper itself is bounded by the same constant).
-    const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
+    const helper = code.match(/function stopOwnedRecording\(\{ keepHud = false \} = \{\}\) \{([\s\S]*?)\n\}\n/);
     expect(helper).not.toBeNull();
     expect(helper[1]).toMatch(/obs\.recording\.QUIT_WAIT_MS \+ obs\.recording\.FILING_QUIT_WAIT_MS/);
     // will-quit lets the client and the keeper go.
@@ -428,7 +429,7 @@ test.describe('TV shots', () => {
     expect(code).toMatch(/case 'recordingFor': return \{ ok: true, recording: recordingForRace\(/);
     // A take under way ends when the app quits and his facecam is shown again before the quit goes on (bounded), and a
     // take that has hidden it is something a quit waits for even while nothing is recording (the first seek).
-    const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
+    const helper = code.match(/function stopOwnedRecording\(\{ keepHud = false \} = \{\}\) \{([\s\S]*?)\n\}\n/);
     expect(helper[1]).toMatch(/const tvOff = Promise\.race\(\[tvShots\.stopForQuit\(\), new Promise\(\(resolve\) => setTimeout\(resolve, 1500\)\)\]\)/);
     expect(helper[1]).toMatch(/Promise\.all\(\[recording\.stopOwnedForQuit\(\), hudOff, tvOff\]\)/);
     expect(code).toMatch(/recording\.needsStopForQuit\(\) \|\| tvShots\.needsStopForQuit\(\)/);
@@ -442,29 +443,49 @@ test.describe('TV shots', () => {
 });
 
 test.describe('"HUD drawn by OBS"', () => {
-  // modules/js/obs/hud-source.js does the OBS side; main.js throws the switch: the window out of the capture first
-  // (setContentProtection takes effect at the next composition), then the source; off, the items disabled, never removed.
-  test('the window is taken out of the capture before the source is enabled, on the switch, at the connect and at start; the source is switched off on quit', () => {
+  // modules/js/obs/hud-source.js does the OBS side — and the ordering, which tests/unit/obs-hud-source.spec.mjs holds against
+  // a fake OBS: the window out of the capture before the source is enabled, back in only after OBS has stopped drawing it,
+  // "off" applied at every connect. main.js throws the switch where it has to and hands the module what it needs.
+  test('the source is given where the listener is, whether it is up, whether the page is alive, the HUD\'s size in DIPs and a file to keep what it did; the window\'s capture is its protect callback and the one place it is set', () => {
     expect(code).toMatch(/const hudSource = obs\.createHudSource\(\{/);
     const made = argumentsOf('obs.createHudSource(');
-    expect(made).toMatch(/\burl:\s*\(\)\s*=>\s*`http:\/\/127\.0\.0\.1:\$\{localServerPort\(\)\}\$\{remoteServer\.OBS_PATH\}`/);
+    // The address is where the listener is, never where the settings say it ought to be (the port may have been taken).
+    expect(made).toMatch(/\burl:\s*\(\) => \{ const info = localServer\.getInfo\(\); return info\.running \? `http:\/\/127\.0\.0\.1:\$\{info\.port\}\$\{remoteServer\.OBS_PATH\}` : null; \}/);
+    expect(made).not.toMatch(/localServerPort\(/);
+    expect(made).toMatch(/\bready:\s*\(\) => localServer\.isRunning\(\)/);
+    expect(made).toMatch(/\bpageAlive:\s*\(\) => localServer\.servedWithin\(OBS_PAGE_ALIVE_MS\)/);
     expect(made).toMatch(/\bsize:\s*hudSourceSize\b/);
-    const apply = code.match(/function applyHudSource\(why\) \{([\s\S]*?)\n\}/);
+    expect(made).toMatch(/\bstate:\s*obs\.hudSource\.fileState\(path\.join\(app\.getPath\('userData'\), 'hud-source-state\.json'\)/);
+    // The size is the window's in DIPs, as the rig's page is laid out: no scale factor in it.
+    const size = code.match(/function hudSourceSize\(\) \{([\s\S]*?)\n\}/);
+    expect(size).not.toBeNull();
+    expect(size[1]).toMatch(/return \{ width: bounds\.width, height: bounds\.height \};/);
+    expect(size[1]).not.toMatch(/scaleFactor|getDisplayMatching|\* scale/);
+    // The switch applied: "off" is not gated on the switch having changed.
+    const apply = code.match(/function applyHudSource\(why, \{ fresh = false \} = \{\}\) \{([\s\S]*?)\n\}/);
     expect(apply).not.toBeNull();
-    expect(apply[1].indexOf('setContentProtection(on)')).toBeGreaterThanOrEqual(0);
-    expect(apply[1].indexOf('setContentProtection(on)')).toBeLessThan(apply[1].indexOf('hudSource.ensure()'));
-    expect(apply[1]).toMatch(/on \? hudSource\.ensure\(\) : \(changed \? hudSource\.disable\(\)/);
-    // The one place the window's capture protection is set.
+    expect(apply[1]).toMatch(/hudSource\.apply\(\{ on: hudSourceWas, fresh, protect \}\)/);
+    expect(apply[1]).not.toMatch(/changed|\?\s*hudSource\.disable|hudSource\.ensure/);
     expect(calls(/setContentProtection\(/g)).toHaveLength(1);
-    // Thrown: at start, when OBS answers, when the desk saves the switch, when the file changes.
+    expect(apply[1]).toMatch(/overlayWindow\.setContentProtection\(flag\)/);
+    // Thrown: at start, when OBS answers, when the collection changes, when the desk saves the switch, when the file changes,
+    // when the HUD changes screen, and when the listener comes up.
     expect(code).toMatch(/applyHudSource\('start'\)/);
     expect(code).toMatch(/if \(state\.phase === 'identified'\) applyHudSource\('OBS answered'\);/);
-    expect(code).toMatch(/if \(\(settings\.obsHudSource === true\) !== hudSourceBefore\) applyHudSource\('the switch'\);/);
-    expect(code).toMatch(/if \(\(settings\.obsHudSource === true\) !== hudSourceWas\) applyHudSource\('the settings file changed'\);/);
-    // On quit, with the switch on and OBS answering: disabled, within a bound.
-    const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
-    expect(helper[1]).toMatch(/hudSource\.disable\(\)/);
+    expect(code).toMatch(/obsClient\.on\('CurrentSceneCollectionChanged', \(\) => applyHudSource\('the scene collection changed'\)\);/);
+    expect(code).toMatch(/if \(\(settings\.obsHudSource === true\) !== hudSourceBefore\) applyHudSource\('the switch', \{ fresh: settings\.obsHudSource === true \}\);/);
+    expect(code).toMatch(/if \(\(settings\.obsHudSource === true\) !== hudSourceWas\) applyHudSource\('the settings file changed', \{ fresh: settings\.obsHudSource === true \}\);/);
+    expect(code).toMatch(/if \(hudSourceOn\(\) && obsClient\.identified\(\)\) applyHudSource\('the HUD changed screen'\);/);
+    expect(code).toMatch(/onUp: \(\) => \{ if \(hudSourceOn\(\) && obsClient\.identified\(\)\) applyHudSource\('the listener is up'\); \}/);
+    // On quit, with the switch on and OBS answering: disabled for good, within a bound — and not by the relaunch Ctrl+Shift+G
+    // makes mid-race, which comes back in seconds and leaves the page in OBS loaded.
+    const helper = code.match(/function stopOwnedRecording\(\{ keepHud = false \} = \{\}\) \{([\s\S]*?)\n\}\n/);
+    expect(helper).not.toBeNull();
+    expect(helper[1]).toMatch(/const hudOff = !keepHud && hudSourceOn\(\) && obsClient\.identified\(\)/);
+    expect(helper[1]).toMatch(/hudSource\.disable\(\{ final: true \}\)/);
     expect(code).toMatch(/recording\.needsStopForQuit\(\) \|\| tvShots\.needsStopForQuit\(\) \|\| \(hudSourceOn\(\) && obsClient\.identified\(\)\)/);
+    const green = code.match(/'CommandOrControl\+Shift\+G': \(\) => \{([\s\S]*?)\n  \},/);
+    expect(green[1]).toMatch(/stopOwnedRecording\(\{ keepHud: true \}\)\.finally\(/);
     // Nothing of his is removed from here or from the module.
     expect(code).not.toMatch(/RemoveInput|RemoveSceneItem/);
     const module = readFileSync(new URL('../../modules/js/obs/hud-source.js', import.meta.url), 'utf8');
@@ -479,9 +500,11 @@ test.describe('the loopback listener', () => {
     expect(code).toMatch(/const localServer = remoteServer\.createServer\(\{ loopback: true \}\);/);
     expect(calls(/remoteServer\.createServer\(/g)).toHaveLength(1);
     expect(code).toMatch(/maybeStartRemoteServer\(\);\s*startLocalServer\(\);/);
-    const start = code.match(/async function startLocalServer\(\) \{([\s\S]*?)\n\}\n/);
+    const start = code.match(/function startLocalServer\(\) \{([\s\S]*?)\n\}\n/);
     expect(start).not.toBeNull();
-    expect(start[1]).toMatch(/localServer\.start\(\{/);
+    // Tried again until it is up, the port read afresh at each try; the HUD source is applied when it comes up.
+    expect(start[1]).toMatch(/remoteServer\.startWithRetry\(localServer, \(\) => \(\{/);
+    expect(start[1]).not.toMatch(/localServer\.start\(/);
     expect(start[1]).toMatch(/port:\s*localServerPort\(\)/);
     expect(start[1]).toMatch(/status:\s*localStatus/);
     expect(start[1]).toMatch(/displaySettings:\s*\(\)\s*=>\s*loadSettingsSync\(\)/);
@@ -497,8 +520,33 @@ test.describe('the loopback listener', () => {
     expect(status).not.toBeNull();
     expect(status[1]).toMatch(/inCar:\s*h\.inCar/);
     expect(status[1]).toMatch(/hudVisible:\s*h\.visible/);
+    // His HUD switch, which the page OBS draws hides itself by, and the page-only actions pressed on the rig.
+    expect(status[1]).toMatch(/hudOff:\s*h\.hudOff === true/);
+    expect(status[1]).toMatch(/hudActions:\s*\{ seq: hudPageActions\.seq, recent: hudPageActions\.recent\.slice\(\) \}/);
     expect(status[1]).toMatch(/recording:\s*\{/);
     expect(status[1]).not.toMatch(/loadSettingsSync|password|Key/);
+  });
+});
+
+test.describe('the page-only actions', () => {
+  // A Stream Deck key on the rig's HUD that changes the rig's page alone (zoom, cycle, the pit box tabs, the commentary)
+  // is saved nowhere, so the page OBS draws cannot get it from the settings: it is noted in the listener's status.
+  test('every action that reaches the rig\'s page by a channel and is saved nowhere is noted before the window is looked for, and no other is', () => {
+    const set = code.match(/const HUD_PAGE_ACTIONS = new Set\(\[([^\]]*)\]\);/);
+    expect(set).not.toBeNull();
+    expect([...set[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort()).toEqual(['cycle-car-logo', 'cycle-rating', 'dismiss-commentary', 'pitbox-next-tab', 'pitbox-prev-tab', 'zoom-in', 'zoom-out']);
+    const send = code.match(/function _sendRenderer\(channel\) \{([\s\S]*?)\n\}/);
+    expect(send).not.toBeNull();
+    expect(send[1].indexOf('noteHudAction(channel);')).toBeGreaterThanOrEqual(0);
+    expect(send[1].indexOf('noteHudAction(channel);')).toBeLessThan(send[1].indexOf('no window'));
+    // The ring is bounded, and numbered: the page does what is newer than what it has done.
+    const note = code.match(/function noteHudAction\(name\) \{([\s\S]*?)\n\}/);
+    expect(note[1]).toMatch(/hudPageActions\.seq \+= 1;/);
+    expect(note[1]).toMatch(/hudPageActions\.recent\.length > 16\) hudPageActions\.recent\.shift\(\);/);
+    // Each is the channel's own name, as the action handlers have it.
+    for (const name of ['zoom-in', 'zoom-out', 'cycle-rating', 'cycle-car-logo', 'pitbox-next-tab', 'pitbox-prev-tab', 'dismiss-commentary']) {
+      expect(code, name).toContain(`() => _sendRenderer('${name}')`);
+    }
   });
 });
 

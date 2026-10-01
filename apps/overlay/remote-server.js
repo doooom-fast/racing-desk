@@ -29,7 +29,9 @@
 //   GET /api/settings-display  his display settings, the allowlist alone (DISPLAY_SETTINGS: the zoom, the position,
 //                              the panels, the look): never a key, the paints, the iPad's or the recording's keys.
 //                              The OBS page asks every ten seconds
-//   GET /api/status            with { inCar, hudVisible, recording } beside the two words it always said
+//   GET /api/status            with { inCar, hudVisible, hudOff, hudActions, recording } beside the two words it always said:
+//                              the OBS page asks it once a second, for his HUD switch (hudOff: the page is hidden while he
+//                              has put the HUD away) and for the page-only actions pressed on the rig (zoom, cycle)
 //
 // Anything from the network has to know the key — eight characters, in the address the Settings page shows and its
 // QR code holds. The page hands it back as a cookie, so the address is typed, or scanned, once. A request has to
@@ -204,6 +206,7 @@ const DISPLAY_SETTING_PATTERN = /^show[A-Z]/;
 const LOCAL_DEFAULT_PORT = 9091;
 const OBS_PATH = '/obs';
 const SETTINGS_PATH = '/api/settings-display';
+const STATUS_PATH = '/api/status';
 
 /** His settings cut down to what the OBS page may be told (DISPLAY_SETTINGS and the show* switches). */
 function displaySettingsOf(settings) {
@@ -258,9 +261,13 @@ const FALLBACK_FACES = `:root:not(.rd-kit) {
 
 // What the HUD page in OBS is given: that it is OBS's (window._obsMode — not the iPad's: the page lays itself out as
 // the rig's HUD, not as the glance layout, and decides in-car for itself as the iPad does), its telemetry here, his
-// display settings now and where to ask for them again, and the one rule that hides it out of the car — the rig's
-// window is hidden then; a browser source is not, and a frozen HUD over the garage would be in the picture. No
-// background (a browser source composites over the game), no menu, no key.
+// display settings now and where to ask for them again, and the rules that hide it — it is not drawn at all until the
+// page has started and said whether he is in the car (the rig's window is hidden then; a browser source is not, and a
+// frozen HUD over the garage would be in the picture, and so would the markup of the page while its scripts still load),
+// nor while he has put the HUD away (Ctrl+Shift+H, the tray, the Stream Deck: the page asks the app once a second). It
+// also does, once a second, the page-only actions pressed on the rig since it began (the Stream Deck's zoom and cycle
+// keys change the rig's page alone and are saved nowhere, so the settings it is given cannot carry them). No background
+// (a browser source composites over the game), no menu, no key.
 function obsInjection(kits, settingsJson) {
   return `<meta name="referrer" content="no-referrer">
 <script>
@@ -268,15 +275,42 @@ window._obsMode = true;
 window._simhubUrlOverride = location.origin + '${TELEMETRY_PATH}';
 window._obsSettings = ${settingsJson};
 window._obsSettingsUrl = '${SETTINGS_PATH}';
+window._obsStatusUrl = '${STATUS_PATH}';
 document.documentElement.classList.add('rd-obs');
-// Hidden until the telemetry says he is in the car: the page starts out idle and says so only on a change.
-document.addEventListener('DOMContentLoaded', function () { document.body.classList.add('idle-state'); });
+// Hidden until the page has started and the telemetry says he is in the car: the page starts out idle and says so only on a change.
+document.addEventListener('DOMContentLoaded', function () {
+  document.body.classList.add('idle-state');
+  document.documentElement.classList.add('rd-started');
+});
+// The app's word on his HUD switch and on the actions pressed on the rig. What was pressed before this page began is not done again.
+(function () {
+  var seen = null;
+  function ask() {
+    if (typeof fetch !== 'function') return;
+    fetch(window._obsStatusUrl, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
+      if (!st) return;
+      document.documentElement.classList.toggle('rd-hud-off', st.hudOff === true);
+      var actions = st.hudActions;
+      if (!actions || !Array.isArray(actions.recent)) return;
+      if (seen === null) { seen = Number(actions.seq) || 0; return; }
+      actions.recent.forEach(function (a) {
+        if (a && a.n > seen && typeof window.runHudAction === 'function') window.runHudAction(a.name);
+      });
+      seen = Math.max(seen, Number(actions.seq) || 0);
+    }).catch(function () {});
+  }
+  ask();
+  setInterval(ask, Number(window._obsStatusEveryMs) > 0 ? Number(window._obsStatusEveryMs) : 1000);
+})();
 ${kitScript(kits)}
 </script>
 <style>
 html, body { background: transparent; }
-/* Out of the car the page is not drawn at all: OBS would composite whatever it showed over the garage and the menus. */
+/* Not drawn until the page has started (its markup is here before its scripts are), out of the car (OBS would composite
+   whatever it showed over the garage and the menus), and while he has the HUD switched off. */
+html.rd-obs:not(.rd-started) body { visibility: hidden; }
 html.rd-obs body.idle-state { visibility: hidden; }
+html.rd-obs.rd-hud-off body { visibility: hidden; }
 ${FALLBACK_FACES}
 </style>`;
 }
@@ -560,7 +594,7 @@ function handleRequest(config, req, res) {
     return;
   }
 
-  if (pathname === '/api/status') {
+  if (pathname === STATUS_PATH) {
     let more = {};
     try { more = typeof config.status === 'function' ? config.status() : {}; } catch (e) { more = {}; }
     if (more === null || typeof more !== 'object') more = {};
@@ -601,6 +635,7 @@ function handleRequest(config, req, res) {
       sendJson(res, 403, { error: 'Read-only from here: the telemetry, and nothing that changes anything.' });
       return;
     }
+    if (typeof config.served === 'function') { try { config.served('telemetry'); } catch (e) { /* a note, no more */ } }
     proxyTelemetry(config, res);
     return;
   }
@@ -694,6 +729,7 @@ function createServer({ loopback = false } = {}) {
   let _port = loopback ? LOCAL_DEFAULT_PORT : DEFAULT_PORT;
   let _key = null;
   let _logFn = console.log;
+  let _lastTelemetryAt = 0;
   const name = loopback ? 'Local server' : 'Remote server';
 
   function getInfo() {
@@ -748,6 +784,9 @@ function createServer({ loopback = false } = {}) {
         crop: typeof opts.crop === 'function' ? opts.crop : () => null,
         status: typeof opts.status === 'function' ? opts.status : null,
         displaySettings: typeof opts.displaySettings === 'function' ? opts.displaySettings : null,
+        // A note of what was served, no more: a page that asks the telemetry is a page that is there (the HUD source in OBS
+        // reloads the page only when it is not).
+        served: (what) => { if (what === 'telemetry') _lastTelemetryAt = Date.now(); },
       };
       const server = http.createServer((req, res) => {
         try {
@@ -801,7 +840,46 @@ function createServer({ loopback = false } = {}) {
     return _server !== null;
   }
 
-  return { start, stop, isRunning, getInfo, loopback };
+  // Whether the telemetry was asked of this server in the last `ms` milliseconds.
+  function servedWithin(ms, at = Date.now()) {
+    return _lastTelemetryAt > 0 && at - _lastTelemetryAt <= ms;
+  }
+
+  return { start, stop, isRunning, getInfo, servedWithin, loopback };
+}
+
+const RETRY_DELAYS_MS = Object.freeze([2000, 5000, 15000, 30000]);
+
+/**
+ * Start a server and keep trying: a port another program holds at the app's start (or one that comes free later) is not
+ * a listener that is never there. `options()` is asked at each try, so a port edited in the settings is the one tried;
+ * the delays run out into the last one, for ever, until the server is up or `cancel()`. `onUp(info)` is told once it is.
+ * Returns { cancel }: the caller asks the server whether it is running.
+ */
+function startWithRetry(server, options, { delays = RETRY_DELAYS_MS, setTimer = setTimeout, clearTimer = clearTimeout, log = () => {}, onUp = () => {} } = {}) {
+  let timer = null;
+  let cancelled = false;
+  let tries = 0;
+  const attempt = () => {
+    timer = null;
+    if (cancelled || server.isRunning()) return;
+    tries++;
+    let opts;
+    try { opts = typeof options === 'function' ? options() : options; } catch (e) { opts = null; }
+    Promise.resolve(opts ? server.start(opts) : Promise.reject(new Error('no options to start with'))).then((info) => {
+      if (cancelled) return;
+      if (tries > 1) log(`[RacingDesk] The listener on this PC is up after ${tries} tries`);
+      try { onUp(info); } catch (e) { log(`[RacingDesk] The listener's onUp threw: ${e.message}`); }
+    }, (err) => {
+      if (cancelled) return;
+      const delay = delays[Math.min(tries - 1, delays.length - 1)];
+      log(`[RacingDesk] The listener on this PC did not start (try ${tries}): ${err.message}; trying again in ${Math.round(delay / 1000)} s`);
+      timer = setTimer(attempt, delay);
+      if (timer && typeof timer.unref === 'function') timer.unref();
+    });
+  };
+  attempt();
+  return { cancel: () => { cancelled = true; if (timer !== null) { clearTimer(timer); timer = null; } } };
 }
 
 function setActionDispatcher(fn) {
@@ -812,10 +890,10 @@ function setActionDispatcher(fn) {
 const lan = createServer();
 
 module.exports = {
-  DEFAULT_PORT, LOCAL_DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM, CROP_PATH, OBS_PATH, SETTINGS_PATH,
+  DEFAULT_PORT, LOCAL_DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM, CROP_PATH, OBS_PATH, SETTINGS_PATH, STATUS_PATH,
   DISPLAY_SETTINGS,
   start: lan.start, stop: lan.stop, isRunning: lan.isRunning, getInfo: lan.getInfo, getLanAddress, setActionDispatcher,
-  createServer,
+  createServer, startWithRetry, RETRY_DELAYS_MS,
   // The parts, for the tests.
   newKey, isKey, lanAddresses, telemetryBase, namesThisMachine, isLocal, fromBrowser, staticFile, injectRemoteOverrides,
   injectObsOverrides, displaySettingsOf, handleRequest,

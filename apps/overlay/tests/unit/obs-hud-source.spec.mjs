@@ -1,9 +1,12 @@
 /**
  * "HUD drawn by OBS" (modules/js/obs/hud-source.js) over the real OBS client and the fake obs-websocket server on
  * 127.0.0.1, whose scene collection is shaped like his: three scenes, the game's display capture at the bottom of each
- * and the facecam above it. Held: the input is made once and never twice; an item of it goes into every scene, just
- * above the game video and below the facecam, with the game video's place and size; the page is reloaded; off, every
- * item is disabled and nothing of his is removed; a connect reloads the page; with OBS closed nothing is asked.
+ * and the facecam above it. Held: the input is made once and never twice; an item of it goes into every scene that has a
+ * game video, just above it and below the facecam, with its place and size (scaled up from the HUD's size in DIPs); the
+ * page is reloaded unless it is alive; the HUD goes into the collection the switch was turned on in and no other, and
+ * into no scene that has no game video; what he moved or hid in a scene is left as it is; off is applied at every connect,
+ * and the window is in the capture only after OBS has stopped drawing; nothing of his is ever removed; with OBS closed
+ * nothing is asked.
  */
 
 import { test, expect } from '@playwright/test';
@@ -12,7 +15,7 @@ import { startFakeObs } from './fake-obs.mjs';
 
 const require = createRequire(import.meta.url);
 const { createObsClient } = require('../../modules/js/obs/client.js');
-const { createHudSource, INPUT_NAME, REFRESH_BUTTON } = require('../../modules/js/obs/hud-source.js');
+const { createHudSource, INPUT_NAME, REFRESH_BUTTON, LISTENER_DOWN } = require('../../modules/js/obs/hud-source.js');
 
 const PASSWORD = 'horse-battery';
 const until = async (what, timeoutMs = 4000) => {
@@ -27,26 +30,55 @@ let server;
 test.beforeEach(async () => { server = await startFakeObs({ password: PASSWORD }); });
 test.afterEach(async () => { await server.close(); });
 
-function rig({ port = server.port, url = 'http://127.0.0.1:9091/obs', size = { width: 3440, height: 1440 } } = {}) {
+// What is kept between runs, shared by the sources of one test (a source is made again at every start of the app).
+function memory() {
+  let saved = null;
+  return { read: () => (saved ? JSON.parse(JSON.stringify(saved)) : null), write: (v) => { saved = JSON.parse(JSON.stringify(v)); }, get: () => saved };
+}
+
+function rig({ port = server.port, url = 'http://127.0.0.1:9091/obs', size = { width: 3440, height: 1440 }, ready = () => true, pageAlive = () => false, state = memory() } = {}) {
   const lines = [];
   const client = createObsClient({ port, password: () => PASSWORD, retryMs: 40, connectTimeoutMs: 500, log: (l) => lines.push(l) });
-  const source = createHudSource({ client, url: () => url, size: () => size, log: (l) => lines.push(l) });
+  const sizeBox = { value: size };
+  const source = createHudSource({ client, url: () => url, size: () => sizeBox.value, ready, pageAlive, state, log: (l) => lines.push(l) });
+  // The window's capture: each call is written down with the number of requests OBS had had by then, to say what came before it.
+  const protectCalls = [];
+  const protect = (value) => protectCalls.push({ value, at: server.requests.length });
   client.start();
-  return { client, source, lines, dispose: () => client.stop() };
+  return { client, source, lines, state, sizeBox, protect, protectCalls, dispose: () => client.stop() };
 }
 
 const sceneItems = (name) => server.state.scenes.find((s) => s.sceneName === name).items;
 const names = (name) => sceneItems(name).map((i) => i.sourceName);
 const ours = (name) => sceneItems(name).find((i) => i.sourceName === INPUT_NAME);
 const requests = (type) => server.requests.filter((q) => q.type === type);
+const indexOfRequest = (type, which = 0) => { let n = -1; for (let i = 0; i < server.requests.length; i++) if (server.requests[i].type === type && ++n === which) return i; return -1; };
+const ALL = ['Large Video', 'Small Video', '2up'];
 
-test('switched on: one browser source, in every scene just above the game video and below the facecam, fitted to the game video, enabled, and reloaded', async () => {
+// A collection of his with no scene that has a game video: a SimHub window capture and a game capture of another name.
+function otherCollection(name = 'sim video with voice') {
+  const t = { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1, alignment: 5, boundsType: 'OBS_BOUNDS_NONE', boundsAlignment: 0, boundsWidth: 0, boundsHeight: 0, sourceWidth: 3440, sourceHeight: 1440, width: 3440, height: 1440 };
+  server.state.inputs.push({ inputName: 'Lovely Dashboard Companion', inputKind: 'window_capture', settings: {} }, { inputName: 'first pov', inputKind: 'game_capture', settings: {} });
+  server.state.collection = name;
+  server.state.scenes = [{ sceneName: 'live', items: [
+    { sceneItemId: 60, sourceName: 'Lovely Dashboard Companion', enabled: true, transform: { ...t, positionX: 3434, positionY: 1149, scaleX: 0.83, scaleY: 0.83, width: 400, height: 200 } },
+    { sceneItemId: 61, sourceName: 'first pov', enabled: true, transform: { ...t } },
+  ] }];
+  server.state.currentScene = 'live';
+}
+
+test('switched on: one browser source, in every scene just above the game video and below the facecam, fitted to the game video, enabled, and reloaded; the window is out of the capture before anything of it is enabled', async () => {
   const r = rig();
   try {
     await until(() => r.client.identified());
-    const answer = await r.source.ensure();
+    const answer = await r.source.apply({ on: true, fresh: true, protect: r.protect });
     expect(answer).toMatchObject({ ok: true, created: true, scenes: 3, problems: [] });
     expect(answer.did).toBe('The HUD is a browser source in 3 of your scenes, just above the game.');
+    // The window was told to leave the capture once, and before the first thing of the HUD's was made or enabled in OBS.
+    expect(r.protectCalls.map((c) => c.value)).toEqual([true]);
+    for (const type of ['CreateInput', 'CreateSceneItem', 'SetSceneItemEnabled', 'SetSceneItemIndex', 'SetSceneItemTransform']) {
+      expect(indexOfRequest(type), type).toBeGreaterThanOrEqual(r.protectCalls[0].at);
+    }
     // One input, made once, with the page's address and the HUD's size, as a browser source that keeps its page.
     expect(requests('CreateInput')).toHaveLength(1);
     expect(requests('CreateInput')[0].data).toMatchObject({ sceneName: 'Large Video', inputName: INPUT_NAME, inputKind: 'browser_source', sceneItemEnabled: true });
@@ -55,7 +87,7 @@ test('switched on: one browser source, in every scene just above the game video 
     // The other scenes got an item of the same input (CreateSceneItem), not a second input.
     expect(requests('CreateSceneItem').map((q) => q.data.sceneName).sort()).toEqual(['2up', 'Small Video']);
     // In every scene: bottom to top, the game, the HUD, the facecam.
-    for (const scene of ['Large Video', 'Small Video', '2up']) {
+    for (const scene of ALL) {
       expect(names(scene), scene).toEqual(['game video', INPUT_NAME, 'Video Capture Device']);
       expect(ours(scene).enabled, scene).toBe(true);
     }
@@ -70,65 +102,246 @@ test('switched on: one browser source, in every scene just above the game video 
     expect(requests('RemoveSceneItem')).toHaveLength(0);
     expect(server.state.inputs.map((i) => i.inputName)).toEqual(['game video', 'Video Capture Device', 'mic', 'game audio', INPUT_NAME]);
     expect(r.source.status().last).toMatchObject({ ok: true, scenes: 3 });
+    // The collection it was set up in is written down.
+    expect(r.state.get()).toEqual({ collection: 'sim race 2k', off: [] });
 
-    // Again (the switch thrown again, another connect): nothing is made twice; the address is kept current.
-    const again = await r.source.ensure();
+    // Again (another connect): nothing is made twice; the address is kept current; the page is reloaded as it is not alive.
+    const again = await r.source.apply({ on: true, protect: r.protect });
     expect(again).toMatchObject({ ok: true, created: false, scenes: 3 });
     expect(requests('CreateInput')).toHaveLength(1);
     expect(requests('CreateSceneItem')).toHaveLength(2);
     expect(requests('SetInputSettings')).toHaveLength(1);
     expect(requests('SetInputSettings')[0].data).toMatchObject({ inputName: INPUT_NAME, overlay: true });
-    for (const scene of ['Large Video', 'Small Video', '2up']) expect(names(scene), scene).toEqual(['game video', INPUT_NAME, 'Video Capture Device']);
+    for (const scene of ALL) expect(names(scene), scene).toEqual(['game video', INPUT_NAME, 'Video Capture Device']);
     expect(server.state.pressed).toHaveLength(2);
   } finally { r.dispose(); }
 });
 
-test('switched off: every item of it is disabled and stays in his scenes; on again, enabled again; a scene with no game video puts the HUD on top', async () => {
-  // A fourth scene of his with no game capture, and one where he had moved the facecam below the game.
-  server.state.scenes.push({ sceneName: 'Camera only', items: [] });
-  const r = rig();
+test('a connect with the page alive and polling does not reload it: a reconnect in the middle of a race keeps the HUD\'s session; a page that was just made, or is not polling, is reloaded', async () => {
+  let alive = false;
+  const r = rig({ pageAlive: () => alive });
   try {
     await until(() => r.client.identified());
-    await r.source.ensure();
-    expect(names('Camera only')).toEqual([INPUT_NAME]);
-    const off = await r.source.disable();
-    expect(off).toMatchObject({ ok: true, scenes: 4, problems: [] });
-    expect(off.did).toBe('The HUD source is switched off in 4 scenes; it stays in OBS, hidden.');
-    for (const scene of ['Large Video', 'Small Video', '2up', 'Camera only']) {
-      expect(ours(scene), scene).toBeTruthy();
-      expect(ours(scene).enabled, scene).toBe(false);
-    }
-    expect(server.state.inputs.some((i) => i.inputName === INPUT_NAME)).toBe(true);
-    expect(requests('RemoveInput')).toHaveLength(0);
-    expect(requests('RemoveSceneItem')).toHaveLength(0);
-    // On again: enabled, nothing made again.
-    const on = await r.source.ensure();
-    expect(on).toMatchObject({ ok: true, created: false, scenes: 4 });
-    for (const scene of ['Large Video', 'Small Video', '2up', 'Camera only']) expect(ours(scene).enabled, scene).toBe(true);
-    expect(requests('CreateInput')).toHaveLength(1);
-    expect(requests('CreateSceneItem')).toHaveLength(3);
-    // The facecam he had put under the game is left where he put it: the HUD goes above the game, and that is all.
-    const small = sceneItems('Small Video');
-    const cam = small.find((i) => i.sourceName === 'Video Capture Device');
-    small.splice(small.indexOf(cam), 1); small.unshift(cam);
-    await r.source.ensure();
-    expect(names('Small Video')).toEqual(['Video Capture Device', 'game video', INPUT_NAME]);
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    expect(server.state.pressed).toHaveLength(1);           // just made: loaded afresh
+    alive = true;
+    await r.source.apply({ on: true, protect: r.protect });  // a reconnect, the page polling
+    expect(server.state.pressed).toHaveLength(1);
+    alive = false;
+    await r.source.apply({ on: true, protect: r.protect });  // OBS restarted: the page is not polling
+    expect(server.state.pressed).toHaveLength(2);
   } finally { r.dispose(); }
 });
 
-test('off, with no source in OBS yet, nothing is made; a connect reloads the page only if the source is there; with OBS closed nothing is asked', async () => {
+test('off is applied at every connect, not only when the switch changes: an item left enabled (OBS closed with it on, a crash, a restart) is switched off, and the window goes back into the capture only after OBS has stopped drawing', async () => {
+  // The switch was on; OBS saved its collection with the items enabled; Racing Desk is started with the switch off (it was
+  // turned off while OBS was closed), and OBS answers: nothing was ever asked of it before this connect.
+  const first = rig();
+  await until(() => first.client.identified());
+  await first.source.apply({ on: true, fresh: true, protect: first.protect });
+  first.dispose();
+  for (const scene of ALL) expect(ours(scene).enabled, scene).toBe(true);
+  server.requests.length = 0;
+
+  const r = rig();   // a Racing Desk that starts with the switch off: its first word to OBS is off
+  try {
+    await until(() => r.client.identified());
+    const answer = await r.source.apply({ on: false, protect: r.protect });
+    expect(answer).toMatchObject({ ok: true, scenes: 3, problems: [] });
+    for (const scene of ALL) expect(ours(scene).enabled, scene).toBe(false);
+    // The window is put back into the capture once, after the last of the items was switched off.
+    expect(r.protectCalls.map((c) => c.value)).toEqual([false]);
+    const lastOff = server.requests.map((q, i) => (q.type === 'SetSceneItemEnabled' && q.data.sceneItemEnabled === false ? i : -1)).filter((i) => i >= 0).pop();
+    expect(r.protectCalls[0].at).toBeGreaterThan(lastOff);
+    expect(requests('RemoveInput')).toHaveLength(0);
+    expect(requests('RemoveSceneItem')).toHaveLength(0);
+    // Applied again: nothing more to switch off, nothing asked to be enabled.
+    await r.source.apply({ on: false, protect: r.protect });
+    expect(requests('SetSceneItemEnabled').filter((q) => q.data.sceneItemEnabled === true)).toHaveLength(0);
+  } finally { r.dispose(); }
+});
+
+test('what Racing Desk switched off it switches on again, and what he hid or moved he keeps: a scene he hid the HUD in stays hidden, an item he moved stays where it is', async () => {
+  const state = memory();
+  const r = rig({ state });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    // He hides the HUD in the small scene and moves it in the large one.
+    ours('Small Video').enabled = false;
+    ours('Large Video').transform.positionX = 123;
+    ours('Large Video').transform.scaleX = 0.5;
+    // Racing Desk switches it off (the switch, or its quit), and on again.
+    const off = await r.source.apply({ on: false, protect: r.protect });
+    expect(off.scenes).toBe(3);
+    expect(state.get().off.sort()).toEqual(['2up', 'Large Video']);   // not the one he had already hidden
+    expect(ours('Large Video').enabled).toBe(false);
+    const on = await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    expect(on).toMatchObject({ ok: true, created: false });
+    expect(ours('Large Video').enabled).toBe(true);
+    expect(ours('2up').enabled).toBe(true);
+    expect(ours('Small Video').enabled).toBe(false);                    // his
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 123, scaleX: 0.5 });   // his
+    expect(state.get().off).toEqual([]);
+    // Connects with the switch on touch none of it either.
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(ours('Small Video').enabled).toBe(false);
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 123, scaleX: 0.5 });
+    // Only a change of the HUD's size fits it again, to the game video.
+    r.sizeBox.value = { width: 2752, height: 1152 };
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 0, positionY: 0, boundsType: 'OBS_BOUNDS_NONE' });
+    expect(ours('Large Video').transform.scaleX).toBeCloseTo(3440 / 2752, 5);
+    expect(ours('Small Video').enabled).toBe(false);
+    // The state lost: what is disabled is Racing Desk's to enable once, rather than a HUD that never comes back.
+    const lost = rig({ state: memory() });
+    try {
+      await until(() => lost.client.identified());
+      await lost.source.apply({ on: true, protect: lost.protect });
+      expect(ours('Small Video').enabled).toBe(true);
+    } finally { lost.dispose(); }
+  } finally { r.dispose(); }
+});
+
+test('the HUD goes into the collection the switch was turned on in, and no other: on another collection a connect leaves it alone, the window stays in the capture, and coming back puts it to rights; the switch turned on again takes the collection it is on', async () => {
+  const state = memory();
+  const r = rig({ state });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    expect(state.get().collection).toBe('sim race 2k');
+    // OBS is on another collection of his, with nothing of his to put the HUD above.
+    const mine = JSON.parse(JSON.stringify(server.state.scenes));
+    const mineInputs = server.state.inputs.slice();
+    otherCollection('commentary');
+    server.requests.length = 0;
+    r.protectCalls.length = 0;
+    const away = await r.source.apply({ on: true, protect: r.protect });
+    expect(away).toMatchObject({ ok: true, away: true, scenes: 0 });
+    expect(away.did).toBe('The HUD source is in the scene collection "sim race 2k"; OBS is on "commentary", so it was left alone.');
+    expect(r.protectCalls.map((c) => c.value)).toEqual([false]);
+    for (const type of ['CreateInput', 'CreateSceneItem', 'SetSceneItemEnabled', 'SetSceneItemIndex', 'SetSceneItemTransform', 'SetInputSettings', 'PressInputPropertiesButton']) expect(requests(type), type).toHaveLength(0);
+    // Back on his sim collection: the HUD is as it was, the window out of the capture again.
+    server.state.collection = 'sim race 2k';
+    server.state.scenes = mine;
+    server.state.inputs = mineInputs;
+    server.state.currentScene = 'Large Video';
+    r.protectCalls.length = 0;
+    expect(await r.source.apply({ on: true, protect: r.protect })).toMatchObject({ ok: true, scenes: 3 });
+    expect(r.protectCalls.map((c) => c.value)).toEqual([true]);
+    // The switch turned on in the other collection (when it has a game video) makes that the one.
+    server.state.collection = 'commentary';
+    server.state.scenes = [{ sceneName: 'live', items: [] }];
+    // (no game video there: nothing is added, and nothing is remembered)
+    const none = await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    expect(none).toMatchObject({ ok: false, scenes: 0 });
+    expect(none.did).toBe('None of the scenes in "commentary" has an item named game video to put the HUD above, so it was not added.');
+  } finally { r.dispose(); }
+});
+
+test('a scene with no item named game video gets no HUD, and nothing is guessed from the captures it has: his sim video with voice has a SimHub window and a game capture of another name', async () => {
+  otherCollection('sim video with voice');
+  const r = rig();
+  try {
+    await until(() => r.client.identified());
+    const answer = await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    expect(answer).toMatchObject({ ok: false, scenes: 0, created: false });
+    expect(answer.did).toBe('None of the scenes in "sim video with voice" has an item named game video to put the HUD above, so it was not added.');
+    for (const type of ['CreateInput', 'CreateSceneItem', 'SetSceneItemEnabled', 'SetSceneItemIndex', 'SetSceneItemTransform']) expect(requests(type), type).toHaveLength(0);
+    expect(server.state.inputs.some((i) => i.inputName === INPUT_NAME)).toBe(false);
+    // The window stays in the capture: the HUD OBS can still film is the one on the screen. Nothing is remembered.
+    expect(r.protectCalls.map((c) => c.value)).toEqual([false]);
+    expect(r.state.get()).toBeNull();
+  } finally { r.dispose(); }
+  // A collection with a scene that has a game video and one that has none: the first only (a fresh OBS, his sim race 2k).
+  await server.close();
+  server = await startFakeObs({ password: PASSWORD });
+  server.state.scenes.push({ sceneName: 'Camera only', items: [] });
+  server.state.scenes.push({ sceneName: 'Dashboard only', items: [{ sceneItemId: 70, sourceName: 'Lovely Dashboard Companion', enabled: true, transform: { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1, alignment: 5, boundsType: 'OBS_BOUNDS_NONE', boundsAlignment: 0, boundsWidth: 0, boundsHeight: 0, sourceWidth: 3440, sourceHeight: 1440, width: 3440, height: 1440 } }] });
+  const r2 = rig();
+  try {
+    await until(() => r2.client.identified());
+    const answer = await r2.source.apply({ on: true, fresh: true, protect: r2.protect });
+    expect(answer).toMatchObject({ ok: true, scenes: 3 });
+    expect(names('Camera only')).toEqual([]);
+    expect(names('Dashboard only')).toEqual(['Lovely Dashboard Companion']);
+    // Off: only the scenes that have it are touched.
+    expect((await r2.source.apply({ on: false, protect: r2.protect })).scenes).toBe(3);
+  } finally { r2.dispose(); }
+});
+
+test('the HUD is not given to OBS while nothing serves its page: the source is switched off, the window stays in the capture, and one sentence says why', async () => {
+  let up = true;
+  const r = rig({ ready: () => up });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    for (const scene of ALL) expect(ours(scene).enabled, scene).toBe(true);
+    up = false;   // the listener's port was taken, or it went away
+    r.protectCalls.length = 0;
+    server.requests.length = 0;
+    const answer = await r.source.apply({ on: true, protect: r.protect });
+    expect(answer).toMatchObject({ ok: false, reason: LISTENER_DOWN });
+    expect(LISTENER_DOWN).toBe("The HUD's page is not being served on this PC (another program may hold its port), so OBS was not given the HUD.");
+    expect(r.protectCalls.map((c) => c.value)).toEqual([false]);
+    for (const scene of ALL) expect(ours(scene).enabled, scene).toBe(false);   // not a page that is not there
+    expect(requests('CreateInput')).toHaveLength(0);
+    expect(requests('SetInputSettings')).toHaveLength(0);
+    // The page's address is the listener's own port, whatever the settings file says: it comes from where it is, here as an
+    // address that is not there yet.
+    const noAddress = rig({ url: null });
+    try {
+      await until(() => noAddress.client.identified());
+      expect(await noAddress.source.apply({ on: true, protect: noAddress.protect })).toMatchObject({ ok: false, reason: LISTENER_DOWN });
+    } finally { noAddress.dispose(); }
+  } finally { r.dispose(); }
+});
+
+test('the source is the HUD\'s size in DIPs and OBS scales it up to the game video: an ultrawide at 125 % lays the page out in 2752 × 1152, as the rig\'s window does, and the item is 1.25 times that', async () => {
+  const r = rig({ size: { width: 2752, height: 1152 } });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    expect(requests('CreateInput')[0].data.inputSettings).toMatchObject({ width: 2752, height: 1152 });
+    expect(ours('Large Video').transform.scaleX).toBeCloseTo(1.25, 5);
+    expect(ours('Large Video').transform.scaleY).toBeCloseTo(1.25, 5);
+    // A scene that scales the game to bounds scales the HUD to the same bounds.
+    expect(ours('2up').transform).toMatchObject({ boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 1720, boundsHeight: 720 });
+  } finally { r.dispose(); }
+});
+
+test('the switch thrown twice quickly: the last word is what stands, one at a time; after the quit nothing is enabled', async () => {
+  const r = rig();
+  try {
+    await until(() => r.client.identified());
+    const a = r.source.apply({ on: true, fresh: true, protect: r.protect });
+    const b = r.source.apply({ on: false, protect: r.protect });
+    const c = r.source.apply({ on: true, fresh: true, protect: r.protect });
+    const answers = await Promise.all([a, b, c]);
+    expect(answers[2]).toMatchObject({ ok: true, scenes: 3 });
+    for (const scene of ALL) expect(ours(scene).enabled, scene).toBe(true);
+    // The quit: switched off, and no apply after it enables anything.
+    expect((await r.source.disable({ final: true })).scenes).toBe(3);
+    const after = await r.source.apply({ on: true, protect: r.protect });
+    expect(after.ok).not.toBe(true);
+    for (const scene of ALL) expect(ours(scene).enabled, scene).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('off, with no source in OBS yet, nothing is made; a connect reloads the page only if the source is there; with OBS closed nothing is asked, and the window follows the switch', async () => {
   const r = rig();
   try {
     await until(() => r.client.identified());
     expect(await r.source.disable()).toMatchObject({ ok: true, scenes: 0, did: 'OBS has no HUD source to switch off.' });
     expect(await r.source.refresh()).toMatchObject({ ok: false, reason: 'no HUD source in OBS' });
     expect(server.state.inputs.some((i) => i.inputName === INPUT_NAME)).toBe(false);
-    await r.source.ensure();
+    await r.source.ensure({ fresh: true, protect: r.protect });
     expect(await r.source.refresh()).toEqual({ ok: true });
     expect(server.state.pressed).toHaveLength(2);
     // A scene OBS will not take the item into is said, and the rest are done.
+    await r.source.disable();   // Racing Desk's own switching off: it is what it will switch on again
     server.fail('SetSceneItemEnabled', 702, 'the scene is locked');
-    const partly = await r.source.ensure();
+    const partly = await r.source.ensure({ fresh: true, protect: r.protect });
     expect(partly.ok).toBe(false);
     expect(partly.problems).toEqual(['The HUD could not be put in the scene "Large Video": SetSceneItemEnabled: the scene is locked']);
     expect(partly.scenes).toBe(2);
@@ -144,5 +357,36 @@ test('off, with no source in OBS yet, nothing is made; a connect reloads the pag
     expect(await r2.source.ensure()).toEqual({ ok: false, reason: "OBS isn't open, so the HUD source waits for it." });
     expect(await r2.source.disable()).toEqual({ ok: false, reason: "OBS isn't open, so the HUD source waits for it." });
     expect(await r2.source.refresh()).toEqual({ ok: false, reason: "OBS isn't open, so the HUD source waits for it." });
+    // The window follows the switch, since OBS is not there to be asked: on, out of the capture; off, in.
+    expect(await r2.source.apply({ on: true, protect: r2.protect })).toEqual({ ok: false, reason: "OBS isn't open, so the HUD source waits for it." });
+    expect(await r2.source.apply({ on: false, protect: r2.protect })).toEqual({ ok: false, reason: "OBS isn't open, so the HUD source waits for it." });
+    expect(r2.protectCalls.map((c) => c.value)).toEqual([true, false]);
   } finally { r2.dispose(); }
+});
+
+test('what the HUD source keeps is a file, written whole through a temp file; one that is not there or cannot be read is none, and a write that fails is said, not thrown', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { fileState } = require('../../modules/js/obs/hud-source.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rd-hud-state-'));
+  try {
+    const file = path.join(dir, 'sub', 'hud-source-state.json');
+    const lines = [];
+    const state = fileState(file, { log: (l) => lines.push(l) });
+    expect(state.read()).toBeNull();
+    state.write({ collection: 'sim race 2k', off: ['Large Video', '2up'] });
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ collection: 'sim race 2k', off: ['Large Video', '2up'] });
+    expect(fs.existsSync(`${file}.tmp`)).toBe(false);
+    expect(state.read()).toEqual({ collection: 'sim race 2k', off: ['Large Video', '2up'] });
+    fs.writeFileSync(file, '{ not json');
+    expect(state.read()).toBeNull();
+    fs.writeFileSync(file, JSON.stringify({ collection: 5, off: ['a', 7, null] }));
+    expect(state.read()).toEqual({ collection: null, off: ['a'] });
+    const failing = fileState(file, { fs: { ...fs.default, mkdirSync: () => { throw new Error('the disk is read-only'); } }, log: (l) => lines.push(l) });
+    failing.write({ collection: 'x', off: [] });
+    expect(lines).toEqual(['[RacingDesk] HUD source: its state file could not be written: the disk is read-only']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

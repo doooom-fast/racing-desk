@@ -5,8 +5,26 @@
 
 (function initKeyboardActions() {
   'use strict';
-  var k = window.racingDesk;
-  if (!k) return;
+  // The page OBS draws has no bridge (no preload), and gets nothing from the keys: the rig's window does. Its actions are
+  // still here to be done, by name, by whoever knows one was pressed (window.runHudAction): the app tells the OBS page which
+  // of the page-only actions — those that change this page and are saved nowhere, so that the settings the OBS page is
+  // given cannot carry them — were pressed on the rig's.
+  var k = window.racingDesk || {};
+  var _pageActions = {
+    'zoom-in': function() { _adjustZoom(0.05); },
+    'zoom-out': function() { _adjustZoom(-0.05); },
+    'cycle-rating': function() { if (typeof cycleRatingPos === 'function') cycleRatingPos(); },
+    'cycle-car-logo': function() { if (typeof cycleCarLogo === 'function') cycleCarLogo(); },
+    'pitbox-next-tab': function() { if (typeof pitboxCycleTab === 'function') pitboxCycleTab(1); },
+    'pitbox-prev-tab': function() { if (typeof pitboxCycleTab === 'function') pitboxCycleTab(-1); },
+    'dismiss-commentary': function() { if (typeof hideCommentary === 'function') hideCommentary(); },
+  };
+  window.runHudAction = function(name) {
+    var fn = Object.prototype.hasOwnProperty.call(_pageActions, name) ? _pageActions[name] : null;
+    if (!fn) return false;
+    fn();
+    return true;
+  };
 
   // ── Restart demo ──
   if (k.onRestartDemo) {
@@ -25,49 +43,21 @@
   }
 
   // ── Pitbox tab cycling ──
-  if (k.onPitboxNextTab) {
-    k.onPitboxNextTab(function() {
-      if (typeof pitboxCycleTab === 'function') pitboxCycleTab(1);
-    });
-  }
-  if (k.onPitboxPrevTab) {
-    k.onPitboxPrevTab(function() {
-      if (typeof pitboxCycleTab === 'function') pitboxCycleTab(-1);
-    });
-  }
+  if (k.onPitboxNextTab) k.onPitboxNextTab(_pageActions['pitbox-next-tab']);
+  if (k.onPitboxPrevTab) k.onPitboxPrevTab(_pageActions['pitbox-prev-tab']);
 
   // ── Dismiss commentary ──
-  if (k.onDismissCommentary) {
-    k.onDismissCommentary(function() {
-      if (typeof hideCommentary === 'function') hideCommentary();
-    });
-  }
+  if (k.onDismissCommentary) k.onDismissCommentary(_pageActions['dismiss-commentary']);
 
   // ── Cycle rating / position page ──
-  if (k.onCycleRating) {
-    k.onCycleRating(function() {
-      if (typeof cycleRatingPos === 'function') cycleRatingPos();
-    });
-  }
+  if (k.onCycleRating) k.onCycleRating(_pageActions['cycle-rating']);
 
   // ── Cycle car logo ──
-  if (k.onCycleCarLogo) {
-    k.onCycleCarLogo(function() {
-      if (typeof cycleCarLogo === 'function') cycleCarLogo();
-    });
-  }
+  if (k.onCycleCarLogo) k.onCycleCarLogo(_pageActions['cycle-car-logo']);
 
   // ── Zoom in/out (CSS transform scale) ──
-  if (k.onZoomIn) {
-    k.onZoomIn(function() {
-      _adjustZoom(0.05);
-    });
-  }
-  if (k.onZoomOut) {
-    k.onZoomOut(function() {
-      _adjustZoom(-0.05);
-    });
-  }
+  if (k.onZoomIn) k.onZoomIn(_pageActions['zoom-in']);
+  if (k.onZoomOut) k.onZoomOut(_pageActions['zoom-out']);
 
   // ── Toggle leaderboard visibility ──
   if (k.onToggleLeaderboard) {

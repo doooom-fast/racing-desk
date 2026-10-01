@@ -904,3 +904,118 @@ test.describe('the loopback listener', () => {
     }
   });
 });
+
+// ── What the review of stage 3 found in the listener ──
+
+test.describe('the loopback listener, kept up', () => {
+  test('the OBS page is not drawn before it has started, nor while he has the HUD away, and asks the app for both once a second', async () => {
+    const page = await ask(remote.OBS_PATH, { ...onTheRig, config: loopbackConfig });
+    // Hidden from the first paint (the rule is in the head, before the body is parsed) until the page's own start.
+    expect(page.body).toContain('html.rd-obs:not(.rd-started) body { visibility: hidden; }');
+    expect(page.body).toContain("document.documentElement.classList.add('rd-started');");
+    expect(page.body).toContain('html.rd-obs.rd-hud-off body { visibility: hidden; }');
+    expect(page.body).toContain('html.rd-obs body.idle-state { visibility: hidden; }');
+    expect(page.body).toContain(`window._obsStatusUrl = '${remote.STATUS_PATH}';`);
+    expect(remote.STATUS_PATH).toBe('/api/status');
+    expect(page.body.indexOf('html.rd-obs:not(.rd-started)')).toBeLessThan(page.body.indexOf('<div id="dashboard">'));
+    // The iPad's page has none of it.
+    const ipad = await ask('/', withKey);
+    expect(ipad.body).not.toContain('rd-hud-off');
+    expect(ipad.body).not.toContain('_obsStatusUrl');
+  });
+
+  test('the telemetry asked of the listener is noted: a page that asks is a page that is there', async () => {
+    // A stand-in for the telemetry, on a port of its own: nothing of the rig's is asked.
+    const standIn = http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(TELEMETRY); });
+    await new Promise((resolve) => standIn.listen(0, '127.0.0.1', resolve));
+    const local = remote.createServer({ loopback: true });
+    const port = await freePort();
+    try {
+      await local.start({ port, appDir, key: remote.newKey(), log: () => {}, telemetryUrl: `http://127.0.0.1:${standIn.address().port}/racing-desk/` });
+      expect(local.servedWithin(5000)).toBe(false);   // nothing asked yet
+      expect((await fetch(`http://127.0.0.1:${port}/racing-desk/`)).status).toBe(200);
+      expect(local.servedWithin(5000)).toBe(true);
+      expect(local.servedWithin(5000, Date.now() + 60000)).toBe(false);   // a minute on, with no more asked
+      // Other requests are not the page polling.
+      const quiet = remote.createServer({ loopback: true });
+      const quietPort = await freePort();
+      try {
+        await quiet.start({ port: quietPort, appDir, key: remote.newKey(), log: () => {} });
+        await fetch(`http://127.0.0.1:${quietPort}/api/status`);
+        await fetch(`http://127.0.0.1:${quietPort}/api/settings-display`);
+        expect(quiet.servedWithin(5000)).toBe(false);
+      } finally { await quiet.stop(); }
+    } finally {
+      await local.stop();
+      await new Promise((resolve) => { standIn.close(resolve); standIn.closeAllConnections(); });
+    }
+  });
+
+  test('a port another program holds is tried again until it is free, the port read afresh at each try, and the listener is told when it is up', async () => {
+    const held = await freePort();
+    const other = http.createServer();
+    await new Promise((resolve) => other.listen(held, '127.0.0.1', resolve));
+    const free = await freePort();
+    const local = remote.createServer({ loopback: true });
+    const lines = [];
+    const timers = [];
+    const ups = [];
+    let port = held;
+    const retry = remote.startWithRetry(local, () => ({ port, appDir, key: remote.newKey(), log: () => {} }), {
+      log: (l) => lines.push(l), onUp: (info) => ups.push(info.port),
+      delays: [1000, 2000],
+      setTimer: (fn, ms) => { const t = { fn, ms }; timers.push(t); return t; },
+      clearTimer: () => {},
+    });
+    try {
+      // The first try finds the port taken: said, and a second try booked a second on — not given up on.
+      await expect.poll(() => timers.length).toBe(1);
+      expect(local.isRunning()).toBe(false);
+      expect(timers[0].ms).toBe(1000);
+      expect(lines[0]).toContain('did not start (try 1)');
+      expect(lines[0]).toContain(`Port ${held} is in use by another program`);
+      // Another try, the port still held: the next wait is longer, and the last wait is the one kept after.
+      timers[0].fn();
+      await expect.poll(() => timers.length).toBe(2);
+      expect(timers[1].ms).toBe(2000);
+      timers[1].fn();
+      await expect.poll(() => timers.length).toBe(3);
+      expect(timers[2].ms).toBe(2000);
+      // The port was edited in the settings and is free: the next try reads it afresh, and the listener is up and says so.
+      port = free;
+      timers[2].fn();
+      await expect.poll(() => local.isRunning()).toBe(true);
+      expect(local.getInfo().port).toBe(free);
+      await expect.poll(() => ups.length).toBe(1);
+      expect(ups).toEqual([free]);
+      expect(lines.some((l) => /is up after 4 tries/.test(l))).toBe(true);
+      expect((await fetch(`http://127.0.0.1:${free}/api/status`)).status).toBe(200);
+      expect(timers).toHaveLength(3);   // no more tries once it is up
+    } finally {
+      retry.cancel();
+      await local.stop();
+      await new Promise((resolve) => other.close(resolve));
+    }
+  });
+
+  test('cancelled, it tries no more; up already, it does nothing; the options that cannot be read are a try that fails, not a throw', async () => {
+    const local = remote.createServer({ loopback: true });
+    const timers = [];
+    const setTimer = (fn, ms) => { const t = { fn, ms }; timers.push(t); return t; };
+    const retry = remote.startWithRetry(local, () => { throw new Error('the settings are unreadable'); }, { setTimer, clearTimer: () => {}, log: () => {} });
+    await expect.poll(() => timers.length).toBe(1);
+    retry.cancel();
+    timers[0].fn();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(timers).toHaveLength(1);
+    expect(local.isRunning()).toBe(false);
+    // A server that is up is left as it is.
+    const port = await freePort();
+    await local.start({ port, appDir, key: remote.newKey(), log: () => {} });
+    const again = remote.startWithRetry(local, () => ({ port: 1, appDir, key: remote.newKey() }), { setTimer, clearTimer: () => {}, log: () => {} });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(local.getInfo().port).toBe(port);
+    again.cancel();
+    await local.stop();
+  });
+});

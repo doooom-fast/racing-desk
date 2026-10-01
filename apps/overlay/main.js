@@ -372,6 +372,8 @@ const hudScreen = hudDisplay.createHudDisplay({
   // The desk's Settings page lists the screens and says where the HUD is: it is told when either has changed.
   onChange: () => {
     if (deskWindow && !deskWindow.isDestroyed()) deskWindow.webContents.send('hud-displays-changed');
+    // The HUD's size is the source's: on another screen it is fitted again (only when it differs; hud-source.js).
+    if (hudSourceOn() && obsClient.identified()) applyHudSource('the HUD changed screen');
   },
   log: logToFile,
 });
@@ -418,7 +420,7 @@ const HUD_KEYS = {
     // app.exit skips before-quit, so a recording Racing Desk started is stopped here first (3 s at most). This key is
     // held only while he is in the car, so the new instance must not start OBS with the app (--no-obs-start): the
     // dialogs OBS can open at its start would land over the sim.
-    stopOwnedRecording().finally(() => {
+    stopOwnedRecording({ keepHud: true }).finally(() => {
       app.relaunch({ args: [...process.argv.slice(1).filter((a) => a !== NO_OBS_START), NO_OBS_START] });
       app.exit(0);
     });
@@ -559,46 +561,56 @@ const recording = obs.createRecordingKeeper({
 
 // ── "HUD drawn by OBS" (modules/js/obs/hud-source.js) ──
 // Off unless he turns it on. On: the HUD's own window is taken out of every screen capture first (setContentProtection,
-// which takes effect at the next composition), then OBS is given the HUD as a browser source in each of his scenes,
-// from the loopback listener's page (/obs), just above his game video; the page is reloaded on every connect, and the
-// source is disabled when Racing Desk quits (CEF has no handler for a page that failed to load). Off: the items are
-// disabled, never removed, and the window is in the capture again. Nothing of his is ever removed.
+// which takes effect at the next composition), then OBS is given the HUD as a browser source in the scenes of the
+// collection the switch was turned on in that have a game video, from the loopback listener's page (/obs), just above
+// it; the page is reloaded when OBS answers unless it is alive and polling, and the source is disabled when Racing Desk
+// quits (CEF has no handler for a page that failed to load). Off: the items are disabled — at every connect, whatever
+// OBS was left showing — and then the window is in the capture again; never removed. Nothing of his is ever removed.
+// The page's address is the port the listener is on (not the one the settings name: it may have been taken), and the HUD
+// is not given to OBS while the listener is not up.
 const hudSource = obs.createHudSource({
   client: obsClient,
-  url: () => `http://127.0.0.1:${localServerPort()}${remoteServer.OBS_PATH}`,
+  url: () => { const info = localServer.getInfo(); return info.running ? `http://127.0.0.1:${info.port}${remoteServer.OBS_PATH}` : null; },
+  ready: () => localServer.isRunning(),
+  pageAlive: () => localServer.servedWithin(OBS_PAGE_ALIVE_MS),
   size: hudSourceSize,
+  state: obs.hudSource.fileState(path.join(app.getPath('userData'), 'hud-source-state.json'), { fs, log: logToFile }),
   log: logToFile,
 });
+const OBS_PAGE_ALIVE_MS = 5000;   // the page asks the telemetry every second out of the car and thirty times a second in it
 
-// The HUD's screen in physical pixels: the window covers it, and Electron's bounds are DIPs.
+// The HUD's screen in DIPs, as the rig's window lays its page out: the page is drawn in CSS pixels, and the source is the
+// same size and scaled up to the canvas by OBS (a source in physical pixels would lay the page out larger, and the
+// recorded HUD would be smaller than the one he sees wherever the screen is not at 100 %).
 function hudSourceSize() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return null;
   const bounds = overlayWindow.getBounds();
-  const display = screen.getDisplayMatching(bounds);
-  const scale = display && display.scaleFactor > 0 ? display.scaleFactor : 1;
-  return { width: Math.round(bounds.width * scale), height: Math.round(bounds.height * scale) };
+  return { width: bounds.width, height: bounds.height };
 }
 
 const hudSourceOn = () => loadSettingsSync().obsHudSource === true;
 let hudSourceWas = null;
 
-// The switch as it stands, applied: called at OBS's connect, when the settings change, and at start.
-function applyHudSource(why) {
-  const on = hudSourceOn();
-  const changed = hudSourceWas !== on;
-  hudSourceWas = on;
-  // Before the source is enabled, never after: the window must be out of the capture by the time OBS draws the page.
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    try { overlayWindow.setContentProtection(on); } catch (err) { logToFile(`[RacingDesk] HUD source: the window could not be ${on ? 'taken out of' : 'put back into'} the capture: ${err.message}`); }
-  }
-  if (!obsClient.identified()) { if (changed) tellDeskRecording(); return; }
-  const done = on ? hudSource.ensure() : (changed ? hudSource.disable() : Promise.resolve(null));
-  done.then(() => tellDeskRecording()).catch((err) => logToFile(`[RacingDesk] HUD source (${why}): ${err.message}`));
+// The switch as it stands, applied: called at OBS's connect, when the collection changes, when the settings change, when
+// the HUD's screen changes and at start. hudSource.apply does the ordering — the window out of the capture before the
+// source is enabled, and back in only after OBS has stopped drawing it — and applies "off" whatever the last word was, so a
+// HUD left enabled in OBS is switched off at every connect. `fresh`: the switch has just been turned on.
+function applyHudSource(why, { fresh = false } = {}) {
+  hudSourceWas = hudSourceOn();
+  const protect = (flag) => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    try { overlayWindow.setContentProtection(flag); } catch (err) { logToFile(`[RacingDesk] HUD source: the window could not be ${flag ? 'taken out of' : 'put back into'} the capture: ${err.message}`); }
+  };
+  hudSource.apply({ on: hudSourceWas, fresh, protect })
+    .then(() => tellDeskRecording())
+    .catch((err) => logToFile(`[RacingDesk] HUD source (${why}): ${err.message}`));
 }
 
 obsClient.onChange((state) => {
   if (state.phase === 'identified') applyHudSource('OBS answered');
 });
+// He changed to another scene collection: the HUD is where it was set up and nowhere else, and the window follows.
+obsClient.on('CurrentSceneCollectionChanged', () => applyHudSource('the scene collection changed'));
 
 // ── TV shots (modules/js/obs/tv-shots.js) ──
 // After a race, from the desk's race detail, the tray or the Stream Deck: the recording's moments recorded again from
@@ -764,7 +776,9 @@ function setObsPassword(text) {
 // that has just stopped is filed (the file held still for two seconds, moved with its sidecar: up to 8 s more, a few
 // seconds usually); OBS and his own recordings are left as they are.
 let stoppedForQuit = false;
-function stopOwnedRecording() {
+// `keepHud`: the Ctrl+Shift+G relaunch, which comes back within seconds, mid-race, and does not switch the HUD source off
+// (the page in OBS stays loaded and goes on by itself when the new listener is up).
+function stopOwnedRecording({ keepHud = false } = {}) {
   if (stoppedForQuit) return Promise.resolve();
   stoppedForQuit = true;
   // A take under way ends and his facecam is shown again before anything else is waited for (1.5 s at most, as the HUD
@@ -772,8 +786,8 @@ function stopOwnedRecording() {
   const tvOff = Promise.race([tvShots.stopForQuit(), new Promise((resolve) => setTimeout(resolve, 1500))]).catch(() => {});
   // The HUD source is switched off in OBS on the way out: a browser source whose page has gone shows whatever CEF shows
   // for a page that failed to load, and nothing reloads it until Racing Desk is back.
-  const hudOff = hudSourceOn() && obsClient.identified()
-    ? Promise.race([hudSource.disable(), new Promise((resolve) => setTimeout(resolve, 1500))]).catch(() => {})
+  const hudOff = !keepHud && hudSourceOn() && obsClient.identified()
+    ? Promise.race([hudSource.disable({ final: true }), new Promise((resolve) => setTimeout(resolve, 1500))]).catch(() => {})
     : Promise.resolve();
   return Promise.race([
     Promise.all([recording.stopOwnedForQuit(), hudOff, tvOff]),
@@ -1039,6 +1053,9 @@ function localStatus() {
   return {
     inCar: h.inCar,
     hudVisible: h.visible,
+    // His HUD switch (Ctrl+Shift+H, the tray, the Stream Deck, Quit Overlay): the page OBS draws is hidden while it is off.
+    hudOff: h.hudOff === true,
+    hudActions: { seq: hudPageActions.seq, recent: hudPageActions.recent.slice() },
     recording: {
       recording: r.recording, starting: r.starting, stopping: r.stopping, paused: r.paused, elapsedMs: r.elapsedMs,
       obs: r.obs, owned: r.owned, auto: r.auto, replay: !!(r.replay && r.replay.running),
@@ -1047,21 +1064,23 @@ function localStatus() {
   };
 }
 
-async function startLocalServer() {
-  try {
-    await localServer.start({
-      port: localServerPort(),
-      appDir: __dirname,
-      telemetryUrl: loadSettingsSync().simhubUrl,
-      key: remoteServer.newKey(),   // a key the loopback listener never asks for; the server needs one to start
-      log: logToFile,
-      crop: () => livery.current(),
-      status: localStatus,
-      displaySettings: () => loadSettingsSync(),
-    });
-  } catch (err) {
-    logToFile(`[RacingDesk] Local server failed to start: ${err.message}`);
-  }
+// Started, and tried again with a growing wait until it is up (a port another program holds at the app's start is not a
+// listener that is never there, and the Stream Deck and the HUD in OBS both depend on it); the port is read afresh at each
+// try. When it comes up the HUD source is applied again: it is not given to OBS while the page is not served.
+function startLocalServer() {
+  return remoteServer.startWithRetry(localServer, () => ({
+    port: localServerPort(),
+    appDir: __dirname,
+    telemetryUrl: loadSettingsSync().simhubUrl,
+    key: remoteServer.newKey(),   // a key the loopback listener never asks for; the server needs one to start
+    log: logToFile,
+    crop: () => livery.current(),
+    status: localStatus,
+    displaySettings: () => loadSettingsSync(),
+  }), {
+    log: logToFile,
+    onUp: () => { if (hudSourceOn() && obsClient.identified()) applyHudSource('the listener is up'); },
+  });
 }
 
 logToFile('[RacingDesk] App starting...');
@@ -1196,7 +1215,20 @@ const _actionHandlers = {
   'preset-qualifying': () => _sendRenderer('preset-qualifying'),
 };
 
+// The actions that change the rig's page alone and are saved nowhere (a Stream Deck key on the rig's HUD: zoom, cycle, the
+// pit box tabs, the commentary): the page OBS draws is told of them by the loopback listener's status, which carries the
+// last of them with a number (remote-server.js, the page asks it once a second).
+const HUD_PAGE_ACTIONS = new Set(['zoom-in', 'zoom-out', 'cycle-rating', 'cycle-car-logo', 'pitbox-next-tab', 'pitbox-prev-tab', 'dismiss-commentary']);
+const hudPageActions = { seq: 0, recent: [] };
+function noteHudAction(name) {
+  if (!HUD_PAGE_ACTIONS.has(name)) return;
+  hudPageActions.seq += 1;
+  hudPageActions.recent.push({ n: hudPageActions.seq, name });
+  if (hudPageActions.recent.length > 16) hudPageActions.recent.shift();
+}
+
 function _sendRenderer(channel) {
+  noteHudAction(channel);
   if (!overlayWindow) return { ok: false, reason: 'no window' };
   overlayWindow.webContents.send(channel);
   return { ok: true };
@@ -1337,7 +1369,7 @@ function startSettingsWatcher() {
     overlayWindow.webContents.send('settings-sync', withoutRemoteKey(settings));
     logToFile('[RacingDesk] settings-sync broadcast (file changed)');
     hudScreen.settingsChanged();
-    if ((settings.obsHudSource === true) !== hudSourceWas) applyHudSource('the settings file changed');
+    if ((settings.obsHudSource === true) !== hudSourceWas) applyHudSource('the settings file changed', { fresh: settings.obsHudSource === true });
   });
 }
 
@@ -1381,7 +1413,7 @@ ipcMain.handle('save-settings', async (event, settings) => {
   }
   const hudSourceBefore = onDisk.obsHudSource === true;
   saveSettingsSync(settings);
-  if ((settings.obsHudSource === true) !== hudSourceBefore) applyHudSource('the switch');
+  if ((settings.obsHudSource === true) !== hudSourceBefore) applyHudSource('the switch', { fresh: settings.obsHudSource === true });
   // The desk's Settings page saves through here, and the watcher below ignores our own writes — so tell the
   // HUD directly; it re-applies on settings-sync (modules/js/settings.js).
   if (overlayWindow && !overlayWindow.isDestroyed() && event.sender !== overlayWindow.webContents) {

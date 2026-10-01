@@ -47,11 +47,12 @@ async function rig({ settings = {} } = {}) {
     zoom: 120, layoutPosition: 'top-left', showSpotter: true, agentKey: 'SECRET-agent', remoteServerKey: 'SECRET-remote',
     obsWebSocketPasswordEnc: 'SECRET-obs', paints: { customerId: '424242' }, recordingFolder: 'D:\\SECRET', ...settings,
   };
-  const state = { settings: his, crops: 0 };
+  // What the app says of itself at /api/status: his HUD switch (hudOff) and the page-only actions pressed on the rig.
+  const state = { settings: his, crops: 0, status: { inCar: false, hudVisible: false, hudOff: false, hudActions: { seq: 0, recent: [] }, recording: null } };
   await local.start({
     port, appDir: OVERLAY, key: remote.newKey(), log: () => {},
     telemetryUrl: `http://127.0.0.1:${telemetry.address().port}/racing-desk/`,
-    status: () => ({ inCar: false, hudVisible: false, recording: null }),
+    status: () => state.status,
     displaySettings: () => state.settings,
     crop: () => { state.crops++; return { png: PNG, id: 'c1' }; },
   });
@@ -69,8 +70,10 @@ async function open(page, r) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
   await page.addInitScript(() => {
-    // The settings are asked for again every ten seconds; here sooner. And whatever the voice coach says is counted.
+    // The settings are asked for again every ten seconds, and the app's word on his HUD switch every second; here sooner.
+    // And whatever the voice coach says is counted.
     window._obsSettingsEveryMs = 250;
+    window._obsStatusEveryMs = 200;
     window.__spoken = 0;
     if (window.speechSynthesis) window.speechSynthesis.speak = () => { window.__spoken++; };
   });
@@ -141,6 +144,84 @@ test('a setting changed on the desk reaches the page OBS draws, by the ten-secon
     await expect(page.locator('#dashboard')).toHaveClass(/layout-br/);
     expect(await page.evaluate(() => _settings.agentKey || null)).toBeNull();
     expect(requested.filter((u) => u === `http://127.0.0.1:${r.port}${remote.SETTINGS_PATH}`).length).toBeGreaterThan(0);
+    expect(errors).toEqual([]);
+  } finally {
+    await r.close();
+  }
+});
+
+const visibilityOf = (page) => page.evaluate(() => getComputedStyle(document.body).visibility);
+
+test('he puts the HUD away (Ctrl+Shift+H, the tray, the Stream Deck, Quit Overlay): the page OBS draws is hidden while he is in the car, and is drawn again when he switches it on', async ({ page }) => {
+  test.setTimeout(40000);
+  const r = await rig();
+  try {
+    const { errors } = await open(page, r);
+    r.feed.payload = IN_THE_CAR;
+    await expect(page.locator('body')).not.toHaveClass(/idle-state/, { timeout: 10000 });
+    expect(await visibilityOf(page)).toBe('visible');
+    // The window is hidden by the HUD's keeper, and is out of the capture anyway: the page in OBS has to go too.
+    r.state.status = { ...r.state.status, hudOff: true };
+    await expect.poll(() => visibilityOf(page), { timeout: 5000 }).toBe('hidden');
+    // He is still in the car as far as the telemetry says: it is his switch that hides it, nothing else.
+    expect(await page.evaluate(() => document.body.classList.contains('idle-state'))).toBe(false);
+    expect(await page.evaluate(() => document.documentElement.classList.contains('rd-hud-off'))).toBe(true);
+    r.state.status = { ...r.state.status, hudOff: false };
+    await expect.poll(() => visibilityOf(page), { timeout: 5000 }).toBe('visible');
+    expect(errors).toEqual([]);
+  } finally {
+    await r.close();
+  }
+});
+
+test('the page is not drawn while its scripts are still loading: its markup is hidden from the first paint, and stays so until it has started and the telemetry says he is in the car', async ({ page }) => {
+  test.setTimeout(40000);
+  const r = await rig();
+  try {
+    await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
+    // A script near the end of the page held back: the parser is blocked on it with the body, the placeholder gear and the
+    // panels already parsed — which is what a browser source in OBS composites over the game while a page loads.
+    await page.route('**/modules/js/keyboard.js', async (route) => { await new Promise((resolve) => setTimeout(resolve, 2000)); await route.continue(); });
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto(r.url, { waitUntil: 'commit' });
+    await page.waitForFunction(() => document.readyState === 'loading' && !!document.body && !!document.getElementById('dashboard'), null, { timeout: 5000 });
+    const early = await page.evaluate(() => ({ state: document.readyState, started: document.documentElement.classList.contains('rd-started'), visibility: getComputedStyle(document.body).visibility }));
+    expect(early).toEqual({ state: 'loading', started: false, visibility: 'hidden' });
+    // Loaded: the page has started, and says it is idle (out of the car): hidden still.
+    await page.waitForLoadState('load');
+    expect(await page.evaluate(() => document.documentElement.classList.contains('rd-started'))).toBe(true);
+    expect(await visibilityOf(page)).toBe('hidden');
+    // In the car: drawn.
+    r.feed.payload = IN_THE_CAR;
+    await expect(page.locator('body')).not.toHaveClass(/idle-state/, { timeout: 10000 });
+    expect(await visibilityOf(page)).toBe('visible');
+  } finally {
+    await r.close();
+  }
+});
+
+test('the page-only actions pressed on the rig — the Stream Deck\'s zoom keys — reach the page OBS draws, once each; what was pressed before the page began is not done again, and only those actions are done', async ({ page }) => {
+  test.setTimeout(40000);
+  const r = await rig();
+  // Two zoom presses from before this page began: not for it.
+  r.state.status = { ...r.state.status, hudActions: { seq: 2, recent: [{ n: 1, name: 'zoom-in' }, { n: 2, name: 'zoom-in' }] } };
+  try {
+    const { errors } = await open(page, r);
+    r.feed.payload = IN_THE_CAR;
+    await expect(page.locator('body')).not.toHaveClass(/idle-state/, { timeout: 10000 });
+    expect(await page.evaluate(() => typeof window.runHudAction)).toBe('function');
+    await page.waitForTimeout(800);
+    expect(await page.evaluate(() => document.body.style.transform)).toBe('');
+    // Zoom in on the rig: the HUD in OBS grows with it.
+    r.state.status = { ...r.state.status, hudActions: { seq: 3, recent: [{ n: 1, name: 'zoom-in' }, { n: 2, name: 'zoom-in' }, { n: 3, name: 'zoom-in' }] } };
+    await expect.poll(() => page.evaluate(() => document.body.style.transform), { timeout: 5000 }).toBe('scale(1.05)');
+    // Asked again and again with the same word: done once.
+    await page.waitForTimeout(800);
+    expect(await page.evaluate(() => document.body.style.transform)).toBe('scale(1.05)');
+    // Another press, and a name that is not a page-only action of the HUD's, which is not done at all.
+    r.state.status = { ...r.state.status, hudActions: { seq: 5, recent: [{ n: 3, name: 'zoom-in' }, { n: 4, name: 'quit' }, { n: 5, name: 'zoom-in' }] } };
+    await expect.poll(() => page.evaluate(() => document.body.style.transform), { timeout: 5000 }).toBe('scale(1.1)');
+    expect(await page.evaluate(() => [window.runHudAction('zoom-out'), window.runHudAction('quit'), window.runHudAction('toString')])).toEqual([true, false, false]);
     expect(errors).toEqual([]);
   } finally {
     await r.close();
