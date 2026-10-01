@@ -88,9 +88,13 @@ namespace RacingDesk.Plugin.IRacing
                 CamGroupNumber = Int("CamGroupNumber"),
                 CamCameraNumber = Int("CamCameraNumber"),
                 CamCarIdx = Int("CamCarIdx"),
+                CamCameraState = Int("CamCameraState"),
                 PlayerCarIdx = Int("PlayerCarIdx"),
             };
             var si = SessionInfo;
+            s.TrackName = si?.WeekendInfo?.TrackName;
+            s.TrackDisplayName = si?.WeekendInfo?.TrackDisplayName;
+            s.SubSessionId = si?.WeekendInfo?.SubSessionID ?? 0;
             var drivers = si?.DriverInfo?.Drivers;
             int myIdx = si?.DriverInfo?.DriverCarIdx ?? -1;
             if (drivers != null)
@@ -127,8 +131,10 @@ namespace RacingDesk.Plugin.IRacing
         public void SwitchCamera(ReplayCameraFocus focus, int group, int camera)
         {
             if (!IsConnected) return;
-            // IRSDKSharper sends the mode's value for every focus but the driver's, and the position (0: the player's
-            // own car) for that one.
+            // IRSDKSharper sends the mode's value for every focus but the driver's, and the car position given here for that
+            // one — and the position is 0 below, which is no car's position. So the driver's focus is not "the player's own
+            // car": it keeps the camera on whichever car it is on. To follow the player's car, SwitchCameraToCar with the
+            // player's car number (the replay route takes `carNumber`).
             var mode = focus == ReplayCameraFocus.Leader ? IRacingSdkEnum.CamSwitchMode.FocusAtLeader
                 : focus == ReplayCameraFocus.Incident ? IRacingSdkEnum.CamSwitchMode.FocusAtIncident
                 : focus == ReplayCameraFocus.Exiting ? IRacingSdkEnum.CamSwitchMode.FocusAtExiting
@@ -140,6 +146,12 @@ namespace RacingDesk.Plugin.IRacing
         {
             if (!IsConnected) return;
             _sdk.CamSwitchNum(IRacingSdkEnum.CamSwitchMode.FocusAtDriver, carNumberRaw, group, camera);
+        }
+
+        public void SetCameraState(int state)
+        {
+            if (!IsConnected) return;
+            _sdk.CamSetState((IRacingSdkEnum.CameraState)state);
         }
 
         private int Int(string name) { var v = GetValue(name); return v is int i ? i : v is bool b ? (b ? 1 : 0) : 0; }

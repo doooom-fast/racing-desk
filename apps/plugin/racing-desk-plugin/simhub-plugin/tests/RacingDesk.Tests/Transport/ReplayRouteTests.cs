@@ -154,6 +154,9 @@ namespace RacingDesk.Tests.Transport
             Assert.That((double)json["replay"]!["sessionTime"]!, Is.EqualTo(1234.5));
             Assert.That((int)json["replay"]!["frame"]!, Is.EqualTo(74070));
             Assert.That((int)json["camera"]!["group"]!, Is.EqualTo(5));
+            Assert.That((int)json["camera"]!["state"]!, Is.EqualTo(16));
+            Assert.That(json["weekend"]!["trackDisplayName"]!.ToString(), Is.EqualTo("Circuit Zandvoort"));
+            Assert.That((int)json["weekend"]!["subSessionId"]!, Is.EqualTo(71234567));
             Assert.That(json["player"]!["carNumber"]!.ToString(), Is.EqualTo("42"));
             Assert.That((int)json["player"]!["carNumberRaw"]!, Is.EqualTo(42));
             var groups = (JArray)json["groups"]!;
@@ -178,6 +181,7 @@ namespace RacingDesk.Tests.Transport
             Assert.That(Ask(HttpMethod.Post, "{\"command\":\"camera\",\"group\":5}").Status, Is.EqualTo(HttpStatusCode.OK));
             Assert.That(Ask(HttpMethod.Post, "{\"command\":\"camera\",\"focus\":\"leader\",\"group\":5,\"camera\":2}").Status, Is.EqualTo(HttpStatusCode.OK));
             Assert.That(Ask(HttpMethod.Post, "{\"command\":\"camera\",\"carNumber\":42,\"group\":6}").Status, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(Ask(HttpMethod.Post, "{\"command\":\"cameraState\",\"state\":24}").Status, Is.EqualTo(HttpStatusCode.OK));
             // Node's fetch says Sec-Fetch-Mode and no more: a program.
             Assert.That(Ask(HttpMethod.Post, "{\"command\":\"speed\",\"speed\":1}", r => r.Headers.Add("Sec-Fetch-Mode", "cors")).Status, Is.EqualTo(HttpStatusCode.OK));
 
@@ -188,8 +192,41 @@ namespace RacingDesk.Tests.Transport
                 "SetPlayPosition(End, -600)",
                 "SwitchCamera(Driver, 5, 0)", "SwitchCamera(Leader, 5, 2)",
                 "SwitchCameraToCar(42, 6, 0)",
+                "SetCameraState(24)",
                 "SetPlaySpeed(1, False)",
             }));
+        }
+
+        [Test]
+        public void WhileTheDriverIsOnTrack_EveryCommandIsRefused_AndNothingIsSent_ButTheStatusStillAnswers()
+        {
+            // A take that was under way when he got in the car, a program that never looked: the replay and the cameras are
+            // his while the sim says he is on track.
+            _replay.Connected = true;
+            _replay.OnTrack = true;
+            foreach (string body in new[]
+            {
+                "{\"command\":\"seek\",\"sessionNum\":2,\"sessionTime\":100}",
+                "{\"command\":\"speed\",\"speed\":1}",
+                "{\"command\":\"position\",\"from\":\"end\",\"frame\":-600}",
+                "{\"command\":\"camera\",\"group\":5}",
+                "{\"command\":\"camera\",\"carNumber\":42,\"group\":6}",
+                "{\"command\":\"cameraState\",\"state\":8}",
+            })
+            {
+                var (status, answer, _) = Ask(HttpMethod.Post, body);
+                Assert.That(status, Is.EqualTo(HttpStatusCode.Conflict), body + ": " + answer);
+                Assert.That(JObject.Parse(answer)["error"]!.ToString(), Does.Contain("in the car"), body);
+            }
+            Assert.That(_replay.Calls, Is.Empty, "nothing reached the sim");
+            var (getStatus, getBody, _) = Ask(HttpMethod.Get);
+            Assert.That(getStatus, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That((bool)JObject.Parse(getBody)["onTrack"]!, Is.True, "the status says why");
+
+            // Out of the car again, the same command goes through.
+            _replay.OnTrack = false;
+            Assert.That(Ask(HttpMethod.Post, "{\"command\":\"speed\",\"speed\":1}").Status, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(_replay.Calls, Is.EqualTo(new[] { "SetPlaySpeed(1, False)" }));
         }
 
         [Test]
@@ -204,6 +241,7 @@ namespace RacingDesk.Tests.Transport
                 "{\"command\":\"speed\"}", "{\"command\":\"speed\",\"speed\":99}",
                 "{\"command\":\"position\",\"from\":\"middle\"}",
                 "{\"command\":\"camera\"}", "{\"command\":\"camera\",\"group\":1,\"focus\":\"me\"}",
+                "{\"command\":\"cameraState\"}", "{\"command\":\"cameraState\",\"state\":-1}", "{\"command\":\"cameraState\",\"state\":512}",
             })
             {
                 var (status, answer, _) = Ask(HttpMethod.Post, body);
@@ -229,6 +267,7 @@ namespace RacingDesk.Tests.Transport
         private sealed class FakeReplay : IReplayControl
         {
             public bool Connected;
+            public bool OnTrack;
             public readonly List<string> Calls = new List<string>();
 
             public bool IsConnected => Connected;
@@ -238,9 +277,10 @@ namespace RacingDesk.Tests.Transport
                 if (!Connected) return null;
                 var s = new ReplayStatus
                 {
-                    IsReplayPlaying = true, IsOnTrack = false, SessionNum = 2, SessionTime = 1500.25,
+                    IsReplayPlaying = true, IsOnTrack = OnTrack, SessionNum = 2, SessionTime = 1500.25,
                     ReplaySessionNum = 2, ReplaySessionTime = 1234.5, ReplayFrameNum = 74070, ReplayFrameNumEnd = 90000, ReplayPlaySpeed = 0,
-                    CamGroupNumber = 5, CamCameraNumber = 1, CamCarIdx = 7, PlayerCarIdx = 7, PlayerCarNumber = "42", PlayerCarNumberRaw = 42,
+                    CamGroupNumber = 5, CamCameraNumber = 1, CamCarIdx = 7, CamCameraState = 16, PlayerCarIdx = 7, PlayerCarNumber = "42", PlayerCarNumberRaw = 42,
+                    TrackName = "zandvoort full", TrackDisplayName = "Circuit Zandvoort", SubSessionId = 71234567,
                 };
                 s.Groups.Add(new ReplayCameraGroup { Num = 1, Name = "Cockpit", Cameras = 1 });
                 s.Groups.Add(new ReplayCameraGroup { Num = 5, Name = "TV1", Cameras = 12 });
@@ -253,6 +293,7 @@ namespace RacingDesk.Tests.Transport
             public void SetPlayPosition(ReplayPositionFrom from, int frame) => Calls.Add($"SetPlayPosition({from}, {frame})");
             public void SwitchCamera(ReplayCameraFocus focus, int group, int camera) => Calls.Add($"SwitchCamera({focus}, {group}, {camera})");
             public void SwitchCameraToCar(int carNumberRaw, int group, int camera) => Calls.Add($"SwitchCameraToCar({carNumberRaw}, {group}, {camera})");
+            public void SetCameraState(int state) => Calls.Add($"SetCameraState({state})");
         }
     }
 }

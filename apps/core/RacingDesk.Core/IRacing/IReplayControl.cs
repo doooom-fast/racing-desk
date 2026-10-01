@@ -27,11 +27,22 @@ namespace RacingDesk.Plugin.IRacing
         /// <summary>Jump to a frame counted from the start, the current position or the end (ReplaySetPlayPosition).</summary>
         void SetPlayPosition(ReplayPositionFrom from, int frame);
 
-        /// <summary>Switch the camera to a focus — the player's own car, the leader, the incident, the car exiting — in a camera group.</summary>
+        /// <summary>
+        /// Switch the camera to a focus — the car the camera is on now (<see cref="ReplayCameraFocus.Driver"/>), the leader,
+        /// the incident, the car exiting — in a camera group. The driver's focus names no car: for the player's own car
+        /// use <see cref="SwitchCameraToCar"/> with the player's car number.
+        /// </summary>
         void SwitchCamera(ReplayCameraFocus focus, int group, int camera);
 
         /// <summary>Switch the camera to a car by its number (CamSwitchNum), in a camera group.</summary>
         void SwitchCameraToCar(int carNumberRaw, int group, int camera);
+
+        /// <summary>
+        /// Set the camera system's state (CamSetState: the flags of iRacing's CameraState, 8 being UIHidden, which takes
+        /// iRacing's own replay controls off the screen). The state is sent whole: a caller that wants to change one flag
+        /// reads <see cref="ReplayStatus.CamCameraState"/> first.
+        /// </summary>
+        void SetCameraState(int state);
     }
 
     public enum ReplayPositionFrom { Begin, Current, End }
@@ -62,7 +73,13 @@ namespace RacingDesk.Plugin.IRacing
         public int CamGroupNumber { get; set; }
         public int CamCameraNumber { get; set; }
         public int CamCarIdx { get; set; }
+        /// <summary>The camera system's state flags as the sim reports them (CamCameraState; 8 is UIHidden).</summary>
+        public int CamCameraState { get; set; }
         public int PlayerCarIdx { get; set; }
+        /// <summary>The session's own track (WeekendInfo): iRacing's name for it, and its display name — what tells which race's replay is open.</summary>
+        public string TrackName { get; set; }
+        public string TrackDisplayName { get; set; }
+        public int SubSessionId { get; set; }
         public string PlayerCarNumber { get; set; }
         public int PlayerCarNumberRaw { get; set; }
         public List<ReplayCameraGroup> Groups { get; } = new List<ReplayCameraGroup>();

@@ -12,8 +12,10 @@ namespace RacingDesk.Host
     /// iRacing's replay and cameras, for the app's TV shots: <c>GET /racing-desk/data/replay</c> says where the replay
     /// and the cameras stand (and which camera groups the session has), <c>POST /racing-desk/data/replay</c> takes one
     /// command — <c>seek</c> (a session number and seconds into it: the SDK's ReplaySearchSessionTime), <c>speed</c>,
-    /// <c>position</c>, <c>camera</c> (a focus and a camera group) — and sends it to the sim through
-    /// <see cref="IReplayControl"/>. Both are for a program on this machine and no other, by the check the runtime's
+    /// <c>position</c>, <c>camera</c> (a focus or a car number, and a camera group), <c>cameraState</c> (the camera
+    /// flags, whole) — and sends it to the sim through <see cref="IReplayControl"/>. A command is refused (409) while
+    /// the sim says the driver is on track: his replay and cameras are his then. Both are for a program on this machine
+    /// and no other, by the check the runtime's
     /// <c>?action=</c> routes make (<see cref="LocalRequest"/>): the connection is this machine's, the Host names it, no
     /// browser sent it. They write to the sim's window, so a read is gated like the write. With no sim connected a GET
     /// says so and a POST is refused (409); a host replaying a file has no control at all and says that.
@@ -24,6 +26,7 @@ namespace RacingDesk.Host
         private const string NotThisMachine = "this is for the app on this machine";
         private const string NotLive = "iRacing is not running, so its replay cannot be driven.";
         private const string FileReplay = "This host is replaying a file, not driving iRacing, so there is no replay to drive.";
+        private const string Driving = "You are in the car, so the replay and the cameras are left alone.";
 
         /// <summary>The live reader, once the host has one; null for a file replay.</summary>
         public IReplayControl Replay { get; set; }
@@ -85,6 +88,12 @@ namespace RacingDesk.Host
                     json.WriteNumber("group", status.CamGroupNumber);
                     json.WriteNumber("camera", status.CamCameraNumber);
                     json.WriteNumber("carIdx", status.CamCarIdx);
+                    json.WriteNumber("state", status.CamCameraState);
+                    json.WriteEndObject();
+                    json.WriteStartObject("weekend");
+                    json.WriteString("trackName", status.TrackName ?? "");
+                    json.WriteString("trackDisplayName", status.TrackDisplayName ?? "");
+                    json.WriteNumber("subSessionId", status.SubSessionId);
                     json.WriteEndObject();
                     json.WriteStartObject("player");
                     json.WriteNumber("carIdx", status.PlayerCarIdx);
@@ -112,6 +121,11 @@ namespace RacingDesk.Host
             var control = Replay;
             if (control == null) { Error(res, 409, FileReplay); return; }
             if (!control.IsConnected) { Error(res, 409, NotLive); return; }
+            // Every command goes to the sim's window, whose replay and cameras are the driver's own while he is in the car:
+            // a program on this machine — the app's TV shots among them — is refused while the sim says he is on track,
+            // whatever it was in the middle of.
+            var now = control.Status();
+            if (now != null && now.IsOnTrack) { Error(res, 409, Driving); return; }
 
             JsonDocument body;
             try
@@ -132,7 +146,7 @@ namespace RacingDesk.Host
                 var root = body.RootElement;
                 if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("command", out var cmd) || cmd.ValueKind != JsonValueKind.String)
                 {
-                    Error(res, 400, "expected { \"command\": \"seek\" | \"speed\" | \"position\" | \"camera\", ... }");
+                    Error(res, 400, "expected { \"command\": \"seek\" | \"speed\" | \"position\" | \"camera\" | \"cameraState\", ... }");
                     return;
                 }
                 string what;
@@ -192,8 +206,17 @@ namespace RacingDesk.Host
                         what = $"camera group {group} on the {focus}";
                         break;
                     }
+                    case "cameraState":
+                    {
+                        // The camera system's flags, whole (CameraState: 8 hides iRacing's own replay controls). The nine
+                        // flags the SDK has are 0 to 511; a caller changing one reads the status's camera.state first.
+                        if (!Int(root, "state", 0, 511, out int state)) { Error(res, 400, "cameraState needs state (the camera flags, 0 to 511)"); return; }
+                        control.SetCameraState(state);
+                        what = $"camera state {state}";
+                        break;
+                    }
                     default:
-                        Error(res, 400, "unknown command: seek, speed, position or camera");
+                        Error(res, 400, "unknown command: seek, speed, position, camera or cameraState");
                         return;
                 }
                 Log.Info($"[RacingDesk.Host] replay: {what}");
