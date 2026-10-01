@@ -770,19 +770,31 @@ const HIS_SETTINGS = {
   obsWebSocketPasswordEnc: 'SECRET-obs', recordingFolder: 'D:\\Racing Desk\\Recordings', recordingAutoRecord: true, obsHudSource: true,
   localServerPort: 9091, simhubUrl: 'http://localhost:8889/racing-desk/', paints: { paintDir: 'X:\\paint', customerId: '424242' },
   raceLinks: { a: '1' }, hudDisplay: '12345', ambientCaptureRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, coachTone: 'calm',
+  // The two "Panel background" sliders: the rig's and the iPad's, and the one for the HUD drawn by OBS.
+  panelBackground: 70, obsPanelBackground: 40, obsHudView: 'ipad',
 };
-const DISPLAY_ONLY = { zoom: 120, layoutPosition: 'top-left', showSpotter: false, showLeaderboard: true, visualPreset: 'minimal+', theme: 'dark', lbMaxRows: 8, driveMode: false, logoSubtitle: 'by DOOOOM' };
+const DISPLAY_ONLY = { zoom: 120, layoutPosition: 'top-left', showSpotter: false, showLeaderboard: true, visualPreset: 'minimal+', theme: 'dark', lbMaxRows: 8, driveMode: false, logoSubtitle: 'by DOOOOM', panelBackground: 70, obsPanelBackground: 40 };
+// What the iPad is told of the settings: the panel background, and no more (not the OBS slider, not the choice).
+const IPAD_ONLY = { panelBackground: 70 };
 const loopbackConfig = { loopback: true, status: () => ({ inCar: true, hudVisible: false, recording: { recording: true, elapsedMs: 1234, obs: 'open' } }), displaySettings: () => HIS_SETTINGS };
 
 test.describe('the loopback listener', () => {
-  test('the display allowlist: the panels, the zoom, the position and the look come through; keys, folders, addresses and devices never', () => {
+  test('the display allowlist: the panels, the zoom, the position, the look and the two panel-background sliders come through; keys, folders, addresses and devices never', () => {
     expect(remote.displaySettingsOf(HIS_SETTINGS)).toEqual(DISPLAY_ONLY);
-    for (const key of Object.keys(remote.displaySettingsOf(HIS_SETTINGS))) expect(key).not.toMatch(/key|password|folder|url|port|paints|recording|obs|remote|agent/i);
+    // (obsPanelBackground is the one key with "obs" in it that a page may see: a number, how solid the panels are)
+    for (const key of Object.keys(remote.displaySettingsOf(HIS_SETTINGS)).filter((k) => k !== 'obsPanelBackground')) expect(key).not.toMatch(/key|password|folder|url|port|paints|recording|obs|remote|agent/i);
     expect(remote.displaySettingsOf(null)).toEqual({});
     expect(remote.displaySettingsOf('zoom=1')).toEqual({});
     expect(remote.displaySettingsOf({ showX: { nested: true }, showY: 'yes' })).toEqual({ showY: 'yes' });   // a setting is a word, a number or a switch
     expect(remote.DISPLAY_SETTINGS).not.toContain('simhubUrl');
     expect(remote.DISPLAY_SETTINGS).not.toContain('agentKey');
+    expect(remote.DISPLAY_SETTINGS).not.toContain('obsHudView');   // which page OBS draws is the source's address, not the page's to read
+    // The iPad: the panel background alone, a number alone.
+    expect(remote.IPAD_SETTINGS).toEqual(['panelBackground']);
+    expect(remote.ipadSettingsOf(HIS_SETTINGS)).toEqual(IPAD_ONLY);
+    expect(remote.ipadSettingsOf({ panelBackground: '70' })).toEqual({});
+    expect(remote.ipadSettingsOf({ panelBackground: NaN })).toEqual({});
+    expect(remote.ipadSettingsOf(null)).toEqual({});
   });
 
   test('serves the HUD page in OBS mode at /obs: told it is OBS\'s, its telemetry here, the display settings and no more, no black background, no menu, no key', async () => {
@@ -794,8 +806,8 @@ test.describe('the loopback listener', () => {
     expect(page.body).toContain('window._obsMode = true;');
     expect(page.body).not.toContain('window._remoteMode');
     expect(page.body).toContain("window._simhubUrlOverride = location.origin + '/racing-desk/';");
-    expect(page.body).toContain(`window._obsSettings = ${JSON.stringify(DISPLAY_ONLY)};`);
-    expect(page.body).toContain(`window._obsSettingsUrl = '${remote.SETTINGS_PATH}';`);
+    expect(page.body).toContain(`window._displaySettings = ${JSON.stringify(DISPLAY_ONLY)};`);
+    expect(page.body).toContain(`window._displaySettingsUrl = '${remote.SETTINGS_PATH}';`);
     expect(page.body).toContain("document.documentElement.classList.add('rd-obs');");
     expect(page.body.indexOf('window._obsMode')).toBeLessThan(page.body.indexOf('<title>'));
     // Out of the car the page is not drawn: a browser source is never hidden by a window being hidden.
@@ -821,7 +833,55 @@ test.describe('the loopback listener', () => {
     // Settings the app cannot give (a throw) leave the page with none, not without a page.
     const bare = await ask(remote.OBS_PATH, { ...onTheRig, config: { loopback: true, displaySettings: () => { throw new Error('gone'); } } });
     expect(bare.status).toBe(200);
-    expect(bare.body).toContain('window._obsSettings = {};');
+    expect(bare.body).toContain('window._displaySettings = {};');
+    // The rig HUD page is not the glance one.
+    expect(page.body).not.toContain('window._obsGlance = true');
+    expect(page.body).not.toContain("classList.add('rd-glance')");
+  });
+
+  test('serves the iPad dashboard for OBS at /obs-ipad: the glance layout from the start, in OBS mode, no menu, no key, and only on the loopback listener', async () => {
+    const page = await ask(remote.OBS_IPAD_PATH, { ...onTheRig, config: loopbackConfig });
+    expect(remote.OBS_IPAD_PATH).toBe('/obs-ipad');
+    expect(page.status).toBe(200);
+    expect(page.headers['Content-Type']).toBe('text/html; charset=utf-8');
+    expect(page.headers['Content-Security-Policy']).toBe("frame-ancestors 'none'");
+    // OBS mode's behaviour, and the glance layout's switch (drive-hud.js reads _obsGlance as it reads _remoteMode).
+    expect(page.body).toContain('window._obsMode = true;');
+    expect(page.body).toContain('window._obsGlance = true;');
+    expect(page.body).not.toContain('window._remoteMode');
+    expect(page.body).toContain("window._simhubUrlOverride = location.origin + '/racing-desk/';");
+    expect(page.body).toContain(`window._displaySettings = ${JSON.stringify(DISPLAY_ONLY)};`);
+    expect(page.body).toContain(`window._displaySettingsUrl = '${remote.SETTINGS_PATH}';`);
+    expect(page.body).toContain(`window._obsStatusUrl = '${remote.STATUS_PATH}';`);
+    expect(page.body).toContain("document.documentElement.classList.add('rd-obs');");
+    expect(page.body).toContain("document.documentElement.classList.add('rd-glance');");
+    expect(page.body.indexOf('window._obsGlance')).toBeLessThan(page.body.indexOf('<title>'));
+    // Hidden out of the car and while he has the HUD away, from the first paint, as the rig HUD page is.
+    expect(page.body).toContain('html.rd-obs:not(.rd-started) body { visibility: hidden; }');
+    expect(page.body).toContain('html.rd-obs body.idle-state { visibility: hidden; }');
+    expect(page.body).toContain('html.rd-obs.rd-hud-off body { visibility: hidden; }');
+    // The page-only actions of the rig are not done here: the glance layout has no zoom and no tabs to turn.
+    expect(page.body).toContain('if (window._obsGlance || !actions || !Array.isArray(actions.recent)) return;');
+    // Transparent, no menu, no "no data" strip, no key, no secret.
+    expect(page.body).not.toContain('html { background: #000; }');
+    expect(page.body).toContain('html, body { background: transparent; }');
+    expect(page.body).not.toContain('rd-remote-menu-fab');
+    expect(page.body).not.toContain('rd-no-data');
+    expect(page.body).not.toContain(KEY);
+    expect(page.body).not.toContain('SECRET');
+    expect(page.body).not.toContain('424242');
+    expect(page.headers['Set-Cookie']).toBeUndefined();
+    // A query is not an address of the page's; HEAD says the same as GET.
+    expect((await ask(`${remote.OBS_IPAD_PATH}?k=${KEY}`, { ...onTheRig, config: loopbackConfig })).status).toBe(404);
+    expect((await ask(remote.OBS_IPAD_PATH, { ...onTheRig, config: loopbackConfig, method: 'HEAD' })).status).toBe(200);
+    // Never on the iPad's server, key or no key.
+    expect((await ask(remote.OBS_IPAD_PATH, onTheRig)).status).toBe(404);
+    expect((await ask(remote.OBS_IPAD_PATH, withKey)).status).toBe(404);
+    expect((await ask(remote.OBS_IPAD_PATH, { ...withKey, config: { loopback: false, displaySettings: () => HIS_SETTINGS } })).status).toBe(404);
+    // Nothing of it is in the iPad's page.
+    const ipad = await ask('/', withKey);
+    expect(ipad.body).not.toContain('_obsGlance');
+    expect(ipad.body).not.toContain('rd-glance');
   });
 
   test('serves the display settings at /api/settings-display, the allowlist alone, and the status with the app\'s state', async () => {
@@ -835,11 +895,26 @@ test.describe('the loopback listener', () => {
     // A status the app cannot give is the two words it always said.
     const broken = await ask('/api/status', { ...onTheRig, config: { loopback: true, status: () => { throw new Error('gone'); } } });
     expect(JSON.parse(broken.body)).toEqual({ app: 'The Racing Desk', remoteServer: true, loopback: true });
-    // The iPad's server knows neither route, and its status has no app state unless it was given one.
+    // The iPad's server knows no OBS page, and its status has no app state unless it was given one.
     expect((await ask(remote.OBS_PATH, onTheRig)).status).toBe(404);
-    expect((await ask(remote.SETTINGS_PATH, onTheRig)).status).toBe(404);
     expect((await ask(remote.OBS_PATH, { ...withKey, config: { loopback: false, displaySettings: () => HIS_SETTINGS } })).status).toBe(404);
     expect(JSON.parse((await ask('/api/status', withKey)).body)).toEqual({ app: 'The Racing Desk', remoteServer: true, loopback: false });
+    // The iPad's server tells the iPad the panel background and nothing else, behind the key like everything on it.
+    const ipadSettings = await ask(remote.SETTINGS_PATH, { ...withKey, config: { loopback: false, displaySettings: () => HIS_SETTINGS } });
+    expect(ipadSettings.status).toBe(200);
+    expect(JSON.parse(ipadSettings.body)).toEqual(IPAD_ONLY);
+    expect(ipadSettings.body).not.toContain('SECRET');
+    expect(ipadSettings.body).not.toContain('obs');
+    expect((await ask(remote.SETTINGS_PATH, { config: { loopback: false, displaySettings: () => HIS_SETTINGS } })).status).toBe(403);   // no key
+    expect(JSON.parse((await ask(remote.SETTINGS_PATH, { ...withKey, config: { loopback: false, displaySettings: () => { throw new Error('gone'); } } })).body)).toEqual({});
+    expect(JSON.parse((await ask(remote.SETTINGS_PATH, withKey)).body)).toEqual({});   // a server given no settings
+    // And the iPad's page carries the same, and asks for it again where the OBS page does.
+    const ipad = await ask('/', { ...withKey, config: { loopback: false, displaySettings: () => HIS_SETTINGS } });
+    expect(ipad.body).toContain(`window._displaySettings = ${JSON.stringify(IPAD_ONLY)};`);
+    expect(ipad.body).toContain(`window._displaySettingsUrl = '${remote.SETTINGS_PATH}';`);
+    expect(ipad.body).not.toContain('obsPanelBackground');
+    expect(ipad.body).not.toContain('SECRET');
+    expect((await ask('/', withKey)).body).toContain('window._displaySettings = {};');
   });
 
   test('two servers run at once — the iPad\'s and the loopback one — each with its own listener, the actions on both; the loopback one is on 127.0.0.1 alone and needs no key', async () => {
@@ -863,7 +938,10 @@ test.describe('the loopback listener', () => {
       expect(await (await fetch(`http://127.0.0.1:${localPort}/api/settings-display`)).json()).toEqual(DISPLAY_ONLY);
       expect(await (await fetch(`http://127.0.0.1:${localPort}/api/status`)).json()).toMatchObject({ loopback: true, inCar: false });
       expect((await fetch(`http://127.0.0.1:${lanPort}/obs`)).status).toBe(404);
-      expect((await fetch(`http://127.0.0.1:${lanPort}/api/settings-display`)).status).toBe(404);
+      expect((await fetch(`http://127.0.0.1:${lanPort}/obs-ipad`)).status).toBe(404);
+      expect(await (await fetch(`http://127.0.0.1:${localPort}/obs-ipad`)).text()).toContain('window._obsGlance = true;');
+      // The iPad's server tells the iPad the panel background alone (this one was started with no settings: none).
+      expect(await (await fetch(`http://127.0.0.1:${lanPort}/api/settings-display`)).json()).toEqual({});
       // The actions, on both, through the one dispatcher; the Stream Deck asks the loopback one.
       expect((await fetch(`http://127.0.0.1:${localPort}/api/action/zoom-in`, { headers: { 'X-Racing-Desk': '1' } })).status).toBe(200);
       expect((await fetch(`http://127.0.0.1:${lanPort}/api/action/zoom-out`, { headers: { 'X-Racing-Desk': '1' } })).status).toBe(200);

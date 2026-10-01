@@ -112,18 +112,19 @@ body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: flex !im
    datastream, pit box, incidents) take the same background on the card. */
 body.drive-mode-active :is(.car-controls, .pedals-area, .map-panel, .map-zoom-panel, #positionPage, #ratingPage,
   #gapsBlock, .tacho-block, #raceTimerBlock, #lapsPanel, .lb-inner, .ds-inner, .pb-inner, .inc-inner) {
-  /* --rd-shine is how much of the light the glass shows: 1 on the rig, and on an iPad 0.15 (the end of this file). */
+  /* --rd-shine is how much of the light the glass shows: 1 on the rig, and on an iPad 0.15 (the end of this file).
+     --panel-glass (base.css) takes the whole of the glass down with the "Panel background" slider, never up. */
   background:
     linear-gradient(180deg,
-      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.26 * var(--rd-shine, 1))) 0%,
-      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.16 * var(--rd-shine, 1))) 55%,
-      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.20 * var(--rd-shine, 1))) 100%),
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.26 * var(--rd-shine, 1) * var(--panel-glass, 1))) 0%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.16 * var(--rd-shine, 1) * var(--panel-glass, 1))) 55%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.20 * var(--rd-shine, 1) * var(--panel-glass, 1))) 100%),
     var(--bg);
   border: 1px solid rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.30);
   border-radius: var(--corner-r);
   box-shadow:
-    inset 0 0 36px 6px rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc((0.14 + var(--ambient-lum) * 0.18) * var(--rd-shine, 1))),
-    inset 0 1px 0 rgba(255, 255, 255, calc(0.10 * var(--rd-shine, 1)));
+    inset 0 0 36px 6px rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc((0.14 + var(--ambient-lum) * 0.18) * var(--rd-shine, 1) * var(--panel-glass, 1))),
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.10 * var(--rd-shine, 1) * var(--panel-glass, 1)));
   transition: background 0.6s ease, border-color 0.6s ease;
 }
 body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) {
@@ -149,7 +150,7 @@ body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-panel, .datastream
     linear-gradient(155deg, transparent 8%,
       rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.10) 30%,
       rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.04) 55%, transparent 72%);
-  opacity: calc((0.45 + var(--ambient-lum) * 0.5) * var(--rd-shine, 1));
+  opacity: calc((0.45 + var(--ambient-lum) * 0.5) * var(--rd-shine, 1) * var(--panel-glass, 1));
 }
 /* The specular streak is ambient.css's ::after, the rig's own, and shows as it is. */
 body.drive-mode-active.ambient-off :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel,
@@ -689,7 +690,9 @@ body.drive-mode-active[data-flag="black"] :is(.car-controls, .pedals-area, .map-
   #ratingPage, #gapsBlock, .tacho-block, #raceTimerBlock, #lapsPanel, .lb-inner, .ds-inner, .pb-inner, .inc-inner) {
   border-color: hsla(0, 80%, 55%, 0.8);
 }
-/* The glass under a flag: its colour through the panel, the numbers on it as legible as ever. */
+/* The glass under a flag: its colour through the panel, the numbers on it as legible as ever. The base is opaque, so
+   that the flag's pattern does not show through and lower the contrast — at the slider's 90 % and above; below it the
+   base thins with the rest of the panels. */
 body.drive-mode-active:is([data-flag="green"], [data-flag="greenheld"], [data-flag="yellow"], [data-flag="caution"],
   [data-flag="onetogreen"], [data-flag="red"], [data-flag="white"], [data-flag="checkered"], [data-flag="meatball"],
   [data-flag="debris"], [data-flag="disqualify"]) :is(.car-controls, .pedals-area, .map-panel,
@@ -697,10 +700,10 @@ body.drive-mode-active:is([data-flag="green"], [data-flag="greenheld"], [data-fl
   .ds-inner, .pb-inner, .inc-inner) {
   background:
     linear-gradient(180deg,
-      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.34) 0%,
-      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.20) 60%,
-      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.26) 100%),
-    hsl(0, 0%, 6%);
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.34 * var(--panel-glass, 1))) 0%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.20 * var(--panel-glass, 1))) 60%,
+      rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc(0.26 * var(--panel-glass, 1))) 100%),
+    hsla(0, 0%, 6%, var(--panel-glass, 1));
   border-color: rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.85);
 }
 /* The badges' squares stay whole over a pattern. The car's is the maker's colour over an opaque base, always (the
@@ -735,7 +738,7 @@ body.drive-mode-active:is([data-flag="green"], [data-flag="greenheld"], [data-fl
     radial-gradient(ellipse 85% 75% at 50% 42%, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0.40) 68%, rgba(0, 0, 0, 0.62) 100%),
     linear-gradient(180deg, rgba(0, 0, 0, 0.20) 0%, rgba(0, 0, 0, 0.28) 55%, rgba(0, 0, 0, 0.52) 100%);
 }
-body.drive-mode-active[data-flag]:not([data-flag="none"]) #brandLogoSquare { background: hsl(0, 0%, 9%); }
+body.drive-mode-active[data-flag]:not([data-flag="none"]) #brandLogoSquare { background: hsla(0, 0%, 9%, var(--panel-glass, 1)); }
 /* The flag's words in the gaps block, as big as the block allows. */
 body.drive-mode-active #gapsBlock.flag-active .flag-overlay { background: hsla(0, 0%, 4%, 0.55); }
 
@@ -752,10 +755,13 @@ html.rd-effects-off body.drive-mode-active .gl-overlay { display: none !importan
    glow and the sweep, the specular streak, the inset glow — is at fifteen hundredths of the rig's (--rd-shine, used
    by the glass rules above); the flags' own treatment of the glass is as it was. The two badges, the Racing Desk mark
    and the car's maker with the car's name, are not cells here, and the row they were in is the controls, the pedals
-   and the clock. The menu's sign (remote-server.js) is a small round button in the top right corner. */
-html.rd-remote body.drive-mode-active { --rd-shine: 0.15; }
-html.rd-remote body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel,
-  .incidents-panel, .laps-panel)::after { opacity: calc((0.25 + var(--ambient-lum) * 0.35) * var(--rd-shine, 1)) !important; }
+   and the clock. The menu's sign (remote-server.js) is a small round button in the top right corner.
+   The iPad dashboard OBS draws (html.rd-glance, the loopback listener's /obs-ipad: "iPad dashboard" under "HUD drawn
+   by OBS") has the same look — the glass, no badges, the row — and OBS mode's behaviour; what is the iPad's alone (the
+   menu, the flag behind and between the panels, the frame, the black page) it does not have: the end of this file. */
+html:is(.rd-remote, .rd-glance) body.drive-mode-active { --rd-shine: 0.15; }
+html:is(.rd-remote, .rd-glance) body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel,
+  .incidents-panel, .laps-panel)::after { opacity: calc((0.25 + var(--ambient-lum) * 0.35) * var(--rd-shine, 1) * var(--panel-glass, 1)) !important; }
 /* The flag behind and between the panels at fifteen hundredths too, under every flag: the renders of the first cut had
    the stripes at full strength in every gutter and round the edge, which is the noise he asked to have brought down.
    A flag is still read at a glance from the flag card in the gaps block, race control's banner and the panels'
@@ -784,8 +790,8 @@ html.rd-remote body.drive-mode-active:not(.rd-no-data)::after {
   transition: opacity 0.35s ease;
 }
 html.rd-remote body.drive-mode-active:not(.rd-no-data)[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::after { opacity: 1; }
-html.rd-remote body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: none !important; }
-html.rd-remote body.drive-mode-active {
+html:is(.rd-remote, .rd-glance) body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: none !important; }
+html:is(.rd-remote, .rd-glance) body.drive-mode-active {
   grid-template-areas:
     "hero hero hero hero hero hero hero gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho lb lb lb lb lb lb lb"
     "map map map map map map map local local local local laps laps laps laps laps laps lb lb lb lb lb lb lb"
@@ -797,7 +803,7 @@ html.rd-remote body.drive-mode-active {
   /* Upright, the gaps block is the corner the menu's button is over, and its strip of sectors runs to the block's right
      edge: the strip stops short of the button (44px, and the frame it is set in from the screen's edge). */
   html.rd-remote body.drive-mode-active #gapsBlock .sector-indicator { padding-right: calc(44px + var(--rd-gap)); }
-  html.rd-remote body.drive-mode-active {
+  html:is(.rd-remote, .rd-glance) body.drive-mode-active {
     grid-template-areas:
       "hero hero hero hero hero hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps gaps gaps gaps"
       "tacho tacho tacho tacho tacho tacho tacho tacho map map map map map map map map map map map local local local local local"
@@ -807,3 +813,12 @@ html.rd-remote body.drive-mode-active {
       "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
   }
 }
+
+/* ═══ The iPad dashboard OBS draws (html.rd-glance; remote-server.js, /obs-ipad) ═══════════════════════════════════
+   A browser source composites over the game, so there is nothing of a page here: the body is transparent (the glance
+   layout's own dark page is the iPad's, which has no game behind it), and the flag's pattern is not drawn behind or
+   between the panels — no gutters of stripes over the game, and no frame at the edge. A flag still reads from the flag
+   card in the gaps block, race control's banner and the panels' flag-coloured borders and tint, which are as they are
+   on the iPad. Hidden out of the car and while he has the HUD away, as the rig HUD OBS draws is (remote-server.js). */
+html.rd-glance body.drive-mode-active { background: transparent !important; }
+html.rd-glance body.drive-mode-active::before { display: none !important; content: none !important; }

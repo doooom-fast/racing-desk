@@ -11,12 +11,15 @@
 // Run once by main.js at start, before anything reads the file; `recordingSettingsVersion` says it has been. Version 3
 // (stage 2) takes `recordingAutoStopOnPit` out: his rules of 2026-09-30 stop a recording on a new session, at the end
 // of the race and when he leaves the car, and the pit lane is none of those. Version 4 (stage 3) adds the loopback
-// listener's port and the TV shots' facecam switch.
+// listener's port and the TV shots' facecam switch. Version 5 adds what OBS draws under "HUD drawn by OBS" (the rig
+// HUD or the iPad dashboard) and the panel-background slider for it, and takes `greenScreen` out: nothing read it
+// (Ctrl+Shift+G flipped it and restarted the app, and the restart was all that happened).
 const path = require('path');
 
-const VERSION = 4;
+const VERSION = 5;
 
-// Deleted: the Electron recorder's own, the old WinUI app's control server, and "stop in the pits".
+// Deleted: the Electron recorder's own, the old WinUI app's control server, "stop in the pits", and the green-screen
+// key nothing read.
 const DELETED = Object.freeze([
   'recordingBackend', 'hostControlPort', 'recordingAutoStopOnPit',
   'recordingQuality', 'recordingEncoder', 'recordingOutputFormat', 'recordingDeleteSource',
@@ -25,6 +28,7 @@ const DELETED = Object.freeze([
   'recordingWebcamDevice', 'recordingWebcamLabel', 'recordingFacecam', 'recordingFacecamSize', 'recordingFacecamPos',
   // The in-RAM buffer's length, which OBS's replay buffer (RecRBTime, 20 s, set by "Set up OBS") replaces.
   'replayBufferDuration', 'replayBufferSeconds',
+  'greenScreen',
 ]);
 
 // Renamed: the same meaning, under the name the OBS keeper reads.
@@ -43,7 +47,17 @@ const ADDED = Object.freeze({
   obsHudSource: false,                 // "HUD drawn by OBS": the HUD as a browser source in his scenes, off unless he turns it on
   localServerPort: 9091,               // the listener on 127.0.0.1 for the Stream Deck and the OBS page (remote-server.js)
   tvShotsHideFacecam: true,            // the facecam hidden while a TV take is recorded, and put back after
+  obsHudView: 'rig',                   // what OBS draws with the switch on: the rig HUD ('rig') or the iPad dashboard ('ipad')
+  obsPanelBackground: 90,              // how solid the panels are in the page OBS draws, 0 to 100 (90: as they have always been)
 });
+
+// What OBS may draw under "HUD drawn by OBS", and the word the file holds for each.
+const HUD_VIEWS = Object.freeze(['rig', 'ipad']);
+
+/** The choice as the file has it, read strictly: 'ipad' only when it says so, else 'rig'. */
+function hudViewOf(settings) {
+  return settings && settings.obsHudView === 'ipad' ? 'ipad' : 'rig';
+}
 
 // Kept as it is: recordingAutoRecord (on unless set to false; the keeper reads `!== false`).
 
@@ -105,4 +119,4 @@ function recordingFolder(settings, { exists, home }) {
   return path.join(home, 'Videos', 'Racing Desk');
 }
 
-module.exports = { VERSION, DELETED, RENAMED, ADDED, DEFAULT_FOLDER_ON_D, migrate, migrateFile, recordingFolder };
+module.exports = { VERSION, DELETED, RENAMED, ADDED, HUD_VIEWS, DEFAULT_FOLDER_ON_D, migrate, migrateFile, recordingFolder, hudViewOf };

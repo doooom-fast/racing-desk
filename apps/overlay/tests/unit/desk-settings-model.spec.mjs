@@ -66,6 +66,21 @@ test.describe('settings model', () => {
     expect(parseControlValue(fieldFor('logoSubtitle'), '  by DOOOOM ')).toBe('by DOOOOM');
     expect(parseControlValue(fieldFor('logoSubtitle'), null)).toBe('');
   });
+
+  test('the panel background is a slider under Look, 90 by default (the panels as they were), 0 to 100 in fives; the OBS one is not here', () => {
+    const field = fieldFor('panelBackground');
+    expect(SETTINGS_SECTIONS.find((s) => s.id === 'look').fields.map((f) => f.key)).toContain('panelBackground');
+    expect(field).toMatchObject({ type: 'range', def: 90, min: 0, max: 100, step: 5, unit: '%' });
+    expect(field.hint).toMatch(/game show through/);
+    expect(valueOf(settingsView({}), 'panelBackground')).toBe(90);
+    expect(valueOf(settingsView({ panelBackground: 35 }), 'panelBackground')).toBe(35);
+    expect(valueOf(settingsView({ panelBackground: 'none' }), 'panelBackground')).toBe(90);
+    expect(parseControlValue(field, '0')).toBe(0);
+    expect(parseControlValue(field, '150')).toBe(100);
+    expect(parseControlValue(field, '')).toBe(90);
+    // The slider for the HUD drawn by OBS is the Recording card's (recording-model.js), with the switch it belongs to.
+    expect(fieldFor('obsPanelBackground')).toBeNull();
+  });
   // ── The HUD's screen ──
   const SCREENS = {
     displays: [{ key: '2', name: '1440 × 1080 (left, primary)' }, { key: '1', name: '3440 × 1440 (right)' }],

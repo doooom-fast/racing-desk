@@ -24,6 +24,7 @@ const HIS = {
   recordingAutoRecord: true, recordingAutoStopOnPit: false,
   replayBufferEnabled: false, replayBufferSeconds: 30, replayBufferDuration: 30,
   recordingBackend: 'native', hostControlPort: 50965,
+  greenScreen: false,
 };
 
 test.describe('the migration', () => {
@@ -54,8 +55,13 @@ test.describe('the migration', () => {
     expect(settings.obsHudSource).toBe(false);
     expect(settings.localServerPort).toBe(9091);
     expect(settings.tvShotsHideFacecam).toBe(true);
-    expect(added.sort()).toEqual(['localServerPort', 'obsHudSource', 'obsPath', 'obsStartOnRecord', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'tvShotsHideFacecam']);
-    expect(settings.recordingSettingsVersion).toBe(4);
+    // Version 5: what OBS draws under "HUD drawn by OBS" and the panel background for it; the green-screen key nothing read is gone.
+    expect(settings.obsHudView).toBe('rig');
+    expect(settings.obsPanelBackground).toBe(90);
+    expect('greenScreen' in settings).toBe(false);
+    expect(removed).toContain('greenScreen');
+    expect(added.sort()).toEqual(['localServerPort', 'obsHudSource', 'obsHudView', 'obsPanelBackground', 'obsPath', 'obsStartOnRecord', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'tvShotsHideFacecam']);
+    expect(settings.recordingSettingsVersion).toBe(5);
     // The HUD's own keys, the paints and the iPad's are untouched.
     expect(settings.zoom).toBe(165);
     expect(settings.showSpotter).toBe(false);
@@ -82,28 +88,47 @@ test.describe('the migration', () => {
     const second = rs.migrate(first.settings);
     expect(second.changed).toBe(false);
     expect(second.settings).toEqual(first.settings);
-    expect(rs.migrate({ recordingSettingsVersion: 4, recordingBackend: 'native' }).changed).toBe(false);
-    expect(rs.migrate({ recordingSettingsVersion: 5 }).changed).toBe(false);
-    // A file at version 2 (stage 1) loses "stop in the pits" and nothing else, and comes to 4.
+    expect(rs.migrate({ recordingSettingsVersion: 5, recordingBackend: 'native' }).changed).toBe(false);
+    expect(rs.migrate({ recordingSettingsVersion: 6 }).changed).toBe(false);
+    // A file at version 2 (stage 1) loses "stop in the pits" and nothing else, and comes to 5.
     const fromTwo = rs.migrate({ recordingSettingsVersion: 2, recordingAutoRecord: true, recordingAutoStopOnPit: true, recordingInstantReplay: false, obsStartOnRecord: false, zoom: 120 });
     expect(fromTwo.changed).toBe(true);
     expect(fromTwo.removed).toEqual(['recordingAutoStopOnPit']);
     expect(fromTwo.renamed).toEqual([]);
-    expect(fromTwo.added.sort()).toEqual(['localServerPort', 'obsHudSource', 'obsPath', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'tvShotsHideFacecam']);
-    expect(fromTwo.settings).toMatchObject({ recordingSettingsVersion: 4, recordingAutoRecord: true, recordingInstantReplay: false, obsStartOnRecord: false, zoom: 120 });
-    // A file at version 3 (stage 2) gets the loopback listener's port and the TV shots' switch, and nothing else changes.
+    expect(fromTwo.added.sort()).toEqual(['localServerPort', 'obsHudSource', 'obsHudView', 'obsPanelBackground', 'obsPath', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'tvShotsHideFacecam']);
+    expect(fromTwo.settings).toMatchObject({ recordingSettingsVersion: 5, recordingAutoRecord: true, recordingInstantReplay: false, obsStartOnRecord: false, zoom: 120 });
+    // A file at version 3 (stage 2) gets the loopback listener's port and the TV shots' switch, and version 5's two keys.
     const fromThree = rs.migrate({ recordingSettingsVersion: 3, obsHudSource: true, recordingChapters: false, zoom: 120, recordingInstantReplaySeconds: 20, obsStartOnRecord: true, obsStartWithApp: false, obsPath: null });
     expect(fromThree.changed).toBe(true);
     expect(fromThree.removed).toEqual([]);
-    expect(fromThree.added.sort()).toEqual(['localServerPort', 'tvShotsHideFacecam']);
-    expect(fromThree.settings).toMatchObject({ recordingSettingsVersion: 4, obsHudSource: true, recordingChapters: false, zoom: 120, localServerPort: 9091, tvShotsHideFacecam: true });
+    expect(fromThree.added.sort()).toEqual(['localServerPort', 'obsHudView', 'obsPanelBackground', 'tvShotsHideFacecam']);
+    expect(fromThree.settings).toMatchObject({ recordingSettingsVersion: 5, obsHudSource: true, recordingChapters: false, zoom: 120, localServerPort: 9091, tvShotsHideFacecam: true });
+    // A file at version 4 (stage 3) gets the choice, Rig HUD, and the OBS slider at the panels' nine-tenths; loses the
+    // green-screen key; and nothing else changes.
+    const four = { recordingSettingsVersion: 4, recordingInstantReplaySeconds: 20, recordingChapters: true, obsStartOnRecord: true, obsStartWithApp: false, obsPath: null, obsHudSource: true, greenScreen: true, localServerPort: 9092, tvShotsHideFacecam: false, zoom: 120 };
+    const fromFour = rs.migrate(four);
+    expect(fromFour.changed).toBe(true);
+    expect(fromFour.removed).toEqual(['greenScreen']);
+    expect(fromFour.added.sort()).toEqual(['obsHudView', 'obsPanelBackground']);
+    const { greenScreen, ...kept } = four;
+    expect(fromFour.settings).toEqual({ ...kept, recordingSettingsVersion: 5, obsHudView: 'rig', obsPanelBackground: 90 });
+    // A choice or a slider already in the file (a later build wrote it) is not written over.
+    expect(rs.migrate({ recordingSettingsVersion: 4, obsHudView: 'ipad', obsPanelBackground: 40 }).settings).toMatchObject({ obsHudView: 'ipad', obsPanelBackground: 40 });
+  });
+
+  test('the choice of what OBS draws is read strictly: ipad when the file says so, the rig HUD for anything else', () => {
+    expect(rs.HUD_VIEWS).toEqual(['rig', 'ipad']);
+    expect(rs.hudViewOf({ obsHudView: 'ipad' })).toBe('ipad');
+    for (const value of ['rig', 'iPad', 'IPAD', 'television', '', null, undefined, 1, true]) expect(rs.hudViewOf({ obsHudView: value }), String(value)).toBe('rig');
+    expect(rs.hudViewOf(null)).toBe('rig');
+    expect(rs.hudViewOf({})).toBe('rig');
   });
 
   test('a missing or empty file gets the OBS keys and the version, and nothing else', () => {
     for (const file of [null, undefined, {}, [], 'x']) {
       const { settings, changed } = rs.migrate(file);
       expect(changed).toBe(true);
-      expect(Object.keys(settings).sort()).toEqual(['localServerPort', 'obsHudSource', 'obsPath', 'obsStartOnRecord', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'recordingSettingsVersion', 'tvShotsHideFacecam']);
+      expect(Object.keys(settings).sort()).toEqual(['localServerPort', 'obsHudSource', 'obsHudView', 'obsPanelBackground', 'obsPath', 'obsStartOnRecord', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'recordingSettingsVersion', 'tvShotsHideFacecam']);
     }
   });
 });
@@ -122,7 +147,8 @@ test.describe('the file', () => {
     const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'));
     expect('recordingBackend' in onDisk).toBe(false);
     expect('hostControlPort' in onDisk).toBe(false);
-    expect(onDisk.recordingSettingsVersion).toBe(4);
+    expect('greenScreen' in onDisk).toBe(false);
+    expect(onDisk.recordingSettingsVersion).toBe(5);
     expect(onDisk.remoteServerKey).toBe('abcd2345');
     expect(fs.existsSync(`${file}.tmp`)).toBe(false);
     const mtime = fs.statSync(file).mtimeMs;
@@ -135,7 +161,7 @@ test.describe('the file', () => {
     const missing = path.join(dir, 'overlay-settings.json');
     const made = rs.migrateFile(missing, { settingsFile });
     expect(made.state).toBe('missing');
-    expect(JSON.parse(fs.readFileSync(missing, 'utf8')).recordingSettingsVersion).toBe(4);
+    expect(JSON.parse(fs.readFileSync(missing, 'utf8')).recordingSettingsVersion).toBe(5);
 
     const broken = path.join(dir, 'broken.json');
     fs.writeFileSync(broken, '{ not json');

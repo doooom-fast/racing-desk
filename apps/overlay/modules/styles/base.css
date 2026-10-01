@@ -19,9 +19,18 @@
     --dash-h: 200px;
     --row-h: calc((var(--dash-h) - var(--gap)) / 2);
 
-    --bg: hsla(0, 0%, 8%, 0.90);
-    --bg-panel: hsla(0, 0%, 6%, 0.90);
-    --bg-logo: hsla(0, 0%, 12%, 0.90);
+    /* How solid the panels' own background is: the "Panel background" slider (Settings → Look; the HUD drawn by OBS
+       has one of its own), which settings.js writes here as a fraction. 0.9 is what the panels have always been.
+       --panel-glass scales the glass (the tints, the glow, the streak) down with it and never up: at 0.9 and above the
+       glass is as it was, and at nought there is no panel to see. --panel-shadow is the soft dark shadow the numbers
+       and words get as the background goes (0 at 0.9 and above, 1 at nought), for reading them over the game. */
+    --panel-alpha: 0.9;
+    --panel-glass: min(1, calc(var(--panel-alpha) / 0.9));
+    --panel-shadow: clamp(0, calc((0.9 - var(--panel-alpha)) / 0.9), 1);
+
+    --bg: hsla(0, 0%, 8%, var(--panel-alpha));
+    --bg-panel: hsla(0, 0%, 6%, var(--panel-alpha));
+    --bg-logo: hsla(0, 0%, 12%, var(--panel-alpha));
     --border: hsla(0, 0%, 100%, 0.14);
     --text-primary: hsla(0, 0%, 100%, 1.0);
     --text-secondary: hsla(0, 0%, 100%, 0.69);
@@ -61,9 +70,10 @@
 
   /* Light theme fallback — overridden by remote token CSS when available */
   [data-theme="light"] {
-    --bg: hsla(240, 10%, 96%, 0.92);
-    --bg-panel: hsla(240, 10%, 94%, 0.92);
-    --bg-logo: hsla(240, 5%, 92%, 0.92);
+    /* The light panels were at 0.92: the slider's 0.9 keeps them there, and scales them with the dark ones. */
+    --bg: hsla(240, 10%, 96%, min(1, calc(0.92 * var(--panel-alpha) / 0.9)));
+    --bg-panel: hsla(240, 10%, 94%, min(1, calc(0.92 * var(--panel-alpha) / 0.9)));
+    --bg-logo: hsla(240, 5%, 92%, min(1, calc(0.92 * var(--panel-alpha) / 0.9)));
     --border: rgba(0, 0, 0, 0.12);
     --text-primary: hsla(0, 0%, 10%, 1.0);
     --text-secondary: rgba(0, 0, 0, 0.65);
@@ -88,6 +98,18 @@
     position: relative;
     margin: 0;
     padding: 0;
+  }
+
+  /* The panels' numbers and words over the game: as the panel background goes down (the slider under 90 %, which
+     settings.js marks as body.panels-thin) a soft dark shadow grows under the text in every panel, so it stays
+     readable with the game showing through. At 90 % and above there is none, and the panels are as they were.
+     text-shadow inherits, so it is set on the panels and reaches every word in them; an effect with a shadow of its
+     own (the tacho's pulse, the redline) keeps its own. */
+  body.panels-thin :is(.panel, .tacho-block, .lb-inner, .ds-inner, .pb-inner, .inc-inner, .laps-panel, .logo-square, .race-timeline) {
+    text-shadow:
+      0 1px 2px rgba(0, 0, 0, calc(0.9 * var(--panel-shadow))),
+      0 0 3px rgba(0, 0, 0, calc(0.8 * var(--panel-shadow))),
+      0 0 10px rgba(0, 0, 0, calc(0.7 * var(--panel-shadow)));
   }
 
   /* Settings hint text */

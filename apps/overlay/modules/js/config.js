@@ -636,7 +636,9 @@ const _defaultSettings = {
   showMaps: true, showTimer: true,
   showK10Logo: true, showCarLogo: true, showGameLogo: true, simhubUrl: 'http://localhost:8889/racing-desk/',
   layoutPosition: 'top-right',
-  greenScreen: false, showWebGL: true, showBonkers: true, ambientMode: 'reflective',
+  showWebGL: true, showBonkers: true, ambientMode: 'reflective',
+  // How solid the panels are, 0 to 100 (settings.js applyPanelBackground): 90 is the panels as they have always been.
+  panelBackground: 90,
   zoom: 165, forceFlag: '', showLeaderboard: true, showDatastream: true, showPitBox: true, showIncidents: true, showSpotter: true,
   incPenalty: 17, incDQ: 25,
   discordUser: null,

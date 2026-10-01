@@ -5,7 +5,7 @@
     margin-top: 4px;
     border-radius: 6px;
     overflow: hidden;
-    background: hsla(0, 0%, 5%, 0.90);
+    background: hsla(0, 0%, 5%, var(--panel-alpha, 0.90));
     border: 1px solid hsla(0, 0%, 100%, 0.14);
     padding: 2px;
   }
@@ -28,7 +28,7 @@
   /* Position offsets removed — now handled by .sec-container flex layout */
 
   .ds-inner {
-    background: hsla(0, 0%, 5%, 0.90);
+    background: hsla(0, 0%, 5%, var(--panel-alpha, 0.90));
     border: 1px solid hsla(0, 0%, 100%, 0.14);
     border-radius: 8px;
     padding: 6px 10px 8px;
@@ -167,7 +167,7 @@
   .inc-inner {
     position: relative;
     z-index: 1;
-    background: hsla(0, 0%, 5%, 0.90);
+    background: hsla(0, 0%, 5%, var(--panel-alpha, 0.90));
     border: 1px solid hsla(0, 0%, 100%, 0.14);
     border-radius: 8px;
     padding: 4px 8px 6px;
@@ -217,9 +217,9 @@
   .incidents-panel.inc-level-0 .inc-inner { border-color: hsla(145, 50%, 40%, 0.24); }
   .incidents-panel.inc-level-1 .inc-inner { border-color: hsla(90, 50%, 40%, 0.30); }
   .incidents-panel.inc-level-2 .inc-inner { border-color: hsla(48, 60%, 40%, 0.36); }
-  .incidents-panel.inc-level-3 .inc-inner { border-color: hsla(30, 65%, 40%, 0.40); background: hsla(30, 40%, 8%, 1.0); }
-  .incidents-panel.inc-level-4 .inc-inner { border-color: hsla(8, 65%, 40%, 0.50); background: hsla(8, 40%, 8%, 1.0); }
-  .incidents-panel.inc-level-5 .inc-inner { border-color: hsla(0, 70%, 40%, 0.60); background: hsla(0, 45%, 8%, 1.0); }
+  .incidents-panel.inc-level-3 .inc-inner { border-color: hsla(30, 65%, 40%, 0.40); background: hsla(30, 40%, 8%, var(--panel-glass, 1)); }
+  .incidents-panel.inc-level-4 .inc-inner { border-color: hsla(8, 65%, 40%, 0.50); background: hsla(8, 40%, 8%, var(--panel-glass, 1)); }
+  .incidents-panel.inc-level-5 .inc-inner { border-color: hsla(0, 70%, 40%, 0.60); background: hsla(0, 45%, 8%, var(--panel-glass, 1)); }
 
   /* Threshold rows — penalty / DQ remaining */
   .inc-thresholds {

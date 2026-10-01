@@ -72,7 +72,7 @@ async function open(page, r) {
   await page.addInitScript(() => {
     // The settings are asked for again every ten seconds, and the app's word on his HUD switch every second; here sooner.
     // And whatever the voice coach says is counted.
-    window._obsSettingsEveryMs = 250;
+    window._displaySettingsEveryMs = 250;
     window._obsStatusEveryMs = 200;
     window.__spoken = 0;
     if (window.speechSynthesis) window.speechSynthesis.speak = () => { window.__spoken++; };

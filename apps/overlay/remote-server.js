@@ -17,6 +17,9 @@
 //                           with the header X-Racing-Desk: 1. Refused to anything that comes over the network, and
 //                           to anything a browser sends: a page cannot put that header on a link, an image or a
 //                           form, so no page the driver happens to have open can quit the app
+//   GET /api/settings-display  on the iPad's server: the one display setting the iPad is told of, the panel
+//                           background (IPAD_SETTINGS), and nothing else of the settings file. The page is given it
+//                           and asks again every ten seconds, so the slider on the desk reaches the iPad
 //
 // Two of these servers run (createServer): the iPad's, on the home network while its switch is on, and one that is
 // always up on 127.0.0.1 alone (`loopback: true`, port 9091 by default, `localServerPort`) for the programs on this
@@ -26,9 +29,14 @@
 //   GET /obs                   the HUD page in OBS mode: told it is OBS's (window._obsMode), its telemetry here, his
 //                              display settings (below), no black background, no iPad menu and no key — a browser
 //                              source's address in OBS's scene file carries nothing
+//   GET /obs-ipad              the same page as the glance layout the iPad is shown (window._obsGlance, html.rd-glance:
+//                              drive mode from the start, the iPad's look — the glass at fifteen hundredths, no
+//                              badges, the sectors that fit), in OBS mode's behaviour, and with nothing behind or
+//                              between the panels: no black page, no flag pattern in the gutters, so the game shows
+//                              through. "iPad dashboard" under "HUD drawn by OBS". Never on the iPad's server
 //   GET /api/settings-display  his display settings, the allowlist alone (DISPLAY_SETTINGS: the zoom, the position,
-//                              the panels, the look): never a key, the paints, the iPad's or the recording's keys.
-//                              The OBS page asks every ten seconds
+//                              the panels, the look, the two panel-background sliders): never a key, the paints, the
+//                              iPad's or the recording's keys. The OBS pages ask every ten seconds
 //   GET /api/status            with { inCar, hudVisible, hudOff, hudActions, recording } beside the two words it always said:
 //                              the OBS page asks it once a second, for his HUD switch (hudOff: the page is hidden while he
 //                              has put the HUD away) and for the page-only actions pressed on the rig (zoom, cycle)
@@ -200,10 +208,19 @@ const ACTIONS = Object.freeze([
 const DISPLAY_SETTINGS = Object.freeze([
   'zoom', 'layoutPosition', 'bottomYOffset', 'visualPreset', 'theme', 'ambientMode', 'driveMode', 'rallyMode',
   'lbMaxRows', 'lbFocus', 'lbExpandToFill', 'logoSubtitle', 'incPenalty', 'incDQ', 'forceFlag',
+  // The two "Panel background" sliders (settings.js applyPanelBackground): the rig's and the iPad's, and the one for
+  // the HUD drawn by OBS, which the OBS pages read instead.
+  'panelBackground', 'obsPanelBackground',
 ]);
 const DISPLAY_SETTING_PATTERN = /^show[A-Z]/;
+// What the iPad's server tells the iPad of the settings: the panel background, a number, and nothing else. The glance
+// layout shows every panel whatever the rig's switches say, at the cell's size whatever the zoom, so none of the rest
+// is the iPad's to read.
+const IPAD_SETTINGS = Object.freeze(['panelBackground']);
 const LOCAL_DEFAULT_PORT = 9091;
 const OBS_PATH = '/obs';
+// One segment, like /obs: the page's addresses are relative (modules/…, fonts/…) and resolve against the page's own.
+const OBS_IPAD_PATH = '/obs-ipad';
 const SETTINGS_PATH = '/api/settings-display';
 const STATUS_PATH = '/api/status';
 
@@ -215,6 +232,16 @@ function displaySettingsOf(settings) {
     if (!DISPLAY_SETTINGS.includes(key) && !DISPLAY_SETTING_PATTERN.test(key)) continue;
     if (value !== null && typeof value === 'object') continue;   // a setting is a word, a number or a switch
     out[key] = value;
+  }
+  return out;
+}
+
+/** His settings cut down to what the iPad is told (IPAD_SETTINGS): numbers alone. */
+function ipadSettingsOf(settings) {
+  const out = {};
+  if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) return out;
+  for (const key of IPAD_SETTINGS) {
+    if (typeof settings[key] === 'number' && Number.isFinite(settings[key])) out[key] = settings[key];
   }
   return out;
 }
@@ -267,15 +294,20 @@ const FALLBACK_FACES = `:root:not(.rd-kit) {
 // also does, once a second, the page-only actions pressed on the rig since it began (the Stream Deck's zoom and cycle
 // keys change the rig's page alone and are saved nowhere, so the settings it is given cannot carry them). No background
 // (a browser source composites over the game), no menu, no key.
-function obsInjection(kits, settingsJson) {
+//
+// `glance` is the iPad dashboard for OBS (/obs-ipad): the same, but laid out as the glance layout from the start
+// (window._obsGlance, which drive-hud.js reads as it reads _remoteMode; html.rd-glance for the iPad's look and the
+// transparent page, drive-view.css), and the page-only actions of the rig are not done — the glance layout has no zoom
+// and no tabs to turn, and the rig's zoom key would scale the whole grid.
+function obsInjection(kits, settingsJson, { glance = false } = {}) {
   return `<meta name="referrer" content="no-referrer">
 <script>
-window._obsMode = true;
+window._obsMode = true;${glance ? '\nwindow._obsGlance = true;' : ''}
 window._simhubUrlOverride = location.origin + '${TELEMETRY_PATH}';
-window._obsSettings = ${settingsJson};
-window._obsSettingsUrl = '${SETTINGS_PATH}';
+window._displaySettings = ${settingsJson};
+window._displaySettingsUrl = '${SETTINGS_PATH}';
 window._obsStatusUrl = '${STATUS_PATH}';
-document.documentElement.classList.add('rd-obs');
+document.documentElement.classList.add('rd-obs');${glance ? "\ndocument.documentElement.classList.add('rd-glance');" : ''}
 // Hidden until the page has started and the telemetry says he is in the car: the page starts out idle and says so only on a change.
 document.addEventListener('DOMContentLoaded', function () {
   document.body.classList.add('idle-state');
@@ -290,7 +322,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!st) return;
       document.documentElement.classList.toggle('rd-hud-off', st.hudOff === true);
       var actions = st.hudActions;
-      if (!actions || !Array.isArray(actions.recent)) return;
+      if (window._obsGlance || !actions || !Array.isArray(actions.recent)) return;
       if (seen === null) { seen = Number(actions.seq) || 0; return; }
       actions.recent.forEach(function (a) {
         if (a && a.n > seen && typeof window.runHudAction === 'function') window.runHudAction(a.name);
@@ -314,7 +346,9 @@ ${FALLBACK_FACES}
 </style>`;
 }
 
-function injection(kits) {
+// `settingsJson` is what the iPad is told of the settings (ipadSettingsOf: the panel background), and the page asks
+// the same server for it again every ten seconds (settings.js, as the OBS page does).
+function injection(kits, settingsJson) {
   return `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -322,6 +356,8 @@ function injection(kits) {
 <script>
 window._remoteMode = true;
 window._simhubUrlOverride = location.origin + '${TELEMETRY_PATH}';
+window._displaySettings = ${settingsJson};
+window._displaySettingsUrl = '${SETTINGS_PATH}';
 document.documentElement.classList.add('rd-remote');
 // The HUD's effects are drawn here as on the rig unless they were switched off from the menu, on this iPad, before.
 try { window._rdEffectsOff = localStorage.getItem('rd-effects') === 'off'; } catch (e) { window._rdEffectsOff = false; }
@@ -469,17 +505,21 @@ function addToHead(local, add) {
   return local.replace('<body', () => `${add}<body`);
 }
 
-function injectRemoteOverrides(html) {
+// The iPad's page: `settings` is his settings whole, cut down here to what ipadSettingsOf lets through (the panel
+// background, a number) and written into the page as JSON.
+function injectRemoteOverrides(html, settings = null) {
   const { local, kits } = stripKits(html);
-  return addToHead(local, injection(kits));
+  const json = JSON.stringify(ipadSettingsOf(settings)).replace(/</g, '\\u003c');
+  return addToHead(local, injection(kits, json));
 }
 
 // The OBS page: `settings` is his settings whole, cut down here to what displaySettingsOf lets through and written
 // into the page as JSON (a setting is a word, a number or a switch; the escape is for a script tag's sake all the same).
-function injectObsOverrides(html, settings) {
+// `glance` is the iPad dashboard for OBS (/obs-ipad).
+function injectObsOverrides(html, settings, { glance = false } = {}) {
   const { local, kits } = stripKits(html);
   const json = JSON.stringify(displaySettingsOf(settings)).replace(/</g, '\\u003c');
-  return addToHead(local, obsInjection(kits, json));
+  return addToHead(local, obsInjection(kits, json, { glance }));
 }
 
 const NO_STORE = Object.freeze({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -601,22 +641,22 @@ function handleRequest(config, req, res) {
     return;
   }
 
-  // The OBS page and his display settings: the loopback listener's alone. The iPad's answers as it does to any
-  // address it has no page for.
+  // His settings, as far as a page may be told them: the loopback listener's OBS pages get the display allowlist; the
+  // iPad (behind its key, like everything on its server) the panel background alone.
+  const settingsNow = () => {
+    try { return typeof config.displaySettings === 'function' ? config.displaySettings() : null; } catch (e) { return null; }
+  };
   if (pathname === SETTINGS_PATH) {
-    if (!config.loopback) { sendText(res, 404, 'Not found'); return; }
-    let settings = null;
-    try { settings = typeof config.displaySettings === 'function' ? config.displaySettings() : null; } catch (e) { settings = null; }
-    sendJson(res, 200, displaySettingsOf(settings));
+    sendJson(res, 200, config.loopback ? displaySettingsOf(settingsNow()) : ipadSettingsOf(settingsNow()));
     return;
   }
 
-  if (pathname === OBS_PATH) {
+  // The OBS pages: the loopback listener's alone. The iPad's answers as it does to any address it has no page for.
+  if (pathname === OBS_PATH || pathname === OBS_IPAD_PATH) {
     if (!config.loopback || url.search.length) { sendText(res, 404, 'Not found'); return; }
+    const glance = pathname === OBS_IPAD_PATH;
     fs.readFile(path.join(config.appDir, DASHBOARD_FILE), 'utf8', (err, html) => {
       if (err) { sendText(res, 404, `${DASHBOARD_FILE} not found`); return; }
-      let settings = null;
-      try { settings = typeof config.displaySettings === 'function' ? config.displaySettings() : null; } catch (e) { settings = null; }
       res.writeHead(200, {
         ...NO_STORE,
         'Content-Type': 'text/html; charset=utf-8',
@@ -624,7 +664,7 @@ function handleRequest(config, req, res) {
         'Content-Security-Policy': "frame-ancestors 'none'",
         'X-Frame-Options': 'DENY',
       });
-      res.end(injectObsOverrides(html, settings));
+      res.end(injectObsOverrides(html, settingsNow(), { glance }));
     });
     return;
   }
@@ -682,7 +722,7 @@ function handleRequest(config, req, res) {
         headers['Set-Cookie'] = `${KEY_COOKIE}=${config.key}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Strict`;
       }
       res.writeHead(200, headers);
-      res.end(injectRemoteOverrides(html));
+      res.end(injectRemoteOverrides(html, settingsNow()));
     });
     return;
   }
@@ -889,11 +929,11 @@ function setActionDispatcher(fn) {
 const lan = createServer();
 
 module.exports = {
-  DEFAULT_PORT, LOCAL_DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM, CROP_PATH, OBS_PATH, SETTINGS_PATH, STATUS_PATH,
-  DISPLAY_SETTINGS,
+  DEFAULT_PORT, LOCAL_DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM, CROP_PATH, OBS_PATH, OBS_IPAD_PATH, SETTINGS_PATH, STATUS_PATH,
+  DISPLAY_SETTINGS, IPAD_SETTINGS,
   start: lan.start, stop: lan.stop, isRunning: lan.isRunning, getInfo: lan.getInfo, getLanAddress, setActionDispatcher,
   createServer, startWithRetry, RETRY_DELAYS_MS,
   // The parts, for the tests.
   newKey, isKey, lanAddresses, telemetryBase, namesThisMachine, isLocal, fromBrowser, staticFile, injectRemoteOverrides,
-  injectObsOverrides, displaySettingsOf, handleRequest,
+  injectObsOverrides, displaySettingsOf, ipadSettingsOf, handleRequest,
 };
