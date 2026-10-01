@@ -164,8 +164,8 @@ data?… get rid of all of it").
   and every 60 s once there is his own, swapping the outline when it has gained laps. The iPad's proxy serves
   `/racing-desk/` alone and refuses queries, so the route is never reachable from the
   network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was, plus
-  `TrackMap.Status`: `ready`, `crowd` (drawn, on SimHub's shared map: the cell says "SimHub's shared map until your
-  first clean lap" under the circuit, above its name), `first-lap` (no outline of this layout yet: the map cell says "Map
+  `TrackMap.Status`: `ready`, `crowd` (drawn, on SimHub's shared map: the cell says "SimHub's map until your
+  first clean lap", one line under the circuit, above its name), `first-lap` (no outline of this layout yet: the map cell says "Map
   after one clean lap"), `no-host` (the app's host does not answer the plugin: the cell says "No map yet — the app is
   starting its maps", and after a minute of it "No map — restart the app to bring its maps back"), `none`. The host answers on the
   address the plugin asks, `127.0.0.1`, as well as on `localhost`: HTTP.sys matches a prefix that names a host
@@ -206,18 +206,25 @@ data?… get rid of all of it").
   connects, to `Program Files (x86)\SimHub\PluginsData\IRacing\MapRecordsCloud\<TrackName>[-<TrackConfigName>]-<metres>.shtl`:
   the session YAML's three names to the letter (iRacing's own two spaces in "Historic Circa  95" included), the
   `TrackLength` "4.5789 km" as `4578.9` and a whole number with no `.0` (`algarve gp-Grand Prix-4578.9.shtl`,
-  `bathurst-6144.1.shtl`, `crandon full-Crandon Off-Road Full-2360.shtl`); every one of the eighty files on the rig
-  is made again from his `.ibt` files' YAML by that rule and no other, so that rule is all that is normalised and
-  nothing is matched loosely — the file with the exact name or none, never a near one, and a rescan like
-  `lagunaseca 2026` never takes a `lagunaseca` map. The file is gzip of SimHub's lap-record JSON, `CarCoordinates:
+  `bathurst-6144.1.shtl`, `crandon full-Crandon Off-Road Full-2360.shtl`); of the 85 files on the rig, 81 are made
+  again exactly from his `.ibt` files' YAML by that rule and no other (none differed), and four (`lemans nochicane`,
+  `oran south`, `sonoma cup`, `zolder alt`) have no `.ibt` of his to check against, so that rule is all that is
+  normalised and nothing is matched loosely — the file with the exact name or none, never a near one, and a rescan
+  like `lagunaseca 2026` never takes a `lagunaseca` map. The file is gzip of SimHub's lap-record JSON, `CarCoordinates:
   [{ Value: [x east, altitude, z south], p: LapDistPct }, …]`, a point every 2 m from the line at the origin, the
   filler `[0,0,0]` at p 1 last (the whole shape, and what the survey found, is in `CrowdMaps.cs`); against his own
   GPS lap at Algarve it fits at scale 1.0009, x east and z south (RMS 5.7 m), which is the outline's own frame, so it
   is served as one is. While the store and the follower have nothing of a layout, `TrackOutlines` consults it last:
   looked for every 5 s for the session's first minute (SimHub may still be downloading) and every 30 s after; read
-  read-only, a 2 MB packed and 8 MB unpacked cap; checked (p from 0 to 1 with no hole over 2 % of the lap, 100
-  points or more, no step over 50 m, closed within 50 m, the length within 5 % of the session's — the files are
-  within 1 %); a file refused is said once in `host.log`, by its name and why, and not read again until it changes.
+  read-only, a 2 MB packed cap that is on the bytes of the file as it is opened and read (SimHub rewrites these
+  files, so the size seen a moment before is not trusted) and an 8 MB unpacked cap; checked (no more points than a
+  layout of that length has — one to a metre, never over 30,000, where the files have one to two metres — and p from 0
+  to 1 with no hole over 2 % of the lap, 100 points or more, no step over 50 m, closed within 50 m, the length within
+  5 % of the session's — the files are within 1 %); a file refused is said once in `host.log`, by its name and why,
+  and not read again until it changes, whatever it does (nothing a file does leaves the look set). A file with more
+  points than an outline of his own has (`GeometryAccumulator.BinsFor`: one to 5 m, a thousand at least) is made
+  evenly spaced in p at that many once it has passed, so the path the HUD and the iPad are sent thirty times a second is
+  no larger than his own would be and the sectors, cut by point index, fall where they do on his.
   Served as an outline marked `crowd` (`cleanLaps` 0, `provisional`), which the plugin, the HUD and the iPad draw as
   any other; `TrackMap.Status` is `crowd`, the map asks again every 5 s under it, so the follower's first outline (or
   the store's) replaces it within seconds, and his own is never replaced by it. Kept in memory for the session only:

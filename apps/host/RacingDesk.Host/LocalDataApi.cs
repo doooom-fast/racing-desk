@@ -67,8 +67,9 @@ namespace RacingDesk.Host
         internal IMonitorSource Monitors { get; set; } = new Win32MonitorSource();
 
         /// <summary>
-        /// The track outlines, for <c>outline?track=</c>: the store's, and the one being made from the session he is
-        /// driving. The SimHub plugin asks this for its map; the iPad's proxy never reaches it.
+        /// The track outlines, for <c>outline?track=</c>: the store's, the one being made from the session he is
+        /// driving, and, while he has none of his own for the layout, SimHub's shared map of it, marked
+        /// <c>crowd</c>. The SimHub plugin asks this for its map; the iPad's proxy never reaches it.
         /// </summary>
         internal TrackOutlines Outlines { get; set; }
 

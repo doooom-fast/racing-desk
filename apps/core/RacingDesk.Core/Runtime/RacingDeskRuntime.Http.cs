@@ -962,8 +962,9 @@ namespace RacingDesk.Plugin
 
                     // ── Track map ──
                     Jp(sb, "RacingDesk.Plugin.TrackMap.Ready", _trackMap.IsReady ? 1 : 0);
-                    // Why there is or is not a map: ready, first-lap (the host has no outline of this layout yet),
-                    // no-host (the host could not be reached), none.
+                    // Why there is or is not a map: ready, crowd (drawn, on SimHub's shared map until his first clean
+                    // lap), first-lap (the host has no outline of this layout yet), no-host (the host could not be
+                    // reached), none.
                     Jp(sb, "RacingDesk.Plugin.TrackMap.Status", Escape(_trackMap.Status ?? ""));
                     Jp(sb, "RacingDesk.Plugin.TrackMap.TrackName", Escape(_trackMap.TrackName ?? ""));
                     Jp(sb, "RacingDesk.Plugin.TrackMap.TrackSlug", Escape(_lastRawTrackSlug ?? ""));

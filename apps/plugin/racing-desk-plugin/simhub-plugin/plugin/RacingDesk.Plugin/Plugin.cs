@@ -207,8 +207,9 @@ namespace RacingDesk.Plugin
             this.AttachDelegate("TrackMap.PlayerY", () => _rt._trackMap.PlayerY);
             this.AttachDelegate("TrackMap.Opponents", () => _rt._trackMap.OpponentData);
             this.AttachDelegate("TrackMap.OpponentCount", () => _rt._trackMap.OpponentCount);
-            // Why there is or is not a map: ready, first-lap (the host has no outline of this layout yet), no-host
-            // (the app is not running beside SimHub: the maps are the app's), none.
+            // Why there is or is not a map: ready, crowd (drawn, on SimHub's shared map until his first clean lap),
+            // first-lap (the host has no outline of this layout yet), no-host (the app is not running beside SimHub:
+            // the maps are the app's), none.
             this.AttachDelegate("TrackMap.Status", () => _rt._trackMap.Status);
 
             // Nearest car distance fraction for proximity-based lighting
