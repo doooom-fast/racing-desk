@@ -3,8 +3,8 @@
  * corner, 0..100 %, 100 = new, null where the sim has not measured it (root CLAUDE.md, Tyre wear) — and the page
  * converts nothing: the pit box's rings show the number, amber under 35 and red under 20, and the strategist's
  * offer of a change comes from the engine's TireHealthState, not from the page. iRacing measures tread in the pits
- * and nowhere else, so the page says what the number is: a line under the rings on the rig, the tyres' heading in
- * the glance layout. The real dashboard.html from the file, headless, over a stand-in for the plugin on
+ * and nowhere else, so the page says what the number is, in one dim line under the rings, on the rig and in the
+ * glance layout. The real dashboard.html from the file, headless, over a stand-in for the plugin on
  * localhost:8889 (routed, nothing listens); every other address is shut.
  *
  * A flip anywhere — the host or the plugin sending a fraction, or wear instead of tread, or the page inverting —
@@ -70,7 +70,7 @@ const strategist = (page) => page.evaluate(() => {
 
 const note = (page) => page.evaluate(() => {
   const el = document.getElementById('pbWearNote');
-  return [getComputedStyle(el).display !== 'none', el.textContent, document.getElementById('pbPageTyres').dataset.measured ?? null];
+  return [getComputedStyle(el).display !== 'none', el.textContent];
 });
 
 test.describe('the wire\'s tread, as it is', () => {
@@ -142,26 +142,38 @@ test.describe('the wire\'s tread, as it is', () => {
 });
 
 test.describe('what the number is', () => {
-  test('on the rig the rings say the tread is as measured in the pits, for iRacing and not in the demo', async ({ page }) => {
+  test('under the rings the page says the tread is measured in the pits, for iRacing and not in the demo', async ({ page }) => {
     await open(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }));
-    expect(await note(page)).toEqual([true, 'Tread as measured in the pits', ' · as measured in the pits']);
+    expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
     await serve(page, RACE({}, { 'RacingDesk.Plugin.DemoMode': 1, 'RacingDesk.Plugin.Demo.TyreWearFL': 82, 'RacingDesk.Plugin.Demo.CarModel': 'BMW M4 GT3' }));
-    expect(await note(page)).toEqual([false, '', null]);
+    expect(await note(page)).toEqual([false, '']);
     await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }));
-    expect(await note(page)).toEqual([true, 'Tread as measured in the pits', ' · as measured in the pits']);
+    expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
   });
 
-  test('in the glance layout the tyres\' heading says it, with the laps on the set, on one line, and the rig\'s line is put away', async ({ page }) => {
-    await open(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }));
-    await page.evaluate(() => setDriveMode(true));
-    await drawn(page);
-    const heading = () => page.evaluate(() => {
-      const el = document.getElementById('pbPageTyres');
-      const before = getComputedStyle(el, '::before');
-      return [before.content, before.whiteSpace, getComputedStyle(document.getElementById('pbWearNote')).display];
+  for (const [width, height, what] of [[1180, 820, 'an iPad Air on its side'], [820, 1180, 'an iPad Air upright'], [744, 1133, 'an iPad mini upright']]) {
+    test(`in the glance layout at ${width}x${height} (${what}) the line stays: one line at the label's floor under the rings, whole, and the heading keeps the laps`, async ({ page }) => {
+      await open(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 14 }));
+      await page.setViewportSize({ width, height });
+      await page.evaluate(() => setDriveMode(true));
+      await drawn(page);
+      const look = () => page.evaluate(() => {
+        const el = document.getElementById('pbWearNote');
+        const cs = getComputedStyle(el);
+        const rings = document.querySelector('.pb-tire-circles').getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        return {
+          heading: getComputedStyle(document.getElementById('pbPageTyres'), '::before').content,
+          text: el.textContent, shown: cs.display !== 'none', nowrap: cs.whiteSpace, size: parseFloat(cs.fontSize),
+          oneLine: r.height < parseFloat(cs.fontSize) * 1.6, underTheRings: r.top >= rings.bottom - 1,
+          whole: el.scrollWidth <= el.clientWidth + 1,
+        };
+      });
+      expect(await look()).toEqual({
+        heading: '"Tyres · 14 laps"', text: 'Tread measured in the pits', shown: true, nowrap: 'nowrap', size: expect.any(Number),
+        oneLine: true, underTheRings: true, whole: true,
+      });
+      expect((await look()).size).toBeGreaterThanOrEqual(11);
     });
-    expect(await heading()).toEqual(['"Tyres · as measured in the pits"', 'nowrap', 'none']);
-    await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 14 }));
-    expect((await heading())[0]).toBe('"Tyres · 14 laps · as measured in the pits"');
-  });
+  }
 });

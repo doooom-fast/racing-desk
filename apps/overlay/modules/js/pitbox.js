@@ -463,17 +463,15 @@
     updateWearRing(_els.ringRR, _els.wearRRVal, wearRR);
 
     // What the number is: iRacing measures tread in the pits and nowhere else, so the rings show the last measurement,
-    // not live wear. Said under the rings on the rig and in the tyres' heading in the glance layout; not in the demo,
-    // whose tread is made up and moves every lap, and not for a sim that measures as it goes.
-    var measuredNote = (!_demo && gameId === 'iracing') ? 'as measured in the pits' : '';
+    // not live wear. Said in one dim line under the rings, on the rig and in the glance layout alike (the glance
+    // layout's heading has no room for it on an iPad); not in the demo, whose tread is made up and moves every lap,
+    // and not for a sim that measures as it goes.
+    var measuredNote = (!_demo && gameId === 'iracing') ? 'Tread measured in the pits' : '';
     if (_lastMeasuredNote !== measuredNote) {
       _lastMeasuredNote = measuredNote;
       if (_els.wearNote) {
-        _els.wearNote.textContent = measuredNote ? 'Tread ' + measuredNote : '';
+        _els.wearNote.textContent = measuredNote;
         _els.wearNote.classList.toggle('hidden', !measuredNote);
-      }
-      if (_els.tyresPage) {
-        if (measuredNote) _els.tyresPage.dataset.measured = ' · ' + measuredNote; else delete _els.tyresPage.dataset.measured;
       }
     }
 

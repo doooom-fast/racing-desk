@@ -561,9 +561,9 @@ to fix that a number of times so it seems to getting flipped back and forth in m
 
 **iRacing measures tread in the pits and nowhere else.** In his `.ibt` files the bands sat at one value for thirty-one laps
 and moved on the first frame on pit road, before the stall; two fourteen-lap races never moved at all. So the number is
-**the last measurement, never live wear**, and the code says so rather than pretend: the pit box writes "Tread as measured
-in the pits" under the rings on the rig and " · as measured in the pits" into the tyres' heading in the glance layout (for
-iRacing, out of the demo); the strategist (`Engine/Strategy/TireTracker.cs`) rates the health **when a measurement comes
+**the last measurement, never live wear**, and the code says so rather than pretend: the pit box writes "Tread measured
+in the pits" in one dim line under the rings, on the rig and in the glance layout (at the label's floor, never wrapped; an
+iPad's heading has no room for it), for iRacing and out of the demo; the strategist (`Engine/Strategy/TireTracker.cs`) rates the health **when a measurement comes
 in** (a value changed, or was first said), the coordinator makes the tyre call on that frame — on pit road, where it can be
 acted on — and a value that has not changed is not news at a lap crossing. After a stop where a tyre was asked for
 (`PitSvFlags` while in the stall) the health is cleared until the sim measures again, because iRacing then shows the
@@ -588,11 +588,11 @@ each corner, unmeasured and 0..1 snapshots; the exposition's formatting; the str
 rule, reset and the coordinator's call on pit road; the demo's values and the sequence's step. `apps/overlay/tests/unit/
 tyre-wear.spec.mjs` — the real page over a stand-in plugin: 100 is 100 % and green with nothing offered, 30 amber, 15 red,
 64.4 is 64 %, `null`/0/no key a dash, 0.91 is 1 % and red (no conversion on the page), the strategist from
-`TireHealthState`, the demo's keys, the note on the rig and in the glance heading. `DatasetValidationTests` and
+`TireHealthState`, the demo's keys, the note under the rings on the rig and in the glance layout. `DatasetValidationTests` and
 `validate_datasets.py` hold the topic to `<`, a percent threshold and the worst corner. Fixtures that encoded the old
 meanings and were put right: `tests/helpers.mjs` (0.91 → 91 …, demo 0.80 → 80 …), `tests/golden/fixtures/base-payload.json`
 (0 → 100, demo 0.82 → 82 …), `issue-11-display-units.spec.mjs` (its copy of the fallback is gone), `TriggerEvaluatorTests`
-(0.35 → 35), `drive-view.spec.mjs` (the heading's words).
+(0.35 → 35); the golden frames (`glance-race-*.png`, `in-car-synthetic.png`) carry the note line.
 
 ## Desk
 

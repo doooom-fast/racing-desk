@@ -228,8 +228,8 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
 - **The pit box** shows what its tabs do on the rig, side by side: the four tyres (the tread remaining in the ring, as the
   wire has it — 0..100 %, amber under 35, red under 20, a dash where not measured — temperature under it, the laps on this
   set in the heading, `Strategy.StintLaps`, and what the number is: iRacing measures tread in the pits and nowhere else,
-  so the heading reads "Tyres · 14 laps · as measured in the pits", one line, clipped before it would wrap, where the rig's
-  layout has the same words in a dim line under the rings; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
+  so "Tread measured in the pits" is one dim line under the rings, at the label's floor and never wrapped, as it is
+  on the rig — an iPad's heading has no room for it; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
   pit's add, the pit window `Strategy.PitWindowOpen/Close` as `L18–24` or `by L24`, the two services), the weather. The
   strategist's call for tyres or fuel (`Strategy.TireHealthState`, `FuelHealthState`) is read where it is on the rig,
   above the rings or the tank, worded for a screen with nothing to press (`Change · ~12 laps`, `Stop · ~6 laps`).
