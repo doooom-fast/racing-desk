@@ -392,6 +392,44 @@
       }
     ]
   },
+  "madeup gt3 unread": {
+    "car": "madeup gt3",
+    "name": "Made-up GT3",
+    "kind": "gt",
+    "fixedSetup": false,
+    "abs": {
+      "id": "abs",
+      "label": "ABS",
+      "state": "unread",
+      "var": "dcABS"
+    },
+    "tc": {
+      "id": "tc",
+      "label": "TC1",
+      "state": "value",
+      "value": 4,
+      "text": "4",
+      "fill": 0.333,
+      "var": "dcTractionControl"
+    },
+    "bb": {
+      "id": "brakeBias",
+      "label": "BB",
+      "state": "value",
+      "value": 56.2,
+      "text": "56.2",
+      "fill": 0.56,
+      "var": "dcBrakeBias"
+    },
+    "more": [
+      {
+        "id": "throttleMap",
+        "label": "MAP",
+        "state": "unread",
+        "var": "dcThrottleShape"
+      }
+    ]
+  },
   "mclaren570sgt4": {
     "car": "mclaren570sgt4",
     "name": "McLaren 570S GT4",

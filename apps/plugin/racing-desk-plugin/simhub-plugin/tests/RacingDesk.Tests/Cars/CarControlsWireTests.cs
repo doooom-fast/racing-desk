@@ -37,6 +37,11 @@ namespace RacingDesk.Tests.Cars
             gt3["dcABS"] = 0f;              // off, and held by the fixed setup
             gt3["dcThrottleShape"] = 2f;
 
+            // The same car in a session where it publishes neither its ABS nor its throttle map: both unread.
+            var gt3Unread = CarListTests.Gt3();
+            gt3Unread.Remove("dcABS");
+            gt3Unread.Remove("dcThrottleShape");
+
             CarListTests.Car M2(float dsc) => new CarListTests.Car { ["dcTractionControl"] = dsc };
             CarListTests.Car Formula(int drs = 0, bool p2p = false, int count = 65) =>
                 new CarListTests.Car { ["dcBrakeBias"] = 55f, ["DRS_Status"] = drs, ["P2P_Status"] = p2p, ["P2P_Count"] = count };
@@ -55,6 +60,8 @@ namespace RacingDesk.Tests.Cars
                 ["bmwm2csr off"] = Sent("bmwm2csr", M2(0), false),
                 // ABS off; traction control and the throttle map with values.
                 ["madeup gt3"] = Sent("madeup gt3", gt3, true),
+                // The same car not publishing its ABS or its throttle map: the label of each and no value (unread).
+                ["madeup gt3 unread"] = Sent("madeup gt3", gt3Unread, false),
                 // No ABS, no TC, a bias with a name of its own; DRS not yet, push-to-pass waiting with 65 seconds.
                 ["madeup formula"] = Sent("madeup formula", Formula(), false),
                 // DRS as it goes: detected, in the zone, open. Push-to-pass on with a second gone, and used up.
@@ -110,12 +117,13 @@ namespace RacingDesk.Tests.Cars
         {
             var cars = Built().Values.ToList();
             var primary = cars.SelectMany(c => new[] { c["abs"], c["tc"], c["bb"] }).Where(t => t != null).ToList();
-            Assert.That(primary.Select(t => (string)t["state"]).Distinct(), Is.EquivalentTo(new[] { "none", "on", "off", "value", "mode" }));
+            Assert.That(primary.Select(t => (string)t["state"]).Distinct(), Is.EquivalentTo(new[] { "none", "on", "off", "value", "mode", "unread" }));
             Assert.That(primary.Any(t => (bool?)t["locked"] == true), Is.True, "a control the fixed setup holds");
             Assert.That(primary.Any(t => t["fill"] != null), Is.True, "a bar to fill");
 
-            var more = cars.SelectMany(c => c["more"] is JArray a ? a.Cast<JToken>() : Enumerable.Empty<JToken>()).Select(m => (string)m["id"]).ToList();
-            Assert.That(more, Is.SupersetOf(new[] { "brakeMigration", "tc2", "arbFront", "arbRear", "mode", "throttleMap" }));
+            var more = cars.SelectMany(c => c["more"] is JArray a ? a.Cast<JToken>() : Enumerable.Empty<JToken>()).ToList();
+            Assert.That(more.Select(m => (string)m["id"]), Is.SupersetOf(new[] { "brakeMigration", "tc2", "arbFront", "arbRear", "mode", "throttleMap" }));
+            Assert.That(more.Any(m => (string)m["state"] == "unread" && m["value"] == null && m["text"] == null), Is.True, "a dial the car is not publishing: its label and no value");
             Assert.That(cars.Select(c => (string)c["drs"]?["text"]).Where(t => t != null).Distinct(), Is.EquivalentTo(new[] { "OFF", "NEXT", "READY", "OPEN" }));
             Assert.That(cars.Select(c => (bool?)c["p2p"]?["active"]).Where(a => a != null).Distinct(), Is.EquivalentTo(new bool?[] { false, true }));
             Assert.That(cars.Select(c => (string)c["tc"]?["text"]), Is.SupersetOf(new[] { "MDM", "OFF", "ON", "NONE" }), "a dial that is a word");
@@ -153,7 +161,8 @@ namespace RacingDesk.Tests.Cars
         public void ADialTheListGivesAndTheCarDoesNotPublishStillLeavesWhatIsKnown()
         {
             // Fixed ABS with a variable nobody publishes: it has ABS, the driver cannot turn it, so it is ON — and
-            // a control the driver can turn, with nothing to read it from, is not said at all.
+            // a control the driver can turn, with nothing to read it from, is sent as unread, with the car's own
+            // label and no value, so the HUD shows the label and a dash and never a number.
             var car = CarList.Parse(@"{ ""cars"": [
                 { ""path"": ""a"", ""abs"": ""fixed"", ""tc"": ""adjustable"", ""brakeBias"": ""adjustable"", ""controls"": [
                     { ""id"": ""abs"", ""var"": ""dcABS"" },
@@ -162,9 +171,11 @@ namespace RacingDesk.Tests.Cars
             var state = CarControls.Read(car, new CarListTests.Car().Read, null);
 
             Assert.That((state.Abs.State, state.Abs.Text), Is.EqualTo(("on", "ON")));
-            Assert.That(state.Tc, Is.Null);
-            Assert.That(state.BrakeBias, Is.Null);
-            Assert.That(state.ToJson(), Does.Not.Contain("\"tc\"").And.Not.Contain("\"bb\""));
+            Assert.That((state.Tc.State, state.Tc.Label, state.Tc.Number, state.Tc.Text), Is.EqualTo(("unread", "TC", (double?)null, (string)null)));
+            Assert.That((state.BrakeBias.State, state.BrakeBias.Label), Is.EqualTo(("unread", "BBAL")));
+            var json = JObject.Parse(state.ToJson());
+            Assert.That(json["tc"].ToString(Formatting.None), Is.EqualTo(@"{""id"":""tc"",""label"":""TC"",""state"":""unread"",""var"":""dcTractionControl""}"));
+            Assert.That(json["bb"]["value"], Is.Null);
         }
 
         [Test]

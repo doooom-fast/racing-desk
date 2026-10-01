@@ -28,6 +28,11 @@ namespace RacingDesk.Core.Cars
         public const string Value = "value";
         /// <summary>The car has it, inside a mode that stands for it: the mode is what there is to show.</summary>
         public const string Mode = "mode";
+        /// <summary>
+        /// The car has it, by the list, and the sim is not saying what it reads: the list gives no variable, or
+        /// one the car is not publishing, or a frame of garbage. The HUD shows its label and a dash, never a number.
+        /// </summary>
+        public const string Unread = "unread";
 
         public string Id { get; set; }
         public string Label { get; set; }
@@ -66,7 +71,10 @@ namespace RacingDesk.Core.Cars
         public ControlReading Tc { get; set; }
         public ControlReading BrakeBias { get; set; }
 
-        /// <summary>The car's other controls that read something, in the list's order.</summary>
+        /// <summary>
+        /// The car's other controls, every one the list gives it, in the list's order; one the car is not
+        /// publishing reads <see cref="ControlReading.Unread"/>, so the HUD can show it with a dash.
+        /// </summary>
         public List<ControlReading> More { get; } = new List<ControlReading>();
 
         public ControlReading Drs { get; set; }
@@ -262,8 +270,9 @@ namespace RacingDesk.Core.Cars
                     if (state.PushToPass == null) state.PushToPass = PushToPass(control, variable);
                     continue;
                 }
-                var reading = Dial(control, control.Label ?? control.Id, variable, locked);
-                if (reading != null) state.More.Add(reading);
+                // Every control the list gives the car, read or not: one the car is not publishing goes out as
+                // unread, and the HUD shows its label with a dash (he asked for a panel for every adjustment).
+                state.More.Add(Dial(control, control.Label ?? control.Id, variable, locked));
             }
             return state;
         }
@@ -280,10 +289,11 @@ namespace RacingDesk.Core.Cars
             if (control != null)
             {
                 var reading = Dial(control, control.Label ?? label, variable, locked);
-                if (reading != null) return reading;
+                if (reading.State != ControlReading.Unread) return reading;
                 // Listed with no variable, or with one the car is not publishing: it cannot be read. What is
-                // still true is that the car has it, and whether the driver can turn it.
-                return having == CarEntry.Fixed ? On(id, control.Label ?? label) : null;
+                // still true is that the car has it, and whether the driver can turn it: ON where he cannot,
+                // and where he can, its label and a dash.
+                return having == CarEntry.Fixed ? On(id, control.Label ?? label) : reading;
             }
 
             if (having == null) return null;
@@ -308,11 +318,15 @@ namespace RacingDesk.Core.Cars
             return null;
         }
 
+        /// <summary>
+        /// A dial as it reads now. Never null: a control the list gives no variable for, one the car is not
+        /// publishing, or a frame of garbage reads <see cref="ControlReading.Unread"/> — the car has it, and
+        /// nothing true can be said of its value.
+        /// </summary>
         private static ControlReading Dial(CarControl control, string label, Func<string, object> variable, bool fixedSetup)
         {
-            if (string.IsNullOrEmpty(control.Var)) return null;
-            double? read = Number(variable(control.Var));
-            if (!read.HasValue) return null;
+            double? read = string.IsNullOrEmpty(control.Var) ? null : Number(variable(control.Var));
+            if (!read.HasValue) return new ControlReading { Id = control.Id, Label = label, State = ControlReading.Unread, Var = control.Var };
             double value = read.Value;
 
             var reading = new ControlReading

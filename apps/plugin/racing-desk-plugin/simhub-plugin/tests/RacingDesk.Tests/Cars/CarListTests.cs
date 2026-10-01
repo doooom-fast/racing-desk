@@ -380,18 +380,40 @@ namespace RacingDesk.Tests.Cars
         }
 
         [Test]
-        public void WhatCannotBeReadIsNotSaid()
+        public void WhatCannotBeReadIsSaidToBeUnreadAndNoNumberIsMadeUp()
         {
             var car = Gt3();
             car.Remove("dcABS");                           // the list gives a variable the car does not publish
             car["dcTractionControl"] = float.NaN;          // a frame of garbage
             car["dcThrottleShape"] = 1.6e34f;
-            var state = CarControls.Read(List().Find("madeup gt3"), car.Read, false);
+            var state = CarControls.Read(List().Find("madeup gt3"), car.Read, fixedSetup: true);
 
-            Assert.That(state.Abs, Is.Null);
-            Assert.That(state.Tc, Is.Null);
-            Assert.That(state.More, Is.Empty);
+            // The car has them, by the list: each keeps its label (and the HUD shows a dash under it), with no value,
+            // no text, no bar and no lock — nothing true can be said of what it reads.
+            Assert.That((state.Abs.Id, state.Abs.Label, state.Abs.State, state.Abs.Var), Is.EqualTo(("abs", "ABS", "unread", "dcABS")));
+            Assert.That((state.Abs.Number, state.Abs.Text, state.Abs.Fill, state.Abs.Locked), Is.EqualTo(((double?)null, (string)null, (double?)null, false)));
+            Assert.That((state.Tc.Label, state.Tc.State, state.Tc.Number), Is.EqualTo(("TC1", "unread", (double?)null)));
+            var map = state.More.Single();
+            Assert.That((map.Id, map.Label, map.State, map.Number, map.Text), Is.EqualTo(("throttleMap", "MAP", "unread", (double?)null, (string)null)));
             Assert.That(state.BrakeBias.Text, Is.EqualTo("56.2"));
+
+            var json = JObject.Parse(state.ToJson());
+            Assert.That(json["abs"].ToString(Newtonsoft.Json.Formatting.None), Is.EqualTo(@"{""id"":""abs"",""label"":""ABS"",""state"":""unread"",""var"":""dcABS""}"));
+            Assert.That(json["more"].Single()["value"], Is.Null);
+        }
+
+        [Test]
+        public void AControlTheListGivesNoVariableForIsUnreadToo()
+        {
+            var car = CarList.Parse(@"{ ""cars"": [ { ""path"": ""x"", ""abs"": ""none"", ""tc"": ""adjustable"", ""brakeBias"": ""adjustable"", ""controls"": [
+                { ""id"": ""brakeBias"", ""var"": ""dcBrakeBias"" },
+                { ""id"": ""tc"", ""var"": ""dcTractionControl"" },
+                { ""id"": ""wingTop"", ""label"": ""TOP WING"" } ] } ] }").Find("x");
+            var state = CarControls.Read(car, Gt3().Read, false);
+
+            var wing = state.More.Single();
+            Assert.That((wing.Id, wing.Label, wing.State, wing.Var), Is.EqualTo(("wingTop", "TOP WING", "unread", (string)null)));
+            Assert.That(state.Tc.Text, Is.EqualTo("4"), "the rest is read as it was");
         }
 
         [Test]

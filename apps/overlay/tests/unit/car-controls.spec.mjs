@@ -46,7 +46,7 @@ test.describe('the fixture', () => {
   test('is the shape the tests below go by', () => {
     for (const [name, cc] of Object.entries(WIRE)) {
       expect(typeof cc.car, name).toBe('string');
-      for (const slot of ['abs', 'tc', 'bb']) expect(['none', 'on', 'off', 'value', 'mode'], `${name} ${slot}`).toContain(cc[slot].state);
+      for (const slot of ['abs', 'tc', 'bb']) expect(['none', 'on', 'off', 'value', 'mode', 'unread'], `${name} ${slot}`).toContain(cc[slot].state);
     }
     expect(Object.keys(WIRE).length).toBeGreaterThanOrEqual(12);
   });
