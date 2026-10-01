@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Text.Json;
 using System.Threading;
+using RacingDesk.Core.Screens;
 using RacingDesk.Data;
 using RacingDesk.Data.Pedals;
 using RacingDesk.Plugin;

@@ -305,7 +305,7 @@
       // Electron 33+ requires getDisplayMedia (the old getUserMedia +
       // chromeMediaSource:'desktop' pattern was removed).
       // The main process has a setDisplayMediaRequestHandler that
-      // auto-grants access to the primary screen.
+      // auto-grants the screen the HUD is on (capture-screen.js).
       _displayStream = await navigator.mediaDevices.getDisplayMedia({
         audio: false,
         video: {

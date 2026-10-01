@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
+using RacingDesk.Core.Screens;
 using RacingDesk.Host;
 
 namespace RacingDesk.Tests.IRacing

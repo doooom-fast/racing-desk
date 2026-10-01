@@ -456,7 +456,7 @@ function describeDisplays(displays) {
  *   keepAsIs        dev mode: dev-mode.js puts the window where it wants it
  *   onChange()      the screens, or where the HUD is and why, have changed: the desk's Settings page shows both
  *
- * { initialBounds, place, refresh, reset, settingsChanged, describe }
+ * { initialBounds, place, refresh, reset, settingsChanged, describe, currentKey }
  */
 function createHudDisplay({
   getWindow,
@@ -727,7 +727,14 @@ function createHudDisplay({
     };
   }
 
-  return { initialBounds, place: placeNow, refresh, reset, settingsChanged, describe };
+  // The key of the screen the rule last chose for the HUD, or null before it has run: what a recording is of
+  // (capture-screen.js). Nothing is asked for it; it is the last decision, which each of the occasions above makes. In
+  // dev mode it is the rule's choice all the same, not where dev-mode.js put the window.
+  function currentKey() {
+    return last ? last.key : null;
+  }
+
+  return { initialBounds, place: placeNow, refresh, reset, settingsChanged, describe, currentKey };
 }
 
 module.exports = {
