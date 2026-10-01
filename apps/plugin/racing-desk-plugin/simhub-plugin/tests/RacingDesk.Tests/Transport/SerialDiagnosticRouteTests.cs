@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
@@ -43,7 +44,26 @@ namespace RacingDesk.Tests.Transport
         [TestCase(true, "  ", null, false, TestName = "a blank Host")]
         public void OnlyAProgramOnThisMachineMayAsk(bool isLocal, string? host, string? origin, bool allowed)
         {
-            Assert.That(RacingDeskRuntime.IsFromThisMachine(isLocal, host!, origin!), Is.EqualTo(allowed));
+            var headers = new NameValueCollection();
+            if (host != null) headers.Add("Host", host);
+            if (origin != null) headers.Add("Origin", origin);
+            Assert.That(LocalRequest.IsFromThisMachine(isLocal, headers), Is.EqualTo(allowed));
+        }
+
+        // What a browser says of a request that a page's script cannot give one (a link, an image, a form): where it is from
+        // and what it is for. Node's own fetch says Sec-Fetch-Mode and nothing else, and is a program.
+        [TestCase("Referer", "http://evil.example/page", false, TestName = "an image on a page, which has a Referer")]
+        [TestCase("Sec-Fetch-Site", "cross-site", false, TestName = "a link on another site")]
+        [TestCase("Sec-Fetch-Site", "none", false, TestName = "an address typed into a browser")]
+        [TestCase("Sec-Fetch-Dest", "image", false, TestName = "an image")]
+        [TestCase("Sec-Fetch-User", "?1", false, TestName = "a click")]
+        [TestCase("Sec-Fetch-Mode", "cors", true, TestName = "Node's own fetch is a program")]
+        [TestCase("User-Agent", "curl/8.4.0", true, TestName = "curl is a program")]
+        [TestCase("Referer", "", true, TestName = "an empty Referer is none")]
+        public void ARequestAPageMadeWithoutAnOriginIsNotAProgram(string header, string value, bool allowed)
+        {
+            var headers = new NameValueCollection { { "Host", "localhost:8889" }, { header, value } };
+            Assert.That(LocalRequest.IsFromThisMachine(true, headers), Is.EqualTo(allowed));
         }
 
         // ── The route, over a real socket on 127.0.0.1 ───────────────

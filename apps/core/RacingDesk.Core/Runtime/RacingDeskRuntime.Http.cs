@@ -61,39 +61,6 @@ namespace RacingDesk.Plugin
         }
 
         /// <summary>
-        /// Whether a request is from a program on this machine, which every <c>?action=</c> route requires (the writes to
-        /// the wheel base and the pedals, the pedal profiles, the runtime's state, and the reads that ask the hardware):
-        /// the connection is the machine's own (<c>IsLocal</c>: its two addresses are the same, or loopback — which a LAN
-        /// device that says <c>Host: localhost</c> is not), the Host it names is localhost, 127.0.0.1 or [::1] (a name
-        /// pointed at the machine by another site is not), and it carries no Origin (a page in a browser).
-        /// </summary>
-        internal static bool IsFromThisMachine(bool isLocal, string hostHeader, string origin)
-        {
-            if (!isLocal || !string.IsNullOrEmpty(origin)) return false;
-            if (string.IsNullOrWhiteSpace(hostHeader)) return false;
-
-            string host = hostHeader.Trim();
-            if (host.StartsWith("[", StringComparison.Ordinal))
-            {
-                int close = host.IndexOf(']');
-                if (close < 0) return false;
-                string rest = host.Substring(close + 1);
-                if (rest.Length > 0 && rest[0] != ':') return false;
-                host = host.Substring(0, close + 1);
-            }
-            else
-            {
-                int colon = host.LastIndexOf(':');
-                if (colon >= 0) host = host.Substring(0, colon);
-            }
-            return host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || host == "127.0.0.1" || host == "[::1]";
-        }
-
-        /// <summary>Whether a request is from a program on this machine: <see cref="IsFromThisMachine(bool, string, string)"/> on what it says of itself.</summary>
-        internal static bool IsFromThisMachine(HttpListenerRequest request) =>
-            IsFromThisMachine(request.IsLocal, request.Headers["Host"], request.Headers["Origin"]);
-
-        /// <summary>
         /// Whether a request is for an <c>?action=</c> route: the address has <c>action=</c> in it anywhere, in any case, or
         /// the query has an <c>action</c> once it is decoded (<c>%61ction=</c>). More than the dispatch below goes by, on
         /// purpose: whatever might be taken for an action by one reading is refused by the other.
@@ -194,9 +161,10 @@ namespace RacingDesk.Plugin
                     // state, and several of the reads talk to the hardware over serial. This port answers every
                     // address (the iPad view reads the telemetry through the app, which sends no query), and HTTP.sys
                     // hands a localhost prefix any request that says Host: localhost, so IsLocal and the Host header are
-                    // both looked at. An action nobody has heard of is refused to the same people: it is not for them
-                    // to ask for, and it must not get the telemetry as an answer.
-                    if (NamesAnAction(rawUrl, ctx.Request.QueryString) && !IsFromThisMachine(ctx.Request))
+                    // both looked at, and a browser's request is not a program's (LocalRequest). An action nobody has
+                    // heard of is refused to the same people: it is not for them to ask for, and it must not get the
+                    // telemetry as an answer.
+                    if (NamesAnAction(rawUrl, ctx.Request.QueryString) && !LocalRequest.IsFromThisMachine(ctx.Request))
                     {
                         RefuseActionNotFromThisMachine(ctx, rawUrl);
                         continue;

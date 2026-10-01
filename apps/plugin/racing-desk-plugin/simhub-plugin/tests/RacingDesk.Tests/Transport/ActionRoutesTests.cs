@@ -149,6 +149,11 @@ namespace RacingDesk.Tests.Transport
             yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Host = "evil.example:8889")).SetName("a name another site has pointed at the rig");
             yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Add("Origin", "http://192.168.1.20:3000"))).SetName("a page in a browser, naming its origin");
             yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Add("Origin", "null"))).SetName("a page with an origin of null");
+            // What a page can do without an Origin, from a link, an image or a form: no script, no header of its own to add,
+            // and the browser says what the request is for all the same.
+            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Referrer = new Uri("http://192.168.1.20:3000/page"))).SetName("an image on a page, which has a Referer");
+            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Add("Sec-Fetch-Site", "cross-site"))).SetName("a link on another site");
+            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Add("Sec-Fetch-Dest", "image"))).SetName("an image");
         }
 
         private void NothingHappened()
@@ -241,6 +246,9 @@ namespace RacingDesk.Tests.Transport
             // What the Stream Deck's Node, curl and PowerShell send: Host is the address they were given, and nothing more.
             foreach (string host in new[] { "localhost:" + _httpPort, "127.0.0.1:" + _httpPort })
                 Assert.That(Ask("/racing-desk/?action=listMozaDevices", r => r.Headers.Host = host).Status, Is.EqualTo(HttpStatusCode.OK), host);
+
+            // Node's own fetch says Sec-Fetch-Mode and no more of what a browser says: it is a program.
+            Assert.That(Ask("/racing-desk/?action=listMozaDevices", r => r.Headers.Add("Sec-Fetch-Mode", "cors")).Status, Is.EqualTo(HttpStatusCode.OK));
         }
 
         // ── What is read, as the iPad view reads it ──────────────────
