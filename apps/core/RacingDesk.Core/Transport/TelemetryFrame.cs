@@ -493,6 +493,7 @@ namespace RacingDesk.Plugin.Transport
             if (trackMap != null)
             {
                 dict["RacingDesk.Plugin.TrackMap.Ready"] = trackMap.IsReady ? 1 : 0;
+                dict["RacingDesk.Plugin.TrackMap.Status"] = Escape(trackMap.Status ?? "");
                 dict["RacingDesk.Plugin.TrackMap.TrackName"] = Escape(trackMap.TrackName ?? "");
                 dict["RacingDesk.Plugin.TrackMap.TrackSlug"] = Escape(trackSlug ?? "");
                 dict["RacingDesk.Plugin.TrackMap.TrackDisplayName"] = Escape(s.TrackDisplayName ?? "");
@@ -505,6 +506,7 @@ namespace RacingDesk.Plugin.Transport
             else
             {
                 dict["RacingDesk.Plugin.TrackMap.Ready"] = 0;
+                dict["RacingDesk.Plugin.TrackMap.Status"] = Engine.TrackMapProvider.StatusNone;
                 dict["RacingDesk.Plugin.TrackMap.TrackName"] = "";
                 dict["RacingDesk.Plugin.TrackMap.TrackSlug"] = Escape(trackSlug ?? "");
                 dict["RacingDesk.Plugin.TrackMap.TrackDisplayName"] = Escape(s.TrackDisplayName ?? "");

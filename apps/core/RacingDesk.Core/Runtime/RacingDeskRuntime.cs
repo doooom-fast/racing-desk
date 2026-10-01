@@ -44,8 +44,13 @@ namespace RacingDesk.Plugin
             /// when the request was handled and the response written.
             /// </summary>
             public Func<HttpListenerContext, bool> ExtraRoutes { get; set; }
-            /// <summary>Track outlines from local telemetry, by track id (see TrackMapProvider.LocalOutlineSource).</summary>
-            public Func<string, IReadOnlyList<(double X, double Z, double Pct)>> TrackOutline { get; set; }
+            /// <summary>
+            /// Where the track map's outlines come from, by the sim's TrackID: the host's own store, or (the SimHub
+            /// plugin) the host over loopback. Null: the map has nothing to ask, and says so.
+            /// </summary>
+            public IOutlineSource Outlines { get; set; }
+            /// <summary>Which host this is, for the folder old track maps are set aside under: "host" or "simhub".</summary>
+            public string Host { get; set; } = "host";
         }
 
         private readonly Options _options;
@@ -84,7 +89,8 @@ namespace RacingDesk.Plugin
         internal int _frameCount = 0;
         internal const int EvalEveryNFrames = 6;
 
-        // Track change detection — triggers map reload
+        // Track change detection — triggers map reload. The key is the sim's TrackID and its name for the layout:
+        // the exact layout, never a name match (a rescan gives a layout a new id under a name like the old one).
         internal string _lastTrackId = "";
         // Raw SimHub TrackId (includes config info, e.g. "nurburgring gp")
         internal string _lastRawTrackSlug = "";
@@ -178,13 +184,19 @@ namespace RacingDesk.Plugin
                 Log.Info("[RacingDesk] Hardware disabled — no Moza serial, pedal profiles or screen sampling");
             }
 
-            // Initialise track map provider — the host says where the track-map dataset lives
-            // (SimHub: the SimHub root, where the plugin DLL is installed).
-            string simhubDir = _options.AssemblyDirectory ?? "";
-            _trackMap.SetSimHubDirectory(simhubDir);
-            _trackMap.LocalOutlineSource = _options.TrackOutline;
-            if (!string.IsNullOrEmpty(_options.PluginsDataDirectory))
-                _trackMap.SetCacheDirectory(Path.Combine(_options.PluginsDataDirectory, "TrackMaps"));
+            // The track map's outlines are the host's (its store, or the host over loopback); the maps earlier builds
+            // recorded into the folders here are set aside, never read again and never deleted.
+            _trackMap.Outlines = _options.Outlines;
+            try
+            {
+                foreach (string line in TrackMapSetAside.Run(_options.Host ?? "host",
+                             TrackMapSetAside.FoldersOf(_options.AssemblyDirectory, _options.PluginsDataDirectory), TrackMapSetAside.DefaultRoot, DateTime.Now))
+                    Log.Info("[RacingDesk] " + line);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("[RacingDesk] old track maps not set aside: " + ex.Message);
+            }
 
             // Initialise Incident Coach engine
             _incidentCoach = new IncidentCoachEngine();
@@ -259,21 +271,19 @@ namespace RacingDesk.Plugin
                 _pedalProfiles?.OnCarChanged(_current.CarModel, _current.CarModel);
             }
 
-            // Detect track changes — reload map when track ID changes
+            // Detect track changes — the map is asked for again when the layout (its id, or its name) changes
             if (_current.GameRunning)
             {
-                string trackId = trackIdProvider != null ? trackIdProvider() : (_current.GameName ?? "");
-                if (!string.IsNullOrEmpty(trackId) && trackId != _lastTrackId)
+                string trackName = trackIdProvider != null ? trackIdProvider() : (_current.GameName ?? "");
+                string key = _current.TrackId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + trackName;
+                if (!string.IsNullOrEmpty(trackName) && key != _lastTrackId)
                 {
-                    _lastTrackId = trackId;
-                    _trackMap.OnTrackChanged(trackId);
+                    _lastTrackId = key;
+                    _trackMap.OnTrackChanged(_current.TrackId, trackName);
                 }
 
-                // Feed velocity + car positions to the track map provider every frame
-                // (recording needs high sample rate; interpolation is cheap)
+                // Every car's place round the lap, each frame
                 _trackMap.Update(
-                    _current.VelocityX, _current.VelocityZ,
-                    _current.Yaw,
                     _current.TrackPositionPct,
                     _current.CarIdxLapDistPct,
                     _current.CarIdxOnPitRoad,
@@ -585,6 +595,7 @@ namespace RacingDesk.Plugin
             return sb.ToString();
         }
 
+        /// <summary>The sim's name for the layout ("algarve gp"): the map's label, and with the TrackID its key.</summary>
         private string GetTrackId(ITelemetrySource pm)
         {
             try

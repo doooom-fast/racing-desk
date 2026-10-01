@@ -10,6 +10,12 @@ namespace RacingDesk.Plugin
         /// </summary>
         public string ScheduleUrl { get; set; } = "https://us.v-cdn.net/6034148/uploads/597LPPDHT83M/2026s4.pdf";
 
+        /// <summary>
+        /// Where the app's host serves its store on this machine. The SimHub plugin asks it for the track map's
+        /// outlines (the host runs beside SimHub on :18889 while SimHub holds :8889). Loopback only.
+        /// </summary>
+        public string HostUrl { get; set; } = "http://127.0.0.1:18889";
+
         /// <summary>How long (seconds) each prompt stays on screen before auto-clearing.</summary>
         public double PromptDisplaySeconds { get; set; } = 15.0;
 

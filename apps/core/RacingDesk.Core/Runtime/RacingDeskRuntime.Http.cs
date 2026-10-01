@@ -119,31 +119,6 @@ namespace RacingDesk.Plugin
                         action = end >= 0 ? rawUrl.Substring(start, end - start) : rawUrl.Substring(start);
                     }
 
-                    if (action == "resetmap")
-                    {
-                        _trackMap.ResetTrackMap();
-                        byte[] okBytes = System.Text.Encoding.UTF8.GetBytes("{\"ok\":true}");
-                        ctx.Response.ContentType = "application/json";
-                        ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
-                        ctx.Response.StatusCode = 200;
-                        ctx.Response.OutputStream.Write(okBytes, 0, okBytes.Length);
-                        ctx.Response.OutputStream.Close();
-                        continue;
-                    }
-
-                    if (action == "listtracks")
-                    {
-                        var ids = _trackMap.GetBundledTrackIds();
-                        string json = "[" + string.Join(",", ids.ConvertAll(id => "\"" + id.Replace("\"", "\\\"") + "\"")) + "]";
-                        byte[] listBytes = System.Text.Encoding.UTF8.GetBytes(json);
-                        ctx.Response.ContentType = "application/json";
-                        ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
-                        ctx.Response.StatusCode = 200;
-                        ctx.Response.OutputStream.Write(listBytes, 0, listBytes.Length);
-                        ctx.Response.OutputStream.Close();
-                        continue;
-                    }
-
                     if (action == "restartdemo")
                     {
                         _engine.DemoTelemetry.Reset();
@@ -873,6 +848,9 @@ namespace RacingDesk.Plugin
 
                     // ── Track map ──
                     Jp(sb, "RacingDesk.Plugin.TrackMap.Ready", _trackMap.IsReady ? 1 : 0);
+                    // Why there is or is not a map: ready, first-lap (the host has no outline of this layout yet),
+                    // no-host (the host could not be reached), none.
+                    Jp(sb, "RacingDesk.Plugin.TrackMap.Status", Escape(_trackMap.Status ?? ""));
                     Jp(sb, "RacingDesk.Plugin.TrackMap.TrackName", Escape(_trackMap.TrackName ?? ""));
                     Jp(sb, "RacingDesk.Plugin.TrackMap.TrackSlug", Escape(_lastRawTrackSlug ?? ""));
                     Jp(sb, "RacingDesk.Plugin.TrackMap.TrackDisplayName", Escape(s.TrackDisplayName ?? ""));

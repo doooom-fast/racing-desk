@@ -67,13 +67,16 @@ namespace RacingDesk.Plugin
             // Load settings
             var settings = this.ReadCommonSettings<Settings>("GeneralSettings", () => new Settings());
 
-            // The plugin DLL is installed into the SimHub root, next to racingdesk-data\.
+            // The plugin DLL is installed into the SimHub root, next to racingdesk-data\. The track map's outlines
+            // are the app's host's, asked over loopback: the plugin reads no file of the driver's and no store.
             _rt = new RacingDeskRuntime(settings, new RacingDeskRuntime.Options
             {
                 AssemblyDirectory = Path.GetDirectoryName(typeof(Plugin).Assembly.Location) ?? "",
                 PluginsDataDirectory = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                     "SimHub", "PluginsData", "RacingDesk"),
+                Outlines = new HostOutlineSource(settings.HostUrl),
+                Host = "simhub",
             });
             _rt.NewCommentaryPrompt += () => this.TriggerEvent("NewCommentaryPrompt");
 
@@ -204,7 +207,9 @@ namespace RacingDesk.Plugin
             this.AttachDelegate("TrackMap.PlayerY", () => _rt._trackMap.PlayerY);
             this.AttachDelegate("TrackMap.Opponents", () => _rt._trackMap.OpponentData);
             this.AttachDelegate("TrackMap.OpponentCount", () => _rt._trackMap.OpponentCount);
-            this.AttachDelegate("TrackMap.Recording", () => !_rt._trackMap.IsReady ? 1 : 0);
+            // Why there is or is not a map: ready, first-lap (the host has no outline of this layout yet), no-host
+            // (the app is not running beside SimHub: the maps are the app's), none.
+            this.AttachDelegate("TrackMap.Status", () => _rt._trackMap.Status);
 
             // Nearest car distance fraction for proximity-based lighting
             this.AttachDelegate("NearestCarDistance", () =>

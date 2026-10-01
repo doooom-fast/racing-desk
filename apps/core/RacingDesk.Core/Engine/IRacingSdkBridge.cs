@@ -69,6 +69,10 @@ namespace RacingDesk.Plugin.Engine
         // Track info
         public string TrackCountry { get; private set; } = "";
         public string TrackDisplayName { get; private set; } = "";
+        /// <summary>iRacing's TrackID, the exact layout: what the track map is keyed by. 0 until the session says.</summary>
+        public int TrackId { get; private set; }
+        /// <summary>The layout's length as the session YAML gives it ("4.02 km"), in metres; 0 until the session says.</summary>
+        public double TrackLengthMeters { get; private set; }
 
         // ═══════════════════════════════════════════════════════════════
         //  LIFECYCLE
@@ -370,6 +374,9 @@ namespace RacingDesk.Plugin.Engine
                 // Track country
                 TrackCountry = TelemetrySnapshot.NormalizeCountryCode(si.WeekendInfo.TrackCountry ?? "");
                 TrackDisplayName = si.WeekendInfo.TrackDisplayName ?? "";
+                TrackId = si.WeekendInfo.TrackID;
+                string length = si.WeekendInfo.TrackLength ?? "";
+                TrackLengthMeters = double.TryParse(length.Split(' ')[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double km) ? km * 1000 : 0;
             }
 
             // ── Sector boundaries ──

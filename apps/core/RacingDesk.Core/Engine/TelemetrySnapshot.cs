@@ -35,6 +35,8 @@ namespace RacingDesk.Plugin.Engine
         public string TrackName         { get; set; } = "";
         /// <summary>iRacing's human-readable track name (WeekendInfo.TrackDisplayName), when known.</summary>
         public string TrackDisplayName  { get; set; } = "";
+        /// <summary>iRacing's TrackID (WeekendInfo.TrackID): the exact layout, which the track map is keyed by. 0 when not known.</summary>
+        public int    TrackId           { get; set; }
         public double TyreWearFL        { get; set; }
         public double TyreWearFR        { get; set; }
         public double TyreWearRL        { get; set; }
@@ -83,13 +85,6 @@ namespace RacingDesk.Plugin.Engine
         public int    SessionLapsRemaining { get; set; }
         /// <summary>Total laps in session (iRacing SessionLapsTotal, 0 for timed races).</summary>
         public int    SessionLapsTotal { get; set; }
-
-        // ── World-space velocity (for track map dead reckoning) ──────────────
-        // iRacing: VelocityX (lateral, car-local), VelocityZ (forward, car-local)
-        // Yaw = heading angle (radians) — needed to convert local → world frame.
-        public double VelocityX { get; set; }
-        public double VelocityZ { get; set; }
-        public double Yaw       { get; set; }
 
         // ── iRacing-only ─────────────────────────────────────────────────────
         public double SteeringWheelTorque { get; set; } // torque (Nm), not angle
