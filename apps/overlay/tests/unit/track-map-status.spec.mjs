@@ -60,27 +60,68 @@ test.describe('what the map cell says', () => {
     await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('');
     expect((await waiting(page)).shown).toBe(false);
     expect(await page.evaluate(() => document.getElementById('fullMapTrackSrc').getAttribute('d').length)).toBeGreaterThan(100);
+    const circuitHeight = () => page.evaluate(() => document.getElementById('fullMapSvg').getBoundingClientRect().height);
+    const heightWithout = await circuitHeight();
+    expect(heightWithout).toBeGreaterThan(30);
 
     // A map that is SimHub's shared one (the host's interim until his first clean lap): drawn as any other, and the cell
-    // says plainly whose it is and until when, in one line over the top of the circuit, at the label's floor.
+    // says plainly whose it is and until when, in one line under the circuit, at the label's floor.
     await page.evaluate((p) => { window.__feed.payload = p; }, { ...race, 'RacingDesk.Plugin.TrackMap.Status': 'crowd' });
-    await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('SimHub’s shared map until your first clean lap');
-    const note = await page.evaluate(() => {
+    await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('SimHub’s map until your first clean lap');
+    await page.waitForTimeout(200);
+    const noteFacts = () => page.evaluate(() => {
       const el = document.getElementById('fullMapWaiting');
+      const inner = el.querySelector('.map-note-inner');
       const r = el.getBoundingClientRect(), panel = el.parentElement.getBoundingClientRect();
       const label = document.getElementById('fullMapLabel').getBoundingClientRect();
       const svg = document.getElementById('fullMapSvg').getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(inner);
+      const lines = new Set([...range.getClientRects()].map((q) => Math.round(q.top))).size;
       return { shown: el.getClientRects().length > 0, note: el.classList.contains('map-note'), size: parseFloat(getComputedStyle(el).fontSize),
+        nowrap: getComputedStyle(el).whiteSpace, lines,
         inPanel: r.top >= panel.top && r.bottom <= panel.bottom, belowCircuit: r.top >= svg.bottom - 1,
-        aboveName: r.bottom <= label.top + 1, path: document.getElementById('fullMapTrackSrc').getAttribute('d').length };
+        aboveName: r.bottom <= label.top + 1, path: document.getElementById('fullMapTrackSrc').getAttribute('d').length,
+        sliding: el.classList.contains('is-marquee'), wider: inner.scrollWidth > el.clientWidth + 2,
+        // The line is cut off at the cell's edge and nothing slides it: unseen. (A sliding line is not cut: it is moved.)
+        cut: inner.scrollWidth > el.clientWidth + 2 && !el.classList.contains('is-marquee'),
+        svgHeight: svg.height };
     });
+    const note = await noteFacts();
     expect(note.shown).toBe(true);
     expect(note.note).toBe(true);
     expect(note.size).toBeGreaterThanOrEqual(11);
     // Under the circuit and above its name, covering nothing: not the top, where race control's banner goes under a flag.
     expect([note.inPanel, note.belowCircuit, note.aboveName]).toEqual([true, true, true]);
     expect(note.path).toBeGreaterThan(100);
+    // One line, and the circuit gives up a line and no more: in the rig's small cell (this is its default layout, where
+    // a sentence that wrapped took the circuit down to a fifth of its height) as in the glance layout and an iPad's.
+    expect([note.nowrap, note.lines]).toEqual(['nowrap', 1]);
+    expect(note.svgHeight / heightWithout, `the circuit was ${heightWithout.toFixed(0)}px tall and is ${note.svgHeight.toFixed(0)}px`).toBeGreaterThan(0.72);
+    // A line wider than its cell slides; one that fits stays put. Never cut off and left.
+    expect(note.cut).toBe(false);
     expect((await waiting(page)).text).not.toMatch(/crowd|branch|commit|merge|git/i);
+    // The glance layout, on a screen the size of an iPad's: the same, and the cell changing size is noticed.
+    await page.setViewportSize({ width: 1180, height: 820 });
+    await page.evaluate(() => setDriveMode(true));
+    await page.waitForTimeout(500);
+    const glanceWithout = await (async () => {
+      await page.evaluate((p) => { window.__feed.payload = p; }, { ...race, 'RacingDesk.Plugin.TrackMap.Status': 'ready' });
+      await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('');
+      await page.waitForTimeout(300);
+      return circuitHeight();
+    })();
+    await page.evaluate((p) => { window.__feed.payload = p; }, { ...race, 'RacingDesk.Plugin.TrackMap.Status': 'crowd' });
+    await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('SimHub’s map until your first clean lap');
+    await page.waitForTimeout(500);
+    const glance = await noteFacts();
+    expect(glance.size).toBeGreaterThanOrEqual(11);
+    expect([glance.nowrap, glance.lines, glance.cut, glance.belowCircuit, glance.aboveName]).toEqual(['nowrap', 1, false, true, true]);
+    expect(glance.svgHeight / glanceWithout, `the glance circuit was ${glanceWithout.toFixed(0)}px tall and is ${glance.svgHeight.toFixed(0)}px`).toBeGreaterThan(0.85);
+    await page.evaluate(() => setDriveMode(false));
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.waitForTimeout(500);
+    expect((await noteFacts()).cut, 'back to the small cell: the line slides if it no longer fits').toBe(false);
     // His own outline takes over: the note goes and the map stays.
     await page.evaluate((p) => { window.__feed.payload = p; }, { ...race, 'RacingDesk.Plugin.TrackMap.Status': 'ready' });
     await expect.poll(() => waiting(page).then((w) => w.text), { timeout: 10000 }).toBe('');

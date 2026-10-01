@@ -236,9 +236,16 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   (`#fullMapWaiting`, `.map-waiting`: "Map after one clean lap", "No map yet — the app is starting its maps", and
   after a minute of that "No map — restart the app to bring its maps back"), and nothing once there is one — but
   for `crowd`, which is a map drawn on SimHub's shared map of the layout (root CLAUDE.md, Track maps): the same
-  element, as `.map-note`, says "SimHub's shared map until your first clean lap" under the circuit and above its
-  name, in the column with them so it covers nothing (not the top, where race control's banner sits under a flag),
-  at the label's 11px floor, until his own outline takes over; a host from before the status says nothing.
+  element, as `.map-note`, says "SimHub's map until your first clean lap" under the circuit and above its name,
+  in the column with them so it covers nothing (not the top, where race control's banner sits under a flag), at the
+  label's 11px floor, until his own outline takes over; a host from before the status says nothing. It is **one
+  line, never more** (`white-space: nowrap`): the rig's default cell is 96 px wide and 98 high, where a note that
+  wrapped to three or five lines took the circuit down to a fifth of its height, so the circuit gives up one line
+  for it and no more (`track-map-status.spec.mjs` holds the circuit's height with the note to 72 % of what it is
+  without, in the default layout and in the glance layout at an iPad's size), and a cell narrower than the line
+  slides it, as the circuit's name is slid (`_fitMapNote` in `webgl-helpers.js`: `.is-marquee`, measured when the
+  note is set and by a `ResizeObserver` when its cell changes size). The iPad's cell and the glance layout's hold it
+  whole.
   Nothing resets or records a map any more (`tests/unit/track-map-status.spec.mjs`).
 - **The leaderboard** is the HUD's panel and rows, its type sized from the panel (`#lbRows` font-size) and the rows sharing
   its height; `leaderboard.js` counts how many the panel holds at that size (1.9 lines to a row) and not the sum of the
@@ -253,7 +260,10 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   at fifteen hundredths too, under every flag (`body::before` at 0.15; the first cut's renders had the stripes at
   full strength in every gutter, which is the noise he meant), with a thin frame at the very edge of the screen —
   four pixels of the frame round the grid, never a gutter, `body::after` masked to a ring — carrying the flag's own
-  pattern at full strength so a white or a chequered flag is still seen; the flag card in the gaps block, race
+  pattern at full strength so a white or a chequered flag is still seen (`drive-view.spec.mjs` holds it twice: the
+  computed layers, the frame's `mask-composite` being `exclude`, and the pixels of a screenshot under each of the five
+  flags — the gutter between the relative and the laps panel under 80 of 255, the edge over 150 — so a frame whose
+  mask stopped taking the inside out, in an engine that does not honour it, would be caught); the flag card in the gaps block, race
   control's banner and the panels' flag-coloured borders are as strong as they were, and no badges: the Racing Desk mark and the car's
   maker are not shown, the row they were in is the controls, the pedals and the clock (landscape `ctrl×7 pedals×5
   timer×5`, portrait `ctrl×9 pedals×8 timer×7`), their WebGL canvases (the chevron drift, the maker's flag) are not

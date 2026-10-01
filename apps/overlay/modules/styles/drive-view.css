@@ -259,6 +259,9 @@ body.drive-mode-active .map-panel .map-svg { width: 100%; flex: 1 1 0; }
 body.drive-mode-active .map-panel > .map-zoom-label { font-size: max(11px, min(4.4cqmin, 18px)); letter-spacing: 0.12em; }
 /* Why there is no map yet, over the empty circuit. */
 body.drive-mode-active .map-panel > .map-waiting { font-size: max(11px, min(4.4cqmin, 18px)); letter-spacing: 0.12em; }
+/* The note under a drawn circuit (SimHub's map, until his first clean lap) is a sentence on one line: plain case and
+   close letters, at the label's size and the same 11px floor. */
+body.drive-mode-active .map-panel > .map-waiting.map-note { letter-spacing: 0.02em; }
 body.drive-mode-active .map-panel .map-track-outer  { stroke-width: calc(12 * var(--px, 0.2)); }
 body.drive-mode-active .map-panel .map-track        { stroke-width: calc(7 * var(--px, 0.2)); }
 body.drive-mode-active .map-panel .map-track-inner  { stroke-width: calc(1.5 * var(--px, 0.2)); }

@@ -879,14 +879,35 @@
     'no-host': 'No map yet — the app is starting its maps',
   };
   // With a map drawn, one note: 'crowd' is SimHub's shared map of the layout, which the host serves until his first
-  // clean lap gives it an outline of his own (root CLAUDE.md, Track maps). Said plainly, over the top of the circuit.
+  // clean lap gives it an outline of his own (root CLAUDE.md, Track maps). Said plainly, in one line under the
+  // circuit and above its name: a line is all the circuit gives up for it, in the rig's small cell as in the glance
+  // layout's, so where the cell is narrower than the line the line slides, as the circuit's name does (_fitMapNote).
   const _MAP_NOTE = {
-    'crowd': 'SimHub’s shared map until your first clean lap',
+    'crowd': 'SimHub’s map until your first clean lap',
   };
   const _MAP_NO_HOST_LONG = 'No map — restart the app to bring its maps back';
   const _MAP_NO_HOST_LONG_AFTER_MS = 60000;
   let _mapNoHostSince = 0;
   let _mapWaitingShown = '';
+  let _mapNoteWatcher = null;
+
+  // The note is one line (nowrap). If its cell is narrower than the line, the line slides: pause, slide, pause,
+  // return, as the circuit's name does (poll-engine.js _setFullMapLabel). Measured when the note is set and whenever
+  // its cell changes size (the rig's small cell, the glance layout, the iPad turned), so it is never cut short unseen.
+  function _fitMapNote(el) {
+    const inner = el.querySelector('.map-note-inner');
+    el.classList.remove('is-marquee');
+    el.style.removeProperty('--marquee-distance');
+    el.style.removeProperty('--marquee-duration');
+    if (!inner) return;
+    const overflow = inner.scrollWidth - el.clientWidth;
+    if (overflow > 2) {
+      const duration = Math.max(10, Math.min(24, 8 + overflow / 30));
+      el.style.setProperty('--marquee-distance', '-' + (overflow + 6) + 'px');
+      el.style.setProperty('--marquee-duration', duration.toFixed(1) + 's');
+      el.classList.add('is-marquee');
+    }
+  }
   function _setMapWaiting(status, hasPath) {
     let text = hasPath ? (_MAP_NOTE[status] || '') : (_MAP_WAITING[status] || '');
     if (status === 'no-host' && !hasPath) {
@@ -899,9 +920,23 @@
     if (text === _mapWaitingShown) return;
     _mapWaitingShown = text;
     const el = document.getElementById('fullMapWaiting');
-    if (el) {
+    if (!el) return;
+    const note = !!(hasPath && text);
+    el.classList.toggle('map-note', note);
+    if (note) {
+      el.textContent = '';
+      const inner = document.createElement('span');
+      inner.className = 'map-note-inner';
+      inner.textContent = text;
+      el.appendChild(inner);
+      requestAnimationFrame(function() { _fitMapNote(el); });
+      if (!_mapNoteWatcher && typeof ResizeObserver === 'function') {
+        _mapNoteWatcher = new ResizeObserver(function() { _fitMapNote(el); });
+        _mapNoteWatcher.observe(el);
+      }
+    } else {
       el.textContent = text;
-      el.classList.toggle('map-note', !!(hasPath && text));
+      _fitMapNote(el);
     }
   }
 
