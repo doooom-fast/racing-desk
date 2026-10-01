@@ -766,17 +766,103 @@ SplitTimeInfo:
             Assert.That(tracker.NewMeasurement, Is.True, "that is a measurement");
             Assert.That(tracker.TireHealthState, Is.EqualTo(0));
 
-            // A reset onto a set that reads 100 already (fresh, measured at the start): held and read 100 the same, flagged,
-            // until the sim's number moves; nothing shows a difference because there is none to show
+            // A reset onto a set the sim already reads as 100 (fresh, measured at the start) has nothing to replace: it is not
+            // held and not flagged, so the page does not say "new set" of a number that is the sim's own (the next test)
             var fromNew = new TyreSetMask();
             Through(fromNew, Snap(100, 100, 100, 100, laps: 1));
             Through(fromNew, Snap(100, 100, 100, 100, inPitLane: true, inStall: true, pitSvFlags: AllFour, laps: 1, speed: 0));
             var s2 = Through(fromNew, Snap(100, 100, 100, 100, laps: 1, speed: 80));
             Assert.That(Corners(s2), Is.EqualTo(new double?[] { 100, 100, 100, 100 }));
-            Assert.That(s2.TyreNewSetFlags, Is.EqualTo(AllFour));
+            Assert.That(s2.TyreNewSetFlags, Is.EqualTo(0));
             var s3 = Through(fromNew, Snap(88, 87, 90, 91, inPitLane: true, laps: 12, speed: 60));
             Assert.That(Corners(s3), Is.EqualTo(new double?[] { 88, 87, 90, 91 }));
             Assert.That(s3.TyreNewSetFlags, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void AFreshSetThatTheSimAlreadyReadsAs100IsNotHeldOrFlaggedButTheNextChangeIs()
+        {
+            // His sessions that start with tyres ticked in his default pit settings: the stall's first exit, with the sim at 100.00 on
+            // every corner and PitSvFlags 0x1f from the first frame (one of his 64 newest: it would have said "New set" for 88.8 %
+            // of its time on track). The 100 is the sim's own there, so nothing is replaced and nothing is flagged.
+            var mask = new TyreSetMask();
+            var tracker = new TireTracker();
+            const int ticked = AllFour | TelemetrySnapshot.PIT_SV_FUEL;
+            tracker.UpdateFrame(Through(mask, Snap(100, 100, 100, 100, inPitLane: true, inStall: true, pitSvFlags: ticked, speed: 0)));
+            var first = Through(mask, Snap(100, 100, 100, 100, laps: 1, speed: 80));
+            tracker.UpdateFrame(first);
+            Assert.That(Corners(first), Is.EqualTo(new double?[] { 100, 100, 100, 100 }));
+            Assert.That(first.TyreNewSetFlags, Is.EqualTo(0), "the first exit from the stall: the sim already says a new set, so the page says nothing of one");
+            Assert.That(new[] { mask.IsMasked(0), mask.IsMasked(1), mask.IsMasked(2), mask.IsMasked(3) }, Is.EqualTo(new[] { false, false, false, false }));
+            Assert.That(tracker.TireHealthState, Is.EqualTo(0));
+            for (int lap = 2; lap <= 12; lap++)
+                Assert.That(Through(mask, Snap(100, 100, 100, 100, laps: lap)).TyreNewSetFlags, Is.EqualTo(0), "and for the whole stint");
+
+            // What his recordings start at (99.98, 100.00) prints as 100 as well: not held either
+            var start = new TyreSetMask();
+            Through(start, Snap(99.98, 99.98, 100, 100, inPitLane: true, inStall: true, pitSvFlags: ticked, speed: 0));
+            var printed = Through(start, Snap(99.98, 99.98, 100, 100, speed: 80));
+            Assert.That(Corners(printed), Is.EqualTo(new double?[] { 99.98, 99.98, 100, 100 }), "the sim's own numbers, as they are");
+            Assert.That(printed.TyreNewSetFlags, Is.EqualTo(0));
+
+            // A reading that prints as less than 100 is a set that is replaced: 99.4 reads 99, so that corner is a new set
+            var worn = new TyreSetMask();
+            Through(worn, Snap(99.4, 99.98, 100, 100, inPitLane: true, inStall: true, pitSvFlags: ticked, speed: 0));
+            var one = Through(worn, Snap(99.4, 99.98, 100, 100, speed: 80));
+            Assert.That(Corners(one), Is.EqualTo(new double?[] { New, 99.98, 100, 100 }));
+            Assert.That(one.TyreNewSetFlags, Is.EqualTo(TelemetrySnapshot.PIT_SV_LF_TIRE), "only the corner whose number was replaced");
+
+            // The next real stop still changes the set and is held: the sim measures it at 70 on pit entry, the tyres are
+            // ticked in the stall, and leaving makes the four a new set until the sim measures again
+            Through(mask, Snap(70, 71, 72, 73, inPitLane: true, laps: 13, speed: 60));
+            Through(mask, Snap(70, 71, 72, 73, inPitLane: true, inStall: true, pitSvFlags: ticked, laps: 13, speed: 0));
+            var after = Through(mask, Snap(70, 71, 72, 73, laps: 13, speed: 80));
+            Assert.That(Corners(after), Is.EqualTo(new double?[] { New, New, New, New }), "70 was the set that came off");
+            Assert.That(after.TyreNewSetFlags, Is.EqualTo(AllFour));
+            var measured = Through(mask, Snap(98, 99, 97, 98, inPitLane: true, laps: 26, speed: 60));
+            Assert.That(Corners(measured), Is.EqualTo(new double?[] { 98, 99, 97, 98 }));
+            Assert.That(measured.TyreNewSetFlags, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void TheNewSetFlagsAreZeroInTheDemoOnBothWires()
+        {
+            // The demo's tread is made up and nothing in it is held: the key says 0 however the live snapshot's mask stands
+            var s = Snap(100, 50, 100, 15, newSet: 0x05);
+            Assert.That((int)TelemetryFrame.BuildDict(s, demo: false)[NewSet], Is.EqualTo(0x05), "live: the mask's flags");
+            Assert.That((int)TelemetryFrame.BuildDict(s, demo: true)[NewSet], Is.EqualTo(0), "demo: 0 on the WebSocket frame");
+
+            string dataDir = Path.Combine(Path.GetTempPath(), "racing-desk-tyre-demo-" + Guid.NewGuid().ToString("N"));
+            int httpPort = FreePort();
+            var runtime = new RacingDeskRuntime(new Settings { DemoMode = true }, new RacingDeskRuntime.Options
+            {
+                AssemblyDirectory = dataDir, PluginsDataDirectory = dataDir,
+                HttpPort = httpPort, WsPort = FreePort(),
+                EnableHardware = false, EnableSdkBridge = false, LoopbackOnly = true,
+            });
+            var sdk = new FakeSdk().Tread(0.90f, 0.90f, 0.90f, 0.90f).Car(false, false, 0, 150);
+            var source = new IRacingTelemetrySource(sdk);
+            using var http = new HttpClient();
+            void Frames(int n = 14) { for (int i = 0; i < n; i++) { source.Update(); runtime.Tick(source); } }
+            try
+            {
+                runtime.Start();
+                Frames();
+                sdk.Tread(0.15f, 0.16f, 0.60f, 0.62f).Car(true, false, 0, 60);
+                Frames();
+                sdk.Car(true, true, AllFour, 0);
+                Frames();
+                sdk.Car(false, false, 0, 80);
+                Frames();
+                Assert.That(runtime._current.TyreNewSetFlags, Is.EqualTo(AllFour), "the live mask still holds the four corners behind the demo");
+                var wire = JObject.Parse(http.GetStringAsync($"http://127.0.0.1:{httpPort}/racing-desk/").Result);
+                Assert.That((int)wire[NewSet], Is.EqualTo(0), "demo: 0 on the HTTP wire, and the page and the sidecar ignore it there too");
+            }
+            finally
+            {
+                runtime.Stop();
+                try { Directory.Delete(dataDir, true); } catch { }
+            }
         }
 
         [Test]

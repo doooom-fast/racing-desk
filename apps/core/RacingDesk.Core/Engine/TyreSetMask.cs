@@ -3,7 +3,7 @@ using System;
 namespace RacingDesk.Plugin.Engine
 {
     /// <summary>
-    /// A reading that describes a set that is no longer on the car is taken off the wire here, once, per corner, so
+    /// A reading that describes a set that is no longer on the car is replaced here, once, per corner, so
     /// every reader (the pit box's rings, the commentary's trigger and quad, the strategist, the recording's sidecar)
     /// agrees without each of them having to know. iRacing measures tread in the pits and nowhere else, and after a
     /// change it keeps showing the readings of the set that came off until it measures again at the next stop
@@ -23,6 +23,12 @@ namespace RacingDesk.Plugin.Engine
     /// is only asked for (a sim that refreshes in the stall) is not held at all. A stop without tyres holds nothing,
     /// and a stop with two (<c>0x05</c>) holds those two corners and leaves the others as measured. A reset to the pits
     /// is a stall visit like any other: the car is in its stall with tyres ticked, and leaves.
+    ///
+    /// A corner whose remembered reading already prints as a new set's 100 (<see cref="TyreWear.DisplayPercent"/>: a
+    /// session that starts on a fresh set, and a set the sim last measured fresh) has nothing to replace, so it is not held
+    /// and not flagged: the 100 on the page is then the sim's own, and the page says "new set" only where the engine put
+    /// the 100 there. (His sessions that start with tyres ticked in his default pit settings leave the stall on their first
+    /// exit with readings of 100, and without this the whole session would have read "New set · not measured".)
     ///
     /// Not seen, so not handled: a stall visit where tyres were asked for and the driver left without them. That
     /// reads 100 on the corners until the next stop's measurement, which is the safe side (nothing warns from a number
@@ -109,7 +115,7 @@ namespace RacingDesk.Plugin.Engine
                 if (leftPitRoad && _asked[i])
                 {
                     _asked[i] = false;                           // out of the pits on whatever was fitted
-                    _masked[i] = true;
+                    _masked[i] = !ReadsAsNewSet(_shown[i]);      // a reading that is a new set's already has nothing to replace
                 }
             }
 
@@ -120,5 +126,9 @@ namespace RacingDesk.Plugin.Engine
             if (_masked[3]) s.TyreWearRR = TyreWear.NewPercent;
             s.TyreNewSetFlags = NewSetFlags;
         }
+
+        /// <summary>True where the sim's reading already prints as a new set's tread, so replacing it with 100 changes nothing.</summary>
+        private static bool ReadsAsNewSet(double? reading) =>
+            reading.HasValue && TyreWear.DisplayPercent(reading.Value) >= TyreWear.DisplayPercent(TyreWear.NewPercent);
     }
 }

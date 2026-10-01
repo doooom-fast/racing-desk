@@ -593,7 +593,7 @@ namespace RacingDesk.Plugin
                     Jp(sb, "DataCorePlugin.GameData.TyreWearFrontRight", s.TyreWearFR, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreWearRearLeft", s.TyreWearRL, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreWearRearRight", s.TyreWearRR, ic);
-                    Jp(sb, Transport.TelemetryFrame.TyreNewSetFlagsKey, s.TyreNewSetFlags);
+                    Jp(sb, Transport.TelemetryFrame.TyreNewSetFlagsKey, demo ? 0 : s.TyreNewSetFlags);   // the demo's tread is made up: nothing in it is held
                     Jp(sb, "DataCorePlugin.GameRawData.Telemetry.dcBrakeBias", s.BrakeBias, ic);
                     Jp(sb, "DataCorePlugin.GameRawData.Telemetry.dcTractionControl", s.TractionControlSetting, ic);
                     Jp(sb, "DataCorePlugin.GameRawData.Telemetry.dcABS", s.AbsSetting, ic);

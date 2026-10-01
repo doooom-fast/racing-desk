@@ -38,7 +38,8 @@ namespace RacingDesk.Plugin.Transport
         /// 100 (<see cref="Engine.TyreWear.NewPercent"/>) until it does. One bit a corner, the same bits as
         /// <c>PitSvFlags</c>: 0x01 FL, 0x02 FR, 0x04 RL, 0x08 RR; 0 where every number is the sim's own. Set by
         /// <see cref="Engine.TyreSetMask"/>, read by the pit box for its "new set" note, by the recording's sidecar
-        /// (<c>wNew</c>), and by the strategist, for which the 100 is healthy but not news. Always sent live; 0 in the demo.
+        /// (<c>wNew</c>), and by the strategist, for which the 100 is healthy but not news. Always sent; 0 in the demo, whose
+        /// tread is made up and has nothing held (the page and the sidecar ignore it there too).
         /// </summary>
         public const string TyreNewSetFlagsKey = "RacingDesk.Plugin.TyreNewSetFlags";
 
@@ -115,7 +116,7 @@ namespace RacingDesk.Plugin.Transport
             dict["DataCorePlugin.GameData.TyreWearFrontRight"] = s.TyreWearFR;
             dict["DataCorePlugin.GameData.TyreWearRearLeft"] = s.TyreWearRL;
             dict["DataCorePlugin.GameData.TyreWearRearRight"] = s.TyreWearRR;
-            dict[TyreNewSetFlagsKey] = s.TyreNewSetFlags;
+            dict[TyreNewSetFlagsKey] = demo ? 0 : s.TyreNewSetFlags;   // the demo's tread is made up: nothing in it is held
             dict["DataCorePlugin.GameRawData.Telemetry.dcBrakeBias"] = s.BrakeBias;
             dict["DataCorePlugin.GameRawData.Telemetry.dcTractionControl"] = s.TractionControlSetting;
             dict["DataCorePlugin.GameRawData.Telemetry.dcABS"] = s.AbsSetting;
