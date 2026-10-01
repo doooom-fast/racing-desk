@@ -69,6 +69,15 @@ The overlay follows its established polling pattern (no WebSocket, no push). Moz
    GET http://localhost:8889/racing-desk/?action=getMozaWheelbaseSettings
    GET http://localhost:8889/racing-desk/?action=setMozaWheelbaseSetting&key=ffbStrength&value=90
    ```
+   **The page cannot make these requests itself.** The runtime answers an `?action=` route only to a program on this
+   machine (the connection is the machine's, the `Host` is localhost, and no browser sent it), and a page's request
+   carries an `Origin` — `null`, for the HUD's file — so it gets `403`. The page asks the main process instead:
+   `runtimeAction(name, params)` (`modules/js/config.js`) → the preload's `runtimeAction` → `runtime:action` in `main.js`
+   → `modules/js/runtime-actions.js`, which makes the request with Node. It passes on only the routes in its `ACTIONS`
+   (today: `resetmap`, `restartdemo`, `setrect`, `listPedalProfiles`, `setPedalProfile`, `bindPedalProfile`), with the
+   arguments each takes and no others, to a runtime on this machine. A Moza route the panel needs is added there, with
+   its arguments (a key is a short name, a value a number), and to `tests/unit/runtime-actions.spec.mjs`, which says on
+   purpose which routes the page may ask for. A script that fetches an `?action=` URL itself fails that spec.
 
 ## Implementation Guidance
 
@@ -129,17 +138,13 @@ export async function setMozaSetting(device, key, value) {
 
 ### Action Fetch Helper
 
-Use the overlay's existing HTTP fetch pattern:
+The overlay's own helper is `runtimeAction` (`modules/js/config.js`); it asks the main process, which makes the request
+as a program on this machine (a page's own `fetch` is refused: see Data Flow above). It resolves to what the route
+answered and rejects with a message in words:
 
 ```javascript
 async function fetchAction(action, params = {}) {
-    const url = new URL('http://localhost:8889/racing-desk/');
-    url.searchParams.set('action', action);
-    for (const [k, v] of Object.entries(params)) {
-        url.searchParams.set(k, v);
-    }
-    const res = await fetch(url);
-    return res.json();
+    return runtimeAction(action, params);   // the route must be in modules/js/runtime-actions.js ACTIONS
 }
 ```
 

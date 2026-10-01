@@ -63,13 +63,50 @@ the iPad view needs the LAN.
 The host also serves the store read-only at
 `:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals}` — that's what the desk reads. If
 SimHub's plugin holds `:8889`, the app runs its host on `:18889`/`:18890` instead (see Desk). One thing is written
-through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only —
-a request that names an `Origin`, or comes from another machine, gets 403, so the desk page sends it through main.js.
+through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`), for programs on this machine only,
+by the same check as the runtime's `?action=` routes make (below): a request from another machine, one that names a
+host other than this machine's own, or one a browser sent (`Origin`, `Referer`, `Sec-Fetch-*`) gets 403, so the desk
+page sends it through main.js.
 Beside them, `GET /racing-desk/data/simwindow` says where the sim's window is and `GET /racing-desk/data/monitors` lists
 the monitors, both in physical pixels (see **The HUD is on the screen iRacing is on**, under Desk), and
 `GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
 before there is a store) with what the check of it has said of each car: this run's, and what the store has kept of
 the runs before (see The car's controls).
+
+**The runtime's `?action=` routes are for programs on this machine.** The plugin (`:8889`) and the host (`:8889` or
+`:18889`) take `GET /racing-desk/?action=<name>` on the telemetry's own path. `setMozaWheelbaseSetting`,
+`setMozaPedalSetting` and `setMozaHandbrakeSetting` queue writes to the wheel base, the pedals and the handbrake;
+`mozaRefresh` and `mozaReconnect` make the Moza manager poll again and look for its ports again; `importMozaPedals`
+reads Pit House's files and saves a profile; `setPedalProfile` and `bindPedalProfile` change the active pedal profile
+and the car bindings, which are written to disk; `resetmap` (which deletes the cached outline), `restartdemo` and
+`setrect` change the runtime's state; and the reads (`getMoza*Settings`,
+`listMozaDevices`, `listPedalProfiles`, `listtracks`, `listSerialPortDiagnostic`, which opens the machine's serial ports
+and with `probe=1` writes to the ones nothing calls Moza) ask the hardware or the machine. Those ports answer every
+address (the iPad view reads the telemetry through the app, which sends no query), so a request that names an action —
+`action=` anywhere in the address, in any case, or decoded from the query; whether or not the runtime has such a route —
+is checked first, once, before any route is looked at (`RacingDeskRuntime.Http.cs`; the check is
+`LocalRequest.IsFromThisMachine`, which the host's `POST …/data/pedals` makes too):
+- the connection is this machine's (`IsLocal`);
+- the `Host` is `localhost`, `127.0.0.1` or `[::1]` (HTTP.sys gives a `localhost` prefix any request that says so, from
+  any address, and a name another site has pointed at the rig is not one of these);
+- no browser sent it: no `Origin`, `Referer` or `Sec-Fetch-Site`/`-Dest`/`-User`. A link, an image or a form carries
+  those without a script to add them, and `<img src="http://localhost:8889/racing-desk/?action=…">` on any site open
+  on the rig would otherwise have turned the wheel base. Node's own `fetch` says `Sec-Fetch-Mode` and no more, and is a
+  program.
+
+Anything else is 403 with no CORS header and a line in the log, once for each action name. So curl, PowerShell, Node
+and the Stream Deck's plugin can ask, and an address typed into a browser cannot: use curl. A route added to the file
+is behind the check by being below it; `ActionRoutesTests` reads every `action == "…"` in the file, asks each from
+another machine, from a page and from this one, and fails on one that is let through (and on a way of looking at the
+action it cannot read). The HUD is a page — a file, whose requests carry `Origin: null` — so its own calls
+(`resetmap`, `restartdemo`, `setrect`, the pedal profiles) are made by the main process: `runtimeAction` in
+`modules/js/config.js` → the preload → `runtime:action` in `main.js` → `modules/js/runtime-actions.js`, which passes on
+only those routes, with their arguments checked, to a runtime on this machine (`tests/unit/runtime-actions.spec.mjs`
+fails on a script that fetches an `?action=` route itself; a route the HUD needs goes in `ACTIONS`). **Left reachable
+from the network, on purpose:** the telemetry (`GET /racing-desk/` with no action: read-only, and the iPad's path), the
+`:8890` feed (it reads nothing from its clients) and the data API's reads above, which the desk fetches from its page
+(which names an origin, `null`) — note that `sessions` and `session` carry the driver's customer id, to any page or
+device that asks.
 
 Car names (`cars`, schema v4) come from the session YAML of the driver's own sessions, which lists every entrant's
 `CarPath` and `CarScreenName` — nothing of iRacing's is bundled, so a car that has never been in one of those sessions
@@ -563,8 +600,8 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
 - **Read-only from the network.** GET and HEAD only. `/racing-desk/` is proxied to the telemetry the HUD itself
   reads (`localhost:8889`, or a saved `simhubUrl` that ends in `/racing-desk/`) and a request carrying a query is
   refused — the plugin and host take `?action=…` on that same path, wheel-base settings among them, and none of it
-  can be reached through here. Files are served from `modules/`, `images/` and `fonts/` only; the one other thing
-  served is the crop of his paint behind the car badge, from the main process's memory at `/livery-crop.png` (The
+  can be reached through here (nor from anywhere but a program on the rig: they refuse the rest themselves). Files
+  are served from `modules/`, `images/` and `fonts/` only; the one other thing served is the crop of his paint behind the car badge, from the main process's memory at `/livery-crop.png` (The
   livery behind the car badge, below) — no query, nothing from disk, 404 while there is none.
 - **A key in the address.** `http://<rig>:9090/?k=<8 characters>`; the page hands it back as a cookie. Made the
   first time the server starts and kept in `overlay-settings.json` (`remoteServerKey`, with `remoteServer` and

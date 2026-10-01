@@ -29,7 +29,7 @@ namespace RacingDesk.Host
     /// other route here answers whatever its origin: a request that comes from another machine, that names a
     /// host other than this machine's own, or that a browser sent (an Origin, a Referer, Sec-Fetch-*) is refused
     /// (<see cref="LocalRequest"/>, the check the runtime's <c>?action=</c> routes make too). The routes that are
-    /// read stay as they are, for the desk and the HUD read them from pages, which name an origin.
+    /// read stay as they are: the desk's page fetches them, and a page names an origin.
     /// </summary>
     internal sealed class LocalDataApi
     {
