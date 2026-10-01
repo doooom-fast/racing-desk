@@ -88,10 +88,10 @@ test.describe('the curve: speed to radius', () => {
     expect(mz.KEY).toBe('followMapZoom');
   });
 
-  test('the ease: 63 % of a step in 0.4 s, 90 % in 0.93 s, 99 % in 1.8 s; nothing in no time; a start from nowhere is the target', () => {
+  test('the ease: 63 % of a step in 0.4 s, 90 % in 0.93 s, 99 % in 1.85 s; nothing in no time; a start from nowhere is the target', () => {
     expect(ease(10, 20, 0.4)).toBeCloseTo(10 + 10 * (1 - Math.exp(-1)), 6);
     expect(ease(10, 20, 0.93)).toBeGreaterThan(19);
-    expect(ease(10, 20, 1.8)).toBeGreaterThan(19.9);
+    expect(ease(10, 20, 1.85)).toBeGreaterThan(19.9);
     expect(ease(10, 20, 0)).toBe(10);
     expect(ease(10, 20, -1)).toBe(10);
     expect(ease(10, 20, NaN)).toBe(10);

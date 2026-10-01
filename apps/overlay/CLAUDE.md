@@ -376,7 +376,7 @@ zoom" in Settings → Look** (`followMapZoom` in `overlay-settings.json`; `modul
   `t = clamp(speed/150, 0, 1)`, wider the same the other way up, fixed `R_FIXED` 11.15, the middle. A speed that is
   no number is a standstill; a mode that is none of the three is `closer`.
 - **The ease** (`ease`, `follower`): the drawn radius follows the target with a first-order ease of time constant
-  `TAU_S` 0.4 s — 63 % of a step in 0.4 s, 90 % in 0.93 s, 99 % in 1.8 s — by the page's own clock
+  `TAU_S` 0.4 s — 63 % of a step in 0.4 s, 90 % in 0.93 s, 99 % in 1.85 s — by the page's own clock
   (`performance.now()`), so a slow frame moves it as far as the time says and no further and a step is never a jump;
   the first frame sets it outright; a frame after a pause eases as if a second had passed at most, so a page that
   was in the background does not jump when it comes back; a change of the setting eases to the new view too.

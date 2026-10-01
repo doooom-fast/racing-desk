@@ -18,7 +18,7 @@
 //   wider   r = R_CLOSE + t · (R_WIDE − R_CLOSE)
 //   fixed   r = R_FIXED, the middle of the two (11.15)
 // The drawn radius follows the target with a first-order ease of time constant TAU_S, 0.4 s: 63 % of a step in 0.4 s,
-// 90 % in 0.93 s, 99 % in 1.8 s — by the page's own clock, so a slow frame moves it as far as the time says and no
+// 90 % in 0.93 s, 99 % in 1.85 s — by the page's own clock, so a slow frame moves it as far as the time says and no
 // further, and a step is never a jump. Telemetry noise of a mile an hour or two moves the target by less than a tenth
 // of a unit, and the ease takes the rest out.
 //
