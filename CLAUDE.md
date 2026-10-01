@@ -590,7 +590,7 @@ still offers the change). The wire, the rings (a dash), the quad, the `tyre_wear
 sidecar and the commentary all see the same thing, so none of them has a rule about it. The pit box does not say "new set" in
 the dash's place; it is `null`, not measured. Not handled: tyres asked for in the stall and not fitted (the driver left
 without the stop) mask the corners until the next measurement, the safe side; the sim's own counters (`LFTiresUsed` and the
-others, `TireSetsUsed`) would be a stronger signal for "fitted", and are worth reading once he changes tyres on a recording.
+others, `TireSetsUsed`) are no better: they do not count a reset to the pits, which fits a new set while the readings keep the old set's (his own .ibt files, 2026-10-01: every mask in his 64 newest sessions came from a reset, and in 9 of them the dash showed for 6 to 93 % of his time on track).
 
 **Every warning fires at the worn end, at two numbers** (`TyreWear.WarnBelowPercent` 35, `CriticalBelowPercent` 20; on the
 page `TYRE_WEAR_WARN_BELOW` and `TYRE_WEAR_CRIT_BELOW` in `config.js`, which every panel reads, with `parseTyreWear` the one

@@ -184,7 +184,7 @@ test.describe('the wire\'s tread, as it is', () => {
     expect(await strategist(page)).toEqual([false, expect.any(String)]);
   });
 
-  test('the demo\'s keys mean the same thing: percent remaining, read as it is, and the page plays the strategist under 35', async ({ page }) => {
+  test('the demo\'s keys mean the same thing: percent remaining, read as it is: amber under 35, and the tyre change offered under 20', async ({ page }) => {
     const demo = (wear, extra = {}) => RACE({}, {
       'RacingDesk.Plugin.DemoMode': 1,
       'RacingDesk.Plugin.Demo.TyreWearFL': wear[0], 'RacingDesk.Plugin.Demo.TyreWearFR': wear[1],

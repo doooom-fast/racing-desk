@@ -128,7 +128,7 @@
       "source": "iracing-sdk",
       "fields": [
         {"name": "TyreTempFL/FR/RL/RR", "type": "float", "unit": "°F", "wired": true, "desc": "Per-corner tyre surface temperature (iRacing native = °F)"},
-        {"name": "TyreWearFL/FR/RL/RR", "type": "double?", "range": "0–100", "wired": true, "desc": "Per-corner tread remaining in percent (100=new), null where the sim has not measured it; the mean of iRacing's three tread bands times a hundred, as SimHub publishes it. iRacing measures tread in the pits only. One meaning everywhere (root CLAUDE.md, Tyre wear); the topic fires on the worst corner <35"}
+        {"name": "TyreWearFL/FR/RL/RR", "type": "double?", "range": "0–100", "wired": true, "desc": "Per-corner tread remaining in percent (100=new), null where the sim has not measured it; the mean of iRacing's three tread bands times a hundred (SimHub publishes the middle band alone). iRacing measures tread in the pits only. One meaning everywhere (root CLAUDE.md, Tyre wear); the topic fires on the worst corner <35"}
       ]
     },
     {

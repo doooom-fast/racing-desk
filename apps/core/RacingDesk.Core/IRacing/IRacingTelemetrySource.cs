@@ -17,7 +17,7 @@ namespace RacingDesk.Plugin.IRacing
     /// is iRacing's internal track name; normalized fuel and tyre temperatures follow the display units (gallons
     /// and °F when imperial) while Computed.Fuel_LitersPerLap stays in litres; tyre wear is tread remaining in
     /// percent, per corner, from iRacing's three bands (<see cref="TyreWear.FromBands"/>; null where the sim has
-    /// not said), which is what SimHub publishes for the same tyre.
+    /// not said). SimHub publishes the middle band alone for the same tyre, so the two agree when the bands do.
     /// </summary>
     public sealed class IRacingTelemetrySource : ITelemetrySource, RacingDesk.Core.Cars.ICarIdentity
     {
