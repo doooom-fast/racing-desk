@@ -143,18 +143,18 @@ namespace RacingDesk.Tests.Transport
             $"/racing-desk/?action={action}&key=ffbstrength&value=100&id=b&car=mx5&x=0.1&y=0.1&w=0.5&h=0.5&probe=1";
 
         /// <summary>The ways a request that is not from a program on this machine looks, as far as a request on 127.0.0.1 can look it.</summary>
-        public static IEnumerable<TestCaseData> OtherMachines()
+        private static readonly (string Name, Action<HttpRequestMessage> Shape)[] OtherMachines =
         {
-            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Host = "192.168.1.20:8889")).SetName("a device on the LAN, by the rig's address");
-            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Host = "evil.example:8889")).SetName("a name another site has pointed at the rig");
-            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Add("Origin", "http://192.168.1.20:3000"))).SetName("a page in a browser, naming its origin");
-            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Add("Origin", "null"))).SetName("a page with an origin of null");
+            ("a device on the LAN, by the rig's address", r => r.Headers.Host = "192.168.1.20:8889"),
+            ("a name another site has pointed at the rig", r => r.Headers.Host = "evil.example:8889"),
+            ("a page in a browser, naming its origin", r => r.Headers.Add("Origin", "http://192.168.1.20:3000")),
+            ("a page with an origin of null", r => r.Headers.Add("Origin", "null")),
             // What a page can do without an Origin, from a link, an image or a form: no script, no header of its own to add,
             // and the browser says what the request is for all the same.
-            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Referrer = new Uri("http://192.168.1.20:3000/page"))).SetName("an image on a page, which has a Referer");
-            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Add("Sec-Fetch-Site", "cross-site"))).SetName("a link on another site");
-            yield return new TestCaseData((Action<HttpRequestMessage>)(r => r.Headers.Add("Sec-Fetch-Dest", "image"))).SetName("an image");
-        }
+            ("an image on a page, which has a Referer", r => r.Headers.Referrer = new Uri("http://192.168.1.20:3000/page")),
+            ("a link on another site", r => r.Headers.Add("Sec-Fetch-Site", "cross-site")),
+            ("an image", r => r.Headers.Add("Sec-Fetch-Dest", "image")),
+        };
 
         private void NothingHappened()
         {
@@ -167,19 +167,20 @@ namespace RacingDesk.Tests.Transport
 
         // ── Another machine ──────────────────────────────────────────
 
-        [TestCaseSource(nameof(OtherMachines))]
-        public void EveryAction_IsRefusedToAnotherMachine_AndNothingHappens(Action<HttpRequestMessage> looksLike)
+        /// <summary>
+        /// One case for each action the runtime has, as many as are in its source: an action added there is asked for here
+        /// the next run, from every way another machine looks, and fails unless it is behind the check.
+        /// </summary>
+        [TestCaseSource(nameof(Actions))]
+        public void AnAction_IsRefusedToAnotherMachine_AndNothingHappens(string action)
         {
-            var actions = Actions().ToList();
-            Assert.That(actions, Is.Not.Empty);
-
-            foreach (string action in actions)
+            foreach (var (name, looksLike) in OtherMachines)
             {
                 var (status, body, openToPages) = Ask(Query(action), looksLike);
 
-                Assert.That(status, Is.EqualTo(HttpStatusCode.Forbidden), action);
-                Assert.That(JObject.Parse(body)["error"]!.ToString(), Does.Contain("this machine"), action);
-                Assert.That(openToPages, Is.False, $"{action}: a page that is refused is not told in a way it may read");
+                Assert.That(status, Is.EqualTo(HttpStatusCode.Forbidden), $"{action}, from {name}");
+                Assert.That(JObject.Parse(body)["error"]!.ToString(), Does.Contain("this machine"), $"{action}, from {name}");
+                Assert.That(openToPages, Is.False, $"{action}, from {name}: a page that is refused is not told in a way it may read");
             }
             NothingHappened();
         }
@@ -206,14 +207,11 @@ namespace RacingDesk.Tests.Transport
 
         // ── This machine ─────────────────────────────────────────────
 
-        [Test]
-        public void EveryAction_StillWorksForAProgramOnThisMachine()
+        [TestCaseSource(nameof(Actions))]
+        public void AnAction_StillWorksForAProgramOnThisMachine(string action)
         {
-            foreach (string action in Actions())
-            {
-                var (status, body, _) = Ask(Query(action));
-                Assert.That(status, Is.EqualTo(HttpStatusCode.OK), $"{action}: {body}");
-            }
+            var (status, body, _) = Ask(Query(action));
+            Assert.That(status, Is.EqualTo(HttpStatusCode.OK), $"{action}: {body}");
         }
 
         [Test]
