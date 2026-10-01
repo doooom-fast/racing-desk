@@ -53,7 +53,7 @@ namespace RacingDesk.Plugin.Engine
         public double ClutchNorm        => Clutch;                // already 0–1
         public double RpmRatio          => MaxRpm > 0 ? Math.Min(1.0, Rpm / MaxRpm) : 0;
         public double FuelPct           => MaxFuel > 0 ? (Fuel / MaxFuel) * 100.0 : 0;
-        public double FuelLapsRemaining => FuelPerLap > 0.01 ? Fuel / FuelPerLap : 99;
+        public double FuelLapsRemaining => FuelPerLap > 0.01 ? Fuel / FuelPerLap : 0;   // 0: not known (TelemetrySnapshot's rule)
         public double SpeedMphComputed  => SpeedKmh * 0.621371;   // alias (SpeedMph is already set in Tick)
         public double PitSpeedLimitMph  => 72.0 * 0.621371;       // demo pit limit = 72 km/h
         public bool   IsPitSpeeding     => IsInPitLane && SpeedKmh > 72.0;
@@ -91,7 +91,7 @@ namespace RacingDesk.Plugin.Engine
             get
             {
                 double lapsEst = FuelLapsRemaining;
-                if (lapsEst <= 0 || lapsEst >= 99 || RemainingLaps <= 0) return "";
+                if (lapsEst <= 0 || RemainingLaps <= 0) return "";
                 if (lapsEst < RemainingLaps)
                     return "PIT in ~" + ((int)Math.Ceiling(lapsEst)).ToString() + " laps";
                 return "";

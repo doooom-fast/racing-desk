@@ -436,7 +436,12 @@
 
     const fuelPerLapRaw = _demo ? (+v('RacingDesk.Plugin.Demo.FuelPerLap') || 0) : (+v('DataCorePlugin.Computed.Fuel_LitersPerLap') || 0);
     const fuelPerLap = _fuelImperial ? fuelPerLapRaw / 3.78541 : fuelPerLapRaw;
-    const fuelLapsEst = +(p[dsPre + 'FuelLapsRemaining']) || (fuelPerLapRaw > 0 ? fuel / fuelPerLapRaw : 0);
+    // The wire's laps of fuel (DS.FuelLapsRemaining) is 0 until a lap has said what a lap costs. A host or a SimHub plugin
+    // built before 2026-10-01 said 99 there, which the laps panel read as "99.0 laps" for the whole of a session whose fuel
+    // per lap it never learnt (he asked: "The fuel in the sector area on iPad shows 99 laps always"): neither is a number
+    // of laps, so the page's own estimate stands in, and that is 0 — a dash — until the fuel per lap is known.
+    const fuelLapsWire = +(p[dsPre + 'FuelLapsRemaining']) || 0;
+    const fuelLapsEst = (fuelLapsWire > 0 && fuelLapsWire < 99) ? fuelLapsWire : (fuelPerLapRaw > 0 ? fuel / fuelPerLapRaw : 0);
     const completedLaps = +(p[dsPre + 'CompletedLaps']) || 0;
     const fuelVals = document.querySelectorAll('.fuel-stats .val');
     if (fuelVals.length >= 2) {

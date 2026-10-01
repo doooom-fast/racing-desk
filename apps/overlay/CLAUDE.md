@@ -201,6 +201,16 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   best of it in the gaps block's colours, his gaps to his best of the session, the optimal lap and his best ever, and the
   laps of fuel against the laps to go to the flag (in a race to time, the time left over his last lap), green with a lap
   to spare, amber just, red short. What is left to go is a span of its own that a narrow panel leaves out: the clock has it.
+  **The laps of fuel are a number or a dash, never 99** (he asked on 2026-10-01: "The fuel in the sector area on iPad
+  shows 99 laps always"): `DS.FuelLapsRemaining` was 99 from the host and the plugin alike for as long as the fuel per lap
+  was not known — the host's own (`IRacingTelemetrySource.FuelPerLap`) wants one green lap off pit road, SimHub's
+  `Fuel_LitersPerLap` a lap or two — and the laps panel read it as it was, where the pit box refused anything at 99. The
+  engine now says 0 there (`TelemetrySnapshot.FuelLapsRemaining`, the demo's and the strategist's `Strategy.FuelLapsRemaining`
+  alike, which never calls FUEL CRITICAL on a 0), and `poll-engine.js` takes the wire's number only between 0 and 99 — a
+  SimHub plugin built before this still sends 99 — else the page's own estimate from the fuel and the fuel per lap, else
+  a dash. Everywhere fuel laps show (the laps panel, the pit box's "Laps left", the strategist's "Stop · ~6 laps") reads
+  that one number. `tests/unit/fuel-laps.spec.mjs`; RacingDesk.Tests `Strategy/FuelLapsRemainingTests.cs` (and the host's
+  fuel per lap over his newest race).
   **A sector is never narrower than its number** (he had "sector numbers get cropped when they're too many digits",
   2026-09-30): the cells are a wrapping row with `min-width: max-content`, every one as wide as the widest time (`--tw`,
   so a sector not yet timed is as wide as one that is and nothing moves when it is), their numbers come down from the

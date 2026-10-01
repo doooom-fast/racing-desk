@@ -43,7 +43,11 @@ namespace RacingDesk.Plugin.Engine.Strategy
         /// <summary>Fuel remaining in liters.</summary>
         public double FuelRemaining { get; private set; }
 
-        /// <summary>Laps of fuel remaining at current burn rate.</summary>
+        /// <summary>
+        /// Laps of fuel remaining at the current burn rate; 0 until a lap of the stint has said what a lap burns (it
+        /// was 99 there, a number the pages showed as laps of fuel). The wire carries it as
+        /// <c>RacingDesk.Plugin.Strategy.FuelLapsRemaining</c>, where 0 is also what is sent with no strategy at all.
+        /// </summary>
         public double FuelLapsRemaining { get; private set; }
 
         /// <summary>Laps remaining in the race (session laps or time-based estimate).</summary>
@@ -147,8 +151,8 @@ namespace RacingDesk.Plugin.Engine.Strategy
             // Race laps remaining
             RaceLapsRemaining = EstimateRaceLapsRemaining(s);
 
-            // Fuel laps remaining
-            FuelLapsRemaining = AvgBurnPerLap > 0.01 ? FuelRemaining / AvgBurnPerLap : 99;
+            // Fuel laps remaining: 0 while no lap has said what a lap burns (not 99: that is not a number of laps)
+            FuelLapsRemaining = AvgBurnPerLap > 0.01 ? FuelRemaining / AvgBurnPerLap : 0;
 
             // Can we make it to end?
             double safetyMargin = RaceLapsRemaining > 30 ? 2.0 : 1.0; // more margin for endurance
@@ -186,8 +190,8 @@ namespace RacingDesk.Plugin.Engine.Strategy
             if (stint == null || stint.LapsCompleted < 2) return null;
             var now = DateTime.UtcNow;
 
-            // ── Critical: about to run out ──────────────────────────────
-            if (FuelLapsRemaining < 3 && !s.IsInPitLane
+            // ── Critical: about to run out (only once the laps of fuel are known: 0 is "not yet", not "empty") ──
+            if (FuelLapsRemaining > 0 && FuelLapsRemaining < 3 && !s.IsInPitLane
                 && (now - _lastFuelCall).TotalSeconds >= 20)
             {
                 _lastFuelCall = now;

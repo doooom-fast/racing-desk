@@ -431,8 +431,14 @@ namespace RacingDesk.Plugin.Engine
         /// <summary>Fuel percentage 0–100.</summary>
         public double FuelPct => FuelPercent;
 
-        /// <summary>Estimated laps of fuel remaining.</summary>
-        public double FuelLapsRemaining => FuelPerLap > 0.01 ? FuelLevel / FuelPerLap : 99;
+        /// <summary>
+        /// Laps of fuel left at what a lap has cost so far, and <c>0</c> until a lap has said what one costs (the host's
+        /// own <c>FuelPerLap</c> wants one green lap off pit road; SimHub's <c>Fuel_LitersPerLap</c> a lap or two). It
+        /// was 99 there, which the laps panel on the iPad read as "99.0 laps" for as long as the number was not known
+        /// (he asked on 2026-10-01: "The fuel in the sector area on iPad shows 99 laps always"). A number that is not
+        /// known is not a number: the page shows a dash for 0, and still refuses a 99 from a plugin built before this.
+        /// </summary>
+        public double FuelLapsRemaining => FuelPerLap > 0.01 ? FuelLevel / FuelPerLap : 0;
 
         /// <summary>Speed in miles per hour.</summary>
         public double SpeedMph => SpeedKmh * 0.621371;
@@ -543,8 +549,8 @@ namespace RacingDesk.Plugin.Engine
         {
             get
             {
-                double lapsEst = FuelLapsRemaining;
-                if (lapsEst <= 0 || lapsEst >= 99 || RemainingLaps <= 0) return "";
+                double lapsEst = FuelLapsRemaining;   // 0 while the fuel per lap is not known
+                if (lapsEst <= 0 || RemainingLaps <= 0) return "";
                 if (lapsEst < RemainingLaps)
                     return "PIT in ~" + ((int)System.Math.Ceiling(lapsEst)).ToString() + " laps";
                 return "";

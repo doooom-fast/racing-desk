@@ -540,8 +540,11 @@
       }
     }
     if (shouldSuggestFuel && _els.fuelStratLabel) {
-      var fuelLapsStr = (fuelStratLaps != null && fuelStratLaps !== '')
-        ? ' · ~' + Math.round(parseFloat(fuelStratLaps)) + ' laps left'
+      // The strategist's laps of fuel is 0 until a lap has said what a lap burns (99 from an engine built before
+      // 2026-10-01): neither is a number of laps to say.
+      var stratLapsNum = parseFloat(fuelStratLaps);
+      var fuelLapsStr = (stratLapsNum > 0 && stratLapsNum < 99)
+        ? ' · ~' + Math.round(stratLapsNum) + ' laps left'
         : '';
       _els.fuelStratLabel.textContent = document.body.classList.contains('drive-mode-active')
         ? 'Stop' + (fuelLapsStr ? ' · ~' + Math.round(parseFloat(fuelStratLaps)) + ' laps' : '')
@@ -597,6 +600,7 @@
     }
     if (_els.fuelPerLap) _els.fuelPerLap.textContent = fuelPerLap;
     if (_els.fuelLaps) {
+      // 0 is "not known yet" (the wire's rule since 2026-10-01), and 99 is what an older plugin said for the same: a dash.
       _els.fuelLaps.textContent = fuelLaps > 0 && fuelLaps < 99
         ? fuelLaps.toFixed(1) : (inPitLane ? _lastFuelLaps : '—');
     }
