@@ -541,37 +541,50 @@ body.drive-mode-active #datastreamPanel [data-ds-field="dsShowFps"] { display: n
 
 /* ── Incidents: the HUD's own panel as it is on the rig — the count coloured by level, the bar to penalty and DQ, what
       is left of each. It is fixed to a corner there; here it is a cell. He asked (2026-10-01) for its header where every
-      other module has its header, and larger fonts on the data. So the header is the datastream's beside it: at the top,
-      on the left, in the same type — the inner card takes the datastream's padding and number size (6.2cqh / 9cqw, the
-      20px floor), and the header is 0.55 of that with the same tracking, colour and rule beneath (.ds-header, above) —
-      where it sat centred in the middle of the cell. The numbers are as large as the cell lets them be, the way the
-      other panels' numbers fill theirs: the count from the cell's height and width (34cqh / 50cqw: 70px in an Air's
-      cell on its side, 60px in a 9.7-inch's, 105px on the rig's 1920x1080), the penalty and DQ counts from the same
-      (12cqh / 20cqw: 24 to 37px), their labels 11px or more; nothing is under 20px. The count floats in the room
-      between the header and the thresholds (auto margins), so the panel reads top to bottom with the thresholds at
-      its foot, and in a session with no limits (a test drive, a practice) the count has the room to itself. Once a
-      limit is hit the number is a word (PENALTY, DQ), read at a label's size; a value that would not fit beside its
-      label goes under it, right-aligned, rather than cropped, and the labels never break.
+      other module has its header, and larger fonts on the data. So the header is where theirs are: at the top, on the
+      left — the inner card takes the datastream's padding and number size (6.2cqh / 9cqw, the 20px floor), and the
+      header is 0.55 of that with a rule beneath, the datastream's (.ds-header, above) — where it sat centred in the
+      middle of the cell. Its type is the HUD's own incidents header's, the datastream's and the leaderboard's (0.12em at
+      0.35, fainter than the .panel-label's): the glance layout's type is held to the rig HUD's (drive-view.spec.mjs),
+      and those headers are that on the rig too. The numbers are as large as the cell lets them be, the way the
+      other panels' numbers fill theirs. The count is the lesser of what the cell's height leaves it (40cqh: under the
+      header, over the bar and the two limits) and what its width does (two digits and the x take 1.3 times its size
+      across the card: 72cqw less the card's 20px of padding, six per cent under what was measured to fit, for the
+      iPad's own font) — 83px in an Air's cell on its side, 98px in a 12.9-inch Pro's, 85px upright; the x goes with it
+      at four-tenths. A session with no limits (a test drive, a practice) has no bar and no limits under it, and the
+      count has their room too (66cqh): 153px in a test drive on an Air, on its side. Three digits (a long test drive)
+      take half as much width again, so the count is smaller for them (data-digits, written by incidents.js) and is
+      never cut off. The penalty and DQ counts are the lesser of 14.7cqh and 27cqw (25 to 43px), their labels 11px or
+      more; nothing is under 20px. The count floats in the room between the header and the thresholds (auto margins),
+      so the panel reads top to bottom with the thresholds at its foot. Once a limit is hit the number is a word
+      (PENALTY, DQ), read at a label's size; a value that would not fit beside its label goes under it, right-aligned,
+      rather than cropped, and the labels never break.
       tests/unit/incidents-glance.spec.mjs measures the header against the datastream's and the numbers against the
-      cell at every iPad size, in a race, with both limits hit, and in a test drive. ── */
+      cell at every iPad size, in a race, with two digits, with both limits hit, in a test drive and in a long one. ── */
 body.drive-mode-active #incidentsPanel { grid-area: inc; display: flex; background: none; border: none; }
 body.drive-mode-active .inc-inner {
+  --inc-count: max(20px, min(40cqh, calc(72cqw - 18px)));
   flex: 1; min-width: 0;
   display: flex; flex-direction: column; justify-content: flex-start; gap: 0;
   padding: 6px 10px; text-align: left;
   font-size: max(20px, min(6.2cqh, 9cqw));
   overflow: hidden;
 }
+body.drive-mode-active #incidentsPanel.inc-no-limits .inc-inner { --inc-count: max(20px, min(66cqh, calc(72cqw - 18px))); }
+body.drive-mode-active #incidentsPanel[data-digits="3"] .inc-inner { --inc-count: max(20px, min(40cqh, calc(52cqw - 14px))); }
+body.drive-mode-active #incidentsPanel.inc-no-limits[data-digits="3"] .inc-inner { --inc-count: max(20px, min(66cqh, calc(52cqw - 14px))); }
+body.drive-mode-active #incidentsPanel[data-digits="4"] .inc-inner { --inc-count: max(20px, min(40cqh, calc(40cqw - 12px))); }
+body.drive-mode-active #incidentsPanel.inc-no-limits[data-digits="4"] .inc-inner { --inc-count: max(20px, min(66cqh, calc(40cqw - 12px))); }
 body.drive-mode-active .inc-label { font-size: max(11px, 0.55em); padding-bottom: 0.25em; margin: 0 0 0.25em; text-align: left; line-height: normal; }
 body.drive-mode-active .inc-value-row { margin: auto 0; justify-content: center; gap: 0.2em; }
-body.drive-mode-active .inc-count { font-size: max(20px, min(34cqh, 50cqw)); line-height: 1; }
-body.drive-mode-active .inc-x { font-size: max(20px, min(14cqh, 20cqw)); }
+body.drive-mode-active .inc-count { font-size: var(--inc-count); line-height: 1; }
+body.drive-mode-active .inc-x { font-size: max(20px, calc(var(--inc-count) * 0.4)); }
 body.drive-mode-active .inc-progress { margin: 0 0 0.15em; padding: 0 1px; flex: none; }
 body.drive-mode-active .inc-bar-track { height: max(4px, 2.5cqh); }
 body.drive-mode-active .inc-thresholds { margin: 0; padding-top: 0.2em; gap: 0.1em; flex: none; }
 body.drive-mode-active .inc-thresh-row { font-size: max(11px, min(7cqh, 9cqw)); align-items: baseline; flex-wrap: wrap; gap: 0 0.4em; line-height: 1.2; }
 body.drive-mode-active .inc-thresh-row > span { white-space: nowrap; }
-body.drive-mode-active .inc-thresh-val { font-size: max(20px, min(12cqh, 20cqw)); margin-left: auto; line-height: 1.15; }
+body.drive-mode-active .inc-thresh-val { font-size: max(20px, min(14.7cqh, 27cqw)); margin-left: auto; line-height: 1.15; }
 /* Once a limit is hit the number is a word (PENALTY, DQ): a word is read at a label's size, and the longer one, at the
    number's size, was wider than the narrowest cell on its side. */
 body.drive-mode-active .inc-thresh-val.thresh-hit { font-size: max(14px, min(8cqh, 11cqw)); letter-spacing: 0.06em; }

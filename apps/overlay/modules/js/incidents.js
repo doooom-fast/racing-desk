@@ -73,6 +73,10 @@
 
     if (thresholds) thresholds.style.display = hasAnyLimit ? '' : 'none';
     if (progressEl) progressEl.style.display = hasAnyLimit ? '' : 'none';
+    // What the glance layout sizes the count by (drive-view.css): whether there are limits under it at all, and how
+    // many digits it has (2 or fewer is the card's size; 3, and 4 or more, are smaller, so the count is never cut off).
+    panel.classList.toggle('inc-no-limits', !hasAnyLimit);
+    panel.dataset.digits = String(Math.min(4, Math.max(1, String(incidentCount).length)));
     if (penRow) penRow.style.display = hasPenalty ? '' : 'none';
 
     const penEl = document.getElementById('incToPen');

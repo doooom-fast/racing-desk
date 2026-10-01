@@ -3,13 +3,18 @@
  * 2026-10-01 — "update incidents panel in ipad overlay to match header location of other modules and larger fonts on
  * the data". The glance layout is the iPad's view, the rig's Ctrl+Shift+F and the iPad dashboard OBS draws.
  *
- * Held here, at every iPad size and on the rig's two screens, in a race, in a race with both limits hit, and in a test
- * drive (no limits):
- *   - the header is where the other panels' headers are and in their type: measured against the datastream's header
- *     beside it — the same offset from the top and the left of its panel, the same size, tracking, colour, weight and
- *     case, aligned left, and the topmost thing in the panel;
- *   - the numbers are as large as the cell allows: the count at least the lesser of 34 % of the cell's height and 50 %
- *     of its width, the penalty and DQ counts the lesser of 12 % and 20 %, never under 20px, their labels 11px or more;
+ * Held here, at every iPad size and on the rig's two screens, in a race, in a race with two digits, with both limits
+ * hit and with a DQ limit alone, in a test drive (no limits) and in a long one (three and four digits):
+ *   - the header is where the other panels' headers are and in the HUD's own type for it: the same offset from the top
+ *     and the left of its panel as the datastream's beside it, the same size, weight and case, aligned left, the
+ *     topmost thing in the panel; its tracking and colour are the datastream's and the leaderboard's (the HUD's own
+ *     incidents header's: 0.12em at 0.35 — not the .panel-label's, which the datastream's and the leaderboard's are not
+ *     either: the glance layout's type is the rig HUD's, and drive-view.spec.mjs holds it to that);
+ *   - the numbers are as large as the cell allows: the count the lesser of what the cell's height leaves it (40 %; 66 %
+ *     with no limits under it) and what its width does (72 % less 18px for two digits, 52 % less 14px for three, 40 %
+ *     less 12px for four), the penalty and DQ counts the lesser of 14.7 % of the height and 27 % of the width, never
+ *     under 20px, their labels 11px or more; and what the cell allows is what is drawn: a two-digit count, a
+ *     three-digit one, a long test drive, all with the x beside them inside the card;
  *   - nothing is cropped: the inner card holds everything, and every piece of text lies inside the panel.
  */
 
@@ -32,13 +37,22 @@ const IPADS = [
 ];
 const RIG = [[1920, 1080, 'the rig, 16:9'], [2560, 1080, 'the rig, ultrawide']];
 
-// A race with a penalty at 17 and a DQ at 25 (the frame's limits): four incidents; thirty, both hit; a test drive, none.
-const RACE = (incidents = 4) => frame({ order: fieldWith(4), state: 4, mode: 4, start: 7, lap: 12, incidents });
-const TEST_DRIVE = () => frame({
-  order: fieldWith(1, []), session: 'Offline Testing', mode: 1, state: 4, start: 0, lap: 3, incidents: 2,
+// A race with a penalty at 17 and a DQ at 25 (the frame's limits): four incidents; fourteen; thirty, both hit; twenty-two
+// with a DQ limit alone. A test drive, none: two incidents, a hundred and twenty, a thousand two hundred and thirty-four.
+const RACE = (incidents = 4, extra = {}) => frame({ order: fieldWith(4), state: 4, mode: 4, start: 7, lap: 12, incidents, extra });
+const TEST_DRIVE = (incidents = 2) => frame({
+  order: fieldWith(1, []), session: 'Offline Testing', mode: 1, state: 4, start: 0, lap: 3, incidents,
   extra: { 'RacingDesk.Plugin.DS.IsNonRaceSession': 1, 'RacingDesk.Plugin.Grid.TotalCars': 1 },
 });
-const CASES = [['a race', () => RACE()], ['a race with both limits hit', () => RACE(30)], ['a test drive', () => TEST_DRIVE()]];
+const CASES = [
+  { name: 'a race', make: () => RACE(4), count: '4', rows: ['Penalty in 13', 'DQ in 21'] },
+  { name: 'a race, two digits', make: () => RACE(14), count: '14', rows: ['Penalty in 3', 'DQ in 11'] },
+  { name: 'a race with both limits hit', make: () => RACE(30), count: '30', rows: ['Penalty in PENALTY', 'DQ in DQ'], hit: true },
+  { name: 'a race with a DQ limit alone', make: () => RACE(22, { 'RacingDesk.Plugin.DS.IncidentLimitPenalty': 0 }), count: '22', rows: ['DQ in 3'] },
+  { name: 'a test drive', make: () => TEST_DRIVE(2), count: '2', rows: [], noLimits: true },
+  { name: 'a long test drive', make: () => TEST_DRIVE(120), count: '120', rows: [], noLimits: true },
+  { name: 'a very long test drive', make: () => TEST_DRIVE(1234), count: '1234', rows: [], noLimits: true },
+];
 
 let telemetry, port, payload;
 test.beforeAll(async () => {
@@ -90,11 +104,15 @@ const measure = (page) => page.evaluate(() => {
   const ds = document.getElementById('datastreamPanel');
   const dsHeader = ds.querySelector('.ds-header');
   const type = (el) => {
+    if (!el || el.getClientRects().length === 0) return null;
     const cs = getComputedStyle(el);
-    return { size: parseFloat(cs.fontSize), tracking: cs.letterSpacing, colour: cs.color, weight: cs.fontWeight, caps: cs.textTransform, align: cs.textAlign, family: cs.fontFamily };
+    const size = parseFloat(cs.fontSize);
+    const track = parseFloat(cs.letterSpacing);
+    return { size, tracking: cs.letterSpacing, trackingEm: Number.isFinite(track) ? track / size : 0, colour: cs.color, weight: cs.fontWeight, caps: cs.textTransform, align: cs.textAlign, family: cs.fontFamily };
   };
   const offset = (el, within) => { const a = el.getBoundingClientRect(), b = within.getBoundingClientRect(); return { top: a.top - b.top, left: a.left - b.left }; };
-  const px = (sel) => { const el = panel.querySelector(sel); return el && el.getClientRects().length ? parseFloat(getComputedStyle(el).fontSize) : null; };
+  // The first match that is showing (with a DQ limit alone the penalty's row is not).
+  const px = (sel) => { const el = [...panel.querySelectorAll(sel)].find((e) => e.getClientRects().length > 0); return el ? parseFloat(getComputedStyle(el).fontSize) : null; };
   const cell = panel.getBoundingClientRect();
   // Every piece of text in the panel lies inside the panel's box (the glyphs' own box: the middle three fifths of a line).
   const cutOff = [];
@@ -119,63 +137,91 @@ const measure = (page) => page.evaluate(() => {
   }
   const slack = Math.max(1, parseFloat(getComputedStyle(inner).fontSize) * 0.3);
   const rowsShown = [...panel.querySelectorAll('.inc-thresh-row')].filter((r) => r.getClientRects().length > 0).map((r) => [...r.children].map((c) => c.textContent.trim()).join(' '));
+  // The count and its x lie across the card's inside, in the row they are in.
+  const row = panel.querySelector('.inc-value-row');
+  const count = panel.querySelector('.inc-count');
+  const x = panel.querySelector('.inc-x');
+  const rowGap = parseFloat(getComputedStyle(row).columnGap) || 0;
+  const reference = (sel) => type(document.querySelector(sel));
   return {
     cell: { w: cell.width, h: cell.height },
     header: { ...type(label), ...offset(label, panel), text: label.textContent.trim() },
     dsHeader: { ...type(dsHeader), ...offset(dsHeader, ds) },
+    // The leaderboard's header, the other one in the HUD's older style, when there is a leaderboard (not in a test drive).
+    lbHeader: reference('#leaderboardPanel .lb-header'),
     count: px('.inc-count'), x: px('.inc-x'), thresh: px('.inc-thresh-val'), threshLabel: px('.inc-thresh-row'),
     thresholdsShown: panel.querySelector('.inc-thresholds').style.display !== 'none',
     rows: rowsShown,
     overflow: inner.scrollWidth > inner.clientWidth + 1 || inner.scrollHeight > inner.clientHeight + slack ? `${inner.scrollWidth}x${inner.scrollHeight} in ${inner.clientWidth}x${inner.clientHeight}` : null,
+    rowOver: count.offsetWidth + x.offsetWidth + rowGap - row.clientWidth,
     cutOff, topmostText,
-    countText: panel.querySelector('.inc-count').textContent,
+    countText: count.textContent,
+    digits: panel.dataset.digits || null,
+    noLimits: panel.classList.contains('inc-no-limits'),
   };
 });
+
+// What the stylesheet gives the count and the penalty / DQ counts at a cell's size (the rules in drive-view.css).
+const countFor = (m, c) => {
+  const digits = c.count.length;
+  const wide = digits <= 2 ? 0.72 * m.cell.w - 18 : digits === 3 ? 0.52 * m.cell.w - 14 : 0.40 * m.cell.w - 12;
+  return Math.max(20, Math.min((c.noLimits ? 0.66 : 0.40) * m.cell.h, wide));
+};
+const threshFor = (m) => Math.max(20, Math.min(0.147 * m.cell.h, 0.27 * m.cell.w));
 
 for (const size of [...IPADS, ...RIG]) {
   const [width, height, what] = size;
   const rig = RIG.includes(size);
-  test(`${width}x${height} (${what}): the header is the datastream's, top left; the numbers fill the cell; nothing is cropped`, async ({ page }) => {
-    test.setTimeout(90000);
+  test(`${width}x${height} (${what}): the header is where the others are, in the HUD's type; the numbers fill the cell; nothing is cropped`, async ({ page }) => {
+    test.setTimeout(120000);
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await openAt(page, width, height, RACE(), rig);
-    for (const [name, next] of CASES) {
-      payload = next();
+    for (const c of CASES) {
+      payload = c.make();
       await frames(page);
       const m = await measure(page);
-      const label = `${width}x${height}, ${name}`;
-      // The header: where the datastream's is, in its type.
+      const label = `${width}x${height}, ${c.name}`;
+      // The header: where the datastream's is, at its size.
       expect(m.header.text, label).toBe('Incidents');
       expect(Math.abs(m.header.top - m.dsHeader.top), `${label}: the header's offset from the top of its panel (${m.header.top} vs the datastream's ${m.dsHeader.top})`).toBeLessThanOrEqual(1);
       expect(Math.abs(m.header.left - m.dsHeader.left), `${label}: the header's offset from the left of its panel (${m.header.left} vs the datastream's ${m.dsHeader.left})`).toBeLessThanOrEqual(1);
       expect(m.header.size, `${label}: the header's size`).toBeCloseTo(m.dsHeader.size, 1);
-      expect(m.header.tracking, label).toBe(m.dsHeader.tracking);
-      expect(m.header.colour, label).toBe(m.dsHeader.colour);
       expect(m.header.weight, label).toBe(m.dsHeader.weight);
       expect(m.header.caps, label).toBe('uppercase');
       expect(m.header.align, label).toBe('left');
       expect(m.header.family, label).toBe(m.dsHeader.family);
       expect(m.header.size).toBeGreaterThanOrEqual(11);
       expect(m.topmostText, `${label}: the header is the first thing in the panel`).toBe('Incidents');
+      // The HUD's own type for it: the datastream's, and the leaderboard's when there is one. (Tracking is in em: the
+      // leaderboard's header is drawn larger than a cell's, and its tracking is the same fraction of it.)
+      expect(m.header.tracking, label).toBe(m.dsHeader.tracking);
+      expect(m.header.colour, label).toBe(m.dsHeader.colour);
+      expect(m.header.trackingEm, label).toBeCloseTo(0.12, 3);
+      if (m.lbHeader) {
+        expect(m.header.trackingEm, `${label}: the header's tracking against the leaderboard's`).toBeCloseTo(m.lbHeader.trackingEm, 3);
+        expect(m.header.colour, `${label}: the header's colour against the leaderboard's`).toBe(m.lbHeader.colour);
+      }
       // The numbers, as large as the cell allows.
-      const countFloor = Math.max(20, Math.min(0.34 * m.cell.h, 0.5 * m.cell.w));
-      expect(m.count, `${label}: the count at ${m.count}px in a ${Math.round(m.cell.w)}x${Math.round(m.cell.h)} cell`).toBeGreaterThanOrEqual(countFloor - 0.5);
+      expect(m.countText, label).toBe(c.count);
+      expect(m.noLimits, label).toBe(!!c.noLimits);
+      expect(m.digits, label).toBe(String(Math.min(4, c.count.length)));
+      const countFloor = countFor(m, c);
+      expect(m.count, `${label}: the count at ${m.count}px in a ${Math.round(m.cell.w)}x${Math.round(m.cell.h)} cell, its floor ${countFloor.toFixed(1)}`).toBeGreaterThanOrEqual(countFloor - 0.5);
       expect(m.count).toBeGreaterThanOrEqual(20);
       expect(m.x).toBeGreaterThanOrEqual(20);
-      if (name === 'a test drive') {
+      // ...and the count with its x is across the card's inside, not out over its padding.
+      expect(m.rowOver, `${label}: the count and its x are ${m.rowOver.toFixed(1)}px wider than the card's inside`).toBeLessThanOrEqual(0.5);
+      if (c.noLimits) {
         expect(m.thresholdsShown, label).toBe(false);
-        expect(m.countText).toBe('2');
       } else {
         expect(m.thresholdsShown, label).toBe(true);
-        if (name === 'a race') {
-          const threshFloor = Math.max(20, Math.min(0.12 * m.cell.h, 0.2 * m.cell.w));
-          expect(m.thresh, `${label}: a threshold's number at ${m.thresh}px`).toBeGreaterThanOrEqual(threshFloor - 0.5);
-          expect(m.rows, label).toEqual(['Penalty in 13', 'DQ in 21']);
+        expect(m.rows, label).toEqual(c.rows);
+        if (!c.hit) {
+          expect(m.thresh, `${label}: a threshold's number at ${m.thresh}px`).toBeGreaterThanOrEqual(threshFor(m) - 0.5);
         } else {
           // A limit hit is a word, read at a label's size: 14px or more.
           expect(m.thresh, `${label}: the word at ${m.thresh}px`).toBeGreaterThanOrEqual(14);
-          expect(m.rows, label).toEqual(['Penalty in PENALTY', 'DQ in DQ']);
         }
         expect(m.threshLabel, label).toBeGreaterThanOrEqual(11);
       }
