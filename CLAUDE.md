@@ -762,16 +762,16 @@ set Auto-Lock to Never.
 
 **The livery behind the car badge** (`modules/js/logo-livery.js`; asked for 2026-09-30: "the splash of color beneath
 the car logo to be the livery preview cropped to a random artwork filled section"). The square under the car's logo
-on the HUD — the rig's, and the glance layout's on the rig and the iPad — was a flat splash of the maker's colour.
+on the HUD — the rig's, and the glance layout's on the rig (an iPad shows no badge since 2026-09-30) — was a flat splash of the maker's colour.
 Now it is a section of the paint the sim is showing on his car: `Documents\iRacing\paint\<car>\car_<customer id>.tga`,
 the very bytes the sim reads, cropped to a window with artwork in it and laid under the logo, with a darkening over
 it so the mark and the car's name read on any paint. **The main process chooses it, never the page**: the page reads
 no file and builds no path. It is chosen from the same telemetry answer `hud-visibility` shows the HUD by — when he
 gets in the car, and when the car changes while he is in it, once each — and kept until the next of those, so it
 does not flicker; the choice is random among the best few windows, so each time he gets in the car it is another
-section. Getting out keeps the last crop (the HUD is hidden then; the iPad shows the last car). **A crop made for
+section. Getting out keeps the last crop (the HUD is hidden then). **A crop made for
 another car is taken away the moment the car changes**, so the last car's paint is never under this car's logo while
-this one's is made (the badge is the maker's colour in between, the iPad's ask gets a 404); getting back into the same
+this one's is made (the badge is the maker's colour in between, and an ask for the crop gets a 404); getting back into the same
 car keeps its crop until the new one comes. The car's folder is
 what the host's car-controls key names for a car the list has (`car`), else the store's name for the telemetry's
 model (`/racing-desk/data/cars`); the paint folder and the customer id are the desk's paint settings (`paints` in
@@ -785,10 +785,12 @@ over 4096 pixels either way (read before anything is allocated or decoded: the s
 image it says it holds, and a few kilobytes of run-length encoding can declare 16384 by 16384, which is a gigabyte to
 decode), and any file outside the paint folder, by the path and by what the path really is (a junction elsewhere).
 What leaves the main process is the crop alone: a PNG 512 across and 341 high — 1.5 to 1, the widest shape the badge
-takes (the glance layout's on the rig's ultrawide is 204 by 138; the rig HUD's is square and an iPad's 91 by 105,
-which show the middle of it, `cover`) — handed to the HUD's page as a data URL (`logo-livery`, and `get-logo-livery`
-for a page that loaded after), and served to the iPad from memory at `/livery-crop.png` (above). The iPad asks again
-whenever the car changes and whenever it is back in the car.
+takes (the glance layout's on the rig's ultrawide is 204 by 138 and the rig HUD's is square, which shows the middle of
+it, `cover`) — handed to the HUD's page as a data URL (`logo-livery`, and `get-logo-livery` for a page that loaded
+after), and served from memory at `/livery-crop.png` by the iPad's server and by the loopback listener (above). The iPad
+never asks for it: it shows no badge. The page OBS draws (`window._obsMode`, "HUD drawn by OBS" in `docs/recording.md`)
+is the one that does, from the loopback listener, whenever the car changes and whenever he is back in the car
+(`car-logos.js` `requestRemoteLivery`, which fetches nothing on an iPad).
 **No log line carries the customer id or the paint's path**; the reasons the worker gives back have no path in them.
 The picker's rules and the page's side are in `apps/overlay/CLAUDE.md`, The livery behind the car badge.
 
