@@ -108,8 +108,9 @@ Data options:
 
             bool replay = o.IbtPath != null;
             string dbPath = o.Db ?? RacingDeskStore.DefaultPath;
-            // The track outlines: the store's, and the one being made from the session he is driving (RunLive's
-            // follower). Made whether or not the store exists yet — the follower may be what creates it.
+            // The track outlines: the store's, the one being made from the session he is driving (RunLive's follower),
+            // and until there is either, SimHub's shared map (RunLive's crowd maps). Made whether or not the store
+            // exists yet — the follower may be what creates it.
             var outlines = new TrackOutlines(dbPath);
             var runtime = new RacingDeskRuntime(LoadSettings(settingsPath), RuntimeOptions(o, dataDir, dbPath, outlines));
 
@@ -200,6 +201,10 @@ Data options:
                 laps.Outlined += outline => outlines.Forget(outline.TrackId);
                 laps.Start();
             }
+            // Until that first clean lap, SimHub's shared map of the layout, read from SimHub's folder and kept in
+            // memory for the session: the interim the outlines serve only while there is nothing of his own.
+            var crowd = new CrowdMaps(CrowdMaps.DefaultDirectory, m => Log.Info("[RacingDesk.Host] " + m));
+            outlines.Crowd = crowd.Current;
             var recorder = store != null && !o.NoRecord
                 ? new LiveRecorder(store, "live", _ => DateTime.UtcNow, m => Log.Info("[RacingDesk.Host] " + m))
                 : null;
@@ -237,6 +242,7 @@ Data options:
                 try
                 {
                     laps?.Seen(source.TrackId);
+                    crowd.Seen(source.TrackId, source.TrackName, source.TrackConfigName, source.TrackLength);
                     views?.SeeCar(source.CarPath);
                     pedals?.See(source.CarPath, source.HasAbsSetting, source.AbsWorking, source.LapsCompleted, source.Driving,
                         source.HasPrototypeControls);
@@ -253,6 +259,7 @@ Data options:
                 lock (gate) recorder?.Flush();
                 views?.SimGone();
                 pedals?.SimGone();
+                crowd.Gone();
             };
             // Returns at once (SdkStart). IRSDKSharper's own Start() could wait for ever, and then the loop below, which
             // is what hears the stop, was never reached.

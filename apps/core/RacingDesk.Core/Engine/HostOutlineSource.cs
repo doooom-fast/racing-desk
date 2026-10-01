@@ -59,6 +59,7 @@ namespace RacingDesk.Plugin.Engine
                 LengthMeters = (double?)o["lengthM"] ?? 0,
                 OfficialLengthMeters = (double?)o["officialLengthM"] ?? 0,
                 Provisional = (bool?)o["provisional"] ?? false,
+                Crowd = (bool?)o["crowd"] ?? false,
                 UpdatedAtUtc = DateTime.TryParse((string)o["updatedAt"], CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var at) ? at : DateTime.MinValue,
                 Points = points,
             };

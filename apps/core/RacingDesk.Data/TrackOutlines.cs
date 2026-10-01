@@ -6,10 +6,12 @@ using RacingDesk.Plugin.Engine;
 namespace RacingDesk.Data
 {
     /// <summary>
-    /// Serves the host's track outlines, by the sim's TrackID: the one being made from the session he is driving
-    /// (<see cref="Live"/>, the follower's) first, else the store's. A found outline is kept for a minute before the
-    /// store is asked again (it may have gained laps); a miss is asked again after five seconds, so a layout whose
-    /// first file has just been ingested is not missed for the rest of the run.
+    /// Serves the host's track outlines, by the sim's TrackID: the store's whole outline, else the one being made
+    /// from the session he is driving (<see cref="Live"/>, the follower's), else the store's provisional one — and
+    /// with none of his own, SimHub's shared map of the layout (<see cref="Crowd"/>), the interim until his first
+    /// clean lap. A found outline is kept for a minute before the store is asked again (it may have gained laps); a
+    /// miss is asked again after five seconds, so a layout whose first file has just been ingested is not missed for
+    /// the rest of the run, and the shared map gives way within seconds of the follower's first outline.
     /// </summary>
     public sealed class TrackOutlines
     {
@@ -30,6 +32,12 @@ namespace RacingDesk.Data
         /// <summary>The outline of the session being driven, when there is one: consulted before the store.</summary>
         public Func<int, TrackOutline> Live { get; set; }
 
+        /// <summary>
+        /// SimHub's shared map of the layout being driven (<see cref="CrowdMaps.Current"/>): consulted last, only
+        /// while there is no outline of his own at all, so that his own always wins.
+        /// </summary>
+        public Func<int, TrackOutline> Crowd { get; set; }
+
         public TrackOutline ForTrack(int trackId)
         {
             if (trackId <= 0) return null;
@@ -37,7 +45,8 @@ namespace RacingDesk.Data
             if (stored != null && !stored.Provisional) return stored;
             TrackOutline live = null;
             try { live = Live?.Invoke(trackId); } catch { /* the follower said nothing */ }
-            return live ?? stored;
+            if (live != null || stored != null) return live ?? stored;
+            try { return Crowd?.Invoke(trackId); } catch { return null; }
         }
 
         /// <summary>Forgets what was looked up for a layout, so the next ask reads the store.</summary>

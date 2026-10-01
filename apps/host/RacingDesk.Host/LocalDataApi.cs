@@ -122,8 +122,9 @@ namespace RacingDesk.Host
 
                 if (route == "outline" && ctx.Request.HttpMethod == "GET")
                 {
-                    // A layout's outline by the sim's TrackID, from the store or the session being driven — so it is
-                    // answered before there is a store, and 404 while there is no outline yet.
+                    // A layout's outline by the sim's TrackID, from the store or the session being driven (or, with
+                    // neither, SimHub's shared map, marked crowd) — so it is answered before there is a store, and
+                    // 404 while there is no outline yet.
                     if (!int.TryParse(ctx.Request.QueryString["track"], NumberStyles.Integer, CultureInfo.InvariantCulture, out int trackId) || trackId <= 0)
                     {
                         Error(res, 400, "track required: the sim's TrackID");
@@ -494,8 +495,9 @@ namespace RacingDesk.Host
 
         private static string Iso(DateTime utc) => utc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);
 
-        // { trackId, cleanLaps, lengthM, officialLengthM, provisional, updatedAt, points: [[x, z, pct], …] } — x east
-        // and z south in metres, to the centimetre, and the fraction of the lap each point is at.
+        // { trackId, cleanLaps, lengthM, officialLengthM, provisional, crowd, updatedAt, points: [[x, z, pct], …] } —
+        // x east and z south in metres, to the centimetre, and the fraction of the lap each point is at. crowd is
+        // SimHub's shared map standing in until the first clean lap (cleanLaps 0): the same coordinates, the same shape.
         internal static void WriteOutline(Utf8JsonWriter json, RacingDesk.Plugin.Engine.TrackOutline outline)
         {
             json.WriteStartObject();
@@ -504,6 +506,7 @@ namespace RacingDesk.Host
             json.WriteNumber("lengthM", Math.Round(outline.LengthMeters, 1));
             json.WriteNumber("officialLengthM", Math.Round(outline.OfficialLengthMeters, 1));
             json.WriteBoolean("provisional", outline.Provisional);
+            json.WriteBoolean("crowd", outline.Crowd);
             json.WriteString("updatedAt", Iso(outline.UpdatedAtUtc));
             json.WritePropertyName("points");
             json.WriteStartArray();

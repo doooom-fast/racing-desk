@@ -17,6 +17,9 @@ namespace RacingDesk.Plugin.Engine
     ///
     ///   1. <see cref="OnTrackChanged"/> clears the map and asks the source, on a pool thread; while there is
     ///      nothing it asks again every 5 s, and with an outline every 60 s, swapping it when it has gained laps.
+    ///      An outline marked <see cref="TrackOutline.Crowd"/> is SimHub's shared map, the host's interim until
+    ///      his first clean lap: drawn like any other, said to be so (<see cref="StatusCrowd"/>), asked past
+    ///      every 5 s, and replaced by his own the moment the host has one; never the other way about.
     ///   2. The outline is normalised to a 0–100 SVG viewBox with 5% padding, and a closed path is built.
     ///   3. Each frame, every car's LapDistPct is interpolated along the outline — round the whole loop, the last
     ///      point back to the first included, so crossing the line is one more step and not a jump.
@@ -42,6 +45,11 @@ namespace RacingDesk.Plugin.Engine
 
         /// <summary>The map has an outline and places the cars on it.</summary>
         public const string StatusReady = "ready";
+        /// <summary>
+        /// The map is drawn, on SimHub's shared map of the layout (<see cref="TrackOutline.Crowd"/>): the interim until
+        /// the first clean lap gives the host an outline of his own, which the map says is coming.
+        /// </summary>
+        public const string StatusCrowd = "crowd";
         /// <summary>The host has no outline of this layout yet: the first clean lap of the session gives one.</summary>
         public const string StatusFirstLap = "first-lap";
         /// <summary>The host could not be reached (SimHub without the app running): the maps are the app's.</summary>
@@ -51,6 +59,9 @@ namespace RacingDesk.Plugin.Engine
 
         private static readonly TimeSpan AskAgainWithout = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan AskAgainWith = TimeSpan.FromSeconds(60);
+
+        /// <summary>What the map says with the outline it has: ready, or crowd while the outline is SimHub's shared map.</summary>
+        private string ReadyStatus => _applied != null && _applied.Crowd ? StatusCrowd : StatusReady;
 
         // ── The outline, normalised to 0–100 ───────────────────────────────
         private TrackPoint[] _outline = new TrackPoint[0];
@@ -73,7 +84,7 @@ namespace RacingDesk.Plugin.Engine
         /// <summary>True when there is an outline to place the cars on.</summary>
         public bool IsReady => _ready;
 
-        /// <summary>Why there is or is not a map: ready, first-lap, no-host, none.</summary>
+        /// <summary>Why there is or is not a map: ready, crowd, first-lap, no-host, none.</summary>
         public string Status => _demoMode ? StatusReady : _status;
 
         /// <summary>The sim's name for the layout the map is of (the plugin's track slug, e.g. "algarve gp").</summary>
@@ -336,7 +347,7 @@ namespace RacingDesk.Plugin.Engine
             try
             {
                 outline = source.Get(trackId);
-                status = outline != null ? StatusReady : StatusFirstLap;
+                status = outline == null ? StatusFirstLap : outline.Crowd ? StatusCrowd : StatusReady;
             }
             catch (Exception ex)
             {
@@ -365,8 +376,9 @@ namespace RacingDesk.Plugin.Engine
             }
             if (answer == null) return;
             if (answer.Value.TrackId == _currentTrackId) Apply(answer.Value.Outline, answer.Value.Status);
-            // Asked again in five seconds while there is nothing, in a minute once there is (it may have gained laps).
-            _askDue = _now() + (_ready ? AskAgainWith : AskAgainWithout);
+            // Asked again in five seconds while there is nothing, in a minute once there is (it may have gained laps);
+            // with SimHub's shared map up, every five seconds still, so his own takes its place within seconds.
+            _askDue = _now() + (_ready && _applied != null && !_applied.Crowd ? AskAgainWith : AskAgainWithout);
         }
 
         /// <summary>An outline for the current layout, applied now (a test's, or an answer taken by hand).</summary>
@@ -375,18 +387,24 @@ namespace RacingDesk.Plugin.Engine
             if (outline == null)
             {
                 // A map already drawn stays up through a host that is slow to answer, or a miss.
-                _status = _ready ? StatusReady : status;
+                _status = _ready ? ReadyStatus : status;
                 return;
             }
             if (outline.TrackId != _currentTrackId && _currentTrackId > 0) return;
+            if (outline.Crowd && _applied != null && !_applied.Crowd)
+            {
+                // His own outline is never replaced by the shared map.
+                _status = StatusReady;
+                return;
+            }
             if (_applied != null && outline.SameAs(_applied))
             {
-                _status = StatusReady;
+                _status = ReadyStatus;
                 return;
             }
             if (outline.Points == null || outline.Points.Count < 10)
             {
-                _status = _ready ? StatusReady : StatusFirstLap;
+                _status = _ready ? ReadyStatus : StatusFirstLap;
                 return;
             }
             var points = new List<TrackPoint>(outline.Points.Count);
@@ -394,10 +412,12 @@ namespace RacingDesk.Plugin.Engine
             points.Sort((a, b) => a.LapDistPct.CompareTo(b.LapDistPct));
             NormaliseAndBuild(points);
             _applied = outline;
-            _status = StatusReady;
+            _status = ReadyStatus;
             _hasPlayerPos = false;
-            Log.Info($"[RacingDesk] Track map: outline of '{_currentTrackName}' from {outline.CleanLaps} clean lap{(outline.CleanLaps == 1 ? "" : "s")}" +
-                     (outline.Provisional ? ", from the session being driven" : ""));
+            Log.Info(outline.Crowd
+                ? $"[RacingDesk] Track map: SimHub's shared map of '{_currentTrackName}', until the first clean lap gives an outline of his own"
+                : $"[RacingDesk] Track map: outline of '{_currentTrackName}' from {outline.CleanLaps} clean lap{(outline.CleanLaps == 1 ? "" : "s")}" +
+                  (outline.Provisional ? ", from the session being driven" : ""));
         }
 
         // ── Normalisation ──────────────────────────────────────────────────

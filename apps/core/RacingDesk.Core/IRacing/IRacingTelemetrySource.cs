@@ -46,6 +46,15 @@ namespace RacingDesk.Plugin.IRacing
         /// <summary>iRacing's TrackID: the exact layout. 0 until the session says.</summary>
         public int TrackId => GameRunning ? _raw.SessionInfo?.WeekendInfo?.TrackID ?? 0 : 0;
 
+        /// <summary>
+        /// The session's names for the layout, as iRacing's YAML gives them and SimHub names its files by: the track's
+        /// folder name ("algarve gp"), its configuration ("Grand Prix"; "" for a layout with one) and its length
+        /// ("4.5789 km"). Null until the session says.
+        /// </summary>
+        public string TrackName => GameRunning ? _raw.SessionInfo?.WeekendInfo?.TrackName : null;
+        public string TrackConfigName => GameRunning ? _raw.SessionInfo?.WeekendInfo?.TrackConfigName : null;
+        public string TrackLength => GameRunning ? _raw.SessionInfo?.WeekendInfo?.TrackLength : null;
+
         /// <summary>The session runs a fixed setup: the garage's values are the series'. Null until the session says.</summary>
         public bool? FixedSetup
         {

@@ -24,6 +24,12 @@ namespace RacingDesk.Plugin.Engine
         /// <summary>Made from the session being driven, from its first clean lap on; a finished file replaces it.</summary>
         public bool Provisional { get; set; }
 
+        /// <summary>
+        /// Not his: SimHub's shared (crowd-sourced) map of the layout, read from SimHub's folder by the host as the
+        /// interim until his first clean lap gives an outline of his own, which always replaces it. Never stored.
+        /// </summary>
+        public bool Crowd { get; set; }
+
         public DateTime UpdatedAtUtc { get; set; }
 
         public IReadOnlyList<(double X, double Z, double Pct)> Points { get; set; } = Array.Empty<(double, double, double)>();
@@ -31,7 +37,7 @@ namespace RacingDesk.Plugin.Engine
         /// <summary>The same outline, by what the map goes on: more laps in it, or a later build of it.</summary>
         public bool SameAs(TrackOutline other) =>
             other != null && other.TrackId == TrackId && other.CleanLaps == CleanLaps && other.Provisional == Provisional
-            && other.UpdatedAtUtc == UpdatedAtUtc && other.Points.Count == Points.Count;
+            && other.Crowd == Crowd && other.UpdatedAtUtc == UpdatedAtUtc && other.Points.Count == Points.Count;
     }
 
     /// <summary>
