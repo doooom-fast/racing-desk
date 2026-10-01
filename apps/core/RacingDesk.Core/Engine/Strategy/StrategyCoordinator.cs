@@ -155,7 +155,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
 
             _fuelAtLapStart = s.FuelLevel;
             // The session's first stint takes the tread as measured now; a stint after a stop keeps the measurement. The
-            // corners whose tyres were changed are null by then (TyreSetMask, in the runtime, before this reads them).
+            // corners whose tyres were changed read a new set's 100 by then (TyreSetMask, in the runtime, before this reads them).
             if (first) Tires.Reset(); else Tires.OnNewStint();
             Fuel.OnNewStint();
         }

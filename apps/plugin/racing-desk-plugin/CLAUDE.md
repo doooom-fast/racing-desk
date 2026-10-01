@@ -67,7 +67,7 @@ cd simhub-plugin/tests/RacingDesk.Tests && dotnet test
 
 ~147 NUnit tests (including parameterized `[TestCase]` expansions) covering:
 - **TriggerEvaluatorTests** (~47) — all 18 trigger conditions with regression tests for corrected thresholds (tyre wear as tread remaining in percent, worn is low; Fahrenheit temps ≥200, kerb delta ≥10, heavy braking ≤-38, spin yaw ≥3.0, proximity ≤0.008)
-- **TyreWearTests** (`IRacing/`) — tyre wear's one meaning end to end: raw SDK bands through the host to the HTTP and WebSocket wire, the plugin's bands-before-SimHub reading, `TyreSetMask` (a stop with new tyres through a runtime to the wire, the topic and the strategist), the real topic, the strategist's wear calls, the demo (root CLAUDE.md, Tyre wear)
+- **TyreWearTests** (`IRacing/`) — tyre wear's one meaning end to end: raw SDK bands through the host to the HTTP and WebSocket wire, the plugin's bands-before-SimHub reading, `TyreSetMask` (a reset to the pits, a stop with four, with two, without tyres: the changed corners read a new set's 100 with `RacingDesk.Plugin.TyreNewSetFlags` saying which, through a runtime to the wire, the topic and the strategist, until the sim measures them), the real topic, the strategist's wear calls (none from a new set), the demo (root CLAUDE.md, Tyre wear)
 - **ColorResolverTests** (~42) — category-to-hue mapping, severity-to-alpha, `#AARRGGBB` format, flag collision detection (15° tolerance)
 - **NormalizeColorTests** (~26) — hex format conversion edge cases
 - **FragmentAssemblerTests** (~18) — sentence composition, placeholder substitution (`{ahead}`, `{behind}`, `{value}`), repetition avoidance (ring buffer)

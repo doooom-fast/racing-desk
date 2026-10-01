@@ -7,21 +7,27 @@ namespace RacingDesk.Plugin.Engine
     /// every reader (the pit box's rings, the commentary's trigger and quad, the strategist, the recording's sidecar)
     /// agrees without each of them having to know. iRacing measures tread in the pits and nowhere else, and after a
     /// change it keeps showing the readings of the set that came off until it measures again at the next stop
-    /// (reported by others: niklam/iracedeck issue 1108; none of his own sessions has changed tyres, so this is the one
-    /// part not seen on his data). A new set is therefore <c>null</c> — not measured — from the moment the car leaves
-    /// pit road until the sim shows that corner's tread differently, and a warning from the old set's number cannot
-    /// fire on the new one anywhere.
+    /// (reported by others: niklam/iracedeck issue 1108; on his own data every change was a reset to the pits, which
+    /// fits a new set with his default pit settings while the readings keep the old set's). A changed corner therefore
+    /// reads <b>a new set's tread, <see cref="TyreWear.NewPercent"/> (100)</b> from the moment the car leaves pit road
+    /// until the sim shows that corner's tread differently, and the snapshot's <see cref="TelemetrySnapshot.TyreNewSetFlags"/>
+    /// says which corners read so by assumption (the page writes "new set" under the rings; the strategist takes the
+    /// 100 as healthy and not as news). He chose the 100 over a dash on 2026-10-01 ("100%, new set"): on his newest 64
+    /// sessions a dash would have stood for 6 to 93 % of his time on track in 9 of them. A warning from the old set's
+    /// number cannot fire on the new one anywhere, and a new set never warns.
     ///
     /// Per corner, from the pit service's own checkboxes (<c>PitSvFlags</c>, the pit box's own source for "tyres
     /// requested"): a corner whose tyre is asked for while the car is in its stall is <i>asked</i>, remembering the
-    /// reading the sim shows then; leaving pit road makes it <i>masked</i>. A masked corner stays null until the sim's
+    /// reading the sim shows then; leaving pit road makes it <i>new</i>. A new corner reads 100 until the sim's
     /// reading moves off the remembered one (the next stop's measurement), and a corner the sim measures again while it
-    /// is only asked for (a sim that refreshes in the stall) is not masked at all. A stop without tyres masks nothing,
-    /// and a stop with two (<c>0x05</c>) masks those two corners and leaves the others as measured.
+    /// is only asked for (a sim that refreshes in the stall) is not held at all. A stop without tyres holds nothing,
+    /// and a stop with two (<c>0x05</c>) holds those two corners and leaves the others as measured. A reset to the pits
+    /// is a stall visit like any other: the car is in its stall with tyres ticked, and leaves.
     ///
     /// Not seen, so not handled: a stall visit where tyres were asked for and the driver left without them. That
-    /// masks the corners until the next stop's measurement, which is the safe side (nothing warns from a number that
-    /// may not be this set's).
+    /// reads 100 on the corners until the next stop's measurement, which is the safe side (nothing warns from a number
+    /// that may not be this set's). A corner the sim had never measured when its tyre was changed has nothing to
+    /// hold: it stays null until the sim first measures it.
     /// </summary>
     public sealed class TyreSetMask
     {
@@ -33,8 +39,22 @@ namespace RacingDesk.Plugin.Engine
         private readonly bool[] _settled = new bool[4];       // the sim measured it in the stall: not asked again until the stall is left
         private bool _wasOnPitRoad;
 
-        /// <summary>True where the corner's reading (0 FL, 1 FR, 2 RL, 3 RR) is the removed set's and is held back.</summary>
+        /// <summary>
+        /// True where the corner's reading (0 FL, 1 FR, 2 RL, 3 RR) is the removed set's and is held back: the corner
+        /// reads a new set's tread (<see cref="TyreWear.NewPercent"/>) and is flagged in <see cref="TelemetrySnapshot.TyreNewSetFlags"/>.
+        /// </summary>
         public bool IsMasked(int corner) => _masked[corner];
+
+        /// <summary>The corners held back, one bit each, as <see cref="TelemetrySnapshot.TyreNewSetFlags"/> carries them (0x01 FL … 0x08 RR).</summary>
+        public int NewSetFlags
+        {
+            get
+            {
+                int flags = 0;
+                for (int i = 0; i < 4; i++) if (_masked[i]) flags |= 1 << i;
+                return flags;
+            }
+        }
 
         /// <summary>Everything forgotten: a new session, or another car.</summary>
         public void Reset()
@@ -50,8 +70,9 @@ namespace RacingDesk.Plugin.Engine
         }
 
         /// <summary>
-        /// Takes this frame's reading off the snapshot, in place, for every corner whose set has changed since it was
-        /// measured. Called once per frame, before anything reads the snapshot.
+        /// Puts a new set's tread on the snapshot, in place, for every corner whose set has changed since it was
+        /// measured, and says which in <see cref="TelemetrySnapshot.TyreNewSetFlags"/>. Called once per frame, before
+        /// anything reads the snapshot.
         /// </summary>
         public void Apply(TelemetrySnapshot s)
         {
@@ -92,10 +113,12 @@ namespace RacingDesk.Plugin.Engine
                 }
             }
 
-            if (_masked[0]) s.TyreWearFL = null;
-            if (_masked[1]) s.TyreWearFR = null;
-            if (_masked[2]) s.TyreWearRL = null;
-            if (_masked[3]) s.TyreWearRR = null;
+            // The set that came off is not this car's reading: a new set, 100, until the sim says otherwise
+            if (_masked[0]) s.TyreWearFL = TyreWear.NewPercent;
+            if (_masked[1]) s.TyreWearFR = TyreWear.NewPercent;
+            if (_masked[2]) s.TyreWearRL = TyreWear.NewPercent;
+            if (_masked[3]) s.TyreWearRR = TyreWear.NewPercent;
+            s.TyreNewSetFlags = NewSetFlags;
         }
     }
 }
