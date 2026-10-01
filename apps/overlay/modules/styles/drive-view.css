@@ -458,7 +458,8 @@ body.drive-mode-active #raceTimerBlock .race-timer-lap .timer-label { font-size:
    hold is given up, least useful first (the two services, then the pit window). */
 body.drive-mode-active #pitBoxPanel { grid-area: pit; display: flex; background: none; border: none; }
 body.drive-mode-active .pb-inner { flex: 1; display: flex; min-width: 0; }
-body.drive-mode-active .pb-content { flex: 1; display: grid; grid-template-columns: minmax(0, 40fr) minmax(0, 36fr) minmax(0, 24fr); min-width: 0; }
+/* The three pages share the width 38 / 34 / 28: the weather had 24, and its values are sized by its own box (below). */
+body.drive-mode-active .pb-content { flex: 1; display: grid; grid-template-columns: minmax(0, 38fr) minmax(0, 34fr) minmax(0, 28fr); min-width: 0; }
 body.drive-mode-active .pb-page {
   display: flex !important; flex-direction: column; justify-content: flex-start; min-width: 0; min-height: 0; padding: 6px 10px;
   font-size: max(20px, min(7.2cqh, 3.4cqw)); overflow: hidden;
@@ -525,11 +526,25 @@ body.drive-mode-active .pb-divider { margin: 0.2em 0; }
 body.drive-mode-active .pb-row-window:not(.hidden) { display: flex; }
 @container (max-height: 262px) { body.drive-mode-active #pbPageFuel .pb-divider, body.drive-mode-active #pbPageFuel .pb-divider ~ .pb-row { display: none; } }
 @container (max-height: 225px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-row-window { display: none; } }
-/* Weather: the sky, the air, then the track and the state of it, each name over its value. */
-body.drive-mode-active .pb-weather-hero { padding: 0.1em 0; }
-body.drive-mode-active .pb-weather-icon { font-size: max(20px, 1em); line-height: 1.1; }
-body.drive-mode-active .pb-weather-temp { font-size: max(24px, 1.15em); line-height: 1.1; }
-body.drive-mode-active #pbPageWeather .pb-row { flex-direction: column; align-items: center; padding: 0; }
+/* Weather: the most of its page (he asked, 2026-10-01: "Weather needs to make better use of its space like incidents").
+   The page is a size container of its own — the pit box's cq units are the whole pit box's, and this page is a quarter
+   of it — so its values are sized by its own box, the way the incidents' count is by its cell: the air, with the sky
+   beside it, the largest (the lesser of 22 % of the page's height and 30 % of its width: "22°C" or "105°F" across the
+   page); the track and the state of it under it at the lesser of 15 % and 28 %; each name over its value, in the
+   label's size; the three spread down the page so none of it is empty. Its header is the pit box's one rule for its
+   three pages (::before, above), at the top where the tyres' and the fuel's are. Nothing is under the 20px floor. */
+body.drive-mode-active #pbPageWeather { container-type: size; justify-content: space-between; }
+body.drive-mode-active #pbPageWeather::before { flex: none; }
+body.drive-mode-active #pbPageWeather .pb-weather-hero {
+  padding: 0; display: grid; grid-template-columns: auto auto; grid-template-areas: "k k" "icon temp";
+  justify-content: center; align-items: baseline; column-gap: 0.25em; row-gap: 0; text-align: center;
+}
+body.drive-mode-active #pbPageWeather .pb-weather-k { grid-area: k; margin: 0; }
+body.drive-mode-active .pb-weather-icon { grid-area: icon; font-size: max(20px, min(14cqh, 18cqw)); line-height: 1.1; margin: 0; }
+body.drive-mode-active .pb-weather-temp { grid-area: temp; font-size: max(24px, min(22cqh, 30cqw)); line-height: 1.1; }
+body.drive-mode-active #pbPageWeather .pb-row { flex-direction: column; align-items: center; padding: 0; line-height: 1.1; }
+body.drive-mode-active #pbPageWeather .pb-value { font-size: max(20px, min(15cqh, 28cqw)); line-height: 1.1; }
+body.drive-mode-active #pbPageWeather .pb-label { font-size: max(11px, min(6.5cqh, 11cqw)); line-height: 1.2; }
 body.drive-mode-active .pb-no-data { font-size: max(11px, min(10cqh, 4cqw)); }
 
 /* ── The datastream: g-forces, yaw, the wheel's torque, the delta and the track ────────────────────────────────────

@@ -252,6 +252,15 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   pit's add, the pit window `Strategy.PitWindowOpen/Close` as `L18–24` or `by L24`, the two services), the weather. The
   strategist's call for tyres or fuel (`Strategy.TireHealthState`, `FuelHealthState`) is read where it is on the rig,
   above the rings or the tank, worded for a screen with nothing to press (`Change · ~12 laps`, `Stop · ~6 laps`).
+  **The weather makes the most of its page** (he asked on 2026-10-01: "Weather needs to make better use of its space like
+  incidents"): the three pages share the width 38 / 34 / 28 (the weather had 24), and the weather page is a size
+  container of its own, so its values are sized by its own box the way the incidents' count is by its cell — the air,
+  with the sky beside it, at the lesser of 22 % of the page's height and 30 % of its width (34px in an Air's cell on its
+  side, where it was a fixed 24px), the track and the conditions under it at the lesser of 15 % and 28 % (22px, where
+  they were 20), each name over its value ("Air" is a label of the markup now, `.pb-weather-k`, a dim line on the rig),
+  the three spread down the page; the header is the pit box's one rule for its three pages, at the top.
+  `tests/unit/weather-glance.spec.mjs` holds the header against the fuel page's, the sizes, each name over its value and
+  nothing cropped at the seven iPad sizes and the rig's two, in a race, wet with the engine calling, and in °F.
 - **The maps** (`webgl-helpers.js`, "The maps in the glance layout"): the full circuit's viewBox is fitted to the outline,
   the local view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels (the
   outline's three layers at 12 / 7 / 1.5px, the sectors at 8px, the car at 7px and the others at 5px) is worked out from

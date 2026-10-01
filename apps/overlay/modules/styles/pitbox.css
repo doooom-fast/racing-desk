@@ -368,6 +368,13 @@
     line-height: 1.1;
     font-variant-numeric: tabular-nums;
   }
+  /* What the big number is: the air, under it on the rig (a line in the label's type) */
+  .pb-weather-k {
+    display: block;
+    font-size: var(--fs-xs);
+    line-height: 1.4;
+    margin-top: 2px;
+  }
 
   /* ── Car adjustments compact grid ── */
   .pb-adj-grid {
