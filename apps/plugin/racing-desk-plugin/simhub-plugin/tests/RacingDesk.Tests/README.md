@@ -69,7 +69,7 @@ dotnet test
 - **Proximity**: `close_proximity`
 
 **Critical bug regressions:**
-- Tyre wear: tread remaining in percent, worn is low (`<` a percent threshold; `IRacing/TyreWearTests.cs` holds the whole chain, SDK to wire to strategist)
+- Tyre wear: tread remaining in percent, worn is low, and a new set not measured until the sim says so (`<` a percent threshold; `IRacing/TyreWearTests.cs` holds the whole chain against the shipped evaluator, SDK to wire to strategist, including a full stop with new tyres)
 - Hot tyre temp threshold fixed (now 250°F for Fahrenheit, was 115)
 - Threshold value fixes for kerb hits, FFB spikes, spin catch, heavy braking, qualifying push
 

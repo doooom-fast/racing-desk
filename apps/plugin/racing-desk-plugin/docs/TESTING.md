@@ -46,7 +46,7 @@ All 200+ tests complete in under 2 seconds.
 ### Key Test Categories
 
 **TriggerEvaluatorTests** exercises every condition type with known inputs and verifies the expected boolean result. Includes regression tests for every threshold that was corrected during development:
-- Tyre wear: tread remaining in percent, worn is low (`<` a percent threshold; the chain from the SDK to the wire and the strategist is in `IRacing/TyreWearTests.cs`)
+- Tyre wear is not here: this file's evaluator is a copy with no tyre wear in it, and the shipped evaluator's tyre cases (tread remaining in percent, worn is low, `<` a percent threshold) and the whole chain from the SDK to the wire and the strategist are in `IRacing/TyreWearTests.cs`
 - Fahrenheit temperature thresholds (must be >= 200)
 - Kerb hit sensitivity (thresholdDelta >= 10)
 - Heavy braking threshold (value <= -38)

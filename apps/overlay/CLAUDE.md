@@ -15,7 +15,9 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 - **Demo mode**: Reads from `RacingDesk.Plugin.Demo.*` properties instead — switching is transparent
 - **Contract rule**: Any change to JSON property names consumed by this overlay must be coordinated with the plugin
 - **Tyre wear** (`GameData.TyreWear*`, `Demo.TyreWear*`) is tread remaining, 0..100 %, 100 = new, `null` where the sim has
-  not measured it, and the page converts nothing (root CLAUDE.md, Tyre wear; `tests/unit/tyre-wear.spec.mjs`)
+  not measured it, and the page converts nothing: every panel reads it through `parseTyreWear` and prints it through
+  `tyreWearShown`, with `TYRE_WEAR_WARN_BELOW`/`TYRE_WEAR_CRIT_BELOW`, all in `config.js` (root CLAUDE.md, Tyre wear;
+  `tests/unit/tyre-wear.spec.mjs`). A corner the engine has taken off the wire after a tyre change is `null`, and shows as a dash.
 
 ## Tech Stack
 
@@ -229,7 +231,8 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   wire has it — 0..100 %, amber under 35, red under 20, a dash where not measured — temperature under it, the laps on this
   set in the heading, `Strategy.StintLaps`, and what the number is: iRacing measures tread in the pits and nowhere else,
   so "Tread measured in the pits" is one dim line under the rings, at the label's floor and never wrapped, as it is
-  on the rig — an iPad's heading has no room for it; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
+  on the rig — an iPad's heading has no room for it, and in a pit cell under 200px (the 10.2" iPad upright) it gives way
+  while a tyre call is up, which would otherwise cut the rings off by 7px; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
   pit's add, the pit window `Strategy.PitWindowOpen/Close` as `L18–24` or `by L24`, the two services), the weather. The
   strategist's call for tyres or fuel (`Strategy.TireHealthState`, `FuelHealthState`) is read where it is on the rig,
   above the rings or the tank, worded for a screen with nothing to press (`Change · ~12 laps`, `Stop · ~6 laps`).

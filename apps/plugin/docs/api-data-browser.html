@@ -968,7 +968,7 @@
             <div class="field-name">TyreWearFL</div>
             <div class="field-type">float</div>
           </div>
-          <div class="field-desc">Front-left tread remaining in percent — 100 is brand new; null until the sim has measured it (iRacing measures in the pits only). One meaning everywhere: root CLAUDE.md, Tyre wear</div>
+          <div class="field-desc">Front-left tread remaining in percent — 100 is brand new; null until the sim has measured it (iRacing measures in the pits only), and null again for a corner whose tyre was changed at the last stop, until the sim measures it again (it keeps showing the set that came off). One meaning everywhere: root CLAUDE.md, Tyre wear</div>
           <div class="field-meta">
             <span class="field-tag range">0 – 100, or null</span>
             <span class="field-tag trigger">topic fires on the worst corner &lt; 35</span>
@@ -2913,7 +2913,7 @@ renderSection({ ...SH, id:'sec-sh-tyres', title:'SimHub GameData — Tyres & Bra
   {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreTempFrontRight',      type:'double', unit:'°C', wired:true, desc:'Front-right tyre surface temperature'},
   {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreTempRearLeft',        type:'double', unit:'°C', wired:true, desc:'Rear-left tyre surface temperature'},
   {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreTempRearRight',       type:'double', unit:'°C', wired:true, desc:'Rear-right tyre surface temperature'},
-  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreWearFrontLeft',       type:'double?', range:'0–100', wired:true, desc:'Front-left tread remaining in percent (100=new); null on the wire until the sim has measured it — SimHub\'s own 0 is nothing, not a bald tyre (root CLAUDE.md, Tyre wear)'},
+  {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreWearFrontLeft',       type:'double?', range:'0–100', wired:true, desc:'Front-left tread remaining in percent (100=new); null on the wire until the sim has measured it, and again after that corner\'s tyre is changed, until the next measurement — SimHub\'s own 0 is nothing, not a bald tyre (root CLAUDE.md, Tyre wear)'},
   {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreWearFrontRight',      type:'double?', range:'0–100', wired:true, desc:'Front-right tread remaining in percent; null until measured'},
   {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreWearRearLeft',        type:'double?', range:'0–100', wired:true, desc:'Rear-left tread remaining in percent; null until measured'},
   {dotCls:'bg-simhub-gd', name:'DataCorePlugin.GameData.TyreWearRearRight',       type:'double?', range:'0–100', wired:true, desc:'Rear-right tread remaining in percent; null until measured'},
