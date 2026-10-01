@@ -107,7 +107,9 @@ Data options:
 
             bool replay = o.IbtPath != null;
             string dbPath = o.Db ?? RacingDeskStore.DefaultPath;
-            var runtime = new RacingDeskRuntime(LoadSettings(settingsPath), RuntimeOptions(o, dataDir, dbPath));
+            // The host's own routes: the data API, and the replay route the live reader is handed to (RunLive).
+            var api = new LocalDataApi(dbPath);
+            var runtime = new RacingDeskRuntime(LoadSettings(settingsPath), RuntimeOptions(o, dataDir, dbPath, api));
 
             bool record = replay ? o.Record : !o.NoRecord;
             using var store = record || (!replay && !o.NoIngest) ? new RacingDeskStore(dbPath) : null;
@@ -136,7 +138,7 @@ Data options:
                     return 1;
                 }
                 if (replay) PlayIbt(o, runtime, record ? store : null, stop);
-                else RunLive(o, runtime, store, stop);
+                else RunLive(o, runtime, store, stop, api);
             }
             finally
             {
@@ -149,7 +151,7 @@ Data options:
         }
 
         /// <summary>What the runtime is given for this command line. The ports are every address unless --loopback-only.</summary>
-        internal static RacingDeskRuntime.Options RuntimeOptions(HostOptions o, string dataDir, string dbPath)
+        internal static RacingDeskRuntime.Options RuntimeOptions(HostOptions o, string dataDir, string dbPath, LocalDataApi api = null)
         {
             bool replay = o.IbtPath != null;
             return new RacingDeskRuntime.Options
@@ -162,7 +164,7 @@ Data options:
                 EnableHardware = !replay && !o.NoHardware,
                 EnableSdkBridge = !replay,
                 TrackOutline = File.Exists(dbPath) ? new TrackOutlines(dbPath).ForTrack : null,
-                ExtraRoutes = new LocalDataApi(dbPath).TryHandle,
+                ExtraRoutes = (api ?? new LocalDataApi(dbPath)).TryHandle,
             };
         }
 
@@ -174,9 +176,12 @@ Data options:
 
         // Live: tick on every SDK telemetry frame while connected; when iRacing isn't running, keep ticking at
         // ~60 Hz with an empty frame, as SimHub does, so idle and demo state stay current.
-        private static void RunLive(HostOptions o, RacingDeskRuntime runtime, RacingDeskStore store, ManualResetEventSlim stop)
+        private static void RunLive(HostOptions o, RacingDeskRuntime runtime, RacingDeskStore store, ManualResetEventSlim stop, LocalDataApi api = null)
         {
             using var raw = new SdkRawTelemetry();
+            // The replay route drives the sim's replay and cameras through this reader, for the app's TV shots; a file
+            // replay (PlayIbt) hands it nothing, and the route says so.
+            if (api != null) api.Replay.Replay = raw;
             var source = new IRacingTelemetrySource(raw);
             var recorder = store != null && !o.NoRecord
                 ? new LiveRecorder(store, "live", _ => DateTime.UtcNow, m => Log.Info("[RacingDesk.Host] " + m))

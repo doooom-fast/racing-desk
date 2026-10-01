@@ -3,8 +3,13 @@ using IRSDKSharper;
 
 namespace RacingDesk.Plugin.IRacing
 {
-    /// <summary><see cref="IRawTelemetry"/> over iRacing's live shared memory (IRSDKSharper).</summary>
-    public sealed class SdkRawTelemetry : IRawTelemetry, IDisposable
+    /// <summary>
+    /// <see cref="IRawTelemetry"/> over iRacing's live shared memory (IRSDKSharper), and <see cref="IReplayControl"/>:
+    /// the sim's replay and cameras driven through the SDK's broadcast messages. The messages go to the sim's window
+    /// and nowhere else; each is sent only while the sim is connected, and only when asked by the host's replay route,
+    /// which answers a program on this machine alone.
+    /// </summary>
+    public sealed class SdkRawTelemetry : IRawTelemetry, IReplayControl, IDisposable
     {
         private readonly IRacingSdk _sdk = new IRacingSdk(false, false);
 
@@ -62,5 +67,83 @@ namespace RacingDesk.Plugin.IRacing
                 default: return null;
             }
         }
+
+        // ── The replay and the cameras (IReplayControl) ──
+
+        public ReplayStatus Status()
+        {
+            if (!IsConnected) return null;
+            var s = new ReplayStatus
+            {
+                IsReplayPlaying = Bool("IsReplayPlaying"),
+                IsOnTrack = Bool("IsOnTrack"),
+                SessionNum = Int("SessionNum"),
+                SessionTime = Double("SessionTime"),
+                ReplaySessionNum = Int("ReplaySessionNum"),
+                ReplaySessionTime = Double("ReplaySessionTime"),
+                ReplayFrameNum = Int("ReplayFrameNum"),
+                ReplayFrameNumEnd = Int("ReplayFrameNumEnd"),
+                ReplayPlaySpeed = Int("ReplayPlaySpeed"),
+                ReplayPlaySlowMotion = Bool("ReplayPlaySlowMotion"),
+                CamGroupNumber = Int("CamGroupNumber"),
+                CamCameraNumber = Int("CamCameraNumber"),
+                CamCarIdx = Int("CamCarIdx"),
+                PlayerCarIdx = Int("PlayerCarIdx"),
+            };
+            var si = SessionInfo;
+            var drivers = si?.DriverInfo?.Drivers;
+            int myIdx = si?.DriverInfo?.DriverCarIdx ?? -1;
+            if (drivers != null)
+                foreach (var d in drivers)
+                    if (d.CarIdx == myIdx) { s.PlayerCarNumber = d.CarNumber; s.PlayerCarNumberRaw = d.CarNumberRaw; }
+            var groups = si?.CameraInfo?.Groups;
+            if (groups != null)
+                foreach (var g in groups)
+                    s.Groups.Add(new ReplayCameraGroup { Num = g.GroupNum, Name = g.GroupName, Cameras = g.Cameras?.Count ?? 0 });
+            return s;
+        }
+
+        public void SearchSessionTime(int sessionNum, int sessionTimeMs)
+        {
+            if (!IsConnected) return;
+            _sdk.ReplaySearchSessionTime(sessionNum, sessionTimeMs);
+        }
+
+        public void SetPlaySpeed(int speed, bool slowMotion)
+        {
+            if (!IsConnected) return;
+            _sdk.ReplaySetPlaySpeed(speed, slowMotion);
+        }
+
+        public void SetPlayPosition(ReplayPositionFrom from, int frame)
+        {
+            if (!IsConnected) return;
+            var mode = from == ReplayPositionFrom.Begin ? IRacingSdkEnum.RpyPosMode.Begin
+                : from == ReplayPositionFrom.End ? IRacingSdkEnum.RpyPosMode.End
+                : IRacingSdkEnum.RpyPosMode.Current;
+            _sdk.ReplaySetPlayPosition(mode, frame);
+        }
+
+        public void SwitchCamera(ReplayCameraFocus focus, int group, int camera)
+        {
+            if (!IsConnected) return;
+            // IRSDKSharper sends the mode's value for every focus but the driver's, and the position (0: the player's
+            // own car) for that one.
+            var mode = focus == ReplayCameraFocus.Leader ? IRacingSdkEnum.CamSwitchMode.FocusAtLeader
+                : focus == ReplayCameraFocus.Incident ? IRacingSdkEnum.CamSwitchMode.FocusAtIncident
+                : focus == ReplayCameraFocus.Exiting ? IRacingSdkEnum.CamSwitchMode.FocusAtExiting
+                : IRacingSdkEnum.CamSwitchMode.FocusAtDriver;
+            _sdk.CamSwitchPos(mode, 0, group, camera);
+        }
+
+        public void SwitchCameraToCar(int carNumberRaw, int group, int camera)
+        {
+            if (!IsConnected) return;
+            _sdk.CamSwitchNum(IRacingSdkEnum.CamSwitchMode.FocusAtDriver, carNumberRaw, group, camera);
+        }
+
+        private int Int(string name) { var v = GetValue(name); return v is int i ? i : v is bool b ? (b ? 1 : 0) : 0; }
+        private double Double(string name) { var v = GetValue(name); return v is double d ? d : v is float f ? f : v is int i ? i : 0.0; }
+        private bool Bool(string name) { var v = GetValue(name); return v is bool b ? b : v is int i && i != 0; }
     }
 }

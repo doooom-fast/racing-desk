@@ -30,6 +30,9 @@ namespace RacingDesk.Host
     /// host other than this machine's own, or that a browser sent (an Origin, a Referer, Sec-Fetch-*) is refused
     /// (<see cref="LocalRequest"/>, the check the runtime's <c>?action=</c> routes make too). The routes that are
     /// read stay as they are: the desk's page fetches them, and a page names an origin.
+    ///
+    /// And one more thing, neither the store's nor open to pages: <c>/racing-desk/data/replay</c>, iRacing's replay and
+    /// cameras for the app's TV shots (<see cref="ReplayApi"/>), GET and POST both for a program on this machine alone.
     /// </summary>
     internal sealed class LocalDataApi
     {
@@ -66,6 +69,9 @@ namespace RacingDesk.Host
         /// <summary>Where the monitors are listed, for <c>monitors</c>: Windows's, unless a test gives another.</summary>
         internal IMonitorSource Monitors { get; set; } = new Win32MonitorSource();
 
+        /// <summary>iRacing's replay and cameras, for <c>replay</c>: given the live reader by the host once it has one.</summary>
+        internal ReplayApi Replay { get; } = new ReplayApi();
+
         /// <summary>Claims /data/ requests and answers them off the telemetry thread.</summary>
         public bool TryHandle(HttpListenerContext ctx)
         {
@@ -77,6 +83,8 @@ namespace RacingDesk.Host
 
         private void Respond(HttpListenerContext ctx, string route)
         {
+            // The replay is for a program on this machine and answers no page: no CORS header of the reads', and its own check.
+            if (route == "replay") { Replay.Handle(ctx); return; }
             var res = ctx.Response;
             try
             {
