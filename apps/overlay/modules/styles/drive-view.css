@@ -760,7 +760,9 @@ html.rd-remote body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-pan
    pixels of the frame round the grid, never a gutter — carries the flag's own pattern at full strength, so a white or
    a chequered flag, whose stripes at fifteen hundredths are near the dark, is still seen at the edge of the eye. */
 html.rd-remote body.drive-mode-active[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::before { opacity: 0.15; }
-html.rd-remote body.drive-mode-active::after {
+/* (body::after is also where remote-server.js writes "No data from the rig" when the rig stops answering: while it
+   does, there is no flag, and the frame's rules step aside for it.) */
+html.rd-remote body.drive-mode-active:not(.rd-no-data)::after {
   content: '';
   position: fixed;
   inset: 0;
@@ -778,7 +780,7 @@ html.rd-remote body.drive-mode-active::after {
   mask-composite: exclude;
   transition: opacity 0.35s ease;
 }
-html.rd-remote body.drive-mode-active[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::after { opacity: 1; }
+html.rd-remote body.drive-mode-active:not(.rd-no-data)[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::after { opacity: 1; }
 html.rd-remote body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: none !important; }
 html.rd-remote body.drive-mode-active {
   grid-template-areas:
