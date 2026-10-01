@@ -117,6 +117,7 @@ namespace RacingDesk.Tests.IRacing
                 var extra = hostKeys.Except(pluginKeys)
                     .Where(k => !k.StartsWith("RacingDesk.Plugin.DS.Sector"))
                     .Where(k => k != "RacingDesk.Plugin.TrackMap.TrackDisplayName") // added in Phase 3, after the fixture was captured
+                    .Where(k => k != "RacingDesk.Plugin.TrackMap.Status") // why there is or is not a map: added with the host's outlines
                     .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.IsOnTrack") // whether he is in the car: what the HUD is shown by
                     .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.SessionFlags") // iRacing's flag field, whole: sent where the sim says it
                     .Where(k => k != "RacingDesk.Plugin.CarControls") // what the car has by the canonical list: sent for a car the list has
