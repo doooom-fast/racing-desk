@@ -38,7 +38,10 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `obs/client.js` | **Main process**: the obs-websocket 5 client — Hello, the challenge-and-salt authentication, requests by id, events by name, tried again every 5 s while OBS is closed; the password is a function asked at Hello and logged as `set` or `none`, never as itself |
 | `obs/ws-client.js`, `obs/ws-frames.js` | A WebSocket client over a plain socket and the RFC 6455 framing it and the Stream Deck plugin use |
 | `obs/launcher.js` | **Main process**: where obs64.exe is, starting it detached and minimised on a press, whether it runs (tasklist, on a press only), Set up OBS: the WebSocket switched on in obs-websocket's `config.json` and the password read into memory, Hybrid MP4 / the 20 s replay buffer / the recording folder in the profile's `basic.ini` while OBS is closed or over the WebSocket while open. Every file and spawn is handed in |
-| `obs/recording.js` | **Main process**: the keeper — OBS's recording mirrored whoever pressed, Record/Stop, OBS started only from the desk, the tray or the Stream Deck out of the car, ownership by outputPath in a state file and stopped on every quit path, take-over on connect, the floor under the disk (20 GB to start, 5 GB to stop), the sidecar at 30 Hz for a live sim session. Nothing drawn on the HUD |
+| `obs/recording.js` | **Main process**: the keeper — OBS's recording mirrored whoever pressed, Record/Stop, OBS started only from the desk, the tray or the Stream Deck out of the car, ownership by outputPath in a state file and stopped on every quit path, take-over on connect, the floor under the disk (20 GB to start, 5 GB to stop), the sidecar at 30 Hz for a live sim session; auto-record acted on, the replay buffer with the car and Save replay (the clip's own sidecar from the last seconds kept in memory), chapters sent as the sidecar finds them, and each recording filed after STOPPED (the move, the offset read back). Nothing drawn on the HUD |
+| `obs/auto-record.js` | Pure: when a recording starts and stops by itself — the green flag in a race, pit exit elsewhere; a new session, five seconds after the end of the race, leaving the car; held a second by the clock; only its own stopped; a green flag good once per stint |
+| `obs/filing.js` | Pure: the recording's folder name (`<date> <track> <car>`), the same-drive move after the file holds still, the offset from the chapters read back (paired by name, the median) or from the file's end, the words of each chapter |
+| `obs/mp4-info.js` | An MP4's duration and chapters read by seeking, no ffmpeg: a finished Hybrid MP4 or plain MP4 from its `moov`, an unfinished Hybrid MP4 from its fragments |
 | `hud-notice.js` | The one thing the HUD may be told of recording, for two seconds: "OBS is not open", "OBS didn't start recording" |
 | `telemetry-sidecar.js` | Pure: the `.telemetry.jsonl` beside the video, written by the keeper; every frame carries the sim's `SessionNum` and `SessionTime` (`docs/telemetry-sidecar-schema.md`) |
 | `recording-settings.js` | The recording keys of `overlay-settings.json` and the once-only migration from the Electron recorder's; the default folder is `D:\Racing Desk\Recordings` |
@@ -423,8 +426,9 @@ changes, where the state is shown (the desk's masthead on every page, the Record
 Stream Deck — never the HUD, which OBS films), the settings and what is coming. The sidecar's schema is
 [`../../docs/telemetry-sidecar-schema.md`](../../docs/telemetry-sidecar-schema.md); the `.rcpdv` bundle is gone.
 
-The desk's Recording card is its own model (`modules/desk/recording-model.js`, pure: the sentences, the buttons, the
-switches, what Set up OBS will change in one sentence) because half of it is commands, not keys of the settings file;
+The desk's Recording card is its own model (`modules/desk/recording-model.js`, pure: the sentences, the buttons —
+Record/Stop, Save replay, Open OBS, Set up OBS, the folder — the five switches, where the last recording went, what Set
+up OBS will change in one sentence) because half of it is commands, not keys of the settings file;
 `tests/unit/desk-recording-model.spec.mjs` and the Recording tests in `tests/desk/desk.spec.mjs`. The password he types
 goes to main (`recording:command`, `password`), is kept with safeStorage under `obsWebSocketPasswordEnc`, and is stripped
 from every page's copy of the settings like `remoteServerKey` (`tests/unit/hud-main-wiring.spec.mjs` holds main.js to it).
@@ -539,7 +543,7 @@ page reads the list of screens again in place when the app says they changed (`h
 | `Ctrl+Shift+O` | Open the desk |
 | `Ctrl+Shift+M` | Reset the track map |
 | `Ctrl+Shift+V` | Record or stop, in OBS. With OBS closed it starts nothing: the HUD says "OBS is not open" (OBS is started from the desk, the tray or the Stream Deck, out of the car) |
-| `Ctrl+Shift+B` | Save the instant replay (a later build; answers so for now) |
+| `Ctrl+Shift+B` | Save the instant replay: the last seconds from OBS's replay buffer as a clip, with its telemetry beside it, into the recording's folder (Instant replay on, OBS open; never starts OBS) |
 | `Ctrl+Shift+P` | TV shots (a later build, from the desk after the race; answers so for now) |
 | `Ctrl+Shift+I` | Held by the app; nothing listens for it now |
 | `Ctrl+Shift+Q` | Quit the overlay: the HUD is put away (`hud.putAway`), the app keeps running |

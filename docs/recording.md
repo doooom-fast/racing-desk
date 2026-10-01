@@ -1,8 +1,9 @@
 # Recording
 
-OBS records; Racing Desk drives it, writes the telemetry beside the file, and shows what is going on everywhere but the
-HUD. Decided 2026-09-30 ("refactor the recording using obs as the main recording and composition surface"); this is
-what is built as of stage 1 and what is coming. The Electron recorder, its ffmpeg, the `.rcpdv` bundles and the old
+OBS records; Racing Desk drives it, writes the telemetry beside the file, records by itself, keeps the replay buffer
+with the car, writes chapters, files each recording in a folder of its own, and shows what is going on everywhere but
+the HUD. Decided 2026-09-30 ("refactor the recording using obs as the main recording and composition surface"); this
+is what is built as of stage 2 and what is coming. The Electron recorder, its ffmpeg, the `.rcpdv` bundles and the old
 "native" backend are gone.
 
 ## What OBS does
@@ -11,7 +12,8 @@ what is built as of stage 1 and what is coming. The Electron recorder, its ffmpe
   Desk never writes to, except the three profile keys below when he presses **Set up OBS**.
 - Encodes and writes the file: NVENC as his profile has it, as **Hybrid MP4** once set up (crash-safe files, and the
   format chapters need).
-- Keeps the replay buffer (20 s), once set up, for the instant replay of a later build.
+- Keeps the replay buffer (20 s), once set up: the instant replay, saved as a clip of its own.
+- Writes the chapters Racing Desk sends into the file (Hybrid MP4), and its own "Start" chapter at 0.
 
 ## What Racing Desk does (`apps/overlay/modules/js/obs/`)
 
@@ -45,7 +47,44 @@ what is built as of stage 1 and what is coming. The Electron recorder, its ffmpe
   at 30 Hz while OBS records a live sim session, so a page reload or the HUD switched off no longer stops the frames.
   Every frame carries the sim's own `SessionNum` and `SessionTime`, which the host and the SimHub plugin now send
   (`DataCorePlugin.GameRawData.Telemetry.SessionNum` / `SessionTime`, iRacing's alone, never in demo). Only a recording
-  made while a sim session is live gets one; his other collections' recordings are left alone.
+  made while a sim session is live is filed — its sidecar, its chapters, its folder; his other collections' recordings
+  are left alone. His own Ctrl+Space recordings made during a live session are filed the same.
+- **Records by itself** ("Record by itself", on; `modules/js/obs/auto-record.js`, pure, fed the payload main.js polls
+  twice a second in the car): in a race from the green flag — iRacing's SessionState reaching Racing while he is in the
+  car; the grid, the warm-up and the formation lap start nothing, and a pit-lane start sees the same flag — and in
+  practice, qualifying and a warm-up from pit exit. It stops on a new session number, five seconds after the chequered
+  flag (or the cool-down) is first seen, and when he leaves the car; never on a state change within a session, so a red
+  flag ends nothing. Each start and stop is held about a second by the clock. It stops only the recordings it started
+  (`auto` in the state file): one he began on the desk or with Ctrl+Space runs on. A green flag is good once per stint,
+  so a Stop he presses mid-race is not undone a second later. It never starts OBS: with OBS closed the HUD says "OBS is
+  not open" once per session, and the start is tried again no sooner than half a minute on while the flag holds.
+- **Keeps the replay buffer with the car** ("Instant replay", off unless he turns it on): `StartReplayBuffer` when he
+  gets in the car, `StopReplayBuffer` when he gets out (or the switch goes off) if Racing Desk started it; one OBS
+  started itself is left alone. With no replay buffer in OBS (`RecRB` off) the card says to press Set up OBS, and it
+  is not asked for again and again. **Save replay** — Ctrl+Shift+B in the car, the tray, the Stream Deck, the card —
+  is `SaveReplayBuffer`; the clip OBS saves (`Replay <date>.mp4`, by his profile's prefix) gets a sidecar of its own
+  from the last seconds of telemetry kept in memory while the buffer runs, lined up from the clip's end (its duration
+  read from the file; the moment the save was asked is its end), and is moved into the recording's folder, else into
+  `Replays` under the recordings folder. A clip saved with no sim session live is left as it is.
+- **Writes chapters** ("Chapters", on): a chapter per lap ("Lap 12"), incident ("Incident ×2"), pit in and out, and
+  place gained ("P5 → P4"), sent with `CreateRecordChapter` as the sidecar finds each, while the recording is not
+  paused; no "Start" chapter (OBS adds its own). Hybrid MP4 alone takes them: the first refusal ends them for that
+  file. Each is kept in the sidecar's summary with the t it was sent at.
+- **Files each recording** (`modules/js/obs/filing.js`): one folder per recording under the recordings folder,
+  `<date> <track> <car>` (`2026-09-29 22-13 Zandvoort Porsche 911 GT3 Cup (992)`; the date alone where the sim did not
+  say), made when the sidecar begins and only when the file OBS writes is on the recordings folder's drive, so that
+  every move is a rename. After STOPPED the file is waited for until its size has held still for two seconds, then
+  moved with its sidecar into the folder, where the session's replay clips already are. Across drives nothing is
+  copied (a 24 GB file would take minutes): the file stays where OBS wrote it, its sidecar beside it, and the card says
+  so. OBS closing mid-recording (a crash, a quit) files what it wrote too.
+- **Lines the telemetry up with the video** (`modules/js/obs/mp4-info.js`, no ffmpeg: the file's boxes are read by
+  seeking, never the video). STARTED is only a provisional t = 0: an output joining a running encoder waits for the
+  next keyframe. Once the file is finished the chapters Racing Desk sent are read back from its chapter track and
+  paired, in order and by name, with the t each was sent at: the offset is the median of (file time − t), and the
+  summary says `alignment: { method: 'chapters', pairs, spreadMs }`. With no pair — a plain MP4, Chapters off, a
+  replay clip, a file OBS never finalised — the file is lined up from its end: the moment it stopped (or the clip was
+  saved) less its duration (a finished file's `mvhd`; an unfinished Hybrid MP4's fragments, marked `approximate`).
+  The summary's `videoOffsetMs` is what a reader adds to `t` (docs/telemetry-sidecar-schema.md).
 - **Keeps a floor under the disk**: no recording starts below about 20 GB free on the drive OBS records to, one Racing
   Desk started is stopped at about 5 GB and said so in one sentence, and the card shows hours left at the measured rate
   (his profile's 100 Mbps is 43 GB an hour; OBS itself stops only at 50 MB, with a dialog over the sim). The drive is the
@@ -74,11 +113,15 @@ what is built as of stage 1 and what is coming. The Electron recorder, its ffmpe
   without the button being replaced, so a click is never lost to a tick.
 - **The Recording card** is not rebuilt for changes that read the same (OBS being looked for again every five seconds is
   not announced), and one that has to change keeps what he is typing in the password field, with its focus.
-- **Settings → Recording**: the state in a sentence, Record/Stop, Open OBS (while OBS is not answering), Set up OBS
-  (while something is missing, with one sentence saying what it will change), Open folder, Choose folder, the two
-  switches ("Start OBS when I press Record", on; "Start OBS with Racing Desk", off), and the password field only when
-  OBS wants a password Racing Desk does not have.
-- **The tray**: Record / Stop recording, Open OBS.
+- **Settings → Recording**: the state in a sentence; while recording its size, its chapters so far, its file, whether
+  it was started in OBS or by itself, the telemetry beside it and the folder it goes to; otherwise where the last
+  recording went (its chapters and replays), or why it stayed where OBS wrote it; what the replay buffer is doing and
+  the last replay saved. Record/Stop, Save replay (while Instant replay is on; pressable while the buffer runs), Open
+  OBS (while OBS is not answering), Set up OBS (while something is missing, with one sentence saying what it will
+  change), Open folder, Choose folder, the five switches ("Record by itself", on; "Instant replay", off; "Chapters",
+  on; "Start OBS when I press Record", on; "Start OBS with Racing Desk", off), and the password field only when OBS
+  wants a password Racing Desk does not have.
+- **The tray**: Record / Stop recording, Save replay (while Instant replay is on), Open OBS.
 - **The Stream Deck**: Toggle Recording (and the rest of its buttons), through the app's action route on `:9090`, **which
   answers only while the iPad view is switched on** until the always-on loopback listener of stage 3 (with the iPad view off
   every key shows a cross). The plugin shows no recording state on the key yet either — only a tick or a cross after a press;
@@ -87,8 +130,8 @@ what is built as of stage 1 and what is coming. The Electron recorder, its ffmpe
   built by `npm run build` (`apps/overlay/streamdeck/build.mjs`, esbuild, no SDK: it speaks the Stream Deck app's own
   WebSocket protocol) and installed at every app start from the unpacked copy (`modules/js/streamdeck-install.js`); its
   manifest does not turn Node's inspector on.
-- **In the car**: Ctrl+Shift+V records or stops (OBS open), Ctrl+Shift+B and Ctrl+Shift+P answer that instant replay
-  and TV shots come with a later build.
+- **In the car**: Ctrl+Shift+V records or stops (OBS open), Ctrl+Shift+B saves the replay, Ctrl+Shift+P answers that
+  TV shots come with a later build. Neither starts OBS.
 - **Never on the HUD.** OBS films the screen the HUD is on, so a red dot or a timer there would be in every video. The
   HUD may show two sentences, for two seconds: "OBS is not open" and "OBS didn't start recording".
 
@@ -108,31 +151,33 @@ read from OBS's file replaces one he typed earlier.
 
 The recording folder is `D:\Racing Desk\Recordings` while there is a D: drive (`recordingFolder` in
 `overlay-settings.json` names another; C: holds about ninety minutes at his bitrate). OBS's own recording folder is
-pointed at it so that, in the next stage, every file move is a rename on the same drive.
+pointed at it so that every file move into a recording's folder is a rename on the same drive.
 
 ## Settings (`overlay-settings.json`, migrated once by `modules/js/recording-settings.js`)
 
-`recordingFolder`, `recordingAutoRecord`, `recordingAutoStopOnPit`, `recordingInstantReplay`,
+`recordingFolder`, `recordingAutoRecord` (on unless false), `recordingInstantReplay` (false),
 `recordingInstantReplaySeconds` (20), `recordingChapters` (true), `obsStartOnRecord` (true), `obsStartWithApp` (false),
 `obsPath` (null: the default install), `obsHudSource` (false), `obsWebSocketPasswordEnc` (only if typed; never sent
-to a page), `recordingSettingsVersion` (2). The Electron recorder's keys and the "native" backend's port are deleted.
+to a page), `recordingSettingsVersion` (3). The Electron recorder's keys, the "native" backend's port and "stop in the
+pits" (`recordingAutoStopOnPit`: his rules stop a recording on a new session, at the end of the race and when he
+leaves the car, and the pit lane is none of those) are deleted.
 
 ## Coming (not in this stage)
 
-- **Auto-record**: in a race from the green flag (`SessionState` Racing while he is in the car), in practice and
-  qualifying from pit exit; stop on a new session number, at the end of the race (5 s after), or when he leaves the
-  car; never on a state change within a session; debounced by time. It stops only its own recordings.
-- **Instant replay**: the replay buffer started when he gets in the car, saved on Ctrl+Shift+B / the Stream Deck / the
-  tray, with the last seconds of telemetry beside the clip.
-- **Chapters** per lap, incident, pit stop and place, through `CreateRecordChapter` (Hybrid MP4), read back from the
-  finished file's chapter track for the sidecar's exact offset; plain MP4 and crash-truncated files aligned from the end.
-- **Folders**: one per recording under the folder above (video, sidecar, replays, TV takes), moved after STOPPED.
-- **TV shots**, rebuilt on the iRacing SDK's own replay commands through the host, from the desk's race detail.
-- **The HUD as an OBS browser source**, behind a switch, off by default.
+- **TV shots**, rebuilt on the iRacing SDK's own replay commands through the host (seek by the sidecar's `sn` and
+  `st`, PauseRecord/ResumeRecord between moments, the facecam hidden), from the desk's race detail, the tray and the
+  Stream Deck; the take goes into the recording's folder as `… tv.mp4` with its sidecar.
+- **The always-on loopback listener** (the Stream Deck with the iPad view off) and **the HUD as an OBS browser
+  source**, behind a switch, off by default.
 
 ## First run (what no test here can check)
 
 With OBS closed, press Set up OBS on the desk and read what it says. Press Record: OBS should appear in the tray and the
-pill should read "Recording"; drive a lap; press Stop; the `.mp4` and the `.telemetry.jsonl` should be side by side in
-`D:\Racing Desk\Recordings`. Then, with OBS open, press Ctrl+Space in OBS and watch the desk's pill follow it. In OBS's
-mixer, check that the game audio meter moves (the Volt 2 game-audio device failed to start on 2026-09-29).
+pill should read "Recording"; drive a lap; press Stop; the card should say where the recording went, and that folder
+under `D:\Racing Desk\Recordings` should hold the `.mp4` and the `.telemetry.jsonl` side by side, the sidecar's last
+line saying `"alignment": { "method": "chapters" … }` with the offset. Then, with OBS open, press Ctrl+Space in OBS and
+watch the desk's pill follow it. In OBS's mixer, check that the game audio meter moves (the Volt 2 game-audio device
+failed to start on 2026-09-29). Then a session with OBS open and Record by itself on: out of the pits in practice the
+pill should read "Recording" a second later, and getting out of the car should stop it; in a race it should begin at
+the green flag. With Instant replay on, Ctrl+Shift+B in the car should put a `Replay …` clip and its sidecar in the
+recording's folder. Open the finished MP4 in a player that lists chapters (VLC, DaVinci Resolve) and see the laps.

@@ -9,17 +9,28 @@
   module written by the main process (`modules/js/obs/recording.js` polls `:8889/racing-desk/` at 30 Hz while OBS records a live sim
   session), one line per poll. It was the HUD page's, which stopped with a reload or the garage.
 - **Consumer:** `apps/edit/src/ingest/parse-telemetry.js`, and `prodrive-designer`'s replayer mapper (archived).
-- **Where:** `<video>.telemetry.jsonl`, the video's name with its extension swapped, beside the file OBS wrote.
+- **Where:** `<video>.telemetry.jsonl`, the video's name with its extension swapped, beside the file OBS wrote — written
+  there, and moved with the video into the recording's folder (`D:\Racing Desk\Recordings\<date track car>\`) once the
+  recording has stopped (docs/recording.md). A replay clip saved while the buffer runs gets a sidecar of its own
+  (`Replay <date>.telemetry.jsonl`, `kind: "replay"`) in the same folder, or in `Replays` under the recordings folder.
 
 ## Since OBS (2026-09-30): what changed, all additive (schemaVersion stays 1)
 
 - Every frame carries the sim's own clock, `sn` (iRacing's `SessionNum`) and `st` (`SessionTime`, seconds), present only
   where the sim said them: a moment in the sidecar is found again in iRacing's replay by them.
-- The header carries `producer` (`"obs"`), `obsOutputPath` (the file OBS wrote), `videoStartUtc` (when the recording's STARTED
-  event arrived, the same instant as `startedAt`) and `videoOffsetMs` (what to add to `t` to reach video time; `0` until a
-  better one is read back from the finished file's chapters, a later build).
-- The summary carries `stoppedAt`, `obsOutputPath` (the last file, if OBS split it) and `reason` when the recording ended for
-  one (`OBS went away`, `Racing Desk quit`).
+- The header carries `producer` (`"obs"`), `kind` (`"recording"`, or `"replay"` for a clip the replay buffer saved),
+  `obsOutputPath` (the file OBS wrote), `videoStartUtc` (when the recording's STARTED event arrived, the same instant as
+  `startedAt`; for a clip, the clip's start worked out from its end) and `videoOffsetMs` (`0`: a provisional value; **a
+  reader takes the summary's**).
+- The summary carries `stoppedAt`, `obsOutputPath` (the last file, if OBS split it; the file where it now is, once moved),
+  `reason` when the recording ended for one (`OBS went away`, `Racing Desk quit`, `saved` for a clip), **`videoOffsetMs`**
+  (what to add to `t` to reach video time, as found once the file was finished), **`alignment`** (how:
+  `{ method: "chapters", pairs, spreadMs, fileChapters }` from the chapters Racing Desk sent read back from the file's
+  chapter track and paired by name — the tightest; `{ method: "end", videoStartUtc, durationMs, approximate? }` from the
+  file's end — a plain MP4, Chapters off, a clip (`endFrom: "request" | "event"`), a file OBS never finalised
+  (`approximate: true`); `{ method: "none", why }` when neither could be had, and `videoOffsetMs` is the header's 0), and
+  **`chapters`** (`[{ name, frame, t }]`: each chapter sent to OBS, with the t it was sent at in ms; OBS's own "Start" at 0
+  is not among them).
 - `flag` is the payload's one word, `currentFlagState` (it read `DS.FlagState`, which no host sends, so every frame said `green`);
   `none` where there is no word.
 - `gear` is the **string** the HUD shows: `"N"`, `"R"`, `"3"` (it turned `N` into `0`). A reader that wants a number takes `R` as
@@ -64,9 +75,10 @@ Lazy-written on the first `captureFrame()` after `start()`. Reads car / track fr
 | `gameId` | `string \| null` | `iracing`, `acc`, etc. |
 | `isDemo` | `boolean` | `true` when DemoMode was active |
 | `producer` | `string` | `"obs"` (added 2026-09-30) |
-| `obsOutputPath` | `string \| null` | The file OBS wrote, as `RecordStateChanged` STARTED named it |
-| `videoStartUtc` | `string` | When STARTED arrived, ISO-8601: a provisional video start |
-| `videoOffsetMs` | `number` | Milliseconds to add to `t` for video time; `0` until read back from the file's chapters (a later build) |
+| `kind` | `string` | `"recording"`, or `"replay"` for a clip the replay buffer saved (added 2026-10-01) |
+| `obsOutputPath` | `string \| null` | The file OBS wrote, as `RecordStateChanged` STARTED named it (a clip: as `ReplayBufferSaved` named it) |
+| `videoStartUtc` | `string` | When STARTED arrived, ISO-8601: a provisional video start (a clip: its end less its duration) |
+| `videoOffsetMs` | `number` | `0`, provisional: **the summary's is the one to use** |
 
 ## Per-frame rows
 
@@ -131,9 +143,12 @@ Written by `stop()` after flushing the buffer.
 | `durationMs` | `number` | Wall-clock duration in ms |
 | `markers` | `Marker[]` | Detected events (incidents, position changes, lap completions, pit entry/exit, file changes) |
 | `stoppedAt` | `string` | ISO-8601, when the recording ended (added 2026-09-30) |
-| `obsOutputPath` | `string \| null` | The last file OBS wrote (differs from the header's after a split) |
-| `reason` | `string` | Only when the recording ended for one: `OBS went away`, `Racing Desk quit`, `started again`, `OBS said it was not recording` |
+| `obsOutputPath` | `string \| null` | The last file OBS wrote (differs from the header's after a split), where it is once filed |
+| `reason` | `string` | Only when the recording ended for one: `OBS went away`, `Racing Desk quit`, `started again`, `OBS said it was not recording`, `saved` (a clip) |
 | `resumed` | `boolean` | `true` on the summary of a sidecar that was gone on in (it counts only the frames since the `resumed` line) |
+| `videoOffsetMs` | `number` | Milliseconds to add to `t` for video time, as found once the file was finished (added 2026-10-01) |
+| `alignment` | `object` | How it was found: `{ method: "chapters", pairs, spreadMs, fileChapters }`, `{ method: "end", videoStartUtc, durationMs, approximate?, endFrom? }` or `{ method: "none", why }` (added 2026-10-01) |
+| `chapters` | `Chapter[]` | `{ name, frame, t }` for each chapter sent to OBS, `t` in ms from the provisional start (added 2026-10-01) |
 
 ### Marker shape
 
