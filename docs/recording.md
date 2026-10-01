@@ -45,7 +45,10 @@ what is built as of stage 1 and what is coming. The Electron recorder, its ffmpe
 
 ## Where it is seen
 
-- **The desk's masthead**, on every page: a pill with the state and one button, Record or Stop.
+- **The desk's masthead**, on every page: a pill with the state and one button, Record or Stop. Under 1280 px wide
+  the pill is its dot and its button (the words are in its title); in a window narrower than 1100 px it gives way,
+  because the masthead is full at that width and the Cars page has no height to spare — the tray and the Recording
+  card still show the state.
 - **Settings → Recording**: the state in a sentence, Record/Stop, Open OBS (while OBS is not answering), Set up OBS
   (while something is missing, with one sentence saying what it will change), Open folder, Choose folder, the two
   switches ("Start OBS when I press Record", on; "Start OBS with Racing Desk", off), and the password field only when

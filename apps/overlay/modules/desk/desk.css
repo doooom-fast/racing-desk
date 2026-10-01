@@ -108,7 +108,9 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 6px 4px 12px;
+  height: 28px;                 /* the nav's height: the masthead must not grow, the desk's smallest window has no room to give */
+  flex: none;
+  padding: 0 4px 0 12px;
   border: 1px solid var(--hairline);
   border-radius: 999px;
   background: var(--panel);
@@ -117,6 +119,17 @@ h2 {
   white-space: nowrap;
 }
 .recording-pill:empty { display: none; }
+/* In a narrow window the masthead is full already (the ratings, the six stats, the freshness line): under 1280 px the
+   pill keeps its dot and its button, with its words in the title; in the desk's smallest windows (its minimum is
+   1024 wide) even that makes the freshness line wrap and the Cars page lose the height it has no room to give, so
+   there the pill gives way — the tray and the Recording card show the state. */
+@media (max-width: 1280px) {
+  .recording-pill { padding-left: 10px; }
+  .recording-pill .recording-text { display: none; }
+}
+@media (max-width: 1100px) {
+  .recording-pill { display: none; }
+}
 .recording-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); flex: none; }
 .recording-pill[data-state="ready"] .recording-dot { background: var(--info); }
 .recording-pill[data-state="busy"] .recording-dot { background: var(--caution); }
@@ -124,7 +137,7 @@ h2 {
 .recording-pill[data-state="recording"] { border-color: hsla(0, 70%, 55%, 0.5); color: var(--text); }
 .recording-pill[data-state="recording"] .recording-dot { background: var(--loss); animation: recording-pulse 1.2s ease-in-out infinite; }
 .recording-pill[data-state="recording"] .recording-text { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
-.recording-button { font: 600 12px/1 var(--ff); padding: 5px 10px; border-radius: 999px; }
+.recording-button { font: 600 12px/1 var(--ff); padding: 4px 10px; border-radius: 999px; }
 @keyframes recording-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /* ── Grid ───────────────────────────────────────────────── */

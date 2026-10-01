@@ -305,6 +305,9 @@ function pageScripts() {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
         if (entry.name !== '__tests__' && entry.name !== 'node_modules') walk(full);
+      } else if (entry.name.endsWith('.bundle.js')) {
+        // Generated (calc.bundle.js, paints.bundle.js: git-ignored, built from packages/calc and apps/paints/src, which
+        // are read by their own tests). React's minified `t.action=null` is not a route, and the guard read it as one.
       } else if (entry.name.endsWith('.js')) {
         scripts.push({ name: relative(appDir, full).replace(/\\/g, '/'), code: readFileSync(full, 'utf8') });
       }
