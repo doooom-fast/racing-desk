@@ -196,6 +196,19 @@ test('the demo, a sim not running, no payload, and out of the car are nothing to
   expect(r.run(repeat(4, null), { inCar: false })).toEqual([{ stop: true, why: 'out of the car', at: expect.any(Number) }]);
 });
 
+test('a poll that got no answer at pit exit does not lose the start: the edge and the hold wait for the next answer', () => {
+  // Out of the pit lane, then a poll the host did not answer in time, then answers again: the start, a second after the exit.
+  const r = rig();
+  r.run(repeat(4, PRACTICE({ pit: true })));
+  const out = r.run([PRACTICE(), null, ...repeat(4, PRACTICE())]);
+  expect(out).toEqual([{ start: true, why: 'pit exit', at: expect.any(Number) }]);
+  expect(out[0].at - (r.now() - 500 * 6)).toBe(1000);
+  // The silence between the last frame in the pit lane and the first out of it.
+  const q = rig();
+  q.run(repeat(4, PRACTICE({ pit: true })));
+  expect(q.run([null, ...repeat(4, PRACTICE())])).toEqual([{ start: true, why: 'pit exit', at: expect.any(Number) }]);
+});
+
 test('the holds are by the clock: fed once a second, a start still comes a second on, and the chequered flag five seconds on', () => {
   let clock = 0;
   const rules = ar.createAutoRecord({ now: () => clock });

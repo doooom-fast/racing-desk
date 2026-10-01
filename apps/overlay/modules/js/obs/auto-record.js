@@ -145,6 +145,10 @@ function createAutoRecord({ now = Date.now, debounceMs = DEBOUNCE_MS, endOfRaceM
     if (!recording) startedIn = null;
     else if (auto && startedIn === null && frame.live && frame.sessionKey !== null) startedIn = frame.sessionKey;
 
+    // A poll that got no answer while he is in the car says nothing about him: a pit exit seen a poll ago, and a hold
+    // under way, wait for the next answer instead of being lost to a host that was a moment late.
+    if (payload === null && inCar) return null;
+
     let decision = null;
     if (recording) {
       if (!auto) {
