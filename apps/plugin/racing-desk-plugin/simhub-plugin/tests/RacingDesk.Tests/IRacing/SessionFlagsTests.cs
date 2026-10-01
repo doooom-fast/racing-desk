@@ -24,6 +24,7 @@ namespace RacingDesk.Tests.IRacing
             public string GameName => Game;
             public object NewData => new object();
             public object GetPropertyValue(string fullName) => Values.TryGetValue(fullName, out var v) ? v : null;
+            public string OpponentName(object opponent) => null;
         }
 
         private static uint? Raw(object value)

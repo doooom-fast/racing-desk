@@ -22,6 +22,7 @@ namespace RacingDesk.Tests.IRacing
             public string GameName => "IRacing";
             public object NewData => null;
             public object GetPropertyValue(string fullName) => Values.TryGetValue(fullName, out var v) ? v : null;
+            public string OpponentName(object opponent) => null;
         }
 
         private static bool? InCar(object onTrack, object replay = null)

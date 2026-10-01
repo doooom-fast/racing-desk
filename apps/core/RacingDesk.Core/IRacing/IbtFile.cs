@@ -139,14 +139,18 @@ namespace RacingDesk.Plugin.IRacing
             }
         }
 
-        /// <summary>Session YAML parsed on first use.</summary>
+        /// <summary>
+        /// Session YAML parsed on first use, with every other driver renamed as they enter (Names/Pseudonymizer: the
+        /// file's drivers get their characters' names here, before the replay, the ingest or the follower reads them; the
+        /// player's entry is his). The text itself (<see cref="SessionInfoYamlText"/>) is read for the cars alone.
+        /// </summary>
         public IRacingSdkSessionInfo SessionInfo
         {
             get
             {
                 if (!_sessionInfoParsed)
                 {
-                    _sessionInfo = SessionInfoYaml.Parse(SessionInfoYamlText);
+                    _sessionInfo = RacingDesk.Core.Names.PseudonymBook.Default.NewSession().Apply(SessionInfoYaml.Parse(SessionInfoYamlText));
                     _sessionInfoParsed = true;
                 }
                 return _sessionInfo;

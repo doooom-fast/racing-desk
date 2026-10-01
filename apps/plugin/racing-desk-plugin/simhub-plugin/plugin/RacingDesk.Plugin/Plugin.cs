@@ -79,6 +79,8 @@ namespace RacingDesk.Plugin
                 Host = "simhub",
             });
             _rt.NewCommentaryPrompt += () => this.TriggerEvent("NewCommentaryPrompt");
+            // Other drivers' names: SimHub's opponents are named by the bridge's reading of the session, by customer id.
+            _source.Names = _rt._sdkBridge;
 
             // ── Register dashboard properties ─────────────────────────────────
 

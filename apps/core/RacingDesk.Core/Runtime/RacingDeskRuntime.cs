@@ -246,7 +246,7 @@ namespace RacingDesk.Plugin
             Advance(
                 next,
                 () => GetTrackId(source),
-                newData != null ? (Func<int, string>)(position => BuildLeaderboard(newData, position)) : null);
+                newData != null ? (Func<int, string>)(position => BuildLeaderboard(source, newData, position)) : null);
         }
 
         /// <param name="next">This frame's snapshot.</param>
@@ -592,13 +592,14 @@ namespace RacingDesk.Plugin
             return _engine.CurrentText;
         }
 
-        /// <summary>Build demo leaderboard with fake data around the player.</summary>
+        /// <summary>Build demo leaderboard with fake data around the player. Its rivals are characters (Names/DemoNames).</summary>
         private string BuildDemoLeaderboard(DemoTelemetryProvider dt)
         {
             var ic = System.Globalization.CultureInfo.InvariantCulture;
             int pp = dt.Position;
-            var names = new[] { "L. Hamilton", "M. Verstappen", "C. Leclerc", dt.DriverAhead, "YOU",
-                                dt.DriverBehind, "S. Vettel", "D. Ricciardo", "L. Norris", "C. Sainz" };
+            var field = RacingDesk.Core.Names.DemoNames.Field;
+            var names = new[] { field[0], field[1], field[2], dt.DriverAhead, "YOU",
+                                dt.DriverBehind, field[3], field[4], field[5], field[6] };
             var iratings = new[] { 5200, 4800, 3900, dt.IRAhead, dt.IRating,
                                    dt.IRBehind, 2400, 2200, 2100, 1900 };
             double baseLap = dt.BestLapTime > 0 ? dt.BestLapTime : 92.4;
@@ -656,11 +657,12 @@ namespace RacingDesk.Plugin
         }
 
         /// <summary>
-        /// Build leaderboard JSON from the source's Opponents list (read by property name).
+        /// Build leaderboard JSON from the source's Opponents list (read by property name, the name itself asked of the
+        /// source: the character's for another driver, his own for his — ITelemetrySource.OpponentName).
         /// Returns a window of drivers centred on the player, compact JSON array.
         /// Each entry: [pos, name, irating, bestLap, lastLap, gapToPlayer, inPit]
         /// </summary>
-        private string BuildLeaderboard(object newData, int playerPos)
+        private string BuildLeaderboard(ITelemetrySource source, object newData, int playerPos)
         {
             var ic = System.Globalization.CultureInfo.InvariantCulture;
             try
@@ -676,7 +678,7 @@ namespace RacingDesk.Plugin
                 {
                     var t = opp.GetType();
                     int pos = Convert.ToInt32(t.GetProperty("Position")?.GetValue(opp) ?? 0);
-                    string name = (t.GetProperty("Name")?.GetValue(opp) as string) ?? "";
+                    string name = source.OpponentName(opp) ?? "";
                     int irating = 0;
                     var irProp = t.GetProperty("IRating") ?? t.GetProperty("Irating");
                     if (irProp != null) { var v = irProp.GetValue(opp); if (v != null) irating = Convert.ToInt32(v); }

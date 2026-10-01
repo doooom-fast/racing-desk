@@ -137,6 +137,7 @@ SplitTimeInfo:
             public string GameName => "IRacing";
             public object NewData => Data;
             public object GetPropertyValue(string fullName) => Props.TryGetValue(fullName, out var v) ? v : null;
+            public string OpponentName(object opponent) => null;
 
             public FakeSimHub Raw(string name, object value) { Props["DataCorePlugin.GameRawData.Telemetry." + name] = value; return this; }
         }
