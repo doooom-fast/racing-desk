@@ -41,6 +41,8 @@ Serve options:
   --exit-after <s>     stop after this many seconds (for scripted checks)
   --no-hardware        don't open Moza serial, pedal profiles or screen sampling
                        (always off in --ibt mode)
+  --loopback-only      listen on 127.0.0.1 and no other address (probes and replays that nothing on the
+                       network has any business reaching); the default is every address, for the iPad view
   --parent-pid <n>     stop when that process exits (the app that started this host)
 
 Data options:
@@ -105,17 +107,7 @@ Data options:
 
             bool replay = o.IbtPath != null;
             string dbPath = o.Db ?? RacingDeskStore.DefaultPath;
-            var runtime = new RacingDeskRuntime(LoadSettings(settingsPath), new RacingDeskRuntime.Options
-            {
-                AssemblyDirectory = AppContext.BaseDirectory,
-                PluginsDataDirectory = dataDir,
-                HttpPort = o.HttpPort,
-                WsPort = o.WsPort,
-                EnableHardware = !replay && !o.NoHardware,
-                EnableSdkBridge = !replay,
-                TrackOutline = File.Exists(dbPath) ? new TrackOutlines(dbPath).ForTrack : null,
-                ExtraRoutes = new LocalDataApi(dbPath).TryHandle,
-            });
+            var runtime = new RacingDeskRuntime(LoadSettings(settingsPath), RuntimeOptions(o, dataDir, dbPath));
 
             bool record = replay ? o.Record : !o.NoRecord;
             using var store = record || (!replay && !o.NoIngest) ? new RacingDeskStore(dbPath) : null;
@@ -154,6 +146,24 @@ Data options:
                 stopping.Stopped();
             }
             return 0;
+        }
+
+        /// <summary>What the runtime is given for this command line. The ports are every address unless --loopback-only.</summary>
+        internal static RacingDeskRuntime.Options RuntimeOptions(HostOptions o, string dataDir, string dbPath)
+        {
+            bool replay = o.IbtPath != null;
+            return new RacingDeskRuntime.Options
+            {
+                AssemblyDirectory = AppContext.BaseDirectory,
+                PluginsDataDirectory = dataDir,
+                HttpPort = o.HttpPort,
+                WsPort = o.WsPort,
+                LoopbackOnly = o.LoopbackOnly,
+                EnableHardware = !replay && !o.NoHardware,
+                EnableSdkBridge = !replay,
+                TrackOutline = File.Exists(dbPath) ? new TrackOutlines(dbPath).ForTrack : null,
+                ExtraRoutes = new LocalDataApi(dbPath).TryHandle,
+            };
         }
 
         // The ports go first when the stop is asked for, so that an app starting while this host stops finds them free
@@ -472,6 +482,7 @@ Data options:
         public int HttpPort = 8889;
         public int WsPort = 8890;
         public bool NoHardware;
+        public bool LoopbackOnly;
         public int ParentPid;
         public string DataDir;
         public double ExitAfterSeconds;
@@ -527,6 +538,7 @@ Data options:
                     case "--http-port": o.HttpPort = (int)Num(); break;
                     case "--ws-port": o.WsPort = (int)Num(); break;
                     case "--no-hardware": o.NoHardware = true; break;
+                    case "--loopback-only": o.LoopbackOnly = true; break;
                     case "--parent-pid": o.ParentPid = (int)Num(); break;
                     case "--data-dir": o.DataDir = Next(); break;
                     case "--exit-after": o.ExitAfterSeconds = Num(); break;

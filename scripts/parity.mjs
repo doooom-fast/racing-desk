@@ -2,7 +2,8 @@
 // npm run parity [-- --host-port 18889 --seconds 120]
 //
 // During a live iRacing session, compares the SimHub plugin's :8889 payload with RacingDesk.Host's, started
-// beside it with:  npm run host -- --http-port 18889 --ws-port 18890 --no-hardware --no-record
+// beside it with:  npm run host -- --http-port 18889 --ws-port 18890 --no-hardware --no-record --loopback-only
+// (--loopback-only keeps the probe off the network: without it the host listens on every address)
 //
 // Samples both once a second and reports, per key, how often the values disagree and an example. Numbers
 // are compared with a tolerance (the two readers sample different frames); strings and arrays exactly.

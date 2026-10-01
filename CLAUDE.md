@@ -41,7 +41,7 @@ and are archived in Phase 6 — nothing is deleted before its replacement works.
 ```bash
 npm run test:dotnet                 # dotnet test racing-desk.sln (5 WsTelemetryPublisher failures are pre-existing)
 npm run host                        # live iRacing → :8889/:8890, records sessions, backfills new .ibt
-npm run host -- --ibt <file> --http-port 18889 --ws-port 18890   # replay an .ibt beside SimHub
+npm run host -- --ibt <file> --http-port 18889 --ws-port 18890 --loopback-only   # replay an .ibt beside SimHub, on 127.0.0.1 alone
 npm run ingest                      # backfill racing-desk.db from Documents\iRacing\telemetry
 npm run sessions -- --type Race     # read back stored sessions (--laps <id> for laps)
 npm run parity -- --seconds 120     # live session: diff SimHub's :8889 with the host's :18889
@@ -53,6 +53,12 @@ npm run host -- schedule --fetch    # download the season PDF if it changed, par
 npm run host -- schedule            # parse the stored PDF and report what the parser found
 npm run host -- schedule --series "Caterham"   # what one series parsed to, week by week
 ```
+
+A probe the driver or an agent starts by hand (a replay, the parity check) takes `--loopback-only`: the host's HTTP
+and WebSocket ports are then on 127.0.0.1 and no other address (`RacingDeskRuntime.Options.LoopbackOnly`; the tests
+set the same), where the default is every address, and a probe has no business on the network — a firewall prompt in
+a window over whatever the driver is doing is the least of it. The app's own host and the SimHub plugin never take it:
+the iPad view needs the LAN.
 
 The host also serves the store read-only at
 `:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals}` — that's what the desk reads. If

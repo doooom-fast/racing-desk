@@ -34,9 +34,11 @@ namespace RacingDesk.Plugin
             public int WsPort { get; set; } = 8890;
             /// <summary>
             /// Serve :HttpPort and :WsPort on 127.0.0.1 and on no other address, with no fallback. For tests and
-            /// probes, which never listen on the LAN. Off, the HTTP server tries every address, then localhost, and
-            /// the WebSocket binds 0.0.0.0 — a localhost prefix is no way to stay off the LAN: HTTP.sys binds it on
-            /// every address, and hands it any request that says <c>Host: localhost</c>, wherever it came from.
+            /// probes, which never listen on the LAN: the test fixtures set it, and RacingDesk.Host takes it as
+            /// <c>--loopback-only</c> (the replay and parity commands in CLAUDE.md do). Off, the HTTP server tries every
+            /// address, then localhost, and the WebSocket binds 0.0.0.0 — a localhost prefix is no way to stay off the
+            /// LAN: HTTP.sys binds it on every address, and hands it any request that says <c>Host: localhost</c>,
+            /// wherever it came from. The shipped host and plugin leave it off, on purpose: the iPad view needs the LAN.
             /// </summary>
             public bool LoopbackOnly { get; set; }
             /// <summary>
