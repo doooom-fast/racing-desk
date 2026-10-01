@@ -120,6 +120,8 @@ namespace RacingDesk.Tests.IRacing
                     .Where(k => k != "RacingDesk.Plugin.TrackMap.TrackDisplayName") // added in Phase 3, after the fixture was captured
                     .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.IsOnTrack") // whether he is in the car: what the HUD is shown by
                     .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.SessionFlags") // iRacing's flag field, whole: sent where the sim says it
+                    .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.SessionNum") // the sim's own clock, for the recording's sidecar
+                    .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.SessionTime")
                     .Where(k => k != "RacingDesk.Plugin.CarControls") // what the car has by the canonical list: sent for a car the list has
                     .ToList();
                 Assert.That(missing, Is.Empty, "keys the plugin serves that the host doesn't (hardware keys excluded)");
@@ -130,6 +132,10 @@ namespace RacingDesk.Tests.IRacing
                 Assert.That((string)body["RacingDesk.Plugin.TrackMap.TrackSlug"], Is.EqualTo(ibt.SessionInfo.WeekendInfo.TrackName));
                 Assert.That((int)body["DataCorePlugin.GameData.CurrentLap"], Is.GreaterThan(0));
                 Assert.That((int)body["DataCorePlugin.GameRawData.Telemetry.IsOnTrack"], Is.EqualTo(1), "in the car, in the middle of a race");
+
+                // The sim's own clock is the recording's: the frame the host was just given.
+                Assert.That((int)body["DataCorePlugin.GameRawData.Telemetry.SessionNum"], Is.EqualTo((int)raw.GetValue("SessionNum")), "SessionNum for this frame");
+                Assert.That((double)body["DataCorePlugin.GameRawData.Telemetry.SessionTime"], Is.EqualTo((double)raw.GetValue("SessionTime")).Within(1e-6), "SessionTime for this frame");
 
                 // iRacing's flag field is sent whole, as an unsigned number, and is the recording's own: the value of the frame
                 // the host was just given, which the test reads from the recording itself. (In the middle of a race the real

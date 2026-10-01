@@ -240,6 +240,14 @@ namespace RacingDesk.Plugin.Engine
         /// </summary>
         public bool?  InCar             { get; set; }
         /// <summary>
+        /// iRacing's own clock: <c>SessionNum</c> (which session of the event) and <c>SessionTime</c> (seconds into
+        /// it), as the sim publishes them. The telemetry sidecar a recording is cut by carries them on every frame,
+        /// so a moment in it can be found again in iRacing's replay (ReplaySearchSessionTime). Null where the sim
+        /// did not say: nothing is made up, and the keys are then not sent.
+        /// </summary>
+        public int?    SessionNum        { get; set; }
+        public double? SessionTime       { get; set; }
+        /// <summary>
         /// The controls of the car the driver is in — what the car has by the canonical list, what each reads
         /// now — as the HUD is sent them (<c>RacingDesk.Plugin.CarControls</c>, a JSON object). Null where there
         /// is nothing true to say: another sim, no car yet, a car the list does not have.

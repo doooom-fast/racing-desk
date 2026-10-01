@@ -670,6 +670,9 @@ namespace RacingDesk.Plugin.Engine
             // ── Grid / Formation state ────────────────────────────────────
             s.SessionState = GetRaw<int>(pm, "SessionState");
             s.InCar        = InCar(pm);
+            // The sim's own clock, for the recording's sidecar: iRacing's alone, and only where it said.
+            s.SessionNum   = detectedGame == GameId.IRacing ? SessionNum(pm) : null;
+            s.SessionTime  = detectedGame == GameId.IRacing ? SessionTime(pm) : null;
             s.PaceMode     = GetRaw<int>(pm, "PaceMode");
             // Track country — only use SimHub fallback if SDK bridge didn't already provide it
             if (string.IsNullOrEmpty(s.TrackCountry))
@@ -990,6 +993,51 @@ namespace RacingDesk.Plugin.Engine
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// A number the source holds under <paramref name="key"/>, however it holds it (the SDK gives an int or a
+        /// double, SimHub may give text), or null where it is not there or not a number.
+        /// </summary>
+        private static double? RawNumber(ITelemetrySource pm, string key)
+        {
+            try
+            {
+                object raw = pm.GetPropertyValue(key);
+                if (raw == null || raw is bool) return null;
+                double d;
+                if (raw is string text)
+                {
+                    if (!double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) return null;
+                }
+                else if (raw is IConvertible c)
+                {
+                    d = c.ToDouble(System.Globalization.CultureInfo.InvariantCulture);
+                }
+                else return null;
+                if (double.IsNaN(d) || double.IsInfinity(d)) return null;
+                return d;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>iRacing's <c>SessionNum</c>: a whole number from 0 up, or null where the sim did not say.</summary>
+        internal static int? SessionNum(ITelemetrySource pm)
+        {
+            double? d = RawNumber(pm, Transport.TelemetryFrame.SessionNumKey);
+            if (!d.HasValue || d.Value != Math.Floor(d.Value) || d.Value < 0 || d.Value > int.MaxValue) return null;
+            return (int)d.Value;
+        }
+
+        /// <summary>iRacing's <c>SessionTime</c>, seconds into the session, or null where the sim did not say.</summary>
+        internal static double? SessionTime(ITelemetrySource pm)
+        {
+            double? d = RawNumber(pm, Transport.TelemetryFrame.SessionTimeKey);
+            if (!d.HasValue || d.Value < 0) return null;
+            return d.Value;
         }
 
         /// <summary>

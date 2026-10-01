@@ -25,6 +25,14 @@ namespace RacingDesk.Plugin.Transport
         public const string SessionFlagsKey = "DataCorePlugin.GameRawData.Telemetry.SessionFlags";
 
         /// <summary>
+        /// iRacing's own clock, <c>SessionNum</c> and <c>SessionTime</c>, under the names SimHub gives the variables.
+        /// The recording's telemetry sidecar carries them on every frame, so a moment in it can be found again in
+        /// the sim's replay. Sent only where the sim says them, and never in demo.
+        /// </summary>
+        public const string SessionNumKey = "DataCorePlugin.GameRawData.Telemetry.SessionNum";
+        public const string SessionTimeKey = "DataCorePlugin.GameRawData.Telemetry.SessionTime";
+
+        /// <summary>
         /// Converts a TelemetrySnapshot to a flat Dictionary<string, object>.
         /// This mirrors the Jp() calls in Plugin.HttpServerLoop() to ensure wire format parity.
         /// </summary>
@@ -462,6 +470,9 @@ namespace RacingDesk.Plugin.Transport
             if (s.InCar.HasValue) dict["DataCorePlugin.GameRawData.Telemetry.IsOnTrack"] = s.InCar.Value ? 1 : 0;
             // iRacing's flag field, whole: only what the sim said (a demo's flags are made up, and so is a sim that is not running).
             if (!demo && s.GameRunning && s.SessionFlagsRaw.HasValue) dict[SessionFlagsKey] = (long)s.SessionFlagsRaw.Value;
+            // The sim's own clock, for the recording's sidecar: only where the sim said it, never in demo.
+            if (!demo && s.GameRunning && s.SessionNum.HasValue) dict[SessionNumKey] = s.SessionNum.Value;
+            if (!demo && s.GameRunning && s.SessionTime.HasValue) dict[SessionTimeKey] = s.SessionTime.Value;
             // The car's controls by the canonical list: only for a car the list has. A JSON object, as text.
             if (!demo && !string.IsNullOrEmpty(s.CarControlsJson)) dict[CarControlsKey] = s.CarControlsJson;
             dict["RacingDesk.Plugin.Grid.GriddedCars"] = s.GriddedCars;

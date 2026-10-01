@@ -1,299 +1,238 @@
-// ═══════════════════════════════════════════════════════════════
-// TELEMETRY SIDECAR — Phase 4: frame-synced JSONL telemetry log
+// The telemetry sidecar: one JSON line per frame beside a recording — `<video>.telemetry.jsonl` — with a header
+// first and a summary last (docs/telemetry-sidecar-schema.md). It is what the editor cuts by: where the overtakes,
+// incidents, laps and pit stops are, and what the car was doing frame by frame.
 //
-// During recording, writes one JSON line per poll frame containing
-// every telemetry signal the AI editor needs for post-production:
-// position, gaps, speed, incidents, flags, sector, lap, G-forces,
-// fuel, tyre data, pit status, and commentary triggers.
+// Pure, and written by the main process, not the HUD's page (modules/js/obs/recording.js polls the telemetry at
+// 30 Hz while OBS records): a page reload, the HUD switched off or the garage used to stop the frames. The writer
+// is handed in — write(path, text) — so the rules run in Node (tests/unit/telemetry-sidecar.spec.mjs).
 //
-// Output: telemetry.jsonl alongside the video file.
-//
-// This file drives the entire post-production pipeline — it tells
-// the AI editor when to cut, when overtakes happened, when incidents
-// occurred. Without it, you're scrubbing through footage by hand.
-// ═══════════════════════════════════════════════════════════════
+// What changed with OBS (schemaVersion stays 1; all additive, and a reader that defaults a missing field to 0 is
+// right): every frame carries the sim's own clock, `sn` (SessionNum) and `st` (SessionTime), which is how a moment
+// in the sidecar is found again in iRacing's replay; the header says who produced it (`producer: "obs"`), the OBS
+// file (`obsOutputPath`), when the video began (`videoStartUtc`) and the offset to add to `t` (`videoOffsetMs`,
+// 0 until a better one is read back from the finished file); `flag` is the payload's one word, `currentFlagState`
+// (`DS.FlagState`, which it read before, was never sent, so every frame said "green"); `gear` is the string the
+// HUD shows ("N", "R", "3": it used to turn "N" into 0); `closestCar` is no longer written (`DS.ClosestCarDistance`
+// was never sent either).
+const SCHEMA_VERSION = 1;
+const FLUSH_EVERY = 30;   // frames: a write a second at 30 Hz
 
-(function () {
-  'use strict';
+const KEYS = Object.freeze({
+  demoMode: 'RacingDesk.Plugin.DemoMode',
+  gameId: 'RacingDesk.Plugin.GameId',
+  sessionNum: 'DataCorePlugin.GameRawData.Telemetry.SessionNum',
+  sessionTime: 'DataCorePlugin.GameRawData.Telemetry.SessionTime',
+  flag: 'currentFlagState',
+});
 
-  // ── State ──────────────────────────────────────────────────
-  var _active = false;        // currently writing sidecar data
-  var _frameIndex = 0;        // frame counter since recording started
-  var _startTime = 0;         // Date.now() when sidecar started
-  var _sidecarPath = null;    // full path to the .jsonl file
-  var _buffer = [];           // batch write buffer (flushed every N frames)
-  var _flushInterval = 30;    // flush every 30 frames (~1 second at 30fps)
-  var _prevIncidents = -1;    // for detecting incident changes
-  var _prevPosition = -1;     // for detecting position changes
-  var _prevLap = -1;          // for detecting lap changes
-  var _prevInPit = false;     // for detecting pit entry/exit
-  var _markers = [];          // incident/event markers for this recording
-  var _headerWritten = false; // header line emitted on first captureFrame
+function flag(value) {
+  if (value === true) return true;
+  if (typeof value === 'string' && /^true$/i.test(value.trim())) return true;
+  return Number(value) > 0;
+}
 
-  // ── Start / Stop ──────────────────────────────────────────
-  // Called by recorder.js when recording starts/stops.
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
-  function start(videoPath) {
-    if (_active) return;
+/**
+ * createSidecar({ write, now })
+ *   start({ path, startedAt, producer, obsOutputPath, videoOffsetMs })
+ *   frame(payload)              one line, from the payload the HUD reads; the header is written with the first
+ *   marker({ type, ... })       a marker of the caller's (a file change, a chapter)
+ *   stop({ stoppedAt, reason })  flush, the summary line, and done
+ *   flush(), isActive(), state()
+ */
+function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY } = {}) {
+  if (typeof write !== 'function') throw new Error('createSidecar needs write(path, text)');
+  let active = false;
+  let path = null;
+  let startedAt = 0;
+  let header = null;         // the header's fields until it is written
+  let headerWritten = false;
+  let frameIndex = 0;
+  let buffer = [];
+  let markers = [];
+  let prevIncidents = -1;
+  let prevPosition = -1;
+  let prevLap = -1;
+  let prevInPit = null;
 
-    // Derive sidecar path from video path: foo.webm → foo.telemetry.jsonl
-    _sidecarPath = videoPath.replace(/\.(webm|mp4)$/i, '.telemetry.jsonl');
-    _active = true;
-    _frameIndex = 0;
-    _startTime = Date.now();
-    _buffer = [];
-    _markers = [];
-    _prevIncidents = -1;
-    _prevPosition = -1;
-    _prevLap = -1;
-    _prevInPit = false;
-    _headerWritten = false;
-
-    // Create the file (empty) via IPC
-    if (window.racingDesk && window.racingDesk.sidecarStart) {
-      window.racingDesk.sidecarStart(_sidecarPath);
-    }
-
-    console.log('[Sidecar] Started → ' + _sidecarPath);
+  function line(obj) {
+    buffer.push(JSON.stringify(obj));
   }
 
-  // First-frame header — written lazily on the first captureFrame() so
-  // we can read car/track/game directly from the live property bag,
-  // matching whatever the per-frame rows reflect. Downstream tooling
-  // (prodrive-designer's sidecar mapper) keys off `_type === 'header'`.
-  function writeHeader(p, isDemo) {
-    if (_headerWritten || !_sidecarPath) return;
-    _headerWritten = true;
+  function flush() {
+    if (!buffer.length || !path) return;
+    const chunk = buffer.join('\n') + '\n';
+    buffer = [];
+    write(path, chunk);
+  }
 
-    var carModel =
-      (p && (p['DataCorePlugin.GameData.CarModel'] || p['RacingDesk.Plugin.Demo.CarModel'])) ||
-      window._currentCarModel ||
-      null;
-    var trackName =
-      (p && (p['DataCorePlugin.GameData.TrackName'] || p['RacingDesk.Plugin.Demo.TrackName'])) ||
-      window._currentTrackName ||
-      null;
-
-    var header = {
+  // Written at once, by itself, so the file is there from the first frame; the frames are buffered behind it.
+  function writeHeader(p) {
+    if (headerWritten) return;
+    headerWritten = true;
+    const isDemo = !!p && flag(p[KEYS.demoMode]);
+    const pick = (game, demo) => (p ? (isDemo ? (p[demo] || p[game]) : (p[game] || p[demo])) || null : null);
+    const car = pick('DataCorePlugin.GameData.CarModel', 'RacingDesk.Plugin.Demo.CarModel');
+    const track = pick('DataCorePlugin.GameData.TrackName', 'RacingDesk.Plugin.Demo.TrackName');
+    write(path, JSON.stringify({
       _type: 'header',
-      schemaVersion: 1,
-      startedAt: new Date(_startTime).toISOString(),
-      car: carModel,
-      track: trackName,
-      gameId: window._currentGameId || null,
-      isDemo: !!isDemo,
-    };
-
-    if (window.racingDesk && window.racingDesk.sidecarWrite) {
-      window.racingDesk.sidecarWrite(_sidecarPath, JSON.stringify(header) + '\n');
-    }
+      schemaVersion: SCHEMA_VERSION,
+      startedAt: new Date(startedAt).toISOString(),
+      car: car === undefined ? null : car,
+      track: track === undefined ? null : track,
+      gameId: p && p[KEYS.gameId] ? String(p[KEYS.gameId]) : null,
+      isDemo,
+      producer: header.producer,
+      obsOutputPath: header.obsOutputPath,
+      videoStartUtc: new Date(startedAt).toISOString(),
+      videoOffsetMs: header.videoOffsetMs,
+    }) + '\n');
   }
 
-  function stop() {
-    if (!_active) return;
-
-    // Flush any remaining buffered lines
-    flush();
-
-    // Write a final summary line with markers
-    var summary = {
-      _type: 'summary',
-      frames: _frameIndex,
-      durationMs: Date.now() - _startTime,
-      markers: _markers,
-    };
-    if (window.racingDesk && window.racingDesk.sidecarWrite) {
-      window.racingDesk.sidecarWrite(_sidecarPath, JSON.stringify(summary) + '\n');
-    }
-
-    if (window.racingDesk && window.racingDesk.sidecarStop) {
-      window.racingDesk.sidecarStop(_sidecarPath);
-    }
-
-    console.log('[Sidecar] Stopped — ' + _frameIndex + ' frames, ' + _markers.length + ' markers');
-    _active = false;
-    _sidecarPath = null;
+  function start({ path: file, startedAt: at = now(), producer = 'obs', obsOutputPath = null, videoOffsetMs = 0 } = {}) {
+    if (active) stop({ reason: 'started again' });
+    if (typeof file !== 'string' || !file) throw new Error('a sidecar needs a path');
+    active = true;
+    path = file;
+    startedAt = at;
+    header = { producer, obsOutputPath, videoOffsetMs };
+    headerWritten = false;
+    frameIndex = 0;
+    buffer = [];
+    markers = [];
+    prevIncidents = -1;
+    prevPosition = -1;
+    prevLap = -1;
+    prevInPit = null;
   }
 
-  // ── Capture a frame ───────────────────────────────────────
-  // Called from pollUpdate() every frame when recording is active.
-  // `p` is the raw telemetry property bag from fetchProps().
+  function frame(p, { at = now() } = {}) {
+    if (!active || !p || typeof p !== 'object') return false;
+    if (!headerWritten) writeHeader(p);
+    const isDemo = flag(p[KEYS.demoMode]);
+    const dsPre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
+    const gridPre = isDemo ? 'RacingDesk.Plugin.Demo.Grid.' : 'RacingDesk.Plugin.Grid.';
+    const v = (k) => (p[k] != null ? p[k] : 0);
+    const vs = (k) => (p[k] != null ? '' + p[k] : '');
+    const n = (k) => +v(k) || 0;
+    const game = (k, demoK) => (isDemo ? n('RacingDesk.Plugin.Demo.' + demoK) : n('DataCorePlugin.GameData.' + k));
 
-  function captureFrame(p, isDemo) {
-    if (!_active || !p) return;
+    const elapsedMs = at - startedAt;
+    const pos = isDemo ? n('RacingDesk.Plugin.Demo.Position') : n('DataCorePlugin.GameData.Position');
+    const incidents = n(dsPre + 'IncidentCount');
+    const lap = isDemo ? n('RacingDesk.Plugin.Demo.CurrentLap') : n('DataCorePlugin.GameData.CurrentLap');
+    const inPit = n(dsPre + 'IsInPitLane') > 0;
+    const t = +(elapsedMs / 1000).toFixed(3);
 
-    // Lazy header on first frame — uses the live property bag, so
-    // car/track/game match whatever the per-frame rows will reflect.
-    if (!_headerWritten) writeHeader(p, isDemo);
+    // ── Markers ──
+    if (prevIncidents >= 0 && incidents > prevIncidents) markers.push({ type: 'incident', frame: frameIndex, t: elapsedMs, from: prevIncidents, to: incidents });
+    if (prevPosition > 0 && pos > 0 && pos !== prevPosition) markers.push({ type: 'position_change', frame: frameIndex, t: elapsedMs, from: prevPosition, to: pos, direction: pos < prevPosition ? 'gained' : 'lost' });
+    if (prevLap > 0 && lap > prevLap) markers.push({ type: 'new_lap', frame: frameIndex, t: elapsedMs, lap });
+    if (prevInPit !== null && prevInPit !== inPit) markers.push({ type: inPit ? 'pit_entry' : 'pit_exit', frame: frameIndex, t: elapsedMs });
+    prevIncidents = incidents;
+    prevPosition = pos;
+    prevLap = lap;
+    prevInPit = inPit;
 
-    var dsPre = isDemo ? 'RacingDesk.Plugin.Demo.DS.' : 'RacingDesk.Plugin.DS.';
-    var sessionPre = isDemo ? 'RacingDesk.Plugin.Demo.Grid.' : 'RacingDesk.Plugin.Grid.';
-    var pre = isDemo ? 'RacingDesk.Plugin.Demo.' : '';
+    const gearRaw = isDemo ? p['RacingDesk.Plugin.Demo.Gear'] : p['DataCorePlugin.GameData.Gear'];
+    const sessionNum = numberOrNull(p[KEYS.sessionNum]);
+    const sessionTime = numberOrNull(p[KEYS.sessionTime]);
 
-    var v = function (k) { return p[k] != null ? p[k] : 0; };
-    var vs = function (k) { return p[k] != null ? '' + p[k] : ''; };
-
-    var elapsedMs = Date.now() - _startTime;
-    var pos = isDemo
-      ? +(v('RacingDesk.Plugin.Demo.Position')) || 0
-      : +(v('DataCorePlugin.GameData.Position')) || 0;
-    var incidents = +(v(dsPre + 'IncidentCount')) || 0;
-    var lap = isDemo
-      ? +(v('RacingDesk.Plugin.Demo.CurrentLap')) || 0
-      : +(v('DataCorePlugin.GameData.CurrentLap')) || 0;
-    var inPit = +(v(dsPre + 'IsInPitLane')) > 0;
-    var speed = isDemo
-      ? +(v('RacingDesk.Plugin.Demo.SpeedMph')) || 0
-      : +(v('DataCorePlugin.GameData.SpeedMph')) || 0;
-
-    // ── Detect events (markers) ─────────────────────────────
-    if (_prevIncidents >= 0 && incidents > _prevIncidents) {
-      _markers.push({
-        type: 'incident',
-        frame: _frameIndex,
-        t: elapsedMs,
-        from: _prevIncidents,
-        to: incidents,
-      });
-    }
-
-    if (_prevPosition > 0 && pos > 0 && pos !== _prevPosition) {
-      var dir = pos < _prevPosition ? 'gained' : 'lost';
-      _markers.push({
-        type: 'position_change',
-        frame: _frameIndex,
-        t: elapsedMs,
-        from: _prevPosition,
-        to: pos,
-        direction: dir,
-      });
-    }
-
-    if (_prevLap > 0 && lap > _prevLap) {
-      _markers.push({
-        type: 'new_lap',
-        frame: _frameIndex,
-        t: elapsedMs,
-        lap: lap,
-      });
-    }
-
-    if (_prevInPit !== inPit && _frameIndex > 0) {
-      _markers.push({
-        type: inPit ? 'pit_entry' : 'pit_exit',
-        frame: _frameIndex,
-        t: elapsedMs,
-      });
-    }
-
-    _prevIncidents = incidents;
-    _prevPosition = pos;
-    _prevLap = lap;
-    _prevInPit = inPit;
-
-    // ── Build the frame record ──────────────────────────────
-    // Schema notes:
-    //   - Field names are intentionally short to keep per-frame JSONL bloat
-    //     down; this file accumulates ~30 frames/sec × race length.
-    //   - When a new field is added, the prodrive-designer mapper
-    //     (replayer/sidecar-mapper.js) must be taught to read it.
-    //     See agents/prodrive-context/ for the cross-repo schema doc.
-    //   - Tire / fuel-rate / BB-TC-ABS added 2026-04-26 to enable
-    //     designing tire wear, fuel strategy, and adjustment UI in
-    //     prodrive-designer with real recorded data.
-    var frame = {
-      t: +(elapsedMs / 1000).toFixed(3),
-      frame: _frameIndex,
+    const row = {
+      t,
+      frame: frameIndex,
+      // The sim's own clock, for finding this moment in iRacing's replay. Absent where the sim did not say.
+      ...(sessionNum !== null ? { sn: sessionNum } : {}),
+      ...(sessionTime !== null ? { st: +sessionTime.toFixed(3) } : {}),
       // Position & gaps
-      pos: pos,
-      totalCars: +(v(sessionPre + 'TotalCars')) || 0,
-      gapAhead: isDemo
-        ? +(v('RacingDesk.Plugin.Demo.GapAhead')) || 0
-        : +(v('IRacingExtraProperties.iRacing_Opponent_Ahead_Gap')) || 0,
-      gapBehind: isDemo
-        ? +(v('RacingDesk.Plugin.Demo.GapBehind')) || 0
-        : +(v('IRacingExtraProperties.iRacing_Opponent_Behind_Gap')) || 0,
+      pos,
+      totalCars: n(gridPre + 'TotalCars'),
+      gapAhead: isDemo ? n('RacingDesk.Plugin.Demo.GapAhead') : n('IRacingExtraProperties.iRacing_Opponent_Ahead_Gap'),
+      gapBehind: isDemo ? n('RacingDesk.Plugin.Demo.GapBehind') : n('IRacingExtraProperties.iRacing_Opponent_Behind_Gap'),
       // Lap & sector
-      lap: lap,
-      sector: +(v(dsPre + 'CurrentSector')) || 0,
-      lapDelta: +(v(dsPre + 'LapDelta')) || 0,
+      lap,
+      sector: n(dsPre + 'CurrentSector'),
+      lapDelta: n(dsPre + 'LapDelta'),
       // Speed & inputs
-      speed: speed,
-      throttle: +(v(isDemo ? 'RacingDesk.Plugin.Demo.Throttle' : 'DataCorePlugin.GameData.Throttle')) || 0,
-      brake: +(v(isDemo ? 'RacingDesk.Plugin.Demo.Brake' : 'DataCorePlugin.GameData.Brake')) || 0,
-      gear: +(v(isDemo ? 'RacingDesk.Plugin.Demo.Gear' : 'DataCorePlugin.GameData.Gear')) || 0,
-      steer: +(v('DataCorePlugin.GameRawData.Telemetry.SteeringWheelAngle')) || 0,
+      speed: game('SpeedMph', 'SpeedMph'),
+      throttle: game('Throttle', 'Throttle'),
+      brake: game('Brake', 'Brake'),
+      gear: gearRaw == null ? '' : String(gearRaw),
+      steer: n('DataCorePlugin.GameRawData.Telemetry.SteeringWheelAngle'),
       // G-forces
-      latG: +(v(dsPre + 'LatG')) || 0,
-      longG: +(v(dsPre + 'LongG')) || 0,
+      latG: n(dsPre + 'LatG'),
+      longG: n(dsPre + 'LongG'),
       // Incidents & flags
-      incidents: incidents,
-      flag: vs(dsPre + 'FlagState') || 'green',
+      incidents,
+      flag: vs(KEYS.flag) || 'none',
       // Pit status
       pit: inPit,
       // Fuel
-      fuel: isDemo ? +(v('RacingDesk.Plugin.Demo.Fuel')) || 0 : +(v('DataCorePlugin.GameData.Fuel')) || 0,
-      maxFuel: isDemo ? +(v('RacingDesk.Plugin.Demo.MaxFuel')) || 0 : +(v('DataCorePlugin.GameData.MaxFuel')) || 0,
-      // Fuel consumption (added 2026-04-26)
-      fuelLap: isDemo
-        ? +(v('RacingDesk.Plugin.Demo.FuelPerLap')) || 0
-        : +(v('DataCorePlugin.Computed.Fuel_LitersPerLap')) || 0,
-      remLaps: isDemo
-        ? +(v('RacingDesk.Plugin.Demo.RemainingLaps')) || 0
-        : +(v('DataCorePlugin.GameData.RemainingLaps')) || 0,
-      // Tire temps °C (added 2026-04-26)
-      tFL: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreTempFL')) || 0 : +(v('DataCorePlugin.GameData.TyreTempFrontLeft')) || 0,
-      tFR: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreTempFR')) || 0 : +(v('DataCorePlugin.GameData.TyreTempFrontRight')) || 0,
-      tRL: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreTempRL')) || 0 : +(v('DataCorePlugin.GameData.TyreTempRearLeft')) || 0,
-      tRR: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreTempRR')) || 0 : +(v('DataCorePlugin.GameData.TyreTempRearRight')) || 0,
-      // Tire wear 0..1 (added 2026-04-26)
-      wFL: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreWearFL')) || 0 : +(v('DataCorePlugin.GameData.TyreWearFrontLeft')) || 0,
-      wFR: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreWearFR')) || 0 : +(v('DataCorePlugin.GameData.TyreWearFrontRight')) || 0,
-      wRL: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreWearRL')) || 0 : +(v('DataCorePlugin.GameData.TyreWearRearLeft')) || 0,
-      wRR: isDemo ? +(v('RacingDesk.Plugin.Demo.TyreWearRR')) || 0 : +(v('DataCorePlugin.GameData.TyreWearRearRight')) || 0,
-      // In-car adjustments (added 2026-04-26)
-      bb: isDemo ? +(v('RacingDesk.Plugin.Demo.BrakeBias')) || 0 : +(v('DataCorePlugin.GameRawData.Telemetry.dcBrakeBias')) || 0,
-      tc: isDemo ? +(v('RacingDesk.Plugin.Demo.TC')) || 0 : +(v('DataCorePlugin.GameRawData.Telemetry.dcTractionControl')) || 0,
-      abs: isDemo ? +(v('RacingDesk.Plugin.Demo.ABS')) || 0 : +(v('DataCorePlugin.GameRawData.Telemetry.dcABS')) || 0,
-      // Proximity
-      closestCar: +(v(dsPre + 'ClosestCarDistance')) || 0,
+      fuel: game('Fuel', 'Fuel'),
+      maxFuel: game('MaxFuel', 'MaxFuel'),
+      fuelLap: isDemo ? n('RacingDesk.Plugin.Demo.FuelPerLap') : n('DataCorePlugin.Computed.Fuel_LitersPerLap'),
+      remLaps: game('RemainingLaps', 'RemainingLaps'),
+      // Tyre temps and wear
+      tFL: game('TyreTempFrontLeft', 'TyreTempFL'), tFR: game('TyreTempFrontRight', 'TyreTempFR'),
+      tRL: game('TyreTempRearLeft', 'TyreTempRL'), tRR: game('TyreTempRearRight', 'TyreTempRR'),
+      wFL: game('TyreWearFrontLeft', 'TyreWearFL'), wFR: game('TyreWearFrontRight', 'TyreWearFR'),
+      wRL: game('TyreWearRearLeft', 'TyreWearRL'), wRR: game('TyreWearRearRight', 'TyreWearRR'),
+      // In-car adjustments
+      bb: isDemo ? n('RacingDesk.Plugin.Demo.BrakeBias') : n('DataCorePlugin.GameRawData.Telemetry.dcBrakeBias'),
+      tc: isDemo ? n('RacingDesk.Plugin.Demo.TC') : n('DataCorePlugin.GameRawData.Telemetry.dcTractionControl'),
+      abs: isDemo ? n('RacingDesk.Plugin.Demo.ABS') : n('DataCorePlugin.GameRawData.Telemetry.dcABS'),
       // Session
-      sessionState: +(v(sessionPre + 'SessionState')) || 0,
-      endOfRace: +(v(dsPre + 'IsEndOfRace')) > 0,
+      sessionState: n(gridPre + 'SessionState'),
+      endOfRace: n(dsPre + 'IsEndOfRace') > 0,
     };
-
-    _buffer.push(JSON.stringify(frame));
-    _frameIndex++;
-
-    // Flush buffer periodically
-    if (_buffer.length >= _flushInterval) {
-      flush();
-    }
+    line(row);
+    frameIndex++;
+    if (buffer.length >= flushEvery) flush();
+    return true;
   }
 
-  // ── Flush buffer to file ──────────────────────────────────
-  function flush() {
-    if (_buffer.length === 0 || !_sidecarPath) return;
-    var chunk = _buffer.join('\n') + '\n';
-    _buffer = [];
-    if (window.racingDesk && window.racingDesk.sidecarWrite) {
-      window.racingDesk.sidecarWrite(_sidecarPath, chunk);
-    }
+  function marker(m, { at = now() } = {}) {
+    if (!active || !m || typeof m !== 'object' || !m.type) return false;
+    markers.push({ ...m, frame: frameIndex, t: at - startedAt });
+    return true;
   }
 
-  // ── Get markers (for post-race analysis) ──────────────────
-  function getMarkers() {
-    return _markers.slice();
+  function stop({ stoppedAt = now(), reason = null, obsOutputPath = null } = {}) {
+    if (!active) return null;
+    if (!headerWritten) writeHeader(null);
+    const summary = {
+      _type: 'summary',
+      frames: frameIndex,
+      durationMs: Math.max(0, stoppedAt - startedAt),
+      markers,
+      stoppedAt: new Date(stoppedAt).toISOString(),
+      obsOutputPath: obsOutputPath || header.obsOutputPath,
+    };
+    if (reason) summary.reason = reason;
+    line(summary);
+    flush();
+    const result = { path, frames: frameIndex, markers: markers.length };
+    active = false;
+    path = null;
+    header = null;
+    return result;
   }
 
-  function isActive() {
-    return _active;
+  function state() {
+    return { active, path, frames: frameIndex, markers: markers.length, startedAt };
   }
 
-  // ── Public API ────────────────────────────────────────────
-  window.sidecarStart = start;
-  window.sidecarStop = stop;
-  window.sidecarCaptureFrame = captureFrame;
-  window.sidecarGetMarkers = getMarkers;
-  window.sidecarIsActive = isActive;
-})();
+  return { start, frame, marker, stop, flush, isActive: () => active, state };
+}
+
+/** The sidecar's path for a video file: the same name with .telemetry.jsonl in place of the extension. */
+function sidecarPathFor(videoPath) {
+  return String(videoPath).replace(/\.[a-z0-9]{2,5}$/i, '') + '.telemetry.jsonl';
+}
+
+module.exports = { SCHEMA_VERSION, FLUSH_EVERY, KEYS, createSidecar, sidecarPathFor };

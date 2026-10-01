@@ -934,6 +934,9 @@ namespace RacingDesk.Plugin
                     if (s.InCar.HasValue) Jp(sb, "DataCorePlugin.GameRawData.Telemetry.IsOnTrack", s.InCar.Value ? 1 : 0);
                     // iRacing's flag field, whole, as it was published (an unsigned number): only where the sim said it, never in demo.
                     if (!demo && s.GameRunning && s.SessionFlagsRaw.HasValue) Jp(sb, Transport.TelemetryFrame.SessionFlagsKey, (long)s.SessionFlagsRaw.Value);
+                    // The sim's own clock, for the recording's sidecar: only where the sim said it, never in demo.
+                    if (!demo && s.GameRunning && s.SessionNum.HasValue) Jp(sb, Transport.TelemetryFrame.SessionNumKey, s.SessionNum.Value);
+                    if (!demo && s.GameRunning && s.SessionTime.HasValue) Jp(sb, Transport.TelemetryFrame.SessionTimeKey, s.SessionTime.Value, ic);
                     // The car's controls by the canonical list: a JSON object, and only for a car the list has.
                     if (!demo && !string.IsNullOrEmpty(s.CarControlsJson))
                         sb.Append('"').Append(Transport.TelemetryFrame.CarControlsKey).Append("\":").Append(s.CarControlsJson).Append(",\n");
