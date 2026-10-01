@@ -57,10 +57,16 @@ test('Set up OBS says in one sentence what it will change, and the network sente
   const fresh = { ...READY, setup: { ...READY.setup, wsEnabled: false, hybrid: false, replayBuffer: false, folderSet: false, needed: true } };
   expect(model.setupSentence(fresh)).toBe(
     "Set up OBS will switch on OBS's WebSocket, set your profile to Hybrid MP4, turn its 20 s replay buffer on and point its recordings at D:\\Racing Desk\\Recordings. "
-    + 'Your own Ctrl+Space recordings become Hybrid MP4 too. OBS then answers on port 4455 to anything on your network that knows the password.',
+    + 'Your own Ctrl+Space recordings become Hybrid MP4 and go to D:\\Racing Desk\\Recordings too. OBS then answers on port 4455 to anything on your network that knows the password.',
   );
   const onlyFolder = { ...READY, setup: { ...READY.setup, folderSet: false, needed: true } };
-  expect(model.setupSentence(onlyFolder)).toBe('Set up OBS will point its recordings at D:\\Racing Desk\\Recordings. Your own Ctrl+Space recordings become Hybrid MP4 too.');
+  // Only what is really changing is said of his own Ctrl+Space recordings: here they move, and are Hybrid MP4 already.
+  expect(model.setupSentence(onlyFolder)).toBe('Set up OBS will point its recordings at D:\\Racing Desk\\Recordings. Your own Ctrl+Space recordings go to D:\\Racing Desk\\Recordings too.');
+  const onlyFormat = { ...READY, setup: { ...READY.setup, hybrid: false, needed: true } };
+  expect(model.setupSentence(onlyFormat)).toBe('Set up OBS will set your profile to Hybrid MP4. Your own Ctrl+Space recordings become Hybrid MP4 too.');
+  // The replay buffer changes nothing of theirs: nothing is said of them.
+  const onlyReplay = { ...READY, setup: { ...READY.setup, replayBuffer: false, needed: true } };
+  expect(model.setupSentence(onlyReplay)).toBe('Set up OBS will turn its 20 s replay buffer on.');
   const onlyWs = { ...READY, setup: { ...READY.setup, wsEnabled: false, needed: true } };
   expect(model.setupSentence(onlyWs)).toBe("Set up OBS will switch on OBS's WebSocket. OBS then answers on port 4455 to anything on your network that knows the password.");
   expect(model.setupSentence(onlyWs).split('port 4455').length).toBe(2);
@@ -113,7 +119,9 @@ test('the card: buttons and sentences for the states, the switches, the folder',
   expect(unreadable.details.some((d) => /could not be read/.test(d))).toBe(true);
 
   const missing = model.card({ ...READY, obs: 'closed', setup: { ...READY.setup, obsFound: false } });
-  expect(missing.details.some((d) => /was not found at C:\\Program Files\\obs-studio/.test(d))).toBe(true);
+  // Said as it is, with no instruction to a control that is not there (there is no field for OBS's folder).
+  expect(missing.details).toContain('OBS was not found at C:\\Program Files\\obs-studio, so Racing Desk cannot start it. If you open OBS yourself, Racing Desk will find it.');
+  expect(missing.details.join(' ')).not.toMatch(/Set its folder|below/);
 });
 
 test('without the app the card is read-only and says so', () => {

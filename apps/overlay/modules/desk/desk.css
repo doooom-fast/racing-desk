@@ -119,16 +119,20 @@ h2 {
   white-space: nowrap;
 }
 .recording-pill:empty { display: none; }
-/* In a narrow window the masthead is full already (the ratings, the six stats, the freshness line): under 1280 px the
-   pill keeps its dot and its button, with its words in the title; in the desk's smallest windows (its minimum is
-   1024 wide) even that makes the freshness line wrap and the Cars page lose the height it has no room to give, so
-   there the pill gives way — the tray and the Recording card show the state. */
+/* In a narrow window the masthead is full already (the ratings, the six stats, the freshness line), and the desk's
+   smallest windows (its minimum is 1024 wide) have no height to give: under 1280 px the pill keeps its dot and its
+   button, with its words in the title, and room is made for it — the brand's name goes (the window's title bar says
+   it, and the mark stays) and the gaps between the masthead's parts narrow — so that the pill is on every page at
+   every width and the masthead is no taller for it. */
 @media (max-width: 1280px) {
   .recording-pill { padding-left: 10px; }
   .recording-pill .recording-text { display: none; }
+  .masthead { gap: 16px; }
+  .brand-name { display: none; }
 }
+/* And in the narrowest, the freshness line keeps its Refresh button and gives up its words (they are its tooltip). */
 @media (max-width: 1100px) {
-  .recording-pill { display: none; }
+  .freshness #freshness { display: none; }
 }
 .recording-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); flex: none; }
 .recording-pill[data-state="ready"] .recording-dot { background: var(--info); }

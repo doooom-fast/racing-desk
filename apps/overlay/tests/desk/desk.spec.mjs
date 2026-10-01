@@ -4232,7 +4232,7 @@ test('with OBS closed and nothing set up: Open OBS, and Set up OBS with one sent
   await stubBridge(page, { zoom: 120 });
   await stubRecording(page, OBS_CLOSED_FRESH, {
     setup: { ok: true, did: ["OBS's WebSocket is switched on.", 'The profile "Untitled" now has Hybrid MP4, a 20 s replay buffer, recordings into D:\\Racing Desk\\Recordings.'], problems: [] },
-    openObs: { ok: false, reason: 'OBS was not found at C:\\Program Files\\obs-studio. Set its folder on the Recording card.' },
+    openObs: { ok: false, reason: 'OBS was not found at C:\\Program Files\\obs-studio, so Racing Desk cannot start it. If you open OBS yourself, Racing Desk will find it.' },
   });
   const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
   const card = page.locator('#settings-recording');
@@ -4240,7 +4240,7 @@ test('with OBS closed and nothing set up: Open OBS, and Set up OBS with one sent
   await expect(page.locator('#recording-pill')).toHaveAttribute('data-state', 'off');
   await expect(page.locator('#recording-pill .recording-button')).toBeEnabled();   // the app decides whether OBS may be started
   await expect(card.locator('.recording-detail')).toHaveText([
-    "Set up OBS will switch on OBS's WebSocket, set your profile to Hybrid MP4, turn its 20 s replay buffer on and point its recordings at D:\\Racing Desk\\Recordings. Your own Ctrl+Space recordings become Hybrid MP4 too. OBS then answers on port 4455 to anything on your network that knows the password.",
+    "Set up OBS will switch on OBS's WebSocket, set your profile to Hybrid MP4, turn its 20 s replay buffer on and point its recordings at D:\\Racing Desk\\Recordings. Your own Ctrl+Space recordings become Hybrid MP4 and go to D:\\Racing Desk\\Recordings too. OBS then answers on port 4455 to anything on your network that knows the password.",
   ]);
   await expect(card.locator('button[data-recording-cmd="openObs"]')).toBeEnabled();
   await expect(card.locator('button[data-recording-cmd="setup"]')).toBeEnabled();
@@ -4251,7 +4251,7 @@ test('with OBS closed and nothing set up: Open OBS, and Set up OBS with one sent
   expect(await recordingCommands(page)).toEqual([['setup', undefined]]);
 
   await card.locator('button[data-recording-cmd="openObs"]').click();
-  await expect(card.locator('.recording-error')).toHaveText('OBS was not found at C:\\Program Files\\obs-studio. Set its folder on the Recording card.');
+  await expect(card.locator('.recording-error')).toHaveText('OBS was not found at C:\\Program Files\\obs-studio, so Racing Desk cannot start it. If you open OBS yourself, Racing Desk will find it.');
   await expect(card.locator('.recording-said')).toHaveCount(0);
   expect(await recordingCommands(page)).toEqual([['setup', undefined], ['openObs', undefined]]);
   expect(errors).toEqual([]);
@@ -4309,4 +4309,103 @@ test('a recording stopped for the disk, and a recording OBS started, are said on
   await expect(card.locator('.recording-detail').first()).toHaveText('C:/Users/Driver/Videos/NVIDIA/his.mp4 · started in OBS');
   await expect(card.locator('.recording-detail').nth(1)).toHaveText('No sim session is live, so no telemetry is written beside this one.');
   await expect(page.locator('#recording-pill .recording-button')).toHaveText('Stop');
+});
+
+test('what he is typing in the password field is not lost when the app pushes a new state; a state that reads the same does not rebuild the card', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  const refused = { ...OBS_READY, obs: 'authFailed', needsPassword: true };
+  await stubRecording(page, refused);
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
+  const card = page.locator('#settings-recording');
+  const field = card.locator('#recording-password-field');
+  await expect(field).toBeVisible();
+  await field.click();
+  await page.keyboard.type('half-typed');
+  await expect(field).toHaveValue('half-typed');
+  await expect(field).toBeFocused();
+
+  // The app says the same again (it used to, at every try to find OBS): the card is not touched at all.
+  await page.evaluate(() => { window.__heading = document.querySelector('#settings-recording h2'); });
+  await pushRecording(page, refused);
+  await pushRecording(page, { ...refused });
+  expect(await page.evaluate(() => window.__heading.isConnected)).toBe(true);
+  await expect(field).toHaveValue('half-typed');
+
+  // A state that does change the card — a line of its own — rebuilds it, and the field keeps its text, its focus and its caret.
+  await pushRecording(page, { ...refused, last: { ok: false, text: "OBS isn't open", at: 1 } });
+  await expect(card.locator('.recording-detail').first()).toHaveText("OBS isn't open");
+  const again = card.locator('#recording-password-field');
+  await expect(again).toHaveValue('half-typed');
+  await expect(again).toBeFocused();
+  await page.keyboard.type('!');
+  await expect(again).toHaveValue('half-typed!');
+  // Once OBS takes the password the field goes, and nothing of it stays on the page.
+  await pushRecording(page, OBS_READY);
+  await expect(card.locator('#recording-password')).toHaveCount(0);
+  expect(await page.evaluate(() => document.body.innerHTML.includes('half-typed'))).toBe(false);
+});
+
+test('the pill\'s clock ticks without the button being replaced under the pointer, so a click that straddles a tick still lands', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRecording(page, OBS_READY);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings', { timers: true });
+  const pill = page.locator('#recording-pill');
+  await pill.locator('.recording-button').click();
+  await expect(pill).toHaveAttribute('data-state', 'recording');
+  const button = await pill.locator('.recording-button').elementHandle();
+  const text = pill.locator('.recording-text');
+  const before = await text.textContent();
+  await page.clock.runFor(1100);
+  await expect(text).not.toHaveText(before);                 // the clock moved on...
+  expect(await button.evaluate((el) => el.isConnected)).toBe(true);   // ...and it is the same button
+  await page.clock.runFor(3100);
+  expect(await button.evaluate((el) => el.isConnected)).toBe(true);
+  await expect(pill.locator('.recording-button')).toHaveText('Stop');
+  // Pressed after the ticks, it stops the recording as before.
+  await button.click();
+  await expect(pill).toHaveAttribute('data-state', 'ready');
+  expect(await recordingCommands(page)).toEqual([['toggle', undefined], ['toggle', undefined]]);
+  expect(errors).toEqual([]);
+});
+
+test('the recording pill is on the masthead at the desk\'s smallest windows too, and the masthead is no taller for it', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRecording(page, OBS_READY);
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=cars');
+  const masthead = page.locator('.masthead');
+  // The masthead's height, with the pill and without it: the desk's smallest windows have no height to give, and the
+  // pill must not be what makes the masthead (or the freshness line in it) wrap.
+  const heights = async (size) => {
+    await page.setViewportSize(size);
+    return masthead.evaluate((el) => {
+      const pill = document.getElementById('recording-pill');
+      const measure = () => [Math.round(el.getBoundingClientRect().height), Math.round(document.querySelector('.freshness').getBoundingClientRect().height)];
+      const withIt = measure();
+      pill.style.setProperty('display', 'none', 'important');
+      const without = measure();
+      pill.style.removeProperty('display');
+      return { withIt, without };
+    });
+  };
+  const normal = (await heights({ width: 1600, height: 900 })).withIt[0];
+  for (const size of [{ width: 1600, height: 900 }, { width: 1280, height: 800 }, { width: 1100, height: 700 }, { width: 1050, height: 700 }, ...SMALLEST]) {
+    const at = `${size.width} by ${size.height}`;
+    const { withIt, without } = await heights(size);
+    expect(withIt, `the masthead and the freshness line, with the pill and without it, at ${at}`).toEqual(without);
+    expect(withIt[0], `the masthead is as high as it is in a wide window, at ${at}`).toBe(normal);
+    // Where the freshness line gives up its words, they are its tooltip.
+    if (size.width <= 1100) {
+      await expect(page.locator('#freshness'), at).toBeHidden();
+      await expect(page.locator('.freshness'), at).toHaveAttribute('title', /\d+ sessions/);
+    }
+    const pill = page.locator('#recording-pill');
+    await expect(pill, at).toBeVisible();
+    const button = pill.locator('.recording-button');
+    await expect(button, at).toBeVisible();
+    await expect(button, at).toHaveText('Record');
+    const box = await button.boundingBox();
+    expect(box.x + box.width, `the button is inside the window at ${at}`).toBeLessThanOrEqual(size.width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `no sideways scroll at ${at}`).toBe(true);
+  }
+  expect(errors).toEqual([]);
 });

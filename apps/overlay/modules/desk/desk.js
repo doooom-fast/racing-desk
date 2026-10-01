@@ -16,6 +16,8 @@
   const RecordingModel = window.RacingDeskRecordingModel;
 
   const $ = (id) => document.getElementById(id);
+  // The masthead's freshness line: its words are also the line's tooltip, for the windows too narrow to show them.
+  const setFreshness = (text) => { $('freshness').textContent = text; $('freshness').parentNode.title = text; };
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let desk = null;
@@ -96,7 +98,7 @@
     $('offline').hidden = true;
     raceLinks = await loadRaceLinks();
     render();
-    $('freshness').textContent = `${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)} · ${ms} ms`;
+    setFreshness(`${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)} · ${ms} ms`);
     // A Cars page that found no host — the desk can be up before the host is — reads again now that there is
     // one, its list of cars as well as their views and pedals: the cars have no names until the host gives
     // them. And so does one that is up when the store has something new, which is how a car just driven is
@@ -159,7 +161,7 @@
     try {
       const status = await getJson('status');
       if (!lastStatus || status.sessions !== lastStatus.sessions || status.lastSessionAt !== lastStatus.lastSessionAt) await load();
-      else $('freshness').textContent = `${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)}`;
+      else setFreshness(`${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)}`);
     } catch (_) { /* host restarting — the next poll retries */ }
   }
 
@@ -167,7 +169,7 @@
     wasOffline = true;
     $('offline-reason').textContent = NOTE ? `${reason} ${NOTE}` : reason;
     $('offline').hidden = false;
-    $('freshness').textContent = 'Local host not running';
+    setFreshness('Local host not running');
   }
 
   // ── Render ───────────────────────────────────────────────
@@ -845,6 +847,7 @@
   let recordingBusy = false;    // a command is under way
   let recordingSaid = null;     // what the last command answered: { ok, did, problems, reason }
   let recordingTicker = null;   // the pill's clock while recording
+  let recordingCardHtml = null; // what the card was last built from: a card that would read the same is left alone
 
   async function loadRecording() {
     const bridge = recordingBridge();
@@ -878,11 +881,21 @@
     if (!el || !RecordingModel) return;
     const inApp = !!recordingBridge();
     const view = RecordingModel.pill(recordingNow(), { inApp });
-    const off = !view.button.enabled || recordingBusy ? ' disabled' : '';
+    const off = !view.button.enabled || recordingBusy;
     el.dataset.state = view.state;
     el.title = view.detail || '';
+    // The clock ticks once a second while recording, and only its text is touched then: the button is built again only
+    // when what it says or whether it can be pressed changes. A button replaced under the pointer between its
+    // mousedown and its mouseup is never clicked.
+    const shape = `${view.button.command}|${view.button.label}|${off}`;
+    const text = el.querySelector('.recording-text');
+    if (text && el.dataset.shape === shape) {
+      if (text.textContent !== view.text) text.textContent = view.text;
+      return;
+    }
+    el.dataset.shape = shape;
     el.innerHTML = `<span class="recording-dot" aria-hidden="true"></span><span class="recording-text">${esc(view.text)}</span>`
-      + `<button type="button" class="recording-button" data-recording-cmd="${esc(view.button.command)}"${off}>${esc(view.button.label)}</button>`;
+      + `<button type="button" class="recording-button" data-recording-cmd="${esc(view.button.command)}"${off ? ' disabled' : ''}>${esc(view.button.label)}</button>`;
   }
 
   function renderRecordingCard() {
@@ -898,7 +911,7 @@
       ...(recordingSaid.problems || []).map((s) => `<p class="recording-error" role="alert">${esc(s)}</p>`),
       recordingSaid.ok === false && recordingSaid.reason && !(recordingSaid.problems || []).length ? `<p class="recording-error" role="alert">${esc(recordingSaid.reason)}</p>` : '',
     ].join('') : '';
-    el.innerHTML = `
+    const html = `
       <h2>Recording</h2>
       <p class="recording-line" id="recording-line">${esc(view.line)}</p>
       ${view.details.map((d) => `<p class="recording-detail">${esc(d)}</p>`).join('')}
@@ -917,7 +930,7 @@
       </form>` : ''}
       <div class="field">
         <label class="name" for="recording-folder">Folder</label>
-        <span class="hint">One folder per recording goes under it: the video, the telemetry beside it, and later the replays and TV takes of that session.</span>
+        <span class="hint">OBS records into this folder, with the telemetry file beside each video. Set up OBS points OBS at it.</span>
         <span class="control"><input type="text" id="recording-folder" value="${esc(view.folder)}" readonly> ${button('chooseFolder', 'Choose…', view.chooseFolder.enabled && inApp)}</span>
       </div>
       ${view.switches.map((s) => `
@@ -927,6 +940,21 @@
         <span class="control"><input type="checkbox" class="switch" id="recording-${esc(s.key)}" data-recording-key="${esc(s.key)}"${s.value ? ' checked' : ''}${s.enabled && !recordingBusy ? '' : ' disabled'}></span>
       </div>`).join('')}
       ${!inApp ? `<p class="remote-say">${esc(RecordingModel.FROM_THE_APP)}</p>` : ''}`;
+    // A card that would read the same is left alone, and one that has to change keeps what he is typing: the password
+    // field, its text and its focus, which a rebuilt form would have emptied under his hands.
+    if (recordingCardHtml === html) return;
+    const field = el.querySelector('#recording-password-field');
+    const typing = field ? { value: field.value, focused: document.activeElement === field, from: field.selectionStart, to: field.selectionEnd } : null;
+    recordingCardHtml = html;
+    el.innerHTML = html;
+    const again = typing && el.querySelector('#recording-password-field');
+    if (again && (typing.value || typing.focused)) {
+      again.value = typing.value;
+      if (typing.focused) {
+        again.focus();
+        try { again.setSelectionRange(typing.from, typing.to); } catch (_) { /* not selectable */ }
+      }
+    }
   }
 
   async function recordingCommand(name, value) {

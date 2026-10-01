@@ -3,7 +3,8 @@
 // Pure — no DOM, no bridge — so it runs in the desk and in the unit tests alike. Half the card is commands, not keys
 // of the settings file, which is why it is not a section of settings-model.js.
 //
-// Every sentence here is a plain one. OBS's own menus are never pointed at: Set up OBS does what OBS needs.
+// Every sentence here is a plain one, and one he can follow. OBS's own menus are pointed at once, to say where the
+// password is when he has to type it; for everything else Set up OBS does what OBS needs.
 (function () {
   'use strict';
 
@@ -87,9 +88,12 @@
     if (setup.folderSet !== true) parts.push(`point its recordings at ${status.folder}`);
     if (!parts.length) return null;
     const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-    const profile = setup.hybrid !== true || setup.replayBuffer !== true || setup.folderSet !== true
-      ? ' Your own Ctrl+Space recordings become Hybrid MP4 too.'
-      : '';
+    // His own Ctrl+Space recordings are made with the same profile: what changes for them is the format and the folder,
+    // and only what is really changing is said (the replay buffer changes nothing of theirs).
+    const theirs = [];
+    if (setup.hybrid !== true) theirs.push('become Hybrid MP4');
+    if (setup.folderSet !== true) theirs.push(`go to ${status.folder}`);
+    const profile = theirs.length ? ` Your own Ctrl+Space recordings ${theirs.join(' and ')} too.` : '';
     return `Set up OBS will ${list}.${profile}${wsOff ? ' ' + NETWORK_SENTENCE : ''}`;
   }
 
@@ -125,7 +129,7 @@
     if (status.obs === 'authFailed') details.push("OBS refused the password Racing Desk has. Type the password from OBS's WebSocket settings below, or quit OBS and press Set up OBS.");
     if (status.obs === 'passwordMissing') details.push("OBS wants a password and Racing Desk has none. Type the password from OBS's WebSocket settings below, or quit OBS and press Set up OBS.");
     if (status.setup && status.setup.wsState === 'unreadable') details.push("OBS's WebSocket settings file could not be read. Type the password below.");
-    if (status.setup && status.setup.obsFound === false) details.push('OBS was not found at C:\\Program Files\\obs-studio. Set its folder below.');
+    if (status.setup && status.setup.obsFound === false) details.push('OBS was not found at C:\\Program Files\\obs-studio, so Racing Desk cannot start it. If you open OBS yourself, Racing Desk will find it.');
     if (status.free && Number.isFinite(status.free.hoursLeft)) {
       const left = formatHours(status.free.hoursLeft);
       details.push(`About ${left} of recording left on ${status.free.drive || 'the recording drive'} at ${Math.round((status.bytesPerSecond || 0) * 8 / 1e6)} Mbps.`);
