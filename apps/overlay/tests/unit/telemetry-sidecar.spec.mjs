@@ -111,7 +111,8 @@ test('the header is written at once; frames every 30, and the rest on stop', () 
   const result = sidecar.stop({ reason: 'stopped' });
   expect(writes).toHaveLength(3);
   expect(writes[2].text.split('\n').filter(Boolean)).toHaveLength(6);   // five frames and the summary
-  expect(result).toEqual({ path: 'x.telemetry.jsonl', frames: 35, markers: 0, chapters: 0 });
+  expect(result).toMatchObject({ path: 'x.telemetry.jsonl', frames: 35, markers: 0, chapters: 0 });
+  expect(result.summary).toMatchObject({ _type: 'summary', frames: 35, reason: 'stopped' });
   expect(sidecar.isActive()).toBe(false);
   // Stopped, it takes no frame and stops no more.
   expect(sidecar.frame(RACE)).toBe(false);
@@ -239,4 +240,92 @@ test('the track is read from SimHub\'s key, else the host\'s, else the map\'s; t
   sidecar.frame({ ...hostOnly, 'RacingDesk.Plugin.Session.TrackName': 'Zandvoort' });
   sidecar.stop();
   expect(lines()[0].track).toBe('Zandvoort');
+});
+
+test('a live payload that does not name its car yet gets no car, not the demo\'s (the host sends the demo\'s keys all the time); the display name of the track is preferred', () => {
+  const live = {
+    'DataCorePlugin.GameRunning': 1, 'RacingDesk.Plugin.DemoMode': 0,
+    'RacingDesk.Plugin.Demo.CarModel': 'BMW M4 GT3', 'RacingDesk.Plugin.Demo.TrackName': 'Spa-Francorchamps',
+    'DataCorePlugin.GameData.TrackName': 'spa 2024 up', 'RacingDesk.Plugin.TrackMap.TrackDisplayName': 'Circuit de Spa-Francorchamps',
+  };
+  expect(trackAndCar(live)).toEqual({ track: 'Circuit de Spa-Francorchamps', car: null });
+  expect(trackAndCar({ ...live, 'RacingDesk.Plugin.TrackMap.TrackDisplayName': '' })).toEqual({ track: 'spa 2024 up', car: null });
+  expect(trackAndCar({ ...live, 'DataCorePlugin.GameData.TrackName': '', 'RacingDesk.Plugin.TrackMap.TrackDisplayName': '' })).toEqual({ track: null, car: null });
+  expect(trackAndCar({ ...live, 'DataCorePlugin.GameData.CarModel': 'Porsche 911 GT3 R' }).car).toBe('Porsche 911 GT3 R');
+  // The demo is the demo's.
+  expect(trackAndCar({ ...live, 'RacingDesk.Plugin.DemoMode': 1 })).toEqual({ track: 'Spa-Francorchamps', car: 'BMW M4 GT3' });
+  // And the header says the same: no car, where the sim has not said it.
+  const { sidecar, lines } = harness();
+  sidecar.start({ path: 'h.telemetry.jsonl' });
+  sidecar.frame(live);
+  sidecar.stop();
+  expect(lines()[0]).toMatchObject({ car: null, track: 'Circuit de Spa-Francorchamps', isDemo: false });
+});
+
+test('the ring keeps only what a frame is made of: the trimmed payload writes the same sidecar, live or demo, from a fraction of the keys', () => {
+  const { sidecarKeys, trimPayload } = require('../../modules/js/telemetry-sidecar.js');
+  expect(sidecarKeys()).toContain('DataCorePlugin.GameRunning');   // what says a sim session is live
+  expect(sidecarKeys()).toContain(KEYS.sessionTime);
+  const big = { ...RACE, Leaderboard: 'x'.repeat(5000), 'RacingDesk.Plugin.Anything.Else': 1 };
+  for (const payload of [big, { ...MOCK_DEMO, 'RacingDesk.Plugin.Other': 2 }]) {
+    const text = (p) => {
+      const h = harness();
+      h.sidecar.start({ path: 'x.telemetry.jsonl' });
+      h.tick(33);
+      h.sidecar.frame(p);
+      h.sidecar.stop({ stoppedAt: h.clock() });
+      return JSON.stringify(h.lines());
+    };
+    const trimmed = trimPayload(payload);
+    expect(text(trimmed)).toBe(text(payload));
+    expect(Object.keys(trimmed).length).toBeLessThan(Object.keys(payload).length);
+    expect('Leaderboard' in trimmed).toBe(false);
+  }
+  expect(trimPayload(null)).toBeNull();
+});
+
+test('chapters are kept as OBS took them, with the frame they were found in; the summary carries the pauses and is handed back', () => {
+  const { sidecar, lines, tick } = harness();
+  sidecar.start({ path: 'x.telemetry.jsonl' });
+  sidecar.frame(RACE);
+  tick(1000);
+  sidecar.frame(RACE);
+  sidecar.frame(RACE);
+  expect(sidecar.chapter({ name: 'Lap 9', at: 1_700_000_000_000 + 1000, frame: 1 })).toBe(true);
+  expect(sidecar.chapter({ name: 'Lap 10', at: 1_700_000_000_000 + 1500 })).toBe(true);
+  tick(1000);
+  const result = sidecar.stop({ reason: 'stopped', pauses: [{ from: 1200, to: 1400 }, { from: 1800, to: null }] });
+  const summary = lines().at(-1);
+  expect(summary.chapters).toEqual([{ name: 'Lap 9', frame: 1, t: 1000 }, { name: 'Lap 10', frame: 3, t: 1500 }]);
+  expect(summary.pauses).toEqual([{ from: 1200, to: 1400 }, { from: 1800, to: 2000 }]);   // one still open is closed at the stop
+  expect(result.summary).toEqual(summary);
+  // No pauses: no key.
+  const again = harness();
+  again.sidecar.start({ path: 'y.telemetry.jsonl' });
+  again.sidecar.frame(RACE);
+  expect('pauses' in again.sidecar.stop({ pauses: [] }).summary).toBe(false);
+});
+
+test('the two ends of a sidecar file: its header, its last summary, and the last frame written; a line cut short by a crash is skipped', () => {
+  const { parseSidecarEnds } = require('../../modules/js/telemetry-sidecar.js');
+  const h = harness();
+  h.sidecar.start({ path: 'x.telemetry.jsonl', startedAt: 1_700_000_000_000 });
+  for (let i = 0; i < 5; i++) { h.tick(33); h.sidecar.frame(RACE); }
+  h.sidecar.chapter({ name: 'Lap 9', at: 1_700_000_000_100 });
+  h.sidecar.stop({ reason: 'OBS went away' });
+  const text = h.writes.map((w) => w.text).join('');
+  const whole = parseSidecarEnds({ head: text, tail: text, whole: true });
+  expect(whole.header).toMatchObject({ _type: 'header', startedAt: new Date(1_700_000_000_000).toISOString() });
+  expect(whole.summary).toMatchObject({ _type: 'summary', reason: 'OBS went away', frames: 5, chapters: [{ name: 'Lap 9' }] });
+  expect(whole.lastFrame).toBe(4);
+  // Only the tail of a big file: its first line is cut, and is skipped.
+  const lines = text.split('\n').filter(Boolean);
+  const tail = lines[3].slice(10) + '\n' + lines.slice(4).join('\n') + '\n';
+  expect(parseSidecarEnds({ head: text, tail })).toMatchObject({ summary: { frames: 5 }, lastFrame: 4 });
+  // A crash: no summary, the last line half written.
+  const crashed = lines.slice(0, 4).join('\n') + '\n' + lines[4].slice(0, 40);
+  expect(parseSidecarEnds({ head: crashed, tail: crashed, whole: true })).toMatchObject({ summary: null, lastFrame: 2 });
+  // Nothing readable: nothing found, nothing thrown.
+  expect(parseSidecarEnds({ head: '', tail: '' })).toEqual({ header: null, summary: null, lastFrame: null });
+  expect(parseSidecarEnds()).toEqual({ header: null, summary: null, lastFrame: null });
 });

@@ -313,15 +313,19 @@ function profileWanted(folder) {
   };
 }
 
-/** What a profile's basic.ini says against what is wanted: { hybrid, replayBuffer, folder, ok }. */
+/**
+ * What a profile's basic.ini says against what is wanted: { hybrid, replayBuffer, replaySeconds, folder, ok }.
+ * `replaySeconds` is the length of the buffer being the wanted one (a key that is not there is OBS's own 20 s).
+ */
 function profileCheck(iniText, folder) {
   const adv = readIniKeys(iniText, 'AdvOut', ['RecFormat2', 'RecRB', 'RecRBTime', 'RecFilePath']);
   const f = toForwardSlashes(folder).toLowerCase();
   const hybrid = adv.RecFormat2 === 'hybrid_mp4';
   const replayBuffer = adv.RecRB === 'true';
+  const replaySeconds = adv.RecRBTime === null || adv.RecRBTime === REPLAY_SECONDS;
   const current = adv.RecFilePath ? toForwardSlashes(adv.RecFilePath).toLowerCase() : null;
   const folderOk = current === f;
-  return { hybrid, replayBuffer, folder: folderOk, recFilePath: adv.RecFilePath, ok: hybrid && replayBuffer && folderOk };
+  return { hybrid, replayBuffer, replaySeconds, folder: folderOk, recFilePath: adv.RecFilePath, ok: hybrid && replayBuffer && replaySeconds && folderOk };
 }
 
 /** The folder the current profile records into, as its basic.ini says (Advanced or Simple output); null if unknown. */
@@ -360,7 +364,9 @@ function setupWhileClosed({ appData, folder, readFile, writeFile, rename, mkdir 
     const after = readWebSocketConfig(where.configJson, { readFile });
     password = after.password;
     wsPort = after.port;
-    if (after.state === 'ok' && after.authRequired && !password) problems.push("OBS's WebSocket has no password in its settings file yet; OBS makes one the first time it opens with the server on, so press Set up OBS again after that, or type the password below.");
+    // Nothing to do about it: OBS makes the password the first time it opens with the server on, and Racing Desk reads it
+    // from OBS's file each time OBS asks for it.
+    if (after.state === 'ok' && after.authRequired && !password) did.push("OBS's WebSocket has no password in its settings file yet; OBS makes one the first time it opens with the server on, and Racing Desk reads it from there.");
   } catch (e) {
     problems.push(`OBS's WebSocket settings could not be written: ${e.message}`);
   }
@@ -382,6 +388,7 @@ function setupWhileClosed({ appData, folder, readFile, writeFile, rename, mkdir 
         const changed = [];
         if (!before.hybrid) changed.push('Hybrid MP4');
         if (!before.replayBuffer) changed.push(`a ${REPLAY_SECONDS} s replay buffer`);
+        else if (!before.replaySeconds) changed.push(`the replay buffer ${REPLAY_SECONDS} s long`);
         if (!before.folder) changed.push(`recordings into ${folder}`);
         did.push(`The profile "${profile.profile}" now has ${changed.join(', ')}.`);
       }
@@ -413,7 +420,12 @@ async function setupWhileOpen(client, { folder }) {
     const changed = [];
     if (before.RecFormat2 !== 'hybrid_mp4') { await set('AdvOut', 'RecFormat2', 'hybrid_mp4'); changed.push('Hybrid MP4'); }
     if (before.RecRB !== 'true') { await set('AdvOut', 'RecRB', 'true'); changed.push(`a ${REPLAY_SECONDS} s replay buffer`); }
-    if (before.RecRBTime !== REPLAY_SECONDS) await set('AdvOut', 'RecRBTime', REPLAY_SECONDS);
+    // The length is said too, whichever way it was wrong: a buffer that was off is "a 20 s replay buffer" above; one that
+    // was on and 30 s long is "the replay buffer 20 s long". A key that is not there is OBS's own 20 s.
+    if (before.RecRBTime !== null && before.RecRBTime !== undefined && before.RecRBTime !== REPLAY_SECONDS) {
+      await set('AdvOut', 'RecRBTime', REPLAY_SECONDS);
+      if (before.RecRB === 'true') changed.push(`the replay buffer ${REPLAY_SECONDS} s long`);
+    }
     const current = before.RecFilePath ? toForwardSlashes(before.RecFilePath).toLowerCase() : null;
     if (current !== toForwardSlashes(folder).toLowerCase()) {
       try {

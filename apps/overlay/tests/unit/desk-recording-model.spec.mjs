@@ -69,6 +69,10 @@ test('Set up OBS says in one sentence what it will change, and the network sente
   // The replay buffer changes nothing of theirs: nothing is said of them.
   const onlyReplay = { ...READY, setup: { ...READY.setup, replayBuffer: false, needed: true } };
   expect(model.setupSentence(onlyReplay)).toBe('Set up OBS will turn its 20 s replay buffer on.');
+  // A buffer that is on and the wrong length is said too, in the same words as the profile change says it afterwards.
+  const wrongLength = { ...READY, setup: { ...READY.setup, replaySeconds: false, needed: true } };
+  expect(model.setupSentence(wrongLength)).toBe('Set up OBS will set its replay buffer to 20 s.');
+  expect(model.setupSentence({ ...READY, setup: { ...READY.setup, replayBuffer: false, replaySeconds: false, needed: true } })).toBe('Set up OBS will turn its 20 s replay buffer on.');
   const onlyWs = { ...READY, setup: { ...READY.setup, wsEnabled: false, needed: true } };
   expect(model.setupSentence(onlyWs)).toBe("Set up OBS will switch on OBS's WebSocket. OBS then answers on port 4455 to anything on your network that knows the password.");
   expect(model.setupSentence(onlyWs).split('port 4455').length).toBe(2);

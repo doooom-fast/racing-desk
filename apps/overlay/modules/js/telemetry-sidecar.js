@@ -25,19 +25,25 @@ const KEYS = Object.freeze({
   sessionNum: 'DataCorePlugin.GameRawData.Telemetry.SessionNum',
   sessionTime: 'DataCorePlugin.GameRawData.Telemetry.SessionTime',
   flag: 'currentFlagState',
-  // The track's name: SimHub's key, else the host's (which sends no DataCorePlugin.GameData.TrackName), else the map's.
+  // The track's name: iRacing's display name (Circuit de Spa-Francorchamps) where the host sends it, else SimHub's key,
+  // else the host's (which sends no DataCorePlugin.GameData.TrackName), else the map's. The last three are iRacing's
+  // internal name ('spa 2024 up').
+  trackDisplay: 'RacingDesk.Plugin.TrackMap.TrackDisplayName',
   track: ['DataCorePlugin.GameData.TrackName', 'RacingDesk.Plugin.Session.TrackName', 'RacingDesk.Plugin.TrackMap.TrackName'],
   car: 'DataCorePlugin.GameData.CarModel',
 });
 
-/** The track and the car a payload names, as the header and the recording's folder read them; null where it does not say. */
+/**
+ * The track and the car a payload names, as the header and the recording's folder read them; null where it does not
+ * say. The demo's names are the demo's: a live payload that does not name the car yet (the host sends the demo's keys
+ * all the time, 'BMW M4 GT3' among them) gets no car, not the demo's.
+ */
 function trackAndCar(p) {
   if (!p || typeof p !== 'object') return { track: null, car: null };
   const isDemo = flag(p[KEYS.demoMode]);
   const first = (keys) => { for (const k of keys) { if (p[k] !== undefined && p[k] !== null && String(p[k]).trim() !== '') return String(p[k]); } return null; };
-  const car = isDemo ? first(['RacingDesk.Plugin.Demo.CarModel', KEYS.car]) : first([KEYS.car, 'RacingDesk.Plugin.Demo.CarModel']);
-  const track = isDemo ? first(['RacingDesk.Plugin.Demo.TrackName', ...KEYS.track]) : first([...KEYS.track, 'RacingDesk.Plugin.Demo.TrackName']);
-  return { track, car };
+  if (isDemo) return { track: first(['RacingDesk.Plugin.Demo.TrackName', ...KEYS.track]), car: first(['RacingDesk.Plugin.Demo.CarModel', KEYS.car]) };
+  return { track: first([KEYS.trackDisplay, ...KEYS.track]), car: first([KEYS.car]) };
 }
 
 function flag(value) {
@@ -62,11 +68,13 @@ function numberOrNull(value) {
  *   frame(payload, { at })      one line, from the payload the HUD reads; the header is written with the first; a
  *                               marker it finds (a lap, an incident, a place, the pit lane) is handed to onMarker
  *   marker({ type, ... })       a marker of the caller's (a file change)
- *   chapter({ name, at })       a chapter the caller sent to OBS, kept with its t for the summary
+ *   chapter({ name, at, frame })  a chapter OBS took, kept with its t for the summary (`at`: when it was sent; `frame`:
+ *                               the frame it was found in, where that is not the one being written)
  *   relocate(newPath)           the file was moved (flushed first); what follows is written to the new path
- *   stop({ stoppedAt, reason, obsOutputPath, videoOffsetMs, alignment })
- *                               flush, the summary line — with the offset and how it was found, and the chapters —
- *                               and done
+ *   stop({ stoppedAt, reason, obsOutputPath, videoOffsetMs, alignment, pauses })
+ *                               flush, the summary line — with the offset and how it was found, the chapters and the
+ *                               pauses ([{ from, to }] in ms of t: the video's clock stood still for each) — and
+ *                               done; returns { path, frames, markers, chapters, summary }
  *   flush(), isActive(), state()
  */
 function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMarker = null } = {}) {
@@ -242,9 +250,9 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
 
   // A chapter the caller asked OBS to write, at the moment it was asked: the pairs of (its t here, its time in the
   // finished file) are what the video offset is read back from.
-  function chapter({ name, at = now() } = {}) {
+  function chapter({ name, at = now(), frame: found } = {}) {
     if (!active || typeof name !== 'string' || !name) return false;
-    chapters.push({ name, frame: frameIndex, t: Math.max(0, at - startedAt) });
+    chapters.push({ name, frame: Number.isFinite(found) ? found : frameIndex, t: Math.max(0, at - startedAt) });
     return true;
   }
 
@@ -256,7 +264,7 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
     return true;
   }
 
-  function stop({ stoppedAt = now(), reason = null, obsOutputPath = null, videoOffsetMs = null, alignment = null } = {}) {
+  function stop({ stoppedAt = now(), reason = null, obsOutputPath = null, videoOffsetMs = null, alignment = null, pauses = null } = {}) {
     if (!active) return null;
     if (!headerWritten) writeHeader(null);
     const summary = {
@@ -272,9 +280,10 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
     };
     if (reason) summary.reason = reason;
     if (resumed) summary.resumed = true;
+    if (Array.isArray(pauses) && pauses.length) summary.pauses = pauses.map((p) => ({ from: Math.round(p.from), to: Number.isFinite(p.to) ? Math.round(p.to) : Math.max(0, Math.round(stoppedAt - startedAt)) }));
     line(summary);
     flush();
-    const result = { path, frames: frameIndex, markers: markers.length, chapters: chapters.length };
+    const result = { path, frames: frameIndex, markers: markers.length, chapters: chapters.length, summary };
     active = false;
     path = null;
     header = null;
@@ -288,9 +297,66 @@ function createSidecar({ write, now = Date.now, flushEvery = FLUSH_EVERY, onMark
   return { start, frame, marker, chapter, relocate, stop, flush, isActive: () => active, state };
 }
 
+// The keys of the payload that a sidecar and the keeper's liveness check read, found by running the writer on a payload
+// that records what is asked of it, once as a live session and once as the demo: so the list cannot fall behind
+// frame(). The replay buffer's ring keeps only these of each payload (a payload is several hundred keys, and the ring
+// holds half a minute of them at 30 Hz).
+let readKeys = null;
+function sidecarKeys() {
+  if (readKeys) return readKeys;
+  const seen = new Set(['DataCorePlugin.GameRunning']);
+  for (const demo of [false, true]) {
+    const spy = new Proxy({}, {
+      get(_, k) {
+        if (typeof k !== 'string') return undefined;
+        seen.add(k);
+        return k === KEYS.demoMode ? (demo ? 1 : 0) : undefined;
+      },
+    });
+    const writer = createSidecar({ write: () => {} });
+    writer.start({ path: 'keys', startedAt: 0 });
+    writer.frame(spy, { at: 0 });
+    writer.stop({ stoppedAt: 0 });
+  }
+  readKeys = Object.freeze([...seen]);
+  return readKeys;
+}
+
+/** The payload cut down to what a sidecar frame is made of (and what says whether a sim session is live). */
+function trimPayload(p) {
+  if (!p || typeof p !== 'object') return null;
+  const out = {};
+  for (const k of sidecarKeys()) if (p[k] !== undefined) out[k] = p[k];
+  return out;
+}
+
+/**
+ * What the two ends of a sidecar file say, from the first bytes and the last: { header, summary, lastFrame } — the
+ * header (line 1), the last summary line, and the last frame row's `frame` — each null where the text has none. `tail`
+ * is the file's end, which when `whole` is false began mid-line (that line is skipped); a last line cut short by a
+ * crash does not parse and is skipped. Pure: the caller reads the file.
+ */
+function parseSidecarEnds({ head = '', tail = '', whole = false } = {}) {
+  let header = null;
+  const first = String(head).split('\n')[0];
+  try { const parsed = JSON.parse(first); if (parsed && parsed._type === 'header') header = parsed; } catch (e) { /* none */ }
+  let summary = null;
+  let lastFrame = null;
+  const lines = String(tail).split('\n');
+  if (!whole) lines.shift();
+  for (let i = lines.length - 1; i >= 0 && (summary === null || lastFrame === null); i--) {
+    if (!lines[i].trim()) continue;
+    let obj;
+    try { obj = JSON.parse(lines[i]); } catch (e) { continue; }
+    if (!obj || typeof obj !== 'object') continue;
+    if (obj._type === 'summary') { if (summary === null) summary = obj; } else if (!obj._type && Number.isFinite(obj.frame) && lastFrame === null) lastFrame = obj.frame;
+  }
+  return { header, summary, lastFrame };
+}
+
 /** The sidecar's path for a video file: the same name with .telemetry.jsonl in place of the extension. */
 function sidecarPathFor(videoPath) {
   return String(videoPath).replace(/\.[a-z0-9]{2,5}$/i, '') + '.telemetry.jsonl';
 }
 
-module.exports = { SCHEMA_VERSION, FLUSH_EVERY, KEYS, trackAndCar, createSidecar, sidecarPathFor };
+module.exports = { SCHEMA_VERSION, FLUSH_EVERY, KEYS, trackAndCar, createSidecar, sidecarPathFor, sidecarKeys, trimPayload, parseSidecarEnds };

@@ -88,6 +88,7 @@
     if (wsOff) parts.push("switch on OBS's WebSocket");
     if (setup.hybrid !== true) parts.push('set your profile to Hybrid MP4');
     if (setup.replayBuffer !== true) parts.push('turn its 20 s replay buffer on');
+    else if (setup.replaySeconds === false) parts.push('set its replay buffer to 20 s');
     if (setup.folderSet !== true) parts.push(`point its recordings at ${status.folder}`);
     if (!parts.length) return null;
     const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;

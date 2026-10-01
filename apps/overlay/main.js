@@ -572,6 +572,7 @@ function setupStatus() {
     profile: profile ? profile.profile : null,
     hybrid: check ? check.hybrid : null,
     replayBuffer: check ? check.replayBuffer : null,
+    replaySeconds: check ? check.replaySeconds : null,
     folderSet: check ? check.folder : null,
     folderExists: fs.existsSync(folder),
     obsFound: !!obs.launcher.findObs({ obsPath: loadSettingsSync().obsPath, exists: fs.existsSync }),

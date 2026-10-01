@@ -188,6 +188,14 @@ test.describe("the profile's basic.ini", () => {
     expect(crlf).toBe('[Output]\r\nMode=Simple\r\nExtra=1\r\n[AdvOut]\r\nRecRB=true\r\n');
   });
 
+  test('a buffer that is on and the wrong length is not "set up": the check says so, and so does the sentence about what will change', () => {
+    const wrong = launcher.setIniKeys(BASIC_INI, { AdvOut: { RecFormat2: 'hybrid_mp4', RecRB: 'true', RecRBTime: '60', RecFilePath: 'D:/Racing Desk/Recordings' } });
+    expect(launcher.profileCheck(wrong, 'D:\\Racing Desk\\Recordings')).toMatchObject({ hybrid: true, replayBuffer: true, replaySeconds: false, folder: true, ok: false });
+    // OBS's own default is 20 s: a key that is not there is the wanted length.
+    const absent = wrong.split('\n').filter((line) => line !== 'RecRBTime=60').join('\n');
+    expect(launcher.profileCheck(absent, 'D:\\Racing Desk\\Recordings')).toMatchObject({ replaySeconds: true, ok: true });
+  });
+
   test('the check says what is missing', () => {
     expect(launcher.profileCheck(BASIC_INI, 'D:\\Racing Desk\\Recordings')).toMatchObject({ hybrid: false, replayBuffer: false, folder: false, ok: false });
     const done = launcher.setIniKeys(BASIC_INI, launcher.profileWanted('D:\\Racing Desk\\Recordings'));
@@ -222,14 +230,53 @@ test.describe('Set up OBS while OBS is closed', () => {
     expect(again.did).toEqual([`The profile "Untitled" already records Hybrid MP4 with a replay buffer into ${folder}.`]);
   });
 
-  test('a WebSocket file with the server on but no password yet is said so, and an unreadable profile is a problem, not a throw', () => {
+  test('a WebSocket file with the server on but no password yet is said so, with nothing for him to do, and an unreadable profile is a problem, not a throw', () => {
     const { configJson, userIni } = launcher.obsPaths(appData);
     fs.writeFileSync(configJson, JSON.stringify({ server_enabled: true, auth_required: true, server_port: 4455 }));
     fs.writeFileSync(userIni, '[Basic]\nProfileDir=gone\n');
     const result = launcher.setupWhileClosed({ appData, folder: path.join(root, 'R'), ...f });
     expect(result.password).toBeNull();
-    expect(result.problems.some((p) => /no password in its settings file yet/.test(p))).toBe(true);
+    expect(result.did.some((p) => /no password in its settings file yet/.test(p))).toBe(true);
     expect(result.problems.some((p) => /profile's settings could not be written/.test(p))).toBe(true);
+    // Racing Desk reads the password from OBS's file each time OBS asks, and no password field is shown here, so no sentence
+    // sends him to press Set up OBS again or to type one.
+    for (const sentence of [...result.did, ...result.problems]) expect(sentence).not.toMatch(/again|type the password|below/i);
+  });
+});
+
+test.describe('Set up OBS says every change it makes, the length of the replay buffer too', () => {
+  test('closed: a buffer that was on and 60 s long is rewritten, and said to be', () => {
+    const folder = path.join(root, 'Recordings');
+    const { profilesDir } = launcher.obsPaths(appData);
+    const ini = path.join(profilesDir, 'Untitled', 'basic.ini');
+    fs.writeFileSync(ini, launcher.setIniKeys(BASIC_INI, { AdvOut: { RecFormat2: 'hybrid_mp4', RecRB: 'true', RecRBTime: '60', RecFilePath: folder.split(path.sep).join('/') } }));
+    const result = launcher.setupWhileClosed({ appData, folder, ...f });
+    expect(result.did).toContain(`The profile "Untitled" now has the replay buffer 20 s long.`);
+    expect(launcher.readIniKeys(fs.readFileSync(ini, 'utf8'), 'AdvOut', ['RecRBTime']).RecRBTime).toBe('20');
+    // Run again: nothing left to say.
+    expect(launcher.setupWhileClosed({ appData, folder, ...f }).did).toContain(`The profile "Untitled" already records Hybrid MP4 with a replay buffer into ${folder}.`);
+  });
+
+  test('open: the same, with the same words, and a length that is not in the profile is left alone (OBS has its own, 20 s)', async () => {
+    const calls = [];
+    const profile = { AdvOut: { RecFormat2: 'hybrid_mp4', RecRB: 'true', RecRBTime: '30', RecFilePath: 'D:/Racing Desk/Recordings' }, SimpleOutput: {} };
+    const client = {
+      async request(type, data) {
+        calls.push([type, data]);
+        if (type === 'GetProfileParameter') return { parameterValue: profile.AdvOut[data.parameterName] ?? null };
+        if (type === 'SetProfileParameter') { profile[data.parameterCategory][data.parameterName] = data.parameterValue; return {}; }
+        throw new Error('unexpected ' + type);
+      },
+    };
+    const result = await launcher.setupWhileOpen(client, { folder: 'D:\\Racing Desk\\Recordings' });
+    expect(result.did).toEqual(['The profile now has the replay buffer 20 s long. Crash-safe files and instant replay start the next time OBS opens.']);
+    expect(profile.AdvOut.RecRBTime).toBe('20');
+    // Not in the profile at all: nothing to set, nothing to say.
+    delete profile.AdvOut.RecRBTime;
+    const sets = calls.filter(([t]) => t === 'SetProfileParameter').length;
+    const again = await launcher.setupWhileOpen(client, { folder: 'D:\\Racing Desk\\Recordings' });
+    expect(again.did).toEqual(['The profile already records Hybrid MP4 with a replay buffer into D:\\Racing Desk\\Recordings.']);
+    expect(calls.filter(([t]) => t === 'SetProfileParameter')).toHaveLength(sets);
   });
 });
 

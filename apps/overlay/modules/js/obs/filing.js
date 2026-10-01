@@ -118,37 +118,117 @@ async function moveFile(from, to, { fs: fsModule = fs, setTimer = setTimeout, tr
   return { ok: false, to: null, why: last ? `${last.code || ''} ${last.message}`.trim() : 'could not be moved' };
 }
 
-/**
- * The offset from the chapters: `ours` [{ name, t }] as sent (t in ms from the provisional start), `theirs`
- * [{ name, ms }] as the file has them. Paired in order by name — OBS's own "Start" and anything else it added are
- * stepped over — and the offset is the median of (ms − t). Null with no pair.
- */
-function alignFromChapters(ours, theirs) {
-  if (!Array.isArray(ours) || !Array.isArray(theirs) || !ours.length || !theirs.length) return null;
-  const diffs = [];
-  let j = 0;
-  for (const mine of ours) {
-    let k = j;
-    while (k < theirs.length && theirs[k].name !== mine.name) k++;
-    if (k >= theirs.length) continue;
-    diffs.push(theirs[k].ms - mine.t);
-    j = k + 1;
-  }
-  if (!diffs.length) return null;
-  const sorted = [...diffs].sort((a, b) => a - b);
+// A chapter pair further than this from the middle of the others is not a pair: a chapter of ours that never reached
+// OBS, or one of a name the file has twice, was matched with the wrong one.
+const PAIR_TOLERANCE_MS = 1000;
+
+function medianOf(values) {
+  const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-  return { videoOffsetMs: Math.round(median), method: 'chapters', pairs: diffs.length, spreadMs: Math.round(sorted[sorted.length - 1] - sorted[0]) };
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 /**
- * The offset from the end: the file began at `endedAt` less its duration, so a frame polled at wall time `at` is at
- * video time `at − (endedAt − durationMs)`, and the offset to add to t (= at − startedAt) is startedAt − videoStart.
+ * How much of the recording before sidecar time `t` (ms) was paused. `pauses` is [{ from, to }] in the same ms, `to`
+ * null for a pause still open; the video's clock stops while OBS is paused, the sidecar's does not.
  */
-function alignFromEnd({ startedAt, endedAt, durationMs, approximate = false }) {
+function pausedBefore(pauses, t) {
+  let total = 0;
+  for (const p of Array.isArray(pauses) ? pauses : []) {
+    if (!p || !Number.isFinite(p.from)) continue;
+    const to = Number.isFinite(p.to) ? p.to : Infinity;
+    if (to <= t) total += to - p.from;
+    else if (p.from < t) total += t - p.from;
+  }
+  return total;
+}
+
+/**
+ * The offset from the chapters: `ours` [{ name, t }] as OBS took them (t in ms from the provisional start), `theirs`
+ * [{ name, ms }] as the file has them, and `pauses` [{ from, to }] if the recording was paused (the file's clock stood
+ * still for them, ours did not, so each t is moved back by the pauses before it).
+ *
+ * Each chapter of ours is paired with the chapter of the same name the file has nearest to where it should be (below),
+ * and neither is paired twice: "Pit in" and "Pit out" come again and again, and the first one found going forward is
+ * the wrong one as soon as one of ours is missing from the file. The offset is the median of what is left after a pair
+ * more than a second from the median is dropped; with half or more dropped the pairing is not to be believed and the
+ * answer is null (the caller lines the file up from its end instead). OBS's own "Start" and anything else it added
+ * are never paired.
+ */
+function alignFromChapters(ours, theirs, { pauses = [], toleranceMs = PAIR_TOLERANCE_MS } = {}) {
+  if (!Array.isArray(ours) || !Array.isArray(theirs) || !ours.length || !theirs.length) return null;
+  const mine = ours
+    .filter((c) => c && typeof c.name === 'string' && Number.isFinite(c.t))
+    .map((c) => ({ name: c.name, t: c.t - pausedBefore(pauses, c.t) }));
+  const files = theirs.filter((c) => c && typeof c.name === 'string' && Number.isFinite(c.ms));
+  if (!mine.length || !files.length) return null;
+
+  const count = (list, name) => list.reduce((n, c) => n + (c.name === name ? 1 : 0), 0);
+  const anchors = [];
+  for (const m of mine) {
+    if (count(mine, m.name) !== 1 || count(files, m.name) !== 1) continue;
+    anchors.push(files.find((c) => c.name === m.name).ms - m.t);
+  }
+  // The pairs are made nearest first, each chapter of either list in at most one: nearest to where a chapter of ours
+  // should be, which is its t plus the offset the names that occur once agree on (nothing agreed: its own t, an offset
+  // of seconds against the minutes between a recording's pit stops). With names that agree, a pair further than a
+  // second from where it should be is no candidate, so a chapter of ours the file lacks is left alone and does not
+  // take the place of a later one's.
+  const guess = anchors.length ? medianOf(anchors) : 0;
+  const candidates = [];
+  mine.forEach((m, i) => {
+    files.forEach((f, k) => {
+      if (f.name !== m.name) return;
+      const off = Math.abs(f.ms - (m.t + guess));
+      if (anchors.length && off > toleranceMs) return;
+      candidates.push({ i, k, off });
+    });
+  });
+  candidates.sort((a, b) => a.off - b.off || a.i - b.i || a.k - b.k);
+  const usedMine = new Set();
+  const usedFile = new Set();
+  const diffs = [];
+  for (const c of candidates) {
+    if (usedMine.has(c.i) || usedFile.has(c.k)) continue;
+    usedMine.add(c.i);
+    usedFile.add(c.k);
+    diffs.push(files[c.k].ms - mine[c.i].t);
+  }
+  if (!diffs.length) return null;
+
+  const middle = medianOf(diffs);
+  const kept = diffs.filter((d) => Math.abs(d - middle) <= toleranceMs);
+  if (!kept.length || kept.length * 2 < diffs.length) return null;
+  const offset = medianOf(kept);
+  return {
+    videoOffsetMs: Math.round(offset),
+    method: 'chapters',
+    pairs: kept.length,
+    spreadMs: Math.round(Math.max(...kept) - Math.min(...kept)),
+    ...(kept.length < diffs.length ? { dropped: diffs.length - kept.length } : {}),
+  };
+}
+
+/**
+ * The offset from the end: the file ended at `endedAt` (the moment the stop was asked for, or OBS was last seen
+ * recording), so it began at `endedAt` less its duration, and a frame polled at wall time `at` is at video time
+ * `at − (endedAt − durationMs)`: the offset to add to t (= at − startedAt) is startedAt − videoStart. A recording that
+ * was paused: the file holds none of the pauses, so its start is that much earlier, and the offset is the one for the
+ * frames before the first pause (`pauses` [{ from, to }] are the sidecar's own, in ms; the summary lists them).
+ */
+function alignFromEnd({ startedAt, endedAt, durationMs, approximate = false, pauses = [], endFrom = null }) {
   if (![startedAt, endedAt, durationMs].every((n) => Number.isFinite(n))) return null;
-  const videoStart = endedAt - durationMs;
-  return { videoOffsetMs: Math.round(startedAt - videoStart), method: 'end', videoStartUtc: new Date(videoStart).toISOString(), durationMs: Math.round(durationMs), ...(approximate ? { approximate: true } : {}) };
+  const closed = (Array.isArray(pauses) ? pauses : []).filter((p) => p && Number.isFinite(p.from));
+  const paused = closed.reduce((sum, p) => sum + ((Number.isFinite(p.to) ? p.to : endedAt - startedAt) - p.from), 0);
+  const videoStart = endedAt - durationMs - paused;
+  return {
+    videoOffsetMs: Math.round(startedAt - videoStart),
+    method: 'end',
+    videoStartUtc: new Date(videoStart).toISOString(),
+    durationMs: Math.round(durationMs),
+    ...(endFrom ? { endFrom } : {}),
+    ...(approximate || closed.length ? { approximate: true } : {}),
+  };
 }
 
 /** The words of a chapter for a sidecar marker; null for a marker that is no chapter (a place lost, a file change). */
@@ -165,7 +245,7 @@ function chapterNameFor(marker) {
 }
 
 module.exports = {
-  STABLE_MS, STABLE_TIMEOUT_MS, MOVE_TRIES,
+  STABLE_MS, STABLE_TIMEOUT_MS, MOVE_TRIES, PAIR_TOLERANCE_MS,
   folderDate, folderPart, folderNameFor, driveOf, sameDrive, uniquePath,
-  waitForStableFile, moveFile, alignFromChapters, alignFromEnd, chapterNameFor,
+  waitForStableFile, moveFile, pausedBefore, alignFromChapters, alignFromEnd, chapterNameFor,
 };

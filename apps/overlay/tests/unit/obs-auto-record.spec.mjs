@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
 const ar = require('../../modules/js/obs/auto-record.js');
 
 // A live iRacing frame: the game running, not the demo, in the given session.
-function frame({ mode = 1, type = 'Practice', num = 1, state = 4, pit = false, end = false, flag = 'green', onTrack = 1 } = {}) {
+function frame({ mode = 1, type = 'Practice', num = 1, state = 4, pit = false, end = false, flag = 'green', onTrack = 1, lap = 8 } = {}) {
   return {
     ...MOCK_TELEMETRY,
     'DataCorePlugin.GameRunning': 1,
@@ -24,6 +24,7 @@ function frame({ mode = 1, type = 'Practice', num = 1, state = 4, pit = false, e
     'RacingDesk.Plugin.DS.IsInPitLane': pit ? 1 : 0,
     'RacingDesk.Plugin.DS.IsEndOfRace': end ? 1 : 0,
     'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': onTrack,
+    'DataCorePlugin.GameData.CurrentLap': lap,
     currentFlagState: flag,
   };
 }
@@ -65,7 +66,8 @@ test('readFrame: what the rules read, and what is not live', () => {
   expect(ar.readFrame(null)).toEqual({ live: false });
   expect(ar.readFrame({ ...RACE(), 'RacingDesk.Plugin.DemoMode': 1 })).toEqual({ live: false });
   expect(ar.readFrame({ ...RACE(), 'DataCorePlugin.GameRunning': 0 })).toEqual({ live: false });
-  expect(ar.readFrame(RACE({ state: 3, pit: true }))).toEqual({ live: true, race: true, sessionKey: 'n2', sessionState: 3, inPit: true, endOfRace: false });
+  expect(ar.readFrame(RACE({ state: 3, pit: true, lap: 3 }))).toEqual({ live: true, race: true, sessionKey: 'n2', sessionState: 3, inPit: true, endOfRace: false, lap: 3 });
+  expect(ar.readFrame({ ...RACE(), 'DataCorePlugin.GameData.CurrentLap': undefined }).lap).toBeNull();
   expect(ar.readFrame(PRACTICE()).race).toBe(false);
   expect(ar.readFrame(QUALIFYING()).race).toBe(false);
   expect(ar.readFrame(frame({ mode: 3, type: 'Warmup' })).race).toBe(false);
@@ -104,8 +106,9 @@ test('a race from the grid: the warm-up and the formation lap start nothing, the
   expect(green[0].at - (r.now() - 500 * 6)).toBe(1000);   // a second after the first frame at Racing
   // The race: laps, a pit stop in the car, a yellow — nothing stops it.
   expect(r.run([...repeat(40, RACE({ state: 4 })), ...repeat(10, RACE({ state: 4, pit: true })), ...repeat(10, RACE({ state: 4, flag: 'yellow' }))])).toEqual([]);
-  // The chequered flag: the stop five seconds after it is first seen, not on the state going to Checkered.
-  const flag = r.run(repeat(16, RACE({ state: 5, end: true, flag: 'checkered' })));
+  // The chequered flag, and his own finish: he is the leader, so his lap count goes up as the flag comes out. The stop
+  // is five seconds after that, not on the state going to Checkered.
+  const flag = r.run(repeat(16, RACE({ state: 5, end: true, flag: 'checkered', lap: 9 })));
   expect(flag).toEqual([{ stop: true, why: 'end of race', at: expect.any(Number) }]);
   expect(flag[0].at - (r.now() - 500 * 16)).toBe(5000);
   // The cool-down, still in the car: nothing starts again (the flag is over, and the green used up).
@@ -123,8 +126,8 @@ test('a red flag, a state change within the session and a yellow end nothing; th
   r.run(repeat(4, RACE({ state: 4 })));
   expect(r.keeper.recording).toBe(true);
   expect(r.run([...repeat(30, RACE({ state: 4, flag: 'red' })), ...repeat(10, RACE({ state: 4, flag: 'yellow' })), ...repeat(10, RACE({ state: 3 })), ...repeat(10, RACE({ state: 4 }))])).toEqual([]);
-  // The chequered flag flickers off within the five seconds: the clock starts again.
-  expect(r.run([...repeat(6, RACE({ state: 5, end: true })), ...repeat(2, RACE({ state: 5, end: false })), ...repeat(6, RACE({ state: 5, end: true }))])).toEqual([]);
+  // The chequered flag with his lap count going up, flickering off within the five seconds: the clock starts again.
+  expect(r.run([...repeat(6, RACE({ state: 5, end: true, lap: 9 })), ...repeat(2, RACE({ state: 4, end: false, lap: 9 })), ...repeat(6, RACE({ state: 5, end: true, lap: 10 }))])).toEqual([]);
   // The cool-down is the end of the race too, five seconds on.
   const stop = r.run(repeat(12, RACE({ state: 6 })));
   expect(stop).toEqual([{ stop: true, why: 'end of race', at: expect.any(Number) }]);
@@ -206,12 +209,65 @@ test('the holds are by the clock: fed once a second, a start still comes a secon
   expect(feed(RACE({ state: 4 }), { recording: true, auto: true })).toBeNull();   // seen running under the green: the flag is used up
   expect(rules.state().armed).toBe(false);
   clock = 2000;
-  expect(feed(RACE({ state: 5, end: true }), { recording: true, auto: true })).toBeNull();
+  expect(feed(RACE({ state: 5, end: true, lap: 9 }), { recording: true, auto: true })).toBeNull();
   clock = 6999;
-  expect(feed(RACE({ state: 5, end: true }), { recording: true, auto: true })).toBeNull();
+  expect(feed(RACE({ state: 5, end: true, lap: 9 }), { recording: true, auto: true })).toBeNull();
   clock = 7000;
-  expect(feed(RACE({ state: 5, end: true }), { recording: true, auto: true })).toEqual({ stop: true, why: 'end of race' });
+  expect(feed(RACE({ state: 5, end: true, lap: 9 }), { recording: true, auto: true })).toEqual({ stop: true, why: 'end of race' });
   expect(rules.state()).toMatchObject({ candidate: null, armed: false });
   rules.reset();
-  expect(rules.state()).toMatchObject({ candidate: null, armed: true, startedIn: null, lastSession: null });
+  expect(rules.state()).toMatchObject({ candidate: null, armed: true, startedIn: null, lastSession: null, finished: false });
+});
+
+test('the leader finishes while he is a lap and a minute from his own flag: the recording runs on, and stops five seconds after HIS finish', () => {
+  const r = rig();
+  r.run(repeat(4, RACE({ state: 4, lap: 11 })));
+  expect(r.keeper.recording).toBe(true);
+  // The leader takes the flag: the flag bit and SessionState 5 are the session's, up for everyone. He is mid-lap for
+  // another ninety seconds (a hundred and eighty polls) and nothing stops.
+  expect(r.run(repeat(180, RACE({ state: 5, end: true, flag: 'checkered', lap: 11 })))).toEqual([]);
+  expect(r.keeper.recording).toBe(true);
+  // He crosses the line: his lap count goes up. Five seconds on, the stop.
+  const finish = r.run(repeat(16, RACE({ state: 5, end: true, flag: 'checkered', lap: 12 })));
+  expect(finish).toEqual([{ stop: true, why: 'end of race', at: expect.any(Number) }]);
+  expect(finish[0].at - (r.now() - 500 * 16)).toBe(5000);
+  expect(r.keeper.recording).toBe(false);
+});
+
+test('his finish seen a poll before the flag, or never (a lap count that is not sent): the cool-down still ends the race, five seconds on', () => {
+  // The line crossed in the poll before the state says Checkered: the count is not "up with the flag out", so it waits for the cool-down.
+  const r = rig();
+  r.run(repeat(4, RACE({ state: 4, lap: 11 })));
+  expect(r.run([...repeat(2, RACE({ state: 4, lap: 12 })), ...repeat(40, RACE({ state: 5, end: true, lap: 12 }))])).toEqual([]);
+  expect(r.run(repeat(12, RACE({ state: 6, end: true, lap: 12 })))).toEqual([{ stop: true, why: 'end of race', at: expect.any(Number) }]);
+  // No lap count in the payload at all.
+  const q = rig();
+  q.run(repeat(4, RACE({ state: 4 })));
+  const noLap = (o) => ({ ...RACE(o), 'DataCorePlugin.GameData.CurrentLap': undefined });
+  expect(q.run(repeat(40, noLap({ state: 5, end: true })))).toEqual([]);
+  expect(q.run(repeat(12, noLap({ state: 6, end: true })))).toEqual([{ stop: true, why: 'end of race', at: expect.any(Number) }]);
+});
+
+test('practice and qualifying have no end of their own: the chequered flag comes out in his last flying lap and nothing stops; a new session or leaving the car does', () => {
+  const q = rig();
+  q.run([...repeat(4, QUALIFYING({ pit: true })), ...repeat(4, QUALIFYING())]);
+  expect(q.keeper.recording).toBe(true);
+  // Time runs out on a flying lap: the flag, the state, his lap count going up as he finishes it, the cool-down.
+  expect(q.run([...repeat(40, QUALIFYING({ state: 5, end: true, lap: 8 })), ...repeat(40, QUALIFYING({ state: 5, end: true, lap: 9 })), ...repeat(40, QUALIFYING({ state: 6, end: true, lap: 9 }))])).toEqual([]);
+  expect(q.keeper.recording).toBe(true);
+  expect(q.run(repeat(4, PRACTICE({ num: 3, pit: true })))).toEqual([{ stop: true, why: 'new session', at: expect.any(Number) }]);
+  const p = rig();
+  p.run([...repeat(4, PRACTICE({ pit: true })), ...repeat(4, PRACTICE())]);
+  expect(p.run(repeat(60, PRACTICE({ state: 5, end: true, lap: 12 })))).toEqual([]);
+  expect(p.run(repeat(6, PRACTICE({ state: 5, end: true, lap: 12, onTrack: 0, pit: true })), { inCar: false })).toEqual([{ stop: true, why: 'out of the car', at: expect.any(Number) }]);
+});
+
+test('a recording whose first poll got no answer is still stopped by a new session: the session it began in is the first live frame it is seen in', () => {
+  const r = rig();
+  // Auto-record started it; the first feed after it is a poll with no payload.
+  r.keeper.recording = true; r.keeper.auto = true;
+  expect(r.run([null, null, ...repeat(4, RACE({ state: 4, num: 2 }))])).toEqual([]);
+  expect(r.rules.state().startedIn).toBe('n2');
+  const change = r.run(repeat(4, RACE({ state: 2, num: 3 })));
+  expect(change).toEqual([{ stop: true, why: 'new session', at: expect.any(Number) }]);
 });

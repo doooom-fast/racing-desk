@@ -5,9 +5,14 @@
 //   pit-lane start sees the same green flag.
 // - In practice, qualifying and a warm-up it starts at pit exit: the pit lane left, while he is in the car.
 // - It stops on a new session number (practice becoming qualifying, qualifying becoming the race), at the end of
-//   the race — five seconds after the chequered flag, or the cool-down, is first seen — and when he leaves the car
-//   (which main.js's in-car signal already holds for two seconds). Never on a state change within a session: a
-//   recording begun in the warm-up is not ended by the formation lap, and a red flag ends nothing.
+//   the race, and when he leaves the car (which main.js's in-car signal already holds for two seconds). The end of the
+//   race is HIS finish, five seconds after: the chequered flag is out and his lap count has gone up since, which is
+//   him crossing the line. The flag, and iRacing's SessionState reaching Checkered, are the session's, and come when
+//   the leader finishes — a car a lap down, or a minute behind, still has a lap to drive — so neither is the end of
+//   his race on its own; the cool-down (SessionState 6) is the backstop. A practice or qualifying session has no end
+//   of its own here: time runs out during a flying lap and the chequered flag comes out in it, and what stops that
+//   recording is a new session or his leaving the car. Never on a state change within a session: a recording begun
+//   in the warm-up is not ended by the formation lap, and a red flag ends nothing.
 // - Every start and stop is held for about a second by the clock, not by a count of frames: this is fed twice a
 //   second in the car, and a count of thirty would have been fifteen seconds.
 // - It stops only what it started: a recording he began on the desk or with Ctrl+Space in OBS is his to stop.
@@ -28,6 +33,7 @@ const KEYS = Object.freeze({
   sessionState: 'RacingDesk.Plugin.Grid.SessionState',
   inPit: 'RacingDesk.Plugin.DS.IsInPitLane',
   endOfRace: 'RacingDesk.Plugin.DS.IsEndOfRace',
+  lap: 'DataCorePlugin.GameData.CurrentLap',
 });
 
 // iRacing's SessionState (TelemetrySnapshot.cs): 0 Invalid, 1 GetInCar, 2 Warmup, 3 ParadeLaps, 4 Racing, 5 Checkered, 6 CoolDown.
@@ -64,6 +70,7 @@ function readFrame(payload) {
   if (mode !== null && Number.isFinite(mode)) race = mode === SESSION_MODE_RACE;
   else race = type.length > 0 && !/practice|test|qual|warm/i.test(type);
   const num = sent(payload[KEYS.sessionNum]) ? Number(payload[KEYS.sessionNum]) : NaN;
+  const lap = sent(payload[KEYS.lap]) && Number.isFinite(Number(payload[KEYS.lap])) ? Number(payload[KEYS.lap]) : null;
   // Which session this is: iRacing's number, else the session's name (a SimHub plugin from before the number).
   const sessionKey = Number.isFinite(num) ? `n${num}` : (type ? `t${type}` : null);
   return {
@@ -73,7 +80,13 @@ function readFrame(payload) {
     sessionState: parseInt(payload[KEYS.sessionState], 10) || 0,
     inPit: flag(payload[KEYS.inPit]),
     endOfRace: flag(payload[KEYS.endOfRace]),
+    lap,
   };
+}
+
+/** The chequered flag is out for the session (the leader has finished): by the flag's bit or the state. */
+function chequeredOut(frame) {
+  return frame.endOfRace || frame.sessionState >= SESSION_STATE.CHECKERED;
 }
 
 /**
@@ -92,8 +105,9 @@ function createAutoRecord({ now = Date.now, debounceMs = DEBOUNCE_MS, endOfRaceM
   let lastInCar = false;
   let lastSession = null;      // the session key last seen live
   let startedIn = null;        // the session key the auto recording began in
-  let wasRecording = false;
   let armed = true;            // a race's green flag may start a recording (see the rules above)
+  let lapBefore = null;        // his lap count at the last race frame before the chequered flag was out
+  let finished = false;        // the chequered flag is out and he has crossed the line since
 
   function hold(kind, why, holdMs, at) {
     if (!candidate || candidate.kind !== kind || candidate.why !== why) candidate = { kind, why, since: at };
@@ -114,14 +128,22 @@ function createAutoRecord({ now = Date.now, debounceMs = DEBOUNCE_MS, endOfRaceM
     if (frame.live && frame.sessionKey !== null && frame.sessionKey !== lastSession) {
       if (lastSession !== null) armed = true;
       lastSession = frame.sessionKey;
+      lapBefore = null;
+      finished = false;
+    }
+    // His own finish in a race: his lap count goes up with the chequered flag out. Until it is out, the lap he is on
+    // is noted, so that a count that went up in the same poll as the flag — the leader's finish — counts.
+    if (frame.live && frame.race) {
+      if (!chequeredOut(frame)) { lapBefore = frame.lap; finished = false; }
+      else if (!finished && lapBefore !== null && frame.lap !== null && frame.lap > lapBefore) finished = true;
     }
     // Any recording seen running under the green flag, in the car, uses it up for this stint. One seen on the grid
     // does not: it may be the session before's, in its last second before the new number stops it.
     if (recording && inCar && frame.live && frame.race && frame.sessionState === SESSION_STATE.RACING) armed = false;
-    // The session the auto recording began in: noted when it is first seen running.
-    if (recording && auto && !wasRecording) startedIn = frame.live ? frame.sessionKey : null;
+    // The session the auto recording began in: the first live frame it is seen running in (the first feed after it
+    // began may be a poll that got no answer).
     if (!recording) startedIn = null;
-    wasRecording = recording;
+    else if (auto && startedIn === null && frame.live && frame.sessionKey !== null) startedIn = frame.sessionKey;
 
     let decision = null;
     if (recording) {
@@ -131,7 +153,7 @@ function createAutoRecord({ now = Date.now, debounceMs = DEBOUNCE_MS, endOfRaceM
         decision = hold('stop', OUT_OF_CAR, debounceMs, at);
       } else if (frame.live && frame.sessionKey !== null && startedIn !== null && frame.sessionKey !== startedIn) {
         decision = hold('stop', NEW_SESSION, debounceMs, at);
-      } else if (frame.live && (frame.endOfRace || frame.sessionState === SESSION_STATE.COOLDOWN)) {
+      } else if (frame.live && frame.race && (finished || frame.sessionState === SESSION_STATE.COOLDOWN)) {
         decision = hold('stop', END_OF_RACE, endOfRaceMs, at);
       } else {
         candidate = null;
@@ -158,7 +180,7 @@ function createAutoRecord({ now = Date.now, debounceMs = DEBOUNCE_MS, endOfRaceM
   }
 
   function state() {
-    return { candidate: candidate ? { ...candidate } : null, armed, startedIn, lastSession };
+    return { candidate: candidate ? { ...candidate } : null, armed, startedIn, lastSession, finished };
   }
 
   function reset() {
@@ -167,8 +189,9 @@ function createAutoRecord({ now = Date.now, debounceMs = DEBOUNCE_MS, endOfRaceM
     lastInCar = false;
     lastSession = null;
     startedIn = null;
-    wasRecording = false;
     armed = true;
+    lapBefore = null;
+    finished = false;
   }
 
   return { feed, state, reset };

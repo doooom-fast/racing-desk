@@ -115,6 +115,63 @@ test('the offset from the chapters: paired in order by name, OBS\'s own Start st
   expect(filing.alignFromChapters([{ name: 'a', t: 0 }, { name: 'b', t: 0 }], [{ name: 'a', ms: 100 }, { name: 'b', ms: 301 }]).videoOffsetMs).toBe(201);
 });
 
+test('a chapter of ours the file does not have, with a name that comes again, takes the place of no other chapter: the offset is still the real one', () => {
+  // The WebSocket dropped for a moment: a "Pit in" was found and written down but never reached OBS. The file's offset
+  // is -4000 ms (its chapters are 4 s earlier than ours). Pairing by name going forward put the lost "Pit in" with the
+  // later one, then lost every pair after it, and answered 346000 ms as if it were the tightest kind of alignment.
+  const ours = [
+    { name: 'Lap 3', t: 60000 }, { name: 'Pit in', t: 100000 }, { name: 'Lap 4', t: 120000 }, { name: 'Pit out', t: 130000 },
+    { name: 'Lap 5', t: 180000 }, { name: 'Lap 6', t: 240000 }, { name: 'Pit in', t: 300000 }, { name: 'Pit out', t: 310000 }, { name: 'Lap 7', t: 360000 },
+  ];
+  const theirs = [
+    { name: 'Start', ms: 0 }, { name: 'Lap 3', ms: 56000 }, { name: 'Lap 4', ms: 116000 }, { name: 'Pit out', ms: 126000 },
+    { name: 'Lap 5', ms: 176000 }, { name: 'Lap 6', ms: 236000 }, { name: 'Pit in', ms: 296000 }, { name: 'Pit out', ms: 306000 }, { name: 'Lap 7', ms: 356000 },
+  ];
+  const found = filing.alignFromChapters(ours, theirs);
+  expect(found).toMatchObject({ videoOffsetMs: -4000, method: 'chapters', spreadMs: 0 });
+  expect(found.pairs).toBe(8);   // every chapter that is in both: the lost one is not paired with anything
+  // The same with nothing to anchor on but repeated names (a race of pit stops only): the nearest pairs are made first,
+  // so the first stop's lost chapters do not take the second stop's.
+  const repeated = filing.alignFromChapters(
+    [{ name: 'Pit in', t: 1000 }, { name: 'Pit out', t: 2000 }, { name: 'Pit in', t: 9000 }, { name: 'Pit out', t: 10000 }],
+    [{ name: 'Pit in', ms: 9500 }, { name: 'Pit out', ms: 10500 }],
+  );
+  expect(repeated).toMatchObject({ videoOffsetMs: 500, pairs: 2 });
+  // Pairs that cannot agree are not an alignment: the caller lines the file up from its end.
+  expect(filing.alignFromChapters([{ name: 'a', t: 0 }, { name: 'b', t: 0 }], [{ name: 'a', ms: 100 }, { name: 'b', ms: 60000 }])).toBeNull();
+  // A pair that strays is dropped and counted: three stops, the third of which the file has only as a far later one.
+  const strays = filing.alignFromChapters(
+    [{ name: 'Pit in', t: 1000 }, { name: 'Pit in', t: 2000 }, { name: 'Pit in', t: 3000 }],
+    [{ name: 'Pit in', ms: 1100 }, { name: 'Pit in', ms: 2100 }, { name: 'Pit in', ms: 9100 }],
+  );
+  expect(strays).toMatchObject({ videoOffsetMs: 100, pairs: 2, dropped: 1 });
+  // With names that agree on an offset, a chapter the file has only far from where it belongs is left unpaired.
+  expect(filing.alignFromChapters(
+    [{ name: 'Lap 1', t: 0 }, { name: 'Lap 2', t: 1000 }, { name: 'Lap 3', t: 2000 }, { name: 'Pit in', t: 2500 }],
+    [{ name: 'Lap 1', ms: 100 }, { name: 'Lap 2', ms: 1100 }, { name: 'Lap 3', ms: 2100 }, { name: 'Pit in', ms: 4100 }],
+  )).toMatchObject({ videoOffsetMs: 100, pairs: 3 });
+});
+
+test('a recording that was paused: the clock of the file stood still, so the pauses are taken out of ours before the chapters are paired, and put back for the end', () => {
+  expect(filing.pausedBefore([{ from: 100000, to: 160000 }], 50000)).toBe(0);
+  expect(filing.pausedBefore([{ from: 100000, to: 160000 }], 130000)).toBe(30000);
+  expect(filing.pausedBefore([{ from: 100000, to: 160000 }, { from: 200000, to: null }], 300000)).toBe(60000 + 100000);
+  expect(filing.pausedBefore(null, 1)).toBe(0);
+  const pauses = [{ from: 100000, to: 160000 }];
+  // Offset 2000 ms; the chapters after the pause are a minute earlier in the file than their t says.
+  const ours = [{ name: 'Lap 2', t: 50000 }, { name: 'Lap 3', t: 200000 }, { name: 'Lap 4', t: 260000 }];
+  const theirs = [{ name: 'Start', ms: 0 }, { name: 'Lap 2', ms: 52000 }, { name: 'Lap 3', ms: 142000 }, { name: 'Lap 4', ms: 202000 }];
+  expect(filing.alignFromChapters(ours, theirs, { pauses })).toMatchObject({ videoOffsetMs: 2000, pairs: 3, spreadMs: 0 });
+  // Without the pause taken out the chapters after it say a minute less, and the majority wins: not the offset.
+  expect(filing.alignFromChapters(ours, theirs).videoOffsetMs).not.toBe(2000);
+  // From the end: the file holds the recording less its pauses, so it began a minute earlier than its length says.
+  const startedAt = 1_700_000_000_000;
+  const end = filing.alignFromEnd({ startedAt, endedAt: startedAt + 300000, durationMs: 238000, pauses });
+  expect(end).toMatchObject({ videoOffsetMs: -2000 + 0, method: 'end', approximate: true });
+  expect(end.videoStartUtc).toBe(new Date(startedAt + 2000).toISOString());
+  expect(filing.alignFromEnd({ startedAt, endedAt: startedAt + 300000, durationMs: 300000, endFrom: 'request' })).toMatchObject({ videoOffsetMs: 0, endFrom: 'request' });
+});
+
 test('the offset from the end: the file began at its end less its duration', () => {
   const startedAt = 1_700_000_000_000;      // STARTED arrived
   const endedAt = startedAt + 600_000;      // STOPPED arrived ten minutes later
