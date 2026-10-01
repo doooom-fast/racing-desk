@@ -17,9 +17,10 @@
 //                           with the header X-Racing-Desk: 1. Refused to anything that comes over the network, and
 //                           to anything a browser sends: a page cannot put that header on a link, an image or a
 //                           form, so no page the driver happens to have open can quit the app
-//   GET /api/settings-display  on the iPad's server: the one display setting the iPad is told of, the panel
-//                           background (IPAD_SETTINGS), and nothing else of the settings file. The page is given it
-//                           and asks again every ten seconds, so the slider on the desk reaches the iPad
+//   GET /api/settings-display  on the iPad's server: the two display settings the iPad is told of, the panel
+//                           background (a number) and the following map's zoom (one of its three words)
+//                           (IPAD_SETTINGS), and nothing else of the settings file. The page is given them
+//                           and asks again every ten seconds, so a change on the desk reaches the iPad
 //
 // Two of these servers run (createServer): the iPad's, on the home network while its switch is on, and one that is
 // always up on 127.0.0.1 alone (`loopback: true`, port 9091 by default, `localServerPort`) for the programs on this
@@ -357,7 +358,8 @@ ${FALLBACK_FACES}
 </style>`;
 }
 
-// `settingsJson` is what the iPad is told of the settings (ipadSettingsOf: the panel background), and the page asks
+// `settingsJson` is what the iPad is told of the settings (ipadSettingsOf: the panel background and the following map's
+// zoom, each only as the kind of value it is), and the page asks
 // the same server for it again every ten seconds (settings.js, as the OBS page does).
 function injection(kits, settingsJson) {
   return `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -517,7 +519,7 @@ function addToHead(local, add) {
 }
 
 // The iPad's page: `settings` is his settings whole, cut down here to what ipadSettingsOf lets through (the panel
-// background, a number) and written into the page as JSON.
+// background, a number, and the following map's zoom, one of its three words) and written into the page as JSON.
 function injectRemoteOverrides(html, settings = null) {
   const { local, kits } = stripKits(html);
   const json = JSON.stringify(ipadSettingsOf(settings)).replace(/</g, '\\u003c');
@@ -653,7 +655,7 @@ function handleRequest(config, req, res) {
   }
 
   // His settings, as far as a page may be told them: the loopback listener's OBS pages get the display allowlist; the
-  // iPad (behind its key, like everything on its server) the panel background alone.
+  // iPad (behind its key, like everything on its server) the panel background and the following map's zoom, and no more.
   const settingsNow = () => {
     try { return typeof config.displaySettings === 'function' ? config.displaySettings() : null; } catch (e) { return null; }
   };

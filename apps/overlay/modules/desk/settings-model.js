@@ -83,7 +83,7 @@
         {
           // modules/js/map-zoom.js has the modes and the curve; the same words here so the desk and the HUD agree.
           key: 'followMapZoom', label: 'Following map zoom', type: 'select', def: 'closer',
-          hint: 'The local map that follows your car: closer in as your speed rises and out as it falls, the other way round, or one view at every speed. On the rig, the iPad and in OBS alike.',
+          hint: 'The local map that follows your car: closer in as your speed rises and out as it falls, or the other way round (that is the map as it was before this setting), or one view at every speed. On the rig, the iPad and in OBS alike.',
           options: [['closer', 'Closer at speed'], ['wider', 'Wider at speed'], ['fixed', 'Fixed']],
         },
         on('showBorders', 'Borders', 'Outlines on the panels.'),

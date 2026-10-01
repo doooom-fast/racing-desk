@@ -1087,7 +1087,8 @@ async function startRemoteServer(port) {
       log: logToFile,
       // The crop behind the car badge, for the iPad, from this process's memory (livery, below).
       crop: () => livery.current(),
-      // His settings whole; the server tells the iPad the panel background and nothing else (remote-server.js, IPAD_SETTINGS).
+      // His settings whole; the server tells the iPad the panel background and the following map's zoom and nothing else
+      // (remote-server.js, IPAD_SETTINGS).
       displaySettings: () => loadSettingsSync(),
     });
   } catch (err) {

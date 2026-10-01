@@ -1269,8 +1269,10 @@
       fullPlayer.setAttribute('cy', sy.toFixed(1));
     }
     if (zoomPlayer) {
-      zoomPlayer.setAttribute('cx', sx.toFixed(1));
-      zoomPlayer.setAttribute('cy', sy.toFixed(1));
+      // Thousandths of a unit, as the view's box below is: rounded to a tenth, the dot and the box's centre each
+      // round on their own and the car wobbles against the middle of its view (see the box).
+      zoomPlayer.setAttribute('cx', sx.toFixed(3));
+      zoomPlayer.setAttribute('cy', sy.toFixed(3));
     }
 
     // Update track glow effect following player position
@@ -1328,7 +1330,9 @@
     // Update zoom map — player always centered, track rotates so driving direction always points UP. The view's
     // radius follows his speed (map-zoom.js): closer in as he goes faster, by default — what he asked for — or
     // wider, or one view at every speed, by the "Following map zoom" setting; between the bounds the view has
-    // always had, and eased over about half a second so the noise in the speed is not in the map.
+    // always had, and eased over about half a second so the noise in the speed is not in the map. The view's box,
+    // its pivot and the car's dot are written to a thousandth of a unit: at the closest the view is 11 units across
+    // and at speed it is the one that scrolls fastest, where steps of a tenth were jerks of two or three pixels.
     const zoomSvg = document.getElementById('zoomMapSvg');
     if (zoomSvg) {
       const spd = typeof speedMph === 'number' ? speedMph : 0;
@@ -1339,7 +1343,7 @@
         // two-thirds of the way down it, so what is ahead gets the room. What is drawn in pixels is sized
         // again when the pixels a unit is have moved by a few percent.
         const vw = zr * 2, vh = vw / _dv.zoomAspect;
-        zoomSvg.setAttribute('viewBox', (sx - vw / 2).toFixed(1) + ' ' + (sy - vh * (2 / 3)).toFixed(1) + ' ' + vw.toFixed(1) + ' ' + vh.toFixed(1));
+        zoomSvg.setAttribute('viewBox', (sx - vw / 2).toFixed(3) + ' ' + (sy - vh * (2 / 3)).toFixed(3) + ' ' + vw.toFixed(3) + ' ' + vh.toFixed(3));
         const unit = vw / _dv.zoomW;
         if (Math.abs(unit - _dv.zoomUnit) > _dv.zoomUnit * 0.03) {
           _dv.zoomUnit = unit;
@@ -1351,7 +1355,7 @@
         // handles content outside the 0-100 range. Player is always at center.
         const vx = sx - zr;
         const vy = sy - zr;
-        zoomSvg.setAttribute('viewBox', vx.toFixed(1) + ' ' + vy.toFixed(1) + ' ' + (zr * 2).toFixed(1) + ' ' + (zr * 2).toFixed(1));
+        zoomSvg.setAttribute('viewBox', vx.toFixed(3) + ' ' + vy.toFixed(3) + ' ' + (zr * 2).toFixed(3) + ' ' + (zr * 2).toFixed(3));
       }
 
       // Clear any legacy CSS rotation on the SVG element
@@ -1373,7 +1377,7 @@
         const rotGrp = document.getElementById('zoomMapRotateGroup');
         if (rotGrp) {
           rotGrp.setAttribute('transform',
-            'rotate(' + (-_mapSmoothedHeading).toFixed(2) + ',' + sx.toFixed(1) + ',' + sy.toFixed(1) + ')');
+            'rotate(' + (-_mapSmoothedHeading).toFixed(2) + ',' + sx.toFixed(3) + ',' + sy.toFixed(3) + ')');
         }
       }
     }

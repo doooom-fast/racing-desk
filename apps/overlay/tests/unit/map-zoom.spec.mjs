@@ -7,9 +7,13 @@
  * which way it goes is one setting, "Following map zoom" under Look: 'closer', 'wider' or 'fixed', in the settings
  * file (a file from before it is given 'closer' once), told to the iPad and the OBS pages through their allowlists.
  *
- * Held here: the curve, in Node (bounds, each direction, fixed, proportion, clamping, the ease's time constant, noise);
- * the migration; and the pages — the rig's HUD, its glance layout, the iPad and the page OBS draws — whose local view
- * follows a speed ramp the way the setting says, step by step and never in a jump, with the car where it was.
+ * "Wider at speed" is the local view as it was until this setting, curve for curve (closest standing still, widest from
+ * 75 mph), so one setting gives it back; "Fixed" is a third view, not that one.
+ *
+ * Held here: the curve, in Node (bounds, each direction, today's curve exactly, fixed, proportion, clamping, the ease's
+ * time constant, one late frame, a page back from the background, noise); the migration; and the pages — the rig's
+ * HUD, its glance layout, the iPad and the page OBS draws — whose local view follows a speed ramp the way the setting
+ * says, step by step and never in a jump, with the car at the middle of it to a thousandth of a unit.
  */
 
 import { test, expect } from '@playwright/test';
@@ -34,14 +38,17 @@ const atSpeed = (mph, over = {}) => ({ ...RACE(over), 'DataCorePlugin.GameData.S
 // ── The curve ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 test.describe('the curve: speed to radius', () => {
-  const { R_CLOSE, R_WIDE, R_FIXED, SPEED_MAX_MPH, TAU_S, targetRadius, ease, modeOf } = mz;
+  const { R_CLOSE, R_WIDE, R_FIXED, SPEED_MAX_MPH, WIDER_MAX_MPH, TAU_S, MAX_STEP_S, RESTART_AFTER_S, targetRadius, ease, modeOf } = mz;
 
-  test('the bounds are the local view\'s own, and the fixed view is the middle of them', () => {
+  test('the bounds are the local view\'s own (5.6 and 50/3), and the fixed view is the middle of them', () => {
     expect(R_CLOSE).toBe(5.6);
-    expect(R_WIDE).toBe(16.7);
-    expect(R_FIXED).toBeCloseTo(11.15, 5);
+    expect(R_WIDE).toBe(50 / 3);
+    expect(R_FIXED).toBeCloseTo((5.6 + 50 / 3) / 2, 9);
     expect(SPEED_MAX_MPH).toBe(150);
+    expect(WIDER_MAX_MPH).toBe(75);
     expect(TAU_S).toBe(0.4);
+    expect(MAX_STEP_S).toBe(0.1);
+    expect(RESTART_AFTER_S).toBe(2);
   });
 
   test('closer at speed: the widest view standing still, the closest at 150 mph and above, linear between, never past either', () => {
@@ -61,12 +68,23 @@ test.describe('the curve: speed to radius', () => {
     }
   });
 
-  test('wider at speed is the same curve the other way up', () => {
+  test('wider at speed is the local view as it was, exactly: the old curve, closest standing still and widest from 75 mph', () => {
+    // The line this setting replaced in webgl-helpers.js: `5.6 + (min(speed, 75) / 75) * (50 / 3 - 5.6)`.
+    const was = (mph) => 5.6 + (Math.min(mph, 75) / 75) * (50 / 3 - 5.6);
+    for (let mph = 0; mph <= 220; mph += 2.5) expect(targetRadius(mph, 'wider'), `${mph} mph`).toBeCloseTo(was(mph), 12);
     expect(targetRadius(0, 'wider')).toBe(R_CLOSE);
-    expect(targetRadius(150, 'wider')).toBeCloseTo(R_WIDE, 9);
-    expect(targetRadius(75, 'wider')).toBeCloseTo((R_WIDE + R_CLOSE) / 2, 9);
-    expect(targetRadius(999, 'wider')).toBeCloseTo(R_WIDE, 9);
-    for (let mph = 0; mph <= 160; mph += 5) expect(targetRadius(mph, 'wider') + targetRadius(mph, 'closer')).toBeCloseTo(R_CLOSE + R_WIDE, 9);
+    expect(targetRadius(75, 'wider')).toBeCloseTo(R_WIDE, 12);
+    expect(targetRadius(37.5, 'wider')).toBeCloseTo((R_WIDE + R_CLOSE) / 2, 12);
+    for (const mph of [75, 110, 150, 999]) expect(targetRadius(mph, 'wider'), `${mph} mph`).toBeCloseTo(R_WIDE, 12);
+    expect(targetRadius(-30, 'wider')).toBe(R_CLOSE);
+  });
+
+  test('"fixed" is a view of its own, not the old one: at the speeds he drives it is not what the map was, and the three are three views', () => {
+    for (const mph of [20, 40, 110, 140]) {
+      const [c, w, f] = ['closer', 'wider', 'fixed'].map((m) => targetRadius(mph, m));
+      expect(Math.abs(f - w), `fixed against the old view at ${mph} mph`).toBeGreaterThan(0.3);
+      expect(new Set([c, w, f].map((r) => r.toFixed(3))).size, `${mph} mph`).toBe(3);
+    }
   });
 
   test('fixed is one view at every speed', () => {
@@ -102,7 +120,7 @@ test.describe('the curve: speed to radius', () => {
     expect((ease(0, 1, 1.0))).toBeGreaterThan(0.9);
   });
 
-  test('the follower: the first frame sets the view outright, then each frame eases by the page\'s clock, and a long pause eases over a second at most', () => {
+  test('the follower: the first frame sets the view outright, then each frame eases by the page\'s clock; a late frame counts for a tenth of a second at most', () => {
     const f = mz.follower();
     expect(f.radius(0, 'closer', 1000)).toBe(R_WIDE);
     // At 30 frames a second, a step from 0 to 150 mph: never a jump, and near the target within a second and a half.
@@ -121,20 +139,62 @@ test.describe('the curve: speed to radius', () => {
     const next = f.radius(0, 'closer', 1000 + 46 * 33.3);
     expect(next).toBeGreaterThan(before);
     expect(next - before).toBeLessThan((R_WIDE - R_CLOSE) * 0.1);
-    // A pause of a minute: from where it was, as if a second had passed, not a jump to the target.
-    const paused = f.radius(0, 'closer', 1000 + 46 * 33.3 + 60000);
-    expect(paused).toBeGreaterThan(next);
-    expect(paused).toBeLessThan(R_WIDE);
-    expect(paused).toBeCloseTo(next + (R_WIDE - next) * (1 - Math.exp(-1 / TAU_S)), 6);
+    // A frame that is late — nearly two seconds — counts for a tenth of a second: the view moves by about a fifth of
+    // what is left and no more, and the frames after it close the rest.
+    const lateAt = 1000 + 46 * 33.3 + 1900;
+    const late = f.radius(0, 'closer', lateAt);
+    expect(late).toBeGreaterThan(next);
+    expect(late).toBeCloseTo(next + (R_WIDE - next) * (1 - Math.exp(-MAX_STEP_S / TAU_S)), 9);
+    expect(f.radius(0, 'closer', lateAt + 33.3)).toBeGreaterThan(late);
     // No clock: the view is held where it is.
-    expect(f.radius(150, 'closer', NaN)).toBe(paused);
-    expect(f.radius(150, 'closer')).toBe(paused);
+    const held = f.current();
+    expect(f.radius(150, 'closer', NaN)).toBe(held);
+    expect(f.radius(150, 'closer')).toBe(held);
     f.reset();
     expect(Number.isNaN(f.current())).toBe(true);
     expect(f.radius(75, 'fixed', 5)).toBe(R_FIXED);
     // A change of mode is eased too: no jump when the setting changes.
     const after = f.radius(75, 'closer', 5 + 33);
     expect(Math.abs(after - R_FIXED)).toBeLessThan(0.1);
+  });
+
+  test('one late frame moves the view by a quarter of what is left at most, whatever the gap, and the frames after it catch up', () => {
+    for (const lateMs of [250, 500, 1000, 1900]) {
+      const f = mz.follower();
+      f.radius(0, 'closer', 0);
+      // Settled at 150 mph, then braking to 60: the target is far from the radius, and a frame comes late.
+      for (let i = 1; i <= 90; i++) f.radius(150, 'closer', i * 33.3);
+      const settled = f.current();
+      const t0 = 90 * 33.3;
+      const target = targetRadius(60, 'closer');
+      const first = f.radius(60, 'closer', t0 + lateMs);
+      expect(Math.abs(first - settled), `${lateMs} ms late`).toBeLessThanOrEqual(Math.abs(target - settled) * 0.25);
+      expect(first).toBeGreaterThan(settled);
+      // Prompt frames after it close the rest in the ordinary way.
+      let r = first;
+      for (let i = 1; i <= 60; i++) { const n = f.radius(60, 'closer', t0 + lateMs + i * 33.3); expect(n).toBeGreaterThanOrEqual(r); r = n; }
+      expect(Math.abs(r - target)).toBeLessThan(Math.abs(target - settled) * 0.03);
+    }
+  });
+
+  test('a page back from the background (more than two seconds with no frame) starts afresh at the speed it is at, not from the view it had', () => {
+    const f = mz.follower();
+    f.radius(150, 'closer', 0);
+    for (let i = 1; i <= 90; i++) f.radius(150, 'closer', i * 33.3);
+    expect(f.current()).toBeCloseTo(R_CLOSE, 1);
+    expect(f.radius(0, 'closer', 90 * 33.3 + 2500)).toBe(R_WIDE);
+    // Just under two seconds is a late frame and no more: eased, not started afresh.
+    const g = mz.follower();
+    g.radius(150, 'closer', 0);
+    for (let i = 1; i <= 90; i++) g.radius(150, 'closer', i * 33.3);
+    const before = g.current();
+    const r = g.radius(0, 'closer', 90 * 33.3 + 1990);
+    expect(r).toBeLessThan(R_WIDE);
+    expect(r).toBeGreaterThan(before);
+    // And a clock that runs backwards is no time at all.
+    const h = mz.follower();
+    h.radius(0, 'closer', 5000);
+    expect(h.radius(150, 'closer', 4000)).toBe(R_WIDE);
   });
 
   test('noise in the speed is not in the map: a mile an hour or two either way moves the view by a hundredth of a unit a frame', () => {
@@ -239,33 +299,37 @@ const view = (page) => page.evaluate(() => {
 
 const RANGE = 2 * (mz.R_WIDE - mz.R_CLOSE);   // the whole of the view's change, in width
 
-// Hold a speed for `ms`, reading the view's width at every frame the page draws on the way (and the time, and how long
-// the frame before took): the width it settled at, and every move that was a jump. Between one frame and the next the
-// view may move no further than the ease allows for the time between them — a late frame moves further than a prompt
-// one, as the clock says, and a headless page drawing in software has late frames — so a jump is a move with no time
-// behind it, judged against the whole range (what a change of setting asks for at most).
+// Hold a speed for `ms` at least, and on until the view has stopped moving (the last five frames within a fiftieth of a
+// unit of each other; eight seconds at most), reading the view's width at every frame the page draws on the way (and the
+// time, and how long the frame before took): the width it settled at, and every move that was a jump. A frame counts for
+// the time since the one before it, a tenth of a second at most (map-zoom.js MAX_STEP_S): between one frame and the next
+// the view may move no further than the ease allows for that — a late frame moves further than a prompt one, as the
+// clock says, up to the cap, and a headless page drawing in software has late frames, and settles in more of them — so a
+// jump is a move with no time behind it, judged against the whole range (what a change of setting asks for at most).
 async function hold(page, feed, mph, ms = 1800) {
   feed.payload = atSpeed(mph);
-  const samples = await page.evaluate(async (wait) => {
+  const samples = await page.evaluate(async ([wait, most]) => {
     const out = [];
     const t0 = performance.now();
     let seen = -1;
     let lastRaf = t0;
-    while (performance.now() - t0 < wait) {
+    const width = () => document.getElementById('zoomMapSvg').getAttribute('viewBox').split(/\s+/).map(Number)[2];
+    const still = () => out.length >= 5 && out.slice(-5).every((s) => Math.abs(s[2] - out[out.length - 1][2]) < 0.02);
+    while (performance.now() - t0 < wait || (!still() && performance.now() - t0 < most)) {
       await new Promise((r) => requestAnimationFrame(r));
       const now = performance.now();
       const gap = now - lastRaf;
       lastRaf = now;
       if (_pollFrame === seen) continue;
       seen = _pollFrame;
-      out.push([now, gap, document.getElementById('zoomMapSvg').getAttribute('viewBox').split(/\s+/).map(Number)[2]]);
+      out.push([now, gap, width()]);
     }
     return out;
-  }, ms);
+  }, [ms, 8000]);
   const jumps = [];
   for (let i = 1; i < samples.length; i++) {
     // The frame was drawn somewhere in the gap before this sample, so the time it had is up to a gap more.
-    const dt = (samples[i][0] - samples[i - 1][0] + samples[i][1]) / 1000;
+    const dt = Math.min(mz.MAX_STEP_S, (samples[i][0] - samples[i - 1][0] + samples[i][1]) / 1000);
     const allowed = RANGE * (1 - Math.exp(-dt / mz.TAU_S)) * 1.1 + 0.1;
     const moved = Math.abs(samples[i][2] - samples[i - 1][2]);
     if (moved > allowed) jumps.push(`${moved.toFixed(2)} in ${(dt * 1000).toFixed(0)} ms (${allowed.toFixed(2)} allowed)`);
@@ -286,6 +350,8 @@ async function ramp(page, feed, speeds) {
 }
 
 const RAMP = [0, 30, 60, 90, 120, 150];
+// "Wider at speed" is the old view, widest from 75 mph: its ramp ends there (past it nothing moves, held below).
+const RAMP_WIDER = [0, 15, 30, 45, 60, 75];
 
 function expectCloser(widths, jumps, label) {
   for (let i = 1; i < widths.length; i++) expect(widths[i], `${label}: ${widths.join(' → ')}`).toBeLessThan(widths[i - 1]);
@@ -316,7 +382,7 @@ async function openRig(page, settings = {}, { drive = false } = {}) {
 }
 
 test('the rig\'s HUD: by default the view closes in up a speed ramp and opens out down it, step by step and never in a jump, with the car at the centre', async ({ page }) => {
-  test.setTimeout(120000);
+  test.setTimeout(180000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const feed = await openRig(page);
@@ -332,12 +398,16 @@ test('the rig\'s HUD: by default the view closes in up a speed ramp and opens ou
   expect(errors).toEqual([]);
 });
 
-test('the rig\'s HUD: "wider at speed" is the other way round, "fixed" is one view; a change of the setting takes effect in place', async ({ page }) => {
-  test.setTimeout(120000);
+test('the rig\'s HUD: "wider at speed" is the old view (widest from 75 mph), "fixed" is one view; a change of the setting takes effect in place', async ({ page }) => {
+  test.setTimeout(180000);
   const feed = await openRig(page, { followMapZoom: 'wider' });
   expect((await view(page)).mode).toBe('wider');
-  const up = await ramp(page, feed, RAMP);
+  const up = await ramp(page, feed, RAMP_WIDER);
   expectWider(up.widths, up.jumps, 'wider, up');
+  // Past 75 mph the old view had nothing more to give: it stays at its widest.
+  const past = await ramp(page, feed, [110, 150]);
+  for (const w of past.widths) expect(w).toBeCloseTo(2 * mz.R_WIDE, 1);
+  expect(past.jumps).toEqual([]);
   await page.evaluate(() => { _settings.followMapZoom = 'fixed'; applySettings(); });
   const fixed = await ramp(page, feed, [0, 75, 150]);
   expectFixed(fixed.widths, 'fixed');
@@ -348,7 +418,7 @@ test('the rig\'s HUD: "wider at speed" is the other way round, "fixed" is one vi
 });
 
 test('the rig\'s glance layout (Ctrl+Shift+F): the same curve, in the cell\'s shape with the car two-thirds down', async ({ page }) => {
-  test.setTimeout(120000);
+  test.setTimeout(180000);
   const feed = await openRig(page, {}, { drive: true });
   await page.waitForFunction(() => document.getElementById('zoomMapSvg').style.getPropertyValue('--px') !== '', null, { timeout: 10000 });
   const up = await ramp(page, feed, [0, 75, 150]);
@@ -358,8 +428,46 @@ test('the rig\'s glance layout (Ctrl+Shift+F): the same curve, in the cell\'s sh
   expect(v.down).toBeCloseTo(2 / 3, 1);
 });
 
+// How far the car's dot is from where its view puts the middle (the rig's: the centre; the glance layout's: across the
+// middle and two-thirds of the way down), in map units, as the page has written both.
+const offCentre = (page, down) => page.evaluate((fraction) => {
+  const vb = document.getElementById('zoomMapSvg').getAttribute('viewBox').split(/\s+/).map(Number);
+  const player = document.getElementById('zoomMapPlayer');
+  return {
+    x: Math.abs(+player.getAttribute('cx') - (vb[0] + vb[2] / 2)),
+    y: Math.abs(+player.getAttribute('cy') - (vb[1] + vb[3] * fraction)),
+    box: vb,
+  };
+}, down);
+
+test('the view\'s box and the car\'s dot are written to a thousandth of a unit: the car does not shimmer against the middle, and at speed the track does not scroll in jerks', async ({ page }) => {
+  test.setTimeout(180000);
+  const feed = await openRig(page);
+  // At the closest the view is 11 units across and scrolls fastest; a step of a tenth is two or three pixels.
+  await hold(page, feed, 150);
+  for (let i = 0; i < 4; i++) {
+    const m = await offCentre(page, 0.5);
+    expect(m.x, JSON.stringify(m)).toBeLessThan(0.005);
+    expect(m.y, JSON.stringify(m)).toBeLessThan(0.005);
+    await frames(page, 2);
+  }
+  // The box is not on a grid of tenths: at least one of its four numbers has a hundredth or a thousandth in it.
+  const box = await page.evaluate(() => document.getElementById('zoomMapSvg').getAttribute('viewBox'));
+  expect(box.split(/\s+/).some((n) => /\.\d{3}$/.test(n) && !/\.\d00$/.test(n)), box).toBe(true);
+  // The glance layout's: across the middle, two-thirds of the way down.
+  await page.evaluate(() => setDriveMode(true));
+  await page.waitForFunction(() => document.getElementById('zoomMapSvg').style.getPropertyValue('--px') !== '', null, { timeout: 10000 });
+  await hold(page, feed, 150);
+  for (let i = 0; i < 4; i++) {
+    const m = await offCentre(page, 2 / 3);
+    expect(m.x, JSON.stringify(m)).toBeLessThan(0.005);
+    expect(m.y, JSON.stringify(m)).toBeLessThan(0.005);
+    await frames(page, 2);
+  }
+});
+
 test('the iPad: told the setting by its server and following it; told a change within its ten-second ask', async ({ page }) => {
-  test.setTimeout(120000);
+  test.setTimeout(180000);
   const t = await telemetry(atSpeed(0));
   const port = await freePort();
   const his = { followMapZoom: 'wider', panelBackground: 90, zoom: 120, remoteServerKey: 'SECRET-remote' };
@@ -372,7 +480,7 @@ test('the iPad: told the setting by its server and following it; told a change w
     await frames(page);
     await page.waitForFunction(() => document.getElementById('zoomMapSvg').style.getPropertyValue('--px') !== '', null, { timeout: 10000 });
     expect((await view(page)).mode).toBe('wider');
-    const up = await ramp(page, t.feed, [0, 75, 150]);
+    const up = await ramp(page, t.feed, [0, 40, 75]);
     expectWider(up.widths, up.jumps, 'iPad, wider');
     // He changes it on the desk: the iPad's next ask brings the word, and the view eases the other way.
     his.followMapZoom = 'closer';
@@ -389,7 +497,7 @@ test('the iPad: told the setting by its server and following it; told a change w
 });
 
 test('the page OBS draws (/obs): told the setting through the display allowlist, and following it', async ({ page }) => {
-  test.setTimeout(120000);
+  test.setTimeout(180000);
   const t = await telemetry(atSpeed(0));
   const port = await freePort();
   const local = remote.createServer({ loopback: true });

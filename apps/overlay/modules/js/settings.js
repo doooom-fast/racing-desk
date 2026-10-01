@@ -443,7 +443,8 @@
   function _loadInitialSettings() {
     if (window._obsMode || window._remoteMode) {
       // The pages OBS draws (remote-server.js, /obs and /obs-ipad) and the iPad's: what the server lets through of his
-      // settings came with the page (the display allowlist for OBS; the panel background alone for the iPad), and is
+      // settings came with the page (the display allowlist for OBS; the panel background and the following map's zoom
+      // alone for the iPad), and is
       // asked for again every ten seconds from the same server, so a change made on the desk reaches this copy of the
       // HUD too. Nothing else of the settings file is ever sent here.
       _applyDisplaySettings(window._displaySettings);

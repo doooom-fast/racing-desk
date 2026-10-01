@@ -774,7 +774,8 @@ const HIS_SETTINGS = {
   panelBackground: 70, obsPanelBackground: 40, obsHudView: 'ipad',
 };
 const DISPLAY_ONLY = { zoom: 120, layoutPosition: 'top-left', showSpotter: false, showLeaderboard: true, visualPreset: 'minimal+', theme: 'dark', lbMaxRows: 8, driveMode: false, logoSubtitle: 'by DOOOOM', panelBackground: 70, obsPanelBackground: 40 };
-// What the iPad is told of the settings: the panel background, and no more (not the OBS slider, not the choice).
+// What the iPad is told of the settings: the panel background and the following map's zoom, and no more (not the OBS
+// slider, not the choice).
 const IPAD_ONLY = { panelBackground: 70 };
 const loopbackConfig = { loopback: true, status: () => ({ inCar: true, hudVisible: false, recording: { recording: true, elapsedMs: 1234, obs: 'open' } }), displaySettings: () => HIS_SETTINGS };
 
@@ -948,7 +949,8 @@ test.describe('the loopback listener', () => {
       expect((await fetch(`http://127.0.0.1:${lanPort}/obs`)).status).toBe(404);
       expect((await fetch(`http://127.0.0.1:${lanPort}/obs-ipad`)).status).toBe(404);
       expect(await (await fetch(`http://127.0.0.1:${localPort}/obs-ipad`)).text()).toContain('window._obsGlance = true;');
-      // The iPad's server tells the iPad the panel background alone (this one was started with no settings: none).
+      // The iPad's server tells the iPad the panel background and the following map's zoom, and no more (this one was
+      // started with no settings: none).
       expect(await (await fetch(`http://127.0.0.1:${lanPort}/api/settings-display`)).json()).toEqual({});
       // The actions, on both, through the one dispatcher; the Stream Deck asks the loopback one.
       expect((await fetch(`http://127.0.0.1:${localPort}/api/action/zoom-in`, { headers: { 'X-Racing-Desk': '1' } })).status).toBe(200);
