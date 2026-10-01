@@ -18,7 +18,6 @@ echo "  Cmd+Shift+H   Toggle overlay visibility"
 echo "  Cmd+Shift+G   Toggle green-screen mode (restarts)"
 echo "  Cmd+Shift+R   Reset window position/size"
 echo "  Cmd+Shift+D   Restart demo sequence"
-echo "  Cmd+Shift+M   Reset track map"
 echo "  Cmd+Shift+Q   Quit overlay"
 echo ""
 

@@ -62,7 +62,6 @@ From source the main process logs to `racing-desk-debug.log` in this folder. The
 | `Ctrl+Shift+G` | Toggle green-screen mode (restarts) |
 | `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (the one iRacing is on) |
 | `Ctrl+Shift+D` | Restart demo sequence |
-| `Ctrl+Shift+M` | Reset the track map |
 | `Ctrl+Shift+V` | Start or stop recording |
 | `Ctrl+Shift+B` | Save the replay buffer |
 | `Ctrl+Shift+P` | Start or stop the replay director |
