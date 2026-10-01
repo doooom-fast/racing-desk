@@ -26,7 +26,7 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 - **OBS** records (`docs/recording.md` at the root): the main process drives it over obs-websocket 5 (`modules/js/obs/`), with a WebSocket client of its own over `net` — Electron's Node has none and `ws` is not in the tree. No ffmpeg, no recorder in the page. OBS may also draw the HUD itself, from the page `remote-server.js` serves on `127.0.0.1:9091/obs` (`window._obsMode`: the rig's layout, hidden out of the car, the voice coach off, the display settings through an allowlist), behind the switch "HUD drawn by OBS" — or, by the choice under it, the iPad dashboard from `/obs-ipad` (`window._obsGlance`: the glance layout over a transparent page, placed once in a corner of the game).
 - **Anthropic SDK** — direct API calls from `race-coach.js` for live AI commentary (uses user's own API key)
 
-## 53 modules in `modules/js/`
+## 55 modules in `modules/js/`
 
 Far more than just the telemetry HUD. Notable additions beyond the original module set:
 
@@ -63,6 +63,8 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `logo-livery.js` | **Main process only**: the crop of his own paint behind the car badge — which paint, when it is chosen, what is kept and handed to the page and the iPad (see The livery behind the car badge) |
 | `logo-livery-picker.js` | Pure: the window of a paint sheet with artwork in it, scored, and the crop of it; runs in the worker and in Node tests |
 | `logo-livery-worker.js` | A worker thread: reads one paint inside the paint folder, decodes it with `paints/tga.js`, asks the picker, answers with the PNG and no path |
+| `session-kind.js` | Pure: which session the frame says it is, from `RacingDesk.Plugin.SessionTypeName` — a test drive (iRacing's "Offline Testing") or not (see The glance layout, A test drive has no leaderboard) |
+| `map-zoom.js` | Pure: the following map's zoom with his speed (see The following map's zoom) — the curve, the ease, the follower a page keeps, the `followMapZoom` setting's words and its once-only migration in the settings file |
 
 Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
 
@@ -353,6 +355,48 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   `tests/unit/session-flags-hud.spec.mjs` (what the glance layout and the rig's gaps block draw for each, with the recorded
   values of practice, the grid, the parade and the cool-down; the rig's labels centred; the local yellow's hold; the notices,
   the start lights, and the page as it was without the key).
+
+## The following map's zoom (`modules/js/map-zoom.js`, `window.RacingDeskMapZoom`)
+
+The local view that follows his car (`#zoomMapSvg`, drawn by `webgl-helpers.js` `updateTrackMap` on the rig's HUD, in
+the glance layout, on the iPad and in both pages OBS draws) zooms with his speed. He asked on 2026-10-01: "include a
+zoom into my car on the following map that scales in with my speed increasing and out when it decreases, in relation
+to that speed change". Most dashboards go the other way (wider at speed, to see further ahead), which is what the old
+curve did (closest at a standstill, widest at 75 mph and above), so which way it goes is one setting, **"Following map
+zoom" in Settings → Look** (`followMapZoom` in `overlay-settings.json`; `modules/desk/settings-model.js`): `closer`
+("Closer at speed", his ask and the default), `wider` ("Wider at speed"), `fixed` ("Fixed", one view at every speed).
+
+- **The curve** (`targetRadius(speedMph, mode)`): the view is a radius in the map's own units (the outline is drawn in
+  a 0–100 space; on the rig the view is 2r across with the car at its centre, in the glance layout 2r across by its
+  cell's shape with the car two-thirds down, as before). The bounds are the two the local view has always had, so
+  neither end is new on his rig: `R_CLOSE` 5.6 (the closest: an eleventh of the map across, never a blur of track) and
+  `R_WIDE` 16.7 (the widest: a third of the map, never the whole circuit, which the full map beside it is). Between
+  them the radius is linear in speed from 0 to `SPEED_MAX_MPH`, 150 mph (the top of what his cars do, so the view
+  goes on changing the whole way up a straight), clamped beyond: closer `r = R_WIDE − t·(R_WIDE − R_CLOSE)` with
+  `t = clamp(speed/150, 0, 1)`, wider the same the other way up, fixed `R_FIXED` 11.15, the middle. A speed that is
+  no number is a standstill; a mode that is none of the three is `closer`.
+- **The ease** (`ease`, `follower`): the drawn radius follows the target with a first-order ease of time constant
+  `TAU_S` 0.4 s — 63 % of a step in 0.4 s, 90 % in 0.93 s, 99 % in 1.8 s — by the page's own clock
+  (`performance.now()`), so a slow frame moves it as far as the time says and no further and a step is never a jump;
+  the first frame sets it outright; a frame after a pause eases as if a second had passed at most, so a page that
+  was in the background does not jump when it comes back; a change of the setting eases to the new view too.
+  Telemetry noise of a mile an hour or two moves the target by less than a tenth of a unit, and the ease takes the
+  rest out. `webgl-helpers.js` keeps one `follower` and asks it each frame with the speed, `_settings.followMapZoom`
+  and the clock; everything else of the local view (the rotation to heading up, the cell's shape, `--px`) is as it was.
+- **Where the setting goes**: `config.js` `_defaultSettings` has `closer`; the desk's Settings → Look offers the three;
+  the pages OBS draws get it through the display allowlist (`remote-server.js` `DISPLAY_SETTINGS`), and the iPad
+  through `IPAD_SETTINGS`, which now lets each key through only as the kind of value it is (a number for the panel
+  background, one of the three words for this). **A settings file from before the setting is given `closer` once**
+  (`migrate`, `migrateFile` through `settings-file.js`; `main.js` `migrateFollowMapZoom`, at start, before anything
+  reads the file; a value that is none of the three is put to `closer`; a file that cannot be read is left as it is).
+- **Tests**: `tests/unit/map-zoom.spec.mjs` — the curve in Node (the bounds, each direction, fixed, proportion,
+  clamping, the ease's time constant, the follower, noise), the migration (the function, the file, a first run, an
+  unreadable file, main.js's call), and the pages: the rig's HUD up and down a speed ramp in each mode and with the
+  setting changed in place, its glance layout, the iPad told the setting by its server (and a change within its ask),
+  and `/obs` through the allowlist — the settled view at each speed, every move within what the ease allows for the
+  time it had (no jumps), the car where it was. `desk-settings-model.spec.mjs` holds the control;
+  `remote-server.spec.mjs` the allowlists. The golden frames (the rig's in-car frame at 127 mph and the glance
+  layout's two) were re-made for it: at 127 mph the view is close where it used to be at its widest.
 
 ## Flags (`modules/js/session-flags.js`, `window.RacingDeskSessionFlags`)
 

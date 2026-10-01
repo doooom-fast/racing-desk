@@ -80,6 +80,12 @@
           key: 'panelBackground', label: 'Panel background', type: 'range', def: 90, min: 0, max: 100, step: 5, unit: '%',
           hint: 'How solid the panels are behind the numbers, on the rig and on the iPad. Lower lets the game show through; the numbers get a soft shadow so they still read. The HUD drawn by OBS has a slider of its own, under Recording.',
         },
+        {
+          // modules/js/map-zoom.js has the modes and the curve; the same words here so the desk and the HUD agree.
+          key: 'followMapZoom', label: 'Following map zoom', type: 'select', def: 'closer',
+          hint: 'The local map that follows your car: closer in as your speed rises and out as it falls, the other way round, or one view at every speed. On the rig, the iPad and in OBS alike.',
+          options: [['closer', 'Closer at speed'], ['wider', 'Wider at speed'], ['fixed', 'Fixed']],
+        },
         on('showBorders', 'Borders', 'Outlines on the panels.'),
         on('showWebGL', 'WebGL effects', 'Glare, bloom and vignette.'),
         {

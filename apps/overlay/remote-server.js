@@ -52,6 +52,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
+// The following map's zoom setting: its key and its words, so the pages are told it and nothing that is not one of them.
+const mapZoom = require('./modules/js/map-zoom');
 
 const DEFAULT_PORT = 9090;
 const TELEMETRY_DEFAULT = 'http://localhost:8889';
@@ -213,12 +215,19 @@ const DISPLAY_SETTINGS = Object.freeze([
   // The two "Panel background" sliders (settings.js applyPanelBackground): the rig's and the iPad's, and the one for
   // the HUD drawn by OBS, which the OBS pages read instead.
   'panelBackground', 'obsPanelBackground',
+  // Which way the following map zooms with his speed (modules/js/map-zoom.js): a word.
+  mapZoom.KEY,
 ]);
 const DISPLAY_SETTING_PATTERN = /^show[A-Z]/;
-// What the iPad's server tells the iPad of the settings: the panel background, a number, and nothing else. The glance
-// layout shows every panel whatever the rig's switches say, at the cell's size whatever the zoom, so none of the rest
-// is the iPad's to read.
-const IPAD_SETTINGS = Object.freeze(['panelBackground']);
+// What the iPad's server tells the iPad of the settings: the panel background, a number, and which way the following
+// map zooms, one of its three words — and nothing else. The glance layout shows every panel whatever the rig's switches
+// say, at the cell's size whatever the zoom, so none of the rest is the iPad's to read. Each key is let through only
+// as the kind of value it is.
+const IPAD_SETTINGS = Object.freeze(['panelBackground', mapZoom.KEY]);
+const IPAD_SETTING_IS = Object.freeze({
+  panelBackground: (v) => typeof v === 'number' && Number.isFinite(v),
+  [mapZoom.KEY]: (v) => typeof v === 'string' && mapZoom.MODES.includes(v),
+});
 const LOCAL_DEFAULT_PORT = 9091;
 const OBS_PATH = '/obs';
 // One segment, like /obs: the page's addresses are relative (modules/…, fonts/…) and resolve against the page's own.
@@ -238,12 +247,12 @@ function displaySettingsOf(settings) {
   return out;
 }
 
-/** His settings cut down to what the iPad is told (IPAD_SETTINGS): numbers alone. */
+/** His settings cut down to what the iPad is told (IPAD_SETTINGS), each only as the kind of value it is. */
 function ipadSettingsOf(settings) {
   const out = {};
   if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) return out;
   for (const key of IPAD_SETTINGS) {
-    if (typeof settings[key] === 'number' && Number.isFinite(settings[key])) out[key] = settings[key];
+    if (IPAD_SETTING_IS[key](settings[key])) out[key] = settings[key];
   }
   return out;
 }

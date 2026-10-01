@@ -789,12 +789,20 @@ test.describe('the loopback listener', () => {
     expect(remote.DISPLAY_SETTINGS).not.toContain('simhubUrl');
     expect(remote.DISPLAY_SETTINGS).not.toContain('agentKey');
     expect(remote.DISPLAY_SETTINGS).not.toContain('obsHudView');   // which page OBS draws is the source's address, not the page's to read
-    // The iPad: the panel background alone, a number alone.
-    expect(remote.IPAD_SETTINGS).toEqual(['panelBackground']);
+    // The following map's zoom: a word, to the OBS pages with the rest of the look.
+    expect(remote.DISPLAY_SETTINGS).toContain('followMapZoom');
+    expect(remote.displaySettingsOf({ ...HIS_SETTINGS, followMapZoom: 'wider' })).toEqual({ ...DISPLAY_ONLY, followMapZoom: 'wider' });
+    // The iPad: the panel background, a number alone, and the following map's zoom, one of its three words alone.
+    expect(remote.IPAD_SETTINGS).toEqual(['panelBackground', 'followMapZoom']);
     expect(remote.ipadSettingsOf(HIS_SETTINGS)).toEqual(IPAD_ONLY);
     expect(remote.ipadSettingsOf({ panelBackground: '70' })).toEqual({});
     expect(remote.ipadSettingsOf({ panelBackground: NaN })).toEqual({});
     expect(remote.ipadSettingsOf(null)).toEqual({});
+    expect(remote.ipadSettingsOf({ ...HIS_SETTINGS, followMapZoom: 'wider' })).toEqual({ ...IPAD_ONLY, followMapZoom: 'wider' });
+    expect(remote.ipadSettingsOf({ followMapZoom: 'fixed' })).toEqual({ followMapZoom: 'fixed' });
+    expect(remote.ipadSettingsOf({ followMapZoom: 'sideways' })).toEqual({});
+    expect(remote.ipadSettingsOf({ followMapZoom: 7 })).toEqual({});
+    expect(remote.ipadSettingsOf({ followMapZoom: { closer: true } })).toEqual({});
   });
 
   test('serves the HUD page in OBS mode at /obs: told it is OBS\'s, its telemetry here, the display settings and no more, no black background, no menu, no key', async () => {

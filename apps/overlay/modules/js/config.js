@@ -640,6 +640,8 @@ const _defaultSettings = {
   showWebGL: true, showBonkers: true, ambientMode: 'reflective',
   // How solid the panels are, 0 to 100 (settings.js applyPanelBackground): 90 is the panels as they have always been.
   panelBackground: 90,
+  // The following map's zoom with his speed (modules/js/map-zoom.js): 'closer' at speed, 'wider', or 'fixed'.
+  followMapZoom: 'closer',
   zoom: 165, forceFlag: '', showLeaderboard: true, showDatastream: true, showPitBox: true, showIncidents: true, showSpotter: true,
   incPenalty: 17, incDQ: 25,
   discordUser: null,

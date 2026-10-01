@@ -788,9 +788,11 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
   it, which had the iPad asking itself for telemetry.) In remote mode there is no voice coach; the HUD's effects and
   its ambient light are there (the colour the plugin samples from the rig's screen) unless "Effects: off" in the menu,
   which the iPad keeps; and a strip says "No data from the rig" when the numbers stop arriving. Of his settings the
-  iPad is told one thing, the "Panel background" slider of Settings → Look (`panelBackground`, 90 unless he moves it:
-  how solid the panels are, with a shadow under the numbers as it goes down), with the page and again every ten
-  seconds from its server's `/api/settings-display` (`remote-server.js` `IPAD_SETTINGS`), and nothing else.
+  iPad is told two things, the "Panel background" slider of Settings → Look (`panelBackground`, 90 unless he moves it:
+  how solid the panels are, with a shadow under the numbers as it goes down) and "Following map zoom" from the same
+  page (`followMapZoom`: which way the local map zooms with his speed, one of three words; `apps/overlay/modules/js/map-zoom.js`),
+  with the page and again every ten seconds from its server's `/api/settings-display` (`remote-server.js`
+  `IPAD_SETTINGS`, each key let through only as the kind of value it is), and nothing else.
 - **What he asked for on 2026-09-30** (`html.rd-remote` rules at the end of `drive-view.css`; the rig's own
   Ctrl+Shift+F is as it was): the glass's light — its tint, the overhead glow and the sweep, the specular streak, the
   inset glow — at fifteen hundredths of the rig's (`--rd-shine`), the flags' own treatment of the glass as it was;

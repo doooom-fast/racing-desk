@@ -19,6 +19,7 @@ const hudDisplay   = require('./modules/js/hud-display');
 const { createHudKeys } = require('./modules/js/hud-keys');
 const settingsFile = require('./modules/js/settings-file');
 const recordingSettings = require('./modules/js/recording-settings');
+const mapZoom = require('./modules/js/map-zoom');
 const streamdeckInstall = require('./modules/js/streamdeck-install');
 const obs = require('./modules/js/obs');
 const RacingDeskInCar = require('./modules/js/in-car');
@@ -142,6 +143,21 @@ function saveSettingsKeySync(key, value) {
     }
   } catch (err) {
     logToFile(`[RacingDesk] Recording settings could not be migrated: ${err.message}`);
+  }
+})();
+
+// The following map's zoom (modules/js/map-zoom.js): a settings file from before the setting, or one holding a word
+// that is not one of its three, is given "Closer at speed" once, before anything reads the file. A file that cannot be
+// read is left as it is.
+(function migrateFollowMapZoom() {
+  try {
+    const result = mapZoom.migrateFile(getSettingsPath(), { settingsFile });
+    if (result.changed) {
+      _lastSelfSettingsWriteAt = Date.now();
+      logToFile(`[RacingDesk] Following map zoom: ${mapZoom.KEY} set to ${result.settings[mapZoom.KEY]} in the settings file`);
+    }
+  } catch (err) {
+    logToFile(`[RacingDesk] Following map zoom could not be set in the settings file: ${err.message}`);
   }
 })();
 

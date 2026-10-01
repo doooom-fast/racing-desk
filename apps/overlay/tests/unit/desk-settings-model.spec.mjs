@@ -67,6 +67,23 @@ test.describe('settings model', () => {
     expect(parseControlValue(fieldFor('logoSubtitle'), null)).toBe('');
   });
 
+  test('the following map\'s zoom is a choice under Look: closer at speed (his ask, the default), wider at speed, or fixed; the words are map-zoom.js\'s', () => {
+    const mapZoom = require('../../modules/js/map-zoom.js');
+    const field = fieldFor('followMapZoom');
+    expect(SETTINGS_SECTIONS.find((s) => s.id === 'look').fields.map((f) => f.key)).toContain('followMapZoom');
+    expect(field.type).toBe('select');
+    expect(field.label).toBe('Following map zoom');
+    expect(field.def).toBe(mapZoom.DEFAULT);
+    expect(field.options).toEqual([['closer', 'Closer at speed'], ['wider', 'Wider at speed'], ['fixed', 'Fixed']]);
+    expect(field.options).toEqual(mapZoom.OPTIONS.map((o) => [...o]));
+    expect(valueOf(settingsView({}), 'followMapZoom')).toBe('closer');
+    expect(valueOf(settingsView({ followMapZoom: 'wider' }), 'followMapZoom')).toBe('wider');
+    expect(valueOf(settingsView({ followMapZoom: 'fixed' }), 'followMapZoom')).toBe('fixed');
+    expect(valueOf(settingsView({ followMapZoom: 'sideways' }), 'followMapZoom')).toBe('closer');
+    expect(parseControlValue(field, 'wider')).toBe('wider');
+    expect(parseControlValue(field, 'nope')).toBe('closer');
+  });
+
   test('the panel background is a slider under Look, 90 by default (the panels as they were), 0 to 100 in fives; the OBS one is not here', () => {
     const field = fieldFor('panelBackground');
     expect(SETTINGS_SECTIONS.find((s) => s.id === 'look').fields.map((f) => f.key)).toContain('panelBackground');

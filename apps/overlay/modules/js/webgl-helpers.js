@@ -1061,8 +1061,12 @@
   window.addEventListener('resize', _dvLayout);
   window.addEventListener('orientationchange', _dvLayout);
 
-  // Smoothed zoom radius for the local map
-  let _mapZoomRadius = 15.5;
+  // The local view's radius, following his speed (modules/js/map-zoom.js): closer at speed, wider, or fixed, by the
+  // "Following map zoom" setting, eased by the page's clock.
+  const _followZoom = RacingDeskMapZoom.follower();
+  function _followZoomMode() {
+    return RacingDeskMapZoom.modeOf(typeof _settings !== 'undefined' && _settings ? _settings.followMapZoom : undefined);
+  }
 
   // Smoothed heading for local map rotation
   let _mapSmoothedHeading = 0;
@@ -1321,19 +1325,14 @@
       }
     }
 
-    // Update zoom map — player always centered, track rotates so
-    // driving direction always points UP. Zoom in when slow (corners),
-    // zoom out when fast (straights) for a dynamic camera effect.
+    // Update zoom map — player always centered, track rotates so driving direction always points UP. The view's
+    // radius follows his speed (map-zoom.js): closer in as he goes faster, by default — what he asked for — or
+    // wider, or one view at every speed, by the "Following map zoom" setting; between the bounds the view has
+    // always had, and eased over about half a second so the noise in the speed is not in the map.
     const zoomSvg = document.getElementById('zoomMapSvg');
     if (zoomSvg) {
       const spd = typeof speedMph === 'number' ? speedMph : 0;
-      // Dynamic zoom: tighter when slow (corners), wider when fast (straights).
-      // 0 mph → 3× zoom (radius ~5.6), scales up to 75 mph → radius 16.7.
-      // Clamped at 75 mph — no further zoom-out beyond that.
-      const clampedSpd = Math.min(spd, 75);
-      const targetZR = 5.6 + (clampedSpd / 75) * (50 / 3 - 5.6);
-      _mapZoomRadius += (targetZR - _mapZoomRadius) * 0.15;
-      const zr = _mapZoomRadius;
+      const zr = _followZoom.radius(spd, _followZoomMode(), performance.now());
 
       if (_dv.on && _dv.zoomAspect > 0) {
         // The glance layout: the view is the shape of its cell, as wide as the radius says, and the car is
