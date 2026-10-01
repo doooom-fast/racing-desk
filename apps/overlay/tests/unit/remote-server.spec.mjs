@@ -757,3 +757,150 @@ test.describe('starting and stopping', () => {
     }
   });
 });
+
+// ── The loopback listener: the one on 127.0.0.1 alone, for the Stream Deck and for OBS ──
+// The same handler, with `loopback: true` and the two providers the app gives it: the app's status and his settings
+// whole, of which the page and the settings route get the display allowlist and nothing else.
+
+const HIS_SETTINGS = {
+  zoom: 120, layoutPosition: 'top-left', showSpotter: false, showLeaderboard: true, visualPreset: 'minimal+', theme: 'dark',
+  lbMaxRows: 8, driveMode: false, logoSubtitle: 'by DOOOOM',
+  // What is never sent: keys, folders, addresses, devices, the recording's and the iPad's, the paints, the commentary's key.
+  agentKey: 'SECRET-agent', anthropicApiKey: 'SECRET-anthropic', remoteServerKey: 'SECRET-remote', remoteServer: true, remoteServerPort: 9090,
+  obsWebSocketPasswordEnc: 'SECRET-obs', recordingFolder: 'D:\\Racing Desk\\Recordings', recordingAutoRecord: true, obsHudSource: true,
+  localServerPort: 9091, simhubUrl: 'http://localhost:8889/racing-desk/', paints: { paintDir: 'X:\\paint', customerId: '424242' },
+  raceLinks: { a: '1' }, hudDisplay: '12345', ambientCaptureRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, coachTone: 'calm',
+};
+const DISPLAY_ONLY = { zoom: 120, layoutPosition: 'top-left', showSpotter: false, showLeaderboard: true, visualPreset: 'minimal+', theme: 'dark', lbMaxRows: 8, driveMode: false, logoSubtitle: 'by DOOOOM' };
+const loopbackConfig = { loopback: true, status: () => ({ inCar: true, hudVisible: false, recording: { recording: true, elapsedMs: 1234, obs: 'open' } }), displaySettings: () => HIS_SETTINGS };
+
+test.describe('the loopback listener', () => {
+  test('the display allowlist: the panels, the zoom, the position and the look come through; keys, folders, addresses and devices never', () => {
+    expect(remote.displaySettingsOf(HIS_SETTINGS)).toEqual(DISPLAY_ONLY);
+    for (const key of Object.keys(remote.displaySettingsOf(HIS_SETTINGS))) expect(key).not.toMatch(/key|password|folder|url|port|paints|recording|obs|remote|agent/i);
+    expect(remote.displaySettingsOf(null)).toEqual({});
+    expect(remote.displaySettingsOf('zoom=1')).toEqual({});
+    expect(remote.displaySettingsOf({ showX: { nested: true }, showY: 'yes' })).toEqual({ showY: 'yes' });   // a setting is a word, a number or a switch
+    expect(remote.DISPLAY_SETTINGS).not.toContain('simhubUrl');
+    expect(remote.DISPLAY_SETTINGS).not.toContain('agentKey');
+  });
+
+  test('serves the HUD page in OBS mode at /obs: told it is OBS\'s, its telemetry here, the display settings and no more, no black background, no menu, no key', async () => {
+    const page = await ask(remote.OBS_PATH, { ...onTheRig, config: loopbackConfig });
+    expect(page.status).toBe(200);
+    expect(page.headers['Content-Type']).toBe('text/html; charset=utf-8');
+    expect(page.headers['Content-Security-Policy']).toBe("frame-ancestors 'none'");
+    expect(page.body).toContain('<title>HUD</title>');
+    expect(page.body).toContain('window._obsMode = true;');
+    expect(page.body).not.toContain('window._remoteMode');
+    expect(page.body).toContain("window._simhubUrlOverride = location.origin + '/racing-desk/';");
+    expect(page.body).toContain(`window._obsSettings = ${JSON.stringify(DISPLAY_ONLY)};`);
+    expect(page.body).toContain(`window._obsSettingsUrl = '${remote.SETTINGS_PATH}';`);
+    expect(page.body).toContain("document.documentElement.classList.add('rd-obs');");
+    expect(page.body.indexOf('window._obsMode')).toBeLessThan(page.body.indexOf('<title>'));
+    // Out of the car the page is not drawn: a browser source is never hidden by a window being hidden.
+    expect(page.body).toContain('html.rd-obs body.idle-state { visibility: hidden; }');
+    // No background (a browser source composites over the game), no iPad menu, no "no data" strip, no key, no secret.
+    expect(page.body).not.toContain('html { background: #000; }');
+    expect(page.body).toContain('html, body { background: transparent; }');
+    expect(page.body).not.toContain('rd-remote-menu-fab');
+    expect(page.body).not.toContain('rd-no-data');
+    expect(page.body).not.toContain(KEY);
+    expect(page.body).not.toContain('SECRET');
+    expect(page.body).not.toContain('424242');
+    expect(page.body).not.toContain('Set-Cookie');
+    expect(page.headers['Set-Cookie']).toBeUndefined();
+    // The kit is pulled out and asked for after the load, as on the iPad; the page's own stylesheets stay.
+    expect(page.body).not.toMatch(/<link\b[^>]*https?:/i);
+    expect(page.body).toContain('var kits = ["https://use.typekit.net/abc1def.css"];');
+    expect(page.body).toContain('<link rel="stylesheet" href="fonts/mono.css">');
+    expect(page.body).toContain(':root:not(.rd-kit)');
+    // A query is not an address of the page's; HEAD says the same as GET.
+    expect((await ask(`${remote.OBS_PATH}?k=${KEY}`, { ...onTheRig, config: loopbackConfig })).status).toBe(404);
+    expect((await ask(remote.OBS_PATH, { ...onTheRig, config: loopbackConfig, method: 'HEAD' })).status).toBe(200);
+    // Settings the app cannot give (a throw) leave the page with none, not without a page.
+    const bare = await ask(remote.OBS_PATH, { ...onTheRig, config: { loopback: true, displaySettings: () => { throw new Error('gone'); } } });
+    expect(bare.status).toBe(200);
+    expect(bare.body).toContain('window._obsSettings = {};');
+  });
+
+  test('serves the display settings at /api/settings-display, the allowlist alone, and the status with the app\'s state', async () => {
+    const settings = await ask(remote.SETTINGS_PATH, { ...onTheRig, config: loopbackConfig });
+    expect(settings.status).toBe(200);
+    expect(settings.headers['Cache-Control']).toBe('no-store');
+    expect(JSON.parse(settings.body)).toEqual(DISPLAY_ONLY);
+    expect(settings.body).not.toContain('SECRET');
+    const status = await ask('/api/status', { ...onTheRig, config: loopbackConfig });
+    expect(JSON.parse(status.body)).toEqual({ app: 'The Racing Desk', remoteServer: true, loopback: true, inCar: true, hudVisible: false, recording: { recording: true, elapsedMs: 1234, obs: 'open' } });
+    // A status the app cannot give is the two words it always said.
+    const broken = await ask('/api/status', { ...onTheRig, config: { loopback: true, status: () => { throw new Error('gone'); } } });
+    expect(JSON.parse(broken.body)).toEqual({ app: 'The Racing Desk', remoteServer: true, loopback: true });
+    // The iPad's server knows neither route, and its status has no app state unless it was given one.
+    expect((await ask(remote.OBS_PATH, onTheRig)).status).toBe(404);
+    expect((await ask(remote.SETTINGS_PATH, onTheRig)).status).toBe(404);
+    expect((await ask(remote.OBS_PATH, { ...withKey, config: { loopback: false, displaySettings: () => HIS_SETTINGS } })).status).toBe(404);
+    expect(JSON.parse((await ask('/api/status', withKey)).body)).toEqual({ app: 'The Racing Desk', remoteServer: true, loopback: false });
+  });
+
+  test('two servers run at once — the iPad\'s and the loopback one — each with its own listener, the actions on both; the loopback one is on 127.0.0.1 alone and needs no key', async () => {
+    const lanPort = await freePort();
+    const localPort = await freePort();
+    const local = remote.createServer({ loopback: true });
+    const dispatched = [];
+    remote.setActionDispatcher((name) => { dispatched.push(name); return { ok: true }; });
+    try {
+      await remote.start({ port: lanPort, host: '127.0.0.1', appDir, key: KEY, log: () => {} });
+      const info = await local.start({ port: localPort, host: '0.0.0.0', appDir, key: remote.newKey(), log: () => {}, status: () => ({ inCar: false, hudVisible: false, recording: null }), displaySettings: () => HIS_SETTINGS });
+      expect(info).toMatchObject({ running: true, port: localPort, loopback: true, lanAddress: null, url: `http://127.0.0.1:${localPort}/`, addresses: [] });
+      expect(local.isRunning()).toBe(true);
+      expect(remote.isRunning()).toBe(true);
+      expect(remote.getInfo().port).toBe(lanPort);
+
+      // The OBS page, the settings and the status on the loopback one, with no key; the iPad's has none of the first two.
+      const obsPage = await fetch(`http://127.0.0.1:${localPort}/obs`);
+      expect(obsPage.status).toBe(200);
+      expect(await obsPage.text()).toContain('window._obsMode = true;');
+      expect(await (await fetch(`http://127.0.0.1:${localPort}/api/settings-display`)).json()).toEqual(DISPLAY_ONLY);
+      expect(await (await fetch(`http://127.0.0.1:${localPort}/api/status`)).json()).toMatchObject({ loopback: true, inCar: false });
+      expect((await fetch(`http://127.0.0.1:${lanPort}/obs`)).status).toBe(404);
+      expect((await fetch(`http://127.0.0.1:${lanPort}/api/settings-display`)).status).toBe(404);
+      // The actions, on both, through the one dispatcher; the Stream Deck asks the loopback one.
+      expect((await fetch(`http://127.0.0.1:${localPort}/api/action/zoom-in`, { headers: { 'X-Racing-Desk': '1' } })).status).toBe(200);
+      expect((await fetch(`http://127.0.0.1:${lanPort}/api/action/zoom-out`, { headers: { 'X-Racing-Desk': '1' } })).status).toBe(200);
+      expect(dispatched).toEqual(['zoom-in', 'zoom-out']);
+      expect((await fetch(`http://127.0.0.1:${localPort}/api/action/zoom-in`)).status).toBe(403);   // a browser's request, or one with no header
+      // The telemetry and the page's files are served from it as from the iPad's; the app's own files are not.
+      expect((await fetch(`http://127.0.0.1:${localPort}/main.js`)).status).toBe(404);
+      expect((await fetch(`http://127.0.0.1:${localPort}/racing-desk/?action=quit`)).status).toBe(403);
+
+      // Stopped one at a time: the other goes on.
+      await local.stop();
+      expect(local.isRunning()).toBe(false);
+      await expect(fetch(`http://127.0.0.1:${localPort}/obs`)).rejects.toThrow();
+      expect((await fetch(`http://127.0.0.1:${lanPort}/`)).status).toBe(200);
+      await local.stop();   // stopping what is stopped is nothing
+    } finally {
+      remote.setActionDispatcher(null);
+      await local.stop();
+      await remote.stop();
+    }
+  });
+
+  test('the loopback server listens on 127.0.0.1 whatever host it is given, and never shows an address to open', async () => {
+    const port = await freePort();
+    const local = remote.createServer({ loopback: true });
+    try {
+      await local.start({ port, host: '0.0.0.0', appDir, key: KEY, log: () => {} });
+      const info = local.getInfo();
+      expect(info.addresses).toEqual([]);
+      expect(info.lanAddress).toBeNull();
+      expect(info.url).not.toContain(KEY);
+      // Named by one of the rig's own addresses it answers (the loopback socket is this machine's); it is the socket
+      // that is bound to 127.0.0.1 — a request to the rig's LAN address on that port finds nothing listening.
+      const lan = remote.lanAddresses()[0];
+      if (lan) await expect(fetch(`http://${lan.address}:${port}/api/status`, { signal: AbortSignal.timeout(2000) })).rejects.toThrow();
+    } finally {
+      await local.stop();
+    }
+  });
+});

@@ -10,8 +10,8 @@
   const _voiceCoach = {
     synth: window.speechSynthesis || null,
     voice: null,
-    // Not from an iPad beside the rig: the rig is already talking.
-    enabled: !window._remoteMode,
+    // Not from an iPad beside the rig, nor from the page OBS draws: the rig is already talking.
+    enabled: !window._remoteMode && !window._obsMode,
     volume: 0.7,
     rate: 0.9,          // slightly slower for calm delivery
     pitch: 0.85,        // slightly lower pitch

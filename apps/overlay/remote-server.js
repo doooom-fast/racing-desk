@@ -18,6 +18,19 @@
 //                           to anything a browser sends: a page cannot put that header on a link, an image or a
 //                           form, so no page the driver happens to have open can quit the app
 //
+// Two of these servers run (createServer): the iPad's, on the home network while its switch is on, and one that is
+// always up on 127.0.0.1 alone (`loopback: true`, port 9091 by default, `localServerPort`) for the programs on this
+// machine: the Stream Deck's buttons, whatever the iPad switch says, and OBS, which may draw the HUD itself
+// (docs/recording.md, "HUD drawn by OBS"). The loopback one serves three things more, and the iPad's refuses them:
+//
+//   GET /obs                   the HUD page in OBS mode: told it is OBS's (window._obsMode), its telemetry here, his
+//                              display settings (below), no black background, no iPad menu and no key — a browser
+//                              source's address in OBS's scene file carries nothing
+//   GET /api/settings-display  his display settings, the allowlist alone (DISPLAY_SETTINGS: the zoom, the position,
+//                              the panels, the look): never a key, the paints, the iPad's or the recording's keys.
+//                              The OBS page asks every ten seconds
+//   GET /api/status            with { inCar, hudVisible, recording } beside the two words it always said
+//
 // Anything from the network has to know the key — eight characters, in the address the Settings page shows and its
 // QR code holds. The page hands it back as a cookie, so the address is typed, or scanned, once. A request has to
 // name this machine by one of its own addresses, too, which is what stops a web page elsewhere from pointing a
@@ -180,6 +193,30 @@ const ACTIONS = Object.freeze([
   { name: 'preset-qualifying', label: 'Qualifying Mode', category: 'preset' },
 ]);
 
+// The settings the HUD page in OBS is told of: what the rig's own HUD draws by — the panels (show*), the zoom, the
+// position, the look, the leaderboard's rows, the glance layout's switch — and nothing that is a key, a folder, an
+// address or a device. A key not listed here is not sent, whatever is added to the settings file later.
+const DISPLAY_SETTINGS = Object.freeze([
+  'zoom', 'layoutPosition', 'bottomYOffset', 'visualPreset', 'theme', 'ambientMode', 'driveMode', 'rallyMode',
+  'lbMaxRows', 'lbFocus', 'lbExpandToFill', 'logoSubtitle', 'incPenalty', 'incDQ', 'forceFlag',
+]);
+const DISPLAY_SETTING_PATTERN = /^show[A-Z]/;
+const LOCAL_DEFAULT_PORT = 9091;
+const OBS_PATH = '/obs';
+const SETTINGS_PATH = '/api/settings-display';
+
+/** His settings cut down to what the OBS page may be told (DISPLAY_SETTINGS and the show* switches). */
+function displaySettingsOf(settings) {
+  const out = {};
+  if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) return out;
+  for (const [key, value] of Object.entries(settings)) {
+    if (!DISPLAY_SETTINGS.includes(key) && !DISPLAY_SETTING_PATTERN.test(key)) continue;
+    if (value !== null && typeof value === 'object') continue;   // a setting is a word, a number or a switch
+    out[key] = value;
+  }
+  return out;
+}
+
 // What the page is given before anything of its own runs: that it is the remote one, and that its telemetry is
 // here, at whatever address it was reached by. Worked out in the page, from its own address: nothing the request
 // said is written into it.
@@ -192,19 +229,9 @@ const ACTIONS = Object.freeze([
 // the rig never serves them: the iPad fetches them from Adobe itself. Until the text face has arrived the page is
 // in the condensed faces iPadOS has (`:root:not(.rd-kit)`), so its text is never invisible and never late, and a
 // page with no internet stays in them.
-function injection(kits) {
-  return `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="referrer" content="no-referrer">
-<script>
-window._remoteMode = true;
-window._simhubUrlOverride = location.origin + '${TELEMETRY_PATH}';
-document.documentElement.classList.add('rd-remote');
-// The HUD's effects are drawn here as on the rig unless they were switched off from the menu, on this iPad, before.
-try { window._rdEffectsOff = localStorage.getItem('rd-effects') === 'off'; } catch (e) { window._rdEffectsOff = false; }
-if (window._rdEffectsOff) document.documentElement.classList.add('rd-effects-off');
-addEventListener('load', function () {
+// The kit's stylesheet, added by script once the page has loaded (both pages).
+function kitScript(kits) {
+  return `addEventListener('load', function () {
   var kits = ${kits};
   var faces = ['700 1em sofia-pro-comp', '400 1em stolzl'];
   kits.forEach(function (href) {
@@ -220,16 +247,59 @@ addEventListener('load', function () {
     };
     document.head.appendChild(link);
   });
-});
+});`;
+}
+
+// The HUD's faces until the kit's have arrived (both pages).
+const FALLBACK_FACES = `:root:not(.rd-kit) {
+  --ff: "Avenir Next Condensed", "Helvetica Neue", sans-serif;
+  --ff-display: "Avenir Next", "Helvetica Neue", sans-serif;
+}`;
+
+// What the HUD page in OBS is given: that it is OBS's (window._obsMode — not the iPad's: the page lays itself out as
+// the rig's HUD, not as the glance layout, and decides in-car for itself as the iPad does), its telemetry here, his
+// display settings now and where to ask for them again, and the one rule that hides it out of the car — the rig's
+// window is hidden then; a browser source is not, and a frozen HUD over the garage would be in the picture. No
+// background (a browser source composites over the game), no menu, no key.
+function obsInjection(kits, settingsJson) {
+  return `<meta name="referrer" content="no-referrer">
+<script>
+window._obsMode = true;
+window._simhubUrlOverride = location.origin + '${TELEMETRY_PATH}';
+window._obsSettings = ${settingsJson};
+window._obsSettingsUrl = '${SETTINGS_PATH}';
+document.documentElement.classList.add('rd-obs');
+// Hidden until the telemetry says he is in the car: the page starts out idle and says so only on a change.
+document.addEventListener('DOMContentLoaded', function () { document.body.classList.add('idle-state'); });
+${kitScript(kits)}
+</script>
+<style>
+html, body { background: transparent; }
+/* Out of the car the page is not drawn at all: OBS would composite whatever it showed over the garage and the menus. */
+html.rd-obs body.idle-state { visibility: hidden; }
+${FALLBACK_FACES}
+</style>`;
+}
+
+function injection(kits) {
+  return `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="referrer" content="no-referrer">
+<script>
+window._remoteMode = true;
+window._simhubUrlOverride = location.origin + '${TELEMETRY_PATH}';
+document.documentElement.classList.add('rd-remote');
+// The HUD's effects are drawn here as on the rig unless they were switched off from the menu, on this iPad, before.
+try { window._rdEffectsOff = localStorage.getItem('rd-effects') === 'off'; } catch (e) { window._rdEffectsOff = false; }
+if (window._rdEffectsOff) document.documentElement.classList.add('rd-effects-off');
+${kitScript(kits)}
 </script>
 <style>
 /* The app's window is see-through, over the game. A browser's is not: there is nothing behind it but white. */
 html { background: #000; }
 /* The HUD's faces until the kit's have arrived. */
-:root:not(.rd-kit) {
-  --ff: "Avenir Next Condensed", "Helvetica Neue", sans-serif;
-  --ff-display: "Avenir Next", "Helvetica Neue", sans-serif;
-}
+${FALLBACK_FACES}
 /* Numbers that have stopped arriving look like numbers: say that they have (game-detect.js sets the class). */
 body.rd-no-data::after {
   content: 'No data from the rig';
@@ -349,18 +419,34 @@ document.addEventListener('DOMContentLoaded', function () {
 // for, and only once it has loaded.
 const KIT_LINK = /^https:\/\/use\.typekit\.net\/[A-Za-z0-9]+\.css$/i;
 
-function injectRemoteOverrides(html) {
-  // A stylesheet from the internet is taken out of the page, whichever it is: the kit comes back after the load,
-  // from the script above, and nothing else does. The page is drawn in the fonts it has until then.
+// A stylesheet from the internet is taken out of the page, whichever it is: the kit comes back after the load, from
+// the script above, and nothing else does. The page is drawn in the fonts it has until then.
+function stripKits(html) {
   const kits = [];
   const local = html.replace(/<link\b[^>]*\bhref=["'](https?:\/\/[^"']*)["'][^>]*>\s*/gi, (tag, href) => {
     if (KIT_LINK.test(href) && !kits.includes(href)) kits.push(href);
     return '';
   });
   // The addresses are the page's own, not the request's; the escape is for a script tag's sake all the same.
-  const add = injection(JSON.stringify(kits).replace(/</g, '\\u003c'));
+  return { local, kits: JSON.stringify(kits).replace(/</g, '\\u003c') };
+}
+
+function addToHead(local, add) {
   if (local.includes('<head>')) return local.replace('<head>', () => `<head>${add}`);
   return local.replace('<body', () => `${add}<body`);
+}
+
+function injectRemoteOverrides(html) {
+  const { local, kits } = stripKits(html);
+  return addToHead(local, injection(kits));
+}
+
+// The OBS page: `settings` is his settings whole, cut down here to what displaySettingsOf lets through and written
+// into the page as JSON (a setting is a word, a number or a switch; the escape is for a script tag's sake all the same).
+function injectObsOverrides(html, settings) {
+  const { local, kits } = stripKits(html);
+  const json = JSON.stringify(displaySettingsOf(settings)).replace(/</g, '\\u003c');
+  return addToHead(local, obsInjection(kits, json));
 }
 
 const NO_STORE = Object.freeze({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -415,8 +501,11 @@ function proxyTelemetry(config, res) {
 }
 
 // The whole of what the server does with a request. `config` is { appDir, telemetryBase, key, dispatchAction,
-// addresses(), crop() } — and `get`, for the tests, in place of http.get. `crop()` is the crop of the car's paint
-// behind the badge as the main process holds it, { png, id } or null; left out, there is never one.
+// addresses(), crop(), loopback, status(), displaySettings() } — and `get`, for the tests, in place of http.get.
+// `crop()` is the crop of the car's paint behind the badge as the main process holds it, { png, id } or null; left
+// out, there is never one. `loopback` is the listener on 127.0.0.1 alone, the one that serves the OBS page and the
+// display settings; `status()` is what the app says of the HUD and the recording, `displaySettings()` his settings
+// whole (cut down here, never sent whole).
 function handleRequest(config, req, res) {
   let url;
   let pathname;
@@ -472,7 +561,38 @@ function handleRequest(config, req, res) {
   }
 
   if (pathname === '/api/status') {
-    sendJson(res, 200, { app: 'The Racing Desk', remoteServer: true });
+    let more = {};
+    try { more = typeof config.status === 'function' ? config.status() : {}; } catch (e) { more = {}; }
+    if (more === null || typeof more !== 'object') more = {};
+    sendJson(res, 200, { app: 'The Racing Desk', remoteServer: true, loopback: !!config.loopback, ...more });
+    return;
+  }
+
+  // The OBS page and his display settings: the loopback listener's alone. The iPad's answers as it does to any
+  // address it has no page for.
+  if (pathname === SETTINGS_PATH) {
+    if (!config.loopback) { sendText(res, 404, 'Not found'); return; }
+    let settings = null;
+    try { settings = typeof config.displaySettings === 'function' ? config.displaySettings() : null; } catch (e) { settings = null; }
+    sendJson(res, 200, displaySettingsOf(settings));
+    return;
+  }
+
+  if (pathname === OBS_PATH) {
+    if (!config.loopback || url.search.length) { sendText(res, 404, 'Not found'); return; }
+    fs.readFile(path.join(config.appDir, DASHBOARD_FILE), 'utf8', (err, html) => {
+      if (err) { sendText(res, 404, `${DASHBOARD_FILE} not found`); return; }
+      let settings = null;
+      try { settings = typeof config.displaySettings === 'function' ? config.displaySettings() : null; } catch (e) { settings = null; }
+      res.writeHead(200, {
+        ...NO_STORE,
+        'Content-Type': 'text/html; charset=utf-8',
+        'Referrer-Policy': 'no-referrer',
+        'Content-Security-Policy': "frame-ancestors 'none'",
+        'X-Frame-Options': 'DENY',
+      });
+      res.end(injectObsOverrides(html, settings));
+    });
     return;
   }
 
@@ -548,13 +668,12 @@ function handleRequest(config, req, res) {
   });
 }
 
-// ── The one server the app runs ──
+// ── The servers the app runs ──
+// Two of one kind (createServer): the iPad's on the home network, switched on from the desk, and the loopback one,
+// always up on 127.0.0.1 for the programs on this machine. Each keeps its own listener; the action dispatcher is
+// one for both (setActionDispatcher: main.js's). The module's own start/stop/getInfo/isRunning are the iPad's, as
+// they always were.
 
-let _server = null;
-let _starting = null;
-let _port = DEFAULT_PORT;
-let _key = null;
-let _logFn = console.log;
 let _dispatchAction = null;   // main.js's, handed over with setActionDispatcher()
 
 function addressFor(address, port, key) {
@@ -567,111 +686,137 @@ function keptAddresses(now = Date.now()) {
   return _addresses.list;
 }
 
-function getInfo() {
-  const addresses = lanAddresses();
-  const lanAddress = addresses.length ? addresses[0].address : null;
-  return {
-    running: _server !== null,
-    port: _port,
-    lanAddress,
-    // The address to open on the iPad, key and all; null when the rig is on no network.
-    url: lanAddress && _key ? addressFor(lanAddress, _port, _key) : null,
-    addresses: addresses.map((a) => ({ name: a.name, address: a.address, url: _key ? addressFor(a.address, _port, _key) : null })),
-  };
-}
+// `loopback`: the listener on 127.0.0.1 alone, whatever `host` a start says, serving the OBS page and the display
+// settings; its address is never shown as one to open on an iPad (getInfo says 127.0.0.1 and no key).
+function createServer({ loopback = false } = {}) {
+  let _server = null;
+  let _starting = null;
+  let _port = loopback ? LOCAL_DEFAULT_PORT : DEFAULT_PORT;
+  let _key = null;
+  let _logFn = console.log;
+  const name = loopback ? 'Local server' : 'Remote server';
 
-// opts: { port, appDir, telemetryUrl (as the settings hold it), key, log, crop (the badge's crop, from memory),
-// host (the tests' — 127.0.0.1) }
-function start(opts = {}) {
-  if (_server) return Promise.resolve(getInfo());
-  // Two starts at once are one start: the second would otherwise leave a listener nothing could stop.
-  if (_starting) return _starting;
-  _starting = listen(opts).finally(() => { _starting = null; });
-  return _starting;
-}
-
-function listen(opts) {
-  return new Promise((resolve, reject) => {
-    if (!isKey(opts.key)) {
-      reject(new Error('The server needs a key before it is reachable from the network.'));
-      return;
+  function getInfo() {
+    if (loopback) {
+      return { running: _server !== null, port: _port, loopback: true, lanAddress: null, url: _server ? `http://127.0.0.1:${_port}/` : null, addresses: [] };
     }
-    const port = Number.isInteger(opts.port) && opts.port >= 1024 && opts.port <= 65535 ? opts.port : DEFAULT_PORT;
-    const log = opts.log || console.log;
-    const base = telemetryBase(opts.telemetryUrl);
-    // Telemetry fetched from this very server would be fetched from this very server, and so on.
-    if (new RegExp(`^http://(localhost|127\\.0\\.0\\.1|\\[::1\\]):${port}$`, 'i').test(base)) {
-      reject(new Error(`Port ${port} is where the telemetry is read from. Choose another port.`));
-      return;
-    }
-    const config = {
-      appDir: opts.appDir || __dirname,
-      telemetryBase: base,
-      key: opts.key,
-      get dispatchAction() { return _dispatchAction; },
-      addresses: () => keptAddresses(),
-      names: () => [os.hostname()],
-      crop: typeof opts.crop === 'function' ? opts.crop : () => null,
+    const addresses = lanAddresses();
+    const lanAddress = addresses.length ? addresses[0].address : null;
+    return {
+      running: _server !== null,
+      port: _port,
+      lanAddress,
+      // The address to open on the iPad, key and all; null when the rig is on no network.
+      url: lanAddress && _key ? addressFor(lanAddress, _port, _key) : null,
+      addresses: addresses.map((a) => ({ name: a.name, address: a.address, url: _key ? addressFor(a.address, _port, _key) : null })),
     };
-    const server = http.createServer((req, res) => {
-      try {
-        handleRequest(config, req, res);
-      } catch (err) {
-        log(`[RacingDesk] Remote server: ${req.method} ${String(req.url).split('?')[0]} failed: ${err.message}`);
-        if (!res.headersSent) sendText(res, 500, 'The rig could not answer that.');
-        else res.end();
+  }
+
+  // opts: { port, appDir, telemetryUrl (as the settings hold it), key, log, crop (the badge's crop, from memory),
+  // host (the tests' — 127.0.0.1), status (what the app says of the HUD and the recording, for /api/status),
+  // displaySettings (his settings, for the OBS page and /api/settings-display, loopback only) }
+  function start(opts = {}) {
+    if (_server) return Promise.resolve(getInfo());
+    // Two starts at once are one start: the second would otherwise leave a listener nothing could stop.
+    if (_starting) return _starting;
+    _starting = listen(opts).finally(() => { _starting = null; });
+    return _starting;
+  }
+
+  function listen(opts) {
+    return new Promise((resolve, reject) => {
+      if (!isKey(opts.key)) {
+        reject(new Error('The server needs a key before it is reachable from the network.'));
+        return;
       }
+      const port = Number.isInteger(opts.port) && opts.port >= 1024 && opts.port <= 65535 ? opts.port : (loopback ? LOCAL_DEFAULT_PORT : DEFAULT_PORT);
+      const log = opts.log || console.log;
+      const base = telemetryBase(opts.telemetryUrl);
+      // Telemetry fetched from this very server would be fetched from this very server, and so on.
+      if (new RegExp(`^http://(localhost|127\\.0\\.0\\.1|\\[::1\\]):${port}$`, 'i').test(base)) {
+        reject(new Error(`Port ${port} is where the telemetry is read from. Choose another port.`));
+        return;
+      }
+      const config = {
+        appDir: opts.appDir || __dirname,
+        telemetryBase: base,
+        key: opts.key,
+        loopback,
+        get dispatchAction() { return _dispatchAction; },
+        addresses: () => keptAddresses(),
+        names: () => [os.hostname()],
+        crop: typeof opts.crop === 'function' ? opts.crop : () => null,
+        status: typeof opts.status === 'function' ? opts.status : null,
+        displaySettings: typeof opts.displaySettings === 'function' ? opts.displaySettings : null,
+      };
+      const server = http.createServer((req, res) => {
+        try {
+          handleRequest(config, req, res);
+        } catch (err) {
+          log(`[RacingDesk] ${name}: ${req.method} ${String(req.url).split('?')[0]} failed: ${err.message}`);
+          if (!res.headersSent) sendText(res, 500, 'The rig could not answer that.');
+          else res.end();
+        }
+      });
+      server.once('error', (err) => {
+        log(`[RacingDesk] ${name} did not start: ${err.message}`);
+        reject(err.code === 'EADDRINUSE' ? new Error(`Port ${port} is in use by another program. Choose another port.`) : err);
+      });
+      // An iPad is one connection, or a few. Whatever opens hundreds and says nothing is not one.
+      server.maxConnections = 64;
+      server.headersTimeout = 10000;
+      server.requestTimeout = 15000;
+      server.listen(port, loopback ? '127.0.0.1' : (opts.host || '0.0.0.0'), () => {
+        _server = server;
+        _port = server.address().port;
+        _key = opts.key;
+        _logFn = log;
+        const info = getInfo();
+        // The key stays out of the log: the address without it is enough to say the server is up.
+        if (loopback) _logFn(`[RacingDesk] ${name} listening on 127.0.0.1:${_port} (the Stream Deck's buttons, the HUD for OBS), telemetry from ${config.telemetryBase}`);
+        else _logFn(`[RacingDesk] ${name} listening on port ${_port}${info.lanAddress ? ` (${info.lanAddress})` : ''}, telemetry from ${config.telemetryBase}`);
+        resolve(info);
+      });
     });
-    server.once('error', (err) => {
-      log(`[RacingDesk] Remote server did not start: ${err.message}`);
-      reject(err.code === 'EADDRINUSE' ? new Error(`Port ${port} is in use by another program. Choose another port.`) : err);
-    });
-    // An iPad is one connection, or a few. Whatever opens hundreds and says nothing is not one.
-    server.maxConnections = 64;
-    server.headersTimeout = 10000;
-    server.requestTimeout = 15000;
-    server.listen(port, opts.host || '0.0.0.0', () => {
-      _server = server;
-      _port = server.address().port;
-      _key = opts.key;
-      _logFn = log;
-      const info = getInfo();
-      // The key stays out of the log: the address without it is enough to say the server is up.
-      _logFn(`[RacingDesk] Remote server listening on port ${_port}${info.lanAddress ? ` (${info.lanAddress})` : ''}, telemetry from ${config.telemetryBase}`);
-      resolve(info);
-    });
-  });
-}
+  }
 
-function stop() {
-  return new Promise((resolve) => {
-    if (!_server) {
-      resolve();
-      return;
-    }
-    const server = _server;
-    _server = null;
-    server.close(() => {
-      _logFn('[RacingDesk] Remote server stopped');
-      resolve();
+  function stop() {
+    return new Promise((resolve) => {
+      if (!_server) {
+        resolve();
+        return;
+      }
+      const server = _server;
+      _server = null;
+      server.close(() => {
+        _logFn(`[RacingDesk] ${name} stopped`);
+        resolve();
+      });
+      // A browser holds its connection open between polls; closing them is what lets the port go now.
+      if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
     });
-    // A browser holds its connection open between polls; closing them is what lets the port go now.
-    if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
-  });
-}
+  }
 
-function isRunning() {
-  return _server !== null;
+  function isRunning() {
+    return _server !== null;
+  }
+
+  return { start, stop, isRunning, getInfo, loopback };
 }
 
 function setActionDispatcher(fn) {
   _dispatchAction = fn;
 }
 
+// The iPad's server, which the module's own functions are.
+const lan = createServer();
+
 module.exports = {
-  DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM, CROP_PATH,
-  start, stop, isRunning, getInfo, getLanAddress, setActionDispatcher,
+  DEFAULT_PORT, LOCAL_DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM, CROP_PATH, OBS_PATH, SETTINGS_PATH,
+  DISPLAY_SETTINGS,
+  start: lan.start, stop: lan.stop, isRunning: lan.isRunning, getInfo: lan.getInfo, getLanAddress, setActionDispatcher,
+  createServer,
   // The parts, for the tests.
   newKey, isKey, lanAddresses, telemetryBase, namesThisMachine, isLocal, fromBrowser, staticFile, injectRemoteOverrides,
-  handleRequest,
+  injectObsOverrides, displaySettingsOf, handleRequest,
 };

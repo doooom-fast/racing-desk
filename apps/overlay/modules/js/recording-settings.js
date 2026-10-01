@@ -10,10 +10,11 @@
 //
 // Run once by main.js at start, before anything reads the file; `recordingSettingsVersion` says it has been. Version 3
 // (stage 2) takes `recordingAutoStopOnPit` out: his rules of 2026-09-30 stop a recording on a new session, at the end
-// of the race and when he leaves the car, and the pit lane is none of those.
+// of the race and when he leaves the car, and the pit lane is none of those. Version 4 (stage 3) adds the loopback
+// listener's port and the TV shots' facecam switch.
 const path = require('path');
 
-const VERSION = 3;
+const VERSION = 4;
 
 // Deleted: the Electron recorder's own, the old WinUI app's control server, and "stop in the pits".
 const DELETED = Object.freeze([
@@ -39,7 +40,9 @@ const ADDED = Object.freeze({
   obsStartOnRecord: true,              // Record from the desk, the tray or the Stream Deck starts OBS when it is closed
   obsStartWithApp: false,              // never at Racing Desk's start unless he turns this on
   obsPath: null,                       // null: the default install, C:\Program Files\obs-studio
-  obsHudSource: false,                 // the HUD as an OBS browser source (a later build)
+  obsHudSource: false,                 // "HUD drawn by OBS": the HUD as a browser source in his scenes, off unless he turns it on
+  localServerPort: 9091,               // the listener on 127.0.0.1 for the Stream Deck and the OBS page (remote-server.js)
+  tvShotsHideFacecam: true,            // the facecam hidden while a TV take is recorded, and put back after
 });
 
 // Kept as it is: recordingAutoRecord (on unless set to false; the keeper reads `!== false`).

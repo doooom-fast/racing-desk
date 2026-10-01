@@ -133,7 +133,9 @@
   // ═════════════════════════════════════════════
 
   function sendRectToPlugin(rect) {
-    if (!rect) return;
+    // The rig's own HUD says where the ambient colour is sampled; the page OBS draws is a second copy, and has no
+    // main process to ask through (the runtime refuses a page's request).
+    if (!rect || window._obsMode) return;
     // Asked for by the app's main process (config.js runtimeAction): the runtime answers a program on this machine alone.
     runtimeAction('setrect', { x: rect.x, y: rect.y, w: rect.w, h: rect.h }).catch(err => {
       console.warn('[AmbientCapture] Failed to send rect to plugin:', err);

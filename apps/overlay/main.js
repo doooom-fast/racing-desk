@@ -903,6 +903,50 @@ async function maybeStartRemoteServer() {
   }
 }
 
+// ── The listener on 127.0.0.1 alone (remote-server.js, loopback) ──
+// Always up, whatever the iPad switch: the Stream Deck's buttons ask it for the actions, and OBS draws the HUD from
+// it when "HUD drawn by OBS" is on (/obs). Of the settings file it serves the display settings alone (the allowlist
+// in remote-server.js), and of the app its state (/api/status). Its port is `localServerPort` (9091 unless changed);
+// it never has a key to show, and never listens on any other address.
+const localServer = remoteServer.createServer({ loopback: true });
+
+function localServerPort() {
+  const port = loadSettingsSync().localServerPort;
+  return Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : remoteServer.LOCAL_DEFAULT_PORT;
+}
+
+// What the loopback listener says of the app: in the car or not, the HUD on screen or not, and the recording in short
+// (the Stream Deck writes it on its key; the OBS page may read it).
+function localStatus() {
+  const h = hud.state();
+  const r = recording.status();
+  return {
+    inCar: h.inCar,
+    hudVisible: h.visible,
+    recording: {
+      recording: r.recording, starting: r.starting, stopping: r.stopping, paused: r.paused, elapsedMs: r.elapsedMs,
+      obs: r.obs, owned: r.owned, auto: r.auto, replay: !!(r.replay && r.replay.running), tv: r.tv || null,
+    },
+  };
+}
+
+async function startLocalServer() {
+  try {
+    await localServer.start({
+      port: localServerPort(),
+      appDir: __dirname,
+      telemetryUrl: loadSettingsSync().simhubUrl,
+      key: remoteServer.newKey(),   // a key the loopback listener never asks for; the server needs one to start
+      log: logToFile,
+      crop: () => livery.current(),
+      status: localStatus,
+      displaySettings: () => loadSettingsSync(),
+    });
+  } catch (err) {
+    logToFile(`[RacingDesk] Local server failed to start: ${err.message}`);
+  }
+}
+
 logToFile('[RacingDesk] App starting...');
 
 app.whenReady().then(async () => {
@@ -919,6 +963,7 @@ app.whenReady().then(async () => {
     createTray();
 
     maybeStartRemoteServer();
+    startLocalServer();
     startSettingsWatcher();
 
     // OBS: the client tries its WebSocket every 5 s from here on; OBS itself is started only on his press, unless

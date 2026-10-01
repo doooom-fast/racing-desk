@@ -215,10 +215,10 @@
     // and the HUD looks dead even though poll-engine "succeeds". Fall
     // back to the canonical SIMHUB_URL when the saved value is bare.
     //
-    // Not on a page served over the network (remote-server.js): there the telemetry is wherever the page came
-    // from, which the server said before any of this ran. SIMHUB_URL is this machine's localhost — on an iPad,
-    // the iPad.
-    if (window._remoteMode) {
+    // Not on a page served over the network (remote-server.js), nor on the one OBS draws: there the telemetry is
+    // wherever the page came from, which the server said before any of this ran. SIMHUB_URL is this machine's
+    // localhost — on an iPad, the iPad.
+    if (window._remoteMode || window._obsMode) {
       // keep what the server gave
     } else if (_settings.simhubUrl
         && _settings.simhubUrl !== SIMHUB_URL
@@ -416,6 +416,20 @@
   // the watcher fires settings-sync. Run on DOMContentLoaded so the
   // panels applySettings() touches actually exist in the DOM.
   function _loadInitialSettings() {
+    if (window._obsMode) {
+      // The page OBS draws (remote-server.js, /obs): his display settings came with the page, and are asked for again
+      // every ten seconds from the same server, so a change made on the desk reaches this copy of the HUD too. Nothing
+      // else of the settings file is ever sent here.
+      _applyObsSettings(window._obsSettings);
+      if (typeof window._obsSettingsUrl === 'string' && typeof fetch === 'function') {
+        setInterval(function () {
+          fetch(window._obsSettingsUrl, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (saved) { if (saved) _applyObsSettings(saved); })
+            .catch(function () {});
+        }, Number(window._obsSettingsEveryMs) > 0 ? Number(window._obsSettingsEveryMs) : 10000);
+      }
+      return;
+    }
     if (!window.racingDesk || !window.racingDesk.getSettings) {
       // No bridge (running in a browser tab for dev) — apply defaults.
       try { applySettings(); } catch (e) { console.warn('[settings] initial apply failed:', e); }
@@ -430,6 +444,17 @@
       console.warn('[settings] initial getSettings failed:', err);
       try { applySettings(); } catch (e) {}
     });
+  }
+  // What the OBS page was given, applied — only when it differs from what it has, so that the ten-second ask does not
+  // redraw a HUD that has not changed.
+  var _obsApplied = null;
+  function _applyObsSettings(saved) {
+    if (!saved || typeof saved !== 'object') { try { applySettings(); } catch (e) {} return; }
+    var text = JSON.stringify(saved);
+    if (text === _obsApplied) return;
+    _obsApplied = text;
+    Object.assign(_settings, saved);
+    try { applySettings(); } catch (e) { console.warn('[settings] apply failed:', e); }
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _loadInitialSettings);

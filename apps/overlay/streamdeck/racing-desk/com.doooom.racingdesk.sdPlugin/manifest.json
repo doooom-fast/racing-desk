@@ -199,6 +199,21 @@
 			]
 		},
 		{
+			"Name": "TV Shots",
+			"UUID": "com.doooom.racingdesk.tv-shots",
+			"Icon": "imgs/actions/tv-shots/icon",
+			"Tooltip": "Record the TV-camera moments of the last recording from iRacing's replay, after the race",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/tv-shots/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
 			"Name": "Pitbox Next Tab",
 			"UUID": "com.doooom.racingdesk.pitbox-next-tab",
 			"Icon": "imgs/actions/pitbox-next-tab/icon",

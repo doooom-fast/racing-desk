@@ -52,8 +52,10 @@ test.describe('the migration', () => {
     expect(settings.obsStartWithApp).toBe(false);
     expect(settings.obsPath).toBeNull();
     expect(settings.obsHudSource).toBe(false);
-    expect(added.sort()).toEqual(['obsHudSource', 'obsPath', 'obsStartOnRecord', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds']);
-    expect(settings.recordingSettingsVersion).toBe(3);
+    expect(settings.localServerPort).toBe(9091);
+    expect(settings.tvShotsHideFacecam).toBe(true);
+    expect(added.sort()).toEqual(['localServerPort', 'obsHudSource', 'obsPath', 'obsStartOnRecord', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'tvShotsHideFacecam']);
+    expect(settings.recordingSettingsVersion).toBe(4);
     // The HUD's own keys, the paints and the iPad's are untouched.
     expect(settings.zoom).toBe(165);
     expect(settings.showSpotter).toBe(false);
@@ -80,22 +82,28 @@ test.describe('the migration', () => {
     const second = rs.migrate(first.settings);
     expect(second.changed).toBe(false);
     expect(second.settings).toEqual(first.settings);
-    expect(rs.migrate({ recordingSettingsVersion: 3, recordingBackend: 'native' }).changed).toBe(false);
-    expect(rs.migrate({ recordingSettingsVersion: 4 }).changed).toBe(false);
-    // A file at version 2 (stage 1) loses "stop in the pits" and nothing else, and comes to 3.
+    expect(rs.migrate({ recordingSettingsVersion: 4, recordingBackend: 'native' }).changed).toBe(false);
+    expect(rs.migrate({ recordingSettingsVersion: 5 }).changed).toBe(false);
+    // A file at version 2 (stage 1) loses "stop in the pits" and nothing else, and comes to 4.
     const fromTwo = rs.migrate({ recordingSettingsVersion: 2, recordingAutoRecord: true, recordingAutoStopOnPit: true, recordingInstantReplay: false, obsStartOnRecord: false, zoom: 120 });
     expect(fromTwo.changed).toBe(true);
     expect(fromTwo.removed).toEqual(['recordingAutoStopOnPit']);
     expect(fromTwo.renamed).toEqual([]);
-    expect(fromTwo.added.sort()).toEqual(['obsHudSource', 'obsPath', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds']);
-    expect(fromTwo.settings).toMatchObject({ recordingSettingsVersion: 3, recordingAutoRecord: true, recordingInstantReplay: false, obsStartOnRecord: false, zoom: 120 });
+    expect(fromTwo.added.sort()).toEqual(['localServerPort', 'obsHudSource', 'obsPath', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'tvShotsHideFacecam']);
+    expect(fromTwo.settings).toMatchObject({ recordingSettingsVersion: 4, recordingAutoRecord: true, recordingInstantReplay: false, obsStartOnRecord: false, zoom: 120 });
+    // A file at version 3 (stage 2) gets the loopback listener's port and the TV shots' switch, and nothing else changes.
+    const fromThree = rs.migrate({ recordingSettingsVersion: 3, obsHudSource: true, recordingChapters: false, zoom: 120, recordingInstantReplaySeconds: 20, obsStartOnRecord: true, obsStartWithApp: false, obsPath: null });
+    expect(fromThree.changed).toBe(true);
+    expect(fromThree.removed).toEqual([]);
+    expect(fromThree.added.sort()).toEqual(['localServerPort', 'tvShotsHideFacecam']);
+    expect(fromThree.settings).toMatchObject({ recordingSettingsVersion: 4, obsHudSource: true, recordingChapters: false, zoom: 120, localServerPort: 9091, tvShotsHideFacecam: true });
   });
 
   test('a missing or empty file gets the OBS keys and the version, and nothing else', () => {
     for (const file of [null, undefined, {}, [], 'x']) {
       const { settings, changed } = rs.migrate(file);
       expect(changed).toBe(true);
-      expect(Object.keys(settings).sort()).toEqual(['obsHudSource', 'obsPath', 'obsStartOnRecord', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'recordingSettingsVersion']);
+      expect(Object.keys(settings).sort()).toEqual(['localServerPort', 'obsHudSource', 'obsPath', 'obsStartOnRecord', 'obsStartWithApp', 'recordingChapters', 'recordingInstantReplaySeconds', 'recordingSettingsVersion', 'tvShotsHideFacecam']);
     }
   });
 });
@@ -114,7 +122,7 @@ test.describe('the file', () => {
     const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'));
     expect('recordingBackend' in onDisk).toBe(false);
     expect('hostControlPort' in onDisk).toBe(false);
-    expect(onDisk.recordingSettingsVersion).toBe(3);
+    expect(onDisk.recordingSettingsVersion).toBe(4);
     expect(onDisk.remoteServerKey).toBe('abcd2345');
     expect(fs.existsSync(`${file}.tmp`)).toBe(false);
     const mtime = fs.statSync(file).mtimeMs;
@@ -127,7 +135,7 @@ test.describe('the file', () => {
     const missing = path.join(dir, 'overlay-settings.json');
     const made = rs.migrateFile(missing, { settingsFile });
     expect(made.state).toBe('missing');
-    expect(JSON.parse(fs.readFileSync(missing, 'utf8')).recordingSettingsVersion).toBe(3);
+    expect(JSON.parse(fs.readFileSync(missing, 'utf8')).recordingSettingsVersion).toBe(4);
 
     const broken = path.join(dir, 'broken.json');
     fs.writeFileSync(broken, '{ not json');

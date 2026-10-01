@@ -400,6 +400,36 @@ test.describe('recording', () => {
   });
 });
 
+test.describe('the loopback listener', () => {
+  // remote-server.js's second server: on 127.0.0.1 alone, always up, for the Stream Deck and for OBS (the HUD page at
+  // /obs). It is given the app's state and his settings whole; the server keeps the allowlist of what a page may see.
+  test('is created as the loopback one, started at every start whatever the iPad switch, and given the status and the settings by function', () => {
+    expect(code).toMatch(/const localServer = remoteServer\.createServer\(\{ loopback: true \}\);/);
+    expect(calls(/remoteServer\.createServer\(/g)).toHaveLength(1);
+    expect(code).toMatch(/maybeStartRemoteServer\(\);\s*startLocalServer\(\);/);
+    const start = code.match(/async function startLocalServer\(\) \{([\s\S]*?)\n\}\n/);
+    expect(start).not.toBeNull();
+    expect(start[1]).toMatch(/localServer\.start\(\{/);
+    expect(start[1]).toMatch(/port:\s*localServerPort\(\)/);
+    expect(start[1]).toMatch(/status:\s*localStatus/);
+    expect(start[1]).toMatch(/displaySettings:\s*\(\)\s*=>\s*loadSettingsSync\(\)/);
+    expect(start[1]).not.toMatch(/host:/);   // the server binds 127.0.0.1 by itself; nothing here could put it on the LAN
+    // Its port is the settings file's localServerPort, else the server's own default; never the iPad's 9090.
+    const port = code.match(/function localServerPort\(\) \{([\s\S]*?)\n\}/);
+    expect(port).not.toBeNull();
+    expect(port[1]).toMatch(/loadSettingsSync\(\)\.localServerPort/);
+    expect(port[1]).toMatch(/remoteServer\.LOCAL_DEFAULT_PORT/);
+    expect(port[1]).not.toMatch(/9090/);
+    // What it says of the app: in the car, the HUD on screen, the recording in short — never a path of the settings file.
+    const status = code.match(/function localStatus\(\) \{([\s\S]*?)\n\}/);
+    expect(status).not.toBeNull();
+    expect(status[1]).toMatch(/inCar:\s*h\.inCar/);
+    expect(status[1]).toMatch(/hudVisible:\s*h\.visible/);
+    expect(status[1]).toMatch(/recording:\s*\{/);
+    expect(status[1]).not.toMatch(/loadSettingsSync|password|Key/);
+  });
+});
+
 test.describe('the log', () => {
   test('is app-log.js\'s, which knows the built app from the source', () => {
     expect(argumentsOf('appLog.createLog(')).toMatch(/appLog\.logPath\(\{\s*isPackaged:\s*app\.isPackaged,\s*appDir:\s*__dirname\s*\}\)/);

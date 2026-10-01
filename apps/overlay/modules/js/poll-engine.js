@@ -311,7 +311,7 @@
       document.body.classList.toggle('idle-state', nowIdle);
       // On an iPad, back in the car — the same car, after the garage, say — the rig chooses another section of the
       // paint, as it does on its own screen: ask for it (car-logos.js). A change of car asks, below.
-      if (!nowIdle && window._remoteMode && typeof requestRemoteLivery === 'function') requestRemoteLivery();
+      if (!nowIdle && (window._remoteMode || window._obsMode) && typeof requestRemoteLivery === 'function') requestRemoteLivery();
     }
 
     // Skip rest of update in idle (except settings remain responsive)
@@ -477,7 +477,7 @@
       setCarLogo(detectMfr(carModel), carModel);
       // On an iPad the crop of the car's paint behind the badge is the rig's to choose; the page asks for it
       // (car-logos.js). In the app the main process sends it of its own accord.
-      if (window._remoteMode && typeof requestRemoteLivery === 'function') requestRemoteLivery();
+      if ((window._remoteMode || window._obsMode) && typeof requestRemoteLivery === 'function') requestRemoteLivery();
       // Track car usage for driver profile heatmap
       if (carModel && !_demo && typeof recordCarSession === 'function') recordCarSession(carModel);
     }
@@ -1398,8 +1398,8 @@
     console.log('[The Racing Desk] Assets loaded, polling SimHub HTTP API at ' + SIMHUB_URL);
 
     // Initialize logo cycling (before we connect, the logos will cycle to be visible). Not in the app's hidden
-    // window, which connects only once the driver is in the car.
-    if (!_mainDecides) {
+    // window, which connects only once the driver is in the car; nor in the page OBS draws, which is in the picture.
+    if (!_mainDecides && !window._obsMode) {
       _logoCycleTimer = setInterval(() => {
         if (!_hasEverConnected) cycleCarLogo();
       }, 3000);

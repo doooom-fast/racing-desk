@@ -70,6 +70,57 @@ test.describe('the plugin\'s actions', () => {
     }
   });
 
+  test('the key says how the recording stands: the words for what the app answers at /api/status', () => {
+    expect(plugin.statusTitle(null)).toBe('No app');
+    expect(plugin.statusTitle({ app: 'The Racing Desk' })).toBe('');
+    expect(plugin.statusTitle({ recording: { recording: false, obs: 'open' } })).toBe('');
+    expect(plugin.statusTitle({ recording: { recording: false, obs: 'closed' } })).toBe('OBS off');
+    expect(plugin.statusTitle({ recording: { recording: false, starting: true, obs: 'open' } })).toBe('Starting');
+    expect(plugin.statusTitle({ recording: { recording: true, elapsedMs: 754_000, obs: 'open' } })).toBe('● 12:34');
+    expect(plugin.statusTitle({ recording: { recording: true, elapsedMs: 754_000, obs: 'open', tv: { running: true, index: 3, total: 7 } } })).toBe('TV 3/7');
+    // The route is the loopback listener's, 9091, whatever the iPad view's switch.
+    expect(plugin.DEFAULT_PORT).toBe(9091);
+    expect(plugin.ACTIONS['com.doooom.racingdesk.tv-shots']).toBe('tv-shots');
+    expect(plugin.askWithin('tv-shots')).toBe(plugin.RECORDING_ASK_WITHIN_MS);
+  });
+
+  test('while a Toggle Recording key is on the deck the plugin asks the app how the recording stands and writes it on the key; gone, it stops asking', async () => {
+    // A fake Stream Deck app connection, and a fake app that answers the status.
+    const listeners = {};
+    const sent = [];
+    const fakeWs = { on: (name, fn) => { listeners[name] = fn; }, send: (text) => sent.push(JSON.parse(text)) };
+    let status = { recording: { recording: true, elapsedMs: 5000, obs: 'open' } };
+    const asked = [];
+    const fetchFn = async (url) => { asked.push(url); return { ok: true, json: async () => status }; };
+    const timers = [];
+    const setTimer = (fn, ms) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; };
+    const run = plugin.run({ port: 1, pluginUUID: 'p', registerEvent: 'registerPlugin' }, { connectFn: () => fakeWs, fetchFn, setTimer, clearTimer: (t) => { t.cleared = true; } });
+    listeners.open();
+    expect(sent).toEqual([{ event: 'registerPlugin', uuid: 'p' }]);
+    // The key appears: asked at once, and the words written on it.
+    await listeners.message(JSON.stringify({ event: 'willAppear', action: plugin.STATUS_ACTION, context: 'k1', payload: { settings: { port: 4321 } } }));
+    expect(timers).toHaveLength(1);
+    await timers[0].fn();
+    expect(asked).toEqual(['http://127.0.0.1:4321/api/status']);
+    expect(sent.at(-1)).toEqual({ event: 'setTitle', context: 'k1', payload: { title: '● 0:05', target: 0 } });
+    // The same words again are not sent again; changed words are.
+    expect(timers).toHaveLength(2);
+    expect(timers[1].ms).toBe(plugin.STATUS_EVERY_MS);
+    await timers[1].fn();
+    expect(sent.filter((m) => m.event === 'setTitle')).toHaveLength(1);
+    status = { recording: { recording: false, obs: 'closed' } };
+    await timers[2].fn();
+    expect(sent.at(-1)).toEqual({ event: 'setTitle', context: 'k1', payload: { title: 'OBS off', target: 0 } });
+    // Another kind of key appearing is not asked about; the key gone, the asking stops.
+    await listeners.message(JSON.stringify({ event: 'willAppear', action: 'com.doooom.racingdesk.zoom-in', context: 'k2', payload: { settings: {} } }));
+    await listeners.message(JSON.stringify({ event: 'willDisappear', action: plugin.STATUS_ACTION, context: 'k1', payload: { settings: {} } }));
+    const before = asked.length;
+    await timers.at(-1).fn();
+    expect(asked).toHaveLength(before);
+    listeners.close({ code: 1001, reason: 'bye' });
+    expect(await run).toEqual({ code: 1001, reason: 'bye' });
+  });
+
   test('the Stream Deck app\'s arguments are read', () => {
     expect(plugin.parseArgs(['-port', '28196', '-pluginUUID', 'abc', '-registerEvent', 'registerPlugin', '-info', '{"application":{}}'])).toEqual({ port: 28196, pluginUUID: 'abc', registerEvent: 'registerPlugin', info: { application: {} } });
     expect(plugin.parseArgs([])).toEqual({ port: null, pluginUUID: null, registerEvent: 'registerPlugin', info: null });

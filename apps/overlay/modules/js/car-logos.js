@@ -139,9 +139,9 @@
     setCarLivery(URL.createObjectURL(blob));
   }
 
-  // On an iPad: the car has changed, ask the rig for its crop.
+  // On an iPad, or in the page OBS draws: the car has changed, ask the rig for its crop.
   function requestRemoteLivery() {
-    if (!window._remoteMode || typeof fetch !== 'function') return;
+    if ((!window._remoteMode && !window._obsMode) || typeof fetch !== 'function') return;
     const ask = ++_liveryAsk;
     for (const t of _liveryTimers) clearTimeout(t);
     _liveryTimers = LIVERY_ASK_AT_MS.map((ms) => setTimeout(() => { fetchRemoteLivery(ask); }, ms));
@@ -149,7 +149,7 @@
   window.requestRemoteLivery = requestRemoteLivery;
 
   // In the app the main process says: what it has chosen since, and what it had chosen before this page loaded.
-  if (!window._remoteMode && window.racingDesk) {
+  if (!window._remoteMode && !window._obsMode && window.racingDesk) {
     if (typeof window.racingDesk.onLogoLivery === 'function') {
       try { window.racingDesk.onLogoLivery((url) => setCarLivery(url)); } catch (e) { /* no bridge */ }
     }
