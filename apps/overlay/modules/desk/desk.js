@@ -319,6 +319,7 @@
       <h2>Race · ${esc(card.viewModel.positionDisplay || '')}</h2>
       <div class="title">${esc(e.trackDisplayName)}</div>
       <div class="meta">${meta}</div>
+      <div class="race-tv" id="race-tv" hidden></div>
       ${lapChart(laps, best)}
       <h2>Incidents · ${e.incidents}x</h2>
       <div class="incident-strip" title="Where on the lap incidents happened">
@@ -338,6 +339,37 @@
           </tbody>
         </table>
       </div>`;
+    renderRaceTv(e);
+  }
+
+  // ── TV shots, from the race detail ──
+  // The app says which recording in the recordings folder is this race's (by its start and track); the button asks the
+  // app for the TV shots of it — iRacing's replay recorded through a TV camera into that folder — and the pill and the
+  // card say how it goes. Outside the app there is nothing to ask.
+  let raceTvFor = null;      // the race the detail shows, and its recording as the app found it
+  async function renderRaceTv(e) {
+    const el = $('race-tv');
+    const bridge = recordingBridge();
+    if (!el || !bridge || !RecordingModel) return;
+    let found = null;
+    try {
+      const answer = await bridge.command('recordingFor', { startedAt: e.startedAt, track: e.trackDisplayName });
+      found = answer && answer.ok && answer.recording ? answer.recording : null;
+    } catch (_) { found = null; }
+    if (selectedRaceId !== e.id) return;
+    raceTvFor = { id: e.id, recording: found };
+    drawRaceTv();
+  }
+
+  function drawRaceTv() {
+    const el = $('race-tv');
+    if (!el || !raceTvFor || !RecordingModel) return;
+    const view = RecordingModel.raceTv(recordingNow(), raceTvFor.recording);
+    el.hidden = false;
+    if (!view.show) { el.innerHTML = `<p class="race-tv-line dim">${esc(view.line)}</p>`; return; }
+    const folder = raceTvFor.recording.folder;
+    el.innerHTML = `<p class="race-tv-line">${esc(view.line)} <button type="button" class="race-tv-open" data-recording-cmd="openRecording" data-folder="${esc(folder)}" title="Open the recording's folder">Open folder</button></p>
+      <p class="race-tv-buttons"><button type="button" data-recording-cmd="${esc(view.button.command)}" data-folder="${esc(folder)}"${view.button.enabled && !recordingBusy ? '' : ' disabled'}${view.button.hint ? ` title="${esc(view.button.hint)}"` : ''}>${esc(view.button.label)}</button></p>`;
   }
 
   function lapChart(laps, best) {
@@ -864,6 +896,7 @@
   function renderRecording() {
     renderRecordingPill();
     if (currentPage === 'settings') renderRecordingCard();
+    if (raceTvFor && selectedRaceId === raceTvFor.id) drawRaceTv();
     const recordingNow = !!(recordingStatus && recordingStatus.recording);
     if (recordingNow && recordingTicker === null) recordingTicker = setInterval(renderRecordingPill, 1000);
     if (!recordingNow && recordingTicker !== null) { clearInterval(recordingTicker); recordingTicker = null; }
@@ -980,7 +1013,9 @@
   function onRecordingClick(ev) {
     const button = ev.target.closest('[data-recording-cmd]');
     if (!button || button.disabled) return;
-    recordingCommand(button.dataset.recordingCmd);
+    const cmd = button.dataset.recordingCmd;
+    // The race detail's buttons name the recording's folder; the rest take nothing.
+    recordingCommand(cmd, button.dataset.folder ? { folder: button.dataset.folder } : undefined);
   }
 
   function onRecordingChange(ev) {
@@ -1055,6 +1090,7 @@
   $('settings-recording').addEventListener('change', onRecordingChange);
   $('settings-recording').addEventListener('submit', onRecordingSubmit);
   $('recording-pill').addEventListener('click', onRecordingClick);
+  $('detail').addEventListener('click', onRecordingClick);
   if (recordingBridge() && typeof recordingBridge().onState === 'function') {
     recordingBridge().onState((status) => { recordingStatus = status && typeof status === 'object' ? status : null; renderRecording(); });
   }

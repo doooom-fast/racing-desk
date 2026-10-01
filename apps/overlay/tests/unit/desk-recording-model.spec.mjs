@@ -146,6 +146,36 @@ test('the card: buttons and sentences for the states, the switches, the folder',
   expect(missing.details.join(' ')).not.toMatch(/Set its folder|below/);
 });
 
+test('TV shots: the pill is theirs while they run, with Stop; the card says how they went; the race detail has the button for a race with a recording', () => {
+  const running = { ...READY, tv: { running: true, step: 'recording', index: 3, total: 7, label: 'P5 → P4', result: null } };
+  expect(model.stateLine(running)).toBe('TV shots 3 of 7');
+  expect(model.pill(running)).toEqual({ text: 'TV shots 3 of 7', state: 'busy', detail: 'TV shots: recording moment 3 of 7 — P5 → P4.', button: { label: 'Stop', enabled: true, command: 'tvShotsCancel' } });
+  expect(model.pill({ ...running, tv: { ...running.tv, step: 'cancelling' } }).button).toEqual({ label: 'Stop', enabled: false, command: 'tvShotsCancel' });
+  expect(model.stateLine({ ...running, tv: { ...running.tv, step: 'preparing' } })).toBe('TV shots: getting ready');
+  expect(model.stateLine({ ...running, tv: { ...running.tv, step: 'filing' } })).toBe('TV shots: filing the take');
+  expect(model.card({ ...running, tv: { ...running.tv, step: 'seeking' } }).details).toContain('TV shots: finding moment 3 of 7 in the replay — P5 → P4.');
+  // Over: what came of them.
+  const done = { ...READY, tv: { running: false, step: 'done', result: { ok: true, moments: 7, video: 'D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort\\2026-09-29 22-13-22 tv.mp4' } } };
+  expect(model.stateLine(done)).toBe('OBS is open, not recording');
+  expect(model.pill(done).button.command).toBe('toggle');
+  expect(model.card(done).details).toContain('TV shots done: 7 moments, in D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort\\2026-09-29 22-13-22 tv.mp4.');
+  expect(model.tvSentence({ tv: { running: false, result: { ok: false, cancelled: true, moments: 2, video: 'x.mp4' } } })).toBe('TV shots stopped after 2 moments; what was recorded is in x.mp4.');
+  expect(model.tvSentence({ tv: { running: false, result: { ok: false, cancelled: false, moments: 0, reason: "iRacing isn't in its replay." } } })).toBe("TV shots were not made: iRacing isn't in its replay.");
+  expect(model.tvSentence({ tv: { running: false, result: null } })).toBeNull();
+  expect(model.tvSentence(READY)).toBeNull();
+  // A TV take recording reads as one.
+  expect(model.card({ ...READY, recording: true, owned: true, kind: 'tv', elapsedMs: 5000, bytes: 1e9, outputPath: 'x.mp4' }).details[0]).toBe('1.0 GB · x.mp4 · a TV take');
+  // The race detail.
+  const rec = { folder: 'D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort', name: '2026-09-29 22-13 Zandvoort', take: null, clips: 2 };
+  expect(model.raceTv(READY, null)).toMatchObject({ show: false, button: null });
+  expect(model.raceTv(READY, rec)).toEqual({ show: true, line: 'Recording: 2026-09-29 22-13 Zandvoort · 2 replays', button: { label: 'TV shots', command: 'tvShots', enabled: true, hint: "From iRacing's replay of this race, through a TV camera, into this recording's folder." } });
+  expect(model.raceTv(READY, { ...rec, take: 'x tv.mp4', clips: 0 })).toMatchObject({ line: 'Recording: 2026-09-29 22-13 Zandvoort (TV shots made)', button: { label: 'TV shots again', enabled: true } });
+  expect(model.raceTv({ ...READY, obs: 'closed' }, rec).button).toMatchObject({ enabled: false, hint: 'Needs OBS open and nothing recording.' });
+  expect(model.raceTv({ ...READY, recording: true }, rec).button.enabled).toBe(false);
+  expect(model.raceTv(running, rec).button).toEqual({ label: 'Stop TV shots', command: 'tvShotsCancel', enabled: true });
+  expect(model.raceTv(null, rec).button.enabled).toBe(false);
+});
+
 test('without the app the card is read-only and says so', () => {
   const card = model.card(null, { inApp: false });
   expect(card.line).toBe('This is switched from the Racing Desk app.');

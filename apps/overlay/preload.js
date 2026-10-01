@@ -79,7 +79,8 @@ contextBridge.exposeInMainWorld('racingDesk', {
   },
   // Desk window: the recording, which is OBS's (modules/js/obs). status() is the keeper's status with the folder and
   // what Set up OBS has left to do; command(name, value) is one of record, stop, toggle, saveReplay, setup, openObs,
-  // openFolder, chooseFolder, password, answered { ok, reason? } in words; onState is pushed on every change. The password's
+  // openFolder, chooseFolder, password, tvShots ({ folder }), tvShotsCancel, recordingFor ({ startedAt, track }) and
+  // openRecording ({ folder }), answered { ok, reason? } in words; onState is pushed on every change. The password's
   // value goes in and never comes back: no status carries it.
   recording: {
     status: () => ipcRenderer.invoke('recording:status'),

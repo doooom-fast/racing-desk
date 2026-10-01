@@ -318,6 +318,10 @@ function buildTrayMenu() {
     const recordingNow = rec.recording || rec.starting;
     items.push({ label: recordingNow ? `Stop recording${rec.recording ? ' · ' + trayElapsed(rec.elapsedMs) : ''}` : 'Record', enabled: !rec.busy, click: () => { dispatchAction('toggle-recording', { source: 'tray' }); } });
     if (rec.replay && rec.replay.on) items.push({ label: 'Save replay', enabled: !!rec.replay.running && !rec.busy, click: () => { dispatchAction('save-replay-buffer', { source: 'tray' }); } });
+    // TV shots of the latest recording, from iRacing's replay: out of the car, with OBS open and nothing recording.
+    const tv = tvShots.status();
+    if (tv.running) items.push({ label: `Stop TV shots · ${tv.index} of ${tv.total}`, click: () => { tvShots.cancel(); } });
+    else items.push({ label: 'TV shots of the last recording', enabled: rec.obs === 'open' && !recordingNow && !rec.busy && !hud.state().inCar, click: () => { dispatchAction('tv-shots', { source: 'tray' }); } });
     if (rec.obs !== 'open') items.push({ label: 'Open OBS', enabled: rec.busy !== 'starting-obs', click: () => { openObs().catch(() => {}); } });
     items.push({ type: 'separator' });
   }
@@ -596,6 +600,60 @@ obsClient.onChange((state) => {
   if (state.phase === 'identified') applyHudSource('OBS answered');
 });
 
+// ── TV shots (modules/js/obs/tv-shots.js) ──
+// After a race, from the desk's race detail, the tray or the Stream Deck: the recording's moments recorded again from
+// iRacing's replay through a TV camera, the replay driven by the app's own host over its replay route
+// (/racing-desk/data/replay: the SDK's own commands, for a program on this machine). No key is pressed. The take goes
+// into the race's folder as `… tv.mp4` with its sidecar; progress is on the desk's pill and card and the tray.
+const hostReplay = {
+  status: () => askHost('GET', '/racing-desk/data/replay'),
+  command: (body) => askHost('POST', '/racing-desk/data/replay', body),
+};
+
+// A request of the app's own host, from this process (a page's would be refused): JSON in, JSON out, 3 s at most.
+async function askHost(method, route, body = null) {
+  const res = await fetch(`${localHostUrl()}${route}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(3000),
+  });
+  let answer = null;
+  try { answer = await res.json(); } catch (e) { answer = null; }
+  if (!res.ok) return { ok: false, error: (answer && answer.error) || `the host answered ${res.status}`, status: res.status };
+  return answer;
+}
+
+const tvShots = obs.createTvShots({
+  client: obsClient,
+  recording,
+  replay: hostReplay,
+  settings: loadSettingsSync,
+  inCar: () => hud.state().inCar,
+  log: logToFile,
+  onChange: () => { buildTrayMenu(); tellDeskRecording(); },
+});
+
+// The recording a race is of, for the desk's race detail: by the session's start and track, in the recordings folder.
+function recordingForRace(race) {
+  const list = obs.recordingsIndex.listRecordings(recordingFolder(), { fs });
+  const found = obs.recordingsIndex.matchRace(list, { startedAt: race && race.startedAt, track: race && race.track });
+  return found ? { folder: found.folder, name: found.name, video: found.video, take: found.take, startedAt: found.startedAt, clips: found.clips } : null;
+}
+
+// TV shots of a recording: the desk names the race's folder; the tray and the Stream Deck mean the latest recording.
+async function startTvShots({ source = 'desk', folder = null } = {}) {
+  if (hud.state().inCar) return { ok: false, reason: obs.tvShots.IN_CAR };
+  let where = typeof folder === 'string' && folder ? folder : null;
+  if (!where) {
+    const latest = obs.recordingsIndex.latest(obs.recordingsIndex.listRecordings(recordingFolder(), { fs }));
+    if (!latest) return { ok: false, reason: obs.tvShots.NO_RECORDING };
+    where = latest.folder;
+  }
+  logToFile(`[RacingDesk] TV shots asked for from the ${source}: ${where}`);
+  return tvShots.start({ folder: where });
+}
+
 // What the desk is told of the recording: the keeper's status, what Set up OBS has left to do, and the folder.
 let setupLookedAt = { at: 0, value: null };
 function setupStatus() {
@@ -643,6 +701,7 @@ function recordingStatus() {
     obsHudSource: settings.obsHudSource === true,
     tvShotsHideFacecam: settings.tvShotsHideFacecam !== false,
     hudSource: hudSource.status(),
+    tv: tvShots.status(),
   };
 }
 
@@ -705,6 +764,7 @@ let stoppedForQuit = false;
 function stopOwnedRecording() {
   if (stoppedForQuit) return Promise.resolve();
   stoppedForQuit = true;
+  if (tvShots.status().running) tvShots.cancel();
   // The HUD source is switched off in OBS on the way out: a browser source whose page has gone shows whatever CEF shows
   // for a page that failed to load, and nothing reloads it until Racing Desk is back.
   const hudOff = hudSourceOn() && obsClient.identified()
@@ -976,7 +1036,8 @@ function localStatus() {
     hudVisible: h.visible,
     recording: {
       recording: r.recording, starting: r.starting, stopping: r.stopping, paused: r.paused, elapsedMs: r.elapsedMs,
-      obs: r.obs, owned: r.owned, auto: r.auto, replay: !!(r.replay && r.replay.running), tv: r.tv || null,
+      obs: r.obs, owned: r.owned, auto: r.auto, replay: !!(r.replay && r.replay.running),
+      tv: (() => { const t = tvShots.status(); return t.running ? { running: true, index: t.index, total: t.total, step: t.step } : null; })(),
     },
   };
 }
@@ -1110,7 +1171,9 @@ const _actionHandlers = {
   'start-recording':    ({ source = 'streamdeck' } = {}) => recording.record({ source }),
   'stop-recording':     () => recording.stop(),
   'save-replay-buffer': ({ source = 'streamdeck' } = {}) => recording.saveReplay({ source }),
-  'tv-shots':           () => ({ ok: false, reason: 'TV shots come with a later build' }),
+  // TV shots: from the desk (which names the race's folder), the tray and the Stream Deck (the latest recording); a key
+  // in the car answers that they are made from the desk after the race.
+  'tv-shots':           ({ source = 'streamdeck', folder = null } = {}) => (source === 'key' ? { ok: false, reason: obs.tvShots.IN_CAR } : startTvShots({ source, folder })),
 
   // ── New actions (not bound to hotkeys) ──
   'pitbox-next-tab':     () => _sendRenderer('pitbox-next-tab'),
@@ -1219,6 +1282,17 @@ ipcMain.handle('recording:command', async (event, command, value) => {
         return { ok: true, folder: result.filePaths[0] };
       }
       case 'password': { const answer = setObsPassword(value); tellDeskRecording(); return answer; }
+      case 'tvShots': { const answer = await startTvShots({ source: 'desk', folder: value && typeof value === 'object' ? value.folder : null }); tellDeskRecording(); return answer; }
+      case 'tvShotsCancel': { const answer = tvShots.cancel(); tellDeskRecording(); return answer; }
+      case 'recordingFor': return { ok: true, recording: recordingForRace(value && typeof value === 'object' ? value : null) };
+      case 'openRecording': {
+        // The race's own folder, opened in Explorer: one of the recordings folder's, and nothing else.
+        const where = value && typeof value === 'object' && typeof value.folder === 'string' ? path.resolve(value.folder) : null;
+        const root = path.resolve(recordingFolder());
+        if (!where || path.relative(root, where).startsWith('..') || path.isAbsolute(path.relative(root, where)) || !fs.existsSync(where)) return { ok: false, reason: 'That is not a recording\'s folder.' };
+        await shell.openPath(where);
+        return { ok: true };
+      }
       default: return { ok: false, reason: `Unknown command: ${String(command)}` };
     }
   } catch (err) {

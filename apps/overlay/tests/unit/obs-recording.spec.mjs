@@ -324,7 +324,7 @@ test('the status says what the card needs, and every change is announced', async
   try {
     await until(() => r.keeper.status().obs === 'open');
     const s = r.keeper.status();
-    expect(Object.keys(s).sort()).toEqual(['auto', 'autoRecord', 'busy', 'bytes', 'bytesPerSecond', 'chapters', 'elapsedMs', 'filed', 'free', 'last', 'lastFiled', 'lowDisk', 'obs', 'obsVersion', 'outputPath', 'owned', 'paused', 'recording', 'replay', 'sidecar', 'startedAt', 'starting', 'stopping']);
+    expect(Object.keys(s).sort()).toEqual(['auto', 'autoHeld', 'autoRecord', 'busy', 'bytes', 'bytesPerSecond', 'chapters', 'elapsedMs', 'filed', 'free', 'kind', 'last', 'lastFiled', 'lowDisk', 'obs', 'obsVersion', 'outputPath', 'owned', 'paused', 'recording', 'replay', 'sidecar', 'startedAt', 'starting', 'stopping']);
     expect(s.replay).toEqual({ on: false, running: false, unavailable: 'OBS has no replay buffer. Press Set up OBS, then open OBS again.', lastSaved: null });
     expect(s.autoRecord).toBe(true);
     expect(s.obsVersion).toBe('32.1.2');

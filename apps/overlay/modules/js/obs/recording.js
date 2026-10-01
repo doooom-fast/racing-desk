@@ -65,6 +65,10 @@
 //   editor pairs files by folder), and the video offset is read back from the chapters, else taken from the file's
 //   end (filing.js, mp4-info.js); the sidecar's summary says which. Quitting waits, for a few seconds, for a filing
 //   still under way: a recording stopped a moment before he closes the desk is filed all the same.
+// - A TV take (tv-shots.js): a recording asked for with `take` — the race's folder and the name to file it under
+//   (`<the race's video> tv`) — is one of ours like any other, never starts OBS, gets a sidecar of `kind: 'tv'` with no
+//   chapters (its laps are the replay's), and is filed into that folder under that name. While a take runs auto-record
+//   is held (holdAuto), so nothing of the replay starts or stops a recording.
 // - Nothing of this is drawn on the HUD: the desk's masthead, the tray and the Stream Deck show it.
 const path = require('path');
 const fs = require('fs');
@@ -265,8 +269,10 @@ function createRecordingKeeper({
   let lowDisk = null;
   let last = null;             // the last answer to a press
   let busy = null;             // 'starting-obs' | 'starting' | 'stopping' | 'saving' | null
-  let claim = null;            // { at, auto } from the StartRecord we sent until the STARTED that answers it
-  let pendingStart = null;     // { resolve, auto } while we wait for STARTED after our StartRecord
+  let claim = null;            // { at, auto, take } from the StartRecord we sent until the STARTED that answers it
+  let pendingStart = null;     // { resolve, auto, take } while we wait for STARTED after our StartRecord
+  let take = null;             // { folder, baseName } of the recording running, when it is a TV take
+  let autoHeld = null;         // a reason while auto-record is held (a TV take): the rules are not asked
   let pendingStop = null;
   let pendingSave = null;      // { resolve, sentAt } while we wait for ReplayBufferSaved after our SaveReplayBuffer
   let generation = 0;          // counts STARTED and STOPPED: a take-over that was asked before one is out of date
@@ -358,6 +364,8 @@ function createRecordingKeeper({
       last,
       busy,
       sidecar: session && session.writer.isActive() ? { path: session.writer.state().path, frames: session.writer.state().frames } : null,
+      kind: session ? session.kind : (take ? 'tv' : null),
+      autoHeld: autoHeld,
       chapters: session ? session.chapterCount : 0,
       filed: session && session.folder ? { folder: session.folder } : null,
       lastFiled,
@@ -380,7 +388,7 @@ function createRecordingKeeper({
       obs: s.obs === 'connecting' ? 'closed' : s.obs,
       v: s.obsVersion,
       recording: s.recording, starting: s.starting, stopping: s.stopping, paused: s.paused, owned: s.owned, auto: s.auto,
-      outputPath: s.outputPath, bytes: s.bytes, rate: Math.round(s.bytesPerSecond),
+      outputPath: s.outputPath, bytes: s.bytes, rate: Math.round(s.bytesPerSecond), kind: s.kind, autoHeld: s.autoHeld,
       free: s.free && { bytes: s.free.bytes, drive: s.free.drive },
       lowDisk: s.lowDisk, last: s.last && { ok: s.last.ok, text: s.last.text }, busy: s.busy, sidecar: !!s.sidecar,
       chapters: s.chapters, filed: s.filed, lastFiled: s.lastFiled && s.lastFiled.at, replay: s.replay, autoRecord: s.autoRecord,
@@ -441,7 +449,7 @@ function createRecordingKeeper({
     return null;
   }
 
-  async function beginSidecar({ keptFolder = null, patient = false } = {}) {
+  async function beginSidecar({ keptFolder = null, patient = false, take: asTake = null } = {}) {
     if (!key || (session && session.writer.isActive())) return;
     const mine = key;
     const payload = await livePayload(mine, patient ? liveTriesPatient : liveTries);
@@ -462,10 +470,11 @@ function createRecordingKeeper({
       const began = ends && ends.header ? Date.parse(ends.header.startedAt) : NaN;
       if (Number.isFinite(began) && began <= now()) zero = began;
     }
-    const s = { writer: null, key: mine, files: [mine], folder: null, chapterCount: 0, chaptersPossible: true, clips: [], resumed: resume, startedAt: zero, pauses: [] };
+    const kind = asTake ? 'tv' : 'recording';
+    const s = { writer: null, key: mine, files: [mine], folder: null, chapterCount: 0, chaptersPossible: !asTake, clips: [], resumed: resume, startedAt: zero, pauses: [], kind, fileAs: asTake ? asTake.baseName : null };
     s.writer = createSidecar({ write: (f, text) => fsModule.appendFileSync(f, text), now, onMarker: (m) => onMarkerFound(s, m) });
     try {
-      s.writer.start({ path: file, startedAt: zero, producer: 'obs', obsOutputPath: mine, resume, kind: 'recording' });
+      s.writer.start({ path: file, startedAt: zero, producer: 'obs', obsOutputPath: mine, resume, kind });
       session = s;
       s.writer.frame(payload, { at: now() });
     } catch (e) {
@@ -473,7 +482,8 @@ function createRecordingKeeper({
       return;
     }
     if (paused) s.pauses.push({ from: Math.max(0, now() - zero), to: null });
-    s.folder = folderFor(payload, keptFolder, zero);
+    // A TV take goes into the race's folder under the race's name; a recording into a folder of its own.
+    s.folder = asTake ? (filing.sameDrive(mine, asTake.folder) ? asTake.folder : null) : folderFor(payload, keptFolder, zero);
     if (s.folder) {
       try { fsModule.mkdirSync(s.folder, { recursive: true }); } catch (e) { log(`[RacingDesk] Recording: the folder ${s.folder} could not be made: ${e.message}`); s.folder = null; }
     }
@@ -486,6 +496,7 @@ function createRecordingKeeper({
   // A marker the sidecar found in a frame: a chapter for OBS, while "Chapters" is on and the output takes them.
   function onMarkerFound(s, marker) {
     if (s !== session || !recording || paused) return;
+    if (s.kind === 'tv') return;   // a take's laps and places are the replay's, not the race's
     if (settings().recordingChapters === false || !s.chaptersPossible) return;
     const name = filing.chapterNameFor(marker);
     if (!name) return;
@@ -619,7 +630,8 @@ function createRecordingKeeper({
       const settled = await filing.waitForStableFile(f, timing);
       if (!settled.ok) { log(`[RacingDesk] Recording: ${f} was not filed: ${settled.why}`); if (!why) why = settled.why; continue; }
       if (!folder) continue;
-      const target = filing.uniquePath(path.join(folder, path.basename(f)), { exists: fileExists });
+      const named = s.fileAs ? `${s.fileAs}${path.extname(f)}` : path.basename(f);
+      const target = filing.uniquePath(path.join(folder, named), { exists: fileExists });
       const result = await filing.moveFile(f, target, { fs: fsModule, setTimer, retryMs: moveRetryMs });
       if (result.ok) moved.set(f, result.to);
       else { log(`[RacingDesk] Recording: ${f} stays where OBS left it: ${result.why}`); if (!why) why = result.why; }
@@ -667,7 +679,7 @@ function createRecordingKeeper({
     const result = s.writer.stop({ stoppedAt: endedAt, reason, obsOutputPath: lastNow, videoOffsetMs, alignment, pauses });
     lastFiled = {
       at: now(), folder: moved.size ? folder : null, video: firstNow, sidecar: sidecarPath, files: files.map((f) => moved.get(f) || f),
-      chapters: result ? result.chapters : 0, clips: s.clips.length, alignment, why: moved.size ? null : why,
+      chapters: result ? result.chapters : 0, clips: s.clips.length, alignment, why: moved.size ? null : why, kind: s.kind || 'recording',
     };
     log(`[RacingDesk] Recording: filed ${firstNow}${moved.size ? '' : ' (left where OBS wrote it)'}; offset ${videoOffsetMs === null ? 'not found' : `${videoOffsetMs} ms by ${alignment.method}`}; ${result ? `${result.frames} frames, ${result.chapters} chapters` : ''}`);
     announce();
@@ -1009,6 +1021,7 @@ function createRecordingKeeper({
     if (owned && !keepState) clearState();
     owned = false;
     auto = false;
+    take = null;
     stopRequestedAt = null;
     stopFrom = null;
     settlePending(false, stopValue);
@@ -1048,13 +1061,14 @@ function createRecordingKeeper({
         // within the claim's minute.
         owned = !!pendingStart || claimActive();
         auto = owned && !!((pendingStart && pendingStart.auto) || (claim && claim.auto));
+        take = owned ? ((pendingStart && pendingStart.take) || (claim && claim.take) || null) : null;
         claim = null;
         if (owned) writeState();
-        log(`[RacingDesk] Recording started${owned ? (auto ? ' (auto-record)' : '') : ' (by OBS)'}: ${outputPath || 'path not said'}`);
+        log(`[RacingDesk] Recording started${owned ? (auto ? ' (auto-record)' : take ? ' (a TV take)' : '') : ' (by OBS)'}: ${outputPath || 'path not said'}`);
         if (pendingStart) { const p = pendingStart; pendingStart = null; p.resolve(true); }
         bookStatus();
         announce();
-        beginSidecar();
+        beginSidecar({ take });
         break;
       }
       case STATE.STOPPING:
@@ -1270,13 +1284,14 @@ function createRecordingKeeper({
     notice(text);
   }
 
-  async function record({ source = 'desk' } = {}) {
+  async function record({ source = 'desk', take: asTake = null } = {}) {
     const fromAuto = source === 'auto';
+    const fromTv = source === 'tv';
     if (busy === 'starting-obs') return answer(false, 'OBS is starting');
     if (busy) return answer(false, ALREADY);
     if (!client.identified()) {
       const fromKey = source === 'key';
-      if (fromKey || fromAuto || inCar()) {
+      if (fromKey || fromAuto || fromTv || inCar()) {
         // Nothing is started from here.
         const said = await notAnswering({ source });
         if (said.hud) sayOnHud('open', NOTICE_NOT_OPEN, fromAuto);
@@ -1317,8 +1332,9 @@ function createRecordingKeeper({
     lowDisk = null;
     let resolveStart;
     const startedPromise = new Promise((resolve) => { resolveStart = resolve; });
-    pendingStart = { resolve: resolveStart, auto: fromAuto };
-    claim = { at: now(), auto: fromAuto };
+    const taking = fromTv && asTake && typeof asTake.folder === 'string' && typeof asTake.baseName === 'string' ? { folder: asTake.folder, baseName: asTake.baseName } : null;
+    pendingStart = { resolve: resolveStart, auto: fromAuto, take: taking };
+    claim = { at: now(), auto: fromAuto, take: taking };
     announce();
     try {
       await client.request('StartRecord');
@@ -1446,7 +1462,7 @@ function createRecordingKeeper({
     const set = settings();
     reconcileReplayBuffer(set, inSession);
     if (inSession && replay.running) bookTap();
-    if (set.recordingAutoRecord === false) return;
+    if (set.recordingAutoRecord === false || autoHeld) return;
     let decision = null;
     try {
       decision = rules.feed({ payload, inCar: here, recording, auto: recording && owned && auto });
@@ -1485,6 +1501,14 @@ function createRecordingKeeper({
     stop().then((a) => {
       if (!a.ok) log(`[RacingDesk] Auto-record: not stopped: ${a.reason}`);
     }).catch((e) => log(`[RacingDesk] Auto-record: ${e.message}`));
+  }
+
+  // Auto-record held (a TV take is under way: the replay's pit lane and flags are not the race's): the rules are not
+  // asked until the hold is let go. Resolves to the function that lets it go; holding again is one hold.
+  function holdAuto(reason = 'held') {
+    autoHeld = String(reason);
+    announce();
+    return () => { if (autoHeld === String(reason)) { autoHeld = null; announce(); } };
   }
 
   // ── Quitting ──
@@ -1559,7 +1583,7 @@ function createRecordingKeeper({
     endSidecar('disposed');
   }
 
-  return { start, dispose, record, stop, toggle, saveReplay, feed, status, stopOwnedForQuit, needsStopForQuit, refreshFree };
+  return { start, dispose, record, stop, toggle, saveReplay, feed, status, stopOwnedForQuit, needsStopForQuit, refreshFree, holdAuto };
 }
 
 module.exports = {

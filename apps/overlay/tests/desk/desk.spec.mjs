@@ -4166,7 +4166,10 @@ async function stubRecording(page, status, answers = {}) {
   }, { initial: status, planned: answers });
 }
 
-const recordingCommands = (page) => page.evaluate(() => window.__recording.commands);
+// The presses. The race detail's asking which recording is the race's (recordingFor) is a read the page makes for
+// itself whenever a race is shown, not a press: it is looked at by its own test.
+const recordingCommands = (page) => page.evaluate(() => window.__recording.commands.filter((c) => c[0] !== 'recordingFor'));
+const recordingAsks = (page) => page.evaluate(() => window.__recording.commands.filter((c) => c[0] === 'recordingFor'));
 const pushRecording = (page, status) => page.evaluate((s) => { window.__recording.state.status = s; window.__recording.push(s); }, status);
 
 test('the recording pill is on the masthead of every page; outside the app it is there and says it is the app\'s to switch', async ({ page }) => {
@@ -4330,6 +4333,51 @@ test('Save replay is on the card while Instant replay is on, pressable while the
   await expect(card.locator('button[data-recording-cmd="saveReplay"]')).toHaveCount(0);
   await expect(card.locator('.recording-detail').first()).toHaveText('The last recording is in D:\\Racing Desk\\Recordings\\2026-09-29 22-13 Zandvoort Porsche 992 Cup (7 chapters, 1 replay).');
   expect(errors).toEqual([]);
+});
+
+test('the race detail says which recording is the race\'s and offers TV shots; pressed, the app is asked with the folder; while they run the pill is theirs and Stop ends them', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  const REC = { folder: 'D:\\Racing Desk\\Recordings\\2026-08-15 18-00 Nordschleife Caterham', name: '2026-08-15 18-00 Nordschleife Caterham', video: 'x.mp4', take: null, startedAt: 1, clips: 1 };
+  await stubRecording(page, OBS_READY, { recordingFor: { ok: true, recording: REC }, tvShots: { ok: true, moments: 5, folder: REC.folder }, tvShotsCancel: { ok: true } });
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=desk');
+  const detail = page.locator('#detail');
+  await expect(detail.locator('#race-tv')).toBeVisible();
+  await expect(detail.locator('.race-tv-line')).toContainText('Recording: 2026-08-15 18-00 Nordschleife Caterham · 1 replay');
+  const button = detail.locator('button[data-recording-cmd="tvShots"]');
+  await expect(button).toHaveText('TV shots');
+  await expect(button).toBeEnabled();
+  // The app was asked which recording is the race's, with the race's start and track, and nothing else was asked.
+  const asked = await recordingAsks(page);
+  expect(asked.length).toBeGreaterThan(0);
+  expect(asked.at(-1)[1]).toMatchObject({ track: expect.any(String), startedAt: expect.any(String) });
+  expect(await recordingCommands(page)).toEqual([]);
+
+  await button.click();
+  await expect.poll(async () => (await recordingCommands(page)).filter((c) => c[0] === 'tvShots')).toEqual([['tvShots', { folder: REC.folder }]]);
+  // The app says they are under way: the pill is theirs, with Stop; the race detail's button stops them too.
+  await pushRecording(page, { ...OBS_READY, tv: { running: true, step: 'recording', index: 2, total: 5, label: 'P7 → P6', result: null } });
+  const pill = page.locator('#recording-pill');
+  await expect(pill.locator('.recording-text')).toHaveText('TV shots 2 of 5');
+  await expect(pill).toHaveAttribute('data-state', 'busy');
+  await expect(pill.locator('.recording-button')).toHaveText('Stop');
+  await expect(detail.locator('button[data-recording-cmd="tvShotsCancel"]')).toHaveText('Stop TV shots');
+  await pill.locator('.recording-button').click();
+  await expect.poll(async () => (await recordingCommands(page)).filter((c) => c[0] === 'tvShotsCancel')).toEqual([['tvShotsCancel', undefined]]);
+  // Done: the pill is the recording's again, the card says what came of them, the button offers them again.
+  await pushRecording(page, { ...OBS_READY, tv: { running: false, step: 'done', result: { ok: true, moments: 5, video: 'D:\\Racing Desk\\Recordings\\2026-08-15 18-00 Nordschleife Caterham\\x tv.mp4' } } });
+  await expect(pill.locator('.recording-button')).toHaveText('Record');
+  await expect(detail.locator('button[data-recording-cmd="tvShots"]')).toHaveText('TV shots');
+  await page.locator('a[data-page-link="settings"]').click();
+  await expect(page.locator('#settings-recording .recording-detail')).toContainText(['TV shots done: 5 moments, in D:\\Racing Desk\\Recordings\\2026-08-15 18-00 Nordschleife Caterham\\x tv.mp4.']);
+  expect(errors).toEqual([]);
+});
+
+test('a race with no recording says so in the detail, and outside the app the detail asks for nothing', async ({ page }) => {
+  await stubBridge(page, { zoom: 120 });
+  await stubRecording(page, OBS_READY, { recordingFor: { ok: true, recording: null } });
+  await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=desk');
+  await expect(page.locator('#detail .race-tv-line')).toHaveText('No recording of this race was found in the recordings folder.');
+  await expect(page.locator('#detail button[data-recording-cmd="tvShots"]')).toHaveCount(0);
 });
 
 test('a recording stopped for the disk, and a recording OBS started, are said on the card', async ({ page }) => {

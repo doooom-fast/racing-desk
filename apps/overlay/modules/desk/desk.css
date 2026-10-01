@@ -102,6 +102,13 @@ h2 {
 
 .freshness { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 12px; }
 
+/* The race detail's recording and its TV shots: a line naming the recording, and one button. */
+.race-tv { margin: 0 0 12px; }
+.race-tv-line { color: var(--text-3); font-size: 12px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.race-tv-open { font: inherit; font-size: 11px; padding: 2px 8px; }
+.race-tv-buttons { margin: 0; }
+.race-tv-buttons button { font: inherit; font-size: 12.5px; }
+
 /* The recording, on every page: a dot, the state and one button (Record or Stop). OBS records; nothing of this is
    on the HUD, which OBS films. Read-only outside the app. */
 .recording-pill {

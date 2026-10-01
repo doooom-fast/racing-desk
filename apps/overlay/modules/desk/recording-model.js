@@ -45,9 +45,38 @@
     return minutes <= 1 ? 'under a minute' : `${minutes} minutes`;
   }
 
+  /** The TV shots under way, in a few words; null when none are. */
+  function tvLine(status) {
+    const tv = status && status.tv;
+    if (!tv || !tv.running) return null;
+    if (tv.step === 'preparing') return 'TV shots: getting ready';
+    if (tv.step === 'cancelling') return 'TV shots: stopping';
+    if (tv.step === 'filing') return 'TV shots: filing the take';
+    return `TV shots ${tv.index || 0} of ${tv.total || 0}`;
+  }
+
+  /** What the last TV shots came to, in one sentence; null when there is nothing to say. */
+  function tvSentence(status) {
+    const tv = status && status.tv;
+    if (!tv) return null;
+    if (tv.running) {
+      const label = tv.label ? ` — ${tv.label}` : '';
+      if (tv.step === 'seeking') return `TV shots: finding moment ${tv.index} of ${tv.total} in the replay${label}.`;
+      if (tv.step === 'recording') return `TV shots: recording moment ${tv.index} of ${tv.total}${label}.`;
+      return `${tvLine(status)}.`;
+    }
+    const r = tv.result;
+    if (!r) return null;
+    if (r.ok) return `TV shots done: ${r.moments} ${r.moments === 1 ? 'moment' : 'moments'}${r.video ? `, in ${r.video}` : ''}.`;
+    if (r.cancelled) return `TV shots stopped after ${r.moments} ${r.moments === 1 ? 'moment' : 'moments'}${r.video ? `; what was recorded is in ${r.video}` : ''}.`;
+    return `TV shots were not made: ${r.reason}`;
+  }
+
   /** The one-line state of the recording, for the masthead and the top of the card. */
   function stateLine(status) {
     if (!status) return 'Recording';
+    const tv = tvLine(status);
+    if (tv) return tv;
     if (status.recording) return `Recording ${formatElapsed(status.elapsedMs)}`;
     if (status.starting || status.busy === 'starting') return 'Starting the recording…';
     if (status.stopping || status.busy === 'stopping') return 'Stopping…';
@@ -65,6 +94,10 @@
   function pill(status, { inApp = true } = {}) {
     if (!inApp || !status) {
       return { text: 'Recording', state: 'off', detail: FROM_THE_APP, button: { label: 'Record', enabled: false, command: 'toggle' } };
+    }
+    // TV shots under way: the pill is theirs, and its one button stops them.
+    if (status.tv && status.tv.running) {
+      return { text: stateLine(status), state: 'busy', detail: tvSentence(status), button: { label: 'Stop', enabled: status.tv.step !== 'cancelling', command: 'tvShotsCancel' } };
     }
     const recordingNow = status.recording || status.starting;
     let state = 'off';
@@ -159,6 +192,7 @@
       if (status.chapters) bits.push(`${status.chapters} ${status.chapters === 1 ? 'chapter' : 'chapters'}`);
       if (status.outputPath) bits.push(status.outputPath);
       if (!status.owned) bits.push('started in OBS');
+      else if (status.kind === 'tv') bits.push('a TV take');
       else if (status.auto) bits.push('started by itself');
       if (bits.length) details.push(bits.join(' · '));
       if (status.sidecar) details.push(`Telemetry is being written beside it (${status.sidecar.frames} frames).${status.filed && status.filed.folder ? ` It goes to ${status.filed.folder} when it stops.` : ''}`);
@@ -167,6 +201,8 @@
       const filed = filedSentence(status);
       if (filed) details.push(filed);
     }
+    const tvSaid = tvSentence(status);
+    if (tvSaid) details.push(tvSaid);
     const replay = replaySentence(status);
     if (replay) details.push(replay);
     if (status.replay && status.replay.lastSaved && status.replay.lastSaved.path) details.push(`Replay saved: ${status.replay.lastSaved.path}`);
@@ -203,7 +239,17 @@
     };
   }
 
-  const api = { SWITCHES, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, stateLine, pill, setupSentence, filedSentence, replaySentence, hudSourceSentence, card };
+  /** The race detail's TV shots: the button and its line, for a race's recording as the app found it (or none). */
+  function raceTv(status, recording) {
+    const running = !!(status && status.tv && status.tv.running);
+    if (!recording) return { show: false, line: 'No recording of this race was found in the recordings folder.', button: null };
+    const line = `Recording: ${recording.name}${recording.take ? ' (TV shots made)' : ''}${recording.clips ? ` · ${recording.clips} ${recording.clips === 1 ? 'replay' : 'replays'}` : ''}`;
+    if (running) return { show: true, line, button: { label: 'Stop TV shots', command: 'tvShotsCancel', enabled: status.tv.step !== 'cancelling' } };
+    const canStart = !!status && status.obs === 'open' && !status.recording && !status.starting && !status.busy;
+    return { show: true, line, button: { label: recording.take ? 'TV shots again' : 'TV shots', command: 'tvShots', enabled: canStart, hint: canStart ? "From iRacing's replay of this race, through a TV camera, into this recording's folder." : 'Needs OBS open and nothing recording.' } };
+  }
+
+  const api = { SWITCHES, NETWORK_SENTENCE, FROM_THE_APP, formatElapsed, formatBytes, formatHours, stateLine, pill, setupSentence, filedSentence, replaySentence, hudSourceSentence, tvLine, tvSentence, raceTv, card };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RacingDeskRecordingModel = api;
 })();

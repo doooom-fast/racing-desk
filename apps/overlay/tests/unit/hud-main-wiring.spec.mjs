@@ -400,6 +400,42 @@ test.describe('recording', () => {
   });
 });
 
+test.describe('TV shots', () => {
+  // modules/js/obs/tv-shots.js does the take; main.js gives it the OBS client, the keeper and the host's replay route,
+  // and wires the desk's race detail, the tray and the Stream Deck to it. No key presses anything.
+  test('the director is given the keeper and the host\'s replay route; the action names the race\'s folder from the desk and the latest recording otherwise; a key in the car is told no', () => {
+    expect(code).toMatch(/const tvShots = obs\.createTvShots\(\{/);
+    const made = argumentsOf('obs.createTvShots(');
+    expect(made).toMatch(/\bclient:\s*obsClient\b/);
+    expect(made).toMatch(/\brecording\b,/);
+    expect(made).toMatch(/\breplay:\s*hostReplay\b/);
+    expect(made).toMatch(/\binCar:\s*\(\)\s*=>\s*hud\.state\(\)\.inCar/);
+    // The replay route is the app's own host's, asked by this process.
+    expect(code).toMatch(/status:\s*\(\)\s*=>\s*askHost\('GET',\s*'\/racing-desk\/data\/replay'\)/);
+    expect(code).toMatch(/command:\s*\(body\)\s*=>\s*askHost\('POST',\s*'\/racing-desk\/data\/replay',\s*body\)/);
+    expect(code).toMatch(/fetch\(`\$\{localHostUrl\(\)\}\$\{route\}`/);
+    // The action: the desk names the folder, the tray and the Stream Deck mean the latest, a key in the car is told no.
+    expect(code).toMatch(/'tv-shots':\s*\(\{\s*source\s*=\s*'streamdeck',\s*folder\s*=\s*null\s*\}\s*=\s*\{\}\)\s*=>\s*\(source === 'key' \? \{ ok: false, reason: obs\.tvShots\.IN_CAR \} : startTvShots\(\{ source, folder \}\)\)/);
+    const start = code.match(/async function startTvShots\(\{ source = 'desk', folder = null \} = \{\}\) \{([\s\S]*?)\n\}/);
+    expect(start).not.toBeNull();
+    expect(start[1]).toMatch(/if \(hud\.state\(\)\.inCar\) return \{ ok: false, reason: obs\.tvShots\.IN_CAR \};/);
+    expect(start[1]).toMatch(/obs\.recordingsIndex\.latest\(/);
+    expect(start[1]).toMatch(/tvShots\.start\(\{ folder: where \}\)/);
+    expect(code).toMatch(/dispatchAction\('tv-shots',\s*\{\s*source:\s*'tray'\s*\}\)/);
+    // The desk's commands.
+    expect(code).toMatch(/case 'tvShots': \{ const answer = await startTvShots\(\{ source: 'desk', folder:/);
+    expect(code).toMatch(/case 'tvShotsCancel': \{ const answer = tvShots\.cancel\(\);/);
+    expect(code).toMatch(/case 'recordingFor': return \{ ok: true, recording: recordingForRace\(/);
+    // A take under way is stopped when the app quits.
+    const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
+    expect(helper[1]).toMatch(/if \(tvShots\.status\(\)\.running\) tvShots\.cancel\(\);/);
+    // Nothing presses a key, in main.js or in the director.
+    expect(code).not.toMatch(/keybd_event|SendKeys|sendKey|keyboard-sender/i);
+    const director = readFileSync(new URL('../../modules/js/obs/tv-shots.js', import.meta.url), 'utf8');
+    expect(director).not.toMatch(/keybd_event|SendKeys|sendKey|keyboard-sender|child_process|powershell/i);
+  });
+});
+
 test.describe('"HUD drawn by OBS"', () => {
   // modules/js/obs/hud-source.js does the OBS side; main.js throws the switch: the window out of the capture first
   // (setContentProtection takes effect at the next composition), then the source; off, the items disabled, never removed.
