@@ -10,6 +10,10 @@ const fs = require('fs');
 
 const PLUGIN_DIR = 'com.doooom.racingdesk.sdPlugin';
 const OLD_PLUGIN_DIRS = Object.freeze(['com.k10motorsports.racecor.overlay.sdPlugin']);
+// The Stream Deck app starts a plugin once and keeps it: a copy made over the one it is running changes the files, not the
+// process, so the keys go on with the old code (and the old port) and a new action is not in its list until the app is
+// restarted. Said, in the log, whenever a plugin that was there is replaced.
+const RESTART_SENTENCE = 'The Stream Deck app runs the plugin it started with, so the new keys work after the Stream Deck app is restarted.';
 
 /** The folder the plugin lives in beside main.js — in the built app, the unpacked copy beside the asar. */
 function pluginSource(appDir) {
@@ -33,7 +37,8 @@ function sizeOf(fsModule, file) {
 }
 
 /**
- * install({ srcDir, pluginsDir, fs, log }) → { ok, did: 'copied' | 'kept' | 'skipped', reason }
+ * install({ srcDir, pluginsDir, fs, log }) → { ok, did: 'copied' | 'kept' | 'skipped', reason, restart }
+ * `restart` is true when a plugin that was installed has been replaced: the Stream Deck app is running that one.
  * The old plugin's folder is removed (Stream Deck would show both). The copy is made when the installed one is
  * missing, or differs from the app's in manifest version or in the size of bin/plugin.js; a plugin the Stream Deck
  * app holds open may refuse the copy, which is said and tried again at the next start.
@@ -62,11 +67,12 @@ function install({ srcDir, pluginsDir: dir, fs: fsModule = fs, log = () => {}, o
   if (same) return { ok: true, did: 'kept', reason: `the plugin at ${installed} is the one the app carries` };
   try {
     fsModule.cpSync(srcDir, installed, { recursive: true, force: true });
-    log(`[RacingDesk] Stream Deck: plugin copied to ${installed}`);
-    return { ok: true, did: 'copied', reason: `copied to ${installed}` };
+    const replaced = !!have;
+    log(`[RacingDesk] Stream Deck: plugin copied to ${installed}${replaced ? `. ${RESTART_SENTENCE}` : ''}`);
+    return { ok: true, did: 'copied', restart: replaced, reason: `copied to ${installed}${replaced ? `. ${RESTART_SENTENCE}` : ''}` };
   } catch (err) {
     return { ok: false, did: 'skipped', reason: `the plugin could not be copied to ${installed}: ${err.message}` };
   }
 }
 
-module.exports = { PLUGIN_DIR, OLD_PLUGIN_DIRS, pluginSource, pluginsDir, install };
+module.exports = { PLUGIN_DIR, OLD_PLUGIN_DIRS, RESTART_SENTENCE, pluginSource, pluginsDir, install };

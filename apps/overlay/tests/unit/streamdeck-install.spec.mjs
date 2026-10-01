@@ -36,6 +36,14 @@ test.describe('the plugin\'s actions', () => {
     for (const name of Object.values(plugin.ACTIONS)) expect(remote.ACTIONS.some((a) => a.name === name), name).toBe(true);
   });
 
+  test('the shipped version is past the one that was installed before the loopback port and the TV Shots key: the installer compares the version and the size of the code, and a change of a port number is the same size', () => {
+    const parts = (v) => String(v).split('.').map(Number);
+    const [a, b, c, d] = parts(manifest.Version);
+    expect(parts(manifest.Version)).toHaveLength(4);
+    expect([a, b, c, d]).not.toEqual([0, 1, 0, 0]);
+    expect(a * 1e9 + b * 1e6 + c * 1e3 + d).toBeGreaterThan(0 * 1e9 + 1 * 1e6);
+  });
+
   test('the shipped manifest does not start the plugin with Node\'s inspector open', () => {
     // "Debug": "enabled" makes the Stream Deck app start the plugin under --inspect: a port on this machine that any
     // program on it can attach to and run code through. It never ran while the install failed; it does now.
@@ -236,6 +244,25 @@ test.describe('the install', () => {
     fs.writeFileSync(path.join(src, 'bin', 'plugin.js'), '// plugin v2, longer');
     expect(installer.install({ srcDir: src, pluginsDir: plugins })).toMatchObject({ ok: true, did: 'copied' });
     expect(fs.readFileSync(path.join(plugins, PLUGIN_DIR, 'bin', 'plugin.js'), 'utf8')).toBe('// plugin v2, longer');
+  });
+
+  test('a plugin that was installed and is replaced says the Stream Deck app has to be restarted for its keys to use the new one; a first install says nothing of it; a new version of the same size is copied', () => {
+    const { src, plugins } = tree(dir);
+    const lines = [];
+    const first = installer.install({ srcDir: src, pluginsDir: plugins, log: (l) => lines.push(l) });
+    expect(first).toMatchObject({ ok: true, did: 'copied', restart: false });
+    expect(first.reason).not.toMatch(/restart/i);
+    expect(lines.join(' ')).not.toMatch(/restart/i);
+    // The build moved the port (9090 → 9091: the same size) and the manifest's version moved with it.
+    fs.writeFileSync(path.join(src, 'manifest.json'), JSON.stringify({ Version: '0.2.0.0', CodePath: 'bin/plugin.js' }));
+    const again = installer.install({ srcDir: src, pluginsDir: plugins, log: (l) => lines.push(l) });
+    expect(again).toMatchObject({ ok: true, did: 'copied', restart: true });
+    expect(again.reason).toContain(installer.RESTART_SENTENCE);
+    expect(installer.RESTART_SENTENCE).toBe('The Stream Deck app runs the plugin it started with, so the new keys work after the Stream Deck app is restarted.');
+    expect(lines.some((l) => l.includes(installer.RESTART_SENTENCE))).toBe(true);
+    expect(JSON.parse(fs.readFileSync(path.join(plugins, PLUGIN_DIR, 'manifest.json'), 'utf8')).Version).toBe('0.2.0.0');
+    // The same again: kept, and nothing said.
+    expect(installer.install({ srcDir: src, pluginsDir: plugins })).toMatchObject({ ok: true, did: 'kept' });
   });
 
   test('skips, in words, when the Stream Deck app is not installed, the plugin is not in the app, or it was not built', () => {
