@@ -325,7 +325,7 @@ test('the status says what the card needs, and every change is announced', async
     await until(() => r.keeper.status().obs === 'open');
     const s = r.keeper.status();
     expect(Object.keys(s).sort()).toEqual(['auto', 'autoHeld', 'autoRecord', 'busy', 'bytes', 'bytesPerSecond', 'chapters', 'elapsedMs', 'filed', 'free', 'kind', 'last', 'lastFiled', 'lowDisk', 'obs', 'obsVersion', 'outputPath', 'owned', 'paused', 'recording', 'replay', 'sidecar', 'startedAt', 'starting', 'stopping']);
-    expect(s.replay).toEqual({ on: false, running: false, unavailable: 'OBS has no replay buffer. Press Set up OBS, then open OBS again.', lastSaved: null });
+    expect(s.replay).toEqual({ on: false, running: false, ours: false, unavailable: 'OBS has no replay buffer. Press Set up OBS, then open OBS again.', lastSaved: null });
     expect(s.autoRecord).toBe(true);
     expect(s.obsVersion).toBe('32.1.2');
     expect(s.free).toMatchObject({ bytes: 400e9 });
@@ -1263,6 +1263,135 @@ test('quitting waits for a recording that has just stopped to be filed: it is mo
     expect(Date.now() - began).toBeLessThan(900);
     expect(w.lines.some((l) => /filing was not finished in time/.test(l))).toBe(true);
   } finally { w.dispose(); }
+});
+
+test('Ctrl+Shift+G is a restart, not a quit: the recording and the replay buffer Racing Desk started run on, the state file says both are its own, and the relaunched keeper takes them over — the sidecar gone on in, both stopped by a real quit', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  const stops = () => server.requests.filter((q) => q.type === 'StopRecord' || q.type === 'StopReplayBuffer').length;
+  const r = rig({ inCar: true, payload: RACE_FRAME(), settings: { recordingInstantReplay: true } });
+  let started;
+  let folder;
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    started = await r.keeper.record({ source: 'desk' });
+    expect(started.ok).toBe(true);
+    await untilFed(r, () => r.keeper.status().replay.running && r.keeper.status().replay.ours, 2000);
+    await until(() => replayEvents().some((e) => e.outputState === 'OBS_WEBSOCKET_OUTPUT_STARTED'));
+    await until(() => r.keeper.status().sidecar && r.keeper.status().sidecar.frames >= 3);
+    await until(() => folderOf(r));
+    folder = folderOf(r);
+    const before = stops();
+    // He presses Ctrl+Shift+G mid-race: the app relaunches. Nothing is stopped in OBS.
+    await r.keeper.leaveForRelaunch();
+    expect(stops()).toBe(before);
+    expect(server.state.recording).toBe(true);
+    expect(server.state.replayBuffer).toBe(true);
+    // The state file says the recording and the buffer are Racing Desk's, for the app that comes back.
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).toMatchObject({ owned: started.path, replayOurs: true, folder });
+    // The sidecar is closed with the reason, to be gone on in: one header, and its summary.
+    expect(r.keeper.status().sidecar).toBeNull();
+    const lines = sidecarOf(started.path.replace(/\//g, path.sep));
+    expect(lines.filter((l) => l._type === 'header')).toHaveLength(1);
+    expect(lines.at(-1)).toMatchObject({ _type: 'summary', reason: 'Racing Desk relaunch' });
+    expect(r.lines.some((l) => /relaunching, so the recording Racing Desk started runs on for the relaunched app to take over, and so does the replay buffer/.test(l))).toBe(true);
+  } finally { r.dispose(); }
+
+  // The relaunched app: OBS answers, and both are its own again — taken, not started a second time.
+  const w = rig({ inCar: true, payload: RACE_FRAME(), settings: { recordingInstantReplay: true } });
+  try {
+    await until(() => w.keeper.status().recording && w.keeper.status().owned, 3000);
+    await until(() => w.keeper.status().replay.ours, 3000);
+    expect(w.keeper.status().replay.running).toBe(true);
+    expect(w.lines.some((l) => /Recording already running, ours/.test(l))).toBe(true);
+    expect(w.lines.some((l) => /Replay buffer already running, ours/.test(l))).toBe(true);
+    expect(server.requests.filter((q) => q.type === 'StartRecord')).toHaveLength(1);
+    expect(server.requests.filter((q) => q.type === 'StartReplayBuffer')).toHaveLength(1);
+    // The sidecar goes on in the same file: a `resumed` line after the relaunch's summary, no second header, and
+    // frames again, into the same folder.
+    await until(() => w.keeper.status().sidecar && w.keeper.status().sidecar.frames >= 2, 4000);
+    expect(w.lines.some((l) => /sidecar resumed/.test(l))).toBe(true);
+    expect(folderOf(w)).toBe(folder);
+    // The rows are written a second at a time (FLUSH_EVERY): the file is read once the resumed line has reached it.
+    await until(() => sidecarOf(started.path.replace(/\//g, path.sep)).some((l) => l._type === 'resumed'), 4000);
+    const lines = sidecarOf(started.path.replace(/\//g, path.sep));
+    expect(lines.filter((l) => l._type === 'header')).toHaveLength(1);
+    expect(lines.filter((l) => l._type === 'resumed')).toHaveLength(1);
+    const resumedAt = lines.findIndex((l) => l._type === 'resumed');
+    expect(resumedAt).toBeGreaterThan(lines.findIndex((l) => l._type === 'summary'));
+    expect(lines.slice(resumedAt + 1).filter((l) => !l._type && Number.isFinite(l.frame)).length).toBeGreaterThanOrEqual(1);
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).toMatchObject({ owned: started.path, replayOurs: true });
+    // A real quit — the desk closed, the tray's Quit — stops both, as it would have before the restart, and files it.
+    fs.writeFileSync(started.path, buildFinalMp4({ durationMs: 3000, withChapterTrack: false }));
+    expect(w.keeper.needsStopForQuit()).toBe(true);
+    await w.keeper.stopOwnedForQuit();
+    expect(server.state.recording).toBe(false);
+    expect(server.state.replayBuffer).toBe(false);
+    expect(server.requests.filter((q) => q.type === 'StopRecord')).toHaveLength(1);
+    expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(1);
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+    const filed = w.keeper.status().lastFiled;
+    expect(filed && filed.folder).toBe(folder);
+    const summary = linesOf(filed.sidecar).at(-1);
+    expect(summary).toMatchObject({ _type: 'summary', resumed: true });
+    expect(linesOf(filed.sidecar).filter((l) => l._type === 'header')).toHaveLength(1);
+  } finally { w.dispose(); }
+});
+
+test('a relaunch with the replay buffer running and nothing recording: the state file holds the buffer\'s ownership alone, the relaunched keeper takes it and stops it when he leaves the car, and the file is gone', async () => {
+  server.state.profile.AdvOut.RecRB = 'true';
+  const grid = RACE_FRAME({ 'RacingDesk.Plugin.Grid.SessionState': 2 });
+  const r = rig({ inCar: true, payload: grid, settings: { recordingInstantReplay: true, recordingAutoRecord: false } });
+  try {
+    await until(() => r.keeper.status().obs === 'open');
+    await untilFed(r, () => r.keeper.status().replay.running && r.keeper.status().replay.ours, 2000);
+    await until(() => replayEvents().some((e) => e.outputState === 'OBS_WEBSOCKET_OUTPUT_STARTED'));
+    expect(r.keeper.status().recording).toBe(false);
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+    await r.keeper.leaveForRelaunch();
+    expect(server.state.replayBuffer).toBe(true);
+    expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(0);
+    expect(JSON.parse(fs.readFileSync(stateFileOf(), 'utf8'))).toMatchObject({ owned: null, replayOurs: true });
+    expect(r.lines.some((l) => /relaunching, so the replay buffer Racing Desk started runs on/.test(l))).toBe(true);
+  } finally { r.dispose(); }
+
+  const w = rig({ inCar: true, payload: grid, settings: { recordingInstantReplay: true, recordingAutoRecord: false } });
+  try {
+    await until(() => w.keeper.status().replay.ours, 3000);
+    expect(w.keeper.status()).toMatchObject({ recording: false, owned: false });
+    // The file that held the claim alone has done its work, and nothing was filed for it.
+    await until(() => !fs.existsSync(stateFileOf()), 2000);
+    expect(w.keeper.status().lastFiled).toBeNull();
+    expect(server.requests.filter((q) => q.type === 'StartReplayBuffer')).toHaveLength(1);
+    // He leaves the car: the buffer is stopped — it is Racing Desk's, as it was before the restart.
+    w.fake.inCar = false;
+    await untilFed(w, () => !server.state.replayBuffer, 3000);
+    expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(1);
+    expect(w.keeper.status().replay).toMatchObject({ running: false, ours: false });
+  } finally { w.dispose(); }
+
+  // A buffer OBS started itself is not made Racing Desk's by a restart: the state file says nothing of it, and leaving
+  // the car leaves it running.
+  server.handlers.StartReplayBuffer({});
+  await until(() => server.state.replayBuffer);
+  const h = rig({ inCar: true, payload: grid, settings: { recordingInstantReplay: true, recordingAutoRecord: false } });
+  try {
+    await until(() => h.keeper.status().obs === 'open');
+    await until(() => h.keeper.status().replay.running, 2000);
+    expect(h.keeper.status().replay.ours).toBe(false);
+    await h.keeper.leaveForRelaunch();
+    expect(fs.existsSync(stateFileOf())).toBe(false);
+  } finally { h.dispose(); }
+  const k = rig({ inCar: true, payload: grid, settings: { recordingInstantReplay: true, recordingAutoRecord: false } });
+  try {
+    await until(() => k.keeper.status().obs === 'open');
+    await until(() => k.keeper.status().replay.running, 2000);
+    await settle(100);
+    expect(k.keeper.status().replay.ours).toBe(false);
+    k.fake.inCar = false;
+    await feedFor(k, 5);
+    expect(server.state.replayBuffer).toBe(true);
+    expect(server.requests.filter((q) => q.type === 'StopReplayBuffer')).toHaveLength(1);
+  } finally { k.dispose(); }
 });
 
 test('OBS crashed and is back after more than half a minute: the file it left is filed from the last moment it was seen recording, and its sidecar gets a summary that says so', async () => {

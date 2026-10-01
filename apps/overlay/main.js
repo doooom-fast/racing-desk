@@ -417,10 +417,11 @@ const HUD_KEYS = {
     saveSettingsSync(settings);
     const mode = settings.greenScreen ? 'green-screen' : 'transparent';
     console.log(`[RacingDesk] Toggling to ${mode} mode — restarting...`);
-    // app.exit skips before-quit, so a recording Racing Desk started is stopped here first (3 s at most). This key is
-    // held only while he is in the car, so the new instance must not start OBS with the app (--no-obs-start): the
+    // app.exit skips before-quit, and a restart is not a quit: a recording and a replay buffer Racing Desk started are
+    // left running in OBS for the relaunched app to take over (leaveForRelaunch), so the race stays one video. This key
+    // is held only while he is in the car, so the new instance must not start OBS with the app (--no-obs-start): the
     // dialogs OBS can open at its start would land over the sim.
-    stopOwnedRecording({ keepHud: true }).finally(() => {
+    leaveForRelaunch().finally(() => {
       app.relaunch({ args: [...process.argv.slice(1).filter((a) => a !== NO_OBS_START), NO_OBS_START] });
       app.exit(0);
     });
@@ -775,9 +776,7 @@ function setObsPassword(text) {
 // that has just stopped is filed (the file held still for two seconds, moved with its sidecar: up to 8 s more, a few
 // seconds usually); OBS and his own recordings are left as they are.
 let stoppedForQuit = false;
-// `keepHud`: the Ctrl+Shift+G relaunch, which comes back within seconds, mid-race, and does not switch the HUD source off
-// (the page in OBS stays loaded and goes on by itself when the new listener is up).
-function stopOwnedRecording({ keepHud = false } = {}) {
+function stopOwnedRecording() {
   if (stoppedForQuit) return Promise.resolve();
   stoppedForQuit = true;
   // A take under way ends and his facecam is shown again before anything else is waited for (1.5 s at most, as the HUD
@@ -785,13 +784,29 @@ function stopOwnedRecording({ keepHud = false } = {}) {
   const tvOff = Promise.race([tvShots.stopForQuit(), new Promise((resolve) => setTimeout(resolve, 1500))]).catch(() => {});
   // The HUD source is switched off in OBS on the way out: a browser source whose page has gone shows whatever CEF shows
   // for a page that failed to load, and nothing reloads it until Racing Desk is back.
-  const hudOff = !keepHud && hudSourceOn() && obsClient.identified()
+  const hudOff = hudSourceOn() && obsClient.identified()
     ? Promise.race([hudSource.disable({ final: true }), new Promise((resolve) => setTimeout(resolve, 1500))]).catch(() => {})
     : Promise.resolve();
   return Promise.race([
     Promise.all([recording.stopOwnedForQuit(), hudOff, tvOff]),
     new Promise((resolve) => setTimeout(resolve, obs.recording.QUIT_WAIT_MS + obs.recording.FILING_QUIT_WAIT_MS + 500)),
   ]).catch((err) => logToFile(`[RacingDesk] Recording: could not be stopped on quit: ${err.message}`));
+}
+
+// Relaunching (Ctrl+Shift+G, a key held only in the car): not a quit. The recording and the replay buffer Racing Desk
+// started run on in OBS — the keeper keeps the state file, which says both are its own, and closes the sidecar to be gone
+// on in — and the relaunched app, back within seconds, takes them over when OBS answers, so a restart mid-race leaves the
+// race one video (modules/js/obs/recording.js, leaveForRelaunch). The HUD source stays on: the page in OBS stays loaded
+// and goes on by itself when the new listener is up. A take under way ends and his facecam is shown again, as at a quit:
+// nothing drives the replay once this process is gone. A filing under way is waited for, as at a quit.
+function leaveForRelaunch() {
+  if (stoppedForQuit) return Promise.resolve();
+  stoppedForQuit = true;
+  const tvOff = Promise.race([tvShots.stopForQuit(), new Promise((resolve) => setTimeout(resolve, 1500))]).catch(() => {});
+  return Promise.race([
+    Promise.all([recording.leaveForRelaunch(), tvOff]),
+    new Promise((resolve) => setTimeout(resolve, obs.recording.QUIT_WAIT_MS + obs.recording.FILING_QUIT_WAIT_MS + 500)),
+  ]).catch((err) => logToFile(`[RacingDesk] Recording: could not be left for the relaunch: ${err.message}`));
 }
 
 // Where the HUD's page reads its telemetry. The settings are read again every ten seconds, not every poll.

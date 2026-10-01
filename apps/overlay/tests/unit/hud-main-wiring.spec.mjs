@@ -339,23 +339,41 @@ test.describe('recording', () => {
     expect(code).not.toMatch(/taskkill|obs64.*kill|StopOBS|\.kill\(\s*['"]?obs/i);
   });
 
-  test('every quit path stops the recording Racing Desk started, and his own are left alone', () => {
+  test('every quit path stops the recording Racing Desk started, and his own are left alone; the Ctrl+Shift+G relaunch is not a quit, and leaves it running for the relaunched app', () => {
     const beforeQuit = code.match(/app\.on\('before-quit', \(event\) => \{([\s\S]*?)\n\}\);/);
     expect(beforeQuit).not.toBeNull();
     expect(beforeQuit[1]).toMatch(/recording\.needsStopForQuit\(\)/);
     expect(beforeQuit[1]).toMatch(/event\.preventDefault\(\);\s*stopOwnedRecording\(\)\.finally\(\(\) => app\.quit\(\)\);/);
-    // Ctrl+Shift+G relaunches with app.exit, which skips before-quit: the recording is stopped first.
+    // The desk closing and the tray's Quit go through app.quit, so through before-quit.
+    expect(code).toMatch(/deskWindow\.on\('close', \(\) => \{ if \(!quitting\) app\.quit\(\); \}\);/);
+    expect(code).toMatch(/\{ label: 'Quit Racing Desk', click: \(\) => app\.quit\(\) \}/);
+    // Ctrl+Shift+G relaunches with app.exit, which skips before-quit. A restart is not a quit: the recording and the
+    // replay buffer Racing Desk started are left running (the keeper's leaveForRelaunch keeps the state file and closes
+    // the sidecar to be gone on in), and the relaunched app takes them over when OBS answers — the race stays one video.
     const green = code.match(/'CommandOrControl\+Shift\+G': \(\) => \{([\s\S]*?)\n  \},/);
     expect(green).not.toBeNull();
     // ...and the new instance does not start OBS with the app: this key is held only in the car (--no-obs-start).
-    expect(green[1]).toMatch(/stopOwnedRecording\(\{ keepHud: true \}\)\.finally\(\(\) => \{\s*app\.relaunch\(\{ args: \[\.\.\.process\.argv\.slice\(1\)\.filter\(\(a\) => a !== NO_OBS_START\), NO_OBS_START\] \}\);\s*app\.exit\(0\);\s*\}\);/);
+    expect(green[1]).toMatch(/leaveForRelaunch\(\)\.finally\(\(\) => \{\s*app\.relaunch\(\{ args: \[\.\.\.process\.argv\.slice\(1\)\.filter\(\(a\) => a !== NO_OBS_START\), NO_OBS_START\] \}\);\s*app\.exit\(0\);\s*\}\);/);
+    expect(green[1]).not.toMatch(/stopOwnedRecording|stopOwnedForQuit|app\.quit/);
     expect(calls(/app\.relaunch\(/g)).toHaveLength(1);
     expect(calls(/app\.exit\(/g)).toHaveLength(1);
+    const leave = code.match(/function leaveForRelaunch\(\) \{([\s\S]*?)\n\}\n/);
+    expect(leave).not.toBeNull();
+    expect(leave[1]).toMatch(/Promise\.all\(\[recording\.leaveForRelaunch\(\), tvOff\]\)/);
+    expect(leave[1]).not.toMatch(/stopOwnedForQuit|StopRecord|StopReplayBuffer|hudSource|app\.quit/);
+    // One caller each: the quit's stop is the keeper's stopOwnedForQuit, the relaunch's leaving is its leaveForRelaunch.
+    expect(calls(/recording\.stopOwnedForQuit\(/g)).toHaveLength(1);
+    expect(calls(/recording\.leaveForRelaunch\(/g)).toHaveLength(1);
+    expect(calls(/\bleaveForRelaunch\(\)\.finally\(/g)).toHaveLength(1);
+    // Both are once: a quit during the relaunch, or the other way about, does not stop what was left running.
+    expect(leave[1]).toMatch(/if \(stoppedForQuit\) return Promise\.resolve\(\);\s*stoppedForQuit = true;/);
     // The wait for the stop is not the whole wait: a recording that has just stopped is filed before the app goes, and
-    // the cap on the quit allows for that (the keeper itself is bounded by the same constant).
-    const helper = code.match(/function stopOwnedRecording\(\{ keepHud = false \} = \{\}\) \{([\s\S]*?)\n\}\n/);
+    // the cap on the quit allows for that (the keeper itself is bounded by the same constant); the relaunch waits as long.
+    const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
     expect(helper).not.toBeNull();
+    expect(helper[1]).toMatch(/if \(stoppedForQuit\) return Promise\.resolve\(\);\s*stoppedForQuit = true;/);
     expect(helper[1]).toMatch(/obs\.recording\.QUIT_WAIT_MS \+ obs\.recording\.FILING_QUIT_WAIT_MS/);
+    expect(leave[1]).toMatch(/obs\.recording\.QUIT_WAIT_MS \+ obs\.recording\.FILING_QUIT_WAIT_MS/);
     // will-quit lets the client and the keeper go.
     expect(code).toMatch(/app\.on\('will-quit', \(\) => \{[\s\S]*?recording\.dispose\(\); obsClient\.stop\(\);/);
   });
@@ -430,10 +448,14 @@ test.describe('TV shots', () => {
     expect(code).toMatch(/case 'recordingFor': return \{ ok: true, recording: recordingForRace\(/);
     // A take under way ends when the app quits and his facecam is shown again before the quit goes on (bounded), and a
     // take that has hidden it is something a quit waits for even while nothing is recording (the first seek).
-    const helper = code.match(/function stopOwnedRecording\(\{ keepHud = false \} = \{\}\) \{([\s\S]*?)\n\}\n/);
+    const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
     expect(helper[1]).toMatch(/const tvOff = Promise\.race\(\[tvShots\.stopForQuit\(\), new Promise\(\(resolve\) => setTimeout\(resolve, 1500\)\)\]\)/);
     expect(helper[1]).toMatch(/Promise\.all\(\[recording\.stopOwnedForQuit\(\), hudOff, tvOff\]\)/);
     expect(code).toMatch(/recording\.needsStopForQuit\(\) \|\| tvShots\.needsStopForQuit\(\)/);
+    // The Ctrl+Shift+G relaunch ends a take the same way: nothing drives the replay once this process is gone.
+    const leave = code.match(/function leaveForRelaunch\(\) \{([\s\S]*?)\n\}\n/);
+    expect(leave[1]).toMatch(/const tvOff = Promise\.race\(\[tvShots\.stopForQuit\(\), new Promise\(\(resolve\) => setTimeout\(resolve, 1500\)\)\]\)/);
+    expect(leave[1]).toMatch(/Promise\.all\(\[recording\.leaveForRelaunch\(\), tvOff\]\)/);
     // What a take hid is written to a file of its own, so that a crash does not leave the facecam hidden.
     expect(made).toMatch(/\bstateFile:\s*path\.join\(app\.getPath\('userData'\), 'tv-state\.json'\)/);
     // Nothing presses a key, in main.js or in the director.
@@ -479,14 +501,16 @@ test.describe('"HUD drawn by OBS"', () => {
     expect(code).toMatch(/if \(hudSourceOn\(\) && obsClient\.identified\(\)\) applyHudSource\('the HUD changed screen'\);/);
     expect(code).toMatch(/onUp: \(\) => \{ if \(hudSourceOn\(\) && obsClient\.identified\(\)\) applyHudSource\('the listener is up'\); \}/);
     // On quit, with the switch on and OBS answering: disabled for good, within a bound — and not by the relaunch Ctrl+Shift+G
-    // makes mid-race, which comes back in seconds and leaves the page in OBS loaded.
-    const helper = code.match(/function stopOwnedRecording\(\{ keepHud = false \} = \{\}\) \{([\s\S]*?)\n\}\n/);
+    // makes mid-race, which comes back in seconds and leaves the page in OBS loaded (leaveForRelaunch touches no source).
+    const helper = code.match(/function stopOwnedRecording\(\) \{([\s\S]*?)\n\}\n/);
     expect(helper).not.toBeNull();
-    expect(helper[1]).toMatch(/const hudOff = !keepHud && hudSourceOn\(\) && obsClient\.identified\(\)/);
+    expect(helper[1]).toMatch(/const hudOff = hudSourceOn\(\) && obsClient\.identified\(\)/);
     expect(helper[1]).toMatch(/hudSource\.disable\(\{ final: true \}\)/);
     expect(code).toMatch(/recording\.needsStopForQuit\(\) \|\| tvShots\.needsStopForQuit\(\) \|\| \(hudSourceOn\(\) && obsClient\.identified\(\)\)/);
     const green = code.match(/'CommandOrControl\+Shift\+G': \(\) => \{([\s\S]*?)\n  \},/);
-    expect(green[1]).toMatch(/stopOwnedRecording\(\{ keepHud: true \}\)\.finally\(/);
+    expect(green[1]).toMatch(/leaveForRelaunch\(\)\.finally\(/);
+    expect(green[1]).not.toMatch(/hudSource/);
+    expect(code.match(/function leaveForRelaunch\(\) \{([\s\S]*?)\n\}\n/)[1]).not.toMatch(/hudSource|setContentProtection/);
     // Nothing of his is removed from here or from the module.
     expect(code).not.toMatch(/RemoveInput|RemoveSceneItem/);
     const module = readFileSync(new URL('../../modules/js/obs/hud-source.js', import.meta.url), 'utf8');

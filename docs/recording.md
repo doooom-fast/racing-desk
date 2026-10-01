@@ -39,9 +39,14 @@ is what is built as of stage 3 and what is coming. The Electron recorder, its ff
   followed, and OBS's own "last file" at STOPPED, which for a split recording is the first file again, does not point back).
   Ownership is claimed when StartRecord is sent and kept for a minute, so a STARTED that comes late, a quit between
   StartRecord and STARTED (it waits for STARTED, then stops it), and a connection cut in between all end with the recording
-  Racing Desk's. Quitting Racing Desk — closing the desk, the tray's Quit, the Ctrl+Shift+G relaunch — stops the recording
-  it started (StopRecord, STOPPED waited for 3 s at most) and leaves OBS and his own recordings alone; with OBS out of
-  reach it cannot ask, and keeps the state file for the next start. A press of Stop stops whatever is recording.
+  Racing Desk's. Quitting Racing Desk — closing the desk, the tray's Quit — stops the recording it started (StopRecord,
+  STOPPED waited for 3 s at most) and leaves OBS and his own recordings alone; with OBS out of reach it cannot ask, and
+  keeps the state file for the next start. **The Ctrl+Shift+G relaunch is not a quit** (`leaveForRelaunch`): the
+  recording, and the replay buffer, Racing Desk started run on in OBS; the state file says both are its own (`replayOurs`,
+  and that alone when nothing of its own is recording); the sidecar is closed with the reason; and the relaunched app —
+  back within seconds — takes them over when OBS answers: the sidecar gone on in from the same file (a `resumed` line, no
+  second header), the buffer stopped when he leaves the car, so a restart mid-race leaves the race one video with one
+  sidecar. A press of Stop stops whatever is recording.
 - **Writes the telemetry sidecar** beside the file (`<video>.telemetry.jsonl`, `modules/js/telemetry-sidecar.js`,
   schema in [telemetry-sidecar-schema.md](telemetry-sidecar-schema.md)): the main process polls `:8889/racing-desk/`
   at 30 Hz while OBS records a live sim session, so a page reload or the HUD switched off no longer stops the frames.
@@ -74,8 +79,9 @@ is what is built as of stage 3 and what is coming. The Electron recorder, its ff
   is Racing Desk's from the answer to its StartReplayBuffer until OBS's STOPPED, no earlier: STARTING and STOPPING say
   the output is not active (obs-websocket's `outputActive` is false for every state but STARTED), and STARTING comes
   after the answer, so going by the flag would drop ownership at once and leave the buffer, its encoder and the 30 Hz
-  poll running after he leaves the car and after Racing Desk quits. A start that failed is tried again no sooner than a
-  minute on; one that did not fail is not held back. With no replay buffer in OBS the card says to press Set up OBS —
+  poll running after he leaves the car and after Racing Desk quits. The Ctrl+Shift+G relaunch leaves a buffer Racing
+  Desk started running and hands it to the relaunched app through the state file (above). A start that failed is tried
+  again no sooner than a minute on; one that did not fail is not held back. With no replay buffer in OBS the card says to press Set up OBS —
   or, when OBS's profile has one (Set up OBS ran while OBS was open), that instant replay starts the next time OBS opens
   — and it is not asked for again and again. **Save replay** — Ctrl+Shift+B in the car, the tray, the Stream Deck, the
   card — is `SaveReplayBuffer`; the clip OBS saves (`Replay <date>.mp4`, by his profile's prefix) gets a sidecar of its

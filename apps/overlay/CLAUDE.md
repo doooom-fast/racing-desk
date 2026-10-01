@@ -618,7 +618,7 @@ page reads the list of screens again in place when the app says they changed (`h
 |----------|--------|
 | `Ctrl+Shift+F` | Toggle the glance layout (fullscreen): every panel of the HUD as one grid filling the screen, as an iPad is shown |
 | `Ctrl+Shift+H` | Switch the HUD off/on, in the car only — out of it the key does nothing, and the tray's "HUD on/off" is the switch |
-| `Ctrl+Shift+G` | Toggle green-screen mode |
+| `Ctrl+Shift+G` | Toggle green-screen mode, which restarts the app. A restart is not a quit: a recording and a replay buffer Racing Desk started run on in OBS and the relaunched app takes them over when OBS answers, so the race stays one video and its sidecar is gone on in (`docs/recording.md`) |
 | `Ctrl+Shift+R` | Put the HUD's window back over the whole screen it belongs on (`hud-display.js`: not the primary one unless that is where the rule puts it) |
 | `Ctrl+Shift+D` | Restart demo sequence |
 | `Ctrl+Shift+O` | Open the desk |
