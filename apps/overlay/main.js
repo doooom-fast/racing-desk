@@ -364,7 +364,6 @@ const HUD_KEYS = {
     app.exit(0);
   },
   'CommandOrControl+Shift+D': () => { if (overlayWindow) overlayWindow.webContents.send('restart-demo'); },
-  'CommandOrControl+Shift+M': () => { if (overlayWindow) overlayWindow.webContents.send('reset-trackmap'); },
   'CommandOrControl+Shift+I': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-rating-editor'); },
   'CommandOrControl+Shift+F': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-drive-mode'); },
   'CommandOrControl+Shift+V': () => { if (overlayWindow) overlayWindow.webContents.send('toggle-recording'); },
@@ -745,7 +744,6 @@ const _actionHandlers = {
 
   // ── Renderer IPC passthrough ──
   'restart-demo':           () => _sendRenderer('restart-demo'),
-  'reset-trackmap':         () => _sendRenderer('reset-trackmap'),
   'toggle-rating-editor':   () => _sendRenderer('toggle-rating-editor'),
   'toggle-drive-mode':      () => _sendRenderer('toggle-drive-mode'),
   'toggle-recording':       () => _sendRenderer('toggle-recording'),

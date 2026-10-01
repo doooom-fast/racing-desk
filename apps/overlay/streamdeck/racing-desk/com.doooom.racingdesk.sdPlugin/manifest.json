@@ -94,21 +94,6 @@
 			]
 		},
 		{
-			"Name": "Reset Track Map",
-			"UUID": "com.doooom.racingdesk.reset-trackmap",
-			"Icon": "imgs/actions/reset-trackmap/icon",
-			"Tooltip": "Reset the track map position and zoom",
-			"Controllers": [
-				"Keypad"
-			],
-			"States": [
-				{
-					"Image": "imgs/actions/reset-trackmap/key",
-					"TitleAlignment": "bottom"
-				}
-			]
-		},
-		{
 			"Name": "Restart Demo",
 			"UUID": "com.doooom.racingdesk.restart-demo",
 			"Icon": "imgs/actions/restart-demo/icon",

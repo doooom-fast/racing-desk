@@ -115,11 +115,6 @@ export class RestartDemo extends SingletonAction<OverlaySettings> {
 	override async onKeyDown(ev: KeyDownEvent<OverlaySettings>) { await handleKey(ev, "restart-demo"); }
 }
 
-@action({ UUID: "com.doooom.racingdesk.reset-trackmap" })
-export class ResetTrackmap extends SingletonAction<OverlaySettings> {
-	override async onKeyDown(ev: KeyDownEvent<OverlaySettings>) { await handleKey(ev, "reset-trackmap"); }
-}
-
 // ── Editor actions ──
 
 @action({ UUID: "com.doooom.racingdesk.toggle-rating-editor" })

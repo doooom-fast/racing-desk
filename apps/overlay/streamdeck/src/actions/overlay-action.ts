@@ -15,7 +15,6 @@ const UUID_TO_ACTION: Record<string, string> = {
 	"com.racing-desk.overlay.toggle-rating-editor": "toggle-rating-editor",
 	"com.racing-desk.overlay.zoom-in": "zoom-in",
 	"com.racing-desk.overlay.zoom-out": "zoom-out",
-	"com.racing-desk.overlay.reset-trackmap": "reset-trackmap",
 	"com.racing-desk.overlay.restart-demo": "restart-demo",
 	"com.racing-desk.overlay.cycle-rating": "cycle-rating",
 	"com.racing-desk.overlay.toggle-green-screen": "toggle-greenscreen",

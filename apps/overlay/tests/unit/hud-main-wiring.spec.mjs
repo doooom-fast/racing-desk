@@ -109,8 +109,9 @@ test.describe('the keys', () => {
     const keys = code.match(/const HUD_KEYS = \{([\s\S]*?)\n\};/);
     expect(keys).not.toBeNull();
     const named = [...keys[1].matchAll(/^  '(CommandOrControl\+Shift\+\w)':/gm)].map((m) => m[1].slice(-1));
-    // Q among them: in a browser Ctrl+Shift+Q closes every window it has.
-    expect(named.sort().join('')).toBe('BDFGHIMPQRV');
+    // Q among them: in a browser Ctrl+Shift+Q closes every window it has. M is held by nothing: the track map is the
+    // host's, from the driver's own laps, and there is nothing to reset.
+    expect(named.sort().join('')).toBe('BDFGHIPQRV');
     expect(named).not.toContain('O');
 
     const made = argumentsOf('createHudKeys(');

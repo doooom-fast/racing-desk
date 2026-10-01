@@ -928,10 +928,12 @@
     flex: 1;
   }
 
-  /* F1-style sector indicator (shown during practice/qualifying/testing) */
+  /* F1-style sector indicator (shown during practice/qualifying/testing). A layout with more sectors than
+     fit across the block wraps them to another line; none is cropped. */
   .sector-indicator {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 3px;
     flex: 1;
     width: 100%;
@@ -1365,6 +1367,23 @@
     overflow: hidden;
   }
   .map-svg { width: 92%; flex: 1 1 0; min-height: 0; }
+  /* While there is no map: why, centred over the empty circuit, and nothing at all once there is one. */
+  .map-panel > .map-waiting {
+    position: absolute;
+    inset: 0 0 1.6em 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    text-align: center;
+    text-wrap: balance;
+    font-size: max(11px, var(--fs-xs));
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+  .map-panel > .map-waiting:empty { display: none; }
   /* Full map label: single-line marquee so long names slide past instead of
      wrapping and stealing vertical space from the map above. */
   .map-panel > .map-zoom-label {

@@ -863,27 +863,19 @@
     return best;
   }
 
-  // Reset track map — clears recorded data and restarts capture
-  function resetTrackMap() {
-    fetch((window._simhubUrlOverride || SIMHUB_URL) + '?action=resetmap').catch(() => {});
-    _mapLastPath = '';
-    _mapHasInit = false;
-    _trackPathCoords = [];
-    _trailStartIdx = -1;
-    // Clear the source paths only — the three <use> layers pointing at
-    // each one follow automatically.
-    ['fullMapTrackSrc', 'zoomMapTrackSrc'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.setAttribute('d', '');
-    });
-    // Clear trail polylines
-    if (_fullMapTrailEl) { _fullMapTrailEl.setAttribute('points', ''); }
-    if (_zoomMapTrailEl) { _zoomMapTrailEl.setAttribute('points', ''); }
-    // Clear opponent dots
-    const fg = document.getElementById('fullMapOpponents');
-    const zg = document.getElementById('zoomMapOpponents');
-    if (fg) fg.innerHTML = '';
-    if (zg) zg.innerHTML = '';
+  // What the map cell says while there is no map, by the host's TrackMap.Status: the outline is the host's, from
+  // the driver's own laps, and there is nothing to reset or record here.
+  const _MAP_WAITING = {
+    'first-lap': 'Map after one clean lap',
+    'no-host': 'The map needs the app’s host',
+  };
+  let _mapWaitingShown = '';
+  function _setMapWaiting(status, hasPath) {
+    const text = hasPath ? '' : (_MAP_WAITING[status] || '');
+    if (text === _mapWaitingShown) return;
+    _mapWaitingShown = text;
+    const el = document.getElementById('fullMapWaiting');
+    if (el) el.textContent = text;
   }
 
   // Sector colors: 0=none(transparent), 1=pb(purple), 2=faster(green), 3=slower(red)
@@ -891,9 +883,9 @@
   const _sectorActiveColor = 'hsla(0,0%,100%,0.25)';
 
   // Split an SVG path string into N sector sub-paths.
-  // boundaryPcts is an array of N-1 boundary percentages (e.g. [0.33, 0.67] for 3 sectors).
-  // Falls back to equal thirds if no boundaries provided.
-  // Track map points are evenly distributed by LapDistPct, so point index ≈ pct * count.
+  // boundaryPcts is an array of N-1 boundary percentages: the session's own (SplitTimeInfo, which poll-engine.js
+  // keeps in window._sectorBoundaries), e.g. [0.35, 0.70]. Falls back to equal thirds if none are given.
+  // The host's outline has one point per LapDistPct bin, so point index ≈ pct * count.
   function _splitPathIntoSectors(svgPath, boundaryPcts) {
     const coords = svgPath.match(/[\d.]+[,\s]+[\d.]+/g);
     if (!coords || coords.length < 6) return [];
@@ -1013,7 +1005,10 @@
   // Smoothed heading for local map rotation
   let _mapSmoothedHeading = 0;
 
-  function updateTrackMap(svgPath, playerX, playerY, opponentStr, speedMph, headingDeg) {
+  function updateTrackMap(svgPath, playerX, playerY, opponentStr, speedMph, headingDeg, status) {
+    // While there is no map the cell says why (the host's TrackMap.Status); with one it says nothing.
+    _setMapWaiting(status, !!svgPath);
+
     // No track map available — clear outline, hide markers, center dots
     if (!svgPath && _mapLastPath !== '') {
       _mapLastPath = '';
@@ -1161,27 +1156,15 @@
       }
     }
 
-    // Smoothing: reject large jumps, low-pass filter coordinates
+    // A low-pass filter on the position. The host places the car along a closed loop, the line included, so there
+    // is no jump at the line to guard against: a step is a step, and a slow blend after one would be a slide.
     if (!_mapHasInit) {
       _mapSmoothedX = playerX;
       _mapSmoothedY = playerY;
       _mapHasInit = true;
     } else {
-      const dx = playerX - _mapSmoothedX;
-      const dy = playerY - _mapSmoothedY;
-      const jump = Math.sqrt(dx * dx + dy * dy);
-
-      // Detect lap boundary crossing or pit exit: large position jump (>15 SVG units)
-      // indicates S/F line or pit exit. Reset trail to prevent lines crossing the map.
-      if (jump > 15) {
-        _trailStartIdx = -1;  // Reset trail to current position
-        _trailFading = false;
-      }
-
-      // If jump is huge (>20 SVG units), blend slowly (glitch recovery)
-      const alpha = jump > 20 ? 0.08 : 0.45;
-      _mapSmoothedX += dx * alpha;
-      _mapSmoothedY += dy * alpha;
+      _mapSmoothedX += (playerX - _mapSmoothedX) * 0.45;
+      _mapSmoothedY += (playerY - _mapSmoothedY) * 0.45;
     }
 
     const sx = _mapSmoothedX;

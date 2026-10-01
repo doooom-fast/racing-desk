@@ -25,9 +25,6 @@ contextBridge.exposeInMainWorld('racingDesk', {
   onRestartDemo: (callback) => {
     ipcRenderer.on('restart-demo', () => callback());
   },
-  onResetTrackmap: (callback) => {
-    ipcRenderer.on('reset-trackmap', () => callback());
-  },
   // iRating / Safety Rating
   getRatingData: () => ipcRenderer.invoke('get-rating-data'),
   saveRatingData: (data) => ipcRenderer.invoke('save-rating-data', data),
