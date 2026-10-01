@@ -60,8 +60,8 @@ test.describe('the plugin\'s actions', () => {
     const port = server.address().port;
     try {
       expect(await plugin.fire('toggle-recording', port)).toBe(true);
-      // Anything else that is that slow is still a cross at 3 s.
-      expect(await plugin.fire('zoom-in', port, { timeoutMs: 50 })).toBe(true);
+      // Any other key is still a cross when the app is slow: here the app takes 600 ms and the key waits 100.
+      expect(await plugin.fire('zoom-in', port)).toBe(true);
       const slowZoom = http.createServer((req, res) => { setTimeout(() => { res.writeHead(200); res.end('{"ok":true}'); }, 600); });
       await new Promise((r) => slowZoom.listen(0, '127.0.0.1', r));
       try { expect(await plugin.fire('zoom-in', slowZoom.address().port, { timeoutMs: 100 })).toBe(false); } finally { await new Promise((r) => slowZoom.close(r)); }
