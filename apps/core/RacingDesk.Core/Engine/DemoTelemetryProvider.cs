@@ -174,8 +174,9 @@ namespace RacingDesk.Plugin.Engine
 
         public double GapAhead       { get; private set; } = 5.4;
         public double GapBehind      { get; private set; } = 6.2;
-        public string DriverAhead    { get; private set; } = "A. Martinez";
-        public string DriverBehind   { get; private set; } = "J. Williams";
+        // The demo's rivals are characters, like everyone else's (Names/DemoNames).
+        public string DriverAhead    { get; private set; } = RacingDesk.Core.Names.DemoNames.Ahead;
+        public string DriverBehind   { get; private set; } = RacingDesk.Core.Names.DemoNames.Behind;
         public int    IRAhead        { get; private set; } = 2847;
         public int    IRBehind       { get; private set; } = 3214;
 
@@ -558,8 +559,8 @@ namespace RacingDesk.Plugin.Engine
             TyreWearRR = 85;
             GapAhead   = 5.4;
             GapBehind  = 6.2;
-            DriverAhead  = "A. Martinez";
-            DriverBehind = "J. Williams";
+            DriverAhead  = RacingDesk.Core.Names.DemoNames.Ahead;
+            DriverBehind = RacingDesk.Core.Names.DemoNames.Behind;
             IRAhead  = 2847;
             IRBehind = 3214;
             // Start with pre-race sequence

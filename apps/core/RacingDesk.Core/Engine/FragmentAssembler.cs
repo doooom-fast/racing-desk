@@ -153,8 +153,9 @@ namespace RacingDesk.Plugin.Engine
         /// <summary>
         /// Performs placeholder substitution on the assembled sentence.
         /// Supports: {ahead}, {behind}, {driver}, {value}, {rating_context}, {corner_name}
+        /// The names it fills in are the snapshot's, which the source gave (Names tests hold it to that).
         /// </summary>
-        private string PerformSubstitution(string text, TelemetrySnapshot context)
+        internal string PerformSubstitution(string text, TelemetrySnapshot context)
         {
             if (string.IsNullOrEmpty(text) || context == null)
                 return text;

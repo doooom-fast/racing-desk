@@ -105,6 +105,13 @@ namespace RacingDesk.Plugin.IRacing
 
         public object NewData => GameRunning ? _data : null;
 
+        /// <summary>
+        /// An opponent's name as it may be shown. The session model this source reads has already had every other driver
+        /// renamed where it was parsed (<see cref="SdkRawTelemetry.SessionInfo"/>, <see cref="IbtFile.SessionInfo"/>), so the
+        /// name here is the character's, and the player's own is his.
+        /// </summary>
+        public string OpponentName(object opponent) => (opponent as OpponentData)?.Name;
+
         /// <summary>Recompute normalized data and derived values for the current frame.</summary>
         public void Update()
         {

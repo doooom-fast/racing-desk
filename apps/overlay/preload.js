@@ -131,6 +131,13 @@ contextBridge.exposeInMainWorld('racingDesk', {
     ipcRenderer.on('logo-livery', (_event, dataUrl) => callback(dataUrl));
   },
   getLogoLivery: () => ipcRenderer.invoke('get-logo-livery'),
+  // What the rig's hardware is set to, for the datastream (modules/js/rig-limits.js): the brake force the pedals are at,
+  // as the app's host follows it — { brakeKg, car }, null each while not known — sent when it changes, and asked for by a
+  // page that loaded after. The page reads no host for it.
+  onRigLimits: (callback) => {
+    ipcRenderer.on('rig-limits', (_event, limits) => callback(limits));
+  },
+  getRigLimits: () => ipcRenderer.invoke('get-rig-limits'),
   // Recording is OBS's, kept by the main process (modules/js/obs): the page records nothing and is told nothing of a
   // recording's state, which OBS would film. The one thing it may be told is a sentence to show for two seconds —
   // "OBS is not open", "OBS didn't start recording" — which hud-notice.js draws.

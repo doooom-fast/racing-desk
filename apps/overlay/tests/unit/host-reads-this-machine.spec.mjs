@@ -20,6 +20,7 @@ const hudDisplay = require('../../modules/js/hud-display.js');
 const hostLauncher = require('../../modules/js/host-launcher.js');
 const rigApi = require('../../modules/js/rig-api.js');
 const deskReads = require('../../modules/js/desk-reads.js');
+const rigLimits = require('../../modules/js/rig-limits.js');
 
 const CARS = [{ car_path: 'mx5 mx52016', name: 'Mazda MX-5 Cup', short_name: 'MX-5 Cup', car_id: 67, driven: 668, seen: 702 }];
 const MONITORS = [{ x: -1440, y: 0, width: 1440, height: 1080, primary: false }, { x: 0, y: 0, width: 3440, height: 1440, primary: true }];
@@ -36,6 +37,8 @@ const ROUTES = {
   simwindow: SIM_WINDOW,
   monitors: MONITORS,
   replay: { available: false, connected: false },
+  brakeforce: { car: 'mx5 mx52016', force_kg: 45 },
+  wheelmax: { source: 'pithouse', model: 'R21 Ultra', max_pct: 55, rated_nm: 21, max_nm: 11.55, candidates: 2 },
 };
 
 // The host's data API, as far as its check goes: it asks of every request what the real one asks, before the route.
@@ -165,6 +168,20 @@ test('the Cars page\'s four reads and its one write (rig-api.js) are answered', 
   for (const a of host.state.asked) {
     expect(a.headers.host).toBe(`127.0.0.1:${host.port}`);
     expect(a.headers.origin).toBeUndefined();
+  }
+});
+
+test('the brake force and the wheel\'s maximum the HUD\'s datastream is told (rig-limits.js, asked by the main process) are answered', async () => {
+  expect(await rigLimits.fetchBrakeForce(`${host.url}${rigLimits.BRAKE_FORCE_PATH}`)).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
+  expect(await rigLimits.fetchWheelMax(`${host.url}${rigLimits.WHEEL_MAX_PATH}`)).toEqual({ wheelNm: 11.55, wheelSource: 'pithouse' });
+  expect(await rigLimits.fetchRigLimits(`${host.url}${rigLimits.BRAKE_FORCE_PATH}`)).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: 11.55, wheelSource: 'pithouse' });
+  expect(host.state.refused).toEqual([]);
+  expect(host.state.asked.map((a) => a.url)).toEqual([
+    '/racing-desk/data/brakeforce', '/racing-desk/data/wheelmax', '/racing-desk/data/brakeforce', '/racing-desk/data/wheelmax',
+  ]);
+  for (const a of host.state.asked) {
+    expect(a.headers.host).toBe(`127.0.0.1:${host.port}`);
+    for (const name of ['origin', 'referer', 'sec-fetch-site', 'sec-fetch-dest', 'sec-fetch-user']) expect(a.headers[name], name).toBeUndefined();
   }
 });
 

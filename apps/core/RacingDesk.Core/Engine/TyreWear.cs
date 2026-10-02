@@ -32,6 +32,15 @@ namespace RacingDesk.Plugin.Engine
         public const double CriticalBelowPercent = 20.0;
 
         /// <summary>
+        /// The tread of a new set: what a corner whose tyre was changed reads, on the wire and everywhere it is read,
+        /// from the change until the sim measures that corner again (<see cref="TyreSetMask"/>; he chose it on
+        /// 2026-10-01 over a dash: "100%, new set"). The snapshot's <c>TyreNewSetFlags</c> says which corners read
+        /// this by assumption rather than by measurement, so the page can say "new set" and the strategist can know
+        /// the 100 is not news. New tyres never warn, so neither does this.
+        /// </summary>
+        public const double NewPercent = 100.0;
+
+        /// <summary>
         /// One corner's tread remaining, 0..100 %, from iRacing's three bands (each a fraction remaining, 1 = new): their
         /// mean, times a hundred. Null where all three are 0 or absent — the sim has not said, which is not a bald tyre.
         /// (A corner that really is at 0.0 on all three bands reads as not measured too: a variable that is not there

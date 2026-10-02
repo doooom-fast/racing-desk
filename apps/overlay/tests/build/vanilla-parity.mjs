@@ -264,8 +264,8 @@ test.describe('Position & Gaps', () => {
   test('shows driver names for gaps', async ({ page }) => {
     await loadBuild(page, DS_TELEMETRY);
     const drivers = await page.locator('.gap-driver').allTextContents();
-    expect(drivers[0]).toContain('Broadbent');
-    expect(drivers[1]).toContain('Leclerc');
+    expect(drivers[0]).toContain('van Dyne');
+    expect(drivers[1]).toContain('Iommi');
   });
 
   test('clears gaps block during practice/qualifying', async ({ page }) => {

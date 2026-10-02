@@ -59,6 +59,33 @@ function tyreWearShown(pct) {
   return shown;
 }
 
+// Which corners' 100 is a new set's by assumption, not the sim's measurement: the tyre was changed (a stop with it ticked,
+// or a reset to the pits) and iRacing, which measures tread in the pits only, has not measured that corner since, so the
+// engine puts 100 on the wire for it (TyreSetMask) and says so here — RacingDesk.Plugin.TyreNewSetFlags, one bit a corner,
+// PitSvFlags' bits: 0x01 FL, 0x02 FR, 0x04 RL, 0x08 RR. The pit box writes "new set" under the rings from it; the number
+// itself is read like any other (it is 100, green). A plugin from before the key, the demo, or 0: nothing is a new set.
+const TYRE_NEW_SET_KEY = 'RacingDesk.Plugin.TyreNewSetFlags';
+function parseTyreNewSet(val) {
+  const flags = parseInt(val, 10) || 0;
+  return [!!(flags & 0x01), !!(flags & 0x02), !!(flags & 0x04), !!(flags & 0x08)];   // [FL, FR, RL, RR]
+}
+
+// The words under the rings while a corner is a new set the sim has not measured, in place of "Tread measured in the pits":
+// which tyres are new, and that the 100 is not yet the sim's number. Plain words, one line, whole at the glance layout's
+// 11px floor on the smallest iPad (136px under the rings at 744 wide): the set and the four pairs carry "not measured";
+// an odd change (one tyre, three, a diagonal) names its corners alone, since no honest suffix fits beside them.
+function tyreNewSetNote(corners) {
+  const n = corners.filter(Boolean).length;
+  if (!n) return '';
+  const [fl, fr, rl, rr] = corners;
+  if (n === 4) return 'New set · not measured';
+  if (n === 2 && fl && fr) return 'New fronts · not measured';
+  if (n === 2 && rl && rr) return 'New rears · not measured';
+  if (n === 2 && fl && rl) return 'New lefts · not measured';
+  if (n === 2 && fr && rr) return 'New rights · not measured';
+  return 'New ' + ['LF', 'RF', 'LR', 'RR'].filter((_, i) => corners[i]).join(', ');
+}
+
 // ── Laps of fuel: one meaning, one reader ──
 // A number of laps, or 0 for "not known yet" (the host and the SimHub plugin say 0 until a lap has said what a lap costs,
 // since 2026-10-01). An engine built before sent exactly 99 for the same ("FuelPerLap > 0.01 ? FuelLevel / FuelPerLap : 99"),
@@ -98,6 +125,7 @@ const PROP_KEYS = [
   'DataCorePlugin.GameData.TyreWearFrontRight',
   'DataCorePlugin.GameData.TyreWearRearLeft',
   'DataCorePlugin.GameData.TyreWearRearRight',
+  'RacingDesk.Plugin.TyreNewSetFlags',
   'DataCorePlugin.GameRawData.Telemetry.dcBrakeBias',
   'DataCorePlugin.GameRawData.Telemetry.dcTractionControl',
   'DataCorePlugin.GameRawData.Telemetry.dcABS',
@@ -703,6 +731,9 @@ const _defaultSettings = {
   dsShowGforce: true,
   dsShowYaw: true,
   dsShowFfb: true,
+  dsShowWheelMax: true,
+  dsShowFfbMax: true,
+  dsShowBrakeMax: true,
   dsShowDelta: true,
   dsShowTrackTemp: true,
   dsShowFps: true,

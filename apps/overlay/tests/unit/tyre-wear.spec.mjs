@@ -4,8 +4,10 @@
  * converts nothing: the pit box's rings show the number, amber under 35 and red under 20, and the strategist's
  * offer of a change comes from the engine's TireHealthState, not from the page. iRacing measures tread in the pits
  * and nowhere else, so the page says what the number is, in one dim line under the rings, on the rig and in the
- * glance layout. The real dashboard.html from the file, headless, over a stand-in for the plugin on
- * localhost:8889 (routed, nothing listens); every other address is shut.
+ * glance layout — and while a corner's 100 is a new set the sim has not measured yet (the engine's TyreNewSetFlags,
+ * after a stop with the tyre ticked or a reset to the pits), the line says "new set" instead. The real dashboard.html
+ * from the file, headless, over a stand-in for the plugin on localhost:8889 (routed, nothing listens); every other
+ * address is shut.
  *
  * A flip anywhere — the host or the plugin sending a fraction, or wear instead of tread, or the page inverting —
  * fails here: a new tyre is 100% and green with nothing offered, a worn one is low and red.
@@ -26,6 +28,7 @@ const RL = 'DataCorePlugin.GameData.TyreWearRearLeft';
 const RR = 'DataCorePlugin.GameData.TyreWearRearRight';
 const HEALTH = 'RacingDesk.Plugin.Strategy.TireHealthState';
 const LAPS = 'RacingDesk.Plugin.Strategy.TireLapsRemaining';
+const NEWSET = 'RacingDesk.Plugin.TyreNewSetFlags';   // which corners' 100 is a new set the sim has not measured: 0x01 FL, 0x02 FR, 0x04 RL, 0x08 RR
 
 let payload;
 
@@ -73,6 +76,12 @@ const note = (page) => page.evaluate(() => {
   const el = document.getElementById('pbWearNote');
   return [getComputedStyle(el).display !== 'none', el.textContent];
 });
+
+// A click on the element's own handler (the pit box on the rig is a click-through window: a pointer is not what is tested).
+const click = (page, id) => page.evaluate((i) => document.getElementById(i).click(), id);
+
+// Which ring cells are ticked as the tyres to change (by the strategist's "accept", or by hand).
+const cells = (page) => page.evaluate(() => ['LF', 'RF', 'LR', 'RR'].map((c) => document.getElementById('pbCircle' + c).classList.contains('selected') ? 'selected' : '-'));
 
 test.describe('the wire\'s tread, as it is', () => {
   test('new tyres are 100%, green, with nothing offered; worn ones are low, amber under 35 and red under 20', async ({ page }) => {
@@ -132,12 +141,91 @@ test.describe('the wire\'s tread, as it is', () => {
     expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['1%', 'crit'], ['1%', 'crit'], ['1%', 'crit'], ['1%', 'crit']]);
   });
 
-  test('a corner the engine has taken off the wire (a new set: null) is a dash while the others keep their numbers', async ({ page }) => {
-    await open(page, RACE({ [FL]: null, [FR]: 16, [RL]: null, [RR]: 62 }, { [HEALTH]: 2, [LAPS]: 0 }));
-    expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['—', 'ok'], ['16%', 'crit'], ['—', 'ok'], ['62%', 'ok']]);
-    await serve(page, RACE({ [FL]: null, [FR]: null, [RL]: null, [RR]: null }, { [HEALTH]: 0, [LAPS]: 99 }));
-    expect((await rings(page)).map((x) => x[0])).toEqual(['—', '—', '—', '—']);
+  test('a new set the engine has put on the wire (100, flagged) is 100%, green and full, with "new set" under the rings, while the others keep their numbers and their verdict', async ({ page }) => {
+    // Two lefts changed at a stop (0x05), the right front measured at 16 and left on: the lefts read the new set's 100, the
+    // offer for the right front stands (the engine's TireHealthState), and the line under the rings says which tyres are new.
+    await open(page, RACE({ [FL]: 100, [FR]: 16, [RL]: 100, [RR]: 62 }, { [NEWSET]: 0x05, [HEALTH]: 2, [LAPS]: 0 }));
+    const r = await rings(page);
+    expect(r.map((x) => x.slice(0, 2))).toEqual([['100%', 'ok'], ['16%', 'crit'], ['100%', 'ok'], ['62%', 'ok']]);
+    expect(parseFloat(r[0][2])).toBeCloseTo(0, 6);   // a full ring, as any 100 is
+    expect(await note(page)).toEqual([true, 'New lefts · not measured']);
+    expect(await strategist(page)).toEqual([true, 'Accept tire change']);
+
+    // All four, after a reset to the pits: 100 everywhere, nothing offered, "new set"
+    await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { [NEWSET]: 0x0F, [HEALTH]: 0, [LAPS]: 99 }));
+    expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok']]);
+    expect(await note(page)).toEqual([true, 'New set · not measured']);
     expect(await strategist(page)).toEqual([false, expect.any(String)]);
+
+    // The sim measures the set at the next stop: the real numbers replace the 100s and the line is the measurement's again
+    await serve(page, RACE({ [FL]: 91, [FR]: 90, [RL]: 92, [RR]: 93 }, { [NEWSET]: 0, [HEALTH]: 0, [LAPS]: 99 }));
+    expect((await rings(page)).map((x) => x[0])).toEqual(['91%', '90%', '92%', '93%']);
+    expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
+
+    // A plugin from before the key says nothing about new sets: the measurement's words
+    await serve(page, RACE({ [FL]: 91, [FR]: 90, [RL]: 92, [RR]: 93 }, { [NEWSET]: undefined }));
+    expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
+
+    // The words for the set, each pair and an odd change: PitSvFlags' bits, 0x01 FL, 0x02 FR, 0x04 RL, 0x08 RR. An odd change
+    // (one tyre, three, a diagonal) names its corners alone: no honest suffix fits beside them at the glance layout's floor.
+    expect(await page.evaluate(() => [0, 0x0F, 0x03, 0x0C, 0x05, 0x0A, 0x01, 0x09, 0x07, '', null, 'x'].map((f) => tyreNewSetNote(parseTyreNewSet(f)))))
+      .toEqual(['', 'New set · not measured', 'New fronts · not measured', 'New rears · not measured', 'New lefts · not measured',
+        'New rights · not measured', 'New LF', 'New LF, RR', 'New LF, RF, LR', '', '', '']);
+    expect(await page.evaluate(() => TYRE_NEW_SET_KEY)).toBe('RacingDesk.Plugin.TyreNewSetFlags');
+  });
+
+  test('a flag is for the words alone: a flagged corner whose value arrives null is still a dash, the ring never painting a 100 from it', async ({ page }) => {
+    // The engine puts the 100 on the wire and the flag says so; the page reads the number like any other. A plugin bug that
+    // sent the flag with no number would show a dash with the words, and not a green 100 made up from the flag.
+    await open(page, RACE({ [FL]: null, [FR]: 100, [RL]: 100, [RR]: 100 }, { [NEWSET]: 0x01 }));
+    const r = await rings(page);
+    expect(r.map((x) => x[0])).toEqual(['—', '100%', '100%', '100%']);
+    expect(r[0][1]).toBe('ok');
+    expect(parseFloat(r[0][2])).toBeCloseTo(2 * Math.PI * 28, 2);   // an empty ring
+    expect(await note(page)).toEqual([true, 'New LF']);
+    // and with the key on a corner that is not on the wire at all (no key)
+    await serve(page, RACE({ [FL]: undefined, [FR]: 100, [RL]: 100, [RR]: 100 }, { [NEWSET]: 0x01 }));
+    expect((await rings(page))[0][0]).toBe('—');
+  });
+
+  test('the tyre-change offer is for the corners that are not a new set: "accept" selects those and not the new ones', async ({ page }) => {
+    // Two lefts changed at a stop (0x05) with the right front measured at 16 and left on: the offer stands for the rights only
+    await open(page, RACE({ [FL]: 100, [FR]: 16, [RL]: 100, [RR]: 62 }, { [NEWSET]: 0x05, [HEALTH]: 2, [LAPS]: 0 }));
+    expect(await strategist(page)).toEqual([true, 'Accept tire change']);
+    expect(await cells(page), 'nothing is ticked before the driver accepts').toEqual(['-', '-', '-', '-']);
+    await click(page, 'pbStratBtn');
+    expect(await cells(page), 'accept ticks the rights and not the new lefts').toEqual(['-', 'selected', '-', 'selected']);
+    // The driver's own tick on a new set is his: the next frame does not undo it
+    await click(page, 'pbCircleLF');
+    await drawn(page);
+    expect(await cells(page)).toEqual(['selected', 'selected', '-', 'selected']);
+
+    // With nothing a new set the same button ticks all four, as it always did
+    await serve(page, RACE({ [FL]: 40, [FR]: 16, [RL]: 45, [RR]: 62 }, { [NEWSET]: 0, [HEALTH]: 2, [LAPS]: 0 }));
+    await click(page, 'pbStratBtn');
+    expect(await cells(page)).toEqual(['selected', 'selected', 'selected', 'selected']);
+  });
+
+  test('a corner that turns into a new set while the offer is up comes out of it, with its tick if the driver had accepted', async ({ page }) => {
+    // The offer is up for four corners and accepted; a stop then changes the lefts while the right front stays critical
+    await open(page, RACE({ [FL]: 40, [FR]: 16, [RL]: 45, [RR]: 62 }, { [NEWSET]: 0, [HEALTH]: 2, [LAPS]: 0 }));
+    await click(page, 'pbStratBtn');
+    expect(await cells(page), 'accepted: all four, nothing is new').toEqual(['selected', 'selected', 'selected', 'selected']);
+    await serve(page, RACE({ [FL]: 100, [FR]: 16, [RL]: 100, [RR]: 62 }, { [NEWSET]: 0x05, [HEALTH]: 2, [LAPS]: 0 }));
+    expect(await strategist(page)).toEqual([true, 'Accept tire change']);
+    expect(await cells(page), 'the two lefts were just changed: their tick goes, the rights keep theirs').toEqual(['-', 'selected', '-', 'selected']);
+    // and accepting again ticks the rights only
+    await click(page, 'pbStratBtn');
+    expect(await cells(page)).toEqual(['-', 'selected', '-', 'selected']);
+  });
+
+  test('the new-set line is for the live sim only: the demo, whose tread moves every lap, says nothing of it', async ({ page }) => {
+    await open(page, RACE({}, {
+      'RacingDesk.Plugin.DemoMode': 1, [NEWSET]: 0x0F,
+      'RacingDesk.Plugin.Demo.TyreWearFL': 100, 'RacingDesk.Plugin.Demo.TyreWearFR': 100, 'RacingDesk.Plugin.Demo.TyreWearRL': 100, 'RacingDesk.Plugin.Demo.TyreWearRR': 100,
+      'RacingDesk.Plugin.Demo.CarModel': 'BMW M4 GT3',
+    }));
+    expect(await note(page)).toEqual([false, '']);
   });
 
   test('the commentary\'s quad says a dash where nothing is measured, and never four red 0%', async ({ page }) => {
@@ -231,6 +319,37 @@ test.describe('what the number is', () => {
     expect(await note(page)).toEqual([true, 'Tread measured in the pits']);
   });
 
+  test('on the smallest pit box the new-set line gives way to a tyre call as the measurement\'s words do, and is back with the call gone', async ({ page }) => {
+    // Two lefts changed at a stop (0x05) with the right rear measured at 15 and left on, so the call stands for the rights. In
+    // a cell under 200px there is no room beside the rings and the call: a line kept there is drawn over the rings' position labels.
+    const set = (flags, health, laps) => RACE({ [FL]: 100, [FR]: 50, [RL]: 100, [RR]: 15 }, { [NEWSET]: flags, [HEALTH]: health, [LAPS]: laps, 'RacingDesk.Plugin.Strategy.StintLaps': 14 });
+    await open(page, set(0x05, 2, 12));
+    await page.setViewportSize({ width: 810, height: 1080 });
+    await page.evaluate(() => setDriveMode(true));
+    await drawn(page);
+    expect(await strategist(page)).toEqual([true, expect.stringContaining('Change')]);
+    expect(await note(page), 'the words are still the new set\'s, and there is no room to show them beside the call').toEqual([false, 'New lefts · not measured']);
+    expect(await page.evaluate(() => [...document.querySelectorAll('.pb-circle-cell')].map((c) => c.scrollHeight - c.clientHeight <= 5))).toEqual([true, true, true, true]);
+    await serve(page, set(0x05, 0, 99));
+    expect(await strategist(page)).toEqual([false, expect.any(String)]);
+    expect(await note(page), 'with the call gone the line is back').toEqual([true, 'New lefts · not measured']);
+  });
+
+  test('on the rig every new-set wording is whole, on one line under the rings', async ({ page }) => {
+    await open(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { [NEWSET]: 0x0F }));
+    const look = () => page.evaluate(() => {
+      const el = document.getElementById('pbWearNote');
+      const cs = getComputedStyle(el);
+      // offsetHeight, not the bounding box: the rig's section is zoomed (1.65), the font size and the line's own height are not
+      return { text: el.textContent, shown: cs.display !== 'none', oneLine: el.offsetHeight < parseFloat(cs.fontSize) * 1.6, whole: el.scrollWidth <= el.clientWidth + 1 };
+    });
+    for (const [flags, text] of [[0x0F, 'New set · not measured'], [0x03, 'New fronts · not measured'], [0x0C, 'New rears · not measured'],
+      [0x05, 'New lefts · not measured'], [0x0A, 'New rights · not measured'], [0x01, 'New LF'], [0x09, 'New LF, RR'], [0x07, 'New LF, RF, LR'], [0x0E, 'New RF, LR, RR']]) {
+      await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { [NEWSET]: flags }));
+      expect(await look(), text).toEqual({ text, shown: true, oneLine: true, whole: true });
+    }
+  });
+
   for (const [width, height, what] of [[1180, 820, 'an iPad Air on its side'], [820, 1180, 'an iPad Air upright'], [744, 1133, 'an iPad mini upright']]) {
     test(`in the glance layout at ${width}x${height} (${what}) the line stays: one line at the label's floor under the rings, whole, and the heading keeps the laps`, async ({ page }) => {
       await open(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 14 }));
@@ -254,6 +373,21 @@ test.describe('what the number is', () => {
         oneLine: true, underTheRings: true, whole: true,
       });
       expect((await look()).size).toBeGreaterThanOrEqual(11);
+
+      // After a reset to the pits: the rings 100 %, and the line says "new set", in the same place, whole, at the same floor
+      await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 0, [NEWSET]: 0x0F }));
+      const fresh = await look();
+      expect(fresh).toEqual({
+        heading: '"Tyres"', text: 'New set · not measured', shown: true, nowrap: 'nowrap', size: expect.any(Number),
+        oneLine: true, underTheRings: true, whole: true,
+      });
+      expect(fresh.size).toBeGreaterThanOrEqual(11);
+      expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok']]);
+      // and the widest of the words — a pair's, and an odd change's three corners — fit whole too
+      for (const [flags, text] of [[0x03, 'New fronts · not measured'], [0x0A, 'New rights · not measured'], [0x07, 'New LF, RF, LR']]) {
+        await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 93 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 0, [NEWSET]: flags }));
+        expect(await look(), text).toMatchObject({ text, shown: true, oneLine: true, whole: true });
+      }
     });
   }
 });

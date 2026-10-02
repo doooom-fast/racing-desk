@@ -191,8 +191,8 @@ test.describe('Telemetry rendering', () => {
   test('driver names display in gaps', async ({ page }) => {
     await load(page);
     const drivers = page.locator('.gap-driver');
-    await expect(drivers.nth(0)).toHaveText('M. Broadbent');
-    await expect(drivers.nth(1)).toHaveText('S. Leclerc');
+    await expect(drivers.nth(0)).toHaveText('J. van Dyne');
+    await expect(drivers.nth(1)).toHaveText('T. Iommi');
   });
 
   test('gap iRatings display', async ({ page }) => {

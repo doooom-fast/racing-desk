@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using IRSDKSharper;
+using RacingDesk.Core.Names;
 using RacingDesk.Plugin.IRacing;
 
 namespace RacingDesk.Plugin.Engine
@@ -66,6 +67,134 @@ namespace RacingDesk.Plugin.Engine
         private readonly Dictionary<int, int> _driverIRatings = new Dictionary<int, int>();
         public IReadOnlyDictionary<int, int> DriverIRatings => _driverIRatings;
         public int FieldSize => _driverIRatings.Count;
+
+        // ── Other drivers' names (root CLAUDE.md, Other drivers' names) ──
+        // The plugin's path: SimHub hands the engine its opponents with their real names, and the engine asks the source what
+        // to call each (SimHubTelemetrySource, through Names/SimHubNaming, which asks this bridge). The session YAML, read
+        // here, names every other car by its customer id (Names/Pseudonymizer.NameField, the field as a whole), and the car
+        // is found again by the name SimHub gives it, or failing that by its number — a lookup that stays inside this
+        // bridge. Until the YAML has been read nobody is named (null): SimHub's word for who is who is not trusted, since a
+        // teammate may be driving his car and a camera may be on another. The real names are held nowhere else and leave by
+        // no property of this class.
+        private Pseudonymizer _names;
+        private readonly Dictionary<string, string> _nameByCarNumber = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _nameByRealName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private bool _fieldNamed;
+        private string _playerRealName;
+        // His car's name while a teammate drives it (a team race): the teammate is another driver.
+        private string _playerCarShown;
+        private System.Diagnostics.Stopwatch _unnamedFor;
+        private bool _unnamedWarned;
+
+        /// <summary>Whether the session YAML has been read and the field named: before it, no one can be named.</summary>
+        public bool FieldNamed { get { lock (_lock) return _fieldNamed; } }
+
+        /// <summary>
+        /// What a SimHub opponent is called: his own name when it is the name the session gives him, and for every other
+        /// the character's — by the session's customer id for the car with this name or, failing that, this number; for a
+        /// car the session does not list, by the name itself, salted. Never another driver's real name: not in his own car
+        /// when a teammate is the one driving it, and not on a car SimHub flags as the player's that is not his (the
+        /// player's own is told by the name, not by SimHub's flag). Null until the session has been read.
+        /// </summary>
+        public string OpponentName(string carNumber, string name, bool isPlayer)
+        {
+            lock (_lock)
+            {
+                if (!_fieldNamed) { NoteUnnamed(); return null; }
+                string trimmedName = (name ?? "").Trim();
+                if (IsHisName(trimmedName)) return name;
+                if (trimmedName.Length > 0 && _nameByRealName.TryGetValue(trimmedName, out string byName)) return byName;
+                string number = CarNumberKey(carNumber);
+                if (number.Length > 0 && _nameByCarNumber.TryGetValue(number, out string byNumber)) return byNumber;
+                if (isPlayer && _playerCarShown != null) return _playerCarShown;
+                return (_names ?? (_names = PseudonymBook.Default.NewSession())).For(0, trimmedName);
+            }
+        }
+
+        /// <summary>
+        /// What the player is called: <paramref name="given"/> (SimHub's PlayerName) when it is the name the session gives
+        /// him; when it is not — a teammate driving his car — the character's. Empty until the session has been read, so
+        /// that the name in Settings stands in for it.
+        /// </summary>
+        public string PlayerName(string given)
+        {
+            lock (_lock)
+            {
+                if (!_fieldNamed) { NoteUnnamed(); return ""; }
+                string g = (given ?? "").Trim();
+                if (g.Length == 0 || IsHisName(g)) return given ?? "";
+                if (_nameByRealName.TryGetValue(g, out string byName)) return byName;
+                if (_playerCarShown != null) return _playerCarShown;
+                return (_names ?? (_names = PseudonymBook.Default.NewSession())).For(0, g);
+            }
+        }
+
+        private bool IsHisName(string trimmedName) =>
+            trimmedName.Length > 0 && _playerRealName != null &&
+            string.Equals(trimmedName, _playerRealName, StringComparison.OrdinalIgnoreCase);
+
+        // iRacing is on and asked for names, and the session has not been read: said once if it stays so, for it means the
+        // bridge cannot read the sim and no other driver is shown at all.
+        private void NoteUnnamed()
+        {
+            if (_unnamedWarned) return;
+            if (_unnamedFor == null) { _unnamedFor = System.Diagnostics.Stopwatch.StartNew(); return; }
+            if (_unnamedFor.Elapsed < TimeSpan.FromSeconds(30)) return;
+            _unnamedWarned = true;
+            Log.Warn("[RacingDesk] names: iRacing's session has not been read for 30 s, so no other driver can be named and none is shown");
+        }
+
+        // Called with _lock held.
+        private void NameTheField(IRacingSdkSessionInfo si)
+        {
+            var names = _names ?? (_names = PseudonymBook.Default.NewSession());
+            names.BeginSession(Pseudonymizer.SessionKeyOf(si));
+            _nameByCarNumber.Clear();
+            _nameByRealName.Clear();
+            _playerRealName = null;
+            _playerCarShown = null;
+            var di = si.DriverInfo;
+            var drivers = di?.Drivers;
+            if (drivers != null)
+            {
+                foreach (var d in drivers)
+                {
+                    if (d == null || d.CarIsPaceCar != 0 || !Pseudonymizer.IsHim(di, d)) continue;
+                    string real = (d.UserName ?? "").Trim();
+                    _playerRealName = real.Length > 0 ? real : null;
+                }
+                foreach (var named in names.NameField(si))
+                {
+                    var d = named.Driver;
+                    string real = (d.UserName ?? "").Trim();
+                    string shown = named.Shown;
+                    if (d.CarIdx == di.DriverCarIdx) _playerCarShown = shown;
+                    string number = CarNumberKey(d.CarNumber);
+                    if (number.Length > 0) _nameByCarNumber[number] = shown;
+                    if (real.Length > 0) _nameByRealName[real] = shown;
+                }
+            }
+            _fieldNamed = true;
+            _unnamedFor = null;
+            _unnamedWarned = false;
+        }
+
+        // A car number as both sides write it: SimHub's "#12" and the session's "12" are one car ("007" and "7" are two).
+        private static string CarNumberKey(string number) => (number ?? "").Trim().TrimStart('#').Trim();
+
+        private void ForgetTheField()
+        {
+            lock (_lock)
+            {
+                _nameByCarNumber.Clear();
+                _nameByRealName.Clear();
+                _playerRealName = null;
+                _playerCarShown = null;
+                _fieldNamed = false;
+                _unnamedFor = null;
+                _unnamedWarned = false;
+            }
+        }
 
         // Track info
         public string TrackCountry { get; private set; } = "";
@@ -129,6 +258,7 @@ namespace RacingDesk.Plugin.Engine
             IsConnected = false;
             TrackId = 0;
             TrackLengthMeters = 0;
+            ForgetTheField();
 
             Log.Info("[RacingDesk] IRacingSdkBridge stopped");
         }
@@ -230,15 +360,8 @@ namespace RacingDesk.Plugin.Engine
             catch { return new bool[0]; }
         }
 
-        /// <summary>
-        /// Get the raw session info YAML string (for advanced parsing).
-        /// </summary>
-        public string GetSessionInfoYaml()
-        {
-            if (!IsConnected || _sdk?.Data == null) return null;
-            try { return _sdk.Data.SessionInfoYaml; }
-            catch { return null; }
-        }
+        // The raw session YAML (GetSessionInfoYaml) is no longer handed out: it carries every driver's real name, and
+        // nothing read it. What the YAML says comes out of this class as the parsed facts below, with the names replaced.
 
         // ═══════════════════════════════════════════════════════════════
         //  EVENT HANDLERS (called from IRSDKSharper background thread)
@@ -257,6 +380,7 @@ namespace RacingDesk.Plugin.Engine
             // parsed until a moment after it connects: until then the map has no layout to ask for, not the old one.
             TrackId = 0;
             TrackLengthMeters = 0;
+            ForgetTheField();
             Log.Info("[RacingDesk] iRacing SDK disconnected");
         }
 
@@ -264,7 +388,7 @@ namespace RacingDesk.Plugin.Engine
         {
             try
             {
-                ParseSessionInfo();
+                ParseSessionInfo(_sdk?.Data?.SessionInfo);
             }
             catch (Exception ex)
             {
@@ -272,15 +396,16 @@ namespace RacingDesk.Plugin.Engine
             }
         }
 
+        /// <summary>Reads a session as the SDK would hand it over: for tests, which have no sim.</summary>
+        internal void ApplySessionInfo(IRacingSdkSessionInfo si) => ParseSessionInfo(si);
+
         // ═══════════════════════════════════════════════════════════════
         //  SESSION INFO PARSING
         // ═══════════════════════════════════════════════════════════════
 
-        private void ParseSessionInfo()
+        private void ParseSessionInfo(IRacingSdkSessionInfo si)
         {
-            if (_sdk?.Data?.SessionInfo == null) return;
-
-            var si = _sdk.Data.SessionInfo;
+            if (si == null) return;
 
             // ── Sector boundaries (SplitTimeInfo) ──
             var sectors = si.SplitTimeInfo?.Sectors;
@@ -302,10 +427,11 @@ namespace RacingDesk.Plugin.Engine
             {
                 PlayerCarIdx = si.DriverInfo.DriverCarIdx;
 
-                // ── Driver ratings ──
+                // ── Driver ratings, and the names the other drivers go by ──
                 lock (_lock)
                 {
                     _driverIRatings.Clear();
+                    NameTheField(si);
 
                     if (si.DriverInfo.Drivers != null)
                     {

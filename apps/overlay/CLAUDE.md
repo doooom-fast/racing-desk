@@ -17,7 +17,15 @@ This overlay is the **consumer** side of the live-telemetry pipeline. The [SimHu
 - **Tyre wear** (`GameData.TyreWear*`, `Demo.TyreWear*`) is tread remaining, 0..100 %, 100 = new, `null` where the sim has
   not measured it, and the page converts nothing: every panel reads it through `parseTyreWear` and prints it through
   `tyreWearShown`, with `TYRE_WEAR_WARN_BELOW`/`TYRE_WEAR_CRIT_BELOW`, all in `config.js` (root CLAUDE.md, Tyre wear;
-  `tests/unit/tyre-wear.spec.mjs`). A corner the engine has taken off the wire after a tyre change is `null`, and shows as a dash.
+  `tests/unit/tyre-wear.spec.mjs`). A corner whose tyre the engine saw changed (a stop with it ticked, or a reset to the
+  pits) comes as a new set's 100 until the sim measures it, and `RacingDesk.Plugin.TyreNewSetFlags` says which corners
+  (`PitSvFlags`' bits, 0x01 FL … 0x08 RR; `parseTyreNewSet`, `tyreNewSetNote` in `config.js`): the ring is 100 % and green
+  like any 100, and the line under the rings says "New set · not measured" (a pair: "New fronts · not measured", rears,
+  lefts, rights; an odd change names its corners alone, "New LF, RR", the widest words that stay whole at the 11 px floor on
+  the iPad mini) in place of "Tread measured in the pits" until the measurement comes. The sidecar carries the flags as `wNew`.
+  The strategist's offer is for the corners that are not a new set: what the accept button ticks leaves them out
+  (`pitbox.js`: `selectOfferedTires`, `dropNewSetFromOffer`), and a flagged corner that arrives as `null` is still
+  a dash (the flags feed the words only; the ring has no rule of its own).
 
 ## Tech Stack
 
@@ -79,21 +87,70 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
 `RacingDesk.Plugin.CarControls` — an object from `:8889`, its text from the WebSocket feed, and `read()` takes both.
 
 - **`modules/js/car-controls.js`** (`window.RacingDeskCarControls`, or `require` in Node): `read(payload)` (the key, or
-  null: not sent, not JSON, not an object with a `car`), `view(cc)` (the cells, from the reading alone), `signals(prev,
-  next)` (what the spotter says), `render(panel, cc, hooks, state)` (the only part that touches the DOM), `clear`.
-  `poll-engine.js` calls `read` and `render` where it used to compute BB / TC / ABS, and nothing else in the HUD
-  knows about the list. The old computing is still in the `else`.
-- **What a cell shows** — the same words as the host's (`state`): `NONE` (the car has none; the cell shrinks to the
-  word, `.ctrl-none`), `ON` (has it, cannot turn it; `.ctrl-on`), `OFF` (a dial at its off position; `.ctrl-off`), a
-  number or the name of a position under the car's own label (`TCLO`, `ESC`, `BBAL`, `DSC`), or a dash where the
-  host said nothing of it. A control the fixed setup holds gets a small lock mark (`.ctrl-locked`). A number fills its
-  bar by the host's `fill`, else by the bars the HUD always drew (bias `(n-30)/40`, TC and ABS `n/12`); **a name
-  fills nothing** (the number behind `MDM` is a position, not a quantity). A mode (the 570S's one dial) is a
-  cell of its own, `#ctrlMode`, and the cells it covers (`ctrl-hidden`) take no room.
-- **The row beneath** (`#ctrlMore`, `.ctrl-mini`): the car's other controls in the list's order — a second traction
-  dial (`TCLA`), brake migration (`MIG`), the anti-roll bars (`FARB`, `RARB`), a throttle map — then DRS and
-  push-to-pass. Only for a car that has any; DRS is `.ctrl-mini-ready` when it can be opened and
-  `.ctrl-mini-active` while it is, push-to-pass `.ctrl-mini-active` while it is on.
+  null: not sent, not JSON, not an object with a `car`), `view(cc)` (the cells, from the reading alone), `arrange(view)`
+  (which cells the rig's panel has room for, below), `signals(prev, next)` (what the spotter says), `render(panel, cc,
+  hooks, state)` (the only part that touches the DOM), `clear`. `poll-engine.js` calls `read` and `render` where it
+  used to compute BB / TC / ABS, and nothing else in the HUD knows about the list. The old computing is still in the
+  `else`.
+- **What a cell shows** — the same words as the host's (`state`): `NONE` (the car has none; `.ctrl-none`), `ON` (has it,
+  cannot turn it; `.ctrl-on`), `OFF` (a dial at its off position; `.ctrl-off`), a number or the name of a position
+  under the car's own label (`TCLO`, `ESC`, `BBAL`, `DSC`), or **a dim dash under the car's own label where the car has
+  it and the sim is not saying what it reads** (`unread`, `.ctrl-unread`: the list gives no variable, or the car is not
+  publishing it; never a made-up number, and the sim starting to say is not announced as a change). A control the fixed
+  setup holds gets a small lock mark (`.ctrl-locked`). A number fills its bar by the host's `fill`, else by the bars the
+  HUD always drew (bias `(n-30)/40`, TC and ABS `n/12`); **a name fills nothing** (the number behind `MDM` is a
+  position, not a quantity). A mode (the 570S's one dial) is a cell of its own, `#ctrlMode`, and the cells it covers
+  (`ctrl-hidden`) take no room.
+- **The car's other controls** (`#ctrlMore`, `.ctrl-mini`): every one the list gives the car, in the list's order — a
+  second traction dial (`TCLA`), brake migration (`MIG`), the anti-roll bars, a throttle map, the hybrid's dials — then
+  DRS and push-to-pass; an unread one with a dash (`.ctrl-mini-unread`). Only for a car that has any; DRS is
+  `.ctrl-mini-ready` when it can be opened and `.ctrl-mini-active` while it is, push-to-pass `.ctrl-mini-active` while
+  it is on. **In the glance layout** (an iPad, the page OBS draws of it, Ctrl+Shift+F) they are a row of small cells
+  under the three, as they always were, and an unread one (or an unread mode) is left out of it, as when the host left
+  such a one out (`render`; the request was for the desktop HUD alone). **On the rig's HUD every one of them is a panel like the three** — he asked on
+  2026-10-01: "show adjustment panels for every adjustment available for that car. Omit ones that are not on the car
+  when there's no room" — the same type, label over number, with the bar: the row's box dissolves (`.ctrl-fit .ctrl-more
+  { display: contents }`, `leaderboard.css`) and its cells are the panel's.
+- **The rig's room** (`arrange`, `ROOM`, `labelPlan`; `.ctrl-fit`, `.ctrl-compact`, `.ctrl-tight`, `--ctrl-cols`,
+  `data-ctrl-rows`, `.ctrl-omitted`, `.ctrl-label-2l`, added by `render` on the rig alone, never in the glance layout): the
+  panel is 240px wide and **as tall as it has always been** — it shares its column with the pedals, which lose nothing
+  (118px each at his zoom, with one row or three) — so the room is a constant of the layout and not a measurement: **a
+  ladder of steps**, each with more cells across or down and its type a size down: three across in one row (22px
+  numbers, 10px labels), three across in two rows, four across in two rows (the compact size: 16px and 9px), and in
+  three rows of four and then of five (the tight size: 13px and 8px, 2px between the cells). A car takes the smallest
+  step that holds its real controls, and **every control the car has is shown** — he asked: "show adjustment panels
+  for every adjustment available for that car. Omit ones that are not on the car when there's no room" — so what is
+  omitted is only what the car does not have: a NONE cell takes a slot only where one is left in the rows the real
+  cells already need (`.ctrl-none` is a full cell, `order: 9`, so the real ones come first left to right) and never
+  makes a row of its own. DRS and push-to-pass are real cells like the rest: nothing is ever dropped for them or by
+  them. Past the last step the cells go on across, in three rows. The cells go across first and then down, balanced
+  (four cells are two by two). Of the list's 194 cars: 135 are one row (an MX-5 is `ABS ON`, `BB NONE`, `TC NONE`; a C6
+  with bias, TC and a toggle is one row of three and its ABS NONE is omitted), 55 are two rows (a 720S GT3, bias, TC,
+  ABS, MAP, TC TOGGLE: two rows of three and two at the full size; a 963 GTP: bias, TCLO, TCLA, MIG, TARGET, AR-F, AR-R,
+  TC TOGGLE, its eight at the compact size with ABS NONE omitted), and four are three rows (a Ferrari 499P of nine, a
+  W12 or a W13 of eleven with DRS, four across; the Audi R18, fourteen dials, five across). A number of five characters
+  (`48.25`) is set a step down so it fits three across (`.ctrl-value-wide`); a word wider than its cell (`AUTOMATIC`) or a
+  number of six smaller still (`.ctrl-value-long`, sized to its cell by `--ctrl-value-len`, down to 7px, with no tracking
+  and 0.62 em to a character: JetBrains Mono's 0.6). A mode is a cell like the others (the 570S's ESC cell is as wide as
+  its bias beside it: the glance layout's wider flex for a mode is taken back under `.ctrl-fit`). **A label** is set no
+  larger than its cell holds (`--ctrl-label-len`, the cell a size container: `BRAKE BIAS` whole three across at 10px,
+  `TC TOGGLE` four across at 9px), down to 7px, **and a label that would be set under 8px on one line takes a second
+  one** (`labelPlan`: the split of its words that makes the wider line narrowest, set to that line's length; a two-line
+  label is set at 8px at the most at the full size, 9px at the compact one and 7px in the tight rows, so two lines and
+  the number fit the row). Only past that — one word too long for its cell — is it cut with an ellipsis. **The width of
+  a character is Sofia Pro Comp's, the page's font, not the fallback's**: measured in the page with the HUD's own
+  Typekit stylesheet let through, at weight 600 and the label's tracking, the car list's 121 labels are 0.34 to 0.53 em
+  a character (0.43 on average) and **0.47 at the most for a label of seven characters or more**, while the fallback
+  sans-serif is 0.69 (0.81 at the most). The stylesheet's 0.5 em holds every label with a little over and was 0.74 (the
+  fallback's) in the first cut, which set labels far smaller than they needed to be on the rig and was never checked
+  against the real font (the headless tests block every request, so Typekit never loads there: a headless page is
+  the fallback, and cuts what the rig does not). Measured with the real font, 194 cars at 3440x1440 zoom 120 and at the
+  default zoom 100 in the top-right: **no label or value is cut or clipped in any of them, and the panel and the pedals
+  are 118.2px each for every car** (14 labels on two lines, in 7 cars: the Audi R18, the Ferrari 499P, the Porsche
+  919, the Aston Martin Valkyrie, the BMW LMDh, the Acura ARX-06 and the McLaren MP4-30; eight at the 7px floor, all
+  in the three-row cars). `tests/unit/car-controls-fit.spec.mjs` holds the rest in Node over every car, and in the page
+  for the sixty that need it (`RD_REAL_FONT=1` lets Typekit through for the one run that holds every label to its
+  cell in Sofia Pro Comp; `RD_FIT_ALL=1` opens all 194, about three minutes).
 - **The spotter**: a change of a control is announced with the car's word and what it reads, `TCLO ▲ 6`, `ESC ▼ SPORT`,
   `DSC ▼ OFF` (`announceAdjustment(type, value, direction, name, text)` in `spotter.js`; a name or text given, the card
   says the car's own thing; without them, the old `Brake Bias ▲ 55.0`). DRS says `DRS next zone`, `DRS — open it`,
@@ -109,13 +166,77 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
 - **The glow that says an aid is cutting in** (`.ctrl-active`, from `RacingDesk.Plugin.DS.AbsActive` / `TcActive`) is
   driven for every car, the list's and not (`poll-engine.js`, after the panel; `datastream.js` sets the same
   class while it runs).
-- **Tests** (`tests/unit/car-controls.spec.mjs`): the module's functions in Node, then the real `dashboard.html`,
-  headless, fed a payload for each case — NONE, ON, OFF, a value with the car's label, a mode by name, GTP brake
-  migration, TC slip and gain, the bars, DRS and push-to-pass, a car that changes, a car not in the list, a key
-  that is not one. **The cars are not typed in the spec**: they are read from `tests/unit/fixtures/car-controls-wire.json`,
-  which RacingDesk.Tests holds to what the host writes (`Cars/CarControlsWireTests.cs`, rewritten with
-  `UPDATE_CAR_CONTROLS_WIRE=1`). The C# side cannot be tested over `:8889` without binding wildcard ports, so that
-  hop is by the code: the runtime writes `s.CarControlsJson` into the payload as an object.
+- **Tests** (`tests/unit/car-controls.spec.mjs`): the module's functions in Node (`arrange` at each step of the ladder
+  and with a NONE cell at every count, `labelPlan`), then the real `dashboard.html`, headless, fed a payload for each
+  case — NONE, ON, OFF, a value with the car's label, a mode by name, GTP brake migration, TC slip and gain, the bars,
+  DRS and push-to-pass, an unread dial, a car that changes, a car not in the list, a key that is not one — and the
+  rig's room: the one-row car, two rows with the pedals as tall as ever, a NONE that is not worth a row, a mode as wide
+  as the bias, six real cells with NONE omitted, compact, three rows and five across with nothing left out, the long
+  word, the labels on one line and two, the glance layout and back (an unread dial left out there and shown with a
+  dash on the rig), the panel without the key. **The cars are not typed in the spec**: they are read from
+  `tests/unit/fixtures/car-controls-wire.json`, which RacingDesk.Tests holds to what the host writes
+  (`Cars/CarControlsWireTests.cs`, rewritten with `UPDATE_CAR_CONTROLS_WIRE=1`). The C# side cannot be tested over
+  `:8889` without binding wildcard ports, so that hop is by the code: the runtime writes `s.CarControlsJson` into the
+  payload as an object.
+
+## The datastream's rig limits (`Wheel max`, `Sim FFB max`, `Brake max`)
+
+Three rows under `FFB` on the rig's HUD, for what the rig is set to beside the live torque (he asked on 2026-10-01:
+"Show Max pedal force and max wheel nm in the data stream"). Each has its unit, a dash while it is not known, and a switch
+(`dsShowWheelMax`, `dsShowFfbMax`, `dsShowBrakeMax`, on by default); the glance layout hides all three (`drive-view.css`,
+as FPS). Nothing is written to the pedals, the wheel base, SmartControl or Pit House, no serial port is opened for
+any of it, and nothing is sent to them.
+
+- **Wheel max** is the wheel's own maximum torque, in Nm: the base's max-torque setting (per cent of its model's rated
+  peak: 21 Nm for an R21 and an R21 Ultra, 9 for an R9, 5.5 for an R5; `MozaWheelbaseModels`, and a model not in the
+  table has no rating and shows a dash) as a number of Nm. Where it comes from, in order: (1) **the base itself**, where
+  the plugin's poll could last ask it — the poll that already probes and reads the base every two seconds, which runs
+  only while Pit House has let go of its serial ports (on the rig Pit House nearly always holds COM6 and COM13) — sent in
+  the telemetry as `RacingDesk.Plugin.DS.MozaWheelbaseMaxTorque` (the per cent) and `MozaWheelbaseMaxNm` (where the
+  model has a rating; `WheelbaseSettings.Model` is now the model the base's USB description names, which it never
+  was before); nothing new is sent to the base for it. (2) **Pit House's own saved preset for the base**, read and
+  never written (`RacingDesk.Data/Wheel/PitHouseWheelLimits.cs`): `Documents\MOZA Pit House\Presets\config.ini`'s
+  `[LastUsedPreset]` maps each device Pit House has met to the preset it last used, and each preset in `Presets\Motor`
+  is an ordinary zip (a `preset.json` and a `metadata.json`) whose `devices` is the model ("R21 Ultra") and
+  `deviceParams.maximumTorque` the per cent (his R21 Ultra preset, written 2026-09-30: 55; `gameForceFeedbackStrength`
+  70 is the game's own scale and is not read). The files are opened for reading with `FileShare.ReadWrite`, so a
+  running Pit House is never in the way and nothing is created or changed (`WheelMaxTests` holds the bytes and times of
+  every file before and after, and a read while another program has them open for writing). The host serves the
+  answer at `GET /racing-desk/data/wheelmax` (`{ source: "base" | "pithouse", model, max_pct, rated_nm, max_nm,
+  candidates }`, null each while not known) for programs on this machine, and the page's main process asks it with the
+  brake force (below). (3) Neither: a dash. **What the preset is not, said plainly:** it is what Pit House last loaded
+  into the base and not necessarily what the base is set to now (a slider moved in Pit House and not saved is not in
+  the file), and Pit House does not say which of the bases it has met is the one attached. His Pit House has two
+  motor presets in `[LastUsedPreset]` (an R9, "bmw", saved 2026-08-02, and the R21 Ultra, 2026-09-30), so **the preset
+  saved last is taken** (`candidates` says how many there were); if he moves to the other base without saving a preset
+  for it, the row shows the old base's number until he does. 55 per cent of an R21 Ultra is 11.6 Nm; his 963 GTP's
+  29.7 Nm is the next row, not this.
+- **Sim FFB max** is the sim's: iRacing's own `SteeringWheelMaxForceNm`, the strength slider in Nm the sim maps to full
+  output on the wheel, set per car (29.7 on his 963, 27.3 on the MX-5), sent as `RacingDesk.Plugin.DS.SteerMaxForceNm`
+  only where the sim says a number above nought and never in demo (`TelemetryCapture.SteeringWheelMaxForceNm`,
+  `TelemetryFrame.SteerMaxForceNmKey`; `SteerMaxForceTests`). `datastream.js` reads it to one place. **It is not the
+  wheel's maximum** — an R21 at 55 % tops out near 11.6 Nm whatever the sim's scale says — which is why the row is
+  labelled the sim's (it was "FFB max", which read as the wheel's limit) and the wheel's is its own row. Beside SimHub the
+  key arrives only once the plugin has been installed again from a build that carries it.
+- **Brake max** is the host's: SmartControl's brake force in kg as the app's host follows it from Live's keys (root
+  CLAUDE.md, Per car, for the rig; `CarPedalsRecorder.Now`), known from a key that sets a force and not known again after
+  a held step key or between cars. The host serves it at `GET /racing-desk/data/brakeforce` (`{ car, force_kg }`, null
+  each while not known) for programs on this machine and no page, so the main process asks (`modules/js/rig-limits.js`:
+  on the HUD keeper's own poll, in the car, every two seconds at most, by Node with a Host and no Origin, the brake
+  force's route and the wheel's together) and tells the page as the answer changes (`rig-limits`, `{ brakeKg, car,
+  wheelNm, wheelSource }`; `get-rig-limits` for a page that loaded after, through the preload's `onRigLimits` /
+  `getRigLimits`). A page with no main process behind it — an iPad, the page OBS draws, a browser — shows a dash for it
+  (and for the wheel's, unless the telemetry itself carries the base's reading: `MozaWheelbaseMaxNm`, which the page reads
+  ahead of the main process's number). The store's `car_pedal_facts.force_kg` (the force a car was *last* driven with)
+  is not shown: the pedals are not put back to it when he gets in, so it is not necessarily what they are at.
+- **Tests**: `tests/unit/rig-limits.spec.mjs` (the answers as read, the requests over a 127.0.0.1 stand-in, the keeper's
+  asking and telling, the keeper with its own fetch against the stand-in — the host's `{ car, force_kg }` and
+  `{ max_nm }` are read once, into the page's `{ brakeKg, car, wheelNm, wheelSource }`, and that is what the keeper
+  checks — main.js's and the preload's wiring), `tests/unit/datastream-limits.spec.mjs` (the rows on the page: the
+  units, a change told by the main process, the wheel's from the frame ahead of the main process, the dashes, the demo,
+  the switches, the glance layout), `host-reads-this-machine.spec.mjs` (the requests are ones the host answers);
+  RacingDesk.Tests `Wheel/WheelMaxTests.cs` (the preset's shape, two bases, a preset that is not usable, a model not in
+  the table, nothing written, files held open for writing, the route, the poll's keys).
 
 ## The glance layout (drive mode: Ctrl+Shift+F, and the whole of what an iPad is shown)
 
@@ -315,7 +436,9 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   set in the heading, `Strategy.StintLaps`, and what the number is: iRacing measures tread in the pits and nowhere else,
   so "Tread measured in the pits" is one dim line under the rings, at the label's floor and never wrapped, as it is
   on the rig — an iPad's heading has no room for it, and in a pit cell under 200px (the 10.2" iPad upright) it gives way
-  while a tyre call is up, which would otherwise cut the rings off by 7px; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
+  while a tyre call is up, which would otherwise cut the rings off by 7px; while a corner's 100 is a new set the sim has
+  not measured (`TyreNewSetFlags`) the same line says "New set · not measured" or which tyres, and gives way to a call
+  in that cell just the same — a screenshot with both showed the line over the rings' position labels; root CLAUDE.md, Tyre wear), the fuel (tank, level and its size, per lap, laps left, the
   pit's add, the pit window `Strategy.PitWindowOpen/Close` as `L18–24` or `by L24`, the two services), the weather. The
   strategist's call for tyres or fuel (`Strategy.TireHealthState`, `FuelHealthState`) is read where it is on the rig,
   above the rings or the tank, worded for a screen with nothing to press (`Change · ~12 laps`, `Stop · ~6 laps`).

@@ -33,6 +33,26 @@ namespace RacingDesk.Plugin.Transport
         public const string SessionTimeKey = "DataCorePlugin.GameRawData.Telemetry.SessionTime";
 
         /// <summary>
+        /// The force the sim maps to full output on the wheel, in Nm: iRacing's own <c>SteeringWheelMaxForceNm</c>
+        /// (the strength slider, set per car), read under the name SimHub gives the variable and sent to the HUD's
+        /// datastream beside the live torque (<c>DS.SteerTorque</c>). Only where the sim says it, and never in
+        /// demo: the HUD shows a dash without it, never a number of its own.
+        /// </summary>
+        public const string SteerMaxForceNmKey = "RacingDesk.Plugin.DS.SteerMaxForceNm";
+        public const string SteerMaxForceNmVariable = "DataCorePlugin.GameRawData.Telemetry.SteeringWheelMaxForceNm";
+
+        /// <summary>
+        /// Which corners' tread on the wire is a new set's by assumption, not the sim's measurement: the tyre was changed
+        /// (a stop with it ticked, or a reset to the pits) and the sim has not measured that corner since, so it reads
+        /// 100 (<see cref="Engine.TyreWear.NewPercent"/>) until it does. One bit a corner, the same bits as
+        /// <c>PitSvFlags</c>: 0x01 FL, 0x02 FR, 0x04 RL, 0x08 RR; 0 where every number is the sim's own. Set by
+        /// <see cref="Engine.TyreSetMask"/>, read by the pit box for its "new set" note, by the recording's sidecar
+        /// (<c>wNew</c>), and by the strategist, for which the 100 is healthy but not news. Always sent; 0 in the demo, whose
+        /// tread is made up and has nothing held (the page and the sidecar ignore it there too).
+        /// </summary>
+        public const string TyreNewSetFlagsKey = "RacingDesk.Plugin.TyreNewSetFlags";
+
+        /// <summary>
         /// Converts a TelemetrySnapshot to a flat Dictionary<string, object>.
         /// This mirrors the Jp() calls in Plugin.HttpServerLoop() to ensure wire format parity.
         /// </summary>
@@ -101,10 +121,12 @@ namespace RacingDesk.Plugin.Transport
             dict["DataCorePlugin.GameData.TyreTempRearLeft"] = s.TyreTempRL;
             dict["DataCorePlugin.GameData.TyreTempRearRight"] = s.TyreTempRR;
             // Tread remaining, 0..100 %, as the sim last measured it; null (nil on the feed) until it has (Engine/TyreWear.cs).
+            // A corner whose tyre was changed reads a new set's 100 until the sim measures it, and TyreNewSetFlags says which.
             dict["DataCorePlugin.GameData.TyreWearFrontLeft"] = s.TyreWearFL;
             dict["DataCorePlugin.GameData.TyreWearFrontRight"] = s.TyreWearFR;
             dict["DataCorePlugin.GameData.TyreWearRearLeft"] = s.TyreWearRL;
             dict["DataCorePlugin.GameData.TyreWearRearRight"] = s.TyreWearRR;
+            dict[TyreNewSetFlagsKey] = demo ? 0 : s.TyreNewSetFlags;   // the demo's tread is made up: nothing in it is held
             dict["DataCorePlugin.GameRawData.Telemetry.dcBrakeBias"] = s.BrakeBias;
             dict["DataCorePlugin.GameRawData.Telemetry.dcTractionControl"] = s.TractionControlSetting;
             dict["DataCorePlugin.GameRawData.Telemetry.dcABS"] = s.AbsSetting;
@@ -475,6 +497,8 @@ namespace RacingDesk.Plugin.Transport
             // The sim's own clock, for the recording's sidecar: only where the sim said it, never in demo.
             if (!demo && s.GameRunning && s.SessionNum.HasValue) dict[SessionNumKey] = s.SessionNum.Value;
             if (!demo && s.GameRunning && s.SessionTime.HasValue) dict[SessionTimeKey] = s.SessionTime.Value;
+            // The wheel's full-output force, for the datastream: only where the sim said it, never in demo.
+            if (!demo && s.GameRunning && s.SteeringWheelMaxForceNm.HasValue) dict[SteerMaxForceNmKey] = s.SteeringWheelMaxForceNm.Value;
             // The car's controls by the canonical list: only for a car the list has. A JSON object, as text.
             if (!demo && !string.IsNullOrEmpty(s.CarControlsJson)) dict[CarControlsKey] = s.CarControlsJson;
             dict["RacingDesk.Plugin.Grid.GriddedCars"] = s.GriddedCars;

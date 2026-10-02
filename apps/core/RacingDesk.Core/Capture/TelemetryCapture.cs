@@ -257,6 +257,8 @@ namespace RacingDesk.Plugin.Engine
                 var nameProp = d.GetType().GetProperty("PlayerName",
                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
                 s.PlayerName = nameProp?.GetValue(d) as string ?? "";
+                // A teammate in his car is another driver (root CLAUDE.md, Other drivers' names): the source says so.
+                if (pm is IPlayerNameSource players) s.PlayerName = players.PlayerName(s.PlayerName) ?? "";
             }
             catch (Exception ex)
             {
@@ -281,7 +283,9 @@ namespace RacingDesk.Plugin.Engine
                     {
                         var t = opp.GetType();
                         int   pos    = Convert.ToInt32(t.GetProperty("Position")?.GetValue(opp) ?? 0);
-                        string name  = t.GetProperty("Name")?.GetValue(opp) as string ?? "";
+                        // The source names the car, never this reader: the character's name for another driver, his
+                        // own for his (ITelemetrySource.OpponentName; root CLAUDE.md, Other drivers' names).
+                        string name  = pm.OpponentName(opp) ?? "";
                         int   irating = 0;
                         var irProp = t.GetProperty("IRating") ?? t.GetProperty("Irating");
                         if (irProp != null) { var v = irProp.GetValue(opp); if (v != null) irating = Convert.ToInt32(v); }
@@ -393,6 +397,8 @@ namespace RacingDesk.Plugin.Engine
                 s.SteeringWheelTorque = GetRaw<float>(pm, "Physics.WheelsTorque", "DataCorePlugin.GameRawData.");
             else
                 s.SteeringWheelTorque = GetRaw<float>(pm, "SteeringWheelTorque");
+            // The force the sim maps to full output on the wheel, in Nm: iRacing's own, where it says it.
+            s.SteeringWheelMaxForceNm = detectedGame == GameId.IRacing ? SteeringWheelMaxForceNm(pm) : null;
 
             // Fix #6: Frame rate — cross-game via SimHub's universal property
             s.FrameRate = GetRaw<float>(pm, "FrameRate");
@@ -998,6 +1004,18 @@ namespace RacingDesk.Plugin.Engine
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// iRacing's <c>SteeringWheelMaxForceNm</c> — "Value of strength or max force slider in Nm for FFB", the force
+        /// the sim maps to full output on the wheel, set per car — or null where the sim did not say, or said nought
+        /// or less (no wheel is driven to nothing: that is the variable absent or a frame of nothing).
+        /// </summary>
+        internal static double? SteeringWheelMaxForceNm(ITelemetrySource pm)
+        {
+            double? d = RawNumber(pm, Transport.TelemetryFrame.SteerMaxForceNmVariable);
+            if (!d.HasValue || d.Value <= 0) return null;
+            return d.Value;
         }
 
         /// <summary>iRacing's <c>SessionNum</c>: a whole number from 0 up, or null where the sim did not say.</summary>

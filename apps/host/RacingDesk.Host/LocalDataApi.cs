@@ -9,6 +9,7 @@ using System.Threading;
 using RacingDesk.Core.Screens;
 using RacingDesk.Data;
 using RacingDesk.Data.Pedals;
+using RacingDesk.Data.Wheel;
 using RacingDesk.Plugin;
 
 namespace RacingDesk.Host
@@ -25,7 +26,8 @@ namespace RacingDesk.Host
     /// physical pixels, so that a screen can be named by the size it really has (see Monitors.cs).
     ///
     /// Every route here is for programs on this machine. :8889 answers every address (the iPad reads the telemetry from
-    /// it), but the sessions carry the driver's customer id and the status the store's path, so a request that is not
+    /// it), but the sessions are his history, the status carries the store's path and the entry lists name every other
+    /// driver (as a character: see <see cref="GridNames"/>), so a request that is not
     /// from a loopback connection, that names a Host other than this machine's at this port, or that a browser sent
     /// (an Origin of any kind, <c>null</c> included; a Referer or Sec-Fetch-* without one) is refused: 403, no CORS
     /// header, and one line in the log for each route and kind of asker. See
@@ -57,6 +59,7 @@ namespace RacingDesk.Host
         internal static readonly string[] Routes =
         {
             "status", "sessions", "session", "schedule", "cars", "views", "pedals", "controls", "simwindow", "monitors", "outline", "replay",
+            "brakeforce", "wheelmax",
         };
 
         private const string NotThisMachine = "this is for the app on this machine";
@@ -66,7 +69,7 @@ namespace RacingDesk.Host
 
         private const string SessionColumns = @"id, source, ibt_path, session_num, subsession_id, session_id, series_id, season_id,
   race_week, event_type, session_type, official, category, track_id, track_name, track_display_name, track_config,
-  track_length_km, car_path, car_id, car_screen_name, car_class_id, started_at, duration_s, driver_cust_id, irating, license,
+  track_length_km, car_path, car_id, car_screen_name, car_class_id, started_at, duration_s, irating, license,
   safety_rating, laps_completed, best_lap_s, incidents, start_position, finish_position, finish_position_in_class,
   field_size, sof";
 
@@ -104,6 +107,22 @@ namespace RacingDesk.Host
         /// <c>crowd</c>. The SimHub plugin asks this for its map; the iPad's proxy never reaches it.
         /// </summary>
         internal TrackOutlines Outlines { get; set; }
+
+        /// <summary>
+        /// The brake force the pedals are at now, for <c>brakeforce</c>: what the host's <see cref="CarPedalsRecorder"/>
+        /// has followed from SmartControl Live's keys (RunLive hands it in). Null, or a reader that answers null, where
+        /// the host has none (a replay, no store): the route then says the force is not known. The app's main process
+        /// asks it for the HUD's datastream; nothing is read from the pedals for it.
+        /// </summary>
+        internal Func<BrakeForceNow> BrakeForce { get; set; }
+
+        /// <summary>
+        /// The wheel's maximum torque, for <c>wheelmax</c>: what the wheel base itself last said (the plugin's poll, which
+        /// runs while Pit House has let go of the ports) or, failing that, Pit House's saved preset for it, read and never
+        /// written (<see cref="WheelLimit.Resolve"/>). Null, or a reader that answers null, where neither is known: the
+        /// route then says so, and the HUD shows a dash. The app's main process asks it for the HUD's datastream.
+        /// </summary>
+        internal Func<WheelLimit> WheelMax { get; set; }
 
         /// <summary>
         /// Claims /data/ requests, and answers them off the telemetry thread — after the check of who is asking, which every
@@ -223,6 +242,43 @@ namespace RacingDesk.Host
                     // Windows's too, and answered before there is a store. A look that fails is a 500.
                     var listed = Monitors?.List();
                     Write(res, 200, json => MonitorsApi.Write(json, listed));
+                    return;
+                }
+
+                if (route == "brakeforce" && ctx.Request.HttpMethod == "GET")
+                {
+                    // The brake force the pedals are at now, as the host follows it from SmartControl Live's keys
+                    // (CarPedalsRecorder.Now): { car, force_kg }, each null while not known. Not the store's, so answered
+                    // before there is one; a host with no recorder (a replay) answers not known.
+                    var now = BrakeForce?.Invoke();
+                    Write(res, 200, json =>
+                    {
+                        json.WriteStartObject();
+                        json.WriteString("car", now?.CarPath);
+                        Number(json, "force_kg", now?.ForceKg);
+                        json.WriteEndObject();
+                    });
+                    return;
+                }
+
+                if (route == "wheelmax" && ctx.Request.HttpMethod == "GET")
+                {
+                    // The wheel's maximum torque in Nm, with where it comes from: { source, model, max_pct, rated_nm, max_nm,
+                    // candidates }, each null while not known. Not the store's, so answered before there is one. The
+                    // answer is a read of Pit House's files and of what the base said: nothing is sent to either.
+                    WheelLimit limit = null;
+                    try { limit = WheelMax?.Invoke(); } catch (Exception) { limit = null; }
+                    Write(res, 200, json =>
+                    {
+                        json.WriteStartObject();
+                        json.WriteString("source", limit?.Source);
+                        json.WriteString("model", limit?.Model);
+                        Number(json, "max_pct", limit?.MaxPercent);
+                        Number(json, "rated_nm", limit?.RatedNm);
+                        Number(json, "max_nm", limit?.MaxNm);
+                        json.WriteNumber("candidates", limit?.Candidates ?? 0);
+                        json.WriteEndObject();
+                    });
                     return;
                 }
 
@@ -358,8 +414,7 @@ namespace RacingDesk.Host
                             json.WritePropertyName("incidents");
                             store.WriteJson(json, "SELECT session_time, lap, lap_dist_pct, points FROM incidents WHERE session_id = $id ORDER BY session_time", ("$id", id));
                             json.WritePropertyName("grid");
-                            store.WriteJson(json, @"SELECT car_idx, irating, license, car_class_id, car_screen_name, finish_position, class_position,
-  laps_complete, fastest_lap_s, incidents, reason_out, is_player FROM grid_entries WHERE session_id = $id ORDER BY finish_position", ("$id", id));
+                            WriteGrid(json, store.GridEntries(id), store.OwnCustomerId());
                             json.WriteEndObject();
                         });
                         return;
@@ -501,6 +556,75 @@ namespace RacingDesk.Host
                 WriteCarPedals(json, bound, smartControl, facts);
                 json.WriteEndObject();
             });
+        }
+
+        /// <summary>
+        /// A stored session's entry list. Every driver who is not him is shown as a character (root CLAUDE.md, Other
+        /// drivers' names): the one the live session showed (<see cref="GridNames"/>), and the name on disk goes no
+        /// further than the store. His own entry keeps his name, and is told by his customer id: the <c>is_player</c> flag of
+        /// a session stored before this went to whoever was in his car, a teammate in a team race, so it alone is not
+        /// believed. The customer ids themselves are not sent.
+        /// </summary>
+        private static void WriteGrid(Utf8JsonWriter json, IReadOnlyList<GridEntryRecord> grid, long ownCustId)
+        {
+            var names = GridNames(grid, RacingDesk.Core.Names.PseudonymBook.Default, ownCustId);
+            json.WriteStartArray();
+            for (int i = 0; i < grid.Count; i++)
+            {
+                var g = grid[i];
+                json.WriteStartObject();
+                json.WriteNumber("car_idx", g.CarIdx);
+                string name = IsHim(g, ownCustId) ? g.Name : names[i];
+                if (name == null) json.WriteNull("name"); else json.WriteString("name", name);
+                json.WriteNumber("irating", g.IRating);
+                if (g.License == null) json.WriteNull("license"); else json.WriteString("license", g.License);
+                json.WriteNumber("car_class_id", g.CarClassId);
+                if (g.CarScreenName == null) json.WriteNull("car_screen_name"); else json.WriteString("car_screen_name", g.CarScreenName);
+                json.WriteNumber("finish_position", g.FinishPosition);
+                json.WriteNumber("class_position", g.ClassPosition);
+                json.WriteNumber("laps_complete", g.LapsComplete);
+                json.WriteNumber("fastest_lap_s", g.FastestLapSeconds);
+                json.WriteNumber("incidents", g.Incidents);
+                if (g.ReasonOut == null) json.WriteNull("reason_out"); else json.WriteString("reason_out", g.ReasonOut);
+                json.WriteNumber("is_player", IsHim(g, ownCustId) ? 1 : 0);
+                json.WriteEndObject();
+            }
+            json.WriteEndArray();
+        }
+
+        /// <summary>
+        /// Whether a stored entry is him: flagged as the player's and under his own customer id
+        /// (<see cref="RacingDeskStore.OwnCustomerId"/>). A flagged entry with no id at all cannot be anyone else's in a team
+        /// race (those are online, with ids) and is his; a flagged entry under another id is a teammate's, and when the store
+        /// knows no id of his own one cannot be told, which is the teammate's, not his.
+        /// </summary>
+        internal static bool IsHim(GridEntryRecord g, long ownCustId) =>
+            g.IsPlayer && (g.CustId <= 0 || (ownCustId > 0 && g.CustId == ownCustId));
+
+        /// <summary>
+        /// The names a stored entry list's drivers who are not him are shown under, one for each entry of the list, in its
+        /// order (null for his own, and for an entry with neither an id nor a name). A session stored since the names were
+        /// replaced holds the characters its live session showed, and they are kept as they are. One stored before holds
+        /// real names: those drivers are named afresh from the customer id the store kept, as one field in the order of
+        /// their ids' priority (<see cref="RacingDesk.Core.Names.Pseudonymizer.ForMany"/>) — the way the live session names
+        /// its racers, so that a rival is the character the HUD showed, whatever order the store lists them in. An
+        /// entry flagged as the player's that is not him (<see cref="IsHim"/>) is named like the rest.
+        /// </summary>
+        internal static string[] GridNames(IReadOnlyList<GridEntryRecord> grid, RacingDesk.Core.Names.PseudonymBook book, long ownCustId)
+        {
+            var names = book.NewSession();
+            var result = new string[grid.Count];
+            var wanting = new List<int>();
+            for (int i = 0; i < grid.Count; i++)
+            {
+                var g = grid[i];
+                if (IsHim(g, ownCustId)) continue;
+                if (names.Keep(g.CustId, g.Name)) result[i] = g.Name.Trim();
+                else if (g.CustId > 0 || !string.IsNullOrWhiteSpace(g.Name)) wanting.Add(i);
+            }
+            var named = names.ForMany(wanting.Select(i => new KeyValuePair<long, string>(grid[i].CustId, grid[i].Name)).ToList());
+            for (int k = 0; k < wanting.Count; k++) result[wanting[k]] = named[k];
+            return result;
         }
 
         /// <summary>A string, or null for JSON's null. Anything else is not what was asked for.</summary>

@@ -528,7 +528,9 @@ body.drive-mode-active .pb-wear-note {
 }
 body.drive-mode-active .pb-wear-note.hidden { display: none; }
 /* A cell too short for the rings at their floor, the call above them and the note (the 10.2" iPad upright, 195px, was the
-   one that overflowed by 7px): the note gives way while the call is up, which is the news, and is back with the rings alone. */
+   one that overflowed by 7px): the note gives way while the call is up, which is the news, and is back with the rings alone.
+   That is either line, "Tread measured in the pits" or the new-set words: with both up the line was drawn over the rings'
+   position labels, and there is no room to keep it (tests/unit/tyre-wear.spec.mjs pins it at 810x1080). */
 @container (max-height: 200px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-wear-note { display: none; } }
 body.drive-mode-active #pbPageFuel::before { content: 'Fuel'; }
 body.drive-mode-active #pbPageWeather::before { content: 'Weather'; }
@@ -661,6 +663,9 @@ body.drive-mode-active .ds-yaw-trail { height: max(10px, 5cqh); }
    it says in its own large type (the datastream's row of it was the last of the cell, and the one cut off when the maps
    took their room: an iPad mini on its side, the page OBS draws at its least). */
 body.drive-mode-active #datastreamPanel :is([data-ds-field="dsShowFps"], [data-ds-field="dsShowTrackTemp"]) { display: none; }
+/* The rig's limits (the wheel's maximum, iRacing's force scale, the brake's maximum) are the rig HUD's rows: an iPad has no
+   pedals under it, and the cell has no room for three more lines at its smallest. */
+body.drive-mode-active #datastreamPanel :is([data-ds-field="dsShowWheelMax"], [data-ds-field="dsShowFfbMax"], [data-ds-field="dsShowBrakeMax"]) { display: none; }
 @container (max-height: 290px) { body.drive-mode-active .ds-yaw-trail { display: none; } }
 @container (max-height: 250px) { body.drive-mode-active .ds-row[data-ds-field="dsShowFfb"] { display: none; } }
 @container (max-height: 225px) { body.drive-mode-active .ds-gforce-vals .ds-row:nth-child(3) { display: none; } }

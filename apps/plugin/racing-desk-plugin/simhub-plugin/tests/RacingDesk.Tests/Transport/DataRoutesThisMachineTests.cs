@@ -268,8 +268,10 @@ namespace RacingDesk.Tests.Transport
             foreach (var answer in new[] { sessions, status })
                 Assert.That(answer.Body, Does.Not.Contain(CustomerId).And.Not.Contain(Path.GetTempPath()).And.Not.Contain("racing-desk.db"));
 
-            // And to this machine, they are there: the refusals above are not an empty store.
-            Assert.That(Ask("GET", "/racing-desk/data/sessions").Body, Does.Contain(CustomerId));
+            // And to this machine, they are there: the refusals above are not an empty store. (The sessions carry no customer
+            // id at all now, his own or a teammate's: nothing reads it, and the session's row is the car and the result.)
+            var mine = Ask("GET", "/racing-desk/data/sessions").Body;
+            Assert.That(mine, Does.Contain("mx5 mx52016").And.Not.Contain(CustomerId));
             Assert.That(Ask("GET", "/racing-desk/data/status").Body, Does.Contain("racing-desk.db"));
         }
 
@@ -332,7 +334,7 @@ namespace RacingDesk.Tests.Transport
             // The app's main process, the rest of it: Node's fetch (Host and Sec-Fetch-Mode, and no Origin) for the replay, the car names, the sim's
             // window and the monitors, the rig's reads and probes (http.get: a Host and nothing more), and the SimHub plugin's
             // outlines (HttpClient on 127.0.0.1, in OutlineRouteTests, which runs through the runtime with this check).
-            foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay" })
+            foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay", "brakeforce", "wheelmax" })
             {
                 var viaFetch = Ask("GET", "/racing-desk/data/" + route, r =>
                 {

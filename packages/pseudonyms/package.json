@@ -1,0 +1,10 @@
+{
+  "name": "@racing-desk/pseudonyms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The names Racing Desk shows for other drivers in place of their own: characters from David Foster Wallace's fiction and Trainspotting, and the members of Sunn O))), Black Sabbath, Type O Negative, Tool and The Cure. Real names from public sources, none invented.",
+  "files": [
+    "names.json",
+    "README.md"
+  ]
+}

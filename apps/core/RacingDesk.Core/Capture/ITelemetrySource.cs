@@ -19,5 +19,26 @@ namespace RacingDesk.Plugin.Engine
 
         /// <summary>A SimHub property by full name, e.g. "DataCorePlugin.GameRawData.Telemetry.SessionState".</summary>
         object GetPropertyValue(string fullName);
+
+        /// <summary>
+        /// What an entry of <c>NewData.Opponents</c> is called wherever it is shown or sent: the driver's own name for his
+        /// own car, and for every other car the name the source gives it from the list of characters
+        /// (<c>RacingDesk.Core.Names</c>). A real name of another driver never leaves the source: the engine reads no
+        /// opponent's <c>Name</c> itself, it asks here. Null for an entry the source cannot name (yet): the leaderboard
+        /// leaves it out, and the gaps have no name for it.
+        /// </summary>
+        string OpponentName(object opponent);
+    }
+
+    /// <summary>
+    /// A source that can tell when the name its sim gives for the player (<c>NewData.PlayerName</c>) is not his: a teammate
+    /// driving his car in a team race, who is another driver, or has not yet been told who he is. It says what to call the
+    /// player instead, or nothing (empty) while it does not know; a source without it is taken at its word.
+    /// (The host's source needs none: its session model names the teammate where it is parsed.)
+    /// </summary>
+    public interface IPlayerNameSource
+    {
+        /// <summary>The name to show for the player: <paramref name="given"/> when it is his, a character's when it is not, empty when not yet known.</summary>
+        string PlayerName(string given);
     }
 }

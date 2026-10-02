@@ -29,7 +29,57 @@
   const _elYawRate    = document.getElementById('dsYawRate');
   const _elYawFill    = document.getElementById('dsYawFill');
   const _elSteerTorque = document.getElementById('dsSteerTorque');
+  const _elWheelMax   = document.getElementById('dsWheelMax');
+  const _elFfbMax     = document.getElementById('dsFfbMax');
+  const _elBrakeMax   = document.getElementById('dsBrakeMax');
   const _elDelta      = document.getElementById('dsDelta');
+
+  // ── What the rig is set to (the three rows under FFB) ──
+  // The wheel's maximum torque in Nm: what the wheel base itself says, where the plugin's poll could last ask it
+  // (DS.MozaWheelbaseMaxNm: the base's max-torque setting of its model's rating, sent only where both are known), else
+  // what the main process tells the page (the app's host: the base's own reading or Pit House's saved preset for it,
+  // read and never written; modules/js/rig-limits.js, through the preload). iRacing's own force scale is in the
+  // telemetry (DS.SteerMaxForceNm: the strength slider in Nm the sim maps to full output, sent only where the sim says
+  // it, never in demo) and is not the wheel's maximum, which is why it is labelled the sim's. The brake's is SmartControl's
+  // force in kg as the app's host follows it from Live's keys, told by the main process the same way: not asked for
+  // here, and not known on a page with no main process behind it (an iPad, OBS, a browser). Each shows a dash while it is
+  // not known; none is ever made up.
+  let _rigLimits = { brakeKg: null, car: null, wheelNm: null };
+  const _positive = (x) => (typeof x === 'number' && isFinite(x) && x > 0 ? x : null);
+  function _takeRigLimits(limits) {
+    const kg = limits && typeof limits.brakeKg === 'number' && isFinite(limits.brakeKg) && limits.brakeKg >= 0 ? limits.brakeKg : null;
+    _rigLimits = { brakeKg: kg, car: limits && typeof limits.car === 'string' ? limits.car : null, wheelNm: limits ? _positive(limits.wheelNm) : null };
+    _drawBrakeMax();
+    _drawWheelMax(null, true);
+  }
+  function _drawBrakeMax() {
+    if (!_elBrakeMax) return;
+    const text = _rigLimits.brakeKg === null ? '—' : _rigLimits.brakeKg.toFixed(_rigLimits.brakeKg % 1 ? 1 : 0) + ' kg';
+    if (_elBrakeMax.textContent !== text) _elBrakeMax.textContent = text;
+  }
+  // The frame's own reading of the base first (it is the base's, now), then the main process's. `p` null: from what the
+  // main process just said alone (the frame's reading is kept as it was drawn).
+  let _liveWheelNm = null;
+  function _drawWheelMax(p, isDemo) {
+    if (!_elWheelMax) return;
+    if (p) _liveWheelNm = isDemo ? null : _positive(p['RacingDesk.Plugin.DS.MozaWheelbaseMaxNm']);
+    const nm = _liveWheelNm !== null ? _liveWheelNm : _rigLimits.wheelNm;
+    const text = nm === null ? '—' : nm.toFixed(1) + ' Nm';
+    if (_elWheelMax.textContent !== text) _elWheelMax.textContent = text;
+  }
+  if (window.racingDesk && typeof window.racingDesk.onRigLimits === 'function') {
+    try { window.racingDesk.onRigLimits(_takeRigLimits); } catch (e) { /* no bridge */ }
+    try {
+      if (typeof window.racingDesk.getRigLimits === 'function') window.racingDesk.getRigLimits().then(_takeRigLimits).catch(() => {});
+    } catch (e) { /* no bridge */ }
+  }
+  // iRacing's, as the frame says it: a number above nought, else not known.
+  function _drawFfbMax(p, isDemo) {
+    if (!_elFfbMax) return;
+    const nm = isDemo ? null : _positive(p['RacingDesk.Plugin.DS.SteerMaxForceNm']);
+    const text = nm === null ? '—' : nm.toFixed(1) + ' Nm';
+    if (_elFfbMax.textContent !== text) _elFfbMax.textContent = text;
+  }
   const _elDeltaRef   = document.getElementById('dsDeltaRef');
   const _elTrackTemp  = document.getElementById('dsTrackTemp');
   const _elCtrlABS    = document.getElementById('ctrlABS');
@@ -305,8 +355,11 @@
     // Yaw trail waveform
     renderYawTrail(yawRate);
 
-    // Steering torque
+    // Steering torque, and what the rig is set to beside it
     if (_elSteerTorque) _elSteerTorque.textContent = steerTorque.toFixed(1) + ' Nm';
+    _drawWheelMax(p, isDemo);
+    _drawFfbMax(p, isDemo);
+    _drawBrakeMax();
 
     // Lap delta: the one the position block shows (poll-engine.js, lap-delta.js), labelled with what it is against —
     // his best lap of the session, or before he has one his best ever here — and a minus when he is gaining.

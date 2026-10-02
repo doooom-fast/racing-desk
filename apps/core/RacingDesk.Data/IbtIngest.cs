@@ -134,7 +134,7 @@ namespace RacingDesk.Data
                     if (File.Exists(path))
                     {
                         var header = IbtFile.ReadHeader(path);
-                        file.Cars = CarRecord.Distinct(SessionInfoYaml.ParseDriverCars(header.SessionInfoYamlText));
+                        file.Cars = CarRecord.Distinct(header.DriverCars);
                         file.RecordedAtUtc = header.SessionStartUtc;
                         foreach (var car in file.Cars) found.Add(car.CarPath);
                         summary.FilesScanned++;

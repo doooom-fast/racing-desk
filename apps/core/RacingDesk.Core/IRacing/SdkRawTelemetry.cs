@@ -1,5 +1,6 @@
 using System;
 using IRSDKSharper;
+using RacingDesk.Core.Names;
 
 namespace RacingDesk.Plugin.IRacing
 {
@@ -30,7 +31,20 @@ namespace RacingDesk.Plugin.IRacing
 
         public bool IsConnected => _sdk.IsConnected && _sdk.Data.TelemetryDataPropertiesReady;
 
-        public IRacingSdkSessionInfo SessionInfo => IsConnected ? _sdk.Data.SessionInfo : null;
+        // Where other drivers' names enter the host's path, and where they are replaced: the parsed session model is given
+        // its characters' names once per session-info update, before anything reads it (Names/SessionNaming, which watches
+        // the object and the SDK's update count; the player's entry is left his).
+        private readonly SessionNaming _naming = new SessionNaming();
+
+        public IRacingSdkSessionInfo SessionInfo
+        {
+            get
+            {
+                if (!IsConnected) return null;
+                var data = _sdk.Data;
+                return _naming.Named(data.SessionInfo, data.SessionInfoUpdate);
+            }
+        }
 
         public object GetValue(string name)
         {

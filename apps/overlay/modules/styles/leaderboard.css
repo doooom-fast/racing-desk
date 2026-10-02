@@ -124,10 +124,11 @@
   }
 
   /* ── The car's controls by the canonical list (modules/js/car-controls.js) ──
-     A control the car lacks reads NONE and takes only the width NONE needs; the rest of the row is the others'.
      A mode (one dial for ABS, TC and stability) is a cell of its own and the cells it stands for are hidden.
-     The car's other controls — a second traction dial, brake migration, the bars, DRS, push-to-pass — are a row
-     of small cells under the three, there only for a car that has any. */
+     In the glance layout (drive-view.css) a control the car lacks reads NONE and takes only the width NONE needs,
+     and the car's other controls — a second traction dial, brake migration, the bars, DRS, push-to-pass — are a
+     row of small cells under the three, there only for a car that has any. On the rig's HUD every one of them is
+     a cell like the three (.ctrl-fit, below). */
   .car-controls.car-controls-listed { flex-wrap: wrap; align-content: stretch; }
   .car-controls.car-controls-listed .ctrl-item.ctrl-none {
     flex: 0 0 auto;
@@ -137,6 +138,9 @@
   .car-controls.car-controls-listed .ctrl-item.ctrl-none .ctrl-value,
   .car-controls.car-controls-listed .ctrl-item.ctrl-on .ctrl-value { opacity: 0.45 !important; }
   .car-controls.car-controls-listed .ctrl-item.ctrl-off .ctrl-value { opacity: 0.75; font-size: 18px; letter-spacing: 0.04em; }
+  /* The car has it and the sim is not saying what it reads (unread), or the host said nothing of it: a dim dash. */
+  .car-controls.car-controls-listed .ctrl-item.ctrl-unread .ctrl-value { opacity: 0.35; }
+  .car-controls.car-controls-listed .ctrl-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .car-controls.car-controls-listed .ctrl-item.ctrl-locked .ctrl-label::after {
     content: '';
     display: inline-block;
@@ -192,11 +196,165 @@
     white-space: nowrap;
   }
   .ctrl-mini.ctrl-mini-off .ctrl-mini-value { opacity: 0.5; }
+  .ctrl-mini.ctrl-mini-unread .ctrl-mini-value { opacity: 0.35; }
   .ctrl-mini.ctrl-mini-ready { background: hsla(150, 60%, 45%, 0.16); }
   .ctrl-mini.ctrl-mini-ready .ctrl-mini-value { color: hsl(150, 70%, 65%); }
   .ctrl-mini.ctrl-mini-active { background: hsla(150, 70%, 50%, 0.32); border-color: hsla(150, 70%, 60%, 0.5); }
   .ctrl-mini.ctrl-mini-active .ctrl-mini-value { color: hsl(150, 80%, 75%); }
   .ctrl-mini.ctrl-mini-changed { animation: value-flash 1.4s ease-out forwards; }
+
+  /* ── The rig's HUD: a panel for every adjustment the car has (car-controls.js arrange; .ctrl-fit) ──
+     He asked for it on 2026-10-01 ("show adjustment panels for every adjustment available for that car. Omit ones
+     that are not on the car when there's no room"). The panel is 240px wide and as tall as it has always been (it
+     shares its column with the pedals, which lose nothing): a car's controls go three across in one row or two at the
+     full size, four across in two rows at the compact size (.ctrl-compact), and in three rows of four or five at the
+     tight one (.ctrl-tight), as many across as the module says (--ctrl-cols) — every control the car has, the step
+     taken being the smallest that holds them. The car's other controls are cells like the three — the row they sit
+     in dissolves (display: contents) — with the bar the three have; a NONE cell is a full cell, last, and only there
+     where its slot would not make a row of its own (.ctrl-omitted); an unread one is its label over a dim dash. The
+     glance layout has none of this (drive-view.css lays the panel out as a cell of its grid, and the module adds no
+     .ctrl-fit there). */
+  .car-controls.ctrl-fit { --ctrl-cols: 3; }
+  .car-controls.ctrl-fit .ctrl-more { display: contents; }
+  .car-controls.ctrl-fit .ctrl-item,
+  .car-controls.ctrl-fit .ctrl-item.ctrl-none,
+  .car-controls.ctrl-fit .ctrl-mini {
+    flex: 1 1 calc((100% - (var(--ctrl-cols) - 1) * var(--gap)) / var(--ctrl-cols));
+    min-width: 0;
+    min-height: 0;
+    padding: 4px;
+  }
+  /* A mode (the 570S's one dial) is a cell like the others on the rig: arrange gives it one slot, and the glance
+     layout's wider flex for it (.car-controls-listed .ctrl-mode, above) would give it a share of its own. */
+  .car-controls.ctrl-fit .ctrl-item.ctrl-mode { flex: 1 1 calc((100% - (var(--ctrl-cols) - 1) * var(--gap)) / var(--ctrl-cols)); }
+  /* Two rows share the panel's one-row height: the cell's padding comes in so the full size's number still sits in it. */
+  .car-controls.ctrl-fit[data-ctrl-rows="2"] .ctrl-item,
+  .car-controls.ctrl-fit[data-ctrl-rows="2"] .ctrl-mini { padding: 2px 4px; gap: 1px; }
+  .car-controls.ctrl-fit .ctrl-item.ctrl-none { order: 9; }
+  .car-controls.ctrl-fit .ctrl-omitted { display: none; }
+  .car-controls.ctrl-fit .ctrl-mini {
+    position: relative;
+    overflow: hidden;
+    gap: 2px;
+    text-align: center;
+  }
+  .car-controls.ctrl-fit .ctrl-mini::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--ctrl-pct, 0%);
+    background: hsla(0, 0%, 100%, 0.05);
+    pointer-events: none;
+    transition: height var(--t-med);
+  }
+  .car-controls.ctrl-fit .ctrl-mini-label {
+    font-size: var(--fs-xs);
+    position: relative;
+    z-index: 1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .car-controls.ctrl-fit .ctrl-mini-value {
+    font-size: 22px;
+    position: relative;
+    z-index: 1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .car-controls.ctrl-fit .ctrl-mini-value.ctrl-mini-word { font-size: 15px; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.05em; }
+  .car-controls.ctrl-fit .ctrl-mini-none .ctrl-mini-value { opacity: 0.45; }
+  .car-controls.ctrl-fit .ctrl-mini-off .ctrl-mini-value { font-size: 18px; opacity: 0.75; }
+  .car-controls.ctrl-fit .ctrl-mini-locked .ctrl-mini-label::after {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 6px;
+    margin-left: 4px;
+    border: 1px solid currentColor;
+    border-top-width: 2px;
+    border-radius: 1px;
+    opacity: 0.6;
+    vertical-align: 1px;
+  }
+  .car-controls.ctrl-fit .ctrl-value { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  /* A number of five characters (48.25) is wider than a cell at the number's size: a step down. A word wider than
+     its cell (AUTOMATIC), or a number of six characters: smaller still. */
+  .car-controls.ctrl-fit .ctrl-value.ctrl-value-wide,
+  .car-controls.ctrl-fit .ctrl-mini-value.ctrl-value-wide { font-size: 18px; letter-spacing: -0.03em; }
+  .car-controls.ctrl-fit .ctrl-value.ctrl-value-long,
+  .car-controls.ctrl-fit .ctrl-mini-value.ctrl-value-long { font-size: 11px !important; letter-spacing: 0; }
+  /* Compact: four across in two rows, the type stepped down, the padding too. */
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-item,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini { padding: 2px 3px; gap: 1px; }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-value,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value { font-size: 16px; }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-label,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-label { font-size: 9px; letter-spacing: 0.04em; }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-item .ctrl-value.ctrl-value-fixed,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value.ctrl-mini-word { font-size: 12px !important; }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-item.ctrl-off .ctrl-value,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-off .ctrl-mini-value { font-size: 14px; }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-value.ctrl-value-wide,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value.ctrl-value-wide { font-size: 14px; }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-value.ctrl-value-long,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value.ctrl-value-long { font-size: 10px !important; }
+  /* Tight: three rows in the panel's height (the rows' gap is 2px, the number 13px, the label 8px at most). */
+  .car-controls.ctrl-fit.ctrl-tight { --gap: 2px; }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-item,
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini { padding: 1px 2px; gap: 0; }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-value,
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-value { font-size: 13px; }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-label,
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-label { letter-spacing: 0.03em; }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-item .ctrl-value.ctrl-value-fixed,
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-value.ctrl-mini-word { font-size: 11px !important; }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-item.ctrl-off .ctrl-value,
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-off .ctrl-mini-value { font-size: 12px; }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-value.ctrl-value-wide,
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-value.ctrl-value-wide { font-size: 12px; }
+  /* A label no larger than its cell holds: the module says how many characters it is (--ctrl-label-len: the longest
+     line of it), the cell is the container its width is read from, and the label is set at the size the panel's
+     type has, or smaller to fit — BRAKE BIAS three across, TC TOGGLE four across — down to 7px. The width a character
+     takes is the page's own font's (Sofia Pro Comp, 600, 0.43 em at the mean and 0.47 at the most for a label of seven
+     characters or more: the module's EM is 0.5 to hold them all). A label the one line cannot hold above 8px is
+     wrapped onto a second (.ctrl-label-2l, the module's labelPlan) and cut with an ellipsis only past that. */
+  .car-controls.ctrl-fit .ctrl-item,
+  .car-controls.ctrl-fit .ctrl-mini { container-type: inline-size; }
+  .car-controls.ctrl-fit .ctrl-label,
+  .car-controls.ctrl-fit .ctrl-mini-label { font-size: clamp(7px, calc(100cqi / (var(--ctrl-label-len, 4) * 0.5)), var(--fs-xs)); }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-label,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-label { font-size: clamp(7px, calc(100cqi / (var(--ctrl-label-len, 4) * 0.5)), 9px); }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-label,
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-label { font-size: clamp(7px, calc(100cqi / (var(--ctrl-label-len, 4) * 0.5)), 8px); }
+  .car-controls.ctrl-fit .ctrl-label.ctrl-label-2l,
+  .car-controls.ctrl-fit .ctrl-mini-label.ctrl-label-2l {
+    white-space: normal;
+    width: 100%;
+    line-height: 1;
+    max-height: 2em;
+    overflow: hidden;
+    text-align: center;
+  }
+  /* Two lines of label and the number must fit the row (47px of the panel's 98 in two rows, 31 in three): the label is
+     set at 8px at the most at the full size, 9px at the compact one and 7px in the tight rows, whatever the width
+     would allow, and the number a point smaller in the tight rows. */
+  .car-controls.ctrl-fit .ctrl-label.ctrl-label-2l,
+  .car-controls.ctrl-fit .ctrl-mini-label.ctrl-label-2l { font-size: min(clamp(7px, calc(100cqi / (var(--ctrl-label-len, 4) * 0.5)), var(--fs-xs)), 8px); }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-label.ctrl-label-2l,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-label.ctrl-label-2l { font-size: min(clamp(7px, calc(100cqi / (var(--ctrl-label-len, 4) * 0.5)), 9px), 9px); }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-label.ctrl-label-2l,
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-label.ctrl-label-2l { font-size: 7px; }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-item:has(.ctrl-label-2l) .ctrl-value,
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini:has(.ctrl-label-2l) .ctrl-mini-value { font-size: 12px; }
+  /* A long value (AUTOMATIC, a number of six) the same way, by its own length (--ctrl-value-len). */
+  .car-controls.ctrl-fit .ctrl-value.ctrl-value-long,
+  .car-controls.ctrl-fit .ctrl-mini-value.ctrl-value-long { font-size: clamp(7px, calc(100cqi / (var(--ctrl-value-len, 9) * 0.62)), 11px) !important; }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-value.ctrl-value-long,
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value.ctrl-value-long { font-size: clamp(7px, calc(100cqi / (var(--ctrl-value-len, 9) * 0.62)), 10px) !important; }
 
   /* "No Adjustments" fallback when all controls are hidden */
   .ctrl-no-adj {

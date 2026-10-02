@@ -588,10 +588,12 @@ namespace RacingDesk.Plugin
                     Jp(sb, "DataCorePlugin.GameData.TyreTempRearLeft", s.TyreTempRL, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreTempRearRight", s.TyreTempRR, ic);
                     // Tread remaining, 0..100 %, as the sim last measured it; null until it has (Engine/TyreWear.cs).
+                    // A corner whose tyre was changed reads a new set's 100 until the sim measures it, and TyreNewSetFlags says which.
                     Jp(sb, "DataCorePlugin.GameData.TyreWearFrontLeft", s.TyreWearFL, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreWearFrontRight", s.TyreWearFR, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreWearRearLeft", s.TyreWearRL, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreWearRearRight", s.TyreWearRR, ic);
+                    Jp(sb, Transport.TelemetryFrame.TyreNewSetFlagsKey, demo ? 0 : s.TyreNewSetFlags);   // the demo's tread is made up: nothing in it is held
                     Jp(sb, "DataCorePlugin.GameRawData.Telemetry.dcBrakeBias", s.BrakeBias, ic);
                     Jp(sb, "DataCorePlugin.GameRawData.Telemetry.dcTractionControl", s.TractionControlSetting, ic);
                     Jp(sb, "DataCorePlugin.GameRawData.Telemetry.dcABS", s.AbsSetting, ic);
@@ -677,6 +679,8 @@ namespace RacingDesk.Plugin
                     Jp(sb, "RacingDesk.Plugin.DS.LongG", s.LongAccel, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.YawRate", s.YawRate, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.SteerTorque", s.SteeringWheelTorque, ic);
+                    // The wheel's full-output force, in Nm: only where the sim said it, never in demo (the HUD shows a dash without it).
+                    if (!demo && s.GameRunning && s.SteeringWheelMaxForceNm.HasValue) Jp(sb, Transport.TelemetryFrame.SteerMaxForceNmKey, s.SteeringWheelMaxForceNm.Value, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.TrackTemp", s.TrackTemp, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.AirTemp", s.AirTemp, ic);
                     Jp(sb, "RacingDesk.Plugin.DS.WeatherWet", s.WeatherWet ? 1 : 0);

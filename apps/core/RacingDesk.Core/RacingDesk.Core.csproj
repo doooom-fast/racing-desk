@@ -43,6 +43,17 @@
                       Condition="Exists('../../../packages/car-list/cars.json')" />
   </ItemGroup>
 
+  <!--
+    The names other drivers are shown under (packages/pseudonyms: characters and band members, real names from public
+    sources), carried inside the assembly so the host and the SimHub plugin draw from the same list. A tree without the
+    file builds, and every other driver is then "Driver" and four digits — never their own name (Names/Pseudonymizer.cs).
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="../../../packages/pseudonyms/names.json"
+                      LogicalName="RacingDesk.Core.Names.names.json"
+                      Condition="Exists('../../../packages/pseudonyms/names.json')" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="IRSDKSharper" Version="1.1.4" />
     <PackageReference Include="Fleck" Version="1.2.0" />
