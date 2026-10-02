@@ -288,7 +288,7 @@ test.describe('every other row is that car\'s places too, not its laps', () => {
   test('a car out of view has its history when it comes into view', async ({ page }) => {
     // Twenty-one cars and ten rows: the car at P1 is not on show while he runs P18, and it is followed all the
     // same, so that its line is there when it is.
-    const front = 'Alex Alpha';
+    const front = 'A. Alpha';
     const back = fieldWith(18);
     const swap = (order, a, b) => { const o = order.slice(); const i = o.indexOf(a), j = o.indexOf(b); [o[i], o[j]] = [o[j], o[i]]; return o; };
     const frames = [
@@ -356,7 +356,7 @@ test.describe('which race a trail belongs to', () => {
     await show(page, at(4, { state: 4, start: 0, noPlaces: true }));
     await show(page, at(4, { state: 4, start: 4 }));
     expect(await places(page, ME)).toEqual([4]);
-    expect(await places(page, 'Alex Alpha')).toEqual([1]);
+    expect(await places(page, 'A. Alpha')).toEqual([1]);
     const flat = await mine(page);
     expect(flat.first).toBe(flat.last);
   });
@@ -383,7 +383,7 @@ test.describe('which race a trail belongs to', () => {
     expect(shown.last).toBeLessThan(shown.first);
     expect(shown.color).toBe(GREEN);
     // Nobody else's grid slot is known: their lines begin where they were first seen.
-    expect(await places(page, 'Alex Alpha')).toEqual([1]);
+    expect(await places(page, 'A. Alpha')).toEqual([1]);
   });
 
   test('a frame that names no session does not end the one in hand', async ({ page }) => {

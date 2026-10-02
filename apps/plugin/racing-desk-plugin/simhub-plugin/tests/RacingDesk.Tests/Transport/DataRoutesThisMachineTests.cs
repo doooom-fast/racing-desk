@@ -268,8 +268,10 @@ namespace RacingDesk.Tests.Transport
             foreach (var answer in new[] { sessions, status })
                 Assert.That(answer.Body, Does.Not.Contain(CustomerId).And.Not.Contain(Path.GetTempPath()).And.Not.Contain("racing-desk.db"));
 
-            // And to this machine, they are there: the refusals above are not an empty store.
-            Assert.That(Ask("GET", "/racing-desk/data/sessions").Body, Does.Contain(CustomerId));
+            // And to this machine, they are there: the refusals above are not an empty store. (The sessions carry no customer
+            // id at all now, his own or a teammate's: nothing reads it, and the session's row is the car and the result.)
+            var mine = Ask("GET", "/racing-desk/data/sessions").Body;
+            Assert.That(mine, Does.Contain("mx5 mx52016").And.Not.Contain(CustomerId));
             Assert.That(Ask("GET", "/racing-desk/data/status").Body, Does.Contain("racing-desk.db"));
         }
 

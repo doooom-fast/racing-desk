@@ -253,7 +253,7 @@ namespace RacingDesk.Plugin
             Advance(
                 next,
                 () => GetTrackId(source),
-                newData != null ? (Func<int, string>)(position => BuildLeaderboard(newData, position)) : null);
+                newData != null ? (Func<int, string>)(position => BuildLeaderboard(source, newData, position)) : null);
         }
 
         /// <param name="next">This frame's snapshot.</param>
@@ -263,10 +263,10 @@ namespace RacingDesk.Plugin
         {
             var incoming = next ?? new TelemetrySnapshot();
 
-            // A corner whose tyre was changed at the last stop shows the set that came off until the sim measures it
-            // again: that reading is taken off the snapshot here, once, before it is published to the wire, the
-            // commentary and the strategist (Engine/TyreSetMask.cs; root CLAUDE.md, Tyre wear). A new session or another
-            // car forgets what was held back.
+            // A corner whose tyre was changed at the last stop (or fitted by a reset to the pits) shows the set that came
+            // off until the sim measures it again: that reading is replaced by a new set's 100 here, once, flagged in
+            // TyreNewSetFlags, before it is published to the wire, the commentary and the strategist
+            // (Engine/TyreSetMask.cs; root CLAUDE.md, Tyre wear). A new session or another car forgets what was held back.
             if (incoming.SessionState < 4 || (!string.IsNullOrEmpty(incoming.CarModel) && incoming.CarModel != _lastCarModel))
                 _tyreSets.Reset();
             _tyreSets.Apply(incoming);
@@ -599,13 +599,14 @@ namespace RacingDesk.Plugin
             return _engine.CurrentText;
         }
 
-        /// <summary>Build demo leaderboard with fake data around the player.</summary>
+        /// <summary>Build demo leaderboard with fake data around the player. Its rivals are characters (Names/DemoNames).</summary>
         private string BuildDemoLeaderboard(DemoTelemetryProvider dt)
         {
             var ic = System.Globalization.CultureInfo.InvariantCulture;
             int pp = dt.Position;
-            var names = new[] { "L. Hamilton", "M. Verstappen", "C. Leclerc", dt.DriverAhead, "YOU",
-                                dt.DriverBehind, "S. Vettel", "D. Ricciardo", "L. Norris", "C. Sainz" };
+            var field = RacingDesk.Core.Names.DemoNames.Field;
+            var names = new[] { field[0], field[1], field[2], dt.DriverAhead, "YOU",
+                                dt.DriverBehind, field[3], field[4], field[5], field[6] };
             var iratings = new[] { 5200, 4800, 3900, dt.IRAhead, dt.IRating,
                                    dt.IRBehind, 2400, 2200, 2100, 1900 };
             double baseLap = dt.BestLapTime > 0 ? dt.BestLapTime : 92.4;
@@ -663,11 +664,12 @@ namespace RacingDesk.Plugin
         }
 
         /// <summary>
-        /// Build leaderboard JSON from the source's Opponents list (read by property name).
+        /// Build leaderboard JSON from the source's Opponents list (read by property name, the name itself asked of the
+        /// source: the character's for another driver, his own for his — ITelemetrySource.OpponentName).
         /// Returns a window of drivers centred on the player, compact JSON array.
         /// Each entry: [pos, name, irating, bestLap, lastLap, gapToPlayer, inPit]
         /// </summary>
-        private string BuildLeaderboard(object newData, int playerPos)
+        private string BuildLeaderboard(ITelemetrySource source, object newData, int playerPos)
         {
             var ic = System.Globalization.CultureInfo.InvariantCulture;
             try
@@ -683,7 +685,9 @@ namespace RacingDesk.Plugin
                 {
                     var t = opp.GetType();
                     int pos = Convert.ToInt32(t.GetProperty("Position")?.GetValue(opp) ?? 0);
-                    string name = (t.GetProperty("Name")?.GetValue(opp) as string) ?? "";
+                    // A car the source cannot name yet (iRacing, before its session has been read) is left out, not shown nameless.
+                    string name = source.OpponentName(opp);
+                    if (name == null) continue;
                     int irating = 0;
                     var irProp = t.GetProperty("IRating") ?? t.GetProperty("Irating");
                     if (irProp != null) { var v = irProp.GetValue(opp); if (v != null) irating = Convert.ToInt32(v); }

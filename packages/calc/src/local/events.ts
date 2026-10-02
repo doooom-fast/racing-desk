@@ -34,7 +34,6 @@ export interface LocalSessionRow {
   car_class_id: number | null
   started_at: string
   duration_s: number | null
-  driver_cust_id: number | null
   irating: number | null
   license: string | null
   safety_rating: number | null

@@ -605,6 +605,7 @@ namespace RacingDesk.Tests.Cars
             public string GameName => "IRacing";
             public object NewData => null;
             public object GetPropertyValue(string fullName) => Car.Property(fullName);
+            public string OpponentName(object opponent) => null;
         }
 
         private sealed class Anonymous : ITelemetrySource
@@ -613,6 +614,7 @@ namespace RacingDesk.Tests.Cars
             public string GameName => "IRacing";
             public object NewData => null;
             public object GetPropertyValue(string fullName) => null;
+            public string OpponentName(object opponent) => null;
         }
 
         // ── The check ──

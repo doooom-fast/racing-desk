@@ -128,7 +128,7 @@
       "source": "iracing-sdk",
       "fields": [
         {"name": "TyreTempFL/FR/RL/RR", "type": "float", "unit": "°F", "wired": true, "desc": "Per-corner tyre surface temperature (iRacing native = °F)"},
-        {"name": "TyreWearFL/FR/RL/RR", "type": "double?", "range": "0–100", "wired": true, "desc": "Per-corner tread remaining in percent (100=new), null where the sim has not measured it; the mean of iRacing's three tread bands times a hundred (SimHub publishes the middle band alone). iRacing measures tread in the pits only. One meaning everywhere (root CLAUDE.md, Tyre wear); the topic fires on the worst corner <35"}
+        {"name": "TyreWearFL/FR/RL/RR", "type": "double?", "range": "0–100", "wired": true, "desc": "Per-corner tread remaining in percent (100=new), null where the sim has not measured it; the mean of iRacing's three tread bands times a hundred (SimHub publishes the middle band alone). iRacing measures tread in the pits only. A corner whose tyre was changed (a stop with it ticked, or a reset to the pits) reads a new set's 100 until the sim measures it, with RacingDesk.Plugin.TyreNewSetFlags saying which. One meaning everywhere (root CLAUDE.md, Tyre wear); the topic fires on the worst corner <35"}
       ]
     },
     {
@@ -464,8 +464,8 @@
       "fields": [
         {"name": "DataCorePlugin.GameData.TyreTempFrontLeft/Right", "type": "double", "unit": "°C", "wired": true, "desc": "Front tyre surface temps — cross-game"},
         {"name": "DataCorePlugin.GameData.TyreTempRearLeft/Right", "type": "double", "unit": "°C", "wired": true, "desc": "Rear tyre surface temps — cross-game"},
-        {"name": "DataCorePlugin.GameData.TyreWearFrontLeft/Right", "type": "double?", "range": "0–100", "wired": true, "desc": "Front tread remaining in percent, 100=new; on the wire null until the sim has measured it (SimHub's own 0 is nothing, not a bald tyre). Read as it is by every reader (root CLAUDE.md, Tyre wear)"},
-        {"name": "DataCorePlugin.GameData.TyreWearRearLeft/Right", "type": "double?", "range": "0–100", "wired": true, "desc": "Rear tread remaining in percent, 100=new; null until measured"},
+        {"name": "DataCorePlugin.GameData.TyreWearFrontLeft/Right", "type": "double?", "range": "0–100", "wired": true, "desc": "Front tread remaining in percent, 100=new; on the wire null until the sim has measured it (SimHub's own 0 is nothing, not a bald tyre), and a new set's 100 for a corner whose tyre was changed until the sim measures it again (RacingDesk.Plugin.TyreNewSetFlags says which). Read as it is by every reader (root CLAUDE.md, Tyre wear)"},
+        {"name": "DataCorePlugin.GameData.TyreWearRearLeft/Right", "type": "double?", "range": "0–100", "wired": true, "desc": "Rear tread remaining in percent, 100=new; null until measured; a new set's 100 after a change until measured"},
         {"name": "DataCorePlugin.GameData.TyrePressureFrontLeft/Right", "type": "double", "unit": "kPa", "wired": false, "desc": "Front tyre pressures"},
         {"name": "DataCorePlugin.GameData.TyrePressureRearLeft/Right", "type": "double", "unit": "kPa", "wired": false, "desc": "Rear tyre pressures"},
         {"name": "DataCorePlugin.GameData.BrakeTemperatureFrontLeft/Right", "type": "double", "unit": "°C", "wired": false, "desc": "Front brake temps"},
@@ -525,6 +525,7 @@
         {"name": "RacingDesk.Plugin.CurrentFlagState", "type": "string", "wired": true, "desc": "Human-readable flag: green, yellow, red, checkered, black, debris, white"},
         {"name": "RacingDesk.Plugin.NearestCarDistance", "type": "float", "range": "0–1", "wired": true, "desc": "Nearest car proximity distance (track fraction)"},
         {"name": "RacingDesk.Plugin.IsInPitLane", "type": "int", "range": "0|1", "wired": true, "desc": "Pit lane flag"},
+        {"name": "RacingDesk.Plugin.TyreNewSetFlags", "type": "bitfield", "range": "0–15", "wired": true, "desc": "Which corners' TyreWear* is a new set's 100 by assumption, not the sim's measurement: the tyre was changed (a stop with it ticked, or a reset to the pits) and iRacing, which measures tread in the pits only, has not measured that corner since. One bit a corner, PitSvFlags' bits: 0x01 FL, 0x02 FR, 0x04 RL, 0x08 RR; 0 where every number is the sim's own, and 0 in the demo. A corner whose reading already prints as a new set's 100 when its tyre is changed (a session that starts on a fresh set) is not flagged: nothing is replaced. Set once by Engine/TyreSetMask.cs before any reader; the pit box writes 'new set' under the rings from it, the sidecar carries it as wNew, the strategist takes the 100 as healthy but not as news (root CLAUDE.md, Tyre wear)"},
         {"name": "RacingDesk.Plugin.DS.LatG", "type": "float", "unit": "G", "wired": true, "desc": "Lateral G in HTTP API snapshot"},
         {"name": "RacingDesk.Plugin.DS.LongG", "type": "float", "unit": "G", "wired": true, "desc": "Longitudinal G in HTTP API snapshot"},
         {"name": "RacingDesk.Plugin.DS.VertG", "type": "float", "unit": "G", "wired": true, "desc": "Vertical G in HTTP API snapshot"},

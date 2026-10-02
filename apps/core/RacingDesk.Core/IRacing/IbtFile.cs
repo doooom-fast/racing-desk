@@ -16,11 +16,17 @@ namespace RacingDesk.Plugin.IRacing
         public string Description { get; internal set; }
     }
 
-    /// <summary>What a header-only pass takes from an .ibt: when it was recorded and its session YAML.</summary>
+    /// <summary>
+    /// What a header-only pass takes from an .ibt: when it was recorded and the cars its session lists. The session YAML
+    /// itself, which names every driver in the file, is not given out (<see cref="SessionInfoYamlText"/> is the assembly's
+    /// and its tests'): what a reader may have of it is read from it here.
+    /// </summary>
     public sealed class IbtHeader
     {
         public DateTime SessionStartUtc { get; internal set; }
-        public string SessionInfoYamlText { get; internal set; }
+        /// <summary>The cars the session's drivers are in, from the YAML's <c>DriverInfo</c>.</summary>
+        public IReadOnlyList<DriverCar> DriverCars { get; internal set; } = new List<DriverCar>();
+        internal string SessionInfoYamlText { get; set; }
     }
 
     /// <summary>
@@ -37,6 +43,9 @@ namespace RacingDesk.Plugin.IRacing
         private readonly Dictionary<string, IbtVar> _vars = new Dictionary<string, IbtVar>(StringComparer.Ordinal);
         private IRacingSdkSessionInfo _sessionInfo;
         private bool _sessionInfoParsed;
+        // The raw session YAML, with every driver's real name in it: kept private, and let go once the model is parsed
+        // and renamed (SessionInfo), so nothing can read a real name from this file after that.
+        private string _sessionInfoYaml;
 
         public string Path { get; }
         public int Version { get; }
@@ -48,7 +57,6 @@ namespace RacingDesk.Plugin.IRacing
         public DateTime SessionStartUtc { get; }
         public double SessionStartTime { get; }
         public double SessionEndTime { get; }
-        public string SessionInfoYamlText { get; }
         public IReadOnlyDictionary<string, IbtVar> Vars => _vars;
 
         /// <summary>The file is still being written: its records are counted from its length, not its header.</summary>
@@ -103,7 +111,7 @@ namespace RacingDesk.Plugin.IRacing
                     _vars[v.Name] = v;
                 }
 
-                SessionInfoYamlText = CString(ReadAt(sessionInfoOffset, sessionInfoLen), 0, sessionInfoLen);
+                _sessionInfoYaml = CString(ReadAt(sessionInfoOffset, sessionInfoLen), 0, sessionInfoLen);
             }
             catch
             {
@@ -131,22 +139,29 @@ namespace RacingDesk.Plugin.IRacing
                 var yaml = new byte[sessionInfoLen];
                 stream.Position = sessionInfoOffset;
                 if (!ReadExactly(stream, yaml, sessionInfoLen)) throw new InvalidDataException($"{path}: truncated at {sessionInfoOffset}");
+                string text = CString(yaml, 0, sessionInfoLen);
                 return new IbtHeader
                 {
                     SessionStartUtc = StartUtc(BitConverter.ToInt64(h, 112), path),
-                    SessionInfoYamlText = CString(yaml, 0, sessionInfoLen),
+                    DriverCars = SessionInfoYaml.ParseDriverCars(text),
+                    SessionInfoYamlText = text,
                 };
             }
         }
 
-        /// <summary>Session YAML parsed on first use.</summary>
+        /// <summary>
+        /// Session YAML parsed on first use, with every other driver renamed as they enter (Names/Pseudonymizer: the
+        /// file's drivers get their characters' names here, before the replay, the ingest or the follower reads them; the
+        /// player's entry is his). The text itself is let go once it is parsed.
+        /// </summary>
         public IRacingSdkSessionInfo SessionInfo
         {
             get
             {
                 if (!_sessionInfoParsed)
                 {
-                    _sessionInfo = SessionInfoYaml.Parse(SessionInfoYamlText);
+                    _sessionInfo = RacingDesk.Core.Names.PseudonymBook.Default.NewSession().Apply(SessionInfoYaml.Parse(_sessionInfoYaml));
+                    _sessionInfoYaml = null;
                     _sessionInfoParsed = true;
                 }
                 return _sessionInfo;

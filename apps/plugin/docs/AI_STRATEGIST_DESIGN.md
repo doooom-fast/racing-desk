@@ -48,7 +48,7 @@ The strategist is not one monolithic system — it's a set of focused analyzers 
 **The Problem:** iRacing's tire model (recently updated for GT3 in Season 3 2025) allows harder initial push but accelerates degradation later. Drivers need to know when their tires transition from "fast" to "falling off" — and the transition is gradual, not a cliff.
 
 **What We Already Have:**
-- `TyreWearFL/FR/RL/RR` (tread remaining, 0-100 %, 100 = new, null until measured) — iRacing measures it in the pits only, so it is the last measurement, not live wear (root CLAUDE.md, Tyre wear)
+- `TyreWearFL/FR/RL/RR` (tread remaining, 0-100 %, 100 = new, null until measured) — iRacing measures it in the pits only, so it is the last measurement, not live wear; a corner whose tyre was changed reads a new set's 100, flagged in `TyreNewSetFlags`, until the sim measures it, and the tracker takes that 100 as healthy but not as a measurement (root CLAUDE.md, Tyre wear)
 - `TyreTempFL/FR/RL/RR` (degrees C) — temperature per tire
 - `TrackTemp` — ambient track surface temperature
 - `WeatherWet` — rain flag

@@ -558,7 +558,8 @@
         </div>
         <!-- What the rings' number is: iRacing measures tread in the pits and nowhere else, so it is the last
              measurement, not live wear (pitbox.js writes it for iRacing, out of the demo; the glance layout keeps the
-             line, at its label's size) -->
+             line, at its label's size). While a corner's 100 is a new set the sim has not measured yet (the engine's
+             TyreNewSetFlags), the line says "New set · not measured" instead, or which tyres are new. -->
         <div class="pb-wear-note hidden" id="pbWearNote"></div>
 
       </div>

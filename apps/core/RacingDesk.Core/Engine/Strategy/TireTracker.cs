@@ -13,9 +13,11 @@ namespace RacingDesk.Plugin.Engine.Strategy
     /// measured (<see cref="TyreWear"/>). iRacing measures tread <b>in the pits and nowhere else</b> — the value sits
     /// still for a whole stint and moves on pit road — so the wear health is rated when a measurement comes in, and the
     /// wear calls are made on that frame and not again at a lap crossing from a value that has not changed. A corner
-    /// whose tyre was changed arrives here as null (<see cref="TyreSetMask"/>, before every reader), so a new set is
-    /// not judged by the readings of the set that came off and the corners left on the car keep their verdict. New
-    /// tyres (100) never warn.
+    /// whose tyre was changed arrives here as a new set's tread, 100, flagged in
+    /// <see cref="TelemetrySnapshot.TyreNewSetFlags"/> (<see cref="TyreSetMask"/>, before every reader), so a new set is
+    /// not judged by the readings of the set that came off — it is healthy — and the corners left on the car keep their
+    /// verdict. That 100 is an assumption, not a measurement: it rates the health but makes no call, so a critical
+    /// corner left on the car is not called again on the frame the others became new. New tyres (100) never warn.
     /// </summary>
     public class TireTracker
     {
@@ -56,8 +58,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
         public double?[] TreadRemaining { get; } = new double?[4];
 
         /// <summary>
-        /// True for the frame a measurement came in on — a corner's value changed to a number, or was first said since
-        /// the last <see cref="Reset"/> — and false on every other frame (a corner going to null is not a measurement).
+        /// True for the frame a measurement came in on — a corner's value changed to a number the sim measured, or was
+        /// first said since the last <see cref="Reset"/> — and false on every other frame (a corner going to null is not
+        /// a measurement, and neither is a corner going to a new set's 100 by <see cref="TelemetrySnapshot.TyreNewSetFlags"/>).
         /// The coordinator evaluates the tyre calls on it, and the wear calls are made only then.
         /// </summary>
         public bool NewMeasurement { get; private set; }
@@ -74,7 +77,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
         /// <summary>
         /// Tire health from the last measurement, of the corners that have one: 0 = fine, 1 = worn (a tyre under
         /// <see cref="TyreWear.WarnBelowPercent"/>), 2 = critical (under <see cref="TyreWear.CriticalBelowPercent"/>; the
-        /// pit box offers a change). A corner changed at a stop drops out (null) and the rest are rated again.
+        /// pit box offers a change). A corner changed at a stop reads a new set's 100 and the car is rated again with it.
         /// </summary>
         public int TireHealthState { get; private set; }
 
@@ -109,8 +112,10 @@ namespace RacingDesk.Plugin.Engine.Strategy
             // ── Tread: a measurement, taken as it is ─────────────────────
             // No clamp to 0..1 (the value is 0..100), no spike filter: the step at pit entry is the measurement, and a
             // filter that held it back would hold back the one true reading there is.
-            // A corner that went to null (its tyre was changed: TyreSetMask) is not a measurement, but the health is
-            // rated again from the corners that are left.
+            // A corner whose tyre was changed arrives as a new set's 100, flagged (TyreSetMask): the tread is taken — a new
+            // set is healthy, and the health is rated again with it — but it is not a measurement, so no call is made from
+            // it (a critical corner left on the car keeps its verdict, and is not called again for the others' change).
+            // A corner that went to null (never measured) is not a measurement either.
             double?[] measured = { s.TyreWearFL, s.TyreWearFR, s.TyreWearRL, s.TyreWearRR };
             bool changed = false, gotNumber = false;
             for (int i = 0; i < 4; i++)
@@ -118,7 +123,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 if (Same(measured[i], TreadRemaining[i])) continue;
                 TreadRemaining[i] = measured[i];
                 changed = true;
-                if (measured[i].HasValue) gotNumber = true;
+                if (measured[i].HasValue && !s.IsTyreNewSet(i)) gotNumber = true;
             }
             NewMeasurement = gotNumber;
             if (changed) RateHealth();
@@ -196,9 +201,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
         }
 
         /// <summary>
-        /// A new stint after a stop. What the sim measured stands: the corners whose tyres were changed are null by now
-        /// (<see cref="TyreSetMask"/> takes the removed set's reading off the snapshot before anything reads it), and the
-        /// health was rated again without them, so there is nothing to clear here.
+        /// A new stint after a stop. What the sim measured stands: the corners whose tyres were changed read a new set's
+        /// 100 by now (<see cref="TyreSetMask"/> puts it on the snapshot before anything reads it), and the health was
+        /// rated again with them, so there is nothing to clear here.
         /// </summary>
         public void OnNewStint()
         {
