@@ -484,6 +484,8 @@ body.drive-mode-active .pb-content { flex: 1; display: grid; grid-template-colum
    rules): the conditions say the same. */
 @media (orientation: portrait) {
   body.drive-mode-active .pb-content { grid-template-columns: minmax(0, 40fr) minmax(0, 36fr) minmax(0, 24fr); }
+  /* The weather page's sides a little narrower there, so a three-digit air in °F has the page's width at its floor. */
+  body.drive-mode-active #pbPageWeather { padding-left: 6px; padding-right: 6px; }
 }
 body.drive-mode-active .pb-page {
   display: flex !important; flex-direction: column; justify-content: flex-start; min-width: 0; min-height: 0; padding: 6px 10px;
