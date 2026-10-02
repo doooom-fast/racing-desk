@@ -322,6 +322,7 @@ SessionInfo:
             public string GameName => "IRacing";
             public object NewData => Normalized;
             public object GetPropertyValue(string fullName) => Values.TryGetValue(fullName, out var v) ? v : null;
+            public string OpponentName(object opponent) => null;
         }
 
         // 15.3 gallons (57.9 litres) of a 65.8 % full tank, at 3.8 litres a lap; SimHub's own laps of fuel says 4.0 (what a
@@ -571,6 +572,7 @@ SessionInfo:
             public string GameName => "IRacing";
             public object NewData { get; } = new { Fuel = 38.0 };
             public object GetPropertyValue(string fullName) => Values.TryGetValue(fullName, out var v) ? v : null;
+            public string OpponentName(object opponent) => null;
         }
 
         [Test]
