@@ -19,7 +19,7 @@ namespace RacingDesk.Tests.Names
             var list = PseudonymList.Default;
             Assert.That(list.IsEmpty, Is.False, "the list is embedded at build time from packages/pseudonyms/names.json");
             Assert.That(list.Problems, Is.Empty, string.Join("\n", list.Problems));
-            Assert.That(list.Count, Is.GreaterThanOrEqualTo(240), "the works and the bands give some 250 names");
+            Assert.That(list.Count, Is.GreaterThanOrEqualTo(330), "the works and the bands give some 330 names: the fewer there are, the more first choices clash");
             Assert.That(list.Version, Is.EqualTo(1));
         }
 
@@ -79,7 +79,7 @@ namespace RacingDesk.Tests.Names
         public void NicknamesAreShownWholeAndAnEntryMaySayItsOwnShownForm()
         {
             var list = PseudonymList.Default;
-            foreach (string nick in new[] { "Sick Boy", "Spud", "Begbie", "Second Prize", "Seeker", "Sick Puppy" })
+            foreach (string nick in new[] { "Sick Boy", "Spud", "Begbie", "Second Prize", "Seeker", "Sick Puppy", "Bob Death" })
             {
                 var e = list.Entries.Single(x => x.Name == nick);
                 Assert.That(e.Nickname, Is.True, nick);
@@ -87,6 +87,58 @@ namespace RacingDesk.Tests.Names
             }
             Assert.That(list.Entries.Single(x => x.Name == "J.D. Steelritter").Shown, Is.EqualTo("J.D. Steelritter"));
             Assert.That(list.Entries.Single(x => x.Name == "Mark Renton").Shown, Is.EqualTo("M. Renton"));
+            // A full first and last name is shown in the HUD's style, with no override of its own.
+            Assert.That(list.Entries.Single(x => x.Name == "Sissee Nar").Shown, Is.EqualTo("S. Nar"));
+            Assert.That(list.Entries.Single(x => x.Name == "MerriEloise Prout").Shown, Is.EqualTo("M. Prout"));
+            Assert.That(list.Entries.Single(x => x.Name == "Colin van der Hingle").Shown, Is.EqualTo("C. van der Hingle"));
+        }
+
+        [Test]
+        public void OnlyANameThatIsNotInTheHudsStyleSaysItsOwnShownForm()
+        {
+            // The shown form is the rule's, so an entry that overrides it needs a reason: here, a first name that is initials.
+            var raw = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "packages", "pseudonyms", "names.json")));
+            var overridden = raw["names"]!.Where(n => n["shown"] != null).Select(n => (string)n["name"]!).ToList();
+            Assert.That(overridden, Is.EquivalentTo(new[] { "J.D. Steelritter" }));
+        }
+
+        [Test]
+        public void TheBandsAreTheirMembersAndNoOneWhoOnlyPlayedWithThem()
+        {
+            var list = PseudonymList.Default;
+            Assert.That(list.Entries.Where(e => e.From == "sunn-o").Select(e => e.Name),
+                Is.EquivalentTo(new[] { "Stephen O'Malley", "Greg Anderson", "Joe Preston", "Attila Csihar", "Daniel O'Sullivan", "Stuart Dahlquist" }),
+                "Sunn O)))'s members past and present, as its article lists them");
+            // Collaborators, session players and touring players of Sunn O))) and Black Sabbath are not members.
+            var notMembers = new[]
+            {
+                "Tos Nieuwenhuizen", "Steve Moore", "Tim Midyett", "Oren Ambarchi", "Rex Ritter",
+                "Bob Daisley", "Laurence Cottle", "Jo Burt", "Terry Chimes", "Adam Wakeman", "Tommy Clufetos",
+            };
+            foreach (string name in notMembers) Assert.That(list.Contains(name), Is.False, name + " is a guest, session or touring player, not a member");
+            Assert.That(list.Sources["black-sabbath"], Is.EqualTo("Black Sabbath"));
+            var raw = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "packages", "pseudonyms", "names.json")));
+            Assert.That(raw["sources"]!.Single(x => (string)x["id"]! == "black-sabbath")["kind"]!.ToString(), Does.Not.Contain("touring"));
+        }
+
+        [Test]
+        public void NoNameIsOneOfAPublicFigureOutsideTheWorks()
+        {
+            // The names the README says were left out because a person publicly known shares them.
+            var list = PseudonymList.Default;
+            foreach (string name in new[]
+            {
+                "Hester Thrale", "Andrew Lang", "Johnny Gentle", "Julie Smith", "John Wayne", "Lyndon Johnson", "Alex Trebek", "Pat Sajak",
+                "Vivienne Dick", "Neil Hartigan", "Amy Johnson", "Robert Monroe", "Bob Francis", "Robert Atkins", "Eloise Prout",
+            })
+                Assert.That(list.Contains(name), Is.False, name);
+        }
+
+        private static string RepoRoot()
+        {
+            for (var dir = new System.IO.DirectoryInfo(TestContext.CurrentContext.TestDirectory); dir != null; dir = dir.Parent)
+                if (System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "racing-desk.sln"))) return dir.FullName;
+            throw new InvalidOperationException("racing-desk.sln not found above the test directory");
         }
 
         [Test]

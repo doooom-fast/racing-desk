@@ -110,7 +110,7 @@ export const MOCK_DEMO = {
   'RacingDesk.Plugin.Demo.SafetyRating': 3.88,
   'RacingDesk.Plugin.Demo.GapAhead': 0.8,
   'RacingDesk.Plugin.Demo.GapBehind': 3.5,
-  'RacingDesk.Plugin.Demo.DriverAhead': 'J. Smith',
+  'RacingDesk.Plugin.Demo.DriverAhead': 'J. van Dyne',
   'RacingDesk.Plugin.Demo.DriverBehind': 'D. Gately',
   'RacingDesk.Plugin.Demo.IRAhead': 3500,
   'RacingDesk.Plugin.Demo.IRBehind': 2100,
