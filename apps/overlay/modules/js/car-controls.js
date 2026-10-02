@@ -6,11 +6,12 @@
 //
 // The rig's HUD (not the glance layout) shows a panel for every adjustment the car has — he asked for that on
 // 2026-10-01: "show adjustment panels for every adjustment available for that car. Omit ones that are not on the car
-// when there's no room". The panel is 240px wide by the stylesheet and shares its column with the pedals, so the room
-// is a constant of the layout, not a measurement (arrange): three full cells go across it, four compact ones, and two
-// rows down it before the pedals lose their room. The car's real controls come first; a NONE cell (the car has none)
-// fills a slot only where one is left, and is the first to go; past that the type steps down to compact, and past
-// that the last of the car's other controls go, in the list's order from the end. The three are never dropped.
+// when there's no room". The panel is 240px wide and as tall as it has always been (the pedals under it lose nothing),
+// so the room is a constant of the layout, not a measurement (arrange): a ladder of steps, each with more cells
+// across or down and its type a size smaller, and a car takes the smallest step that holds its real controls. Only a
+// control the car does not have (a NONE cell) is ever left out, and only where its slot would make a row of its own;
+// every control the car has is shown, DRS and push-to-pass among them. A label that cannot be held whole on one line
+// takes a second one (labelPlan) and is cut with an ellipsis only past that.
 (function () {
   'use strict';
 
@@ -22,9 +23,20 @@
   const SLOTS = Object.freeze([['bb', 'ctrlBB'], ['tc', 'ctrlTC'], ['abs', 'ctrlABS']]);
   const DASH = '—';
 
-  // The room the rig's panel has (leaderboard.css, .car-controls.ctrl-fit): cells across at the full size and at the
-  // compact one, and rows down before the pedals under it lose their room.
-  const ROOM = Object.freeze({ fullCols: 3, compactCols: 4, maxRows: 2 });
+  // The room the rig's panel has (leaderboard.css, .car-controls.ctrl-fit): the panel is as tall as it has always been
+  // (the pedals under it lose nothing), and what it holds is a ladder of steps, each more cells across or down than the
+  // one before and its type a size down: the full size, three across in one row and then two; the compact size, four
+  // across in two; the tight size, three rows of four and then of five. A car takes the smallest step that holds its
+  // real controls. Past the last the cells go on across in three rows, so none is ever left out.
+  const ROOM = Object.freeze({
+    steps: Object.freeze([
+      Object.freeze({ cols: 3, rows: 1, size: 'full' }),
+      Object.freeze({ cols: 3, rows: 2, size: 'full' }),
+      Object.freeze({ cols: 4, rows: 2, size: 'compact' }),
+      Object.freeze({ cols: 4, rows: 3, size: 'tight' }),
+      Object.freeze({ cols: 5, rows: 3, size: 'tight' }),
+    ]),
+  });
 
   const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 
@@ -146,37 +158,45 @@
    * Which of the view's cells the rig's panel shows, and how (the room rule at the top of this file). The cells are
    * keyed as render() keys them: the three by their slot, the modes 'mode', 'mode2'…, the rest by id.
    *
-   *   { cols, rows, compact, shown: [keys], omitted: [keys] }
+   *   { cols, rows, compact, tight, shown: [keys], omitted: [keys] }
    *
-   * A NONE cell takes a slot only where one is left after the car's real controls, and is the first to go; past the
-   * room at the full size the type steps down to compact; past that the last of the car's other controls go. The
-   * three and the modes are kept whatever the room. A cell a mode hides takes no slot.
+   * Every control the car has is shown: the smallest step of the room that holds the car's real cells is taken (more
+   * across, a type a step down, a third row), and past the last step the cells go on across, so nothing the car has is
+   * ever left out. A NONE cell (the car has none) fills only a slot that is left in the rows the real cells need, so it
+   * never makes a row, and is omitted when there is none. A cell a mode hides takes no slot.
    */
   function arrange(v, room) {
-    const r = Object.assign({}, ROOM, room || {});
+    const steps = (room && room.steps) || ROOM.steps;
     const cells = [];
-    v.primary.forEach((c) => { if (!c.hidden) cells.push({ key: c.slot, none: c.state === 'none', keep: true }); });
-    v.modes.forEach((c, i) => cells.push({ key: 'mode' + (i || ''), none: false, keep: true }));
-    v.more.forEach((c) => cells.push({ key: c.id, none: c.state === 'none', keep: false }));
+    v.primary.forEach((c) => { if (!c.hidden) cells.push({ key: c.slot, none: c.state === 'none' }); });
+    v.modes.forEach((c, i) => cells.push({ key: 'mode' + (i || ''), none: false }));
+    v.more.forEach((c) => cells.push({ key: c.id, none: c.state === 'none' }));
 
     const real = cells.filter((c) => !c.none);
     const none = cells.filter((c) => c.none);
-    const fullRoom = r.maxRows * r.fullCols;
-    const compact = real.length > fullRoom;
-    const maxCols = compact ? r.compactCols : r.fullCols;
-    const slots = r.maxRows * maxCols;
+    let step = steps.find((s) => s.rows * s.cols >= real.length);
+    if (!step) {
+      // Past the last step: as many across as the rows it ends in need, in its type.
+      const last = steps[steps.length - 1];
+      step = { cols: Math.ceil(real.length / last.rows), rows: last.rows, size: last.size };
+    }
+    // The slots a NONE cell may take are the ones left in the rows the real cells need, never a row of its own.
+    const realRows = Math.max(1, Math.ceil(real.length / step.cols));
+    const slots = Math.max(real.length, Math.min(step.rows, realRows) * step.cols);
 
-    const shown = [];
-    const kept = real.filter((c) => c.keep);
-    const rest = real.filter((c) => !c.keep);
-    for (const c of kept) shown.push(c.key);
-    for (const c of rest) { if (shown.length >= slots) break; shown.push(c.key); }
+    const shown = real.map((c) => c.key);
     for (const c of none) { if (shown.length >= slots) break; shown.push(c.key); }
 
-    const rows = Math.max(1, Math.min(r.maxRows, Math.ceil(shown.length / maxCols)));
-    const cols = Math.max(1, Math.min(maxCols, Math.ceil(shown.length / rows)));
+    const rows = Math.max(1, Math.min(step.rows, Math.ceil(shown.length / step.cols)));
+    const cols = Math.max(1, Math.min(step.cols, Math.ceil(shown.length / rows)));
     const isShown = new Set(shown);
-    return { cols, rows, compact, shown, omitted: cells.filter((c) => !isShown.has(c.key)).map((c) => c.key) };
+    return {
+      cols, rows,
+      compact: step.size !== 'full',
+      tight: step.size === 'tight',
+      shown,
+      omitted: cells.filter((c) => !isShown.has(c.key)).map((c) => c.key),
+    };
   }
 
   /**
@@ -249,7 +269,7 @@
     for (const cell of v.primary) {
       const el = doc.getElementById(cell.el);
       if (!el) continue;
-      draw(el, cell, omitted.has(cell.slot));
+      draw(el, cell, omitted.has(cell.slot), fit);
       seen[cell.id] = cell.text;
       values[cell.id] = cell.value;
       if (sameCar && isChange(last[cell.id], cell.text) && !cell.hidden) changed(cell, el.id, hooks, lastValues[cell.id]);
@@ -270,7 +290,7 @@
         modeEls.push(el);
       }
       const key = 'mode' + (i || '');
-      draw(el, cell, omitted.has(key));
+      draw(el, cell, omitted.has(key), fit);
       seen[key] = cell.text;
       values[key] = cell.value;
       if (sameCar && isChange(last[key], cell.text)) changed(cell, el.id, hooks, lastValues[key]);
@@ -308,7 +328,9 @@
         const value = el.querySelector('.ctrl-mini-value');
         if (label.textContent !== cell.label) label.textContent = cell.label;
         if (value.textContent !== cell.text) value.textContent = cell.text;
-        el.style.setProperty('--ctrl-label-len', String(labelLength(cell)));
+        const plan = labelPlan(cell.label, cell.locked, fit);
+        label.classList.toggle('ctrl-label-2l', plan.lines === 2);
+        el.style.setProperty('--ctrl-label-len', String(plan.len));
         el.style.setProperty('--ctrl-value-len', String(Math.max(1, String(cell.text || '').length)));
         value.classList.toggle('ctrl-mini-word', isWord(cell));
         value.classList.toggle('ctrl-value-wide', isWide(cell.text));
@@ -336,6 +358,7 @@
     // column for two), and the compact type. In the glance layout none of it.
     panel.classList.toggle('ctrl-fit', !!fit);
     panel.classList.toggle('ctrl-compact', !!fit && fit.compact);
+    panel.classList.toggle('ctrl-tight', !!fit && fit.tight);
     if (fit) {
       panel.style.setProperty('--ctrl-cols', String(fit.cols));
       panel.setAttribute('data-ctrl-rows', String(fit.rows));
@@ -367,11 +390,48 @@
   // size the label is cut with an ellipsis. A long value (AUTOMATIC) is sized the same way (--ctrl-value-len).
   const labelLength = (cell) => Math.max(1, String(cell.label || '').length + (cell.locked ? 2 : 0));
 
+  // What a label of the rig's panel needs to be shown whole: how wide it is (the characters of its longest line, for
+  // --ctrl-label-len) and whether it takes a second line. The cell's width is the panel's (PANEL_W, the stylesheet's
+  // 240px) less the gaps, shared by the cells across, less the cell's border and padding; a label is set as large as
+  // that holds it, up to its size's own (LABEL.base) and down to LABEL_FLOOR px. EM is the width of a character of the
+  // label in em: Sofia Pro Comp at weight 600 with its tracking measures 0.34 to 0.53 across the car list's labels, and
+  // 0.47 at the most for any of seven characters or more (the page's font is that one, not the fallback, which is half
+  // as wide again), so 0.5 holds every one with a little over. A label that would be set under WRAP_BELOW px on one
+  // line is broken into two where the words let it, at the split that makes the wider line narrowest, and is then set
+  // to the width of that line; one word, or a label two lines do not help, stays on one.
+  const PANEL_W = 240;
+  const LABEL = Object.freeze({
+    full:    Object.freeze({ base: 10, padX: 4, gap: 4 }),
+    compact: Object.freeze({ base: 9,  padX: 3, gap: 4 }),
+    tight:   Object.freeze({ base: 8,  padX: 2, gap: 2 }),
+  });
+  const LABEL_FLOOR = 7, WRAP_BELOW = 8, EM = 0.5, BORDER = 1;
+  function labelPlan(label, locked, fit) {
+    const text = String(label || '');
+    const len1 = Math.max(1, text.length + (locked ? 2 : 0));
+    if (!fit) return { len: len1, lines: 1 };
+    const t = LABEL[fit.tight ? 'tight' : fit.compact ? 'compact' : 'full'];
+    const cols = Math.max(1, fit.cols || 1);
+    const inner = (PANEL_W - (cols - 1) * t.gap) / cols - 2 * BORDER - 2 * t.padX;
+    const oneLine = Math.min(t.base, inner / (len1 * EM));
+    const words = text.split(/\s+/).filter(Boolean);
+    if (oneLine >= WRAP_BELOW || words.length < 2) return { len: len1, lines: 1 };
+    let best = Infinity;
+    for (let i = 1; i < words.length; i++) {
+      const a = words.slice(0, i).join(' ').length;
+      const b = words.slice(i).join(' ').length + (locked ? 2 : 0);
+      best = Math.min(best, Math.max(a, b));
+    }
+    return best < len1 ? { len: Math.max(1, best), lines: 2 } : { len: len1, lines: 1 };
+  }
+
   // One of the three, or a mode: the label, the text, the bar, and the classes the styles go by.
-  function draw(el, cell, omit) {
+  function draw(el, cell, omit, fit) {
     const label = el.querySelector('.ctrl-label');
     const value = el.querySelector('.ctrl-value');
+    const plan = labelPlan(cell.label, cell.locked, fit);
     if (label && label.textContent !== cell.label) label.textContent = cell.label;
+    if (label) label.classList.toggle('ctrl-label-2l', plan.lines === 2);
     if (value) {
       if (value.textContent !== cell.text) value.textContent = cell.text;
       // NONE, ON and a word are set small; a number, OFF and the dash keep the size a number has.
@@ -388,7 +448,7 @@
     el.classList.toggle('ctrl-locked', !!cell.locked);
     el.classList.toggle('ctrl-omitted', !!omit);
     el.style.setProperty('--ctrl-pct', Math.round(cell.fill * 100) + '%');
-    el.style.setProperty('--ctrl-label-len', String(labelLength(cell)));
+    el.style.setProperty('--ctrl-label-len', String(plan.len));
     el.style.setProperty('--ctrl-value-len', String(Math.max(1, String(cell.text || '').length)));
   }
 
@@ -406,7 +466,7 @@
   /** The panel as it was before there was a list: the classes and cells this module added are taken away. */
   function clear(panel, state) {
     if (panel) {
-      panel.classList.remove('car-controls-listed', 'ctrl-fit', 'ctrl-compact');
+      panel.classList.remove('car-controls-listed', 'ctrl-fit', 'ctrl-compact', 'ctrl-tight');
       panel.style.removeProperty('--ctrl-cols');
       panel.removeAttribute('data-ctrl-rows');
       for (const el of Array.from(panel.querySelectorAll('.ctrl-item.ctrl-mode, .ctrl-more'))) el.remove();
@@ -425,7 +485,7 @@
     if (state) { state.car = null; state.last = null; state.values = null; state.cc = null; }
   }
 
-  const api = { KEY, LABELS, ROOM, read, view, arrange, signals, render, clear, textOf, fillOf, announced };
+  const api = { KEY, LABELS, ROOM, LABEL, LABEL_FLOOR, read, view, arrange, labelPlan, signals, render, clear, textOf, fillOf, announced };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RacingDeskCarControls = api;
 })();

@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { MOCK_TELEMETRY } from '../helpers.mjs';
 
 const require = createRequire(import.meta.url);
-const { KEY, ROOM, read, view, arrange, signals, textOf, fillOf, announced } = require('../../modules/js/car-controls.js');
+const { KEY, ROOM, read, view, arrange, labelPlan, signals, textOf, fillOf, announced } = require('../../modules/js/car-controls.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DASHBOARD = pathToFileURL(path.resolve(__dirname, '..', '..', 'dashboard.html')).href;
@@ -212,17 +212,23 @@ function withDials(n, { abs = 'value', tc = 'value', bb = 'value' } = {}) {
 }
 
 test.describe('arrange: which cells the rig\'s panel has room for', () => {
-  test('the room is the rig\'s panel: three across at the full size, four compact, two rows down', () => {
-    expect(ROOM).toEqual({ fullCols: 3, compactCols: 4, maxRows: 2 });
+  test('the room is a ladder of steps: three across in one row and in two, four across in two rows a size down, three rows of four and of five', () => {
+    expect(ROOM.steps).toEqual([
+      { cols: 3, rows: 1, size: 'full' },
+      { cols: 3, rows: 2, size: 'full' },
+      { cols: 4, rows: 2, size: 'compact' },
+      { cols: 4, rows: 3, size: 'tight' },
+      { cols: 5, rows: 3, size: 'tight' },
+    ]);
   });
 
   test('a car with nothing to turn: its three cells in one row, the real one first and NONE last', () => {
-    expect(arrange(view(MX5))).toEqual({ cols: 3, rows: 1, compact: false, shown: ['abs', 'bb', 'tc'], omitted: [] });
+    expect(arrange(view(MX5))).toEqual({ cols: 3, rows: 1, compact: false, tight: false, shown: ['abs', 'bb', 'tc'], omitted: [] });
     expect(arrange(view(M2)).shown).toEqual(['tc', 'abs', 'bb']);
   });
 
   test('a mode and the cells it covers: the mode is a cell, the covered ones take no slot', () => {
-    expect(arrange(view(MCLAREN_570S))).toEqual({ cols: 2, rows: 1, compact: false, shown: ['mode', 'bb'], omitted: [] });
+    expect(arrange(view(MCLAREN_570S))).toEqual({ cols: 2, rows: 1, compact: false, tight: false, shown: ['mode', 'bb'], omitted: [] });
   });
 
   test('the cells go across first, then down: two rows from the fourth cell, balanced', () => {
@@ -233,24 +239,36 @@ test.describe('arrange: which cells the rig\'s panel has room for', () => {
     expect(arrange(view(GT3))).toEqual(expect.objectContaining({ cols: 2, rows: 2, shown: ['bb', 'tc', 'abs', 'throttleMap'] }));
   });
 
-  test('a NONE cell fills a slot only where one is left, and is the first to go', () => {
-    // The fixture's GTP: six real cells (the bias, TCLO, and its four dials) and ABS NONE. The full size holds six,
-    // so the six real ones have it and the NONE goes — the type does not step down for a cell that says NONE.
-    expect(arrange(view(GTP))).toEqual({ cols: 3, rows: 2, compact: false, shown: ['bb', 'tc', 'brakeMigration', 'tc2', 'arbFront', 'arbRear'], omitted: ['abs'] });
-    // The formula car: three real (the bias, DRS, push-to-pass) and two NONE: five cells, all in, the NONE last.
-    const formula = arrange(view(FORMULA));
-    expect(formula).toEqual(expect.objectContaining({ cols: 3, rows: 2, compact: false }));
-    expect(formula.shown).toEqual(['bb', 'drs', 'p2p', 'tc', 'abs']);
-    expect(formula.omitted).toEqual([]);
-    // Four dials beside the three with ABS NONE: six real, one NONE: the NONE goes.
-    expect(arrange(view(withDials(4, { abs: 'none' })))).toEqual(expect.objectContaining({ cols: 3, rows: 2, compact: false, omitted: ['abs'] }));
-    // Three dials and two NONE: five cells, all in.
-    expect(arrange(view(withDials(3, { abs: 'none', tc: 'none' }))).omitted).toEqual([]);
+  test('a NONE cell fills only a slot that is left in the rows the real cells need, and never makes a row of its own', () => {
+    // The fixture's GTP: six real cells (the bias, TCLO, and its four dials) and ABS NONE. Two rows of three hold the
+    // six and no more, so the NONE is omitted.
+    expect(arrange(view(GTP))).toEqual({ cols: 3, rows: 2, compact: false, tight: false, shown: ['bb', 'tc', 'brakeMigration', 'tc2', 'arbFront', 'arbRear'], omitted: ['abs'] });
+    // The formula car: three real (the bias, DRS, push-to-pass) fill one row of three; its two NONE would be a second
+    // row, which is not worth the pedals' room: both are omitted.
+    expect(arrange(view(FORMULA))).toEqual({ cols: 3, rows: 1, compact: false, tight: false, shown: ['bb', 'drs', 'p2p'], omitted: ['tc', 'abs'] });
+    // Three real cells and ABS NONE: one row, the NONE omitted — not a two-by-two grid for a cell that says NONE.
+    expect(arrange(view(withDials(1, { abs: 'none' })))).toEqual({ cols: 3, rows: 1, compact: false, tight: false, shown: ['bb', 'tc', 'dial1'], omitted: ['abs'] });
+    // Two real and one NONE: the one row holds all three.
+    expect(arrange(view(withDials(0, { abs: 'none' }))).omitted).toEqual([]);
+    // Four real and one NONE: the second row has a slot left for it.
+    expect(arrange(view(withDials(2, { abs: 'none' })))).toEqual(expect.objectContaining({ cols: 3, rows: 2, omitted: [] }));
+    // Whatever the car has, the NONE cells change neither the rows nor the size, and every real cell is shown.
+    for (let n = 0; n <= 16; n++) {
+      for (const none of [{ abs: 'none' }, { abs: 'none', tc: 'none' }, { abs: 'none', tc: 'none', bb: 'none' }]) {
+        const v = view(withDials(n, none));
+        const without = arrange({ ...v, primary: v.primary.map((p) => (p.state === 'none' ? { ...p, hidden: true } : p)) });
+        const fit = arrange(v);
+        expect([n, none, fit.rows, fit.compact, fit.tight]).toEqual([n, none, without.rows, without.compact, without.tight]);
+        expect(fit.shown.slice(0, without.shown.length)).toEqual(without.shown);
+        const nones = new Set(v.primary.filter((p) => p.state === 'none').map((p) => p.slot));
+        expect(fit.omitted.filter((k) => !nones.has(k)), 'only a NONE cell is ever omitted').toEqual([]);
+      }
+    }
   });
 
   test('past six real cells the type steps down to compact, four across, and NONE goes before any real one', () => {
     const seven = arrange(view(withDials(4)));
-    expect(seven).toEqual(expect.objectContaining({ cols: 4, rows: 2, compact: true, omitted: [] }));
+    expect(seven).toEqual(expect.objectContaining({ cols: 4, rows: 2, compact: true, tight: false, omitted: [] }));
     expect(seven.shown).toEqual(['bb', 'tc', 'abs', 'dial1', 'dial2', 'dial3', 'dial4']);
     const eight = arrange(view(withDials(5)));
     expect(eight).toEqual(expect.objectContaining({ cols: 4, rows: 2, compact: true, omitted: [] }));
@@ -259,14 +277,33 @@ test.describe('arrange: which cells the rig\'s panel has room for', () => {
     expect(arrange(view(withDials(6, { abs: 'none' }))).omitted).toEqual(['abs']);
   });
 
-  test('past eight real cells the last of the car\'s other controls go, from the end of the list; the three never do', () => {
+  test('past eight real cells nothing the car has is left out: three rows, four across and then five, then as many as it takes', () => {
     const ten = arrange(view(withDials(7)));
-    expect(ten).toEqual(expect.objectContaining({ cols: 4, rows: 2, compact: true }));
-    expect(ten.shown).toEqual(['bb', 'tc', 'abs', 'dial1', 'dial2', 'dial3', 'dial4', 'dial5']);
-    expect(ten.omitted).toEqual(['dial6', 'dial7']);
-    const withNone = arrange(view(withDials(9, { abs: 'none' })));
-    expect(withNone.shown).toEqual(['bb', 'tc', 'dial1', 'dial2', 'dial3', 'dial4', 'dial5', 'dial6']);
-    expect(withNone.omitted).toEqual(['abs', 'dial7', 'dial8', 'dial9']);
+    expect(ten).toEqual({ cols: 4, rows: 3, compact: true, tight: true, shown: ['bb', 'tc', 'abs', 'dial1', 'dial2', 'dial3', 'dial4', 'dial5', 'dial6', 'dial7'], omitted: [] });
+    expect(arrange(view(withDials(9)))).toEqual(expect.objectContaining({ cols: 4, rows: 3, tight: true, omitted: [] }));
+    expect(arrange(view(withDials(10)))).toEqual(expect.objectContaining({ cols: 5, rows: 3, tight: true, omitted: [] }));
+    const fourteen = arrange(view(withDials(11)));
+    expect(fourteen).toEqual(expect.objectContaining({ cols: 5, rows: 3, tight: true, omitted: [] }));
+    expect(fourteen.shown).toHaveLength(14);
+    const eighteen = arrange(view(withDials(15)));
+    expect(eighteen).toEqual(expect.objectContaining({ cols: 6, rows: 3, tight: true, omitted: [] }));
+    expect(eighteen.shown).toHaveLength(18);
+    // Eleven real and ABS NONE: the twelfth slot of three rows of four holds it. Twelve real: none is left for it.
+    expect(arrange(view(withDials(9, { abs: 'none' })))).toEqual(expect.objectContaining({ cols: 4, rows: 3, omitted: [] }));
+    expect(arrange(view(withDials(10, { abs: 'none' }))).omitted).toEqual(['abs']);
+  });
+
+  test('DRS and push-to-pass, which are live state, are never the cells that go', () => {
+    // Eleven of the car's own and DRS and push-to-pass after them in the panel's order: fourteen real cells.
+    const cc = {
+      ...withDials(9),
+      drs: { id: 'drs', label: 'DRS', state: 'off', value: 0, text: 'OFF' },
+      p2p: { id: 'p2p', label: 'P2P', state: 'value', value: 1, text: '120', count: 120 },
+    };
+    const fit = arrange(view(cc));
+    expect(fit.shown).toEqual(expect.arrayContaining(['drs', 'p2p']));
+    expect(fit.omitted).toEqual([]);
+    expect(fit.shown).toHaveLength(14);
   });
 
   test('an unread cell is a real one: the car has it', () => {
@@ -277,8 +314,35 @@ test.describe('arrange: which cells the rig\'s panel has room for', () => {
     expect(fit.shown).toContain('throttleMap');
   });
 
-  test('another room, for a layout that has one', () => {
-    expect(arrange(view(withDials(2)), { fullCols: 2, compactCols: 3, maxRows: 1 })).toEqual({ cols: 3, rows: 1, compact: true, shown: ['bb', 'tc', 'abs'], omitted: ['dial1', 'dial2'] });
+  test('another room, for a layout that has one: past its last step the cells go on across', () => {
+    expect(arrange(view(withDials(2)), { steps: [{ cols: 2, rows: 1, size: 'full' }] })).toEqual({ cols: 5, rows: 1, compact: false, tight: false, shown: ['bb', 'tc', 'abs', 'dial1', 'dial2'], omitted: [] });
+  });
+});
+
+test.describe('labelPlan: how wide a label is on the rig, and whether it takes a second line', () => {
+  const across = (cols, size) => ({ cols, compact: size !== 'full', tight: size === 'tight' });
+
+  test('a label its cell holds at 8px or more on one line stays on one, as long as it is', () => {
+    expect(labelPlan('BRAKE BIAS', false, across(3, 'full'))).toEqual({ len: 10, lines: 1 });
+    expect(labelPlan('TC TOGGLE', false, across(4, 'compact'))).toEqual({ len: 9, lines: 1 });
+    expect(labelPlan('REAR BRAKE VALVE', false, across(3, 'full'))).toEqual({ len: 16, lines: 1 });
+  });
+
+  test('one that would be set under 8px takes a second line, and is as wide as the wider of the two', () => {
+    expect(labelPlan('BRAKE MIGRATION', false, across(4, 'compact'))).toEqual({ len: 9, lines: 2 });
+    expect(labelPlan('BIAS MIGRATION GAIN', false, across(4, 'tight'))).toEqual({ len: 14, lines: 2 });
+    expect(labelPlan('REAR TC LATERAL SLIP', false, across(5, 'tight'))).toEqual({ len: 12, lines: 2 });
+  });
+
+  test('the lock mark is two more characters, on the last line', () => {
+    expect(labelPlan('REAR BRAKE VALVE', true, across(3, 'full'))).toEqual({ len: 10, lines: 2 });
+    expect(labelPlan('BRAKE BIAS', true, across(3, 'full'))).toEqual({ len: 12, lines: 1 });
+  });
+
+  test('one word, a label the glance layout draws, or none: one line, as long as it is', () => {
+    expect(labelPlan('THROTTLESHAPEXX', false, across(5, 'tight'))).toEqual({ len: 15, lines: 1 });
+    expect(labelPlan('REAR TC LATERAL SLIP', false, null)).toEqual({ len: 20, lines: 1 });
+    expect(labelPlan('', false, across(3, 'full'))).toEqual({ len: 1, lines: 1 });
   });
 });
 
@@ -416,10 +480,12 @@ test.describe('the page', () => {
     await openWith(page, withControls(FORMULA));
     await expect(page.locator('#ctrlBB .ctrl-label')).toHaveText('BBAL');
     const p = await panel(page);
+    // Its real cells are the bias, DRS and push-to-pass: a row of three. The two NONE cells have no slot left in it, so
+    // they are omitted (kept in the panel, not shown).
     expect(p.cells.map((c) => [c.id, c.label, c.value, c.classes])).toEqual([
-      ['ctrlBB', 'BBAL', '55.0', []], ['ctrlTC', 'TC', 'NONE', ['ctrl-none']], ['ctrlABS', 'ABS', 'NONE', ['ctrl-none']],
+      ['ctrlBB', 'BBAL', '55.0', []], ['ctrlTC', 'TC', 'NONE', ['ctrl-none', 'ctrl-omitted']], ['ctrlABS', 'ABS', 'NONE', ['ctrl-none', 'ctrl-omitted']],
     ]);
-    expect(p.cells.every((c) => c.shown)).toBe(true);
+    expect(p.cells.map((c) => c.shown)).toEqual([true, false, false]);
     expect(p.noAdj).toBe(false);
   });
 
@@ -678,6 +744,9 @@ const room = (page) => page.evaluate(() => {
       x: Math.round(b.left - r.left), y: Math.round(b.top - r.top), w: Math.round(b.width), h: Math.round(b.height),
       valuePx: parseFloat(getComputedStyle(value).fontSize), labelPx: parseFloat(getComputedStyle(label).fontSize),
       valueOverflows: value.scrollWidth > value.clientWidth + 1, labelClipped: label.scrollWidth > label.clientWidth + 1,
+      labelLen: el.style.getPropertyValue('--ctrl-label-len'), labelTwoLines: label.classList.contains('ctrl-label-2l'),
+      // Text taller than the cell it is in is cut off by it (the cell clips what runs past it).
+      clipped: el.scrollHeight > el.clientHeight + 1,
       inside: b.left >= r.left - 0.5 && b.right <= r.right + 0.5 && b.top >= r.top - 0.5 && b.bottom <= r.bottom + 0.5,
     };
   });
@@ -707,7 +776,7 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     expect([...r.cells].sort((a, b) => a.x - b.x).map((c) => c.key)).toEqual(['abs', 'bb', 'tc']);
   });
 
-  test('a GT3 with a map beside the three: two rows of two, the panel taking more of its column than the pedals', async ({ page }) => {
+  test('a GT3 with a map beside the three: two rows of two inside the panel\'s own height, the pedals as tall as ever', async ({ page }) => {
     await openWith(page, withControls(MX5));
     await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('ON');
     await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
@@ -723,14 +792,46 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     expect(r.cells.map((c) => c.key)).toEqual(['bb', 'tc', 'abs', 'throttleMap']);
     expect(new Set(r.cells.map((c) => c.y)).size).toBe(2);
     expect(r.cells.filter((c) => c.y === r.cells[0].y).map((c) => c.key)).toEqual(['bb', 'tc']);
-    expect(r.panel.h).toBeGreaterThan(one.panel.h);
-    expect(r.pedals.h).toBeLessThan(one.pedals.h);
-    expect(r.pedals.h).toBeGreaterThanOrEqual(60);
+    // The panel is as tall as with one row and the pedals under it lose nothing: nothing else on the HUD is displaced.
+    expect(Math.abs(r.panel.h - one.panel.h)).toBeLessThanOrEqual(1);
+    expect(Math.abs(r.pedals.h - one.pedals.h)).toBeLessThanOrEqual(1);
     // The other control is a cell like the three: the same type, its label and its number in the same sizes.
     const map = r.cells.find((c) => c.key === 'throttleMap'), tc = r.cells.find((c) => c.key === 'tc');
     expect([map.valuePx, map.labelPx]).toEqual([tc.valuePx, tc.labelPx]);
     expect(Math.abs(map.h - tc.h)).toBeLessThanOrEqual(2);
-    expect(r.cells.every((c) => c.inside && !c.valueOverflows)).toBe(true);
+    expect(r.cells.every((c) => c.inside && !c.valueOverflows && !c.clipped)).toBe(true);
+  });
+
+  test('a car whose three fit one row has no second row for a NONE: the panel stays one row', async ({ page }) => {
+    // Bias, TC and a toggle (the C6 Corvette\'s three) with ABS NONE: three real cells, one row of three.
+    const cc = withDials(1, { abs: 'none' });
+    await openWith(page, withControls(MX5));
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('ON');
+    await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
+    await settled(page);
+    const one = await room(page);
+    await serve(page, withControls(cc));
+    await expect(page.locator('[data-id="dial1"] .ctrl-mini-value')).toHaveText('3');
+    await expect.poll(() => room(page).then((r) => r.cells.length)).toBe(3);
+    await settled(page);
+    const r = await room(page);
+    expect([r.cols, r.rows]).toEqual(['3', '1']);
+    expect(r.cells.map((c) => c.key)).toEqual(['bb', 'tc', 'dial1']);
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('ctrlABS')).display)).toBe('none');
+    expect(Math.abs(r.panel.h - one.panel.h)).toBeLessThanOrEqual(1);
+    expect(Math.abs(r.pedals.h - one.pedals.h)).toBeLessThanOrEqual(1);
+  });
+
+  test('a mode is a cell as wide as the others, on the rig', async ({ page }) => {
+    await openWith(page, withControls(MCLAREN_570S));
+    await expect(page.locator('#ctrlMode .ctrl-label')).toHaveText('ESC');
+    await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
+    await settled(page);
+    const r = await room(page);
+    const mode = r.cells.find((c) => c.key === 'mode'), bb = r.cells.find((c) => c.key === 'bb');
+    expect(r.cells.map((c) => c.key).sort()).toEqual(['bb', 'mode']);
+    expect(mode.w, 'the mode (the 570S\'s one dial) is as wide as the bias beside it').toBeGreaterThanOrEqual(bb.w - 2);
+    expect(Math.abs(mode.w - bb.w)).toBeLessThanOrEqual(2);
   });
 
   test('six real cells and ABS NONE: the full size holds the six, and the NONE is omitted', async ({ page }) => {
@@ -749,9 +850,15 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     expect(await page.evaluate(() => document.querySelector('[data-id="brakeMigration"]').style.getPropertyValue('--ctrl-pct'))).toBe('33%');
   });
 
-  test('past six the type steps down to compact, four across; past eight the last of the car\'s dials go', async ({ page }) => {
+  test('past six the type steps down to compact, four across; past eight to three rows, and no dial the car has is left out', async ({ page }) => {
+    await openWith(page, withControls(MX5));
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('ON');
+    await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
+    await settled(page);
+    const one = await room(page);
+
     const eight = withDials(5, { abs: 'none' });     // seven real and one NONE: eight slots, all in
-    await openWith(page, withControls(eight));
+    await serve(page, withControls(eight));
     await expect(page.locator('[data-id="dial5"] .ctrl-mini-value')).toHaveText('3');
     await expect.poll(() => room(page).then((r) => r.compact)).toBe(true);
     await settled(page);
@@ -762,20 +869,40 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     expect(abs.y, 'NONE last: the second row').toBe(Math.max(...r.cells.map((c) => c.y)));
     expect(abs.x, 'NONE last: after the last dial').toBeGreaterThan(dial5.x);
     expect(r.cells.filter((c) => c.y === r.cells[0].y).length, 'four across').toBe(4);
-    expect(r.cells.every((c) => c.inside && !c.valueOverflows)).toBe(true);
+    expect(r.cells.every((c) => c.inside && !c.valueOverflows && !c.clipped)).toBe(true);
     const full = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#ctrlBB .ctrl-value')).fontSize));
     expect(full).toBeLessThan(22);
     expect(full).toBeGreaterThanOrEqual(16);
+    expect(Math.abs(r.pedals.h - one.pedals.h)).toBeLessThanOrEqual(1);
 
-    // Eleven real and one NONE: the three and the first five dials; the NONE and the last four go.
+    // Eleven real and ABS NONE: three rows of four, all twelve, the NONE in the last slot; nothing is left out.
     await serve(page, withControls(withDials(9, { abs: 'none', tc: 'value' })));
-    await expect(page.locator('[data-id="dial6"] .ctrl-mini-value')).toHaveText('3');
-    await expect.poll(() => room(page).then((r) => r.cells.length)).toBe(8);
+    await expect(page.locator('[data-id="dial9"] .ctrl-mini-value')).toHaveText('3');
+    await expect.poll(() => room(page).then((x) => x.rows)).toBe('3');
     await settled(page);
     r = await room(page);
-    expect(r.cells.map((c) => c.key)).toEqual(['bb', 'tc', 'dial1', 'dial2', 'dial3', 'dial4', 'dial5', 'dial6']);
-    expect(await page.evaluate(() => [...document.querySelectorAll('.car-controls .ctrl-omitted')].map((e) => e.id || e.getAttribute('data-id')))).toEqual(['ctrlABS', 'dial7', 'dial8', 'dial9']);
-    expect(r.cells.every((c) => c.inside && !c.valueOverflows)).toBe(true);
+    expect([r.fit, r.compact, r.cols, r.rows]).toEqual([true, true, '4', '3']);
+    expect(await page.evaluate(() => document.querySelector('.car-controls').classList.contains('ctrl-tight'))).toBe(true);
+    expect(r.cells.map((c) => c.key)).toEqual(['bb', 'tc', 'abs', 'dial1', 'dial2', 'dial3', 'dial4', 'dial5', 'dial6', 'dial7', 'dial8', 'dial9']);
+    expect(await page.evaluate(() => [...document.querySelectorAll('.car-controls .ctrl-omitted')].length)).toBe(0);
+    expect(r.cells.every((c) => c.inside && !c.valueOverflows && !c.clipped)).toBe(true);
+    expect(r.cells[0].valuePx).toBe(13);
+    expect(Math.abs(r.panel.h - one.panel.h)).toBeLessThanOrEqual(1);
+    expect(Math.abs(r.pedals.h - one.pedals.h)).toBeLessThanOrEqual(1);
+
+    // Fourteen real: five across in the same three rows, and a dial that is DRS is among them.
+    const fourteen = withDials(10);
+    fourteen.drs = { id: 'drs', label: 'DRS', state: 'off', value: 0, text: 'OFF' };
+    await serve(page, withControls(fourteen));
+    await expect(page.locator('[data-id="drs"] .ctrl-mini-value')).toHaveText('OFF');
+    await expect.poll(() => room(page).then((x) => x.cols)).toBe('5');
+    await settled(page);
+    r = await room(page);
+    expect([r.cols, r.rows]).toEqual(['5', '3']);
+    expect(r.cells).toHaveLength(14);
+    expect(r.cells.map((c) => c.key)).toContain('drs');
+    expect(r.cells.every((c) => c.inside && !c.valueOverflows && !c.clipped)).toBe(true);
+    expect(Math.abs(r.pedals.h - one.pedals.h)).toBeLessThanOrEqual(1);
   });
 
   test('a word that is wider than its cell is set smaller, and a long label is cut, never the cell', async ({ page }) => {
@@ -794,8 +921,12 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('[data-id="mguDeploy"] .ctrl-mini-label')).textOverflow)).toBe('ellipsis');
   });
 
-  test('a label is set as small as its cell needs to hold it whole, and cut only past the smallest', async ({ page }) => {
-    // Three across: BRAKE BIAS (the 720S's word for it) whole, a step down; the short ones at the panel's size.
+  test('a label is set as large as its cell holds it, takes a second line where one would not, and is cut only past that', async ({ page }) => {
+    // The headless page has no Sofia Pro Comp (nothing is let through to Typekit: the page's font is the fallback,
+    // half as wide again), so what is held to here is what the stylesheet works out from what the module says: the
+    // length (--ctrl-label-len), the second line (.ctrl-label-2l), the type's own size and the floor of 7px. That every
+    // label of the car list is whole in the page's own font is measured with it (car-controls-fit.spec.mjs).
+    // Three across: BRAKE BIAS (the 720S's word for it) at the panel's size, as the short ones.
     const full = withDials(2);
     full.bb = { ...full.bb, label: 'BRAKE BIAS' };
     await openWith(page, withControls(full));
@@ -804,27 +935,28 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     let r = await room(page);
     expect([r.compact, r.cols]).toEqual([false, '3']);
     let bb = r.cells.find((c) => c.key === 'bb'), tc = r.cells.find((c) => c.key === 'tc');
-    expect(bb.labelClipped, 'BRAKE BIAS whole').toBe(false);
-    expect(bb.labelPx).toBeLessThan(tc.labelPx);
-    expect(bb.labelPx).toBeGreaterThanOrEqual(7);
-    expect(tc.labelPx).toBe(10);
+    expect([bb.labelLen, bb.labelTwoLines, bb.labelPx, tc.labelPx]).toEqual(['10', false, 10, 10]);
 
-    // Four across: TC TOGGLE whole; a label no size could hold is cut, at the smallest.
+    // Four across: TC TOGGLE on one line; the labels of a GTP on two, as wide as the wider line; one word no line can
+    // break stays on one, down to the floor, and is cut there with an ellipsis.
     const compact = withDials(5);
     compact.more[0] = { ...compact.more[0], label: 'TC TOGGLE' };
     compact.more[1] = { ...compact.more[1], label: 'REAR TC LATERAL SLIP' };
+    compact.more[2] = { ...compact.more[2], label: 'BRAKE MIGRATION' };
+    compact.more[3] = { ...compact.more[3], label: 'THROTTLESHAPEXXXX' };
     await serve(page, withControls(compact));
     await expect(page.locator('[data-id="dial2"] .ctrl-mini-label')).toHaveText('REAR TC LATERAL SLIP');
     await expect.poll(() => room(page).then((x) => x.compact)).toBe(true);
     await settled(page);
     r = await room(page);
-    const toggle = r.cells.find((c) => c.key === 'dial1'), slip = r.cells.find((c) => c.key === 'dial2');
-    tc = r.cells.find((c) => c.key === 'tc');
-    expect(toggle.labelClipped, 'TC TOGGLE whole').toBe(false);
-    expect(toggle.labelPx).toBeLessThan(tc.labelPx);
-    expect(tc.labelPx).toBe(9);
-    expect([slip.labelPx, slip.labelClipped]).toEqual([7, true]);
-    expect(r.cells.every((c) => c.inside)).toBe(true);
+    const cell = (key) => r.cells.find((c) => c.key === key);
+    tc = cell('tc');
+    expect([cell('dial1').labelLen, cell('dial1').labelTwoLines, cell('dial1').labelPx, tc.labelPx]).toEqual(['9', false, 9, 9]);
+    expect([cell('dial2').labelLen, cell('dial2').labelTwoLines]).toEqual(['12', true]);
+    expect([cell('dial3').labelLen, cell('dial3').labelTwoLines, cell('dial3').labelPx]).toEqual(['9', true, 9]);
+    expect([cell('dial4').labelLen, cell('dial4').labelTwoLines, cell('dial4').labelPx, cell('dial4').labelClipped]).toEqual(['17', false, 7, true]);
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('[data-id="dial4"] .ctrl-mini-label')).textOverflow)).toBe('ellipsis');
+    expect(r.cells.every((c) => c.inside && !c.clipped)).toBe(true);
   });
 
   test('the glance layout keeps its own row of small cells, and the rig\'s room rule comes back with the rig', async ({ page }) => {

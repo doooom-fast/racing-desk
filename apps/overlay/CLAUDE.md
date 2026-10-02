@@ -103,23 +103,46 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   2026-10-01: "show adjustment panels for every adjustment available for that car. Omit ones that are not on the car
   when there's no room" — the same type, label over number, with the bar: the row's box dissolves (`.ctrl-fit .ctrl-more
   { display: contents }`, `leaderboard.css`) and its cells are the panel's.
-- **The rig's room** (`arrange`, `ROOM`; `.ctrl-fit`, `.ctrl-compact`, `--ctrl-cols`, `data-ctrl-rows`, `.ctrl-omitted`,
-  added by `render` on the rig alone, never in the glance layout): the panel is 240px wide by the stylesheet and shares
-  its column with the pedals, so the room is a constant of the layout and not a measurement — **three cells across at
-  the full size, four at the compact one, two rows down** (for two the panel takes 1.6 of the column to the pedals' 1;
-  the pedals keep 76 of the 200px). The car's real controls come first, in the panel's order (BB, TC, ABS, the modes,
-  the list's order, DRS, push-to-pass); a NONE cell takes a slot only where one is left after them and is the first to
-  go (it is a full cell, `order: 9`, so the real ones come first left to right); past six real cells the type steps down
-  to compact (16px numbers, 9px labels, four across); past eight the last of the car's other controls go, from the end
-  of the list. The three and a mode are never dropped; a cell a mode hides takes no slot. So an MX-5 is `ABS ON`,
-  `BB NONE`, `TC NONE` in one row; a 720S GT3 (bias, TC, ABS, MAP, TC TOGGLE) two rows of three and two at the full
-  size; a 963 GTP (bias, TCLO, TCLA, MIG, TARGET, AR-F, AR-R, TC TOGGLE) its eight at the compact size with ABS NONE
-  omitted; an R18 (fourteen) its three and the first five of the rest. A number of five characters (`48.25`) is set a
-  step down so it fits three across (`.ctrl-value-wide`); a word wider than its cell (`AUTOMATIC`) or a number of six
-  smaller still (`.ctrl-value-long`, sized to its cell by `--ctrl-value-len`, down to 7px); a label is set no larger than its cell holds (`--ctrl-label-len` from the module,
-  the cell a size container: `BRAKE BIAS` whole three across, `TC TOGGLE` four across), down to 7px, and only past that
-  cut with an ellipsis, never the cell. Which of a car's dials go
-  past the eighth is the list's order and nothing cleverer: he has not been asked.
+- **The rig's room** (`arrange`, `ROOM`, `labelPlan`; `.ctrl-fit`, `.ctrl-compact`, `.ctrl-tight`, `--ctrl-cols`,
+  `data-ctrl-rows`, `.ctrl-omitted`, `.ctrl-label-2l`, added by `render` on the rig alone, never in the glance layout): the
+  panel is 240px wide and **as tall as it has always been** — it shares its column with the pedals, which lose nothing
+  (118px each at his zoom, with one row or three) — so the room is a constant of the layout and not a measurement: **a
+  ladder of steps**, each with more cells across or down and its type a size down: three across in one row (22px
+  numbers, 10px labels), three across in two rows, four across in two rows (the compact size: 16px and 9px), and in
+  three rows of four and then of five (the tight size: 13px and 8px, 2px between the cells). A car takes the smallest
+  step that holds its real controls, and **every control the car has is shown** — he asked: "show adjustment panels
+  for every adjustment available for that car. Omit ones that are not on the car when there's no room" — so what is
+  omitted is only what the car does not have: a NONE cell takes a slot only where one is left in the rows the real
+  cells already need (`.ctrl-none` is a full cell, `order: 9`, so the real ones come first left to right) and never
+  makes a row of its own. DRS and push-to-pass are real cells like the rest: nothing is ever dropped for them or by
+  them. Past the last step the cells go on across, in three rows. The cells go across first and then down, balanced
+  (four cells are two by two). Of the list's 194 cars: 135 are one row (an MX-5 is `ABS ON`, `BB NONE`, `TC NONE`; a C6
+  with bias, TC and a toggle is one row of three and its ABS NONE is omitted), 55 are two rows (a 720S GT3, bias, TC,
+  ABS, MAP, TC TOGGLE: two rows of three and two at the full size; a 963 GTP: bias, TCLO, TCLA, MIG, TARGET, AR-F, AR-R,
+  TC TOGGLE, its eight at the compact size with ABS NONE omitted), and four are three rows (a Ferrari 499P of nine, a
+  W12 or a W13 of eleven with DRS, four across; the Audi R18, fourteen dials, five across). A number of five characters
+  (`48.25`) is set a step down so it fits three across (`.ctrl-value-wide`); a word wider than its cell (`AUTOMATIC`) or a
+  number of six smaller still (`.ctrl-value-long`, sized to its cell by `--ctrl-value-len`, down to 7px, with no tracking
+  and 0.62 em to a character: JetBrains Mono's 0.6). A mode is a cell like the others (the 570S's ESC cell is as wide as
+  its bias beside it: the glance layout's wider flex for a mode is taken back under `.ctrl-fit`). **A label** is set no
+  larger than its cell holds (`--ctrl-label-len`, the cell a size container: `BRAKE BIAS` whole three across at 10px,
+  `TC TOGGLE` four across at 9px), down to 7px, **and a label that would be set under 8px on one line takes a second
+  one** (`labelPlan`: the split of its words that makes the wider line narrowest, set to that line's length; a two-line
+  label is set at 8px at the most at the full size, 9px at the compact one and 7px in the tight rows, so two lines and
+  the number fit the row). Only past that — one word too long for its cell — is it cut with an ellipsis. **The width of
+  a character is Sofia Pro Comp's, the page's font, not the fallback's**: measured in the page with the HUD's own
+  Typekit stylesheet let through, at weight 600 and the label's tracking, the car list's 121 labels are 0.34 to 0.53 em
+  a character (0.43 on average) and **0.47 at the most for a label of seven characters or more**, while the fallback
+  sans-serif is 0.69 (0.81 at the most). The stylesheet's 0.5 em holds every label with a little over and was 0.74 (the
+  fallback's) in the first cut, which set labels far smaller than they needed to be on the rig and was never checked
+  against the real font (the headless tests block every request, so Typekit never loads there: a headless page is
+  the fallback, and cuts what the rig does not). Measured with the real font, 194 cars at 3440x1440 zoom 120 and at the
+  default zoom 100 in the top-right: **no label or value is cut or clipped in any of them, and the panel and the pedals
+  are 118.2px each for every car** (14 labels on two lines, in 7 cars: the Audi R18, the Ferrari 499P, the Porsche
+  919, the Aston Martin Valkyrie, the BMW LMDh, the Acura ARX-06 and the McLaren MP4-30; eight at the 7px floor, all
+  in the three-row cars). `tests/unit/car-controls-fit.spec.mjs` holds the rest in Node over every car, and in the page
+  for the sixty that need it (`RD_REAL_FONT=1` lets Typekit through for the one run that holds every label to its
+  cell in Sofia Pro Comp; `RD_FIT_ALL=1` opens all 194, about three minutes).
 - **The spotter**: a change of a control is announced with the car's word and what it reads, `TCLO ▲ 6`, `ESC ▼ SPORT`,
   `DSC ▼ OFF` (`announceAdjustment(type, value, direction, name, text)` in `spotter.js`; a name or text given, the card
   says the car's own thing; without them, the old `Brake Bias ▲ 55.0`). DRS says `DRS next zone`, `DRS — open it`,
@@ -135,12 +158,14 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
 - **The glow that says an aid is cutting in** (`.ctrl-active`, from `RacingDesk.Plugin.DS.AbsActive` / `TcActive`) is
   driven for every car, the list's and not (`poll-engine.js`, after the panel; `datastream.js` sets the same
   class while it runs).
-- **Tests** (`tests/unit/car-controls.spec.mjs`): the module's functions in Node (`arrange` at each stage of the room
-  rule among them), then the real `dashboard.html`, headless, fed a payload for each case — NONE, ON, OFF, a value with
-  the car's label, a mode by name, GTP brake migration, TC slip and gain, the bars, DRS and push-to-pass, an unread
-  dial, a car that changes, a car not in the list, a key that is not one — and the rig's room: the one-row car, two
-  rows of two with the pedals' share, six real cells with NONE omitted, compact and trimmed, the long word, the glance
-  layout and back (an unread dial left out there and shown with a dash on the rig), the panel without the key. **The cars are not typed in the spec**: they are read from
+- **Tests** (`tests/unit/car-controls.spec.mjs`): the module's functions in Node (`arrange` at each step of the ladder
+  and with a NONE cell at every count, `labelPlan`), then the real `dashboard.html`, headless, fed a payload for each
+  case — NONE, ON, OFF, a value with the car's label, a mode by name, GTP brake migration, TC slip and gain, the bars,
+  DRS and push-to-pass, an unread dial, a car that changes, a car not in the list, a key that is not one — and the
+  rig's room: the one-row car, two rows with the pedals as tall as ever, a NONE that is not worth a row, a mode as wide
+  as the bias, six real cells with NONE omitted, compact, three rows and five across with nothing left out, the long
+  word, the labels on one line and two, the glance layout and back (an unread dial left out there and shown with a
+  dash on the rig), the panel without the key. **The cars are not typed in the spec**: they are read from
   `tests/unit/fixtures/car-controls-wire.json`, which RacingDesk.Tests holds to what the host writes
   (`Cars/CarControlsWireTests.cs`, rewritten with `UPDATE_CAR_CONTROLS_WIRE=1`). The C# side cannot be tested over
   `:8889` without binding wildcard ports, so that hop is by the code: the runtime writes `s.CarControlsJson` into the
