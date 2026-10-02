@@ -199,9 +199,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "fuel",
                     Severity = FuelLapsRemaining < 1.5 ? 5 : 4,
-                    Label = "FUEL",
+                    Label = "Fuel",
                     Message = FuelLapsRemaining < 1.5
-                        ? $"FUEL CRITICAL — {FuelLapsRemaining:F1} laps remaining. Pit immediately!"
+                        ? $"Fuel critical — {FuelLapsRemaining:F1} laps remaining. Pit immediately!"
                         : $"Low fuel — {FuelLapsRemaining:F1} laps remaining. Pit within {Math.Max(1, (int)(FuelLapsRemaining - 1))} laps.",
                     CooldownSeconds = 20
                 };
@@ -221,7 +221,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                     {
                         Module = "fuel",
                         Severity = lapsUntilClose <= 2 ? 3 : 2,
-                        Label = "PIT WINDOW",
+                        Label = "Pit window",
                         Message = $"Pit window closes in {lapsUntilClose} laps. Fuel for {FuelLapsRemaining:F1} more laps.",
                         CooldownSeconds = PitWinCooldownSec
                     };
@@ -233,7 +233,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                     {
                         Module = "fuel",
                         Severity = 1,
-                        Label = "FUEL",
+                        Label = "Fuel",
                         Message = $"Fuel for {FuelLapsRemaining:F1} laps, need {RaceLapsRemaining:F0} to finish — pit window laps {PitWindowOpen}-{PitWindowClose}.",
                         CooldownSeconds = PitWinCooldownSec
                     };
@@ -249,7 +249,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "fuel",
                     Severity = 1,
-                    Label = "FUEL",
+                    Label = "Fuel",
                     Message = $"Fuel saving is working — you've gained {FuelSavingLapsGained:F1} extra laps of range.",
                     CooldownSeconds = SavingCooldownSec
                 };
@@ -267,7 +267,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                     {
                         Module = "fuel",
                         Severity = 1,
-                        Label = "FUEL",
+                        Label = "Fuel",
                         Message = $"Burning heavy this lap — {lastBurn:F2}L vs avg {AvgBurnPerLap:F2}L.",
                         CooldownSeconds = FuelCooldownSec
                     };

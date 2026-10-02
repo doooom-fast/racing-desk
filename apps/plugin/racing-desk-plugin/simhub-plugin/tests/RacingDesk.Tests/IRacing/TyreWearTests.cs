@@ -640,7 +640,7 @@ SplitTimeInfo:
             c.Update(entry, prev);
             Assert.That(c.Tires.TireHealthState, Is.EqualTo(2));
             Assert.That(c.IsVisible, Is.True, "the call comes with the measurement, on pit road");
-            Assert.That(c.CurrentLabel, Is.EqualTo("TYRES"));
+            Assert.That(c.CurrentLabel, Is.EqualTo("Tyres"));
             Assert.That(c.CurrentText, Does.Contain("measured at 15% tread").And.Contain("Take tyres at this stop"));
 
             // Out of the pits on four new tyres: the runtime has put a new set's 100 on the snapshot, flagged (the mask is

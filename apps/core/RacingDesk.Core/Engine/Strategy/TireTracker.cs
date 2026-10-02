@@ -249,7 +249,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "tire-wear",   // its own cooldown: a temperature call a minute ago must not swallow the one call a measurement gets
                     Severity = 4,
-                    Label = "TYRES",
+                    Label = "Tyres",
                     Message = $"{WorstTireLabel()} measured at {TyreWear.DisplayPercent(worst.Value)}% tread{paceNote}. {act}",
                     CooldownSeconds = WearCooldownSec
                 };
@@ -267,7 +267,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "tire-wear",
                     Severity = 2,
-                    Label = "TYRES",
+                    Label = "Tyres",
                     Message = $"{WorstTireLabel()} measured at {TyreWear.DisplayPercent(worst.Value)}% tread{lapsNote}. {think}",
                     CooldownSeconds = WearCooldownSec
                 };
@@ -287,7 +287,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "tire",
                     Severity = 2,
-                    Label = "TYRES",
+                    Label = "Tyres",
                     Message = $"{string.Join("+", hotTires)} overheating — ease the inputs to bring temps down.",
                     CooldownSeconds = TempCooldownSec
                 };
@@ -303,7 +303,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "tire",
                     Severity = 1,
-                    Label = "TYRES",
+                    Label = "Tyres",
                     Message = "Tyres still building temperature — be gentle for another lap or two.",
                     CooldownSeconds = TempCooldownSec
                 };
@@ -318,9 +318,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "tire",
                     Severity = sev,
-                    Label = "GRIP",
+                    Label = "Grip",
                     Message = GripScore > 0.8
-                        ? "Significant grip loss detected — ABS/TC working overtime. Consider pitting."
+                        ? "Significant grip loss detected — the anti-lock and traction control are working overtime. Consider pitting."
                         : "Grip starting to fade — you may notice longer braking zones.",
                     CooldownSeconds = GripCooldownSec
                 };
