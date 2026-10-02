@@ -122,7 +122,7 @@ test.describe('a local yellow is lighter than a full-course caution, and both ar
     expect(local.pattern).toContain(CAUTION_STRIPE);
     expect(local.pattern, 'yellow stripes with the dark between them, not a solid fill').toContain('rgba(0, 0, 0, 0)');
     expect(local.tint, 'the panels are not lit by it: a yellow that is a sector, not the track').toBe(none.tint);
-    expect(local.label).toBe('LOCAL YELLOW');
+    expect(local.label).toBe('Local yellow');
     expect(local.context).toBe('Local yellow — slow in this sector');
     expect(local.banner, 'race control has nothing to say of a sector').toBeNull();
 
@@ -139,9 +139,9 @@ test.describe('a local yellow is lighter than a full-course caution, and both ar
     expect(caution.pattern, 'a solid fill').not.toContain('rgba(0, 0, 0, 0)');
     expect(caution.tint).toContain(CAUTION_TINT);
     expect(caution.base, 'over a panel the numbers stay legible on').toMatch(/^rgba?\(15, 15, 15(, 1)?\)$/);
-    expect(caution.label).toBe('CAUTION');
+    expect(caution.label).toBe('Caution');
     expect(caution.context).toBe('Full course caution — hold position');
-    expect(caution.banner).toEqual(['CAUTION', 'Full course caution — hold position']);
+    expect(caution.banner).toEqual(['Caution', 'Full course caution — hold position']);
 
     // A caution with a local yellow in it (iRacing sets both) is the caution; the waved caution is one too.
     await serve(page, RACE({ flag: 'yellow', sessionFlags: CAUTION | LOCAL_YELLOW }));
@@ -176,7 +176,7 @@ test.describe('one lap to green, green held, the black flag furled, disqualified
     expect(one.pattern).toContain(CAUTION_STRIPE);
     expect(one.pattern).toContain(WHITE_STRIPE);
     expect(one.pattern, 'not the white flag\'s pair of whites').not.toContain(WHITE_FLAG_SHADE);
-    expect(one.label).toBe('1 LAP TO GREEN');
+    expect(one.label).toBe('1 lap to green');
     expect(one.context).toBe('Green flag next lap — be ready');
     expect(one.base).toMatch(/^rgba?\(15, 15, 15(, 1)?\)$/);
 
@@ -184,7 +184,7 @@ test.describe('one lap to green, green held, the black flag furled, disqualified
     await serve(page, RACE({ flag: 'white', sessionFlags: WHITE }));
     const white = await look(page);
     expect(white.flag).toBe('white');
-    expect(white.label).toBe('LAST LAP');
+    expect(white.label).toBe('Last lap');
     expect(white.pattern).toContain(WHITE_FLAG_SHADE);
     expect(white.pattern).not.toContain(CAUTION_STRIPE);
   });
@@ -196,7 +196,7 @@ test.describe('one lap to green, green held, the black flag furled, disqualified
     const held = await look(page);
     expect(held.flag).toBe('greenheld');
     expect(held.gapsClass).toBe('flag-greenheld');
-    expect(held.label).toBe('GREEN HELD');
+    expect(held.label).toBe('Green held');
     expect(held.context).toBe('Green flag held — racing resumes');
     expect(held.pattern).toContain('rgb(29, 175, 53)');        // hsl(130, 72%, 40%), the flag's green
     expect(held.tint).toContain('rgba(60, 200, 90, 0.34)');   // the glass takes the green of the flag
@@ -215,18 +215,18 @@ test.describe('one lap to green, green held, the black flag furled, disqualified
     const furled = await look(page);
     expect(furled.flag, 'the one word leaves it out').toBe('furled');
     expect(furled.gapsClass).toBe('flag-furled');
-    expect(furled.label).toBe('BLACK FLAG WARNING');
+    expect(furled.label).toBe('Black flag warning');
     expect(furled.context).toBe('Warning — a black flag may follow');
     expect(furled.tint, 'a warning rings the screen and leaves the panels').toBe(none.tint);
-    expect(furled.banner).toEqual(['BLACK FLAG WARNING', 'Warning — a black flag may follow']);
+    expect(furled.banner).toEqual(['Black flag warning', 'Warning — a black flag may follow']);
     expect(furled.bannerClass).toContain('rc-flag-furled');
     expect(furled.pattern).toContain('rgb(148, 148, 148)');   // hsl(0, 0%, 58%)
 
     await serve(page, RACE({ flag: 'black', sessionFlags: BLACK | FURLED }));
     const black = await look(page);
     expect(black.flag).toBe('black');
-    expect(black.label).toBe('BLACK FLAG');
-    expect(black.banner?.[0]).toBe('BLACK FLAG');
+    expect(black.label).toBe('Black flag');
+    expect(black.banner?.[0]).toBe('Black flag');
   });
 
   test('disqualified is a state of its own, black and deep red, with its own banner', async ({ page }) => {
@@ -236,10 +236,10 @@ test.describe('one lap to green, green held, the black flag furled, disqualified
     const dq = await look(page);
     expect(dq.flag).toBe('disqualify');
     expect(dq.gapsClass).toBe('flag-disqualify');
-    expect(dq.label).toBe('DISQUALIFIED');
+    expect(dq.label).toBe('Disqualified');
     expect(dq.context).toBe('Disqualified — return to the pits');
     expect(dq.tint).toContain('rgba(225, 25, 25, 0.34)');
-    expect(dq.banner).toEqual(['DISQUALIFIED', 'Disqualified — return to the pits']);
+    expect(dq.banner).toEqual(['Disqualified', 'Disqualified — return to the pits']);
     expect(dq.bannerClass).toContain('rc-flag-disqualify');
   });
 });
@@ -273,7 +273,7 @@ test.describe('the values his own recordings have: no flag all through practice 
     await serve(page, PRACTICE({ flag: 'none', sessionFlags: 0x100c0200 }));
     const furled = await look(page);
     expect(furled.flag).toBe('furled');
-    expect(furled.label).toBe('BLACK FLAG WARNING');
+    expect(furled.label).toBe('Black flag warning');
   });
 
   test('the grid, the warm-up and the parade show no flag, and the start after them is the start and not a flag', async ({ page }) => {
@@ -293,8 +293,8 @@ test.describe('the values his own recordings have: no flag all through practice 
     await serve(page, RACE({ state: 5, flag: 'checkered', sessionFlags: 0x10040001 }));
     const flag = await look(page);
     expect(flag.flag).toBe('checkered');
-    expect(flag.label).toBe('FINISH');
-    expect(flag.banner?.[0]).toBe('CHECKERED FLAG');
+    expect(flag.label).toBe('Finish');
+    expect(flag.banner?.[0]).toBe('Checkered flag');
     expect(await finish(page), 'the finish screen is up').toEqual({ up: true, shown: true });
 
     await serve(page, RACE({ state: 5, flag: 'checkered', sessionFlags: 0x10040101 }));
@@ -304,7 +304,7 @@ test.describe('the values his own recordings have: no flag all through practice 
     await serve(page, RACE({ state: 6, flag: 'checkered', sessionFlags: 0x10040201 }));
     const cool = await look(page);
     expect(cool.flag, 'the cool-down: the chequered flag is still out, with 0x200 beside it').toBe('checkered');
-    expect(cool.label).toBe('FINISH');
+    expect(cool.label).toBe('Finish');
     expect(await finish(page), 'the finish screen stays up').toEqual({ up: true, shown: true });
   });
 
@@ -315,7 +315,7 @@ test.describe('the values his own recordings have: no flag all through practice 
     await serve(page, QUALI({ flag: 'checkered', sessionFlags: 0x10040201 }));
     const l = await look(page);
     expect(l.flag).toBe('checkered');
-    expect(l.label).toBe('FINISH');
+    expect(l.label).toBe('Finish');
   });
 });
 
@@ -377,10 +377,10 @@ test.describe('with no field in the payload the HUD is as it was, from the one w
   test('each word draws what it drew: a yellow is the caution\'s look and sentence, a white the last lap, the orange a lapped car', async ({ page }) => {
     test.setTimeout(90000);
     await openAt(page, 1180, 820, RACE());
-    const words = { yellow: ['yellow', 'CAUTION', 'Full course caution — hold position'], blue: ['blue', 'BLUE FLAG', 'Faster car approaching — yield'],
-      white: ['white', 'LAST LAP', 'Last lap — push to the line'], debris: ['debris', 'DEBRIS', 'Debris on track — stay alert'],
-      meatball: ['meatball', 'MEATBALL', 'Repair required — pit immediately'], orange: ['orange', 'LAPPED CAR', 'Car ahead must yield — make the pass'],
-      red: ['red', 'RED FLAG', 'Session stopped — return to pits'], black: ['black', 'BLACK FLAG', 'Penalty — report to pit lane'] };
+    const words = { yellow: ['yellow', 'Caution', 'Full course caution — hold position'], blue: ['blue', 'Blue flag', 'Faster car approaching — yield'],
+      white: ['white', 'Last lap', 'Last lap — push to the line'], debris: ['debris', 'Debris', 'Debris on track — stay alert'],
+      meatball: ['meatball', 'Meatball', 'Repair required — pit immediately'], orange: ['orange', 'Lapped car', 'Car ahead must yield — make the pass'],
+      red: ['red', 'Red flag', 'Session stopped — return to pits'], black: ['black', 'Black flag', 'Penalty — report to pit lane'] };
     for (const [word, [flag, label, context]] of Object.entries(words)) {
       await serve(page, RACE({ flag: word }));
       const l = await look(page);
@@ -490,11 +490,11 @@ test.describe('the rig\'s own HUD says the same in its gaps block', () => {
       drive: document.body.classList.contains('drive-mode-active'),
     }));
     await expect.poll(async () => (await say()).cls, { timeout: 8000 }).toBe('flag-localyellow');
-    expect(await say()).toEqual({ cls: 'flag-localyellow', label: 'LOCAL YELLOW', context: 'Local yellow — slow in this sector', drive: false });
+    expect(await say()).toEqual({ cls: 'flag-localyellow', label: 'Local yellow', context: 'Local yellow — slow in this sector', drive: false });
 
     body = RACE({ flag: 'yellow', sessionFlags: CAUTION });
     await expect.poll(async () => (await say()).cls, { timeout: 8000 }).toBe('flag-caution');
-    expect(await say()).toEqual({ cls: 'flag-caution', label: 'CAUTION', context: 'Full course caution — hold position', drive: false });
+    expect(await say()).toEqual({ cls: 'flag-caution', label: 'Caution', context: 'Full course caution — hold position', drive: false });
     await hud.close();
   });
 
@@ -523,15 +523,15 @@ test.describe('the rig\'s own HUD says the same in its gaps block', () => {
 
     // Each state comes after another flag (a green held is only shown after one), so the order matters.
     const STATES = [
-      ['LOCAL YELLOW', RACE({ flag: 'yellow', sessionFlags: LOCAL_YELLOW })],
-      ['CAUTION', RACE({ flag: 'yellow', sessionFlags: CAUTION })],
-      ['1 LAP TO GREEN', RACE({ flag: 'yellow', sessionFlags: CAUTION | ONE_TO_GREEN })],
-      ['BLACK FLAG WARNING', RACE({ flag: 'none', sessionFlags: FURLED })],
-      ['DISQUALIFIED', RACE({ flag: 'black', sessionFlags: DISQUALIFY | BLACK })],
-      ['GREEN HELD', RACE({ flag: 'green', sessionFlags: GREEN | GREEN_HELD })],
-      ['LAST LAP', RACE({ flag: 'white', sessionFlags: WHITE })],
-      ['BLACK FLAG', RACE({ flag: 'black', sessionFlags: BLACK })],
-      ['LAPPED CAR', RACE({ flag: 'orange' })],   // the one word alone, as before
+      ['Local yellow', RACE({ flag: 'yellow', sessionFlags: LOCAL_YELLOW })],
+      ['Caution', RACE({ flag: 'yellow', sessionFlags: CAUTION })],
+      ['1 lap to green', RACE({ flag: 'yellow', sessionFlags: CAUTION | ONE_TO_GREEN })],
+      ['Black flag warning', RACE({ flag: 'none', sessionFlags: FURLED })],
+      ['Disqualified', RACE({ flag: 'black', sessionFlags: DISQUALIFY | BLACK })],
+      ['Green held', RACE({ flag: 'green', sessionFlags: GREEN | GREEN_HELD })],
+      ['Last lap', RACE({ flag: 'white', sessionFlags: WHITE })],
+      ['Black flag', RACE({ flag: 'black', sessionFlags: BLACK })],
+      ['Lapped car', RACE({ flag: 'orange' })],   // the one word alone, as before
     ];
     for (const [text, next] of STATES) {
       body = next;

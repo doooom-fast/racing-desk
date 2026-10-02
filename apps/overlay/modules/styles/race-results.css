@@ -133,8 +133,7 @@
 .rr-rating-label {
   font-size: 10px;
   color: var(--text-dim, rgba(255, 255, 255, 0.55));
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
 }
 
 #rrIRDelta,
@@ -170,8 +169,7 @@
 .rr-chart-title {
   font-size: 11px;
   color: var(--text-dim, rgba(255, 255, 255, 0.55));
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
   margin-bottom: 8px;
   font-weight: var(--fw-semi, 600);
 }
@@ -200,8 +198,7 @@
   font-size: 13px;
   color: var(--text, #fff);
   font-weight: var(--fw-semi, 600);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
   margin-bottom: 12px;
   margin-top: 24px;
 }
@@ -259,7 +256,6 @@
   color: var(--text-dim, rgba(255, 255, 255, 0.55));
   font-family: var(--ff-mono, monospace);
   font-weight: var(--fw-semi, 600);
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -380,8 +376,7 @@
 .rr-ai-section-label {
   font-size: 10px;
   color: var(--cyan, #00acc1);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   font-weight: var(--fw-semi, 600);
   margin-bottom: 6px;
 }

@@ -5,8 +5,10 @@
  * dashboard.html, headless, for the cars that need more than one row: the panel and the pedals under it keep their
  * height, every control is a cell with its label and a number or a dash, and nothing is cut off by its cell.
  *
- * The controls are built from the list's own labels and kinds of control (what the host sends has the same shape;
- * the values are made up: the layout does not read them). That every label is whole in the page's own font, Sofia
+ * The controls are built from the list's own labels, words and kinds of control (what the host sends has the same
+ * shape; the values are made up: the layout does not read them). Each cell shows the longest of its forms that is whole
+ * at its size — the words, a rollbar's "Rollbar" with its mark, the car's own label (car-controls.js chooseForm) — and
+ * what is held here is that form. That every label is whole in the page's own font, Sofia
  * Pro Comp, needs the font: the headless page lets nothing through to the internet, so its fallback is half as wide
  * again, and the width of text is only held to where it holds in any font. With RD_REAL_FONT=1 the page lets through
  * the HUD's own Typekit stylesheet and its font files (and nothing else) and holds every label and value to its cell
@@ -21,7 +23,9 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { MOCK_TELEMETRY } from '../helpers.mjs';
 
 const require = createRequire(import.meta.url);
-const { KEY, view, arrange, labelPlan } = require('../../modules/js/car-controls.js');
+const { KEY, view, arrange, labelPlan, chooseForm } = require('../../modules/js/car-controls.js');
+// The text a label is drawn with: a rollbar's mark is a letter after its word.
+const formText = (form) => (form.mark ? `${form.text} ${form.mark}` : form.text);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DASHBOARD = pathToFileURL(path.resolve(__dirname, '..', '..', 'dashboard.html')).href;
@@ -30,17 +34,17 @@ const REAL_FONT = process.env.RD_REAL_FONT === '1';
 const ALL = process.env.RD_FIT_ALL === '1';
 
 // What the host would send for a car of the list: the three, the car's other controls in the list's order, DRS and
-// push-to-pass. A dial the list gives has a number (the bias a five-character one, which is the widest); a mode, its
-// word; a control the list does not have, NONE.
+// push-to-pass, each with the list's words where it gives them. A dial the list gives has a number (the bias a
+// five-character one, which is the widest); a mode, its word; a control the list does not have, None.
 function controlsFromList(car) {
-  const dial = (control, label) => ({ id: control.id, label, state: 'value', value: 3, text: control.id === 'brakeBias' ? '47.25' : '3', ...(control.id === 'mode' ? { text: 'TRACK' } : {}) });
+  const dial = (control, label) => ({ id: control.id, label, ...(control.words ? { words: control.words } : {}), state: 'value', value: 3, text: control.id === 'brakeBias' ? '47.25' : '3', ...(control.id === 'mode' ? { text: 'Track' } : {}) });
   const primary = (id, having, label) => {
-    if (having === 'none') return { id, label, state: 'none', text: 'NONE' };
+    if (having === 'none') return { id, label, state: 'none', text: 'None' };
     const control = car.controls.find((c) => c.id.toLowerCase() === id.toLowerCase());
     if (control) return dial(control, control.label || label);
     const mode = car.controls.find((c) => c.id === 'mode' && (!c.covers || c.covers.includes(id)));
     if (mode) return { id, label, state: 'mode', by: mode.label || mode.id };
-    return having === 'fixed' ? { id, label, state: 'on', text: 'ON' } : null;
+    return having === 'fixed' ? { id, label, state: 'on', text: 'On' } : null;
   };
   const out = { car: car.path, name: car.name, kind: car.kind };
   const abs = primary('abs', car.abs, 'ABS'), tc = primary('tc', car.tc, 'TC'), bb = primary('brakeBias', car.brakeBias, 'BB');
@@ -55,8 +59,8 @@ function controlsFromList(car) {
   }
   out.more = more;
   for (const control of car.controls) {
-    if (/^drs$/i.test(control.id)) out.drs = { id: 'drs', label: control.label || 'DRS', state: 'off', value: 0, text: 'OFF' };
-    if (/^p2p$/i.test(control.id)) out.p2p = { id: 'p2p', label: control.label || 'P2P', state: 'off', value: 0, text: 'OFF', count: 200 };
+    if (/^drs$/i.test(control.id)) out.drs = { id: 'drs', label: control.label || 'DRS', state: 'off', value: 0, text: 'Off' };
+    if (/^p2p$/i.test(control.id)) out.p2p = { id: 'p2p', label: control.label || 'P2P', ...(control.words ? { words: control.words } : {}), state: 'off', value: 0, text: 'Off', count: 200 };
   }
   return out;
 }
@@ -97,13 +101,33 @@ test.describe('the room rule over every car of the list', () => {
       const fit = arrange(v);
       const all = [...v.primary.filter((p) => !p.hidden), ...v.modes, ...v.more].filter((c) => fit.shown.includes(c.slot || c.id || 'mode'));
       for (const cell of all) {
-        const plan = labelPlan(cell.label, cell.locked, fit);
+        const text = formText(chooseForm(cell, fit));
+        const plan = labelPlan(text, cell.locked, fit);
         if (plan.lines === 2) {
-          expect(cell.label.split(/\s+/).length, `${car.path}: ${cell.label}`).toBeGreaterThan(1);
-          expect(plan.len, `${car.path}: ${cell.label}`).toBeLessThan(cell.label.length);
+          expect(text.split(/\s+/).length, `${car.path}: ${text}`).toBeGreaterThan(1);
+          expect(plan.len, `${car.path}: ${text}`).toBeLessThan(text.length);
         }
       }
     }
+  });
+
+  test('a cell is in words wherever they are whole at its size, and the words win over a label as long', () => {
+    let words = 0, short = 0;
+    const short_ = [];
+    for (const car of LIST.cars) {
+      const v = view(controlsFromList(car));
+      const fit = arrange(v);
+      for (const cell of [...v.primary.filter((p) => !p.hidden), ...v.modes, ...v.more].filter((c) => fit.shown.includes(c.slot || c.id || 'mode'))) {
+        if (!cell.words) continue;
+        const form = chooseForm(cell, fit);
+        if (form.text === cell.words) words++;
+        else { short++; short_.push(`${car.path}: ${cell.words} -> ${formText(form)}`); }
+      }
+    }
+    // Nearly every cell that has words shows them on the rig; the few that do not are named here, so a change is seen.
+    expect(words).toBeGreaterThan(500);
+    expect(short_, short_.join('\n')).toEqual(expect.any(Array));
+    expect(short).toBeLessThanOrEqual(12);
   });
 });
 
@@ -162,7 +186,7 @@ test.describe('the rig\'s panel, for the real list\'s cars that need more than o
       if (ALL) return true;
       const v = view(controlsFromList(car));
       const fit = arrange(v);
-      return realCells(v) > 3 || [...v.primary.filter((p) => !p.hidden), ...v.modes, ...v.more].some((c) => labelPlan(c.label, c.locked, fit).lines === 2);
+      return realCells(v) > 3 || [...v.primary.filter((p) => !p.hidden), ...v.modes, ...v.more].some((c) => labelPlan(formText(chooseForm(c, fit)), c.locked, fit).lines === 2);
     });
     const ones = LIST.cars.filter((car) => realCells(view(controlsFromList(car))) <= 1).slice(0, 3);
     expect(chosen.length).toBeGreaterThan(40);
@@ -201,7 +225,8 @@ test.describe('the rig\'s panel, for the real list\'s cars that need more than o
       const cc = controlsFromList(car);
       const v = view(cc);
       const m = await feed(car);
-      const real = [...v.primary.filter((p) => !p.hidden && p.state !== 'none'), ...v.modes, ...v.more.filter((x) => x.state !== 'none')].map((c) => c.label);
+      const fit = arrange(v);
+      const real = [...v.primary.filter((p) => !p.hidden && p.state !== 'none'), ...v.modes, ...v.more.filter((x) => x.state !== 'none')].map((c) => formText(chooseForm(c, fit)));
       const shown = m.cells.map((c) => c.label);
       for (const label of real) if (!shown.includes(label)) problems.push(`${car.path}: ${label} is not shown`);
       for (const c of m.cells) {

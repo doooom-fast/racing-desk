@@ -346,8 +346,8 @@
     // Labels
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.font = '10px var(--ff-mono)';
-    ctx.fillText('iR', centerX - gap, h - 12);
-    ctx.fillText('SR', centerX + gap, h - 12);
+    ctx.fillText('iRating', centerX - gap, h - 12);
+    ctx.fillText('Safety', centerX + gap, h - 12);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -361,7 +361,7 @@
     if (incidents > 4) {
       tips.push({
         icon: '⚠️',
-        title: 'Clean Racing',
+        title: 'Clean racing',
         text: 'You had ' + incidents + ' incidents. Focus on clean lines through heavy zones — brake 5m earlier into difficult corners.'
       });
     }
@@ -374,7 +374,7 @@
       if (endPos > midPos + 2) {
         tips.push({
           icon: '📉',
-          title: 'Late-Race Pace',
+          title: 'Late-race pace',
           text: 'Your pace dropped in the final stint. Consider fuel-saving earlier to extend performance.'
         });
       }
@@ -386,7 +386,7 @@
       if (maxTyreTemp > 110) {
         tips.push({
           icon: '🔥',
-          title: 'Tyre Management',
+          title: 'Tyre management',
           text: 'Tyre temps peaked at ' + Math.round(maxTyreTemp) + '°C. Smoother inputs through high-speed corners will help.'
         });
       }
@@ -396,7 +396,7 @@
     if (iRatingDelta < -30) {
       tips.push({
         icon: '💪',
-        title: 'Finishing Focus',
+        title: 'Finishing focus',
         text: 'Tough race. Focus on finishing clean — completing races is the fastest path to iRating recovery.'
       });
     }
@@ -406,7 +406,7 @@
       const bestLap = raceData.lapTimes ? Math.min(...raceData.lapTimes) : 0;
       tips.push({
         icon: '🏆',
-        title: 'Great Result!',
+        title: 'Great result!',
         text: 'Excellent finish. Your best lap was ' + _formatTime(bestLap) + ' — aim to hit that consistently.'
       });
     }
@@ -415,7 +415,7 @@
     if (incidents <= 2 && position >= 4 && position <= 10) {
       tips.push({
         icon: '✓',
-        title: 'Discipline + Pace',
+        title: 'Discipline + pace',
         text: 'Clean race with a strong finish. You\'re ready to push harder on entry speed.'
       });
     }

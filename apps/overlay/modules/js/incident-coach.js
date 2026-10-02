@@ -50,9 +50,9 @@
   };
 
   const THREAT_LABELS = {
-    [THREAT_WATCH]:   'WATCH',
-    [THREAT_CAUTION]: 'CAUTION',
-    [THREAT_DANGER]:  'DANGER'
+    [THREAT_WATCH]:   'Watch',
+    [THREAT_CAUTION]: 'Caution',
+    [THREAT_DANGER]:  'Danger'
   };
 
   // ── Composure indicator setup ──────────────────────────────────
@@ -63,7 +63,7 @@
     const el = document.createElement('div');
     el.id = 'composureIndicator';
     el.className = 'ic-composure ic-composure-calm';
-    el.innerHTML = '<div class="ic-composure-dot"></div><div class="ic-composure-label">COMPOSURE</div>';
+    el.innerHTML = '<div class="ic-composure-dot"></div><div class="ic-composure-label">Composure</div>';
     document.body.appendChild(el);
     _ic.composureEl = el;
     return el;
@@ -156,8 +156,8 @@
       const nameEl = row.querySelector('.lb-name');
       if (!nameEl) continue;
 
-      // Extract text, removing "IN PIT" suffix if present
-      const nameText = (nameEl.textContent || '').replace(/\s*IN PIT\s*$/i, '').trim().toLowerCase();
+      // Extract text, removing the "In pit" chip's words if present
+      const nameText = (nameEl.textContent || '').replace(/\s*in pit\s*$/i, '').trim().toLowerCase();
 
       const threat = threatMap.get(nameText);
       const oldBadge = row.querySelector('.ic-threat-badge');

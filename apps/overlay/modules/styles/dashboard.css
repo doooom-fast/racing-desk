@@ -86,13 +86,24 @@
     border-top-right-radius: var(--corner-r);
     border-bottom-right-radius: var(--corner-r);
   }
-  .panel-label {
+  /* ── One header for every panel ──
+     The leaderboard's, the datastream's and the incidents' headers, the gaps' Ahead and Behind, the ratings', the laps
+     panel's, the pit box's tabs and pages, the clock's key: all of them this one style, in sentence case (no text on the
+     HUD is set in capitals but an acronym). He chose one style for every panel on 2026-10-02; of the two there were,
+     this is the .panel-label's — the HUD's face at its smallest size, bold, in the dim text colour, which follows the
+     theme — and the leaderboard's, the datastream's and the incidents' fainter 0.35 white with a rule beneath went.
+     The tracking is the one thing changed from it: 0.08em was spacing for capitals, and sentence case takes half of
+     that. Where a header sits in its panel (its padding and margins) is the panel's; what it looks like is here, and
+     the glance layout sizes it once for every cell (drive-view.css, --hdr-glance). */
+  :root { --hdr-size: var(--fs-xs); --hdr-weight: 700; --hdr-track: 0.04em; --hdr-color: var(--text-dim); }
+  .panel-label, .lb-header, .ds-header, .inc-label, .pb-tab, .race-timer-key {
     font-family: var(--ff);
-    font-size: var(--fs-xs);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-dim);
+    font-size: var(--hdr-size);
+    font-weight: var(--hdr-weight);
+    letter-spacing: var(--hdr-track);
+    color: var(--hdr-color);
+  }
+  .panel-label {
     margin-bottom: 2px;
     white-space: nowrap;
   }
@@ -302,8 +313,7 @@
     left: 0;
     font-size: var(--fs-xs);
     font-weight: var(--fw-semi);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.02em;
     color: var(--text-dim);
     pointer-events: none;
   }
@@ -472,7 +482,6 @@
     padding: 0 4px 2px;
     line-height: 1.15;
     letter-spacing: 0.02em;
-    text-transform: uppercase;
     margin-top: 4px;
   }
   .car-model-label:empty { display: none; }
@@ -483,8 +492,7 @@
     font-family: var(--ff);
     font-size: var(--fs-xs);
     font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
     color: var(--text-dim);
     margin-top: 12px;
     overflow: hidden;
@@ -912,8 +920,7 @@
     font-family: var(--ff);
     font-size: 8px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.03em;
     line-height: 1.1;
     color: var(--text-dim);
     white-space: nowrap;
@@ -949,8 +956,7 @@
   .sector-label {
     font-size: var(--fs-xs);
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.06em;
     color: hsla(0,0%,100%,0.35);
     margin-bottom: 2px;
   }
@@ -1076,10 +1082,9 @@
   .flag-label {
     font-size: 17px;
     font-weight: var(--fw-black);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.02em;
     line-height: 1.1;
-    /* "BLACK FLAG WARNING" and "1 LAP TO GREEN" do not fit a block this narrow on one line: each line is centred, and the
+    /* "Black flag warning" and "1 lap to green" do not fit a block this narrow on one line: each line is centred, and the
        lines are of a length, not a long one and a stub against the left edge. */
     text-align: center;
     text-wrap: balance;
@@ -1378,8 +1383,7 @@
     text-align: center;
     text-wrap: balance;
     font-size: max(11px, var(--fs-xs));
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
     color: var(--text-dim);
     pointer-events: none;
   }
@@ -1573,8 +1577,7 @@
     text-align: center;
     font-size: var(--fs-xs);
     color: var(--text-dim);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
   }
 
   /* ═══════════════════════════════════════════════

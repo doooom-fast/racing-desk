@@ -383,7 +383,8 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     await hud.waitForTimeout(1500);   // the colours' own transitions (0.4s) have run
     const rig = await style(hud);
 
-    // The HUD's own panel label is a small-caps label in its display face; so is the iPad's. And so on, item by item:
+    // The HUD's own panel label is in its display face, in sentence case (no capitals but an acronym since 2026-10-02);
+    // so is the iPad's. And so on, item by item:
     // the face, the weight, the case, the tracking, the colour; the panel's base and its glass streak. (What differs
     // is the size, which is the cell's.)
     // Tracking is compared to within a hundredth of an em: what inherits the body's (0.48px) has it in pixels, so its
@@ -397,7 +398,8 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     }
     expect(rig.place.face).toBe('JetBrains Mono');
     expect(rig.skew).not.toBe('none');
-    expect(rig.label.caps).toBe('uppercase');
+    expect(rig.label.caps).toBe('none');
+    expect(rig.header.caps).toBe('none');
     await hud.close();
 
     // The glass on the iPad is lit as the rig's plastic mode lights it: an overhead glow in the ambient colour over each

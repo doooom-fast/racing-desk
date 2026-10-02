@@ -299,7 +299,7 @@
   //  Shows a brief spotter-style callout with the new value.
   //  Reuses existing adjustment card instead of stacking new ones.
   //  With the car in the canonical list, the card carries the car's own word for the control (`name`) and
-  //  what it reads (`text`: a number, OFF, or a position's name) — "TCLO ▲ 6", "ESC ▶ SPORT".
+  //  what it reads (`text`: a number, Off, or a position's name) — "Traction slip ▲ 6", "Assists ▶ Sport".
   // ═══════════════════════════════════════════════════════════════
   window.announceAdjustment = function(type, value, direction, name, text) {
     const stack = document.getElementById('spotterStack');
@@ -313,15 +313,15 @@
     } else
     switch (type) {
       case 'bb':
-        label = 'Brake Bias ' + arrow + ' ' + (typeof value === 'number' ? value.toFixed(1) : value);
+        label = 'Bias ' + arrow + ' ' + (typeof value === 'number' ? value.toFixed(1) : value);
         icon = 'sp-bb';
         break;
       case 'tc':
-        label = 'TC ' + arrow + ' ' + Math.round(value);
+        label = 'Traction ' + arrow + ' ' + Math.round(value);
         icon = 'sp-tc';
         break;
       case 'abs':
-        label = 'ABS ' + arrow + ' ' + Math.round(value);
+        label = 'Anti-lock ' + arrow + ' ' + Math.round(value);
         icon = 'sp-abs';
         break;
       default:

@@ -7,15 +7,15 @@
   // Only critical session-altering events get the Race Control banner.
   // Blue, white, green, debris are handled by the flag overlay on the gaps block.
   const RC_MESSAGES = {
-    yellow:    { title: 'CAUTION',          detail: 'Full course yellow — hold position' },
+    yellow:    { title: 'Caution',          detail: 'Full course yellow — hold position' },
     // What iRacing's own flag field says of it (session-flags.js): a full-course caution, and what is said to him alone.
-    caution:   { title: 'CAUTION',          detail: 'Full course caution — hold position' },
-    furled:    { title: 'BLACK FLAG WARNING', detail: 'Warning — a black flag may follow' },
-    disqualify: { title: 'DISQUALIFIED',    detail: 'Disqualified — return to the pits' },
-    red:       { title: 'RED FLAG',         detail: 'Session stopped — return to pits' },
-    checkered: { title: 'CHECKERED FLAG',   detail: 'Race complete — cool down lap' },
-    black:     { title: 'BLACK FLAG',       detail: 'Penalty — report to pit lane immediately' },
-    meatball:  { title: 'MEATBALL FLAG',    detail: 'Mechanical issue — pit for required repairs' },
+    caution:   { title: 'Caution',          detail: 'Full course caution — hold position' },
+    furled:    { title: 'Black flag warning', detail: 'Warning — a black flag may follow' },
+    disqualify: { title: 'Disqualified',    detail: 'Disqualified — return to the pits' },
+    red:       { title: 'Red flag',         detail: 'Session stopped — return to pits' },
+    checkered: { title: 'Checkered flag',   detail: 'Race complete — cool down lap' },
+    black:     { title: 'Black flag',       detail: 'Penalty — report to pit lane immediately' },
+    meatball:  { title: 'Meatball flag',    detail: 'Mechanical issue — pit for required repairs' },
   };
 
   // Duration each race control message stays visible (ms)

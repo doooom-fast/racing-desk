@@ -85,8 +85,7 @@
     font-family: var(--ff);
     font-size: 28px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.10em;
+    letter-spacing: 0.03em;
     color: #FFFFFF;
     line-height: 1.1;
     white-space: nowrap;
@@ -95,8 +94,7 @@
     font-family: var(--ff-semi);
     font-size: 15px;
     font-weight: var(--fw-semi);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.02em;
     color: hsl(48, 80%, 55%);
     line-height: 1.25;
     white-space: nowrap;
@@ -247,8 +245,7 @@
   .pit-label {
     font-size: 15px;
     font-weight: var(--fw-black);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.04em;
     color: hsl(200, 80%, 70%);
   }
   .pit-speed {
@@ -358,7 +355,7 @@
   .pit-banner.pit-bonkers .pit-label {
     animation: pit-bonkers-text 0.3s linear infinite;
     font-size: 17px;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.08em;
   }
   @keyframes pit-bonkers-text {
     0%   { color: hsl(0, 100%, 65%); text-shadow: 0 0 8px hsla(0, 100%, 50%, 0.5); }
@@ -522,8 +519,7 @@
     font-family: var(--ff);
     font-size: 32px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.02em;
     margin: 0 0 4px 0;
     line-height: 1.2;
     color: var(--text-primary);
@@ -546,8 +542,7 @@
     color: var(--green);
     font-size: 14px;
     font-weight: var(--fw-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.03em;
     margin: 12px 0 8px 0;
     animation: re-slide-in 0.6s ease-out 0.2s both;
   }
@@ -569,8 +564,7 @@
   .re-stat-label {
     font-size: 14px;
     font-weight: var(--fw-semi);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.03em;
     color: var(--text-dim);
     margin-bottom: 6px;
   }
@@ -693,8 +687,7 @@
     font-family: var(--ff);
     font-size: 14px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.04em;
     color: hsla(220, 60%, 60%, 0.55);
     margin-bottom: 2px;
   }
@@ -785,8 +778,7 @@
     font-family: var(--ff);
     font-size: 14px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.06em;
     color: hsla(220, 60%, 65%, 0.60);
     margin-bottom: 14px;
   }
@@ -842,8 +834,7 @@
   .grid-start-type {
     font-size: 14px;
     font-weight: var(--fw-semi);
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.05em;
     color: hsla(220, 50%, 65%, 0.70);
     margin-top: 6px;
   }

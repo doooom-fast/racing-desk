@@ -389,48 +389,49 @@
     _default:          _s('<circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/>')
   };
 
-  // Title → topicId reverse map (fallback when CommentaryTopicId isn't available)
+  // Title → topicId reverse map (fallback when CommentaryTopicId isn't available). Looked up in lower case: the titles
+  // are in sentence case since 2026-10-02 ("Anti-lock activation"), and a plugin from before sends them in title case
+  // with their acronyms ("ABS Activation"), so both are here where they differ by more than case.
   const _titleToTopicId = {
-    'Big Save': 'spin_catch',
-    'Wall / Barrier Contact': 'wall_contact',
-    'Off Track': 'off_track',
-    'Kerb / Curb Hit': 'kerb_hit',
-    'ABS Activation': 'abs_activation',
-    'Traction Control Cut': 'tc_intervention',
-    'Close Racing': 'close_battle',
-    'Position Gained': 'position_gained',
-    'Position Lost': 'position_lost',
-    'Yellow Flag': 'yellow_flag',
-    'Debris on Track': 'debris_on_track',
-    'Race Start': 'race_start',
-    'Formation / Pace Lap': 'formation_lap',
-    'Personal Best Lap': 'personal_best',
-    'Pit Lane Entry': 'pit_entry',
-    'Maximum Cornering Load': 'high_cornering_load',
-    'FFB Torque Spike': 'ffb_torque_spike',
-    'Low Fuel': 'low_fuel',
-    'Wet Conditions': 'wet_track',
-    'Cold Track Conditions': 'track_temp_cold',
-    'High Tyre Wear': 'tyre_wear_high',
-    'Overheating Tyres': 'hot_tyres',
-    'Major Braking Zone': 'heavy_braking',
-    'Hot Qualifying Lap': 'qualifying_push',
-    'iRacing Incident Points': 'incident_spike',
-    'ERS Battery Low': 'ers_low',
-    'High Track Temperature': 'track_temp_hot',
-    'DRS Open': 'drs_active',
-    'Car On The Limit': 'car_balance_sustained',
-    'Black Flag': 'black_flag',
-    'Aggressive Gear Shift': 'rapid_gear_change',
-    'Long Stint Distance': 'long_stint',
-    'Session Time Running Out': 'session_time_low',
-    'Brake Bias Adjustment': 'brake_bias_change',
-    'Traction Control Adjusted': 'tc_setting_change',
-    'ABS Level Adjusted': 'abs_setting_change',
-    'Front ARB Adjusted': 'arb_front_change',
-    'Rear ARB Adjusted': 'arb_rear_change',
+    'big save': 'spin_catch',
+    'wall / barrier contact': 'wall_contact',
+    'off track': 'off_track',
+    'kerb / curb hit': 'kerb_hit',
+    'anti-lock activation': 'abs_activation', 'abs activation': 'abs_activation',
+    'traction control cut': 'tc_intervention',
+    'close racing': 'close_battle',
+    'position gained': 'position_gained',
+    'position lost': 'position_lost',
+    'yellow flag': 'yellow_flag',
+    'debris on track': 'debris_on_track',
+    'race start': 'race_start',
+    'formation / pace lap': 'formation_lap',
+    'personal best lap': 'personal_best',
+    'pit lane entry': 'pit_entry',
+    'maximum cornering load': 'high_cornering_load',
+    'force feedback torque spike': 'ffb_torque_spike', 'ffb torque spike': 'ffb_torque_spike',
+    'low fuel': 'low_fuel',
+    'wet conditions': 'wet_track',
+    'cold track conditions': 'track_temp_cold',
+    'high tyre wear': 'tyre_wear_high',
+    'overheating tyres': 'hot_tyres',
+    'major braking zone': 'heavy_braking',
+    'hot qualifying lap': 'qualifying_push',
+    'iracing incident points': 'incident_spike',
+    'hybrid battery low': 'ers_low', 'ers battery low': 'ers_low',
+    'high track temperature': 'track_temp_hot',
+    'drs open': 'drs_active',
+    'car on the limit': 'car_balance_sustained',
+    'black flag': 'black_flag',
+    'aggressive gear shift': 'rapid_gear_change',
+    'long stint distance': 'long_stint',
+    'session time running out': 'session_time_low',
+    'brake bias adjustment': 'brake_bias_change',
+    'traction control adjusted': 'tc_setting_change',
+    'anti-lock level adjusted': 'abs_setting_change', 'abs level adjusted': 'abs_setting_change',
+    'front rollbar adjusted': 'arb_front_change', 'front arb adjusted': 'arb_front_change',
+    'rear rollbar adjusted': 'arb_rear_change', 'rear arb adjusted': 'arb_rear_change',
   };
-
   // Category → icon fallback (when neither topicId nor title match)
   const _categoryIcons = {
     car_response:       _commentaryIcons['car_balance_sustained'],
@@ -442,7 +443,7 @@
 
   function _resolveCommentaryIcon(topicId, title, category) {
     if (topicId && _commentaryIcons[topicId]) return _commentaryIcons[topicId];
-    const idFromTitle = _titleToTopicId[title];
+    const idFromTitle = typeof title === 'string' ? _titleToTopicId[title.toLowerCase()] : undefined;
     if (idFromTitle && _commentaryIcons[idFromTitle]) return _commentaryIcons[idFromTitle];
     if (category && _categoryIcons[category]) return _categoryIcons[category];
     return _commentaryIcons['_default'];

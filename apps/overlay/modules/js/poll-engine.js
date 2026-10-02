@@ -462,7 +462,7 @@
     if (pitSug) {
       const remLaps = +d('DataCorePlugin.GameData.RemainingLaps', 'Demo.RemainingLaps') || 0;
       pitSug.textContent = (fuelLapsEst > 0 && remLaps > 0 && fuelLapsEst < remLaps)
-        ? 'PIT in ~' + Math.ceil(fuelLapsEst) + ' laps' : '';
+        ? 'Pit in ~' + Math.ceil(fuelLapsEst) + ' laps' : '';
     }
 
     // ─── Tyres ───
@@ -803,7 +803,7 @@
         // Lap-limited race: show current lap time instead of useless 168:00:00 countdown. The glance layout has the
         // time on this lap in its hero already, so its clock says the laps to go.
         if (driveClock && remLaps >= 1) { timerEl.textContent = '' + remLaps; clockKey = 'Laps to go'; }
-        else if (remLaps === 1) timerEl.textContent = 'Final Lap';
+        else if (remLaps === 1) timerEl.textContent = 'Final lap';
         else if (remLaps === 0) { timerEl.textContent = 'Finish'; clockKey = 'Flag'; }
         else if (curLapTime > 0) {
           const lm = Math.floor(curLapTime / 60);
@@ -1118,9 +1118,9 @@
     const gapsBlock = document.getElementById('gapsBlock');
     if (gapsBlock) {
       const flagLabels = {
-        yellow: 'CAUTION', caution: 'CAUTION', localyellow: 'LOCAL YELLOW', onetogreen: '1 LAP TO GREEN', red: 'RED FLAG', blue: 'BLUE FLAG',
-        white: 'LAST LAP', debris: 'DEBRIS', checkered: 'FINISH', black: 'BLACK FLAG', furled: 'BLACK FLAG WARNING', disqualify: 'DISQUALIFIED',
-        green: 'GREEN', greenheld: 'GREEN HELD', meatball: 'MEATBALL', orange: 'LAPPED CAR',
+        yellow: 'Caution', caution: 'Caution', localyellow: 'Local yellow', onetogreen: '1 lap to green', red: 'Red flag', blue: 'Blue flag',
+        white: 'Last lap', debris: 'Debris', checkered: 'Finish', black: 'Black flag', furled: 'Black flag warning', disqualify: 'Disqualified',
+        green: 'Green', greenheld: 'Green held', meatball: 'Meatball', orange: 'Lapped car',
       };
       const flagContexts = {
         yellow: 'Full course caution — hold position', caution: 'Full course caution — hold position',
@@ -1178,7 +1178,7 @@
       gapsBlock.className = gapsBlock.className.replace(/\bflag-\S+/g, '').trim();
       if (showFlag !== 'none') {
         gapsBlock.classList.add('flag-active', 'flag-' + showFlag);
-        const lbl = flagLabels[showFlag] || showFlag.toUpperCase();
+        const lbl = flagLabels[showFlag] || (showFlag.charAt(0).toUpperCase() + showFlag.slice(1));
         const ctx = flagContexts[showFlag] || '';
         const fl1 = document.getElementById('flagLabel1');
         const fc1 = document.getElementById('flagCtx1');
@@ -1256,8 +1256,12 @@
     var stVis = +v('RacingDesk.Plugin.Strategy.Visible') || 0;
     if (stVis && !_strategyWasVisible && !cmVis) {
       // Show strategy call through the commentary panel with amber hue (45)
-      var stLabel = vs('RacingDesk.Plugin.Strategy.Label') || 'STRATEGY';
+      // The strategist's label and call in sentence case, whatever the host wrote them in (a plugin from before this
+      // sends FUEL and "FUEL CRITICAL"); the call keeps the abbreviations a car shows (its old "ABS/TC working overtime").
+      var stLabel = vs('RacingDesk.Plugin.Strategy.Label') || 'Strategy';
+      if (window.RacingDeskWords) stLabel = window.RacingDeskWords.sentenceCase(stLabel);
       var stText  = vs('RacingDesk.Plugin.Strategy.Text') || '';
+      if (window.RacingDeskWords) stText = window.RacingDeskWords.labelCase(stText);
       var stSev   = +v('RacingDesk.Plugin.Strategy.Severity') || 1;
       if (stText) {
         showCommentary(45, stLabel, stText, 'strategy', 'strategy_call', stSev);

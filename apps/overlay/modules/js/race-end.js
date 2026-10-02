@@ -42,14 +42,14 @@
     // Title / subtitle / tint
     let title, subtitle = null, tint;
     if (isDNF) {
-      title = 'TOUGH BREAK'; subtitle = 'Every lap is a lesson. Regroup and go again.'; tint = 'purple';
+      title = 'Tough break'; subtitle = 'Every lap is a lesson. Regroup and go again.'; tint = 'purple';
     } else if (finishType === 'podium') {
-      title = pos === 1 ? 'VICTORY!' : 'PODIUM FINISH!';
+      title = pos === 1 ? 'Victory!' : 'Podium finish!';
       tint = pos === 1 ? 'gold' : pos === 2 ? 'silver' : 'bronze';
     } else if (finishType === 'strong') {
-      title = 'STRONG FINISH'; tint = 'green';
+      title = 'Strong finish'; tint = 'green';
     } else {
-      title = 'RACE COMPLETE'; tint = 'neutral';
+      title = 'Race complete'; tint = 'neutral';
     }
 
     // Position the race end screen over the HUD bounds

@@ -1,8 +1,8 @@
 /**
  * The car's controls by the canonical list (modules/js/car-controls.js): what the host sends as
- * RacingDesk.Plugin.CarControls, and what the HUD makes of it — each of the three as NONE, OFF, ON, a value or a
- * mode, with the car's own label; the car's other controls in a row of their own; DRS and push-to-pass with the
- * spotter's word. First the module by itself, in Node; then the real dashboard.html, headless, fed a payload.
+ * RacingDesk.Plugin.CarControls, and what the HUD makes of it — each of the three as None, Off, On, a value or a
+ * mode, in words where they fit (Anti-lock, Bias, Traction slip) and else with the car's own label; the car's other
+ * controls in a row of their own; DRS and push-to-pass with the spotter's word. First the module by itself, in Node; then the real dashboard.html, headless, fed a payload.
  * Without the key the panel is as it was before there was a list, which is what the golden frames hold it to.
  *
  * The cars are not typed here. They are read from fixtures/car-controls-wire.json, which the host's own tests
@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { MOCK_TELEMETRY } from '../helpers.mjs';
 
 const require = createRequire(import.meta.url);
-const { KEY, ROOM, read, view, arrange, labelPlan, signals, textOf, fillOf, announced } = require('../../modules/js/car-controls.js');
+const { KEY, ROOM, read, view, arrange, labelPlan, signals, textOf, fillOf, announced, chooseForm, fitsWhole } = require('../../modules/js/car-controls.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DASHBOARD = pathToFileURL(path.resolve(__dirname, '..', '..', 'dashboard.html')).href;
@@ -26,9 +26,9 @@ const WIRE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'car-co
 
 // What the host sends for the fixture's cars (see the file above for what each shows).
 const GTP = WIRE['porsche963gtp'];              // ABS none; TCLO/TCLA, MIG, the bars; a fixed setup holds the traction control
-const MCLAREN_570S = WIRE['mclaren570sgt4'];    // one dial for ABS, traction and stability: TRACK
+const MCLAREN_570S = WIRE['mclaren570sgt4'];    // one dial for ABS, traction and stability: Track
 const MX5 = WIRE['mx5 mx52016'];                // ABS on, the rest none
-const M2 = WIRE['bmwm2csr'];                    // DSC is a word: ON; MDM and OFF below
+const M2 = WIRE['bmwm2csr'];                    // DSC (Stability) is a word: On; MDM and Off below
 const M2_MDM = WIRE['bmwm2csr mdm'];
 const M2_OFF = WIRE['bmwm2csr off'];
 const GT3 = WIRE['madeup gt3'];                 // ABS off, held; TC1 4
@@ -39,7 +39,7 @@ const P2P_ON = WIRE['madeup formula p2p on'];
 
 const withControls = (cc, extra = {}) => ({ ...MOCK_TELEMETRY, [KEY]: cc, 'DataCorePlugin.GameData.CarModel': cc.name, ...extra });
 const drs = (status) => DRS[status];
-const p2p = (active, count) => ({ ...FORMULA, p2p: { ...(active ? P2P_ON.p2p : FORMULA.p2p), count, text: active ? 'ON' : String(count) } });
+const p2p = (active, count) => ({ ...FORMULA, p2p: { ...(active ? P2P_ON.p2p : FORMULA.p2p), count, text: active ? 'On' : String(count) } });
 
 // ── The module by itself ──
 
@@ -76,8 +76,17 @@ test.describe('read: what the host sent', () => {
 });
 
 test.describe('textOf, fillOf, announced: what a reading shows', () => {
-  test('the host\'s text, or its number, or a dash for one that says nothing', () => {
-    expect(textOf({ text: 'TRACK', value: 0 })).toBe('TRACK');
+  test('the host\'s text in sentence case, or its number, or a dash for one that says nothing', () => {
+    expect(textOf({ text: 'Track', value: 0 })).toBe('Track');
+    // A SimHub plugin from before the change sends its words in capitals: shown in sentence case, an acronym as one.
+    expect(textOf({ text: 'TRACK', value: 0 })).toBe('Track');
+    expect(textOf({ state: 'none', text: 'NONE' })).toBe('None');
+    expect(textOf({ state: 'on', text: 'ON' })).toBe('On');
+    expect(textOf({ state: 'off', text: 'OFF', value: 0 })).toBe('Off');
+    expect(textOf({ state: 'value', text: 'MDM', value: 1 })).toBe('MDM');
+    expect(textOf({ state: 'value', text: 'SPORT+', value: 2 })).toBe('Sport+');
+    expect(textOf({ state: 'value', text: 'NOT AVAILABLE', value: 0 })).toBe('Not available');
+    expect(textOf({ state: 'value', text: '25%', value: 25 })).toBe('25%');
     expect(textOf({ value: 4 })).toBe('4');
     expect(textOf({ value: 0 })).toBe('0');
     expect(textOf({ text: '', value: 5 })).toBe('5');
@@ -107,7 +116,8 @@ test.describe('textOf, fillOf, announced: what a reading shows', () => {
   });
 
   test('the spotter\'s value: the text as shown, else the number, else nothing', () => {
-    expect(announced({ text: 'SPORT', value: 1 })).toBe('SPORT');
+    expect(announced({ text: 'Sport', value: 1 })).toBe('Sport');
+    expect(announced({ text: 'SPORT', value: 1 })).toBe('Sport');
     expect(announced({ value: 6 })).toBe('6');
     expect(announced({ value: 0 })).toBe('0');
     expect(announced({})).toBe('');
@@ -116,12 +126,12 @@ test.describe('textOf, fillOf, announced: what a reading shows', () => {
 });
 
 test.describe('view: the panel, cell by cell', () => {
-  test('NONE, a value with the car\'s label, and the car\'s other controls in the list\'s order', () => {
+  test('None, a value with the car\'s label, and the car\'s other controls in the list\'s order', () => {
     const v = view(GTP);
     expect(v.primary.map((c) => [c.slot, c.label, c.text, c.state, c.hidden, c.locked])).toEqual([
       ['bb', 'BB', '48.25', 'value', false, false],
       ['tc', 'TCLO', '5', 'value', false, true],
-      ['abs', 'ABS', 'NONE', 'none', false, false],
+      ['abs', 'ABS', 'None', 'none', false, false],
     ]);
     expect(v.primary[1].fill).toBeCloseTo(0.364, 3);
     expect(v.primary[0].fill).toBeCloseTo(0.412, 3);
@@ -143,27 +153,27 @@ test.describe('view: the panel, cell by cell', () => {
   test('a mode stands in for the cells it covers', () => {
     const v = view(MCLAREN_570S);
     expect(v.primary.map((c) => [c.slot, c.state, c.hidden, c.by])).toEqual([['bb', 'none', false, null], ['tc', 'mode', true, 'ESC'], ['abs', 'mode', true, 'ESC']]);
-    expect(v.modes).toEqual([expect.objectContaining({ id: 'mode', label: 'ESC', text: 'TRACK', state: 'value', value: 0 })]);
+    expect(v.modes).toEqual([expect.objectContaining({ id: 'mode', label: 'ESC', words: 'Assists', text: 'Track', state: 'value', value: 0 })]);
     expect(v.more).toEqual([]);
   });
 
-  test('a dial that is a word shows the word, and its off position is OFF', () => {
+  test('a dial that is a word shows the word, and its off position is Off', () => {
     const v = view(M2);
-    expect(v.primary.map((c) => [c.label, c.text, c.state])).toEqual([['BB', 'NONE', 'none'], ['DSC', 'ON', 'value'], ['ABS', 'ON', 'on']]);
+    expect(v.primary.map((c) => [c.label, c.text, c.state])).toEqual([['BB', 'None', 'none'], ['DSC', 'On', 'value'], ['ABS', 'On', 'on']]);
     expect(view(M2_MDM).primary[1]).toEqual(expect.objectContaining({ label: 'DSC', text: 'MDM', state: 'value', fill: 0 }));
-    expect(view(M2_OFF).primary[1]).toEqual(expect.objectContaining({ label: 'DSC', text: 'OFF', state: 'off', fill: 0 }));
+    expect(view(M2_OFF).primary[1]).toEqual(expect.objectContaining({ label: 'DSC', text: 'Off', state: 'off', fill: 0 }));
   });
 
-  test('ON for ABS the driver cannot turn, OFF for a dial at its off position', () => {
-    expect(view(MX5).primary.map((c) => [c.label, c.text, c.state])).toEqual([['BB', 'NONE', 'none'], ['TC', 'NONE', 'none'], ['ABS', 'ON', 'on']]);
+  test('On for ABS the driver cannot turn, Off for a dial at its off position', () => {
+    expect(view(MX5).primary.map((c) => [c.label, c.text, c.state])).toEqual([['BB', 'None', 'none'], ['TC', 'None', 'none'], ['ABS', 'On', 'on']]);
     const gt3 = view(GT3);
-    expect(gt3.primary[2]).toEqual(expect.objectContaining({ label: 'ABS', text: 'OFF', state: 'off', fill: 0, locked: true }));
+    expect(gt3.primary[2]).toEqual(expect.objectContaining({ label: 'ABS', text: 'Off', state: 'off', fill: 0, locked: true }));
     expect(gt3.primary[1]).toEqual(expect.objectContaining({ label: 'TC1', text: '4', locked: true }));
     expect(gt3.primary[0]).toEqual(expect.objectContaining({ label: 'BB', text: '56.2', locked: false }));
   });
 
   test('a formula car has neither ABS nor traction control, and its bias has a name of its own', () => {
-    expect(view(FORMULA).primary.map((c) => [c.label, c.text, c.state])).toEqual([['BBAL', '55.0', 'value'], ['TC', 'NONE', 'none'], ['ABS', 'NONE', 'none']]);
+    expect(view(FORMULA).primary.map((c) => [c.label, c.text, c.state])).toEqual([['BBAL', '55.0', 'value'], ['TC', 'None', 'none'], ['ABS', 'None', 'none']]);
   });
 
   test('a cell the host said nothing of shows a dash and its usual label', () => {
@@ -175,7 +185,7 @@ test.describe('view: the panel, cell by cell', () => {
     const v = view(GT3_UNREAD);
     expect(v.primary[2]).toEqual(expect.objectContaining({ label: 'ABS', text: '—', state: 'unread', fill: 0, value: null, locked: false }));
     expect(v.primary[1]).toEqual(expect.objectContaining({ label: 'TC1', text: '4', state: 'value' }));
-    expect(v.more).toEqual([expect.objectContaining({ id: 'throttleMap', label: 'MAP', text: '—', state: 'unread', value: null, fill: 0 })]);
+    expect(v.more).toEqual([expect.objectContaining({ id: 'throttleMap', label: 'Map', words: 'Throttle map', text: '—', state: 'unread', value: null, fill: 0 })]);
     // Whatever the host put beside it: an unread reading has no value to show.
     expect(textOf({ state: 'unread', value: 4, text: '4' })).toBe('—');
     expect(fillOf({ state: 'unread', value: 4, fill: 0.5 }, 'tc')).toBe(0);
@@ -190,23 +200,55 @@ test.describe('view: the panel, cell by cell', () => {
   test('DRS and push-to-pass come last, with whether they are ready or on', () => {
     const off = view(FORMULA);
     expect(off.more.map((c) => [c.id, c.label, c.text, c.state, c.active, c.ready, c.count])).toEqual([
-      ['drs', 'DRS', 'OFF', 'off', false, false, null],
+      ['drs', 'DRS', 'Off', 'off', false, false, null],
       ['p2p', 'OT', '65', 'off', false, false, 65],
     ]);
-    expect(view(drs(1)).more[0]).toEqual(expect.objectContaining({ text: 'NEXT', ready: true, active: false }));
-    expect(view(drs(2)).more[0]).toEqual(expect.objectContaining({ text: 'READY', ready: true, active: false }));
-    expect(view(drs(3)).more[0]).toEqual(expect.objectContaining({ text: 'OPEN', ready: false, active: true }));
-    expect(view(p2p(true, 64)).more[1]).toEqual(expect.objectContaining({ text: 'ON', active: true, count: 64 }));
+    expect(view(drs(1)).more[0]).toEqual(expect.objectContaining({ text: 'Next', ready: true, active: false }));
+    expect(view(drs(2)).more[0]).toEqual(expect.objectContaining({ text: 'Ready', ready: true, active: false }));
+    expect(view(drs(3)).more[0]).toEqual(expect.objectContaining({ text: 'Open', ready: false, active: true }));
+    expect(view(p2p(true, 64)).more[1]).toEqual(expect.objectContaining({ text: 'On', active: true, count: 64 }));
   });
 
   test('a car with no DRS and no push-to-pass has neither cell, whatever else it has', () => {
     for (const cc of [GTP, MCLAREN_570S, MX5, M2, GT3]) expect(view(cc).more.filter((c) => c.id === 'drs' || c.id === 'p2p'), cc.car).toEqual([]);
   });
+
+  test('each cell in words where the list gives them, his words for the three, and the car\'s own label beside them', () => {
+    // He asked on 2026-10-02: ABS anti-lock, BB bias, TC traction, MIG migration, ARB rollbar.
+    const v = view(GTP);
+    expect(v.primary.map((c) => [c.label, c.words])).toEqual([['BB', 'Bias'], ['TCLO', 'Traction slip'], ['ABS', 'Anti-lock']]);
+    expect(v.more.map((c) => [c.label, c.words, c.mark])).toEqual([['MIG', 'Migration', null], ['TCLA', 'Traction gain', null], ['FARB', 'Front rollbar', 'F'], ['RARB', 'Rear rollbar', 'R']]);
+    expect(view(MX5).primary.map((c) => c.words)).toEqual(['Bias', 'Traction', 'Anti-lock']);
+    expect(view(M2).primary[1].words).toEqual('Stability');
+    expect(view(FORMULA).more.map((c) => [c.label, c.words])).toEqual([['DRS', null], ['OT', 'Overtake']]);
+    // A host from before the list had words (an old SimHub plugin): the label in sentence case, an acronym kept, and
+    // words from the control's id where its meaning is the same in every car.
+    const old = view({ car: 'x', bb: { id: 'brakeBias', label: 'BRAKE BIAS', state: 'value', value: 55, text: '55.0' }, tc: { id: 'tc', label: 'TCLO', state: 'value', value: 4, text: '4' },
+      abs: { id: 'abs', label: 'ABS', state: 'none', text: 'NONE' }, more: [{ id: 'tcToggle', label: 'TC TOGGLE', state: 'value', value: 0, text: '0' }, { id: 'arbFront', label: 'AR-F', state: 'value', value: 1, text: '1' }] });
+    expect(old.primary.map((c) => [c.label, c.words, c.text])).toEqual([['Brake bias', 'Bias', '55.0'], ['TCLO', null, '4'], ['ABS', 'Anti-lock', 'None']]);
+    expect(old.more.map((c) => [c.label, c.words])).toEqual([['TC toggle', null], ['AR-F', 'Front rollbar']]);
+  });
+
+  test('a cell shows the longest form that is whole at its size: the words, a rollbar\'s short word with its mark, the car\'s label', () => {
+    const across = (cols, size) => ({ cols, compact: size !== 'full', tight: size === 'tight' });
+    const cell = (words, label, mark = null, locked = false) => ({ words, label, mark, locked });
+    // Three across at the full size: every word of the list is whole.
+    expect(chooseForm(cell('Front rollbar', 'FARB', 'F'), across(3, 'full'))).toEqual({ text: 'Front rollbar', mark: null });
+    expect(chooseForm(cell('Traction slip', 'TCLO', null, true), across(3, 'full'))).toEqual({ text: 'Traction slip', mark: null });
+    // Words too long for a cell at the floor give way: a rollbar to its short word and its mark, the rest to the label.
+    expect(fitsWhole('Frontrollbarrollbar', false, across(5, 'tight'))).toBe(false);
+    expect(chooseForm(cell('Frontrollbarrollbar', 'FARB', 'F'), across(5, 'tight'))).toEqual({ text: 'Rollbar', mark: 'F' });
+    expect(chooseForm(cell('Differentialpreloadsetting', 'PL'), across(5, 'tight'))).toEqual({ text: 'PL', mark: null });
+    // No form whole: the one that needs the least width.
+    expect(chooseForm(cell('Rear lateral slip', 'Rear TC lateral slip'), across(5, 'tight')).text).toBe('Rear lateral slip');
+    // In the glance layout the page measures: the words come first.
+    expect(chooseForm(cell('Front rollbar', 'FARB', 'F'), null)).toEqual({ text: 'Front rollbar', mark: null });
+  });
 });
 
 // A car's controls with `n` other dials beside the three (brakeBias, tc, abs as given), for the room rule.
 function withDials(n, { abs = 'value', tc = 'value', bb = 'value' } = {}) {
-  const reading = (id, label, state) => (state === 'none' ? { id, label, state: 'none', text: 'NONE' } : { id, label, state: 'value', value: 3, text: '3' });
+  const reading = (id, label, state) => (state === 'none' ? { id, label, state: 'none', text: 'None' } : { id, label, state: 'value', value: 3, text: '3' });
   const more = Array.from({ length: n }, (_, i) => reading('dial' + (i + 1), 'D' + (i + 1), 'value'));
   return { car: 'many', name: 'Many Dials', kind: 'gt', abs: reading('abs', 'ABS', abs), tc: reading('tc', 'TC', tc), bb: reading('brakeBias', 'BB', bb), more };
 }
@@ -297,7 +339,7 @@ test.describe('arrange: which cells the rig\'s panel has room for', () => {
     // Eleven of the car's own and DRS and push-to-pass after them in the panel's order: fourteen real cells.
     const cc = {
       ...withDials(9),
-      drs: { id: 'drs', label: 'DRS', state: 'off', value: 0, text: 'OFF' },
+      drs: { id: 'drs', label: 'DRS', state: 'off', value: 0, text: 'Off' },
       p2p: { id: 'p2p', label: 'P2P', state: 'value', value: 1, text: '120', count: 120 },
     };
     const fit = arrange(view(cc));
@@ -364,12 +406,15 @@ test.describe('signals: the spotter\'s word', () => {
   });
 
   test('push-to-pass: on with the seconds left, off, used up', () => {
-    expect(signals(p2p(false, 65), p2p(true, 64))).toEqual([{ msg: 'OT on — 64s left', severity: 'sp-clear', header: 'Push to pass', category: 'p2p' }]);
-    expect(signals(p2p(true, 40), p2p(false, 40))).toEqual([{ msg: 'OT off — 40s left', severity: 'sp-warn', header: 'Push to pass', category: 'p2p' }]);
-    expect(signals(p2p(true, 1), p2p(false, 0))).toEqual([expect.objectContaining({ msg: 'OT off — 0s left' })]);
-    expect(signals(p2p(false, 1), p2p(false, 0))).toEqual([{ msg: 'OT used up', severity: 'sp-danger', header: 'Push to pass', category: 'p2p' }]);
+    expect(signals(p2p(false, 65), p2p(true, 64))).toEqual([{ msg: 'Overtake on — 64s left', severity: 'sp-clear', header: 'Push to pass', category: 'p2p' }]);
+    expect(signals(p2p(true, 40), p2p(false, 40))).toEqual([{ msg: 'Overtake off — 40s left', severity: 'sp-warn', header: 'Push to pass', category: 'p2p' }]);
+    expect(signals(p2p(true, 1), p2p(false, 0))).toEqual([expect.objectContaining({ msg: 'Overtake off — 0s left' })]);
+    expect(signals(p2p(false, 1), p2p(false, 0))).toEqual([{ msg: 'Overtake used up', severity: 'sp-danger', header: 'Push to pass', category: 'p2p' }]);
     expect(signals(p2p(false, 65), p2p(false, 65))).toEqual([]);
-    expect(signals(p2p(false, undefined), p2p(true, undefined))).toEqual([expect.objectContaining({ msg: 'OT on' })]);
+    expect(signals(p2p(false, undefined), p2p(true, undefined))).toEqual([expect.objectContaining({ msg: 'Overtake on' })]);
+    // A host with no words for it: the car's own label.
+    const bare = (active, count) => { const cc = p2p(active, count); return { ...cc, p2p: { ...cc.p2p, words: undefined } }; };
+    expect(signals(bare(false, 65), bare(true, 64))).toEqual([expect.objectContaining({ msg: 'OT on — 64s left' })]);
   });
 
   test('a car without the systems says nothing of them', () => {
@@ -426,85 +471,85 @@ const glow = (page) => page.evaluate(() => ({
 }));
 
 test.describe('the page', () => {
-  test('a GTP car: ABS none, the dials by the car\'s own names, the rest in a row beneath', async ({ page }) => {
+  test('a GTP car: ABS none, the dials in words (TCLO is Traction slip), the rest in a row beneath', async ({ page }) => {
     await openWith(page, withControls(GTP));
-    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('TCLO');
+    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('Traction slip');
     const p = await panel(page);
     expect(p.listed).toBe(true);
     expect(p.noAdj).toBe(false);
     // ABS NONE: six real cells fill the rig panel's two rows at the full size, so the NONE cell is omitted (the room
     // rule, below) — drawn all the same, with the host's word, for the glance layout and for a car with room.
     expect(p.cells.map((c) => [c.id, c.label, c.value, c.shown])).toEqual([
-      ['ctrlBB', 'BB', '48.25', true], ['ctrlTC', 'TCLO', '5', true], ['ctrlABS', 'ABS', 'NONE', false],
+      ['ctrlBB', 'Bias', '48.25', true], ['ctrlTC', 'Traction slip', '5', true], ['ctrlABS', 'Anti-lock', 'None', false],
     ]);
     expect(p.cells[1].classes).toEqual(['ctrl-locked']);
     expect(p.cells[1].pct).toBe('36%');
     expect(p.cells[2].classes).toEqual(['ctrl-none', 'ctrl-omitted']);
     expect(p.cells[2].valueClasses).toEqual(['ctrl-value-fixed']);
     expect(p.hasMore).toBe(true);
-    expect(p.more.map((c) => [c.id, c.label, c.value])).toEqual([['brakeMigration', 'MIG', '-2'], ['tc2', 'TCLA', '4'], ['arbFront', 'FARB', '1'], ['arbRear', 'RARB', '15']]);
+    expect(p.more.map((c) => [c.id, c.label, c.value])).toEqual([['brakeMigration', 'Migration', '-2'], ['tc2', 'Traction gain', '4'], ['arbFront', 'Front rollbar', '1'], ['arbRear', 'Rear rollbar', '15']]);
     // Traction control's second dial is held by the fixed setup as the first is; the migration and the bars are his.
     expect(p.more.map((c) => c.classes.includes('ctrl-mini-locked'))).toEqual([false, true, false, false]);
   });
 
   test('the same car sent as text, as the WebSocket feed sends it, is the same panel', async ({ page }) => {
     await openWith(page, withControls(JSON.stringify(GTP), { 'DataCorePlugin.GameData.CarModel': GTP.name }));
-    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('TCLO');
+    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('Traction slip');
     const p = await panel(page);
-    expect(p.cells.map((c) => [c.label, c.value])).toEqual([['BB', '48.25'], ['TCLO', '5'], ['ABS', 'NONE']]);
-    expect(p.more.map((c) => c.label)).toEqual(['MIG', 'TCLA', 'FARB', 'RARB']);
+    expect(p.cells.map((c) => [c.label, c.value])).toEqual([['Bias', '48.25'], ['Traction slip', '5'], ['Anti-lock', 'None']]);
+    expect(p.more.map((c) => c.label)).toEqual(['Migration', 'Traction gain', 'Front rollbar', 'Rear rollbar']);
   });
 
   test('a car whose dial is a mode shows the mode, and the cells it covers take no space', async ({ page }) => {
     await openWith(page, withControls(MCLAREN_570S));
-    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('TRACK');
+    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('Track');
     const p = await panel(page);
     expect(p.cells.map((c) => [c.id, c.label, c.value, c.shown])).toEqual([
-      ['ctrlBB', 'BB', 'NONE', true], ['ctrlTC', 'TC', '—', false], ['ctrlABS', 'ABS', '—', false], ['ctrlMode', 'ESC', 'TRACK', true],
+      ['ctrlBB', 'Bias', 'None', true], ['ctrlTC', 'Traction', '—', false], ['ctrlABS', 'Anti-lock', '—', false], ['ctrlMode', 'Assists', 'Track', true],
     ]);
     expect(p.cells[3].classes).toEqual(['ctrl-mode']);
     expect(p.cells[3].valueClasses).toEqual(['ctrl-value-fixed']);
     expect(p.hasMore).toBe(false);
   });
 
-  test('ABS the driver cannot turn is ON; a car with nothing to turn reads NONE, not "no adjustments"', async ({ page }) => {
+  test('Anti-lock the driver cannot turn is On; a car with nothing to turn reads None, not "no adjustments"', async ({ page }) => {
     await openWith(page, withControls(MX5));
-    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('ON');
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('On');
     const p = await panel(page);
-    expect(p.cells.map((c) => [c.label, c.value, c.classes])).toEqual([['BB', 'NONE', ['ctrl-none']], ['TC', 'NONE', ['ctrl-none']], ['ABS', 'ON', ['ctrl-on']]]);
+    expect(p.cells.map((c) => [c.label, c.value, c.classes])).toEqual([['Bias', 'None', ['ctrl-none']], ['Traction', 'None', ['ctrl-none']], ['Anti-lock', 'On', ['ctrl-on']]]);
     expect(p.noAdj).toBe(false);
     expect(p.hasMore).toBe(false);
   });
 
   test('a formula car: no ABS, no traction control, and the bias by its own name', async ({ page }) => {
     await openWith(page, withControls(FORMULA));
-    await expect(page.locator('#ctrlBB .ctrl-label')).toHaveText('BBAL');
+    await expect(page.locator('#ctrlBB .ctrl-label')).toHaveText('Bias');
     const p = await panel(page);
     // Its real cells are the bias, DRS and push-to-pass: a row of three. The two NONE cells have no slot left in it, so
     // they are omitted (kept in the panel, not shown).
     expect(p.cells.map((c) => [c.id, c.label, c.value, c.classes])).toEqual([
-      ['ctrlBB', 'BBAL', '55.0', []], ['ctrlTC', 'TC', 'NONE', ['ctrl-none', 'ctrl-omitted']], ['ctrlABS', 'ABS', 'NONE', ['ctrl-none', 'ctrl-omitted']],
+      ['ctrlBB', 'Bias', '55.0', []], ['ctrlTC', 'Traction', 'None', ['ctrl-none', 'ctrl-omitted']], ['ctrlABS', 'Anti-lock', 'None', ['ctrl-none', 'ctrl-omitted']],
     ]);
     expect(p.cells.map((c) => c.shown)).toEqual([true, false, false]);
     expect(p.noAdj).toBe(false);
   });
 
-  test('ABS off in a fixed setup is OFF, and marked as held', async ({ page }) => {
+  test('Anti-lock off in a fixed setup is Off, and marked as held', async ({ page }) => {
     await openWith(page, withControls(GT3));
-    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('OFF');
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('Off');
     const p = await panel(page);
     expect(p.cells[2].classes).toEqual(['ctrl-locked', 'ctrl-off']);
     expect(p.cells[2].pct).toBe('0%');
     expect(p.cells[1].classes).toEqual(['ctrl-locked']);
     expect(p.cells[0].classes).toEqual([]);
-    expect(p.more.map((c) => [c.label, c.value])).toEqual([['MAP', '2']]);
+    expect(p.more.map((c) => [c.label, c.value])).toEqual([['Throttle map', '2']]);
   });
 
-  test('a dial that is a word: ON, then MDM by name, then OFF, each announced with the car\'s word', async ({ page }) => {
+  test('a dial that is a word: On, then MDM by name, then Off, each announced in words', async ({ page }) => {
     await openWith(page, withControls(M2));
-    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('DSC');
+    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('Stability');
     let p = await panel(page);
-    expect(p.cells.map((c) => [c.label, c.value, c.classes])).toEqual([['BB', 'NONE', ['ctrl-none']], ['DSC', 'ON', []], ['ABS', 'ON', ['ctrl-on']]]);
+    expect(p.cells.map((c) => [c.label, c.value, c.classes])).toEqual([['Bias', 'None', ['ctrl-none']], ['Stability', 'On', []], ['Anti-lock', 'On', ['ctrl-on']]]);
 
     await serve(page, withControls(M2_MDM));
     await expect(page.locator('#ctrlTC .ctrl-value')).toHaveText('MDM');
@@ -512,60 +557,60 @@ test.describe('the page', () => {
     expect(p.cells[1].valueClasses).toEqual(['ctrl-value-fixed']);
     expect(p.cells[1].pct, 'a name is not a quantity: no bar').toBe('0%');
     await serve(page, withControls(M2_OFF));
-    await expect(page.locator('#ctrlTC .ctrl-value')).toHaveText('OFF');
+    await expect(page.locator('#ctrlTC .ctrl-value')).toHaveText('Off');
     p = await panel(page);
     expect(p.cells[1].classes).toEqual(['ctrl-off']);
     expect(p.cells[1].pct).toBe('0%');
     await expect.poll(() => spotter(page).then((s) => s.filter((c) => c.header === 'Adjustment').map((c) => c.msg)))
-      .toEqual(expect.arrayContaining(['DSC ▼ OFF']));
+      .toEqual(expect.arrayContaining(['Stability ▼ Off']));
   });
 
-  test('a change is flashed and announced with the car\'s own word', async ({ page }) => {
+  test('a change is flashed and announced in words', async ({ page }) => {
     await openWith(page, withControls(GTP));
     await expect(page.locator('#ctrlTC .ctrl-value')).toHaveText('5');
     await serve(page, withControls({ ...GTP, tc: { ...GTP.tc, value: 6, text: '6' }, more: [{ ...GTP.more[0], value: -1, text: '-1' }, ...GTP.more.slice(1)] }));
     await expect(page.locator('#ctrlTC .ctrl-value')).toHaveText('6');
     await expect.poll(() => spotter(page)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ header: 'Adjustment', msg: 'TCLO ▲ 6', adj: 'tc' }),
-      expect.objectContaining({ header: 'Adjustment', msg: 'MIG ▲ -1', adj: 'brakeMigration' }),
+      expect.objectContaining({ header: 'Adjustment', msg: 'Traction slip ▲ 6', adj: 'tc' }),
+      expect.objectContaining({ header: 'Adjustment', msg: 'Migration ▲ -1', adj: 'brakeMigration' }),
     ]));
     expect(await page.evaluate(() => document.querySelector('[data-id="brakeMigration"]').classList.contains('ctrl-mini-changed'))).toBe(true);
 
-    await serve(page, withControls({ ...MCLAREN_570S, more: [{ ...MCLAREN_570S.more[0], value: 1, text: 'SPORT' }] }));
-    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('SPORT');
+    await serve(page, withControls({ ...MCLAREN_570S, more: [{ ...MCLAREN_570S.more[0], value: 1, text: 'Sport' }] }));
+    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('Sport');
     await serve(page, withControls(MCLAREN_570S));
-    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('TRACK');
-    await expect.poll(() => spotter(page)).toEqual(expect.arrayContaining([expect.objectContaining({ msg: 'ESC ▼ TRACK', adj: 'mode' })]));
+    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('Track');
+    await expect.poll(() => spotter(page)).toEqual(expect.arrayContaining([expect.objectContaining({ msg: 'Assists ▼ Track', adj: 'mode' })]));
   });
 
-  test('the anti-roll bars are announced by their own names', async ({ page }) => {
+  test('the rollbars are announced in words', async ({ page }) => {
     await openWith(page, withControls(GTP));
     await expect(page.locator('[data-id="arbRear"] .ctrl-mini-value')).toHaveText('15');
     const bars = (front, rear) => withControls({ ...GTP, more: GTP.more.map((m) => m.id === 'arbFront' ? { ...m, value: front, text: String(front) } : m.id === 'arbRear' ? { ...m, value: rear, text: String(rear) } : m) });
     await serve(page, bars(2, 14));
     await expect(page.locator('[data-id="arbRear"] .ctrl-mini-value')).toHaveText('14');
-    await expect.poll(() => spotter(page).then((s) => s.map((c) => c.msg))).toEqual(expect.arrayContaining(['FARB ▲ 2', 'RARB ▼ 14']));
+    await expect.poll(() => spotter(page).then((s) => s.map((c) => c.msg))).toEqual(expect.arrayContaining(['Front rollbar ▲ 2', 'Rear rollbar ▼ 14']));
   });
 
   test('DRS and push-to-pass: their cells, and the spotter as they change', async ({ page }) => {
     await openWith(page, withControls(FORMULA));
-    await expect(page.locator('[data-id="drs"] .ctrl-mini-value')).toHaveText('OFF');
-    expect((await panel(page)).more.map((c) => [c.id, c.label, c.value, c.classes])).toEqual([['drs', 'DRS', 'OFF', ['ctrl-mini-off']], ['p2p', 'OT', '65', ['ctrl-mini-off']]]);
+    await expect(page.locator('[data-id="drs"] .ctrl-mini-value')).toHaveText('Off');
+    expect((await panel(page)).more.map((c) => [c.id, c.label, c.value, c.classes])).toEqual([['drs', 'DRS', 'Off', ['ctrl-mini-off']], ['p2p', 'Overtake', '65', ['ctrl-mini-off']]]);
 
     await serve(page, withControls(drs(1)));
-    await expect(page.locator('[data-id="drs"] .ctrl-mini-value')).toHaveText('NEXT');
+    await expect(page.locator('[data-id="drs"] .ctrl-mini-value')).toHaveText('Next');
     await expect.poll(() => spotter(page)).toEqual(expect.arrayContaining([expect.objectContaining({ header: 'DRS', msg: 'DRS next zone', cat: 'drs' })]));
     await serve(page, withControls(drs(2)));
     await expect(page.locator('[data-id="drs"]')).toHaveClass(/ctrl-mini-ready/);
     await expect.poll(() => spotter(page).then((s) => s.filter((c) => c.cat === 'drs').map((c) => c.msg))).toEqual(['DRS — open it']);
     await serve(page, withControls(drs(3)));
     await expect(page.locator('[data-id="drs"]')).toHaveClass(/ctrl-mini-active/);
-    await expect(page.locator('[data-id="drs"] .ctrl-mini-value')).toHaveText('OPEN');
+    await expect(page.locator('[data-id="drs"] .ctrl-mini-value')).toHaveText('Open');
 
     await serve(page, withControls(p2p(true, 64)));
-    await expect(page.locator('[data-id="p2p"] .ctrl-mini-value')).toHaveText('ON');
+    await expect(page.locator('[data-id="p2p"] .ctrl-mini-value')).toHaveText('On');
     await expect(page.locator('[data-id="p2p"]')).toHaveClass(/ctrl-mini-active/);
-    await expect.poll(() => spotter(page).then((s) => s.filter((c) => c.cat === 'p2p').map((c) => c.msg))).toEqual(['OT on — 64s left']);
+    await expect.poll(() => spotter(page).then((s) => s.filter((c) => c.cat === 'p2p').map((c) => c.msg))).toEqual(['Overtake on — 64s left']);
     const adjustments = (await spotter(page)).filter((c) => c.header === 'Adjustment');
     expect(adjustments).toEqual([]);
   });
@@ -573,7 +618,7 @@ test.describe('the page', () => {
   test('a car with neither shows neither, and the spotter is left alone by what it publishes', async ({ page }) => {
     // Every car publishes the push-to-pass variables; the host says nothing of them for a car that has none.
     await openWith(page, withControls(GTP, { 'DataCorePlugin.GameRawData.Telemetry.P2P_Status': 1, 'DataCorePlugin.GameRawData.Telemetry.P2P_Count': 65, 'DataCorePlugin.GameRawData.Telemetry.DRS_Status': 2 }));
-    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('TCLO');
+    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('Traction slip');
     const p = await panel(page);
     expect(p.more.map((c) => c.id)).toEqual(['brakeMigration', 'tc2', 'arbFront', 'arbRear']);
     expect((await spotter(page)).filter((c) => c.header === 'DRS' || c.header === 'Push to pass')).toEqual([]);
@@ -601,20 +646,20 @@ test.describe('the page', () => {
 
   test('another car in the list starts clean: no flash, no word from the spotter, and nothing of the last car\'s left', async ({ page }) => {
     await openWith(page, withControls(MCLAREN_570S));
-    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('TRACK');
+    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('Track');
     await serve(page, withControls(GT3));
-    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('OFF');
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('Off');
     const p = await panel(page);
     expect(p.cells.map((c) => [c.id, c.label, c.value, c.shown])).toEqual([
-      ['ctrlBB', 'BB', '56.2', true], ['ctrlTC', 'TC1', '4', true], ['ctrlABS', 'ABS', 'OFF', true],
+      ['ctrlBB', 'Bias', '56.2', true], ['ctrlTC', 'TC1', '4', true], ['ctrlABS', 'Anti-lock', 'Off', true],
     ]);
-    expect(p.more.map((c) => [c.id, c.label, c.value])).toEqual([['throttleMap', 'MAP', '2']]);
+    expect(p.more.map((c) => [c.id, c.label, c.value])).toEqual([['throttleMap', 'Throttle map', '2']]);
     // Give the spotter time to say something it should not.
     await page.waitForTimeout(400);
     expect((await spotter(page)).filter((c) => c.header === 'Adjustment')).toEqual([]);
 
     await serve(page, withControls(FORMULA));
-    await expect(page.locator('#ctrlBB .ctrl-label')).toHaveText('BBAL');
+    await expect(page.locator('#ctrlBB .ctrl-value')).toHaveText('55.0');
     expect((await panel(page)).more.map((c) => c.id)).toEqual(['drs', 'p2p']);
     await page.waitForTimeout(400);
     expect((await spotter(page)).filter((c) => c.header === 'Adjustment')).toEqual([]);
@@ -625,13 +670,13 @@ test.describe('the page', () => {
     await expect(page.locator('#ctrlBB .ctrl-value')).toHaveText('56.2');
     const before = await panel(page);
     expect(before.listed).toBe(false);
-    expect(before.cells.map((c) => [c.label, c.value, c.classes])).toEqual([['BB', '56.2', []], ['TC', '4', []], ['ABS', '3', []]]);
+    expect(before.cells.map((c) => [c.label, c.value, c.classes])).toEqual([['Bias', '56.2', []], ['Traction', '4', []], ['Anti-lock', '3', []]]);
     expect(before.hasMore).toBe(false);
 
     await serve(page, withControls(GTP));
-    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('TCLO');
+    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('Traction slip');
     await serve(page, MOCK_TELEMETRY);
-    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('TC');
+    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('Traction');
     const after = await panel(page);
     expect(after.listed).toBe(false);
     expect(after.cells.map((c) => [c.id, c.label, c.value, c.classes])).toEqual(before.cells.map((c) => [c.id, c.label, c.value, c.classes]));
@@ -639,11 +684,11 @@ test.describe('the page', () => {
 
     // and from a car with a mode: its cell goes, and the cells it covered are shown again
     await serve(page, withControls(MCLAREN_570S));
-    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('TRACK');
+    await expect(page.locator('#ctrlMode .ctrl-value')).toHaveText('Track');
     await serve(page, MOCK_TELEMETRY);
     await expect(page.locator('#ctrlTC .ctrl-value')).toHaveText('4');
     const back = await panel(page);
-    expect(back.cells.map((c) => [c.id, c.label, c.value, c.shown])).toEqual([['ctrlBB', 'BB', '56.2', true], ['ctrlTC', 'TC', '4', true], ['ctrlABS', 'ABS', '3', true]]);
+    expect(back.cells.map((c) => [c.id, c.label, c.value, c.shown])).toEqual([['ctrlBB', 'Bias', '56.2', true], ['ctrlTC', 'Traction', '4', true], ['ctrlABS', 'Anti-lock', '3', true]]);
   });
 
   test('a car the list does not have is shown as it always was, and nothing is made up', async ({ page }) => {
@@ -662,10 +707,10 @@ test.describe('the page', () => {
     await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('Off');
     const p = await panel(page);
     expect(p.listed).toBe(false);
-    expect(p.cells.map((c) => [c.label, c.value])).toEqual([['BB', '56.2'], ['TC', 'Off'], ['ABS', 'Off']]);
+    expect(p.cells.map((c) => [c.label, c.value])).toEqual([['Bias', '56.2'], ['Traction', 'Off'], ['Anti-lock', 'Off']]);
     for (const cell of p.cells) expect(cell.classes.filter((c) => /^ctrl-(none|on|off|mode|locked)$/.test(c)), cell.label).toEqual([]);
     expect(p.hasMore).toBe(false);
-    expect(await page.evaluate(() => [...document.querySelectorAll('.car-controls *')].some((e) => /^NONE$/.test((e.children.length ? '' : e.textContent).trim())))).toBe(false);
+    expect(await page.evaluate(() => [...document.querySelectorAll('.car-controls *')].some((e) => /^(NONE|None)$/.test((e.children.length ? '' : e.textContent).trim())))).toBe(false);
     await page.waitForTimeout(300);
     expect((await spotter(page)).filter((c) => c.header === 'DRS' || c.header === 'Push to pass')).toEqual([]);
   });
@@ -683,10 +728,10 @@ test.describe('the page', () => {
     await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('—');
     const p = await panel(page);
     expect(p.cells.map((c) => [c.id, c.label, c.value, c.classes])).toEqual([
-      ['ctrlBB', 'BB', '56.2', []], ['ctrlTC', 'TC1', '4', []], ['ctrlABS', 'ABS', '—', ['ctrl-unread']],
+      ['ctrlBB', 'Bias', '56.2', []], ['ctrlTC', 'TC1', '4', []], ['ctrlABS', 'Anti-lock', '—', ['ctrl-unread']],
     ]);
     expect(p.cells[2].pct).toBe('0%');
-    expect(p.more.map((c) => [c.id, c.label, c.value, c.classes])).toEqual([['throttleMap', 'MAP', '—', ['ctrl-mini-unread']]]);
+    expect(p.more.map((c) => [c.id, c.label, c.value, c.classes])).toEqual([['throttleMap', 'Throttle map', '—', ['ctrl-mini-unread']]]);
     expect(await page.evaluate(() => [
       getComputedStyle(document.querySelector('#ctrlABS .ctrl-value')).opacity,
       getComputedStyle(document.querySelector('[data-id="throttleMap"] .ctrl-mini-value')).opacity,
@@ -694,7 +739,7 @@ test.describe('the page', () => {
 
     // The car begins to publish both: the numbers appear, and the spotter says nothing of it (he turned no dial).
     await serve(page, withControls({ ...GT3, fixedSetup: false, abs: { ...GT3.abs, locked: undefined }, tc: { ...GT3.tc, locked: undefined } }));
-    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('OFF');
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('Off');
     await expect(page.locator('[data-id="throttleMap"] .ctrl-mini-value')).toHaveText('2');
     await page.waitForTimeout(400);
     expect((await spotter(page)).filter((c) => c.header === 'Adjustment')).toEqual([]);
@@ -706,7 +751,7 @@ test.describe('the page', () => {
     await expect(page.locator('#ctrlBB .ctrl-value')).toHaveText('56.2');
     let p = await panel(page);
     expect(p.listed).toBe(false);
-    expect(p.cells.map((c) => [c.label, c.value])).toEqual([['BB', '56.2'], ['TC', '4'], ['ABS', '3']]);
+    expect(p.cells.map((c) => [c.label, c.value])).toEqual([['Bias', '56.2'], ['Traction', '4'], ['Anti-lock', '3']]);
     await serve(page, { ...MOCK_TELEMETRY, [KEY]: { car: '' } });
     await serve(page, { ...MOCK_TELEMETRY, [KEY]: ['porsche963gtp'] });
     await page.waitForTimeout(150);
@@ -761,9 +806,9 @@ const room = (page) => page.evaluate(() => {
 });
 
 test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks omitted first', () => {
-  test('a car with nothing to turn: three cells in one row, as wide as each other, NONE last', async ({ page }) => {
+  test('a car with nothing to turn: three cells in one row, as wide as each other, None last', async ({ page }) => {
     await openWith(page, withControls(MX5));
-    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('ON');
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('On');
     await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
     await settled(page);
     const r = await room(page);
@@ -772,13 +817,13 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     expect(new Set(r.cells.map((c) => c.y)).size).toBe(1);
     expect(Math.max(...r.cells.map((c) => c.w)) - Math.min(...r.cells.map((c) => c.w))).toBeLessThanOrEqual(2);
     expect(r.cells.every((c) => c.inside)).toBe(true);
-    // Left to right: the real one, then the two that say NONE.
+    // Left to right: the real one, then the two that say None.
     expect([...r.cells].sort((a, b) => a.x - b.x).map((c) => c.key)).toEqual(['abs', 'bb', 'tc']);
   });
 
   test('a GT3 with a map beside the three: two rows of two inside the panel\'s own height, the pedals as tall as ever', async ({ page }) => {
     await openWith(page, withControls(MX5));
-    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('ON');
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('On');
     await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
     await settled(page);
     const one = await room(page);
@@ -806,7 +851,7 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     // Bias, TC and a toggle (the C6 Corvette\'s three) with ABS NONE: three real cells, one row of three.
     const cc = withDials(1, { abs: 'none' });
     await openWith(page, withControls(MX5));
-    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('ON');
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('On');
     await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
     await settled(page);
     const one = await room(page);
@@ -824,7 +869,7 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
 
   test('a mode is a cell as wide as the others, on the rig', async ({ page }) => {
     await openWith(page, withControls(MCLAREN_570S));
-    await expect(page.locator('#ctrlMode .ctrl-label')).toHaveText('ESC');
+    await expect(page.locator('#ctrlMode .ctrl-label')).toHaveText('Assists');
     await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
     await settled(page);
     const r = await room(page);
@@ -852,7 +897,7 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
 
   test('past six the type steps down to compact, four across; past eight to three rows, and no dial the car has is left out', async ({ page }) => {
     await openWith(page, withControls(MX5));
-    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('ON');
+    await expect(page.locator('#ctrlABS .ctrl-value')).toHaveText('On');
     await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
     await settled(page);
     const one = await room(page);
@@ -892,9 +937,9 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
 
     // Fourteen real: five across in the same three rows, and a dial that is DRS is among them.
     const fourteen = withDials(10);
-    fourteen.drs = { id: 'drs', label: 'DRS', state: 'off', value: 0, text: 'OFF' };
+    fourteen.drs = { id: 'drs', label: 'DRS', state: 'off', value: 0, text: 'Off' };
     await serve(page, withControls(fourteen));
-    await expect(page.locator('[data-id="drs"] .ctrl-mini-value')).toHaveText('OFF');
+    await expect(page.locator('[data-id="drs"] .ctrl-mini-value')).toHaveText('Off');
     await expect.poll(() => room(page).then((x) => x.cols)).toBe('5');
     await settled(page);
     r = await room(page);
@@ -907,16 +952,16 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
 
   test('a word that is wider than its cell is set smaller, and a long label is cut, never the cell', async ({ page }) => {
     const cc = withDials(5);
-    cc.more[0] = { id: 'mguDeploy', label: 'HYS DEPLOY MODE', state: 'value', value: 1, text: 'AUTOMATIC' };
+    cc.more[0] = { id: 'mguDeploy', label: 'HYS deploy mode', state: 'value', value: 1, text: 'Automatic' };
     await openWith(page, withControls(cc));
-    await expect(page.locator('[data-id="mguDeploy"] .ctrl-mini-value')).toHaveText('AUTOMATIC');
+    await expect(page.locator('[data-id="mguDeploy"] .ctrl-mini-value')).toHaveText('Automatic');
     await settled(page);
     const r = await room(page);
     const cell = r.cells.find((c) => c.key === 'mguDeploy');
     expect(cell.valuePx).toBeLessThanOrEqual(10);
     expect(cell.valuePx).toBeGreaterThanOrEqual(7);
     expect(cell.inside).toBe(true);
-    expect(cell.valueOverflows, 'AUTOMATIC whole, four across').toBe(false);
+    expect(cell.valueOverflows, 'Automatic whole, four across').toBe(false);
     expect(await page.evaluate(() => [...document.querySelector('[data-id="mguDeploy"] .ctrl-mini-value').classList].sort())).toEqual(['ctrl-mini-value', 'ctrl-mini-word', 'ctrl-value-long']);
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('[data-id="mguDeploy"] .ctrl-mini-label')).textOverflow)).toBe('ellipsis');
   });
@@ -926,26 +971,26 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     // half as wide again), so what is held to here is what the stylesheet works out from what the module says: the
     // length (--ctrl-label-len), the second line (.ctrl-label-2l), the type's own size and the floor of 7px. That every
     // label of the car list is whole in the page's own font is measured with it (car-controls-fit.spec.mjs).
-    // Three across: BRAKE BIAS (the 720S's word for it) at the panel's size, as the short ones.
+    // Three across: words of ten letters at the panel's size, as the short ones.
     const full = withDials(2);
-    full.bb = { ...full.bb, label: 'BRAKE BIAS' };
+    full.bb = { ...full.bb, words: 'Brake bias' };
     await openWith(page, withControls(full));
-    await expect(page.locator('#ctrlBB .ctrl-label')).toHaveText('BRAKE BIAS');
+    await expect(page.locator('#ctrlBB .ctrl-label')).toHaveText('Brake bias');
     await settled(page);
     let r = await room(page);
     expect([r.compact, r.cols]).toEqual([false, '3']);
     let bb = r.cells.find((c) => c.key === 'bb'), tc = r.cells.find((c) => c.key === 'tc');
     expect([bb.labelLen, bb.labelTwoLines, bb.labelPx, tc.labelPx]).toEqual(['10', false, 10, 10]);
 
-    // Four across: TC TOGGLE on one line; the labels of a GTP on two, as wide as the wider line; one word no line can
-    // break stays on one, down to the floor, and is cut there with an ellipsis.
+    // Four across: TC toggle on one line; the labels of a GTP on two, as wide as the wider line; one word no line can
+    // break stays on one, down to the floor, and is cut there with an ellipsis (a label with no words to give way to).
     const compact = withDials(5);
-    compact.more[0] = { ...compact.more[0], label: 'TC TOGGLE' };
-    compact.more[1] = { ...compact.more[1], label: 'REAR TC LATERAL SLIP' };
-    compact.more[2] = { ...compact.more[2], label: 'BRAKE MIGRATION' };
-    compact.more[3] = { ...compact.more[3], label: 'THROTTLESHAPEXXXX' };
+    compact.more[0] = { ...compact.more[0], label: 'TC toggle' };
+    compact.more[1] = { ...compact.more[1], label: 'Rear TC lateral slip' };
+    compact.more[2] = { ...compact.more[2], label: 'Brake migration' };
+    compact.more[3] = { ...compact.more[3], label: 'Throttleshapexxxx' };
     await serve(page, withControls(compact));
-    await expect(page.locator('[data-id="dial2"] .ctrl-mini-label')).toHaveText('REAR TC LATERAL SLIP');
+    await expect(page.locator('[data-id="dial2"] .ctrl-mini-label')).toHaveText('Rear TC lateral slip');
     await expect.poll(() => room(page).then((x) => x.compact)).toBe(true);
     await settled(page);
     r = await room(page);
@@ -967,7 +1012,7 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     await expect.poll(() => room(page).then((r) => r.fit)).toBe(false);
     let r = await room(page);
     expect([r.compact, r.cols, r.rows, r.moreDisplay]).toEqual([false, '', null, 'flex']);
-    expect(r.cells.map((c) => c.key), 'every cell shown, NONE among them, in the list\'s order').toEqual(['bb', 'tc', 'abs', 'brakeMigration', 'tc2', 'arbFront', 'arbRear']);
+    expect(r.cells.map((c) => c.key), 'every cell shown, None among them, in the list\'s order').toEqual(['bb', 'tc', 'abs', 'brakeMigration', 'tc2', 'arbFront', 'arbRear']);
     expect(await page.evaluate(() => document.querySelectorAll('.car-controls .ctrl-omitted').length)).toBe(0);
     await page.evaluate(() => setDriveMode(false));
     await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
@@ -995,7 +1040,7 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     await openWith(page, withControls(GTP));
     await expect.poll(() => room(page).then((r) => r.rows)).toBe('2');
     await serve(page, MOCK_TELEMETRY);
-    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('TC');
+    await expect(page.locator('#ctrlTC .ctrl-label')).toHaveText('Traction');
     const r = await room(page);
     expect([r.fit, r.compact, r.cols, r.rows]).toEqual([false, false, '', null]);
     expect(await page.evaluate(() => [...document.getElementById('ctrlABS').classList].filter((c) => !['ctrl-changed', 'ctrl-flash-out', 'ctrl-active'].includes(c)))).toEqual(['ctrl-item']);

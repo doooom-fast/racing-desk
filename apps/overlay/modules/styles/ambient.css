@@ -319,8 +319,7 @@ body.ambient-off .spotter-panel::before {
   font-weight: 600;
   cursor: pointer;
   transition: background 200ms ease, border-color 200ms ease, color 200ms ease;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
   position: relative;
 }
 .settings-preset-btn:hover {
@@ -363,8 +362,7 @@ body.ambient-off .spotter-panel::before {
   font-size: 14px;
   font-weight: 600;
   color: hsla(0, 0%, 100%, 0.5);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   margin-bottom: 6px;
 }
 .ambient-preview-canvas {

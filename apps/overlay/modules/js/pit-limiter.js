@@ -62,7 +62,7 @@
         // BONKERS — over the speed limit in pit lane, or held from entry
         banner.classList.add('pit-bonkers');
         banner.classList.remove('pit-warning');
-        if (labelEl) labelEl.textContent = 'SPEEDING';
+        if (labelEl) labelEl.textContent = 'Speeding';
         if (_settings.showBonkers !== false) {
           if (!_bonkersActive) _startBonkersSparks(banner);
           if (window.setBonkersGL) window.setBonkersGL(true);
@@ -71,13 +71,13 @@
         // WARNING — in pit lane with limiter off, not yet over limit
         banner.classList.add('pit-warning');
         banner.classList.remove('pit-bonkers');
-        if (labelEl) labelEl.textContent = 'PIT LIMITER OFF';
+        if (labelEl) labelEl.textContent = 'Pit limiter off';
         if (_bonkersActive) _stopBonkersSparks(banner);
         if (window.setBonkersGL) window.setBonkersGL(false);
       } else {
         // NORMAL — limiter on (in or out of pit lane)
         banner.classList.remove('pit-warning', 'pit-bonkers');
-        if (labelEl) labelEl.textContent = 'Pit Limiter';
+        if (labelEl) labelEl.textContent = 'Pit limiter';
         if (_bonkersActive) _stopBonkersSparks(banner);
         if (window.setBonkersGL) window.setBonkersGL(false);
       }
@@ -85,7 +85,7 @@
       // Not in pit lane, limiter off — but holdover from entering pit at speed
       banner.classList.add('pit-visible', 'pit-bonkers');
       banner.classList.remove('pit-warning');
-      if (labelEl) labelEl.textContent = 'SPEEDING';
+      if (labelEl) labelEl.textContent = 'Speeding';
       if (speedEl) {
         const mph = Math.round(+(p[pre + 'SpeedMph']) || +(p['DataCorePlugin.GameData.SpeedMph']) || speedKmh * 0.621371);
         speedEl.textContent = mph > 0 ? mph + ' mph' : '';
@@ -93,7 +93,7 @@
     } else {
       banner.classList.remove('pit-visible', 'pit-warning', 'pit-bonkers');
       document.body.classList.remove('pit-mode');
-      if (labelEl) labelEl.textContent = 'Pit Limiter';
+      if (labelEl) labelEl.textContent = 'Pit limiter';
       if (_bonkersActive) _stopBonkersSparks(banner);
       if (window.setBonkersGL) window.setBonkersGL(false);
     }

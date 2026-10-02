@@ -128,7 +128,7 @@
       _renderGridStrip(totalCars, griddedCars, playerPos);
 
       const stEl = document.getElementById('gridStartType');
-      stEl.textContent = startType === 'standing' ? 'Standing Start' : 'Rolling Start';
+      stEl.textContent = startType === 'standing' ? 'Standing start' : 'Rolling start';
       stEl.className = 'grid-start-type ' + startType;
 
       // Country flag background + WebGL glow colors
@@ -156,29 +156,29 @@
       // During lights sequence (paceMode 1-3), show pace mode status
       // Otherwise, show countdown timer if available
       if (paceMode === 1) {
-        countdownEl.textContent = 'GRID';
+        countdownEl.textContent = 'Grid';
       } else if (paceMode === 2) {
-        countdownEl.textContent = 'PACE';
+        countdownEl.textContent = 'Pace';
       } else if (paceMode === 3) {
-        countdownEl.textContent = 'READY';
+        countdownEl.textContent = 'Ready';
       } else if (timeToGreen > 0) {
         // Show MM:SS countdown
         const minutes = Math.floor(timeToGreen / 60);
         const seconds = Math.floor(timeToGreen % 60);
         countdownEl.textContent = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
       } else if (sessionState === 1) {
-        countdownEl.textContent = 'PIT';
+        countdownEl.textContent = 'Pit';
       } else if (sessionState === 2) {
-        countdownEl.textContent = 'WARM';
+        countdownEl.textContent = 'Warm';
       } else {
-        countdownEl.textContent = 'FORM';
+        countdownEl.textContent = 'Form';
       }
 
       // Title reflects state
       const titleEl = mod.querySelector('.grid-title');
-      if (sessionState === 1) titleEl.textContent = 'Get In Car';
-      else if (sessionState === 2) titleEl.textContent = 'Warm Up';
-      else titleEl.textContent = 'Formation Lap';
+      if (sessionState === 1) titleEl.textContent = 'Get in the car';
+      else if (sessionState === 2) titleEl.textContent = 'Warm-up';
+      else titleEl.textContent = 'Formation lap';
     }
 
     _gridPrevSessionState = sessionState;

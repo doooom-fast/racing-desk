@@ -5,11 +5,10 @@
  *
  * Held here, at every iPad size and on the rig's two screens, in a race, in a race with two digits, with both limits
  * hit and with a DQ limit alone, in a test drive (no limits) and in a long one (three and four digits):
- *   - the header is where the other panels' headers are and in the HUD's own type for it: the same offset from the top
- *     and the left of its panel as the datastream's beside it, the same size, weight and case, aligned left, the
- *     topmost thing in the panel; its tracking and colour are the datastream's and the leaderboard's (the HUD's own
- *     incidents header's: 0.12em at 0.35 — not the .panel-label's, which the datastream's and the leaderboard's are not
- *     either: the glance layout's type is the rig HUD's, and drive-view.spec.mjs holds it to that);
+ *   - the header is where the other panels' headers are and in the one style every panel's header has (he chose one
+ *     style on 2026-10-02: dashboard.css, "One header for every panel"): the same offset from the top and the left of
+ *     its panel as the datastream's beside it, the same size, weight, case (none: sentence case), tracking and colour
+ *     as the datastream's and the leaderboard's, aligned left, the topmost thing in the panel;
  *   - the numbers are as large as the cell allows: the count the lesser of what the cell's height leaves it (40 %; 66 %
  *     with no limits under it) and what its width does (72 % less 18px for two digits, 52 % less 14px for three, 40 %
  *     less 12px for four), the penalty and DQ counts the lesser of 14.7 % of the height and 27 % of the width, never
@@ -47,7 +46,7 @@ const TEST_DRIVE = (incidents = 2) => frame({
 const CASES = [
   { name: 'a race', make: () => RACE(4), count: '4', rows: ['Penalty in 13', 'DQ in 21'] },
   { name: 'a race, two digits', make: () => RACE(14), count: '14', rows: ['Penalty in 3', 'DQ in 11'] },
-  { name: 'a race with both limits hit', make: () => RACE(30), count: '30', rows: ['Penalty in PENALTY', 'DQ in DQ'], hit: true },
+  { name: 'a race with both limits hit', make: () => RACE(30), count: '30', rows: ['Penalty in Penalty', 'DQ in DQ'], hit: true },
   { name: 'a race with a DQ limit alone', make: () => RACE(22, { 'RacingDesk.Plugin.DS.IncidentLimitPenalty': 0 }), count: '22', rows: ['DQ in 3'] },
   { name: 'a test drive', make: () => TEST_DRIVE(2), count: '2', rows: [], noLimits: true },
   { name: 'a long test drive', make: () => TEST_DRIVE(120), count: '120', rows: [], noLimits: true },
@@ -188,16 +187,15 @@ for (const size of [...IPADS, ...RIG]) {
       expect(Math.abs(m.header.left - m.dsHeader.left), `${label}: the header's offset from the left of its panel (${m.header.left} vs the datastream's ${m.dsHeader.left})`).toBeLessThanOrEqual(1);
       expect(m.header.size, `${label}: the header's size`).toBeCloseTo(m.dsHeader.size, 1);
       expect(m.header.weight, label).toBe(m.dsHeader.weight);
-      expect(m.header.caps, label).toBe('uppercase');
+      expect(m.header.caps, label).toBe('none');
       expect(m.header.align, label).toBe('left');
       expect(m.header.family, label).toBe(m.dsHeader.family);
       expect(m.header.size).toBeGreaterThanOrEqual(11);
       expect(m.topmostText, `${label}: the header is the first thing in the panel`).toBe('Incidents');
-      // The HUD's own type for it: the datastream's, and the leaderboard's when there is one. (Tracking is in em: the
-      // leaderboard's header is drawn larger than a cell's, and its tracking is the same fraction of it.)
+      // The one header style: the datastream's, and the leaderboard's when there is one, at one size in this layout.
       expect(m.header.tracking, label).toBe(m.dsHeader.tracking);
       expect(m.header.colour, label).toBe(m.dsHeader.colour);
-      expect(m.header.trackingEm, label).toBeCloseTo(0.12, 3);
+      expect(m.header.trackingEm, label).toBeCloseTo(0.04, 3);
       if (m.lbHeader) {
         expect(m.header.trackingEm, `${label}: the header's tracking against the leaderboard's`).toBeCloseTo(m.lbHeader.trackingEm, 3);
         expect(m.header.colour, `${label}: the header's colour against the leaderboard's`).toBe(m.lbHeader.colour);

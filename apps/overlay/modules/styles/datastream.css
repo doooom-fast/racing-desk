@@ -34,16 +34,9 @@
     padding: 6px 10px 8px;
     position: relative;
   }
+  /* The header's type is every panel's (dashboard.css, "One header for every panel"); this is where it sits. */
   .ds-header {
-    font-family: var(--ff);
-    font-size: var(--fs-xs);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: hsla(0, 0%, 100%, 0.35);
-    padding-bottom: 5px;
-    border-bottom: 1px solid hsla(0, 0%, 100%, 0.06);
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
 
   /* G-force diamond */
@@ -82,8 +75,7 @@
   .ds-label {
     font-size: var(--fs-xs);
     font-weight: var(--fw-semi);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.02em;
     color: hsla(0, 0%, 100%, 0.35);
   }
   .ds-value {
@@ -174,15 +166,11 @@
     text-align: center;
     transition: background 0.4s ease, border-color 0.4s ease;
   }
+  /* The header's type is every panel's (dashboard.css, "One header for every panel"); this is where it sits: at the top
+     on the left, where every other panel has its header (the count under it is still centred). */
   .inc-label {
-    font-size: var(--fs-xs);
-    font-weight: var(--fw-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: hsla(0, 0%, 100%, 0.35);
-    padding-bottom: 3px;
-    border-bottom: 1px solid hsla(0, 0%, 100%, 0.06);
     margin-bottom: 3px;
+    text-align: left;
   }
   .inc-value-row {
     display: flex;
