@@ -103,6 +103,28 @@ namespace RacingDesk.Core.Names
         }
 
         /// <summary>
+        /// Takes back a name this session gave before (a stored grid, written by a session that named its drivers): it is
+        /// this driver's again, and nobody else's. Only one of the list's names is taken back, once; false for anything else
+        /// (a real name stored before the names were replaced is not a name to keep, and is named afresh by <see cref="For"/>).
+        /// </summary>
+        public bool Keep(long custId, string shown)
+        {
+            lock (_gate)
+            {
+                string s = (shown ?? "").Trim();
+                if (s.Length == 0 || !_book.List.ContainsShown(s) || _taken.Contains(s)) return false;
+                if (custId > 0)
+                {
+                    string key = "cust:" + custId.ToString(CultureInfo.InvariantCulture);
+                    if (_byKey.ContainsKey(key)) return false;
+                    _byKey[key] = s;
+                }
+                _taken.Add(s);
+                return true;
+            }
+        }
+
+        /// <summary>
         /// Gives every other driver in the session model their name: <c>UserName</c>, <c>AbbrevName</c> and <c>Initials</c>,
         /// and a <c>TeamName</c> that is the driver's own name (iRacing's for a driver without a team). His own entry
         /// (<see cref="IsHim"/>: his car, with him in it, not a teammate) and the pace car are left as they are. Applying it

@@ -128,6 +128,49 @@ namespace RacingDesk.Tests.Names
             Assert.That(json["incidents"], Is.InstanceOf<JArray>());
         }
 
+        private static readonly PseudonymList Three = PseudonymList.Parse(@"{ ""version"": 1, ""sources"": [{ ""id"": ""t"", ""title"": ""T"" }],
+            ""names"": [ { ""name"": ""Ann One"", ""from"": ""t"" }, { ""name"": ""Bo Two"", ""from"": ""t"" }, { ""name"": ""Cy Three"", ""from"": ""t"" } ] }");
+
+        [Test]
+        public void AStoredGridIsNamedInTheOrderTheLiveSessionNamedItSoTiesBreakTheSameWay()
+        {
+            // Three names and three drivers: first choices clash under most salts, and who gets which depends on the order
+            // they are named in. The live session names them in CarIdx order; the store lists them by finishing position.
+            for (int seed = 1; seed <= 20; seed++)
+            {
+                var book = new PseudonymBook(Three, SyntheticField.SaltFromSeed(seed));
+                var live = book.NewSession();
+                var expected = new System.Collections.Generic.Dictionary<int, string> { [1] = live.For(11, "a"), [2] = live.For(12, "b"), [3] = live.For(13, "c") };
+                var stored = new[]
+                {
+                    new GridEntryRecord { CarIdx = 3, CustId = 13, Name = "Cee Real", FinishPosition = 1 },
+                    new GridEntryRecord { CarIdx = 0, CustId = SyntheticField.PlayerCustId, Name = SyntheticField.PlayerName, FinishPosition = 2, IsPlayer = true },
+                    new GridEntryRecord { CarIdx = 1, CustId = 11, Name = "Ay Real", FinishPosition = 3 },
+                    new GridEntryRecord { CarIdx = 2, CustId = 12, Name = "Bee Real", FinishPosition = 4 },
+                };
+                var names = LocalDataApi.GridNames(stored, book);
+                Assert.That(names, Is.EqualTo(expected), $"salt {seed}");
+                Assert.That(names.ContainsKey(0), Is.False, "his own entry is not renamed");
+            }
+        }
+
+        [Test]
+        public void AGridStoredSinceTheNamesWereReplacedKeepsTheCharactersItWasGiven()
+        {
+            var book = TestNames.Book;
+            var live = book.NewSession().Apply(RacingDesk.Plugin.IRacing.SessionInfoYaml.Parse(SyntheticField.Yaml()));
+            var stored = live.DriverInfo.Drivers.Where(d => d.CarIsPaceCar == 0)
+                .Select(d => new GridEntryRecord { CarIdx = d.CarIdx, CustId = d.UserID, Name = d.UserName, IsPlayer = d.CarIdx == SyntheticField.PlayerCarIdx })
+                .ToList();
+            // As a session that collided would have them: two rivals' characters swapped. The store's word stands.
+            var a = stored.Single(g => g.CarIdx == 1);
+            var b = stored.Single(g => g.CarIdx == 2);
+            (a.Name, b.Name) = (b.Name, a.Name);
+            var names = LocalDataApi.GridNames(stored, book);
+            foreach (var g in stored.Where(g => !g.IsPlayer))
+                Assert.That(names[g.CarIdx], Is.EqualTo(g.Name), $"car {g.CarIdx}");
+        }
+
         [Test]
         public void TheStoreHoldsWhatItWasGivenAndTheReadKeepsTheIds()
         {

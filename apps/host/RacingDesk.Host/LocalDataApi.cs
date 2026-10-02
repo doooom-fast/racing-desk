@@ -502,22 +502,20 @@ namespace RacingDesk.Host
             });
         }
 
-        /// <summary>A string, or null for JSON's null. Anything else is not what was asked for.</summary>
         /// <summary>
-        /// A stored session's entry list. Every other driver is named by the characters' list from the customer id the store
-        /// kept (root CLAUDE.md, Other drivers' names), so a session stored before the names were replaced shows the same
-        /// character for a rival that a live session does, and the name on disk goes no further than the store. His own
-        /// entry keeps his name. The customer ids themselves are not sent.
+        /// A stored session's entry list. Every other driver is shown as a character (root CLAUDE.md, Other drivers' names):
+        /// the one the live session showed (<see cref="GridNames"/>), and the name on disk goes no further than the store.
+        /// His own entry keeps his name. The customer ids themselves are not sent.
         /// </summary>
         private static void WriteGrid(Utf8JsonWriter json, IReadOnlyList<GridEntryRecord> grid)
         {
-            var names = RacingDesk.Core.Names.PseudonymBook.Default.NewSession();
+            var names = GridNames(grid, RacingDesk.Core.Names.PseudonymBook.Default);
             json.WriteStartArray();
             foreach (var g in grid)
             {
                 json.WriteStartObject();
                 json.WriteNumber("car_idx", g.CarIdx);
-                string name = g.IsPlayer ? g.Name : (g.CustId > 0 || !string.IsNullOrWhiteSpace(g.Name) ? names.For(g.CustId, g.Name) : null);
+                string name = g.IsPlayer ? g.Name : (names.TryGetValue(g.CarIdx, out string shown) ? shown : null);
                 if (name == null) json.WriteNull("name"); else json.WriteString("name", name);
                 json.WriteNumber("irating", g.IRating);
                 if (g.License == null) json.WriteNull("license"); else json.WriteString("license", g.License);
@@ -535,6 +533,27 @@ namespace RacingDesk.Host
             json.WriteEndArray();
         }
 
+        /// <summary>
+        /// The names a stored entry list's other drivers are shown under, by CarIdx. A session stored since the names were
+        /// replaced holds the characters its live session showed, and they are kept as they are. One stored before holds real
+        /// names: each of those drivers is named afresh from the customer id the store kept, in CarIdx order — the order the
+        /// live session's model lists them in, so that where two first choices clash the tie is broken the same way, and a
+        /// rival is the character the HUD showed. A row with neither an id nor a name is not named.
+        /// </summary>
+        internal static Dictionary<int, string> GridNames(IReadOnlyList<GridEntryRecord> grid, RacingDesk.Core.Names.PseudonymBook book)
+        {
+            var names = book.NewSession();
+            var byCar = new Dictionary<int, string>();
+            var others = grid.Where(g => !g.IsPlayer).OrderBy(g => g.CarIdx).ToList();
+            foreach (var g in others)
+                if (names.Keep(g.CustId, g.Name)) byCar[g.CarIdx] = g.Name.Trim();
+            foreach (var g in others)
+                if (!byCar.ContainsKey(g.CarIdx) && (g.CustId > 0 || !string.IsNullOrWhiteSpace(g.Name)))
+                    byCar[g.CarIdx] = names.For(g.CustId, g.Name);
+            return byCar;
+        }
+
+        /// <summary>A string, or null for JSON's null. Anything else is not what was asked for.</summary>
         private static string Text(JsonElement body, string name, out bool given)
         {
             given = body.TryGetProperty(name, out var value);
