@@ -484,8 +484,9 @@ body.drive-mode-active .pb-content { flex: 1; display: grid; grid-template-colum
    rules): the conditions say the same. */
 @media (orientation: portrait) {
   body.drive-mode-active .pb-content { grid-template-columns: minmax(0, 40fr) minmax(0, 36fr) minmax(0, 24fr); }
-  /* The weather page's sides a little narrower there, so a three-digit air in °F has the page's width at its floor. */
-  body.drive-mode-active #pbPageWeather { padding-left: 6px; padding-right: 6px; }
+  /* The weather's and the fuel's pages' sides a little narrower there, so a three-digit air in °F has the page's width at
+     its floor, and the pit window's laps a space after its name ("Pit window L18–24", not "Pit windowL18–24"). */
+  body.drive-mode-active :is(#pbPageWeather, #pbPageFuel) { padding-left: 6px; padding-right: 6px; }
 }
 body.drive-mode-active .pb-page {
   display: flex !important; flex-direction: column; justify-content: flex-start; min-width: 0; min-height: 0; padding: 6px 10px;
@@ -510,7 +511,7 @@ body.drive-mode-active .pb-wear-note.hidden { display: none; }
 body.drive-mode-active #pbPageFuel::before { content: 'Fuel'; }
 body.drive-mode-active #pbPageWeather::before { content: 'Weather'; }
 body.drive-mode-active .pb-row,
-body.drive-mode-active .pb-fuel-pit-row { font-size: 1em; padding: 0.05em 0; line-height: 1.2; align-items: baseline; }
+body.drive-mode-active .pb-fuel-pit-row { font-size: 1em; padding: 0.05em 0; line-height: 1.2; align-items: baseline; column-gap: 0.3em; }
 body.drive-mode-active .pb-label { font-size: max(11px, 0.55em); }
 body.drive-mode-active .pb-value { font-size: 1em; }
 /* Tyres: four rings, each the wear inside it and the temperature under it, the position at its outer corner. The ring
