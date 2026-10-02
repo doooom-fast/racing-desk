@@ -67,7 +67,8 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `idle-nav.js` | Carousel of stats during idle moments |
 | `qr-code.js` | QR for pairing to native apps / sharing |
 | `hud-display.js` | **Which screen the HUD's window is on** — the one he chose, else the one the sim's window is on (asked of the host), else the one iRacing's ini says it runs at, else the largest; not the primary. Pure rule + a keeper that moves the window (never shows it). Root CLAUDE.md, Desk |
-| `car-controls.js` | What the controls panel shows of the car's ABS / TC / brake bias / other dials / DRS / push-to-pass, from the host's `RacingDesk.Plugin.CarControls` (see The controls panel) |
+| `car-controls.js` | What the controls panel shows of the car's anti-lock, traction, bias, its other dials, DRS and push-to-pass, from the host's `RacingDesk.Plugin.CarControls`, in words where they fit (see The controls panel) |
+| `words.js` | Words, not capitals: the acronyms that may be shown in capitals (`ACRONYMS`), the car list's own short labels (`CAR_LABELS`), and `sentenceCase` / `labelCase`, which every word from the wire goes through (see Words, not capitals) |
 | `lap-delta.js` | The gap to his best lap of the session and to the optimal lap, worked out from his own laps, and how a delta is written and labelled (see The delta) |
 | `laps-panel.js` | The glance layout's laps panel: the times, the sectors, the three gaps and the fuel to the flag (see The glance layout) |
 | `gap-trend.js` | Whether the cars ahead and behind are closing or dropping away, lap on lap: the ▼ or ▲ beside their iRating in the gaps block of the glance layout (see The glance layout) |
@@ -80,7 +81,49 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 
 Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
 
-## The controls panel (`.car-controls`: BB, TC, ABS, and what the car has besides)
+## Words, not capitals (`modules/js/words.js`), and one header for every panel
+
+He asked on 2026-10-02 for no text in capitals but an acronym, for words instead of acronyms where they fit, and for one
+style for every panel's header (the root CLAUDE.md, Words, not capitals, has his words). On the HUD, the glance layout,
+the iPad, both pages OBS draws and the desk:
+
+- **No stylesheet sets text in capitals** (`text-transform: uppercase`, small capitals; the desk's and the Cars
+  island's neither), so what is written is what is shown: sentence case in the markup and the scripts ("Leaderboard",
+  "Laps to go", "Tread measured in the pits", "No adjustments", "Pit limiter"), units as they are written (mph,
+  km/h, rpm, kg, Nm, °C), an acronym in capitals. Tracking that was there for capitals is halved or gone.
+- **`words.js`** (`window.RacingDeskWords`, or `require` in Node; loaded before `car-controls.js` in `dashboard.html`):
+  `ACRONYMS`, what may be in capitals anywhere (DRS, P2P, DQ, OBS, HUD, TV, GT, GTP, MDM, the corners' LF/RF/LR/RR…);
+  `CAR_LABELS`, the car list's own short labels (TCLO, BBAL, FARB), shown only in a controls cell where the words do
+  not fit and on the desk beside the words; `sentenceCase`, which lowers a word in capitals that is not an acronym and
+  puts up the first letter of a text that begins with a lower-case word (NONE is None, SAFETY CAR Safety car, 1 LAP TO
+  GREEN 1 lap to green; iRating and a name stay as they are); and `labelCase`, the same with the car's labels kept (TC
+  TOGGLE is TC toggle). Every word the wire brings to the page goes through one of them — the controls' states,
+  positions and labels (`car-controls.js`) and the strategist's calls (`poll-engine.js`) — since a SimHub plugin
+  installed before 2026-10-02 still sends them in capitals.
+- **Words for acronyms**: the controls (The controls panel, below), Safety (the ratings' SR), Force feedback and Sim
+  feedback max (FFB), Frame rate (FPS), the desk's Field of view (FOV). What stays an acronym: what `ACRONYMS` has, the
+  corners' LF/RF/LR/RR on the pit box's rings (there is no room there for words), a licence class, a position's P4.
+- **One header for every panel** (`dashboard.css`, "One header for every panel": `--hdr-size`, `--hdr-weight`,
+  `--hdr-track`, `--hdr-color`): `.lb-header`, `.ds-header`, `.inc-label`, `.panel-label` (the gaps' Ahead and Behind,
+  the ratings', the laps panel's), `.pb-tab` (the pit box's tabs: the one that is open is white with its green rule
+  beneath, as it was) and `.race-timer-key`, and in the glance layout the pit box's pages (`.pb-page::before`). Of the
+  two styles there were, the `.panel-label`'s: the HUD's face at its smallest size (`--fs-xs`), weight 700, the
+  theme's dim text colour (`--text-dim`), no rule beneath, and tracking of 0.04em, half its 0.08em, which was spacing
+  for capitals. The other — 0.12em, white at 0.35 with a rule beneath: the leaderboard's, the datastream's and the
+  incidents' — went, and the incidents' header sits at the top left on the rig too. Where a header sits is its
+  panel's; what it looks like is that rule's. In the glance layout every one is one size, `--hdr-glance`
+  (`max(11px, min(1.35vmin, 15px))`, `drive-view.css`). The maps' names are captions under the circuit, not
+  headers, and are as they were.
+- **Tests**: `tests/unit/words-not-caps.spec.mjs`, with `words-scan.mjs`: `words.js` itself; no stylesheet in
+  capitals; no word in capitals but an acronym in `dashboard.html` and `desk.html`, in the strings the scripts show (read
+  with TypeScript's parser, so comments, keys, selectors and addresses are not taken for text; `remote-server.js`,
+  `main.js` and the Cars island among them), in the car list's labels, words and positions, and in the commentary's
+  titles, lines and fragments — and that the scan finds what it is for; the car list in words (his words on every car
+  that has the control, the car's own label where nothing settles the meaning); the one header on the rig and in the
+  glance layout; and the longest forms whole, on the rig at 3440x1440 and zoom 120 (by the arithmetic, in the page,
+  and with `RD_REAL_FONT=1` in Sofia Pro Comp) and at every iPad size in the glance layout, measured.
+
+## The controls panel (`.car-controls`: bias, traction, anti-lock, and what the car has besides)
 
 The panel says what the driver's car has and what each control reads. **What a car has is not worked out here**: the
 host sends it, from the hand-written car list (root CLAUDE.md, The car's controls), as one key,
@@ -90,19 +133,44 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   null: not sent, not JSON, not an object with a `car`), `view(cc)` (the cells, from the reading alone), `arrange(view)`
   (which cells the rig's panel has room for, below), `signals(prev, next)` (what the spotter says), `render(panel, cc,
   hooks, state)` (the only part that touches the DOM), `clear`. `poll-engine.js` calls `read` and `render` where it
-  used to compute BB / TC / ABS, and nothing else in the HUD knows about the list. The old computing is still in the
+  used to compute the bias, traction and anti-lock, and nothing else in the HUD knows about the list. The old computing is still in the
   `else`.
-- **What a cell shows** — the same words as the host's (`state`): `NONE` (the car has none; `.ctrl-none`), `ON` (has it,
-  cannot turn it; `.ctrl-on`), `OFF` (a dial at its off position; `.ctrl-off`), a number or the name of a position
-  under the car's own label (`TCLO`, `ESC`, `BBAL`, `DSC`), or **a dim dash under the car's own label where the car has
+- **What a cell shows** — the same words as the host's (`state`), in sentence case whatever case the host wrote them in
+  (`textOf`; a SimHub plugin from before 2026-10-02 sends NONE, ON, OFF): None (the car has none; `.ctrl-none`), On (has
+  it, cannot turn it; `.ctrl-on`), Off (a dial at its off position; `.ctrl-off`), a number or the name of a position
+  (Track, Sport, the BMW's MDM) under the control's name (below), or **a dim dash under its name where the car has
   it and the sim is not saying what it reads** (`unread`, `.ctrl-unread`: the list gives no variable, or the car is not
   publishing it; never a made-up number, and the sim starting to say is not announced as a change). A control the fixed
   setup holds gets a small lock mark (`.ctrl-locked`). A number fills its bar by the host's `fill`, else by the bars the
   HUD always drew (bias `(n-30)/40`, TC and ABS `n/12`); **a name fills nothing** (the number behind `MDM` is a
   position, not a quantity). A mode (the 570S's one dial) is a cell of its own, `#ctrlMode`, and the cells it covers
   (`ctrl-hidden`) take no room.
+- **A cell's name, in words where they fit** (he asked on 2026-10-02 for words instead of acronyms, with his own for the
+  common ones: "for ABS: anti-lock, for bb: bias. for tc: traction", "mig: migration. arb: rollbar"). A control has up
+  to three forms, longest first (`namesOf`, `formsOf`): its **words** — the car list's `words`, which the host sends
+  with each reading ("Traction slip", "Front rollbar", "Assists"), else `ID_WORDS` for a control whose meaning is its
+  id's in every car (anti-lock, bias, migration, the two rollbars), else for one of the three his words (`WORDS`: Bias,
+  Traction, Anti-lock) where the car's label is the generic one; for a rollbar **"Rollbar" with a small F or R**
+  (`.ctrl-mark`); and the car's own **short label** (TCLO, BBAL, "TC toggle"), through `labelCase` so a plugin's old
+  BRAKE BIAS reads "Brake bias". **The cell shows the longest form that is whole at its size**: on the rig by the
+  room rule's arithmetic (`chooseForm`, `fitsWhole`: whole on one line or two at no less than the 7px floor, below),
+  so the sizing shrinks each form before the next is tried; in the glance layout measured in the page (`fitGlance`,
+  to the fraction of a pixel: every label at its words, then one at a time the label that runs furthest past its cell
+  takes its next form; a label of the row under the three still past its cell at its last form gets room from another
+  of the row, the widest first, taking its next form; again when the forms change, when the panel is resized and when a
+  font arrives, not on every frame). In the glance layout the cells of the row under the three are as wide as what
+  they hold and share what is left over (`flex: 1 1 auto`; the row is the panel's width, `min-width: 0`, where before a
+  row of long labels was as wide as their sum and ran past the panel), so a short label (TCLA, MIG) leaves the room a
+  long one needs: the 963 and the 720S have every label whole at every iPad size. No form is ever cropped where a
+  shorter one would be whole. **What does not fit**: a row of more controls than an iPad has the width for at the 11px
+  floor — the Audi R18's, the Mercedes W12's and W13's and the Ferrari 499P's at every size, the Porsche 919's but on
+  the 12.9-inch, the BMW LMDh's and the Valkyrie's on the smaller iPads — shows each label in the narrowest of its forms,
+  and a few of them run past their cells, as every label of such a row did before (`words-not-caps.spec.mjs` holds the
+  rest whole and these at their narrowest). The spotter's card says the words (`spoken`:
+  `Traction slip ▲ 6`, `Assists ▼ Sport`), and push-to-pass its own (the SF23's "Overtake", else "Push to pass").
 - **The car's other controls** (`#ctrlMore`, `.ctrl-mini`): every one the list gives the car, in the list's order — a
-  second traction dial (`TCLA`), brake migration (`MIG`), the anti-roll bars, a throttle map, the hybrid's dials — then
+  second traction dial (the 963's TCLA, "Traction gain"), brake migration ("Migration"), the anti-roll bars ("Front
+  rollbar", "Rear rollbar"), a throttle map, the hybrid's dials — then
   DRS and push-to-pass; an unread one with a dash (`.ctrl-mini-unread`). Only for a car that has any; DRS is
   `.ctrl-mini-ready` when it can be opened and `.ctrl-mini-active` while it is, push-to-pass `.ctrl-mini-active` while
   it is on. **In the glance layout** (an iPad, the page OBS draws of it, Ctrl+Shift+F) they are a row of small cells
@@ -120,24 +188,28 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   three rows of four and then of five (the tight size: 13px and 8px, 2px between the cells). A car takes the smallest
   step that holds its real controls, and **every control the car has is shown** — he asked: "show adjustment panels
   for every adjustment available for that car. Omit ones that are not on the car when there's no room" — so what is
-  omitted is only what the car does not have: a NONE cell takes a slot only where one is left in the rows the real
+  omitted is only what the car does not have: a None cell takes a slot only where one is left in the rows the real
   cells already need (`.ctrl-none` is a full cell, `order: 9`, so the real ones come first left to right) and never
   makes a row of its own. DRS and push-to-pass are real cells like the rest: nothing is ever dropped for them or by
   them. Past the last step the cells go on across, in three rows. The cells go across first and then down, balanced
-  (four cells are two by two). Of the list's 194 cars: 135 are one row (an MX-5 is `ABS ON`, `BB NONE`, `TC NONE`; a C6
-  with bias, TC and a toggle is one row of three and its ABS NONE is omitted), 55 are two rows (a 720S GT3, bias, TC,
-  ABS, MAP, TC TOGGLE: two rows of three and two at the full size; a 963 GTP: bias, TCLO, TCLA, MIG, TARGET, AR-F, AR-R,
-  TC TOGGLE, its eight at the compact size with ABS NONE omitted), and four are three rows (a Ferrari 499P of nine, a
+  (four cells are two by two). Of the list's 194 cars: 135 are one row (an MX-5 is anti-lock On, bias None, traction None; a C6
+  with bias, traction and a toggle is one row of three and its anti-lock None is omitted), 55 are two rows (a 720S GT3:
+  bias, traction, anti-lock, map, TC toggle: two rows of three and two at the full size; a 963 GTP: bias, traction slip,
+  traction gain, migration, target, front and rear rollbar, TC toggle, its eight at the compact size with anti-lock
+  None omitted), and four are three rows (a Ferrari 499P of nine, a
   W12 or a W13 of eleven with DRS, four across; the Audi R18, fourteen dials, five across). A number of five characters
-  (`48.25`) is set a step down so it fits three across (`.ctrl-value-wide`); a word wider than its cell (`AUTOMATIC`) or a
+  (`48.25`) is set a step down so it fits three across (`.ctrl-value-wide`); a word wider than its cell (Automatic) or a
   number of six smaller still (`.ctrl-value-long`, sized to its cell by `--ctrl-value-len`, down to 7px, with no tracking
   and 0.62 em to a character: JetBrains Mono's 0.6). A mode is a cell like the others (the 570S's ESC cell is as wide as
   its bias beside it: the glance layout's wider flex for a mode is taken back under `.ctrl-fit`). **A label** is set no
-  larger than its cell holds (`--ctrl-label-len`, the cell a size container: `BRAKE BIAS` whole three across at 10px,
-  `TC TOGGLE` four across at 9px), down to 7px, **and a label that would be set under 8px on one line takes a second
+  larger than its cell holds (`--ctrl-label-len`, the cell a size container: "Brake bias" whole three across at 10px,
+  "TC toggle" four across at 9px), down to 7px, **and a label that would be set under 8px on one line takes a second
   one** (`labelPlan`: the split of its words that makes the wider line narrowest, set to that line's length; a two-line
   label is set at 8px at the most at the full size, 9px at the compact one and 7px in the tight rows, so two lines and
-  the number fit the row). Only past that — one word too long for its cell — is it cut with an ellipsis. **The width of
+  the number fit the row; in the tight rows, where any row may have one now that the cells are in words, the cells have
+  no padding above and below, the rows 1px between them and a two-line cell's number is 11px: three rows of two-line
+  cells are 82px of the 84 inside the panel). Only past that — no form of it whole in its cell, and its shortest shown — is it cut with an
+  ellipsis. **The width of
   a character is Sofia Pro Comp's, the page's font, not the fallback's**: measured in the page with the HUD's own
   Typekit stylesheet let through, at weight 600 and the label's tracking, the car list's 121 labels are 0.34 to 0.53 em
   a character (0.43 on average) and **0.47 at the most for a label of seven characters or more**, while the fallback
@@ -150,10 +222,13 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   919, the Aston Martin Valkyrie, the BMW LMDh, the Acura ARX-06 and the McLaren MP4-30; eight at the 7px floor, all
   in the three-row cars). `tests/unit/car-controls-fit.spec.mjs` holds the rest in Node over every car, and in the page
   for the sixty that need it (`RD_REAL_FONT=1` lets Typekit through for the one run that holds every label to its
-  cell in Sofia Pro Comp; `RD_FIT_ALL=1` opens all 194, about three minutes).
-- **The spotter**: a change of a control is announced with the car's word and what it reads, `TCLO ▲ 6`, `ESC ▼ SPORT`,
-  `DSC ▼ OFF` (`announceAdjustment(type, value, direction, name, text)` in `spotter.js`; a name or text given, the card
-  says the car's own thing; without them, the old `Brake Bias ▲ 55.0`). DRS says `DRS next zone`, `DRS — open it`,
+  cell in Sofia Pro Comp; `RD_FIT_ALL=1` opens all 194, about three minutes). Those measurements were of the labels in
+  capitals; since 2026-10-02 the forms are in sentence case and the words come first, chosen by the same arithmetic,
+  and `tests/unit/words-not-caps.spec.mjs` holds the longest of them in the panel at 3440x1440 and zoom 120 (whole in
+  Sofia Pro Comp under `RD_REAL_FONT=1`) and in the glance layout at every iPad size.
+- **The spotter**: a change of a control is announced with its words, else the car's label, and what it reads in
+  sentence case, `Traction slip ▲ 6`, `Assists ▼ Sport`, `Stability ▼ Off` (`announceAdjustment(type, value, direction,
+  name, text)` in `spotter.js`; a name or text given, the card says the car's own thing; without them, `Bias ▲ 55.0`). DRS says `DRS next zone`, `DRS — open it`,
   `DRS open`; push-to-pass says `<label> on — 64s left`, `off`, `used up`. Nothing is said of a first frame or of a
   car that has just been changed to.
 - **A car the host sends no key for** (another sim, a car the list does not have, the demo, a host from before the
@@ -167,11 +242,11 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   driven for every car, the list's and not (`poll-engine.js`, after the panel; `datastream.js` sets the same
   class while it runs).
 - **Tests** (`tests/unit/car-controls.spec.mjs`): the module's functions in Node (`arrange` at each step of the ladder
-  and with a NONE cell at every count, `labelPlan`), then the real `dashboard.html`, headless, fed a payload for each
-  case — NONE, ON, OFF, a value with the car's label, a mode by name, GTP brake migration, TC slip and gain, the bars,
+  and with a None cell at every count, `labelPlan`, `chooseForm`), then the real `dashboard.html`, headless, fed a
+  payload for each case — None, On, Off, a value with the control's words and the car's label, a mode by name, GTP brake migration, TC slip and gain, the bars,
   DRS and push-to-pass, an unread dial, a car that changes, a car not in the list, a key that is not one — and the
-  rig's room: the one-row car, two rows with the pedals as tall as ever, a NONE that is not worth a row, a mode as wide
-  as the bias, six real cells with NONE omitted, compact, three rows and five across with nothing left out, the long
+  rig's room: the one-row car, two rows with the pedals as tall as ever, a None that is not worth a row, a mode as wide
+  as the bias, six real cells with None omitted, compact, three rows and five across with nothing left out, the long
   word, the labels on one line and two, the glance layout and back (an unread dial left out there and shown with a
   dash on the rig), the panel without the key. **The cars are not typed in the spec**: they are read from
   `tests/unit/fixtures/car-controls-wire.json`, which RacingDesk.Tests holds to what the host writes
@@ -179,12 +254,12 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   `:8889` without binding wildcard ports, so that hop is by the code: the runtime writes `s.CarControlsJson` into the
   payload as an object.
 
-## The datastream's rig limits (`Wheel max`, `Sim FFB max`, `Brake max`)
+## The datastream's rig limits (`Wheel max`, `Sim feedback max`, `Brake max`)
 
-Three rows under `FFB` on the rig's HUD, for what the rig is set to beside the live torque (he asked on 2026-10-01:
+Three rows under "Force feedback" (it was FFB) on the rig's HUD, for what the rig is set to beside the live torque (he asked on 2026-10-01:
 "Show Max pedal force and max wheel nm in the data stream"). Each has its unit, a dash while it is not known, and a switch
 (`dsShowWheelMax`, `dsShowFfbMax`, `dsShowBrakeMax`, on by default); the glance layout hides all three (`drive-view.css`,
-as FPS). Nothing is written to the pedals, the wheel base, SmartControl or Pit House, no serial port is opened for
+as the frame rate). Nothing is written to the pedals, the wheel base, SmartControl or Pit House, no serial port is opened for
 any of it, and nothing is sent to them.
 
 - **Wheel max** is the wheel's own maximum torque, in Nm: the base's max-torque setting (per cent of its model's rated
@@ -211,7 +286,7 @@ any of it, and nothing is sent to them.
   saved last is taken** (`candidates` says how many there were); if he moves to the other base without saving a preset
   for it, the row shows the old base's number until he does. 55 per cent of an R21 Ultra is 11.6 Nm; his 963 GTP's
   29.7 Nm is the next row, not this.
-- **Sim FFB max** is the sim's: iRacing's own `SteeringWheelMaxForceNm`, the strength slider in Nm the sim maps to full
+- **Sim feedback max** is the sim's ("Sim FFB max" until 2026-10-02): iRacing's own `SteeringWheelMaxForceNm`, the strength slider in Nm the sim maps to full
   output on the wheel, set per car (29.7 on his 963, 27.3 on the MX-5), sent as `RacingDesk.Plugin.DS.SteerMaxForceNm`
   only where the sim says a number above nought and never in demo (`TelemetryCapture.SteeringWheelMaxForceNm`,
   `TelemetryFrame.SteerMaxForceNmKey`; `SteerMaxForceTests`). `datastream.js` reads it to one place. **It is not the
@@ -303,7 +378,7 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   (the least glanced-at cell, and not the circuit), race control over the top of the track, the finish (`#raceEndScreen`)
   over the track and the local view, the commentary card over the pit box, the pit limiter and the grid from the top edge.
   An absolute box placed in a grid area takes that area for its frame. Race control's sentence wraps to as many lines as
-  the cell asks and none of it is cut off (`Full course yellow — hold position` had read `FULL COURSE YELLOV`); a flag
+  the cell asks and none of it is cut off (`Full course yellow — hold position` had read `FULL COURSE YELLOV` when it was set in capitals); a flag
   that replaces the one it is about (yellow, then blue) takes it away at once (`poll-engine.js`), so it never says yellow
   over a blue screen (this is the rig's HUD too).
 - **The glass**: each panel is the rig's — near-black at nine-tenths, an edge, and over it ambient.css's light (the
@@ -365,7 +440,7 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   road, SimHub's a lap or two, and his practice runs that afternoon (the recordings' sidecars) each ended before the line
   with a reset to the pits, so it never was — and the laps panel read it as it was, where the pit box refused anything at
   99. The engine now says 0 there (`TelemetrySnapshot.FuelLapsRemaining`, the demo's and the strategist's
-  `Strategy.FuelLapsRemaining` alike, which never calls FUEL CRITICAL on a 0), and every reader on the page takes the
+  `Strategy.FuelLapsRemaining` alike, which never calls fuel critical on a 0), and every reader on the page takes the
   wire's number through one function, `parseFuelLaps` (`config.js`): 0 is not known and so is **exactly 99**, which a
   SimHub plugin built before this still sends, and else it is a number — a hundred laps or more is one too (a small burn
   on a short oval; the first cut dropped everything from 99 up), so the page shows a dash only for what is not known.
@@ -494,14 +569,8 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   other panel has its header and the numbers as large as the cell allows (he asked on 2026-10-01: "update incidents
   panel in ipad overlay to match header location of other modules and larger fonts on the data"). The header is where
   the datastream's beside it is: the inner card takes `.ds-inner`'s padding (6px 10px) and number size (`max(20px,
-  min(6.2cqh, 9cqw))`), and `.inc-label` is `max(11px, 0.55em)` with the same weight and rule beneath as `.ds-header`,
-  at the top on the left, where it sat centred in the middle of the cell. Its type is the HUD's own incidents header's
-  (0.12em, 0.35: the datastream's and the leaderboard's are the same), **not** the `.panel-label`'s (0.08em,
-  `var(--text-dim)`: Tyres, Fuel, Weather, the ratings, the gaps), which is fainter than the three and tighter: the
-  glance layout's type is held to the rig HUD's (`drive-view.spec.mjs`, "the HUD's type and its colours") and on the
-  rig those three headers are in that older style too. Making the iPad's headers one look would mean changing the
-  rig's HUD (`.ds-header`, `.inc-label`, `.lb-header` in `datastream.css` and `leaderboard.css`) or relaxing that
-  test; he asked for the header's location, which is the other modules'. **The count** is a custom property, `--inc-count`, the lesser of what the cell's height leaves it (40cqh: under the
+  min(6.2cqh, 9cqw))`), and `.inc-label` is at the top on the left, where it sat centred in the middle of the cell, in
+  the one header style (One header for every panel, below). **The count** is a custom property, `--inc-count`, the lesser of what the cell's height leaves it (40cqh: under the
   header, over the bar and the two limits) and what its width does (two digits and the x take 1.3 times its size
   across the card, so `72cqw − 18px`, six per cent under what was measured to fit): 83px in an Air's cell on its side
   (it was 70, `min(34cqh, 50cqw)`), 98px in a 12.9-inch Pro's, 85px upright; the x goes with it at four-tenths. A
@@ -511,14 +580,14 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   drive; a race is DQ'd long before) are sized at `52cqw − 14px` and four at `40cqw − 12px`, so the count is never cut
   off. The penalty and DQ counts are `max(20px, min(14.7cqh, 27cqw))` (25 to 43px; they were `min(9cqh, 14cqw)`), their
   labels 11px or more; the count floats in the room between the header and the thresholds (auto margins), so the
-  thresholds are at the foot. Once a limit is hit the number is a word (PENALTY, DQ), read at a label's size
+  thresholds are at the foot. Once a limit is hit the number is a word (Penalty, DQ), read at a label's size
   (`max(14px, min(8cqh, 11cqw))`: at the number's size it was wider than the narrowest cell); a value that would not
   fit beside its label goes under it, right-aligned, and the labels never break. Probed in the page's own layout at
   the seven iPad sizes (the count's size at which the card first overflows), the count is within 1 to 6 % of the most
   the card holds: the margin that is left is for the iPad's own font, whose digits may be wider than the headless
   browser's fallback. `tests/unit/incidents-glance.spec.mjs` measures the header against the
-  datastream's (offset from the top and the left of its panel within a pixel, size, tracking, colour, weight, case,
-  family) and the leaderboard's (tracking in em, colour), and the numbers against the cell, at the
+  datastream's (offset from the top and the left of its panel within a pixel, size, tracking, colour, weight, case —
+  none, family) and the leaderboard's (tracking in em, 0.04, colour), and the numbers against the cell, at the
   seven iPad sizes and the rig's two, in a race, with two digits, with both limits hit, with a DQ limit alone, in a
   test drive and in long ones (three and four digits), with the count and its x inside the card and nothing cropped.
   The glance golden frames were re-made for it.
@@ -703,9 +772,10 @@ there is, with no such key** (a SimHub plugin from before it, a replay, the demo
   a lap to the finish either (that is the white flag, and the laps to go are the clock's). The same scan has the chequered
   flag with a yellow waved after it (`0x10040101`), which is why a local yellow does not take the chequered flag's place.
   The values are held as recorded in `tests/unit/session-flags.spec.mjs` and on the page in `session-flags-hud.spec.mjs`.
-- **What each says and looks like**: the gaps block (the rig's and the glance layout's) says `LOCAL YELLOW` / "Local yellow —
-  slow in this sector", `CAUTION` / "Full course caution — hold position", `1 LAP TO GREEN` / "Green flag next lap — be ready"
-  (under a caution only), `GREEN HELD`, `BLACK FLAG WARNING` / "Warning — a black flag may follow", `DISQUALIFIED`; the
+- **What each says and looks like**: the gaps block (the rig's and the glance layout's) says "Local yellow" / "Local yellow —
+  slow in this sector", "Caution" / "Full course caution — hold position", "1 lap to green" / "Green flag next lap — be ready"
+  (under a caution only), "Green held", "Black flag warning" / "Warning — a black flag may follow", "Disqualified" (in
+  sentence case since 2026-10-02: Words, not capitals); the
   glance layout's background is per state (`drive-view.css`, `body[data-flag]`) and the rig's gaps block has a
   `.flag-<state>` class for each (`dashboard.css`, where `.flag-label` is centred and balanced, since the longer labels
   wrap to two lines in the rig's 272px block; `webgl.js` has the WebGL colours and `ambient-light.js` the ambient colour).
