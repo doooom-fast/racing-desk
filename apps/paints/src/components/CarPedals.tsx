@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, type ReactNode } from "react";
-import { curveShape, keyWords, plain, when, type CarPedals, type ListedCar, type Profile, type Rig } from "../rig";
+import { curveShape, keyWords, plain, when, type CarPedals, type CarRestore, type ListedCar, type Profile, type Rig } from "../rig";
 import type { PedalNote } from "../useRig";
 
 const NOT_HERE = "A car's pedals are kept by the Racing Desk app, and this page is running without it.";
@@ -114,7 +114,8 @@ function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | nul
 /// profile's brake is, who gave the car the profile, and the brake force the car was last driven with. The
 /// choice is the one thing the page writes to the host, through the app; nothing here changes the pedals
 /// themselves. A profile SmartControl no longer has stays in the car's own list, so the select says what the
-/// host has, not "none".
+/// host has, not "none". Under it, what putting the brakes back says of the car: its own SmartControl profile, made from
+/// that base at the force he last set in it and switched to when he gets in, parked — in trial, what it would make.
 export function CarPedalsPanel({
   here,
   rig,
@@ -125,6 +126,7 @@ export function CarPedalsPanel({
   saving,
   note,
   onBind,
+  restore = null,
 }: {
   /// Whether there is an app to have asked.
   here: boolean;
@@ -140,6 +142,8 @@ export function CarPedalsPanel({
   saving: string | null | undefined;
   note: PedalNote | null;
   onBind: (carPath: string, profileId: string | null) => void;
+  /// What putting the cars back says of this one; null where there is nothing (no app, a host from before it).
+  restore?: CarRestore | null;
 }) {
   const select = useRef<HTMLSelectElement>(null);
   const held = useRef(false);
@@ -218,6 +222,11 @@ export function CarPedalsPanel({
       {whose && (
         <div className="given" id="car-pedals-given">
           {whose}
+        </div>
+      )}
+      {restore?.pedals && (
+        <div className="given restore-line" data-restore={restore.pedalsState ?? ""}>
+          {restore.pedals}
         </div>
       )}
       {rig.pedalsNote && <div className="note">{rig.pedalsNote}</div>}

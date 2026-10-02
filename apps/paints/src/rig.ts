@@ -132,6 +132,23 @@ export interface CarListRead {
   kept: Map<string, Remark[]> | null;
 }
 
+/// What putting back a car's height and brakes says of it (docs/view-and-pedals-plan.md): a sentence for its View panel and
+/// one for its Pedals panel, each with the state the host gave it; `kept` when Racing Desk has written the car's camera
+/// file, which undo can put back.
+export interface CarRestore {
+  view: string | null;
+  viewState: string | null;
+  pedals: string | null;
+  pedalsState: string | null;
+  kept: boolean;
+}
+
+/// The host's answer to it, as the page uses it: in trial or acting, and each car by key.
+export interface RestoreRead {
+  trial: boolean;
+  cars: Map<string, CarRestore>;
+}
+
 /// The host's answers as the page uses them. `views` and `pedals` are null when the host had none to give, and
 /// the note beside each says why, in words. `list` is null when there is no list to show: a host from before it,
 /// or one whose build carries none — the page is then as it was — or one that could not be read, which
@@ -146,6 +163,8 @@ export interface Rig {
   pedalsNote: string | null;
   list: CarListRead | null;
   listNote: string | null;
+  /// What putting the cars back says of each, read beside the rest (restore:read); null where the app or the host has none.
+  restore: RestoreRead | null;
 }
 
 type Row = Record<string, unknown>;
@@ -344,6 +363,7 @@ export function readRig(read: unknown): Rig {
     pedalsNote: null,
     list: null,
     listNote: null,
+    restore: null,
   };
   // The first spelling of a path stands: the store's own list is read first, and is the one a write is checked
   // against.
@@ -404,6 +424,36 @@ export function readRig(read: unknown): Rig {
     out,
   );
   return out;
+}
+
+/// What `window.racingDesk.restore.read()` answered — { value: { available, mode, cars: [{ car, view: { state, text },
+/// pedals: { state, text } }], made: { heights: [{ car }] } } } — as the Cars page uses it, or null where there is nothing to
+/// show: no app, a host from before it, one that does not put cars back. Nothing in it is taken on trust: a sentence is a
+/// string of a sentence's length or none.
+export function readRestore(read: unknown): RestoreRead | null {
+  const value = isRow(read) && isRow(read.value) ? read.value : null;
+  if (!value || value.available !== true || !Array.isArray(value.cars)) return null;
+  const sentence = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v.slice(0, 600) : null);
+  const kept = new Set(
+    (isRow(value.made) ? rows(value.made.heights) : []).flatMap((h) => (typeof h.car === "string" ? [carKey(h.car)] : [])),
+  );
+  const cars = new Map<string, CarRestore>();
+  for (const row of rows(value.cars)) {
+    if (typeof row.car !== "string" || row.car.trim().length === 0) continue;
+    const view = isRow(row.view) ? row.view : null;
+    const pedals = isRow(row.pedals) ? row.pedals : null;
+    const key = carKey(row.car);
+    if (cars.has(key)) continue;
+    cars.set(key, {
+      view: sentence(view?.text),
+      viewState: sentence(view?.state),
+      pedals: sentence(pedals?.text),
+      pedalsState: sentence(pedals?.state),
+      kept: kept.has(key),
+    });
+  }
+  for (const key of kept) if (!cars.has(key)) cars.set(key, { view: null, viewState: null, pedals: null, pedalsState: null, kept: true });
+  return { trial: value.mode !== "on", cars };
 }
 
 /// The car's row as `bindPedals` answered it, or null when the answer was that the car has none now.

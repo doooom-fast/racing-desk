@@ -30,6 +30,7 @@
 </header>
 
 <main class="desk page" id="desk" data-page="desk">
+  <p class="restore-last" id="restore-last" role="status" hidden></p>
   <section class="card verdict" id="race-now"></section>
   <section class="card composure" id="composure"></section>
   <section class="card when" id="when"></section>
@@ -62,6 +63,7 @@
   <p class="settings-intro">The HUD's settings, kept in <code>%APPDATA%\Racing Desk\overlay-settings.json</code>. A change reaches the HUD as you make it.<span id="settings-status" role="status"></span></p>
   <div class="settings-sections" id="settings-sections"></div>
   <section class="card recording" id="settings-recording"></section>
+  <section class="card restore-card" id="settings-restore"></section>
   <section class="card remote" id="settings-remote"></section>
 </main>
 
@@ -76,6 +78,7 @@
 <script src="modules/js/qr-code.js"></script>
 <script src="modules/desk/settings-model.js"></script>
 <script src="modules/desk/recording-model.js"></script>
+<script src="modules/desk/restore-model.js"></script>
 <script src="modules/desk/desk.js"></script>
 </body>
 </html>

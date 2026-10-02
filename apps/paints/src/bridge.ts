@@ -20,9 +20,17 @@ export interface DeskRig {
   bindPedals(carPath: string, profileId: string | null): Promise<unknown>;
 }
 
+/// Putting back each car's height and brakes, as the app's host says it (apps/overlay/modules/js/restore-api.js): read
+/// answers { value } | { missing } | { error }; command takes one of the host's commands and answers { ok, … }. Never a
+/// rejection from the app.
+export interface DeskRestore {
+  read(opts?: { linesOnly?: boolean }): Promise<unknown>;
+  command(body: Record<string, unknown>): Promise<unknown>;
+}
+
 declare global {
   interface Window {
-    racingDesk?: { paints?: DeskPaints; rig?: Partial<DeskRig> };
+    racingDesk?: { paints?: DeskPaints; rig?: Partial<DeskRig>; restore?: Partial<DeskRestore> };
   }
 }
 
@@ -38,6 +46,14 @@ export function deskRig(): DeskRig | null {
   const rig = window.racingDesk?.rig;
   return rig && typeof rig.read === "function" && typeof rig.bindPedals === "function"
     ? (rig as DeskRig)
+    : null;
+}
+
+/// The way to what putting the cars back says of them, or null where there is none: the Tauri shell, a desk from before it.
+export function deskRestore(): DeskRestore | null {
+  const restore = window.racingDesk?.restore;
+  return restore && typeof restore.read === "function" && typeof restore.command === "function"
+    ? (restore as DeskRestore)
     : null;
 }
 

@@ -1918,6 +1918,92 @@ test('a car\'s view is in millimetres with their sign, the horizon as iRacing ha
   expect(errors).toEqual([]);
 });
 
+// Putting back each car's height and brakes (docs/view-and-pedals-plan.md), as the app hands it to the page:
+// window.racingDesk.restore.read() answers what the host says of each car — a line for its View panel and one for its
+// Pedals panel — and which cars' camera files Racing Desk has written, each of which has an undo of its own. `commands`
+// are restore.command's answers, one per call in order. `reads` counts the whole reads; the Desk page's line asks for the
+// lines alone (`linesOnly`), whichever page is showing, and is counted apart.
+async function stubRestore(page, answer, commands = []) {
+  await page.addInitScript(([read, answers]) => {
+    window.__restore = { reads: 0, lines: 0, sent: [], answers };
+    window.racingDesk = Object.assign(window.racingDesk || {}, {
+      restore: {
+        read: async (opts) => {
+          if (opts && opts.linesOnly) window.__restore.lines += 1;
+          else window.__restore.reads += 1;
+          return JSON.parse(JSON.stringify(read));
+        },
+        command: async (body) => {
+          window.__restore.sent.push(body);
+          return window.__restore.answers.shift() ?? { ok: false, why: 'the test has no answer for this' };
+        },
+      },
+    });
+  }, [answer, commands]);
+}
+const RESTORE = {
+  value: {
+    available: true, mode: 'trial',
+    cars: [
+      {
+        car: 'mclaren570sgt4',
+        view: { state: 'trial', text: 'Trial: when iRacing closes, would keep the height you leave this car with in its camera file (−6.0 cm now).' },
+        pedals: { state: 'trial', text: 'Trial: would make its own SmartControl profile \'McLaren 570S GT4\' from LightBrake at 55 kg, and switch to it when you get in, parked.' },
+      },
+      { car: 'Caterham Caterham420R', view: { state: 'no-file', text: 'No camera file for this car yet: in the car, Ctrl+F12 → Save Car once.' }, pedals: null },
+    ],
+    made: { heights: [{ car: 'mclaren570sgt4' }] },
+  },
+};
+
+test('putting the cars back: a line on a car\'s View and Pedals panels, and an undo for a car whose camera file it wrote', async ({ page }) => {
+  await stubRestore(page, RESTORE, [{ ok: false, why: 'iRacing is running: close it first.' }, { ok: true, did: ['car.cam put back'] }]);
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`);
+  const view = app.locator('.car-view');
+  const pedals = app.locator('.car-pedals');
+  await lookAt(app, 'McLaren 570S GT4');
+  await expect(view.locator('.restore-line')).toHaveText(RESTORE.value.cars[0].view.text);
+  await expect(view.locator('.restore-line')).toHaveAttribute('data-restore', 'trial');
+  await expect(pedals.locator('.restore-line')).toHaveText(RESTORE.value.cars[0].pedals.text);
+  // Read beside the rest, through the app: one read of each when the page is shown.
+  await expect.poll(() => page.evaluate(() => window.__restore.reads)).toBe(await rigReads(page));
+
+  // The undo asks first; said no, nothing is sent.
+  const undo = view.locator('.restore-undo button');
+  await expect(undo).toHaveText('Undo Racing Desk\'s height for this car');
+  const asked = [];
+  page.once('dialog', (d) => { asked.push(d.message()); d.dismiss(); });
+  await undo.click();
+  await expect.poll(() => asked.length).toBe(1);
+  expect(asked[0]).toBe('Put this car\'s camera file back as it was before Racing Desk wrote it? iRacing must be closed.');
+  expect(await page.evaluate(() => window.__restore.sent)).toEqual([]);
+  // Said yes, it names the car by the host's spelling, says why it did nothing, and the page reads again.
+  const reads = await page.evaluate(() => window.__restore.reads);
+  page.once('dialog', (d) => d.accept());
+  await undo.click();
+  await expect(view.locator('.restore-undo .note')).toHaveText('Not put back: iRacing is running: close it first.');
+  expect(await page.evaluate(() => window.__restore.reads)).toBeGreaterThan(reads);
+  page.once('dialog', (d) => d.accept());
+  await undo.click();
+  await expect(view.locator('.restore-undo .note')).toHaveText('Put back as it was before Racing Desk.');
+  expect(await page.evaluate(() => window.__restore.sent)).toEqual([{ undo: 'height', car: 'mclaren570sgt4' }, { undo: 'height', car: 'mclaren570sgt4' }]);
+
+  // A car's line is found whatever the case of its path; a car with nothing written has no undo, and one with no line has none.
+  await lookAt(app, 'Caterham Seven 420R');
+  await expect(view.locator('.restore-line')).toHaveText(RESTORE.value.cars[1].view.text);
+  await expect(view.locator('.restore-line')).toHaveAttribute('data-restore', 'no-file');
+  await expect(pedals.locator('.restore-line')).toHaveCount(0);
+  await expect(view.locator('.restore-undo')).toHaveCount(0);
+  await lookAt(app, 'Lotus 79');
+  await expect(app.locator('.restore-line')).toHaveCount(0);
+  await expect(app.locator('.restore-undo')).toHaveCount(0);
+  // What the undo said was of that visit to that car.
+  await lookAt(app, 'McLaren 570S GT4');
+  await expect(view.locator('.restore-undo button')).toBeEnabled();
+  await expect(view.locator('.restore-undo .note')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('a car\'s pedals: the profile it was given, that profile\'s brake in a line, and SmartControl Live\'s keys', async ({ page }) => {
   const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`);
   const pedals = app.locator('.car-pedals');

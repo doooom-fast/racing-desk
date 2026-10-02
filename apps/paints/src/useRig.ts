@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorText } from "./api";
-import { deskRig } from "./bridge";
-import { boundRow, carKey, readRig, withoutProfile, type Rig } from "./rig";
+import { deskRestore, deskRig } from "./bridge";
+import { boundRow, carKey, readRestore, readRig, withoutProfile, type Rig } from "./rig";
 
 /// How the last change to a car's pedals went, said beside its profile.
 export interface PedalNote {
@@ -19,6 +19,8 @@ export interface RigState {
   notes: ReadonlyMap<string, PedalNote>;
   refresh: () => Promise<void>;
   bind: (carPath: string, profileId: string | null) => Promise<void>;
+  /// Puts the car's camera file back as it was before Racing Desk wrote it (undo, on his click); what it answered, in words.
+  undoHeight: (carPath: string) => Promise<string>;
 }
 
 const isRow = (v: unknown): v is Record<string, unknown> =>
@@ -56,6 +58,9 @@ export function useRig(): RigState {
     const mine = ++asked.current;
     const done = (async () => {
       let answer: unknown;
+      // What putting the cars back says of each, asked beside the rest where the app has it.
+      const restore = deskRestore();
+      const restoreRead = restore ? restore.read().catch(() => null) : Promise.resolve(null);
       try {
         answer = await bridge.read();
       } catch (e) {
@@ -63,10 +68,11 @@ export function useRig(): RigState {
         const error = errorText(e);
         answer = { cars: { error }, views: { error }, pedals: { error }, controls: { error } };
       }
+      const restoreAnswer = await restoreRead;
       if (reading.current?.mine === mine) reading.current = null;
       if (mine !== asked.current) return;
       setNotes(new Map());
-      setRig(readRig(answer));
+      setRig({ ...readRig(answer), restore: readRestore(restoreAnswer) });
     })();
     reading.current = { mine, done };
     return done;
@@ -147,5 +153,23 @@ export function useRig(): RigState {
     setSaving(without);
   }, []);
 
-  return { here: deskRig() !== null, rig, saving, notes, refresh, bind };
+  const undoHeight = useCallback(
+    async (carPath: string): Promise<string> => {
+      const restore = deskRestore();
+      if (!restore) return "This is the Racing Desk app's to do.";
+      let result: unknown;
+      try {
+        result = await restore.command({ undo: "height", car: carPath });
+      } catch (e) {
+        result = { ok: false, error: errorText(e) };
+      }
+      await refresh();
+      if (isRow(result) && result.ok === true) return "Put back as it was before Racing Desk.";
+      const why = isRow(result) ? (typeof result.why === "string" && result.why) || (typeof result.error === "string" && result.error) : null;
+      return `Not put back: ${why || "no reason given"}`;
+    },
+    [refresh],
+  );
+
+  return { here: deskRig() !== null, rig, saving, notes, refresh, bind, undoHeight };
 }

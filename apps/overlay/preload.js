@@ -74,6 +74,14 @@ contextBridge.exposeInMainWorld('racingDesk', {
     read: () => ipcRenderer.invoke('rig:read'),
     bindPedals: (carPath, profileId) => ipcRenderer.invoke('rig:bindPedals', carPath, profileId),
   },
+  // Desk window: putting back each car's height and brakes (modules/js/restore-api.js), asked of the app's host by main.js —
+  // Settings → Cars, the Desk page's line and the Cars page's lines. read() resolves to { value }, { missing: true } or { error };
+  // command(body) — { switches }, { step }, { mark, state }, { undo, car? } — to { ok, … } or { ok: false, error }. What went
+  // wrong is an answer, not a rejection.
+  restore: {
+    read: (opts) => ipcRenderer.invoke('restore:read', opts && opts.linesOnly === true ? { linesOnly: true } : undefined),
+    command: (body) => ipcRenderer.invoke('restore:command', body),
+  },
   // Desk window: what the desk reads of the host's store, asked for by main.js (modules/js/desk-reads.js) because the host answers
   // programs on this machine and no page, this one included. read('status' | 'sessions' | 'schedule') or read('session', id)
   // resolves to { value }, or { error } with `notHere` (the host is on another machine, so it was not asked), `noAnswer` or
@@ -139,8 +147,9 @@ contextBridge.exposeInMainWorld('racingDesk', {
   },
   getRigLimits: () => ipcRenderer.invoke('get-rig-limits'),
   // Recording is OBS's, kept by the main process (modules/js/obs): the page records nothing and is told nothing of a
-  // recording's state, which OBS would film. The one thing it may be told is a sentence to show for two seconds —
-  // "OBS is not open", "OBS didn't start recording" — which hud-notice.js draws.
+  // recording's state, which OBS would film. What it may be told is a sentence to show for two seconds — the recording's
+  // two, "OBS is not open" and "OBS didn't start recording", and Racing Desk's own lines about the car's height and brakes,
+  // never while OBS records (modules/js/restore-api.js) — which hud-notice.js draws.
   onHudNotice: (callback) => {
     ipcRenderer.on('hud-notice', (_event, text) => callback(text));
   },

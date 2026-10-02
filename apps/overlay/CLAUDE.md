@@ -57,7 +57,8 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `obs/hud-source.js` | **Main process**: "HUD drawn by OBS" — the one browser source `Racing Desk HUD` (the loopback listener's `/obs` page, at the port the listener is really on) made once, an item of it in each scene that has an item named `game video`, in the collection the switch was turned on in and no other, just above it and fitted to it (the source is the HUD window's size in DIPs, scaled up by OBS), reloaded when OBS answers unless the page is polling, disabled off — applied at every connect, then the window goes back into the capture — and on quit, never removed; what he hid or moved is left (`apply` does the ordering, with `setContentProtection` handed in as `protect`). With "iPad dashboard" chosen (`view`), the source is the `/obs-ipad` page, made at 1180 by 820 and placed once per scene in the bottom-left corner of the game video at half its height (`IPAD_PLACE`) and never moved or sized again — not when he renames a scene; **the page is laid out at the box he gives the item** (`followBox`: the source's width and height follow the item's bounds, or its scaled size with the scale put to one; a box smaller than the least iPad in its orientation, `LEAST_BOX` 1024x744 / 744x1024, is laid out at its shape scaled up to that and drawn into the box, on every connect for the scene OBS is on and a moment after OBS's `SceneItemTransformChanged` for the item, `transformChanged`, so dragging the item's corner in OBS re-lays the page out rather than stretching it; a size typed into the source's settings is not kept); the state file keeps the scenes placed (by the scene's uuid, the name where OBS gives none) and his transform of it when the choice goes back to the rig HUD, which puts the item back over the game; an item with nothing written of it is his unless it still covers the game video as the rig HUD's fit does |
 | `obs/tv-shots.js` | **Main process**: TV shots — the sidecar's moments (places gained, incidents, the pit lane) found again in iRacing's replay by their `sn`/`st` through the host's replay route (the SDK's own commands; no key; refused by the host while he is on track), recorded through a TV camera on his car by its number as one take in the race's folder, the recording paused between moments, a moment the sim does not reach skipped, the take ended where it is when he gets in the car, OBS stops it, iRacing leaves its replay, Stop or the quit; the facecam hidden, kept in `tv-state.json` and put back whatever happened, auto-record held; progress to the desk, the tray and the Stream Deck |
 | `obs/recordings-index.js` | Pure: the recordings folder read by each folder's sidecar header — the race's recording by the session's start and track, the latest for the tray |
-| `hud-notice.js` | The one thing the HUD may be told of recording, for two seconds: "OBS is not open", "OBS didn't start recording" |
+| `hud-notice.js` | What the main process may have the rig's HUD say for two seconds, and only these: the recording's two ("OBS is not open", "OBS didn't start recording") and the lines of putting the car back, at his first moment in the car ("Trial: brakes Porsche 963 GTP · 70 kg", "Trial: height … (its camera file)", "Trial: no camera file for the … yet"), never while OBS records. `tests/unit/hud-main-wiring.spec.mjs` holds main.js to those two senders |
+| `restore-api.js` | **Main process**: putting back each car's height and brakes, as the app sees it — the host's `GET`/`POST /racing-desk/data/restore` asked by Node (`restore:read`, `restore:command`, answered to the desk window alone), the three switches written to `overlay-settings.json` (`restoreHeight`, `restoreBrakes`, `restoreHorizon`) and told to the host at start, on change and when a read finds it out of step, and the host's new HUD lines passed to `hud-notice` while he is in the car, two seconds each (rig HUD only; not shown, and logged, while OBS records or is starting to). Root CLAUDE.md, Per car, for the rig |
 | `telemetry-sidecar.js` | Pure: the `.telemetry.jsonl` beside the video, written by the keeper; every frame carries the sim's `SessionNum` and `SessionTime` (`docs/telemetry-sidecar-schema.md`) |
 | `recording-settings.js` | The recording keys of `overlay-settings.json` and the once-only migration from the Electron recorder's; the default folder is `D:\Racing Desk\Recordings` |
 | `streamdeck-install.js` | The Stream Deck plugin copied from the unpacked folder into the Stream Deck app at every start |
@@ -887,6 +888,28 @@ and `tests/unit/hud-page-obs-ipad.spec.mjs` (the real pages through the listener
 The Recording card also holds, under the "HUD drawn by OBS" switch, the choice of what OBS draws (`obsHudView`: Rig HUD
 or iPad dashboard, a sentence each) and the "Panel background in OBS" slider (`obsPanelBackground`), both keys of the
 settings file saved like the switches (`recording-model.js` `HUD_VIEW`, `OBS_PANEL_BACKGROUND`).
+
+## Settings → Cars: putting each car's height and brakes back
+
+The card under the Recording card (`#settings-restore`; root CLAUDE.md, Per car, for the rig). Its model is
+`modules/desk/restore-model.js` (pure: the sentences, the switches as the settings file has them, the first run's steps in
+their parts, the undos, the Desk page's line); `desk.js` does the DOM and asks `window.racingDesk.restore` (preload →
+`restore:read` / `restore:command` in main.js → `modules/js/restore-api.js` → the host). It says **trial** — the host says
+what it would do and writes and presses nothing — and has:
+- the three switches, "Put back each car's driver height" and "A brake profile for each car" (on) and "The horizon per car
+  too" (off), each with what it waits for; a switch is written to the settings file by main.js and then told to the host;
+- "What trial would do for your cars" (folded): the host's dry run, a line per car;
+- the two undos, each asking first, enabled only when Racing Desk has made something to undo;
+- "The first run, with you at the rig" (folded): every step of the supervised run in its part, with what he does, what he
+  should see and what it settles; a button for each part of a step that runs only that, on his click (one that writes or
+  presses F24 asks first, in words), what it did said under it, and his Passed / Failed mark (pressed again, taken back).
+
+The Desk page has one line of it above the race-now card (`#restore-last`): the car driven last and what was done, or
+would have been, when he got in, read with the lines alone (`linesOnly`: no dry run for it). The Cars page shows the host's
+sentence for the car on its View and Pedals panels (`.restore-line`), and a per-car undo of the height on the View panel
+for a car whose camera file Racing Desk wrote (`apps/paints/src/useRig.ts` reads it beside the rest). Tests:
+`tests/unit/desk-restore-model.spec.mjs`, `tests/unit/restore-api.spec.mjs`, `tests/desk/restore.spec.mjs`, and "putting
+the cars back" in `tests/desk/desk.spec.mjs`.
 
 ## Panel background
 

@@ -1,24 +1,143 @@
 # Per-car view and pedal profiles — plan
 
-> **Status, 2026-09-29.** Built: the view is recorded per car when the sim closes (V1); SmartControl's profiles are
-> read and a car can be tied to one on the desk (P1); the brake force is followed from SmartControl Live's keys
-> and kept per car, and a car with no profile is given one by his rule (P2a). **Not built: putting anything
-> back** — a view, a force or a profile — which is every slice that writes a file of iRacing's or SmartControl's,
-> or presses a key. Nor the line on the HUD for each automatic action: what the app does is in `host.log` and on
-> the desk, and nowhere he would see it from the car. Facts are in
-> [`height-and-pedals-findings.md`](height-and-pedals-findings.md); this is what to do with them.
+> **Status, 2026-10-02.** Recording is built: the view per car when the sim closes (V1); SmartControl's profiles read and a
+> base given to each car by his rule (P1, P2a); the brake force followed from SmartControl Live's keys and kept per car.
+> **Putting each car's height and brakes back is designed and settled (below), and built in trial** on branch
+> `feature/restore-height-brakes`: at every car load, parked moment and exit the host says what it would do — on the desk,
+> in `host.log` and in a line on the rig's HUD — and **writes and presses nothing**. The writers, the one key and the undo
+> are built behind the first-run panel in Settings → Cars, where each step of the supervised first run is a button that runs
+> only that step, on his click. Nothing leaves trial in this build (`RestorePolicy.ActingBuilt` is false); the build that
+> acts comes after the first run, for each part whose checks passed. Facts are in
+> [`height-and-pedals-findings.md`](height-and-pedals-findings.md).
 >
-> **Decided by Kevin, 2026-09-28:** the view is *height, seat and horizon*; pedals are *per car*; the app *creates
-> and restores the whole profile*; SmartControl Live *is kept running*; and the whole thing is *transparent* —
-> SmartControl and iRacing are where a value is set, The Racing Desk remembers it per car and puts it back.
+> **Decided by Kevin, 2026-09-28:** the view is *height, seat and horizon*; pedals are *per car*; the app *creates and
+> restores the whole profile*; SmartControl Live *is kept running*; and the whole thing is *transparent* — SmartControl and
+> iRacing are where a value is set, The Racing Desk remembers it per car and puts it back.
+>
+> **Decided by Kevin, 2026-10-02:** "when I get in a car, its saved driver height and brake force should be set
+> automatically, and they aren't"; "I thought you'd be making new Heusinkveld profiles for each car as needed". Every car
+> starts at **S = −0.020** (his height then); a car whose force he never set starts at its base's own force (LightBrake
+> 45 kg, Default 80 kg); after a switch his +5 / −5 keys count from the profile's force, **once the first run proves the
+> switch**; the forces stored are right (720S GT3 30 kg, Dallara F3 90, F4 85, 963 70, 570S 55, MX-5 35). Racing Desk makes
+> its switch profile and binds F24 itself, in the first run's step A2, with him there; the horizon per car only if the
+> first run proves it; no log configuration in Live's program folder.
 
 ## Rules for both
 
 - The sim, and SmartControl, are where values are set. The app has no editor for either.
-- Nothing is written to iRacing's files while the sim runs. Nothing is ever written to the pedals directly.
-- Every file the app changes is copied aside first, and every automatic action is logged and shown on the HUD
-  once, in a line ("View: Lotus 79 — height −3"). Silent is not the same as invisible.
+- Nothing is written to iRacing's files while the sim runs — both of its process names are checked before each write.
+  Nothing is ever written to the pedals directly: no HID, no serial port, nothing to the pedals' memory.
+- **One key, ever: F24**, sent by `KeySender` alone (a test fails if `SendInput` appears anywhere else). No key is pressed
+  for the height. SmartControl's Apply, Save and Restore are never automated.
+- **His own six profiles, his Live presets and his five keys are never changed.** The writer refuses any row it did not
+  make (it is given the ids Racing Desk made, and nothing else).
+- Every file the app changes is copied aside first (the first original of each kept for good) and read back after;
+  SmartControl's database is backed up whole before the first write. Every automatic action is logged, said on the desk,
+  and shown on the rig's HUD once in a line ("Trial: brakes Porsche 963 GTP · 70 kg"). Silent is not the same as invisible.
 - A car with nothing saved is left exactly as it is.
+
+## The settled design (2026-10-02)
+
+### Height: kept in each car's camera file
+
+iRacing reads `driverHeightAdj` (`app.ini`, `[View]`) when it starts and writes it back when it exits: one height for every
+car. What it does read per car is the car's camera file, `Documents\iRacing\cameras\cars\<car>\car.cam` (or the set
+`camera.ini`'s `LastCarSet` names), applied when the car loads. Its cockpit camera's Z is a height of its own, and the two
+add. So:
+
+- **`app.ini` holds S for every car, and each car's own height lives in its camera file**: what he sees in a car is S plus
+  the cockpit Z its file holds. iRacing puts it back when he gets in; Racing Desk presses nothing.
+- **After the sim closes**, a run that started at S and in which he changed the height by d (the height `app.ini` holds
+  at exit, less S) adds d to the car's cockpit Z, and `app.ini` goes back to S. The first time a car is put back, its
+  stored height is moved over: new Z = his chosen height + the Z it was driven with − S, so S + Z is what he had.
+- **A run that did not start at S** (something else wrote `app.ini`, critique H2): if he changed the height, what he last
+  saw is kept (new Z = height at exit + Z − S); a leftover he did not touch is kept nowhere. Either way `app.ini` goes back
+  to S, at every exit.
+- **Limits:** |Z| ≤ 0.05 m until a test shows the camera takes more (a change past it is not kept, and said); a change
+  under half a millimetre is no change. His own Z is kept apart from what Racing Desk added (`own_z`, `added_z`), so undo
+  can take back exactly its own. The field of view is never touched.
+- **The order of a write**, so that a stop halfway leaves nothing wrong: the intent is kept in the store first, then
+  `app.ini` is set to S, then the camera file is written; a host start finishes a cut-short write or puts it back, with the
+  sim closed. A change waiting for the sim to close expires when the car is next driven.
+- **The camera file**: MACC version 14 or 15, 1,668 bytes, nine 184-byte records; the cockpit record is found by its name
+  and its Z is at +60. A file that is not that shape is refused and said.
+- **A car without a camera file** (the Dallara F3, the Lotus 79, the Caterham 420R today) has its height recorded only;
+  the desk asks him once to save one in the car (Ctrl+F12, Save Car, keep the name `car.cam`).
+- **The horizon** (the cockpit's vertical shift, +84) the same way, behind its own switch, off until the first run shows
+  that the shift adds to `DrivingVanishY` (B6).
+
+### Brakes: a SmartControl profile per car, switched by F24
+
+- **Each car gets a profile of its own in SmartControl**, made by Racing Desk when needed: a new row copied from his base —
+  LightBrake or Default, by his rule or his choice on the desk — at the car's force (the one his keys last left in it, or
+  the base's own if he never set one), named for the car ("Porsche 963 GTP"), with SmartControl's SHA-512 section hash
+  made by the rule (`rule_check.py`), and tracked by its id, not its name or description.
+- **One "Racing Desk" profile does the switching**: a copy of Default that Racing Desk owns, bound to **F24 · Set profile**
+  (Live action 1) in his "Default" Live preset. At car load the car's profile is copied into that row (as soon as the car
+  is known); F24 is sent once, **when he is parked** — still for a second (under 0.3 m/s), brake released (under 2 %), at
+  the garage screen or in the pit stall, never on track, in the pit lane or in a replay. Not sent if Live is not running,
+  the pedals are not connected, he has already set the force with his own keys in this car (his key wins), or the window in
+  front may be elevated (Windows would drop the key).
+- **The force his keys leave becomes the car's profile's force at exit**, written only with the SmartControl editor closed
+  (it would save its own copy over it); it waits for the editor to close, and an edit of his made meanwhile wins.
+- **Writing SmartControl's database**: the vendor's own SQL shapes (`profile_sim_device`, `keyboard_binding`,
+  `profile_smartcontrol_live_keyboard_binding`), database version 1 only, a short transaction with a busy timeout, the
+  journal mode never changed, every row read back after.
+
+### Trial, the gate and the first run
+
+- **Trial** is the only mode this build has. The two switches in Settings → Cars — "Put back each car's driver height" and
+  "A brake profile for each car" — are on, and say "Trial — saying what it would do; nothing is written or pressed until
+  the first run with you at the rig." "The horizon per car too" is off. The switches live in `overlay-settings.json`
+  (`restoreHeight`, `restoreBrakes`, `restoreHorizon`); main.js tells the host, which keeps them in `restore.json`.
+- **The first run** is the critique's corrected run, as buttons in Settings → Cars: 0a and 0b before he sits down; Part A
+  with the sim closed (A1 both SmartControl apps closed, A2 the Racing Desk profile and F24, A3 Live has F24, A4 F24 from a
+  program, A5 and A6 a LightBrake then a Default profile through the same row, A7 writing with the editor open, A8 his
+  usual force again); Part B in the sim, a test drive in the Porsche 963 (B1 `app.ini` at S survives a launch, B2 the
+  garage flags and F24 with iRacing in front, B3 the pit box, B4 the camera file 2 cm lower, B5 `app.ini` 2 cm lower
+  instead, B6 the horizon pair, B7 the field of view and the state he keeps, B8 camera files for the cars without one).
+  Each button runs only its step, on his click; one that writes or presses asks first. Beside each step is what he should
+  see, and his mark.
+- **The gate**: the brakes may leave trial once A4, A5, A6 and B2 are marked passed; the height once B1, B4 and B5; the
+  horizon once B6 — and only in a build that acts. His +5 / −5 count from a switched profile's force under the same gate.
+- **Undo**, each on his click, asking first: "Remove the brake profiles Racing Desk made" (its car profiles, its switch
+  profile and F24, with the editor closed; his own rows are never touched) and "Undo everything Racing Desk changed" for the
+  height (every camera file it wrote put back from its first original, and `app.ini`'s height; with iRacing closed), and
+  per car from the car's View panel.
+
+### What is stored (schema v9, tables only)
+
+`car_view_keep` (each car's camera file, his own Z and what was added, what was last written, a waiting change, a write's
+intent), `view_baseline` (S, `app.ini`'s original), `car_smartcontrol` (each car's profile: id, name, base, force written
+and waiting), `smartcontrol_switch` (the Racing Desk profile and its binding), `restore_events` (every line said; the last
+500 kept) and `restore_checks` (each first-run step: when it ran, what it saw, his mark). An earlier build still records
+into a store this one has opened. `GET /racing-desk/data/restore` (this machine only, like every data route) answers the
+switches, the gate, the lines, the dry run and the first run's steps; `POST` takes a switch, a step, a mark or an undo.
+`RacingDesk.Host.exe restore --dry-run` prints the dry run and writes nothing (the store opened read-only, not migrated);
+`--db`, `--documents` and `--smartcontrol` name copies to read instead of the rig's own.
+
+### Phase 0 (read-only, 2026-10-02)
+
+- **R1** `host.log`: 39 sim runs since 2026-09-27, a view recorded after 20. None is recorded when the host stops before
+  the sim goes (3 runs) or the sim outlives the SDK ("the sim is still running", 1); the rest ended at a session change, not
+  a sim exit, or came before views were recorded. Forces his keys set are kept at exit (F4 85 kg, F3 90 kg); a step from an
+  unknown force is not ("+65 kg from one that is not known", the 963).
+- **R2** UAC is on (consent prompt); SmartControl Live, Pit House and Explorer run unelevated; the sim, its launcher and
+  `start_protected_game` ask `asInvoker`, with no run-as-administrator flag for the C: install. The key reaches Live unless the window in front is
+  elevated, which B2 checks with iRacing in front.
+- **R3** His account has full control of `Documents\iRacing`, `app.ini`, `camera.ini` and `cameras\cars` (19 camera files,
+  all 1,668 bytes, none read-only), and of SmartControl's database folder and file; Controlled Folder Access is off.
+- **R4** SmartControl's database: version 1, journal mode delete; `profile_sim_device` (id TEXT, name TEXT, data BLOB of
+  UTF-8 bytes whose XML says utf-16), `keyboard_binding` (action_type INTEGER, action_value TEXT, first_key, second_key) and
+  its link table to `profile_smartcontrol_live`; his five keys are actions 8, 9 and 10 in preset 1; the vendor seeds
+  SetProfile bindings itself (NUMPAD1–4), which is the shape the writer copies.
+- **R5** The SimHub plugin's old `PedalProfileManager` has one profile and no car bound in either `PedalProfiles` folder, and
+  no Pit House folder has the `DeviceConfig` or `profiles` it imports from: it cannot act as a second applier.
+- **R6** F13–F24 are bound nowhere: not in OBS's hotkeys (both profiles, three scene collections), not in Stream Deck's 16
+  profiles, not in SimHub's settings; and, from the critique's read, nothing in his 35 iRacing control profiles or the root
+  `controls.cfg` is bound above F12.
+- **R7** Live's `Settings.xml` has its last preset as 1 ("Default"), notifications on (visual and voice); Live starts with
+  Windows (HKCU Run); the SmartControl editor does not.
 
 ## 1. The view: height, seat, horizon
 
@@ -27,40 +146,28 @@
 | | Where iRacing keeps it | Per car today? | How it is set |
 |---|---|---|---|
 | Height | `driverHeightAdj`, `[View]`, `app.ini` | No — global | in-car keys |
-| Horizon | `DrivingVanishY`, same section (to confirm: E3) | No — global | in-car keys |
+| Horizon | `DrivingVanishY`, same section | No — global | in-car keys |
 | Seat, fore and aft | cockpit x in `cameras\cars\<car>\car.cam` | Yes, but only through the camera tool | camera tool |
 
 The sim reads `app.ini` when it starts and rewrites it when it exits, and nothing in the SDK sets any of the three.
 So saving is easy and restoring is the whole problem: by the time the app knows which car it is, the sim has
-already read the file.
+already read the file. The settled design above answers it with the one per-car file iRacing does read at car load.
 
-### Design
+### Design as first written (superseded)
 
-The store gets a **view per car**: height, horizon, seat. It is saved when the sim exits — only what changed
-during the session, against the car that session was in, so a value left over from the previous car is never
-recorded as this one's.
-
-Restoring, in the order it will be built, each step gated by an experiment:
-
-1. **Before launch.** While the sim is closed, `app.ini` holds the view of the car driven last. Right whenever
-   the next session is in the same car, which is most of them.
-2. **On a change of car.** When the SDK names a different car, the app presses the sim's own height and
-   horizon keys the number of times it takes to get from what `app.ini` held to that car's view. It needs the
-   step size (E2), the bindings, and the sim in focus — which, getting into a car, it is.
-3. **Seat.** Written into the car's `car.cam` while the sim is closed, so iRacing applies it itself. The file is
-   binary and undocumented (E4–E6). Until then the seat is saved and shown, and restoring it stays with iRacing's
-   own `car.cam`.
-
-If pressing keys proves unreliable, height goes the way of the seat: folded into `car.cam`'s z.
+The first plan restored in three steps — the last car's view into `app.ini` before launch (V2), the sim's own height and
+horizon keys pressed on a change of car (V3), and the seat through `car.cam` (V4) — with "if pressing keys proves
+unreliable, height goes the way of the seat: folded into `car.cam`'s z". The settled design takes that fold from the
+start, presses no key for the height, and leaves the seat as iRacing keeps it.
 
 ### Slices
 
 | | Does | Writes |
 |---|---|---|
-| V1 | Records the three per car at sim exit; the desk shows them | nothing |
-| V2 | Puts the last car's view into `app.ini` while the sim is closed | `app.ini`, sim closed |
-| V3 | Nudges height and horizon on a change of car | key presses, in the car |
-| V4 | Seat through `car.cam` | `car.cam`, sim closed |
+| V1 | **Done.** Records the three per car at sim exit; the desk shows them | nothing |
+| V2 | **Built, in trial.** The height folded into each car's camera file, `app.ini` at S | `car.cam` and `app.ini`, sim closed — first-run buttons only |
+| V3 | Dropped: no keys are pressed for the height | — |
+| V4 | The horizon in the cockpit's vertical shift, behind its own switch, if B6 passes | `car.cam`, sim closed |
 
 ## 2. The pedals
 
@@ -79,8 +186,8 @@ untouched in all but one.
 | super light | 30 kg | linear | 1 % | linear, 5/5 % |
 
 SmartControl Live has one set of keys, all brake force: **Page Up** 50 kg, **Page Down** 30 kg, **Pause** 80 kg,
-**Right Ctrl + Up** +5 kg, **Right Ctrl + Down** −5 kg. No key switches profile. Live announces each change
-itself, on screen and in a voice.
+**Right Ctrl + Up** +5 kg, **Right Ctrl + Down** −5 kg. No key switches profile — until the first run's A2 binds F24 to the
+Racing Desk profile. Live announces each change itself, on screen and in a voice.
 
 Nothing on the PC records which profile the pedals are using — not the database, not Live's settings file. The
 controller holds it.
@@ -88,20 +195,12 @@ controller holds it.
 So a car's pedal settings are two things: **a profile** (curves, deadzones, a starting force), chosen in
 SmartControl, and **a brake force**, adjusted from the seat with Live's keys. The second is in no file.
 
-### Design
+### Design as first written (superseded)
 
-- **Brake force, through the keys already bound.** Any force in 5 kg steps can be reached with them: 65 kg is
-  Page Up, then Right Ctrl + Up three times. When the SDK names the car, the app presses them. From then on it
-  knows the force, and keeps knowing it by noticing those five keys — and no others — when they are pressed.
-  At the end of the session the force it arrived at is the car's. Nothing is written to SmartControl's files,
-  and Live says each change aloud, as it does now.
-- **The profile.** The desk binds a car to one of the six by name (P1). Restoring it needs a Live key that
-  applies a profile, which has to be bound once in SmartControl — one per profile (P3), or one in all if the app
-  keeps a profile of its own in SmartControl's database and copies the car's saved one into it (P4). The copy is
-  what SmartControl itself wrote, byte for byte, so its hash stands.
-- **Create.** A car driven with nothing saved gets, at the end of that session, the force the app arrived at
-  and the profile the desk was told. The desk asks which profile once per car, by name, and not in the car.
-- **A car with nothing saved** keeps whatever the pedals have, and the HUD says so.
+The first plan put the force back with the five keys already bound (65 kg is Page Up then Right Ctrl + Up three times),
+and the profile with a Live key per profile (P3) or one profile of the app's behind one key (P4). The settled design is
+P4 with a profile per car: the car's force is written into the car's own profile, so no force key is ever pressed, and
+the one key is F24.
 
 ### A profile of its own for every car (decided 2026-09-28)
 
@@ -157,27 +256,16 @@ from one of two of his:
   itself: a first profile only where the car has none and he has not chosen (`GiveCarPedalsByRule`); a profile
   given again only while it is still the one the rule read, by when it was bound, and the rule is still down as
   having given it (`RegiveCarPedalsByRule`); the reason put right likewise (`NoteRuleReason`). If he has chosen, the
-  rule writes nothing and says nothing. There is no schema change: these are statements, not tables.
-- **Where the answer came from is in the log line only** ("from Default (no ABS, from the list)"). The reasons kept
-  are the same four; a note of the source would need a table of its own (schema 7), which another branch is
-  adding for a different purpose, so the desk does not say it yet.
+  rule writes nothing and says nothing.
+- **Where the answer came from is in the log line only** ("from Default (no ABS, from the list)").
 - **The Cars page's "No profile yet" sentences read the list** as the rule does (`CarPedals.tsx`, from the list
   the page has for its Controls panel): a listed car is not said to wait on laps, and a GTP — whose `dcABS` is its
   brake migration — is not said to have ABS.
 - **Who gave a car its profile is kept** (`car_pedal_facts`: the rule and what it went by, or he himself), and
   the data API says it (`given_by`, `given_why`). A profile he gave on the desk, or chose not to have, is never
   the rule's to change.
-- **As built, the car's profile is the base's, kept as it was** — under the base's own name, not yet a copy with
-  the car's. What he changes in SmartControl afterwards changes the base for every car that starts from it; the
-  desk shows that the profile has changed since the car was given it. A profile per car *in SmartControl* is a
-  write to its database, and waits with the rest.
-- **What this changes in the slices.** P1's binding by name becomes the base a car was given. P3 (a Live key per
-  profile) no longer fits — there would be a key per car — so the way to restore is P4: one profile in
-  SmartControl that is the app's, holding the current car's, behind one key. That is a write to SmartControl's
-  database, and it waits on E9, E10 and his go-ahead like every other write.
-- **A profile made in SmartControl by the app would not be byte for byte SmartControl's**: it is a copy of one
-  that was, under another name. Whether SmartControl takes a row whose name changed and whose hash did not is
-  part of E10.
+- **What the rule gives is the car's base**, under the base's own name. The car's own profile in SmartControl — a copy
+  of that base under the car's name, at the car's force — is what the settled design makes from it (`car_smartcontrol`).
 
 ### What the first night taught (2026-09-28)
 
@@ -204,59 +292,55 @@ What is followed is not trusted further than it can be:
 - **Where Live stops is not known** (E8). Past Live's limit a step is counted here that Live did not take.
 - **Not known: whether Live acts on Page Up with Ctrl, Shift or Alt held.** Here it counts.
 
-One look at the rig settles most of it: press each of the five keys once with Live speaking, and compare what it
-says with `host.log`.
-
 ### Slices
 
 | | Does | Writes |
 |---|---|---|
-| P1 | Reads SmartControl's profiles; binds car to profile; the desk shows each car's | nothing |
-| P2a | **Done.** Brake force per car, followed by noticing Live's keys, saved when the sim goes; a profile by his rule for a car that has none | the app's own store |
-| P2 | Brake force per car: restored with Live's keys | key presses |
-| P3 | The profile per car, with a Live key per profile | key presses |
-| P4 | The managed profile: a snapshot per car, one key | one row in SmartControl's database |
+| P1 | **Done.** Reads SmartControl's profiles; binds car to profile; the desk shows each car's | nothing |
+| P2a | **Done.** Brake force per car, followed by noticing Live's keys, saved when the sim goes; a base by his rule for a car that has none | the app's own store |
+| P2 | Dropped: no force key is pressed; the force is in the car's profile | — |
+| P3 | Dropped: one key, not one per profile | — |
+| P4 | **Built, in trial.** A profile per car, copied into the Racing Desk profile at car load and switched with F24 when parked | rows of SmartControl's database it made; F24 — first-run buttons only |
 
 ### Where it runs
 
-In the host: it has the SDK's car and the session's start and end, and the store. Key presses and file writes are
-not "hardware" in the sense of `--no-hardware`, which stays what it is — the Moza serial port and friends.
-The pedal code already in `RacingDesk.Core` (`PedalProfileManager`) keys on the car's display name, pushes nothing
-when it falls back to the global profile, and imports from a Pit House folder this rig doesn't have; it is
-reworked to key on `CarPath` and to carry a vendor's profile verbatim.
+In the host: it has the SDK's car and the session's start and end, and the store (`RestoreDirector`, with the writers in
+`RacingDesk.Data/Restore` and `Pedals`, and `KeySender` in the host). Key presses and file writes are not "hardware" in the
+sense of `--no-hardware`, which stays what it is — the Moza serial port and friends. The pedal code in `RacingDesk.Core`
+(`PedalProfileManager`) is the SimHub plugin's, keyed on display names and a Pit House folder this rig doesn't have; R5
+found it with nothing bound, and it plays no part in this.
 
 ## Experiments
 
-Each needs Kevin at the rig for a few minutes; the app only reads files before and after.
+Each needs Kevin at the rig for a few minutes; the app only reads files before and after. Each is now a step of the first
+run, with a button that does Racing Desk's half.
 
-| | Question | How |
+| | Question | Settled by |
 |---|---|---|
-| E1 | Does an `app.ini` edit made with the iRacing UI open survive a sim launch? | edit, launch, exit, read |
-| E2 | How much is one press of height up, and of horizon up? | press five times, exit, read |
-| E3 | Is the horizon key `DrivingVanishY`? | same run as E2 |
-| E4 | Is `car.cam` applied when `camera.ini` has `LastCarSet=` empty? | a car that has one, look |
-| E5 | Does cockpit z add to `driverHeightAdj` one for one? | one car, both set |
-| E6 | Will iRacing take a `car.cam` for a car that never had one? | copy one across, look |
-| E7 | Does Live act on a key press sent by another program? | send Page Up; Live says "50" or doesn't |
-| E8 | Do +5 and −5 stop at a limit, and at which? | press past 80 and below 30, listen |
-| E9 | Does Live read the database when a profile is activated, or once at start? | change a row, activate |
-| E10 | Can the database be written while SmartControl and Live are open? | try on a copy of a profile |
-
-E7 decides the most: if Live ignores keys it didn't get from the keyboard, P2 to P4 fall back to asking the
-pedals directly, which is a later and more careful piece of work.
+| E1 | Does an `app.ini` edit made with the iRacing UI open survive a sim launch? | B1 |
+| E2 | How much is one press of height up, and of horizon up? | not needed: no key is pressed (steps are 0.005 m in his files) |
+| E3 | Is the horizon key `DrivingVanishY`? | B6 (and his `app.ini` comment says so) |
+| E4 | Is `car.cam` applied when `camera.ini` has `LastCarSet=` empty? | B4 |
+| E5 | Does cockpit z add to `driverHeightAdj` one for one? | B5 |
+| E6 | Will iRacing take a `car.cam` for a car that never had one? | B8 (he saves it in the sim; Racing Desk writes into it after) |
+| E7 | Does Live act on a key press sent by another program? | A4, and B2 with iRacing in front |
+| E8 | Do +5 and −5 stop at a limit, and at which? | open; the profile editor keeps forces within the vendor's range |
+| E9 | Does Live read the database when a profile is activated, or once at start? | A5, A6 |
+| E10 | Can the database be written while SmartControl and Live are open? | A7 (the editor); Live is open from A3 on |
 
 ## Open
 
 - ~~After a car is given another profile on the desk, which force is the car's?~~ **The last one a key set**
-  (2026-09-29): "I will only adjust with keys, you save last adjustment automatically". No editor, nothing to
-  confirm; the force it was last driven with stays the car's whatever profile it is given.
+  (2026-09-29): "I will only adjust with keys, you save last adjustment automatically".
 - ~~Monitor or VR?~~ **Monitor** (2026-09-28). The horizon applies, and height is the one in `app.ini`.
 - ~~A car with ABS that is neither a touring nor a sports car: which base does it start from?~~ **`Default`**
   (2026-09-29): "A proto with abs gets default".
-- What height up and down and horizon up and down are bound to — or whether the app should read that from the
-  control profile.
-- A HUD line for every automatic change, or only when something could not be done?
+- ~~What height up and down and horizon up and down are bound to?~~ Not needed: no key is pressed for the view.
+- ~~A HUD line for every automatic change, or only when something could not be done?~~ **Every one, once**, on the rig's
+  HUD only and never while OBS records.
 - Page Up, Page Down and Pause reach iRacing as well as Live when pressed. They do already, from the keyboard;
-  worth a look at what, if anything, they are bound to in the sim.
+  worth a look at what, if anything, they are bound to in the sim. F24 is bound to nothing in the sim, OBS, Stream Deck
+  or SimHub (R6); B3 looks for anything it does in the sim.
 - ~~Noticing five keys means the host listens to the keyboard while the sim runs.~~ **Yes** (2026-09-28): those
   keys, only while the sim runs, keeping only the force.
+- **When to do the first run** (about 40 minutes, the editor and Live closed for a few of them): his call.
