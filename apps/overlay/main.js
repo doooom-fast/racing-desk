@@ -409,19 +409,6 @@ const hudScreen = hudDisplay.createHudDisplay({
   log: logToFile,
 });
 
-// ── The HUD is on screen only while the driver is in the car ──
-// The window is made hidden and modules/js/hud-visibility.js is the only thing that reveals it: while the
-// telemetry says he is in the car (modules/js/in-car.js), he has not switched the HUD off, and the page is
-// loaded. It is this process that asks the telemetry — once a second, twice in the car — and tells the page
-// (in-race-state); out of the car the page neither polls nor draws, so at the sim's menus, in the garage, in a
-// replay, with the sim closed, the HUD costs a request a second and nothing is ever quit to get it off the screen.
-// The garage and the replay are told from the car by the telemetry's own IsOnTrack, which the app's host sends;
-// a source that sends none (a SimHub plugin from before 2026-09-29) has a session under way taken for in the car.
-// The driver's own switch is kept until the app is quit: off stays off when he gets in, on shows nothing while
-// he is out. The tray's "HUD on/off" throws it anywhere; Ctrl+Shift+H and the Stream Deck's button only in the
-// car, where what they do is seen. A page that has died is loaded again from there too (loadDashboard): two
-// seconds after its process went, and when he gets in the car with none. Dev mode's window stays as dev-mode.js
-// put it.
 // ── What the rig's hardware is set to, for the HUD's datastream (modules/js/rig-limits.js) ──
 // The brake force the pedals are at, as the app's host follows it from SmartControl Live's keys: asked of the host by
 // this process (its data is for programs on this machine, and no page) on the HUD keeper's own poll while he is in the
@@ -435,6 +422,19 @@ const rigLimits = rigLimitsMod.createRigLimits({
 
 ipcMain.handle('get-rig-limits', async () => rigLimits.current());
 
+// ── The HUD is on screen only while the driver is in the car ──
+// The window is made hidden and modules/js/hud-visibility.js is the only thing that reveals it: while the
+// telemetry says he is in the car (modules/js/in-car.js), he has not switched the HUD off, and the page is
+// loaded. It is this process that asks the telemetry — once a second, twice in the car — and tells the page
+// (in-race-state); out of the car the page neither polls nor draws, so at the sim's menus, in the garage, in a
+// replay, with the sim closed, the HUD costs a request a second and nothing is ever quit to get it off the screen.
+// The garage and the replay are told from the car by the telemetry's own IsOnTrack, which the app's host sends;
+// a source that sends none (a SimHub plugin from before 2026-09-29) has a session under way taken for in the car.
+// The driver's own switch is kept until the app is quit: off stays off when he gets in, on shows nothing while
+// he is out. The tray's "HUD on/off" throws it anywhere; Ctrl+Shift+H and the Stream Deck's button only in the
+// car, where what they do is seen. A page that has died is loaded again from there too (loadDashboard): two
+// seconds after its process went, and when he gets in the car with none. Dev mode's window stays as dev-mode.js
+// put it.
 const hud = hudVisibility.createHudVisibility({
   getWindow: () => overlayWindow,
   onInCar: (inCar) => hudKeys.hold(inCar),

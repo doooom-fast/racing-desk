@@ -31,6 +31,15 @@ function readAnswer(body) {
   return { brakeKg: kg, car };
 }
 
+// What fetchBrakeForce resolved, checked again as the page is told it ({ brakeKg, car }: already read from the host's
+// { car, force_kg }, so not read as the host's a second time): a force of nought or more, else not known.
+function told(limits) {
+  if (!limits || typeof limits !== 'object' || Array.isArray(limits)) return { ...NOT_KNOWN };
+  const kg = typeof limits.brakeKg === 'number' && Number.isFinite(limits.brakeKg) && limits.brakeKg >= 0 ? limits.brakeKg : null;
+  const car = typeof limits.car === 'string' && limits.car.length ? limits.car.slice(0, 200) : null;
+  return { brakeKg: kg, car };
+}
+
 // GET the brake force. Resolves the answer as the page is told it, not known for anything that is not one: nothing
 // listening, no answer in time, a status other than 200, a body that is not JSON. Never rejects. Node's http.get sends
 // a Host and nothing a browser sends, which is what the host answers.
@@ -84,7 +93,8 @@ function fetchBrakeForce(url, { timeoutMs = ANSWER_WITHIN_MS, get = http.get } =
 
 /**
  * The keeper. `host()` is where the app's host is now (it can move: :8889, or :18889 beside SimHub); `send(limits)` tells
- * the HUD's page; `fetch(url)` resolves the host's answer (fetchBrakeForce, or a stand-in in the tests).
+ * the HUD's page; `fetch(url)` resolves the answer as the page is told it, { brakeKg, car } (fetchBrakeForce, or a
+ * stand-in in the tests).
  *
  *   feed(payload)   the telemetry the HUD keeper polled, or null: asks the host while he is in the car
  *   current()       what the page was last told, for one that loaded after
@@ -119,8 +129,7 @@ function createRigLimits({ host, send, fetch = fetchBrakeForce, now = Date.now, 
     if (!url) { tell({ ...NOT_KNOWN }); return; }
     asking = true;
     try {
-      const answer = await fetch(url);
-      tell(readAnswer(answer));
+      tell(told(await fetch(url)));
     } catch (e) {
       tell({ ...NOT_KNOWN });
     } finally {
@@ -141,4 +150,4 @@ function createRigLimits({ host, send, fetch = fetchBrakeForce, now = Date.now, 
   return { feed, current: () => ({ ...current }) };
 }
 
-module.exports = { BRAKE_FORCE_PATH, ASK_EVERY_MS, ANSWER_WITHIN_MS, NOT_KNOWN, readAnswer, fetchBrakeForce, createRigLimits };
+module.exports = { BRAKE_FORCE_PATH, ASK_EVERY_MS, ANSWER_WITHIN_MS, NOT_KNOWN, readAnswer, told, fetchBrakeForce, createRigLimits };

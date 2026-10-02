@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const limits = require('../../modules/js/rig-limits.js');
-const { readAnswer, fetchBrakeForce, createRigLimits, BRAKE_FORCE_PATH, NOT_KNOWN } = limits;
+const { readAnswer, told, fetchBrakeForce, createRigLimits, BRAKE_FORCE_PATH, NOT_KNOWN } = limits;
 
 const IN_CAR = { 'DataCorePlugin.GameRunning': 1, 'RacingDesk.Plugin.Grid.SessionState': 4, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': 1 };
 const OUT = { 'DataCorePlugin.GameRunning': 1, 'RacingDesk.Plugin.Grid.SessionState': 4, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': 0 };
@@ -33,6 +33,17 @@ test.describe('the host\'s answer, as the page is told it', () => {
     expect(readAnswer('45')).toEqual({ brakeKg: null, car: null });
     expect(NOT_KNOWN).toEqual({ brakeKg: null, car: null });
     expect(BRAKE_FORCE_PATH).toBe('/racing-desk/data/brakeforce');
+  });
+
+  test('what the fetch resolved is checked in the page\'s shape, not read as the host\'s again', () => {
+    expect(told({ brakeKg: 45, car: 'mx5 mx52016' })).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
+    expect(told({ brakeKg: 0, car: 'x' })).toEqual({ brakeKg: 0, car: 'x' });
+    expect(told({ brakeKg: null, car: 'x' })).toEqual({ brakeKg: null, car: 'x' });
+    expect(told({ brakeKg: -1, car: 'x' })).toEqual({ brakeKg: null, car: 'x' });
+    expect(told({ brakeKg: '45', car: 'x' })).toEqual({ brakeKg: null, car: 'x' });
+    expect(told(readAnswer({ car: 'mx5 mx52016', force_kg: 45 }))).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
+    expect(told(null)).toEqual({ brakeKg: null, car: null });
+    expect(told([45])).toEqual({ brakeKg: null, car: null });
   });
 });
 
@@ -84,7 +95,7 @@ test.describe('fetchBrakeForce: the request to the host, by Node', () => {
 });
 
 test.describe('the keeper', () => {
-  function keeper({ answer = { car: 'mx5 mx52016', force_kg: 45 }, host = 'http://localhost:18889', everyMs = 2000 } = {}) {
+  function keeper({ answer = { brakeKg: 45, car: 'mx5 mx52016' }, host = 'http://localhost:18889', everyMs = 2000 } = {}) {
     const calls = { fetched: [], sent: [], logged: [] };
     let clock = 1000;
     const k = createRigLimits({
@@ -124,15 +135,15 @@ test.describe('the keeper', () => {
   });
 
   test('a change in the answer reaches the page; the current answer is kept for a page that loads after', async () => {
-    let answer = { car: 'mx5 mx52016', force_kg: 45 };
+    let answer = { brakeKg: 45, car: 'mx5 mx52016' };
     const { k, calls, tick } = keeper({ answer: () => answer });
     k.feed(IN_CAR);
     await settle();
-    answer = { car: 'mx5 mx52016', force_kg: 50 };
+    answer = { brakeKg: 50, car: 'mx5 mx52016' };
     tick(2500);
     k.feed(IN_CAR);
     await settle();
-    answer = { car: 'mx5 mx52016', force_kg: null };
+    answer = { brakeKg: null, car: 'mx5 mx52016' };
     tick(2500);
     k.feed(IN_CAR);
     await settle();
@@ -166,7 +177,7 @@ test.describe('the keeper', () => {
     expect(calls.sent).toEqual([]);
     expect(k.current()).toEqual({ brakeKg: null, car: null });
 
-    const known = keeper({ answer: { car: 'hondacivictyper', force_kg: null } });
+    const known = keeper({ answer: { brakeKg: null, car: 'hondacivictyper' } });
     known.k.feed(IN_CAR);
     await settle();
     expect(known.calls.sent).toEqual([{ brakeKg: null, car: 'hondacivictyper' }]);
@@ -186,10 +197,35 @@ test.describe('the keeper', () => {
     expect(calls.logged.join('\n')).not.toContain('Origin');
   });
 
+  // The keeper as main.js makes it — its own fetch (fetchBrakeForce), not a stand-in — against a host on 127.0.0.1 that
+  // answers as LocalDataApi does ({ car, force_kg }): the force reaches the page. (The host's answer was once read a
+  // second time as the host's, and every force came out "not known".)
+  test('with its own fetch, the host\'s force reaches the page', async () => {
+    const host = await startHost({ body: { car: 'mx5 mx52016', force_kg: 45 } });
+    try {
+      const sent = [];
+      let clock = 0;
+      const k = createRigLimits({ host: () => host.url, send: (l) => sent.push(l), now: () => clock });
+      k.feed(IN_CAR);
+      await expect.poll(() => sent.length, { timeout: 3000 }).toBe(1);
+      expect(sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016' }]);
+      expect(k.current()).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
+      expect(host.state.asked.map((a) => a.url)).toEqual([BRAKE_FORCE_PATH]);
+
+      host.state.answer = { body: { car: 'mx5 mx52016', force_kg: null } };
+      clock += 2500;
+      k.feed(IN_CAR);
+      await expect.poll(() => sent.length, { timeout: 3000 }).toBe(2);
+      expect(sent[1]).toEqual({ brakeKg: null, car: 'mx5 mx52016' });
+    } finally {
+      await host.close();
+    }
+  });
+
   test('a page that cannot be told does not stop the keeper', async () => {
     const calls = [];
     let clock = 0;
-    const k = createRigLimits({ host: () => 'http://localhost:8889', send: () => { throw new Error('gone'); }, fetch: async () => ({ car: 'x', force_kg: 1 }), now: () => clock, log: (l) => calls.push(l) });
+    const k = createRigLimits({ host: () => 'http://localhost:8889', send: () => { throw new Error('gone'); }, fetch: async () => ({ brakeKg: 1, car: 'x' }), now: () => clock, log: (l) => calls.push(l) });
     k.feed(IN_CAR);
     await settle();
     expect(k.current()).toEqual({ brakeKg: 1, car: 'x' });
