@@ -124,6 +124,7 @@ namespace RacingDesk.Tests.IRacing
                     .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.SessionNum") // the sim's own clock, for the recording's sidecar
                     .Where(k => k != "DataCorePlugin.GameRawData.Telemetry.SessionTime")
                     .Where(k => k != "RacingDesk.Plugin.CarControls") // what the car has by the canonical list: sent for a car the list has
+                    .Where(k => k != "RacingDesk.Plugin.DS.SteerMaxForceNm") // the wheel's full-output force: sent where the sim says it (2026-10-01)
                     .ToList();
                 Assert.That(missing, Is.Empty, "keys the plugin serves that the host doesn't (hardware keys excluded)");
                 Assert.That(extra, Is.Empty, "keys the host serves that the plugin doesn't (per-track sector keys excluded)");
