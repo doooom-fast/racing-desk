@@ -14,20 +14,24 @@
    under 20px (the leaderboard's rows and a caption to a name aside: apps/overlay/CLAUDE.md), and a cell that cannot
    hold a number at 20px gives up the least useful thing in it by @container query and never shrinks the number.
 
-   Landscape (24 columns; rows 19 / 30 / 11 / 12 / 24):   Portrait (24 columns; rows 14 / 27 / 16 / 8 / 8 / 17):
+   Landscape (24 columns; rows 18 / 30 / 13 / 12 / 23.5,       Portrait (24 columns; rows 14 / 27.5 / 16 / 8 / 8 / 17):
+   16.5 / 30 / 14.5 / 12 / 23.5 wider than 3:2):
      hero×7   gaps×4   tacho×7          lb×6              hero×9    gaps×7   tacho×8
      map×11            local×7          lb                map×15             local×9
      map               local            lb                lb×15              laps×9
      ctrl×6   pedals×5 brand×2 car×2 timer×3 rating×6     lb                 rating×9
-     pit×10            ds×5     inc×3   laps×6            ctrl×8 pedals×6 brand×2 car×3 timer×5
+     pit×10            ds×5    inc×3   laps×6             ctrl×8 pedals×6 brand×2 car×3 timer×5
                                                           pit×13        ds×6    inc×5
-   The maps are the largest cells: he asked (2026-10-01) for them "1.5x their size". On its side the laps panel and the
-   ratings are under the leaderboard in its column (the leaderboard keeps the top three rows, about sixteen of its
-   rows on an Air where it had twenty-one), so the maps' rows are theirs: the circuit 11 columns over 41 row-units
-   where it had 7 over 34 (at 1180x820 its cell is 528x337 where it was 334x281, 1.9 times the area), the
-   following map 7 over 41 where it had 4 over 34 (334 by 337 where it was 188 by 281). Under 1100px wide (the 9.7")
-   the right-hand column is seven, for the leaderboard's names and the laps panel's two columns of times, and the
-   maps ten and seven. Upright the tacho moves into the hero's row and the two maps have the row to themselves.
+   The maps are the largest cells: he asked (2026-10-01) for them "1.5x their size", and the circuit is drawn at least
+   1.45 times what it was at every size (the first cut gave its cell 1.9 times the area and drew it 1.2 to 1.4 times: a
+   circuit is limited by the height of its cell on a screen on its side, and its svg's margin was a seventh of that). On
+   its side the laps panel and the ratings are under the leaderboard in its column (the leaderboard keeps the top three
+   rows, sixteen of its rows on an Air where it had twenty-one), so the maps' rows are theirs: the circuit 11 columns over
+   43 row-units where it had 7 over 34 (at 1180x820 its cell is 528x352 where it was 334x281), the following map 7 over
+   43 where it had 4 over 34 (334 by 352 where it was 188 by 281); a screen wider than 3:2 is short for its width and
+   gives them 44.5. Under 1100px wide (the 9.7") the right-hand column is seven, for the leaderboard's names and the laps
+   panel's two columns of times, and the maps ten and seven. Upright the tacho moves into the hero's row and the two maps
+   have the row to themselves.
    On an iPad the menu (remote-server.js) is a small round button laid over the top right corner, the one touch target
    on the screen, and the badges are not shown. What comes and goes is laid over the cells, as it is over the game on
    the rig (the end of this file).
@@ -51,7 +55,7 @@ body.drive-mode-active {
   display: grid;
   gap: var(--rd-gap);
   grid-template-columns: repeat(24, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 19fr) minmax(0, 30fr) minmax(0, 11fr) minmax(0, 12fr) minmax(0, 24fr);
+  grid-template-rows: minmax(0, 18fr) minmax(0, 30fr) minmax(0, 13fr) minmax(0, 12fr) minmax(0, 23.5fr);
   grid-template-areas:
     "hero hero hero hero hero hero hero gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho lb lb lb lb lb lb"
     "map map map map map map map map map map map local local local local local local local lb lb lb lb lb lb"
@@ -71,9 +75,16 @@ body.drive-mode-active {
       "pit pit pit pit pit pit pit pit pit pit ds ds ds ds inc inc inc laps laps laps laps laps laps laps";
   }
 }
+/* A screen wider than 3:2 on its side (the mini, 1133x744, the rig's 16:9 and ultrawide, a wide box in OBS) is short for its
+   width, and a circuit is limited by its cell's height: the maps have a little more of it, the hero a little less (which
+   still holds the place at its 80px). The others (the Air, 1.44; the 9.7", the 10.2" and the 12.9", 1.33) have it as it is,
+   where the gaps block keeps the words "Ahead" and "Behind" (it wants 138px inside). */
+@media (orientation: landscape) and (min-aspect-ratio: 3/2) {
+  body.drive-mode-active { grid-template-rows: minmax(0, 16.5fr) minmax(0, 30fr) minmax(0, 14.5fr) minmax(0, 12fr) minmax(0, 23.5fr); }
+}
 @media (orientation: portrait) {
   body.drive-mode-active {
-    grid-template-rows: minmax(0, 14fr) minmax(0, 27fr) minmax(0, 16fr) minmax(0, 8fr) minmax(0, 8fr) minmax(0, 17fr);
+    grid-template-rows: minmax(0, 14fr) minmax(0, 27.5fr) minmax(0, 16fr) minmax(0, 8fr) minmax(0, 8fr) minmax(0, 17fr);
     grid-template-areas:
       "hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho"
       "map map map map map map map map map map map map map map map local local local local local local local local local"
@@ -219,10 +230,13 @@ body.drive-mode-active.session-nonrace #positionPage .pos-meta-row.current-row .
 body.drive-mode-active.session-nonrace #positionPage .pos-meta-row.delta-row .val:empty::before { content: '—.———'; color: var(--text-dim); }
 
 /* ── Gaps: the car ahead over the car behind (out of a race the same block shows its sector cells) ────────────────── */
-body.drive-mode-active #gapsBlock { grid-area: gaps; display: flex; flex-direction: column; gap: var(--rd-gap); padding: 4px 8px; }
-/* The two items at their floors (a name, a time, a driver and an iRating each) want 142px; a shorter cell (a mini on its
-   side, a wide box in OBS) gives up the names "Ahead" and "Behind" — the order, the sign and the colour say which is which. */
-@container (max-height: 140px) { body.drive-mode-active #gapsBlock .gap-item .panel-label { display: none; } }
+body.drive-mode-active #gapsBlock { grid-area: gaps; display: flex; flex-direction: column; gap: 2px; padding: 1px 8px; }
+/* The two items at their floors (a name, a time, a driver and an iRating each) want 138px inside the cell (the query is of
+   the box inside the padding and the edge: 4px of them); a shorter cell (a mini on its side, a wide box in OBS) gives up the
+   names "Ahead" and "Behind" — the order, the sign and the colour say which is which. The block's own padding and the gap
+   between its two items were 4px and the gutter's 6, which kept the names from the Air on its side (a hero row of 145px
+   when the maps took their room) and are what they need now. */
+@container (max-height: 134px) { body.drive-mode-active #gapsBlock .gap-item .panel-label { display: none; } }
 body.drive-mode-active #gapsBlock .gap-item { gap: 0.4cqh; }
 body.drive-mode-active #gapsBlock .panel-label { font-size: max(11px, min(6cqh, 8cqw)); }
 body.drive-mode-active #gapsBlock .gap-time { font-size: max(20px, min(13.5cqh, 22cqw)); line-height: 1.1; }
@@ -267,8 +281,10 @@ body.drive-mode-active .tacho-bar-track { flex: 1 1 0; min-height: 12px; gap: ma
    start/finish tick, the car in its maker's colour and the others going orange as they close: all its own. What
    changes is the line weights, given in pixels — the maps' script sets --px, the units of the map to a pixel — and
    the viewBox, fitted to the outline so that the circuit fills its cell. */
-body.drive-mode-active .map-panel { grid-area: map; display: flex; flex-direction: column; padding: 8px; }
-body.drive-mode-active .map-panel .map-svg { width: 100%; flex: 1 1 0; }
+body.drive-mode-active .map-panel { grid-area: map; display: flex; flex-direction: column; padding: 4px; }
+/* The svg's own margin round the outline is nine pixels (webgl-helpers.js), room for the strokes and the car; what is
+   drawn past it, the car's glow, shows into the cell's padding and no further. */
+body.drive-mode-active .map-panel .map-svg { width: 100%; flex: 1 1 0; overflow: visible; }
 body.drive-mode-active .map-panel > .map-zoom-label { font-size: max(11px, min(4.4cqmin, 18px)); letter-spacing: 0.12em; }
 /* Why there is no map yet, over the empty circuit. */
 body.drive-mode-active .map-panel > .map-waiting { font-size: max(11px, min(4.4cqmin, 18px)); letter-spacing: 0.12em; }
@@ -404,6 +420,9 @@ body.drive-mode-active #ratingPage .rating-delta { font-size: max(20px, min(15cq
 body.drive-mode-active #ratingPage .ir-bar-container { margin-top: 3px; }
 body.drive-mode-active #ratingPage .ir-bar-track { height: max(6px, 6cqh); }
 body.drive-mode-active #ratingPage .ir-bar-tick-label { font-size: max(11px, min(9cqh, 4cqw)); top: calc(100% + 2px); }
+/* The thousands hang under the bar (absolutely placed), so the bar's box keeps the room they take: a row that did not count
+   them was shorter than what it shows, and "cut off by its row" for every screen with the room to show them. */
+body.drive-mode-active #ratingPage .ir-bar-container { padding-bottom: calc(max(11px, min(9cqh, 4cqw)) * 1.25 + 2px); }
 /* Safety rating: its number and licence, with the ring beside them. */
 body.drive-mode-active #ratingPage .rating-item:last-child { display: grid; grid-template-columns: auto auto; column-gap: 0.5em; align-items: center; justify-content: center; }
 body.drive-mode-active #ratingPage .rating-item:last-child > * { grid-column: 1; }
@@ -411,7 +430,10 @@ body.drive-mode-active #ratingPage .rating-item:last-child .sr-pie-container { g
 body.drive-mode-active #ratingPage .sr-pie-svg { width: min(56cqh, 20cqw); height: min(56cqh, 20cqw); }
 /* A short one gives up the bar's thousands (they hang under the bar, and want a cell over 135px to be inside it) and
    then the bar itself. */
-@container (max-height: 135px) { body.drive-mode-active #ratingPage .ir-bar-tick-label { display: none; } }
+@container (max-height: 135px) {
+  body.drive-mode-active #ratingPage .ir-bar-tick-label { display: none; }
+  body.drive-mode-active #ratingPage .ir-bar-container { padding-bottom: 0; }
+}
 @container (max-height: 90px) { body.drive-mode-active #ratingPage .ir-bar-container { display: none; } }
 
 /* ── Controls and pedals: BB, TC, ABS by the car list, and the three traces ────────────────────────────────────── */
@@ -527,7 +549,16 @@ body.drive-mode-active .pb-tire-circles {
 @container pitbox (max-height: 185px) and (min-width: 560px) {
   body.drive-mode-active .pb-tire-circles { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
   body.drive-mode-active .pb-tire-circles .pb-car-silhouette { display: none; }
-  body.drive-mode-active .pb-circle-cell { --pbr: clamp(46px, min(calc(100cqh - 0.75em), 22cqw), 84px); }
+  /* Four cells side by side, so a name at a cell's top corner (the 2x2 layout's) sat between two rings, "RF LR", away
+     from both. Here each name is a line of its own over its ring, centred, in the cell's own flow (the ring is the cell's
+     height less the name's line and the caption's), and the wear and the temperature keep their places under it. */
+  body.drive-mode-active .pb-circle-cell {
+    --pbr: clamp(46px, min(calc(100cqh - 1.45em), 22cqw), 84px);
+    grid-template-rows: auto var(--pbr) auto;
+  }
+  body.drive-mode-active .pb-circle-cell .pb-circle-pos { position: static; grid-area: 1 / 1; justify-self: center; }
+  body.drive-mode-active .pb-circle-cell :is(.pb-wear-ring, .pb-circle-pct) { grid-area: 2 / 1; }
+  body.drive-mode-active .pb-circle-cell .pb-circle-temp { grid-area: 3 / 1; }
 }
 /* The ring is the room its half of the grid has less the caption's line under it; 46px at the least, which holds the
    wear at its 20px floor. */
@@ -566,9 +597,22 @@ body.drive-mode-active .pb-row-window:not(.hidden) { display: flex; }
 @container (max-height: 262px) { body.drive-mode-active #pbPageFuel .pb-divider, body.drive-mode-active #pbPageFuel .pb-divider ~ .pb-row { display: none; } }
 @container (max-height: 240px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-fuel-pit-row { display: none; } }
 @container (max-height: 185px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-row-window { display: none; } }
-/* And a pit box too narrow for the window's laps beside its name (an iPad mini upright, under 400px across) gives it up
-   while the engine calls: the call above the tank says when to stop. */
-@container pitbox (max-width: 400px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-row-window { display: none; } }
+/* The window is its name beside its laps ("Pit window" and "L18–24", the laps at the number's 20px), so what it needs is
+   the fuel page's own width, which is a share of the pit box's and not a fixed one (34 % of it on its side, 36 upright):
+   the page is a container of its own, by its inline size (its height is still the pit box's, which the rules above ask by
+   its own name). The long name and its laps are 138px across at the page's size and the short name and its laps 123 (measured
+   in the stand-in faces: the name 57 and 42px, the laps 75 and the gap 6), so a page under 145px inside has the name in its
+   short form, "Window" — the 10.2" iPad on its side, 127px inside, was cut to "L18–…" with the name over two lines — and
+   one under 125px, which has no room for even that, gives the window up while the engine calls: the call above the tank
+   says when to stop. */
+body.drive-mode-active #pbPageFuel { container: pbfuel / inline-size; }
+body.drive-mode-active .pb-row-window .pb-label { white-space: nowrap; }
+body.drive-mode-active .pb-row-window .pb-win-short { display: none; }
+@container pbfuel (max-width: 145px) {
+  body.drive-mode-active .pb-row-window .pb-win-long { display: none; }
+  body.drive-mode-active .pb-row-window .pb-win-short { display: inline; }
+}
+@container pbfuel (max-width: 125px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-row-window { display: none; } }
 /* Weather: the most of its page (he asked, 2026-10-01: "Weather needs to make better use of its space like incidents").
    The page is a size container of its own — the pit box's cq units are the whole pit box's, and this page is a quarter
    of it — so its values are sized by its own box, the way the incidents' count is by its cell: the air, with the sky
@@ -582,7 +626,7 @@ body.drive-mode-active #pbPageWeather .pb-weather-hero {
   padding: 0; display: grid; grid-template-columns: auto auto; grid-template-areas: "k k" "icon temp";
   justify-content: center; align-items: baseline; column-gap: 0.25em; row-gap: 0; text-align: center;
 }
-body.drive-mode-active #pbPageWeather .pb-weather-k { grid-area: k; margin: 0; }
+body.drive-mode-active #pbPageWeather .pb-weather-k { display: block; grid-area: k; margin: 0; }
 body.drive-mode-active .pb-weather-icon { grid-area: icon; font-size: max(20px, min(14cqh, 18cqw)); line-height: 1.1; margin: 0; }
 body.drive-mode-active .pb-weather-temp { grid-area: temp; font-size: max(24px, min(22cqh, 30cqw)); line-height: 1.1; }
 body.drive-mode-active #pbPageWeather .pb-row { flex-direction: column; align-items: center; padding: 0; line-height: 1.1; }

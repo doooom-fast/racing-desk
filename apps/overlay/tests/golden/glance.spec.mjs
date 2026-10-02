@@ -62,6 +62,10 @@ async function openGlance(page, width, height, at = 0) {
   await page.goto(`http://127.0.0.1:${ipad.address().port}/`, { waitUntil: 'load' });
   await expect.poll(async () => (await (await fetch(`http://127.0.0.1:${replay.port}/__replay/state`)).json()).requests, { timeout: 10000 }).toBeGreaterThan(5);
   await page.waitForFunction(() => document.querySelectorAll('#lbRows .lb-row').length >= 3 && document.getElementById('fullMapSvg').style.getPropertyValue('--px') !== '');
+  // A car that has not touched its clutch in the first sixty frames has its clutch's label and trace taken away
+  // (poll-engine.js, "Auto-hide clutch"): the frame is taken after that, or the picture is one or the other of them,
+  // by how many frames the page had had in a second and a half (it was, one run in three, with the clutch).
+  await page.waitForFunction(() => typeof _pollFrame !== 'undefined' && _pollFrame > 75, null, { timeout: 15000 });
   await page.waitForTimeout(1500);
 }
 

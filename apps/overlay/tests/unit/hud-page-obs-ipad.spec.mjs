@@ -20,12 +20,20 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { frame, fieldWith } from '../frames.mjs';
+import { CELLS, measure } from '../glance-measure.mjs';
 
 const require = createRequire(import.meta.url);
 const remote = require('../../remote-server.js');
 
 const OVERLAY = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const RACE = (over = {}) => frame({ order: fieldWith(4), state: 4, mode: 4, start: 7, lap: 12, ...over });
+// The strategy engine calling for tyres and for fuel, with a pit window and a stint of 14 laps: the pit box's fullest.
+const CALLS = {
+  'RacingDesk.Plugin.Strategy.TireHealthState': 2, 'RacingDesk.Plugin.Strategy.TireLapsRemaining': 12,
+  'RacingDesk.Plugin.Strategy.FuelHealthState': 2, 'RacingDesk.Plugin.Strategy.FuelLapsRemaining': 6,
+  'RacingDesk.Plugin.Strategy.PitWindowOpen': 18, 'RacingDesk.Plugin.Strategy.PitWindowClose': 24,
+  'RacingDesk.Plugin.Strategy.StintNumber': 2, 'RacingDesk.Plugin.Strategy.StintLaps': 14,
+};
 const AT_THE_MENUS = () => ({ ...RACE(), 'RacingDesk.Plugin.Grid.SessionState': 0, 'DataCorePlugin.GameRunning': 0 });
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
@@ -88,7 +96,8 @@ async function drawn(page) {
     return document.querySelectorAll('#lbRows .lb-row').length >= 3 && svg && svg.style.getPropertyValue('--px') !== '';
   }, null, { timeout: 10000 });
   const before = await page.evaluate(() => _pollFrame);
-  await page.waitForFunction((n) => _pollFrame >= n + 6, before, { timeout: 5000 });
+  // (a box as big as his whole canvas is drawn in software here, a frame at a time: six of them take a while)
+  await page.waitForFunction((n) => _pollFrame >= n + 6, before, { timeout: 30000 });
   await page.waitForTimeout(500);
 }
 
@@ -297,67 +306,76 @@ test('rendered over a checkerboard at 1180x820 with a yellow flag out: the board
 // The page flows to the box OBS gives it (he asked, 2026-10-01: "Make the iPad version flow to its bounds … in obs, it
 // responds to its container if it can"; hud-source.js lays the source out at the item's box, or, for a box smaller than
 // the least iPad in its orientation, LEAST_BOX, at the box's shape scaled up to it, which OBS draws into the box). At what
-// a wide strip, the corner it is first put in on his 1440 canvas, a square, a 1080p box, a tall column and an iPad's own
-// box are laid out at: every panel a cell inside the page, none over another, the cells the page, and nothing cut off by
-// its cell — a short cell gives up what it must (drive-view.css) rather than overflow.
+// a wide strip, the corner it is first put in on his 1440 canvas, a square, a 1080p box, a tall column, an iPad's own box,
+// a thin strip, a small box, his whole 3440x1440 canvas and a column as tall as it are laid out at: every panel a cell
+// inside the page, none over another, the cells the page, and — the glance layout's own measure, drive-view.spec.mjs'
+// (tests/glance-measure.mjs) — nothing cut off by its cell or out of sight, no label under 11px and no number under 20px:
+// a short cell gives up what it must (drive-view.css) rather than overflow. (The first cut checked scroll overflow on a
+// short list and no text; the iR bar's thousands hung out of their row on the two biggest boxes, unseen.)
 const { LEAST_BOX } = require('../../modules/js/obs/hud-source.js');
 const laidOutAt = (w, h) => { const l = w > h ? LEAST_BOX.landscape : LEAST_BOX.portrait; const up = Math.max(1, l.width / w, l.height / h); return [Math.round(w * up), Math.round(h * up)]; };
-for (const [boxW, boxH, what] of [[1600, 600, 'a wide strip'], [1036, 720, 'the corner on his 1440 canvas'], [900, 900, 'a square'], [1920, 1080, 'a 1080p box'], [600, 1000, 'a tall column'], [1180, 820, "an iPad's size"]]) {
+const BOXES = [
+  [1600, 600, 'a wide strip'], [1036, 720, 'the corner on his 1440 canvas'], [900, 900, 'a square'], [1920, 1080, 'a 1080p box'],
+  [600, 1000, 'a tall column'], [1180, 820, "an iPad's size"], [1200, 300, 'a thin strip'], [400, 300, 'a small box'],
+  [3440, 1440, 'his whole canvas'], [600, 1400, 'a column as tall as his canvas'],
+];
+for (const [boxW, boxH, what] of BOXES) {
   const [width, height] = laidOutAt(boxW, boxH);
-  test(`/obs-ipad for a ${boxW}x${boxH} box (${what}), laid out at ${width}x${height}: the layout flows to the box, every cell inside it, nothing cut off`, async ({ page }) => {
+  test(`/obs-ipad for a ${boxW}x${boxH} box (${what}), laid out at ${width}x${height}: the layout flows to the box, every cell inside it, nothing cut off or too small`, async ({ page }) => {
     test.setTimeout(90000);
     const r = await rig({ settings: { showWebGL: false } });
     try {
       const { errors } = await open(page, r, { width, height });
-      r.feed.payload = RACE();
-      await drawn(page);
-      const m = await page.evaluate(() => {
-        const vw = innerWidth, vh = innerHeight;
-        const cells = {
-          hero: '#positionPage', gaps: '#gapsBlock', tacho: '.tacho-block', lb: '#leaderboardPanel', map: '.map-panel',
-          local: '.map-zoom-panel', laps: '#lapsPanel', rating: '#ratingPage', ctrl: '.car-controls', pedals: '.pedals-area',
-          timer: '#raceTimerBlock', pit: '#pitBoxPanel', ds: '#datastreamPanel', inc: '#incidentsPanel',
-        };
-        const out = { drawn: [], outside: [], overlapping: [], overflowing: [], covered: 0, viewport: [vw, vh] };
-        const rects = [];
-        let area = 0;
-        for (const [name, sel] of Object.entries(cells)) {
-          const el = document.querySelector(sel);
-          if (!el || el.getClientRects().length === 0) continue;
-          out.drawn.push(name);
-          const b = el.getBoundingClientRect();
-          area += b.width * b.height;
-          rects.push([name, b]);
-          if (b.left < -0.5 || b.top < -0.5 || b.right > vw + 0.5 || b.bottom > vh + 0.5) out.outside.push(name);
-        }
-        for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
-          const [a, ra] = rects[i], [b, rb] = rects[j];
-          if (Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left) > 1 && Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top) > 1) out.overlapping.push(`${a}/${b}`);
-        }
-        out.covered = area / (vw * vh);
-        // Nothing in a cell is cut off by it, nor by the parts inside it that lay themselves out.
-        for (const sel of [...Object.values(cells), '.pb-page', '.pb-tire-circles', '.pb-circle-cell', '#gapsBlock .gap-item', '.laps-panel > *', '.ds-inner', '.inc-inner']) {
-          for (const el of document.querySelectorAll(sel)) {
-            if (el.getClientRects().length === 0) continue;
-            const slack = Math.max(1, parseFloat(getComputedStyle(el).fontSize) * 0.3);
-            if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + slack) out.overflowing.push(`${sel} ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight}`);
-          }
-        }
-        out.drawn.sort();
-        return out;
-      });
-      expect(m.viewport).toEqual([width, height]);
-      expect(m.drawn).toEqual(['ctrl', 'ds', 'gaps', 'hero', 'inc', 'laps', 'lb', 'local', 'map', 'pedals', 'pit', 'rating', 'tacho', 'timer']);
-      expect(m.outside, 'cells outside the box').toEqual([]);
-      expect(m.overlapping, 'cells on top of one another').toEqual([]);
-      expect(m.covered, 'the cells are the box').toBeGreaterThanOrEqual(0.86);
-      expect(m.overflowing, 'content cut off by its cell').toEqual([]);
+      for (const [name, next] of [['a race', RACE()], ['the strategy engine calling', RACE({ extra: CALLS })]]) {
+        r.feed.payload = next;
+        await drawn(page);
+        const m = await measure(page, CELLS);
+        const label = `${boxW}x${boxH}, ${name}`;
+        expect(await page.evaluate(() => [innerWidth, innerHeight]), `${label}: the page is the box`).toEqual([width, height]);
+        expect(Object.keys(m.cells).sort(), `${label}: every panel is drawn`).toEqual(Object.keys(CELLS).sort());
+        expect(m.outside, `${label}: cells outside the box`).toEqual([]);
+        expect(m.overlapping, `${label}: cells on top of one another`).toEqual([]);
+        expect(m.covered, `${label}: the cells are the box`).toBeGreaterThanOrEqual(0.86);
+        expect.soft(m.overflowing, `${label}: content cut off by its cell`).toEqual([]);
+        expect.soft(m.cutOff, `${label}: text cut off or left out of sight`).toEqual([]);
+        expect.soft(m.small, `${label}: type too small to glance at`).toEqual([]);
+      }
       expect(errors).toEqual([]);
     } finally {
       await r.close();
     }
   });
 }
+
+// A box short and wide lays the four tyres in one row (drive-view.css): each corner's name is a line over its own ring,
+// centred, and not at the cell's top corner, where in a row the right front's and the left rear's sat side by side
+// between two rings ("RF LR").
+test("/obs-ipad in a wide box: each tyre's name is centred over its own ring, and in the order the corners are", async ({ page }) => {
+  test.setTimeout(90000);
+  const [width, height] = laidOutAt(1600, 600);
+  const r = await rig({ settings: { showWebGL: false } });
+  try {
+    const { errors } = await open(page, r, { width, height });
+    r.feed.payload = RACE();
+    await drawn(page);
+    const corners = await page.evaluate(() => ['LF', 'RF', 'LR', 'RR'].map((c) => {
+      const cell = document.getElementById('pbCircle' + c);
+      const name = cell.querySelector('.pb-circle-pos').getBoundingClientRect();
+      const ring = cell.querySelector('.pb-wear-ring').getBoundingClientRect();
+      return { c, text: cell.querySelector('.pb-circle-pos').textContent, nameMid: (name.left + name.right) / 2, ringMid: (ring.left + ring.right) / 2, nameBottom: name.bottom, ringTop: ring.top, ringLeft: ring.left, shown: cell.getClientRects().length > 0 };
+    }));
+    expect(corners.map((k) => [k.c, k.text, k.shown])).toEqual([['LF', 'LF', true], ['RF', 'RF', true], ['LR', 'LR', true], ['RR', 'RR', true]]);
+    for (const k of corners) {
+      expect(Math.abs(k.nameMid - k.ringMid), `${k.c}: the name is centred over its ring`).toBeLessThanOrEqual(2);
+      expect(k.nameBottom, `${k.c}: the name is over the ring, not on it`).toBeLessThanOrEqual(k.ringTop + 1);
+    }
+    // Four rings in a row, in the order of the corners.
+    expect(corners.map((k) => k.ringLeft)).toEqual([...corners.map((k) => k.ringLeft)].sort((a, b) => a - b));
+    expect(errors).toEqual([]);
+  } finally {
+    await r.close();
+  }
+});
 
 test('he puts the HUD away: the page is hidden while he is in the car, and drawn again when he switches it on; the rig\'s page-only actions are not done here', async ({ page }) => {
   test.setTimeout(60000);

@@ -996,11 +996,19 @@
     for (let i = 0; i < dots.length; i++) dots[i].setAttribute('r', (_DV_OPPONENT_PX * unit).toFixed(3));
   }
 
+  // The room kept round the outline inside the svg, in pixels: the outline's outer stroke reaches 6px past its centre line
+  // and the car's dot 7px, so nine is room for both at the edge. It was a share of the circuit's longer side (6 % of it on
+  // each side, 22px of a 366px circuit), which took a seventh of the cell's height from a circuit that is limited by
+  // height, which is the case on an iPad on its side: he asked (2026-10-01) for the maps 1.5 times what they were, and the
+  // circuit drawn only 1.2 to 1.4 times, so the margin is what the strokes need and no more.
+  const _DV_MAP_MARGIN_PX = 9;
+
   // The full circuit's viewBox, its box and the pixels a unit is, and where the local view is, measured again.
   function _dvLayout() {
     if (!_dv.on) return;
     const fullSvg = document.getElementById('fullMapSvg');
     if (fullSvg) {
+      const r = fullSvg.getBoundingClientRect();
       let vb = [0, 0, 100, 100];
       if (_trackPathCoords.length > 3) {
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -1012,11 +1020,17 @@
           if (c.y > y1) y1 = c.y;
         }
         const w = Math.max(1, x1 - x0), h = Math.max(1, y1 - y0);
-        const m = Math.max(w, h) * 0.06;   // room for the outline's width and the car at the edge
-        vb = [x0 - m, y0 - m, w + 2 * m, h + 2 * m];
+        // The margin is pixels, so it is worked out from the scale the circuit will be drawn at: the box's size less the
+        // margin on both sides, over the circuit's, on the axis that limits it. (An svg not yet measured, or one too small
+        // to have the margin, keeps the old share of the circuit's side.)
+        const m = Math.min(_DV_MAP_MARGIN_PX, Math.min(r.width, r.height) * 0.12);
+        const scale = r.width > 0 && r.height > 0 ? Math.min((r.width - 2 * m) / w, (r.height - 2 * m) / h) : 0;
+        const mu = scale > 0 ? m / scale : Math.max(w, h) * 0.06;
+        vb = [x0 - mu, y0 - mu, w + 2 * mu, h + 2 * mu];
       }
-      fullSvg.setAttribute('viewBox', vb.map((v) => v.toFixed(1)).join(' '));
-      const r = fullSvg.getBoundingClientRect();
+      // Rounded as the attribute is, so that the pixels a unit is are those of the box the browser is given.
+      vb = vb.map((v) => +v.toFixed(1));
+      fullSvg.setAttribute('viewBox', vb.join(' '));
       if (r.width > 0 && r.height > 0) {
         _dv.fullUnit = 1 / Math.min(r.width / vb[2], r.height / vb[3]);
         fullSvg.style.setProperty('--px', _dv.fullUnit.toFixed(4));

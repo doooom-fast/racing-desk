@@ -30,6 +30,7 @@ const DASHBOARD = pathToFileURL(path.join(OVERLAY, 'dashboard.html')).href;
 const IPADS = [
   [1180, 820, 'Air, landscape'], [820, 1180, 'Air, portrait'], [1366, 1024, '12.9" Pro, landscape'],
   [1024, 768, '9.7", landscape'], [744, 1133, 'mini, portrait'], [1133, 744, 'mini, landscape'], [810, 1080, '10.2", portrait'],
+  [1080, 810, '10.2", landscape'],
 ];
 const RIG = [[1920, 1080, 'the rig, 16:9'], [2560, 1080, 'the rig, ultrawide']];
 
@@ -184,3 +185,28 @@ for (const [width, height, what] of [...IPADS, ...RIG]) {
     }
   });
 }
+
+// The name over the air ("Air", `.pb-weather-k`) is the glance layout's: the rig's own pit box, its Weather tab, is as it
+// was, with no such line (the first cut showed it there too, which made the tab 26px taller).
+test("the rig HUD's pit box has no \"Air\" line over its temperature; the glance layout has it", async ({ page }) => {
+  test.setTimeout(90000);
+  payload = RACE();
+  await page.addInitScript(() => { try { localStorage.setItem('rd-effects', 'off'); } catch (e) { /* none */ } });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.route(/^https?:\/\/(?!localhost:8889)/, (route) => route.abort());
+  await page.route('http://localhost:8889/racing-desk/', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) }));
+  await page.goto(DASHBOARD);
+  await page.evaluate(() => { _settings.showWebGL = false; _settings.showPitBox = true; applySettings(); });
+  await frames(page);
+  const k = () => page.evaluate(() => {
+    const el = document.querySelector('#pbPageWeather .pb-weather-k');
+    return { display: getComputedStyle(el).display, text: el.textContent };
+  });
+  expect(await k(), "the rig's own HUD").toEqual({ display: 'none', text: 'Air' });
+  await page.evaluate(() => setDriveMode(true));
+  await frames(page);
+  expect((await k()).display, 'the glance layout').toBe('block');
+  await page.evaluate(() => setDriveMode(false));
+  await frames(page);
+  expect((await k()).display, 'and back on the rig').toBe('none');
+});

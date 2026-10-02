@@ -20,6 +20,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { frame, fieldWith } from '../frames.mjs';
+import { CELLS, CELLS_RIG, measure } from '../glance-measure.mjs';
 
 const require = createRequire(import.meta.url);
 const remote = require('../../remote-server.js');
@@ -31,16 +32,18 @@ const WIRE = JSON.parse(fs.readFileSync(path.join(here, 'fixtures', 'car-control
 
 // Every size an iPad has, on its side and upright: the Air and the 11" Pro (1180x820), the 9th generation and the
 // 9.7" (1024x768), the 12.9" Pro (1366x1024), the mini (1133x744), the 10.2" (1080x810). And the two screens the rig's
-// own Ctrl+Shift+F is on: 1920x1080 and the ultrawide 2560x1080.
+// own Ctrl+Shift+F is on: 1920x1080 and the ultrawide 2560x1080. (The 10.2" on its side was not here, and the pit window
+// beside the strategy call was cut off on it: "L18–…" under a name over two lines.)
 const IPADS = [
   [1180, 820, 'Air, landscape'], [820, 1180, 'Air, portrait'], [1366, 1024, '12.9" Pro, landscape'],
   [1024, 768, '9.7", landscape'], [744, 1133, 'mini, portrait'], [1133, 744, 'mini, landscape'], [810, 1080, '10.2", portrait'],
+  [1080, 810, '10.2", landscape'],
 ];
 // The rig's own screens are opened as the rig has them (from the file, drive mode switched on: no server, no
 // html.rd-remote, so the two badges are cells and the glass is the rig's), not through the iPad's server.
 const RIG = [[1920, 1080, 'the rig, 16:9'], [2560, 1080, 'the rig, ultrawide']];
-// (his own screen as well, for the sectors: the ratings panel is cut off by its cell on it, as it was before the iPad's
-// changes, which is not what these tests are about)
+// (his own screen as well, 3440x1440, for every panel and for the sectors: the iR bar's thousands, which hang under the
+// bar, were cut off by the ratings' row on it, and the bar's box keeps their room now)
 const RIG_SECTORS = [...RIG, [3440, 1440, 'the rig, his ultrawide']];
 const SIZES = [...IPADS, ...RIG];
 
@@ -129,144 +132,6 @@ async function serve(page, next) {
   await drawn(page);
 }
 
-// Every panel of the HUD, and the one each is. On an iPad (which is what this server serves) the two badges, the
-// Racing Desk mark and the car's maker, are not shown — he asked for the logos to go — so they are not cells here;
-// the rig's own Ctrl+Shift+F keeps them.
-const CELLS = {
-  hero: '#positionPage', gaps: '#gapsBlock', tacho: '.tacho-block', lb: '#leaderboardPanel', map: '.map-panel',
-  local: '.map-zoom-panel', laps: '#lapsPanel', rating: '#ratingPage', ctrl: '.car-controls', pedals: '.pedals-area',
-  timer: '#raceTimerBlock', pit: '#pitBoxPanel', ds: '#datastreamPanel', inc: '#incidentsPanel',
-};
-// On the rig's own screen the two badges are cells too.
-const CELLS_RIG = { ...CELLS, brand: '#brandLogoSquare', car: '#carLogoSquare' };
-
-// Everything the rules are held to, measured in the page. Each is a list of what breaks it: nothing, when it holds.
-function measure(page, cells = CELLS) {
-  return page.evaluate((cellSelectors) => {
-    const vw = innerWidth, vh = innerHeight;
-    const shown = (el) => el.getClientRects().length > 0;
-    const out = { cells: {}, outside: [], overflowing: [], cutOff: [], small: [], covered: 0, overlapping: [] };
-
-    let area = 0;
-    const rects = [];
-    for (const [name, sel] of Object.entries(cellSelectors)) {
-      const el = document.querySelector(sel);
-      if (!el || !shown(el)) { out.outside.push(`${name}: not drawn`); continue; }
-      const r = el.getBoundingClientRect();
-      out.cells[name] = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
-      area += r.width * r.height;
-      rects.push([name, r]);
-      if (r.left < -0.5 || r.top < -0.5 || r.right > vw + 0.5 || r.bottom > vh + 0.5) out.outside.push(name);
-    }
-    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
-      const [a, ra] = rects[i], [b, rb] = rects[j];
-      const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left);
-      const h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
-      if (w > 1 && h > 1) out.overlapping.push(`${a}/${b}`);
-    }
-    out.covered = area / (vw * vh);
-
-    // Nothing in a cell is cut off by it: the cell's contents, and the parts inside it that lay themselves out.
-    const containers = [...Object.values(cellSelectors), '#positionPage .pos-layout', '#positionPage .pos-meta', '#lbRows',
-      '#incidentsPanel .inc-inner', '#gapsBlock .gap-item', '#gapsBlock .sector-cell', '#leaderboardPanel .lb-inner', '.lb-row',
-      '.car-controls .ctrl-item', '.car-controls .ctrl-mini', '.ds-inner', '.pb-inner', '.pb-content', '.pb-page', '.pb-tire-circles',
-      '.pb-circle-cell', '.laps-panel > *', '.laps-sectors .sector-cell', '.laps-col', '#ratingPage .rating-row',
-      '#ratingPage .rating-item', '.pedal-labels-row', '.pedal-label-group', '.ds-gforce'];
-    for (const sel of containers) {
-      for (const el of document.querySelectorAll(sel)) {
-        if (!shown(el)) continue;
-        // (a line of type is taller than its line-height in a face like the mono, by a fraction of its size, and that
-        // is the slack allowed in height)
-        const slack = Math.max(1, parseFloat(getComputedStyle(el).fontSize) * 0.3);
-        if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + slack) {
-          out.overflowing.push(`${sel} ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight}`);
-        }
-      }
-    }
-
-    // Nothing that is written is cut off or left out of sight: every piece of text in a cell lies inside the box its
-    // ancestors let show (an overflow hidden, the ellipsis of a name that does not fit, a line clamp, and the cell).
-    const gone = (el) => {
-      for (let e = el; e && e !== document.body; e = e.parentElement) {
-        const cs = getComputedStyle(e);
-        if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return true;
-      }
-      return false;
-    };
-    const window_ = (el, cell) => {
-      let l = -Infinity, t = -Infinity, r = Infinity, b = Infinity;
-      for (let e = el; e; e = e.parentElement) {
-        const cs = getComputedStyle(e);
-        // (a box that steps aside, display: contents, shows nothing of its own and clips nothing)
-        if (cs.display !== 'contents' && (cs.overflowX !== 'visible' || cs.overflowY !== 'visible')) {
-          const q = e.getBoundingClientRect();
-          l = Math.max(l, q.left); t = Math.max(t, q.top); r = Math.min(r, q.right); b = Math.min(b, q.bottom);
-        }
-        if (e === cell) break;
-      }
-      return { l, t, r, b };
-    };
-
-    // Labels are 11px or more and numbers 20px or more. The exceptions are named: a caption to a name (the car's
-    // model, a driver's iRating, an axis, a sector's number, the tank's size, the track's name) is a label whatever it
-    // says, and so is a tyre's temperature under its ring (the pits' reading, not the lap's: he asked for them "Much
-    // smaller", 2026-10-01); the leaderboard's rows are a list of a dozen, at 14px.
-    const CAPTION = '.gap-ir, .gap-driver, .car-model-label, .sector-label, .ctrl-mini-label, .pb-circle-pos, .ir-bar-tick-label, ' +
-      '.pb-fuel-tank-cap, .map-zoom-label, .panel-label, .ds-label, .pb-label, .laps-k, .pedal-channel-label, .ctrl-label, .lb-header, ' +
-      '.pb-strat-btn, .pb-circle-temp';
-    const tiny = new Map();
-    for (const [name, sel] of Object.entries(cellSelectors)) {
-      const cell = document.querySelector(sel);
-      if (!cell || !shown(cell)) continue;
-      const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-      while (walker.nextNode()) {
-        const node = walker.currentNode;
-        const text = node.textContent.trim();
-        const el = node.parentElement;
-        if (!text || !el || !shown(el) || gone(el)) continue;
-        if (el.closest('svg, canvas, #rd-remote-menu-fab, #rd-remote-menu-panel')) continue;
-
-        const px = parseFloat(getComputedStyle(el).fontSize);
-        // (a line's box is taller than the ink in it: a digit's is the middle three fifths, so that is what is held to
-        // the box it is shown through)
-        const range = document.createRange();
-        range.selectNodeContents(node);
-        const box = window_(el, cell);
-        for (const q of range.getClientRects()) {
-          if (q.width < 1) continue;
-          const inset = px * (px >= 60 ? 0.3 : 0.22);
-          const top = q.top + inset, bottom = q.bottom - inset;
-          if (q.left < box.l - 1.5 || top < box.t - 1.5 || q.right > box.r + 1.5 || bottom > box.b + 1.5) {
-            out.cutOff.push(`${name}: "${text.slice(0, 24)}" [${Math.round(q.left)},${Math.round(top)},${Math.round(q.right)},${Math.round(bottom)}] out of [${Math.round(box.l)},${Math.round(box.t)},${Math.round(box.r)},${Math.round(box.b)}]`);
-            break;
-          }
-        }
-
-        const inList = !!el.closest('.lb-row');
-        const isCaption = !!el.closest(CAPTION);
-        const isNumber = /\d/.test(text) && !isCaption && !inList;
-        const min = isNumber ? 20 : 11;
-        if (px < min - 0.01) tiny.set(`${name}: "${text.slice(0, 20)}" ${px.toFixed(1)}px < ${min}`, 1);
-      }
-    }
-    out.small = [...tiny.keys()];
-
-    // The leaderboard is a list of a dozen rows, at 14px or more in its rows' own type (its lap and gap columns are the
-    // 0.84 of it, and never under a label's 11).
-    for (const row of document.querySelectorAll('.lb-row')) {
-      if (!shown(row)) continue;
-      const px = parseFloat(getComputedStyle(row).fontSize);
-      if (px < 14 - 0.01) out.small.push(`lb: a row is ${px.toFixed(1)}px < 14`);
-    }
-    out.place = parseFloat(getComputedStyle(document.querySelector('#positionPage .pos-number')).fontSize);
-    out.gear = parseFloat(getComputedStyle(document.querySelector('.tacho-gear')).fontSize);
-    const delta = document.querySelector('#positionPage .pos-meta-row.delta-row .val');
-    out.delta = parseFloat(getComputedStyle(delta).fontSize);
-    out.kind = document.body.classList.contains('session-race') ? 'race' : document.body.classList.contains('session-nonrace') ? 'nonrace' : 'none';
-    return out;
-  }, cells);
-}
-
 const describeSize = ([w, h, what]) => `${w}x${h} (${what})`;
 
 for (const size of SIZES) {
@@ -288,7 +153,7 @@ for (const size of SIZES) {
 
     // Every size is held to a race and a practice; the cases that fill a cell the most (a place of three glyphs, a car
     // with a row of dials beneath, the flag's glass) to the sizes they are tightest at, the small ones and the upright.
-    const tight = width <= 1024 || height <= 768 || height > width;
+    const tight = width <= 1080 || height <= 768 || height > width;
     const cases = [
       ['a race', null],
       ...(tight ? [
@@ -967,7 +832,8 @@ test.describe('the strategy engine\'s calls in the pit box', () => {
     const on = await calls();
     expect(on.map((c) => c[0])).toEqual([true, true]);
     expect(on[0][1]).toMatch(/Change · ~12 laps/);
-    expect(on[1][1]).toMatch(/Stop · ~6 laps/);
+    // (the engine's laps of fuel, the 9.1 that the fuel page says beside it: one number for one thing; the strategist's own is 6)
+    expect(on[1][1]).toMatch(/Stop · ~9 laps/);
     expect(on.map((c) => c[2])).toEqual(['none', 'none']);
     // The fuel strategy's pit window is a line in the fuel page, and the laps on this set of tyres are in the tyres' heading
     // (what the rings' number is — iRacing measures tread in the pits and nowhere else — is a line under the rings: tyre-wear.spec.mjs).
@@ -980,14 +846,58 @@ test.describe('the strategy engine\'s calls in the pit box', () => {
   });
 });
 
+// The pit window beside the strategy call is its name over its laps in the fuel page, whatever width the page has: the whole
+// of "L18–24" with the name in its long form where there is room for both ("Pit window": the 12.9" Pro) and in its short
+// form where there is not ("Window": the Air, the 10.2" on its side, whose page was cut to "L18–…" under a name over two
+// lines), and the window given up while the engine calls only on a page too narrow for even that.
+test.describe('the pit window in the fuel page', () => {
+  for (const [width, height, name, short] of [[1366, 1024, '12.9" Pro, landscape', false], [1180, 820, 'Air, landscape', true], [1080, 810, '10.2", landscape', true]]) {
+    test(`${width}x${height} (${name}): the window is whole beside the call, with the name in its ${short ? 'short' : 'long'} form`, async ({ page }) => {
+      test.setTimeout(60000);
+      await openAt(page, width, height, RACE({ extra: CALLS }));
+      const row = await page.evaluate(() => {
+        const label = document.querySelector('#pbRowWindow .pb-label');
+        const value = document.getElementById('pbWindow');
+        const shown = (el) => el.getClientRects().length > 0;
+        const text = [...label.children].filter(shown).map((e) => e.textContent).join('');
+        const lines = Math.round(label.getBoundingClientRect().height / parseFloat(getComputedStyle(label).lineHeight));
+        const page_ = document.getElementById('pbPageFuel').getBoundingClientRect();
+        return {
+          shown: shown(document.getElementById('pbRowWindow')), text, lines, value: value.textContent,
+          valueFits: value.scrollWidth <= value.clientWidth + 1, valueInside: value.getBoundingClientRect().right <= page_.right + 0.5,
+        };
+      });
+      expect(row.shown, 'the window is shown').toBe(true);
+      expect(row.value).toBe('L18–24');
+      expect(row.text, 'the name').toBe(short ? 'Window' : 'Pit window');
+      expect(row.lines, 'the name is one line').toBe(1);
+      expect(row.valueFits, 'the laps are whole').toBe(true);
+      expect(row.valueInside, 'and inside the page').toBe(true);
+    });
+  }
+});
+
 // ── The maps are the layout's largest cells: he asked (2026-10-01) for them "1.5x their size" ──
 // Before: the full circuit 7 columns of 24 and the following map 4, over 34 of the 96 row-units on an iPad on its side
 // (together 15 % of the screen at 1180x820; the circuit's cell 334x281). Now the laps panel and the ratings are under
 // the leaderboard in its column (the leaderboard keeps the top three rows), so the maps' rows are theirs: the circuit
-// 11 columns and the local view 7, over 41 row-units (the circuit's cell 528x337 at 1180x820, 1.9 times the area);
-// upright the tacho moves into the hero's row and the two maps have their row to themselves (15 and 9 columns of 24,
-// over 27 of 90). Held: the two together are at least 27 % of the screen (1.8 times what they were) at every size, each
-// above a share of its own, and the circuit fitted to its cell is in it whole.
+// 11 columns and the local view 7, over 43 row-units of 96.5 (44.5 on a screen wider than 3:2: the mini, the rig; the
+// circuit's cell 528x352 at 1180x820); upright the tacho moves into the hero's row and the two maps have their row to
+// themselves (15 and 9 columns of 24, over 27.5 of 90.5).
+//
+// The first cut held only the cells' share of the screen, and the circuit was drawn 1.2 to 1.4 times what it was, not 1.5:
+// a circuit is limited by its cell's height on a screen on its side, and the cells had gained mostly width (and an svg's
+// margin was 6 % of the circuit's longer side, a seventh of that height). So what is held is what is seen: the circuit's
+// drawn size, against the 6253ff1 layout's — the outline of this test's circuit, in px, as that layout drew it at each
+// size, in a race — at least 1.45 times at every size on both axes (1.5 asked: the margin is nine pixels now and the rows
+// were shared out for it; the smallest ratio is 1.495, the mini on its side), and the following map's cell, whose scale
+// follows its width, the same. And the circuit fitted to its cell is in it whole, with that margin round it.
+const BEFORE = {
+  // [the circuit's outline w, h], the following map's cell width
+  '1180x820': [[282, 200], 188], '820x1180': [[276, 195], 162], '1366x1024': [[328, 232], 217], '1024x768': [[242, 171], 163],
+  '744x1133': [[264, 187], 147], '1133x744': [[266, 188], 181], '810x1080': [[248, 175], 160], '1080x810': [[256, 181], 172],
+  '1920x1080': [[398, 282], 309], '2560x1080': [[398, 282], 416],
+};
 for (const size of SIZES) {
   const [width, height] = size;
   const rig = RIG.includes(size);
@@ -1000,10 +910,14 @@ for (const size of SIZES) {
       const screen = innerWidth * innerHeight;
       const cell = document.getElementById('fullMapSvg').getBoundingClientRect();
       const outline = document.getElementById('fullMapTrackOuter').getBoundingClientRect();
+      const local = document.querySelector('.map-zoom-panel').getBoundingClientRect();
       return {
         map: area('.map-panel') / screen, local: area('.map-zoom-panel') / screen,
         circuitInside: outline.left >= cell.left - 1 && outline.top >= cell.top - 1 && outline.right <= cell.right + 1 && outline.bottom <= cell.bottom + 1,
         circuitFills: Math.max(outline.width / cell.width, outline.height / cell.height),
+        outline: [outline.width, outline.height], localWidth: local.width,
+        // The room round the circuit on the axis that limits it: the svg's own margin, which is pixels.
+        margin: Math.min(cell.width - outline.width, cell.height - outline.height) / 2,
       };
     });
     const label = describeSize(size);
@@ -1011,16 +925,22 @@ for (const size of SIZES) {
     expect(m.map, `${label}: the circuit's share`).toBeGreaterThanOrEqual(0.16);
     expect(m.local, `${label}: the following map's share`).toBeGreaterThanOrEqual(0.10);
     expect(m.circuitInside, `${label}: the circuit is whole in its cell`).toBe(true);
-    expect(m.circuitFills, `${label}: the circuit fills its cell on one axis`).toBeGreaterThanOrEqual(0.75);
+    expect(m.circuitFills, `${label}: the circuit fills its cell on one axis`).toBeGreaterThanOrEqual(0.85);
+    expect(m.margin, `${label}: the room round the circuit is the strokes' and the car's, nine pixels`).toBeGreaterThanOrEqual(8);
+    expect(m.margin, `${label}: and no more than that`).toBeLessThanOrEqual(11);
+    const [[w0, h0], localW0] = BEFORE[`${width}x${height}`];
+    expect(m.outline[0] / w0, `${label}: the circuit's drawn width, against ${w0}px before`).toBeGreaterThanOrEqual(1.45);
+    expect(m.outline[1] / h0, `${label}: the circuit's drawn height, against ${h0}px before`).toBeGreaterThanOrEqual(1.45);
+    expect(m.localWidth / localW0, `${label}: the following map's width, against ${localW0}px before`).toBeGreaterThanOrEqual(1.45);
   });
 }
 
 // ── The rig's own screen: Ctrl+Shift+F on 1920x1080, the ultrawide and his own, from the file, not through the server ──
 // Every panel including the two badges (the rig keeps them), so a change that crops the car's badge or the row of
 // controls here is caught: these are the rig's layout and not the iPad's.
-for (const [width, height, what] of RIG) {
+for (const [width, height, what] of RIG_SECTORS) {
   test(`${width}x${height} (${what}): the glance layout of the rig's own HUD holds every panel`, async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(90000);
     await openRig(page, width, height, RACE({ controls: WIRE.porsche963gtp, extra: CALLS }));
     expect(await page.evaluate(() => document.documentElement.classList.contains('rd-remote'))).toBe(false);
     const m = await measure(page, CELLS_RIG);

@@ -368,13 +368,9 @@
     line-height: 1.1;
     font-variant-numeric: tabular-nums;
   }
-  /* What the big number is: the air, under it on the rig (a line in the label's type) */
-  .pb-weather-k {
-    display: block;
-    font-size: var(--fs-xs);
-    line-height: 1.4;
-    margin-top: 2px;
-  }
+  /* What the big number is: "Air", over it in the glance layout (drive-view.css), where the track and the conditions have
+     their names over their values. The rig's pit box has no such line: its Weather tab is as it was. */
+  .pb-weather-k { display: none; }
 
   /* ── Car adjustments compact grid ── */
   .pb-adj-grid {
