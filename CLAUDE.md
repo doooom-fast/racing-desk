@@ -410,6 +410,16 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
   `tc`, `tc2`… (a dial that is traction control), `brakeBias`, `mode` (which may be listed more than once), `drs` and
   `p2p` (its `var` may be left out: `DRS_Status`, `P2P_Status`); any other id (`brakeMigration`, `arbFront`,
   `arbRear`, `throttleMap`…) is a cell in the row beneath the three, in the order the list gives them.
+  **A `range` says where it came from, in the control's `note`** (`CarControlsFillTests` holds every one to it, but for
+  two Supercars throttle maps of 2026-09-29 whose manual is too large to fetch and check, named there): a
+  manual, release notes, an article, or — for a car he drives — the lowest and highest his own `.ibt` files show, in
+  one form, `Range from his files: seen 46 to 55 in 55 files to 2026-10-02`: every frame of every file read while he was
+  in the car (`IsOnTrack`), a value counted where it was held for half a second or more (a single frame of noughts as a
+  car loads, or a value rolled past while a button is held, is not a setting), outward to two places for a dial that is
+  not whole. Ranges were added for every control a source could be named for on 2026-10-02 (he asked for the bar on
+  every adjustment); a control with none has no bar rather than a made-up one. A range from his files is what he has
+  used, not what the car allows, so a value beyond it is held at the end of the bar and the check says so in the log
+  and on the desk (`value:<var>`): the reminder to widen it.
 - **The telemetry is asked three things and nothing more** (`Cars/CarControls.cs`): the value each listed control
   has now (`var`), whether the session's setup is fixed (`WeekendInfo.WeekendOptions.IsFixedSetup`), and the check
   below. Nothing here works out what a car has.
@@ -421,8 +431,12 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
     in `positions`, else nought for ABS and traction control only (his rule), unless the control says `"off": false`.
     A fixed setup can hold ABS off, so OFF is not always his to change: the reading says `locked`.
   - **A value**: the number as the list's `decimals` says (brake bias to one place), or the name of the position
-    (`TRACK`, `SPORT`, the BMW's `MDM`), under the label the list gives. A number has a bar from the control's
-    `range`; a name has none.
+    (`TRACK`, `SPORT`, the BMW's `MDM`), under the label the list gives. A number has a bar, `fill`: where it stands in
+    the control's `range` for that car, held at the ends (`CarControls.FillOf`). A control with no range has none,
+    and nothing is made up for it. Positions fill only where they are a scale (`CarControl.PositionsAreAScale`:
+    numbers, a percent sign allowed, or `off` at an end, running one way — the MP4-30's `25%`, `50%`, `75%`), by the
+    position's place among them; the names of modes (`TRACK` / `SPORT` / `NORMAL`, `OFF` / `MDM` / `ON`, `DRY` /
+    `WET`) fill nothing, whatever range the list gives.
   - **A mode**: one dial standing for several (the 570S's ABS, traction and stability under `TRACK`/`SPORT`/`NORMAL`):
     the mode is a cell of its own and the cells it covers are not shown.
   - A fixed setup holds ABS and traction control (`locked`), and nothing else, unless the list says otherwise.

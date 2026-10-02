@@ -38,6 +38,14 @@ namespace RacingDesk.Core.Cars
         /// <summary>Names of positions, by value, for a control that is a mode and not a number. Never null.</summary>
         public IReadOnlyList<KeyValuePair<double, string>> Positions { get; internal set; } = Array.Empty<KeyValuePair<double, string>>();
 
+        /// <summary>
+        /// The positions are an ordered scale and not names of modes: two or more, each named by a number (a percent
+        /// sign after it allowed: the McLaren MP4-30's 25%, 50%, 75%) or <c>off</c> at either end, the numbers rising or
+        /// falling with the values. Only then does a position fill a bar, by its place among them; TRACK / SPORT /
+        /// NORMAL, OFF / MDM / ON, DRY / WET name modes, and the number behind them is not a quantity.
+        /// </summary>
+        public bool PositionsAreAScale { get; internal set; }
+
         public string Note { get; internal set; }
 
         /// <summary>
@@ -291,6 +299,7 @@ namespace RacingDesk.Core.Cars
                 }
                 named.Sort((a, b) => a.Key.CompareTo(b.Key));
                 control.Positions = named;
+                control.PositionsAreAScale = IsAScale(named);
             }
 
             if (o["covers"] is JArray covers)
@@ -307,6 +316,35 @@ namespace RacingDesk.Core.Cars
             double? decimals = Number(o["decimals"]);
             if (decimals.HasValue && decimals.Value >= 0 && decimals.Value <= 3) control.Decimals = (int)decimals.Value;
             return control;
+        }
+
+        // Positions in the order of their values: a scale when every name is a number (a percent sign allowed after it),
+        // or off at either end, and the numbers run one way.
+        private static bool IsAScale(List<KeyValuePair<double, string>> positions)
+        {
+            if (positions.Count < 2) return false;
+            var numbers = new List<double>();
+            for (int i = 0; i < positions.Count; i++)
+            {
+                string name = positions[i].Value.Trim();
+                if (string.Equals(name, "off", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (i != 0 && i != positions.Count - 1) return false;
+                    continue;
+                }
+                if (name.EndsWith("%", StringComparison.Ordinal)) name = name.Substring(0, name.Length - 1).TrimEnd();
+                if (!double.TryParse(name, NumberStyles.Float, CultureInfo.InvariantCulture, out double n)) return false;
+                numbers.Add(n);
+            }
+            if (numbers.Count < 2) return false;
+            int direction = 0;
+            for (int i = 1; i < numbers.Count; i++)
+            {
+                int step = Math.Sign(numbers[i] - numbers[i - 1]);
+                if (step == 0 || (direction != 0 && step != direction)) return false;
+                direction = step;
+            }
+            return true;
         }
 
         private static string Having(JToken token, string path, string what, List<string> problems, params string[] allowed)
