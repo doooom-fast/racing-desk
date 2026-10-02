@@ -23,18 +23,35 @@
 //
 // What OBS draws is his choice, "Rig HUD" or "iPad dashboard" (`view`, 'rig' or 'ipad', from the settings): the rig HUD
 // is the loopback listener's /obs page at the HUD window's size, fitted to the game video as above; the iPad dashboard
-// is its /obs-ipad page (the glance layout the iPad is shown, over a transparent page) at an iPad's size, 1180 by 820
-// (IPAD_SOURCE: the iPad Air and 11" Pro on their side, the size the layout is held to and the golden frames are made
-// at), which is not stretched over the game: the first time Racing Desk adds it to a scene it is put in the bottom-left
-// corner (away from a facecam in the bottom right) at half the game video's height, and after that it is never moved
-// or sized again — his layout in OBS is his: not when he has resized the source in OBS (the address and size are put
-// back, and the item, which is scaled inside its own bounds, keeps its box), and not when a scene is renamed. The state
-// file says which scenes it has been placed in (`ipad`, by the scene's uuid, which a rename keeps; the name where OBS
-// gives none), and when the choice goes back to the rig HUD his transform of it is written there, so that choosing the
-// iPad dashboard again puts it back where he had it, not in the corner. An item that is in a scene with nothing written
-// of it (the state file lost, the switch turned on afresh in another collection and back) is his too, unless it still
-// covers the game video as the rig HUD's fit does, when it is the rig HUD and goes to the corner. A change of choice is
-// the source's address and size changed (SetInputSettings) and, for the rig HUD, the item fitted to the game again.
+// is its /obs-ipad page (the glance layout the iPad is shown, over a transparent page), which is not stretched over the
+// game: the first time Racing Desk adds it to a scene it is made at an iPad's size, 1180 by 820 (IPAD_SOURCE: the iPad
+// Air and 11" Pro on their side, the size the layout is held to and the golden frames are made at), and put in the
+// bottom-left corner (away from a facecam in the bottom right) at half the game video's height, and after that it is
+// never moved or sized by Racing Desk again — his layout in OBS is his — and not when a scene is renamed.
+//
+// **The page is laid out at the size he gives the item** (he asked, 2026-10-01: "Make the iPad version flow to its
+// bounds … in obs, it responds to its container if it can"). In OBS a browser source has a width and a height of its own
+// — the page's viewport, what the page is laid out at — and the scene item has a transform: dragging an item's corner
+// changes the item's scale or its bounds and never the source's size, so a page made at 1180 by 820 and dragged to a
+// wide box was stretched into it. So the source's width and height follow the item's box (`followBox`): on every connect
+// (the item in the scene OBS is on, else the first with a game video), and a moment after he lets go of the item
+// (OBS's SceneItemTransformChanged, which main.js hands to `transformChanged`; FOLLOW_AFTER_MS after the last one, since
+// OBS sends one for every pixel of a drag). The item is not moved or sized by it: an item scaled inside bounds (which is
+// how it is placed) keeps its bounds and the page fills them edge to edge at a scale of one; an item he has set to no
+// bounds and scaled has its scale put to one as the source takes its box, so the box is what it was, to the pixel. One
+// source has one size, so with the dashboard in several scenes at different boxes it is laid out for the scene OBS is
+// on, and scaled inside its bounds in the others. A size typed into the source's own settings is not kept: the box is
+// what the page is laid out at. A change of the source's size recreates OBS's browser (a page loaded afresh), so it is
+// done only when the box differs, to the pixel, from the size the source has. A box smaller than the least iPad in its
+// orientation (LEAST_BOX) has the page laid out at its shape scaled up to that, drawn into the box by OBS.
+//
+// The state file says which scenes it has been placed in (`ipad`, by the scene's uuid, which a rename keeps; the name
+// where OBS gives none), and when the choice goes back to the rig HUD his transform of it is written there, so that
+// choosing the iPad dashboard again puts it back where he had it, not in the corner. An item that is in a scene with
+// nothing written of it (the state file lost, the switch turned on afresh in another collection and back) is his too,
+// unless it still covers the game video as the rig HUD's fit does, when it is the rig HUD and goes to the corner. A
+// change of choice is the source's address changed (SetInputSettings) and, for the rig HUD, its size put to the HUD
+// window's and the item fitted to the game again; for the iPad dashboard, the item put back and the page laid out at it.
 //
 // No Electron: the client, the pages' addresses (`url(view)`), the HUD's size (in DIPs: the page lays out in CSS pixels,
 // as the rig's own HUD does, and OBS scales the source up to the canvas), the choice and the window's capture are
@@ -54,6 +71,17 @@ const IPAD_SOURCE = Object.freeze({ width: 1180, height: 820 });
 // lap") came out at 7.7 px of the canvas, and under 5 px once the video is scaled down for upload; at half they are
 // 9.7 px, and the numbers (20 px and up) 17.6 px and up. It is one drag in OBS to change, and then it is his.
 const IPAD_PLACE = Object.freeze({ height: 0.5, inset: 0.02 });
+// The source follows the item's box this long after the last SceneItemTransformChanged of a drag.
+const FOLLOW_AFTER_MS = 1200;
+// What a browser source's width and height may be (obs-browser's own range), so a box OBS reports oddly cannot be asked for.
+const SOURCE_SIZE = Object.freeze({ min: 64, max: 8192 });
+// The least the page is laid out at: the glance layout's numbers have a floor (20px), and it is held to the iPads, the
+// least of which are 1024 across and 744 high on its side (the 9.7" and the mini), 744 by 1024 upright. A box smaller than
+// that in its orientation (the corner the game video gives it, 1036 by 720 on his 1440 canvas and 777 by 540 on a 1080p
+// one; a square, a strip under 744 high; an item he shrinks) has the page laid out at the box's own shape scaled up until
+// it is that big, and OBS draws it into the box: the same shape and every cell, a little smaller on the canvas, rather
+// than a page cut off by its floors.
+const LEAST_BOX = Object.freeze({ landscape: Object.freeze({ width: 1024, height: 744 }), portrait: Object.freeze({ width: 744, height: 1024 }) });
 const VIEWS = Object.freeze(['rig', 'ipad']);
 // obs-websocket's alignment flags (libobs: OBS_ALIGN_LEFT 1, RIGHT 2, TOP 4, BOTTOM 8; 0 is the centre).
 const ALIGN = Object.freeze({ LEFT: 1, RIGHT: 2, TOP: 4, BOTTOM: 8 });
@@ -76,13 +104,18 @@ function setPlace(ipad, target, value) {
   ipad[target.key] = value;
 }
 
-function createHudSource({ client, url, size = () => null, view = () => 'rig', ipadSize = IPAD_SOURCE, ready = () => true, pageAlive = () => false, state = null, log = () => {} } = {}) {
+function createHudSource({ client, url, size = () => null, view = () => 'rig', ipadSize = IPAD_SOURCE, ready = () => true, pageAlive = () => false, state = null, log = () => {}, followAfterMs = FOLLOW_AFTER_MS, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
   if (!client) throw new Error('the HUD source needs the OBS client');
   let last = null;     // { at, did, scenes, problems }
   let busy = false;
   let closing = false; // Racing Desk is quitting: nothing is enabled any more
   let chain = Promise.resolve();
   let waiting = null;
+  // The iPad dashboard's items, by scene, from the last ensure: what a SceneItemTransformChanged is matched against.
+  const placedIn = new Map();
+  let followTimer = null;
+  let followNext = null;   // { sceneName, sceneItemId, transform }: the last transform event of ours, waiting its moment
+  let lastFollow = null;   // { at, sceneName, width, height }
 
   const pageUrl = (which) => (typeof url === 'function' ? url(which) : url);
   const viewNow = () => { try { return viewOf(typeof view === 'function' ? view() : view); } catch (e) { return 'rig'; } };
@@ -106,11 +139,48 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
     mem = whole;
   };
 
-  function inputSettings(which) {
+  // The source's settings: its address and, for the rig HUD, the HUD window's size; for the iPad dashboard its first size
+  // when it is made (`withSize`), and no size after — the item's box is its size (followBox, below).
+  function inputSettings(which, { withSize = true } = {}) {
     const s = which === 'ipad' ? ipadSource() : (hudSize() || { width: 1920, height: 1080 });
     // fps_custom off: OBS drives CEF at the canvas's rate. shutdown off: the page keeps its session state (the
     // session best, the sparklines) across scene switches. restart_when_active off: likewise.
-    return { url: pageUrl(which), width: s.width, height: s.height, fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false };
+    const settings = { url: pageUrl(which), fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false };
+    if (withSize) Object.assign(settings, { width: s.width, height: s.height });
+    return settings;
+  }
+
+  // A browser source's size for a box on the canvas: the box's own in whole pixels, or, for a box smaller than LEAST_BOX
+  // in its orientation, the box's shape scaled up to it; within what obs-browser takes.
+  function sizeForBox(box) {
+    const least = box.width > box.height ? LEAST_BOX.landscape : LEAST_BOX.portrait;   // a square is upright, as CSS has it
+    const up = Math.max(1, least.width / box.width, least.height / box.height);
+    const fit = (v) => Math.max(SOURCE_SIZE.min, Math.min(SOURCE_SIZE.max, Math.round(v * up)));
+    return { width: fit(box.width), height: fit(box.height) };
+  }
+
+  // The source laid out at the item's box: its width and height set to the box's (sizeForBox), if they are not already;
+  // an item with no bounds (he set it so and scaled it) has its scale put to what keeps its box on the canvas as it was
+  // (one, or less for a box smaller than LEAST_BOX).
+  // Resolves true when the source's size was changed (OBS then loads the page afresh at that size).
+  async function followBox(sceneName, ours, transform) {
+    const box = boxOf(transform);
+    if (!box) return false;
+    const want = sizeForBox(box);
+    let have = null;
+    try { have = (await client.request('GetInputSettings', { inputName: INPUT_NAME })).inputSettings; } catch (e) { have = null; }
+    const same = have && have.width === want.width && have.height === want.height;
+    if (!same) await client.request('SetInputSettings', { inputName: INPUT_NAME, inputSettings: { width: want.width, height: want.height }, overlay: true });
+    const bounded = transform.boundsType && transform.boundsType !== 'OBS_BOUNDS_NONE' && transform.boundsWidth > 0 && transform.boundsHeight > 0;
+    const scaleX = box.width / want.width, scaleY = box.height / want.height;
+    if (!bounded && (Math.abs((transform.scaleX ?? 1) - scaleX) > 1e-3 || Math.abs((transform.scaleY ?? 1) - scaleY) > 1e-3)) {
+      await client.request('SetSceneItemTransform', { sceneName, sceneItemId: ours.id, sceneItemTransform: { scaleX, scaleY } });
+    }
+    if (!same) {
+      lastFollow = { at: Date.now(), sceneName, width: want.width, height: want.height };
+      log(`[RacingDesk] HUD source: the iPad dashboard's page is laid out at ${want.width} by ${want.height}, the size of its item in "${sceneName}"`);
+    }
+    return !same;
   }
 
   async function scenes() {
@@ -297,7 +367,7 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
       const off = new Set(known && Array.isArray(before.off) ? before.off : []);
       const first = targets.find((t) => t.sceneName === current) || targets[0];
       let input = await findInput();
-      let resized = false;   // the source is not the size it is to be (the screen moved, the choice changed, or he sized it in OBS)
+      let resized = false;   // the source is not the size it is to be (the screen moved, the choice changed, or the item's box did)
       let changed = false;   // the page OBS draws changed (the rig HUD to the iPad dashboard, or back)
       if (!input) {
         await client.request('CreateInput', { sceneName: first.sceneName, inputName: INPUT_NAME, inputKind: INPUT_KIND, inputSettings: inputSettings(which), sceneItemEnabled: true });
@@ -305,14 +375,19 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
         first.items = await itemsOf(first.sceneName);
         log(`[RacingDesk] HUD source: made the browser source "${INPUT_NAME}" in "${first.sceneName}" (${which === 'ipad' ? 'the iPad dashboard' : 'the rig HUD'})`);
       } else {
-        // The address and the size are kept current (the port, the screen, the choice); his other settings on it are his.
-        const now = inputSettings(which);
-        let have = null;
-        try { have = (await client.request('GetInputSettings', { inputName: INPUT_NAME })).inputSettings; } catch (e) { have = null; }
-        resized = !have || have.width !== now.width || have.height !== now.height;
+        // The address is kept current (the port, the choice), and for the rig HUD the size (the screen); his other
+        // settings on it are his. The iPad dashboard's size is its item's box, taken once the items are placed (below).
+        const now = inputSettings(which, { withSize: which !== 'ipad' });
         changed = lastView !== null && lastView !== which;
+        if (which !== 'ipad') {
+          let have = null;
+          try { have = (await client.request('GetInputSettings', { inputName: INPUT_NAME })).inputSettings; } catch (e) { have = null; }
+          resized = !have || have.width !== now.width || have.height !== now.height;
+        }
         await client.request('SetInputSettings', { inputName: INPUT_NAME, inputSettings: now, overlay: true });
       }
+      placedIn.clear();
+      let follow = null;     // the iPad dashboard's item whose box the source is laid out at: the scene OBS is on, else the first
       for (const target of targets) {
         try {
           const items = target.items;
@@ -345,6 +420,8 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
             } else if (target.key !== target.sceneName) {
               setPlace(ipad, target, was.value);   // a record under the name, now under the uuid
             }
+            placedIn.set(target.sceneName, ours.id);
+            if (!follow || target.sceneName === current) follow = { sceneName: target.sceneName, ours };
           } else {
             // The rig HUD: where he has put it stays where he put it; only a new item, or one the screen's change (or the
             // choice's) has made the wrong size, is placed and fitted. Leaving the iPad dashboard, his transform of it
@@ -368,6 +445,15 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
         }
       }
       keep({ collection, off: [...off], view: which, ipad });
+      // The iPad dashboard's page is laid out at its item's box (the item is not touched).
+      if (follow) {
+        try {
+          const answer = await client.request('GetSceneItemTransform', { sceneName: follow.sceneName, sceneItemId: follow.ours.id });
+          if (answer && answer.sceneItemTransform && await followBox(follow.sceneName, follow.ours, answer.sceneItemTransform)) resized = true;
+        } catch (e) {
+          problems.push(`The iPad dashboard's page could not be laid out at its item's size: ${e.message}`);
+        }
+      }
       // The page is reloaded unless it is alive and polling: a reconnect in the middle of a race keeps its state. A page
       // that was just made, or given another size or address, is loaded afresh anyway.
       if (created || resized || changed || !pageAlive()) {
@@ -476,11 +562,47 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
     return result;
   }
 
-  function status() {
-    return { last, busy };
+  /**
+   * OBS says an item was moved or sized (SceneItemTransformChanged: { sceneName, sceneItemId, sceneItemTransform }). If
+   * it is the iPad dashboard's item, the source is laid out at its box a moment after the last such event (a drag is
+   * one event a pixel). Anything else — another item, the rig HUD chosen, an event with nothing in it — is nothing.
+   */
+  function transformChanged(event) {
+    if (!event || typeof event !== 'object' || viewNow() !== 'ipad') return false;
+    const { sceneName, sceneItemId, sceneItemTransform } = event;
+    if (typeof sceneName !== 'string' || !Number.isInteger(sceneItemId) || !sceneItemTransform || typeof sceneItemTransform !== 'object') return false;
+    if (placedIn.get(sceneName) !== sceneItemId) return false;
+    followNext = { sceneName, sceneItemId, transform: sceneItemTransform };
+    if (followTimer !== null) clearTimer(followTimer);
+    followTimer = setTimer(() => { followTimer = null; follow(); }, followAfterMs);
+    if (followTimer && typeof followTimer.unref === 'function') followTimer.unref();
+    return true;
   }
 
-  return { apply, ensure, disable, refresh, status, INPUT_NAME };
+  /** The source laid out at the box of the last event's item, after the ensure under way if there is one. */
+  function follow() {
+    const next = followNext;
+    followNext = null;
+    if (!next) return Promise.resolve({ ok: false, reason: 'nothing to follow' });
+    const run = async () => {
+      if (closing || !client.identified() || viewNow() !== 'ipad') return { ok: false, reason: NOT_OPEN };
+      try {
+        const resized = await followBox(next.sceneName, { id: next.sceneItemId }, next.transform);
+        return { ok: true, resized, sceneName: next.sceneName };
+      } catch (e) {
+        log(`[RacingDesk] HUD source: the iPad dashboard's page could not be laid out at its item's size: ${e.message}`);
+        return { ok: false, reason: e.message };
+      }
+    };
+    chain = chain.then(run, run);
+    return chain;
+  }
+
+  function status() {
+    return { last, busy, followed: lastFollow };
+  }
+
+  return { apply, ensure, disable, refresh, status, transformChanged, follow, INPUT_NAME };
 }
 
 // The iPad dashboard's places as the state file holds them: scene → his transform (an object of numbers and the
@@ -537,4 +659,4 @@ function fileState(file, { fs: fsModule = nodeFs, log = () => {} } = {}) {
   };
 }
 
-module.exports = { INPUT_NAME, INPUT_KIND, REFRESH_BUTTON, IPAD_SOURCE, IPAD_PLACE, VIEWS, NOT_OPEN, LISTENER_DOWN, createHudSource, fileState };
+module.exports = { INPUT_NAME, INPUT_KIND, REFRESH_BUTTON, IPAD_SOURCE, IPAD_PLACE, FOLLOW_AFTER_MS, SOURCE_SIZE, LEAST_BOX, VIEWS, NOT_OPEN, LISTENER_DOWN, createHudSource, fileState };

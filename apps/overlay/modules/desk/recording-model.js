@@ -23,7 +23,7 @@
     key: 'obsHudView', label: 'What OBS draws', def: 'rig',
     options: [
       ['rig', 'Rig HUD', 'The HUD as it is on your screen, laid over the whole of the game video in each of your scenes.'],
-      ['ipad', 'iPad dashboard', 'The glance layout the iPad shows, every panel in one grid, as a small source in the bottom-left corner of the game video, placed once; where you move or size it in OBS is yours.'],
+      ['ipad', 'iPad dashboard', 'The glance layout the iPad shows, every panel in one grid, as a small source in the bottom-left corner of the game video, placed once; where you move or size it in OBS is yours, and the page lays itself out to the size you give it.'],
     ],
   };
   // How solid the panels are in the picture OBS draws, whichever it draws: a slider of its own, so the recording can be

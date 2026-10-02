@@ -15,7 +15,10 @@ import { startFakeObs } from './fake-obs.mjs';
 
 const require = createRequire(import.meta.url);
 const { createObsClient } = require('../../modules/js/obs/client.js');
-const { createHudSource, INPUT_NAME, REFRESH_BUTTON, LISTENER_DOWN, IPAD_SOURCE, IPAD_PLACE } = require('../../modules/js/obs/hud-source.js');
+const { createHudSource, INPUT_NAME, REFRESH_BUTTON, LISTENER_DOWN, IPAD_SOURCE, IPAD_PLACE, LEAST_BOX } = require('../../modules/js/obs/hud-source.js');
+// The size the iPad dashboard's page is laid out at for a box on the canvas: the box's own, or, for one smaller than the
+// least iPad in its orientation (LEAST_BOX), the box's shape scaled up to it (OBS draws it into the box).
+const laidOutAt = (w, h) => { const l = w > h ? LEAST_BOX.landscape : LEAST_BOX.portrait; const up = Math.max(1, l.width / w, l.height / h); return { width: Math.round(w * up), height: Math.round(h * up) }; };
 
 const PASSWORD = 'horse-battery';
 const until = async (what, timeoutMs = 4000) => {
@@ -39,12 +42,14 @@ function memory() {
 // The two pages the listener serves, by the choice (main.js hands the same in).
 const URLS = { rig: 'http://127.0.0.1:9091/obs', ipad: 'http://127.0.0.1:9091/obs-ipad' };
 
-function rig({ port = server.port, url = URLS.rig, size = { width: 3440, height: 1440 }, view = 'rig', ready = () => true, pageAlive = () => false, state = memory() } = {}) {
+function rig({ port = server.port, url = URLS.rig, size = { width: 3440, height: 1440 }, view = 'rig', ready = () => true, pageAlive = () => false, state = memory(), followAfterMs = 60 } = {}) {
   const lines = [];
   const client = createObsClient({ port, password: () => PASSWORD, retryMs: 40, connectTimeoutMs: 500, log: (l) => lines.push(l) });
   const sizeBox = { value: size };
   const viewBox = { value: view };
-  const source = createHudSource({ client, url: (which) => (url === URLS.rig ? URLS[which] : url), size: () => sizeBox.value, view: () => viewBox.value, ready, pageAlive, state, log: (l) => lines.push(l) });
+  const source = createHudSource({ client, url: (which) => (url === URLS.rig ? URLS[which] : url), size: () => sizeBox.value, view: () => viewBox.value, ready, pageAlive, state, log: (l) => lines.push(l), followAfterMs });
+  // As main.js wires it: an item moved or sized in OBS reaches the source.
+  client.on('SceneItemTransformChanged', (d) => source.transformChanged(d));
   // The window's capture: each call is written down with the number of requests OBS had had by then, to say what came before it.
   const protectCalls = [];
   const protect = (value) => protectCalls.push({ value, at: server.requests.length });
@@ -439,28 +444,45 @@ test('the iPad dashboard: the source is the /obs-ipad page at 1180 by 820, put i
     // Never stretched over the game: nothing fitted it to the game's bounds.
     expect(ours('2up').transform.boundsWidth).not.toBe(1720);
     expect(server.state.pressed).toHaveLength(1);
+    // The page is laid out at the item's box: the source's size is the corner's in the scene OBS is on (1036 by 720 on
+    // the 1440 canvas), not the iPad's it was made at. The item itself is not touched for it.
+    // That is under the least iPad's 744 high, so the page is laid out at its shape scaled up to it, 1071 by 744, and OBS
+    // draws it into the corner.
+    expect(inputNow()).toMatchObject({ url: URLS.ipad, ...laidOutAt(1036, 720) });
+    expect(inputNow()).toMatchObject({ width: 1071, height: 744 });
+    expect(requests('SetInputSettings').filter((q) => 'width' in q.data.inputSettings).map((q) => q.data.inputSettings)).toEqual([{ width: 1071, height: 744 }]);
+    expect(r.source.status().followed).toMatchObject({ sceneName: 'Large Video', width: 1071, height: 744 });
     // Written down: placed in each scene, nothing of his kept yet.
     expect(r.state.get()).toEqual({ collection: 'sim race 2k', off: [], view: 'ipad', ipad: { [uuid('Large Video')]: null, [uuid('Small Video')]: null, [uuid('2up')]: null } });
 
-    // He moves it, sizes it, hides it in a scene. Another connect, and the choice made again: his.
+    // He moves it, sizes it, hides it in a scene. Another connect, and the choice made again: his, and the page is laid
+    // out at the box he gave it.
     ours('Large Video').transform.positionX = 2400;
     ours('Large Video').transform.positionY = 100;
     ours('Large Video').transform.boundsWidth = 1200;
     ours('Large Video').transform.boundsHeight = 834;
     ours('Small Video').enabled = false;
     server.requests.length = 0;
+    server.state.pressed.length = 0;
     const again = await r.source.apply({ on: true, protect: r.protect });
     expect(again).toMatchObject({ ok: true, created: false, scenes: 3, view: 'ipad' });
     expect(requests('SetSceneItemTransform')).toHaveLength(0);
     expect(requests('SetSceneItemIndex')).toHaveLength(0);
-    expect(requests('SetInputSettings')).toHaveLength(1);
-    expect(requests('SetInputSettings')[0].data.inputSettings).toMatchObject({ url: URLS.ipad, width: 1180, height: 820 });
+    // The address (and nothing of the size) kept current, then the size to his box: the page loaded afresh at it.
+    expect(requests('SetInputSettings').map((q) => q.data.inputSettings)).toEqual([
+      { url: URLS.ipad, fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false },
+      { width: 1200, height: 834 },
+    ]);
+    expect(inputNow()).toMatchObject({ url: URLS.ipad, width: 1200, height: 834 });
+    expect(server.state.pressed).toHaveLength(1);
     expect(ours('Large Video').transform).toMatchObject({ positionX: 2400, positionY: 100, boundsWidth: 1200, boundsHeight: 834 });
     expect(ours('Small Video').enabled).toBe(false);
-    // The rig's screen changing is nothing to the iPad dashboard's size or place.
+    // The rig's screen changing is nothing to the iPad dashboard's size or place; a box that has not changed asks nothing.
     r.sizeBox.value = { width: 2752, height: 1152 };
+    server.requests.length = 0;
     await r.source.apply({ on: true, protect: r.protect });
     expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    expect(requests('SetInputSettings').filter((q) => 'width' in q.data.inputSettings)).toHaveLength(0);
     expect(ours('Large Video').transform).toMatchObject({ positionX: 2400, positionY: 100 });
     // A new scene with a game video gets it placed, in its corner, and the others are left alone.
     server.state.scenes.push({ sceneName: 'Night', items: [{ sceneItemId: 80, sourceName: 'game video', enabled: true, transform: { positionX: 100, positionY: 50, rotation: 0, scaleX: 0.5, scaleY: 0.5, alignment: 5, boundsType: 'OBS_BOUNDS_NONE', boundsAlignment: 0, boundsWidth: 0, boundsHeight: 0, sourceWidth: 3440, sourceHeight: 1440, width: 1720, height: 720 } }] });
@@ -485,9 +507,12 @@ test('the choice changed: from the rig HUD to the iPad dashboard the source gets
     const toIpad = await r.source.apply({ on: true, protect: r.protect });
     expect(toIpad).toMatchObject({ ok: true, created: false, scenes: 3, view: 'ipad' });
     expect(requests('CreateInput')).toHaveLength(0);
-    expect(requests('SetInputSettings')[0].data.inputSettings).toMatchObject({ url: URLS.ipad, width: 1180, height: 820 });
+    // The other address (no size with it: the item's box is the size), then the page laid out at the corner it is put in.
+    expect(requests('SetInputSettings')[0].data.inputSettings).toMatchObject({ url: URLS.ipad });
+    expect(requests('SetInputSettings')[0].data.inputSettings).not.toHaveProperty('width');
     expect(ours('Large Video').transform).toMatchObject(corner(LARGE));
     expect(ours('2up').transform).toMatchObject(corner(TWO_UP));
+    expect(inputNow()).toMatchObject({ url: URLS.ipad, ...laidOutAt(1036, 720) });
     expect(server.state.pressed).toHaveLength(2);   // the other page: loaded afresh
     expect(state.get()).toMatchObject({ view: 'ipad', ipad: { [uuid('Large Video')]: null, [uuid('Small Video')]: null, [uuid('2up')]: null } });
     // He puts it top right in the large scene and leaves the rest.
@@ -504,11 +529,13 @@ test('the choice changed: from the rig HUD to the iPad dashboard the source gets
     expect(state.get().view).toBe('rig');
     expect(state.get().ipad[uuid('Large Video')]).toEqual({ positionX: 2500, positionY: 40, alignment: 5, rotation: 0, scaleX: 1, scaleY: 1, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsAlignment: 0, boundsWidth: 900, boundsHeight: 625 });
     expect(state.get().ipad[uuid('2up')]).toMatchObject({ boundsWidth: 518, boundsHeight: 360 });
-    // The iPad dashboard again: where he had it, not the corner.
+    // The iPad dashboard again: where he had it, not the corner, and the page laid out at that box.
     r.viewBox.value = 'ipad';
     await r.source.apply({ on: true, protect: r.protect });
     expect(ours('Large Video').transform).toMatchObject({ positionX: 2500, positionY: 40, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 900, boundsHeight: 625 });
     expect(ours('2up').transform).toMatchObject(corner(TWO_UP));
+    expect(inputNow()).toMatchObject({ url: URLS.ipad, ...laidOutAt(900, 625) });
+    expect(inputNow()).toMatchObject({ width: 1071, height: 744 });
     // And a Racing Desk started afresh with the choice already made (the state file read at its start): nothing moved.
     r.dispose();
     const next = rig({ state, view: 'ipad' });
@@ -575,28 +602,116 @@ function uuidsFollowTheScene({ none = false } = {}) {
 const inputNow = () => server.state.inputs.find((i) => i.inputName === INPUT_NAME).settings;
 const HE_PUT_IT = { positionX: 2400, positionY: 100, boundsWidth: 1200, boundsHeight: 834 };
 
-test('he changes the source\'s size in OBS (a bigger iPad, or upright): the next connect puts the address and size back and moves nothing — the item keeps its box, in every scene', async () => {
+test('he sizes the item in OBS (wide, tall, small): the next connect lays the page out at the item\'s box — the source\'s width and height are the box\'s, or its shape scaled up to the least iPad for a box smaller than that — and moves nothing in any scene; a size typed into the source\'s own settings is not kept', async () => {
   const r = rig({ view: 'ipad' });
   try {
     await until(() => r.client.identified());
     await r.source.apply({ on: true, fresh: true, protect: r.protect });
-    Object.assign(ours('Large Video').transform, HE_PUT_IT);
-    // 1366 by 1024 (an iPad Pro 13" on its side), then 820 by 1180 (an iPad upright): the size the browser source has.
-    for (const size of [{ width: 1366, height: 1024 }, { width: 820, height: 1180 }]) {
-      Object.assign(inputNow(), size);
+    expect(inputNow()).toMatchObject({ width: 1071, height: 744 });
+    // A wide strip, a tall column, a 1080p box, a small corner: the box he drags the item to in the scene OBS is on.
+    for (const box of [{ boundsWidth: 1600, boundsHeight: 600 }, { boundsWidth: 800, boundsHeight: 1200 }, { boundsWidth: 1920, boundsHeight: 1080 }, { boundsWidth: 500.4, boundsHeight: 347.6 }]) {
+      Object.assign(ours('Large Video').transform, HE_PUT_IT, box);
       server.requests.length = 0;
       server.state.pressed.length = 0;
       const again = await r.source.apply({ on: true, protect: r.protect });
       expect(again).toMatchObject({ ok: true, created: false, scenes: 3, view: 'ipad', problems: [] });
-      // The size is put back (and the page, drawn at another size, loaded again); nothing is moved or sized in any scene.
-      expect(inputNow()).toMatchObject({ url: URLS.ipad, width: 1180, height: 820 });
+      // The page is laid out at the box, to the pixel (and loaded again at that size), or at its shape scaled up to the
+      // least the layout holds; nothing is moved or sized.
+      expect(inputNow()).toMatchObject({ url: URLS.ipad, ...laidOutAt(box.boundsWidth, box.boundsHeight) });
       expect(server.state.pressed).toHaveLength(1);
       expect(requests('SetSceneItemTransform')).toHaveLength(0);
       expect(requests('SetSceneItemIndex')).toHaveLength(0);
-      expect(ours('Large Video').transform).toMatchObject(HE_PUT_IT);
+      expect(ours('Large Video').transform).toMatchObject({ ...HE_PUT_IT, ...box });
       expect(ours('Small Video').transform).toMatchObject(corner(LARGE));
       expect(ours('2up').transform).toMatchObject(corner(TWO_UP));
     }
+    // The small corner (500 by 348, smaller than the least iPad): its shape scaled up, OBS drawing it into the box.
+    expect(inputNow()).toMatchObject({ width: 1071, height: 744 });
+    // 1366 by 1024 typed into the source's settings (an iPad Pro 13" on its side): the box is the size, and comes back.
+    Object.assign(inputNow(), { width: 1366, height: 1024 });
+    server.requests.length = 0;
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(inputNow()).toMatchObject({ url: URLS.ipad, width: 1071, height: 744 });
+    expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    // The scene OBS is on is the one the page is laid out for: on the 2up, its corner there (518 by 360: its shape at the least iPad's height).
+    server.state.currentScene = '2up';
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(inputNow()).toMatchObject({ width: 1071, height: 744 });
+    expect(ours('Large Video').transform).toMatchObject({ boundsWidth: 500.4, boundsHeight: 347.6 });
+  } finally { r.dispose(); }
+});
+
+test('he sizes the item while OBS is open: a moment after the last of OBS\'s transform events the page is laid out at the box, once for a whole drag; another item\'s event, and the rig HUD chosen, are nothing', async () => {
+  const r = rig({ view: 'ipad', followAfterMs: 60 });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    const id = ours('Large Video').sceneItemId;
+    const sized = (w, h) => ({ ...ours('Large Video').transform, boundsWidth: w, boundsHeight: h });
+    const TRANSFORM_INTENT = 1 << 19;
+    server.requests.length = 0;
+    // A drag: one event a pixel, and the last one is where he let go.
+    for (const [w, h] of [[1100, 764], [1200, 834], [1300, 903], [1400, 973]]) {
+      Object.assign(ours('Large Video').transform, { boundsWidth: w, boundsHeight: h });
+      server.emit('SceneItemTransformChanged', { sceneName: 'Large Video', sceneItemId: id, sceneItemTransform: sized(w, h) }, TRANSFORM_INTENT);
+      await new Promise((resolve) => setTimeout(resolve, 15));
+    }
+    await until(() => inputNow().width === 1400, 4000);
+    expect(inputNow()).toMatchObject({ width: 1400, height: 973 });
+    expect(requests('SetInputSettings')).toHaveLength(1);
+    expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    expect(r.source.status().followed).toMatchObject({ sceneName: 'Large Video', width: 1400, height: 973 });
+    // The facecam moved: nothing. An item of ours in a scene that is not the one named: nothing.
+    server.requests.length = 0;
+    server.emit('SceneItemTransformChanged', { sceneName: 'Large Video', sceneItemId: 2, sceneItemTransform: { ...ours('Large Video').transform, boundsWidth: 300, boundsHeight: 200 } }, TRANSFORM_INTENT);
+    server.emit('SceneItemTransformChanged', { sceneName: 'Small Video', sceneItemId: id, sceneItemTransform: sized(640, 445) }, TRANSFORM_INTENT);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(requests('SetInputSettings')).toHaveLength(0);
+    expect(inputNow()).toMatchObject({ width: 1400, height: 973 });
+    // The box he lets go of is the one the source has already: nothing is asked of OBS but its settings.
+    server.emit('SceneItemTransformChanged', { sceneName: 'Large Video', sceneItemId: id, sceneItemTransform: sized(1400, 973) }, TRANSFORM_INTENT);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(requests('SetInputSettings')).toHaveLength(0);
+    // With the rig HUD chosen, an event for the item is nothing.
+    r.viewBox.value = 'rig';
+    server.emit('SceneItemTransformChanged', { sceneName: 'Large Video', sceneItemId: id, sceneItemTransform: sized(900, 625) }, TRANSFORM_INTENT);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(requests('SetInputSettings')).toHaveLength(0);
+    expect(inputNow()).toMatchObject({ width: 1400, height: 973 });
+    // What the source is handed that is not an event of OBS's is nothing too.
+    for (const bad of [null, 'x', {}, { sceneName: 'Large Video' }, { sceneName: 'Large Video', sceneItemId: id }]) expect(r.source.transformChanged(bad)).toBe(false);
+  } finally { r.dispose(); }
+});
+
+test('an item he has set to no bounds and scaled: the source takes the box it covers and the scale goes to one, so the box is what it was to the pixel; nothing else of the item is written', async () => {
+  const r = rig({ view: 'ipad' });
+  try {
+    await until(() => r.client.identified());
+    await r.source.apply({ on: true, fresh: true, protect: r.protect });
+    // 1036 by 720 at a scale of 1.5: a box of 1554 by 1080, as obs-websocket reports it (width and height are the scaled size).
+    Object.assign(ours('Large Video').transform, { boundsType: 'OBS_BOUNDS_NONE', boundsWidth: 0, boundsHeight: 0, scaleX: 1.5, scaleY: 1.5, sourceWidth: 1036, sourceHeight: 720, width: 1554, height: 1080, positionX: 2400, positionY: 100 });
+    server.requests.length = 0;
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(inputNow()).toMatchObject({ width: 1554, height: 1080 });
+    expect(requests('SetSceneItemTransform').map((q) => q.data)).toEqual([{ sceneName: 'Large Video', sceneItemId: ours('Large Video').sceneItemId, sceneItemTransform: { scaleX: 1, scaleY: 1 } }]);
+    expect(ours('Large Video').transform).toMatchObject({ positionX: 2400, positionY: 100, scaleX: 1, scaleY: 1, boundsType: 'OBS_BOUNDS_NONE' });
+    // Again: the scale is one and the size the box's, so nothing is written.
+    Object.assign(ours('Large Video').transform, { width: 1554, height: 1080 });
+    server.requests.length = 0;
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(requests('SetSceneItemTransform')).toHaveLength(0);
+    expect(requests('SetInputSettings').filter((q) => 'width' in q.data.inputSettings)).toHaveLength(0);
+    // Shrunk to 777 by 540 (a scale of a half on the 1554 by 1080 source): under the least the layout holds, so the page
+    // is laid out at the box's shape scaled up to the least iPad's (1071 by 744), and the scale is what keeps the box.
+    Object.assign(ours('Large Video').transform, { scaleX: 0.5, scaleY: 0.5, sourceWidth: 1554, sourceHeight: 1080, width: 777, height: 540 });
+    server.requests.length = 0;
+    await r.source.apply({ on: true, protect: r.protect });
+    expect(inputNow()).toMatchObject(laidOutAt(777, 540));
+    expect(inputNow()).toMatchObject({ width: 1071, height: 744 });
+    const set = requests('SetSceneItemTransform').map((q) => q.data.sceneItemTransform);
+    expect(set).toHaveLength(1);
+    expect(set[0].scaleX).toBeCloseTo(777 / 1071, 4);
+    expect(set[0].scaleY).toBeCloseTo(540 / 744, 4);
   } finally { r.dispose(); }
 });
 

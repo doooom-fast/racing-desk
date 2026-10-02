@@ -339,10 +339,32 @@ at 17.6 px. Two-fifths was the first cut and was too small for a recording: 7.7 
 scaled for upload. It is one drag in OBS to change, and then it is his), and after that **it is never moved or sized by
 Racing Desk again**: his layout in OBS is his. The state file (`hud-source-state.json`: `collection`, `off`, `view`,
 `ipad`) says which scenes it has been placed in, **by the scene's uuid** (OBS 30 and up; the name where OBS gives none),
-so that renaming a scene is not a new scene. A connect, a choice made again, a change of the rig's screen or **a change
-to the source's size in OBS** (a bigger iPad, upright 820 by 1180) only brings the address and the size up to date
-(SetInputSettings) and reloads the page: the item is scaled inside its own bounds and keeps its box, so nothing is moved
-or sized. An item that is in a scene with nothing written of it (the state file lost; the switch turned on afresh in
+so that renaming a scene is not a new scene. A connect, a choice made again or a change of the rig's screen only brings
+the address up to date (SetInputSettings) and reloads the page: nothing is moved or sized. **The page is laid out at the
+size he gives the item** (asked 2026-10-01: "Make the iPad version flow to its bounds … in obs, it responds to its
+container if it can"). In OBS a browser source has a width and a height of its own — the page's viewport, what it is laid
+out at — and the scene item has a transform: dragging an item's corner changes the item's scale or bounds and never the
+source's size, so a page made at 1180 by 820 and dragged to a wide box was stretched into it. So the source's width and
+height follow the item's box: on every connect (the item in the scene OBS is on, else the first with a game video) and a
+moment after he lets go of the item (OBS's `SceneItemTransformChanged`, which the client now subscribes to and `main.js`
+hands to `hudSource.transformChanged`; `FOLLOW_AFTER_MS`, 1.2 s, after the last one, since OBS sends one for every pixel
+of a drag). The item is not touched for it: one scaled inside bounds, which is how it is placed, keeps its bounds and the
+page fills them edge to edge at a scale of one; one he has set to no bounds and scaled has its scale put to one as the
+source takes its box, so the box is what it was to the pixel. **A box smaller than the least iPad** in its orientation
+(`LEAST_BOX`: 1024 by 744 on its side, 744 by 1024 upright — the 9.7" and the mini, the least the layout is held to, its
+numbers at their 20px floor) has the page laid out at the box's own shape scaled up until it is that big, and OBS draws it
+into the box (the item's scale, for one with no bounds, is what keeps the box): the corner it is first put in, 1036 by 720
+on his 3440 by 1440 canvas, is laid out at 1071 by 744, a 1600 by 600 strip at 1984 by 744, a 900 by 900 square at 1024 by
+1024; a 1920 by 1080 box at its own size. Below that the layout is not cut off by its floors, it is drawn a little smaller.
+One source has one size, so with the dashboard in several
+scenes at different boxes it is laid out for the scene OBS is on and scaled inside its bounds in the others. A size typed
+into the source's own settings is not kept: the box is the size. A change of the source's size recreates OBS's browser (a
+page loaded afresh, as a change of its settings always has), so it is made only when the box differs, to the pixel, from
+the size the source has — a connect with the box unchanged asks OBS for its settings and no more. The page itself lays
+out to whatever box it is given (`drive-view.css`: the grid, every cell a size container, and what a short cell gives up —
+`hud-page-obs-ipad.spec.mjs` holds it at what a wide strip, the first corner, a square, a 1080p box, a tall column and
+an iPad's box are laid out at).
+An item that is in a scene with nothing written of it (the state file lost; the switch turned on afresh in
 another collection and back; a rename with no uuid) is his too, and is only written down — unless it still covers the
 game video as the rig HUD's fit does, when it is the rig HUD left there and goes to the corner. Changing the choice changes the source's address and size and reloads the page: to the iPad
 dashboard, the item is placed in the corner once per scene; back to the rig HUD, the item is fitted over the game again

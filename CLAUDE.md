@@ -895,7 +895,11 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
   is what OBS draws when "iPad dashboard" is chosen under "HUD drawn by OBS" (the loopback listener's `/obs-ipad`,
   `html.rd-glance`): the glance layout in OBS mode over a transparent page, with no flag pattern between the panels,
   placed once in a corner of the game video, at half its height, and never moved or sized by Racing Desk again — not
-  for a size he gives the source in OBS, not for a renamed scene (`docs/recording.md`). It takes his display settings
+  for a renamed scene — while **the page is laid out at the size he gives the item**: the browser source's own width
+  and height follow the item's box, on every connect and a moment after he lets go of it in OBS, so the layout flows
+  to a wide strip, a square or a 1080p box rather than being stretched into it — a box smaller than the least iPad
+  (1024x744 on its side, 744x1024 upright) at its own shape scaled up to that, drawn into the box (asked 2026-10-01;
+  `docs/recording.md`). It takes his display settings
   like the rig HUD OBS draws: effects off on the rig takes the WebGL canvases out of it, where the iPad is told none.
 
 Tests listen on 127.0.0.1 only. A listener on the network makes Windows ask about the firewall, in a window, over

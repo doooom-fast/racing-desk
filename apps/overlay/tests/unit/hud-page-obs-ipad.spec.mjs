@@ -294,6 +294,71 @@ test('rendered over a checkerboard at 1180x820 with a yellow flag out: the board
   }
 });
 
+// The page flows to the box OBS gives it (he asked, 2026-10-01: "Make the iPad version flow to its bounds … in obs, it
+// responds to its container if it can"; hud-source.js lays the source out at the item's box, or, for a box smaller than
+// the least iPad in its orientation, LEAST_BOX, at the box's shape scaled up to it, which OBS draws into the box). At what
+// a wide strip, the corner it is first put in on his 1440 canvas, a square, a 1080p box, a tall column and an iPad's own
+// box are laid out at: every panel a cell inside the page, none over another, the cells the page, and nothing cut off by
+// its cell — a short cell gives up what it must (drive-view.css) rather than overflow.
+const { LEAST_BOX } = require('../../modules/js/obs/hud-source.js');
+const laidOutAt = (w, h) => { const l = w > h ? LEAST_BOX.landscape : LEAST_BOX.portrait; const up = Math.max(1, l.width / w, l.height / h); return [Math.round(w * up), Math.round(h * up)]; };
+for (const [boxW, boxH, what] of [[1600, 600, 'a wide strip'], [1036, 720, 'the corner on his 1440 canvas'], [900, 900, 'a square'], [1920, 1080, 'a 1080p box'], [600, 1000, 'a tall column'], [1180, 820, "an iPad's size"]]) {
+  const [width, height] = laidOutAt(boxW, boxH);
+  test(`/obs-ipad for a ${boxW}x${boxH} box (${what}), laid out at ${width}x${height}: the layout flows to the box, every cell inside it, nothing cut off`, async ({ page }) => {
+    test.setTimeout(90000);
+    const r = await rig({ settings: { showWebGL: false } });
+    try {
+      const { errors } = await open(page, r, { width, height });
+      r.feed.payload = RACE();
+      await drawn(page);
+      const m = await page.evaluate(() => {
+        const vw = innerWidth, vh = innerHeight;
+        const cells = {
+          hero: '#positionPage', gaps: '#gapsBlock', tacho: '.tacho-block', lb: '#leaderboardPanel', map: '.map-panel',
+          local: '.map-zoom-panel', laps: '#lapsPanel', rating: '#ratingPage', ctrl: '.car-controls', pedals: '.pedals-area',
+          timer: '#raceTimerBlock', pit: '#pitBoxPanel', ds: '#datastreamPanel', inc: '#incidentsPanel',
+        };
+        const out = { drawn: [], outside: [], overlapping: [], overflowing: [], covered: 0, viewport: [vw, vh] };
+        const rects = [];
+        let area = 0;
+        for (const [name, sel] of Object.entries(cells)) {
+          const el = document.querySelector(sel);
+          if (!el || el.getClientRects().length === 0) continue;
+          out.drawn.push(name);
+          const b = el.getBoundingClientRect();
+          area += b.width * b.height;
+          rects.push([name, b]);
+          if (b.left < -0.5 || b.top < -0.5 || b.right > vw + 0.5 || b.bottom > vh + 0.5) out.outside.push(name);
+        }
+        for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+          const [a, ra] = rects[i], [b, rb] = rects[j];
+          if (Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left) > 1 && Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top) > 1) out.overlapping.push(`${a}/${b}`);
+        }
+        out.covered = area / (vw * vh);
+        // Nothing in a cell is cut off by it, nor by the parts inside it that lay themselves out.
+        for (const sel of [...Object.values(cells), '.pb-page', '.pb-tire-circles', '.pb-circle-cell', '#gapsBlock .gap-item', '.laps-panel > *', '.ds-inner', '.inc-inner']) {
+          for (const el of document.querySelectorAll(sel)) {
+            if (el.getClientRects().length === 0) continue;
+            const slack = Math.max(1, parseFloat(getComputedStyle(el).fontSize) * 0.3);
+            if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + slack) out.overflowing.push(`${sel} ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight}`);
+          }
+        }
+        out.drawn.sort();
+        return out;
+      });
+      expect(m.viewport).toEqual([width, height]);
+      expect(m.drawn).toEqual(['ctrl', 'ds', 'gaps', 'hero', 'inc', 'laps', 'lb', 'local', 'map', 'pedals', 'pit', 'rating', 'tacho', 'timer']);
+      expect(m.outside, 'cells outside the box').toEqual([]);
+      expect(m.overlapping, 'cells on top of one another').toEqual([]);
+      expect(m.covered, 'the cells are the box').toBeGreaterThanOrEqual(0.86);
+      expect(m.overflowing, 'content cut off by its cell').toEqual([]);
+      expect(errors).toEqual([]);
+    } finally {
+      await r.close();
+    }
+  });
+}
+
 test('he puts the HUD away: the page is hidden while he is in the car, and drawn again when he switches it on; the rig\'s page-only actions are not done here', async ({ page }) => {
   test.setTimeout(60000);
   const r = await rig();

@@ -658,6 +658,9 @@ obsClient.onChange((state) => {
 });
 // He changed to another scene collection: the HUD is where it was set up and nowhere else, and the window follows.
 obsClient.on('CurrentSceneCollectionChanged', () => applyHudSource('the scene collection changed'));
+// He moved or sized an item in OBS: if it is the iPad dashboard's, its page is laid out at the box he gave it, a moment
+// after he lets go (hud-source.js: the browser source's own width and height follow the item's box; the item is not touched).
+obsClient.on('SceneItemTransformChanged', (data) => hudSource.transformChanged(data));
 
 // ── TV shots (modules/js/obs/tv-shots.js) ──
 // After a race, from the desk's race detail, the tray or the Stream Deck: the recording's moments recorded again from

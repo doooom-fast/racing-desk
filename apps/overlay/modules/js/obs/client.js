@@ -14,8 +14,11 @@ const wsClient = require('./ws-client');
 
 const OP = Object.freeze({ HELLO: 0, IDENTIFY: 1, IDENTIFIED: 2, REIDENTIFY: 3, EVENT: 5, REQUEST: 6, RESPONSE: 7 });
 const RPC_VERSION = 1;
-// General (ExitStarted, VendorEvent) | Config (profile and collection changes) | Outputs (the recording's state).
-const SUBSCRIPTIONS = 1 | 2 | 64;
+// General (ExitStarted, VendorEvent) | Config (profile and collection changes) | Outputs (the recording's state) |
+// SceneItemTransformChanged (one of the "high-volume" intents, asked for by itself: the iPad dashboard's browser source
+// follows the size he gives its item in OBS, hud-source.js; OBS sends it only while an item is being moved or sized).
+const SCENE_ITEM_TRANSFORM = 1 << 19;
+const SUBSCRIPTIONS = 1 | 2 | 64 | SCENE_ITEM_TRANSFORM;
 const PROTOCOL = 'obswebsocket.json';
 const STATUS = Object.freeze({ SUCCESS: 100, NOT_READY: 207, OUTPUT_RUNNING: 500, OUTPUT_NOT_RUNNING: 501 });
 const CLOSE = Object.freeze({ AUTH_FAILED: 4009, UNSUPPORTED_RPC: 4010 });
@@ -296,4 +299,4 @@ function createObsClient({
   return { start, stop, tryNow, passwordChanged, request, on, onChange, state, identified: () => phase === 'identified' };
 }
 
-module.exports = { createObsClient, authentication, OP, STATUS, CLOSE, SUBSCRIPTIONS, DEFAULT_PORT, RETRY_MS, AUTH_RETRY_MS, REQUEST_TIMEOUT_MS, PROTOCOL };
+module.exports = { createObsClient, authentication, OP, STATUS, CLOSE, SUBSCRIPTIONS, SCENE_ITEM_TRANSFORM, DEFAULT_PORT, RETRY_MS, AUTH_RETRY_MS, REQUEST_TIMEOUT_MS, PROTOCOL };
