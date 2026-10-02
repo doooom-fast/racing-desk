@@ -158,6 +158,29 @@ namespace RacingDesk.Tests.Names
         }
 
         [Test]
+        public void ATeammateDrivingHisCarIsAnotherDriverAndIsRenamed()
+        {
+            // A team race: the session's entry for his car is whoever is in it. With his teammate in it, it is not his.
+            var si = SessionInfoYaml.Parse(SyntheticField.Yaml(teammateDriving: true));
+            var car = si.DriverInfo.Drivers.Single(d => d.CarIdx == SyntheticField.PlayerCarIdx);
+            Assert.That(Pseudonymizer.IsHim(si.DriverInfo, car), Is.False, "his car, not him");
+            Book.NewSession().Apply(si);
+            Assert.That(Book.List.ContainsShown(car.UserName), Is.True, car.UserName);
+            Assert.That(car.UserID, Is.EqualTo(SyntheticField.TeammateCustId));
+            Assert.That(car.TeamName, Is.EqualTo("Nowhere Motorsport"), "a team of its own keeps its name");
+            SyntheticField.AssertNoRivalIn(car.UserName + "|" + car.AbbrevName + "|" + car.Initials + "|" + car.TeamName, "his car with the teammate in it");
+            var names = si.DriverInfo.Drivers.Where(d => d.CarIsPaceCar == 0).Select(d => d.UserName).ToList();
+            Assert.That(names.Distinct().Count(), Is.EqualTo(names.Count), "the teammate is a different character from every rival");
+
+            // And with him in it, as in every other test: his own.
+            var mine = SessionInfoYaml.Parse(SyntheticField.Yaml());
+            var me = mine.DriverInfo.Drivers.Single(d => d.CarIdx == SyntheticField.PlayerCarIdx);
+            Assert.That(Pseudonymizer.IsHim(mine.DriverInfo, me), Is.True);
+            Book.NewSession().Apply(mine);
+            Assert.That(me.UserName, Is.EqualTo(SyntheticField.PlayerName));
+        }
+
+        [Test]
         public void ApplyTwiceChangesNothingAndTwoSessionsAgree()
         {
             var once = Book.NewSession().Apply(SessionInfoYaml.Parse(SyntheticField.Yaml()));

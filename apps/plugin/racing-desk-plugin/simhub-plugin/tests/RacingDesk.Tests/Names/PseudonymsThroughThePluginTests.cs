@@ -71,7 +71,7 @@ namespace RacingDesk.Tests.Names
         /// The plugin's source: SimHub's game data, its property bag, and the bridge, asked for every opponent's name as
         /// SimHubTelemetrySource asks it (by car number, name and SimHub's IsPlayer).
         /// </summary>
-        private sealed class FakeSimHub : ITelemetrySource
+        private sealed class FakeSimHub : ITelemetrySource, IPlayerNameSource
         {
             public readonly GameData Data = new GameData();
             public readonly Dictionary<string, object> Props = new Dictionary<string, object>();
@@ -84,8 +84,11 @@ namespace RacingDesk.Tests.Names
             public string? OpponentName(object opponent)
             {
                 if (!(opponent is Opponent o)) return null;
-                return Bridge == null ? TestNames.Book.NewSession().For(0, o.Name) : Bridge.OpponentName(o.CarNumber, o.Name, o.IsPlayer);
+                if (Bridge == null) return o.IsPlayer ? o.Name : TestNames.Book.NewSession().For(0, o.Name);
+                return Bridge.OpponentName(o.CarNumber, o.Name, o.IsPlayer);
             }
+
+            public string PlayerName(string given) => Bridge?.PlayerName(given) ?? given;
 
             public FakeSimHub()
             {
@@ -229,6 +232,31 @@ namespace RacingDesk.Tests.Names
             {
                 runtime.Stop();
             }
+        }
+
+        [Test]
+        public void ATeammateInHisCarIsACharacterOnThePluginsPathToo()
+        {
+            var bridge = new IRacingSdkBridge();
+            bridge.ApplySessionInfo(SessionInfoYaml.Parse(SyntheticField.Yaml(teammateDriving: true)));
+            string shown = bridge.OpponentName(SyntheticField.PlayerNumber, SyntheticField.TeammateName, true);
+            Assert.That(TestNames.Book.List.ContainsShown(shown), Is.True, shown);
+            Assert.That(bridge.PlayerName(SyntheticField.TeammateName), Is.EqualTo(shown), "SimHub's PlayerName, the teammate's: the same character");
+            Assert.That(bridge.OpponentName("#" + SyntheticField.PlayerNumber, SyntheticField.TeammateName, false), Is.EqualTo(shown),
+                "found by the number, as SimHub may write it");
+
+            // The capture: SimHub says the player is the teammate, and the source says who that is to be shown as.
+            var simhub = new FakeSimHub { Bridge = bridge };
+            simhub.Data.PlayerName = SyntheticField.TeammateName;
+            simhub.Data.Opponents[0].Name = SyntheticField.TeammateName;
+            var s = TelemetryCapture.Capture(simhub);
+            Assert.That(s.PlayerName, Is.EqualTo(shown));
+            SyntheticField.AssertNoRivalIn(s.PlayerName + "|" + s.NearestAheadName + "|" + s.NearestBehindName, "the capture");
+
+            // Him back in his car: his own name again, from both.
+            bridge.ApplySessionInfo(SessionInfoYaml.Parse(SyntheticField.Yaml()));
+            Assert.That(bridge.PlayerName(SyntheticField.PlayerName), Is.EqualTo(SyntheticField.PlayerName));
+            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, SyntheticField.PlayerName, true), Is.EqualTo(SyntheticField.PlayerName));
         }
 
         [Test]

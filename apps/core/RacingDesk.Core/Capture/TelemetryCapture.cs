@@ -254,6 +254,8 @@ namespace RacingDesk.Plugin.Engine
                 var nameProp = d.GetType().GetProperty("PlayerName",
                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
                 s.PlayerName = nameProp?.GetValue(d) as string ?? "";
+                // A teammate in his car is another driver (root CLAUDE.md, Other drivers' names): the source says so.
+                if (pm is IPlayerNameSource players) s.PlayerName = players.PlayerName(s.PlayerName) ?? "";
             }
             catch (Exception ex)
             {

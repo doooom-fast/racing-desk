@@ -5,7 +5,7 @@ using SimHub.Plugins;
 namespace RacingDesk.Plugin
 {
     /// <summary>Adapts SimHub's PluginManager + GameData to RacingDesk.Core's telemetry source.</summary>
-    internal sealed class SimHubTelemetrySource : ITelemetrySource
+    internal sealed class SimHubTelemetrySource : ITelemetrySource, IPlayerNameSource
     {
         public PluginManager PluginManager { get; set; }
         public GameData Data { get; set; }
@@ -29,8 +29,11 @@ namespace RacingDesk.Plugin
         {
             if (!(opponent is Opponent opp)) return null;
             var names = Names;
-            if (names == null) return RacingDesk.Core.Names.PseudonymBook.Default.NewSession().For(0, opp.Name);
+            if (names == null) return opp.IsPlayer ? opp.Name : RacingDesk.Core.Names.PseudonymBook.Default.NewSession().For(0, opp.Name);
             return names.OpponentName(opp.CarNumber, opp.Name, opp.IsPlayer);
         }
+
+        /// <summary>SimHub's PlayerName, unless the bridge's session says a teammate is driving his car.</summary>
+        public string PlayerName(string given) => Names?.PlayerName(given) ?? given;
     }
 }

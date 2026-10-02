@@ -78,26 +78,38 @@ namespace RacingDesk.Plugin.Engine
         private readonly Dictionary<string, string> _nameByCarNumber = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _nameByRealName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private string _playerRealName;
+        // His car's name while a teammate drives it (a team race): the teammate is another driver.
+        private string _playerCarShown;
 
         /// <summary>
         /// What a SimHub opponent is called: his own name for his own car, and for every other the character's — by the
         /// session's customer id for the car with this number or this name, or, for a car the session does not list (another
-        /// sim, the bridge not up), by the name itself, salted. Never another driver's real name.
+        /// sim, the bridge not up), by the name itself, salted. Never another driver's real name: not even in his own car,
+        /// when a teammate is the one driving it.
         /// </summary>
         public string OpponentName(string carNumber, string name, bool isPlayer)
         {
             lock (_lock)
             {
-                if (isPlayer) return name;
+                if (isPlayer) return _playerCarShown ?? name;
                 string trimmedName = (name ?? "").Trim();
                 if (trimmedName.Length > 0 && _playerRealName != null &&
                     string.Equals(trimmedName, _playerRealName, StringComparison.OrdinalIgnoreCase))
                     return name;
-                string number = (carNumber ?? "").Trim();
+                string number = CarNumberKey(carNumber);
                 if (number.Length > 0 && _nameByCarNumber.TryGetValue(number, out string byNumber)) return byNumber;
                 if (trimmedName.Length > 0 && _nameByRealName.TryGetValue(trimmedName, out string byName)) return byName;
                 return (_names ?? (_names = PseudonymBook.Default.NewSession())).For(0, trimmedName);
             }
+        }
+
+        /// <summary>
+        /// What the player is called: <paramref name="given"/> (SimHub's PlayerName), unless the session says a teammate is
+        /// driving his car, when it is the teammate's character.
+        /// </summary>
+        public string PlayerName(string given)
+        {
+            lock (_lock) return _playerCarShown ?? given;
         }
 
         private void NameTheField(IRacingSdkSessionInfo si)
@@ -107,25 +119,30 @@ namespace RacingDesk.Plugin.Engine
             _nameByCarNumber.Clear();
             _nameByRealName.Clear();
             _playerRealName = null;
-            var drivers = si.DriverInfo?.Drivers;
+            _playerCarShown = null;
+            var di = si.DriverInfo;
+            var drivers = di?.Drivers;
             if (drivers == null) return;
-            int me = si.DriverInfo.DriverCarIdx;
             foreach (var d in drivers)
             {
                 if (d == null || d.CarIsPaceCar != 0) continue;
                 string real = (d.UserName ?? "").Trim();
-                if (d.CarIdx == me)
+                if (Pseudonymizer.IsHim(di, d))
                 {
                     _playerRealName = real.Length > 0 ? real : null;
                     continue;
                 }
                 if (real.Length == 0 && d.UserID <= 0) continue;
                 string shown = names.For(d.UserID, real);
-                string number = (d.CarNumber ?? "").Trim();
+                if (d.CarIdx == di.DriverCarIdx) _playerCarShown = shown;
+                string number = CarNumberKey(d.CarNumber);
                 if (number.Length > 0) _nameByCarNumber[number] = shown;
                 if (real.Length > 0) _nameByRealName[real] = shown;
             }
         }
+
+        // A car number as both sides write it: SimHub's "#12" and the session's "12" are one car ("007" and "7" are two).
+        private static string CarNumberKey(string number) => (number ?? "").Trim().TrimStart('#').Trim();
 
         private void ForgetTheField()
         {
@@ -134,6 +151,7 @@ namespace RacingDesk.Plugin.Engine
                 _nameByCarNumber.Clear();
                 _nameByRealName.Clear();
                 _playerRealName = null;
+                _playerCarShown = null;
             }
         }
 

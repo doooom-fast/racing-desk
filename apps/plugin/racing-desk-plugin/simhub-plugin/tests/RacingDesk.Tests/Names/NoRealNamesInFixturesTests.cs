@@ -52,6 +52,8 @@ namespace RacingDesk.Tests.Names
                 "Ann One", "Al One", "Bo Two", "Cy Three", "Dee Four", "A. One", "B. Two", "C. Three",
                 "Zebedee Quorntalk", "Somebody Else", "Somebody New", "Nowhere Motorsport",
             };
+            allowed.Add(SyntheticField.TeammateName);
+            allowed.Add("L. Quarrendine");
             foreach (var r in SyntheticField.Rivals)
             {
                 allowed.Add(r.Name);

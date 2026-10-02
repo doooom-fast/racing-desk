@@ -104,8 +104,9 @@ namespace RacingDesk.Core.Names
 
         /// <summary>
         /// Gives every other driver in the session model their name: <c>UserName</c>, <c>AbbrevName</c> and <c>Initials</c>,
-        /// and a <c>TeamName</c> that is the driver's own name (iRacing's for a driver without a team). The player's entry
-        /// (<c>DriverCarIdx</c>) and the pace car are left as they are. Applying it again changes nothing. Returns
+        /// and a <c>TeamName</c> that is the driver's own name (iRacing's for a driver without a team). His own entry
+        /// (<see cref="IsHim"/>: his car, with him in it, not a teammate) and the pace car are left as they are. Applying it
+        /// again changes nothing. Returns
         /// <paramref name="info"/>.
         /// </summary>
         public IRacingSdkSessionInfo Apply(IRacingSdkSessionInfo info)
@@ -116,10 +117,9 @@ namespace RacingDesk.Core.Names
             lock (_gate)
             {
                 BeginSessionLocked(SessionKeyOf(info));
-                int me = di.DriverCarIdx;
                 foreach (var d in drivers)
                 {
-                    if (d == null || d.CarIdx == me || d.CarIsPaceCar != 0) continue;
+                    if (d == null || d.CarIsPaceCar != 0 || IsHim(di, d)) continue;
                     string real = d.UserName;
                     bool hasName = !string.IsNullOrWhiteSpace(real);
                     if (!hasName && d.UserID <= 0) continue;
@@ -131,6 +131,17 @@ namespace RacingDesk.Core.Names
                 }
             }
             return info;
+        }
+
+        /// <summary>
+        /// Whether this entry is him: his car (<c>DriverCarIdx</c>) with him in it. In a team race the entry for his car is
+        /// whoever is driving it, and a teammate in it is another driver: when the session says who he is
+        /// (<c>DriverUserID</c>) and the entry says someone else, the entry is not his and is renamed like any other.
+        /// </summary>
+        public static bool IsHim(IRacingSdkSessionInfo.DriverInfoModel di, IRacingSdkSessionInfo.DriverInfoModel.DriverModel d)
+        {
+            if (di == null || d == null || d.CarIdx != di.DriverCarIdx) return false;
+            return di.DriverUserID <= 0 || d.UserID <= 0 || d.UserID == di.DriverUserID;
         }
 
         /// <summary>What a session is known by: iRacing's SessionID and SubSessionID ("0:0" for an offline session).</summary>

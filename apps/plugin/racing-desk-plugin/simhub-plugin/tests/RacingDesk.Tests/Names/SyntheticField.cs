@@ -21,6 +21,13 @@ namespace RacingDesk.Tests.Names
         public const int PlayerCarIdx = 0;
         public const int PaceCarIdx = 7;
 
+        /// <summary>
+        /// A teammate of his, made up like the rivals: in a team race the session's entry for his car is whoever is driving
+        /// it, and when that is the teammate, the entry is another driver's (<see cref="Yaml"/>'s <c>teammateDriving</c>).
+        /// </summary>
+        public const long TeammateCustId = 700099;
+        public const string TeammateName = "Leopold Quarrendine";
+
         public sealed class Rival
         {
             public int CarIdx;
@@ -68,7 +75,8 @@ namespace RacingDesk.Tests.Names
         /// named after them, as iRacing names a driver's team in a single-driver session, but the first's is a team of its
         /// own, and the last's has the driver's name inside a longer one.
         /// </summary>
-        public static string Yaml(long sessionId = 5001, long subSessionId = 70010003, int playerCarIdx = PlayerCarIdx, bool reverse = false)
+        public static string Yaml(long sessionId = 5001, long subSessionId = 70010003, int playerCarIdx = PlayerCarIdx, bool reverse = false,
+            bool teammateDriving = false)
         {
             var y = new StringBuilder();
             y.Append("---\n")
@@ -109,7 +117,8 @@ namespace RacingDesk.Tests.Names
              .Append(" DriverCarRedLine: 7200.000\n")
              .Append(" Drivers:\n");
             var order = reverse ? Rivals.Reverse().ToList() : Rivals.ToList();
-            Driver(y, PlayerCarIdx, PlayerCustId, PlayerName, PlayerNumber, 1500, PlayerName, false);
+            if (teammateDriving) Driver(y, PlayerCarIdx, TeammateCustId, TeammateName, PlayerNumber, 1650, "Nowhere Motorsport", false);
+            else Driver(y, PlayerCarIdx, PlayerCustId, PlayerName, PlayerNumber, 1500, PlayerName, false);
             for (int i = 0; i < order.Count; i++)
             {
                 var r = order[i];
@@ -182,12 +191,14 @@ namespace RacingDesk.Tests.Names
             return salt;
         }
 
-        /// <summary>Fails if any form of any rival's real name is in <paramref name="text"/>.</summary>
+        /// <summary>Fails if any form of any rival's real name, or the teammate's, is in <paramref name="text"/>.</summary>
         public static void AssertNoRivalIn(string text, string what)
         {
             foreach (var r in Rivals)
                 foreach (var leak in Leaks(r))
                     Assert.That(text, Does.Not.Contain(leak), $"{what} carries a rival's real name (car #{r.Number})");
+            foreach (string leak in new[] { TeammateName, "L. Quarrendine", "Quarrendine" })
+                Assert.That(text, Does.Not.Contain(leak), $"{what} carries the teammate's real name");
         }
     }
 }

@@ -28,4 +28,15 @@ namespace RacingDesk.Plugin.Engine
         /// </summary>
         string OpponentName(object opponent);
     }
+
+    /// <summary>
+    /// A source that can tell when the name its sim gives for the player (<c>NewData.PlayerName</c>) is not his: a teammate
+    /// driving his car in a team race, who is another driver. It says what to call the player instead; a source without it
+    /// is taken at its word. (The host's source needs none: its session model names the teammate where it is parsed.)
+    /// </summary>
+    public interface IPlayerNameSource
+    {
+        /// <summary>The name to show for the player: <paramref name="given"/> when it is his, a character's when it is not.</summary>
+        string PlayerName(string given);
+    }
 }

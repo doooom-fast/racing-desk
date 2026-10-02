@@ -238,6 +238,23 @@ namespace RacingDesk.Tests.Names
         }
 
         [Test]
+        public void ATeammateInHisCarIsACharacterOnTheHostsPathAndInTheStore()
+        {
+            using var raw = new FileRaw(WriteIbt(SyntheticField.Yaml(teammateDriving: true)));
+            var source = new IRacingTelemetrySource(raw);
+            source.Update();
+            var data = (IRacingTelemetrySource.NormalizedData)source.NewData;
+            Assert.That(TestNames.Book.List.ContainsShown(data.PlayerName), Is.True, data.PlayerName);
+            Assert.That(data.Opponents.Single(o => o.IsPlayer).Name, Is.EqualTo(data.PlayerName));
+
+            var record = new SessionRecord { SessionNum = 0 };
+            SessionAccumulator.ApplySessionInfo(record, raw.SessionInfo);
+            Assert.That(record.DriverName, Is.EqualTo(data.PlayerName));
+            SyntheticField.AssertNoRivalIn(data.PlayerName + "|" + string.Join("|", data.Opponents.Select(o => o.Name)) + "|" +
+                string.Join("|", record.Grid.Select(g => g.Name)), "the host's path with the teammate in his car");
+        }
+
+        [Test]
         public void TheSameRivalIsTheSameCharacterInTheNextSessionAndWhenHeIsTheOnlyOneThere()
         {
             using var first = new FileRaw(WriteIbt(SyntheticField.Yaml(), "one.ibt"));
