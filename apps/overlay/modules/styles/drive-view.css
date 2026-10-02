@@ -506,7 +506,8 @@ body.drive-mode-active .pb-circle-pct { grid-area: 1 / 1; place-self: center; fo
 body.drive-mode-active .pb-circle-temp { grid-area: 2 / 1; font-size: max(11px, 0.55em); margin: 0; line-height: 1.2; white-space: nowrap; color: var(--text-dim); letter-spacing: 0.02em; }
 body.drive-mode-active .pb-circle-pos { position: absolute; top: 0; left: 0; font-size: max(11px, 0.55em); margin: 0; }
 body.drive-mode-active #pbCircleRF .pb-circle-pos, body.drive-mode-active #pbCircleRR .pb-circle-pos { left: auto; right: 0; }
-body.drive-mode-active #pbCircleLR .pb-circle-pos, body.drive-mode-active #pbCircleRR .pb-circle-pos { top: auto; bottom: 0; }
+/* Each corner's name at the top of its cell, beside the ring's shoulder, the rear pair too: at the foot of the cell the
+   rear names ran into the temperature captions there ("LR188°C") wherever the cell is narrow. */
 body.drive-mode-active .pb-car-svg { width: 30px; }
 /* The strategy call, read (there is nothing to press): tyres above the rings, fuel above the tank. */
 body.drive-mode-active .pb-strat-suggest:not(.hidden) { display: block; margin: 0 0 3px; }
