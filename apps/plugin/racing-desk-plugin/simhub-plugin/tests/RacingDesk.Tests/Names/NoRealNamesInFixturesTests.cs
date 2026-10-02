@@ -22,12 +22,12 @@ namespace RacingDesk.Tests.Names
         {
             "apps/overlay/tests", "apps/overlay/modules", "apps/overlay/dashboard.html", "apps/overlay/desk.html", "apps/overlay/main.js",
             "apps/overlay/remote-server.js", "apps/plugin/racing-desk-plugin/simhub-plugin/tests", "apps/plugin/racing-desk-plugin/simhub-plugin/plugin",
-            "apps/core", "apps/host", "packages/replay", "packages/pseudonyms", "apps/edit", "CLAUDE.md",
+            "apps/core", "apps/host", "packages/replay", "packages/pseudonyms", "packages/calc/test", "apps/edit", "CLAUDE.md",
         };
 
         // The commentary's data (racingdesk-data) speaks of the famous drivers of real cars on purpose, and is not a fixture.
         private static readonly Regex Skip = new Regex(@"(^|[\\/])(node_modules|bin|obj|build|dist|racingdesk-data|\.worktrees)([\\/]|$)|-snapshots", RegexOptions.Compiled);
-        private static readonly HashSet<string> Extensions = new HashSet<string>(new[] { ".cs", ".mjs", ".js", ".json", ".html", ".md", ".yaml", ".yml" }, StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> Extensions = new HashSet<string>(new[] { ".cs", ".mjs", ".js", ".ts", ".json", ".html", ".md", ".yaml", ".yml" }, StringComparer.OrdinalIgnoreCase);
 
         private static readonly Regex[] Shapes =
         {
@@ -36,7 +36,7 @@ namespace RacingDesk.Tests.Names
             // A session YAML's driver fields, in a test's text
             new Regex(@"^\s*(?:- )?(?:UserName|AbbrevName|TeamName|DriverName): *(.+?)\s*$", RegexOptions.Compiled | RegexOptions.Multiline),
             // A payload's name keys, in JSON or JS
-            new Regex(@"(?:UserName|DriverName|DriverAhead|DriverBehind|Opponent_Ahead_Name|Opponent_Behind_Name|TeamName)[""']\s*:\s*[""']([^""']*)[""']", RegexOptions.Compiled),
+            new Regex(@"(?:UserName|DriverName|DriverAhead|DriverBehind|Opponent_Ahead_Name|Opponent_Behind_Name|TeamName|winnerName)[""']\s*:\s*(?:""([^""]*)""|'([^']*)')", RegexOptions.Compiled),
         };
 
         /// <summary>The tests' own made-up names: nobody's. A new one goes here, and nowhere else.</summary>
@@ -100,7 +100,8 @@ namespace RacingDesk.Tests.Names
                 foreach (var shape in Shapes)
                     foreach (Match m in shape.Matches(text))
                     {
-                        string value = m.Groups[1].Value.Trim();
+                        // A value in double quotes may hold an apostrophe (O'Malley), and one in single quotes a double quote.
+                        string value = (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).Trim();
                         if (value.Length == 0 || list.Contains(value) || allowed.Contains(value)) continue;
                         if (!offenders.TryGetValue(value, out var where)) offenders[value] = where = new SortedSet<string>(StringComparer.Ordinal);
                         where.Add(file.Substring(root.Length + 1).Replace('\\', '/'));
