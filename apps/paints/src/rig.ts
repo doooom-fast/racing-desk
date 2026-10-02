@@ -79,7 +79,7 @@ export interface Pedals {
   cars: Map<string, CarPedals>;
 }
 
-/// Whether a car has ABS, traction control or a brake bias, as the list says: none, fixed (it has it and the
+/// Whether a car has anti-lock, traction control or a brake bias, as the list says: none, fixed (it has it and the
 /// driver cannot turn it) or adjustable.
 export type Having = "none" | "fixed" | "adjustable";
 
@@ -91,6 +91,9 @@ export interface ListedControl {
   variable: string | null;
   /// What the car's own dash or black box calls it.
   label: string | null;
+  /// The control in words where the list gives them ("Traction slip" for a TCLO): what the HUD shows where it fits,
+  /// and the title of the car's own label here.
+  words: string | null;
   /// The value that is off; false where the list says no value of it is.
   off: number | false | null;
   range: [number, number] | null;
@@ -249,6 +252,7 @@ function controlOf(row: Row): ListedControl | null {
     id,
     variable: text(row.var),
     label: text(row.label),
+    words: text(row.words),
     off,
     range:
       Array.isArray(range) && range.length === 2 && num(range[0]) !== null && num(range[1]) !== null
@@ -507,23 +511,26 @@ export const kindWords = (kind: string | null): string | null =>
   kind === null ? null : (KINDS.get(kind) ?? kind);
 
 const FUNCTIONS = new Map([
-  ["abs", "ABS"],
+  ["abs", "Anti-lock"],
   ["tc", "Traction control"],
   ["tc2", "Traction control 2"],
   ["tc3", "Traction control 3"],
   ["tc4", "Traction control 4"],
   ["brakeBias", "Brake bias"],
   ["brakeMigration", "Brake migration"],
-  ["arbFront", "Front anti-roll bar"],
-  ["arbRear", "Rear anti-roll bar"],
+  ["arbFront", "Front rollbar"],
+  ["arbRear", "Rear rollbar"],
   ["throttleMap", "Throttle map"],
   ["mode", "Mode"],
   ["drs", "DRS"],
   ["p2p", "Push to pass"],
 ]);
 
-/// Words that are what the sim's own people write in capitals.
-const ACRONYMS = new Set(["abs", "tc", "mgu", "esc", "ibs", "drs", "arb", "rf", "lf", "rr", "lr"]);
+/// Words that are acronyms, written in capitals (no longer ABS, TC or ARB: those are words, his own — anti-lock,
+/// traction, rollbar).
+const ACRONYMS = new Set(["mgu", "esc", "ibs", "drs", "rf", "lf", "rr", "lr"]);
+/// And the words for the ones that were.
+const WORDS_FOR = new Map([["abs", "anti-lock"], ["tc", "traction"], ["arb", "rollbar"]]);
 
 /// What a control is for, in words: "Traction control" for `tc`; one the page has not met is its id with the
 /// humps taken out ("tcToggle" is "TC toggle", "brakeBiasFine" "Brake bias fine").
@@ -534,7 +541,7 @@ export function functionWords(id: string): string {
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .toLowerCase()
     .split(" ")
-    .map((w) => (ACRONYMS.has(w) ? w.toUpperCase() : w));
+    .map((w) => (ACRONYMS.has(w) ? w.toUpperCase() : (WORDS_FOR.get(w) ?? w)));
   const first = words[0] ?? "";
   words[0] = first.charAt(0).toUpperCase() + first.slice(1);
   return words.join(" ");
@@ -558,6 +565,22 @@ export function valueWords(control: ListedControl): string {
   if (parts.length > 0) return parts.join(", ");
   return control.id === "drs" || control.id === "p2p" ? "status" : "";
 }
+
+/// The list's words for a thing a car has (`abs`, `tc`, `brakeBias`), from the control it gives for it or the mode
+/// dial that stands for it. Null where it gives none.
+export function wordsFor(car: ListedCar, id: "abs" | "tc" | "brakeBias"): string | null {
+  const own = car.controls.find((c) => c.id === id && c.label !== null);
+  if (own) return own.words;
+  const mode = car.controls.find(
+    (c) => c.id === "mode" && c.label !== null && (c.covers === null || c.covers.includes(id)),
+  );
+  return mode ? mode.words : null;
+}
+
+/// The generic label of a dial, which says nothing its line does not: ABS for the anti-lock, TC for the traction
+/// control, BB for the brake bias, DRS for DRS. Not shown beside them.
+const GENERIC = new Map([["abs", "ABS"], ["tc", "TC"], ["brakeBias", "BB"], ["drs", "DRS"]]);
+export const isGenericLabel = (id: string, label: string): boolean => GENERIC.get(id) === label;
 
 /// What the car calls a thing it has (`abs`, `tc`, `brakeBias`): the label of the control the list gives for it, or
 /// of the mode dial that stands for it. Null where the list gives neither.

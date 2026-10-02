@@ -35,7 +35,7 @@
   // ── Formatting ───────────────────────────────────────────
 
   const CATEGORY_LABEL = {
-    sports_car: 'Sports Car', formula_car: 'Formula', oval: 'Oval', dirt_oval: 'Dirt Oval', dirt_road: 'Dirt Road', road: 'Road',
+    sports_car: 'Sports car', formula_car: 'Formula', oval: 'Oval', dirt_oval: 'Dirt oval', dirt_road: 'Dirt road', road: 'Road',
   };
 
   function lapTime(s) {
@@ -230,8 +230,8 @@
       </div>`).join('');
     const s = desk.stats;
     const stat = (value, label) => `<div class="stat"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
-    $('stats').innerHTML = stat(s.races, 'races') + stat(s.laps.toLocaleString(), 'race laps') + stat(s.tracks, 'tracks') +
-      stat(s.cars, 'cars') + stat(s.wins, 'wins') + stat(s.podiums, 'podiums');
+    $('stats').innerHTML = stat(s.races, 'Races') + stat(s.laps.toLocaleString(), 'Race laps') + stat(s.tracks, 'Tracks') +
+      stat(s.cars, 'Cars') + stat(s.wins, 'Wins') + stat(s.podiums, 'Podiums');
   }
 
   function renderRaceNow() {

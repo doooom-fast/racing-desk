@@ -48,10 +48,11 @@ function words(bound: CarPedals | null, profile: Profile | null): ReactNode {
   );
 }
 
-/// What the driver's rule went by, as the host has it down, in a sentence's worth.
+/// What the driver's rule went by, as the host has it down (its own words, kept as they were stored), in a sentence's
+/// worth: in words, not ABS (he asked on 2026-10-02 for anti-lock).
 const WHY = new Map([
-  ["ABS", "it has ABS"],
-  ["no ABS", "it has no ABS"],
+  ["ABS", "it has anti-lock brakes"],
+  ["no ABS", "it has no anti-lock brakes"],
   ["a formula car", "it is a formula car"],
   ["a prototype", "it is a prototype"],
 ]);
@@ -87,15 +88,15 @@ function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | nul
   if (special !== null || (kind !== null && abs !== null)) {
     // Enough is known to say which: no laps are waited for.
     const base = special !== null || !abs ? DEFAULT : LIGHT;
-    const fact = special !== null ? `it is ${special}` : `it has ${abs ? "" : "no "}ABS`;
+    const fact = special !== null ? `it is ${special}` : `it has ${abs ? "" : "no "}anti-lock brakes`;
     const said = special !== null || listAbs !== null ? "the car list says " : "";
     const then = has(base)
       ? `the rule gives it one from ${base} when it is next driven`
       : `the rule would give it one from ${base}, which SmartControl does not have`;
     return `No profile yet: ${said}${fact}, and ${then}.`;
   }
-  if (abs === null) return "No profile yet: not driven enough yet to say whether it has ABS.";
-  const known = `No profile yet: it has ${abs ? "" : "no "}ABS`;
+  if (abs === null) return "No profile yet: not driven enough yet to say whether it has anti-lock brakes.";
+  const known = `No profile yet: it has ${abs ? "" : "no "}anti-lock brakes`;
   // Whether it is a formula car or a prototype is the host's to know, so with ABS it may be either profile that
   // is wanted.
   if (!has(DEFAULT) && (!abs || !has(LIGHT))) {

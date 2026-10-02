@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 import {
   UNKNOWN_CAR,
   functionWords,
+  isGenericLabel,
   kindWords,
   labelFor,
+  wordsFor,
   seenWords,
   sentence,
   valueWords,
@@ -33,14 +35,22 @@ function Fact({ label, title, children }: { label: string; title?: string; child
   );
 }
 
-const tag = (label: string) => <span className="tag">{label}</span>;
+/// The car's own label for a dial, as its dash shows it, with the words for it as its title where the list gives them
+/// (TCLO is "Traction slip" on hovering).
+const tag = (label: string, words?: string | null) => (
+  <span className="tag" title={words && words !== label ? words : undefined}>
+    {label}
+  </span>
+);
 
-/// Whether a car has one of the three, with what the car calls its dial where the list gives one.
-function has(value: Having | null, label: string | null): ReactNode {
+/// Whether a car has one of the three, with what the car calls its dial where the list gives one. A label that is
+/// only the generic one for the dial (ABS for the anti-lock) says nothing the line does not, and is left out.
+function has(value: Having | null, label: string | null, words: string | null, id: string): ReactNode {
   if (value === null) return DASH;
   if (value === "none") return "none";
-  if (value === "fixed") return <>fixed{label && <> {tag(label)}</>}</>;
-  return <>adjustable{label && <> {tag(label)}</>}</>;
+  const shown = label && !isGenericLabel(id, label) ? label : null;
+  if (value === "fixed") return <>fixed{shown && <> {tag(shown, words)}</>}</>;
+  return <>adjustable{shown && <> {tag(shown, words)}</>}</>;
 }
 
 const HAVING_TITLE: Record<Having, string> = {
@@ -72,7 +82,7 @@ function Disagreements({ remarks }: { remarks: Remark[] }) {
   );
 }
 
-/// What the canonical list of cars says of the car: its kind; whether it has ABS, traction control and a brake bias,
+/// What the canonical list of cars says of the car: its kind; whether it has anti-lock, traction control and a brake bias,
 /// each as none, fixed or adjustable, with the car's own name for the dial; each control with its label and its
 /// range or named positions; and whether the entry was checked against the driver's telemetry or written from the
 /// manuals. Above it, where there are any, what the host's check has found the car doing that the list does not
@@ -127,14 +137,14 @@ export function CarControlsPanel({
         <>
           <dl className="facts">
             <Fact label="Kind">{kindWords(listed.kind) ?? DASH}</Fact>
-            <Fact label="ABS" title={listed.abs ? HAVING_TITLE[listed.abs] : undefined}>
-              {has(listed.abs, labelFor(listed, "abs"))}
+            <Fact label="Anti-lock" title={listed.abs ? HAVING_TITLE[listed.abs] : undefined}>
+              {has(listed.abs, labelFor(listed, "abs"), wordsFor(listed, "abs"), "abs")}
             </Fact>
             <Fact label="Traction control" title={listed.tc ? HAVING_TITLE[listed.tc] : undefined}>
-              {has(listed.tc, labelFor(listed, "tc"))}
+              {has(listed.tc, labelFor(listed, "tc"), wordsFor(listed, "tc"), "tc")}
             </Fact>
             <Fact label="Brake bias" title={listed.brakeBias ? HAVING_TITLE[listed.brakeBias] : undefined}>
-              {has(listed.brakeBias, labelFor(listed, "brakeBias"))}
+              {has(listed.brakeBias, labelFor(listed, "brakeBias"), wordsFor(listed, "brakeBias"), "brakeBias")}
             </Fact>
           </dl>
           {listed.controls.length > 0 ? (
@@ -145,8 +155,8 @@ export function CarControlsPanel({
               <ul className="controls" aria-label="Controls the list gives this car">
                 {listed.controls.map((c, i) => (
                   <li key={`${c.id}-${i}`} title={c.variable ?? undefined}>
-                    <span className="what">{functionWords(c.id)}</span>
-                    {c.label && <> {tag(c.label)}</>}
+                    <span className="what">{c.words ?? functionWords(c.id)}</span>
+                    {c.label && !isGenericLabel(c.id, c.label) && c.label !== c.words && <> {tag(c.label, c.words)}</>}
                     {valueWords(c) && <> <span className="values">{valueWords(c)}</span></>}
                   </li>
                 ))}

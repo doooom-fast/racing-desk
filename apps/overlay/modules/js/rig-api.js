@@ -163,12 +163,14 @@ const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const WORDS = Object.freeze(['none', 'fixed', 'adjustable']);
 const word = (v) => (WORDS.includes(v) ? v : null);
 
-// One control of a car: which it is, what carries it, what the car calls it, and the values it can have — off, a
-// range, or names for positions. Null for what is not a control.
+// One control of a car: which it is, what carries it, what the car calls it (and the list's words for it, where the list
+// gives them), and the values it can have — off, a range, or names for positions. Null for what is not a control.
 function shapeControl(c) {
   const id = isRow(c) ? str(c.id, MAX_WORD) : null;
   if (id === null) return null;
   const out = { id, var: str(c.var, MAX_WORD), label: str(c.label, MAX_WORD) };
+  const words = str(c.words, MAX_WORD);
+  if (words !== null) out.words = words;
   if (c.off === false || num(c.off) !== null) out.off = c.off;
   if (Array.isArray(c.range) && c.range.length === 2 && num(c.range[0]) !== null && num(c.range[1]) !== null) {
     out.range = [c.range[0], c.range[1]];
@@ -214,7 +216,7 @@ function shapeRemark(r) {
 // What the host answered to GET controls, as the page reads it, or null where that is not the list of cars:
 //
 //   { version, listHash, count, following,
-//     cars: [ { path, name, kind, abs, tc, brakeBias, controls: [ { id, var, label, off?, range?, positions?, covers? } ], checked } ],
+//     cars: [ { path, name, kind, abs, tc, brakeBias, controls: [ { id, var, label, words?, off?, range?, positions?, covers? } ], checked } ],
 //     kept: [ { car, remarks: [ { about, text, firstSeen, lastSeen } ] } ] | null }
 //
 // `kept` is what the host's store has of the check's remarks against this list, by car. It is null only where the host
