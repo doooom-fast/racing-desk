@@ -39,7 +39,9 @@ namespace RacingDesk.Plugin.Engine
 
         // State
         private int _lastSessionInfoUpdate = -1;
-        private string _sessionYaml = null;
+        // Whether a session has been read. The YAML itself is not kept: it carries every driver's real name, and only the
+        // numbers below are wanted from it (root CLAUDE.md, Other drivers' names).
+        private bool _haveSession = false;
         private readonly Dictionary<int, int> _driverIRatings = new Dictionary<int, int>();
         private int _playerCarIdx = -1;
         private int _playerIRating = 0;
@@ -68,7 +70,7 @@ namespace RacingDesk.Plugin.Engine
                     if (status == 0) return false; // iRacing not running
 
                     int sessionInfoUpdate = accessor.ReadInt32(HEADER_SESSION_INFO_UPDATE);
-                    if (sessionInfoUpdate == _lastSessionInfoUpdate && _sessionYaml != null)
+                    if (sessionInfoUpdate == _lastSessionInfoUpdate && _haveSession)
                         return false; // No change since last read
 
                     int sessionInfoLen = accessor.ReadInt32(HEADER_SESSION_INFO_LEN);
@@ -85,12 +87,13 @@ namespace RacingDesk.Plugin.Engine
                     int nullIdx = Array.IndexOf(buffer, (byte)0);
                     int strLen = nullIdx >= 0 ? nullIdx : sessionInfoLen;
 
-                    _sessionYaml = Encoding.GetEncoding(28591).GetString(buffer, 0, strLen);
+                    string sessionYaml = Encoding.GetEncoding(28591).GetString(buffer, 0, strLen);
                     _lastSessionInfoUpdate = sessionInfoUpdate;
+                    _haveSession = true;
 
-                    ParseDriverInfo(_sessionYaml);
-                    ParseWeekendOptions(_sessionYaml);
-                    ParseSplitTimeInfo(_sessionYaml);
+                    ParseDriverInfo(sessionYaml);
+                    ParseWeekendOptions(sessionYaml);
+                    ParseSplitTimeInfo(sessionYaml);
                     return true;
                 }
             }
