@@ -456,10 +456,19 @@ body.drive-mode-active #raceTimerBlock .race-timer-lap .timer-label { font-size:
    asked, 2026-10-01: "Tires temps aren't live so make them Much smaller" — iRacing measures them in the pits with the
    tread, so they are the last stop's, not the lap's); the ring is what the cell leaves it, and what the cell cannot
    hold is given up, least useful first (the two services, then the pit window). */
-body.drive-mode-active #pitBoxPanel { grid-area: pit; display: flex; background: none; border: none; }
+/* Named, so that a rule for what is inside the rings' own container (below) can still ask the pit box's size. */
+body.drive-mode-active #pitBoxPanel { grid-area: pit; display: flex; background: none; border: none; container-name: pitbox; }
 body.drive-mode-active .pb-inner { flex: 1; display: flex; min-width: 0; }
 /* The three pages share the width 38 / 34 / 28: the weather had 24, and its values are sized by its own box (below). */
 body.drive-mode-active .pb-content { flex: 1; display: grid; grid-template-columns: minmax(0, 38fr) minmax(0, 34fr) minmax(0, 28fr); min-width: 0; }
+/* Upright the pit box is narrow (13 columns of a narrow screen), and the tyres' and the fuel's pages keep the widths they
+   had, 40 and 36 (the line under the rings, the call above them and the pit window are as wide as they are, and were cut
+   off at 38 and 34 on a mini and an Air); the weather has the rest, 24, its values still sized by its own box. Where its
+   page is too narrow for the sky beside the air (under 90px inside), the sky gives way (below, after the weather's own
+   rules): the conditions say the same. */
+@media (orientation: portrait) {
+  body.drive-mode-active .pb-content { grid-template-columns: minmax(0, 40fr) minmax(0, 36fr) minmax(0, 24fr); }
+}
 body.drive-mode-active .pb-page {
   display: flex !important; flex-direction: column; justify-content: flex-start; min-width: 0; min-height: 0; padding: 6px 10px;
   font-size: max(20px, min(7.2cqh, 3.4cqw)); overflow: hidden;
@@ -527,6 +536,9 @@ body.drive-mode-active .pb-divider { margin: 0.2em 0; }
 body.drive-mode-active .pb-row-window:not(.hidden) { display: flex; }
 @container (max-height: 262px) { body.drive-mode-active #pbPageFuel .pb-divider, body.drive-mode-active #pbPageFuel .pb-divider ~ .pb-row { display: none; } }
 @container (max-height: 225px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-row-window { display: none; } }
+/* And a pit box too narrow for the window's laps beside its name (an iPad mini upright, under 400px across) gives it up
+   while the engine calls: the call above the tank says when to stop. */
+@container pitbox (max-width: 400px) { body.drive-mode-active .pb-page:has(.pb-strat-suggest:not(.hidden)) .pb-row-window { display: none; } }
 /* Weather: the most of its page (he asked, 2026-10-01: "Weather needs to make better use of its space like incidents").
    The page is a size container of its own — the pit box's cq units are the whole pit box's, and this page is a quarter
    of it — so its values are sized by its own box, the way the incidents' count is by its cell: the air, with the sky
@@ -546,6 +558,11 @@ body.drive-mode-active .pb-weather-temp { grid-area: temp; font-size: max(24px, 
 body.drive-mode-active #pbPageWeather .pb-row { flex-direction: column; align-items: center; padding: 0; line-height: 1.1; }
 body.drive-mode-active #pbPageWeather .pb-value { font-size: max(20px, min(15cqh, 28cqw)); line-height: 1.1; }
 body.drive-mode-active #pbPageWeather .pb-label { font-size: max(11px, min(6.5cqh, 11cqw)); line-height: 1.2; }
+/* A weather page too narrow for the sky beside the air (upright, under 90px inside): the air alone, the sky given up. */
+@container (max-width: 90px) {
+  body.drive-mode-active #pbPageWeather .pb-weather-icon { display: none; }
+  body.drive-mode-active #pbPageWeather .pb-weather-hero { grid-template-columns: auto; grid-template-areas: "k" "temp"; }
+}
 body.drive-mode-active .pb-no-data { font-size: max(11px, min(10cqh, 4cqw)); }
 
 /* ── The datastream: g-forces, yaw, the wheel's torque, the delta and the track ────────────────────────────────────

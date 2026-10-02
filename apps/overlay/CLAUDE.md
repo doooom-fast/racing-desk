@@ -270,6 +270,10 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   the three spread down the page; the header is the pit box's one rule for its three pages, at the top.
   `tests/unit/weather-glance.spec.mjs` holds the header against the fuel page's, the sizes, each name over its value and
   nothing cropped at the seven iPad sizes and the rig's two, in a race, wet with the engine calling, and in °F.
+  Upright the pit box is narrow and the pages are 40 / 36 / 24, as they were: at 38 / 34 the line under the tyres' rings
+  ("Tread measured in the pits") and the call above them were cut off on a mini, and the pit window on an Air. The weather
+  page there is under 90px inside, and its sky gives way to the air (the conditions say the same); and a pit box under
+  400px across (a mini upright) gives up the pit window while the engine calls, whose call says when to stop.
 - **The maps** (`webgl-helpers.js`, "The maps in the glance layout"): the full circuit's viewBox is fitted to the outline,
   the local view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels (the
   outline's three layers at 12 / 7 / 1.5px, the sectors at 8px, the car at 7px and the others at 5px) is worked out from
