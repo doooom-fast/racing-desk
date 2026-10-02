@@ -255,6 +255,138 @@ namespace RacingDesk.Tests.Names
         }
 
         [Test]
+        public void ATeamRaceIsStoredUnderHisIdWithOnlyHisOwnEntryFlaggedWhoeverIsAtTheWheel()
+        {
+            // The session lists his car twice, as a team's drivers are: the teammate first, then him. The recorder used to take
+            // the first entry for his car as him, and flag every entry of the car as the player's.
+            using var raw = new FileRaw(WriteIbt(SyntheticField.Yaml(teamRace: true)));
+            var record = new SessionRecord { SessionNum = 0 };
+            SessionAccumulator.ApplySessionInfo(record, raw.SessionInfo);
+            Assert.That(record.DriverCustId, Is.EqualTo(SyntheticField.PlayerCustId));
+            Assert.That(record.DriverName, Is.EqualTo(SyntheticField.PlayerName));
+            var flagged = record.Grid.Where(g => g.IsPlayer).ToList();
+            Assert.That(flagged, Has.Count.EqualTo(1), "one player");
+            Assert.That(flagged[0].CustId, Is.EqualTo(SyntheticField.PlayerCustId));
+            Assert.That(flagged[0].Name, Is.EqualTo(SyntheticField.PlayerName));
+            var teammate = record.Grid.Single(g => g.CustId == SyntheticField.TeammateCustId);
+            Assert.That(teammate.IsPlayer, Is.False);
+            Assert.That(TestNames.Book.List.ContainsShown(teammate.Name), Is.True, "his teammate is a character in the store");
+            SyntheticField.AssertNoRivalIn(string.Join("|", record.Grid.Select(g => g.Name)), "the stored grid of a team race");
+
+            // The session that lists only the teammate, in his car: the id is still his (DriverUserID), and nothing of the
+            // teammate's name is in the record.
+            using var driving = new FileRaw(WriteIbt(SyntheticField.Yaml(teammateDriving: true), "teammate.ibt"));
+            var other = new SessionRecord { SessionNum = 0 };
+            SessionAccumulator.ApplySessionInfo(other, driving.SessionInfo);
+            Assert.That(other.DriverCustId, Is.EqualTo(SyntheticField.PlayerCustId), "his id, not the teammate's at the wheel");
+            SyntheticField.AssertNoRivalIn(other.DriverName + "|" + string.Join("|", other.Grid.Select(g => g.Name)), "the record with the teammate in his car");
+        }
+
+        [Test]
+        public void ASpectatorIsRenamedToo()
+        {
+            using var raw = new FileRaw(WriteIbt(SyntheticField.Yaml(spectator: true)));
+            var si = raw.SessionInfo;
+            var spectator = si.DriverInfo.Drivers.Single(d => d.CarIdx == SyntheticField.SpectatorCarIdx);
+            Assert.That(TestNames.Book.List.ContainsShown(spectator.UserName), Is.True, spectator.UserName);
+            SyntheticField.AssertNoRivalIn(spectator.UserName + "|" + spectator.AbbrevName + "|" + spectator.Initials + "|" + spectator.TeamName, "the spectator");
+            var everyone = si.DriverInfo.Drivers.Where(d => d.CarIsPaceCar == 0).Select(d => d.UserName).ToList();
+            Assert.That(everyone.Distinct().Count(), Is.EqualTo(everyone.Count));
+
+            var source = new IRacingTelemetrySource(raw);
+            source.Update();
+            var data = (IRacingTelemetrySource.NormalizedData)source.NewData;
+            Assert.That(data.Opponents.Select(o => o.Name), Does.Not.Contain(spectator.UserName), "a spectator is no opponent");
+        }
+
+        [Test]
+        public void TheSessionNamingRenamesANewObjectTheSameObjectRefilledAndEveryoneWhoAsksAtOnce()
+        {
+            var naming = new SessionNaming(() => TestNames.Book);
+            Assert.That(naming.Named(null, 0), Is.Null);
+
+            // A new object: renamed in place, and the same object comes back.
+            var first = SessionInfoYaml.Parse(SyntheticField.Yaml());
+            Assert.That(ReferenceEquals(naming.Named(first, 1), first), Is.True);
+            AssertRenamed(first);
+
+            // The same object at the same update: it has been seen, and is left as it is.
+            var rival = first.DriverInfo.Drivers.Single(d => d.CarIdx == SyntheticField.Rivals[0].CarIdx);
+            string character = rival.UserName;
+            rival.UserName = "Tampered Name";
+            Assert.That(naming.Named(first, 1).DriverInfo.Drivers.Single(d => d.CarIdx == rival.CarIdx).UserName, Is.EqualTo("Tampered Name"), "not named twice");
+
+            // The same object filled again by the SDK (its update count moves on, and its drivers have their real names back):
+            // renamed again, to the same characters.
+            foreach (var r in SyntheticField.Rivals) first.DriverInfo.Drivers.Single(d => d.CarIdx == r.CarIdx).UserName = r.Name;
+            Assert.That(naming.Named(first, 2), Is.SameAs(first));
+            AssertRenamed(first);
+            Assert.That(first.DriverInfo.Drivers.Single(d => d.CarIdx == rival.CarIdx).UserName, Is.EqualTo(character));
+
+            // A new object at an update count already seen: renamed, for it is not the one that was.
+            var second = SessionInfoYaml.Parse(SyntheticField.Yaml(reverse: true));
+            Assert.That(naming.Named(second, 2), Is.SameAs(second));
+            AssertRenamed(second);
+            Assert.That(second.DriverInfo.Drivers.Single(d => d.CarIdx == rival.CarIdx).UserName, Is.EqualTo(character), "the same field in another order, the same names");
+
+            // Everyone who asks at once, for an object nobody has named: each comes back with it renamed, and one table of
+            // names stands behind them all.
+            for (int round = 0; round < 20; round++)
+            {
+                var fresh = SessionInfoYaml.Parse(SyntheticField.Yaml(sessionId: 7000 + round, subSessionId: 9000 + round));
+                var racing = new SessionNaming(() => TestNames.Book);
+                using var start = new System.Threading.ManualResetEventSlim(false);
+                var leaks = new System.Collections.Concurrent.ConcurrentBag<string>();
+                var threads = Enumerable.Range(0, 8).Select(_ => new System.Threading.Thread(() =>
+                {
+                    start.Wait();
+                    var got = racing.Named(fresh, 5);
+                    foreach (var r in SyntheticField.Rivals)
+                        if (got.DriverInfo.Drivers.Single(d => d.CarIdx == r.CarIdx).UserName == r.Name) leaks.Add(r.Name);
+                })).ToList();
+                threads.ForEach(t => t.Start());
+                start.Set();
+                threads.ForEach(t => t.Join());
+                Assert.That(leaks, Is.Empty, "a reader got the model before it was renamed");
+                AssertRenamed(fresh);
+            }
+
+            static void AssertRenamed(IRacingSdkSessionInfo si)
+            {
+                foreach (var r in SyntheticField.Rivals)
+                {
+                    var d = si.DriverInfo.Drivers.Single(x => x.CarIdx == r.CarIdx);
+                    Assert.That(TestNames.Book.List.ContainsShown(d.UserName), Is.True, $"car #{r.Number}: {d.UserName}");
+                }
+                Assert.That(si.DriverInfo.Drivers.Single(d => d.CarIdx == SyntheticField.PlayerCarIdx).UserName, Is.EqualTo(SyntheticField.PlayerName));
+            }
+        }
+
+        [Test]
+        public void NothingThatReadsAnIbtFileCanGetTheRawSessionYamlWithEveryRealNameInIt()
+        {
+            string path = WriteIbt(SyntheticField.Yaml(), "raw.ibt");
+            foreach (var type in new[] { typeof(IbtFile), typeof(IbtHeader) })
+            {
+                var exposed = type.GetMembers(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static)
+                    .Where(m => m.Name.IndexOf("Yaml", StringComparison.OrdinalIgnoreCase) >= 0).Select(m => m.Name).ToList();
+                Assert.That(exposed, Is.Empty, $"{type.Name} hands out the raw session YAML: {string.Join(", ", exposed)}");
+            }
+
+            // What a header-only pass is for is still there, from the text, without the text.
+            var header = IbtFile.ReadHeader(path);
+            Assert.That(header.DriverCars.Select(c => c.CarPath), Does.Contain("mx5 mx52016"));
+
+            // And the file lets its text go once the model is parsed and renamed.
+            using var file = new IbtFile(path);
+            var field = typeof(IbtFile).GetField("_sessionInfoYaml", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            Assert.That(field.GetValue(file), Is.Not.Null, "held until it is needed");
+            Assert.That(file.SessionInfo.DriverInfo.Drivers, Is.Not.Empty);
+            Assert.That(field.GetValue(file), Is.Null, "and let go");
+            SyntheticField.AssertNoRivalIn(string.Join("|", file.SessionInfo.DriverInfo.Drivers.Select(d => d.UserName)), "the parsed file");
+        }
+
+        [Test]
         public void TheSameRivalIsTheSameCharacterInTheNextSessionAndWhenHeIsTheOnlyOneThere()
         {
             using var first = new FileRaw(WriteIbt(SyntheticField.Yaml(), "one.ibt"));

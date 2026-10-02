@@ -17,9 +17,10 @@ namespace RacingDesk.Tests.Names
 {
     /// <summary>
     /// The plugin's path: SimHub hands the engine its opponents with their real names, and the engine asks the source what
-    /// to call each (ITelemetrySource.OpponentName); the plugin's source asks the SDK bridge, which has read the session
-    /// YAML and named every car by its customer id. The same field through this path shows the same characters as through
-    /// the host's, and a car the session does not list is still a character.
+    /// to call each (ITelemetrySource.OpponentName); the plugin's source asks <see cref="SimHubNaming"/> — the class the
+    /// plugin itself calls, so these tests run its code — which asks the SDK bridge, which has read the session YAML and
+    /// named every car by its customer id. The same field through this path shows the same characters as through the host's,
+    /// a car the session does not list is still a character, and until the session has been read nobody is named.
     /// </summary>
     [TestFixture]
     public class PseudonymsThroughThePluginTests
@@ -68,27 +69,25 @@ namespace RacingDesk.Tests.Names
         }
 
         /// <summary>
-        /// The plugin's source: SimHub's game data, its property bag, and the bridge, asked for every opponent's name as
-        /// SimHubTelemetrySource asks it (by car number, name and SimHub's IsPlayer).
+        /// The plugin's source: SimHub's game data, its property bag, and the naming the plugin does (SimHubNaming, with the
+        /// bridge), asked for every opponent's name as SimHubTelemetrySource asks it (by car number, name and SimHub's IsPlayer).
         /// </summary>
         private sealed class FakeSimHub : ITelemetrySource, IPlayerNameSource
         {
             public readonly GameData Data = new GameData();
             public readonly Dictionary<string, object> Props = new Dictionary<string, object>();
-            public IRacingSdkBridge? Bridge;
+            public readonly SimHubNaming Naming = new SimHubNaming(() => TestNames.Book);
+            public IRacingSdkBridge? Bridge { get => Naming.Bridge; set => Naming.Bridge = value; }
+            public string Game = "IRacing";
             public bool GameRunning => true;
-            public string GameName => "IRacing";
+            public string GameName => Game;
             public object NewData => Data;
             public object GetPropertyValue(string fullName) => Props.TryGetValue(fullName, out var v) ? v : null;
 
-            public string? OpponentName(object opponent)
-            {
-                if (!(opponent is Opponent o)) return null;
-                if (Bridge == null) return o.IsPlayer ? o.Name : TestNames.Book.NewSession().For(0, o.Name);
-                return Bridge.OpponentName(o.CarNumber, o.Name, o.IsPlayer);
-            }
+            public string? OpponentName(object opponent) =>
+                opponent is Opponent o ? Naming.Opponent(GameName, o.CarNumber, o.Name, o.IsPlayer) : null;
 
-            public string PlayerName(string given) => Bridge?.PlayerName(given) ?? given;
+            public string PlayerName(string given) => Naming.Player(GameName, given);
 
             public FakeSimHub()
             {
@@ -154,11 +153,13 @@ namespace RacingDesk.Tests.Names
             Assert.That(bridge.OpponentName("99", "Zebedee Quorntalk", false), Is.EqualTo(stranger));
             Assert.That(expected.Values, Does.Not.Contain(stranger), "and not one of the field's");
 
-            // Another sim, or the bridge not yet up: a character all the same.
+            // The bridge before it has read the session: nobody is named, and nothing it is told is passed back.
             var cold = new IRacingSdkBridge();
-            string shown = cold.OpponentName("", "Zebedee Quorntalk", false);
-            Assert.That(TestNames.Book.List.ContainsShown(shown), Is.True);
-            Assert.That(shown, Does.Not.Contain("Quorntalk"));
+            Assert.That(cold.FieldNamed, Is.False);
+            Assert.That(cold.OpponentName("", "Zebedee Quorntalk", false), Is.Null);
+            Assert.That(cold.OpponentName(SyntheticField.PlayerNumber, SyntheticField.TeammateName, true), Is.Null, "not even for the car SimHub says is his");
+            Assert.That(cold.PlayerName(SyntheticField.TeammateName), Is.EqualTo(""), "the name in Settings stands in for it");
+            Assert.That(bridge.FieldNamed, Is.True);
 
             // Nothing public on the bridge says a rival's name.
             string everything = string.Join("|", typeof(IRacingSdkBridge).GetProperties().Select(p => Convert.ToString(p.GetValue(bridge))));
@@ -176,9 +177,9 @@ namespace RacingDesk.Tests.Names
             foreach (var r in SyntheticField.Rivals)
                 Assert.That(bridge.OpponentName(r.Number, r.Name, false), Is.EqualTo(first[r.Number]), $"car #{r.Number} next time");
             bridge.OnDisconnected();
-            string afterwards = bridge.OpponentName("12", "Somebody New", false);
-            Assert.That(TestNames.Book.List.ContainsShown(afterwards), Is.True, "a car number from the old session names nobody from it");
-            Assert.That(afterwards, Is.Not.EqualTo(first["12"]).Or.EqualTo(TestNames.Book.NewSession().For(0, "Somebody New")));
+            Assert.That(bridge.FieldNamed, Is.False);
+            Assert.That(bridge.OpponentName("12", "Somebody New", false), Is.Null, "a car number from the old session names nobody from it");
+            Assert.That(bridge.PlayerName(SyntheticField.PlayerName), Is.EqualTo(""));
         }
 
         [Test]
@@ -260,13 +261,165 @@ namespace RacingDesk.Tests.Names
         }
 
         [Test]
-        public void WithoutTheBridgeTheSourceStillNamesNobodyByTheirOwnName()
+        public void IRacingWithoutTheBridgeNamesNobodyAndAnotherSimNamesEveryoneAsACharacter()
         {
+            // iRacing but no bridge to read its session: nobody can be told from anybody, so nobody is shown.
             var simhub = new FakeSimHub { Bridge = null };
             var s = TelemetryCapture.Capture(simhub);
-            Assert.That(TestNames.Book.List.ContainsShown(s.NearestAheadName), Is.True, s.NearestAheadName);
-            Assert.That(TestNames.Book.List.ContainsShown(s.NearestBehindName), Is.True, s.NearestBehindName);
-            SyntheticField.AssertNoRivalIn(s.NearestAheadName + "|" + s.NearestBehindName, "the gaps");
+            Assert.That(s.PlayerName, Is.EqualTo(""));
+            // (The capture keeps the last gap names it had, which are characters from an earlier moment, never SimHub's.)
+            SyntheticField.AssertNoRivalIn(s.NearestAheadName + "|" + s.NearestBehindName, "the gaps with no bridge");
+
+            // Another sim has no session to read: his own is SimHub's word, every other driver a character keyed on the name.
+            var other = new FakeSimHub { Bridge = null, Game = "AssettoCorsaCompetizione" };
+            var o = TelemetryCapture.Capture(other);
+            Assert.That(o.PlayerName, Is.EqualTo(SyntheticField.PlayerName));
+            Assert.That(TestNames.Book.List.ContainsShown(o.NearestAheadName), Is.True, o.NearestAheadName);
+            Assert.That(TestNames.Book.List.ContainsShown(o.NearestBehindName), Is.True, o.NearestBehindName);
+            Assert.That(o.NearestAheadName, Is.Not.EqualTo(o.NearestBehindName));
+            SyntheticField.AssertNoRivalIn(o.NearestAheadName + "|" + o.NearestBehindName, "the gaps");
+        }
+
+        [Test]
+        public void UntilTheSessionIsReadNoOneIsNamedAndSimHubsWordForThePlayerIsNotTrusted()
+        {
+            // SimHub's data arrives first, in a team race with his teammate in his car: the player is the teammate, whose real
+            // name is in SimHub's PlayerName and in the opponent flagged as the player. Nothing of it may be shown.
+            var bridge = new IRacingSdkBridge();
+            var simhub = new FakeSimHub { Bridge = bridge };
+            simhub.Data.PlayerName = SyntheticField.TeammateName;
+            simhub.Data.Opponents[0].Name = SyntheticField.TeammateName;
+            var before = TelemetryCapture.Capture(simhub);
+            Assert.That(before.PlayerName, Is.EqualTo(""), "the commentary then says the name in Settings");
+            SyntheticField.AssertNoRivalIn(before.PlayerName + "|" + before.NearestAheadName + "|" + before.NearestBehindName, "the capture before the session is read");
+
+            int httpPort = FreePort();
+            int wsPort;
+            do wsPort = FreePort(); while (wsPort == httpPort);
+            var runtime = NewRuntime(_dir, httpPort, wsPort);
+            var cold = new FakeSimHub { Bridge = runtime._sdkBridge };
+            cold.Data.PlayerName = SyntheticField.TeammateName;
+            cold.Data.Opponents[0].Name = SyntheticField.TeammateName;
+            try
+            {
+                runtime.Start();
+                for (int i = 0; i < 5; i++) runtime.Tick(cold);
+                Assert.That(runtime._leaderboardJson, Is.EqualTo("[]"), "no row is shown nameless: they are left out until they can be named");
+                using var http = new HttpClient();
+                SyntheticField.AssertNoRivalIn(http.GetStringAsync($"http://127.0.0.1:{httpPort}/racing-desk/").Result, "the :8889 JSON before the session is read");
+
+                // Then the session is read, and every row is there, each a character, his own his: nobody changes name.
+                runtime._sdkBridge.ApplySessionInfo(SessionInfoYaml.Parse(SyntheticField.Yaml(teammateDriving: true)));
+                var expected = HostsNames();
+                for (int i = 0; i < 5; i++) runtime.Tick(cold);
+                var board = JArray.Parse(runtime._leaderboardJson);
+                Assert.That(board, Has.Count.EqualTo(SyntheticField.Rivals.Length + 1));
+                foreach (var row in board)
+                {
+                    string name = (string)row[1]!;
+                    Assert.That(TestNames.Book.List.ContainsShown(name), Is.True, name);
+                    if ((int)row[0]! != SyntheticField.PlayerPosition)
+                        Assert.That(name, Is.EqualTo(expected[SyntheticField.Rivals.Single(r => r.Position == (int)row[0]!).Number]));
+                }
+                SyntheticField.AssertNoRivalIn(runtime._leaderboardJson + "|" + runtime._current.PlayerName, "the leaderboard after");
+            }
+            finally
+            {
+                runtime.Stop();
+            }
+        }
+
+        [Test]
+        public void SimHubFlaggingAnotherCarAsThePlayerIsNotTakenAsHim()
+        {
+            var bridge = new IRacingSdkBridge();
+            bridge.ApplySessionInfo(SessionInfoYaml.Parse(SyntheticField.Yaml()));
+            var expected = HostsNames();
+
+            // A camera on a rival (a replay, spectating): SimHub says the rival is the player. He is not.
+            var rival = SyntheticField.Rivals[1];
+            string shown = bridge.OpponentName(rival.Number, rival.Name, true);
+            Assert.That(shown, Is.EqualTo(expected[rival.Number]), "the rival's character, whatever SimHub flags");
+            Assert.That(bridge.PlayerName(rival.Name), Is.EqualTo(expected[rival.Number]), "and SimHub's PlayerName for him likewise");
+            SyntheticField.AssertNoRivalIn(shown + "|" + bridge.PlayerName(rival.Name), "the flagged rival");
+
+            // His own, flagged or not, in the case SimHub writes it: his.
+            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, "TEST DRIVER ", true), Is.EqualTo("TEST DRIVER "));
+            Assert.That(bridge.PlayerName(SyntheticField.PlayerName), Is.EqualTo(SyntheticField.PlayerName));
+
+            // A teammate SimHub says is the player while the session still says he is in his car (the two reading the sim a
+            // moment apart): a character, never the teammate's name.
+            string teammate = bridge.OpponentName(SyntheticField.PlayerNumber, SyntheticField.TeammateName, true);
+            Assert.That(TestNames.Book.List.ContainsShown(teammate), Is.True, teammate);
+            Assert.That(bridge.PlayerName(SyntheticField.TeammateName), Is.EqualTo(teammate));
+            SyntheticField.AssertNoRivalIn(teammate, "the teammate before the session knows");
+        }
+
+        [Test]
+        public void ATeamRaceWithBothDriversListedNamesTheOneAtTheWheelByTheNameSimHubGives()
+        {
+            var bridge = new IRacingSdkBridge();
+            bridge.ApplySessionInfo(SessionInfoYaml.Parse(SyntheticField.Yaml(teamRace: true)));
+            // Him at the wheel: SimHub's player is him, whatever the session says of his teammate in the same car.
+            Assert.That(bridge.PlayerName(SyntheticField.PlayerName), Is.EqualTo(SyntheticField.PlayerName));
+            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, SyntheticField.PlayerName, true), Is.EqualTo(SyntheticField.PlayerName));
+            // The teammate at the wheel: a character, the same on both paths.
+            var host = TestNames.Book.NewSession().Apply(SessionInfoYaml.Parse(SyntheticField.Yaml(teamRace: true)));
+            string teammateShown = host.DriverInfo.Drivers.Single(d => d.UserID == SyntheticField.TeammateCustId).UserName;
+            Assert.That(bridge.PlayerName(SyntheticField.TeammateName), Is.EqualTo(teammateShown));
+            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, SyntheticField.TeammateName, true), Is.EqualTo(teammateShown));
+        }
+
+        [Test]
+        public void ForAnotherSimNoTwoDriversShareACharacterAndEachKeepsTheirs()
+        {
+            var naming = new SimHubNaming(() => TestNames.Book);
+            const string game = "AssettoCorsaCompetizione";
+            var names = Enumerable.Range(0, 60).Select(i => "Madeup Driver " + i).ToList();
+            var given = names.Select(n => naming.Opponent(game, "", n, false)).ToList();
+            Assert.That(given.Distinct().Count(), Is.EqualTo(names.Count), "one table for as long as the plugin runs, so no two are alike");
+            foreach (string g in given) Assert.That(TestNames.Book.List.ContainsShown(g), Is.True, g);
+            for (int i = 0; i < names.Count; i++)
+                Assert.That(naming.Opponent(game, "7", names[i], false), Is.EqualTo(given[i]), "asked again, at another moment");
+            Assert.That(naming.Opponent(game, "1", "Madeup Player", true), Is.EqualTo("Madeup Player"), "his own, as the sim says");
+            Assert.That(naming.Player(game, "Madeup Player"), Is.EqualTo("Madeup Player"));
+            Assert.That(naming.Player("IRacing", "Madeup Player"), Is.EqualTo(""), "no bridge, no word");
+
+            // A table that has used up the list starts again rather than numbering: every name is still a character's.
+            var small = new SimHubNaming(() => new PseudonymBook(PseudonymizerTests.ListOf("Ann One", "Bo Two", "Cy Three"), SyntheticField.SaltFromSeed(2)));
+            var many = Enumerable.Range(0, 20).Select(i => small.Opponent(game, "", "Madeup Driver " + i, false)).ToList();
+            Assert.That(many.Distinct(), Is.SubsetOf(new[] { "A. One", "B. Two", "C. Three" }));
+        }
+
+        [Test]
+        public void ThePluginsOwnSourceAsksTheNamingForEveryNameAndTheBridgeIsHandedToIt()
+        {
+            // The plugin project is SimHub's and is not built with these tests, so what is checked here is its text: the one
+            // place it reads an opponent's name hands it to SimHubNaming, with SimHub's game name, and the plugin gives the
+            // source the bridge.
+            string root = RepoRoot();
+            string pluginDir = Path.Combine(root, "apps", "plugin", "racing-desk-plugin", "simhub-plugin", "plugin", "RacingDesk.Plugin");
+            string source = File.ReadAllText(Path.Combine(pluginDir, "SimHubTelemetrySource.cs"));
+            string plugin = File.ReadAllText(Path.Combine(pluginDir, "Plugin.cs"));
+
+            Assert.That(source, Does.Contain("private readonly SimHubNaming _naming = new SimHubNaming();"));
+            Assert.That(source, Does.Contain("_naming.Opponent(GameName, opp.CarNumber, opp.Name, opp.IsPlayer)"));
+            Assert.That(source, Does.Contain("_naming.Player(GameName, given)"));
+            Assert.That(source, Does.Contain("public IRacingSdkBridge Names { get => _naming.Bridge; set => _naming.Bridge = value; }"));
+            Assert.That(System.Text.RegularExpressions.Regex.Matches(source, @"\bopp\.Name\b").Count, Is.EqualTo(1),
+                "an opponent's name is read once, to be handed to SimHubNaming, and nowhere else");
+            Assert.That(System.Text.RegularExpressions.Regex.IsMatch(source, @"\.PlayerName\b"), Is.False, "nor SimHub's PlayerName");
+            Assert.That(plugin, Does.Contain("_source.Names = _rt._sdkBridge;"));
+            Assert.That(plugin.IndexOf("_source.Names = _rt._sdkBridge;", StringComparison.Ordinal), Is.GreaterThan(plugin.IndexOf("_rt = new RacingDeskRuntime", StringComparison.Ordinal)),
+                "after the runtime that owns the bridge is made");
+            Assert.That(System.Text.RegularExpressions.Regex.Matches(plugin, @"_source\.Names\b").Count, Is.EqualTo(1));
+        }
+
+        private static string RepoRoot()
+        {
+            for (var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory); dir != null; dir = dir.Parent)
+                if (File.Exists(Path.Combine(dir.FullName, "racing-desk.sln"))) return dir.FullName;
+            throw new InvalidOperationException("racing-desk.sln not found above the test directory");
         }
     }
 }

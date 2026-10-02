@@ -678,7 +678,9 @@ namespace RacingDesk.Plugin
                 {
                     var t = opp.GetType();
                     int pos = Convert.ToInt32(t.GetProperty("Position")?.GetValue(opp) ?? 0);
-                    string name = source.OpponentName(opp) ?? "";
+                    // A car the source cannot name yet (iRacing, before its session has been read) is left out, not shown nameless.
+                    string name = source.OpponentName(opp);
+                    if (name == null) continue;
                     int irating = 0;
                     var irProp = t.GetProperty("IRating") ?? t.GetProperty("Irating");
                     if (irProp != null) { var v = irProp.GetValue(opp); if (v != null) irating = Convert.ToInt32(v); }

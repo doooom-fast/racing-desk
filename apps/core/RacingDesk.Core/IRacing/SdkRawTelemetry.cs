@@ -32,13 +32,9 @@ namespace RacingDesk.Plugin.IRacing
         public bool IsConnected => _sdk.IsConnected && _sdk.Data.TelemetryDataPropertiesReady;
 
         // Where other drivers' names enter the host's path, and where they are replaced: the parsed session model is given
-        // its characters' names once per session-info update, before anything reads it (Names/Pseudonymizer; the player's
-        // entry is left his). The SDK parses the YAML on its own thread and may give a new object or the same one filled
-        // again, so both the object and the SDK's update count are watched; Apply is idempotent, so a second pass on the
-        // same session changes nothing.
-        private Pseudonymizer _names;
-        private IRacingSdkSessionInfo _namedInfo;
-        private int _namedUpdate = -1;
+        // its characters' names once per session-info update, before anything reads it (Names/SessionNaming, which watches
+        // the object and the SDK's update count; the player's entry is left his).
+        private readonly SessionNaming _naming = new SessionNaming();
 
         public IRacingSdkSessionInfo SessionInfo
         {
@@ -46,16 +42,7 @@ namespace RacingDesk.Plugin.IRacing
             {
                 if (!IsConnected) return null;
                 var data = _sdk.Data;
-                var si = data.SessionInfo;
-                if (si == null) return null;
-                int update = data.SessionInfoUpdate;
-                if (!ReferenceEquals(si, _namedInfo) || update != _namedUpdate)
-                {
-                    (_names ?? (_names = PseudonymBook.Default.NewSession())).Apply(si);
-                    _namedInfo = si;
-                    _namedUpdate = update;
-                }
-                return si;
+                return _naming.Named(data.SessionInfo, data.SessionInfoUpdate);
             }
         }
 
