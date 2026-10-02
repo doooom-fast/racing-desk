@@ -14,7 +14,7 @@ namespace RacingDesk.Data
     public sealed partial class RacingDeskStore
     {
         private const string RestoreSchema = @"
-CREATE TABLE car_view_keep (
+CREATE TABLE IF NOT EXISTS car_view_keep (
   car_path TEXT PRIMARY KEY COLLATE NOCASE,
   cam_file TEXT NOT NULL,
   own_z REAL, added_z REAL NOT NULL DEFAULT 0, written_z REAL, written_sha TEXT, written_at TEXT,
@@ -25,7 +25,7 @@ CREATE TABLE car_view_keep (
   seen_at TEXT NOT NULL
 );
 
-CREATE TABLE view_baseline (
+CREATE TABLE IF NOT EXISTS view_baseline (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   start_height REAL NOT NULL, decided_at TEXT NOT NULL, decided_by TEXT,
   ini_original REAL, ini_backup TEXT, ini_written_at TEXT,
@@ -33,7 +33,7 @@ CREATE TABLE view_baseline (
   launch_height REAL, launch_at TEXT
 );
 
-CREATE TABLE car_smartcontrol (
+CREATE TABLE IF NOT EXISTS car_smartcontrol (
   car_path TEXT PRIMARY KEY COLLATE NOCASE,
   profile_id TEXT NOT NULL UNIQUE, profile_name TEXT NOT NULL,
   base_name TEXT NOT NULL, base_id TEXT,
@@ -44,7 +44,7 @@ CREATE TABLE car_smartcontrol (
   switched_at TEXT
 );
 
-CREATE TABLE smartcontrol_switch (
+CREATE TABLE IF NOT EXISTS smartcontrol_switch (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   profile_id TEXT NOT NULL UNIQUE, profile_name TEXT NOT NULL,
   binding_id INTEGER, link_id INTEGER, preset_id INTEGER,
@@ -54,7 +54,7 @@ CREATE TABLE smartcontrol_switch (
   sent_at TEXT
 );
 
-CREATE TABLE restore_events (
+CREATE TABLE IF NOT EXISTS restore_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at TEXT NOT NULL,
   car_path TEXT,
@@ -64,7 +64,7 @@ CREATE TABLE restore_events (
   hud INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE restore_checks (
+CREATE TABLE IF NOT EXISTS restore_checks (
   step TEXT PRIMARY KEY,
   ran_at TEXT, ran_ok INTEGER, ran_result TEXT,
   mark TEXT, marked_at TEXT

@@ -282,7 +282,7 @@ namespace RacingDesk.Tests.IRacing
             SqliteConnection.ClearAllPools();
             using (var migrated = new RacingDeskStore(Db))
             {
-                Assert.That(migrated.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(8));
+                Assert.That(migrated.Scalar<long>("SELECT MAX(version) FROM schema_version"), Is.EqualTo(9));
                 Assert.That(migrated.Scalar<string>("SELECT GROUP_CONCAT(name, ',') FROM pragma_table_info('track_geometry')"), Is.EqualTo(columns),
                     "the outlines' table is as it was: earlier builds write to it by position");
                 Assert.That(columns, Does.EndWith("sector_starts,updated_at"));
