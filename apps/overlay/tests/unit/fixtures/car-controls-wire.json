@@ -8,21 +8,22 @@
       "id": "abs",
       "label": "ABS",
       "state": "on",
-      "text": "ON"
+      "text": "On"
     },
     "tc": {
       "id": "tc",
       "label": "DSC",
+      "words": "Stability",
       "state": "value",
       "value": 2,
-      "text": "ON",
+      "text": "On",
       "var": "dcTractionControl"
     },
     "bb": {
       "id": "brakeBias",
       "label": "BB",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     }
   },
   "bmwm2csr mdm": {
@@ -34,11 +35,12 @@
       "id": "abs",
       "label": "ABS",
       "state": "on",
-      "text": "ON"
+      "text": "On"
     },
     "tc": {
       "id": "tc",
       "label": "DSC",
+      "words": "Stability",
       "state": "value",
       "value": 1,
       "text": "MDM",
@@ -48,7 +50,7 @@
       "id": "brakeBias",
       "label": "BB",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     }
   },
   "bmwm2csr off": {
@@ -60,21 +62,22 @@
       "id": "abs",
       "label": "ABS",
       "state": "on",
-      "text": "ON"
+      "text": "On"
     },
     "tc": {
       "id": "tc",
       "label": "DSC",
+      "words": "Stability",
       "state": "off",
       "value": 0,
-      "text": "OFF",
+      "text": "Off",
       "var": "dcTractionControl"
     },
     "bb": {
       "id": "brakeBias",
       "label": "BB",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     }
   },
   "madeup formula": {
@@ -86,13 +89,13 @@
       "id": "abs",
       "label": "ABS",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "tc": {
       "id": "tc",
       "label": "TC",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "bb": {
       "id": "brakeBias",
@@ -107,13 +110,14 @@
       "label": "DRS",
       "state": "off",
       "value": 0,
-      "text": "OFF",
+      "text": "Off",
       "var": "DRS_Status",
       "active": false
     },
     "p2p": {
       "id": "p2p",
       "label": "OT",
+      "words": "Overtake",
       "state": "off",
       "value": 0,
       "text": "65",
@@ -131,13 +135,13 @@
       "id": "abs",
       "label": "ABS",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "tc": {
       "id": "tc",
       "label": "TC",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "bb": {
       "id": "brakeBias",
@@ -152,13 +156,14 @@
       "label": "DRS",
       "state": "value",
       "value": 1,
-      "text": "NEXT",
+      "text": "Next",
       "var": "DRS_Status",
       "active": false
     },
     "p2p": {
       "id": "p2p",
       "label": "OT",
+      "words": "Overtake",
       "state": "off",
       "value": 0,
       "text": "65",
@@ -176,13 +181,13 @@
       "id": "abs",
       "label": "ABS",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "tc": {
       "id": "tc",
       "label": "TC",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "bb": {
       "id": "brakeBias",
@@ -197,13 +202,14 @@
       "label": "DRS",
       "state": "value",
       "value": 2,
-      "text": "READY",
+      "text": "Ready",
       "var": "DRS_Status",
       "active": false
     },
     "p2p": {
       "id": "p2p",
       "label": "OT",
+      "words": "Overtake",
       "state": "off",
       "value": 0,
       "text": "65",
@@ -221,13 +227,13 @@
       "id": "abs",
       "label": "ABS",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "tc": {
       "id": "tc",
       "label": "TC",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "bb": {
       "id": "brakeBias",
@@ -242,13 +248,14 @@
       "label": "DRS",
       "state": "value",
       "value": 3,
-      "text": "OPEN",
+      "text": "Open",
       "var": "DRS_Status",
       "active": true
     },
     "p2p": {
       "id": "p2p",
       "label": "OT",
+      "words": "Overtake",
       "state": "off",
       "value": 0,
       "text": "65",
@@ -266,13 +273,13 @@
       "id": "abs",
       "label": "ABS",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "tc": {
       "id": "tc",
       "label": "TC",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "bb": {
       "id": "brakeBias",
@@ -287,13 +294,14 @@
       "label": "DRS",
       "state": "off",
       "value": 0,
-      "text": "OFF",
+      "text": "Off",
       "var": "DRS_Status",
       "active": false
     },
     "p2p": {
       "id": "p2p",
       "label": "OT",
+      "words": "Overtake",
       "state": "off",
       "value": 0,
       "text": "0",
@@ -311,13 +319,13 @@
       "id": "abs",
       "label": "ABS",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "tc": {
       "id": "tc",
       "label": "TC",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "bb": {
       "id": "brakeBias",
@@ -332,16 +340,17 @@
       "label": "DRS",
       "state": "off",
       "value": 0,
-      "text": "OFF",
+      "text": "Off",
       "var": "DRS_Status",
       "active": false
     },
     "p2p": {
       "id": "p2p",
       "label": "OT",
+      "words": "Overtake",
       "state": "value",
       "value": 1,
-      "text": "ON",
+      "text": "On",
       "var": "P2P_Status",
       "count": 64,
       "active": true
@@ -357,7 +366,7 @@
       "label": "ABS",
       "state": "off",
       "value": 0,
-      "text": "OFF",
+      "text": "Off",
       "fill": 0,
       "locked": true,
       "var": "dcABS"
@@ -384,7 +393,8 @@
     "more": [
       {
         "id": "throttleMap",
-        "label": "MAP",
+        "label": "Map",
+        "words": "Throttle map",
         "state": "value",
         "value": 2,
         "text": "2",
@@ -424,7 +434,8 @@
     "more": [
       {
         "id": "throttleMap",
-        "label": "MAP",
+        "label": "Map",
+        "words": "Throttle map",
         "state": "unread",
         "var": "dcThrottleShape"
       }
@@ -451,15 +462,16 @@
       "id": "brakeBias",
       "label": "BB",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "more": [
       {
         "id": "mode",
         "label": "ESC",
+        "words": "Assists",
         "state": "value",
         "value": 0,
-        "text": "TRACK",
+        "text": "Track",
         "var": "dcABS"
       }
     ]
@@ -473,19 +485,19 @@
       "id": "abs",
       "label": "ABS",
       "state": "on",
-      "text": "ON"
+      "text": "On"
     },
     "tc": {
       "id": "tc",
       "label": "TC",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "bb": {
       "id": "brakeBias",
       "label": "BB",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     }
   },
   "porsche963gtp": {
@@ -497,11 +509,12 @@
       "id": "abs",
       "label": "ABS",
       "state": "none",
-      "text": "NONE"
+      "text": "None"
     },
     "tc": {
       "id": "tc",
       "label": "TCLO",
+      "words": "Traction slip",
       "state": "value",
       "value": 5,
       "text": "5",
@@ -512,6 +525,7 @@
     "bb": {
       "id": "brakeBias",
       "label": "BB",
+      "words": "Bias",
       "state": "value",
       "value": 48.25,
       "text": "48.25",
@@ -522,6 +536,7 @@
       {
         "id": "brakeMigration",
         "label": "MIG",
+        "words": "Migration",
         "state": "value",
         "value": -2,
         "text": "-2",
@@ -531,6 +546,7 @@
       {
         "id": "tc2",
         "label": "TCLA",
+        "words": "Traction gain",
         "state": "value",
         "value": 4,
         "text": "4",
@@ -541,6 +557,7 @@
       {
         "id": "arbFront",
         "label": "FARB",
+        "words": "Front rollbar",
         "state": "value",
         "value": 1,
         "text": "1",
@@ -549,6 +566,7 @@
       {
         "id": "arbRear",
         "label": "RARB",
+        "words": "Rear rollbar",
         "state": "value",
         "value": 15,
         "text": "15",

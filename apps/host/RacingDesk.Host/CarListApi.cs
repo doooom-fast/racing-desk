@@ -146,6 +146,7 @@ namespace RacingDesk.Host
                 json.WriteString("id", control.Id);
                 json.WriteString("var", control.Var);
                 json.WriteString("label", control.Label);
+                if (!string.IsNullOrEmpty(control.Words)) json.WriteString("words", control.Words);
                 if (control.NeverOff) json.WriteBoolean("off", false);
                 else if (control.Off.HasValue) json.WriteNumber("off", control.Off.Value);
                 if (control.Min.HasValue && control.Max.HasValue)

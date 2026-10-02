@@ -14,42 +14,49 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BAL",
+     "words": "Bias",
      "note": "Dash: BAL. Garage: Brake Pressure Bias. Variable by analogy with the driven GTP cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1",
+     "words": "Traction slip",
      "note": "Traction control slip (dash: TC1 Map): higher acts on less wheelspin. Variable by analogy: on the driven GTP cars dcTractionControl carries slip."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TC2",
+     "words": "Traction gain",
      "note": "Traction control gain (dash: TC2 Map): higher cuts harder. Variable by analogy with the driven GTP cars."
     },
     {
      "id": "brakeMigration",
      "var": "dcABS",
-     "label": "BRAKE MIGRATION",
+     "label": "Brake migration",
+     "words": "Migration",
      "note": "Added to this car in 2025 Season 3 Patch 3. Variable by analogy: on every driven GTP car the migration is carried by dcABS, and the car has no ABS."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FARB",
+     "words": "Front rollbar",
      "note": "Front ARB blades. Black box: FARB. Dash: ARB F/R. Variable by analogy with the driven GTP cars."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "RARB",
+     "words": "Rear rollbar",
      "note": "Rear ARB blades. Black box: RARB. Dash: ARB F/R. Variable by analogy with the driven GTP cars."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "By analogy with the driven GTP cars, which all publish it. What its values mean is not confirmed."
     }
    ],
@@ -72,13 +79,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Seen 48.8 to 50.0."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TCS",
+     "words": "Traction",
      "off": 1,
      "range": [
       1,
@@ -90,6 +99,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 1,
      "range": [
       1,
@@ -100,19 +110,21 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Seen only 0, with TC working. Usable only below pit speed since 2026 Season 3."
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "THROTTLE SHAPE",
+     "label": "Throttle shape",
+     "words": "Throttle map",
      "note": "Published, seen only 1. Neither the garage nor the manual has a throttle setting for this car."
     },
     {
      "id": "powerSteering",
      "var": "dcPowerSteering",
-     "label": "POWER STEERING",
+     "label": "Power steering",
      "note": "Published, seen only 3. Neither the garage nor the manual has a power steering setting for this car."
     }
    ],
@@ -134,49 +146,56 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage: Brake Pressure Bias. Seen 47 to 51.5."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TCLO",
+     "words": "Traction slip",
      "note": "Traction control slip (garage: Traction Control Slip, TCLO). Seen 5 to 8."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TCLA",
+     "words": "Traction gain",
      "note": "Traction control gain (garage: Traction Control Gain, TCLA). Seen 1 to 7."
     },
     {
      "id": "brakeMigration",
      "var": "dcABS",
-     "label": "BRAKE BIAS MIGRATION",
+     "label": "Brake bias migration",
+     "words": "Migration",
      "note": "Carried by dcABS; the car has no ABS. Garage: Brake Bias Migration. Seen -4 to 0."
     },
     {
      "id": "brakeMisc",
      "var": "dcBrakeMisc",
-     "label": "BRAKE MISC",
+     "label": "Brake misc",
      "note": "A brake dial of unknown purpose, changed from the seat: 0 on getting in in all 3 files, 1 once. The garage has no matching setting. On the 963 and the Cadillac this variable is the Brake Bias Target and on the Ferrari the Bias Migration Gain, so analogy does not settle it. The label is the sim's description of the variable, not the car's word."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FARB",
+     "words": "Front rollbar",
      "note": "Garage: front ARB Setting. Seen 2 to 11. Label by analogy with the other GTP cars' black box."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "RARB",
+     "words": "Rear rollbar",
      "note": "Garage: rear ARB Setting. Seen 5 to 11. Label by analogy with the other GTP cars' black box."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Published; only 0 seen. What its values mean is not confirmed."
     }
    ],
@@ -197,13 +216,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "B BIAS",
+     "label": "B bias",
+     "words": "Bias",
      "note": "Percent front. Variable by analogy with the driven GT3 cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
-     "label": "TC SLIP",
+     "label": "TC slip",
+     "words": "Traction",
      "off": 0,
      "range": [
       0,
@@ -215,6 +236,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
@@ -225,7 +247,8 @@
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "RED",
+     "label": "Red",
+     "words": "Throttle response",
      "range": [
       1,
       5
@@ -236,6 +259,7 @@
      "id": "powerSteering",
      "var": "dcPowerSteering",
      "label": "PAS",
+     "words": "Power steering",
      "range": [
       1,
       5
@@ -245,7 +269,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "By analogy: every GT3 car driven on the rig publishes it. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -267,6 +292,7 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 0,
      "range": [
       0,
@@ -278,6 +304,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
@@ -288,7 +315,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "variable by analogy with the driven GT4s"
     }
    ],
@@ -310,12 +338,14 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "the GT1 class has TC and no ABS (2026 S4 rule sets); variable by analogy; positions not published"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy; adjustable brake bias is the norm for this era's iRacing GT cars"
     }
    ],
@@ -337,13 +367,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "moved in the car, 47.5 to 55.3 seen; the garage's Front/BrakePressureBias is the base"
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "rear anti-roll bar blades, 6 to 10 seen in his files (garage ArbBlades 6, 7, 9); range not published; the front bar is garage-only"
     }
    ],
@@ -365,88 +397,100 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage: Brake Pressure Bias. Seen 52.6."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1",
+     "words": "Rear traction",
      "note": "Taken to be the rear traction control (garage: Rear Traction Control, TC1). Both it and the front were 6 in the one file, so the values do not tell them apart."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TCF",
+     "words": "Front traction",
      "note": "Taken to be the front traction control (garage: Front Traction Control, TCF). See tc."
     },
     {
      "id": "tc3",
      "var": "dcTractionControl3",
-     "label": "REAR TC LATERAL SLIP",
+     "label": "Rear TC lateral slip",
+     "words": "Rear lateral slip",
      "note": "Garage: Rear TC Lateral Slip. Seen 1.6, the garage's rear value."
     },
     {
      "id": "tc4",
      "var": "dcTractionControl4",
-     "label": "FRONT TC LATERAL SLIP",
+     "label": "Front TC lateral slip",
+     "words": "Front lateral slip",
      "note": "Garage: Front TC Lateral Slip. Seen 1.7, the garage's front value."
     },
     {
      "id": "mguDeploy",
      "var": "dcMGUKDeployMode",
-     "label": "HYS DEPLOY MODE",
+     "label": "HYS deploy mode",
+     "words": "Deploy mode",
      "positions": {
-      "1": "AUTOMATIC"
+      "1": "Automatic"
      },
      "note": "Garage: HYS Deploy Mode, Automatic or Manual. Seen 1 with the garage on Automatic; the value for Manual was not seen."
     },
     {
      "id": "mguDeployFixed",
      "var": "dcMGUKDeployFixed",
-     "label": "MODE",
+     "label": "Mode",
+     "words": "Deploy trim",
      "note": "Garage: HYS Manual Deploy Trim (Mode). Used when the deploy mode is Manual. Seen 12."
     },
     {
      "id": "regen",
      "var": "dcMGUKRegenGain",
-     "label": "HYS RE-GEN GAIN",
+     "label": "HYS re-gen gain",
+     "words": "Regen gain",
      "note": "Garage: HYS Re-Gen Gain. Seen 9."
     },
     {
      "id": "fuelMix",
      "var": "dcEnginePower",
-     "label": "MIX",
+     "label": "Mix",
+     "words": "Fuel mix",
      "note": "Garage: Fuel Mixture (MIX). Seen 1."
     },
     {
      "id": "boostHold",
      "var": "dcHysBoostHold",
-     "label": "HYS BOOST",
+     "label": "HYS boost",
+     "words": "Hybrid boost",
      "note": "A button: hold the hybrid deployment. The label is not from the car's own dash."
     },
     {
      "id": "ibs",
      "var": "dcABS",
      "label": "IBS",
+     "words": "Brake system",
      "note": "Carried by dcABS; the car has no ABS. Garage: Intelligent Brake System, IBS Mode. Seen 10. What the mode does is not confirmed."
     },
     {
      "id": "fuelCut",
      "var": "dcFuelCutPosition",
-     "label": "FUEL CUT",
+     "label": "Fuel cut",
      "note": "The sim's description: advance the end-of-straight fuel cut. Seen 0. The label is not from the car's own dash."
     },
     {
      "id": "fuelNoCut",
      "var": "dcFuelNoCutToggle",
-     "label": "FUEL NO CUT",
+     "label": "Fuel no cut",
      "note": "The sim's description: fuel cut on straight active. Seen 0. The label is not from the car's own dash."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Published; only 0 seen. What its values mean is not confirmed."
     }
    ],
@@ -468,13 +512,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Variable by analogy with the driven GT3 cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 12,
      "range": [
       1,
@@ -486,6 +532,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -496,7 +543,8 @@
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "MAP",
+     "label": "Map",
+     "words": "Throttle map",
      "range": [
       1,
       3
@@ -522,12 +570,14 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKEBAL",
+     "words": "Bias",
      "note": "Percent front. Seen 59.0 to 62.1."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 12,
      "range": [
       1,
@@ -539,6 +589,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -549,7 +600,8 @@
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "MAP",
+     "label": "Map",
+     "words": "Throttle map",
      "range": [
       1,
       3
@@ -559,7 +611,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Seen only 0, with TC working. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -581,40 +634,43 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent to the front. 66.9 to 70.3 seen; the garage calls it Brake Pressure Bias."
     },
     {
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
       1
      ],
      "positions": {
-      "0": "OFF",
-      "1": "ON"
+      "0": "Off",
+      "1": "On"
      },
      "note": "The manual: setting 1 enables ABS, 0 disables it. 0 and 1 seen."
     },
     {
      "id": "rearBrakeValve",
      "var": "dcPeakBrakeBias",
-     "label": "REAR BRAKE VALVE",
+     "label": "Rear brake valve",
      "note": "The sim carries the rear brake valve in dcPeakBrakeBias; 1 and 2 seen, garage RearBrakeValve 1. Higher sends more pressure to the rear without reducing the front."
     },
     {
      "id": "launch",
      "var": "dcLaunchRPM",
-     "label": "START RPM",
+     "label": "Start rpm",
+     "words": "Launch rpm",
      "note": "Launch RPM limiter; the dash shows it as Start RPM, the garage as Launch RPM Limit. 3000 seen."
     },
     {
      "id": "diffPreload",
      "var": "dcDiffPreload",
-     "label": "DIFF",
+     "label": "Diff",
      "note": "Published and mappable per iRacing's release notes, but the manual's dash page says the differential position is not applicable in the sim; only 1 seen."
     }
    ],
@@ -637,25 +693,27 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the other TCR cars (Honda Civic Type R TCR, legacy Audi RS 3 LMS). Percent to the front."
     },
     {
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "note": "Variable by analogy with the other TCR cars. The number of positions and whether 0 is off are not published for this car."
     },
     {
      "id": "rearBrakeValve",
      "var": "dcPeakBrakeBias",
-     "label": "REAR BRAKE VALVE",
+     "label": "Rear brake valve",
      "note": "By analogy with the Honda and legacy Audi TCR cars; the 2026 S2 notes added a brake proportioning valve to every TCR car and the 2026 S4 notes make the valve adjustable in fixed setups."
     },
     {
      "id": "launch",
      "var": "dcLaunchRPM",
-     "label": "LAUNCH RPM",
+     "label": "Launch rpm",
      "note": "By analogy with the other TCR cars."
     }
    ],
@@ -678,7 +736,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage: Brake Pressure Bias. The dash's BRKB field is inoperable. Variable by analogy with the driven GTP cars."
     },
     {
@@ -696,31 +755,36 @@
     {
      "id": "brakeMigration",
      "var": "dcABS",
-     "label": "BRAKE MIGRATION",
+     "label": "Brake migration",
+     "words": "Migration",
      "note": "Mappable in the car since 2025 Season 3 Patch 2. Variable by analogy: on every driven GTP car the migration is carried by dcABS, and the car has no ABS."
     },
     {
      "id": "brakeBiasFine",
      "var": "dcBrakeMisc",
-     "label": "BRAKE BIAS TARGET",
+     "label": "Brake bias target",
+     "words": "Bias target",
      "note": "Mappable in the car since 2025 Season 3 Patch 2. Variable by analogy with the 963 and the Cadillac."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FARB",
+     "words": "Front rollbar",
      "note": "Front ARB blades. Dash: FARB. Variable by analogy with the driven GTP cars."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "RARB",
+     "words": "Rear rollbar",
      "note": "Rear ARB blades. Dash: RARB. Variable by analogy with the driven GTP cars."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "By analogy with the driven GTP cars, which all publish it. What its values mean is not confirmed."
     }
    ],
@@ -746,28 +810,31 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "DSC",
+     "words": "Stability",
      "off": 0,
      "positions": {
-      "0": "OFF",
+      "0": "Off",
       "1": "MDM",
-      "2": "ON"
+      "2": "On"
      },
      "note": "DSC is bound to the Traction Control 1 control (2025 S2 notes); garage On matched 2 in 43 files and MDM matched 1 in 15; OFF=0 is inferred from the order"
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "THROTTLE",
+     "label": "Throttle",
+     "words": "Throttle map",
      "positions": {
-      "0": "DRY",
-      "1": "WET"
+      "0": "Dry",
+      "1": "Wet"
      },
      "note": "the throttle map bound to the Throttle Shape control (2025 S2 notes); garage Dry matched 0 in 60 of 61 files; WET=1 rests on one file where it was changed in the car"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "range": [
       50,
       50
@@ -795,6 +862,7 @@
      "id": "mode",
      "var": "dcABS",
      "label": "DSC",
+     "words": "Stability",
      "positions": {
       "1": "MDM"
      },
@@ -804,21 +872,24 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "garage '3 (TC)' matched the variable in all 18 files; range not seen"
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "THROTTLE",
+     "label": "Throttle",
+     "words": "Throttle map",
      "positions": {
-      "2": "SPORT+"
+      "2": "Sport+"
      },
      "note": "garage ThrottleSetting Sport+ matched dcThrottleShape 2 in all 18 files; the other maps are not seen"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "range": [
       50,
       50
@@ -846,6 +917,7 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 1,
      "range": [
       1,
@@ -857,12 +929,14 @@
      "id": "mode",
      "var": null,
      "label": "DSC",
+     "words": "Stability",
      "note": "DSC: Off, On, MDM or TC (manual), switched from the seat (dcABS and dcTractionControl change together in the car in his files); no variable carries the mode itself: On shows as dcABS 3 with dcTractionControl 8, MDM as dcABS 2 with dcTractionControl 4, TC as dcABS 2 with the TC value he set, Off as dcABS 1 with dcTractionControl 1; which in-car control switches it is not published"
     },
     {
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 1,
      "range": [
       1,
@@ -873,12 +947,14 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "Brake bias",
+     "words": "Bias"
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "published by this car; read 0 in every one of his files while TC was set and working, so it does not say whether TC is on; on GT3 cars iRacing calls the same control the timed 'TC Disable' (2024 S1 notes); what 1 means here is not seen"
     }
    ],
@@ -900,13 +976,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front, in steps of 0.25. Seen 48.5 to 51.25."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 10,
      "range": [
       1,
@@ -918,6 +996,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -928,7 +1007,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Seen only 0, with TC working. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -951,11 +1031,12 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "DSC",
+     "words": "Stability",
      "off": 0,
      "positions": {
-      "0": "OFF",
+      "0": "Off",
       "1": "MDM",
-      "2": "ON"
+      "2": "On"
      },
      "note": "the manual's DSC setting (ON, MDM, OFF); variable and numbering by analogy with the driven M2 CS Racing, whose DSC is dcTractionControl with MDM=1 and On=2"
     },
@@ -963,16 +1044,18 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "FDS",
+     "words": "Throttle map",
      "positions": {
-      "1": "LINEAR",
-      "2": "BUTTERFLY"
+      "1": "Linear",
+      "2": "Butterfly"
      },
      "note": "two throttle maps, 1 linear and 2 butterfly (manual); variable by analogy with the M2 CS Racing; whether the sim numbers them 1-2 or 0-1 is not known"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "variable by analogy with the driven BMWs"
     }
    ],
@@ -995,6 +1078,7 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 10,
      "range": [
       1,
@@ -1005,7 +1089,8 @@
     {
      "id": "tc2",
      "var": "dcTractionControl2",
-     "label": "SLIP",
+     "label": "Slip",
+     "words": "Lateral slip",
      "off": 10,
      "range": [
       1,
@@ -1016,12 +1101,14 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "Brake bias",
+     "words": "Bias"
     },
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
-     "label": "MAP",
+     "label": "Map",
+     "words": "Engine map",
      "range": [
       1,
       12
@@ -1031,13 +1118,14 @@
     {
      "id": "boost",
      "var": "dcBoostLevel",
-     "label": "BOOST",
+     "label": "Boost",
      "note": "1 is maximum boost, each step up reduces it (manual); count not published, 1 and 5 seen; garage '1 (BOOST)' matched"
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "PEDAL",
+     "label": "Pedal",
+     "words": "Throttle map",
      "range": [
       1,
       12
@@ -1047,7 +1135,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "published by this car; read 0 in every one of his files while TC was set and working, so it does not say whether TC is on; on GT3 cars iRacing calls the same control the timed 'TC Disable' (2024 S1 notes); what 1 means here is not seen"
     }
    ],
@@ -1069,19 +1158,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "A guess by analogy with the Ford GT GT3 and McLaren MP4-12C GT3; iRacing publishes no manual for this car."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "The car has TC (the 2026 Season 4 rule sets can disable it). That the driver can turn it, the variable, the positions and the off position are a guess by analogy."
     },
     {
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "note": "The car has ABS (the 2026 Season 4 rule sets can disable it). That the driver can turn it, the variable, the positions and the off position are a guess by analogy."
     }
    ],
@@ -1104,18 +1196,21 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "'Added adjustable traction control' (2014 S2 notes); the GT1 class has TC and no ABS (2026 S4 rule sets); variable by analogy; positions not published"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy; adjustable brake bias is the norm for this era's iRacing GT cars"
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "'Traction control can also be disabled for 5 seconds via the new traction control toggle control' (2014 S2 notes, the build that began writing it to telemetry as dcTractionControlToggle); what 1 means on this car is not seen"
     }
    ],
@@ -1138,19 +1233,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "The cockpit has a brake bias knob (2017 Season 2 release notes). Variable by analogy with the driven prototypes."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "The car has traction control (2026 Season 4 release notes). That the driver can set its level from the seat, and the variable, are by analogy with the HPD ARX-01c."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "By analogy with the driven prototypes that have traction control. What its values mean is not confirmed."
     }
    ],
@@ -1173,18 +1271,21 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "the GTE class has TC and no ABS (2026 S4 rule sets); variable by analogy with the driven GTEs; positions not published"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the driven GTEs"
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "the GTE class has a traction control toggle ('may no longer be used above the pitlane speed limit', 2026 S3 notes); variable by analogy with the driven M8 GTE and 911 RSR, which publish it and read 0 while TC works; what 1 means is not seen"
     }
    ],
@@ -1208,18 +1309,21 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "'Added adjustable traction control' (2014 S2 notes), so it is set from the seat; variable by analogy; positions not published. That ABS cannot be set from the seat is a guess, see doubts"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "'Brake bias adjustment is now available for this vehicle in Official, Fixed Setup series' (2016 S4 notes)"
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "'Traction control can also be disabled for 5 seconds via the new traction control toggle control' (2014 S2 notes, the build that began writing it to telemetry as dcTractionControlToggle); what 1 means on this car is not seen"
     }
    ],
@@ -1245,48 +1349,56 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BBM",
+     "words": "Bias",
      "note": "Dash: BBM, the base brake pressure bias. Garage: Brake Pressure Bias. Seen 49 to 53.25."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC A",
+     "words": "Traction slip",
      "note": "Traction control slip (garage: Traction Control Slip, TC A). Seen 5 to 9."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TC B",
+     "words": "Traction gain",
      "note": "Traction control gain (garage: Traction Control Gain, TC B). Seen 1 to 4."
     },
     {
      "id": "brakeMigration",
      "var": "dcABS",
      "label": "MIG",
+     "words": "Migration",
      "note": "Carried by dcABS; the car has no ABS. Garage: Brake Bias Migration, 1% a click. Seen -4 to 3."
     },
     {
      "id": "brakeBiasFine",
      "var": "dcBrakeMisc",
      "label": "BBT",
+     "words": "Bias target",
      "note": "Brake Bias Target: an offset from the brake pressure bias, 0.5% a click. Seen -1 to 1."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "ARB F",
+     "words": "Front rollbar",
      "note": "Garage: front ARB Blades. Seen 2 and 3."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "ARB R",
+     "words": "Rear rollbar",
      "note": "Garage: rear ARB Blades. Seen 2 and 4."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Published; only 0 seen. What its values mean is not confirmed."
     }
    ],
@@ -1310,7 +1422,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Published, but only 50 seen in 57 files; the garage's brake setting is a rear brake proportioning valve (7 seen). Whether the seat can move it is unproven."
     }
    ],
@@ -1345,13 +1458,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Variable by analogy with the driven GT3 cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 0,
      "range": [
       0,
@@ -1363,6 +1478,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
@@ -1373,7 +1489,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "By analogy: every GT3 car driven on the rig publishes it. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -1394,7 +1511,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "garage: Brake Pressure Bias, percent to the front; 45 seen, the garage's 45.0%"
     }
    ],
@@ -1415,31 +1533,34 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; 2025 Season 4 Patch 4 notes: 'Brake bias adjustments are now allowed in Fixed Setup events', the same line given to the HPD ARX-01c and Nissan GTP ZX-T, which both publish dcBrakeBias on this rig; variable name by analogy, not seen on this rig"
     },
     {
      "id": "weightJacker",
      "var": "dcWeightJackerRight",
-     "label": "WEIGHT JACKER",
+     "label": "Weight jacker",
      "note": "right rear, ovals; 2011 release notes for the Dallara IndyCar: the weight jacker must be zero to pass tech and its range was limited to +/- 6 clicks, which confirms a weight jacker used from the car; today's range is not known; variable name by analogy with the IR18, not seen on this rig"
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
-     "label": "FRONT ARB",
+     "label": "Front ARB",
+     "words": "Front rollbar",
      "note": "not confirmed for this car; variable name by analogy with the later Dallara Indy cars, not seen on this rig"
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "not confirmed for this car; variable name by analogy with the later Dallara Indy cars, not seen on this rig"
     },
     {
      "id": "fuelMix",
      "var": "dcFuelMixture",
-     "label": "FUEL MIXTURE",
+     "label": "Fuel mixture",
      "note": "not confirmed for this car; variable name by analogy with the IR18, not seen on this rig"
     }
    ],
@@ -1462,24 +1583,25 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; variable name by analogy, not seen on this rig"
     },
     {
      "id": "p2p",
      "var": "P2P_Status",
-     "label": "PUSH TO PASS",
+     "label": "Push to pass",
      "off": 0,
      "positions": {
-      "0": "OFF",
-      "1": "ACTIVE"
+      "0": "Off",
+      "1": "Active"
      },
      "note": "road and street courses; the 2016 user guide lists 'Push to Pass - DW12 P2P button' and 2013 notes fixed 'the push to pass limit of 10 during road course races', so on this car P2P_Count may count uses, not seconds; the button is probably dcPushToPass, by analogy with the IL15"
     },
     {
      "id": "weightJacker",
      "var": "dcWeightJackerRight",
-     "label": "WEIGHT JACKER",
+     "label": "Weight jacker",
      "range": [
       -20,
       20
@@ -1489,19 +1611,21 @@
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
-     "label": "FRONT ARB",
+     "label": "Front ARB",
+     "words": "Front rollbar",
      "note": "blade settings 1 to 6 in iRacing's article; variable name by analogy, not seen on this rig; on the Dallaras driven here the variable reads one less than the garage position; 2024 Season 4 Patch 2 notes: 'Anti Roll Bars may no longer be adjusted while the vehicle is actively cornering', which confirms adjustment from the seat"
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "blade settings 1 to 6 in iRacing's article; variable name by analogy, not seen on this rig; on the Dallaras driven here the variable reads one less than the garage position; 2024 Season 4 Patch 2 notes: 'Anti Roll Bars may no longer be adjusted while the vehicle is actively cornering', which confirms adjustment from the seat"
     },
     {
      "id": "fuelMix",
      "var": "dcFuelMixture",
-     "label": "FUEL MAP",
+     "label": "Fuel map",
      "note": "iRacing's article calls it fuel mapping; the black box's own word is not confirmed; variable name by analogy with the IR18, not seen on this rig"
     }
    ],
@@ -1526,7 +1650,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias"
     }
    ],
@@ -1546,38 +1671,42 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias"
     },
     {
      "id": "p2p",
      "var": "P2P_Status",
-     "label": "PUSH TO PASS",
+     "label": "Push to pass",
      "off": 0,
      "positions": {
-      "0": "OFF",
-      "1": "ACTIVE"
+      "0": "Off",
+      "1": "Active"
      },
      "note": "dcPushToPass is the button; P2P_Count is the seconds left: 65 in a race since 2026 Season 2, 999 when there is no limit"
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
-     "label": "FRONT ARB",
+     "label": "Front ARB",
+     "words": "Front rollbar",
      "note": "reads one less than the garage blade: blades 3-5 read 2, blades 4-5 read 3"
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "reads one less than the garage blade: blades 2-5 read 1, blades 1-5 read 0"
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "THROTTLE SETTING",
+     "label": "Throttle setting",
+     "words": "Throttle map",
      "positions": {
-      "3": "LINEAR"
+      "3": "Linear"
      },
      "note": "only position 3 (Linear) has been seen in the car; the other positions' names are not known"
     }
@@ -1599,19 +1728,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BALANCE",
+     "label": "Brake balance",
+     "words": "Bias",
      "note": "percent front; the dash calls it Brake Balance, the garage Brake Pressure Bias"
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FARB",
+     "words": "Front rollbar",
      "note": "reads one less than the garage blade: P1 (Soft) reads 0, P3 reads 2"
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "RARB",
+     "words": "Rear rollbar",
      "range": [
       0,
       3
@@ -1621,7 +1753,8 @@
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "PEDAL",
+     "label": "Pedal",
+     "words": "Throttle map",
      "range": [
       1,
       3
@@ -1646,17 +1779,18 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BIAS",
+     "label": "Bias",
      "note": "percent front; variable name by analogy, not seen on this rig"
     },
     {
      "id": "p2p",
      "var": "P2P_Status",
      "label": "OT",
+     "words": "Overtake",
      "off": 0,
      "positions": {
-      "0": "OFF",
-      "1": "ACTIVE"
+      "0": "Off",
+      "1": "Active"
      },
      "note": "push to pass; the dash's OT shows the seconds left, which P2P_Count carries; 2024 Season 4 notes: 200 seconds per Race session, unlimited in Practice; the F8 black box has a 'P2P Remaining' field (2024 Season 3); the button is probably dcPushToPass, by analogy with the IL15"
     },
@@ -1664,18 +1798,21 @@
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FARB",
+     "words": "Front rollbar",
      "note": "black box: ARB F; garage blades 1 (softest) to 6 (stiffest); on the Dallaras driven here the variable reads one less than the garage position; variable named by a third party, not seen on this rig"
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "RARB",
+     "words": "Rear rollbar",
      "note": "black box: ARB R; garage blades 1 (softest) to 6 (stiffest); on the Dallaras driven here the variable reads one less than the garage position; variable named by a third party, not seen on this rig"
     },
     {
      "id": "weightJacker",
      "var": "dcWeightJackerRight",
-     "label": "WJ POS",
+     "label": "WJ pos",
+     "words": "Weight jacker",
      "off": 0,
      "range": [
       -20,
@@ -1686,7 +1823,8 @@
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
-     "label": "MAP",
+     "label": "Map",
+     "words": "Engine map",
      "range": [
       1,
       8
@@ -1696,7 +1834,7 @@
     {
      "id": "mguDeploy",
      "var": "dcMGUKDeployFixed",
-     "label": "DEPLOY",
+     "label": "Deploy",
      "range": [
       0,
       1
@@ -1706,7 +1844,7 @@
     {
      "id": "regen",
      "var": "dcMGUKRegenGain",
-     "label": "REGEN",
+     "label": "Regen",
      "range": [
       0,
       1
@@ -1733,31 +1871,36 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BALANCE",
+     "label": "Brake balance",
+     "words": "Bias",
      "note": "Dash: Brake Balance. Garage: Brake Pressure Bias. Seen 51.5 to 56."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
-     "label": "GAIN",
+     "label": "Gain",
+     "words": "Traction gain",
      "note": "Traction control gain (garage: Traction Control Gain, TC1; dash: Gain): higher cuts harder. On this car TC1 is gain, not slip as on the GTP cars. Seen 2."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
-     "label": "SLIP",
+     "label": "Slip",
+     "words": "Traction slip",
      "note": "Traction control slip (garage: Traction Control Slip, TC2; dash: Slip): higher acts on less wheelspin. Seen 6."
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "TPS",
+     "words": "Throttle map",
      "note": "Garage: Throttle Shape. Dash: TPS. 1 is linear. Seen 1."
     },
     {
      "id": "powerSteering",
      "var": "dcPowerSteering",
      "label": "EPS",
+     "words": "Power steering",
      "range": [
       1,
       5
@@ -1767,7 +1910,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Published; only 0 seen. What its values mean is not confirmed."
     }
    ],
@@ -1790,7 +1934,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car"
     }
    ],
@@ -1810,7 +1955,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car"
     }
    ],
@@ -1830,7 +1976,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car"
     }
    ],
@@ -1850,7 +1997,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the Outlaw Winged Micro Sprint of the same family, driven on this rig; unconfirmed for this car"
     }
    ],
@@ -1872,7 +2020,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the Outlaw Winged Micro Sprint of the same family, driven on this rig; unconfirmed for this car"
     }
    ],
@@ -1894,7 +2043,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the Outlaw Winged Micro Sprint of the same family, driven on this rig, whose wings are garage settings only; unconfirmed for this car"
     }
    ],
@@ -1916,7 +2066,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "50 seen, in his one file; the garage in that file has no brake bias setting. Nose wing angle, top wing angle and top wing position are garage settings, and no in-car variable is published for them"
     }
    ],
@@ -1937,7 +2088,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car"
     }
    ],
@@ -1970,13 +2122,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "garage: Brake Pressure Bias, percent to the front; not driven on this rig: dcBrakeBias is assumed, unconfirmed for this car"
     },
     {
      "id": "rfBrake",
      "var": null,
-     "label": "RF BRAKE",
+     "label": "RF brake",
+     "words": "Right front brake",
      "note": "the garage has 'RF Brake Connected' and the sim has an in-car binding 'RF Brake Attached', a toggle; that this car takes the binding, and the variable that carries it, are unconfirmed"
     }
    ],
@@ -1998,13 +2152,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "garage: Brake Pressure Bias, percent to the front; not driven on this rig: dcBrakeBias is assumed, unconfirmed for this car"
     },
     {
      "id": "rfBrake",
      "var": null,
-     "label": "RF BRAKE",
+     "label": "RF brake",
+     "words": "Right front brake",
      "note": "the garage has 'RF Brake Connected' and the sim has an in-car binding 'RF Brake Attached', a toggle; that this car takes the binding, and the variable that carries it, are unconfirmed"
     }
    ],
@@ -2026,7 +2182,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed by analogy with the micro sprint, the nearest car driven; unconfirmed for this car"
     }
    ],
@@ -2046,7 +2203,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed by analogy with the micro sprint, the nearest car driven; unconfirmed for this car"
     }
    ],
@@ -2066,13 +2224,14 @@
     {
      "id": "wingTop",
      "var": null,
-     "label": "TOP WING",
+     "label": "Top wing",
      "note": "the top wing is moved fore and aft from the seat (the release notes call it 'Top wing fore/aft control'; the garage calls it Top Wing Position); the variable is not known: dcWingRear ('In car rear wing adjustment') is the likely one, unconfirmed"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed by analogy with the micro sprint, the nearest car driven; unconfirmed for this car"
     }
    ],
@@ -2096,13 +2255,14 @@
     {
      "id": "wingTop",
      "var": null,
-     "label": "TOP WING",
+     "label": "Top wing",
      "note": "the top wing is moved fore and aft from the seat (the release notes name the control for the 305: 'Top wing fore/aft control'; the garage calls it Top Wing Position); the variable is not known: dcWingRear ('In car rear wing adjustment') is the likely one, unconfirmed"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed by analogy with the micro sprint, the nearest car driven; unconfirmed for this car"
     }
    ],
@@ -2126,13 +2286,14 @@
     {
      "id": "wingTop",
      "var": null,
-     "label": "TOP WING",
+     "label": "Top wing",
      "note": "the top wing is moved fore and aft from the seat (the release notes name the control for the 305: 'Top wing fore/aft control'; the garage calls it Top Wing Position); the variable is not known: dcWingRear ('In car rear wing adjustment') is the likely one, unconfirmed"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed by analogy with the micro sprint, the nearest car driven; unconfirmed for this car"
     }
    ],
@@ -2157,7 +2318,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car"
     }
    ],
@@ -2177,7 +2339,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car"
     }
    ],
@@ -2197,7 +2360,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "The release notes fixed its brake bias reporting in the garage and black box, so the black box carries it; the variable is by analogy with the sim's other cars."
     }
    ],
@@ -2220,6 +2384,7 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1",
+     "words": "Traction",
      "off": 0,
      "note": "intervention on wheelspin: 0 disables TC1 and TC2, 1 least; the dial section says 4 is the most, the setup tips say 6 settings up to 5 (manual); garage '2 (TC1)' matched the variable"
     },
@@ -2227,6 +2392,7 @@
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TC2",
+     "words": "Traction yaw",
      "range": [
       1,
       4
@@ -2237,12 +2403,14 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "note": "cannot be disabled (manual); settings 1-2 are for slicks (dash SLICK) and the wet settings are given as 4-5 (dash RAIN) in the dial and dash sections, though the same page says '4 positions' and the setup tips name 5 settings; garage '2 (ABS)' matched the variable"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "range": [
       50,
       50
@@ -2269,12 +2437,14 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BBAL",
+     "words": "Bias",
      "note": "Percent front. Seen 49.1 to 51.1."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1+TC2",
+     "words": "Traction",
      "off": 1,
      "range": [
       1,
@@ -2286,6 +2456,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 1,
      "range": [
       1,
@@ -2297,6 +2468,7 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "PED",
+     "words": "Throttle map",
      "range": [
       1,
       10
@@ -2306,7 +2478,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Seen only 0, with TC working. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -2329,12 +2502,14 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BAL",
+     "words": "Bias",
      "note": "Percent front. Variable by analogy with the driven GT3 cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC 1",
+     "words": "Traction",
      "off": 6,
      "range": [
       1,
@@ -2346,6 +2521,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -2357,6 +2533,7 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "PED",
+     "words": "Throttle map",
      "range": [
       1,
       6
@@ -2366,7 +2543,8 @@
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
-     "label": "MIX",
+     "label": "Mix",
+     "words": "Engine map",
      "range": [
       1,
       12
@@ -2392,36 +2570,42 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1",
+     "words": "Traction 1",
      "note": "the 488 GT3 manual's dash page says TC1 and TC2 are 'combined for GT3 spec', which implies the GTE keeps them separate; variable by analogy with the driven GTEs; positions not published"
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TC2",
+     "words": "Traction 2",
      "note": "see TC1; existence inferred, not read"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "the 2023 S4 notes fixed the direction of this car's brake bias knob"
     },
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
-     "label": "MIX",
+     "label": "Mix",
+     "words": "Engine map",
      "note": "the shared 488 dash shows the engine map as MIX (488 GT3 manual); whether the GTE lets the driver change it is inferred, not read"
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "PED",
+     "words": "Throttle map",
      "note": "the shared 488 dash shows the throttle map as PED (488 GT3 manual); whether the GTE lets the driver change it is inferred, not read"
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "the GTE class has a traction control toggle ('may no longer be used above the pitlane speed limit', 2026 S3 notes); variable by analogy with the driven M8 GTE and 911 RSR, which publish it and read 0 while TC works; what 1 means is not seen"
     }
    ],
@@ -2446,55 +2630,64 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage: Brake Pressure Bias. Seen 55.75 to 60.5."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1",
+     "words": "Traction slip",
      "note": "Traction control slip (garage: Traction Control Slip, TC1). Seen 4 to 11."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TC2",
+     "words": "Traction gain",
      "note": "Traction control gain (garage: Traction Control Gain, TC2). Seen 3 to 9."
     },
     {
      "id": "brakeMigration",
      "var": "dcABS",
-     "label": "BIAS MIGRATION",
+     "label": "Bias migration",
+     "words": "Migration",
      "note": "Carried by dcABS; the car has no ABS. Garage: Bias Migration. Seen 2 to 6."
     },
     {
      "id": "brakeMigrationGain",
      "var": "dcBrakeMisc",
-     "label": "BIAS MIGRATION GAIN",
+     "label": "Bias migration gain",
+     "words": "Migration gain",
      "note": "Garage: Bias Migration Gain. Seen -1.75 to -0.75."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FARB",
+     "words": "Front rollbar",
      "note": "Garage: front ARB Blades. Seen 1 to 3. Label by analogy with the other GTP cars' black box."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "RARB",
+     "words": "Rear rollbar",
      "note": "Garage: rear ARB Blades. Seen 3. Label by analogy with the other GTP cars' black box."
     },
     {
      "id": "mguDeploy",
      "var": "dcMGUKDeployMode",
-     "label": "MGU-K DEPLOY MODE",
+     "label": "MGU-K deploy mode",
+     "words": "Deploy mode",
      "note": "Published; only 3 seen. What the positions mean is not confirmed, and the label is the sim's description of the variable, not the car's own word."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Published; only 0 seen. What its values mean is not confirmed."
     }
    ],
@@ -2517,13 +2710,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Variable by analogy with the driven GT3 cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1",
+     "words": "Traction",
      "off": 1,
      "range": [
       1,
@@ -2535,12 +2730,14 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "note": "The manual tells the driver to map an ABS control and the dash shows the ABS map, but it gives no positions. Variable by analogy."
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "THROTTLE SHAPE",
+     "label": "Throttle shape",
+     "words": "Throttle map",
      "range": [
       1,
       3
@@ -2550,7 +2747,7 @@
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
-     "label": "ENGINE MAP",
+     "label": "Engine map",
      "range": [
       1,
       12
@@ -2576,13 +2773,14 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "garage: Brake Pressure Bias, percent to the front; 53.059 seen, the garage's 53.1%"
     },
     {
      "id": "launch",
      "var": "dcLaunchRPM",
-     "label": "LAUNCH RPM",
+     "label": "Launch rpm",
      "note": "garage: Launch Control, Launch RPM Limit; 5500 and 6500 seen"
     }
    ],
@@ -2603,6 +2801,7 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "range": [
       1,
       3
@@ -2612,17 +2811,19 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC SWITCH",
+     "label": "TC switch",
+     "words": "Traction switch",
      "positions": {
-      "0": "OFF",
-      "1": "ON"
+      "0": "Off",
+      "1": "On"
      },
      "note": "the on/off switch the manual describes; garage TractionControlSwitch=ON matched dcTractionControlToggle=1 in all 23 files; OFF=0 is inferred"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "Brake bias",
+     "words": "Bias"
     }
    ],
    "checked": "telemetry",
@@ -2643,13 +2844,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Seen 58.0."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "range": [
       1,
       3
@@ -2660,6 +2863,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -2670,7 +2874,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC SWITCH",
+     "label": "TC switch",
+     "words": "Traction switch",
      "note": "The manual's Traction Control Switch. Seen only 0."
     }
    ],
@@ -2693,18 +2898,21 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "the GTE class has TC and no ABS (2026 S4 rule sets); variable by analogy with the driven GTEs; positions not published"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the driven GTEs"
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "the GTE class has a traction control toggle ('may no longer be used above the pitlane speed limit', 2026 S3 notes); variable by analogy with the driven M8 GTE and 911 RSR, which publish it and read 0 while TC works; what 1 means is not seen"
     }
    ],
@@ -2727,13 +2935,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Variable by analogy with the driven GT3 cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 1,
      "range": [
       1,
@@ -2745,6 +2955,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 1,
      "range": [
       1,
@@ -2755,7 +2966,8 @@
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "THROTTLE SHAPE",
+     "label": "Throttle shape",
+     "words": "Throttle map",
      "range": [
       1,
       10
@@ -2765,7 +2977,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "By analogy: every GT3 car driven on the rig publishes it. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -2787,24 +3000,28 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "by analogy with the driven GT4s; range and off value not published"
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TC2",
+     "words": "Traction 2",
      "note": "the car has a TC2 setting with its own in-car binds (2025 S4 patch 1 notes); variable by analogy with the 718 GT4 and 296 Challenge; range not published"
     },
     {
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "note": "the GT4 class has ABS (rule sets); that it is adjustable in-car like the other 2020s GT4s is assumed"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "variable by analogy with the driven GT4s"
     }
    ],
@@ -2826,19 +3043,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent to the front; the release notes added a forward adjustment range. Variable by analogy with the sim's other cars."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
-     "label": "FRONT ARB",
+     "label": "Front ARB",
+     "words": "Front rollbar",
      "note": "By analogy with the later V8 Supercars, whose in-car ARB adjustments the release notes confirm; not confirmed for this car in writing."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "By analogy with the later V8 Supercars; not confirmed for this car in writing."
     }
    ],
@@ -2859,7 +3079,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias"
     }
    ],
@@ -2880,7 +3101,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; 2020 Season 2 Patch 4 notes: 'Brake bias is now adjustable when using Fixed Setups', the wording also used for the Lotus 79, which publishes dcBrakeBias; variable name by analogy, not seen on this rig"
     }
    ],
@@ -2901,7 +3123,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; 2016 notes: 'Brake Balance can now be adjusted using the in-car Black Box' and the F8 black box shows brake pressure bias; 2020 Season 3 notes: 'Brake bias may now be adjusted in-car even when using fixed setups'; variable name by analogy, not seen on this rig"
     }
    ],
@@ -2929,17 +3152,18 @@
       3
      ],
      "positions": {
-      "0": "NOT AVAILABLE",
-      "1": "ARMED",
-      "2": "READY",
-      "3": "OPEN"
+      "0": "Not available",
+      "1": "Armed",
+      "2": "Ready",
+      "3": "Open"
      },
      "note": "status, not a dial: 0 outside a zone or not allowed, 1 past detection with the zone ahead, 2 in the zone with the flap closed, 3 flap open (meanings from a third party, the sim documents none); variable by analogy with the F1 cars driven here, where dcDRSToggle is the button; 2018-12 notes added 'DRS status' to this car's telemetry and 2019-01 notes added DRS_Count, which 'counts how many times DRS was used on the Formula Renault 3.5'"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; 2021 Season 2 Patch 3 notes: 'Brake bias may now be adjusted when a Fixed Setup is in use', the wording also used for the Lotus 79, which publishes dcBrakeBias; variable name by analogy, not seen on this rig"
     }
    ],
@@ -2964,7 +3188,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias; the manual says to map it; variable name by analogy, not seen on this rig, a third party reports it as the car's only control"
     }
    ],
@@ -2985,7 +3210,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias; the manual says to map it; variable name by analogy, not seen on this rig, a third party reports it as the car's only control; release notes say this body shares the Classic's physics and parameters"
     }
    ],
@@ -3007,7 +3233,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias; the manual says to map it; variable name by analogy, not seen on this rig, a third party reports it as the car's only control; release notes say this body shares the Classic's physics and parameters"
     }
    ],
@@ -3029,7 +3256,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "The car has a brake bias with a widened range per iRacing's release notes; that it is moved from the seat and carried in dcBrakeBias is by analogy with the sim's other road cars, not proven."
     }
    ],
@@ -3050,13 +3278,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent to the front. 48.5 to 50 seen; garage Brake Pressure Bias 49.3 to 65.8 percent."
     },
     {
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
@@ -3067,13 +3297,13 @@
     {
      "id": "rearBrakeValve",
      "var": "dcPeakBrakeBias",
-     "label": "REAR BRAKE VALVE",
+     "label": "Rear brake valve",
      "note": "The sim carries the rear brake valve in dcPeakBrakeBias; 4 seen, garage RearBrakeValve 1, 4 and 5. Higher sends more pressure to the rear without reducing the front."
     },
     {
      "id": "launch",
      "var": "dcLaunchRPM",
-     "label": "LAUNCH RPM",
+     "label": "Launch rpm",
      "note": "Launch RPM limiter for standing starts; 7000 seen."
     }
    ],
@@ -3094,25 +3324,28 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage: Brake Bias, 58.5% front. The variable read 0 throughout the one file, so on this car it may be an offset and not the bias itself."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1",
+     "words": "Traction",
      "note": "Garage: Accel Control (TC1). Seen 8. dcTractionControl2 is also in his file, but it is unused: its mapping was removed in 2026 Season 4."
     },
     {
      "id": "fuelMix",
      "var": "dcEnginePower",
-     "label": "FUEL MAP",
+     "label": "Fuel map",
      "note": "Garage: Fuel Dial, Fuel Map. Seen 8."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Published; only 0 seen. What its values mean is not confirmed."
     }
    ],
@@ -3133,36 +3366,38 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the Honda Civic Type R TCR. Percent to the front; the manual says to map controls for it."
     },
     {
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "range": [
       1,
       5
      ],
      "positions": {
-      "1": "DRY",
-      "2": "DAMP",
-      "3": "WET",
-      "4": "SAFETY CAR",
-      "5": "LIMP"
+      "1": "Dry",
+      "2": "Damp",
+      "3": "Wet",
+      "4": "Safety car",
+      "5": "Limp"
      },
      "note": "The manual: one of five settings, adjustable via the F8 black box; no off position is described. Variable by analogy with the Honda."
     },
     {
      "id": "rearBrakeValve",
      "var": "dcPeakBrakeBias",
-     "label": "REAR BRAKE VALVE",
+     "label": "Rear brake valve",
      "note": "In the manual; variable by analogy with the Honda Civic Type R TCR."
     },
     {
      "id": "launch",
      "var": "dcLaunchRPM",
-     "label": "LAUNCH RPM",
+     "label": "Launch rpm",
      "note": "In the manual; variable by analogy with the Honda Civic Type R TCR."
     }
    ],
@@ -3183,36 +3418,38 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the Honda Civic Type R TCR. Percent to the front; the manual says to map controls for it."
     },
     {
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "range": [
       1,
       5
      ],
      "positions": {
-      "1": "DRY",
-      "2": "DAMP",
-      "3": "WET",
-      "4": "SAFETY CAR",
-      "5": "LIMP"
+      "1": "Dry",
+      "2": "Damp",
+      "3": "Wet",
+      "4": "Safety car",
+      "5": "Limp"
      },
      "note": "The manual: one of five settings, adjustable via the F8 black box; no off position is described. Variable by analogy with the Honda."
     },
     {
      "id": "rearBrakeValve",
      "var": "dcPeakBrakeBias",
-     "label": "REAR BRAKE VALVE",
+     "label": "Rear brake valve",
      "note": "In the manual; variable by analogy with the Honda Civic Type R TCR."
     },
     {
      "id": "launch",
      "var": "dcLaunchRPM",
-     "label": "LAUNCH RPM",
+     "label": "Launch rpm",
      "note": "In the manual; variable by analogy with the Honda Civic Type R TCR."
     }
    ],
@@ -3233,7 +3470,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; not confirmed for this car: the only release note found (2020 Season 4 Patch 3) says 'Brake bias is now adjustable in the garage during Fixed Setups Sessions', which speaks of the garage, where the same year's note for the Formula Renault 2.0 said 'in-car'; variable name by analogy, not seen on this rig"
     }
    ],
@@ -3267,7 +3505,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "'Brake bias adjustment is now available for this vehicle in Official, Fixed Setup series' (2016 S4 notes)"
     }
    ],
@@ -3290,13 +3529,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Seen 46.5 to 75.5."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 12,
      "range": [
       1,
@@ -3308,6 +3549,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -3319,6 +3561,7 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "THR",
+     "words": "Throttle map",
      "range": [
       1,
       3
@@ -3328,7 +3571,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Seen only 0, with TC working. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -3350,7 +3594,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "iRacing's Late Model, retired in 2023 Season 2 and replaced by the Late Model Stock. Its 2014 Season 1 note gave it 'an adjustable balance bar ... the bias cannot be adjusted while pressure is applied to the brakes', which describes an in-seat adjuster. Variable by analogy with every driven car that has a garage brake bias; not checked on this car."
     }
    ],
@@ -3371,7 +3616,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "The manual's garage setting is 'Brake Balance Bar' (percent front). The manual does not say it is adjustable from the seat; written from the pattern that every driven car with a garage brake bias publishes dcBrakeBias, and from the Super Late Model of the same family, which iRacing says has in-car brake bias."
     }
    ],
@@ -3393,7 +3639,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "the garage of the pavement Legends Ford Coupe has Front Brake Pressure Bias (iRacing's manual for that car, which does not mention the dirt version or any in-seat adjustment); not driven on this rig: dcBrakeBias is assumed, unconfirmed for this car"
     }
    ],
@@ -3414,7 +3661,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage setting 'Front Brake Pressure Bias' (percent front). Not stated as in-car by iRacing; written from the pattern that every driven car with a garage brake bias publishes dcBrakeBias. The manual also says the dash 'Screen Color' is 'adjustable from within the car'; that is display housekeeping and is left out."
     }
    ],
@@ -3435,7 +3683,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "The fixed-setup Rookie version of the coupe, retired in 2025 Season 2 (its name is shown with the [Retired] prefix). Written as the coupe; the Rookie car may have had this locked."
     }
    ],
@@ -3456,13 +3705,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BALANCE",
+     "label": "Brake balance",
+     "words": "Bias",
      "note": "Dash: Brake Balance. Garage: Brake Pressure Bias. Seen 53.531."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 0,
      "note": "One traction control setting: higher cuts harder. At 0 the dash shows OFF. Seen 3."
     },
@@ -3470,12 +3721,14 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "PPS",
+     "words": "Throttle map",
      "note": "Garage: Throttle Shape. Dash: PPS. 1 is linear. Seen 4."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Published; only 0 seen. What its values mean is not confirmed."
     }
    ],
@@ -3497,7 +3750,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; 2026 Season 2 notes: 'Brake bias is now fully adjustable in Fixed Setup racing sessions'; 2024 Season 4 Patch 2 Hotfix 1 notes: 'The brake bias adjustment increment has been reduced from 0.5% to 0.25%'; both taken to mean an adjuster in the car, as the same wording was used for the Lotus 79, which publishes dcBrakeBias; variable name by analogy with the Lotus 79, not seen on this rig"
     }
    ],
@@ -3519,19 +3773,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Bias"
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
-     "label": "FRONT ARB",
+     "label": "Front ARB",
+     "words": "Front rollbar",
      "note": "reads one less than the garage's ARB Arms: 3 reads 2"
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "reads one less than the garage's ARB Arms: 2 reads 1"
     }
    ],
@@ -3552,21 +3809,23 @@
      "id": "mode",
      "var": "dcABS",
      "label": "ABS/TC/ESC",
+     "words": "Assists",
      "range": [
       0,
       2
      ],
      "positions": {
-      "0": "TRACK",
-      "1": "SPORT",
-      "2": "NORMAL"
+      "0": "Track",
+      "1": "Sport",
+      "2": "Normal"
      },
      "note": "one control for ABS, TC and ESC; the sim publishes it as dcABS: Track=0 in 358 files, Sport=1 in 12, Normal=2 in 1 (dash: ESC off = Normal, orange = Sport, orange with off = Track)"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "range": [
       49,
       49
@@ -3593,13 +3852,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Seen 53.6 to 54.0."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1 & TC2",
+     "words": "Traction",
      "off": 1,
      "range": [
       1,
@@ -3611,6 +3872,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 1,
      "range": [
       1,
@@ -3621,7 +3883,8 @@
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "MAP",
+     "label": "Map",
+     "words": "Throttle map",
      "range": [
       1,
       3
@@ -3631,7 +3894,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Seen only 0 in 347 files, with TC working. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -3653,19 +3917,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Seen 46.9 to 53.1."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "Seen 2, 4, 5, 6. The manual (2024-01) gives three positions and is out of date; the range and the direction are not known. The TC switch turns it off."
     },
     {
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -3677,12 +3944,14 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "TPS",
+     "words": "Throttle map",
      "note": "Seen only 10; the garage shows 10 (TPS). Not in the manual; range not known."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC SWITCH",
+     "label": "TC switch",
+     "words": "Traction switch",
      "note": "The manual's Traction Control Switch. Seen only 0."
     }
    ],
@@ -3711,29 +3980,32 @@
       3
      ],
      "positions": {
-      "0": "NOT AVAILABLE",
-      "1": "ARMED",
-      "2": "READY",
-      "3": "OPEN"
+      "0": "Not available",
+      "1": "Armed",
+      "2": "Ready",
+      "3": "Open"
      },
      "note": "status, not a dial: 0 outside a zone or not allowed, 1 past detection with the zone ahead, 2 in the zone with the flap closed, 3 flap open (meanings from a third party, the sim documents none); dcDRSToggle is the button"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "not the bias itself: an offset in percent front from the garage's Base Brake Bias, 0 at the garage value, in steps of 0.25; seen -2.75 to 0.5; 2018 Season 4 notes: 'The in-car brake bias is now adjustable with the fixed setup for this car'"
     },
     {
      "id": "brakeMigration",
      "var": "dcPeakBrakeBias",
      "label": "BAL",
+     "words": "Migration",
      "note": "garage: Peak Brake Bias Offset; the bias moves from base towards peak with pedal travel; seen 5 to 8"
     },
     {
      "id": "mguDeploy",
      "var": "dcMGUKDeployMode",
-     "label": "TARGET BATTERY SOC",
+     "label": "Target battery SOC",
+     "words": "Battery target",
      "range": [
       25,
       75
@@ -3749,12 +4021,14 @@
      "id": "diffEntry",
      "var": "dcDiffEntry",
      "label": "ENT",
+     "words": "Entry diff",
      "note": "seen 2 to 5"
     },
     {
      "id": "diffPreload",
      "var": "dcDiffPreload",
      "label": "PL",
+     "words": "Entry preload",
      "note": "garage: Entry Preload; seen 2 to 4"
     }
    ],
@@ -3777,13 +4051,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Variable by analogy with the driven GT3 cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 12,
      "range": [
       1,
@@ -3795,6 +4071,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -3805,7 +4082,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "By analogy: every GT3 car driven on the rig publishes it. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -3826,13 +4104,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Variable by analogy with the driven GT3 cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "range": [
       1,
       12
@@ -3843,6 +4123,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -3853,7 +4134,8 @@
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
-     "label": "MAP",
+     "label": "Map",
+     "words": "Engine map",
      "range": [
       1,
       3
@@ -3863,13 +4145,15 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC SWITCH",
+     "label": "TC switch",
+     "words": "Traction switch",
      "note": "The manual's Traction Control Switch. Variable by analogy with the Ford GT GT3 and McLaren MP4-12C GT3."
     },
     {
      "id": "absToggle",
      "var": null,
-     "label": "ABS SWITCH",
+     "label": "ABS switch",
+     "words": "Anti-lock switch",
      "note": "The manual's ABS Switch, which turns ABS off altogether. No driven car has one, so its variable is not known."
     }
    ],
@@ -3891,6 +4175,7 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 12,
      "range": [
       1,
@@ -3902,6 +4187,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 12,
      "range": [
       1,
@@ -3912,7 +4198,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "variable by analogy with the driven GT4s"
     }
    ],
@@ -3940,10 +4227,10 @@
       3
      ],
      "positions": {
-      "0": "NOT AVAILABLE",
-      "1": "ARMED",
-      "2": "READY",
-      "3": "OPEN"
+      "0": "Not available",
+      "1": "Armed",
+      "2": "Ready",
+      "3": "Open"
      },
      "note": "status, not a dial: 0 outside a zone or not allowed, 1 past detection with the zone ahead, 2 in the zone with the flap closed, 3 flap open (meanings from a third party, the sim documents none); variable name by analogy with the W13, not seen on this rig, where dcDRSToggle is the button"
     },
@@ -3951,12 +4238,14 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BBAL",
+     "words": "Bias",
      "note": "base brake bias, percent front; variable name by analogy with the W13, not seen on this rig"
     },
     {
      "id": "brakeBiasFine",
      "var": "dcBrakeBiasFine",
      "label": "BB+/BB-",
+     "words": "Fine bias",
      "note": "fine brake bias, added to BBAL; limited to +/-1% by the 2022 Season 1 Patch 1 Hotfix 1 notes; variable name by analogy with the W13, not seen on this rig",
      "range": [
       -1,
@@ -3967,6 +4256,7 @@
      "id": "brakeMigration",
      "var": "dcPeakBrakeBias",
      "label": "BMIG",
+     "words": "Migration",
      "range": [
       1,
       10
@@ -3976,17 +4266,17 @@
     {
      "id": "mguDeploy",
      "var": "dcMGUKDeployMode",
-     "label": "DEPLOY MODE",
+     "label": "Deploy mode",
      "note": "manual: No Deploy, Qual, Attack, Balanced, Build, with four changes allowed per lap; the numbers are not known for this car: on the W13 driven here Qual reads 0 and Balanced reads 2; variable name by analogy with the W13, not seen on this rig"
     },
     {
      "id": "regen",
      "var": "dcMGUKRegenGain",
-     "label": "RECHARGE",
+     "label": "Recharge",
      "off": 0,
      "positions": {
-      "0": "OFF",
-      "1": "ON"
+      "0": "Off",
+      "1": "On"
      },
      "note": "recharge mode, which overrides the deploy mode; release notes name the control Regen Gain; variable name by analogy with the W13, not seen on this rig"
     },
@@ -3994,30 +4284,34 @@
      "id": "engineBraking",
      "var": "dcEngineBraking",
      "label": "EB",
+     "words": "Engine braking",
      "note": "lower numbers give more engine braking; variable name by analogy with the W13, not seen on this rig"
     },
     {
      "id": "diffEntry",
      "var": "dcDiffEntry",
-     "label": "ENTRY",
+     "label": "Entry",
+     "words": "Entry diff",
      "note": "variable name by analogy with the W13, not seen on this rig"
     },
     {
      "id": "diffMid",
      "var": "dcDiffMiddle",
-     "label": "MID",
+     "label": "Mid",
+     "words": "Mid diff",
      "note": "variable name by analogy with the W13, not seen on this rig"
     },
     {
      "id": "diffExit",
      "var": "dcDiffExit",
      "label": "HISPD",
+     "words": "High-speed diff",
      "note": "the garage's High Speed; variable name by analogy with the W13, not seen on this rig"
     },
     {
      "id": "brakeMagic",
      "var": "dcBrakeMisc",
-     "label": "BRAKE MAGIC",
+     "label": "Brake magic",
      "off": 0,
      "note": "manual: moves the bias to a front-heavy garage value to warm the front brakes; 2022 Season 1 Patch 3 notes fixed 'an issue where Spotters were able to engage Brake Magic', so it is an in-car control; that dcBrakeMisc carries it is a third party's word; variable name by analogy with the W13, not seen on this rig"
     }
@@ -4051,10 +4345,10 @@
       3
      ],
      "positions": {
-      "0": "NOT AVAILABLE",
-      "1": "ARMED",
-      "2": "READY",
-      "3": "OPEN"
+      "0": "Not available",
+      "1": "Armed",
+      "2": "Ready",
+      "3": "Open"
      },
      "note": "status, not a dial: 0 outside a zone or not allowed, 1 past detection with the zone ahead, 2 in the zone with the flap closed, 3 flap open (meanings from a third party, the sim documents none); dcDRSToggle is the button"
     },
@@ -4062,18 +4356,21 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BBAL",
+     "words": "Bias",
      "note": "base brake bias, percent front; seen 52 to 55.5"
     },
     {
      "id": "brakeBiasFine",
      "var": "dcBrakeBiasFine",
      "label": "BB+/BB-",
+     "words": "Fine bias",
      "note": "fine brake bias, added to BBAL; seen -1.0 to 0.4; a third party gives -1 to 1"
     },
     {
      "id": "brakeMigration",
      "var": "dcPeakBrakeBias",
      "label": "BMIG",
+     "words": "Migration",
      "range": [
       1,
       10
@@ -4083,21 +4380,21 @@
     {
      "id": "mguDeploy",
      "var": "dcMGUKDeployMode",
-     "label": "DEPLOY MODE",
+     "label": "Deploy mode",
      "positions": {
-      "0": "QUAL",
-      "2": "BALANCED"
+      "0": "Qual",
+      "2": "Balanced"
      },
      "note": "0 = Qual and 2 = Balanced are checked against the garage in his files; 3 has been seen and 1 has not; by the W12 manual's order (No Deploy, Qual, Attack, Balanced, Build) with No Deploy gone, 1 would be Attack and 3 Build, but neither is confirmed; 2025 Season 4 Patch 1 notes confirm an Attack mode on this car"
     },
     {
      "id": "regen",
      "var": "dcMGUKRegenGain",
-     "label": "RECHARGE",
+     "label": "Recharge",
      "off": 0,
      "positions": {
-      "0": "OFF",
-      "1": "ON"
+      "0": "Off",
+      "1": "On"
      },
      "note": "garage: Recharge Mode, which overrides the deploy mode; release notes name the control Regen Gain"
     },
@@ -4105,6 +4402,7 @@
      "id": "engineBraking",
      "var": "dcEngineBraking",
      "label": "EB",
+     "words": "Engine braking",
      "range": [
       1,
       12
@@ -4114,25 +4412,28 @@
     {
      "id": "diffEntry",
      "var": "dcDiffEntry",
-     "label": "ENTRY",
+     "label": "Entry",
+     "words": "Entry diff",
      "note": "seen 1 to 4"
     },
     {
      "id": "diffMid",
      "var": "dcDiffMiddle",
-     "label": "MID",
+     "label": "Mid",
+     "words": "Mid diff",
      "note": "seen 4 to 10"
     },
     {
      "id": "diffExit",
      "var": "dcDiffExit",
      "label": "HISPD",
+     "words": "High-speed diff",
      "note": "the garage's High Speed, not an exit setting by name; seen 1 to 6"
     },
     {
      "id": "brakeMagic",
      "var": "dcBrakeMisc",
-     "label": "BRAKE MAGIC",
+     "label": "Brake magic",
      "off": 0,
      "note": "only 0 has ever been seen; that it is Brake Magic is a third party's word and the garage on this rig shows no such setting"
     }
@@ -4217,7 +4518,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage: Brake Pressure Bias. Seen 55.5 to 57.25."
     }
    ],
@@ -4239,6 +4541,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS/TC/ESC",
+     "words": "Assists",
      "off": 0,
      "range": [
       0,
@@ -4250,10 +4553,11 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 1,
      "positions": {
-      "0": "ON",
-      "1": "OFF"
+      "0": "On",
+      "1": "Off"
      },
      "note": "the TC off button added in 2025 S4, mapped to the TC1 in-car control (2025 S4 Patch 1 notes); the garage's TractionControl=On pairs with dcTractionControl=0 in 23 of 26 files, so 1 means the TC is switched off"
     },
@@ -4261,17 +4565,19 @@
      "id": "esc",
      "var": "dcTractionControl2",
      "label": "ESC",
+     "words": "Stability",
      "off": 1,
      "positions": {
-      "0": "ON",
-      "1": "OFF"
+      "0": "On",
+      "1": "Off"
      },
      "note": "the ESC off button added in 2025 S4, mapped to the TC2 in-car control (2025 S4 Patch 1 notes); the garage's StabilityControl=Off pairs with dcTractionControl2=1 in 24 of 26 files; the dash shows TC and ESC on/off indicators"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "Brake bias",
+     "words": "Bias"
     }
    ],
    "checked": "telemetry",
@@ -4293,7 +4599,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the driven 992 Cup, which publishes only dcBrakeBias; the 2026 S4 rule sets list neither ABS nor TC for this car"
     }
    ],
@@ -4315,13 +4622,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front. Variable by analogy with the driven GT3 cars."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC-C",
+     "words": "Traction cut",
      "off": 0,
      "range": [
       0,
@@ -4333,6 +4642,7 @@
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TC-R",
+     "words": "Traction slip",
      "range": [
       0,
       11
@@ -4343,6 +4653,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
@@ -4354,6 +4665,7 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "TH-S",
+     "words": "Throttle map",
      "range": [
       0,
       4
@@ -4363,7 +4675,8 @@
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
-     "label": "MAP",
+     "label": "Map",
+     "words": "Engine map",
      "range": [
       0,
       4
@@ -4388,43 +4701,48 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the Audi R18."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "The LMP1 class has traction control (2026 Season 4 release notes). Variable by analogy with the Audi R18; the car's own label and whether it has more than one TC control are not known."
     },
     {
      "id": "mguDeploy",
      "var": "dcMGUKDeployMode",
-     "label": "DEPLOY MODE",
+     "label": "Deploy mode",
      "note": "Automatic or Manual deployment. Variable by analogy with the Audi R18; the values are not known."
     },
     {
      "id": "mguDeployFixed",
      "var": "dcMGUKDeployFixed",
-     "label": "DEPLOY TRIM",
+     "label": "Deploy trim",
      "note": "The manual deployment trim. Variable by analogy with the Audi R18."
     },
     {
      "id": "regen",
      "var": "dcMGUKRegenGain",
-     "label": "MGU-K RE-GEN GAIN",
+     "label": "MGU-K re-gen gain",
+     "words": "Regen gain",
      "note": "Variable by analogy with the Audi R18."
     },
     {
      "id": "boostHold",
      "var": "dcHysBoostHold",
-     "label": "HYS BOOST",
+     "label": "HYS boost",
+     "words": "Hybrid boost",
      "note": "A button. Variable by analogy with the Audi R18."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "By analogy with the Audi R18. What its values mean is not confirmed."
     }
    ],
@@ -4446,49 +4764,56 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BIAS",
+     "label": "Bias",
      "note": "Garage: Brake Pressure Bias. Seen 46.5 to 48."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TCLO",
+     "words": "Traction slip",
      "note": "Traction control slip (garage: Traction Control Slip, TCLO): higher acts on less wheelspin. Seen 5."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TCLA",
+     "words": "Traction gain",
      "note": "Traction control gain (garage: Traction Control Gain, TCLA): higher cuts harder. Seen 4."
     },
     {
      "id": "brakeMigration",
      "var": "dcABS",
      "label": "MIG",
+     "words": "Migration",
      "note": "Carried by dcABS; the car has no ABS. Garage: Brake Bias Migration, 1% a click. On getting in, dcABS matched the garage's Brake Bias Migration in 43 of 47 files and dcBrakeMisc its Brake Bias Target in 45 of 47, so which is which is shown on this car itself. Seen -4 to 5."
     },
     {
      "id": "brakeBiasFine",
      "var": "dcBrakeMisc",
-     "label": "TARGET",
+     "label": "Target",
+     "words": "Bias target",
      "note": "Brake Bias Target: an offset from the brake pressure bias, 0.5% a click. Seen -3 to 1."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "AR-F",
+     "words": "Front rollbar",
      "note": "Garage: front ARB Adjustment. Black box: FARB Setting. Works only with the front ARB connected in the garage. Seen 1."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "AR-R",
+     "words": "Rear rollbar",
      "note": "Garage: rear ARB Adjustment. Black box: RARB Setting. Works only with a rear ARB fitted in the garage. Seen 15."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Published; only 0 seen. What its values mean is not confirmed."
     }
    ],
@@ -4514,29 +4839,34 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC-CON",
+     "words": "Traction 1",
      "note": "garage TractionControlSetting1 'n (TC-CON)' matched the variable in 27 of 34 files; 1 to 9 seen; range and off value not published"
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TCR",
+     "words": "Traction 2",
      "note": "garage TractionControlSetting2 'n (TCR)' matched the variable in 23 of 34 files; 1 to 11 seen; range and off value not published"
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "Brake bias",
+     "words": "Bias"
     },
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
-     "label": "MAP",
+     "label": "Map",
+     "words": "Engine map",
      "note": "garage EngineMapSetting '0 (MAP)' matched dcFuelMixture in all 34 files; 4, 5 and 10 seen in the one file where it was changed in the car; range not published"
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "published by this car; read 0 in every one of his files while TC was set and working, so it does not say whether TC is on; on GT3 cars iRacing calls the same control the timed 'TC Disable' (2024 S1 notes); what 1 means here is not seen"
     }
    ],
@@ -4559,6 +4889,7 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 0,
      "range": [
       0,
@@ -4570,6 +4901,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
@@ -4580,12 +4912,14 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "Brake bias",
+     "words": "Bias"
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "ATH",
+     "words": "Throttle map",
      "range": [
       1,
       2
@@ -4595,7 +4929,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "present only in his newer files (61 of 173) and always 0; published by this car; read 0 in every one of his files while TC was set and working, so it does not say whether TC is on; on GT3 cars iRacing calls the same control the timed 'TC Disable' (2024 S1 notes); what 1 means here is not seen"
     }
    ],
@@ -4617,7 +4952,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "the only control the car publishes (2 files); 42.1% in the garage matched dcBrakeBias 42.079"
     }
    ],
@@ -4639,13 +4975,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent front; the dash shows it as an offset from 50. Seen 48.5 to 50.5."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC-LAT",
+     "words": "Traction",
      "off": 0,
      "note": "Seen 0 to 8 and 10. The manual says 0 is off and higher is more, and gives no highest position. One value, shown on the dash as TC-LA and TC-LO. Since 2026 Season 3 the range offered depends on dry or wet tyres."
     },
@@ -4653,6 +4991,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
@@ -4664,6 +5003,7 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "THR",
+     "words": "Throttle map",
      "range": [
       1,
       3
@@ -4673,7 +5013,8 @@
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "Seen only 0, with TC working. Usable only below pit speed since 2026 Season 3."
     }
    ],
@@ -4697,6 +5038,7 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 0,
      "range": [
       0,
@@ -4708,6 +5050,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
@@ -4718,19 +5061,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "the black box shows a single-digit offset from the garage bias (manual); the variable carries the resulting percentage (48.795 with garage 0%)"
     },
     {
      "id": "driveBias",
      "var": "dcEnginePower",
      "label": "DB",
+     "words": "Drive bias",
      "note": "front/rear drive split, positive forward, negative rearward (manual); the sim publishes it as dcEnginePower: garage DriveBias -4 matched dcEnginePower -4 (1 file); range not published"
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "RARB BLADE",
+     "label": "RARB blade",
+     "words": "Rear rollbar",
      "range": [
       1,
       7
@@ -4757,7 +5103,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "garage: Front Brake Bias (35.0% and 40.0% seen); dcBrakeBias read 0 in all three of his files, so it does not carry the garage's percentage"
     }
    ],
@@ -4777,7 +5124,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the Pro 2 Lite of the same family, driven on this rig, where dcBrakeBias read 0 and did not carry the garage's percentage; unconfirmed for this car"
     }
    ],
@@ -4797,7 +5145,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the Pro 2 Lite of the same family, driven on this rig, where dcBrakeBias read 0 and did not carry the garage's percentage; unconfirmed for this car"
     }
    ],
@@ -4818,7 +5167,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage: Brake Bias. Seen 54.5."
     }
    ],
@@ -4839,19 +5189,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage: Brake Pressure Bias. Seen 53.5 to 63.5."
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "TPS",
+     "words": "Throttle map",
      "note": "Garage: Throttle Shape (TPS). Seen 1."
     },
     {
      "id": "boost",
      "var": "dcBoostLevel",
      "label": "CAL",
+     "words": "Boost",
      "note": "Garage: Boost Level (CAL). Seen 8."
     }
    ],
@@ -4872,7 +5225,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias"
     }
    ],
@@ -4892,7 +5246,7 @@
     {
      "id": "rearBrakeValve",
      "var": "dcPeakBrakeBias",
-     "label": "REAR BRAKE VALVE",
+     "label": "Rear brake valve",
      "range": [
       10,
       40
@@ -4902,7 +5256,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Published (about 59 percent) but reported not to move from the seat; the car's screen offers the valve and no bias adjustment. Third-party observation."
     }
    ],
@@ -4925,7 +5280,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "By analogy with the driven prototypes, every one of which publishes dcBrakeBias."
     }
    ],
@@ -4946,7 +5302,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; not confirmed that this car lets it be changed from the seat; variable name by analogy, not seen on this rig"
     }
    ],
@@ -4964,7 +5321,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Release notes for the Ruf RT 12R say brake bias adjustment is available in fixed-setup series; the variable is by analogy with the sim's other cars."
     }
    ],
@@ -4986,7 +5344,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Release notes for the Ruf RT 12R say brake bias adjustment is available in fixed-setup series; the variable is by analogy with the sim's other cars."
     }
    ],
@@ -5008,19 +5367,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Pressure-based bias per the release notes; variable by analogy with the McLaren MP4-12C GT3, updated alongside it."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "note": "Adjustable traction control was added in the same build as the MP4-12C GT3's; variable by analogy with that car. Range not published."
     },
     {
      "id": "tcToggle",
      "var": "dcTractionControlToggle",
-     "label": "TC TOGGLE",
+     "label": "TC toggle",
+     "words": "Traction toggle",
      "note": "The 2014 Season 2 notes: traction control can be disabled for 5 seconds via the new traction control toggle control. Variable by analogy with the McLaren MP4-12C GT3, updated in the same build, which reads only 0 with TC working. What its values mean is not known: the sim describes it as in-car traction control active, and on the Ford GT driven here 1 matched the garage's TC switch ON, so no positions are written."
     }
    ],
@@ -5042,7 +5404,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Cockpit-adjustable brake bias per iRacing's release notes; variable by analogy with the sim's other cars."
     }
    ],
@@ -5064,13 +5427,14 @@
     {
      "id": "weightJacker",
      "var": "dcWeightJackerRight",
-     "label": "WEIGHT JACKER",
+     "label": "Weight jacker",
      "note": "iRacing's Jan 2016 note changed the jacker's throw so that 'each click will have double the cross weight change', which describes a clicked in-seat jacker. Whether the right or the left variable carries it is unverified; the right one is given by analogy with the Dallara IndyCar."
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "iRacing's setup article names 'front brake bias' as a setting. Not stated as in-car; written from the pattern that every driven car with a garage brake bias publishes dcBrakeBias."
     }
    ],
@@ -5092,7 +5456,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "2021 Season 1: 'Brake bias is now adjustable in the garage and on the track' (both Modifieds). 2026 Season 3 gave it iRacing's newest brake system. Variable by analogy with driven cars."
     }
    ],
@@ -5114,7 +5479,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "2021 Season 1: 'Brake bias is now adjustable in the garage and on the track' (both Modifieds). 2026 Season 3 gave it iRacing's newest brake system. Variable by analogy with driven cars."
     }
    ],
@@ -5164,7 +5530,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "iRacing's release notes widened the car's brake bias range; that it is moved from the seat and carried in dcBrakeBias is by analogy, not proven."
     }
    ],
@@ -5185,7 +5552,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Unverified. No public iRacing text says whether this car's brake bias can be changed from the seat; written by analogy with the Silver Crown and the other pavement oval cars. The car was rebuilt from the ground up in 2026 Season 4 ('Brakes upgraded to newest systems'), so anything older may no longer hold."
     }
    ],
@@ -5207,7 +5575,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage setting 'Brake Pressure Bias' via the balance bar. 2025 Season 1: 'Brakes are now adjustable during Fixed Setup sessions', read as the in-seat bias adjuster. Variable by analogy with driven cars."
     }
    ],
@@ -5229,17 +5598,18 @@
     {
      "id": "p2p",
      "var": "P2P_Status",
-     "label": "EXTRA POWER",
+     "label": "Extra power",
      "positions": {
-      "0": "OFF",
-      "1": "ACTIVE"
+      "0": "Off",
+      "1": "Active"
      },
      "note": "iRacing calls it the Extra Power system: up to six activations per race, a five second delay, just over 20 seconds of power, an 85 second block afterwards, not on lap one. P2P_Count carries the uses remaining; the trigger is dcPushToPass by analogy with the Dallara IL15."
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "By analogy with the sim's other racing cars; not confirmed in writing for this car."
     }
    ],
@@ -5261,17 +5631,18 @@
     {
      "id": "p2p",
      "var": "P2P_Status",
-     "label": "EXTRA POWER",
+     "label": "Extra power",
      "positions": {
-      "0": "OFF",
-      "1": "ACTIVE"
+      "0": "Off",
+      "1": "Active"
      },
      "note": "iRacing calls it the Extra Power system: up to six activations per race, a five second delay, just over 20 seconds of power, an 85 second block afterwards, not on lap one. P2P_Count carries the uses remaining; the trigger is dcPushToPass by analogy with the Dallara IL15."
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "By analogy with the sim's other racing cars; not confirmed in writing for this car."
     }
    ],
@@ -5292,7 +5663,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. No public document names this car's in-car adjustments. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5313,7 +5685,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. Brake bias is the one adjustment iRacing calls driver-controlled on the Gen 6 car. Reported to read as an offset from the garage value, starting at 0."
     }
    ],
@@ -5337,7 +5710,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Named for these cars in iRacing's 2023 Season 2 release notes: reads the front brake pressure bias in percent, as the garage shows it."
     }
    ],
@@ -5361,7 +5735,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. The manual gives FRONT BRAKE BIAS as a garage setting and names no in-car adjustment. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5383,7 +5758,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "This folder is the superspeedway body of the same car; the entry repeats the car's. Variable by analogy with the ARCA Ford Mustang driven on this rig. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5405,7 +5781,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. No public document names this car's in-car adjustments. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5426,7 +5803,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. Brake bias is the one adjustment iRacing calls driver-controlled on the Gen 6 car; 0.5% a click (2018 Season 4 notes). Reported to read as an offset from the garage value, starting at 0."
     }
    ],
@@ -5450,7 +5828,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. Brake bias is the one adjustment iRacing calls driver-controlled on the Gen 6 car; 0.5% a click (2018 Season 4 notes). Reported to read as an offset from the garage value, starting at 0."
     }
    ],
@@ -5474,7 +5853,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. Brake bias is the one adjustment iRacing calls driver-controlled on the Gen 6 car. Reported to read as an offset from the garage value, starting at 0."
     }
    ],
@@ -5498,7 +5878,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Named for these cars in iRacing's 2023 Season 2 release notes: reads the front brake pressure bias in percent, as the garage shows it."
     }
    ],
@@ -5522,7 +5903,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. The manual gives FRONT BRAKE BIAS as a garage setting and names no in-car adjustment. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5544,7 +5926,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "This folder is the superspeedway body of the same car; the entry repeats the car's. Variable by analogy with the ARCA Ford Mustang driven on this rig. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5566,7 +5949,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. No public document names this car's in-car adjustments. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5587,7 +5971,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. In-car brake bias is in the release notes for this car (2010: limited to +/-3%; 2016 Season 4: allowed in fixed setups). The limit has not been confirmed since. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5608,7 +5993,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. No public document names this car's in-car adjustments. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5629,7 +6015,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. Brake bias is the one adjustment iRacing calls driver-controlled on the Gen 6 car; 0.5% a click (2018 Season 4 notes). Reported to read as an offset from the garage value, starting at 0."
     }
    ],
@@ -5653,7 +6040,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Named for these cars in iRacing's 2023 Season 2 release notes: reads the front brake pressure bias in percent, as the garage shows it."
     }
    ],
@@ -5677,7 +6065,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig, a car of the same class, whose dcBrakeBias read 0 with the garage at 65.0% front: not the percentage, probably an offset from the garage value, which is inferred and not shown."
     }
    ],
@@ -5698,7 +6087,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Read 0 in the one file while the garage said 65.0% front, so it is not the front-bias percentage. An offset from the garage value, as the Gen 6 cars are reported to read, fits but is inferred, not shown; only 0 was seen, so the step, the sign and the limits are not known."
     }
    ],
@@ -5720,7 +6110,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig, a car of the same class, whose dcBrakeBias read 0 with the garage at 65.0% front: not the percentage, probably an offset from the garage value, which is inferred and not shown."
     }
    ],
@@ -5741,7 +6132,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. The manual gives FRONT BRAKE BIAS as a garage setting and names no in-car adjustment. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5763,7 +6155,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. In-car brake bias is in the release notes for this car (2016 Season 4: allowed in fixed setups). Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5784,7 +6177,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. In-car brake bias is in the release notes for this car (2010: limited to +/-3%; 2016 Season 4: allowed in fixed setups; 2023: a brake bias knob in the cockpit). The limit has not been confirmed since. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5805,7 +6199,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. No release note names this car's in-car brake bias; its siblings in the same folder have it. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5826,7 +6221,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. A brake bias knob in the cockpit is in the release notes for this car (2023 Season 4 Patch 4). Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5847,7 +6243,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. New in 2026 Season 4, in the package of the ARCA Menards Chevrolet Impala and the Gen 4 Cup, which have a brake bias knob. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5867,7 +6264,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. The manual gives FRONT BRAKE BIAS as a garage setting and names no in-car adjustment. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5889,7 +6287,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. In-car brake bias is in the release notes for this car (2016 Season 4: allowed in fixed setups). Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5910,7 +6309,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. In-car brake bias is in the release notes for this car (2016 Season 4: allowed in fixed setups). Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5931,7 +6331,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Variable by analogy with the ARCA Ford Mustang driven on this rig. The manual gives FRONT BRAKE BIAS as a garage setting and names no in-car adjustment. Whether it reads a percentage or an offset from the garage value is not known."
     }
    ],
@@ -5953,7 +6354,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage setting 'Brake Balance Bar'; the manual says it 'may need adjustment during a race'. 2016 Season 4 made its brake bias adjustment available in fixed-setup series, so the car has one. Variable by analogy with driven cars."
     }
    ],
@@ -5976,7 +6378,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "New in 2024 Season 3, sharing the Street Stock manual and class with the Panther. Written as the Panther; not confirmed for this body."
     }
    ],
@@ -5998,7 +6401,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "New in 2024 Season 3, sharing the Street Stock manual and class with the Panther. Written as the Panther; not confirmed for this body."
     }
    ],
@@ -6020,13 +6424,14 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "garage: Brake Pressure Bias, percent to the front; 62.11 seen, the garage's 62.1%"
     },
     {
      "id": "launch",
      "var": "dcLaunchRPM",
-     "label": "LAUNCH RPM",
+     "label": "Launch rpm",
      "note": "garage: Launch Control, Launch RPM Limit; 5600 and 6600 seen"
     }
    ],
@@ -6046,13 +6451,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Shown at the bottom of both dash pages; percent to the front. Variable by analogy with the sim's other cars."
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "PEDAL",
+     "label": "Pedal",
+     "words": "Throttle map",
      "range": [
       1,
       10
@@ -6062,10 +6469,10 @@
     {
      "id": "lineLock",
      "var": null,
-     "label": "LINE LOCK",
+     "label": "Line lock",
      "positions": {
-      "0": "OFF",
-      "1": "ON"
+      "0": "Off",
+      "1": "On"
      },
      "note": "The launch dash page shows whether the line locker is on; how it is switched and whether telemetry carries it is not known."
     }
@@ -6088,13 +6495,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Shown at the bottom of both dash pages; percent to the front. Variable by analogy with the sim's other cars."
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
-     "label": "PEDAL",
+     "label": "Pedal",
+     "words": "Throttle map",
      "range": [
       1,
       10
@@ -6104,10 +6513,10 @@
     {
      "id": "lineLock",
      "var": null,
-     "label": "LINE LOCK",
+     "label": "Line lock",
      "positions": {
-      "0": "OFF",
-      "1": "ON"
+      "0": "Off",
+      "1": "On"
      },
      "note": "The launch dash page shows whether the line locker is on; how it is switched and whether telemetry carries it is not known."
     }
@@ -6130,7 +6539,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias"
     }
    ],
@@ -6150,17 +6560,19 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias"
     },
     {
      "id": "p2p",
      "var": "P2P_Status",
      "label": "OT",
+     "words": "Overtake",
      "off": 0,
      "positions": {
-      "0": "OFF",
-      "1": "ACTIVE"
+      "0": "Off",
+      "1": "Active"
      },
      "note": "Overtake System: more fuel flow for about 5 percent more power; P2P_Count is the seconds left, 200 in a race and 999 when there is no limit; 100 or 110 seconds must pass between uses; off in qualifying; PushToPass is the button, the car publishes no dcPushToPass; 2023 Season 4 Patch 3 notes: 'The Overtake System variables have been added to live telemetry output (they are shown as P2P)'"
     },
@@ -6168,12 +6580,14 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "TPS",
+     "words": "Throttle map",
      "note": "garage: Throttle Shaping, '9 (TPS)'; manual: low is like a butterfly throttle, high is more linear, changed in the car through the TPS setting; only 9 has been seen; the range is not known"
     },
     {
      "id": "launch",
      "var": "dcTractionControl",
-     "label": "START LIMIT",
+     "label": "Start limit",
+     "words": "Launch limit",
      "note": "garage: Launch Control RPM; this car has no traction control: the variable carries the launch control's Start Limit (garage 2 reads 2); seen 2 to 6"
     }
    ],
@@ -6195,17 +6609,19 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; garage: Brake Pressure Bias; variable name by analogy with the SF23 Honda, not seen on this rig"
     },
     {
      "id": "p2p",
      "var": "P2P_Status",
      "label": "OT",
+     "words": "Overtake",
      "off": 0,
      "positions": {
-      "0": "OFF",
-      "1": "ACTIVE"
+      "0": "Off",
+      "1": "Active"
      },
      "note": "Overtake System: more fuel flow for about 5 percent more power; P2P_Count is the seconds left, 200 in a race and 999 when there is no limit; 100 or 110 seconds must pass between uses; off in qualifying; PushToPass is the button, the Honda publishes no dcPushToPass; by analogy with the SF23 Honda; 2023 Season 4 Patch 3 notes: the Overtake System variables are shown in telemetry as P2P"
     },
@@ -6213,12 +6629,14 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "TPS",
+     "words": "Throttle map",
      "note": "garage: Throttle Shaping; manual: low is like a butterfly throttle, high is more linear, changed in the car through the TPS setting; variable name by analogy with the SF23 Honda, not seen on this rig, where only 9 was seen; the range is not known"
     },
     {
      "id": "launch",
      "var": "dcTractionControl",
-     "label": "START LIMIT",
+     "label": "Start limit",
+     "words": "Launch limit",
      "note": "garage: Launch Control RPM; this car has no traction control: the variable carries the launch control's Start Limit on the SF23 Honda driven here; variable name by analogy, not seen on this rig"
     }
    ],
@@ -6239,7 +6657,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "2020 Season 3: 'Brake bias may now be adjusted in-car even when using fixed setups', so the in-seat adjuster is confirmed. Balance-bar brake system. Variable by analogy with driven cars."
     }
    ],
@@ -6261,6 +6680,7 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
+     "words": "Traction",
      "off": 0,
      "range": [
       0,
@@ -6272,6 +6692,7 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
+     "words": "Anti-lock",
      "off": 0,
      "range": [
       0,
@@ -6282,7 +6703,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "range": [
       50,
       50
@@ -6308,7 +6730,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage setting 'Front Brake Bias' (Chassis / Front), the same wording as the driven ARCA Ford Mustang, which publishes dcBrakeBias; iRacing's notes on the Silverado (2010: in-car brake bias 'limited to +/- 3%'; 2016: fixed-setup brake bias) confirm the in-seat adjuster on NASCAR trucks. On the ARCA car the variable read 0 while the garage said 65.0%, so it may carry the change from the garage value rather than the bias itself."
     }
    ],
@@ -6331,7 +6754,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "New in 2026 Season 2 in the NASCAR Trucks class, whose rear anti-roll bar was removed the same season (garage only). Written as the other current trucks: garage 'Front Brake Bias' as on the driven ARCA car, which publishes dcBrakeBias. On the ARCA car the variable read 0 while the garage said 65.0%, so it may carry the change from the garage value rather than the bias itself."
     }
    ],
@@ -6354,7 +6778,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "iRacing's 2010 note on this truck: 'Brake bias in car adjustment is now limited to +/- 3%'; 2016 Season 4 made the adjustment available in fixed-setup series (as 'NASCAR Truck Series Chevrolet Silverado circa 2013'). Variable by analogy with the driven ARCA car, where it read 0 while the garage said 65.0%, so it may carry the change from the garage value rather than the bias itself."
     }
    ],
@@ -6376,7 +6801,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Retired in 2019 Season 3, replaced by the Gander Outdoors Silverado. 2016 Season 4: 'Brake bias adjustment is now available for this vehicle in Official, Fixed Setup series'. Variable by analogy with the driven ARCA car, where it read 0 while the garage said 65.0%, so it may carry the change from the garage value rather than the bias itself."
     }
    ],
@@ -6397,7 +6823,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage setting 'Front Brake Bias' (Chassis / Front), the same wording as the driven ARCA Ford Mustang, which publishes dcBrakeBias; iRacing's notes on earlier Silverados (2010: in-car brake bias 'limited to +/- 3%'; 2016: fixed-setup brake bias) confirm the in-seat adjuster on NASCAR trucks. On the ARCA car the variable read 0 while the garage said 65.0%, so it may carry the change from the garage value rather than the bias itself."
     }
    ],
@@ -6420,7 +6847,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Garage setting 'Front Brake Bias' (Chassis / Front), the same wording as the driven ARCA Ford Mustang, which publishes dcBrakeBias; iRacing's notes on the Silverado (2010: in-car brake bias 'limited to +/- 3%'; 2016: fixed-setup brake bias, also for the Camping World Tundra) confirm the in-seat adjuster on NASCAR trucks. On the ARCA car the variable read 0 while the garage said 65.0%, so it may carry the change from the garage value rather than the bias itself."
     }
    ],
@@ -6443,7 +6871,8 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "percent front; not confirmed for this car: the only release note found (2020 Season 4 Patch 3) says 'Brake bias is now adjustable in the garage during Fixed Setups Sessions', which speaks of the garage, where the same year's note for the Formula Renault 2.0 said 'in-car'; variable name by analogy, not seen on this rig"
     }
    ],
@@ -6463,19 +6892,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent to the front. Variable by analogy with the sim's other cars."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
-     "label": "FRONT ARB",
+     "label": "Front ARB",
+     "words": "Front rollbar",
      "note": "In-car ARB adjustment confirmed by iRacing's release notes (a fix so it affects bar stiffness). Variable by analogy with the Dallara IL15 and Lotus 79; range not published."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "In-car ARB adjustment confirmed by iRacing's release notes. Variable by analogy; range not published."
     }
    ],
@@ -6495,19 +6927,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent to the front; the release notes made it adjustable in fixed setups. Variable by analogy with the sim's other cars."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
-     "label": "FRONT ARB",
+     "label": "Front ARB",
+     "words": "Front rollbar",
      "note": "In-car ARB adjustment confirmed by iRacing's release notes (a fix so it affects bar stiffness). Variable by analogy with the Dallara IL15 and Lotus 79; range not published."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "In-car ARB adjustment confirmed by iRacing's release notes. Variable by analogy; range not published."
     }
    ],
@@ -6528,19 +6963,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent to the front. Variable by analogy with the sim's other cars."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
-     "label": "FRONT ARB",
+     "label": "Front ARB",
+     "words": "Front rollbar",
      "note": "In-car ARB adjustment confirmed by iRacing's release notes (a fix so it affects bar stiffness). Variable by analogy with the Dallara IL15 and Lotus 79; range not published."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "In-car ARB adjustment confirmed by iRacing's release notes. Variable by analogy; range not published."
     }
    ],
@@ -6560,19 +6998,22 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "Percent to the front; the release notes made it adjustable in fixed setups. Variable by analogy with the sim's other cars."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
-     "label": "FRONT ARB",
+     "label": "Front ARB",
+     "words": "Front rollbar",
      "note": "In-car ARB adjustment confirmed by iRacing's release notes (a fix so it affects bar stiffness). Variable by analogy with the Dallara IL15 and Lotus 79; range not published."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
-     "label": "REAR ARB",
+     "label": "Rear ARB",
+     "words": "Rear rollbar",
      "note": "In-car ARB adjustment confirmed by iRacing's release notes. Variable by analogy; range not published."
     }
    ],
@@ -6592,13 +7033,14 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the Subaru WRX STI and Ford Fiesta RS WRC, rallycross cars driven on this rig; unconfirmed for this car"
     },
     {
      "id": "launch",
      "var": "dcLaunchRPM",
-     "label": "LAUNCH RPM",
+     "label": "Launch rpm",
      "note": "by analogy with the Subaru WRX STI and Ford Fiesta RS WRC, which publish dcLaunchRPM; unconfirmed for this car"
     }
    ],
@@ -6619,13 +7061,14 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "by analogy with the Subaru WRX STI and Ford Fiesta RS WRC, rallycross cars driven on this rig; unconfirmed for this car"
     },
     {
      "id": "launch",
      "var": "dcLaunchRPM",
-     "label": "LAUNCH RPM",
+     "label": "Launch rpm",
      "note": "by analogy with the Subaru WRX STI and Ford Fiesta RS WRC, which publish dcLaunchRPM; unconfirmed for this car, and less sure than for the full-power Beetle"
     }
    ],
@@ -6646,13 +7089,15 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS",
+     "label": "Brake bias",
+     "words": "Bias",
      "note": "garage has base, peak and ramping; the 2009 guide describes them as settings to 'play around with' and says the dash readout shows the live bias with pedal travel, but does not say the bias is changed from the seat; whether the variable reads percent front or an offset, as on the MP4-30 with the same base/peak system, is not known; variable name by analogy, not seen on this rig"
     },
     {
      "id": "diffEntry",
      "var": "dcDiffEntry",
      "label": "ENT",
+     "words": "Entry diff",
      "note": "guide: in-car dial; range 1 to 20 from 2011 release notes; variable name by analogy with the F1 cars driven here, not seen on this rig",
      "range": [
       1,
@@ -6662,7 +7107,8 @@
     {
      "id": "diffMid",
      "var": "dcDiffMiddle",
-     "label": "MID",
+     "label": "Mid",
+     "words": "Mid diff",
      "note": "guide: in-car dial; range 1 to 20 from 2011 release notes; variable name by analogy with the W13, not seen on this rig",
      "range": [
       1,
@@ -6673,6 +7119,7 @@
      "id": "diffExit",
      "var": "dcDiffExit",
      "label": "EXT",
+     "words": "Exit diff",
      "note": "guide: in-car dial; range 1 to 20 from 2011 release notes; variable name by analogy with the W13, not seen on this rig",
      "range": [
       1,
@@ -6683,18 +7130,21 @@
      "id": "engineBraking",
      "var": "dcEngineBraking",
      "label": "TRQ",
+     "words": "Engine braking",
      "note": "engine braking dial; variable name by analogy with the W13, not seen on this rig"
     },
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
-     "label": "MODE",
+     "label": "Mode",
+     "words": "Engine map",
      "note": "engine power dial: power and the shift-light point, to save fuel; 2011 release notes say a fuel mixture adjustment was added to this car and mapped to the fuel mixture control, which is taken to be this dial; whether it is instead a separate control, and whether the variable is dcFuelMixture or dcEnginePower, is not known: no car of this family driven here has either"
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "PED",
+     "words": "Throttle map",
      "range": [
       1,
       4

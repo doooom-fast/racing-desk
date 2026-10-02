@@ -22,8 +22,16 @@ namespace RacingDesk.Core.Cars
         /// <summary>The telemetry variable carrying its value; null when the car publishes none.</summary>
         public string Var { get; internal set; }
 
-        /// <summary>What the car's own dash or black box calls it.</summary>
+        /// <summary>What the car's own dash or black box calls it: its short label, words in sentence case and the
+        /// car's own abbreviations (TCLO, BBAL) as the car shows them.</summary>
         public string Label { get; internal set; }
+
+        /// <summary>
+        /// Optional, ours: the control in words, where what it does in this car is known ("Traction slip", "Bias",
+        /// "Front rollbar"). The HUD shows it where it fits and the short label where it does not; null where the list
+        /// gives none, and then the label is all there is.
+        /// </summary>
+        public string Words { get; internal set; }
 
         /// <summary>The value that means off, where the list gives one.</summary>
         public double? Off { get; internal set; }
@@ -264,6 +272,7 @@ namespace RacingDesk.Core.Cars
                 Id = id,
                 Var = Text(o["var"]),
                 Label = Text(o["label"]),
+                Words = Text(o["words"]),
                 Note = Text(o["note"]),
                 Off = Number(o["off"]),
                 NeverOff = o["off"] != null && o["off"].Type == JTokenType.Boolean && !(bool)o["off"],

@@ -33,18 +33,18 @@ namespace RacingDesk.Tests.Cars
     { ""path"": ""porsche963gtp"", ""name"": ""Porsche 963 GTP"", ""kind"": ""prototype"",
       ""abs"": ""none"", ""tc"": ""adjustable"", ""brakeBias"": ""adjustable"",
       ""controls"": [
-        { ""id"": ""brakeBias"", ""var"": ""dcBrakeBias"", ""label"": ""BB"", ""range"": [40, 60], ""decimals"": 2 },
-        { ""id"": ""brakeMigration"", ""var"": ""dcABS"", ""label"": ""MIG"", ""range"": [-6, 6] },
-        { ""id"": ""tc"", ""var"": ""dcTractionControl"", ""label"": ""TCLO"", ""range"": [1, 12] },
-        { ""id"": ""tc2"", ""var"": ""dcTractionControl2"", ""label"": ""TCLA"", ""range"": [1, 12] },
-        { ""id"": ""arbFront"", ""var"": ""dcAntiRollFront"", ""label"": ""FARB"" },
-        { ""id"": ""arbRear"", ""var"": ""dcAntiRollRear"", ""label"": ""RARB"" }
+        { ""id"": ""brakeBias"", ""var"": ""dcBrakeBias"", ""label"": ""BB"", ""words"": ""Bias"", ""range"": [40, 60], ""decimals"": 2 },
+        { ""id"": ""brakeMigration"", ""var"": ""dcABS"", ""label"": ""MIG"", ""words"": ""Migration"", ""range"": [-6, 6] },
+        { ""id"": ""tc"", ""var"": ""dcTractionControl"", ""label"": ""TCLO"", ""words"": ""Traction slip"", ""range"": [1, 12] },
+        { ""id"": ""tc2"", ""var"": ""dcTractionControl2"", ""label"": ""TCLA"", ""words"": ""Traction gain"", ""range"": [1, 12] },
+        { ""id"": ""arbFront"", ""var"": ""dcAntiRollFront"", ""label"": ""FARB"", ""words"": ""Front rollbar"" },
+        { ""id"": ""arbRear"", ""var"": ""dcAntiRollRear"", ""label"": ""RARB"", ""words"": ""Rear rollbar"" }
       ],
       ""checked"": ""telemetry"" },
     { ""path"": ""mclaren570sgt4"", ""name"": ""McLaren 570S GT4"", ""kind"": ""gt"",
       ""abs"": ""adjustable"", ""tc"": ""adjustable"", ""brakeBias"": ""none"",
       ""controls"": [
-        { ""id"": ""mode"", ""var"": ""dcABS"", ""label"": ""ESC"", ""positions"": { ""0"": ""TRACK"", ""1"": ""SPORT"", ""2"": ""NORMAL"" } }
+        { ""id"": ""mode"", ""var"": ""dcABS"", ""label"": ""ESC"", ""words"": ""Assists"", ""positions"": { ""0"": ""Track"", ""1"": ""Sport"", ""2"": ""Normal"" } }
       ],
       ""checked"": ""telemetry"" },
     { ""path"": ""mx5 mx52016"", ""name"": ""Mazda MX-5 Cup"", ""kind"": ""touring"",
@@ -52,7 +52,7 @@ namespace RacingDesk.Tests.Cars
     { ""path"": ""bmwm2csr"", ""name"": ""BMW M2 CS Racing"", ""kind"": ""touring"",
       ""abs"": ""fixed"", ""tc"": ""adjustable"", ""brakeBias"": ""none"",
       ""controls"": [
-        { ""id"": ""tc"", ""var"": ""dcTractionControl"", ""label"": ""DSC"", ""positions"": { ""0"": ""OFF"", ""1"": ""MDM"", ""2"": ""ON"" } }
+        { ""id"": ""tc"", ""var"": ""dcTractionControl"", ""label"": ""DSC"", ""words"": ""Stability"", ""positions"": { ""0"": ""Off"", ""1"": ""MDM"", ""2"": ""On"" } }
       ],
       ""checked"": ""telemetry"" },
     { ""path"": ""madeup gt3"", ""name"": ""Made-up GT3"", ""kind"": ""gt"",
@@ -61,7 +61,7 @@ namespace RacingDesk.Tests.Cars
         { ""id"": ""brakeBias"", ""var"": ""dcBrakeBias"", ""label"": ""BB"", ""range"": [45, 65] },
         { ""id"": ""tc"", ""var"": ""dcTractionControl"", ""label"": ""TC1"", ""off"": 0, ""range"": [0, 12] },
         { ""id"": ""abs"", ""var"": ""dcABS"", ""label"": ""ABS"", ""range"": [1, 12] },
-        { ""id"": ""throttleMap"", ""var"": ""dcThrottleShape"", ""label"": ""MAP"", ""off"": false }
+        { ""id"": ""throttleMap"", ""var"": ""dcThrottleShape"", ""label"": ""Map"", ""words"": ""Throttle map"", ""off"": false }
       ],
       ""checked"": ""written"" },
     { ""path"": ""madeup formula"", ""name"": ""Made-up Formula"", ""kind"": ""formula"",
@@ -69,7 +69,7 @@ namespace RacingDesk.Tests.Cars
       ""controls"": [
         { ""id"": ""brakeBias"", ""var"": ""dcBrakeBias"", ""label"": ""BBAL"" },
         { ""id"": ""drs"", ""var"": ""DRS_Status"", ""label"": ""DRS"" },
-        { ""id"": ""p2p"", ""var"": ""P2P_Status"", ""label"": ""OT"" }
+        { ""id"": ""p2p"", ""var"": ""P2P_Status"", ""label"": ""OT"", ""words"": ""Overtake"" }
       ],
       ""checked"": ""written"" }
   ]
@@ -117,11 +117,14 @@ namespace RacingDesk.Tests.Cars
 
             var migration = porsche.Control("brakeMigration");
             Assert.That((migration.Var, migration.Label, migration.Min, migration.Max), Is.EqualTo(("dcABS", "MIG", (double?)-6, (double?)6)));
+            Assert.That((migration.Words, porsche.Control("tc").Words, porsche.Control("arbRear").Words), Is.EqualTo(("Migration", "Traction slip", "Rear rollbar")),
+                "the control in words, where the list gives them");
             Assert.That(porsche.Control("brakeBias").Decimals, Is.EqualTo(2));
 
             var mode = list.Find("mclaren570sgt4").Control("mode");
-            Assert.That(mode.Positions.Select(p => (p.Key, p.Value)), Is.EqualTo(new[] { (0d, "TRACK"), (1d, "SPORT"), (2d, "NORMAL") }));
-            Assert.That(mode.PositionAt(1), Is.EqualTo("SPORT"));
+            Assert.That(mode.Positions.Select(p => (p.Key, p.Value)), Is.EqualTo(new[] { (0d, "Track"), (1d, "Sport"), (2d, "Normal") }));
+            Assert.That(mode.PositionAt(1), Is.EqualTo("Sport"));
+            Assert.That(list.Find("madeup gt3").Control("abs").Words, Is.Null, "no words in the list, none read");
             Assert.That(mode.PositionAt(3), Is.Null);
 
             var gt3 = list.Find("madeup gt3");
@@ -232,7 +235,7 @@ namespace RacingDesk.Tests.Cars
             // The 963 publishes dcABS, and the sim calls it "In car abs adjustment". It is the brake migration.
             var state = CarControls.Read(List().Find("porsche963gtp"), Porsche963().Read, fixedSetup: false);
 
-            Assert.That((state.Abs.State, state.Abs.Text, state.Abs.Number), Is.EqualTo(("none", "NONE", (double?)null)));
+            Assert.That((state.Abs.State, state.Abs.Text, state.Abs.Number), Is.EqualTo(("none", "None", (double?)null)));
             var migration = state.More.Single(m => m.Id == "brakeMigration");
             Assert.That((migration.Label, migration.State, migration.Number, migration.Text, migration.Var), Is.EqualTo(("MIG", "value", (double?)-2, "-2", "dcABS")));
             Assert.That(migration.Fill, Is.EqualTo(4 / 12.0).Within(1e-9), "between the list's lowest and highest");
@@ -250,6 +253,8 @@ namespace RacingDesk.Tests.Cars
                 ("brakeMigration", "MIG", "-2"), ("tc2", "TCLA", "4"), ("arbFront", "FARB", "1"), ("arbRear", "RARB", "15"),
             }));
             Assert.That(state.More.Single(m => m.Id == "arbFront").Fill, Is.Null, "no range in the list, no bar to fill");
+            Assert.That((state.Tc.Words, state.BrakeBias.Words), Is.EqualTo(("Traction slip", "Bias")), "the words go with the label");
+            Assert.That(state.More.Select(m => m.Words), Is.EqualTo(new[] { "Migration", "Traction gain", "Front rollbar", "Rear rollbar" }));
             Assert.That((state.CarPath, state.Name, state.Kind, state.FixedSetup), Is.EqualTo(("porsche963gtp", "Porsche 963 GTP", "prototype", (bool?)false)));
         }
 
@@ -273,8 +278,8 @@ namespace RacingDesk.Tests.Cars
             car["dcABS"] = 0f;                  // the list says nothing: nought is off, by the driver's rule
             var state = CarControls.Read(List().Find("madeup gt3"), car.Read, false);
 
-            Assert.That((state.Tc.State, state.Tc.Text, state.Tc.Label, state.Tc.Number), Is.EqualTo(("off", "OFF", "TC1", (double?)0)));
-            Assert.That((state.Abs.State, state.Abs.Text), Is.EqualTo(("off", "OFF")));
+            Assert.That((state.Tc.State, state.Tc.Text, state.Tc.Label, state.Tc.Number), Is.EqualTo(("off", "Off", "TC1", (double?)0)));
+            Assert.That((state.Abs.State, state.Abs.Text), Is.EqualTo(("off", "Off")));
         }
 
         [Test]
@@ -299,7 +304,7 @@ namespace RacingDesk.Tests.Cars
             car["dcABS"] = 0f;
             var state = CarControls.Read(List().Find("madeup gt3"), car.Read, fixedSetup: true);
 
-            Assert.That((state.Abs.State, state.Abs.Text, state.Abs.Locked), Is.EqualTo(("off", "OFF", true)));
+            Assert.That((state.Abs.State, state.Abs.Text, state.Abs.Locked), Is.EqualTo(("off", "Off", true)));
             Assert.That((state.Tc.Text, state.Tc.Locked), Is.EqualTo(("4", true)));
             Assert.That(state.BrakeBias.Locked, Is.False, "the bias is his to move under any setup");
             Assert.That(state.More.Single(m => m.Id == "throttleMap").Locked, Is.False);
@@ -332,8 +337,8 @@ namespace RacingDesk.Tests.Cars
         public void AbsTheDriverCannotTurnIsOn()
         {
             var mx5 = CarControls.Read(List().Find("mx5 mx52016"), new Car { ["BrakeABSactive"] = true }.Read, false);
-            Assert.That((mx5.Abs.State, mx5.Abs.Text, mx5.Abs.Label, mx5.Abs.Number), Is.EqualTo(("on", "ON", "ABS", (double?)null)));
-            Assert.That((mx5.Tc.State, mx5.Tc.Text), Is.EqualTo(("none", "NONE")));
+            Assert.That((mx5.Abs.State, mx5.Abs.Text, mx5.Abs.Label, mx5.Abs.Number), Is.EqualTo(("on", "On", "ABS", (double?)null)));
+            Assert.That((mx5.Tc.State, mx5.Tc.Text), Is.EqualTo(("none", "None")));
             Assert.That((mx5.BrakeBias.State, mx5.BrakeBias.Label), Is.EqualTo(("none", "BB")));
             Assert.That(mx5.More, Is.Empty);
         }
@@ -345,13 +350,14 @@ namespace RacingDesk.Tests.Cars
             var track = CarControls.Read(list.Find("mclaren570sgt4"), Mclaren570S(0).Read, false);
 
             var mode = track.More.Single();
-            Assert.That((mode.Id, mode.Label, mode.State, mode.Text, mode.Number), Is.EqualTo(("mode", "ESC", "value", "TRACK", (double?)0)),
+            Assert.That((mode.Id, mode.Label, mode.State, mode.Text, mode.Number), Is.EqualTo(("mode", "ESC", "value", "Track", (double?)0)),
                 "nought has a name: it is not off");
             Assert.That((track.Abs.State, track.Abs.By), Is.EqualTo(("mode", "ESC")), "the ABS is inside the mode");
             Assert.That((track.Tc.State, track.Tc.By), Is.EqualTo(("mode", "ESC")));
             Assert.That(track.BrakeBias.State, Is.EqualTo("none"), "published, at 49 in every file, and not his to change");
 
-            Assert.That(CarControls.Read(list.Find("mclaren570sgt4"), Mclaren570S(2).Read, false).More.Single().Text, Is.EqualTo("NORMAL"));
+            Assert.That(CarControls.Read(list.Find("mclaren570sgt4"), Mclaren570S(2).Read, false).More.Single().Text, Is.EqualTo("Normal"));
+            Assert.That(mode.Words, Is.EqualTo("Assists"));
             Assert.That(CarControls.Read(list.Find("mclaren570sgt4"), Mclaren570S(3).Read, false).More.Single().Text, Is.EqualTo("3"),
                 "a position the list has no name for is its number");
         }
@@ -372,11 +378,11 @@ namespace RacingDesk.Tests.Cars
         {
             var list = List();
             var off = CarControls.Read(list.Find("bmwm2csr"), new Car { ["dcTractionControl"] = 0f }.Read, false);
-            Assert.That((off.Tc.Label, off.Tc.State, off.Tc.Text), Is.EqualTo(("DSC", "off", "OFF")));
+            Assert.That((off.Tc.Label, off.Tc.State, off.Tc.Text), Is.EqualTo(("DSC", "off", "Off")));
 
             var mdm = CarControls.Read(list.Find("bmwm2csr"), new Car { ["dcTractionControl"] = 1f }.Read, false);
             Assert.That((mdm.Tc.State, mdm.Tc.Text), Is.EqualTo(("value", "MDM")));
-            Assert.That((mdm.Abs.State, mdm.Abs.Text), Is.EqualTo(("on", "ON")), "it has ABS and no dial for it");
+            Assert.That((mdm.Abs.State, mdm.Abs.Text), Is.EqualTo(("on", "On")), "it has ABS and no dial for it");
         }
 
         [Test]
@@ -394,7 +400,7 @@ namespace RacingDesk.Tests.Cars
             Assert.That((state.Abs.Number, state.Abs.Text, state.Abs.Fill, state.Abs.Locked), Is.EqualTo(((double?)null, (string)null, (double?)null, false)));
             Assert.That((state.Tc.Label, state.Tc.State, state.Tc.Number), Is.EqualTo(("TC1", "unread", (double?)null)));
             var map = state.More.Single();
-            Assert.That((map.Id, map.Label, map.State, map.Number, map.Text), Is.EqualTo(("throttleMap", "MAP", "unread", (double?)null, (string)null)));
+            Assert.That((map.Id, map.Label, map.State, map.Number, map.Text), Is.EqualTo(("throttleMap", "Map", "unread", (double?)null, (string)null)));
             Assert.That(state.BrakeBias.Text, Is.EqualTo("56.2"));
 
             var json = JObject.Parse(state.ToJson());
@@ -408,11 +414,11 @@ namespace RacingDesk.Tests.Cars
             var car = CarList.Parse(@"{ ""cars"": [ { ""path"": ""x"", ""abs"": ""none"", ""tc"": ""adjustable"", ""brakeBias"": ""adjustable"", ""controls"": [
                 { ""id"": ""brakeBias"", ""var"": ""dcBrakeBias"" },
                 { ""id"": ""tc"", ""var"": ""dcTractionControl"" },
-                { ""id"": ""wingTop"", ""label"": ""TOP WING"" } ] } ] }").Find("x");
+                { ""id"": ""wingTop"", ""label"": ""Top wing"" } ] } ] }").Find("x");
             var state = CarControls.Read(car, Gt3().Read, false);
 
             var wing = state.More.Single();
-            Assert.That((wing.Id, wing.Label, wing.State, wing.Var), Is.EqualTo(("wingTop", "TOP WING", "unread", (string)null)));
+            Assert.That((wing.Id, wing.Label, wing.State, wing.Var), Is.EqualTo(("wingTop", "Top wing", "unread", (string)null)));
             Assert.That(state.Tc.Text, Is.EqualTo("4"), "the rest is read as it was");
         }
 
@@ -436,10 +442,10 @@ namespace RacingDesk.Tests.Cars
 
         // ── DRS and push-to-pass ──
 
-        [TestCase(0, "off", "OFF", false)]
-        [TestCase(1, "value", "NEXT", false)]
-        [TestCase(2, "value", "READY", false)]
-        [TestCase(3, "value", "OPEN", true)]
+        [TestCase(0, "off", "Off", false)]
+        [TestCase(1, "value", "Next", false)]
+        [TestCase(2, "value", "Ready", false)]
+        [TestCase(3, "value", "Open", true)]
         public void DrsIsShownByItsFourStates(int status, string state, string text, bool open)
         {
             var car = new Car { ["dcBrakeBias"] = 55f, ["DRS_Status"] = status, ["P2P_Status"] = false, ["P2P_Count"] = 0 };
@@ -459,12 +465,13 @@ namespace RacingDesk.Tests.Cars
             car["P2P_Status"] = true;
             car["P2P_Count"] = 64;
             var on = CarControls.Read(formula, car.Read, false).PushToPass;
-            Assert.That((on.State, on.Text, on.Count, on.Active), Is.EqualTo(("value", "ON", (int?)64, (bool?)true)));
+            Assert.That((on.State, on.Text, on.Count, on.Active), Is.EqualTo(("value", "On", (int?)64, (bool?)true)));
+            Assert.That(on.Words, Is.EqualTo("Overtake"));
 
             car["P2P_Status"] = false;
             car["P2P_Count"] = 999;
             var practice = CarControls.Read(formula, car.Read, false).PushToPass;
-            Assert.That((practice.Text, practice.Count), Is.EqualTo(("OFF", (int?)null)), "999 is no limit, not a count");
+            Assert.That((practice.Text, practice.Count), Is.EqualTo(("Off", (int?)null)), "999 is no limit, not a count");
 
             car["P2P_Count"] = -2124934497;
             Assert.That(CarControls.Read(formula, car.Read, false).PushToPass.Count, Is.Null, "a frame of garbage");
@@ -495,9 +502,9 @@ namespace RacingDesk.Tests.Cars
             Assert.That((string)json["name"], Is.EqualTo("Porsche 963 GTP"));
             Assert.That((string)json["kind"], Is.EqualTo("prototype"));
             Assert.That((bool)json["fixedSetup"], Is.True);
-            Assert.That(json["abs"].ToString(Newtonsoft.Json.Formatting.None), Is.EqualTo(@"{""id"":""abs"",""label"":""ABS"",""state"":""none"",""text"":""NONE""}"));
+            Assert.That(json["abs"].ToString(Newtonsoft.Json.Formatting.None), Is.EqualTo(@"{""id"":""abs"",""label"":""ABS"",""state"":""none"",""text"":""None""}"));
             Assert.That(json["tc"].ToString(Newtonsoft.Json.Formatting.None),
-                Is.EqualTo(@"{""id"":""tc"",""label"":""TCLO"",""state"":""value"",""value"":5,""text"":""5"",""fill"":0.364,""locked"":true,""var"":""dcTractionControl""}"));
+                Is.EqualTo(@"{""id"":""tc"",""label"":""TCLO"",""words"":""Traction slip"",""state"":""value"",""value"":5,""text"":""5"",""fill"":0.364,""locked"":true,""var"":""dcTractionControl""}"));
             Assert.That((string)json["bb"]["text"], Is.EqualTo("48.25"));
             Assert.That(json["bb"]["locked"], Is.Null, "said only when it is");
             Assert.That(json["more"].Select(m => (string)m["id"]), Is.EqualTo(new[] { "brakeMigration", "tc2", "arbFront", "arbRear" }));
@@ -581,7 +588,7 @@ namespace RacingDesk.Tests.Cars
 
                 var json = JObject.Parse(TelemetryCapture.CarControls(source, inCar: true));
                 Assert.That(((string)json["car"], (string)json["tc"]["text"], (bool)json["tc"]["locked"], (bool)json["fixedSetup"]),
-                    Is.EqualTo(("bmwm2csr", "ON", true, true)));
+                    Is.EqualTo(("bmwm2csr", "On", true, true)));
 
                 source.Path = null;
                 Assert.That(TelemetryCapture.CarControls(source, inCar: true), Is.Null, "before the session has named the car");
@@ -680,7 +687,7 @@ namespace RacingDesk.Tests.Cars
             Assert.That(said, Is.EqualTo(new[]
             {
                 "mx5 mx52016 the car publishes dcABS, dcTractionControl, which the list gives to no control",
-                "mx5 mx52016 the list says no ABS and the car publishes dcABS; in some cars that is another dial under ABS's name",
+                "mx5 mx52016 the list says no anti-lock and the car publishes dcABS; in some cars that is another dial under that name",
                 "mx5 mx52016 the list says no traction control and the car publishes dcTractionControl",
             }));
         }
@@ -694,7 +701,7 @@ namespace RacingDesk.Tests.Cars
             Assert.That(Drive(check, car), Is.Empty);
 
             car["BrakeABSactive"] = true;
-            Assert.That(Drive(check, car, frames: 30), Is.EqualTo(new[] { "porsche963gtp the list says no ABS and the ABS has been seen working" }));
+            Assert.That(Drive(check, car, frames: 30), Is.EqualTo(new[] { "porsche963gtp the list says no anti-lock and the anti-lock has been seen working" }));
             Assert.That(Drive(check, car, frames: 300), Is.Empty, "once");
         }
 
@@ -737,7 +744,7 @@ namespace RacingDesk.Tests.Cars
 
             Assert.That(check.See(null, null), Is.EqualTo(new[]
             {
-                "x the list says no ABS and gives the car a control called abs",
+                "x the list says no anti-lock and gives the car a control called abs",
                 "x the list says the traction control can be turned and gives no control for it, nor a mode that stands for it",
                 "x the list says the brake bias can be turned and gives no variable to read it from",
             }), "before a frame has been seen");
@@ -839,7 +846,9 @@ namespace RacingDesk.Tests.Cars
             Assert.That(migration["range"].Select(n => (double)n), Is.EqualTo(new[] { -6d, 6d }));
             Assert.That((bool)porsche["controls"].Single(c => (string)c["id"] == "tc")["lockedWhenFixed"], Is.True);
             var mode = body["cars"].Single(c => (string)c["path"] == "mclaren570sgt4")["controls"][0];
-            Assert.That((string)mode["positions"]["1"], Is.EqualTo("SPORT"));
+            Assert.That((string)mode["positions"]["1"], Is.EqualTo("Sport"));
+            Assert.That(((string)migration["words"], (string)mode["words"]), Is.EqualTo(("Migration", "Assists")), "the words, where the list gives them");
+            Assert.That(body["cars"].Single(c => (string)c["path"] == "madeup gt3")["controls"].Single(c => (string)c["id"] == "abs")["words"], Is.Null, "and no key where it does not");
         }
 
         [Test]
