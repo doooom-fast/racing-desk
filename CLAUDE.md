@@ -551,15 +551,19 @@ licence stay what they are.
   YAML is parsed — `SdkRawTelemetry.SessionInfo` (live, once per session-info update, before the source, the recorder or
   the replay route read it) and `IbtFile.SessionInfo` (a replay, the ingest, the follower) — every other driver's
   `UserName`, `AbbrevName` and `Initials`, and a `TeamName` that is the driver's own name, are rewritten in the model
-  itself (`Pseudonymizer.Apply`; the player's entry, by `DriverCarIdx`, and the pace car are left). On the plugin's path
+  itself (`Pseudonymizer.Apply`; his own entry and the pace car are left — his car with him in it, `Pseudonymizer.IsHim`:
+  in a team race a teammate driving his car is another driver, named like the rest). On the plugin's path
   SimHub hands over its opponents with their names, and the engine never reads an opponent's `Name`: it asks the source
   (`ITelemetrySource.OpponentName`), the plugin's source asks the SDK bridge (`IRacingSdkBridge.OpponentName`), and the
   bridge has named every car in the session YAML by its customer id and finds the car again by its number, or by the name
   SimHub gives — a lookup that stays inside the bridge. A car the session does not list (another sim, the bridge not up) is
-  named from the list by its name, salted; a build without the list says "Driver" and four digits. So the readers hold no
-  real name. The store keeps what it was given (sessions stored before this have real names on disk, new ones the
-  characters, and the customer id either way); `GET /racing-desk/data/session?id=` names each grid entry from the
-  stored id, so an old session's rival is the same character the live one shows, and sends no customer id.
+  named from the list by its name, salted; a build without the list says "Driver" and four digits. SimHub's `PlayerName`
+  is asked of the source too (`IPlayerNameSource`), for the teammate. So the readers hold no real name, and nothing keeps
+  the raw YAML (the iRating estimator reads its numbers from it and lets it go). The store keeps what it was given
+  (sessions stored before this have real names on disk, new ones the characters, and the customer id either way);
+  `GET /racing-desk/data/session?id=` keeps a stored character and names an old grid's drivers from the stored ids in
+  CarIdx order, as the live session did (`LocalDataApi.GridNames`), so a rival is the character the HUD showed; it sends
+  no customer id.
 - **One name, one form, everywhere.** The name is the HUD's own style — the first initial, a dot and the surname with its
   particle (`H. Incandenza`, `J. van Dyne`); a character known by a nickname is shown whole (`Sick Boy`, `Spud`, `Begbie`) —
   and the same string goes to every reader, so what the HUD matches by name (a threat to a leaderboard row, a gap trend to
