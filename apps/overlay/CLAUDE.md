@@ -201,16 +201,25 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   best of it in the gaps block's colours, his gaps to his best of the session, the optimal lap and his best ever, and the
   laps of fuel against the laps to go to the flag (in a race to time, the time left over his last lap), green with a lap
   to spare, amber just, red short. What is left to go is a span of its own that a narrow panel leaves out: the clock has it.
-  **The laps of fuel are a number or a dash, never 99** (he asked on 2026-10-01: "The fuel in the sector area on iPad
-  shows 99 laps always"): `DS.FuelLapsRemaining` was 99 from the host and the plugin alike for as long as the fuel per lap
-  was not known — the host's own (`IRacingTelemetrySource.FuelPerLap`) wants one green lap off pit road, SimHub's
-  `Fuel_LitersPerLap` a lap or two — and the laps panel read it as it was, where the pit box refused anything at 99. The
-  engine now says 0 there (`TelemetrySnapshot.FuelLapsRemaining`, the demo's and the strategist's `Strategy.FuelLapsRemaining`
-  alike, which never calls FUEL CRITICAL on a 0), and `poll-engine.js` takes the wire's number only between 0 and 99 — a
-  SimHub plugin built before this still sends 99 — else the page's own estimate from the fuel and the fuel per lap, else
-  a dash. Everywhere fuel laps show (the laps panel, the pit box's "Laps left", the strategist's "Stop · ~6 laps") reads
-  that one number. `tests/unit/fuel-laps.spec.mjs`; RacingDesk.Tests `Strategy/FuelLapsRemainingTests.cs` (and the host's
-  fuel per lap over his newest race).
+  **The laps of fuel are a number or a dash, never 99, and they are laps** (he asked on 2026-10-01: "The fuel in the
+  sector area on iPad shows 99 laps always"): `DS.FuelLapsRemaining` was 99 from the host and the plugin alike for as long
+  as the fuel per lap was not known — the host's own (`IRacingTelemetrySource.FuelPerLap`) wants one green lap off pit
+  road, SimHub's a lap or two, and his practice runs that afternoon (the recordings' sidecars) each ended before the line
+  with a reset to the pits, so it never was — and the laps panel read it as it was, where the pit box refused anything at
+  99. The engine now says 0 there (`TelemetrySnapshot.FuelLapsRemaining`, the demo's and the strategist's
+  `Strategy.FuelLapsRemaining` alike, which never calls FUEL CRITICAL on a 0), and `poll-engine.js` takes the wire's number
+  only between 0 and 99 — a SimHub plugin built before this still sends 99 — else a dash. **Once known, the number is
+  SimHub's own laps of fuel** (`DataCorePlugin.Computed.Fuel_RemainingLaps`; the host serves its own under that name,
+  iRacing's litres over the litres a lap costs): it was `FuelLevel / FuelPerLap`, and `FuelLevel` (SimHub's `GameData.Fuel`)
+  is in the display units — gallons for him — where the fuel per lap is not, so a driver in gallons would have read a
+  quarter of his laps. The page works out no laps of its own for the same reason. Beside it on the pit box's fuel page,
+  the fuel is shown in the display units once (`DS.FuelFormatted` made gallons into gallons again) and the tank is the
+  litres over the fraction of it they are (`GameData.MaxFuel`, litres on the wire: `FuelPercent` is 0–100 and was taken as
+  a fraction, so the tank was the fuel in it). And the host's `GameData.RemainingLaps` is the session's laps to go, as
+  SimHub's is (`SessionLapsRemainEx`, 0 for iRacing's 32767): it said the laps of fuel there, so the "to go" after them and
+  the clock's laps were the laps of fuel too. Everywhere fuel laps show (the laps panel, the pit box's "Laps left", the
+  strategist's "Stop · ~6 laps") reads that one number. `tests/unit/fuel-laps.spec.mjs`; RacingDesk.Tests
+  `Strategy/FuelLapsRemainingTests.cs` (the units through the host, and its fuel per lap over his newest race).
   **A sector is never narrower than its number** (he had "sector numbers get cropped when they're too many digits",
   2026-09-30): the cells are a wrapping row with `min-width: max-content`, every one as wide as the widest time (`--tw`,
   so a sector not yet timed is as wide as one that is and nothing moves when it is), their numbers come down from the

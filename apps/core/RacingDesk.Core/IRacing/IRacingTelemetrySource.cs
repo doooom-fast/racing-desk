@@ -196,9 +196,19 @@ namespace RacingDesk.Plugin.IRacing
                 // The IRacingExtraProperties plugin isn't part of a SimHub install, so these read as absent there too;
                 // capture then falls back to the opponents' gap-to-player.
 
+                // Litres a lap, learnt from the raw FuelLevel (litres whatever the display units), and the laps the fuel
+                // lasts at it, litres over litres: SimHub's Computed.Fuel_RemainingLaps, 0 until a green lap has said.
                 case "DataCorePlugin.Computed.Fuel_LitersPerLap": return _fuel.LitersPerLap;
+                case "DataCorePlugin.Computed.Fuel_RemainingLaps":
+                    return _fuel.LitersPerLap > 0.01 ? Float("FuelLevel") / _fuel.LitersPerLap : 0.0;
+                // SimHub's GameData.RemainingLaps is the session's laps to go (its laps of fuel are the line above; this
+                // said them here, so the laps panel's "to go" and the clock's laps were the laps of fuel): iRacing's
+                // SessionLapsRemainEx, where 32767 is a session with no count of laps (one run to time, a practice).
                 case "DataCorePlugin.GameData.RemainingLaps":
-                    return _fuel.LitersPerLap > 0 ? Float("FuelLevel") / _fuel.LitersPerLap : 0.0;
+                {
+                    int left = Int("SessionLapsRemainEx");
+                    return left > 0 && left < 32767 ? (double)left : 0.0;
+                }
                 case "DataCorePlugin.GameData.TotalLaps":
                 {
                     int total = Int("SessionLapsTotal");

@@ -439,9 +439,11 @@
     // The wire's laps of fuel (DS.FuelLapsRemaining) is 0 until a lap has said what a lap costs. A host or a SimHub plugin
     // built before 2026-10-01 said 99 there, which the laps panel read as "99.0 laps" for the whole of a session whose fuel
     // per lap it never learnt (he asked: "The fuel in the sector area on iPad shows 99 laps always"): neither is a number
-    // of laps, so the page's own estimate stands in, and that is 0 — a dash — until the fuel per lap is known.
+    // of laps, and the page shows a dash for both. The page does not work out laps of its own: GameData.Fuel is in the
+    // display units (gallons when imperial) and Fuel_LitersPerLap is not, so the one over the other is not laps; the
+    // engine's number is SimHub's (or the host's) own, in one unit (TelemetrySnapshot.FuelLapsRemaining).
     const fuelLapsWire = +(p[dsPre + 'FuelLapsRemaining']) || 0;
-    const fuelLapsEst = (fuelLapsWire > 0 && fuelLapsWire < 99) ? fuelLapsWire : (fuelPerLapRaw > 0 ? fuel / fuelPerLapRaw : 0);
+    const fuelLapsEst = (fuelLapsWire > 0 && fuelLapsWire < 99) ? fuelLapsWire : 0;
     const completedLaps = +(p[dsPre + 'CompletedLaps']) || 0;
     const fuelVals = document.querySelectorAll('.fuel-stats .val');
     if (fuelVals.length >= 2) {

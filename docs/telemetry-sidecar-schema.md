@@ -130,10 +130,10 @@ Field names are intentionally short to keep file size down — at 30fps this acc
 | `flag` | `string` | `currentFlagState` (was `RacingDesk.Plugin.DS.FlagState`, never sent) | `none`, `green`, `yellow`, `red`, `blue`, `white`, `checkered`, `meatball`, `black`, `debris`, `orange` |
 | `pit` | `boolean` | `RacingDesk.Plugin.DS.IsInPitLane` | |
 | **Fuel** | | | |
-| `fuel` | `number` | `DataCorePlugin.GameData.Fuel` | Litres |
-| `maxFuel` | `number` | `DataCorePlugin.GameData.MaxFuel` | Litres |
+| `fuel` | `number` | `DataCorePlugin.GameData.Fuel` | In the sim's display units, as SimHub's is: gallons when imperial, litres otherwise |
+| `maxFuel` | `number` | `DataCorePlugin.GameData.MaxFuel` | Litres, the tank's size (until 2026-10-01 it was the fuel in the tank, in the display units: `FuelPercent` was taken as a fraction) |
 | `fuelLap` | `number` | `DataCorePlugin.Computed.Fuel_LitersPerLap` | Litres/lap (added 2026-04-26) |
-| `remLaps` | `number` | `DataCorePlugin.GameData.RemainingLaps` | (added 2026-04-26) |
+| `remLaps` | `number` | `DataCorePlugin.GameData.RemainingLaps` | The session's laps to go, 0 where it has no count (added 2026-04-26; from the standalone host until 2026-10-01 it was the laps of fuel) |
 | **Tires** (added 2026-04-26) | | | |
 | `tFL`, `tFR`, `tRL`, `tRR` | `number` | `DataCorePlugin.GameData.TyreTemp{FL,FR,RL,RR}` | °C |
 | `wFL`, `wFR`, `wRL`, `wRR` | `number \| null` | `DataCorePlugin.GameData.TyreWear{FrontLeft,FrontRight,RearLeft,RearRight}` | Tread remaining, 0..100 %, 100 = new, as the sim last measured it (iRacing measures in the pits only); `null` where not measured — **a reader must not default it to 0, which would be a bald tyre** (0 on the wire is not a measurement either). The header's `tyreWear: "percent-remaining"` says a file has this meaning. Root CLAUDE.md, Tyre wear. A file without that header field was written before 2026-10-01 and its meaning is mixed: a host recorded 0..100 remaining, a SimHub plugin 0..100 remaining (SimHub's own number) or 0..1 worn (its old fallback from the sim's bands), and an unmeasured corner as 0 |

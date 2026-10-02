@@ -89,10 +89,12 @@ test('the iPad: a 99 from the engine is not laps of fuel, nor is 0 — a dash un
   payload = RACE({ fuelLaps: 6.4, extra: CALLING(99) });
   await frames(page);
   expect((await read(page)).call).toBe('Stop');
-  // Back on a page whose wire says nothing of the laps but does say the fuel per lap: the page's own estimate.
-  payload = RACE({ fuelLaps: 0, extra: { 'DataCorePlugin.Computed.Fuel_LitersPerLap': 2.0, 'DataCorePlugin.GameData.Fuel': 15.0 } });
+  // A wire that says nothing of the laps but does say a fuel per lap: still a dash. The page works out no laps of its own,
+  // since GameData.Fuel is in the display units (gallons for him) and Fuel_LitersPerLap is not: 15 gallons over 2 litres a
+  // lap would be "7.5 laps" of fuel that lasts 28.
+  payload = RACE({ fuelLaps: 0, extra: { 'DataCorePlugin.Computed.Fuel_LitersPerLap': 2.0, 'DataCorePlugin.GameData.Fuel': 15.0, 'RacingDesk.Plugin.DS.DisplayUnits': 0 } });
   await frames(page);
-  expect((await read(page)).laps).toBe('7.5 laps · 8 to go');
+  expect(await read(page)).toMatchObject({ laps: '—', pit: '—' });
 });
 
 test("the rig's pit box reads the same rule: 99 and 0 are a dash, a number is the number", async ({ page }) => {

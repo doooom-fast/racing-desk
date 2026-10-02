@@ -627,6 +627,11 @@ namespace RacingDesk.Plugin.Engine
 
             // ── Fuel computation (from SimHub computed properties) ───────────
             s.FuelPerLap    = GetPluginProp<double>(pm, "DataCorePlugin.Computed.Fuel_LitersPerLap");
+            // The laps of fuel as SimHub (or the host) works them out, in one unit: GameData.Fuel above is in the display
+            // units and Fuel_LitersPerLap is not, so the one over the other is not laps (TelemetrySnapshot.FuelLapsRemaining).
+            s.FuelLapsComputed = GetPluginProp<double>(pm, "DataCorePlugin.Computed.Fuel_RemainingLaps");
+            // iRacing's own FuelLevel: litres, whatever the display units.
+            s.FuelLevelLitres  = GetRaw<float>(pm, "FuelLevel");
             s.RemainingLaps = GetPluginProp<double>(pm, "DataCorePlugin.GameData.RemainingLaps");
 
             // ── Grid / Formation state ────────────────────────────────────

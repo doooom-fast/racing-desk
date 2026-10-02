@@ -226,6 +226,19 @@ namespace RacingDesk.Plugin.Engine
 
         // ── Fuel computation — from SimHub computed properties ──────────────
         public double FuelPerLap     { get; set; }
+        /// <summary>
+        /// The laps the fuel in the tank lasts as SimHub works them out (<c>DataCorePlugin.Computed.Fuel_RemainingLaps</c>;
+        /// the host serves its own under the same name, litres over litres): 0 until a lap has said what a lap costs. Taken
+        /// as it is rather than worked out here, because <see cref="FuelLevel"/> is in the display units (gallons when
+        /// imperial, as SimHub's GameData.Fuel is) and <see cref="FuelPerLap"/> is not, so the one over the other was a
+        /// quarter of the laps for a driver in gallons.
+        /// </summary>
+        public double FuelLapsComputed { get; set; }
+        /// <summary>
+        /// The litres in the tank: iRacing's own <c>FuelLevel</c>, litres whatever the display units (0 where the sim
+        /// does not say). <see cref="FuelLevel"/> is the same fuel in the display units.
+        /// </summary>
+        public double FuelLevelLitres { get; set; }
         public double RemainingLaps  { get; set; }
 
         // ── Player identity — from game data ────────────────────────────────
@@ -433,12 +446,32 @@ namespace RacingDesk.Plugin.Engine
 
         /// <summary>
         /// Laps of fuel left at what a lap has cost so far, and <c>0</c> until a lap has said what one costs (the host's
-        /// own <c>FuelPerLap</c> wants one green lap off pit road; SimHub's <c>Fuel_LitersPerLap</c> a lap or two). It
-        /// was 99 there, which the laps panel on the iPad read as "99.0 laps" for as long as the number was not known
-        /// (he asked on 2026-10-01: "The fuel in the sector area on iPad shows 99 laps always"). A number that is not
-        /// known is not a number: the page shows a dash for 0, and still refuses a 99 from a plugin built before this.
+        /// own fuel per lap wants one green lap off pit road; SimHub's a lap or two). It was 99 there, which the laps panel
+        /// on the iPad read as "99.0 laps" for as long as the number was not known (he asked on 2026-10-01: "The fuel in
+        /// the sector area on iPad shows 99 laps always") — and a session of runs that each end before the line, reset to
+        /// the pits, never learns it. A number that is not known is not a number: the page shows a dash for 0, and still
+        /// refuses a 99 from a plugin built before this. Once known it is SimHub's (or the host's) own laps of fuel,
+        /// <see cref="FuelLapsComputed"/>: it was <c>FuelLevel / FuelPerLap</c>, gallons over litres for a driver in
+        /// gallons.
         /// </summary>
-        public double FuelLapsRemaining => FuelPerLap > 0.01 ? FuelLevel / FuelPerLap : 0;
+        public double FuelLapsRemaining =>
+            FuelLapsComputed > 0 && !double.IsNaN(FuelLapsComputed) && !double.IsInfinity(FuelLapsComputed) ? FuelLapsComputed : 0;
+
+        /// <summary>
+        /// The tank's size in litres: the litres in it over the fraction of the tank they are (<see cref="FuelPercent"/> is
+        /// 0–100; it was taken as a fraction, so the "tank" was the fuel in it), else the fuel in the display units the
+        /// same way, as litres. 0 while the tank is empty or the sim says nothing.
+        /// </summary>
+        public double MaxFuelLitres
+        {
+            get
+            {
+                double frac = FuelPercent / 100.0;
+                if (!(frac > 0.001) || frac > 1.0001) return 0;
+                double litres = FuelLevelLitres > 0 ? FuelLevelLitres : (IsImperial ? FuelLevel / 0.264172 : FuelLevel);
+                return litres > 0 ? litres / frac : 0;
+            }
+        }
 
         /// <summary>Speed in miles per hour.</summary>
         public double SpeedMph => SpeedKmh * 0.621371;
@@ -533,10 +566,13 @@ namespace RacingDesk.Plugin.Engine
         private bool IsImperial => DisplayUnits == 0;
         private static double LitersToGallons(double l) => l * 0.264172;
         private string FuelUnitLabel => IsImperial ? "gal" : "L";
+        private double FuelShown => FuelLevelLitres > 0 ? (IsImperial ? LitersToGallons(FuelLevelLitres) : FuelLevelLitres) : FuelLevel;
 
-        /// <summary>Fuel level formatted to 1 decimal with unit, or "—".</summary>
-        public string FuelFormatted => FuelLevel > 0
-            ? (IsImperial ? LitersToGallons(FuelLevel) : FuelLevel).ToString("F1")
+        // In the display units: from the litres where the sim says them; else FuelLevel, which is in the display units
+        // already (it was turned into gallons a second time, a quarter of the fuel for a driver in gallons).
+        /// <summary>Fuel level in the display units, to 1 decimal, or "—".</summary>
+        public string FuelFormatted => FuelShown > 0
+            ? FuelShown.ToString("F1")
             : "\u2014";
 
         /// <summary>Fuel per lap formatted to 2 decimals, or "—".</summary>

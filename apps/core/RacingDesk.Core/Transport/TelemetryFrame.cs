@@ -91,8 +91,9 @@ namespace RacingDesk.Plugin.Transport
             dict["DataCorePlugin.GameData.Brake"] = s.Brake;
             dict["DataCorePlugin.GameData.Clutch"] = s.Clutch;
             dict["DataCorePlugin.GameData.Fuel"] = s.FuelLevel;
-            double fuelPct = Math.Max(0.01, Math.Min(1.0, s.FuelPercent));
-            dict["DataCorePlugin.GameData.MaxFuel"] = s.FuelLevel > 0 ? s.FuelLevel / fuelPct : 0;
+            // The tank in litres (the page shows it in the display units): FuelPercent is 0-100, and was taken as a fraction,
+            // so the "tank" was the fuel in it (TelemetrySnapshot.MaxFuelLitres).
+            dict["DataCorePlugin.GameData.MaxFuel"] = s.MaxFuelLitres;
             dict["DataCorePlugin.Computed.Fuel_LitersPerLap"] = s.FuelPerLap;
             dict["DataCorePlugin.GameData.RemainingLaps"] = s.RemainingLaps;
             dict["DataCorePlugin.GameData.TyreTempFrontLeft"] = s.TyreTempFL;

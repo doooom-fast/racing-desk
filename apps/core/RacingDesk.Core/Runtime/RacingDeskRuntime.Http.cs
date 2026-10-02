@@ -579,8 +579,8 @@ namespace RacingDesk.Plugin
                     Jp(sb, "DataCorePlugin.GameData.Brake", s.Brake, ic);
                     Jp(sb, "DataCorePlugin.GameData.Clutch", s.Clutch, ic);
                     Jp(sb, "DataCorePlugin.GameData.Fuel", s.FuelLevel, ic);
-                    double fuelPct = Math.Max(0.01, Math.Min(1.0, s.FuelPercent));
-                    Jp(sb, "DataCorePlugin.GameData.MaxFuel", s.FuelLevel > 0 ? s.FuelLevel / fuelPct : 0, ic);
+                    // The tank in litres (TelemetrySnapshot.MaxFuelLitres: FuelPercent is 0-100, once taken as a fraction).
+                    Jp(sb, "DataCorePlugin.GameData.MaxFuel", s.MaxFuelLitres, ic);
                     Jp(sb, "DataCorePlugin.Computed.Fuel_LitersPerLap", s.FuelPerLap, ic);
                     Jp(sb, "DataCorePlugin.GameData.RemainingLaps", s.RemainingLaps, ic);
                     Jp(sb, "DataCorePlugin.GameData.TyreTempFrontLeft", s.TyreTempFL, ic);
