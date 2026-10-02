@@ -334,7 +334,7 @@ namespace RacingDesk.Tests.Transport
             // The app's main process, the rest of it: Node's fetch (Host and Sec-Fetch-Mode, and no Origin) for the replay, the car names, the sim's
             // window and the monitors, the rig's reads and probes (http.get: a Host and nothing more), and the SimHub plugin's
             // outlines (HttpClient on 127.0.0.1, in OutlineRouteTests, which runs through the runtime with this check).
-            foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay", "brakeforce", "wheelmax" })
+            foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay", "brakeforce", "wheelmax", "restore", "restore?since=0" })
             {
                 var viaFetch = Ask("GET", "/racing-desk/data/" + route, r =>
                 {
@@ -350,6 +350,9 @@ namespace RacingDesk.Tests.Transport
             // The app's one write, by Node, as rig-api.js sends it: the host's own check of it is the one RigTests has.
             var bind = Ask("POST", "/racing-desk/data/pedals", r => r.Headers.Host = "localhost:" + _httpPort);
             Assert.That(bind.Status, Is.Not.EqualTo(HttpStatusCode.Forbidden), "a program's write reaches the route: " + bind.Body);
+            // And the first run's and the switches' (restore-api.js): a host with no director answers that it has none.
+            var restore = Ask("POST", "/racing-desk/data/restore", r => r.Headers.Host = "localhost:" + _httpPort);
+            Assert.That(restore.Status, Is.EqualTo(HttpStatusCode.Conflict), "a program's command reaches the route: " + restore.Body);
         }
 
         // ── Preflight ────────────────────────────────────────────────

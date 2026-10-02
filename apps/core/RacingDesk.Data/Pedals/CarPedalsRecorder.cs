@@ -125,6 +125,15 @@ namespace RacingDesk.Data.Pedals
         }
 
         /// <summary>
+        /// How many of Live's force keys he has pressed in this car's run: once he has, his key wins, and Racing Desk switches
+        /// nothing under it (docs/view-and-pedals-plan.md). Nought between cars.
+        /// </summary>
+        public int PressesThisRun
+        {
+            get { lock (_gate) return _carPath == null ? 0 : _force?.Presses ?? 0; }
+        }
+
+        /// <summary>
         /// The car the driver's is, on every frame. <paramref name="absSetting"/>: the car publishes an ABS
         /// setting; <paramref name="absWorking"/>: the ABS is working at this moment; <paramref name="driving"/>:
         /// he is in the car, and not watching it from the garage or in a replay — laps and ABS count only then;

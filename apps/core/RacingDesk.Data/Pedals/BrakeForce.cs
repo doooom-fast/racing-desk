@@ -142,7 +142,8 @@ namespace RacingDesk.Data.Pedals
             var left = new List<LiveKey>();
             foreach (var key in keys ?? Enumerable.Empty<LiveKey>())
             {
-                if (key == null || key.Action == LiveAction.Other) continue;
+                // The force keys and no others: a profile key (F24, Racing Desk's own, among them) is not asked about.
+                if (key == null || !IsForceKey(key.Action)) continue;
                 int? first = VirtualKey(key.FirstKey), second = VirtualKey(key.SecondKey);
                 bool pair = !string.IsNullOrWhiteSpace(key.SecondKey);
                 // A step of nothing, or a force of none, is a binding SmartControl wrote some other way than is read here.
@@ -213,6 +214,10 @@ namespace RacingDesk.Data.Pedals
 
             return new LivePresses(pressed.OrderBy(k => _bindings.FindIndex(b => ReferenceEquals(b.Key, k))).ToList(), held);
         }
+
+        /// <summary>The actions that set, raise or lower the brake force: the only keys this watches.</summary>
+        public static bool IsForceKey(LiveAction action) =>
+            action == LiveAction.SetBrakeForce || action == LiveAction.RaiseBrakeForce || action == LiveAction.LowerBrakeForce;
 
         /// <summary>A key that text is typed with. Such a key is never asked about.</summary>
         public static bool TypedWith(int key) =>

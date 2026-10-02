@@ -12,9 +12,9 @@ namespace RacingDesk.Data
     /// can read concurrently. Sessions are keyed by <c>source_key</c>, so re-ingesting a file or re-saving a
     /// live session replaces its rows instead of duplicating them.
     /// </summary>
-    public sealed class RacingDeskStore : IDisposable
+    public sealed partial class RacingDeskStore : IDisposable
     {
-        public const int SchemaVersion = 8;
+        public const int SchemaVersion = 9;
 
         // Car names by iRacing's folder name for the car (schema v4). session_cars is which stored session had
         // which car in its entry list. cars.seen counts the sessions among them, not the rows: a session is
@@ -263,6 +263,10 @@ SELECT car_path, brake_force_kg, CASE WHEN brake_force_kg IS NOT NULL THEN bound
                         // built before the checks, and has no row in it.
                         Exec(GeometryBuildSchema, step);
                         break;
+                    case 8:
+                        // Putting back each car's height and brakes: six tables of their own, nothing else touched.
+                        Exec(RestoreSchema, step);
+                        break;
                 }
                 current++;
                 Exec("INSERT INTO schema_version(version) VALUES (" + current + ")", step);
@@ -341,6 +345,7 @@ CREATE TABLE ingested_files (
             Exec(PedalFactsSchema, tx);
             Exec(CarListRemarksSchema, tx);
             Exec(GeometryBuildSchema, tx);
+            Exec(RestoreSchema, tx);
             Exec("INSERT INTO schema_version(version) VALUES (" + SchemaVersion + ")", tx);
             tx.Commit();
         }

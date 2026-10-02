@@ -32,6 +32,18 @@ namespace RacingDesk.Data
     }
 
     /// <summary>
+    /// One run's view as the recorder saw it: app.ini at the car's first frame (<see cref="Before"/>, null when it could not
+    /// be read) and what was recorded once the sim had gone (<see cref="View"/>, whose height and horizon are app.ini's
+    /// then). What putting the height back works from (RacingDesk.Data.Restore).
+    /// </summary>
+    public sealed class ViewRun
+    {
+        public string CarPath { get; set; }
+        public ViewSettings Before { get; set; }
+        public CarView View { get; set; }
+    }
+
+    /// <summary>
     /// Records the view per car, and writes nothing of iRacing's. The sim reads <c>app.ini</c> when it starts
     /// and writes it when it exits, so the file holds the view the run began with for as long as the sim is
     /// up, and the view it ended with once the sim has gone: read once each side, the difference is what the
@@ -49,6 +61,13 @@ namespace RacingDesk.Data
         private ViewSettings _before;
         private DateTime _beforeWritten;
         private CancellationTokenSource _waiting;
+
+        /// <summary>
+        /// Told, after a run's view has been recorded and saved, what the run began with and ended on: putting the height
+        /// back (RestoreDirector) works out from it what it would keep. On the recorder's own thread; what it throws is
+        /// logged and goes no further.
+        /// </summary>
+        public Action<ViewRun> Ran { get; set; }
 
         /// <summary>How long a closing sim is given to go, and then to write its files.</summary>
         internal TimeSpan ExitTimeout = TimeSpan.FromSeconds(90), WriteTimeout = TimeSpan.FromSeconds(15);
@@ -119,6 +138,8 @@ namespace RacingDesk.Data
                     _save(view);
                     _log($"view: {carPath} — height {Show(view.DriverHeight)}, horizon {Show(view.VanishY)}, seat {Show(view.SeatX)}" +
                          (view.Chosen ? " (changed in this car)" : ""));
+                    try { Ran?.Invoke(new ViewRun { CarPath = carPath, Before = before, View = view }); }
+                    catch (Exception ex) { _log("view: what the run ended on was not handed on — " + ex.Message.Trim()); }
                 }
                 catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
                 {

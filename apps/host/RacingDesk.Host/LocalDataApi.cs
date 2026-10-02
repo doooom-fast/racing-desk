@@ -59,7 +59,7 @@ namespace RacingDesk.Host
         internal static readonly string[] Routes =
         {
             "status", "sessions", "session", "schedule", "cars", "views", "pedals", "controls", "simwindow", "monitors", "outline", "replay",
-            "brakeforce", "wheelmax",
+            "brakeforce", "wheelmax", "restore",
         };
 
         private const string NotThisMachine = "this is for the app on this machine";
@@ -100,6 +100,12 @@ namespace RacingDesk.Host
 
         /// <summary>iRacing's replay and cameras, for <c>replay</c>: given the live reader by the host once it has one.</summary>
         internal ReplayApi Replay { get; } = new ReplayApi();
+
+        /// <summary>
+        /// Putting back each car's height and brakes, for <c>restore</c>: given the director by the live host (RunLive); a host with
+        /// none (a replay, a test) answers that it has none.
+        /// </summary>
+        internal RestoreApi Restore { get; } = new RestoreApi();
 
         /// <summary>
         /// The track outlines, for <c>outline?track=</c>: the store's, the one being made from the session he is
@@ -279,6 +285,27 @@ namespace RacingDesk.Host
                         json.WriteNumber("candidates", limit?.Candidates ?? 0);
                         json.WriteEndObject();
                     });
+                    return;
+                }
+
+                if (route == "restore" && ctx.Request.HttpMethod == "GET")
+                {
+                    // How putting back the heights and brakes stands: trial, the switches, the lines, each car in a sentence, the
+                    // first run. Not the store's alone, so answered before there is one.
+                    Restore.Get(ctx, (status, body) => Write(res, status, body));
+                    return;
+                }
+
+                if (route == "restore" && ctx.Request.HttpMethod == "POST")
+                {
+                    // A switch, a first-run button, a mark, an undo: for a program on this machine alone, as the pedals' write is.
+                    if (!LocalRequest.IsFromThisMachine(ctx.Request))
+                    {
+                        NoteRefusal("restore", LocalRequest.Refusal.ABrowser);
+                        Error(res, 403, NotThisMachine);
+                        return;
+                    }
+                    Restore.Post(ctx, (status, body) => Write(res, status, body));
                     return;
                 }
 
@@ -665,9 +692,12 @@ namespace RacingDesk.Host
                         LiveAction.SetBrakeForce => "set",
                         LiveAction.RaiseBrakeForce => "raise",
                         LiveAction.LowerBrakeForce => "lower",
+                        LiveAction.SetProfile => "profile",
                         _ => "other",
                     });
                     json.WriteNumber("value", k.Value);
+                    // A profile key names the profile it switches to (Racing Desk's own F24, once it is made, among them).
+                    if (k.Action == LiveAction.SetProfile) json.WriteString("profile_id", k.ProfileId);
                     json.WritePropertyName("keys");
                     json.WriteStartArray();
                     if (!string.IsNullOrEmpty(k.FirstKey)) json.WriteStringValue(k.FirstKey);

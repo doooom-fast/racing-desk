@@ -41,15 +41,28 @@ namespace RacingDesk.Data.Pedals
         public PedalResponse Clutch { get; internal set; }
     }
 
-    public enum LiveAction { Other, SetBrakeForce, RaiseBrakeForce, LowerBrakeForce }
+    /// <summary>
+    /// What a key of SmartControl Live's does, of the actions this app knows: set, raise or lower the Ultimate pedals'
+    /// brake force (8, 9, 10), or switch the pedals to a profile (1, SetProfile: Heusinkveld's own first-run setup binds
+    /// NUMPAD1–4 to four profiles that way). The key watcher follows the force keys alone; a profile key is known, never
+    /// watched.
+    /// </summary>
+    public enum LiveAction { Other, SetBrakeForce, RaiseBrakeForce, LowerBrakeForce, SetProfile }
 
     /// <summary>A key, or a pair held together, that SmartControl Live acts on.</summary>
     public sealed class LiveKey
     {
         public LiveAction Action { get; internal set; }
 
-        /// <summary>Kilograms: the force to set, or the size of the step.</summary>
+        /// <summary>Kilograms: the force to set, or the size of the step. Nought for a profile key.</summary>
         public double Value { get; internal set; }
+
+        /// <summary>For a profile key (<see cref="LiveAction.SetProfile"/>): the id of the profile it switches to, as Live keeps it.</summary>
+        public string ProfileId { get; internal set; }
+
+        /// <summary>The binding's own row, and the Live preset it is in where the database says; 0 where it does not.</summary>
+        public long BindingId { get; internal set; }
+        public long PresetId { get; internal set; }
 
         /// <summary>Windows' names for the keys, as SmartControl writes them: <c>PRIOR</c> is Page Up.</summary>
         public string FirstKey { get; internal set; }
@@ -127,16 +140,28 @@ namespace RacingDesk.Data.Pedals
             if (HasTable(db, "keyboard_binding"))
             {
                 using var cmd = db.CreateCommand();
-                cmd.CommandText = "SELECT action_type, action_value, first_key, second_key FROM keyboard_binding ORDER BY id";
+                // The preset a key is in, where the database keeps that (SmartControl Live's presets: his are "(empty)" and
+                // "Default", with his five keys in Default); a database without the link table reads each key as in none.
+                bool linked = HasTable(db, "profile_smartcontrol_live_keyboard_binding");
+                cmd.CommandText = linked
+                    ? "SELECT k.action_type, k.action_value, k.first_key, k.second_key, k.id, " +
+                      "(SELECT MIN(l.fk_profile_smartcontrol_live_id) FROM profile_smartcontrol_live_keyboard_binding l WHERE l.fk_keyboard_binding_id = k.id) " +
+                      "FROM keyboard_binding k ORDER BY k.id"
+                    : "SELECT action_type, action_value, first_key, second_key, id, NULL FROM keyboard_binding ORDER BY id";
                 using var rows = cmd.ExecuteReader();
                 while (rows.Read())
                 {
+                    var action = rows.IsDBNull(0) ? LiveAction.Other : Action(Convert.ToInt32(rows.GetValue(0), CultureInfo.InvariantCulture));
+                    string value = rows.IsDBNull(1) ? null : Convert.ToString(rows.GetValue(1), CultureInfo.InvariantCulture);
                     keys.Add(new LiveKey
                     {
-                        Action = rows.IsDBNull(0) ? LiveAction.Other : Action(Convert.ToInt32(rows.GetValue(0), CultureInfo.InvariantCulture)),
-                        Value = rows.IsDBNull(1) ? 0 : Number(Convert.ToString(rows.GetValue(1), CultureInfo.InvariantCulture)) ?? 0,
+                        Action = action,
+                        Value = action == LiveAction.SetProfile || value == null ? 0 : Number(value) ?? 0,
+                        ProfileId = action == LiveAction.SetProfile ? value?.Trim() : null,
                         FirstKey = rows.IsDBNull(2) ? "" : rows.GetString(2),
                         SecondKey = rows.IsDBNull(3) ? "" : rows.GetString(3),
+                        BindingId = rows.IsDBNull(4) ? 0 : Convert.ToInt64(rows.GetValue(4), CultureInfo.InvariantCulture),
+                        PresetId = rows.IsDBNull(5) ? 0 : Convert.ToInt64(rows.GetValue(5), CultureInfo.InvariantCulture),
                     });
                 }
             }
@@ -144,12 +169,13 @@ namespace RacingDesk.Data.Pedals
             return new SmartControlSnapshot { DatabasePath = path, Profiles = profiles, Keys = keys };
         }
 
-        // SmartControl's own numbers for what a key does, from its bindings on the rig: 8 with a force to set,
-        // 9 and 10 with a step.
+        // SmartControl's own numbers for what a key does (LibHeusinkveld's EActionType): 8 with a force to set, 9 and 10
+        // with a step, from his bindings on the rig; 1 with a profile's id, from the vendor's first-run setup (NUMPAD1–4).
         internal static LiveAction Action(int type)
         {
             switch (type)
             {
+                case 1: return LiveAction.SetProfile;
                 case 8: return LiveAction.SetBrakeForce;
                 case 9: return LiveAction.RaiseBrakeForce;
                 case 10: return LiveAction.LowerBrakeForce;

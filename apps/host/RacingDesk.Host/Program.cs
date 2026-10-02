@@ -7,6 +7,7 @@ using System.Threading;
 using Newtonsoft.Json;
 using RacingDesk.Data;
 using RacingDesk.Data.Pedals;
+using RacingDesk.Data.Restore;
 using RacingDesk.Data.Schedule;
 using RacingDesk.Data.Wheel;
 using RacingDesk.Plugin;
@@ -32,6 +33,9 @@ namespace RacingDesk.Host
   RacingDesk.Host sql ""<select>""       run a read-only query against the store, print JSON
   RacingDesk.Host schedule             parse iRacing's season schedule PDF (--store to save it, --fetch to
                                     download it first)
+  RacingDesk.Host restore --dry-run    say what putting back each car's height and brakes would do, from the
+                                    store, iRacing's files and SmartControl's database, all read and none
+                                    written (--db, --documents, --smartcontrol name copies to read instead)
 
 Serve options:
   --http-port <n>      JSON contract port (default 8889)
@@ -88,9 +92,11 @@ Data options:
             Log.Sink = (level, message) =>
                 Console.WriteLine($"{DateTime.Now:HH:mm:ss.fff} {level,-5} {message}");
 
-            // The RaceCor-era data folder moves across once, before any command opens the store.
-            foreach (string note in DataFolder.Migrate())
-                Log.Info($"[RacingDesk.Host] data folder: {note}");
+            // The RaceCor-era data folder moves across once, before any command opens the store. Not for the dry run of putting
+            // the heights and brakes back, which reads (copies, often) and moves nothing.
+            if (o.Command != "restore")
+                foreach (string note in DataFolder.Migrate())
+                    Log.Info($"[RacingDesk.Host] data folder: {note}");
 
             switch (o.Command)
             {
@@ -99,6 +105,7 @@ Data options:
                 case "cars": return CarsCommand.Run(o);
                 case "sql": return Sql(o);
                 case "schedule": return ScheduleCommand.Run(o);
+                case "restore": return RestoreCommand.Run(o);
                 default: return Serve(o);
             }
         }
@@ -147,7 +154,7 @@ Data options:
                     return 1;
                 }
                 if (replay) PlayIbt(o, runtime, record ? store : null, stop);
-                else RunLive(o, runtime, store, outlines, stop, api);
+                else RunLive(o, runtime, store, outlines, stop, api, dataDir);
             }
             finally
             {
@@ -195,7 +202,7 @@ Data options:
 
         // Live: tick on every SDK telemetry frame while connected; when iRacing isn't running, keep ticking at
         // ~60 Hz with an empty frame, as SimHub does, so idle and demo state stay current.
-        private static void RunLive(HostOptions o, RacingDeskRuntime runtime, RacingDeskStore store, TrackOutlines outlines, ManualResetEventSlim stop, LocalDataApi api = null)
+        private static void RunLive(HostOptions o, RacingDeskRuntime runtime, RacingDeskStore store, TrackOutlines outlines, ManualResetEventSlim stop, LocalDataApi api = null, string dataDir = null)
         {
             using var raw = new SdkRawTelemetry();
             // The replay route drives the sim's replay and cameras through this reader, for the app's TV shots; a file
@@ -221,16 +228,38 @@ Data options:
             var recorder = store != null && !o.NoRecord
                 ? new LiveRecorder(store, "live", _ => DateTime.UtcNow, m => Log.Info("[RacingDesk.Host] " + m))
                 : null;
-            // The view each car is driven with. iRacing's files are read once the sim has gone, and never written.
+            // Putting back each car's height and brakes (docs/view-and-pedals-plan.md). In this build it is in trial: it says,
+            // on the desk, in this log and on the HUD, what it would do, and writes and presses nothing; the first run's buttons
+            // and undo write, each on his click. Made before the recorders it listens to, and handed to the data API's route.
+            RestoreDirector restore = null;
+            CarPedalsRecorder pedals = null;
+            if (store != null)
+            {
+                string root = dataDir ?? DataFolder.Path;
+                string db = o.Db ?? RacingDeskStore.DefaultPath;
+                var probe = new WindowsRigProbe();
+                restore = new RestoreDirector(new RestoreContext
+                {
+                    StorePath = db,
+                    Files = new ViewFiles(CarViewRecorder.DefaultDocuments, Path.Combine(root, "backups", "view"), probe, db),
+                    Backups = Path.Combine(root, "backups"),
+                    Probe = probe,
+                    Keys = new KeySender(),
+                    Force = () => pedals?.Now,
+                    PressesThisRun = () => pedals?.PressesThisRun ?? 0,
+                    Log = m => Log.Info("[RacingDesk.Host] " + m),
+                }, Path.Combine(root, "restore.json"));
+                if (api != null) api.Restore.Director = restore;
+            }
+            // The view each car is driven with. iRacing's files are read once the sim has gone, and never written here.
             var views = store != null
-                ? new CarViewRecorder(null, BackgroundIo.SimRunning, view => SaveCarView(o, view), m => Log.Info("[RacingDesk.Host] " + m))
+                ? new CarViewRecorder(null, BackgroundIo.SimRunning, view => SaveCarView(o, view), m => Log.Info("[RacingDesk.Host] " + m)) { Ran = run => restore?.ViewRunEnded(run) }
                 : null;
             // The pedals each car is driven with. The brake force is followed from SmartControl Live's own keys —
             // those keys and no others, and only while the sim is sending — because nothing on the PC records it.
-            // SmartControl's files are read and never written.
-            var pedals = store != null
-                ? new CarPedalsRecorder(() => SmartControl.Read(), seen => SavePedals(o, seen), m => Log.Info("[RacingDesk.Host] " + m))
-                : null;
+            // SmartControl's files are read and never written here.
+            if (store != null)
+                pedals = new CarPedalsRecorder(() => SmartControl.Read(), seen => { SavePedals(o, seen); restore?.PedalsLeft(seen); }, m => Log.Info("[RacingDesk.Host] " + m));
             // The force the keys have left the pedals at, for the HUD's datastream (the brakeforce route, asked by the
             // app's main process); a host with no recorder answers not known.
             if (api != null) api.BrakeForce = () => pedals?.Now;
@@ -266,6 +295,7 @@ Data options:
                     views?.SeeCar(source.CarPath);
                     pedals?.See(source.CarPath, source.HasAbsSetting, source.AbsWorking, source.LapsCompleted, source.Driving,
                         source.HasPrototypeControls);
+                    restore?.See(SeatOf(source));
                 }
                 catch (Exception ex)
                 {
@@ -279,12 +309,15 @@ Data options:
                 lock (gate) recorder?.Flush();
                 views?.SimGone();
                 pedals?.SimGone();
+                restore?.SimGone();
                 crowd.Gone();
             };
             // Returns at once (SdkStart). IRSDKSharper's own Start() could wait for ever, and then the loop below, which
             // is what hears the stop, was never reached.
             raw.Start();
             Log.Info("[RacingDesk.Host] waiting for iRacing (Ctrl+C to stop)");
+            // A write of iRacing's view files that a stop cut short is finished or put back, and trial says what app.ini holds.
+            restore?.HostStarted();
 
             if (store != null && !o.NoIngest)
             {
@@ -314,7 +347,26 @@ Data options:
             // The host is going with the sim still up — the desk was closed first. The run's force is the car's
             // all the same, and stopping says nothing of the sim having gone.
             pedals?.SimGone();
+            // What that queued for putting the brakes back is given a moment, and no more: the stop is bounded (HostStop).
+            try { restore?.Settled().Wait(TimeSpan.FromSeconds(1)); } catch (AggregateException) { }
         }
+
+        /// <summary>Where the frame has the driver, for putting the brakes back: the sim's own variables, read once a frame.</summary>
+        internal static SeatFacts SeatOf(IRacingTelemetrySource s) => new SeatFacts
+        {
+            CarPath = s.CarPath,
+            CarName = s.CarScreenName,
+            IsOnTrack = s.RawFlag("IsOnTrack"),
+            IsReplayPlaying = s.RawFlag("IsReplayPlaying"),
+            IsInGarage = s.RawFlag("IsInGarage"),
+            IsGarageVisible = s.RawFlag("IsGarageVisible"),
+            TrackSurface = s.RawInt("PlayerTrackSurface"),
+            OnPitRoad = s.RawFlag("OnPitRoad"),
+            SpeedMs = s.RawFloat("Speed"),
+            Brake = s.RawFloat("Brake"),
+            SimMode = s.SimMode,
+            AtUtc = DateTime.UtcNow,
+        };
 
         // Its own connection, as ingest has: this runs when the sim has closed, on a thread of its own.
         private static void SaveCarView(HostOptions o, CarView view)
@@ -586,6 +638,9 @@ Data options:
         public bool Now;
         public bool Scan;
         public long? LapsFor;
+        public string Documents;
+        public string SmartControlDb;
+        public bool DryRun;
         public bool Help;
 
         public static HostOptions Parse(string[] args)
@@ -596,7 +651,7 @@ Data options:
             {
                 o.Command = args[0];
                 start = 1;
-                if (o.Command != "ingest" && o.Command != "sessions" && o.Command != "cars" && o.Command != "sql" && o.Command != "schedule") throw new ArgumentException($"unknown command {o.Command}");
+                if (o.Command != "ingest" && o.Command != "sessions" && o.Command != "cars" && o.Command != "sql" && o.Command != "schedule" && o.Command != "restore") throw new ArgumentException($"unknown command {o.Command}");
                 if (o.Command == "sql")
                 {
                     o.Sql = args.Length > 1 ? args[1] : throw new ArgumentException("sql needs a query");
@@ -642,6 +697,9 @@ Data options:
                     case "--now": o.Now = true; break;
                     case "--scan": o.Scan = true; break;
                     case "--laps": o.LapsFor = (long)Num(); break;
+                    case "--documents": o.Documents = Next(); break;
+                    case "--smartcontrol": o.SmartControlDb = Next(); break;
+                    case "--dry-run": o.DryRun = true; break;
                     case "-h": case "--help": o.Help = true; break;
                     default: throw new ArgumentException($"unknown argument {a}");
                 }

@@ -103,6 +103,17 @@ namespace RacingDesk.Plugin.IRacing
         /// <summary>The driver is in the car, and not in the garage, at the menus or watching a replay.</summary>
         public bool Driving => GameRunning && Bool("IsOnTrack") && !Bool("IsReplayPlaying");
 
+        /// <summary>The sim's name for the car he is in ("Porsche 963 GTP"); null until the session says.</summary>
+        public string CarScreenName => GameRunning ? _me?.CarScreenName?.Trim() : null;
+
+        /// <summary>The session's SimMode: "full" when driving, "replay" for a replay file; null until the session says.</summary>
+        public string SimMode => GameRunning ? _raw.SessionInfo?.WeekendInfo?.SimMode : null;
+
+        /// <summary>One of the sim's own variables, by its name (IsInGarage, PlayerTrackSurface, Speed…); false, 0 while there is no sim.</summary>
+        public bool RawFlag(string name) => GameRunning && Bool(name);
+        public int RawInt(string name) => GameRunning ? Int(name) : 0;
+        public float RawFloat(string name) => GameRunning ? Float(name) : 0f;
+
         public object NewData => GameRunning ? _data : null;
 
         /// <summary>
