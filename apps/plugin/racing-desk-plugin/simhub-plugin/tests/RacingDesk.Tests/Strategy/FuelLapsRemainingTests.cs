@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using IRSDKSharper;
 using NUnit.Framework;
 using RacingDesk.Plugin.Engine;
@@ -183,7 +184,7 @@ SessionInfo:
         {
             public readonly Dictionary<string, object> Values = new Dictionary<string, object>();
             public bool IsConnected => true;
-            public IRacingSdkSessionInfo SessionInfo { get; } = SessionInfoYaml.Parse(Yaml);
+            public IRacingSdkSessionInfo SessionInfo { get; set; } = SessionInfoYaml.Parse(Yaml);
             public object GetValue(string name) => Values.TryGetValue(name, out var v) ? v : null;
 
             public FakeSdk(int displayUnits)
@@ -299,6 +300,336 @@ SessionInfo:
             Assert.That(laps, Is.LessThan(99));
             var s = TelemetryCapture.Capture(source);
             Assert.That(s.FuelLapsRemaining, Is.EqualTo(laps).Within(1e-6), "the snapshot says the host's own laps, whatever his display units");
+        }
+    }
+
+    /// <summary>
+    /// The SimHub plugin's own path, which the host's tests above do not go through: its capture reads SimHub's properties,
+    /// where the fuel is in the display units (gallons for him) and iRacing's raw FuelLevel and SimHub's
+    /// Fuel_LitersPerLap are litres. The laps are worked out from the two whose units are known (litres over litres), and
+    /// not taken from SimHub's own Fuel_RemainingLaps, whose units for a driver in gallons nothing has checked.
+    /// </summary>
+    [TestFixture]
+    public class FuelOnTheSimHubPathTests
+    {
+        private const string Raw = "DataCorePlugin.GameRawData.Telemetry.";
+
+        private sealed class SimHubSource : ITelemetrySource
+        {
+            public readonly Dictionary<string, object> Values = new Dictionary<string, object>();
+            public object Normalized { get; set; }
+            public bool GameRunning => true;
+            public string GameName => "IRacing";
+            public object NewData => Normalized;
+            public object GetPropertyValue(string fullName) => Values.TryGetValue(fullName, out var v) ? v : null;
+        }
+
+        // 15.3 gallons (57.9 litres) of a 65.8 % full tank, at 3.8 litres a lap; SimHub's own laps of fuel says 4.0 (what a
+        // quarter of the laps looks like, if it works in the units of GameData.Fuel).
+        private static SimHubSource Gallons(double perLap, double simHubLaps, bool rawLitres = true)
+        {
+            var source = new SimHubSource { Normalized = new { Fuel = 15.3, FuelPercent = 65.8 } };
+            source.Values[Raw + "DisplayUnits"] = 0;
+            if (rawLitres) source.Values[Raw + "FuelLevel"] = 57.9f;
+            source.Values["DataCorePlugin.Computed.Fuel_LitersPerLap"] = perLap;
+            source.Values["DataCorePlugin.Computed.Fuel_RemainingLaps"] = simHubLaps;
+            return source;
+        }
+
+        [Test]
+        public void ADriverInGallonsGetsLitresOverLitresNotSimHubsOwnFigure()
+        {
+            var s = TelemetryCapture.Capture(Gallons(perLap: 3.8, simHubLaps: 4.0));
+            Assert.That(s.FuelLevel, Is.EqualTo(15.3).Within(1e-9), "SimHub's GameData.Fuel is in the display units");
+            Assert.That(s.FuelLevelLitres, Is.EqualTo(57.9).Within(1e-3));
+            Assert.That(s.FuelLapsRemaining, Is.EqualTo(57.9 / 3.8).Within(1e-3), "15.2 laps: the litres over the litres a lap costs");
+            Assert.That(s.FuelLapsRemaining, Is.Not.EqualTo(4.0).Within(1.0), "not SimHub's figure in the other unit");
+            Assert.That((double)TelemetryFrame.BuildDict(s, demo: false)["RacingDesk.Plugin.DS.FuelLapsRemaining"], Is.EqualTo(57.9 / 3.8).Within(1e-3));
+        }
+
+        [Test]
+        public void NotKnownIsNoughtWhateverSimHubSays()
+        {
+            // The fuel per lap not yet learnt: a dash on the page, which is a 0 on the wire, also if SimHub's laps say a number.
+            var s = TelemetryCapture.Capture(Gallons(perLap: 0, simHubLaps: 4.0));
+            Assert.That(s.FuelLapsRemaining, Is.EqualTo(0));
+            Assert.That((double)TelemetryFrame.BuildDict(s, demo: false)["RacingDesk.Plugin.DS.FuelLapsRemaining"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void ASimWithNoRawLitresGetsSimHubsOwnFigure()
+        {
+            // Not iRacing (no FuelLevel in litres): SimHub's laps are all there is, and taken as they are.
+            var s = TelemetryCapture.Capture(Gallons(perLap: 3.8, simHubLaps: 11.6, rawLitres: false));
+            Assert.That(s.FuelLevelLitres, Is.EqualTo(0));
+            Assert.That(s.FuelLapsRemaining, Is.EqualTo(11.6).Within(1e-9));
+        }
+    }
+
+    /// <summary>
+    /// What a lap costs is the car's at the circuit's. The host lives as long as the app, across sessions and cars, and
+    /// kept the burn it had learnt: the next car's litres over the last car's burn were its laps of fuel from its first
+    /// frame, a number where there should have been a dash.
+    /// </summary>
+    [TestFixture]
+    public class FuelPerLapIsTheCarsTests
+    {
+        private const string Mx5 = @"---
+WeekendInfo:
+ TrackName: synthetic circuit
+ TrackID: 1
+ TrackDisplayName: Synthetic Circuit
+ TrackConfigName: Full
+ TrackLength: 4.00 km
+ SubSessionID: 1001
+ WeekendOptions:
+  IsFixedSetup: 0
+DriverInfo:
+ DriverCarIdx: 0
+ DriverCarRedLine: 7200.000
+ Drivers:
+ - CarIdx: 0
+   UserName: Test Driver
+   UserID: 424242
+   CarPath: mx5 mx52016
+   CarScreenName: Mazda MX-5
+   IRating: 1500
+   LicString: A 2.00
+SessionInfo:
+ Sessions:
+ - SessionNum: 0
+   SessionType: Race
+";
+
+        // Another car at the same circuit; the same car at another; and the same car and circuit in another session.
+        private static readonly string Gt3 = Mx5.Replace("mx5 mx52016", "ferrari296gt3").Replace("Mazda MX-5", "Ferrari 296 GT3");
+        private static readonly string Mx5Elsewhere = Mx5.Replace("TrackID: 1", "TrackID: 2");
+        private static readonly string Mx5Later = Mx5.Replace("SubSessionID: 1001", "SubSessionID: 1002");
+
+        private sealed class Sdk : IRawTelemetry
+        {
+            public readonly Dictionary<string, object> Values = new Dictionary<string, object>();
+            public bool IsConnected => true;
+            public IRacingSdkSessionInfo SessionInfo { get; set; }
+            public object GetValue(string name) => Values.TryGetValue(name, out var v) ? v : null;
+            public Sdk(string yaml)
+            {
+                SessionInfo = SessionInfoYaml.Parse(yaml);
+                Values["IsOnTrack"] = true; Values["SessionNum"] = 0; Values["SessionTime"] = 100.0; Values["SessionState"] = 4;
+                Values["Speed"] = 40f; Values["OnPitRoad"] = false; Values["DisplayUnits"] = 1;
+            }
+            public Sdk At(int lapCompleted, float litres)
+            {
+                Values["LapCompleted"] = lapCompleted; Values["Lap"] = lapCompleted + 1;
+                Values["FuelLevel"] = litres; Values["FuelLevelPct"] = litres / 100f;
+                return this;
+            }
+        }
+
+        private static double Prop(IRacingTelemetrySource source, string name) => Convert.ToDouble(source.GetPropertyValue(name) ?? 0.0);
+        private static double PerLap(IRacingTelemetrySource source) => Prop(source, "DataCorePlugin.Computed.Fuel_LitersPerLap");
+        private static double Laps(IRacingTelemetrySource source) => Prop(source, "DataCorePlugin.Computed.Fuel_RemainingLaps");
+
+        // A host that has learnt 4.0 litres a lap in the MX-5 at the synthetic circuit.
+        private static (Sdk sdk, IRacingTelemetrySource source) Learnt()
+        {
+            var sdk = new Sdk(Mx5).At(2, 60f);
+            var source = new IRacingTelemetrySource(sdk);
+            source.Update();
+            sdk.At(3, 56f);
+            source.Update();
+            Assert.That(PerLap(source), Is.EqualTo(4.0).Within(1e-4), "a green lap said what a lap costs");
+            Assert.That(Laps(source), Is.EqualTo(14.0).Within(1e-3));
+            return (sdk, source);
+        }
+
+        [Test]
+        public void AnotherCarDoesNotGetTheLastCarsBurn()
+        {
+            var (sdk, source) = Learnt();
+            sdk.SessionInfo = SessionInfoYaml.Parse(Gt3);
+            sdk.At(0, 100f);   // the new session's first frame: the new car, a full tank
+            source.Update();
+            Assert.That(PerLap(source), Is.EqualTo(0), "nothing is known of the new car");
+            Assert.That(Laps(source), Is.EqualTo(0), "so no laps of fuel: a dash, not 100 litres over 4");
+            // A green lap of its own: known again, from its own burn.
+            sdk.At(1, 92f);
+            source.Update();
+            Assert.That(PerLap(source), Is.EqualTo(8.0).Within(1e-4));
+            Assert.That(Laps(source), Is.EqualTo(11.5).Within(1e-3));
+        }
+
+        [Test]
+        public void AnotherCircuitDoesNotGetItEither()
+        {
+            var (sdk, source) = Learnt();
+            sdk.SessionInfo = SessionInfoYaml.Parse(Mx5Elsewhere);
+            sdk.At(0, 100f);
+            source.Update();
+            Assert.That(PerLap(source), Is.EqualTo(0));
+            Assert.That(Laps(source), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void TheSameCarAtTheSameCircuitKeepsItAcrossSessions()
+        {
+            var (sdk, source) = Learnt();
+            sdk.SessionInfo = SessionInfoYaml.Parse(Mx5Later);   // the next session of the weekend, or the next weekend
+            sdk.Values["SessionNum"] = 1;
+            sdk.At(0, 90f);
+            source.Update();
+            Assert.That(PerLap(source), Is.EqualTo(4.0).Within(1e-4), "the car's burn at the circuit is what it was");
+            Assert.That(Laps(source), Is.EqualTo(22.5).Within(1e-3));
+        }
+
+        [Test]
+        public void AFrameThatDoesNotSayWhichCarForgetsNothing()
+        {
+            // The session's names can be missing for a frame (a YAML read in two parts): nothing learnt is lost to it.
+            var (sdk, source) = Learnt();
+            sdk.SessionInfo = SessionInfoYaml.Parse(Mx5.Replace("   CarPath: mx5 mx52016\n", ""));
+            sdk.At(3, 55f);
+            source.Update();
+            Assert.That(PerLap(source), Is.EqualTo(4.0).Within(1e-4));
+            sdk.SessionInfo = SessionInfoYaml.Parse(Mx5);
+            sdk.At(3, 55f);
+            source.Update();
+            Assert.That(PerLap(source), Is.EqualTo(4.0).Within(1e-4), "and the same car again is the same car");
+        }
+    }
+
+    /// <summary>
+    /// A session with no end (a practice, a test drive: no count of laps, which iRacing says as 32767, and no end in
+    /// time, which it says as a week) has no flag for the strategist to make it to. It read the 32767 as laps to the
+    /// finish and, with no count at all, assumed 99, so its fuel call was up in every practice once a lap had been
+    /// driven: "Stop · ~N laps" over the pit box on the iPad.
+    /// </summary>
+    [TestFixture]
+    public class NoFlagToMakeItToTests
+    {
+        // A stint of laps at 3.2 litres each, 38 in the tank: 11.9 laps of fuel.
+        private static FuelComputer AfterTwoLaps(TelemetrySnapshot s, out StintData stint)
+        {
+            var fuel = new FuelComputer();
+            stint = new StintData { StartFuel = 45 };
+            stint.LapTimes.Add(92.1);
+            stint.LapTimes.Add(92.3);
+            fuel.UpdateFrame(s);
+            fuel.OnLapCompleted(stint, s, 3.2);
+            fuel.OnLapCompleted(stint, s, 3.2);
+            return fuel;
+        }
+
+        private static TelemetrySnapshot Session(int lapsRemaining, double timeRemaining, double remainingLaps = 0) => new TelemetrySnapshot
+        {
+            FuelLevel = 38.0, CompletedLaps = 2, LapLastTime = 92.3, SessionLapsRemaining = lapsRemaining, SessionTimeRemain = timeRemaining, RemainingLaps = remainingLaps,
+        };
+
+        [Test]
+        public void APracticeWithNoCountAndNoEndIsNotAFuelCall()
+        {
+            foreach (var s in new[]
+            {
+                Session(lapsRemaining: 32767, timeRemaining: 604800),   // iRacing's own words for a session with no end
+                Session(lapsRemaining: 0, timeRemaining: 604800),
+                Session(lapsRemaining: 0, timeRemaining: 0),             // nothing said at all
+                Session(lapsRemaining: 32767, timeRemaining: 0, remainingLaps: 32767),
+            })
+            {
+                var fuel = AfterTwoLaps(s, out var stint);
+                string what = $"laps {s.SessionLapsRemaining}, time {s.SessionTimeRemain}";
+                Assert.That(fuel.FuelHealthState, Is.EqualTo(0), what);
+                Assert.That(fuel.CanMakeItToEnd, Is.True, what);
+                Assert.That(fuel.PitWindowClose, Is.EqualTo(0), what);
+                Assert.That(fuel.RaceLapsRemaining, Is.EqualTo(0), "no flag: no laps to it");
+                Assert.That(fuel.FuelLapsRemaining, Is.EqualTo(38.0 / 3.2).Within(1e-9), "the laps of fuel are still known");
+                Assert.That(fuel.Evaluate(stint, s), Is.Null, what);
+            }
+        }
+
+        [Test]
+        public void ARaceToALapCountOrToATimeStillMakesTheCall()
+        {
+            // 20 laps to go on 11.9 laps of fuel: a stop is needed, and said.
+            var laps = AfterTwoLaps(Session(lapsRemaining: 20, timeRemaining: 604800), out var lapsStint);
+            Assert.That(laps.RaceLapsRemaining, Is.EqualTo(20));
+            Assert.That(laps.FuelHealthState, Is.EqualTo(2));
+            Assert.That(laps.CanMakeItToEnd, Is.False);
+            // A race to time: 30 minutes at 92.3 s a lap is 19.5 laps, and the 32767 of its count of laps is no count.
+            var timed = AfterTwoLaps(Session(lapsRemaining: 32767, timeRemaining: 1800), out var timedStint);
+            Assert.That(timed.RaceLapsRemaining, Is.EqualTo(1800 / 92.3).Within(1e-9));
+            Assert.That(timed.FuelHealthState, Is.EqualTo(2));
+            // A 24-hour race is a race to a time: its day is not "no end".
+            var endurance = AfterTwoLaps(Session(lapsRemaining: 32767, timeRemaining: 86400), out var enduranceStint);
+            Assert.That(endurance.RaceLapsRemaining, Is.EqualTo(86400 / 92.3).Within(1e-9));
+        }
+
+        private sealed class RawSource : ITelemetrySource
+        {
+            public readonly Dictionary<string, object> Values = new Dictionary<string, object>();
+            public bool GameRunning => true;
+            public string GameName => "IRacing";
+            public object NewData { get; } = new { Fuel = 38.0 };
+            public object GetPropertyValue(string fullName) => Values.TryGetValue(fullName, out var v) ? v : null;
+        }
+
+        [Test]
+        public void CaptureTakesIRacings32767ForNoCountOfLaps()
+        {
+            var source = new RawSource();
+            source.Values["DataCorePlugin.GameRawData.Telemetry.SessionLapsRemainEx"] = 32767;
+            Assert.That(TelemetryCapture.Capture(source).SessionLapsRemaining, Is.EqualTo(0), "no count, not 32767 laps to go");
+            source.Values["DataCorePlugin.GameRawData.Telemetry.SessionLapsRemainEx"] = 14;
+            Assert.That(TelemetryCapture.Capture(source).SessionLapsRemaining, Is.EqualTo(14));
+            source.Values["DataCorePlugin.GameRawData.Telemetry.SessionLapsRemainEx"] = 0;
+            source.Values["DataCorePlugin.GameData.RemainingLaps"] = 32767.0;
+            Assert.That(TelemetryCapture.Capture(source).SessionLapsRemaining, Is.EqualTo(0), "SimHub's, from the other path, the same");
+        }
+
+        /// <summary>
+        /// Over his own newest test drive, which has no end: the strategist, fed what the host reads of it, never says the
+        /// fuel is critical or calls a stop. (Read only; nothing of the session is printed.)
+        /// </summary>
+        [Test]
+        public void HisNewestTestDriveNeverMakesAFuelCall()
+        {
+            FileInfo file = null;
+            foreach (var f in IbtFileTests.NewestIbt(300))
+            {
+                if (f.Length < 3_000_000) continue;
+                try
+                {
+                    using var probe = new IbtFile(f.FullName);
+                    if (probe.SessionInfo?.WeekendInfo?.EventType == "Test" && probe.LapCount >= 6) { file = f; break; }
+                }
+                catch { /* try the next one */ }
+            }
+            Assume.That(file, Is.Not.Null, "no test drive of six laps in the history on this machine");
+
+            using var ibt = new IbtFile(file.FullName);
+            var raw = new IbtRawTelemetry(ibt);
+            var source = new IRacingTelemetrySource(raw);
+            var coordinator = new StrategyCoordinator();
+            TelemetrySnapshot previous = null;
+            int frames = 0, withBurn = 0, state2 = 0, calls = 0;
+            double longestTime = 0;
+            const int step = 10;   // six frames a second
+            for (int i = 0; i < ibt.RecordCount; i += step)
+            {
+                if (!raw.Seek(i)) break;
+                source.Update();
+                var s = TelemetryCapture.Capture(source);
+                coordinator.Update(s, previous);
+                previous = s;
+                frames++;
+                longestTime = Math.Max(longestTime, s.SessionTimeRemain);
+                if (coordinator.Fuel.AvgBurnPerLap > 0.01) withBurn++;
+                if (coordinator.Fuel.FuelHealthState == 2) state2++;
+                if (coordinator.IsVisible && coordinator.CurrentLabel == "FUEL") calls++;
+            }
+            Assume.That(withBurn, Is.GreaterThan(0), "no lap of the test drive was costed, so there is nothing to ask of the strategist");
+            Assert.That(state2, Is.EqualTo(0), $"fuel critical in {state2} of {frames} frames of a session with no end (time remaining read up to {longestTime:F0} s)");
+            Assert.That(calls, Is.EqualTo(0), "a fuel call in a session with no end");
         }
     }
 }

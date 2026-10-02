@@ -186,6 +186,9 @@ namespace RacingDesk.Plugin.Engine
             s.SessionLapsRemaining = GetRaw<int>(pm, "SessionLapsRemainEx");
             if (s.SessionLapsRemaining == 0)
                 s.SessionLapsRemaining = (int)GetPluginProp<double>(pm, "DataCorePlugin.GameData.RemainingLaps");
+            // iRacing says 32767 where a session has no count of laps (a practice, a run to time): that is not a number of
+            // laps to go, and the strategist read it as 32767 laps to the flag (a fuel call in every practice).
+            if (s.SessionLapsRemaining >= TelemetrySnapshot.NoCountOfLaps) s.SessionLapsRemaining = 0;
             s.SessionLapsTotal = GetRaw<int>(pm, "SessionLapsTotal");
             if (s.SessionLapsTotal == 0)
                 s.SessionLapsTotal = (int)GetPluginProp<double>(pm, "DataCorePlugin.GameData.TotalLaps");
@@ -627,11 +630,17 @@ namespace RacingDesk.Plugin.Engine
 
             // ── Fuel computation (from SimHub computed properties) ───────────
             s.FuelPerLap    = GetPluginProp<double>(pm, "DataCorePlugin.Computed.Fuel_LitersPerLap");
-            // The laps of fuel as SimHub (or the host) works them out, in one unit: GameData.Fuel above is in the display
-            // units and Fuel_LitersPerLap is not, so the one over the other is not laps (TelemetrySnapshot.FuelLapsRemaining).
-            s.FuelLapsComputed = GetPluginProp<double>(pm, "DataCorePlugin.Computed.Fuel_RemainingLaps");
             // iRacing's own FuelLevel: litres, whatever the display units.
             s.FuelLevelLitres  = GetRaw<float>(pm, "FuelLevel");
+            // The laps of fuel, in one unit: GameData.Fuel above is in the display units and Fuel_LitersPerLap is not, so the
+            // one over the other is not laps (TelemetrySnapshot.FuelLapsRemaining). Where the sim says its litres, they are
+            // worked out here from the two figures whose units are known — the litres in the tank over the litres a lap costs,
+            // as the host does (Fuel_RemainingLaps) — and not taken from SimHub's own Computed.Fuel_RemainingLaps, whose
+            // units for a driver in gallons nothing has checked; that is what a sim with no raw litres (not iRacing) gets.
+            double simHubLaps = GetPluginProp<double>(pm, "DataCorePlugin.Computed.Fuel_RemainingLaps");
+            s.FuelLapsComputed = s.FuelLevelLitres > 0
+                ? (s.FuelPerLap > 0.01 ? s.FuelLevelLitres / s.FuelPerLap : 0)
+                : simHubLaps;
             s.RemainingLaps = GetPluginProp<double>(pm, "DataCorePlugin.GameData.RemainingLaps");
 
             // ── Grid / Formation state ────────────────────────────────────

@@ -36,6 +36,7 @@
   var _lastFuelPerLap = '—';
   var _lastFuelLaps = '—';
   var _lastMaxFuelRaw = 0;  // hold tank capacity across pit resets
+  var _fuelHoldKey = '';    // the car, the session and the circuit the held fuel figures are of
 
   // ── Car silhouette state ──
   let _lastCarType = '';  // 'gt' or 'formula'
@@ -492,16 +493,29 @@
     var fuelPct = parseFloat(ds('FuelPct')) || 0;
     var fuelFormattedRaw = ds('FuelFormatted') || '';
     var fuelPerLapRaw = ds('FuelPerLapFormatted') || '';
-    var fuelLaps = parseFloat(ds('FuelLapsRemaining')) || 0;
+    // A number of laps, or 0 for not known yet (parseFuelLaps, config.js: an engine built before 2026-10-01 said exactly 99).
+    var fuelLaps = parseFuelLaps(ds('FuelLapsRemaining'));
     var fuelDisplay = pb('FuelDisplay') || '—';
     var fuelRequested = pb('FuelRequested');
     var unitLabel = units === 0 ? 'gal' : 'L';
 
     // Hold last-known-good fuel values while in pit lane (telemetry can
-    // momentarily report zeros/blanks during pit service)
+    // momentarily report zeros/blanks during pit service) — for that blip, and not past the car, the session or the circuit
+    // they were of: a new one starts with nothing held, so the pit lane it begins in does not show the last stint's fuel.
+    var carModelNow = (_demo ? d['RacingDesk.Plugin.Demo.CarModel'] : gd('CarModel')) || '';
+    var sessionNow = (_demo ? d['RacingDesk.Plugin.Demo.SessionTypeName'] : d['RacingDesk.Plugin.SessionTypeName']) || '';
+    var circuitNow = d['RacingDesk.Plugin.TrackMap.TrackName'] || gd('TrackName') || '';
+    if (carModelNow && sessionNow && circuitNow) {
+      var holdKey = carModelNow + '|' + sessionNow + '|' + circuitNow;
+      if (holdKey !== _fuelHoldKey) {
+        _fuelHoldKey = holdKey;
+        _lastFuelFormatted = '—'; _lastFuelPerLap = '—'; _lastFuelLaps = '—';
+      }
+    }
     if (!inPitLane && fuelFormattedRaw) _lastFuelFormatted = fuelFormattedRaw;
     if (!inPitLane && fuelPerLapRaw) _lastFuelPerLap = fuelPerLapRaw;
-    if (!inPitLane && fuelLaps > 0) _lastFuelLaps = fuelLaps.toFixed(1);
+    // The laps are held only as a known number: on track, "not known" is a dash, and so is what is held then.
+    if (!inPitLane) _lastFuelLaps = fuelLaps > 0 ? fuelLaps.toFixed(1) : '—';
     var fuelFormatted = fuelFormattedRaw || _lastFuelFormatted;
     var fuelPerLap = fuelPerLapRaw || _lastFuelPerLap;
 
@@ -540,14 +554,15 @@
       }
     }
     if (shouldSuggestFuel && _els.fuelStratLabel) {
-      // The strategist's laps of fuel is 0 until a lap has said what a lap burns (99 from an engine built before
-      // 2026-10-01): neither is a number of laps to say.
-      var stratLapsNum = parseFloat(fuelStratLaps);
-      var fuelLapsStr = (stratLapsNum > 0 && stratLapsNum < 99)
-        ? ' · ~' + Math.round(stratLapsNum) + ' laps left'
-        : '';
+      // The laps it says are the laps of fuel the page says beside it ("Laps left", the laps panel's fuel line): one number
+      // for the one thing, the engine's DS.FuelLapsRemaining. The strategist works out its own from a trimmed mean of the
+      // stint's laps, which is a different number a little of the time and goes stale between laps; it is what the call says
+      // only while the engine's is not known. Either is 0 until a lap has said what a lap burns (exactly 99 from an engine
+      // built before 2026-10-01): neither is a number of laps to say.
+      var callLaps = fuelLaps > 0 ? fuelLaps : parseFuelLaps(fuelStratLaps);
+      var fuelLapsStr = callLaps > 0 ? ' · ~' + Math.round(callLaps) + ' laps left' : '';
       _els.fuelStratLabel.textContent = document.body.classList.contains('drive-mode-active')
-        ? 'Stop' + (fuelLapsStr ? ' · ~' + Math.round(parseFloat(fuelStratLaps)) + ' laps' : '')
+        ? 'Stop' + (callLaps > 0 ? ' · ~' + Math.round(callLaps) + ' laps' : '')
         : 'Accept fuel stop' + fuelLapsStr;
     }
 
@@ -600,8 +615,9 @@
     }
     if (_els.fuelPerLap) _els.fuelPerLap.textContent = fuelPerLap;
     if (_els.fuelLaps) {
-      // 0 is "not known yet" (the wire's rule since 2026-10-01), and 99 is what an older plugin said for the same: a dash.
-      _els.fuelLaps.textContent = fuelLaps > 0 && fuelLaps < 99
+      // 0 is "not known yet" (the wire's rule since 2026-10-01), and 99 is what an older plugin said for the same: a dash —
+      // or, on pit road, the last known number of this car in this session (held above only when it was a number).
+      _els.fuelLaps.textContent = fuelLaps > 0
         ? fuelLaps.toFixed(1) : (inPitLane ? _lastFuelLaps : '—');
     }
     // Pit fuel add

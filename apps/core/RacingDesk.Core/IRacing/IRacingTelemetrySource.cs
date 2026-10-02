@@ -26,6 +26,7 @@ namespace RacingDesk.Plugin.IRacing
         private readonly IRawTelemetry _raw;
         private readonly NormalizedData _data = new NormalizedData();
         private readonly FuelPerLap _fuel = new FuelPerLap();
+        private string _fuelOf;   // the car and the circuit the litres a lap were learnt in
 
         private IRacingSdkSessionInfo _indexedSession;
         private readonly Dictionary<int, IRacingSdkSessionInfo.DriverInfoModel.DriverModel> _driversByCarIdx = new Dictionary<int, IRacingSdkSessionInfo.DriverInfoModel.DriverModel>();
@@ -156,6 +157,23 @@ namespace RacingDesk.Plugin.IRacing
             _data.TyreTempRearRight = Temp(Float("RRtempCM"), imperial);
 
             BuildOpponents(myIdx);
+
+            // What a lap costs is the car's, at the circuit's: a different car, or another circuit, is a different number,
+            // so the burn learnt in one is not the other's laps of fuel from its first frame (the host lives as long as the
+            // app, across sessions and cars; it said the new car's litres over the last one's burn). The same car at the same
+            // circuit in the next session keeps it. A frame that does not say which (the session's names come after the
+            // first frames) changes nothing.
+            string carPath = _me?.CarPath?.Trim();
+            int trackId = si.WeekendInfo?.TrackID ?? 0;
+            if (!string.IsNullOrEmpty(carPath) && trackId > 0)
+            {
+                string of = carPath + "|" + trackId.ToString(CultureInfo.InvariantCulture);
+                if (of != _fuelOf)
+                {
+                    _fuelOf = of;
+                    _fuel.Forget();
+                }
+            }
             _fuel.Update(lapCompleted, fuel, Bool("OnPitRoad"));
         }
 
@@ -378,6 +396,16 @@ namespace RacingDesk.Plugin.IRacing
             private bool _pittedThisLap;
 
             public double LitersPerLap { get; private set; }
+
+            /// <summary>Not known again: nothing learnt, and the next frame starts a lap.</summary>
+            public void Forget()
+            {
+                _laps.Clear();
+                _lastLap = -1;
+                _fuelAtLapStart = 0;
+                _pittedThisLap = false;
+                LitersPerLap = 0;
+            }
 
             public void Update(int lapCompleted, double fuel, bool onPitRoad)
             {

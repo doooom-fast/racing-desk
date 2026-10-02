@@ -87,6 +87,16 @@ namespace RacingDesk.Plugin.Engine
         public double LapLastTime       { get; set; }
         public double LapBestTime       { get; set; }
         public double SessionTimeRemain { get; set; }
+        /// <summary>
+        /// What iRacing says for the laps left of a session that has no count of them (a practice, one run to time), and
+        /// <see cref="SessionLapsTotal"/> too: the largest value of its 16-bit field.
+        /// </summary>
+        public const int NoCountOfLaps = 32767;
+        /// <summary>
+        /// A session with no end in time says a week (604800 s) in <see cref="SessionTimeRemain"/>. Over two days is no end
+        /// at all, which leaves a 24-hour race its day.
+        /// </summary>
+        public const double NoEndInSeconds = 172800;
         /// <summary>Laps remaining in session (iRacing SessionLapsRemainEx, avoids off-by-one).</summary>
         public int    SessionLapsRemaining { get; set; }
         /// <summary>Total laps in session (iRacing SessionLapsTotal, 0 for timed races).</summary>

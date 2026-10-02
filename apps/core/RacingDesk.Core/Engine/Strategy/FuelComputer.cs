@@ -283,16 +283,23 @@ namespace RacingDesk.Plugin.Engine.Strategy
 
         private double EstimateRaceLapsRemaining(TelemetrySnapshot s)
         {
-            // Prefer session laps remaining if available (lap-limited race)
-            if (s.SessionLapsRemaining > 0)
+            // Prefer session laps remaining if available (lap-limited race). iRacing's 32767 is no count of laps (capture
+            // takes it out; a snapshot from elsewhere may still carry it).
+            if (s.SessionLapsRemaining > 0 && s.SessionLapsRemaining < TelemetrySnapshot.NoCountOfLaps)
                 return s.SessionLapsRemaining;
 
-            // Timed race: estimate from session time remaining and recent lap times
-            if (s.SessionTimeRemain > 0 && s.LapLastTime > 10)
+            // Timed race: estimate from session time remaining and recent lap times. A session with no end in time says a
+            // week, which is not 6,000 laps to the flag.
+            if (s.SessionTimeRemain > 0 && s.SessionTimeRemain < TelemetrySnapshot.NoEndInSeconds && s.LapLastTime > 10)
                 return s.SessionTimeRemain / s.LapLastTime;
 
             // Fallback to SimHub's computed value
-            return s.RemainingLaps > 0 ? s.RemainingLaps : 99;
+            if (s.RemainingLaps > 0 && s.RemainingLaps < TelemetrySnapshot.NoCountOfLaps)
+                return s.RemainingLaps;
+
+            // No end is known (a practice, a test drive): there is no flag to make it to, so no stop is needed to reach one.
+            // It was 99, which put the strategist's fuel call up in every session with no end, once a lap had been driven.
+            return 0;
         }
 
         private void ComputePitWindow(TelemetrySnapshot s, StintData stint)

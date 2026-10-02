@@ -59,6 +59,19 @@ function tyreWearShown(pct) {
   return shown;
 }
 
+// ── Laps of fuel: one meaning, one reader ──
+// A number of laps, or 0 for "not known yet" (the host and the SimHub plugin say 0 until a lap has said what a lap costs,
+// since 2026-10-01). An engine built before sent exactly 99 for the same ("FuelPerLap > 0.01 ? FuelLevel / FuelPerLap : 99"),
+// which the laps panel read as "99.0 laps" for a whole session (he asked: "The fuel in the sector area on iPad shows 99
+// laps always"). Only that exact number is refused: a car that burns little on a short oval really can have a hundred
+// laps or more of fuel (99.4, 120), and that is a number of laps. The laps panel, the pit box's "Laps left" and the
+// strategist's call all read it through this, and the call says the number beside it (pitbox.js).
+function parseFuelLaps(val) {
+  const v = parseFloat(val);
+  if (!isFinite(v) || !(v > 0) || v === 99) return 0;
+  return v;
+}
+
 const POLL_MS = 33; // ~30fps when in a car
 const IDLE_POLL_MS = 1000; // slow poll when not in a car — just enough to detect entry
 

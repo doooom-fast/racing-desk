@@ -4,7 +4,10 @@
  * on 2026-10-01: "The fuel in the sector area on iPad shows 99 laps always". The engine said 99 under
  * DS.FuelLapsRemaining for as long as it did not know what a lap costs (the host's own fuel per lap wants one green lap
  * off pit road; SimHub's a lap or two), and the laps panel read it as it was. The wire now says 0 there, and the page
- * refuses a 99 as well, since a SimHub plugin built before this still sends one.
+ * refuses a 99 as well, since a SimHub plugin built before this still sends one — that exact number, and not "99 or
+ * more": a car that burns little on a short oval really can have a hundred laps. The strategist's call says the laps the
+ * pit box says beside it, one number for the one thing; the pit box holds the last known laps through the pit lane (a
+ * blip of the telemetry during service) and not past a car, a session or a circuit, nor as a 99 or a nought.
  */
 
 import { test, expect } from '@playwright/test';
@@ -79,16 +82,30 @@ test('the iPad: a 99 from the engine is not laps of fuel, nor is 0 — a dash un
   payload = RACE({ fuelLaps: 6.4 });
   await frames(page);
   expect(await read(page)).toMatchObject({ laps: '6.4 laps · 8 to go', lapsClass: 'laps-v red', pit: '6.4' });
-  // The strategist's call says its laps only when it has them: 0 (not yet) and 99 (an older engine) are not a number.
+  // The strategist's call says the laps the pit box says beside it ("Laps left"): the engine's, one number for the one
+  // thing, wherever the strategist's own differs; the strategist's own only while the engine's is not known; and none
+  // when neither is: 0 (not yet) and 99 (an older engine) are not a number.
   payload = RACE({ fuelLaps: 6.4, extra: CALLING(6) });
   await frames(page);
-  expect((await read(page)).call).toBe('Stop · ~6 laps');
+  expect(await read(page)).toMatchObject({ pit: '6.4', call: 'Stop · ~6 laps' });
+  payload = RACE({ fuelLaps: 9.1, extra: CALLING(6) });
+  await frames(page);
+  expect(await read(page)).toMatchObject({ pit: '9.1', call: 'Stop · ~9 laps' });
   payload = RACE({ fuelLaps: 6.4, extra: CALLING(0) });
   await frames(page);
-  expect((await read(page)).call).toBe('Stop');
+  expect((await read(page)).call, "the engine's laps, the strategist's being 0").toBe('Stop · ~6 laps');
   payload = RACE({ fuelLaps: 6.4, extra: CALLING(99) });
   await frames(page);
-  expect((await read(page)).call).toBe('Stop');
+  expect((await read(page)).call, "the engine's laps, the strategist's being an older engine's 99").toBe('Stop · ~6 laps');
+  payload = RACE({ fuelLaps: 0, extra: { ...NO_PER_LAP, ...CALLING(6) } });
+  await frames(page);
+  expect(await read(page)).toMatchObject({ pit: '—', call: 'Stop · ~6 laps' });
+  payload = RACE({ fuelLaps: 0, extra: { ...NO_PER_LAP, ...CALLING(0) } });
+  await frames(page);
+  expect((await read(page)).call, 'neither knows').toBe('Stop');
+  payload = RACE({ fuelLaps: 99, extra: { ...NO_PER_LAP, ...CALLING(99) } });
+  await frames(page);
+  expect((await read(page)).call, 'neither knows, an older engine saying so').toBe('Stop');
   // A wire that says nothing of the laps but does say a fuel per lap: still a dash. The page works out no laps of its own,
   // since GameData.Fuel is in the display units (gallons for him) and Fuel_LitersPerLap is not: 15 gallons over 2 litres a
   // lap would be "7.5 laps" of fuel that lasts 28.
@@ -114,4 +131,66 @@ test("the rig's pit box reads the same rule: 99 and 0 are a dash, a number is th
   payload = RACE({ fuelLaps: 9.1 });
   await frames(page);
   expect(await pit()).toBe('9.1');
+});
+
+test('a hundred laps of fuel or more is a number (only the exact 99 of an older engine is not): a small tank-to-burn car on a short oval', async ({ page }) => {
+  test.setTimeout(60000);
+  payload = RACE({ fuelLaps: 120.4 });
+  await page.addInitScript(() => { try { localStorage.setItem('rd-effects', 'off'); } catch (e) { /* none */ } });
+  await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
+  await page.setViewportSize({ width: 1180, height: 820 });
+  await page.goto(`http://127.0.0.1:${port}/`);
+  await frames(page);
+  const shown = await read(page);
+  expect(shown.pit).toBe('120.4');
+  expect(shown.laps).toBe('120.4 laps · 8 to go');
+  payload = RACE({ fuelLaps: 99.4 });
+  await frames(page);
+  expect(await read(page)).toMatchObject({ pit: '99.4', laps: '99.4 laps · 8 to go' });
+  payload = RACE({ fuelLaps: 99, extra: NO_PER_LAP });
+  await frames(page);
+  expect(await read(page)).toMatchObject({ pit: '—', laps: '—' });
+});
+
+// The pit box holds the last known laps of fuel while the car is on pit road (the telemetry can blank during service): the
+// number it held, never a 99, never past a nought on the track, and never from another car, session or circuit.
+test("the pit box through the pit lane: the last known laps are held, and a 99, a nought, or another session's are not", async ({ page }) => {
+  test.setTimeout(90000);
+  const IN_PIT = { 'DataCorePlugin.GameData.IsInPitLane': 1 };
+  await page.addInitScript(() => { try { localStorage.setItem('rd-effects', 'off'); } catch (e) { /* none */ } });
+  await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
+  await page.setViewportSize({ width: 1180, height: 820 });
+  payload = RACE({ fuelLaps: 99, extra: NO_PER_LAP });
+  await page.goto(`http://127.0.0.1:${port}/`);
+  await frames(page);
+  const pit = async () => (await read(page)).pit;
+  // An older plugin's 99 on the track, then the pit lane: the 99 was stored as "99.0" and showed there.
+  expect(await pit()).toBe('—');
+  payload = RACE({ fuelLaps: 99, extra: { ...NO_PER_LAP, ...IN_PIT } });
+  await frames(page);
+  expect(await pit(), "an older engine's 99, held through the pit lane").toBe('—');
+  // A known number on the track; the pit lane's blips (a nought, a 99) leave it standing.
+  payload = RACE({ fuelLaps: 9.1 });
+  await frames(page);
+  expect(await pit()).toBe('9.1');
+  payload = RACE({ fuelLaps: 0, extra: { ...NO_PER_LAP, ...IN_PIT } });
+  await frames(page);
+  expect(await pit(), 'a blank in the pit lane: the last number').toBe('9.1');
+  payload = RACE({ fuelLaps: 99, extra: { ...NO_PER_LAP, ...IN_PIT } });
+  await frames(page);
+  expect(await pit(), 'a 99 in the pit lane: the last number').toBe('9.1');
+  // Not known on the track (a new stint, the fuel per lap forgotten): a dash, and the pit lane after it shows the dash too.
+  payload = RACE({ fuelLaps: 0, extra: NO_PER_LAP });
+  await frames(page);
+  expect(await pit()).toBe('—');
+  payload = RACE({ fuelLaps: 0, extra: { ...NO_PER_LAP, ...IN_PIT } });
+  await frames(page);
+  expect(await pit(), 'not known on the track, then the pit lane: not the number of a stint before').toBe('—');
+  // Another session: what was held is not that session's, so the pit lane it begins in has no number until it has one.
+  payload = RACE({ fuelLaps: 9.1 });
+  await frames(page);
+  expect(await pit()).toBe('9.1');
+  payload = frame({ order: fieldWith(4), session: 'Practice', state: 4, mode: 1, start: 4, lap: 1, fuelLaps: 0, extra: { ...NO_PER_LAP, ...IN_PIT } });
+  await frames(page);
+  expect(await pit(), 'a new session, in its pit lane, nothing known').toBe('—');
 });
