@@ -215,7 +215,11 @@ data?… get rid of all of it").
   `DataUpdate` thread; again every 5 s while there is nothing (and while what there is is SimHub's shared map, below)
   and every 60 s once there is his own, swapping the outline when it has gained laps. The iPad's proxy serves
   `/racing-desk/` alone and refuses queries, so the route is never reachable from the
-  network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was, plus
+  network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was — but for
+  the numbers of the path and of the other cars' places, written to a hundredth of a unit since 2026-10-02
+  (`TrackMapProvider.F`): a tenth was 6 m at Le Mans, more than the 5 m between the outline's points, and drew a squiggle
+  on the iPad's following map (the overlay's CLAUDE.md, The outline the page draws; beside SimHub this takes the plugin
+  installed again, and the page smooths a one-decimal path from an older plugin meanwhile) — plus
   `TrackMap.Status`: `ready`, `crowd` (drawn, on SimHub's shared map: the cell says "SimHub's map until your
   first clean lap", one line under the circuit, above its name), `first-lap` (no outline of this layout yet: the map cell says "Map
   after one clean lap"), `no-host` (the app's host does not answer the plugin: the cell says "No map yet — the app is
