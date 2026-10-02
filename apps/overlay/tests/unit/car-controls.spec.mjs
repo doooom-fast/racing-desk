@@ -808,6 +808,22 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     expect(r.cells.map((c) => c.key)).toEqual(['bb', 'tc', 'brakeMigration', 'tc2', 'arbFront', 'arbRear']);
   });
 
+  test('the glance layout leaves out another control the sim is not reporting, as before; the rig shows it with a dash', async ({ page }) => {
+    await openWith(page, withControls(GT3_UNREAD));
+    await expect(page.locator('[data-id="throttleMap"] .ctrl-mini-value')).toHaveText('—');
+    await page.evaluate(() => setDriveMode(true));
+    await expect.poll(() => room(page).then((r) => r.fit)).toBe(false);
+    await expect(page.locator('[data-id="throttleMap"]')).toHaveCount(0);
+    let r = await room(page);
+    expect(r.cells.map((c) => c.key), 'the three; ABS a dash, as a primary the host said nothing of always was').toEqual(['bb', 'tc', 'abs']);
+    expect(await page.locator('#ctrlABS .ctrl-value').textContent()).toBe('—');
+    await page.evaluate(() => setDriveMode(false));
+    await expect.poll(() => room(page).then((r) => r.fit)).toBe(true);
+    await expect(page.locator('[data-id="throttleMap"] .ctrl-mini-value')).toHaveText('—');
+    r = await room(page);
+    expect(r.cells.map((c) => c.key)).toEqual(['bb', 'tc', 'abs', 'throttleMap']);
+  });
+
   test('without the key the room rule goes with the rest', async ({ page }) => {
     await openWith(page, withControls(GTP));
     await expect.poll(() => room(page).then((r) => r.rows)).toBe('2');

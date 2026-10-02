@@ -98,7 +98,8 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   DRS and push-to-pass; an unread one with a dash (`.ctrl-mini-unread`). Only for a car that has any; DRS is
   `.ctrl-mini-ready` when it can be opened and `.ctrl-mini-active` while it is, push-to-pass `.ctrl-mini-active` while
   it is on. **In the glance layout** (an iPad, the page OBS draws of it, Ctrl+Shift+F) they are a row of small cells
-  under the three, as they always were. **On the rig's HUD every one of them is a panel like the three** — he asked on
+  under the three, as they always were, and an unread one (or an unread mode) is left out of it, as when the host left
+  such a one out (`render`; the request was for the desktop HUD alone). **On the rig's HUD every one of them is a panel like the three** — he asked on
   2026-10-01: "show adjustment panels for every adjustment available for that car. Omit ones that are not on the car
   when there's no room" — the same type, label over number, with the bar: the row's box dissolves (`.ctrl-fit .ctrl-more
   { display: contents }`, `leaderboard.css`) and its cells are the panel's.
@@ -137,7 +138,7 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   the car's label, a mode by name, GTP brake migration, TC slip and gain, the bars, DRS and push-to-pass, an unread
   dial, a car that changes, a car not in the list, a key that is not one — and the rig's room: the one-row car, two
   rows of two with the pedals' share, six real cells with NONE omitted, compact and trimmed, the long word, the glance
-  layout and back, the panel without the key. **The cars are not typed in the spec**: they are read from
+  layout and back (an unread dial left out there and shown with a dash on the rig), the panel without the key. **The cars are not typed in the spec**: they are read from
   `tests/unit/fixtures/car-controls-wire.json`, which RacingDesk.Tests holds to what the host writes
   (`Cars/CarControlsWireTests.cs`, rewritten with `UPDATE_CAR_CONTROLS_WIRE=1`). The C# side cannot be tested over
   `:8889` without binding wildcard ports, so that hop is by the code: the runtime writes `s.CarControlsJson` into the
@@ -167,7 +168,8 @@ read from the pedals or the wheel base for them, and nothing written to them, Sm
   shows a dash. The store's `car_pedal_facts.force_kg` (the force a car was *last* driven with) is not shown: the pedals
   are not put back to it when he gets in, so it is not necessarily what they are at.
 - **Tests**: `tests/unit/rig-limits.spec.mjs` (the answer as read, the request over a 127.0.0.1 stand-in, the keeper's
-  asking and telling, main.js's and the preload's wiring), `tests/unit/datastream-limits.spec.mjs` (the rows on the
+  asking and telling, the keeper with its own fetch against the stand-in — the host's `{ car, force_kg }` is read once,
+  into the page's `{ brakeKg, car }`, and that is what the keeper checks — main.js's and the preload's wiring), `tests/unit/datastream-limits.spec.mjs` (the rows on the
   page: the units, a change told by the main process, the dashes, the demo, the switches, the glance layout),
   `host-reads-this-machine.spec.mjs` (the request is one the host answers).
 

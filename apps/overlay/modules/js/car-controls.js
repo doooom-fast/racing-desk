@@ -234,6 +234,12 @@
     const seen = {}, values = {};
     const doc = panel.ownerDocument;
     const glance = inGlance(doc);
+    if (glance) {
+      // The glance layout is as it was before every adjustment had a cell (he asked for that on the desktop HUD alone):
+      // a mode or another control the sim is not reporting is not in its row, as when the host left such a one out.
+      v.modes = v.modes.filter((c) => c.state !== 'unread');
+      v.more = v.more.filter((c) => c.state !== 'unread');
+    }
     const fit = glance ? null : arrange(v);
     const omitted = new Set(fit ? fit.omitted : []);
 
