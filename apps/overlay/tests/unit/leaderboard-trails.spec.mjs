@@ -356,7 +356,7 @@ test.describe('which race a trail belongs to', () => {
     await show(page, at(4, { state: 4, start: 0, noPlaces: true }));
     await show(page, at(4, { state: 4, start: 4 }));
     expect(await places(page, ME)).toEqual([4]);
-    expect(await places(page, 'Alex Alpha')).toEqual([1]);
+    expect(await places(page, 'A. Alpha')).toEqual([1]);
     const flat = await mine(page);
     expect(flat.first).toBe(flat.last);
   });
@@ -383,7 +383,7 @@ test.describe('which race a trail belongs to', () => {
     expect(shown.last).toBeLessThan(shown.first);
     expect(shown.color).toBe(GREEN);
     // Nobody else's grid slot is known: their lines begin where they were first seen.
-    expect(await places(page, 'Alex Alpha')).toEqual([1]);
+    expect(await places(page, 'A. Alpha')).toEqual([1]);
   });
 
   test('a frame that names no session does not end the one in hand', async ({ page }) => {

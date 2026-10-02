@@ -40,9 +40,15 @@ export function at(pct) {
 }
 
 export const ME = 'Test Driver';
-export const FIELD = ['Alex Alpha', 'Blake Bravo', 'Casey Charlie', 'Dana Delta', 'Eli Echo', 'Finn Foxtrot',
+// The field as the plugin sends it: every other driver's name already in the leaderboard's style, the initial and the
+// surname (a real session's are characters from packages/pseudonyms, in the same form; the HUD shows what it is sent).
+// The full names beneath are the fixture's seed alone — the lap times and gaps are derived from their lengths, so the
+// golden frames draw the same numbers they always did — and go nowhere.
+const LONG = ['Alex Alpha', 'Blake Bravo', 'Casey Charlie', 'Dana Delta', 'Eli Echo', 'Finn Foxtrot',
   'Gale Golf', 'Harper Hotel', 'Indy India', 'Jules Juliet', 'Kai Kilo', 'Lee Lima', 'Max Mike', 'Nat November',
   'Oli Oscar', 'Pat Papa', 'Quin Quebec', 'Rae Romeo', 'Sam Sierra', 'Tay Tango'];
+export const FIELD = LONG.map((n) => { const [a, b] = n.split(' '); return `${a[0]}. ${b}`; });
+const seedOf = (name) => { const i = FIELD.indexOf(name); return i >= 0 ? LONG[i] : name; };
 
 // The field with the driver at a place: 1 is the front.
 export function fieldWith(place, others = FIELD) {
@@ -75,7 +81,7 @@ export function frame({
   const pcts = {};
   order.forEach((name, i) => { pcts[name] = playerPct + (me - 1 - i) * 0.035; });
   const board = order.map((name, i) => {
-    const last = lastLaps[name] ?? +(92 + ((name.length * 37 + lap * 13 + i * 7) % 90) / 100).toFixed(3);
+    const last = lastLaps[name] ?? +(92 + ((seedOf(name).length * 37 + lap * 13 + i * 7) % 90) / 100).toFixed(3);
     // [place, name, iRating, best lap, last lap, gap to the driver (negative: ahead of him), in pit, is the driver]
     return [noPlaces ? 0 : i + 1, name, 1500 + ((i * 331) % 2400), +(last - 0.3).toFixed(3), last,
       name === ME ? 0 : +((pcts[ME] - pcts[name]) * 92).toFixed(2), 0, name === ME ? 1 : 0];
@@ -85,7 +91,8 @@ export function frame({
     const o = at(pcts[n]);
     return `${o.x.toFixed(1)},${o.y.toFixed(1)},0`;
   }).join(';');
-  const short = (name) => { if (!name) return ''; const [a, b] = name.split(' '); return `${a[0]}. ${b}`; };
+  // The gaps carry the same string the leaderboard does: the name as it is sent, already short.
+  const short = (name) => name || '';
   const payload = {
     ...BASE,
     ...MOCK_TELEMETRY,
