@@ -31,8 +31,9 @@ namespace RacingDesk.Core.Names
 
     /// <summary>
     /// The list of names other drivers are shown under, read once from the assembly (<c>packages/pseudonyms/names.json</c>,
-    /// embedded at build time). Both forms of every name are unique across the list, and the list is in the order of the
-    /// file: <see cref="Pseudonymizer"/> indexes it by a salted hash, so the order is part of what makes a name steady.
+    /// embedded at build time). Both forms of every name are unique across the list. The file's order and length do not
+    /// decide who gets which name (<see cref="PseudonymBook.Rank"/> scores each name by itself), so names may be added or
+    /// the file re-sorted: only a driver who prefers an added name to the one they had is renamed.
     /// </summary>
     public sealed class PseudonymList
     {

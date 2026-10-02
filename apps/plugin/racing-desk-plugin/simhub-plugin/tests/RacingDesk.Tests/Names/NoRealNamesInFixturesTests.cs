@@ -54,6 +54,8 @@ namespace RacingDesk.Tests.Names
             };
             allowed.Add(SyntheticField.TeammateName);
             allowed.Add("L. Quarrendine");
+            allowed.Add(SyntheticField.SpectatorName);
+            allowed.Add("W. Oakensby");
             foreach (var r in SyntheticField.Rivals)
             {
                 allowed.Add(r.Name);

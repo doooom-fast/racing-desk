@@ -28,6 +28,11 @@ namespace RacingDesk.Tests.Names
         public const long TeammateCustId = 700099;
         public const string TeammateName = "Leopold Quarrendine";
 
+        /// <summary>A spectator in the session (iRacing lists them among the drivers), made up like the rest.</summary>
+        public const long SpectatorCustId = 700077;
+        public const string SpectatorName = "Wilhelmina Oakensby";
+        public const int SpectatorCarIdx = 8;
+
         public sealed class Rival
         {
             public int CarIdx;
@@ -71,12 +76,15 @@ namespace RacingDesk.Tests.Names
         public static IEnumerable<string> Leaks(Rival r) => new[] { r.Name, r.Shortened, r.Surname };
 
         /// <summary>
-        /// The session YAML, as iRacing writes it: the player first, the rivals, and the pace car. Each rival's team is
-        /// named after them, as iRacing names a driver's team in a single-driver session, but the first's is a team of its
-        /// own, and the last's has the driver's name inside a longer one.
+        /// The session YAML, as iRacing writes it: the player first, the rivals, and the pace car. In a session without teams
+        /// each rival's team is named after them, as iRacing names a driver's team there, but the first's is a team of its
+        /// own, and the last's has the driver's name inside a longer one. <paramref name="teammateDriving"/>: the entry for
+        /// his car is his teammate's (and his own is not listed). <paramref name="teamRace"/>: a team race, TeamRacing 1,
+        /// every team named after its drivers' surname, and his car listed twice, as a team's drivers are, with the
+        /// teammate and then him. <paramref name="spectator"/> adds a spectator, listed first among the drivers.
         /// </summary>
         public static string Yaml(long sessionId = 5001, long subSessionId = 70010003, int playerCarIdx = PlayerCarIdx, bool reverse = false,
-            bool teammateDriving = false)
+            bool teammateDriving = false, bool teamRace = false, bool spectator = false)
         {
             var y = new StringBuilder();
             y.Append("---\n")
@@ -94,6 +102,7 @@ namespace RacingDesk.Tests.Names
              .Append(" Category: Road\n")
              .Append(" Official: 1\n")
              .Append(" NumCarClasses: 1\n")
+             .Append(" TeamRacing: ").Append(teamRace ? 1 : 0).Append('\n')
              .Append(" WeekendOptions:\n")
              .Append("  IsFixedSetup: 1\n")
              .Append("  StandingStart: 0\n")
@@ -117,13 +126,21 @@ namespace RacingDesk.Tests.Names
              .Append(" DriverCarRedLine: 7200.000\n")
              .Append(" Drivers:\n");
             var order = reverse ? Rivals.Reverse().ToList() : Rivals.ToList();
-            if (teammateDriving) Driver(y, PlayerCarIdx, TeammateCustId, TeammateName, PlayerNumber, 1650, "Nowhere Motorsport", false);
+            if (spectator) Driver(y, SpectatorCarIdx, SpectatorCustId, SpectatorName, "0", 0, SpectatorName, false, isSpectator: true);
+            if (teamRace)
+            {
+                Driver(y, PlayerCarIdx, TeammateCustId, TeammateName, PlayerNumber, 1650, "Oakwright Quarrendine Racing", false, teamId: 9001);
+                Driver(y, PlayerCarIdx, PlayerCustId, PlayerName, PlayerNumber, 1500, "Oakwright Quarrendine Racing", false, teamId: 9001);
+            }
+            else if (teammateDriving) Driver(y, PlayerCarIdx, TeammateCustId, TeammateName, PlayerNumber, 1650, "Nowhere Motorsport", false);
             else Driver(y, PlayerCarIdx, PlayerCustId, PlayerName, PlayerNumber, 1500, PlayerName, false);
             for (int i = 0; i < order.Count; i++)
             {
                 var r = order[i];
-                string team = ReferenceEquals(r, Rivals[0]) ? "Nowhere Motorsport" : ReferenceEquals(r, Rivals[Rivals.Length - 1]) ? r.Name + " Racing" : r.Name;
-                Driver(y, r.CarIdx, r.CustId, r.Name, r.Number, r.IRating, team, false);
+                string team = teamRace ? r.Surname + " Motorsport"
+                    : ReferenceEquals(r, Rivals[0]) ? "Nowhere Motorsport"
+                    : ReferenceEquals(r, Rivals[Rivals.Length - 1]) ? r.Name + " Racing" : r.Name;
+                Driver(y, r.CarIdx, r.CustId, r.Name, r.Number, r.IRating, team, false, teamId: teamRace ? 9100 + r.CarIdx : 0);
             }
             Driver(y, PaceCarIdx, 0, "Pace Car", "0", 0, "Pace Car", true);
             y.Append("SplitTimeInfo:\n")
@@ -138,7 +155,8 @@ namespace RacingDesk.Tests.Names
 
         private static Rival PlayerAsRival() => new Rival { CarIdx = PlayerCarIdx, CustId = PlayerCustId, Name = PlayerName, Number = PlayerNumber, IRating = 1500, Position = PlayerPosition };
 
-        private static void Driver(StringBuilder y, int idx, long custId, string name, string number, int irating, string team, bool paceCar)
+        private static void Driver(StringBuilder y, int idx, long custId, string name, string number, int irating, string team, bool paceCar,
+            int teamId = 0, bool isSpectator = false)
         {
             string initials = string.Concat(name.Split(' ').Select(w => w[0]));
             y.Append(" - CarIdx: ").Append(idx).Append('\n')
@@ -146,7 +164,7 @@ namespace RacingDesk.Tests.Names
              .Append("   AbbrevName: ").Append(name[0]).Append(' ').Append(name.Substring(name.LastIndexOf(' ') + 1)).Append('\n')
              .Append("   Initials: ").Append(initials).Append('\n')
              .Append("   UserID: ").Append(custId.ToString(CultureInfo.InvariantCulture)).Append('\n')
-             .Append("   TeamID: 0\n")
+             .Append("   TeamID: ").Append(teamId).Append('\n')
              .Append("   TeamName: ").Append(team).Append('\n')
              .Append("   CarNumber: \"").Append(number).Append("\"\n")
              .Append("   CarNumberRaw: ").Append(number).Append('\n')
@@ -160,13 +178,16 @@ namespace RacingDesk.Tests.Names
              .Append("   IRating: ").Append(irating).Append('\n')
              .Append("   LicLevel: 10\n")
              .Append("   LicString: A 2.37\n")
-             .Append("   IsSpectator: 0\n");
+             .Append("   IsSpectator: ").Append(isSpectator ? 1 : 0).Append('\n');
         }
 
+        /// <summary>The customer ids of the made-up people other than him: the rivals, his teammate and the spectator.</summary>
+        public static IEnumerable<long> OtherCustIds() => Rivals.Select(r => r.CustId).Concat(new[] { TeammateCustId, SpectatorCustId });
+
         /// <summary>
-        /// A salt under which the six rivals' first choices are all different, so that the tests of the paths see the rule
-        /// (a name by the customer id) and not the tie-break, which has a test of its own. Found by trying seeds in order;
-        /// the same every run.
+        /// A salt under which every other made-up driver's first choice is different (the six rivals, the teammate and the
+        /// spectator), so that the tests of the paths see the rule (a name by the customer id) and not the tie-break, which
+        /// has tests of its own. Found by trying seeds in order; the same every run.
         /// </summary>
         public static byte[] CollisionFreeSalt(PseudonymList list)
         {
@@ -176,11 +197,28 @@ namespace RacingDesk.Tests.Names
                 var book = new PseudonymBook(list, salt);
                 var firsts = new HashSet<string>(StringComparer.Ordinal);
                 bool clash = false;
-                foreach (var r in Rivals)
-                    if (!firsts.Add(book.NewSession().For(r.CustId, r.Name))) { clash = true; break; }
+                foreach (long id in OtherCustIds())
+                    if (!firsts.Add(book.NewSession().For(id, "x"))) { clash = true; break; }
                 if (!clash) return salt;
             }
-            throw new InvalidOperationException("no seed under 10000 keeps six rivals apart: the list must be tiny");
+            throw new InvalidOperationException("no seed under 10000 keeps eight others apart: the list must be tiny");
+        }
+
+        /// <summary>
+        /// A salt under which the spectator's first choice is the same as <paramref name="rival"/>'s, and the six rivals'
+        /// own first choices are all different, so that who keeps the name is the rule being tested. Found by trying seeds
+        /// in order; the same every run.
+        /// </summary>
+        public static byte[] SaltWhereTheSpectatorWantsARivalsName(PseudonymList list, Rival rival)
+        {
+            for (int seed = 1; seed < 200000; seed++)
+            {
+                var salt = SaltFromSeed(seed);
+                var book = new PseudonymBook(list, salt);
+                if (book.NewSession().For(SpectatorCustId, "x") != book.NewSession().For(rival.CustId, "x")) continue;
+                if (Rivals.Select(r => book.NewSession().For(r.CustId, "x")).Distinct().Count() == Rivals.Length) return salt;
+            }
+            throw new InvalidOperationException("no seed under 200000 makes the spectator and the rival want one name");
         }
 
         public static byte[] SaltFromSeed(int seed)
@@ -197,8 +235,8 @@ namespace RacingDesk.Tests.Names
             foreach (var r in Rivals)
                 foreach (var leak in Leaks(r))
                     Assert.That(text, Does.Not.Contain(leak), $"{what} carries a rival's real name (car #{r.Number})");
-            foreach (string leak in new[] { TeammateName, "L. Quarrendine", "Quarrendine" })
-                Assert.That(text, Does.Not.Contain(leak), $"{what} carries the teammate's real name");
+            foreach (string leak in new[] { TeammateName, "L. Quarrendine", "Quarrendine", SpectatorName, "W. Oakensby", "Oakensby", "Oakwright" })
+                Assert.That(text, Does.Not.Contain(leak), $"{what} carries the teammate's or the spectator's real name");
         }
     }
 }

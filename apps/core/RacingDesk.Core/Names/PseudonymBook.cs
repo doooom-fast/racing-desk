@@ -127,14 +127,47 @@ namespace RacingDesk.Core.Names
             return salt;
         }
 
-        /// <summary>HMAC-SHA256 of the key and the probe number under the salt, as a number; the first eight bytes.</summary>
-        internal ulong Hash(string key, int probe)
+        /// <summary>
+        /// Every name of the list in the order a key prefers them, best first: each name is scored by
+        /// <c>HMAC-SHA256(salt, "rank|" + key + "|" + the name as the work gives it)</c> and the highest score leads
+        /// (rendezvous hashing). A name's score depends on that name and the key alone, so a key's order is the same
+        /// whatever order the file lists the names in and however many it holds: a name added to the list changes the
+        /// choice only of the keys that prefer it to the one they had. Ties (a 64-bit coincidence) go to the name that sorts first.
+        /// </summary>
+        internal int[] Rank(string key)
+        {
+            var entries = List.Entries;
+            int n = entries.Count;
+            var scores = new ulong[n];
+            var order = new int[n];
+            using (var hmac = new HMACSHA256(_salt))
+                for (int i = 0; i < n; i++)
+                {
+                    scores[i] = BitConverter.ToUInt64(hmac.ComputeHash(Encoding.UTF8.GetBytes("rank|" + key + "|" + entries[i].Name)), 0);
+                    order[i] = i;
+                }
+            Array.Sort(order, (a, b) =>
+            {
+                int c = scores[b].CompareTo(scores[a]);
+                return c != 0 ? c : string.CompareOrdinal(entries[a].Name, entries[b].Name);
+            });
+            return order;
+        }
+
+        /// <summary>
+        /// Which of two keys named in the same moment is served first when they want the same name: a number of the key's
+        /// own under the salt (<c>HMAC-SHA256(salt, "priority|" + key)</c>), so that who keeps a contested name does not
+        /// depend on the order the field is listed in.
+        /// </summary>
+        internal ulong Priority(string key) => Number("priority|" + key);
+
+        /// <summary>A number of the key's own under the salt, for a build that carries no list.</summary>
+        internal ulong Number(string key, int probe = 0) => Number("number|" + key + "|" + probe.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        private ulong Number(string message)
         {
             using (var hmac = new HMACSHA256(_salt))
-            {
-                var bytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(key + "#" + probe.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-                return BitConverter.ToUInt64(bytes, 0);
-            }
+                return BitConverter.ToUInt64(hmac.ComputeHash(Encoding.UTF8.GetBytes(message)), 0);
         }
     }
 }
