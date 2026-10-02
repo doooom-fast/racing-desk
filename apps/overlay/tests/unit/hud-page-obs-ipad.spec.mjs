@@ -104,8 +104,9 @@ async function pixels(page) {
     const g = canvas.getContext('2d', { willReadFrequently: true });
     g.drawImage(img, 0, 0);
     const at = (x, y) => { const d = g.getImageData(x, y, 1, 1).data; return [d[0], d[1], d[2]]; };
+    // The gutter between the following map and the leaderboard beside it (the two span the maps' rows).
     const a = document.getElementById('leaderboardPanel').getBoundingClientRect();
-    const b = document.getElementById('lapsPanel').getBoundingClientRect();
+    const b = document.querySelector('.map-zoom-panel').getBoundingClientRect();
     const [first, second] = a.left < b.left ? [a, b] : [b, a];
     const left = Math.ceil(first.right), right = Math.floor(second.left);
     const mid = Math.round((left + right) / 2);
@@ -278,7 +279,7 @@ test('rendered over a checkerboard at 1180x820 with a yellow flag out: the board
     const file = keep('obs-ipad-yellow-1180x820.png', p.shot);
     expect(p.gutterWidth).toBeGreaterThanOrEqual(3);
     expect(p.gutter.length).toBeGreaterThan(80);
-    // Every pixel down the gutter between the relative and the laps panel is the board's: not the dark, not a stripe.
+    // Every pixel down the gutter between the following map and the leaderboard is the board's: not the dark, not a stripe.
     const notBoard = p.gutter.filter((c) => !isBoard(c));
     expect(notBoard.length, `${notBoard.length} of ${p.gutter.length} gutter pixels are not the board (${file})`).toBe(0);
     // And so is the screen's edge: no frame carries the flag there.

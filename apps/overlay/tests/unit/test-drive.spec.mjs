@@ -386,7 +386,8 @@ test.describe('the iPad', () => {
 
   // Upright, a test drive keeps the laps panel and the ratings at the width they have in a race (their numbers are sized
   // from the cell's height, so a strip the width of the screen is empty glass), and the room the leaderboard had goes to
-  // the following map beside them, which spans both rows, with the tacho and the full map sharing the row above.
+  // the following map beside them, which spans both rows; the full map has the row above to itself, with the tacho in
+  // the hero's row beside the gaps (where it is upright in a race too, since the maps grew: drive-view.css).
   for (const [width, height, what] of [[820, 1180, 'Air'], [744, 1133, 'mini'], [810, 1080, '10.2"']]) {
     test(`${width}x${height} (${what}, upright): a test drive gives the following map the room beside the laps panel and the ratings, not a strip of empty glass`, async ({ page }) => {
       test.setTimeout(90000);
@@ -408,10 +409,12 @@ test.describe('the iPad', () => {
       expect(td.local.left, 'the following map is beside the laps panel').toBeGreaterThanOrEqual(td.laps.right);
       expect(Math.abs(td.local.top - td.laps.top)).toBeLessThanOrEqual(2);
       expect(Math.abs(td.local.bottom - td.rating.bottom)).toBeLessThanOrEqual(2);
-      expect(td.tacho.right).toBeLessThanOrEqual(td.map.left + 1);
-      expect(Math.abs(td.tacho.top - td.map.top)).toBeLessThanOrEqual(2);
+      // The tacho is in the hero's row, above the full map, which has its row to itself.
+      expect(td.tacho.bottom).toBeLessThanOrEqual(td.map.top + 1);
+      expect(td.map.w, 'the full map has the row to itself').toBeGreaterThan(width * 0.9);
       expect(td.local.right).toBeGreaterThan(width * 0.9);
-      // The laps panel and the ratings are the width they have in a race, and the following map is much the larger.
+      // The laps panel and the ratings are the width they have in a race, and the following map is the larger (a race's
+      // following map upright is already nine columns of twenty-four by the maps' row).
       feed.payload = RACE();
       await frames(page);
       await page.waitForFunction(() => document.querySelectorAll('#lbRows .lb-row').length >= 3, null, { timeout: 10000 });
@@ -419,7 +422,7 @@ test.describe('the iPad', () => {
       const race = await rects();
       expect(Math.abs(td.laps.w - race.laps.w), 'the laps panel keeps its width').toBeLessThanOrEqual(2);
       expect(Math.abs(td.rating.w - race.rating.w), 'the ratings keep their width').toBeLessThanOrEqual(2);
-      expect(td.local.w * td.local.h, 'the following map, in a test drive and in a race').toBeGreaterThan(2.5 * race.local.w * race.local.h);
+      expect(td.local.w * td.local.h, 'the following map, in a test drive and in a race').toBeGreaterThan(1.2 * race.local.w * race.local.h);
     });
   }
 });

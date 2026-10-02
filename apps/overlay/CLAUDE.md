@@ -136,9 +136,26 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   (below), iRating and safety rating (`#ratingPage`, which on the rig takes turns with the position block; here both are
   up), the car's controls, the pedals, the Racing Desk mark and the car's badge, the clock (`#raceTimerBlock`), the pit
   box (its tyres, fuel and weather side by side, not tabs), the datastream, the incidents. Landscape:
-  `hero×7 gaps×4 tacho×6 lb×7 / map×7 local×4 laps×6 lb / map local rating×6 lb / ctrl×6 pedals×4 brand×2 car×2 timer×3 lb /
-  pit×10 ds×4 inc×3 lb` (rows 20 / 24 / 10 / 13 / 29 fr); portrait: `hero×14 gaps×10 / tacho×8 map×11 local×5 / lb×15 laps×9 /
-  lb rating×9 / ctrl×8 pedals×6 brand×2 car×3 timer×5 / pit×13 ds×6 inc×5`. The tracks are `fr`, the edge round the grid
+  `hero×7 gaps×4 tacho×7 lb×6 / map×11 local×7 lb / map local lb / ctrl×6 pedals×5 brand×2 car×2 timer×3 rating×6 /
+  pit×10 ds×5 inc×3 laps×6` (rows 19 / 30 / 11 / 12 / 24 fr; under 1100px wide — the 9.7" — the right-hand column is 7
+  and the maps 10 and 7, for the leaderboard's names and the laps panel's two columns of times); portrait: `hero×9 gaps×7
+  tacho×8 / map×15 local×9 / lb×15 laps×9 / lb rating×9 / ctrl×8 pedals×6 brand×2 car×3 timer×5 / pit×13 ds×6 inc×5` (rows
+  14 / 27 / 16 / 8 / 8 / 17 fr: the controls' row keeps the 8 a prototype's dials in a row beneath want). **The maps are 1.5 times what they were** (he asked on 2026-10-01: "Make the maps 1.5x
+  their size on iPad version"): the circuit had 7 columns over 34 row-units and the following map 4, with the laps panel
+  and the ratings beside them (`map×7 local×4 laps×6 lb×7`, rows 20 / 24 / 10 / 13 / 29). The floors leave no width for
+  the maps beside a 6-column leaderboard and a 6-column laps panel, so the laps panel and the ratings are under the
+  leaderboard in its column (the leaderboard keeps the top three rows: about sixteen of its rows on an Air where it had
+  twenty-one) and the maps' rows are theirs: at 1180x820 the circuit's cell is 528x337 where it was 334x281 (1.9 times
+  the area), the following map's 334x337 where it was 188x281 (2.1 times). Upright
+  the tacho was in the maps' row (`tacho×8 map×11 local×5`, rows 15 / 21 / 20 / 9 / 8 / 17) and is in the hero's now, so
+  the maps have the row to themselves (498x339 and 296x339 at 820x1180, where they were 363x264 and 162x264). The gaps block is a column in both orientations
+  (its cell is near-square in both now; in one under 140px it gives up the words "Ahead" and "Behind"), and upright the
+  menu's button is over the tacho's corner, so its speed stops short of it as in a landscape test drive. The rows the
+  floors allow: a prototype's dials want 12 units, the pit box with the engine calling 24 (where the fuel page gives up
+  the pit's add under 240px and the window under 185px; the datastream its g-force diamond under 180px, and its row of
+  the track's temperature always, which the weather page beside it says larger; the ratings their bar's thousands under
+  135px). `drive-view.spec.mjs` holds the two maps
+  to 27 % of the screen at every size. The tracks are `fr`, the edge round the grid
   `clamp(8px, 1.2vmin, 14px)` and the gutters `clamp(5px, 0.75vmin, 9px)`; nothing is set per device. Every panel is a cell
   whatever the rig's settings hide from its own screen (`settings.js` `applySettings` shows them all in drive mode, and
   leaving drive mode puts the settings' choice back), and nothing in a cell is a touch target.
@@ -353,10 +370,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   (`driveViewChanged`) — and `updateLeaderboard` writes no rows while it is away. On its side the hero, the maps and
   the laps panel each gain, and the pit box, the datastream and the incidents share the bottom row; the tacho is in
   the top right corner, where the iPad's menu button is, so its speed and unit stop short of the button
-  (`html.rd-remote ... .tacho-speed-cluster`, landscape only: the OBS page has no button). Upright the laps panel and
+  (`html.rd-remote ... .tacho-speed-cluster`, in a landscape test drive, and upright in every session now that the
+  tacho is in the hero's row there: the OBS page has no button). Upright the laps panel and
   the ratings keep the width they have in a race (their numbers are sized from the cell's height, so a strip the
   width of the screen was empty glass) and **the following map takes the rest of their two rows beside them**, nine
-  columns by fifteen, with the tacho and the full map sharing the row above (ten columns and fourteen); the rows keep
+  columns by fifteen, with the full map having the row above to itself; the rows keep
   their heights. Any other session brings the leaderboard back the moment the frame says so.
   `tests/unit/test-drive.spec.mjs` holds it on the rig's HUD, the rig's
   Ctrl+Shift+F at 1920x1080 and 2560x1080, the iPad at four sizes (the cells still cover the screen, none over
@@ -383,8 +401,9 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   flags — the gutter between the relative and the laps panel under 80 of 255, the edge over 150 — so a frame whose
   mask stopped taking the inside out, in an engine that does not honour it, would be caught); the flag card in the gaps block, race
   control's banner and the panels' flag-coloured borders are as strong as they were, and no badges: the Racing Desk mark and the car's
-  maker are not shown, the row they were in is the controls, the pedals and the clock (landscape `ctrl×7 pedals×5
-  timer×5`, portrait `ctrl×9 pedals×8 timer×7`), their WebGL canvases (the chevron drift, the maker's flag) are not
+  maker are not shown, the row they were in is the controls, the pedals and the clock (landscape `ctrl×7 pedals×6
+  timer×5` beside the ratings' six — `ctrl×7 pedals×5 timer×5` beside seven under 1100px wide — portrait `ctrl×9 pedals×8
+  timer×7`), their WebGL canvases (the chevron drift, the maker's flag) are not
   started, and the crop of his paint is never asked for (`car-logos.js` `requestRemoteLivery` fetches nothing on an
   iPad; in the page OBS draws, where the badge is in the picture, the same call fetches the crop from the loopback
   listener).

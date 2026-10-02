@@ -656,7 +656,7 @@ test.describe('the flag is the background', () => {
     // The computed styles above say what the layers are; this looks at what is drawn. A frame whose mask stopped taking
     // the inside out (an engine that does not honour mask-composite, or a refactor of the shorthand) would still pass
     // every one of them, with the stripes at full strength in every gutter, which is what he complained of. In the
-    // gutter between the relative and the laps panel (a straight one the length of the laps panel, and not under the
+    // gutter beside the relative (the following map's on its side, the laps panel's upright: a straight one, and not under the
     // race's results, which cover the map and the local view once the flag is chequered), whatever the flag, nothing
     // is bright: the pattern is at 0.15 over the HUD's dark. And along the screen's edge, a few pixels wide, the flag's
     // pattern is there whole.
@@ -672,7 +672,9 @@ test.describe('the flag is the background', () => {
         g.drawImage(img, 0, 0);
         const bright = (x, y) => { const d = g.getImageData(x, y, 1, 1).data; return Math.max(d[0], d[1], d[2]); };
         const a = document.getElementById('leaderboardPanel').getBoundingClientRect();
-        const b = document.getElementById('lapsPanel').getBoundingClientRect();
+        // On its side the following map is beside the leaderboard (the laps panel is under it since the maps grew);
+        // upright the laps panel is.
+        const b = document.querySelector(innerWidth > innerHeight ? '.map-zoom-panel' : '#lapsPanel').getBoundingClientRect();
         // The gutter between them: the column midway between the two panels, down the length of both (so a panel's
         // glow at its own edge is not what is judged).
         const [first, second] = a.left < b.left ? [a, b] : [b, a];
@@ -692,7 +694,7 @@ test.describe('the flag is the background', () => {
       await openAt(page, width, height, RACE());
       await page.waitForTimeout(500);
       const dark = await sample();   // no flag yet: what the dark is
-      expect(dark.gutterWidth, `${width}x${height}: a gutter to look at, between the relative and the laps`).toBeGreaterThanOrEqual(3);
+      expect(dark.gutterWidth, `${width}x${height}: a gutter to look at, beside the relative`).toBeGreaterThanOrEqual(3);
       expect(dark.gutterPixels, `${width}x${height}: a gutter long enough to cross the stripes`).toBeGreaterThan(80);
       expect(dark.gutter, `${width}x${height}: no flag, a dark gutter`).toBeLessThan(60);
       for (const flag of ['yellow', 'green', 'white', 'checkered', 'blue']) {
@@ -977,6 +979,41 @@ test.describe('the strategy engine\'s calls in the pit box', () => {
     expect(await more()).toEqual([false, '', '"Tyres"']);
   });
 });
+
+// ── The maps are the layout's largest cells: he asked (2026-10-01) for them "1.5x their size" ──
+// Before: the full circuit 7 columns of 24 and the following map 4, over 34 of the 96 row-units on an iPad on its side
+// (together 15 % of the screen at 1180x820; the circuit's cell 334x281). Now the laps panel and the ratings are under
+// the leaderboard in its column (the leaderboard keeps the top three rows), so the maps' rows are theirs: the circuit
+// 11 columns and the local view 7, over 41 row-units (the circuit's cell 528x337 at 1180x820, 1.9 times the area);
+// upright the tacho moves into the hero's row and the two maps have their row to themselves (15 and 9 columns of 24,
+// over 27 of 90). Held: the two together are at least 27 % of the screen (1.8 times what they were) at every size, each
+// above a share of its own, and the circuit fitted to its cell is in it whole.
+for (const size of SIZES) {
+  const [width, height] = size;
+  const rig = RIG.includes(size);
+  test(`${describeSize(size)}: the two maps are 1.5 times what they were, and the circuit is whole in its cell`, async ({ page }) => {
+    test.setTimeout(60000);
+    if (rig) await openRig(page, width, height, RACE());
+    else await openAt(page, width, height, RACE());
+    const m = await page.evaluate(() => {
+      const area = (sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return b.width * b.height; };
+      const screen = innerWidth * innerHeight;
+      const cell = document.getElementById('fullMapSvg').getBoundingClientRect();
+      const outline = document.getElementById('fullMapTrackOuter').getBoundingClientRect();
+      return {
+        map: area('.map-panel') / screen, local: area('.map-zoom-panel') / screen,
+        circuitInside: outline.left >= cell.left - 1 && outline.top >= cell.top - 1 && outline.right <= cell.right + 1 && outline.bottom <= cell.bottom + 1,
+        circuitFills: Math.max(outline.width / cell.width, outline.height / cell.height),
+      };
+    });
+    const label = describeSize(size);
+    expect(m.map + m.local, `${label}: the two maps' share of the screen`).toBeGreaterThanOrEqual(0.27);
+    expect(m.map, `${label}: the circuit's share`).toBeGreaterThanOrEqual(0.16);
+    expect(m.local, `${label}: the following map's share`).toBeGreaterThanOrEqual(0.10);
+    expect(m.circuitInside, `${label}: the circuit is whole in its cell`).toBe(true);
+    expect(m.circuitFills, `${label}: the circuit fills its cell on one axis`).toBeGreaterThanOrEqual(0.75);
+  });
+}
 
 // ── The rig's own screen: Ctrl+Shift+F on 1920x1080, the ultrawide and his own, from the file, not through the server ──
 // Every panel including the two badges (the rig keeps them), so a change that crops the car's badge or the row of
