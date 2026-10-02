@@ -76,16 +76,76 @@
     white-space: nowrap;
   }
 
-  /* Per-control bar colors */
-  #ctrlBB::before  { background: hsla(355, 75%, 33%, 0.12); }
-  #ctrlTC::before  { background: hsla(215, 75%, 33%, 0.12); }
-  #ctrlABS::before { background: hsla(48, 80%, 33%, 0.12); }
-  #ctrlBB .ctrl-value  { color: hsl(355, 80%, 65%); }
-  #ctrlTC .ctrl-value  { color: hsl(215, 80%, 68%); }
-  #ctrlABS .ctrl-value { color: hsl(48, 85%, 62%); }
-  #ctrlBB .ctrl-label  { color: hsl(355, 50%, 55%); }
-  #ctrlTC .ctrl-label  { color: hsl(215, 50%, 58%); }
-  #ctrlABS .ctrl-label { color: hsl(48, 55%, 52%); }
+  /* ── The controls' colours, by family (car-controls.js familyOf: data-ctrl-family, data-ctrl-shade) ──
+     Every control cell is coloured by what it acts on, as brake bias, traction control and ABS always were. The
+     brakes are the bias red (the bias, its target and fine trim, the migration and its gain, a rear brake valve, a
+     brake system), traction the traction blue (traction control, its second, third and fourth dials, stability, the
+     switch, launch), the anti-lock its yellow, the engine and the hybrid violet (engine, fuel and throttle maps, regen,
+     boost, deploy, engine braking, the fuel cut), the chassis teal (the anti-roll bars, the differential, weight
+     jacker, wing, drive split, power steering) and a mode green. DRS and push-to-pass have none: their states (ready,
+     open, on) are their colours, below.
+
+     The palette is defined here once. A family is a hue, a saturation and a step of lightness (the yellow is set darker
+     and the blue lighter, as the three always were); a control's shade of its family turns the hue, the saturation and
+     the lightness a little: 1 a lighter tint (a deeper one on the light theme), 2 the hue turned, 3 muted. From those
+     come the value, the label (the value's saturation less 30, at the label's lightness), the bar behind them and the
+     glow of an aid cutting in, each at the theme's own lightness, so the light theme has the same families, set dark
+     enough to read on its pale glass. The three cells are shade 0 of theirs, which is the colours they always had:
+     on the dark glass a value of hsl(355 80% 65%), hsl(215 80% 68%), hsl(48 85% 62%), and the label, bar and glow
+     they had. The worst case on the dark glass (a bright game behind it, the bar full) is 4.1:1 for a value and 3.1:1
+     for a label, the bias red's own being 4.4 and 3.3; on the light theme over a dark game 4.0 and 3.8. */
+  :root {
+    --ctrl-brake-h: 355;    --ctrl-brake-s: 80%;    --ctrl-brake-l: 0%;
+    --ctrl-traction-h: 215; --ctrl-traction-s: 80%; --ctrl-traction-l: 3%;
+    --ctrl-abs-h: 48;       --ctrl-abs-s: 85%;      --ctrl-abs-l: -3%;
+    --ctrl-power-h: 275;    --ctrl-power-s: 75%;    --ctrl-power-l: 5%;
+    --ctrl-chassis-h: 172;  --ctrl-chassis-s: 66%;  --ctrl-chassis-l: -8%;
+    --ctrl-mode-h: 150;     --ctrl-mode-s: 70%;     --ctrl-mode-l: -3%;
+    /* The theme's: a value's lightness and a label's, how much less saturated a label is (and the least it may be),
+       the bar's and the glow's lightness and opacity. */
+    --ctrl-value-l: 65%;  --ctrl-label-l: 55%;  --ctrl-label-desat: 30%;  --ctrl-label-s-min: 14%;
+    --ctrl-fill-desat: 5%;  --ctrl-fill-l: 33%;  --ctrl-fill-a: 0.12;  --ctrl-glow-l: 55%;  --ctrl-glow-a: 0.23;
+    /* The shades: hue turned, saturation and lightness added. */
+    --ctrl-shade1-h: 6;    --ctrl-shade1-s: -12%;  --ctrl-shade1-l: 10%;
+    --ctrl-shade2-h: -14;  --ctrl-shade2-s: 0%;    --ctrl-shade2-l: -2%;
+    --ctrl-shade3-h: 0;    --ctrl-shade3-s: -22%;  --ctrl-shade3-l: 6%;
+  }
+  [data-theme="light"] {
+    --ctrl-brake-l: 0%;  --ctrl-traction-l: 0%;  --ctrl-abs-l: -10%;  --ctrl-power-l: 2%;  --ctrl-chassis-l: -9%;  --ctrl-mode-l: -9%;
+    --ctrl-value-l: 34%;  --ctrl-label-l: 38%;
+    --ctrl-fill-l: 50%;  --ctrl-fill-a: 0.16;  --ctrl-glow-l: 50%;  --ctrl-glow-a: 0.22;
+    --ctrl-shade1-l: -5%;  --ctrl-shade3-l: 2%;
+  }
+  #ctrlBB,  .car-controls [data-ctrl-family="brake"]    { --ctrl-fam-h: var(--ctrl-brake-h);    --ctrl-fam-s: var(--ctrl-brake-s);    --ctrl-fam-l: var(--ctrl-brake-l); }
+  #ctrlTC,  .car-controls [data-ctrl-family="traction"] { --ctrl-fam-h: var(--ctrl-traction-h); --ctrl-fam-s: var(--ctrl-traction-s); --ctrl-fam-l: var(--ctrl-traction-l); }
+  #ctrlABS, .car-controls [data-ctrl-family="abs"]      { --ctrl-fam-h: var(--ctrl-abs-h);      --ctrl-fam-s: var(--ctrl-abs-s);      --ctrl-fam-l: var(--ctrl-abs-l); }
+  .car-controls [data-ctrl-family="power"]   { --ctrl-fam-h: var(--ctrl-power-h);   --ctrl-fam-s: var(--ctrl-power-s);   --ctrl-fam-l: var(--ctrl-power-l); }
+  .car-controls [data-ctrl-family="chassis"] { --ctrl-fam-h: var(--ctrl-chassis-h); --ctrl-fam-s: var(--ctrl-chassis-s); --ctrl-fam-l: var(--ctrl-chassis-l); }
+  .car-controls [data-ctrl-family="mode"]    { --ctrl-fam-h: var(--ctrl-mode-h);    --ctrl-fam-s: var(--ctrl-mode-s);    --ctrl-fam-l: var(--ctrl-mode-l); }
+  .car-controls [data-ctrl-shade="1"] { --ctrl-dh: var(--ctrl-shade1-h); --ctrl-ds: var(--ctrl-shade1-s); --ctrl-dl: var(--ctrl-shade1-l); }
+  .car-controls [data-ctrl-shade="2"] { --ctrl-dh: var(--ctrl-shade2-h); --ctrl-ds: var(--ctrl-shade2-s); --ctrl-dl: var(--ctrl-shade2-l); }
+  .car-controls [data-ctrl-shade="3"] { --ctrl-dh: var(--ctrl-shade3-h); --ctrl-ds: var(--ctrl-shade3-s); --ctrl-dl: var(--ctrl-shade3-l); }
+  #ctrlBB, #ctrlTC, #ctrlABS, .car-controls [data-ctrl-family] {
+    --ctrl-c-value: hsl(calc(var(--ctrl-fam-h) + var(--ctrl-dh, 0)), calc(var(--ctrl-fam-s) + var(--ctrl-ds, 0%)),
+      calc(var(--ctrl-value-l) + var(--ctrl-fam-l) + var(--ctrl-dl, 0%)));
+    --ctrl-c-label: hsl(calc(var(--ctrl-fam-h) + var(--ctrl-dh, 0)),
+      max(calc(var(--ctrl-fam-s) - var(--ctrl-label-desat) + var(--ctrl-ds, 0%)), var(--ctrl-label-s-min)),
+      calc(var(--ctrl-label-l) + var(--ctrl-fam-l) + var(--ctrl-dl, 0%)));
+    --ctrl-c-fill: hsla(calc(var(--ctrl-fam-h) + var(--ctrl-dh, 0)), calc(var(--ctrl-fam-s) - var(--ctrl-fill-desat) + var(--ctrl-ds, 0%)),
+      var(--ctrl-fill-l), var(--ctrl-fill-a));
+    --ctrl-c-glow: hsla(calc(var(--ctrl-fam-h) + var(--ctrl-dh, 0)), calc(var(--ctrl-fam-s) - var(--ctrl-fill-desat) + var(--ctrl-ds, 0%)),
+      var(--ctrl-glow-l), var(--ctrl-glow-a));
+  }
+  /* The value and the label in the family's colour, and the bar behind them: the three, a mode, and every other
+     control the car has (the row beneath, .ctrl-mini). */
+  #ctrlBB .ctrl-value, #ctrlTC .ctrl-value, #ctrlABS .ctrl-value,
+  .car-controls [data-ctrl-family] .ctrl-value,
+  .car-controls [data-ctrl-family] .ctrl-mini-value { color: var(--ctrl-c-value); }
+  #ctrlBB .ctrl-label, #ctrlTC .ctrl-label, #ctrlABS .ctrl-label,
+  .car-controls [data-ctrl-family] .ctrl-label,
+  .car-controls [data-ctrl-family] .ctrl-mini-label { color: var(--ctrl-c-label); }
+  #ctrlBB::before, #ctrlTC::before, #ctrlABS::before,
+  .car-controls .ctrl-item[data-ctrl-family]::before { background: var(--ctrl-c-fill); }
 
   /* Control bar change flash — brightens the fill bar and value */
   .ctrl-item.ctrl-changed::before {
@@ -110,9 +170,7 @@
   .ctrl-item.ctrl-active::after {
     opacity: 1 !important;
   }
-  #ctrlABS.ctrl-active { background: hsla(48, 80%, 55%, 0.23); }
-  #ctrlTC.ctrl-active  { background: hsla(215, 75%, 55%, 0.23); }
-  #ctrlBB.ctrl-active  { background: hsla(355, 75%, 55%, 0.23); }
+  #ctrlABS.ctrl-active, #ctrlTC.ctrl-active, #ctrlBB.ctrl-active { background: var(--ctrl-c-glow); }
 
   /* Hidden controls (car doesn't have TC/ABS) */
   .ctrl-item.ctrl-hidden { display: none; }
@@ -153,10 +211,8 @@
     opacity: 0.6;
     vertical-align: 1px;
   }
+  /* (a mode's green is its family's: data-ctrl-family="mode", above) */
   .car-controls.car-controls-listed .ctrl-item.ctrl-mode { flex: 1.6; }
-  .car-controls.car-controls-listed .ctrl-item.ctrl-mode::before { background: hsla(150, 60%, 33%, 0.12); }
-  .car-controls.car-controls-listed .ctrl-item.ctrl-mode .ctrl-value { color: hsl(150, 70%, 62%); }
-  .car-controls.car-controls-listed .ctrl-item.ctrl-mode .ctrl-label { color: hsl(150, 40%, 52%); }
   .car-controls.car-controls-listed .ctrl-item .ctrl-value.ctrl-value-fixed { opacity: 0.9; font-size: 15px; }
   .ctrl-more {
     flex: 0 0 100%;
@@ -197,6 +253,8 @@
   }
   .ctrl-mini.ctrl-mini-off .ctrl-mini-value { opacity: 0.5; }
   .ctrl-mini.ctrl-mini-unread .ctrl-mini-value { opacity: 0.35; }
+  /* DRS and push-to-pass: no family, and their states are their colours — DRS that can be opened, DRS open,
+     push-to-pass on. */
   .ctrl-mini.ctrl-mini-ready { background: hsla(150, 60%, 45%, 0.16); }
   .ctrl-mini.ctrl-mini-ready .ctrl-mini-value { color: hsl(150, 70%, 65%); }
   .ctrl-mini.ctrl-mini-active { background: hsla(150, 70%, 50%, 0.32); border-color: hsla(150, 70%, 60%, 0.5); }
@@ -249,6 +307,9 @@
     pointer-events: none;
     transition: height var(--t-med);
   }
+  /* The bar in the control's family colour, as the three's: its height is where the value stands in that control's
+     range for that car (car-controls.js fillOf), and moves with every click. */
+  .car-controls.ctrl-fit .ctrl-mini[data-ctrl-family]::before { background: var(--ctrl-c-fill); }
   .car-controls.ctrl-fit .ctrl-mini-label {
     font-size: var(--fs-xs);
     position: relative;
