@@ -541,7 +541,7 @@ not him — the leaderboard, the gaps, the spotter, race control and the comment
 both OBS pages, the desk's sessions, the recording sidecar and the TV shots, the WebSocket feed, the logs — the name is a
 character's, chosen for that driver from `packages/pseudonyms/names.json`: the people of David Foster Wallace's fiction
 (*Infinite Jest*, *The Broom of the System*, *The Pale King* and the stories) and of *Trainspotting*, and the members, past
-and present, of Sunn O))), Black Sabbath, Type O Negative, Tool and The Cure — 246 real names from public sources, none
+and present, of Sunn O))), Black Sabbath, Type O Negative, Tool and The Cure — 248 real names from public sources, none
 invented, with their sources in the file and its README. His rule (2026-10-01: "iRacing likely won't let us show others'
 names eventually"; iRacing's support article of 2026-09-30 says no display name or customer id may be shown without
 explicit, revocable consent), so there is no switch. **His own name stays his.** Car numbers, cars, classes, iRating and

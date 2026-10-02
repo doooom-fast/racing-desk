@@ -63,7 +63,7 @@ namespace RacingDesk.Tests.Names
         [TestCase("Aubrey deLint", false, "A. deLint")]
         [TestCase("Maynard James Keenan", false, "M. Keenan")]
         [TestCase("Ronnie James Dio", false, "R. Dio")]
-        [TestCase("Beverly-Elizabeth Slane", false, "B. Slane")]
+        [TestCase("Drew-Lynn Eberhardt", false, "D. Eberhardt")]
         [TestCase("Stephen O'Malley", false, "S. O'Malley")]
         [TestCase("Lyle", false, "Lyle")]
         [TestCase("Sick Boy", true, "Sick Boy")]
