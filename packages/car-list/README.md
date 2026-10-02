@@ -33,6 +33,18 @@ No login was used and nothing of iRacing's is copied here but names and labels.
 What the checkers could not settle is in `DOUBTS.md`. A car he drives settles its own entry: where it disagrees,
 the host says so.
 
+## Ranges (2026-10-02)
+
+The HUD draws every control's value as a bar: where it stands between the control's `range` for that car (he asked
+for "background scaling for all of these adjustments"). A range is added only where its source can be named, and the
+control's `note` names it: an iRacing manual or setup guide, release notes (all public pages, no login), or, for a car
+he drives, the lowest and highest value his own `.ibt` files show for that variable while he was in the car, held for
+half a second or more, written `Range from his files: seen 46 to 55 in 55 files to 2026-10-02`. A control with no
+source has no range and no bar:
+nothing is made up. A range from his files is what he has used, not what the car allows, so when he goes past it the
+check says so (`value:<var>`) and the range wants widening. Named positions fill a bar only where they are a scale
+(numbers, like the MP4-30's `25%`, `50%`, `75%`); names of modes (`TRACK`, `MDM`, `DRY`) never do.
+
 ## Changing it
 
 Edit `cars.json`, then run the .NET tests: `TheListThisBuildCarriesIsReadWithoutComplaint` and the list's

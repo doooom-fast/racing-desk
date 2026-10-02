@@ -97,10 +97,31 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   under the car's own label (`TCLO`, `ESC`, `BBAL`, `DSC`), or **a dim dash under the car's own label where the car has
   it and the sim is not saying what it reads** (`unread`, `.ctrl-unread`: the list gives no variable, or the car is not
   publishing it; never a made-up number, and the sim starting to say is not announced as a change). A control the fixed
-  setup holds gets a small lock mark (`.ctrl-locked`). A number fills its bar by the host's `fill`, else by the bars the
-  HUD always drew (bias `(n-30)/40`, TC and ABS `n/12`); **a name fills nothing** (the number behind `MDM` is a
-  position, not a quantity). A mode (the 570S's one dial) is a cell of its own, `#ctrlMode`, and the cells it covers
-  (`ctrl-hidden`) take no room.
+  setup holds gets a small lock mark (`.ctrl-locked`). **Every cell's bar is the host's `fill` and nothing else**
+  (`fillOf`; `--ctrl-pct`, the cell's `::before`): where the value stands in that control's range for that car, from
+  the list (root CLAUDE.md, The car's controls), written every frame, so it moves as he clicks. Where the host sends
+  none — the list has no range for the control, or its positions are names (the number behind `MDM` or `TRACK` is a
+  position, not a quantity) — there is no bar. The bars the HUD once drew for the three when the host sent none (bias
+  `(n-30)/40`, TC and ABS `n/12`) are the old panel's alone, for a car the list does not have (`poll-engine.js`). A mode
+  (the 570S's one dial) is a cell of its own, `#ctrlMode`, and the cells it covers (`ctrl-hidden`) take no room.
+- **Every cell is coloured by what the control acts on** (he asked on 2026-10-02: "we also need the color coding and um,
+  background scaling for all of these adjustments as well"): `familyOf` (`FAMILY`, by the list's control id, case-blind)
+  gives each cell `data-ctrl-family` and `data-ctrl-shade`, and `leaderboard.css` ("The controls' colours") colours its
+  value, its label and its bar by them, as bias, TC and ABS always were. **The brakes** in the bias red (the bias, its
+  target and fine trim, the migration and its gain, a rear brake valve, the R18's IBS), **traction** in its blue (TC and
+  its second, third and fourth dials, stability, the switch, launch), **the anti-lock** in its yellow (and its switch),
+  **the engine and the hybrid** in violet (engine, fuel and throttle maps, regen, boost, deploy, engine braking, the fuel
+  cut), **the chassis** in teal (the anti-roll bars, the differential, weight jacker, wing, drive split, power steering),
+  **a mode** in green; **DRS and push-to-pass have none**, their states (ready, open, on) being their colours. The shade
+  sets apart controls of one family that sit side by side (0 the family's own, 1 a lighter tint, 2 the hue turned, 3
+  muted: the 963's bias, target and migration are three reds). The palette is defined once, as custom properties
+  (`--ctrl-<family>-h/-s/-l`, the theme's lightness for a value, a label, the bar and the glow, the shades' offsets),
+  and redefined under `[data-theme="light"]`, darker, so every value reads at 4:1 or better and every label at 3.5:1 on
+  the light glass at its least kind (over a dark game); on the dark glass 4:1 and 3:1 (the bias red's own, as it always
+  was, is 4.4 and 3.3). The three are shade 0 of theirs, which are the colours they always had, with the key and
+  without it (the old panel keeps them by its ids). Every control id of the list has a family (a test fails for one
+  that is added without), and the glance layout carries the same colours (it is the HUD's panels laid out again; the
+  row cells there have no bar, as before).
 - **The car's other controls** (`#ctrlMore`, `.ctrl-mini`): every one the list gives the car, in the list's order — a
   second traction dial (`TCLA`), brake migration (`MIG`), the anti-roll bars, a throttle map, the hybrid's dials — then
   DRS and push-to-pass; an unread one with a dash (`.ctrl-mini-unread`). Only for a car that has any; DRS is
@@ -177,7 +198,13 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   `tests/unit/fixtures/car-controls-wire.json`, which RacingDesk.Tests holds to what the host writes
   (`Cars/CarControlsWireTests.cs`, rewritten with `UPDATE_CAR_CONTROLS_WIRE=1`). The C# side cannot be tested over
   `:8889` without binding wildcard ports, so that hop is by the code: the runtime writes `s.CarControlsJson` into the
-  payload as an object.
+  payload as an object. `tests/unit/car-controls-colours.spec.mjs` holds the colours and the bars: every control id of
+  the real list has a family, each family its own hue on the value, the label and the bar and each shade apart from
+  its family's own, the three exactly as they always were (with the key and without), DRS and push-to-pass in their
+  own states, the contrast on the dark glass and the light, the bar following a value click by click, no bar where the
+  host sends none, and the glance layout's colours the rig's. Where the bar comes from is the host's:
+  RacingDesk.Tests `Cars/CarControlsFillTests.cs` (every range of the list fills 0 to 1 and holds at its ends, says
+  where it came from, positions that are a scale and names that are not, the bar following the value).
 
 ## The datastream's rig limits (`Wheel max`, `Sim FFB max`, `Brake max`)
 
