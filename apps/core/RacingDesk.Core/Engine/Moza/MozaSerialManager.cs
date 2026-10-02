@@ -674,6 +674,11 @@ namespace RacingDesk.Plugin.Engine.Moza
                             : description
                     };
 
+                    // The model the description names, where it names one (a base seen through a generic USB description
+                    // is left without: the HUD does not guess).
+                    if (device.WheelbaseSettings != null)
+                        device.WheelbaseSettings.Model = MozaWheelbaseModels.ModelFrom(description);
+
                     if (TryOpenPort(device))
                     {
                         // Use TryAdd to avoid TOCTOU race condition
@@ -1448,6 +1453,16 @@ namespace RacingDesk.Plugin.Engine.Moza
             if (wb?.WheelbaseSettings != null && wb.WheelbaseSettings.HasData)
             {
                 jpInt(sb, Ds + "MozaWheelbaseFFBStrength", wb.WheelbaseSettings.FfbStrength);
+                // The base's own max-torque setting, in per cent of its rated peak, where the poll has read it — and in
+                // Nm where its model has a rating (the HUD's datastream shows that, ahead of Pit House's saved preset).
+                if (wb.WheelbaseSettings.MaxTorque >= 0)
+                {
+                    jpInt(sb, Ds + "MozaWheelbaseMaxTorque", wb.WheelbaseSettings.MaxTorque);
+                    double? rated = MozaWheelbaseModels.RatedNm(wb.WheelbaseSettings.Model);
+                    if (rated.HasValue)
+                        sb.Append('"').Append(Ds).Append("MozaWheelbaseMaxNm\":")
+                          .Append((wb.WheelbaseSettings.MaxTorque * rated.Value / 100.0).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)).Append(",\n");
+                }
                 jpInt(sb, Ds + "MozaWheelbaseRotationRange", wb.WheelbaseSettings.RotationRange);
                 jpStr(sb, Ds + "MozaWheelbaseModel", wb.WheelbaseSettings.Model ?? "");
             }
@@ -1456,6 +1471,19 @@ namespace RacingDesk.Plugin.Engine.Moza
             {
                 jpStr(sb, Ds + "MozaPitHouseWarning", PitHouseWarning.Replace("\"", "\\\""));
             }
+        }
+
+        /// <summary>
+        /// What the wheel base itself last said of its maximum torque, or null: no base, nothing read from it yet (the
+        /// poll that runs every two seconds does not run while Pit House holds the ports, which on the rig it nearly
+        /// always does), or no max-torque setting among what it said. Reads what the poll already holds; nothing is
+        /// sent to the base for it.
+        /// </summary>
+        public WheelbaseReading WheelbaseReading()
+        {
+            var s = Wheelbase?.WheelbaseSettings;
+            if (s == null || !s.HasData || s.MaxTorque < 0) return null;
+            return new WheelbaseReading(s.Model, s.MaxTorque);
         }
 
         // ── Internal write command struct ─────────────────────────────

@@ -194,6 +194,8 @@ Additionally, include a summary in the main poll response:
   "MozaPedalsConnected": true,
   "MozaHandbrakeConnected": false,
   "MozaWheelbaseFFBStrength": 85,
+  "MozaWheelbaseMaxTorque": 100,   // per cent of the model's rated peak; only where the poll has read it
+  "MozaWheelbaseMaxNm": 9,           // that of the model's rating (R9: 9 Nm); only where the model has one
   "MozaWheelbaseRotationRange": 900,
   "MozaWheelbaseModel": "R9"
 }

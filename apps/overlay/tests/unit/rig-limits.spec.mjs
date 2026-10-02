@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const limits = require('../../modules/js/rig-limits.js');
-const { readAnswer, told, fetchBrakeForce, createRigLimits, BRAKE_FORCE_PATH, NOT_KNOWN } = limits;
+const { readAnswer, readWheelAnswer, told, fetchBrakeForce, fetchWheelMax, createRigLimits, BRAKE_FORCE_PATH, WHEEL_MAX_PATH, NOT_KNOWN } = limits;
 
 const IN_CAR = { 'DataCorePlugin.GameRunning': 1, 'RacingDesk.Plugin.Grid.SessionState': 4, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': 1 };
 const OUT = { 'DataCorePlugin.GameRunning': 1, 'RacingDesk.Plugin.Grid.SessionState': 4, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': 0 };
@@ -31,19 +31,34 @@ test.describe('the host\'s answer, as the page is told it', () => {
     expect(readAnswer(null)).toEqual({ brakeKg: null, car: null });
     expect(readAnswer([45])).toEqual({ brakeKg: null, car: null });
     expect(readAnswer('45')).toEqual({ brakeKg: null, car: null });
-    expect(NOT_KNOWN).toEqual({ brakeKg: null, car: null });
+    expect(NOT_KNOWN).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
     expect(BRAKE_FORCE_PATH).toBe('/racing-desk/data/brakeforce');
+    expect(WHEEL_MAX_PATH).toBe('/racing-desk/data/wheelmax');
+  });
+
+  test('a maximum torque above nought in Nm and where it came from; not known for anything else', () => {
+    expect(readWheelAnswer({ source: 'pithouse', model: 'R21 Ultra', max_pct: 55, rated_nm: 21, max_nm: 11.55, candidates: 2 })).toEqual({ wheelNm: 11.55, wheelSource: 'pithouse' });
+    expect(readWheelAnswer({ source: 'base', max_nm: 9 })).toEqual({ wheelNm: 9, wheelSource: 'base' });
+    expect(readWheelAnswer({ source: 'somewhere', max_nm: 9 })).toEqual({ wheelNm: 9, wheelSource: null });
+    for (const body of [{ source: null, max_nm: null }, { max_nm: 0 }, { max_nm: -3 }, { max_nm: '9' }, { max_nm: NaN }, { max_nm: Infinity }, {}, null, [9], '9', 9]) {
+      expect(readWheelAnswer(body), JSON.stringify(body)).toEqual({ wheelNm: null, wheelSource: null });
+    }
+    // The base's max torque in per cent is not a number of Nm: only max_nm is read.
+    expect(readWheelAnswer({ source: 'pithouse', max_pct: 55, rated_nm: null, max_nm: null })).toEqual({ wheelNm: null, wheelSource: null });
   });
 
   test('what the fetch resolved is checked in the page\'s shape, not read as the host\'s again', () => {
-    expect(told({ brakeKg: 45, car: 'mx5 mx52016' })).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
-    expect(told({ brakeKg: 0, car: 'x' })).toEqual({ brakeKg: 0, car: 'x' });
-    expect(told({ brakeKg: null, car: 'x' })).toEqual({ brakeKg: null, car: 'x' });
-    expect(told({ brakeKg: -1, car: 'x' })).toEqual({ brakeKg: null, car: 'x' });
-    expect(told({ brakeKg: '45', car: 'x' })).toEqual({ brakeKg: null, car: 'x' });
-    expect(told(readAnswer({ car: 'mx5 mx52016', force_kg: 45 }))).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
-    expect(told(null)).toEqual({ brakeKg: null, car: null });
-    expect(told([45])).toEqual({ brakeKg: null, car: null });
+    expect(told({ brakeKg: 45, car: 'mx5 mx52016' })).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null });
+    expect(told({ brakeKg: 0, car: 'x' })).toEqual({ brakeKg: 0, car: 'x', wheelNm: null, wheelSource: null });
+    expect(told({ brakeKg: null, car: 'x' })).toEqual({ brakeKg: null, car: 'x', wheelNm: null, wheelSource: null });
+    expect(told({ brakeKg: -1, car: 'x' })).toEqual({ brakeKg: null, car: 'x', wheelNm: null, wheelSource: null });
+    expect(told({ brakeKg: '45', car: 'x' })).toEqual({ brakeKg: null, car: 'x', wheelNm: null, wheelSource: null });
+    expect(told({ ...readAnswer({ car: 'mx5 mx52016', force_kg: 45 }), ...readWheelAnswer({ source: 'base', max_nm: 9 }) })).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: 9, wheelSource: 'base' });
+    expect(told({ brakeKg: 45, car: 'x', wheelNm: 0, wheelSource: 'base' })).toEqual({ brakeKg: 45, car: 'x', wheelNm: null, wheelSource: null });
+    expect(told({ brakeKg: 45, car: 'x', wheelNm: '9', wheelSource: 'base' }).wheelNm).toBeNull();
+    expect(told({ brakeKg: 45, car: 'x', wheelNm: 9, wheelSource: 'elsewhere' })).toEqual({ brakeKg: 45, car: 'x', wheelNm: 9, wheelSource: null });
+    expect(told(null)).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
+    expect(told([45])).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
   });
 });
 
@@ -112,13 +127,13 @@ test.describe('the keeper', () => {
 
   test('in the car the host is asked, once every two seconds, and the page told when the answer changes', async () => {
     const { k, calls, tick } = keeper();
-    expect(k.current()).toEqual({ brakeKg: null, car: null });
+    expect(k.current()).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
 
     k.feed(IN_CAR);
     await settle();
     expect(calls.fetched).toEqual(['http://localhost:18889/racing-desk/data/brakeforce']);
-    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016' }]);
-    expect(k.current()).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
+    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null }]);
+    expect(k.current()).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null });
 
     // Half a second on: the same frame again, not asked again; the page is not told what it already knows.
     tick(500);
@@ -147,8 +162,8 @@ test.describe('the keeper', () => {
     tick(2500);
     k.feed(IN_CAR);
     await settle();
-    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016' }, { brakeKg: 50, car: 'mx5 mx52016' }, { brakeKg: null, car: 'mx5 mx52016' }]);
-    expect(k.current()).toEqual({ brakeKg: null, car: 'mx5 mx52016' });
+    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null }, { brakeKg: 50, car: 'mx5 mx52016', wheelNm: null, wheelSource: null }, { brakeKg: null, car: 'mx5 mx52016', wheelNm: null, wheelSource: null }]);
+    expect(k.current()).toEqual({ brakeKg: null, car: 'mx5 mx52016', wheelNm: null, wheelSource: null });
   });
 
   test('out of the car nothing is asked, and the page is told not known', async () => {
@@ -161,13 +176,13 @@ test.describe('the keeper', () => {
 
     k.feed(IN_CAR);
     await settle();
-    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016' }]);
+    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null }]);
     tick(2500);
     k.feed(OUT);
     await settle();
     expect(calls.fetched).toHaveLength(1);
-    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016' }, { brakeKg: null, car: null }]);
-    expect(k.current()).toEqual({ brakeKg: null, car: null });
+    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null }, { brakeKg: null, car: null, wheelNm: null, wheelSource: null }]);
+    expect(k.current()).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
   });
 
   test('a host that does not answer, or answers with no force, is not known — never a number', async () => {
@@ -175,12 +190,12 @@ test.describe('the keeper', () => {
     k.feed(IN_CAR);
     await settle();
     expect(calls.sent).toEqual([]);
-    expect(k.current()).toEqual({ brakeKg: null, car: null });
+    expect(k.current()).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
 
     const known = keeper({ answer: { brakeKg: null, car: 'hondacivictyper' } });
     known.k.feed(IN_CAR);
     await settle();
-    expect(known.calls.sent).toEqual([{ brakeKg: null, car: 'hondacivictyper' }]);
+    expect(known.calls.sent).toEqual([{ brakeKg: null, car: 'hondacivictyper', wheelNm: null, wheelSource: null }]);
     expect(known.k.current().brakeKg).toBeNull();
     tick(0);
   });
@@ -208,18 +223,75 @@ test.describe('the keeper', () => {
       const k = createRigLimits({ host: () => host.url, send: (l) => sent.push(l), now: () => clock });
       k.feed(IN_CAR);
       await expect.poll(() => sent.length, { timeout: 3000 }).toBe(1);
-      expect(sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016' }]);
-      expect(k.current()).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
-      expect(host.state.asked.map((a) => a.url)).toEqual([BRAKE_FORCE_PATH]);
+      expect(sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null }]);
+      expect(k.current()).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null });
+      // Both routes are asked; this stand-in answers the one body to each, and a body with no max_nm is no torque.
+      expect(host.state.asked.map((a) => a.url).sort()).toEqual([BRAKE_FORCE_PATH, WHEEL_MAX_PATH]);
 
       host.state.answer = { body: { car: 'mx5 mx52016', force_kg: null } };
       clock += 2500;
       k.feed(IN_CAR);
       await expect.poll(() => sent.length, { timeout: 3000 }).toBe(2);
-      expect(sent[1]).toEqual({ brakeKg: null, car: 'mx5 mx52016' });
+      expect(sent[1]).toEqual({ brakeKg: null, car: 'mx5 mx52016', wheelNm: null, wheelSource: null });
     } finally {
       await host.close();
     }
+  });
+
+  // The wheel's maximum is the host's other route, asked beside the force and told with it.
+  test('with its own fetch, the wheel\'s maximum is asked beside the force, and each is not known without the other', async () => {
+    const host = await startHost({ body: {} });
+    const answers = {
+      [BRAKE_FORCE_PATH]: { car: 'mx5 mx52016', force_kg: 45 },
+      [WHEEL_MAX_PATH]: { source: 'pithouse', model: 'R21 Ultra', max_pct: 55, rated_nm: 21, max_nm: 11.55, candidates: 2 },
+    };
+    host.state.answer = (req) => ({ body: answers[req.url] });
+    try {
+      const sent = [];
+      let clock = 0;
+      const k = createRigLimits({ host: () => host.url, send: (l) => sent.push(l), now: () => clock });
+      k.feed(IN_CAR);
+      await expect.poll(() => sent.length, { timeout: 3000 }).toBe(1);
+      expect(sent[0]).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: 11.55, wheelSource: 'pithouse' });
+      expect(host.state.asked.map((a) => a.url).sort()).toEqual([BRAKE_FORCE_PATH, WHEEL_MAX_PATH]);
+      for (const a of host.state.asked) for (const name of ['origin', 'referer', 'sec-fetch-site']) expect(a.headers[name], name).toBeUndefined();
+
+      // The wheel's route stops answering (a 404 from an older host): the force stays, the wheel is not known.
+      answers[WHEEL_MAX_PATH] = undefined;
+      host.state.answer = (req) => (answers[req.url] ? { body: answers[req.url] } : { status: 404, body: { error: 'unknown data route' } });
+      clock += 2500;
+      k.feed(IN_CAR);
+      await expect.poll(() => sent.length, { timeout: 3000 }).toBe(2);
+      expect(sent[1]).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null });
+
+      // The wheel's answers again with another number: told as it changes, the force untouched.
+      answers[WHEEL_MAX_PATH] = { source: 'base', model: 'R21', max_pct: 40, rated_nm: 21, max_nm: 8.4, candidates: 1 };
+      clock += 2500;
+      k.feed(IN_CAR);
+      await expect.poll(() => sent.length, { timeout: 3000 }).toBe(3);
+      expect(sent[2]).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: 8.4, wheelSource: 'base' });
+    } finally {
+      await host.close();
+    }
+  });
+
+  test('a stand-in that says nothing of the wheel leaves it not known; a wheel that changes is told', async () => {
+    let answer = { brakeKg: 45, car: 'mx5 mx52016', wheelNm: 11.55, wheelSource: 'pithouse' };
+    const { k, calls, tick } = keeper({ answer: () => answer });
+    k.feed(IN_CAR);
+    await settle();
+    answer = { brakeKg: 45, car: 'mx5 mx52016', wheelNm: 8.4, wheelSource: 'base' };
+    tick(2500);
+    k.feed(IN_CAR);
+    await settle();
+    answer = { brakeKg: 45, car: 'mx5 mx52016', wheelNm: 8.4, wheelSource: 'base' };
+    tick(2500);
+    k.feed(IN_CAR);
+    await settle();
+    expect(calls.sent).toEqual([
+      { brakeKg: 45, car: 'mx5 mx52016', wheelNm: 11.55, wheelSource: 'pithouse' },
+      { brakeKg: 45, car: 'mx5 mx52016', wheelNm: 8.4, wheelSource: 'base' },
+    ]);
   });
 
   test('a page that cannot be told does not stop the keeper', async () => {
@@ -228,7 +300,7 @@ test.describe('the keeper', () => {
     const k = createRigLimits({ host: () => 'http://localhost:8889', send: () => { throw new Error('gone'); }, fetch: async () => ({ brakeKg: 1, car: 'x' }), now: () => clock, log: (l) => calls.push(l) });
     k.feed(IN_CAR);
     await settle();
-    expect(k.current()).toEqual({ brakeKg: 1, car: 'x' });
+    expect(k.current()).toEqual({ brakeKg: 1, car: 'x', wheelNm: null, wheelSource: null });
     expect(calls.some((l) => /could not be told/.test(l))).toBe(true);
   });
 });
@@ -251,6 +323,7 @@ test.describe('main.js and the preload', () => {
     for (const file of ['datastream.js', 'poll-engine.js', 'car-controls.js']) {
       const text = readFileSync(new URL(`../../modules/js/${file}`, import.meta.url), 'utf8');
       expect(text, file).not.toContain('/racing-desk/data/brakeforce');
+      expect(text, file).not.toContain('/racing-desk/data/wheelmax');
     }
   });
 });

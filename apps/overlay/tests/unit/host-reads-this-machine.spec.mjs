@@ -38,6 +38,7 @@ const ROUTES = {
   monitors: MONITORS,
   replay: { available: false, connected: false },
   brakeforce: { car: 'mx5 mx52016', force_kg: 45 },
+  wheelmax: { source: 'pithouse', model: 'R21 Ultra', max_pct: 55, rated_nm: 21, max_nm: 11.55, candidates: 2 },
 };
 
 // The host's data API, as far as its check goes: it asks of every request what the real one asks, before the route.
@@ -170,12 +171,18 @@ test('the Cars page\'s four reads and its one write (rig-api.js) are answered', 
   }
 });
 
-test('the brake force the HUD\'s datastream is told (rig-limits.js, asked by the main process) is answered', async () => {
+test('the brake force and the wheel\'s maximum the HUD\'s datastream is told (rig-limits.js, asked by the main process) are answered', async () => {
   expect(await rigLimits.fetchBrakeForce(`${host.url}${rigLimits.BRAKE_FORCE_PATH}`)).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
+  expect(await rigLimits.fetchWheelMax(`${host.url}${rigLimits.WHEEL_MAX_PATH}`)).toEqual({ wheelNm: 11.55, wheelSource: 'pithouse' });
+  expect(await rigLimits.fetchRigLimits(`${host.url}${rigLimits.BRAKE_FORCE_PATH}`)).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: 11.55, wheelSource: 'pithouse' });
   expect(host.state.refused).toEqual([]);
-  expect(host.state.asked.map((a) => a.url)).toEqual(['/racing-desk/data/brakeforce']);
-  expect(host.state.asked[0].headers.host).toBe(`127.0.0.1:${host.port}`);
-  for (const name of ['origin', 'referer', 'sec-fetch-site', 'sec-fetch-dest', 'sec-fetch-user']) expect(host.state.asked[0].headers[name], name).toBeUndefined();
+  expect(host.state.asked.map((a) => a.url)).toEqual([
+    '/racing-desk/data/brakeforce', '/racing-desk/data/wheelmax', '/racing-desk/data/brakeforce', '/racing-desk/data/wheelmax',
+  ]);
+  for (const a of host.state.asked) {
+    expect(a.headers.host).toBe(`127.0.0.1:${host.port}`);
+    for (const name of ['origin', 'referer', 'sec-fetch-site', 'sec-fetch-dest', 'sec-fetch-user']) expect(a.headers[name], name).toBeUndefined();
+  }
 });
 
 test('main.js\'s own asks of the host (Node\'s fetch: the replay) are answered', async () => {

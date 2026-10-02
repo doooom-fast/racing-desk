@@ -74,9 +74,12 @@ Beside them, `GET /racing-desk/data/simwindow` says where the sim's window is an
 the monitors, both in physical pixels (see **The HUD is on the screen iRacing is on**, under Desk), and
 `GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
 before there is a store) with what the check of it has said of each car: this run's, and what the store has kept of
-the runs before (see The car's controls), and `GET /racing-desk/data/brakeforce` the brake force the pedals are at now
+the runs before (see The car's controls), `GET /racing-desk/data/brakeforce` the brake force the pedals are at now
 as the host follows it from SmartControl Live's keys, for the HUD's datastream (`{ car, force_kg }`, null each while not
-known; see Per car, for the rig).
+known; see Per car, for the rig), and `GET /racing-desk/data/wheelmax` the wheel's maximum torque in Nm, from what the
+wheel base itself last said (the plugin's poll, which runs while Pit House lets go of the ports) or Pit House's own saved
+preset for it, read and never written (`{ source, model, max_pct, rated_nm, max_nm, candidates }`, null each while not
+known; the overlay's CLAUDE.md, The datastream's rig limits).
 
 **The runtime's `?action=` routes are for programs on this machine.** The plugin (`:8889`) and the host (`:8889` or
 `:18889`) take `GET /racing-desk/?action=<name>` on the telemetry's own path. `setMozaWheelbaseSetting`,

@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using RacingDesk.Data;
 using RacingDesk.Data.Pedals;
 using RacingDesk.Data.Schedule;
+using RacingDesk.Data.Wheel;
 using RacingDesk.Plugin;
 using RacingDesk.Plugin.Engine;
 using RacingDesk.Plugin.IRacing;
@@ -233,6 +234,10 @@ Data options:
             // The force the keys have left the pedals at, for the HUD's datastream (the brakeforce route, asked by the
             // app's main process); a host with no recorder answers not known.
             if (api != null) api.BrakeForce = () => pedals?.Now;
+            // The wheel's maximum torque, for the same rows: what the wheel base said when it last could be asked (the
+            // runtime's poll; nothing is sent for this), else Pit House's own saved preset for it, read and never written.
+            var pitHouse = new PitHouseWheelLimits(null, null, m => Log.Info("[RacingDesk.Host] " + m));
+            if (api != null) api.WheelMax = () => WheelLimit.Resolve(runtime.WheelbaseNow(), pitHouse.Read());
             // What the check of the car list says of each car, kept for the desk. It is queued on the telemetry thread
             // and written on another, through a connection of its own; a store that will not take it is logged and
             // goes no further. The SimHub plugin has no store, and says it to its log alone.

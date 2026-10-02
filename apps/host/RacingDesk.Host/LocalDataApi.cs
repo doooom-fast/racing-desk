@@ -9,6 +9,7 @@ using System.Threading;
 using RacingDesk.Core.Screens;
 using RacingDesk.Data;
 using RacingDesk.Data.Pedals;
+using RacingDesk.Data.Wheel;
 using RacingDesk.Plugin;
 
 namespace RacingDesk.Host
@@ -57,7 +58,7 @@ namespace RacingDesk.Host
         internal static readonly string[] Routes =
         {
             "status", "sessions", "session", "schedule", "cars", "views", "pedals", "controls", "simwindow", "monitors", "outline", "replay",
-            "brakeforce",
+            "brakeforce", "wheelmax",
         };
 
         private const string NotThisMachine = "this is for the app on this machine";
@@ -113,6 +114,14 @@ namespace RacingDesk.Host
         /// asks it for the HUD's datastream; nothing is read from the pedals for it.
         /// </summary>
         internal Func<BrakeForceNow> BrakeForce { get; set; }
+
+        /// <summary>
+        /// The wheel's maximum torque, for <c>wheelmax</c>: what the wheel base itself last said (the plugin's poll, which
+        /// runs while Pit House has let go of the ports) or, failing that, Pit House's saved preset for it, read and never
+        /// written (<see cref="WheelLimit.Resolve"/>). Null, or a reader that answers null, where neither is known: the
+        /// route then says so, and the HUD shows a dash. The app's main process asks it for the HUD's datastream.
+        /// </summary>
+        internal Func<WheelLimit> WheelMax { get; set; }
 
         /// <summary>
         /// Claims /data/ requests, and answers them off the telemetry thread — after the check of who is asking, which every
@@ -246,6 +255,27 @@ namespace RacingDesk.Host
                         json.WriteStartObject();
                         json.WriteString("car", now?.CarPath);
                         Number(json, "force_kg", now?.ForceKg);
+                        json.WriteEndObject();
+                    });
+                    return;
+                }
+
+                if (route == "wheelmax" && ctx.Request.HttpMethod == "GET")
+                {
+                    // The wheel's maximum torque in Nm, with where it comes from: { source, model, max_pct, rated_nm, max_nm,
+                    // candidates }, each null while not known. Not the store's, so answered before there is one. The
+                    // answer is a read of Pit House's files and of what the base said: nothing is sent to either.
+                    WheelLimit limit = null;
+                    try { limit = WheelMax?.Invoke(); } catch (Exception) { limit = null; }
+                    Write(res, 200, json =>
+                    {
+                        json.WriteStartObject();
+                        json.WriteString("source", limit?.Source);
+                        json.WriteString("model", limit?.Model);
+                        Number(json, "max_pct", limit?.MaxPercent);
+                        Number(json, "rated_nm", limit?.RatedNm);
+                        Number(json, "max_nm", limit?.MaxNm);
+                        json.WriteNumber("candidates", limit?.Candidates ?? 0);
                         json.WriteEndObject();
                     });
                     return;

@@ -87,6 +87,13 @@ namespace RacingDesk.Plugin
         // Moza direct serial hardware manager — bypasses Pit House
         internal MozaSerialManager _mozaSerial;
 
+        /// <summary>
+        /// What the wheel base last said of its maximum torque (model and per cent), for the host's wheel-limit route,
+        /// or null: no hardware, no base, or nothing read from it (Pit House holds its ports). Nothing is sent to the
+        /// base for it.
+        /// </summary>
+        public WheelbaseReading WheelbaseNow() => _mozaSerial?.WheelbaseReading();
+
         // Car change detection for pedal profile auto-switch
         internal string _lastCarModel = "";
 

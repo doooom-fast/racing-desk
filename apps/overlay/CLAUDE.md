@@ -171,34 +171,64 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   `:8889` without binding wildcard ports, so that hop is by the code: the runtime writes `s.CarControlsJson` into the
   payload as an object.
 
-## The datastream's rig limits (`FFB max`, `Brake max`)
+## The datastream's rig limits (`Wheel max`, `Sim FFB max`, `Brake max`)
 
-Two rows under `FFB` on the rig's HUD, for what the rig is set to beside the live torque (he asked on 2026-10-01: "Show
-Max pedal force and max wheel nm in the data stream"). Each has its unit, a dash while it is not known, and a switch
-(`dsShowFfbMax`, `dsShowBrakeMax`, on by default); the glance layout hides both (`drive-view.css`, as FPS). Nothing is
-read from the pedals or the wheel base for them, and nothing written to them, SmartControl or Pit House.
+Three rows under `FFB` on the rig's HUD, for what the rig is set to beside the live torque (he asked on 2026-10-01:
+"Show Max pedal force and max wheel nm in the data stream"). Each has its unit, a dash while it is not known, and a switch
+(`dsShowWheelMax`, `dsShowFfbMax`, `dsShowBrakeMax`, on by default); the glance layout hides all three (`drive-view.css`,
+as FPS). Nothing is written to the pedals, the wheel base, SmartControl or Pit House, no serial port is opened for
+any of it, and nothing is sent to them.
 
-- **FFB max** is the sim's: iRacing's own `SteeringWheelMaxForceNm`, the strength slider in Nm the sim maps to full
+- **Wheel max** is the wheel's own maximum torque, in Nm: the base's max-torque setting (per cent of its model's rated
+  peak: 21 Nm for an R21 and an R21 Ultra, 9 for an R9, 5.5 for an R5; `MozaWheelbaseModels`, and a model not in the
+  table has no rating and shows a dash) as a number of Nm. Where it comes from, in order: (1) **the base itself**, where
+  the plugin's poll could last ask it — the poll that already probes and reads the base every two seconds, which runs
+  only while Pit House has let go of its serial ports (on the rig Pit House nearly always holds COM6 and COM13) — sent in
+  the telemetry as `RacingDesk.Plugin.DS.MozaWheelbaseMaxTorque` (the per cent) and `MozaWheelbaseMaxNm` (where the
+  model has a rating; `WheelbaseSettings.Model` is now the model the base's USB description names, which it never
+  was before); nothing new is sent to the base for it. (2) **Pit House's own saved preset for the base**, read and
+  never written (`RacingDesk.Data/Wheel/PitHouseWheelLimits.cs`): `Documents\MOZA Pit House\Presets\config.ini`'s
+  `[LastUsedPreset]` maps each device Pit House has met to the preset it last used, and each preset in `Presets\Motor`
+  is an ordinary zip (a `preset.json` and a `metadata.json`) whose `devices` is the model ("R21 Ultra") and
+  `deviceParams.maximumTorque` the per cent (his R21 Ultra preset, written 2026-09-30: 55; `gameForceFeedbackStrength`
+  70 is the game's own scale and is not read). The files are opened for reading with `FileShare.ReadWrite`, so a
+  running Pit House is never in the way and nothing is created or changed (`WheelMaxTests` holds the bytes and times of
+  every file before and after, and a read while another program has them open for writing). The host serves the
+  answer at `GET /racing-desk/data/wheelmax` (`{ source: "base" | "pithouse", model, max_pct, rated_nm, max_nm,
+  candidates }`, null each while not known) for programs on this machine, and the page's main process asks it with the
+  brake force (below). (3) Neither: a dash. **What the preset is not, said plainly:** it is what Pit House last loaded
+  into the base and not necessarily what the base is set to now (a slider moved in Pit House and not saved is not in
+  the file), and Pit House does not say which of the bases it has met is the one attached. His Pit House has two
+  motor presets in `[LastUsedPreset]` (an R9, "bmw", saved 2026-08-02, and the R21 Ultra, 2026-09-30), so **the preset
+  saved last is taken** (`candidates` says how many there were); if he moves to the other base without saving a preset
+  for it, the row shows the old base's number until he does. 55 per cent of an R21 Ultra is 11.6 Nm; his 963 GTP's
+  29.7 Nm is the next row, not this.
+- **Sim FFB max** is the sim's: iRacing's own `SteeringWheelMaxForceNm`, the strength slider in Nm the sim maps to full
   output on the wheel, set per car (29.7 on his 963, 27.3 on the MX-5), sent as `RacingDesk.Plugin.DS.SteerMaxForceNm`
   only where the sim says a number above nought and never in demo (`TelemetryCapture.SteeringWheelMaxForceNm`,
-  `TelemetryFrame.SteerMaxForceNmKey`; `SteerMaxForceTests`). `datastream.js` reads it to one place. Beside SimHub the
-  key arrives only once the plugin has been installed again from a build that carries it. The MOZA base's own limit (the
-  R21's 21 Nm at Pit House's percentage) is not read: Pit House holds the base's ports, the plugin's serial reads would
-  write to the base, and Pit House's presets are not plain files.
+  `TelemetryFrame.SteerMaxForceNmKey`; `SteerMaxForceTests`). `datastream.js` reads it to one place. **It is not the
+  wheel's maximum** — an R21 at 55 % tops out near 11.6 Nm whatever the sim's scale says — which is why the row is
+  labelled the sim's (it was "FFB max", which read as the wheel's limit) and the wheel's is its own row. Beside SimHub the
+  key arrives only once the plugin has been installed again from a build that carries it.
 - **Brake max** is the host's: SmartControl's brake force in kg as the app's host follows it from Live's keys (root
   CLAUDE.md, Per car, for the rig; `CarPedalsRecorder.Now`), known from a key that sets a force and not known again after
   a held step key or between cars. The host serves it at `GET /racing-desk/data/brakeforce` (`{ car, force_kg }`, null
   each while not known) for programs on this machine and no page, so the main process asks (`modules/js/rig-limits.js`:
-  on the HUD keeper's own poll, in the car, every two seconds at most, by Node with a Host and no Origin) and tells the
-  page as the answer changes (`rig-limits`; `get-rig-limits` for a page that loaded after, through the preload's
-  `onRigLimits` / `getRigLimits`). A page with no main process behind it — an iPad, the page OBS draws, a browser —
-  shows a dash. The store's `car_pedal_facts.force_kg` (the force a car was *last* driven with) is not shown: the pedals
-  are not put back to it when he gets in, so it is not necessarily what they are at.
-- **Tests**: `tests/unit/rig-limits.spec.mjs` (the answer as read, the request over a 127.0.0.1 stand-in, the keeper's
-  asking and telling, the keeper with its own fetch against the stand-in — the host's `{ car, force_kg }` is read once,
-  into the page's `{ brakeKg, car }`, and that is what the keeper checks — main.js's and the preload's wiring), `tests/unit/datastream-limits.spec.mjs` (the rows on the
-  page: the units, a change told by the main process, the dashes, the demo, the switches, the glance layout),
-  `host-reads-this-machine.spec.mjs` (the request is one the host answers).
+  on the HUD keeper's own poll, in the car, every two seconds at most, by Node with a Host and no Origin, the brake
+  force's route and the wheel's together) and tells the page as the answer changes (`rig-limits`, `{ brakeKg, car,
+  wheelNm, wheelSource }`; `get-rig-limits` for a page that loaded after, through the preload's `onRigLimits` /
+  `getRigLimits`). A page with no main process behind it — an iPad, the page OBS draws, a browser — shows a dash for it
+  (and for the wheel's, unless the telemetry itself carries the base's reading: `MozaWheelbaseMaxNm`, which the page reads
+  ahead of the main process's number). The store's `car_pedal_facts.force_kg` (the force a car was *last* driven with)
+  is not shown: the pedals are not put back to it when he gets in, so it is not necessarily what they are at.
+- **Tests**: `tests/unit/rig-limits.spec.mjs` (the answers as read, the requests over a 127.0.0.1 stand-in, the keeper's
+  asking and telling, the keeper with its own fetch against the stand-in — the host's `{ car, force_kg }` and
+  `{ max_nm }` are read once, into the page's `{ brakeKg, car, wheelNm, wheelSource }`, and that is what the keeper
+  checks — main.js's and the preload's wiring), `tests/unit/datastream-limits.spec.mjs` (the rows on the page: the
+  units, a change told by the main process, the wheel's from the frame ahead of the main process, the dashes, the demo,
+  the switches, the glance layout), `host-reads-this-machine.spec.mjs` (the requests are ones the host answers);
+  RacingDesk.Tests `Wheel/WheelMaxTests.cs` (the preset's shape, two bases, a preset that is not usable, a model not in
+  the table, nothing written, files held open for writing, the route, the poll's keys).
 
 ## The glance layout (drive mode: Ctrl+Shift+F, and the whole of what an iPad is shown)
 
