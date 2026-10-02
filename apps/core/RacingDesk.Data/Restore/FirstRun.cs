@@ -381,9 +381,15 @@ namespace RacingDesk.Data.Restore
                 var b = store.ViewBaselineRow() ?? new ViewBaseline { StartHeight = _ctx.StartHeight, DecidedAtUtc = _ctx.Now(), DecidedBy = "Kevin, 2026-10-02" };
                 b.IniOriginal = b.IniOriginal ?? was;
                 b.IniBackup = b.IniBackup ?? change.IniBackup;
-                b.IniWrittenAtUtc = _ctx.Now();
+                // The file's own time, which B1-check compares with: whether anything wrote app.ini again before the garage screen.
+                b.IniWrittenAtUtc = AppIniWrittenAtUtc() ?? _ctx.Now();
                 store.SaveViewBaseline(b);
                 r.Saw.Add($"app.ini held {Fmt(was)} before; it holds {AppIniEditor.Format(_ctx.StartHeight)} now");
+                // On the rig today app.ini already holds S: the write changes no value, and the check after the launch cannot
+                // tell an edit that survived from one put back by the same number. B5 moves app.ini two centimetres and is the
+                // test of that; B1-check still says whether the file was written again.
+                if (was.HasValue && Math.Abs(was.Value - _ctx.StartHeight) < RestorePolicy.SmallestChange)
+                    r.Saw.Add("it held that already, so this write changes no value: B1-check can show only whether something wrote app.ini again before the garage screen, not that an edit survives a launch — B5, two centimetres lower, shows that");
             }
             return r;
         }
@@ -394,7 +400,21 @@ namespace RacingDesk.Data.Restore
             double? h = _ctx.Files.AppIniHeight();
             var r = new StepResult { Ok = h.HasValue && Math.Abs(h.Value - _ctx.StartHeight) < RestorePolicy.SmallestChange };
             r.Saw.Add($"app.ini holds {Fmt(h)} with the sim running" + (r.Ok ? ": the edit survived the launch" : $", not {AppIniEditor.Format(_ctx.StartHeight)}"));
+            DateTime? written;
+            using (var store = _ctx.OpenStore()) written = store.ViewBaselineRow()?.IniWrittenAtUtc;
+            DateTime? now = AppIniWrittenAtUtc();
+            if (written.HasValue && now.HasValue)
+                r.Saw.Add(now.Value > written.Value.AddSeconds(1)
+                    ? $"app.ini was written again after B1, at {now.Value.ToLocalTime():HH:mm:ss}: by the iRacing UI or the sim"
+                    : "app.ini has not been written since B1");
             return r;
+        }
+
+        /// <summary>When app.ini was last written, by its file's own time; null when there is none to ask.</summary>
+        private DateTime? AppIniWrittenAtUtc()
+        {
+            string path = Path.Combine(_ctx.Files.Documents, "app.ini");
+            return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : (DateTime?)null;
         }
 
         private StepResult GarageFlags()

@@ -200,7 +200,7 @@ namespace RacingDesk.Data.Restore
                     new FirstRunAction { Id = "B1", Label = "Put app.ini's height to S (-0.020)", Writes = true },
                     new FirstRunAction { Id = "B1-check", Label = "At the garage screen: read app.ini" },
                 },
-                Expected = "At the garage screen app.ini still says -0.020000.",
+                Expected = "At the garage screen app.ini still says -0.020000. Where it held that already, B1 changes no value and B1-check says only whether the file was written again: B5 is the test of an edit surviving a launch.",
                 Settles = "An app.ini written with the UI open survives a launch (E1).",
             },
             new FirstRunStep
@@ -234,7 +234,7 @@ namespace RacingDesk.Data.Restore
                 Id = "B5", Part = "B · in the sim: a test drive in the Porsche 963", Title = "app.ini 2 cm lower instead",
                 HeDoes = "Exits the sim. After the write, relaunches and takes screenshot C.",
                 Actions = new[] { new FirstRunAction { Id = "B5", Label = "Put the camera file back, app.ini 2 cm lower", Writes = true } },
-                Expected = "Screenshot C matches B, the dash's edge within about a pixel: the two add one for one (E5).",
+                Expected = "Screenshot C matches B, the dash's edge within about a pixel: the two add one for one (E5), and an app.ini edit made with the iRacing UI open survives a launch (E1).",
             },
             new FirstRunStep
             {

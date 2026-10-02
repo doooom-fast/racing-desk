@@ -317,7 +317,7 @@ run, with a button that does Racing Desk's half.
 
 | | Question | Settled by |
 |---|---|---|
-| E1 | Does an `app.ini` edit made with the iRacing UI open survive a sim launch? | B1 |
+| E1 | Does an `app.ini` edit made with the iRacing UI open survive a sim launch? | B1; on the rig `app.ini` already holds S, so B1 changes no value and B5 (two centimetres lower) is the test |
 | E2 | How much is one press of height up, and of horizon up? | not needed: no key is pressed (steps are 0.005 m in his files) |
 | E3 | Is the horizon key `DrivingVanishY`? | B6 (and his `app.ini` comment says so) |
 | E4 | Is `car.cam` applied when `camera.ini` has `LastCarSet=` empty? | B4 |

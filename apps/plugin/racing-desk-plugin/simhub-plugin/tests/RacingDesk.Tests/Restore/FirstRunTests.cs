@@ -99,6 +99,39 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
+        public void B1_SaysWhenItChangesNoValue_AndB1CheckSaysWhetherAppIniWasWrittenAgain()
+        {
+            // As on the rig today: app.ini already holds S, so B1 proves nothing of an edit surviving a launch, and says so.
+            _rig.AppIni(RestorePolicy.StartHeight);
+            Assert.That(Step("0b").Ok, Is.True);
+            var b1 = Step("B1");
+            Assert.That(b1.Ok, Is.True, b1.Text);
+            Assert.That(b1.Saw, Has.Some.Contains("changes no value"));
+            Assert.That(b1.Saw, Has.Some.Contains("B5, two centimetres lower, shows that"));
+
+            _rig.Probe.Sim = true;
+            var check = Step("B1-check");
+            Assert.That(check.Ok, Is.True, check.Text);
+            Assert.That(check.Saw, Has.Some.EqualTo("app.ini has not been written since B1"));
+
+            // Something writes the file again before the garage screen: said, whatever the number in it.
+            string ini = Path.Combine(_rig.Documents, "app.ini");
+            File.SetLastWriteTimeUtc(ini, File.GetLastWriteTimeUtc(ini).AddMinutes(1));
+            check = Step("B1-check");
+            Assert.That(check.Ok, Is.True, "the height is still S");
+            Assert.That(check.Saw, Has.Some.StartsWith("app.ini was written again after B1, at "));
+        }
+
+        [Test]
+        public void B1_ThatMovesTheHeight_SaysNothingOfAWriteThatChangedNoValue()
+        {
+            Assert.That(Step("0b").Ok, Is.True);
+            var b1 = Step("B1");
+            Assert.That(b1.Ok, Is.True, b1.Text);
+            Assert.That(b1.Saw, Has.None.Contains("changes no value"), "app.ini held -0.035 in this rig");
+        }
+
+        [Test]
         public void PartB_WritesTheViewFilesOnlyWithTheSimClosed_AndPutsThemBack()
         {
             byte[] ini = _rig.AppIniBytes(), cam = File.ReadAllBytes(_rig.CamPath(Car));
