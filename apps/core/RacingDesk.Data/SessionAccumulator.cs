@@ -236,10 +236,17 @@ namespace RacingDesk.Data
 
             var di = info.DriverInfo;
             var drivers = di?.Drivers ?? new List<IRacingSdkSessionInfo.DriverInfoModel.DriverModel>();
-            var me = drivers.FirstOrDefault(d => d.CarIdx == di.DriverCarIdx);
+            // Who he is: the entry that is him (his customer id, DriverUserID) in his car, else his entry wherever it is, else
+            // the entry for his car. In a team race the entry for his car may be a teammate's, and neither his customer id
+            // nor the grid's is_player flag may go to a teammate: the store tells him from the others by them.
+            var me = (di != null && di.DriverUserID > 0
+                    ? drivers.FirstOrDefault(d => d.UserID == di.DriverUserID && d.CarIdx == di.DriverCarIdx)
+                      ?? drivers.FirstOrDefault(d => d.UserID == di.DriverUserID)
+                    : null)
+                ?? drivers.FirstOrDefault(d => di != null && d.CarIdx == di.DriverCarIdx);
             if (me != null)
             {
-                s.DriverCustId = me.UserID;
+                s.DriverCustId = di.DriverUserID > 0 ? di.DriverUserID : me.UserID;
                 s.DriverName = me.UserName;
                 s.IRating = me.IRating;
                 s.License = me.LicString;
@@ -273,7 +280,7 @@ namespace RacingDesk.Data
                     FastestLapSeconds = r != null && r.FastestTime > 0 ? r.FastestTime : 0,
                     Incidents = r?.Incidents ?? 0,
                     ReasonOut = r?.ReasonOutStr,
-                    IsPlayer = me != null && d.CarIdx == me.CarIdx,
+                    IsPlayer = me != null && ReferenceEquals(d, me),
                 });
                 if (me != null && d.CarIdx == me.CarIdx && r != null)
                 {

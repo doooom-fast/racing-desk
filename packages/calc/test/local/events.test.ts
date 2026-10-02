@@ -9,7 +9,7 @@ function row(over: Partial<LocalSessionRow>): LocalSessionRow {
     season_id: 6454, race_week: 0, event_type: 'Race', session_type: 'Race', official: 1, category: 'SportsCar',
     track_id: 249, track_name: 'nurburgring nordschleife', track_display_name: 'Nordschleife', track_config: null,
     track_length_km: 20.8, car_path: 'caterham caterham420r', car_id: 218, car_screen_name: 'Caterham 420R', car_class_id: 4113,
-    started_at: '2026-09-01T18:00:00.000Z', duration_s: 1200, driver_cust_id: 1, irating: 800, license: 'C 2.50',
+    started_at: '2026-09-01T18:00:00.000Z', duration_s: 1200, irating: 800, license: 'C 2.50',
     safety_rating: 2.5, laps_completed: 3, best_lap_s: 480, incidents: 2, start_position: 10, finish_position: 8,
     finish_position_in_class: 8, field_size: 24, sof: 1400,
     ...over,

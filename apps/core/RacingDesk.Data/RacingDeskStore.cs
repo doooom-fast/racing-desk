@@ -1159,6 +1159,15 @@ FROM sessions WHERE ($type IS NULL OR session_type = $type) ORDER BY started_at 
         }
 
         /// <summary>
+        /// His own customer id as the store knows it: the one most of the stored sessions are under (the session records
+        /// whose id it was when it was stored: his, and in an old team race the teammate's who was in his car, who is the
+        /// odd one out), 0 when no session has one. A stored entry list's <c>is_player</c> row is him only if it has this
+        /// id: the flag went to whoever was in his car.
+        /// </summary>
+        public long OwnCustomerId() => Scalar<long>(
+            "SELECT driver_cust_id FROM sessions WHERE driver_cust_id > 0 GROUP BY driver_cust_id ORDER BY COUNT(*) DESC, MAX(started_at) DESC LIMIT 1");
+
+        /// <summary>
         /// A stored session's entry list, by finishing position. The names are as they were stored: a session stored before
         /// other drivers were renamed (root CLAUDE.md, Other drivers' names) still has theirs on disk, so a reader that
         /// shows or sends them names each by its <c>CustId</c> first (LocalDataApi does).
