@@ -217,6 +217,24 @@ namespace RacingDesk.Tests.Wheel
             Assert.That(reader.Read().MaxPercent, Is.EqualTo(60), "looked at again");
         }
 
+        [Test]
+        public void ThePresetsOnTheRigItselfAreReadWhenTheyAreThere()
+        {
+            // The real DocumentsMOZA Pit House, read-only, as the host reads it: the shape this reader goes by is the one the
+            // files have today. Nothing is asserted of what is in them (his settings are his), only that they read.
+            string real = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MOZA Pit House", "Presets", "config.ini");
+            Assume.That(File.Exists(real), "no Pit House on this machine");
+            string before = File.GetLastWriteTimeUtc(real).Ticks + ":" + new FileInfo(real).Length;
+
+            var limit = new PitHouseWheelLimits().Read();
+            Assume.That(limit, Is.Not.Null, "Pit House has no motor preset it says it used");
+            Assert.That(limit.Source, Is.EqualTo("pithouse"));
+            Assert.That(limit.Model, Is.Not.Empty);
+            Assert.That(limit.MaxPercent, Is.GreaterThan(0).And.LessThanOrEqualTo(100));
+            Assert.That(limit.Candidates, Is.GreaterThanOrEqualTo(1));
+            Assert.That(File.GetLastWriteTimeUtc(real).Ticks + ":" + new FileInfo(real).Length, Is.EqualTo(before), "read, not written");
+        }
+
         // ── The model's name and rating ──
 
         [Test]
