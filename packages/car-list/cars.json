@@ -73,7 +73,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Percent front. Seen 48.8 to 50.0."
+     "range": [
+      48.79,
+      50.01
+     ],
+     "note": "Percent front. Seen 48.8 to 50.0. Range from his files: seen 48.79 to 50.01 in 2 files to 2026-10-02."
     },
     {
      "id": "tc",
@@ -135,43 +139,71 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Garage: Brake Pressure Bias. Seen 47 to 51.5."
+     "range": [
+      47,
+      51.5
+     ],
+     "note": "Garage: Brake Pressure Bias. Seen 47 to 51.5. Range from his files: seen 47 to 51.5 in 3 files to 2026-10-02."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TCLO",
-     "note": "Traction control slip (garage: Traction Control Slip, TCLO). Seen 5 to 8."
+     "range": [
+      5,
+      8
+     ],
+     "note": "Traction control slip (garage: Traction Control Slip, TCLO). Seen 5 to 8. Range from his files: seen 5 to 8 in 3 files to 2026-10-02."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TCLA",
-     "note": "Traction control gain (garage: Traction Control Gain, TCLA). Seen 1 to 7."
+     "range": [
+      1,
+      7
+     ],
+     "note": "Traction control gain (garage: Traction Control Gain, TCLA). Seen 1 to 7. Range from his files: seen 1 to 7 in 3 files to 2026-10-02."
     },
     {
      "id": "brakeMigration",
      "var": "dcABS",
      "label": "BRAKE BIAS MIGRATION",
-     "note": "Carried by dcABS; the car has no ABS. Garage: Brake Bias Migration. Seen -4 to 0."
+     "range": [
+      -4,
+      0
+     ],
+     "note": "Carried by dcABS; the car has no ABS. Garage: Brake Bias Migration. Seen -4 to 0. Range from his files: seen -4 to 0 in 3 files to 2026-10-02."
     },
     {
      "id": "brakeMisc",
      "var": "dcBrakeMisc",
      "label": "BRAKE MISC",
-     "note": "A brake dial of unknown purpose, changed from the seat: 0 on getting in in all 3 files, 1 once. The garage has no matching setting. On the 963 and the Cadillac this variable is the Brake Bias Target and on the Ferrari the Bias Migration Gain, so analogy does not settle it. The label is the sim's description of the variable, not the car's word."
+     "range": [
+      0,
+      1
+     ],
+     "note": "A brake dial of unknown purpose, changed from the seat: 0 on getting in in all 3 files, 1 once. The garage has no matching setting. On the 963 and the Cadillac this variable is the Brake Bias Target and on the Ferrari the Bias Migration Gain, so analogy does not settle it. The label is the sim's description of the variable, not the car's word. Range from his files: seen 0 to 1 in 3 files to 2026-10-02."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FARB",
-     "note": "Garage: front ARB Setting. Seen 2 to 11. Label by analogy with the other GTP cars' black box."
+     "range": [
+      2,
+      11
+     ],
+     "note": "Garage: front ARB Setting. Seen 2 to 11. Label by analogy with the other GTP cars' black box. Range from his files: seen 2 to 11 in 3 files to 2026-10-02."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "RARB",
-     "note": "Garage: rear ARB Setting. Seen 5 to 11. Label by analogy with the other GTP cars' black box."
+     "range": [
+      5,
+      11
+     ],
+     "note": "Garage: rear ARB Setting. Seen 5 to 11. Label by analogy with the other GTP cars' black box. Range from his files: seen 5 to 11 in 3 files to 2026-10-02."
     },
     {
      "id": "tcToggle",
@@ -230,7 +262,7 @@
       1,
       5
      ],
-     "note": "Red Rotary: torque response of the turbo anti-lag, 1 most lag, 5 most aggressive; the dash calls it throttle response. The variable is a guess."
+     "note": "Red Rotary: torque response of the turbo anti-lag, 1 most lag, 5 most aggressive; the dash calls it throttle response. The variable is a guess. Range from the manual (2026-01): setting 1 the most turbo lag, setting 5 the most aggressive."
     },
     {
      "id": "powerSteering",
@@ -240,7 +272,7 @@
       1,
       5
      ],
-     "note": "EPAS: 1 least assistance, 5 most. Variable by analogy with the Acura NSX GT3."
+     "note": "EPAS: 1 least assistance, 5 most. Variable by analogy with the Acura NSX GT3. Range from the manual (2026-01): setting 1 the least assistance, setting 5 the most."
     },
     {
      "id": "tcToggle",
@@ -338,13 +370,21 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "moved in the car, 47.5 to 55.3 seen; the garage's Front/BrakePressureBias is the base"
+     "range": [
+      47.5,
+      55.28
+     ],
+     "note": "moved in the car, 47.5 to 55.3 seen; the garage's Front/BrakePressureBias is the base. Range from his files: seen 47.5 to 55.28 in 17 files to 2026-10-02."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "REAR ARB",
-     "note": "rear anti-roll bar blades, 6 to 10 seen in his files (garage ArbBlades 6, 7, 9); range not published; the front bar is garage-only"
+     "range": [
+      6,
+      10
+     ],
+     "note": "rear anti-roll bar blades, 6 to 10 seen in his files (garage ArbBlades 6, 7, 9); range not published; the front bar is garage-only. Range from his files: seen 6 to 10 in 17 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -522,7 +562,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKEBAL",
-     "note": "Percent front. Seen 59.0 to 62.1."
+     "range": [
+      58.99,
+      62.12
+     ],
+     "note": "Percent front. Seen 59.0 to 62.1. Range from his files: seen 58.99 to 62.12 in 11 files to 2026-10-02."
     },
     {
      "id": "tc",
@@ -582,7 +626,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Percent to the front. 66.9 to 70.3 seen; the garage calls it Brake Pressure Bias."
+     "range": [
+      66.85,
+      70.35
+     ],
+     "note": "Percent to the front. 66.9 to 70.3 seen; the garage calls it Brake Pressure Bias. Range from his files: seen 66.85 to 70.35 in 7 files to 2026-10-02."
     },
     {
      "id": "abs",
@@ -603,7 +651,11 @@
      "id": "rearBrakeValve",
      "var": "dcPeakBrakeBias",
      "label": "REAR BRAKE VALVE",
-     "note": "The sim carries the rear brake valve in dcPeakBrakeBias; 1 and 2 seen, garage RearBrakeValve 1. Higher sends more pressure to the rear without reducing the front."
+     "range": [
+      1,
+      2
+     ],
+     "note": "The sim carries the rear brake valve in dcPeakBrakeBias; 1 and 2 seen, garage RearBrakeValve 1. Higher sends more pressure to the rear without reducing the front. Range from his files: seen 1 to 2 in 7 files to 2026-10-02."
     },
     {
      "id": "launch",
@@ -804,7 +856,11 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
-     "note": "garage '3 (TC)' matched the variable in all 18 files; range not seen"
+     "range": [
+      0,
+      3
+     ],
+     "note": "garage '3 (TC)' matched the variable in all 18 files; range not seen. Range from his files: seen 0 to 3 in 19 files to 2026-10-02."
     },
     {
      "id": "throttleMap",
@@ -873,7 +929,12 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "BRAKE BIAS",
+     "range": [
+      50,
+      62
+     ],
+     "note": "Range from his files: seen 50 to 62 in 46 files to 2026-10-02."
     },
     {
      "id": "tcToggle",
@@ -901,7 +962,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Percent front, in steps of 0.25. Seen 48.5 to 51.25."
+     "range": [
+      48.5,
+      53
+     ],
+     "note": "Percent front, in steps of 0.25. Seen 48.5 to 51.25. Range from his files: seen 48.5 to 53 in 17 files to 2026-10-02."
     },
     {
      "id": "tc",
@@ -1016,7 +1081,12 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "BRAKE BIAS",
+     "range": [
+      48.8,
+      54.4
+     ],
+     "note": "Range from his files: seen 48.8 to 54.4 in 30 files to 2026-10-02."
     },
     {
      "id": "engineMap",
@@ -1032,7 +1102,11 @@
      "id": "boost",
      "var": "dcBoostLevel",
      "label": "BOOST",
-     "note": "1 is maximum boost, each step up reduces it (manual); count not published, 1 and 5 seen; garage '1 (BOOST)' matched"
+     "range": [
+      1,
+      5
+     ],
+     "note": "1 is maximum boost, each step up reduces it (manual); count not published, 1 and 5 seen; garage '1 (BOOST)' matched. Range from his files: seen 1 to 5 in 30 files to 2026-10-02."
     },
     {
      "id": "throttleMap",
@@ -1245,43 +1319,71 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BBM",
-     "note": "Dash: BBM, the base brake pressure bias. Garage: Brake Pressure Bias. Seen 49 to 53.25."
+     "range": [
+      48,
+      60.75
+     ],
+     "note": "Dash: BBM, the base brake pressure bias. Garage: Brake Pressure Bias. Seen 49 to 53.25. Range from his files: seen 48 to 60.75 in 33 files to 2026-10-02."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC A",
-     "note": "Traction control slip (garage: Traction Control Slip, TC A). Seen 5 to 9."
+     "range": [
+      4,
+      12
+     ],
+     "note": "Traction control slip (garage: Traction Control Slip, TC A). Seen 5 to 9. Range from his files: seen 4 to 12 in 33 files to 2026-10-02."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TC B",
-     "note": "Traction control gain (garage: Traction Control Gain, TC B). Seen 1 to 4."
+     "range": [
+      1,
+      12
+     ],
+     "note": "Traction control gain (garage: Traction Control Gain, TC B). Seen 1 to 4. Range from his files: seen 1 to 12 in 33 files to 2026-10-02."
     },
     {
      "id": "brakeMigration",
      "var": "dcABS",
      "label": "MIG",
-     "note": "Carried by dcABS; the car has no ABS. Garage: Brake Bias Migration, 1% a click. Seen -4 to 3."
+     "range": [
+      -5,
+      5
+     ],
+     "note": "Carried by dcABS; the car has no ABS. Garage: Brake Bias Migration, 1% a click. Seen -4 to 3. Range from his files: seen -5 to 5 in 33 files to 2026-10-02."
     },
     {
      "id": "brakeBiasFine",
      "var": "dcBrakeMisc",
      "label": "BBT",
-     "note": "Brake Bias Target: an offset from the brake pressure bias, 0.5% a click. Seen -1 to 1."
+     "range": [
+      -5,
+      5
+     ],
+     "note": "Brake Bias Target: an offset from the brake pressure bias, 0.5% a click. Seen -1 to 1. Range from his files: seen -5 to 5 in 33 files to 2026-10-02."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "ARB F",
-     "note": "Garage: front ARB Blades. Seen 2 and 3."
+     "range": [
+      1,
+      4
+     ],
+     "note": "Garage: front ARB Blades. Seen 2 and 3. Range from his files: seen 1 to 4 in 33 files to 2026-10-02."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "ARB R",
-     "note": "Garage: rear ARB Blades. Seen 2 and 4."
+     "range": [
+      2,
+      5
+     ],
+     "note": "Garage: rear ARB Blades. Seen 2 and 4. Range from his files: seen 2 to 5 in 33 files to 2026-10-02."
     },
     {
      "id": "tcToggle",
@@ -1527,7 +1629,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "percent front; garage: Brake Pressure Bias"
+     "range": [
+      45.72,
+      60.15
+     ],
+     "note": "percent front; garage: Brake Pressure Bias. Range from his files: seen 45.72 to 60.15 in 133 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -1547,7 +1653,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "percent front; garage: Brake Pressure Bias"
+     "range": [
+      48.25,
+      57.24
+     ],
+     "note": "percent front; garage: Brake Pressure Bias. Range from his files: seen 48.25 to 57.24 in 120 files to 2026-10-02."
     },
     {
      "id": "p2p",
@@ -1564,13 +1674,21 @@
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FRONT ARB",
-     "note": "reads one less than the garage blade: blades 3-5 read 2, blades 4-5 read 3"
+     "range": [
+      0,
+      4
+     ],
+     "note": "reads one less than the garage blade: blades 3-5 read 2, blades 4-5 read 3. Range from his files: seen 0 to 4 in 120 files to 2026-10-02."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "REAR ARB",
-     "note": "reads one less than the garage blade: blades 2-5 read 1, blades 1-5 read 0"
+     "range": [
+      0,
+      1
+     ],
+     "note": "reads one less than the garage blade: blades 2-5 read 1, blades 1-5 read 0. Range from his files: seen 0 to 1 in 120 files to 2026-10-02."
     },
     {
      "id": "throttleMap",
@@ -1600,13 +1718,21 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BALANCE",
-     "note": "percent front; the dash calls it Brake Balance, the garage Brake Pressure Bias"
+     "range": [
+      47.5,
+      53
+     ],
+     "note": "percent front; the dash calls it Brake Balance, the garage Brake Pressure Bias. Range from his files: seen 47.5 to 53 in 3 files to 2026-10-02."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FARB",
-     "note": "reads one less than the garage blade: P1 (Soft) reads 0, P3 reads 2"
+     "range": [
+      0,
+      2
+     ],
+     "note": "reads one less than the garage blade: P1 (Soft) reads 0, P3 reads 2. Range from his files: seen 0 to 2 in 3 files to 2026-10-02."
     },
     {
      "id": "arbRear",
@@ -1616,7 +1742,7 @@
       0,
       3
      ],
-     "note": "reads one less than the garage arm: P2 reads 1, P4 (Stiff) reads 3"
+     "note": "reads one less than the garage arm: P2 reads 1, P4 (Stiff) reads 3. Range from his files: the garage arms P1 (not seen) to P4, read one less."
     },
     {
      "id": "throttleMap",
@@ -1734,25 +1860,41 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BALANCE",
-     "note": "Dash: Brake Balance. Garage: Brake Pressure Bias. Seen 51.5 to 56."
+     "range": [
+      49.75,
+      60
+     ],
+     "note": "Dash: Brake Balance. Garage: Brake Pressure Bias. Seen 51.5 to 56. Range from his files: seen 49.75 to 60 in 119 files to 2026-10-02."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "GAIN",
-     "note": "Traction control gain (garage: Traction Control Gain, TC1; dash: Gain): higher cuts harder. On this car TC1 is gain, not slip as on the GTP cars. Seen 2."
+     "range": [
+      1,
+      8
+     ],
+     "note": "Traction control gain (garage: Traction Control Gain, TC1; dash: Gain): higher cuts harder. On this car TC1 is gain, not slip as on the GTP cars. Seen 2. Range from his files: seen 1 to 8 in 119 files to 2026-10-02."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "SLIP",
-     "note": "Traction control slip (garage: Traction Control Slip, TC2; dash: Slip): higher acts on less wheelspin. Seen 6."
+     "range": [
+      1,
+      12
+     ],
+     "note": "Traction control slip (garage: Traction Control Slip, TC2; dash: Slip): higher acts on less wheelspin. Seen 6. Range from his files: seen 1 to 12 in 119 files to 2026-10-02."
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "TPS",
-     "note": "Garage: Throttle Shape. Dash: TPS. 1 is linear. Seen 1."
+     "range": [
+      1,
+      12
+     ],
+     "note": "Garage: Throttle Shape. Dash: TPS. 1 is linear. Seen 1. Range from his files: seen 1 to 12 in 119 files to 2026-10-02."
     },
     {
      "id": "powerSteering",
@@ -1791,7 +1933,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car"
+     "range": [
+      10,
+      90
+     ],
+     "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car. Range from the release notes (2018.09.05.01, Dirt Late Model, all): 'Brake Bias adjustment range has been opened to allow from 10% (full rear brake) to 90% (full front brake).'"
     }
    ],
    "checked": "written",
@@ -1811,7 +1957,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car"
+     "range": [
+      10,
+      90
+     ],
+     "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car. Range from the release notes (2018.09.05.01, Dirt Late Model, all): 'Brake Bias adjustment range has been opened to allow from 10% (full rear brake) to 90% (full front brake).'"
     }
    ],
    "checked": "written",
@@ -1831,7 +1981,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car"
+     "range": [
+      10,
+      90
+     ],
+     "note": "not driven on this rig: dcBrakeBias is assumed, being the sim's usual variable for brake bias; unconfirmed for this car. Range from the release notes (2018.09.05.01, Dirt Late Model, all): 'Brake Bias adjustment range has been opened to allow from 10% (full rear brake) to 90% (full front brake).'"
     }
    ],
    "checked": "written",
@@ -2221,7 +2375,11 @@
      "var": "dcTractionControl",
      "label": "TC1",
      "off": 0,
-     "note": "intervention on wheelspin: 0 disables TC1 and TC2, 1 least; the dial section says 4 is the most, the setup tips say 6 settings up to 5 (manual); garage '2 (TC1)' matched the variable"
+     "range": [
+      0,
+      4
+     ],
+     "note": "intervention on wheelspin: 0 disables TC1 and TC2, 1 least, 4 most; the setup tips name 5 settings, P0 (off) to P4 (manual, 2025-06; an earlier reading of its digits, set in a font that extracts badly, had 6 settings up to 5). Range from the manual. Garage '2 (TC1)' matched the variable"
     },
     {
      "id": "tc2",
@@ -2237,7 +2395,11 @@
      "id": "abs",
      "var": "dcABS",
      "label": "ABS",
-     "note": "cannot be disabled (manual); settings 1-2 are for slicks (dash SLICK) and the wet settings are given as 4-5 (dash RAIN) in the dial and dash sections, though the same page says '4 positions' and the setup tips name 5 settings; garage '2 (ABS)' matched the variable"
+     "range": [
+      1,
+      4
+     ],
+     "note": "cannot be disabled (manual); 4 positions, 1-2 for slicks (dash SLICK) and 3-4 for the wet (dash RAIN), in the dial and dash sections and the setup tips alike (manual, 2025-06; an earlier reading of its digits had the wet settings as 4-5). Range from the manual. Garage '2 (ABS)' matched the variable"
     },
     {
      "id": "brakeBias",
@@ -2269,7 +2431,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BBAL",
-     "note": "Percent front. Seen 49.1 to 51.1."
+     "range": [
+      49.11,
+      51.13
+     ],
+     "note": "Percent front. Seen 49.1 to 51.1. Range from his files: seen 49.11 to 51.13 in 2 files to 2026-10-02."
     },
     {
      "id": "tc",
@@ -2447,43 +2613,71 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Garage: Brake Pressure Bias. Seen 55.75 to 60.5."
+     "range": [
+      55.75,
+      63
+     ],
+     "note": "Garage: Brake Pressure Bias. Seen 55.75 to 60.5. Range from his files: seen 55.75 to 63 in 8 files to 2026-10-02."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC1",
-     "note": "Traction control slip (garage: Traction Control Slip, TC1). Seen 4 to 11."
+     "range": [
+      4,
+      11
+     ],
+     "note": "Traction control slip (garage: Traction Control Slip, TC1). Seen 4 to 11. Range from his files: seen 4 to 11 in 8 files to 2026-10-02."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TC2",
-     "note": "Traction control gain (garage: Traction Control Gain, TC2). Seen 3 to 9."
+     "range": [
+      3,
+      9
+     ],
+     "note": "Traction control gain (garage: Traction Control Gain, TC2). Seen 3 to 9. Range from his files: seen 3 to 9 in 8 files to 2026-10-02."
     },
     {
      "id": "brakeMigration",
      "var": "dcABS",
      "label": "BIAS MIGRATION",
-     "note": "Carried by dcABS; the car has no ABS. Garage: Bias Migration. Seen 2 to 6."
+     "range": [
+      2,
+      6
+     ],
+     "note": "Carried by dcABS; the car has no ABS. Garage: Bias Migration. Seen 2 to 6. Range from his files: seen 2 to 6 in 8 files to 2026-10-02."
     },
     {
      "id": "brakeMigrationGain",
      "var": "dcBrakeMisc",
      "label": "BIAS MIGRATION GAIN",
-     "note": "Garage: Bias Migration Gain. Seen -1.75 to -0.75."
+     "range": [
+      -1.75,
+      -0.75
+     ],
+     "note": "Garage: Bias Migration Gain. Seen -1.75 to -0.75. Range from his files: seen -1.75 to -0.75 in 8 files to 2026-10-02."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FARB",
-     "note": "Garage: front ARB Blades. Seen 1 to 3. Label by analogy with the other GTP cars' black box."
+     "range": [
+      1,
+      3
+     ],
+     "note": "Garage: front ARB Blades. Seen 1 to 3. Label by analogy with the other GTP cars' black box. Range from his files: seen 1 to 3 in 8 files to 2026-10-02."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "RARB",
-     "note": "Garage: rear ARB Blades. Seen 3. Label by analogy with the other GTP cars' black box."
+     "range": [
+      1,
+      3
+     ],
+     "note": "Garage: rear ARB Blades. Seen 3. Label by analogy with the other GTP cars' black box. Range from his files: seen 1 to 3 in 8 files to 2026-10-02."
     },
     {
      "id": "mguDeploy",
@@ -2583,7 +2777,11 @@
      "id": "launch",
      "var": "dcLaunchRPM",
      "label": "LAUNCH RPM",
-     "note": "garage: Launch Control, Launch RPM Limit; 5500 and 6500 seen"
+     "range": [
+      5500,
+      6500
+     ],
+     "note": "garage: Launch Control, Launch RPM Limit; 5500 and 6500 seen. Range from his files: seen 5500 to 6500 in 6 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -2622,7 +2820,12 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "BRAKE BIAS",
+     "range": [
+      49.57,
+      54.3
+     ],
+     "note": "Range from his files: seen 49.57 to 54.3 in 23 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -2860,7 +3063,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "percent front; garage: Brake Pressure Bias"
+     "range": [
+      50.52,
+      64.78
+     ],
+     "note": "percent front; garage: Brake Pressure Bias. Range from his files: seen 50.52 to 64.78 in 227 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -3051,7 +3258,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Percent to the front. 48.5 to 50 seen; garage Brake Pressure Bias 49.3 to 65.8 percent."
+     "range": [
+      48.5,
+      65.75
+     ],
+     "note": "Percent to the front. 48.5 to 50 seen; garage Brake Pressure Bias 49.3 to 65.8 percent. Range from his files: seen 48.5 to 65.75 in 48 files to 2026-10-02."
     },
     {
      "id": "abs",
@@ -3068,7 +3279,11 @@
      "id": "rearBrakeValve",
      "var": "dcPeakBrakeBias",
      "label": "REAR BRAKE VALVE",
-     "note": "The sim carries the rear brake valve in dcPeakBrakeBias; 4 seen, garage RearBrakeValve 1, 4 and 5. Higher sends more pressure to the rear without reducing the front."
+     "range": [
+      1,
+      5
+     ],
+     "note": "The sim carries the rear brake valve in dcPeakBrakeBias; 4 seen, garage RearBrakeValve 1, 4 and 5. Higher sends more pressure to the rear without reducing the front. Range from his files: seen 1 to 5 in 48 files to 2026-10-02."
     },
     {
      "id": "launch",
@@ -3291,7 +3506,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Percent front. Seen 46.5 to 75.5."
+     "range": [
+      46.48,
+      75.49
+     ],
+     "note": "Percent front. Seen 46.5 to 75.5. Range from his files: seen 46.48 to 75.49 in 7 files to 2026-10-02."
     },
     {
      "id": "tc",
@@ -3457,20 +3676,32 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BALANCE",
-     "note": "Dash: Brake Balance. Garage: Brake Pressure Bias. Seen 53.531."
+     "range": [
+      46.99,
+      60.43
+     ],
+     "note": "Dash: Brake Balance. Garage: Brake Pressure Bias. Seen 53.531. Range from his files: seen 46.99 to 60.43 in 85 files to 2026-10-02."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
      "off": 0,
-     "note": "One traction control setting: higher cuts harder. At 0 the dash shows OFF. Seen 3."
+     "range": [
+      0,
+      7
+     ],
+     "note": "One traction control setting: higher cuts harder. At 0 the dash shows OFF. Seen 3. Range from his files: seen 0 to 7 in 85 files to 2026-10-02."
     },
     {
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "PPS",
-     "note": "Garage: Throttle Shape. Dash: PPS. 1 is linear. Seen 4."
+     "range": [
+      1,
+      5
+     ],
+     "note": "Garage: Throttle Shape. Dash: PPS. 1 is linear. Seen 4. Range from his files: seen 1 to 5 in 85 files to 2026-10-02."
     },
     {
      "id": "tcToggle",
@@ -3520,19 +3751,31 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "percent front; garage: Brake Bias"
+     "range": [
+      39.5,
+      50.5
+     ],
+     "note": "percent front; garage: Brake Bias. Range from his files: seen 39.5 to 50.5 in 109 files to 2026-10-02."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "FRONT ARB",
-     "note": "reads one less than the garage's ARB Arms: 3 reads 2"
+     "range": [
+      0,
+      3
+     ],
+     "note": "reads one less than the garage's ARB Arms: 3 reads 2. Range from his files: seen 0 to 3 in 109 files to 2026-10-02."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "REAR ARB",
-     "note": "reads one less than the garage's ARB Arms: 2 reads 1"
+     "range": [
+      0,
+      1
+     ],
+     "note": "reads one less than the garage's ARB Arms: 2 reads 1. Range from his files: seen 0 to 1 in 109 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -3594,7 +3837,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Percent front. Seen 53.6 to 54.0."
+     "range": [
+      46.4,
+      60
+     ],
+     "note": "Percent front. Seen 53.6 to 54.0. Range from his files: seen 46.4 to 60 in 353 files to 2026-10-02."
     },
     {
      "id": "tc",
@@ -3654,13 +3901,21 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Percent front. Seen 46.9 to 53.1."
+     "range": [
+      43.19,
+      53.07
+     ],
+     "note": "Percent front. Seen 46.9 to 53.1. Range from his files: seen 43.19 to 53.07 in 34 files to 2026-10-02."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC",
-     "note": "Seen 2, 4, 5, 6. The manual (2024-01) gives three positions and is out of date; the range and the direction are not known. The TC switch turns it off."
+     "range": [
+      1,
+      6
+     ],
+     "note": "Seen 2, 4, 5, 6. The manual (2024-01) gives three positions and is out of date; the range and the direction are not known. The TC switch turns it off. Range from his files: seen 1 to 6 in 34 files to 2026-10-02."
     },
     {
      "id": "abs",
@@ -3677,7 +3932,11 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "TPS",
-     "note": "Seen only 10; the garage shows 10 (TPS). Not in the manual; range not known."
+     "range": [
+      9,
+      10
+     ],
+     "note": "Seen only 10; the garage shows 10 (TPS). Not in the manual; range not known. Range from his files: seen 9 to 10 in 34 files to 2026-10-02."
     },
     {
      "id": "tcToggle",
@@ -3722,13 +3981,21 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "not the bias itself: an offset in percent front from the garage's Base Brake Bias, 0 at the garage value, in steps of 0.25; seen -2.75 to 0.5; 2018 Season 4 notes: 'The in-car brake bias is now adjustable with the fixed setup for this car'"
+     "range": [
+      -3,
+      2.5
+     ],
+     "note": "not the bias itself: an offset in percent front from the garage's Base Brake Bias, 0 at the garage value, in steps of 0.25; seen -2.75 to 0.5; 2018 Season 4 notes: 'The in-car brake bias is now adjustable with the fixed setup for this car'. Range from his files: seen -3 to 2.5 in 8 files to 2026-10-02."
     },
     {
      "id": "brakeMigration",
      "var": "dcPeakBrakeBias",
      "label": "BAL",
-     "note": "garage: Peak Brake Bias Offset; the bias moves from base towards peak with pedal travel; seen 5 to 8"
+     "range": [
+      1,
+      8
+     ],
+     "note": "garage: Peak Brake Bias Offset; the bias moves from base towards peak with pedal travel; seen 5 to 8. Range from his files: seen 1 to 8 in 8 files to 2026-10-02."
     },
     {
      "id": "mguDeploy",
@@ -3743,19 +4010,27 @@
       "50": "50%",
       "75": "75%"
      },
-     "note": "carries the target battery state of charge in percent, not a mode number; these are the three choices of the Race deploy mode; what it reads in the Qual deploy mode is not known; the label is the garage's wording"
+     "note": "carries the target battery state of charge in percent, not a mode number; these are the three choices of the Race deploy mode; what it reads in the Qual deploy mode is not known; the label is the garage's wording. Seen 25, 50 and 75 in his files."
     },
     {
      "id": "diffEntry",
      "var": "dcDiffEntry",
      "label": "ENT",
-     "note": "seen 2 to 5"
+     "range": [
+      2,
+      5
+     ],
+     "note": "seen 2 to 5. Range from his files: seen 2 to 5 in 8 files to 2026-10-02."
     },
     {
      "id": "diffPreload",
      "var": "dcDiffPreload",
      "label": "PL",
-     "note": "garage: Entry Preload; seen 2 to 4"
+     "range": [
+      2,
+      4
+     ],
+     "note": "garage: Entry Preload; seen 2 to 4. Range from his files: seen 2 to 4 in 8 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -4062,13 +4337,21 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BBAL",
-     "note": "base brake bias, percent front; seen 52 to 55.5"
+     "range": [
+      52,
+      55.5
+     ],
+     "note": "base brake bias, percent front; seen 52 to 55.5. Range from his files: seen 52 to 55.5 in 7 files to 2026-10-02."
     },
     {
      "id": "brakeBiasFine",
      "var": "dcBrakeBiasFine",
      "label": "BB+/BB-",
-     "note": "fine brake bias, added to BBAL; seen -1.0 to 0.4; a third party gives -1 to 1"
+     "range": [
+      -1,
+      0.4
+     ],
+     "note": "fine brake bias, added to BBAL; seen -1.0 to 0.4; a third party gives -1 to 1. Range from his files: seen -1 to 0.4 in 7 files to 2026-10-02."
     },
     {
      "id": "brakeMigration",
@@ -4115,19 +4398,31 @@
      "id": "diffEntry",
      "var": "dcDiffEntry",
      "label": "ENTRY",
-     "note": "seen 1 to 4"
+     "range": [
+      1,
+      4
+     ],
+     "note": "seen 1 to 4. Range from his files: seen 1 to 4 in 7 files to 2026-10-02."
     },
     {
      "id": "diffMid",
      "var": "dcDiffMiddle",
      "label": "MID",
-     "note": "seen 4 to 10"
+     "range": [
+      4,
+      10
+     ],
+     "note": "seen 4 to 10. Range from his files: seen 4 to 10 in 7 files to 2026-10-02."
     },
     {
      "id": "diffExit",
      "var": "dcDiffExit",
      "label": "HISPD",
-     "note": "the garage's High Speed, not an exit setting by name; seen 1 to 6"
+     "range": [
+      1,
+      6
+     ],
+     "note": "the garage's High Speed, not an exit setting by name; seen 1 to 6. Range from his files: seen 1 to 6 in 7 files to 2026-10-02."
     },
     {
      "id": "brakeMagic",
@@ -4218,7 +4513,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Garage: Brake Pressure Bias. Seen 55.5 to 57.25."
+     "range": [
+      54.25,
+      57.5
+     ],
+     "note": "Garage: Brake Pressure Bias. Seen 55.5 to 57.25. Range from his files: seen 54.25 to 57.5 in 28 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -4271,7 +4570,12 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "BRAKE BIAS",
+     "range": [
+      47.5,
+      60
+     ],
+     "note": "Range from his files: seen 47.5 to 60 in 26 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -4413,7 +4717,11 @@
      "id": "regen",
      "var": "dcMGUKRegenGain",
      "label": "MGU-K RE-GEN GAIN",
-     "note": "Variable by analogy with the Audi R18."
+     "range": [
+      1,
+      10
+     ],
+     "note": "Variable by analogy with the Audi R18. Range from the release notes (2018 Season 2 Patch 1, Porsche 919): 'The MGU-K regen gain setting tooltip now correctly ranges from 1 to 10.' That the variable reads 1 to 10 and not 0 to 9 is not seen on this rig."
     },
     {
      "id": "boostHold",
@@ -4447,43 +4755,71 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BIAS",
-     "note": "Garage: Brake Pressure Bias. Seen 46.5 to 48."
+     "range": [
+      46,
+      55
+     ],
+     "note": "Garage: Brake Pressure Bias. Seen 46.5 to 48. Range from his files: seen 46 to 55 in 55 files to 2026-10-02."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TCLO",
-     "note": "Traction control slip (garage: Traction Control Slip, TCLO): higher acts on less wheelspin. Seen 5."
+     "range": [
+      3,
+      10
+     ],
+     "note": "Traction control slip (garage: Traction Control Slip, TCLO): higher acts on less wheelspin. Seen 5. Range from his files: seen 3 to 10 in 55 files to 2026-10-02."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TCLA",
-     "note": "Traction control gain (garage: Traction Control Gain, TCLA): higher cuts harder. Seen 4."
+     "range": [
+      1,
+      12
+     ],
+     "note": "Traction control gain (garage: Traction Control Gain, TCLA): higher cuts harder. Seen 4. Range from his files: seen 1 to 12 in 55 files to 2026-10-02."
     },
     {
      "id": "brakeMigration",
      "var": "dcABS",
      "label": "MIG",
-     "note": "Carried by dcABS; the car has no ABS. Garage: Brake Bias Migration, 1% a click. On getting in, dcABS matched the garage's Brake Bias Migration in 43 of 47 files and dcBrakeMisc its Brake Bias Target in 45 of 47, so which is which is shown on this car itself. Seen -4 to 5."
+     "range": [
+      -5,
+      5
+     ],
+     "note": "Carried by dcABS; the car has no ABS. Garage: Brake Bias Migration, 1% a click. On getting in, dcABS matched the garage's Brake Bias Migration in 43 of 47 files and dcBrakeMisc its Brake Bias Target in 45 of 47, so which is which is shown on this car itself. Seen -4 to 5. Range from his files: seen -5 to 5 in 55 files to 2026-10-02."
     },
     {
      "id": "brakeBiasFine",
      "var": "dcBrakeMisc",
      "label": "TARGET",
-     "note": "Brake Bias Target: an offset from the brake pressure bias, 0.5% a click. Seen -3 to 1."
+     "range": [
+      -4,
+      5
+     ],
+     "note": "Brake Bias Target: an offset from the brake pressure bias, 0.5% a click. Seen -3 to 1. Range from his files: seen -4 to 5 in 55 files to 2026-10-02."
     },
     {
      "id": "arbFront",
      "var": "dcAntiRollFront",
      "label": "AR-F",
-     "note": "Garage: front ARB Adjustment. Black box: FARB Setting. Works only with the front ARB connected in the garage. Seen 1."
+     "range": [
+      1,
+      6
+     ],
+     "note": "Garage: front ARB Adjustment. Black box: FARB Setting. Works only with the front ARB connected in the garage. Seen 1. Range from his files: seen 1 to 6 in 55 files to 2026-10-02."
     },
     {
      "id": "arbRear",
      "var": "dcAntiRollRear",
      "label": "AR-R",
-     "note": "Garage: rear ARB Adjustment. Black box: RARB Setting. Works only with a rear ARB fitted in the garage. Seen 15."
+     "range": [
+      8,
+      16
+     ],
+     "note": "Garage: rear ARB Adjustment. Black box: RARB Setting. Works only with a rear ARB fitted in the garage. Seen 15. Range from his files: seen 8 to 16 in 55 files to 2026-10-02."
     },
     {
      "id": "tcToggle",
@@ -4514,24 +4850,41 @@
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC-CON",
-     "note": "garage TractionControlSetting1 'n (TC-CON)' matched the variable in 27 of 34 files; 1 to 9 seen; range and off value not published"
+     "range": [
+      1,
+      9
+     ],
+     "note": "garage TractionControlSetting1 'n (TC-CON)' matched the variable in 27 of 34 files; 1 to 9 seen; range and off value not published. Range from his files: seen 1 to 9 in 35 files to 2026-10-02."
     },
     {
      "id": "tc2",
      "var": "dcTractionControl2",
      "label": "TCR",
-     "note": "garage TractionControlSetting2 'n (TCR)' matched the variable in 23 of 34 files; 1 to 11 seen; range and off value not published"
+     "range": [
+      1,
+      11
+     ],
+     "note": "garage TractionControlSetting2 'n (TCR)' matched the variable in 23 of 34 files; 1 to 11 seen; range and off value not published. Range from his files: seen 1 to 11 in 35 files to 2026-10-02."
     },
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "BRAKE BIAS",
+     "range": [
+      50,
+      60.25
+     ],
+     "note": "Range from his files: seen 50 to 60.25 in 35 files to 2026-10-02."
     },
     {
      "id": "engineMap",
      "var": "dcFuelMixture",
      "label": "MAP",
-     "note": "garage EngineMapSetting '0 (MAP)' matched dcFuelMixture in all 34 files; 4, 5 and 10 seen in the one file where it was changed in the car; range not published"
+     "range": [
+      0,
+      11
+     ],
+     "note": "garage EngineMapSetting '0 (MAP)' matched dcFuelMixture in all 34 files; 4, 5 and 10 seen in the one file where it was changed in the car; range not published. Range from his files: seen 0 to 11 in 35 files to 2026-10-02."
     },
     {
      "id": "tcToggle",
@@ -4580,7 +4933,12 @@
     {
      "id": "brakeBias",
      "var": "dcBrakeBias",
-     "label": "BRAKE BIAS"
+     "label": "BRAKE BIAS",
+     "range": [
+      42.76,
+      53.27
+     ],
+     "note": "Range from his files: seen 42.76 to 53.27 in 179 files to 2026-10-02."
     },
     {
      "id": "throttleMap",
@@ -4618,7 +4976,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "the only control the car publishes (2 files); 42.1% in the garage matched dcBrakeBias 42.079"
+     "range": [
+      40,
+      60
+     ],
+     "note": "the only control the car publishes (2 files); 42.1% in the garage matched dcBrakeBias 42.079. Range from the release notes (2022 Season 4 Patch 1, Porsche 911 GT3 Cup (992)): 'Brake pressure bias adjustment range has been narrowed to between 40% and 60%.'"
     }
    ],
    "checked": "telemetry",
@@ -4640,14 +5002,22 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Percent front; the dash shows it as an offset from 50. Seen 48.5 to 50.5."
+     "range": [
+      47,
+      54.64
+     ],
+     "note": "Percent front; the dash shows it as an offset from 50. Seen 48.5 to 50.5. Range from his files: seen 47 to 54.64 in 36 files to 2026-10-02."
     },
     {
      "id": "tc",
      "var": "dcTractionControl",
      "label": "TC-LAT",
      "off": 0,
-     "note": "Seen 0 to 8 and 10. The manual says 0 is off and higher is more, and gives no highest position. One value, shown on the dash as TC-LA and TC-LO. Since 2026 Season 3 the range offered depends on dry or wet tyres."
+     "range": [
+      0,
+      11
+     ],
+     "note": "Seen 0 to 8 and 10. The manual says 0 is off and higher is more, and gives no highest position. One value, shown on the dash as TC-LA and TC-LO. Since 2026 Season 3 the range offered depends on dry or wet tyres. Range from his files: seen 0 to 11 in 36 files to 2026-10-02."
     },
     {
      "id": "abs",
@@ -4819,7 +5189,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Garage: Brake Bias. Seen 54.5."
+     "range": [
+      54,
+      54.5
+     ],
+     "note": "Garage: Brake Bias. Seen 54.5. Range from his files: seen 54 to 54.5 in 14 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -4840,7 +5214,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "Garage: Brake Pressure Bias. Seen 53.5 to 63.5."
+     "range": [
+      53.5,
+      65
+     ],
+     "note": "Garage: Brake Pressure Bias. Seen 53.5 to 63.5. Range from his files: seen 53.5 to 65 in 77 files to 2026-10-02."
     },
     {
      "id": "throttleMap",
@@ -4873,7 +5251,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "percent front; garage: Brake Pressure Bias"
+     "range": [
+      54.5,
+      60
+     ],
+     "note": "percent front; garage: Brake Pressure Bias. Range from his files: seen 54.5 to 60 in 35 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -4947,7 +5329,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "percent front; not confirmed that this car lets it be changed from the seat; variable name by analogy, not seen on this rig"
+     "range": [
+      45,
+      65
+     ],
+     "note": "percent front; not confirmed that this car lets it be changed from the seat; variable name by analogy, not seen on this rig. Range from iRacing's Skip Barber tuning guide (2011 Season 3): the setup worksheet's brake bias, '45% - 65%'."
     }
    ],
    "checked": "written",
@@ -6027,7 +6413,11 @@
      "id": "launch",
      "var": "dcLaunchRPM",
      "label": "LAUNCH RPM",
-     "note": "garage: Launch Control, Launch RPM Limit; 5600 and 6600 seen"
+     "range": [
+      5600,
+      6600
+     ],
+     "note": "garage: Launch Control, Launch RPM Limit; 5600 and 6600 seen. Range from his files: seen 5600 to 6600 in 13 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -6131,7 +6521,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "percent front; garage: Brake Pressure Bias"
+     "range": [
+      49.5,
+      58.5
+     ],
+     "note": "percent front; garage: Brake Pressure Bias. Range from his files: seen 49.5 to 58.5 in 17 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
@@ -6151,7 +6545,11 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "BRAKE BIAS",
-     "note": "percent front; garage: Brake Pressure Bias"
+     "range": [
+      50.86,
+      60.02
+     ],
+     "note": "percent front; garage: Brake Pressure Bias. Range from his files: seen 50.86 to 60.02 in 43 files to 2026-10-02."
     },
     {
      "id": "p2p",
@@ -6168,13 +6566,21 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "TPS",
-     "note": "garage: Throttle Shaping, '9 (TPS)'; manual: low is like a butterfly throttle, high is more linear, changed in the car through the TPS setting; only 9 has been seen; the range is not known"
+     "range": [
+      1,
+      9
+     ],
+     "note": "garage: Throttle Shaping, '9 (TPS)'; manual: low is like a butterfly throttle, high is more linear, changed in the car through the TPS setting; only 9 has been seen; the range is not known. Range from his files: seen 1 to 9 in 43 files to 2026-10-02."
     },
     {
      "id": "launch",
      "var": "dcTractionControl",
      "label": "START LIMIT",
-     "note": "garage: Launch Control RPM; this car has no traction control: the variable carries the launch control's Start Limit (garage 2 reads 2); seen 2 to 6"
+     "range": [
+      2,
+      6
+     ],
+     "note": "garage: Launch Control RPM; this car has no traction control: the variable carries the launch control's Start Limit (garage 2 reads 2); seen 2 to 6. Range from his files: seen 2 to 6 in 43 files to 2026-10-02."
     }
    ],
    "checked": "telemetry",
