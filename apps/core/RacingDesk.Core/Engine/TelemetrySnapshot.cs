@@ -47,6 +47,18 @@ namespace RacingDesk.Plugin.Engine
         public double? TyreWearRR       { get; set; }
         /// <summary>The corner with the least tread of those measured, 0..100 %; null where none is.</summary>
         public double? TyreWearWorst    => TyreWear.Worst(TyreWearFL, TyreWearFR, TyreWearRL, TyreWearRR);
+        /// <summary>
+        /// Which corners' tread is a new set's by assumption, not a measurement: the tyre was changed at a stop (or
+        /// fitted by a reset to the pits) and the sim has not measured it since, so the corner reads
+        /// <see cref="TyreWear.NewPercent"/> (100) until it does. One bit a corner, the same bits as
+        /// <see cref="PitSvFlags"/>: <see cref="PIT_SV_LF_TIRE"/> 0x01 FL, <see cref="PIT_SV_RF_TIRE"/> 0x02 FR,
+        /// <see cref="PIT_SV_LR_TIRE"/> 0x04 RL, <see cref="PIT_SV_RR_TIRE"/> 0x08 RR; 0 where every number is the
+        /// sim's own. Set by <see cref="TyreSetMask"/>, once, before any reader; on the wire as
+        /// <c>RacingDesk.Plugin.TyreNewSetFlags</c>.
+        /// </summary>
+        public int    TyreNewSetFlags   { get; set; }
+        /// <summary>True where the corner (0 FL, 1 FR, 2 RL, 3 RR) reads a new set's tread by assumption, not a measurement.</summary>
+        public bool IsTyreNewSet(int corner) => (TyreNewSetFlags & (1 << corner)) != 0;
 
         // ── Physics — iRacing raw, with cross-game normalized fallback ───────
         // Available: iRacing, AC, ACC, AMS2 (via SimHub motion physics)

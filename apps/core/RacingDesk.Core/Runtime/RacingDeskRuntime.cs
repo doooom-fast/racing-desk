@@ -256,10 +256,10 @@ namespace RacingDesk.Plugin
         {
             var incoming = next ?? new TelemetrySnapshot();
 
-            // A corner whose tyre was changed at the last stop shows the set that came off until the sim measures it
-            // again: that reading is taken off the snapshot here, once, before it is published to the wire, the
-            // commentary and the strategist (Engine/TyreSetMask.cs; root CLAUDE.md, Tyre wear). A new session or another
-            // car forgets what was held back.
+            // A corner whose tyre was changed at the last stop (or fitted by a reset to the pits) shows the set that came
+            // off until the sim measures it again: that reading is replaced by a new set's 100 here, once, flagged in
+            // TyreNewSetFlags, before it is published to the wire, the commentary and the strategist
+            // (Engine/TyreSetMask.cs; root CLAUDE.md, Tyre wear). A new session or another car forgets what was held back.
             if (incoming.SessionState < 4 || (!string.IsNullOrEmpty(incoming.CarModel) && incoming.CarModel != _lastCarModel))
                 _tyreSets.Reset();
             _tyreSets.Apply(incoming);

@@ -18,10 +18,13 @@
   // ── Strategist state ──
   let _stratVisible = false;   // is the strategist suggesting a tire change?
   let _stratTires = [false, false, false, false]; // [LF, RF, LR, RR] suggestion
+  // The corners whose 100 is a new set the sim has not measured (the engine's TyreNewSetFlags; config.js parseTyreNewSet).
+  // A tyre-change offer is for the other corners only: a new set is not offered for change, however the offer was made.
+  var _newSetCorners = [false, false, false, false]; // [LF, RF, LR, RR]
 
   // ── Tire selection state (for pit change) ──
   // Tracks which tires the driver wants changed at the next pit stop.
-  // Default: all deselected. Strategist "accept" selects all 4.
+  // Default: all deselected. Strategist "accept" selects every corner that is not a new set.
   var _tireSelected = [false, false, false, false]; // [LF, RF, LR, RR]
   var _tireSelectable = false;  // true when strategy suggests or pit window is open
   var _tireFocusIdx = -1;      // wheel-button focus index (0-3, -1 = strat button)
@@ -141,8 +144,10 @@
     syncTireSelectionUI();
   }
 
-  function selectAllTires() {
-    _tireSelected = [true, true, true, true];
+  // The strategist's "accept": the tyres the offer is for, which is every corner but a new set (it was just fitted, and
+  // is not the engine's to offer again; the driver may still tick one by hand).
+  function selectOfferedTires() {
+    _tireSelected = [!_newSetCorners[0], !_newSetCorners[1], !_newSetCorners[2], !_newSetCorners[3]];
     syncTireSelectionUI();
   }
 
@@ -179,10 +184,21 @@
   }
 
   function showStrategistSuggestions() {
-    // Highlight all 4 tires with "suggested" amber style
+    // Highlight the offered tires (every corner but a new set) with "suggested" amber style
     var cells = _circleEls();
     for (var i = 0; i < 4; i++) {
-      if (cells[i]) cells[i].classList.add('suggested');
+      if (cells[i] && !_newSetCorners[i]) cells[i].classList.add('suggested');
+    }
+  }
+
+  // A corner that turns into a new set while the offer is up (a two-tyre stop with a critical corner left on) is not
+  // part of it any more: its tick, if the driver had accepted, is taken off.
+  function dropNewSetFromOffer() {
+    var cells = _circleEls();
+    for (var i = 0; i < 4; i++) {
+      if (!_newSetCorners[i]) continue;
+      _tireSelected[i] = false;
+      if (cells[i]) cells[i].classList.remove('suggested', 'selected');
     }
   }
 
@@ -199,10 +215,10 @@
         }
       })(i);
     }
-    // Strategist "accept" button — selects all 4 tires
+    // Strategist "accept" button — selects the tires the offer is for
     if (_els.stratBtn) {
       _els.stratBtn.addEventListener('click', function() {
-        selectAllTires();
+        selectOfferedTires();
       });
     }
     // Fuel strategist "accept" button
@@ -290,7 +306,9 @@
   // comes. null is not measured, and 0 is not a measurement either (SimHub's own property reads 0 while it has
   // nothing; a tyre with no tread at all is not a thing the sim reports). iRacing measures tread in the pits and
   // nowhere else, so the number is the last measurement: the page says so (the note under the rings, the heading in
-  // the glance layout) and the warnings come from the strategy engine, which rates a measurement, not from here.
+  // the glance layout) and the warnings come from the strategy engine, which rates a measurement, not from here. A
+  // corner whose tyre was changed comes as a new set's 100 (green, full) until the sim measures it, and the note under
+  // the rings says "new set" from the engine's TyreNewSetFlags (config.js, parseTyreNewSet): the ring has no rule of its own.
   // The two thresholds are the engine's (Engine/TyreWear.cs): amber under 35, red under 20 — TYRE_WEAR_WARN_BELOW and
   // TYRE_WEAR_CRIT_BELOW, and the wire's number is read by parseTyreWear, all three in config.js, where every panel
   // that shows tread reads it from.
@@ -365,6 +383,12 @@
     // ── Bind click handlers on first run ──
     bindTireClicks();
 
+    // The corners whose 100 is a new set the sim has not measured (the engine's TyreNewSetFlags; not in the demo, whose tread
+    // is made up). Read once, here: the offer below leaves them out, and the line under the rings says which they are.
+    var newSetCorners = parseTyreNewSet(_demo ? 0 : d[TYRE_NEW_SET_KEY]);
+    var newSetChanged = newSetCorners.some(function(f, i) { return f && !_newSetCorners[i]; });
+    _newSetCorners = newSetCorners;
+
     // ── Strategist tire suggestion ──
     // Show the "accept" button when the strategy engine flags tire health
     // as needing attention (TireHealthState >= 2 means "change recommended": a tyre measured under 20% tread).
@@ -411,6 +435,8 @@
     }
     // Keep tires selectable while strategist is active
     if (shouldSuggest) setTiresSelectable(true);
+    // A corner that has just become a new set is no part of an offer that is already up
+    if (shouldSuggest && newSetChanged) dropNewSetFromOffer();
 
     if (shouldSuggest && _els.stratLabel) {
       // The engine's laps left is 99 where it has nothing to say (iRacing measures tread only in the pits) and 0 for a
@@ -421,7 +447,7 @@
       _els.stratLabel.textContent = document.body.classList.contains('drive-mode-active')
         ? 'Change' + (lapsStr ? ' · ~' + lapsLeft + ' laps' : '')
         : 'Accept tire change' + lapsStr;
-      _stratTires = [true, true, true, true];
+      _stratTires = [!newSetCorners[0], !newSetCorners[1], !newSetCorners[2], !newSetCorners[3]];
     } else {
       _stratTires = [false, false, false, false];
       // If strategist disappears, clear selection state
@@ -461,8 +487,10 @@
     // What the number is: iRacing measures tread in the pits and nowhere else, so the rings show the last measurement,
     // not live wear. Said in one dim line under the rings, on the rig and in the glance layout alike (the glance
     // layout's heading has no room for it on an iPad); not in the demo, whose tread is made up and moves every lap,
-    // and not for a sim that measures as it goes.
-    var measuredNote = (!_demo && gameId === 'iracing') ? 'Tread measured in the pits' : '';
+    // and not for a sim that measures as it goes. While a corner's 100 is a new set the sim has not measured yet (the
+    // engine's TyreNewSetFlags: a stop with the tyre ticked, or a reset to the pits), the line says that instead —
+    // "New set · not measured", or which tyres — and is back to the measurement's words when the sim measures.
+    var measuredNote = (!_demo && gameId === 'iracing') ? (tyreNewSetNote(newSetCorners) || 'Tread measured in the pits') : '';
     if (_lastMeasuredNote !== measuredNote) {
       _lastMeasuredNote = measuredNote;
       if (_els.wearNote) {
@@ -732,8 +760,8 @@
         var togTabKey = togTabEl ? togTabEl.dataset.pbTab : '';
         if (togTabKey === 'tyres' && _tireSelectable) {
           if (_tireFocusIdx === -1) {
-            // Focus is on strategist button — accept (select all)
-            selectAllTires();
+            // Focus is on strategist button — accept (select the offered tires)
+            selectOfferedTires();
           } else if (_tireFocusIdx >= 0 && _tireFocusIdx < 4) {
             toggleTire(_tireFocusIdx);
           }

@@ -613,12 +613,13 @@ licence stay what they are. No route sends a customer id (the sessions' `driver_
 
 ## Tyre wear
 
-**One meaning, everywhere: tread remaining, per corner, 0..100 %, 100 = new; `null` where the sim has not measured it.**
-That is what `DataCorePlugin.GameData.TyreWear{FrontLeft,FrontRight,RearLeft,RearRight}` carry on `:8889` and the
+**One meaning, everywhere: tread remaining, per corner, 0..100 %, 100 = new; `null` where the sim has not measured it;
+a corner whose tyre was changed reads a new set's 100 until the sim measures it, and `RacingDesk.Plugin.TyreNewSetFlags`
+says which.** That is what `DataCorePlugin.GameData.TyreWear{FrontLeft,FrontRight,RearLeft,RearRight}` carry on `:8889` and the
 `:8890` feed, what `RacingDesk.Plugin.Demo.TyreWear{FL,FR,RL,RR}` carry, what `TelemetrySnapshot.TyreWear*` hold
 (`double?`), and what every reader — the pit box's rings, the commentary's quad, the trigger, the strategist, the
 recording's sidecar — takes as it is. Nothing converts it but two functions in `apps/core/RacingDesk.Core/Engine/TyreWear.cs`,
-called once at each source and nowhere else, and nothing takes a reading off the wire but one class,
+called once at each source and nowhere else, and nothing replaces a reading on the wire but one class,
 `Engine/TyreSetMask.cs`, once, before any reader (he asked on 2026-10-01: "100% tires are reading as totally worn … we've tried
 to fix that a number of times so it seems to getting flipped back and forth in multiple places" — it had four meanings,
 0..1 remaining, 0..1 worn, 0..100 remaining and "0 is no data", and each fix flipped one reader to match whatever it saw):
@@ -654,20 +655,49 @@ grip factor** (`GripScore`): between stops it says nothing about live grip, and 
 "grip" call on a fresh set. The laps-left estimate is 99 (nothing to say) between iRacing's stops and 0 for a tyre measured
 critical, and the pit box shows laps only in between.
 
-**A new set is not measured until the sim says so, per corner, at the source.** After a change iRacing keeps showing the
-readings of the set that came off until it measures again at the next stop (reported by others — niklam/iracedeck issue 1108
-and pull request 1188; none of his own sessions has changed tyres, so this is the one part not seen on his data). `TyreSetMask`,
-which `RacingDeskRuntime.Advance` calls on every frame before the wire, the commentary and the strategist read the snapshot, takes
-that reading off: a corner whose tyre is asked for while the car is in its stall (`PitSvFlags`, the pit box's own source for
-"tyres requested", one bit a corner) remembers what the sim shows then; the car leaving pit road makes the corner **`null`**; and it
-stays `null` until the sim's number for that corner moves (the next stop's measurement). A sim that measures in the stall after
-the change is not masked at all; a stop without tyres masks nothing; a stop with two (`0x05`) masks those two corners and the
-strategist rates the car again from the other two (a right rear measured at 15 and left on stays critical, and the pit box
-still offers the change). The wire, the rings (a dash), the quad, the `tyre_wear_high` trigger (NaN), the strategist, the
-sidecar and the commentary all see the same thing, so none of them has a rule about it. The pit box does not say "new set" in
-the dash's place; it is `null`, not measured. Not handled: tyres asked for in the stall and not fitted (the driver left
-without the stop) mask the corners until the next measurement, the safe side; the sim's own counters (`LFTiresUsed` and the
-others, `TireSetsUsed`) are no better: they do not count a reset to the pits, which fits a new set while the readings keep the old set's (his own .ibt files, 2026-10-01: every mask in his 64 newest sessions came from a reset, and in 9 of them the dash showed for 6 to 93 % of his time on track).
+**A changed corner reads a new set's 100, per corner, at the source, until the sim measures it.** After a change iRacing keeps
+showing the readings of the set that came off until it measures again at the next stop (reported by others — niklam/iracedeck
+issue 1108 and pull request 1188 — and seen on his own data as resets: a reset to the pits fits a new set with his default pit
+settings while the readings keep the old set's; the sim's own counters, `LFTiresUsed` and the others, `TireSetsUsed`, do not
+count a reset, so the stall and the checkboxes are what catch it). `TyreSetMask`, which `RacingDeskRuntime.Advance` calls on
+every frame before the wire, the commentary and the strategist read the snapshot, replaces that reading: a corner whose tyre
+is asked for while the car is in its stall (`PitSvFlags`, the pit box's own source for "tyres requested", one bit a corner)
+remembers what the sim shows then; the car leaving pit road makes the corner read **`TyreWear.NewPercent`, 100** — a new set,
+green, full — and sets its bit in **`TelemetrySnapshot.TyreNewSetFlags`**, on the wire as **`RacingDesk.Plugin.TyreNewSetFlags`**
+(`PitSvFlags`' bits: 0x01 FL, 0x02 FR, 0x04 RL, 0x08 RR; 0 where every number is the sim's own, and 0 in the demo); both stay
+until the sim's number for that corner moves (the next stop's measurement), when the real number replaces the 100 and the bit
+clears. He chose this on 2026-10-01 over a dash ("100%, new set (Recommended)"): his own .ibt files showed every change in his 64
+newest sessions was a reset, and in 9 of them a dash would have stood for 6 to 93 % of his time on track. A sim that measures in
+the stall after the change is not held at all; a stop without tyres holds nothing; a stop with two (`0x05`) holds those two
+corners at 100 and the strategist rates the car again with them (a right rear measured at 15 and left on stays critical, and
+the pit box still offers the change, for that corner only); a corner the sim had never measured when it was changed has
+nothing to hold and stays `null` until its first measurement; and **a corner whose remembered reading already prints as a
+new set's 100** (`TyreWear.DisplayPercent` of it is 100: a session that starts on a fresh set, with tyres ticked in his
+default pit settings, leaves its stall on the first exit with readings of 100 — one of his 64 newest sessions, with
+`PitSvFlags` 0x1f from its first frame and 100.00 throughout, would have said "New set" for 88.8 % of its time on track)
+**has nothing to replace and is not held or flagged**, so the page says
+"new set" only where the engine put the 100 there and the same fresh set reads "Tread measured in the pits" whichever way
+the defaults were ticked. (Replayed over his 64 newest sessions: the line is up in 7 of them instead of 9, and one session's
+share of its time on track falls from 71.6 % to 33.5 %.) The wire, the rings, the quad, the `tyre_wear_high` trigger, the strategist, the sidecar and
+the commentary all see the same 100, so none of them has a rule about the value: a new set never warns, nothing is offered for
+it, and the trigger does not fire on it. Two readers look at the flags, for what the 100 is and not for what it says: the pit box
+writes **"New set · not measured"** (a pair: "New fronts · not measured", rears, lefts, rights; an odd change names its corners
+alone, "New LF, RR", since no honest suffix fits beside three corners in the 136 px under the rings at 744 wide) in the dim line
+under the rings in place of "Tread measured in the pits" while any corner is flagged, on the rig and in the glance layout
+(`config.js`: `parseTyreNewSet`, `tyreNewSetNote`; the iPad and OBS pages are the same page), and the strategist
+(`TireTracker.UpdateFrame`) takes a flagged corner's 100 as the tread — a new set is healthy — but **not as a measurement**, so
+the frame the lefts became new does not call the right rear's 15 again (`NewMeasurement` stays false; a value that has not
+changed is not news). The pit box's tyre-change offer keeps the same rule on the page, where the flags are: with the offer up
+for the right rear, the accept button ticks the rights and not the two new lefts (`pitbox.js`: `selectOfferedTires`,
+`dropNewSetFromOffer`; a corner that turns into a new set while the offer is up loses its tick; the driver can still tick one
+by hand; the amber "suggested" highlight, which `showStrategistSuggestions` adds and `deselectAllTires` takes off again in the
+same frame, has never shown, and leaves new sets out should it ever). The ring itself has no rule: a flagged corner whose
+value arrives `null` is still a dash, since the flag only feeds the words. In the pit cell of the 10.2" iPad held upright
+(under 200 px, where "Tread measured in the pits" already gives way) **the new-set line gives way too while a tyre call is
+up**: the rings and the call fill the cell and there is no room beside them (a screenshot with both put the line over the
+rings' position labels), and the call is the news. The sidecar carries the flags as `wNew`; demo frames carry `TyreNewSetFlags` as 0 (HTTP and WebSocket both), and the sidecar's
+`wNew` is 0 there too. Not handled: tyres asked for in the stall and not fitted (the
+driver left without the stop) read 100 until the next measurement, the safe side.
 
 **Every warning fires at the worn end, at two numbers** (`TyreWear.WarnBelowPercent` 35, `CriticalBelowPercent` 20; on the
 page `TYRE_WEAR_WARN_BELOW` and `TYRE_WEAR_CRIT_BELOW` in `config.js`, which every panel reads, with `parseTyreWear` the one
@@ -687,16 +717,25 @@ came off):
 `tests/…/IRacing/TyreWearTests.cs` — the conversion and the printed percent; raw SDK bands of new and of worn tyres through the
 host's source and capture to the WebSocket frame and, over a runtime on 127.0.0.1, to the HTTP wire (100, 15, `null`); the
 plugin reading the bands before SimHub's property and the two agreeing to the digit whatever SimHub says; `TyreSetMask` alone
-(four tyres, two, none, a drive-through, a sim that measures in the stall, a corner never measured, a reset) and **a whole
-stop with four new tyres through a runtime, from iRacing's variables to the HTTP wire, the WebSocket frame, the real topic
-file's trigger and the strategist**, then the next stop's measurement; the real topics file against new, worn, each corner,
+(a reset to the pits, four tyres, two at `0x05`, none, a drive-through, a sim that measures in the stall, a corner never
+measured, a session reset: the changed corners read 100 with the flags saying which, until the measurement, then the measured
+value; the strategist healthy and silent on a new set, a critical corner left on not called again; a fresh set the sim already
+reads as 100 — exactly, or 99.98 — neither held nor flagged, while 99.4 is, and the next real change still is; the demo's two
+wires carrying 0 with the live mask still holding behind them) and **a whole stop with four
+new tyres through a runtime, from iRacing's variables to the HTTP wire and its `TyreNewSetFlags`, the WebSocket frame, the real
+topic file's trigger and the strategist**, then the next stop's measurement; the real topics file against new, worn, each corner,
 unmeasured and 0..1 snapshots; the exposition's formatting; the strategist's measurement rule, the wear calls once and not at
 every lap, the wording, no tread in `GripScore`, and the coordinator's call on pit road; the demo's values and the sequence's
 step reaching the provider. `apps/overlay/tests/unit/tyre-wear.spec.mjs` — the real page over a stand-in plugin: 100 is 100 % and
 green with nothing offered, 30 amber, 15 red, 64.4 is 64 %, a printed number never across a threshold, `null`/0/no key a dash,
-0.91 is 1 % and red (no conversion on the page), the strategist from `TireHealthState`, the demo's keys and the demo's offer at 20,
-the quad's dashes, the page's two thresholds equal to `TyreWear.cs`'s, the note under the rings on the rig and in the glance
-layout. `telemetry-sidecar.spec.mjs` — `wFL`..`wRR` null or the number, and the header's `tyreWear`. `DatasetValidationTests` and
+0.91 is 1 % and red (no conversion on the page), a new set's 100 with the flags is 100 % green and "New set · not measured"
+(the words for each pair and an odd change, the measurement's words back when the flags clear, nothing in the demo; a flagged
+corner whose value is `null` still a dash; every wording whole on one line on the rig as well as in the glance layout; the
+words giving way to a tyre call at 810x1080 and back; "accept" ticking the corners that are not a new set, and a corner that
+turns new while the offer is up losing its tick), the strategist from
+`TireHealthState`, the demo's keys and the demo's offer at 20, the quad's dashes, the page's two thresholds equal to
+`TyreWear.cs`'s, the note under the rings on the rig and in the glance layout, with the new-set words whole at the 11 px floor.
+`telemetry-sidecar.spec.mjs` — `wFL`..`wRR` null or the number, `wNew` the flags or 0, and the header's `tyreWear`. `DatasetValidationTests` and
 `validate_datasets.py` hold the topic to `<`, a percent threshold and the worst corner. The test project's own copies of the
 evaluator and the snapshot (`TestHelpers/`) have no tyre wear any more: the tyre cases run against the shipped evaluator in
 `TyreWearTests`, and a data file not found there fails, not skips. Fixtures that encoded the old meanings and were put
