@@ -137,25 +137,44 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   up), the car's controls, the pedals, the Racing Desk mark and the car's badge, the clock (`#raceTimerBlock`), the pit
   box (its tyres, fuel and weather side by side, not tabs), the datastream, the incidents. Landscape:
   `hero×7 gaps×4 tacho×7 lb×6 / map×11 local×7 lb / map local lb / ctrl×6 pedals×5 brand×2 car×2 timer×3 rating×6 /
-  pit×10 ds×5 inc×3 laps×6` (rows 19 / 30 / 11 / 12 / 24 fr; under 1100px wide — the 9.7" — the right-hand column is 7
-  and the maps 10 and 7, for the leaderboard's names and the laps panel's two columns of times); portrait: `hero×9 gaps×7
-  tacho×8 / map×15 local×9 / lb×15 laps×9 / lb rating×9 / ctrl×8 pedals×6 brand×2 car×3 timer×5 / pit×13 ds×6 inc×5` (rows
-  14 / 27 / 16 / 8 / 8 / 17 fr: the controls' row keeps the 8 a prototype's dials in a row beneath want). **The maps are 1.5 times what they were** (he asked on 2026-10-01: "Make the maps 1.5x
-  their size on iPad version"): the circuit had 7 columns over 34 row-units and the following map 4, with the laps panel
-  and the ratings beside them (`map×7 local×4 laps×6 lb×7`, rows 20 / 24 / 10 / 13 / 29). The floors leave no width for
-  the maps beside a 6-column leaderboard and a 6-column laps panel, so the laps panel and the ratings are under the
-  leaderboard in its column (the leaderboard keeps the top three rows: about sixteen of its rows on an Air where it had
-  twenty-one) and the maps' rows are theirs: at 1180x820 the circuit's cell is 528x337 where it was 334x281 (1.9 times
-  the area), the following map's 334x337 where it was 188x281 (2.1 times). Upright
-  the tacho was in the maps' row (`tacho×8 map×11 local×5`, rows 15 / 21 / 20 / 9 / 8 / 17) and is in the hero's now, so
-  the maps have the row to themselves (498x339 and 296x339 at 820x1180, where they were 363x264 and 162x264). The gaps block is a column in both orientations
-  (its cell is near-square in both now; in one under 140px it gives up the words "Ahead" and "Behind"), and upright the
-  menu's button is over the tacho's corner, so its speed stops short of it as in a landscape test drive. The rows the
-  floors allow: a prototype's dials want 12 units, the pit box with the engine calling 24 (where the fuel page gives up
-  the pit's add under 240px and the window under 185px; the datastream its g-force diamond under 180px, and its row of
-  the track's temperature always, which the weather page beside it says larger; the ratings their bar's thousands under
-  135px). `drive-view.spec.mjs` holds the two maps
-  to 27 % of the screen at every size. The tracks are `fr`, the edge round the grid
+  pit×10 ds×5 inc×3 laps×6` (rows 18 / 30 / 13 / 12 / 23.5 fr, and 16.5 / 30 / 14.5 / 12 / 23.5 on a screen wider than 3:2
+  on its side — the mini, the rig's 16:9 and ultrawide, a wide box in OBS — which is short for its width; under 1100px wide —
+  the 9.7" — the right-hand column is 7 and the maps 10 and 7, for the leaderboard's names and the laps panel's two columns
+  of times); portrait: `hero×9 gaps×7 tacho×8 / map×15 local×9 / lb×15 laps×9 / lb rating×9 / ctrl×8 pedals×6 brand×2
+  car×3 timer×5 / pit×13 ds×6 inc×5` (rows 14 / 27.5 / 16 / 8 / 8 / 17 fr: the controls' row keeps the 8 a prototype's dials
+  in a row beneath want). **The maps are 1.5 times what they were** (he asked on 2026-10-01: "Make the maps 1.5x their size
+  on iPad version"), **as drawn**: the circuit's outline is at least 1.45 times the 6253ff1 layout's, on both axes, at every
+  iPad size and on the rig's two screens (1.495 at the smallest, the mini on its side; 1.5 to 1.7 elsewhere), and the
+  following map's cell, whose scale follows its width, at least 1.75 times as wide. Before, the circuit had 7 columns over
+  34 row-units and the following map 4, with the laps panel and the ratings beside them (`map×7 local×4 laps×6 lb×7`,
+  rows 20 / 24 / 10 / 13 / 29). The floors leave no width for the maps beside a 6-column leaderboard and a 6-column laps
+  panel, so the laps panel and the ratings are under the leaderboard in its column and the maps' rows are theirs: at
+  1180x820 the circuit's cell is 528x352 where it was 334x281, the following map's 334x352 where it was 188x281. **The
+  first cut gave the cells the room and counted the cells** (1.9 times the area at 1180x820), and the circuit was drawn
+  only 1.2 to 1.4 times: a circuit is limited by the height of its cell on a screen on its side, which had grown 1.2
+  times, and the svg's margin round it was 6 % of the circuit's longer side (22px of 366, a seventh of that height). So
+  the margin is nine pixels (`_DV_MAP_MARGIN_PX` in `webgl-helpers.js`: the outline's outer stroke reaches 6px past its
+  centre line and the car's dot 7px; the svg's overflow is visible, so the glow shows into the cell's 4px of padding), and
+  the rows were shared out for it: the maps 43 of 96.5 row-units on its side (44.5 of 96.5 on a wide screen; they were 34
+  of 96, and 41 in the first cut) and upright 27.5 of 90.5 (21, and 27). What the maps cost, which he has not been asked
+  about: on its side the leaderboard has the top three rows only (whole rows on an Air 16, where it had 21; 15 on the mini,
+  the 9.7" and the 10.2"; 18 on the 12.9"); upright the leaderboard has 7 to 9 rows where it had 9, the tacho moved into
+  the hero's row (`hero×9 gaps×7 tacho×8`; the place is on 9 columns of 24 where it was on 14, still at 80px), and the
+  laps panel, in 16 row-units where it had 20, has lost its heading ("Laps 12 / 20", which the hero's "Lap 12" and the
+  clock's laps to go say) and its third row of times ("Optimal", "vs all-time"); and the gaps block drops the words
+  "Ahead" and "Behind" in a cell under 138px (134 inside; its padding and the gap between its items are 1px and 2px so that
+  the Air on its side, 145px, keeps them), which is the 9.7" and the mini on their sides (the order, the sign and the
+  colour say which is which). The tacho was in the maps' row upright (`tacho×8 map×11
+  local×5`, rows 15 / 21 / 20 / 9 / 8 / 17) and is in the hero's now, so the maps have the row to themselves (498x343 and
+  296x343 at 820x1180, where they were 363x264 and 162x264). The gaps block is a column in both orientations (its cell is
+  near-square in both now), and upright the menu's button is over the tacho's corner, so its speed stops short of it as
+  in a landscape test drive. The rows the floors allow: a prototype's dials want 12 units, the pit box with the engine
+  calling 23.5 (where the fuel page gives up the pit's add under 240px and the window under 185px; the datastream its
+  g-force diamond under 180px, and its row of the track's temperature always, which the weather page beside it says
+  larger; the ratings their bar's thousands under 135px, and keep the room those take where they are shown). The hero
+  wants 16.5 (the tacho's gear is cut off below about 118px: 16 on a mini). `drive-view.spec.mjs` holds the circuit's
+  drawn size against the old layout's (a table of what 6253ff1 drew of the test circuit at every size), the margin round
+  it, the following map's width, and the two maps to 27 % of the screen at every size. The tracks are `fr`, the edge round the grid
   `clamp(8px, 1.2vmin, 14px)` and the gutters `clamp(5px, 0.75vmin, 9px)`; nothing is set per device. Every panel is a cell
   whatever the rig's settings hide from its own screen (`settings.js` `applySettings` shows them all in drive mode, and
   leaving drive mode puts the settings' choice back), and nothing in a cell is a touch target.
@@ -207,10 +226,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   taken the room (below 225px); the pedals the clutch's channel (below 250px); the rating panel its bar. The test
   holds every piece of text in every cell to the box its ancestors let show (an ellipsis, an overflow, the cell), at the
   seven iPad sizes and at the rig's own 1920x1080 and 2560x1080 (opened as the rig has them, with the badges). The HUD's
-  zoom setting is the rig screen's and is undone here. **Known and not fixed:** on his own 3440x1440 screen the rig's
-  Ctrl+Shift+F cuts the ratings panel off (its row is 103px in an 85px cell), and a short circuit name goes on sliding in
-  the map's label after the switch to this layout (the marquee is measured in the HUD's narrow label); neither was
-  touched by the iPad's changes, and the tests do not open 3440x1440 for the whole layout.
+  zoom setting is the rig screen's and is undone here. **Known and not fixed:** a short circuit name goes on sliding in the map's label after the switch to this layout (the
+  marquee is measured in the HUD's narrow label); the iPad's changes did not touch it, and the tests hold the label still.
+  (On his own 3440x1440 screen the rig's Ctrl+Shift+F cut the ratings panel off — the iR bar's thousands hang under the
+  bar and its row did not count them — which is fixed: the bar's box keeps their room, and the whole layout is held on
+  that screen now, as the page OBS draws is at that box.)
 - **The hero**: in a race the place, big; out of one (`body.session-nonrace`, which `poll-engine.js` sets from
   `DS.SessionMode`, written only when it changes) the place is a rank of best laps and the big number is the delta.
 - **The laps panel** (`#lapsPanel`, `modules/js/laps-panel.js`; shown only in the glance layout): the lap of how many, his
@@ -224,19 +244,40 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   road, SimHub's a lap or two, and his practice runs that afternoon (the recordings' sidecars) each ended before the line
   with a reset to the pits, so it never was — and the laps panel read it as it was, where the pit box refused anything at
   99. The engine now says 0 there (`TelemetrySnapshot.FuelLapsRemaining`, the demo's and the strategist's
-  `Strategy.FuelLapsRemaining` alike, which never calls FUEL CRITICAL on a 0), and `poll-engine.js` takes the wire's number
-  only between 0 and 99 — a SimHub plugin built before this still sends 99 — else a dash. **Once known, the number is
-  SimHub's own laps of fuel** (`DataCorePlugin.Computed.Fuel_RemainingLaps`; the host serves its own under that name,
-  iRacing's litres over the litres a lap costs): it was `FuelLevel / FuelPerLap`, and `FuelLevel` (SimHub's `GameData.Fuel`)
-  is in the display units — gallons for him — where the fuel per lap is not, so a driver in gallons would have read a
-  quarter of his laps. The page works out no laps of its own for the same reason. Beside it on the pit box's fuel page,
-  the fuel is shown in the display units once (`DS.FuelFormatted` made gallons into gallons again) and the tank is the
-  litres over the fraction of it they are (`GameData.MaxFuel`, litres on the wire: `FuelPercent` is 0–100 and was taken as
-  a fraction, so the tank was the fuel in it). And the host's `GameData.RemainingLaps` is the session's laps to go, as
-  SimHub's is (`SessionLapsRemainEx`, 0 for iRacing's 32767): it said the laps of fuel there, so the "to go" after them and
-  the clock's laps were the laps of fuel too. Everywhere fuel laps show (the laps panel, the pit box's "Laps left", the
-  strategist's "Stop · ~6 laps") reads that one number. `tests/unit/fuel-laps.spec.mjs`; RacingDesk.Tests
-  `Strategy/FuelLapsRemainingTests.cs` (the units through the host, and its fuel per lap over his newest race).
+  `Strategy.FuelLapsRemaining` alike, which never calls FUEL CRITICAL on a 0), and every reader on the page takes the
+  wire's number through one function, `parseFuelLaps` (`config.js`): 0 is not known and so is **exactly 99**, which a
+  SimHub plugin built before this still sends, and else it is a number — a hundred laps or more is one too (a small burn
+  on a short oval; the first cut dropped everything from 99 up), so the page shows a dash only for what is not known.
+  **Once known, the number is litres over litres**: the host serves it as `DataCorePlugin.Computed.Fuel_RemainingLaps`
+  (iRacing's `FuelLevel`, litres, over the litres a lap costs), and the SimHub plugin works it the same way from the raw
+  `FuelLevel` and `Fuel_LitersPerLap` (`TelemetryCapture`), taking SimHub's own `Fuel_RemainingLaps` only for a sim that
+  has no raw litres: it was `FuelLevel / FuelPerLap`, and `FuelLevel` (SimHub's `GameData.Fuel`) is in the display units
+  — gallons for him — where the fuel per lap is not, so a driver in gallons would have read a quarter of his laps, and
+  nothing had checked SimHub's own figure for gallons. The page works out no laps of its own for the same reason. Beside
+  it on the pit box's fuel page, the fuel is shown in the display units once (`DS.FuelFormatted` made gallons into
+  gallons again) and the tank is the litres over the fraction of it they are (`GameData.MaxFuel`, litres on the wire:
+  `FuelPercent` is 0–100 and was taken as a fraction, so the tank was the fuel in it). And the host's
+  `GameData.RemainingLaps` is the session's laps to go, as SimHub's is (`SessionLapsRemainEx`, 0 for iRacing's 32767): it
+  said the laps of fuel there, so the "to go" after them and the clock's laps were the laps of fuel too.
+  **One number where fuel laps show**: the laps panel's fuel line, the pit box's "Laps left" and the number in the
+  strategist's call ("Stop · ~6 laps") are all `DS.FuelLapsRemaining`. The strategist works out a figure of its own
+  (`Strategy.FuelLapsRemaining`, over a trimmed mean of the stint's laps, made at the line and stale between laps): it
+  decides the call and is what the call says only while the engine's is not known; two numbers for one thing on the one
+  pit box was what the first cut had. **The pit box holds the last known laps through the pit lane** (the telemetry can
+  blank during service) as it holds the fuel and the burn, but only a number — never a 99 or a nought, so on the track
+  "not known" is a dash and what is held becomes one — and **not past the car, the session or the circuit** they were of
+  (`_fuelHoldKey` in `pitbox.js`): a new one starts with nothing held, so the pit lane it begins in does not show the last
+  stint's fuel (the first cut stored a 99 and read "99.0" on pit road after every reset to the pits). **The host forgets
+  what a lap costs when the car or the circuit changes** (`IRacingTelemetrySource`, `FuelPerLap.Forget`; the same car at
+  the same circuit in the next session keeps it): it lives as long as the app, and said the new car's litres over the last
+  car's burn from its first frame. **The strategist makes no call in a session with no end** (a practice, a test drive:
+  iRacing says 32767 laps to go, `TelemetryCapture` takes that as no count of laps, and a week, 604800 s, for the time
+  left, which `FuelComputer` takes as no end beyond two days): with nothing to make it to there is no stop to need; it read
+  them as 32767 laps to the flag, or assumed 99, so its "Stop" call was up in every practice once a lap had been driven —
+  over his newest test drive the fuel was critical in 4738 of 6511 frames. A race to a lap count or a time is as it was.
+  `tests/unit/fuel-laps.spec.mjs`; RacingDesk.Tests `Strategy/FuelLapsRemainingTests.cs` (the units through the host and
+  through the SimHub plugin's capture, the host forgetting a car, no call in a session with no end — over his newest test
+  drive too — and the host's fuel per lap over his newest race).
   **A sector is never narrower than its number** (he had "sector numbers get cropped when they're too many digits",
   2026-09-30): the cells are a wrapping row with `min-width: max-content`, every one as wide as the widest time (`--tw`,
   so a sector not yet timed is as wide as one that is and nothing moves when it is), their numbers come down from the
@@ -283,16 +324,25 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   container of its own, so its values are sized by its own box the way the incidents' count is by its cell — the air,
   with the sky beside it, at the lesser of 22 % of the page's height and 30 % of its width (34px in an Air's cell on its
   side, where it was a fixed 24px), the track and the conditions under it at the lesser of 15 % and 28 % (22px, where
-  they were 20), each name over its value ("Air" is a label of the markup now, `.pb-weather-k`, a dim line on the rig),
-  the three spread down the page; the header is the pit box's one rule for its three pages, at the top.
+  they were 20), each name over its value ("Air" is a label of the markup now, `.pb-weather-k`, shown in the glance layout alone: the
+  rig's own pit box, its Weather tab, has no such line, which the first cut put there, 26px taller), the three spread down
+  the page; the header is the pit box's one rule for its three pages, at the top.
   `tests/unit/weather-glance.spec.mjs` holds the header against the fuel page's, the sizes, each name over its value and
   nothing cropped at the seven iPad sizes and the rig's two, in a race, wet with the engine calling, and in °F.
   Upright the pit box is narrow and the pages are 40 / 36 / 24, as they were: at 38 / 34 the line under the tyres' rings
   ("Tread measured in the pits") and the call above them were cut off on a mini, and the pit window on an Air. The weather
-  page there is under 90px inside, and its sky gives way to the air (the conditions say the same); and a pit box under
-  400px across (a mini upright) gives up the pit window while the engine calls, whose call says when to stop.
-- **The maps** (`webgl-helpers.js`, "The maps in the glance layout"): the full circuit's viewBox is fitted to the outline,
-  the local view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels (the
+  page there is under 90px inside, and its sky gives way to the air (the conditions say the same). **The pit window**
+  is its name beside its laps, so what it needs is the fuel page's own width, a share of the pit box's (34 % of it on its
+  side, 36 upright): `#pbPageFuel` is a container by its inline size (`pbfuel`), and a page under 145px inside gives the
+  name its short form, "Window" (the 10.2" iPad on its side, whose page is 127px inside, had "L18–…" cut off under a name
+  over two lines; the name and the laps are 138px across in the long form and 123 in the short), and one under 125px gives
+  the window up while the engine calls, whose call says when to stop. The
+  10.2" on its side is one of the glance tests' sizes now. **A short, wide pit box** (a wide box in OBS) lays the four tyres
+  in a row, and each corner's name is a line of its own over its ring, centred (`hud-page-obs-ipad.spec.mjs`): at a cell's
+  top corner, as in the 2x2 layout, the right front's and the left rear's sat side by side between two rings.
+- **The maps** (`webgl-helpers.js`, "The maps in the glance layout"): the full circuit's viewBox is fitted to the outline
+  with a margin of nine pixels all round (worked out from the scale the circuit is drawn at, so it is pixels whatever the
+  circuit and the cell: it was 6 % of the circuit's longer side), the local view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels (the
   outline's three layers at 12 / 7 / 1.5px, the sectors at 8px, the car at 7px and the others at 5px) is worked out from
   `--px` on the svg, the units of the map to a pixel. Told by `driveViewChanged` (drive-hud.js), on resize, and on a new
   path; out of drive mode the maps are the HUD's own again. The outline is the host's, from his own laps (root
@@ -426,7 +476,10 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   `GapAheadFormatted`, `BBNorm`); `Session.*`, duplicates of `DS.*`; `DS.IRatingFieldSize` and `LicenseString`; the Moza wheel base's connection state (the desk's).
   What is not in the payload at all: a fastest-lap holder, sector times of the other cars, and any pace of theirs beyond
   the last lap.
-- **Tests**: `tests/unit/drive-view.spec.mjs` serves the real page through `remote-server.js` at the seven iPad sizes, and
+- **Tests**: `tests/unit/drive-view.spec.mjs` serves the real page through `remote-server.js` at the eight iPad sizes (the
+  10.2" on its side too), and holds it to what `tests/glance-measure.mjs` measures — the one measure, shared with
+  `hud-page-obs-ipad.spec.mjs`, which holds the page OBS draws to it at ten boxes (a wide strip, a thin one, a square, a
+  1080p box, tall columns, a small box, his whole 3440x1440 canvas) with the engine calling as well — and
   opens the rig's own two screens (1920x1080, 2560x1080) from the file with drive mode switched on — no server and no
   `html.rd-remote`, so the two badges are cells and the glass is the rig's — in a race, at P12 and P21, with a prototype's
   dials, a formula car's DRS, under a yellow flag, with the strategist calling, and out of a race, and holds it to: every
