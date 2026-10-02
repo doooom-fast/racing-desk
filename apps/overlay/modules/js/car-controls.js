@@ -308,6 +308,8 @@
         const value = el.querySelector('.ctrl-mini-value');
         if (label.textContent !== cell.label) label.textContent = cell.label;
         if (value.textContent !== cell.text) value.textContent = cell.text;
+        el.style.setProperty('--ctrl-label-len', String(labelLength(cell)));
+        el.style.setProperty('--ctrl-value-len', String(Math.max(1, String(cell.text || '').length)));
         value.classList.toggle('ctrl-mini-word', isWord(cell));
         value.classList.toggle('ctrl-value-wide', isWide(cell.text));
         value.classList.toggle('ctrl-value-long', isLong(cell.text));
@@ -360,6 +362,10 @@
   const isNumber = (text) => /^-?[\d.]+$/.test(text);
   const isWide = (text) => typeof text === 'string' && isNumber(text) && text.length === 5;
   const isLong = (text) => typeof text === 'string' && (/[A-Za-z]{7,}/.test(text) || (isNumber(text) && text.length >= 6));
+  // How many characters wide a cell's label is, for the stylesheet to set it no larger than its cell holds on the rig
+  // (--ctrl-label-len: BRAKE BIAS three across, TC TOGGLE four across); the lock mark is two more. Past the smallest
+  // size the label is cut with an ellipsis. A long value (AUTOMATIC) is sized the same way (--ctrl-value-len).
+  const labelLength = (cell) => Math.max(1, String(cell.label || '').length + (cell.locked ? 2 : 0));
 
   // One of the three, or a mode: the label, the text, the bar, and the classes the styles go by.
   function draw(el, cell, omit) {
@@ -382,6 +388,8 @@
     el.classList.toggle('ctrl-locked', !!cell.locked);
     el.classList.toggle('ctrl-omitted', !!omit);
     el.style.setProperty('--ctrl-pct', Math.round(cell.fill * 100) + '%');
+    el.style.setProperty('--ctrl-label-len', String(labelLength(cell)));
+    el.style.setProperty('--ctrl-value-len', String(Math.max(1, String(cell.text || '').length)));
   }
 
   // Up, down, or neither: by the numbers behind the texts, where both are numbers.
@@ -406,6 +414,8 @@
         const el = panel.ownerDocument.getElementById(id);
         if (!el) continue;
         el.classList.remove('ctrl-none', 'ctrl-off', 'ctrl-on', 'ctrl-locked', 'ctrl-unread', 'ctrl-omitted');
+        el.style.removeProperty('--ctrl-label-len');
+        el.style.removeProperty('--ctrl-value-len');
         const label = el.querySelector('.ctrl-label');
         if (label) label.textContent = LABELS[id === 'ctrlBB' ? 'bb' : id === 'ctrlTC' ? 'tc' : 'abs'];
         const value = el.querySelector('.ctrl-value');

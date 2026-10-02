@@ -116,7 +116,9 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   size; a 963 GTP (bias, TCLO, TCLA, MIG, TARGET, AR-F, AR-R, TC TOGGLE) its eight at the compact size with ABS NONE
   omitted; an R18 (fourteen) its three and the first five of the rest. A number of five characters (`48.25`) is set a
   step down so it fits three across (`.ctrl-value-wide`); a word wider than its cell (`AUTOMATIC`) or a number of six
-  smaller still (`.ctrl-value-long`); a long label is cut with an ellipsis, never the cell. Which of a car's dials go
+  smaller still (`.ctrl-value-long`, sized to its cell by `--ctrl-value-len`, down to 7px); a label is set no larger than its cell holds (`--ctrl-label-len` from the module,
+  the cell a size container: `BRAKE BIAS` whole three across, `TC TOGGLE` four across), down to 7px, and only past that
+  cut with an ellipsis, never the cell. Which of a car's dials go
   past the eighth is the list's order and nothing cleverer: he has not been asked.
 - **The spotter**: a change of a control is announced with the car's word and what it reads, `TCLO ▲ 6`, `ESC ▼ SPORT`,
   `DSC ▼ OFF` (`announceAdjustment(type, value, direction, name, text)` in `spotter.js`; a name or text given, the card

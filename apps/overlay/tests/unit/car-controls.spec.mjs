@@ -787,9 +787,44 @@ test.describe('the rig\'s room: every adjustment a cell, the ones the car lacks 
     const r = await room(page);
     const cell = r.cells.find((c) => c.key === 'mguDeploy');
     expect(cell.valuePx).toBeLessThanOrEqual(10);
+    expect(cell.valuePx).toBeGreaterThanOrEqual(7);
     expect(cell.inside).toBe(true);
+    expect(cell.valueOverflows, 'AUTOMATIC whole, four across').toBe(false);
     expect(await page.evaluate(() => [...document.querySelector('[data-id="mguDeploy"] .ctrl-mini-value').classList].sort())).toEqual(['ctrl-mini-value', 'ctrl-mini-word', 'ctrl-value-long']);
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('[data-id="mguDeploy"] .ctrl-mini-label')).textOverflow)).toBe('ellipsis');
+  });
+
+  test('a label is set as small as its cell needs to hold it whole, and cut only past the smallest', async ({ page }) => {
+    // Three across: BRAKE BIAS (the 720S's word for it) whole, a step down; the short ones at the panel's size.
+    const full = withDials(2);
+    full.bb = { ...full.bb, label: 'BRAKE BIAS' };
+    await openWith(page, withControls(full));
+    await expect(page.locator('#ctrlBB .ctrl-label')).toHaveText('BRAKE BIAS');
+    await settled(page);
+    let r = await room(page);
+    expect([r.compact, r.cols]).toEqual([false, '3']);
+    let bb = r.cells.find((c) => c.key === 'bb'), tc = r.cells.find((c) => c.key === 'tc');
+    expect(bb.labelClipped, 'BRAKE BIAS whole').toBe(false);
+    expect(bb.labelPx).toBeLessThan(tc.labelPx);
+    expect(bb.labelPx).toBeGreaterThanOrEqual(7);
+    expect(tc.labelPx).toBe(10);
+
+    // Four across: TC TOGGLE whole; a label no size could hold is cut, at the smallest.
+    const compact = withDials(5);
+    compact.more[0] = { ...compact.more[0], label: 'TC TOGGLE' };
+    compact.more[1] = { ...compact.more[1], label: 'REAR TC LATERAL SLIP' };
+    await serve(page, withControls(compact));
+    await expect(page.locator('[data-id="dial2"] .ctrl-mini-label')).toHaveText('REAR TC LATERAL SLIP');
+    await expect.poll(() => room(page).then((x) => x.compact)).toBe(true);
+    await settled(page);
+    r = await room(page);
+    const toggle = r.cells.find((c) => c.key === 'dial1'), slip = r.cells.find((c) => c.key === 'dial2');
+    tc = r.cells.find((c) => c.key === 'tc');
+    expect(toggle.labelClipped, 'TC TOGGLE whole').toBe(false);
+    expect(toggle.labelPx).toBeLessThan(tc.labelPx);
+    expect(tc.labelPx).toBe(9);
+    expect([slip.labelPx, slip.labelClipped]).toEqual([7, true]);
+    expect(r.cells.every((c) => c.inside)).toBe(true);
   });
 
   test('the glance layout keeps its own row of small cells, and the rig\'s room rule comes back with the rig', async ({ page }) => {
