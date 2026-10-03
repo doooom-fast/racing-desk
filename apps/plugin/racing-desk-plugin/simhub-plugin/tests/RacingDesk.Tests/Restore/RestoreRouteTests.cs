@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -9,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
+using NUnit.Framework.Constraints;
 using RacingDesk.Data;
 using RacingDesk.Data.Restore;
 using RacingDesk.Host;
@@ -179,8 +181,11 @@ namespace RacingDesk.Tests.Restore
     }
 
     /// <summary>
-    /// The one place in the repo that sends a key is the host's KeySender: SendInput anywhere else — the HUD, the desk, main.js,
-    /// another C# class — fails here. (The overlay's own tests hold main.js and the TV shots to pressing nothing.)
+    /// The one place in the repo that sends a key is the host's KeySender, and it sends F24 and no other key. Anything else that
+    /// sends a key or a click to another program — the HUD, the desk, main.js, another C# class, a script — fails here, whatever
+    /// way it does it: <c>SendInput</c>, <c>keybd_event</c>, <c>mouse_event</c>, <c>SendKeys</c>, an <c>InputSimulator</c>, or
+    /// <c>PostMessage</c> / <c>SendMessage</c> with a key message (<c>WM_KEYDOWN</c>, <c>WM_KEYUP</c>). The scan is of the apps, the
+    /// packages and the scripts. (The overlay's own tests hold main.js and the TV shots to pressing nothing.)
     /// </summary>
     [TestFixture]
     public class SendInputOnlyHereTests
@@ -192,24 +197,73 @@ namespace RacingDesk.Tests.Restore
             throw new DirectoryNotFoundException("racing-desk.sln was not found above " + AppContext.BaseDirectory);
         }
 
+        private static readonly string[] Roots = { "apps", "packages", "scripts" };
+        private static readonly string[] Extensions = { ".cs", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".py", ".ps1", ".psm1", ".bat", ".cmd", ".vbs", ".sh", ".ahk" };
+        private static readonly Regex Skip = new Regex(@"[\\/](node_modules|bin|obj|dist|\.git|\.worktrees|publish|win-unpacked)[\\/]", RegexOptions.IgnoreCase);
+
+        /// <summary>Every way a program sends a key or a click to another, by the name it is called by.</summary>
+        private static readonly (string Name, Regex Pattern)[] Senders =
+        {
+            ("SendInput", new Regex(@"\bSendInput\b")),
+            ("keybd_event", new Regex(@"\bkeybd_event\b")),
+            ("mouse_event", new Regex(@"\bmouse_event\b")),
+            ("SendKeys", new Regex(@"\bSendKeys\b")),
+            ("InputSimulator", new Regex(@"\bInputSimulator\b")),
+        };
+
+        private static readonly Regex PostsAMessage = new Regex(@"\b(PostMessage|SendMessage)\w*\b");
+        private static readonly Regex AKeyMessage = new Regex(@"\bWM_(SYS)?KEY(DOWN|UP)\b");
+
+        private static IReadOnlyList<string> Scanned(string root, params string[] leave)
+        {
+            var skip = new HashSet<string>(leave, StringComparer.OrdinalIgnoreCase);
+            return Roots.Select(r => Path.Combine(root, r)).Where(Directory.Exists)
+                .SelectMany(r => Directory.EnumerateFiles(r, "*.*", SearchOption.AllDirectories))
+                .Where(f => !Skip.IsMatch(f.Substring(root.Length)))
+                .Where(f => Extensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                .Where(f => !skip.Contains(f))
+                .ToList();
+        }
+
         [Test]
-        public void SendInput_IsCalledByKeySenderAlone()
+        public void AKeyIsSentFromKeySenderAlone_ByAnyOfTheWaysAProgramSendsOne()
         {
             string root = RepoRoot();
-            string allowed = Path.Combine(root, "apps", "host", "RacingDesk.Host", "KeySender.cs");
+            string sender = Path.Combine(root, "apps", "host", "RacingDesk.Host", "KeySender.cs");
+            // Two files name the ways in order to forbid them: this one, and the overlay's wiring test that holds main.js to pressing nothing.
             string self = Path.Combine(root, "apps", "plugin", "racing-desk-plugin", "simhub-plugin", "tests", "RacingDesk.Tests", "Restore", "RestoreRouteTests.cs");
-            var skip = new Regex(@"[\\/](node_modules|bin|obj|dist|\.git|\.worktrees|publish|win-unpacked)[\\/]", RegexOptions.IgnoreCase);
-            var found = Directory.EnumerateFiles(Path.Combine(root, "apps"), "*.*", SearchOption.AllDirectories)
-                .Concat(Directory.EnumerateFiles(Path.Combine(root, "packages"), "*.*", SearchOption.AllDirectories))
-                .Where(f => !skip.IsMatch(f.Substring(root.Length)))
-                .Where(f => new[] { ".cs", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".py", ".ps1" }.Contains(Path.GetExtension(f).ToLowerInvariant()))
-                .Where(f => !string.Equals(f, self, StringComparison.OrdinalIgnoreCase))
-                .Where(f => Regex.IsMatch(File.ReadAllText(f), @"\bSendInput\b"))
-                .ToList();
-            Assert.That(found, Is.EqualTo(new[] { allowed }), "the key sender is the one place a key is sent from");
-            string sender = File.ReadAllText(allowed);
-            Assert.That(Regex.Matches(sender, @"wVk = \w+").Cast<Match>().Select(m => m.Value).Distinct(), Is.EqualTo(new[] { "wVk = VkF24" }), "F24 and no other key");
-            Assert.That(sender, Does.Contain("private const ushort VkF24 = 0x87;"));
+            string forbids = Path.Combine(root, "apps", "overlay", "tests", "unit", "hud-main-wiring.spec.mjs");
+            var files = Scanned(root, self, forbids);
+            Assert.That(files, Has.Count.GreaterThan(100), "the scan reached the repo's files");
+            Assert.That(files.Any(f => f.StartsWith(Path.Combine(root, "scripts") + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)), Is.True, "and its scripts");
+
+            var text = files.ToDictionary(f => f, f => File.ReadAllText(f), StringComparer.OrdinalIgnoreCase);
+            foreach (var (name, pattern) in Senders)
+            {
+                var found = text.Where(kv => pattern.IsMatch(kv.Value)).Select(kv => kv.Key).ToList();
+                Assert.That(found, name == "SendInput" ? (IResolveConstraint)Is.EqualTo(new[] { sender }) : Is.Empty,
+                    $"{name}: the key sender is the one place a key is sent from");
+            }
+            var messages = text.Where(kv => PostsAMessage.IsMatch(kv.Value) && AKeyMessage.IsMatch(kv.Value)).Select(kv => kv.Key).ToList();
+            Assert.That(messages, Is.Empty, "PostMessage / SendMessage with WM_KEYDOWN or WM_KEYUP");
+
+            string code = text[sender];
+            Assert.That(Regex.Matches(code, @"wVk = \w+").Cast<Match>().Select(m => m.Value).Distinct(), Is.EqualTo(new[] { "wVk = VkF24" }), "F24 and no other key");
+            Assert.That(code, Does.Contain("private const ushort VkF24 = 0x87;"));
+        }
+
+        [Test]
+        public void TheScan_SeesEachWayItLooksFor()
+        {
+            // The patterns are what the scan stands on: each is shown to match the way it is written, and not a longer word.
+            foreach (var (name, pattern) in Senders)
+            {
+                Assert.That(pattern.IsMatch($"[DllImport] static extern uint {name}(1, x, 2);"), Is.True, name);
+                Assert.That(pattern.IsMatch($"my{name}Helper()"), Is.False, name + " inside another word");
+            }
+            Assert.That(PostsAMessage.IsMatch("PostMessageW(hwnd, WM_KEYDOWN, 0x87, 0)") && AKeyMessage.IsMatch("PostMessageW(hwnd, WM_KEYDOWN, 0x87, 0)"), Is.True);
+            Assert.That(PostsAMessage.IsMatch("SendMessageTimeout(h, WM_SYSKEYUP, 0, 0)") && AKeyMessage.IsMatch("SendMessageTimeout(h, WM_SYSKEYUP, 0, 0)"), Is.True);
+            Assert.That(AKeyMessage.IsMatch("WM_KEYBOARDLAYOUT"), Is.False);
         }
     }
 }
