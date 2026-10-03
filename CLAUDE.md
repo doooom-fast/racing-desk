@@ -52,7 +52,7 @@ npm run host -- cars --scan         # first read the names out of the .ibt files
 npm run host -- schedule --fetch    # download the season PDF if it changed, parse it, store it
 npm run host -- schedule            # parse the stored PDF and report what the parser found
 npm run host -- schedule --series "Caterham"   # what one series parsed to, week by week
-npm run host -- restore --dry-run   # what putting back each car's height and brakes would do; writes nothing
+npm run host -- restore --dry-run   # what is kept for each car's seat height and brakes; writes nothing
                                     # (--db, --documents, --smartcontrol name copies to read instead of the rig's own)
 ```
 
@@ -72,7 +72,7 @@ through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`),
 by the same check as the runtime's `?action=` routes make (below), which is now the one every read has too: a request
 from another machine, one that names a host other than this machine's own, or one a browser sent (`Origin`, `Referer`,
 `Sec-Fetch-*`) gets 403, so the desk page sends it through main.js. `POST /racing-desk/data/restore` is the other write,
-by the same check: a switch, a first-run step, his mark on one, or an undo (see Per car, for the rig).
+by the same check: a switch, or undo (see Per car, for the rig).
 Beside them, `GET /racing-desk/data/simwindow` says where the sim's window is and `GET /racing-desk/data/monitors` lists
 the monitors, both in physical pixels (see **The HUD is on the screen iRacing is on**, under Desk), and
 `GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
@@ -192,7 +192,7 @@ driven live and then read from its `.ibt`, or written to several files, is one (
 
 Schema changes add tables and leave the old ones as they were (v5 took `cars_scanned` back out of `ingested_files`;
 v8 keeps what each track outline was built with in `track_geometry_build`, beside `track_geometry`, which has the
-columns it always had; v9 adds the six tables of putting the cars back, see Per car, for the rig), so an earlier build can still record and ingest into a store a later one has opened: an
+columns it always had; v9 adds the five tables of putting the cars back, see Per car, for the rig), so an earlier build can still record and ingest into a store a later one has opened: an
 earlier build writes an outline by position, eleven values, and a column added to that table would make it fail and
 then delete the sessions it had just stored from the same file.
 
@@ -301,7 +301,7 @@ data?… get rid of all of it").
   overlay `tests/unit/track-map-status.spec.mjs`.
 
 **Per car, for the rig** (schema v5 to v9; plan in `docs/view-and-pedals-plan.md`). Recording writes nothing to iRacing's
-files or to the pedals; putting the cars back is built **in trial** (last bullet), and writes only on his click.
+files or to the pedals; putting the cars back (last bullet) does, by itself, by the rules there.
 - `car_views` — the view a car was driven with. iRacing keeps one height and horizon for every car (`[View]` in
   `Documents\iRacing\app.ini`, read at sim start, written at exit), so `CarViewRecorder` reads the file while the sim
   is up and again once it has gone: what changed is what the driver changed in that car (`chosen`). A chosen view is
@@ -366,47 +366,46 @@ files or to the pedals; putting the cars back is built **in trial** (last bullet
     rule's to change, whatever the list says.
   - Nothing here may hold up or end the telemetry: SmartControl's database is read on a thread of its own and
     never waited for, and what is thrown while following the car is logged and goes no further.
-  - Putting a car's force or profile *back* when he gets in is the next bullet: in trial.
+  - Putting a car's force and profile *back* when he gets in is the next bullet.
   - **What the HUD says of it** (since 2026-10-01): the force the run's keys have left the pedals at, as "Brake max"
     in the datastream — `CarPedalsRecorder.Now`, served at `GET /racing-desk/data/brakeforce` (`{ car, force_kg }`,
     null each while not known: no key has set a force this run, a step key was held, between cars) to the app's main
     process, which hands it to the page (`apps/overlay/modules/js/rig-limits.js`; the overlay's CLAUDE.md, The
     datastream's rig limits). A dash until a key sets a force; never the store's last-driven-with number, which the
     pedals are not put back to.
-- **Putting each car's height and brakes back — in trial** (2026-10-02, his words: "when I get in a car, its saved
-  driver height and brake force should be set automatically"; the settled design is in the plan). The height: `app.ini`
-  holds S (−0.020, his decision) for every car and each car's own height is folded into its camera file's cockpit Z after
-  the sim closes, so iRacing puts it back itself; no key is pressed for it. The brakes: a SmartControl profile per car,
-  made by Racing Desk from his base at the car's force, copied into one "Racing Desk" profile at car load, and switched
-  by sending **F24** once when he is parked (still a second, brake released, garage screen or pit stall).
-  - **This build acts on nothing.** `RestoreDirector` (in the host, `RacingDesk.Data/Restore`) works out what it would do
-    at car load, when he is parked, when the sim has gone and at host start, and says it — `restore_events`, `host.log`,
-    the desk, and the rig's HUD at his first moment in the car (`hud-notice`, never while OBS records) — and writes and
-    presses nothing: `RestorePolicy.ActingBuilt` is false, whatever the switches and the first run's marks say.
-  - **What writes is behind his click**: the first-run panel in Settings → Cars (`FirstRun`, one button per step of the
-    supervised run: 0a, 0b, A1–A7, B1–B8, and C1, his own profile and force again — owed after any F24 that went, his
-    own hands only, the look at the pedals' memory first; each running only its step, asking first if it writes or presses; one
-    command at a time, a second is told Racing Desk is busy and is not queued; the steps that write iRacing's files wait for
-    0b's copy of them, and A2 and A4–A7 refuse while the sim runs) and undo
-    (`RestoreUndo`: the brake profiles Racing Desk made, the heights it changed, per car or all). His marks are
-    `restore_checks`; a part leaves trial only in a build that acts, with A4–A6 and B2 passed for the brakes (and C1's look
-    showing the pedals kept nothing of Racing Desk's: a look that shows otherwise fails the brakes part) and B1, B4 and
-    B5 for the height. The brake profiles are not removed while C1 is owed.
+- **Putting each car's seat height and brakes back** (2026-10-02, his words: "when I get in a car, its saved driver
+  height and brake force should be set automatically", and then "No trial mode"; the plan has the design). It acts by
+  itself, in the host (`RestoreDirector`, `RacingDesk.Data/Restore`); nothing of it is on the HUD.
+  - **Brakes**: once, with the SmartControl editor closed, its own profile "Racing Desk" (a copy of Default) and F24 · Set
+    profile bound to it in Live's Default preset; Live has the key from its next start (he restarts Live once). When he is
+    parked in a car (garage screen or pit stall, still a second, brake released, fresh frames, not a replay) and its brakes
+    are not on the pedals already, the car's base at its saved force (or the base's own: LightBrake 45, Default 80) is
+    written into that profile (editor closed, binding checked and made again if gone) and **F24** is pressed once — only
+    with Live started after the binding, iRacing in front and not elevated, and his own keys not pressed first in that car.
+    Then the key watcher's force is the car's (`CarPedalsRecorder.ForceIs`), so his +5 / −5 are kept right.
+  - **Seat height**: when the sim has gone (the recorder's `ViewRun`), app.ini above S (−0.020) goes into the car's camera
+    file's cockpit Z and app.ini back to S; once, the heights he chose before go in the same way. A car beyond ±5 cm keeps
+    nothing; one without a camera file keeps its height in the store, and the Cars page says how to save one. The
+    self-check: at the sim's first frame app.ini must hold what Racing Desk last wrote; if not, the height part turns itself
+    off and puts the camera files back once iRacing closes. The horizon is left out.
+  - **Undo** (one button, Settings → Cars): both parts off, F24's binding and Racing Desk's rows out of SmartControl (its
+    profile left in place once F24 has gone, with one sentence on what to pick in SmartControl), the camera files and
+    app.ini put back by value (`RestoreUndo`). One command at a time, on the director's own worker.
   - **The writers** back up first and read back after: `ViewFiles` (`app.ini` through `AppIniEditor`, which keeps the
     line's width; `car.cam` through `CarCamFile`; both process names of the sim checked before each write; an intent kept
-    in the store when both files change, and put back by value at host start if a stop cut it short; undo puts values back too, never a whole-file copy) and `SmartControlWriter` (the vendor's own
-    SQL shapes, database version 1 only, a short transaction with a busy timeout, the journal mode never changed, **any
-    row it did not make refused**: his six profiles, presets and five keys are never touched).
-  - **One key, ever**: `KeySender.SendF24` in the host (`SendInput`, F24 alone, which nothing on the rig is bound to). Its
-    callers ask about the window in front first: Windows drops a key sent to an elevated one. `SendInputOnlyHereTests`
-    fails if `SendInput` appears in any other file. Tests inject a fake sender.
+    in the store when both files change, and put back by value at host start if a stop cut it short; undo puts values
+    back too, never a whole-file copy) and `SmartControlWriter` (the vendor's own SQL shapes, database version 1 only, a
+    short transaction with a busy timeout, the journal mode never changed, **any row it did not make refused**: his six
+    profiles, presets and five keys are never touched). Never SmartControl's Apply, Save or Restore; nothing to the
+    pedals' memory; no HID.
+  - **One key, ever**: `KeySender.SendF24` in the host (`SendInput`, F24 alone, which nothing on the rig is bound to).
+    `SendInputOnlyHereTests` fails if `SendInput` appears in any other file. Tests inject a fake sender.
   - **Schema v9 adds tables only** (`car_view_keep`, `view_baseline`, `car_smartcontrol`, `smartcontrol_switch`,
-    `restore_events`, `restore_checks`); `GET /racing-desk/data/restore` (this machine only) answers the switches, the
-    gate, the lines, the dry run and the first run; `POST` takes a switch, a step, a mark or an undo. The switches are
-    `restoreHeight` / `restoreBrakes` / `restoreHorizon` in `overlay-settings.json` (height and brakes on, horizon off),
-    told to the host by main.js (`modules/js/restore-api.js`), which keeps them in `restore.json`.
-  - Tests: `RacingDesk.Tests/Restore/` (editors, writers over made-up copies in temp folders, trial, the first run, the
-    route); on the overlay `tests/unit/restore-api.spec.mjs`, `tests/unit/desk-restore-model.spec.mjs`,
+    `restore_events`); `GET /racing-desk/data/restore` (this machine only) answers the two switches, a sentence for each
+    part, whether there is anything to undo, and each car's sentences; `POST` takes a switch or undo. The host keeps the
+    switches in `restore.json` beside its settings.
+  - Tests: `RacingDesk.Tests/Restore/` (`LiveTests.cs`: the loop over made-up files and a fake key sender; editors, writers,
+    the route); on the overlay `tests/unit/restore-api.spec.mjs`, `tests/unit/desk-restore-model.spec.mjs`,
     `tests/desk/restore.spec.mjs` and the Cars page's test in `tests/desk/desk.spec.mjs`.
 
 ## Season schedule
