@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import {
   UNKNOWN_CAR,
-  functionWords,
-  isGenericLabel,
+  controlLine,
   kindWords,
+  labelBeside,
   labelFor,
   wordsFor,
   seenWords,
@@ -35,22 +35,23 @@ function Fact({ label, title, children }: { label: string; title?: string; child
   );
 }
 
-/// The car's own label for a dial, as its dash shows it, with the words for it as its title where the list gives them
-/// (TCLO is "Traction slip" on hovering).
-const tag = (label: string, words?: string | null) => (
-  <span className="tag" title={words && words !== label ? words : undefined}>
+/// The car's own label for a dial, as its dash shows it, with the words for it as its title (TCLO is "Traction slip" on
+/// hovering): an abbreviation always has them to hover on.
+const tag = (label: string, words: string) => (
+  <span className="tag" title={words}>
     {label}
   </span>
 );
 
-/// Whether a car has one of the three, with what the car calls its dial where the list gives one. A label that is
-/// only the generic one for the dial (ABS for the anti-lock) says nothing the line does not, and is left out.
-function has(value: Having | null, label: string | null, words: string | null, id: string): ReactNode {
+/// Whether a car has one of the three, with what the car calls its dial where that says more than the line the fact is
+/// under: its abbreviation, or a name of its own. The dial's generic label (ABS for the anti-lock), and a label that is the
+/// line again or a part of it ("Brake bias" under Brake bias), say nothing the line does not, and are left out.
+function has(value: Having | null, line: string, label: string | null, words: string | null, id: string): ReactNode {
   if (value === null) return DASH;
   if (value === "none") return "none";
-  const shown = label && !isGenericLabel(id, label) ? label : null;
-  if (value === "fixed") return <>fixed{shown && <> {tag(shown, words)}</>}</>;
-  return <>adjustable{shown && <> {tag(shown, words)}</>}</>;
+  const shown = labelBeside(line, id, label) && labelBeside(words ?? line, id, label);
+  const chip = shown && <> {tag(shown, words ?? line)}</>;
+  return <>{value === "fixed" ? "fixed" : "adjustable"}{chip}</>;
 }
 
 const HAVING_TITLE: Record<Having, string> = {
@@ -138,13 +139,13 @@ export function CarControlsPanel({
           <dl className="facts">
             <Fact label="Kind">{kindWords(listed.kind) ?? DASH}</Fact>
             <Fact label="Anti-lock" title={listed.abs ? HAVING_TITLE[listed.abs] : undefined}>
-              {has(listed.abs, labelFor(listed, "abs"), wordsFor(listed, "abs"), "abs")}
+              {has(listed.abs, "Anti-lock", labelFor(listed, "abs"), wordsFor(listed, "abs"), "abs")}
             </Fact>
             <Fact label="Traction control" title={listed.tc ? HAVING_TITLE[listed.tc] : undefined}>
-              {has(listed.tc, labelFor(listed, "tc"), wordsFor(listed, "tc"), "tc")}
+              {has(listed.tc, "Traction control", labelFor(listed, "tc"), wordsFor(listed, "tc"), "tc")}
             </Fact>
             <Fact label="Brake bias" title={listed.brakeBias ? HAVING_TITLE[listed.brakeBias] : undefined}>
-              {has(listed.brakeBias, labelFor(listed, "brakeBias"), wordsFor(listed, "brakeBias"), "brakeBias")}
+              {has(listed.brakeBias, "Brake bias", labelFor(listed, "brakeBias"), wordsFor(listed, "brakeBias"), "brakeBias")}
             </Fact>
           </dl>
           {listed.controls.length > 0 ? (
@@ -153,13 +154,19 @@ export function CarControlsPanel({
                 Each control, its label and values <span className="count">{listed.controls.length}</span>
               </summary>
               <ul className="controls" aria-label="Controls the list gives this car">
-                {listed.controls.map((c, i) => (
-                  <li key={`${c.id}-${i}`} title={c.variable ?? undefined}>
-                    <span className="what">{c.words ?? functionWords(c.id)}</span>
-                    {c.label && !isGenericLabel(c.id, c.label) && c.label !== c.words && <> {tag(c.label, c.words)}</>}
-                    {valueWords(c) && <> <span className="values">{valueWords(c)}</span></>}
-                  </li>
-                ))}
+                {listed.controls.map((c, i) => {
+                  // The words, else the car's own label where that is words, else what the control is for; the label
+                  // beside it only where it says more (an abbreviation, a name of its own), never the same twice.
+                  const line = controlLine(c);
+                  const own = labelBeside(line, c.id, c.label);
+                  return (
+                    <li key={`${c.id}-${i}`} title={c.variable ?? undefined}>
+                      <span className="what">{line}</span>
+                      {own && <> {tag(own, line)}</>}
+                      {valueWords(c) && <> <span className="values">{valueWords(c)}</span></>}
+                    </li>
+                  );
+                })}
               </ul>
             </details>
           ) : (

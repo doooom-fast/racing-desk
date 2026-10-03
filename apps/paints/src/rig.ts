@@ -528,12 +528,12 @@ const FUNCTIONS = new Map([
 
 /// Words that are acronyms, written in capitals (no longer ABS, TC or ARB: those are words, his own — anti-lock,
 /// traction, rollbar).
-const ACRONYMS = new Set(["mgu", "esc", "ibs", "drs", "rf", "lf", "rr", "lr"]);
-/// And the words for the ones that were.
-const WORDS_FOR = new Map([["abs", "anti-lock"], ["tc", "traction"], ["arb", "rollbar"]]);
+const ACRONYMS = new Set(["esc", "ibs", "drs", "rf", "lf", "rr", "lr"]);
+/// And the words for the ones that were, and for MGU, whose motor is the hybrid.
+const WORDS_FOR = new Map([["abs", "anti-lock"], ["tc", "traction"], ["arb", "rollbar"], ["mgu", "hybrid"]]);
 
 /// What a control is for, in words: "Traction control" for `tc`; one the page has not met is its id with the
-/// humps taken out ("tcToggle" is "TC toggle", "brakeBiasFine" "Brake bias fine").
+/// humps taken out ("tcToggle" is "Traction toggle", "brakeBiasFine" "Brake bias fine", "mguDeploy" "Hybrid deploy").
 export function functionWords(id: string): string {
   const known = FUNCTIONS.get(id);
   if (known) return known;
@@ -547,7 +547,7 @@ export function functionWords(id: string): string {
   return words.join(" ");
 }
 
-/// The values a control can have, in words: "1 to 12, 1 is off", "0 TRACK · 1 SPORT · 2 NORMAL". Nothing where the
+/// The values a control can have, in words: "1 to 12, 1 is off", "0 Track · 1 Sport · 2 Normal". Nothing where the
 /// list gives neither a range nor names: a control is listed all the same, and a blank is not a claim. DRS and
 /// push to pass are states the car reports and not dials with a range, and are said to be.
 export function valueWords(control: ListedControl): string {
@@ -581,6 +581,44 @@ export function wordsFor(car: ListedCar, id: "abs" | "tc" | "brakeBias"): string
 /// control, BB for the brake bias, DRS for DRS. Not shown beside them.
 const GENERIC = new Map([["abs", "ABS"], ["tc", "TC"], ["brakeBias", "BB"], ["drs", "DRS"]]);
 export const isGenericLabel = (id: string, label: string): boolean => GENERIC.get(id) === label;
+
+/// Whether a label is the car's abbreviation (TCLO, AR-F, "TC toggle", "MGU deploy"): a word of it in capitals. A label
+/// that is not is words already ("Fuel cut", "Brake magic", "Deploy mode").
+export const isAbbreviated = (label: string): boolean => label.split(/\s+/).some((word) => /[A-Z]{2,}/.test(word));
+
+/// The words of a text, in lower case: "Brake bias" is ["brake", "bias"].
+const wordsIn = (text: string): string[] => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+
+/// Whether every word of `part` is a word of `whole`, as "Diff" is of "Diff preload" and "Bias" of "Brake bias" (whole words:
+/// ENT is not in "Entry diff", and AR-R is not in "Rear rollbar").
+const partOf = (part: string, whole: string): boolean => {
+  const inside = new Set(wordsIn(whole));
+  const words = wordsIn(part);
+  return words.length > 0 && words.every((word) => inside.has(word));
+};
+
+/// The line a control has on the Cars page: the list's words for it; else the car's own label where that is words that name
+/// it better than its id does ("Launch rpm", "Top wing", "Fuel cut"); else what the control is for ("Diff preload" for a
+/// car whose label is only "Diff", "Traction control 2" for TCLAT). An abbreviation is never the line, and a name is never
+/// said twice: a control with no words and a label of words is that label, not its id's name with the label beside it.
+export function controlLine(control: Pick<ListedControl, "id" | "label" | "words">): string {
+  if (control.words) return control.words;
+  const generic = functionWords(control.id);
+  // A label that is only a part of the id's name ("Diff" for the preload, "Deploy" for the hybrid's) says less than the name
+  // does; one that is the name, in another order or with more in it ("Top wing", "Launch rpm"), is the car's own.
+  const fragment = !!control.label && partOf(control.label, generic) && !partOf(generic, control.label);
+  if (control.label && !isAbbreviated(control.label) && !fragment) return control.label;
+  return generic;
+}
+
+/// The car's own label for a dial where it says something its line does not: its abbreviation (TCLO), or a name of its own
+/// ("Pedal" for the throttle map). Null where it is the line again, a part of it ("Target" under "Bias target", "Brake
+/// bias" under "Bias"), or the dial's generic one (BB, ABS).
+export function labelBeside(line: string, id: string, label: string | null): string | null {
+  if (!label || isGenericLabel(id, label)) return null;
+  if (partOf(label, line) || partOf(line, label)) return null;
+  return label;
+}
 
 /// What the car calls a thing it has (`abs`, `tc`, `brakeBias`): the label of the control the list gives for it, or
 /// of the mode dial that stands for it. Null where the list gives neither.

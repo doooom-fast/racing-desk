@@ -126,7 +126,7 @@ export function buildPeakParagraph(profile: WhenProfile): string {
   if (win.sessions > 0) {
     parts.push(`Based on ${win.sessions} races in this window`)
     parts.push(`your win rate ${winRateVerb(win.winRate, overall.winRate)} ${(win.winRate * 100).toFixed(0)}%`)
-    parts.push(`incidents ${incidentVerb(win.avgIncidents, overall.avgIncidents)} ${win.avgIncidents.toFixed(1)} avg`)
+    parts.push(`incidents ${incidentVerb(win.avgIncidents, overall.avgIncidents)} ${win.avgIncidents.toFixed(1)} on average`)
   }
   return parts.length > 0 ? parts.join(', ') + '.' : ''
 }
@@ -139,7 +139,7 @@ export function buildAvoidParagraph(profile: WhenProfile): string {
   if (win.sessions > 0) {
     parts.push(`Across ${win.sessions} races here`)
     parts.push(`win rate ${winRateVerb(win.winRate, overall.winRate)} ${(win.winRate * 100).toFixed(0)}%`)
-    parts.push(`incidents ${incidentVerb(win.avgIncidents, overall.avgIncidents)} ${win.avgIncidents.toFixed(1)} avg`)
+    parts.push(`incidents ${incidentVerb(win.avgIncidents, overall.avgIncidents)} ${win.avgIncidents.toFixed(1)} on average`)
   }
   return parts.length > 0 ? parts.join(', ') + '.' : ''
 }

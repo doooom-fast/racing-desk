@@ -258,6 +258,37 @@ test('populates every panel from the local store', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('the desk says its figures in words, not abbreviations: strength of field, position, incidents, average, iRating', async ({ page }) => {
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`);
+  await expect(page.locator('.race-row')).toHaveCount(30);
+  await expect(page.locator('.laps-table tbody tr')).not.toHaveCount(0);
+
+  // The lap table's columns and what it says of the race, whole in the card (no sideways scrolling for the words).
+  await expect(page.locator('.laps-table th')).toHaveText(['Lap', 'Time', 'Position', 'Incidents', 'Fuel']);
+  expect(await page.locator('.laps-scroll').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the lap table is not wider than its card').toBe(true);
+  const meta = await page.locator('.race-detail .meta, #race-detail .meta, .meta').first().textContent();
+  expect(meta).not.toMatch(/\bSoF\b|\biR\b/);
+
+  // The race now card's figures begin with a capital, and say what they count.
+  const figures = await page.locator('#race-now .figure span').allTextContents();
+  expect(figures.length).toBe(4);
+  expect(figures[0]).toMatch(/^Incidents a race this hour \(\d+\)$/);
+  expect(figures[1]).toBe('Your average');
+  expect(figures[2]).toBe('Average finish this hour');
+  expect(figures[3]).toMatch(/^On \w+s \(\d+\)$/);
+  expect(await page.locator('#race-now').textContent()).not.toMatch(/inc\/|\bavg\b/);
+
+  // The week's heat map says "average" and "iRating" in what it says on hovering, and the strongest window an iRating a race.
+  const titles = await page.locator('.heat-cell[title]').evaluateAll((els) => els.map((el) => el.getAttribute('title')));
+  expect(titles.length).toBeGreaterThan(0);
+  for (const title of titles) {
+    expect(title, title).toMatch(/ races, \d+\.\dx average, [+-]?\d+ iRating$/);
+  }
+  expect(await page.locator('#when').textContent()).toMatch(/iRating a race/);
+  expect(await page.locator('#tracks .sub').first().textContent()).toMatch(/ races · average /);
+  expect(errors).toEqual([]);
+});
+
 test('says how to fetch the schedule when there is none', async ({ page }) => {
   const bare = await startMockHost(buildHistory(), null);
   try {
@@ -2679,7 +2710,8 @@ test('a car\'s controls, as the list has them: its kind, what it has, the car\'s
     'Brake bias BAL 40 to 60',
     'Traction control TC1 1 to 12, 1 is off',
     'Brake migration MIG -6 to 6',
-    'Throttle map MAP never off',
+    // MAP is the word "map" in capitals, and a part of "Throttle map": the car's label says nothing the line does not.
+    'Throttle map never off',
     'Traction toggle TC <b>TOGGLE</b>',
     'Anti-lock toggle ABS',
     'Power steering PS only 3',
@@ -2702,6 +2734,59 @@ test('a car\'s controls, as the list has them: its kind, what it has, the car\'s
   await expect(panel.locator('.control-rows')).toHaveCount(0);
   await expect(panel.locator('.checked')).toHaveText('Written from the manuals; not checked against your telemetry yet.');
   await expect(panel.locator('.disagreements')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+// A car whose labels are mostly words (the Audi R18's Fuel cut, a Brake bias he calls Bias), and the few abbreviations the cars show:
+// the list's entry for the Nissan, put in its place for this one test (the page lists the cars of its catalogue).
+const WORDS_CAR = {
+  path: 'nissangtpzxt', name: 'Nissan GTP ZX-T', kind: 'prototype', abs: 'adjustable', tc: 'adjustable', brakeBias: 'adjustable',
+  controls: [
+    { id: 'abs', var: 'dcABS', label: 'ABS', words: 'Anti-lock', range: [1, 12] },
+    { id: 'tc', var: 'dcTractionControl', label: 'TCLO', words: 'Traction slip', range: [1, 12] },
+    { id: 'tc2', var: 'dcTractionControl2', label: 'TCLAT', range: [1, 12] },
+    { id: 'brakeBias', var: 'dcBrakeBias', label: 'Brake bias', words: 'Bias', range: [40, 60] },
+    { id: 'arbFront', var: 'dcAntiRollFront', label: 'AR-F', words: 'Front rollbar', range: [1, 9] },
+    { id: 'fuelCut', var: 'dcFuelCut', label: 'Fuel cut' },
+    { id: 'diffPreload', var: 'dcDiffPreload', label: 'Diff', range: [0, 8] },
+    { id: 'mguDeploy', var: 'dcMguDeploy', label: 'Deploy mode', range: [1, 8] },
+    { id: 'launch', var: 'dcLaunch', label: 'Start limit', range: [1, 9] },
+    { id: 'wingTop', var: 'dcWingTop', label: 'Top wing', range: [1, 9] },
+    { id: 'throttleMap', var: 'dcThrottleShape', label: 'Pedal', words: 'Throttle map', range: [1, 5] },
+  ],
+  checked: 'written',
+};
+
+test('the Cars page names each control once: the words, else the car\'s own label where that is words, and an abbreviation beside them with the words to hover on', async ({ page }) => {
+  const rig = { ...TOLD, controls: listOf([...LIST_CARS.filter((c) => c.path !== WORDS_CAR.path), WORDS_CAR], LIST_KEPT) };
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig });
+  const panel = app.locator('.car-controls');
+  await lookAt(app, 'nissangtpzxt');
+  // The three facts: the car's label beside them only where it says more (the dial's generic name, and a "Brake bias" under Brake bias, do not).
+  await expect(panel.locator('.facts dt')).toHaveText(['Kind', 'Anti-lock', 'Traction control', 'Brake bias']);
+  await expect(panel.locator('.facts dd')).toHaveText(['Prototype', 'adjustable', 'adjustable TCLO', 'adjustable']);
+  await expect(panel.locator('.facts dd .tag')).toHaveText(['TCLO']);
+  await expect(panel.locator('.facts dd .tag')).toHaveAttribute('title', 'Traction slip');
+  const rows = panel.locator('.control-rows');
+  await rows.locator('summary').click();
+  await expect(panel.locator('.controls li')).toHaveText([
+    'Anti-lock 1 to 12',
+    'Traction slip TCLO 1 to 12',
+    'Traction control 2 TCLAT 1 to 12',
+    'Bias 40 to 60',
+    'Front rollbar AR-F 1 to 9',
+    'Fuel cut',
+    'Diff preload 0 to 8',
+    'Deploy mode 1 to 8',
+    'Start limit 1 to 9',
+    'Top wing 1 to 9',
+    'Throttle map Pedal 1 to 5',
+  ]);
+  // An abbreviation has the words to hover on, with or without the list's words for it.
+  expect(await panel.locator('.controls li .tag').evaluateAll((els) => els.map((el) => [el.textContent, el.getAttribute('title')])))
+    .toEqual([['TCLO', 'Traction slip'], ['TCLAT', 'Traction control 2'], ['AR-F', 'Front rollbar'], ['Pedal', 'Throttle map']]);
+  // And no row says its own name twice, or an acronym for a label that is words already.
+  for (const text of await panel.locator('.controls li').allTextContents()) expect(text, text).not.toMatch(/\b(\w[\w ]*?) \1\b/);
   expect(errors).toEqual([]);
 });
 

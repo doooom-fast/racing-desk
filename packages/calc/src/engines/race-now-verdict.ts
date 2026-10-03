@@ -353,15 +353,15 @@ function formatTierMessage(
   if (hourWindow.avgIncidents !== null) {
     const diff = hourWindow.avgIncidents - baseline.avgIncidents
     const sign = diff <= 0 ? '' : '+'
-    pieces.push(`${hourWindow.avgIncidents.toFixed(1)} inc/race near ${stats.currentHourLabel} (${sign}${diff.toFixed(1)} vs your avg)`)
+    pieces.push(`${hourWindow.avgIncidents.toFixed(1)} incidents a race near ${stats.currentHourLabel} (${sign}${diff.toFixed(1)} against your average)`)
   } else if (daySlice.sessionCount >= MIN_RACES_FOR_DAY_STATS) {
     const diff = daySlice.avgIncidents - baseline.avgIncidents
     const sign = diff <= 0 ? '' : '+'
-    pieces.push(`${daySlice.avgIncidents.toFixed(1)} inc/race on ${stats.currentDayLabel}s (${sign}${diff.toFixed(1)} vs your avg)`)
+    pieces.push(`${daySlice.avgIncidents.toFixed(1)} incidents a race on ${stats.currentDayLabel}s (${sign}${diff.toFixed(1)} against your average)`)
   }
 
   if (hourWindow.avgPosition !== null) {
-    pieces.push(`P${hourWindow.avgPosition.toFixed(1)} avg finish`)
+    pieces.push(`P${hourWindow.avgPosition.toFixed(1)} average finish`)
   }
 
   const detail = pieces.length > 0 ? pieces.join(' • ') : 'Based on your race history in this window.'
@@ -387,7 +387,7 @@ function formatFallbackDetail(
     exactHourSessions === 0
       ? `No races logged at exactly ${stats.currentHourLabel} yet — broader read across your ${scopeLabel}`
       : `Only ${exactHourSessions} race${exactHourSessions === 1 ? '' : 's'} at exactly ${stats.currentHourLabel} — broader read across your ${scopeLabel}`
-  const incNote = `${broadened.avgIncidents.toFixed(1)} inc/race (${sign}${diff.toFixed(1)} vs your avg)`
+  const incNote = `${broadened.avgIncidents.toFixed(1)} incidents a race (${sign}${diff.toFixed(1)} against your average)`
   return `${thinNote} • ${incNote}`
 }
 
@@ -496,7 +496,7 @@ export function buildPracticeAlternatives(
     alts.push({
       kind: 'time-trial',
       title: `Time trial in the ${worstCar.name}`,
-      detail: `Your messiest car — ${worstCar.avgIncPerLap.toFixed(2)} inc/lap over ${worstCar.sessionCount} races. Chase pace alone; braking and rotation improve faster without traffic.`,
+      detail: `Your messiest car — ${worstCar.avgIncPerLap.toFixed(2)} incidents a lap over ${worstCar.sessionCount} races. Chase pace alone; braking and rotation improve faster without traffic.`,
       carModel: worstCar.name,
     })
   }
