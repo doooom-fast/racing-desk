@@ -24,9 +24,11 @@ namespace RacingDesk.Data.Restore
     {
         public static StepResult Brakes(RestoreContext ctx)
         {
+            using var store = ctx.OpenStore();
+            // The pedals may be on one of these rows until his own profile is back (C1): they are not removed from under them.
+            if (RestoreClosing.Of(store).Owed) return StepResult.No("undo-brakes", RestoreClosing.UndoRefusal);
             if (ctx.Probe.EditorRunning()) return StepResult.No("undo-brakes", "close the SmartControl editor first: it would save its own copy of a profile back");
             var r = new StepResult { Action = "undo-brakes", Ok = true };
-            using var store = ctx.OpenStore();
             var ours = store.RacingDeskProfileIds();
             var writer = ctx.Writer;
             foreach (var car in store.CarSmartControls())

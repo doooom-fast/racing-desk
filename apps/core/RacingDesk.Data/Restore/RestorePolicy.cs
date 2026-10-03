@@ -68,8 +68,9 @@ namespace RacingDesk.Data.Restore
     }
 
     /// <summary>
-    /// One step of the supervised first run (the critique's corrected run: 0a, 0b, A1–A8, B1–B8), as the panel in Settings →
-    /// Cars shows it: what he does, what Racing Desk does on his click, and what he should see.
+    /// One step of the supervised first run (the critique's corrected run: 0a, 0b, A1–A7, B1–B8, and C1, his own profile and
+    /// force again), as the panel in Settings → Cars shows it: what he does, what Racing Desk does on his click, and what he
+    /// should see.
     /// </summary>
     public sealed class FirstRunStep
     {
@@ -103,7 +104,8 @@ namespace RacingDesk.Data.Restore
     /// <summary>
     /// The first run's steps, and which of them have to have passed before each part may leave trial. The steps are the
     /// critique's corrected run (scratch restore-plan/critique.md): 0a and 0b before he sits down, Part A with the sim closed
-    /// (the pedals), Part B in the sim, a test drive in the Porsche 963.
+    /// (the pedals), Part B in the sim, a test drive in the Porsche 963, and C1, his own profile and force again — owed after
+    /// any F24 that went, even when he stops the pedals part early.
     /// </summary>
     public static class RestoreGate
     {
@@ -193,13 +195,6 @@ namespace RacingDesk.Data.Restore
             },
             new FirstRunStep
             {
-                Id = "A8", Part = "A · the pedals, sim closed", Title = "His usual force again",
-                HeDoes = "Sets his usual force with his own keys.",
-                Actions = new[] { new FirstRunAction { Id = "A8", Label = "Done" } },
-                Expected = "Live says the force he set.",
-            },
-            new FirstRunStep
-            {
                 Id = "B1", Part = "B · in the sim: a test drive in the Porsche 963", Title = "app.ini at S, with the iRacing UI open",
                 HeDoes = "Has the iRacing UI open and the sim closed; after the write, starts a test drive in the 963 and stops at the garage screen.",
                 Actions = new[]
@@ -272,6 +267,25 @@ namespace RacingDesk.Data.Restore
                 Actions = new[] { new FirstRunAction { Id = "B8", Label = "Check the camera files he saved" } },
                 Expected = "Each new file is 1,668 bytes, version 14 or 15.",
             },
+            new FirstRunStep
+            {
+                Id = "C1", Part = "C · your own profile and force again", Title = "Your own profile and force again",
+                HeDoes = "Racing Desk presses nothing and writes nothing here: this is yours. First the check, and only look. Quit SmartControl Live from "
+                         + "its tray icon, unplug the pedals' USB cable for 5 seconds, plug it back in, and open SmartControl. Do not press Apply, Save or "
+                         + "Restore. Say which of the three it shows. Then pick your own profile in SmartControl as you normally do, close SmartControl, "
+                         + "start SmartControl Live, set your usual force with your own keys, and say so.",
+                Actions = new[]
+                {
+                    new FirstRunAction { Id = RestoreClosing.Own, Label = "It shows my own profile and my force from before the run" },
+                    new FirstRunAction { Id = RestoreClosing.Id, Label = "It shows Racing Desk's profile, with my old values" },
+                    new FirstRunAction { Id = RestoreClosing.Values, Label = "It shows Racing Desk's values" },
+                    new FirstRunAction { Id = RestoreClosing.Confirm, Label = "My own profile is picked and my force is set again" },
+                },
+                Expected = "Your own profile and your force from before the run: nothing Racing Desk sent was kept by the pedals. If it shows Racing Desk's "
+                           + "profile or values, the brakes part fails and says so, and you still pick your own profile and set your force. This step is owed "
+                           + "after any press of F24, even if you stop early, and Racing Desk will not remove its brake profiles until it is done.",
+                Settles = "Whether the pedals' memory keeps the profile or the values F24 sent (the EEPROM check), and that your own profile and force are back.",
+            },
         };
 
         public static FirstRunStep Step(string id) => Steps.FirstOrDefault(s => string.Equals(s.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -280,7 +294,10 @@ namespace RacingDesk.Data.Restore
         public static FirstRunStep StepOfAction(string actionId) =>
             Steps.FirstOrDefault(s => s.Actions.Any(a => string.Equals(a.Id, actionId, StringComparison.OrdinalIgnoreCase)));
 
-        /// <summary>The checks each part needs passed before it may leave trial (the critique: A4–A6 and B2; B4–B5).</summary>
+        /// <summary>
+        /// The checks each part needs passed before it may leave trial (the critique: A4–A6 and B2; B4–B5). The brakes need one
+        /// thing more, which is not a mark: C1's check of the pedals' memory must have shown that they kept nothing of Racing Desk's.
+        /// </summary>
         public static readonly IReadOnlyList<string> BrakesNeed = new[] { "A4", "A5", "A6", "B2" };
         public static readonly IReadOnlyList<string> HeightNeeds = new[] { "B1", "B4", "B5" };
         public static readonly IReadOnlyList<string> HorizonNeeds = new[] { "B6" };
@@ -296,7 +313,14 @@ namespace RacingDesk.Data.Restore
         /// Whether a part has been proven by the first run. Proven or not, the live loop acts only in a build that has it
         /// (<see cref="RestorePolicy.ActingBuilt"/>): until then everything stays in trial.
         /// </summary>
-        public static bool BrakesProven(IEnumerable<RestoreCheck> checks) => Passed(checks, BrakesNeed);
+        public static bool BrakesProven(IEnumerable<RestoreCheck> checks) =>
+            Passed(checks, BrakesNeed) && RestoreClosing.NewestAnswer(checks)?.Answer == "own";
+
+        /// <summary>
+        /// Why the brakes part has failed, in words, when C1's check showed that the pedals kept something of what F24 sent; null
+        /// while it has not. A part that has failed is not proven, whatever his marks say, until a later look shows otherwise.
+        /// </summary>
+        public static string BrakesFailed(IEnumerable<RestoreCheck> checks) => RestoreClosing.FailedWords(RestoreClosing.NewestAnswer(checks)?.Answer);
         public static bool HeightProven(IEnumerable<RestoreCheck> checks) => Passed(checks, HeightNeeds);
         public static bool HorizonProven(IEnumerable<RestoreCheck> checks) => Passed(checks, HorizonNeeds);
 

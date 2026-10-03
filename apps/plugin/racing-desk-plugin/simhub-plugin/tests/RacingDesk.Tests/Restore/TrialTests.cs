@@ -217,7 +217,10 @@ namespace RacingDesk.Tests.Restore
         {
             Assert.That(RestorePolicy.ActingBuilt, Is.False);
             var all = RestoreGate.Steps.Select(s => new RestoreCheck { Step = s.Id, Mark = "passed" }).ToList();
-            Assert.That(RestoreGate.BrakesProven(all) && RestoreGate.HeightProven(all), Is.True, "every check passed");
+            Assert.That(RestoreGate.HeightProven(all), Is.True, "every check passed");
+            Assert.That(RestoreGate.BrakesProven(all), Is.False, "but the brakes need C1's look at the pedals' memory too, and it has not been made");
+            all.Add(new RestoreCheck { Step = RestoreClosing.Own, RanAtUtc = DateTime.UtcNow, RanOk = true });
+            Assert.That(RestoreGate.BrakesProven(all) && RestoreGate.HeightProven(all), Is.True, "every check passed, and the pedals kept nothing");
             Assert.That(RestoreGate.Acts(true, true), Is.False, "and still trial: the loop that acts is the next build's");
             Assert.That(RestoreGate.SeedForceAfterSwitch(all), Is.False, "his +5/−5 count from the profile's force only once the switch is proven, in a build that switches");
             Assert.That(RestoreGate.BrakesProven(all.Where(c => c.Step != "A5")), Is.False, "A4–A6 and B2 are what the brakes need");

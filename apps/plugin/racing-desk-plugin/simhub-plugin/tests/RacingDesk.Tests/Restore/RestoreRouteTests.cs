@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
+using RacingDesk.Data;
 using RacingDesk.Data.Restore;
 using RacingDesk.Host;
 
@@ -95,7 +96,7 @@ namespace RacingDesk.Tests.Restore
             Assert.That((double)car["pedals"]["kg"], Is.EqualTo(70));
             Assert.That((string)car["view"]["state"], Is.EqualTo("already"));
             var steps = body["firstRun"]["steps"].Select(s => (string)s["id"]).ToList();
-            Assert.That(steps, Is.EqualTo(new[] { "0a", "0b", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8" }));
+            Assert.That(steps, Is.EqualTo(new[] { "0a", "0b", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "C1" }));
             Assert.That((string)body["now"]["place"], Is.EqualTo("garage screen"));
 
             long seq = (long)body["seq"];
@@ -130,6 +131,32 @@ namespace RacingDesk.Tests.Restore
             Assert.That(marked.Status, Is.EqualTo(HttpStatusCode.Forbidden));
             Assert.That(director.Switches.Brakes, Is.False);
             Assert.That(_rig.Keys.Sent, Is.Zero);
+        }
+
+        [Test]
+        public void TheRouteSaysWhatIsOwed_AndWhyTheBrakesPartFailed()
+        {
+            var director = Director();
+            var (_, quiet) = Ask(director, HttpMethod.Get, "restore");
+            Assert.That((bool)quiet["closing"]["owed"], Is.False, "no key has gone");
+            Assert.That(quiet["closing"]["eeprom"].Type, Is.EqualTo(JTokenType.Null));
+            Assert.That(quiet["gate"]["brakes"]["failed"].Type, Is.EqualTo(JTokenType.Null));
+
+            // F24 went, and then the look at the pedals' memory showed Racing Desk's profile with his old values.
+            var pressed = new DateTime(2026, 10, 2, 20, 0, 0, DateTimeKind.Utc);
+            using (var store = new RacingDeskStore(_rig.Store))
+            {
+                store.SaveSmartControlSwitch(new SmartControlSwitch { ProfileId = "ab", ProfileName = "Racing Desk", Key = "F24", BindingId = 7, MadeAtUtc = pressed, SentAtUtc = pressed });
+                store.NoteCheckRan(RestoreClosing.Id, false, "the pedals kept the id", pressed.AddMinutes(5));
+            }
+            var (_, owed) = Ask(director, HttpMethod.Get, "restore");
+            var closing = owed["closing"];
+            Assert.That(((bool)closing["owed"], (string)closing["eeprom"], (bool)closing["eepromFresh"]), Is.EqualTo((true, "id", true)));
+            Assert.That((string)closing["owedWords"], Does.StartWith("C1 is owed"));
+            Assert.That((string)closing["failed"], Does.Contain("The brakes part has failed").And.Contain("keep the profile id"));
+            Assert.That((string)owed["gate"]["brakes"]["failed"], Is.EqualTo((string)closing["failed"]));
+            Assert.That(((bool)owed["gate"]["brakes"]["proven"], (string)owed["gate"]["brakes"]["eeprom"]), Is.EqualTo((false, "id")));
+            Assert.That(owed["firstRun"]["steps"].Last["actions"].Select(a => (string)a["id"]), Is.EqualTo(new[] { "C1-own", "C1-id", "C1-values", "C1" }));
         }
 
         [Test]

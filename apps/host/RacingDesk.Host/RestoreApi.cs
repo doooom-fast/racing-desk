@@ -77,7 +77,7 @@ namespace RacingDesk.Host
                 json.WriteEndObject();
 
                 json.WriteStartObject("gate");
-                Gate(json, "brakes", RestoreGate.BrakesNeed, RestoreGate.BrakesProven(checks), switches.Brakes);
+                Gate(json, "brakes", RestoreGate.BrakesNeed, RestoreGate.BrakesProven(checks), switches.Brakes, RestoreGate.BrakesFailed(checks), RestoreClosing.NewestAnswer(checks)?.Answer);
                 Gate(json, "height", RestoreGate.HeightNeeds, RestoreGate.HeightProven(checks), switches.Height);
                 Gate(json, "horizon", RestoreGate.HorizonNeeds, RestoreGate.HorizonProven(checks), switches.Horizon);
                 json.WriteBoolean("seedForce", RestoreGate.SeedForceAfterSwitch(checks));
@@ -132,6 +132,7 @@ namespace RacingDesk.Host
                     }
                     json.WriteEndObject();
 
+                    WriteClosing(json, RestoreClosing.Of(sw, checks));
                     WriteFirstRun(json, checks);
 
                     json.WriteStartObject("made");
@@ -177,12 +178,18 @@ namespace RacingDesk.Host
             });
         }
 
-        private static void Gate(Utf8JsonWriter json, string name, IReadOnlyList<string> needs, bool proven, bool on)
+        private static void Gate(Utf8JsonWriter json, string name, IReadOnlyList<string> needs, bool proven, bool on, string failed = null, string eeprom = null)
         {
             json.WriteStartObject(name);
             json.WriteBoolean("on", on);
             json.WriteBoolean("proven", proven);
             json.WriteBoolean("acts", RestoreGate.Acts(on, proven));
+            // The brakes only: C1's look at the pedals' memory. A part it has failed is not proven, and says why in words.
+            if (name == "brakes")
+            {
+                json.WriteString("failed", failed);
+                json.WriteString("eeprom", eeprom);
+            }
             json.WriteStartArray("needs");
             foreach (string step in needs) json.WriteStringValue(step);
             json.WriteEndArray();
@@ -231,6 +238,21 @@ namespace RacingDesk.Host
                 }
             }
             json.WriteEndArray();
+        }
+
+        /// <summary>What the first run's closing step owes him: C1, his own profile and force again.</summary>
+        private static void WriteClosing(Utf8JsonWriter json, ClosingState closing)
+        {
+            json.WriteStartObject("closing");
+            json.WriteBoolean("owed", closing.Owed);
+            json.WriteString("owedWords", closing.Owed ? RestoreClosing.OwedWords : null);
+            json.WriteString("pressedAt", closing.PressedAtUtc.HasValue ? Iso(closing.PressedAtUtc.Value) : null);
+            json.WriteString("doneAt", closing.DoneAtUtc.HasValue ? Iso(closing.DoneAtUtc.Value) : null);
+            json.WriteString("eeprom", closing.Eeprom);
+            json.WriteString("eepromAt", closing.EepromAtUtc.HasValue ? Iso(closing.EepromAtUtc.Value) : null);
+            json.WriteBoolean("eepromFresh", closing.EepromFresh);
+            json.WriteString("failed", closing.Failed);
+            json.WriteEndObject();
         }
 
         private static void WriteFirstRun(Utf8JsonWriter json, IReadOnlyList<RestoreCheck> checks)

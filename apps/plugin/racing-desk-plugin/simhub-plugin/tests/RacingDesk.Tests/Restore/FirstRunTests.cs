@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -348,6 +349,233 @@ namespace RacingDesk.Tests.Restore
             var undone = _director.UndoHeights();
             Assert.That(_rig.AppIniBytes(), Is.EqualTo(his));
             Assert.That(undone.Text, Does.Contain("app.ini's driver height is −5.0 cm now, not what Racing Desk wrote").And.Contain("left as it is"));
+        }
+    }
+
+    /// <summary>
+    /// C1, his own profile and force again: owed after any F24 that went, until he says they are back; the look at the pedals'
+    /// memory comes first, and after the last press; and what it shows can fail the brakes part. Racing Desk presses nothing and
+    /// writes nothing in it.
+    /// </summary>
+    [TestFixture]
+    public class ClosingTests
+    {
+        private RestoreRig _rig;
+        private RestoreDirector _director;
+        private DateTime _clock;
+        private const string Car = RestoreGate.TestCar;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _rig = new RestoreRig();
+            _rig.AppIni(-0.035);
+            _rig.CameraIni((Car, ""));
+            _rig.Cam(Car, -0.11f, 0f, 0.01f);
+            _rig.SmartControl();
+            _rig.StoreWithCars((Car, "Porsche 963 GTP", -0.02, true, 0.0, "Default", RestoreRig.DefaultId, 70.0, "rule"));
+            _clock = new DateTime(2026, 10, 2, 20, 0, 0, DateTimeKind.Utc);
+            var ctx = _rig.Context();
+            ctx.Now = () => _clock = _clock.AddSeconds(1);      // every look at the clock is a second later: what came after what is certain
+            _director = new RestoreDirector(ctx, null);
+            _rig.Probe.Live = false;
+            _rig.Probe.Editor = false;
+            Assert.That(_director.RunStep("0b").Ok, Is.True);
+            Assert.That(_director.RunStep("A2").Ok, Is.True);
+            _rig.Probe.Live = true;
+        }
+
+        [TearDown] public void TearDown() => _rig.Dispose();
+
+        private StepResult Step(string id) => _director.RunStep(id);
+
+        private ClosingState Closing()
+        {
+            using var store = new RacingDeskStore(_rig.Store);
+            return RestoreClosing.Of(store);
+        }
+
+        private IReadOnlyList<RestoreCheck> Checks()
+        {
+            using var store = new RacingDeskStore(_rig.Store);
+            return store.RestoreChecks();
+        }
+
+        /// <summary>The look at the pedals: Live quit, the pedals plugged back in, SmartControl open.</summary>
+        private void Looking() { _rig.Probe.Live = false; _rig.Probe.Editor = true; _rig.Probe.Pedals = true; }
+
+        /// <summary>His own profile picked and his force set: SmartControl closed, Live started.</summary>
+        private void Back() { _rig.Probe.Live = true; _rig.Probe.Editor = false; }
+
+        [Test]
+        public void IsOwedFromTheFirstF24_UntilHeSaysHisOwnAreBack_ThenAgainAfterTheNext()
+        {
+            Assert.That(Closing().Owed, Is.False, "A2 sends no key: nothing is owed yet");
+            Assert.That(Step("A4").Ok, Is.True);
+            var owed = Closing();
+            Assert.That((owed.Owed, owed.EepromFresh, owed.DoneAtUtc), Is.EqualTo((true, false, (DateTime?)null)));
+
+            // The word that they are back comes after the look at the pedals' memory, and the look after the last press.
+            var early = Step("C1");
+            Assert.That(early.Refused, Is.True);
+            Assert.That(early.Why, Does.Contain("say first what SmartControl showed"));
+
+            _rig.Probe.Editor = true;
+            var withLive = Step("C1-own");
+            Assert.That(withLive.Refused, Is.True, "Live is running: it may send a profile when the pedals come back");
+            Assert.That(withLive.Why, Does.Contain("quit it from its tray icon"));
+            _rig.Probe.Live = false;
+            _rig.Probe.Editor = false;
+            Assert.That(Step("C1-own").Why, Does.Contain("open SmartControl and look"), "SmartControl is not open to look at");
+            _rig.Probe.Editor = true;
+            _rig.Probe.Pedals = false;
+            Assert.That(Step("C1-own").Why, Does.Contain("Windows does not list the pedals"));
+            Looking();
+            var seen = Step("C1-own");
+            Assert.That(seen.Ok, Is.True, seen.Text);
+            var looked = Closing();
+            Assert.That((looked.Eeprom, looked.EepromFresh, looked.Failed, looked.Owed), Is.EqualTo(("own", true, (string)null, true)), "looked, but still owed until he says they are back");
+
+            // He picks his own profile, closes SmartControl, starts Live and sets his force.
+            Assert.That(Step("C1").Why, Does.Contain("close SmartControl first"));
+            _rig.Probe.Editor = false;
+            Assert.That(Step("C1").Why, Does.Contain("start SmartControl Live"));
+            _rig.Probe.Live = true;
+            var closed = Step("C1");
+            Assert.That(closed.Ok, Is.True, closed.Text);
+            Assert.That(closed.Saw, Has.Some.Contains("this is your word"));
+            Assert.That(Closing().Owed, Is.False);
+
+            // A refusal afterwards does not undo it.
+            _rig.Probe.Live = false;
+            Assert.That(Step("C1").Refused, Is.True);
+            _rig.Probe.Live = true;
+            Assert.That(Closing().Owed, Is.False, "a refused press records nothing");
+            Assert.That(Checks().Single(c => c.Step == "C1").RanOk, Is.True);
+
+            // The next F24 owes it again, and the look he made before it is about the press before.
+            Assert.That(Step("A5").Ok, Is.True);
+            var again = Closing();
+            Assert.That((again.Owed, again.EepromFresh, again.Eeprom), Is.EqualTo((true, false, "own")));
+            Assert.That(Step("C1").Why, Does.Contain("say first what SmartControl showed"));
+        }
+
+        [Test]
+        public void APressThatWentNowhere_OwesNothing_AndKeepsTheOneBefore()
+        {
+            _rig.Keys.Takes = false;
+            var none = Step("A4");
+            Assert.That(none.Ok, Is.False);
+            Assert.That(none.Why, Does.Contain("Windows took no part of the key"));
+            Assert.That(Closing().Owed, Is.False, "nothing went");
+            Assert.That(Closing().PressedAtUtc, Is.Null);
+
+            _rig.Keys.Takes = true;
+            Assert.That(Step("A4").Ok, Is.True);
+            var pressed = Closing().PressedAtUtc;
+            Assert.That(pressed, Is.Not.Null);
+            _rig.Keys.Takes = false;
+            Assert.That(Step("A5").Ok, Is.False);
+            Assert.That(Closing().PressedAtUtc, Is.EqualTo(pressed), "the press that did not go is not counted, and the one before stays");
+            Assert.That(Closing().Owed, Is.True);
+        }
+
+        [Test]
+        public void TheDebtIsWrittenDown_BeforeTheKeyGoes()
+        {
+            bool owedAsItWent = false;
+            _rig.Keys.OnSend = () => owedAsItWent = Closing().Owed;
+            Assert.That(Step("A4").Ok, Is.True);
+            Assert.That(owedAsItWent, Is.True, "a crash after the key must not lose what it owes");
+        }
+
+        [Test]
+        public void WhatThePedalsKept_FailsTheBrakesPart_PlainlyUntilALaterLookSaysOtherwise()
+        {
+            Assert.That(Step("A4").Ok, Is.True);
+            foreach (string step in new[] { "A4", "A5", "A6", "B2" }) _director.Mark(step, "passed");
+            Looking();
+
+            var id = Step("C1-id");
+            Assert.That(id.Ok, Is.False);
+            Assert.That(id.Refused, Is.False, "it was looked at, and answered");
+            Assert.That(id.Why, Does.Contain("The brakes part has failed").And.Contain("keep the profile id they are sent").And.Contain("cannot switch the brakes this way"));
+            Assert.That(RestoreGate.BrakesFailed(Checks()), Is.EqualTo(id.Why));
+            Assert.That(RestoreGate.BrakesProven(Checks()), Is.False, "his marks passed, and it is not proven");
+
+            var values = Step("C1-values");
+            Assert.That(values.Why, Does.Contain("saved what F24 sent"));
+            Assert.That(Closing().Eeprom, Is.EqualTo("values"), "the newest look is the answer");
+
+            // It still closes: his own profile is back, and the part stays failed.
+            Back();
+            var closed = Step("C1");
+            Assert.That(closed.Ok, Is.True, closed.Text);
+            Assert.That(closed.Saw, Has.Some.Contains("The brakes part stays failed"));
+            Assert.That(Closing().Owed, Is.False);
+            Assert.That(RestoreGate.BrakesProven(Checks()), Is.False);
+
+            // A later look that shows his own clears it.
+            Assert.That(Step("A4").Ok, Is.True);
+            Looking();
+            Assert.That(Step("C1-own").Ok, Is.True);
+            Assert.That(RestoreGate.BrakesFailed(Checks()), Is.Null);
+            Assert.That(RestoreGate.BrakesProven(Checks()), Is.True, "A4–A6 and B2 passed, and the pedals kept nothing");
+        }
+
+        [Test]
+        public void TheBrakeProfiles_AreNotRemoved_WhileC1IsOwed_BecauseThePedalsMayBeOnOne()
+        {
+            Assert.That(Step("A4").Ok, Is.True);
+            var refused = _director.UndoBrakes();
+            Assert.That(refused.Refused, Is.True);
+            Assert.That(refused.Why, Is.EqualTo(RestoreClosing.UndoRefusal));
+            Assert.That(SmartControl.Read(_rig.SmartControlDb).Profiles.Select(p => p.Name), Has.Member("Racing Desk"), "nothing was removed");
+
+            Looking();
+            Assert.That(Step("C1-own").Ok, Is.True);
+            Back();
+            Assert.That(Step("C1").Ok, Is.True);
+            var done = _director.UndoBrakes();
+            Assert.That(done.Ok, Is.True, done.Text);
+            Assert.That(SmartControl.Read(_rig.SmartControlDb).Profiles.Select(p => p.Name), Has.None.EqualTo("Racing Desk"));
+        }
+
+        [Test]
+        public void TheBrakeProfiles_CanBeRemoved_WhenNoKeyWasEverSent()
+        {
+            var done = _director.UndoBrakes();
+            Assert.That(done.Ok, Is.True, done.Text);
+            Assert.That(_rig.Keys.Sent, Is.Zero);
+        }
+
+        [Test]
+        public void C1_PressesNothing_AndWritesNothing_ButHisAnswers()
+        {
+            Assert.That(Step("A4").Ok, Is.True);
+            int sent = _rig.Keys.Sent;
+            string db = _rig.FileSha(_rig.SmartControlDb);
+            byte[] ini = _rig.AppIniBytes(), cam = File.ReadAllBytes(_rig.CamPath(Car));
+            Looking();
+            Assert.That(Step("C1-id").Ok, Is.False);
+            Assert.That(Step("C1-own").Ok, Is.True);
+            Back();
+            Assert.That(Step("C1").Ok, Is.True);
+            Assert.That(_rig.Keys.Sent, Is.EqualTo(sent), "no key");
+            Assert.That(_rig.FileSha(_rig.SmartControlDb), Is.EqualTo(db), "SmartControl's database, to the byte");
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(ini));
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam));
+        }
+
+        [Test]
+        public void TheRunEndsWithC1_AndHasNoA8()
+        {
+            Assert.That(RestoreGate.Steps.Select(s => s.Id), Does.Not.Contain("A8"));
+            Assert.That(RestoreGate.Steps.Last().Id, Is.EqualTo("C1"));
+            Assert.That(RestoreGate.StepOfAction("C1-id").Id, Is.EqualTo("C1"));
+            Assert.That(RestoreGate.Step("C1").Actions.Select(a => a.Id), Is.EqualTo(new[] { "C1-own", "C1-id", "C1-values", "C1" }));
+            Assert.That(RestoreGate.Step("C1").Actions.Any(a => a.Writes || a.Presses), Is.False, "it presses and writes nothing");
+            Assert.That(_director.RunStep("A8").Refused, Is.True);
         }
     }
 }

@@ -34,7 +34,11 @@ namespace RacingDesk.Tests.Restore
     {
         public int Sent;
         public bool Takes = true;
-        public bool SendF24() { Sent++; return Takes; }
+
+        /// <summary>Called as the key is sent, before it counts: what the world looks like at the moment of the press.</summary>
+        public Action OnSend;
+
+        public bool SendF24() { OnSend?.Invoke(); Sent++; return Takes; }
     }
 
     /// <summary>Made-up copies of what the rig has, in a folder of the test's own; nothing of the rig's is read.</summary>

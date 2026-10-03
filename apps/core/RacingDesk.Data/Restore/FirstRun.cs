@@ -62,7 +62,6 @@ namespace RacingDesk.Data.Restore
                     "A6" => Rewrite(action, "Default", RestoreGate.A6Kg),
                     "A7" => WriteWithTheEditorOpen(),
                     "A7-check" => CheckAfterTheEditor(),
-                    "A8" => Noted(action, "He set his usual force with his own keys."),
                     "B1" => IniToStart(),
                     "B1-check" => IniAtTheGarage(),
                     "B2-flags" => GarageFlags(),
@@ -75,6 +74,10 @@ namespace RacingDesk.Data.Restore
                     "B7" => FovAsBefore(),
                     "B7-restore" => PutBack(),
                     "B8" => NewCameraFiles(),
+                    RestoreClosing.Own => PedalsMemory(action, "own"),
+                    RestoreClosing.Id => PedalsMemory(action, "id"),
+                    RestoreClosing.Values => PedalsMemory(action, "values"),
+                    RestoreClosing.Confirm => OwnAgain(),
                     _ => StepResult.No(action, "this step has nothing to run"),
                 };
             }
@@ -84,14 +87,19 @@ namespace RacingDesk.Data.Restore
             }
             r.Action = action;
             r.Step = step.Id;
-            try
+            // A refusal of C1's says only that something it needs was not so. It must not undo an answer given before, or a
+            // confirmation, so it is not kept: what C1 owes is worked out from these records.
+            if (!(r.Refused && RestoreClosing.IsClosingAction(action)))
             {
-                using var store = _ctx.OpenStore();
-                store.NoteCheckRan(action, r.Ok, r.Text, _ctx.Now());
-            }
-            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException || ex is IOException)
-            {
-                _ctx.Log("restore: what the step saw was not kept — " + ex.Message.Trim());
+                try
+                {
+                    using var store = _ctx.OpenStore();
+                    store.NoteCheckRan(action, r.Ok, r.Text, _ctx.Now());
+                }
+                catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException || ex is IOException)
+                {
+                    _ctx.Log("restore: what the step saw was not kept — " + ex.Message.Trim());
+                }
             }
             _ctx.Say(null, "check", r.Ok ? "done" : r.Refused ? "refused" : "failed", $"First run, {action}: {r.Text}");
             return r;
@@ -259,12 +267,24 @@ namespace RacingDesk.Data.Restore
             if (elevated != false) { r.Why = $"{front} is in front and Racing Desk cannot tell that it is not elevated: Windows would drop the key, so nothing was sent"; return r; }
             if (needSim && !WindowsRigProbe.SimProcesses.Contains(front, StringComparer.OrdinalIgnoreCase)) { r.Why = $"{front} was in front, not iRacing: nothing was sent"; return r; }
             if (!_ctx.Probe.LiveRunning()) { r.Why = "SmartControl Live stopped: nothing was sent"; return r; }
-            if (!_ctx.Keys.SendF24()) { r.Why = "Windows took no part of the key"; return r; }
+            // C1 is owed from the moment the key goes: it is written down first, so that nothing after the press can lose it.
+            DateTime? before;
             using (var store = _ctx.OpenStore())
             {
                 var sw = store.SmartControlSwitchRow();
+                before = sw.SentAtUtc;
                 sw.SentAtUtc = _ctx.Now();
                 store.SaveSmartControlSwitch(sw);
+            }
+            if (!_ctx.Keys.SendF24())
+            {
+                // Nothing went, so nothing is owed for it.
+                using var store = _ctx.OpenStore();
+                var sw = store.SmartControlSwitchRow();
+                sw.SentAtUtc = before;
+                store.SaveSmartControlSwitch(sw);
+                r.Why = "Windows took no part of the key";
+                return r;
             }
             r.Did.Add($"{RestorePolicy.SwitchKey} sent, {_ctx.SendDelay.TotalSeconds:0} s after the click, with {front} in front");
             r.Ok = true;
@@ -364,6 +384,55 @@ namespace RacingDesk.Data.Restore
             var force = _ctx.Force();
             return force?.ForceKg == null ? "The key watcher has no force: none of Live's set keys was pressed since the car was loaded."
                                           : $"The key watcher has the brake force at {Words.Kg(force.ForceKg.Value)}.";
+        }
+
+        // ── C: his own profile and force again ──
+
+        /// <summary>
+        /// What SmartControl showed after the pedals were unplugged: the check of their memory. Racing Desk presses nothing and
+        /// writes nothing; it checks what it can see (Live closed, SmartControl open to look at, the pedals plugged in) and keeps
+        /// his answer. "Racing Desk's profile with my old values" or "Racing Desk's values" fails the brakes part.
+        /// </summary>
+        private StepResult PedalsMemory(string action, string answer)
+        {
+            if (_ctx.Probe.LiveRunning())
+                return StepResult.No(action, "SmartControl Live is running: quit it from its tray icon first. It may send a profile to the pedals when they are plugged back in, and then what SmartControl shows is not what the pedals kept");
+            if (!_ctx.Probe.EditorRunning())
+                return StepResult.No(action, "open SmartControl and look at what it shows first, and only look: do not press Apply, Save or Restore");
+            if (_ctx.Probe.PedalsConnected() == false)
+                return StepResult.No(action, "Windows does not list the pedals: plug them back in, and look again");
+            var r = new StepResult { Ok = answer == "own" };
+            if (answer == "own")
+                r.Saw.Add("you saw your own profile and your force from before the run: the pedals kept nothing of Racing Desk's");
+            else
+            {
+                r.Why = RestoreClosing.FailedWords(answer);
+                r.Saw.Add("pick your own profile in SmartControl now, as you normally do, close SmartControl, start SmartControl Live, set your force with your own keys, and confirm the last button of this step");
+            }
+            return r;
+        }
+
+        /// <summary>
+        /// His word that his own profile is picked and his force is set again. Racing Desk cannot see either (nothing on the PC
+        /// records which profile the pedals hold, or their force), so it checks what it can: the look at the pedals' memory was
+        /// made after the last F24, SmartControl is closed and Live is running again. It presses and writes nothing.
+        /// </summary>
+        private StepResult OwnAgain()
+        {
+            ClosingState closing;
+            using (var store = _ctx.OpenStore()) closing = RestoreClosing.Of(store);
+            if (!closing.EepromFresh)
+                return StepResult.No(RestoreClosing.Confirm, "say first what SmartControl showed after the pedals were unplugged (the first three buttons of this step): that look comes before you pick anything, and it has to come after the last F24");
+            if (_ctx.Probe.EditorRunning())
+                return StepResult.No(RestoreClosing.Confirm, "close SmartControl first, once you have picked your own profile in it");
+            if (!_ctx.Probe.LiveRunning())
+                return StepResult.No(RestoreClosing.Confirm, "start SmartControl Live, then set your usual force with your own keys, and confirm");
+            if (_ctx.Probe.PedalsConnected() == false)
+                return StepResult.No(RestoreClosing.Confirm, "Windows does not list the pedals: plug them in");
+            var r = new StepResult { Ok = true };
+            r.Saw.Add("Racing Desk cannot see which profile the pedals hold or what their force is: this is your word that your own profile is picked and your force is set");
+            if (closing.Failed != null) r.Saw.Add(closing.Failed + " The brakes part stays failed.");
+            return r;
         }
 
         // ── B: in the sim ──

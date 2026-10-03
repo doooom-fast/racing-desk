@@ -384,10 +384,12 @@ files or to the pedals; putting the cars back is built **in trial** (last bullet
     the desk, and the rig's HUD at his first moment in the car (`hud-notice`, never while OBS records) — and writes and
     presses nothing: `RestorePolicy.ActingBuilt` is false, whatever the switches and the first run's marks say.
   - **What writes is behind his click**: the first-run panel in Settings → Cars (`FirstRun`, one button per step of the
-    supervised run: 0a, 0b, A1–A8, B1–B8, each running only its step, asking first if it writes or presses) and undo
+    supervised run: 0a, 0b, A1–A7, B1–B8, and C1, his own profile and force again — owed after any F24 that went, his
+    own hands only, the look at the pedals' memory first; each running only its step, asking first if it writes or presses) and undo
     (`RestoreUndo`: the brake profiles Racing Desk made, the heights it changed, per car or all). His marks are
-    `restore_checks`; a part leaves trial only in a build that acts, with A4–A6 and B2 passed for the brakes and B1, B4
-    and B5 for the height.
+    `restore_checks`; a part leaves trial only in a build that acts, with A4–A6 and B2 passed for the brakes (and C1's look
+    showing the pedals kept nothing of Racing Desk's: a look that shows otherwise fails the brakes part) and B1, B4 and
+    B5 for the height. The brake profiles are not removed while C1 is owed.
   - **The writers** back up first and read back after: `ViewFiles` (`app.ini` through `AppIniEditor`, which keeps the
     line's width; `car.cam` through `CarCamFile`; both process names of the sim checked before each write; an intent kept
     in the store when both files change, and put back by value at host start if a stop cut it short; undo puts values back too, never a whole-file copy) and `SmartControlWriter` (the vendor's own

@@ -92,12 +92,25 @@ add. So:
   (`restoreHeight`, `restoreBrakes`, `restoreHorizon`); main.js tells the host, which keeps them in `restore.json`.
 - **The first run** is the critique's corrected run, as buttons in Settings → Cars: 0a and 0b before he sits down; Part A
   with the sim closed (A1 both SmartControl apps closed, A2 the Racing Desk profile and F24, A3 Live has F24, A4 F24 from a
-  program, A5 and A6 a LightBrake then a Default profile through the same row, A7 writing with the editor open, A8 his
-  usual force again); Part B in the sim, a test drive in the Porsche 963 (B1 `app.ini` at S survives a launch, B2 the
-  garage flags and F24 with iRacing in front, B3 the pit box, B4 the camera file 2 cm lower, B5 `app.ini` 2 cm lower
-  instead, B6 the horizon pair, B7 the field of view and the state he keeps, B8 camera files for the cars without one).
-  Each button runs only its step, on his click; one that writes or presses asks first. Beside each step is what he should
-  see, and his mark.
+  program, A5 and A6 a LightBrake then a Default profile through the same row, A7 writing with the editor open); Part B in
+  the sim, a test drive in the Porsche 963 (B1 `app.ini` at S survives a launch, B2 the garage flags and F24 with iRacing
+  in front, B3 the pit box, B4 the camera file 2 cm lower, B5 `app.ini` 2 cm lower instead, B6 the horizon pair, B7 the
+  field of view and the state he keeps, B8 camera files for the cars without one); and **C1, his own profile and force
+  again**. Each button runs only its step, on his click; one that writes or presses asks first. Beside each step is what he
+  should see, and his mark.
+- **C1 closes the run, and is owed after any F24 that went** — also when he stops the pedals part early, after a failed A5.
+  The pedals may still be on a Racing Desk profile: nothing on the PC records which profile they hold, and the firmware may
+  keep the profile id or the values it was sent. So C1 is his, with his own hands; Racing Desk says what is owed and checks
+  what it can, and presses and writes nothing in it. First the look at the pedals' memory, before he picks anything: he
+  quits Live from its tray icon, unplugs the pedals for 5 seconds, plugs them back in, opens SmartControl and only looks (no
+  Apply, Save or Restore), and says which of three it shows: his own profile and force from before the run (nothing was
+  saved), Racing Desk's profile with his old values (the firmware keeps the id), or Racing Desk's values (settings were
+  saved). The second and third fail the brakes part, said plainly (the switch design cannot be used); the first is also
+  what the brakes need, besides A4–A6 and B2, to be proven. Then he picks his own profile in SmartControl as he normally
+  does, closes it, starts Live, sets his usual force with his own keys, and confirms on the panel. Racing Desk checks that
+  the look was made after the last F24, that SmartControl is closed, Live is running and the pedals are listed. The panel
+  shows C1 as owed until it is done, and "Remove the brake profiles Racing Desk made" refuses, with its reason, while it
+  is owed: the pedals may be on one of those rows.
 - **The gate**: the brakes may leave trial once A4, A5, A6 and B2 are marked passed; the height once B1, B4 and B5; the
   horizon once B6 — and only in a build that acts. His +5 / −5 count from a switched profile's force under the same gate.
 - **Undo**, each on his click, asking first: "Remove the brake profiles Racing Desk made" (its car profiles, its switch
