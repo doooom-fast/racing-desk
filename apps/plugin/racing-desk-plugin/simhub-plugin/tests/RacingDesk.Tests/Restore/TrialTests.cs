@@ -179,6 +179,85 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
+        public void ACarWhoseProfileIsMade_SaysTrial_AndThatNothingIsSwitchedInThisBuild()
+        {
+            using (var store = new RacingDeskStore(_rig.Store))
+                store.SaveCarSmartControl(new CarSmartControl
+                {
+                    CarPath = "porsche963gtp", ProfileId = "ab", ProfileName = "Porsche 963 GTP", BaseName = "Default", MadeAtUtc = DateTime.UtcNow,
+                    WrittenSha = "x", WrittenKg = 70, WrittenAtUtc = DateTime.UtcNow, State = "made",
+                });
+            var made = Plan().Brakes.Single(b => b.Car == "porsche963gtp");
+            Assert.That(made.State, Is.EqualTo("made"));
+            Assert.That(made.Words, Does.StartWith("Trial: its own SmartControl profile 'Porsche 963 GTP' (from Default), 70 kg."));
+            Assert.That(made.Words, Does.Contain("Nothing is switched in this build"));
+            Assert.That(made.Words, Does.EndWith("it would be switched to when you get in, parked."));
+        }
+
+        [Test]
+        public void AValueTheFirstRunPutInACameraFile_IsATestValue_NotAHeightThatIsKept()
+        {
+            using (var store = new RacingDeskStore(_rig.Store))
+                store.SaveCarViewKeep(new CarViewKeep
+                {
+                    CarPath = "mx5 mx52016", CamFile = ViewFiles.DefaultCamFile("mx5 mx52016"), OwnZ = 0, WrittenZ = -0.02, WrittenSha = "x",
+                    WrittenAtUtc = DateTime.UtcNow, SeenAtUtc = DateTime.UtcNow,
+                });
+            var view = Plan().Views.Single(v => v.Car == "mx5 mx52016");
+            Assert.That(view.State, Is.EqualTo("test"));
+            Assert.That(view.Words, Does.Contain("test value").And.Contain("It is a test, not the height you chose").And.Contain("undo puts it back"));
+            Assert.That(view.Words, Does.Not.Contain("kept in its camera file"));
+            Assert.That(view.Effective, Is.EqualTo(S - 0.02).Within(1e-9));
+        }
+
+        [Test]
+        public void SavingACameraFile_IsSaidTheSameWayEverywhere_AsB8SaysIt()
+        {
+            string how = RestorePolicy.SaveACameraFile;
+            Assert.That(how, Is.EqualTo("out of the car, in replay, Ctrl+F12, Save Car, name car.cam"));
+            Assert.That(RestoreGate.Step("B8").HeDoes, Does.Contain(how));
+            Assert.That(Plan().Views.Single(v => v.Car == "dallaraf3").Words, Does.Contain(how));
+            var refused = _rig.Files().Apply(new ViewChange { CarPath = "caterham caterham420r", CockpitZ = 0.01 });
+            Assert.That(refused.Why, Does.Contain(how));
+
+            var director = Director();
+            for (int i = 0; i <= 30; i++) director.See(Garage("dallaraf3", "Dallara F312 F3", i * 0.05));
+            Assert.That(director.Settled().Wait(TimeSpan.FromSeconds(20)), Is.True);
+            using var store = new RacingDeskStore(_rig.Store);
+            var lines = store.RestoreEvents().Select(e => e.Text).ToList();
+            Assert.That(lines, Has.Some.Contains("has no camera file").And.Contain(how));
+            foreach (string line in lines.Concat(Plan().Lines)) Assert.That(line, Does.Not.Contain("once in the car"), line);
+        }
+
+        [Test]
+        public void WhatTheKeysLeft_IsNotSaidToBeWrittenIntoAProfileTheCarHasNot()
+        {
+            var director = Director();
+            using (var store = new RacingDeskStore(_rig.Store))
+            {
+                store.UnbindCarPedals("mx5 mx52016");
+                store.NotePedalsGiven("mx5 mx52016", "none", null, DateTime.UtcNow);
+                store.NotePedals("lotus79", null, false, 0, DateTime.UtcNow);      // a car with facts and no base
+                store.SaveCarSmartControl(new CarSmartControl
+                {
+                    CarPath = "hondacivictyper", ProfileId = "cd", ProfileName = "Honda", BaseName = "LightBrake", MadeAtUtc = DateTime.UtcNow,
+                    WrittenSha = "x", WrittenKg = 45, WrittenAtUtc = DateTime.UtcNow, State = "gone",
+                });
+            }
+            foreach (string car in new[] { "mx5 mx52016", "lotus79", "hondacivictyper", "porsche963gtp" })
+                director.PedalsLeft(new PedalsSeen { CarPath = car, ForceKg = 40, Presses = 1, SeenAtUtc = DateTime.UtcNow });
+            Assert.That(director.Settled().Wait(TimeSpan.FromSeconds(20)), Is.True);
+            using var events = new RacingDeskStore(_rig.Store);
+            string Said(string car) => events.RestoreEvents().Single(e => e.CarPath == car && e.What == "brakes").Text;
+
+            Assert.That(Said("mx5 mx52016"), Does.Contain("you chose that this car has no profile of its own").And.Contain("the 40 kg your keys left is kept as its force").And.Contain("nothing would be written into SmartControl"));
+            Assert.That(Said("lotus79"), Does.Contain("it has no base profile yet").And.Contain("nothing would be written into SmartControl"));
+            Assert.That(Said("hondacivictyper"), Does.Contain("its profile was deleted in SmartControl").And.Contain("nothing would be written into SmartControl"));
+            Assert.That(Said("porsche963gtp"), Is.EqualTo("Trial: would write 40 kg, the force your keys left, into its own SmartControl profile."), "a car with a base is as it was");
+            foreach (string car in new[] { "mx5 mx52016", "lotus79", "hondacivictyper" }) Assert.That(Said(car), Does.Not.Contain("would write"), car);
+        }
+
+        [Test]
         public void InTrial_AParkedMomentSaysWhyItWouldNotSwitch()
         {
             _rig.Probe.Live = false;

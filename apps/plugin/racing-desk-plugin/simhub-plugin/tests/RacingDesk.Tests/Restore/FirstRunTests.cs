@@ -216,6 +216,28 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
+        public void A2_TakesACopyOfSmartControlsDatabaseFirst_AndWritesNothingWithoutOne()
+        {
+            Closed();
+            Assert.That(Step("0b").Ok, Is.True);
+            string folder = Path.Combine(_rig.Backups, "smartcontrol");
+            string db = _rig.FileSha(_rig.SmartControlDb);
+            _director.Context.BackUpSmartControl = step => "the disk is full";
+            var refused = Step("A2");
+            Assert.That(refused.Refused, Is.True);
+            Assert.That(refused.Why, Is.EqualTo("SmartControl's database was not copied first, so nothing was written: the disk is full"));
+            Assert.That(_rig.FileSha(_rig.SmartControlDb), Is.EqualTo(db), "SmartControl's database, to the byte");
+            using (var store = new RacingDeskStore(_rig.Store)) Assert.That(store.SmartControlSwitchRow(), Is.Null);
+            Assert.That(Directory.GetFiles(folder, "before-write-*"), Is.Empty);
+
+            _director.Context.BackUpSmartControl = null;
+            Assert.That(Step("A2").Ok, Is.True);
+            var copy = Directory.GetFiles(folder, "before-write-*-A2.db").Single();
+            Assert.That(SmartControl.Read(copy).Profiles.Select(p => p.Name), Is.EquivalentTo(new[] { "Default", "LightBrake", "Rain" }), "the copy is of the database as it was before A2 wrote");
+            Assert.That(SmartControl.Read(_rig.SmartControlDb).Profiles.Count, Is.EqualTo(4));
+        }
+
+        [Test]
         public void ZeroB_CopiesTheViewFiles_EvenWhenSmartControlsCopyFails_AndSaysEachPartOnItsOwn()
         {
             File.Delete(_rig.SmartControlDb);        // SmartControl is not there to copy
@@ -666,6 +688,56 @@ namespace RacingDesk.Tests.Restore
             _director.See(Frame(_clock.AddSeconds(-1.5)));
             _director.See(Frame(_clock));
             Assert.That(_director.Settled().Wait(TimeSpan.FromSeconds(20)), Is.True);
+        }
+
+        private string[] CopiesBeforeWrites() =>
+            Directory.GetFiles(Path.Combine(_rig.Backups, "smartcontrol"), "before-write-*.db").OrderBy(f => Path.GetFileName(f), StringComparer.Ordinal).ToArray();
+
+        [Test]
+        public void EveryStepThatWritesSmartControl_TakesACopyFirst_NamedForItself_AndTheCopyIsOfWhatItFound()
+        {
+            Assert.That(CopiesBeforeWrites().Select(Path.GetFileName), Has.Exactly(1).Matches<string>(n => n.EndsWith("-A2.db")), "A2 was done by the setup");
+            Assert.That(Step("A5").Ok, Is.True);
+            Assert.That(Step("A6").Ok, Is.True);
+            _rig.Probe.Editor = true;
+            Assert.That(Step("A7").Ok, Is.True);
+            _rig.Probe.Editor = false;
+            Park();
+            Assert.That(Step("B2").Ok, Is.True);
+
+            var copies = CopiesBeforeWrites();
+            Assert.That(copies.Select(f => Path.GetFileName(f).Substring(Path.GetFileName(f).LastIndexOf('-') + 1)), Is.EqualTo(new[] { "A2.db", "A5.db", "A6.db", "A7.db", "B2.db" }));
+            // A5's copy has the Racing Desk row as A2 left it, not as A5 rewrote it.
+            var beforeA5 = SmartControl.Read(copies[1]);
+            Assert.That(beforeA5.Profiles.Select(p => p.Name), Has.Member("Racing Desk"));
+            Assert.That(beforeA5.Profiles.Select(p => p.Name), Has.None.StartsWith("Racing Desk – A5"));
+            Assert.That(SmartControl.Read(copies[0]).Profiles.Select(p => p.Name), Has.None.StartsWith("Racing Desk"), "and A2's has none yet");
+        }
+
+        [Test]
+        public void ACopyThatCannotBeMade_StopsTheStepBeforeItWritesAnything()
+        {
+            Park();
+            _director.Context.BackUpSmartControl = step => "the disk is full";
+            _rig.Probe.Editor = false;
+            string db = _rig.FileSha(_rig.SmartControlDb);
+            // A5, A6 and A7 are for the sim closed; B2 is for the sim running: each is tried where it can be.
+            _rig.Probe.Sim = false;
+            foreach (string step in new[] { "A5", "A6" })
+            {
+                var r = Step(step);
+                Assert.That(r.Refused, Is.True, step);
+                Assert.That(r.Why, Does.Contain("SmartControl's database was not copied first, so nothing was written: the disk is full"), step);
+            }
+            _rig.Probe.Editor = true;
+            Assert.That(Step("A7").Why, Does.Contain("was not copied first"));
+            _rig.Probe.Editor = false;
+            _rig.Probe.Sim = true;
+            var b2 = Step("B2");
+            Assert.That(b2.Refused, Is.True);
+            Assert.That(b2.Why, Does.Contain("was not copied first"));
+            Assert.That(_rig.FileSha(_rig.SmartControlDb), Is.EqualTo(db), "SmartControl's database, to the byte, after all four");
+            Assert.That(_rig.Keys.Sent, Is.Zero);
         }
 
         [Test]

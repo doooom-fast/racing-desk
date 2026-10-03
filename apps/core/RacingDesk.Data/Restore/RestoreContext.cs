@@ -97,6 +97,18 @@ namespace RacingDesk.Data.Restore
 
         public SmartControlWriter Writer => new SmartControlWriter(SmartControlDb);
 
+        /// <summary>A test's own stand-in for the copy before a write; null takes the real one (<see cref="BackUpBeforeWrite"/>).</summary>
+        public Func<string, string> BackUpSmartControl { get; set; }
+
+        /// <summary>
+        /// Takes SmartControl's database aside before a step's first write, to a timestamped file in Racing Desk's own backup
+        /// folder (SQLite's online backup, checked to open and to hold what the database holds; the last
+        /// <see cref="RestorePolicy.StepBackupsKept"/> are kept). Null when the copy is made and has checked out; else why not, and the
+        /// step then writes nothing.
+        /// </summary>
+        public string BackUpBeforeWrite(string step) =>
+            (BackUpSmartControl ?? (s => Writer.BackUpBeforeWrite(SmartControlBackups, s, Now(), RestorePolicy.StepBackupsKept)))(step);
+
         public SmartControlSnapshot ReadSmartControl()
         {
             try { return SmartControl.Read(SmartControlDb); }

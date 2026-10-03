@@ -32,9 +32,13 @@
 - **His own six profiles, his Live presets and his five keys are never changed.** The writer refuses any row it did not
   make (it is given the ids Racing Desk made, and nothing else).
 - Every file the app changes is copied aside first (the first original of each kept for good) and read back after;
-  SmartControl's database is backed up whole before the first write. Every automatic action is logged, said on the desk,
+  SmartControl's database is backed up whole before the first write ever (0b, kept for good) and again before the first
+  write of each step of the first run (a timestamped copy in Racing Desk's own backup folder, checked to open and to hold
+  what the database holds; the write is refused if it does not; the last ten are kept). Every automatic action is logged, said on the desk,
   and shown on the rig's HUD once in a line ("Trial: brakes Porsche 963 GTP · 70 kg"). Silent is not the same as invisible.
-- A car with nothing saved is left exactly as it is.
+- A car with nothing saved starts at S (`app.ini`'s starting height, plus the Z of its own camera file, if it has one); a
+  car with no saved force goes to its base's own force (LightBrake 45 kg, Default 80 kg). Neither is left as it is: both
+  were his decisions of 2026-10-02.
 
 ## The settled design (2026-10-02)
 
@@ -62,7 +66,8 @@ add. So:
 - **The camera file**: MACC version 14 or 15, 1,668 bytes, nine 184-byte records; the cockpit record is found by its name
   and its Z is at +60. A file that is not that shape is refused and said.
 - **A car without a camera file** (the Dallara F3, the Lotus 79, the Caterham 420R today) has its height recorded only;
-  the desk asks him once to save one in the car (Ctrl+F12, Save Car, keep the name `car.cam`).
+  the desk asks him once to save one: out of the car, in replay, Ctrl+F12, Save Car, name `car.cam` (B8's words, said the
+  same everywhere).
 - **The horizon** (the cockpit's vertical shift, +84) the same way, behind its own switch, off until the first run shows
   that the shift adds to `DrivingVanishY` (B6).
 

@@ -234,7 +234,7 @@ namespace RacingDesk.Data.Restore
                 var cam = _ctx.Files.Cam(run.Car);
                 if (cam == null || !cam.Exists)
                 {
-                    _ctx.Say(run.Car, "height", "trial", $"Trial: {name} has no camera file, so iRacing cannot put its height back: it would start at {Words.Cm(_ctx.StartHeight)}. Save one once in the car (Ctrl+F12, Save Car, keep the name car.cam).");
+                    _ctx.Say(run.Car, "height", "trial", $"Trial: {name} has no camera file, so iRacing cannot put its height back: it would start at {Words.Cm(_ctx.StartHeight)}. Save one once: {RestorePolicy.SaveACameraFile}.");
                     _ctx.Say(run.Car, "height", "trial", $"Trial: no camera file for the {name} yet", hud: true);
                 }
                 else
@@ -338,6 +338,22 @@ namespace RacingDesk.Data.Restore
                 if (kg == null)
                 {
                     _ctx.Say(seen.CarPath, "brakes", "trial", "Trial: the force your keys left is not known (a step key from an unknown force, or one held), so nothing would be written into its profile.");
+                    return;
+                }
+                // The force is the car's all the same (the store keeps it); whether there is a profile of its own to write it into
+                // depends on the car: one he chose to have none for, one with no base yet, and one he deleted have no such profile.
+                string why = null;
+                using (var store = _ctx.OpenStore())
+                {
+                    var facts = store.CarPedalFactsOf(seen.CarPath);
+                    var mine = store.CarSmartControlOf(seen.CarPath);
+                    if (facts?.GivenBy == "none") why = "you chose that this car has no profile of its own";
+                    else if (mine?.State == "gone") why = "its profile was deleted in SmartControl, and it has none until you ask for one again";
+                    else if (mine == null && store.CarPedalsOf(seen.CarPath) == null) why = "it has no base profile yet, so none could be made for it";
+                }
+                if (why != null)
+                {
+                    _ctx.Say(seen.CarPath, "brakes", "trial", $"Trial: {why}, so the {kg} kg your keys left is kept as its force and nothing would be written into SmartControl.");
                     return;
                 }
                 bool editor = _ctx.Probe.EditorRunning();

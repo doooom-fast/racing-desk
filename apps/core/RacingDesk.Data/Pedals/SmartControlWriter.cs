@@ -35,8 +35,11 @@ namespace RacingDesk.Data.Pedals
     /// <item>One short transaction with a 2-second busy timeout, foreign keys on as SmartControl has them, and the journal mode
     /// never touched (SmartControl's is the rollback journal).</item>
     /// <item>What was written is read back and compared, byte for byte.</item>
-    /// <item>A backup first (<see cref="Backup"/>): SQLite's own online backup, which reads the database consistently while
-    /// SmartControl or Live may have it open, checked to open and to hold what the database holds.</item>
+    /// <item>A backup first: before the first write of each step of the first run (<see cref="BackUpBeforeWrite"/>) SQLite's own
+    /// online backup (<see cref="Backup"/>) is taken to a timestamped file in Racing Desk's own backup folder — it reads the
+    /// database consistently while SmartControl or Live may have it open — and checked to open and to hold what the database
+    /// holds; the write is refused if it does not check out, and the last ten such copies are kept. (Before the first write ever,
+    /// 0b keeps a copy for good.)</item>
     /// </list>
     /// Nothing here talks to the pedals; nothing here is SmartControl's Apply, Save or Restore, the only paths to EEPROM.
     /// </summary>
@@ -138,6 +141,32 @@ namespace RacingDesk.Data.Pedals
             {
                 return "the backup could not be made: " + ex.Message.Trim();
             }
+        }
+
+        /// <summary>The name of a copy taken before a step's write: <c>before-write-&lt;time&gt;-&lt;step&gt;.db</c>.</summary>
+        public const string StepBackupPrefix = "before-write-";
+
+        /// <summary>
+        /// A copy of the database before a step writes it (<see cref="Backup"/>, checked to open and to hold what the database holds)
+        /// in <paramref name="folder"/>, named for the time and the step; the newest <paramref name="keep"/> of these are kept and older
+        /// ones go. Null when the copy is made and has checked out; else why not, and the caller writes nothing.
+        /// </summary>
+        public string BackUpBeforeWrite(string folder, string step, DateTime atUtc, int keep = 10)
+        {
+            string tag = new string((step ?? "").Where(char.IsLetterOrDigit).ToArray());
+            string stamp = atUtc.ToLocalTime().ToString("yyyy-MM-dd_HHmmss_fff", CultureInfo.InvariantCulture);
+            string bad = Backup(Path.Combine(folder, StepBackupPrefix + stamp + "-" + tag + ".db"));
+            if (bad != null) return bad;
+            try
+            {
+                var copies = Directory.GetFiles(folder, StepBackupPrefix + "*.db").OrderBy(f => Path.GetFileName(f), StringComparer.Ordinal).ToList();
+                foreach (string old in copies.Take(Math.Max(0, copies.Count - Math.Max(1, keep)))) File.Delete(old);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                // The copy that matters is made; an old one that would not go is not a reason to refuse the write.
+            }
+            return null;
         }
 
         /// <summary>Whether a backup holds what the database holds: null when it does, else why not.</summary>

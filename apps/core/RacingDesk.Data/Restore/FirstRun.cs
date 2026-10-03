@@ -221,10 +221,14 @@ namespace RacingDesk.Data.Restore
             var r = new StepResult();
             using var store = _ctx.OpenStore();
             var sw = store.SmartControlSwitchRow();
+            bool copied = false;
+            string Copy() { if (copied) return null; copied = true; return _ctx.BackUpBeforeWrite("A2"); }
             if (sw == null)
             {
                 var source = before.Profiles.FirstOrDefault(p => string.Equals(p.Name?.Trim(), "Default", StringComparison.OrdinalIgnoreCase));
                 if (source == null) return StepResult.No("A2", "SmartControl has no profile named Default to copy");
+                string notCopied = Copy();
+                if (notCopied != null) return NotCopied("A2", notCopied);
                 var made = writer.InsertProfile(RestorePolicy.SwitchProfileName, source.Data);
                 if (!made.Ok) { r.Why = made.Why; return r; }
                 sw = new SmartControlSwitch
@@ -238,6 +242,8 @@ namespace RacingDesk.Data.Restore
             else r.Saw.Add($"the profile '{sw.ProfileName}' was made before");
             if (sw.BindingId == null)
             {
+                string notCopied = Copy();
+                if (notCopied != null) return NotCopied("A2", notCopied);
                 var bound = writer.BindProfileKey(sw.ProfileId, RestorePolicy.SwitchKey, RestorePolicy.LivePreset, RestorePolicy.LivePresetName, store.RacingDeskProfileIds());
                 if (!bound.Ok) { r.Why = "the key was not bound: " + bound.Why; return r; }
                 sw.BindingId = bound.BindingId;
@@ -256,6 +262,14 @@ namespace RacingDesk.Data.Restore
             r.Ok = true;
             return r;
         }
+
+        /// <summary>
+        /// A step of Part A or B that writes SmartControl's database takes a copy of it first, to a file of its own in Racing Desk's
+        /// backup folder (<see cref="RestoreContext.BackUpBeforeWrite"/>). One that could not be made, or did not check out, stops the
+        /// step before it writes anything.
+        /// </summary>
+        private static StepResult NotCopied(string action, string why) =>
+            StepResult.No(action, "SmartControl's database was not copied first, so nothing was written: " + why);
 
         /// <summary>His own profiles and keys, compared before and after a write: null when every one is as it was.</summary>
         internal static string HisRowsChanged(SmartControlSnapshot before, SmartControlSnapshot after, ISet<string> ours, long? ourBinding)
@@ -369,6 +383,8 @@ namespace RacingDesk.Data.Restore
             var source = _ctx.ReadSmartControl()?.Profiles.FirstOrDefault(p => string.Equals(p.Name?.Trim(), baseName, StringComparison.OrdinalIgnoreCase));
             if (source == null) return StepResult.No(action, $"SmartControl has no {baseName}");
             if (!SmartControlProfileEditor.TryEdit(source.Data, kg, null, out byte[] bytes, out string why)) return StepResult.No(action, $"{baseName} at {kg} kg could not be made: {why}");
+            string notCopied = _ctx.BackUpBeforeWrite(action);
+            if (notCopied != null) return NotCopied(action, notCopied);
             var r = new StepResult();
             string name = $"{RestorePolicy.SwitchProfileName} – {action} {baseName} {kg} kg";
             var written = _ctx.Writer.UpdateProfile(sw.ProfileId, name, bytes, store.RacingDeskProfileIds());
@@ -394,6 +410,8 @@ namespace RacingDesk.Data.Restore
             var source = _ctx.ReadSmartControl()?.Profiles.FirstOrDefault(p => string.Equals(p.Name?.Trim(), "Default", StringComparison.OrdinalIgnoreCase));
             if (source == null) return StepResult.No("A7", "SmartControl has no Default");
             if (!SmartControlProfileEditor.TryEdit(source.Data, RestoreGate.A7Kg, null, out byte[] bytes, out string why)) return StepResult.No("A7", why);
+            string notCopied = _ctx.BackUpBeforeWrite("A7");
+            if (notCopied != null) return NotCopied("A7", notCopied);
             var r = new StepResult();
             var writer = _ctx.Writer;
             var test = store.CarSmartControlOf(A7Car);
@@ -589,6 +607,8 @@ namespace RacingDesk.Data.Restore
             var mine = store.CarSmartControlOf(car);
             byte[] bytes;
             string name;
+            bool copied = false;
+            string Copy() { if (copied) return null; copied = true; return _ctx.BackUpBeforeWrite("B2"); }
             if (mine == null || mine.State != "made")
             {
                 var bound = store.CarPedalsOf(car);
@@ -598,6 +618,8 @@ namespace RacingDesk.Data.Restore
                 var from = snapshot.Profiles.First(p => p.Id == plan.BaseId);
                 if (!SmartControlProfileEditor.TryEdit(from.Data, plan.Kg.Value, SmartControlProfileEditor.DescriptionFor(plan.Name, plan.BaseName), out bytes, out string why))
                     return StepResult.No("B2", why);
+                string notCopied = Copy();
+                if (notCopied != null) return NotCopied("B2", notCopied);
                 var made = writer.InsertProfile(plan.ProfileName, bytes);
                 if (!made.Ok) { r.Why = made.Why; return r; }
                 mine = new CarSmartControl
@@ -618,10 +640,12 @@ namespace RacingDesk.Data.Restore
                 r.Saw.Add($"its own profile '{mine.ProfileName}' was made before");
             }
             string switchName = $"{RestorePolicy.SwitchProfileName} – {name}";
-            var copied = writer.UpdateProfile(sw.ProfileId, switchName, bytes, store.RacingDeskProfileIds());
-            if (!copied.Ok) { r.Why = copied.Why; return r; }
+            string notCopiedYet = Copy();
+            if (notCopiedYet != null) return NotCopied("B2", notCopiedYet);
+            var written = writer.UpdateProfile(sw.ProfileId, switchName, bytes, store.RacingDeskProfileIds());
+            if (!written.Ok) { r.Why = written.Why; return r; }
             sw.ProfileName = switchName;
-            sw.WrittenSha = copied.Sha;
+            sw.WrittenSha = written.Sha;
             sw.WrittenFor = car;
             sw.WrittenAtUtc = _ctx.Now();
             store.SaveSmartControlSwitch(sw);

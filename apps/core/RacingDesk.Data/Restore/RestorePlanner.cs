@@ -29,7 +29,7 @@ namespace RacingDesk.Data.Restore
         /// <summary>The height he would have in the car: S in app.ini plus the file's Z.</summary>
         public double? Effective { get; set; }
 
-        /// <summary>"would-move", "already", "kept", "no-file", "not-writable", "beyond", "inherited", "nothing".</summary>
+        /// <summary>"would-move", "already", "kept" (a build that acts) or "test" (the first run's value, in this one), "no-file", "not-writable", "beyond", "inherited", "nothing".</summary>
         public string State { get; set; }
 
         /// <summary>The line the desk's View panel shows.</summary>
@@ -148,9 +148,19 @@ namespace RacingDesk.Data.Restore
 
             if (keep != null && keep.WrittenZ.HasValue)
             {
-                p.State = "kept";
                 p.Effective = startHeight + keep.WrittenZ.Value;
-                p.Words = $"Height {Words.Cm(p.Effective.Value)}, kept in its camera file — iRacing puts it back when you get in.";
+                if (RestorePolicy.ActingBuilt)
+                {
+                    p.State = "kept";
+                    p.Words = $"Height {Words.Cm(p.Effective.Value)}, kept in its camera file — iRacing puts it back when you get in.";
+                }
+                else
+                {
+                    // Nothing in this build keeps a height: what a camera file holds from Racing Desk is the first run's test value.
+                    p.State = "test";
+                    p.Words = $"The first run has put a test value in its camera file: cockpit Z {Words.Cm(keep.WrittenZ.Value)}, so the car starts at "
+                              + $"{Words.Cm(p.Effective.Value)} with app.ini at {Words.Cm(startHeight)}. It is a test, not the height you chose; undo puts it back.";
+                }
                 return p;
             }
             if (!view.Chosen)
@@ -171,7 +181,7 @@ namespace RacingDesk.Data.Restore
             {
                 p.State = "no-file";
                 p.Words = $"Trial: {Words.Cm(view.DriverHeight.Value)} is kept here, and iRacing cannot put it back until this car has a camera file: "
-                          + "save one once in the car (Ctrl+F12, Save Car, keep the name car.cam).";
+                          + "save one once: " + RestorePolicy.SaveACameraFile + ".";
                 return p;
             }
             if (!p.Writable)
@@ -224,7 +234,10 @@ namespace RacingDesk.Data.Restore
                     return p;
                 }
                 p.State = "made";
-                p.Words = $"Its own SmartControl profile '{mine.ProfileName}' (from {mine.BaseName}), {p.Kg} kg — switched to when you get in, parked.";
+                // In a build that does not switch, a profile that is made is not switched to: the sentence says Trial, and so.
+                p.Words = RestorePolicy.ActingBuilt
+                    ? $"Its own SmartControl profile '{mine.ProfileName}' (from {mine.BaseName}), {p.Kg} kg — switched to when you get in, parked."
+                    : $"Trial: its own SmartControl profile '{mine.ProfileName}' (from {mine.BaseName}), {p.Kg} kg. Nothing is switched in this build; it would be switched to when you get in, parked.";
                 return p;
             }
             var from = smartControl?.Profiles.FirstOrDefault(x => x.Id == bound.ProfileId)

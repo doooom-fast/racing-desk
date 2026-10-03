@@ -114,6 +114,34 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
+        public void TheCopyBeforeAStepsWrite_IsTimestamped_Checked_AndOnlyTheLastTenAreKept()
+        {
+            string folder = Path.Combine(_rig.Backups, "smartcontrol");
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, "before-racing-desk.db"), "kept for good");      // a copy of another kind: never pruned
+            var at = new DateTime(2026, 10, 2, 20, 0, 0, DateTimeKind.Utc);
+            for (int i = 0; i < 13; i++) Assert.That(Writer.BackUpBeforeWrite(folder, "A5", at.AddMinutes(i), keep: 10), Is.Null);
+            var copies = Directory.GetFiles(folder, "before-write-*.db").Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal).ToList();
+            Assert.That(copies, Has.Count.EqualTo(10));
+            Assert.That(copies.First(), Is.EqualTo("before-write-" + at.AddMinutes(3).ToLocalTime().ToString("yyyy-MM-dd_HHmmss_fff", System.Globalization.CultureInfo.InvariantCulture) + "-A5.db"),
+                "the three oldest went, and the others are named for their time and their step");
+            Assert.That(File.ReadAllText(Path.Combine(folder, "before-racing-desk.db")), Is.EqualTo("kept for good"));
+            string newest = Path.Combine(folder, copies.Last());
+            Assert.That(Writer.Check(newest), Is.Null, "it opens and holds what the database holds");
+            Assert.That(SmartControl.Read(newest).Profiles.Select(p => p.Name), Is.EquivalentTo(new[] { "Default", "LightBrake", "Rain" }));
+        }
+
+        [Test]
+        public void TheCopyBeforeAWrite_SaysWhyWhenItCannotBeMade()
+        {
+            Directory.CreateDirectory(_rig.Backups);
+            string folder = Path.Combine(_rig.Backups, "smartcontrol");
+            File.WriteAllText(folder, "a file where the folder of the copies should be");
+            var why = Writer.BackUpBeforeWrite(folder, "A5", DateTime.UtcNow);
+            Assert.That(why, Does.Contain("the backup could not be made"));
+        }
+
+        [Test]
         public void TheBackup_IsSQLitesOwn_AndChecked()
         {
             string to = Path.Combine(_rig.Backups, "smartcontrol", "before-racing-desk.db");

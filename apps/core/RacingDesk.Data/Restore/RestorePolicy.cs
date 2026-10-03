@@ -42,6 +42,9 @@ namespace RacingDesk.Data.Restore
         /// <summary>SmartControl's database, as its version 1 lays it out: any other is refused and said.</summary>
         public const long SmartControlDatabaseVersion = 1;
 
+        /// <summary>The copies of SmartControl's database kept from before a step's first write (the last ones; older ones go).</summary>
+        public const int StepBackupsKept = 10;
+
         /// <summary>The bases' own forces, his decision for a car whose force he never set: LightBrake 45 kg, Default 80 kg.</summary>
         public static readonly IReadOnlyDictionary<string, int> BaseForces = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
@@ -266,7 +269,7 @@ namespace RacingDesk.Data.Restore
             new FirstRunStep
             {
                 Id = "B8", Part = "B · in the sim: a test drive in the Porsche 963", Title = "Camera files for the cars without one",
-                HeDoes = "In the Dallara F3, the Lotus 79 or the Caterham 420R: out of the car, replay, Ctrl+F12, Save Car, keep the name car.cam.",
+                HeDoes = "In the Dallara F3, the Lotus 79 or the Caterham 420R: " + RestorePolicy.SaveACameraFile + ".",
                 Actions = new[] { new FirstRunAction { Id = "B8", Label = "Check the camera files he saved" } },
                 Expected = "Each new file is 1,668 bytes, version 14 or 15.",
             },
