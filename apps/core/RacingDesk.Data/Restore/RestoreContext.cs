@@ -77,6 +77,12 @@ namespace RacingDesk.Data.Restore
         /// <summary>Where copies go: <c>%LOCALAPPDATA%\Racing Desk\backups</c> (with <c>view\</c> and <c>smartcontrol\</c> under it).</summary>
         public string Backups { get; set; }
 
+        /// <summary>
+        /// iRacing's telemetry folder (one .ibt file per session): looked at for names and times alone, never opened. Null: not known,
+        /// and <see cref="SessionSince"/> finds none.
+        /// </summary>
+        public string TelemetryDir { get; set; }
+
         public IRigProbe Probe { get; set; }
         public IKeySender Keys { get; set; }
 
@@ -130,6 +136,30 @@ namespace RacingDesk.Data.Restore
         }
 
         public RacingDeskStore OpenStore() => new RacingDeskStore(StorePath);
+
+        /// <summary>
+        /// The newest session file in the telemetry folder that is newer than <paramref name="sinceUtc"/> (its name and time, the
+        /// later of when it was made and when it was last written, as the folder lists them); null when there is none, or the
+        /// folder cannot be listed. A session iRacing ran since a time left its file after it.
+        /// </summary>
+        public (string Name, DateTime AtUtc)? SessionSince(DateTime sinceUtc)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(TelemetryDir) || !Directory.Exists(TelemetryDir)) return null;
+                (string, DateTime)? newest = null;
+                foreach (var f in new DirectoryInfo(TelemetryDir).EnumerateFiles("*.ibt"))
+                {
+                    DateTime at = f.CreationTimeUtc > f.LastWriteTimeUtc ? f.CreationTimeUtc : f.LastWriteTimeUtc;
+                    if (at > sinceUtc && (newest == null || at > newest.Value.Item2)) newest = (f.Name, at);
+                }
+                return newest;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
 
         public string SmartControlBackups => Path.Combine(Backups, "smartcontrol");
 

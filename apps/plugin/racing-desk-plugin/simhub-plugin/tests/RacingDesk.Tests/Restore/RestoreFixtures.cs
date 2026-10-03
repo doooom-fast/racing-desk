@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.Sqlite;
+using NUnit.Framework;
 using RacingDesk.Data;
 using RacingDesk.Data.Pedals;
 using RacingDesk.Data.Restore;
@@ -53,6 +54,7 @@ namespace RacingDesk.Tests.Restore
         public string Backups => Path.Combine(Dir, "backups");
         public string Store => Path.Combine(Dir, "racing-desk.db");
         public string SmartControlDb => Path.Combine(Dir, "Heusinkveld.db");
+        public string Telemetry => Path.Combine(Dir, "telemetry");
         public readonly FakeProbe Probe = new FakeProbe();
         public readonly FakeKeys Keys = new FakeKeys();
         public readonly List<string> Logged = new List<string>();
@@ -70,7 +72,7 @@ namespace RacingDesk.Tests.Restore
 
         public RestoreContext Context() => new RestoreContext
         {
-            StorePath = Store, Files = Files(), SmartControlDb = SmartControlDb, Backups = Backups, Probe = Probe, Keys = Keys,
+            StorePath = Store, Files = Files(), SmartControlDb = SmartControlDb, Backups = Backups, TelemetryDir = Telemetry, Probe = Probe, Keys = Keys,
             Log = m => { lock (Logged) Logged.Add(m); },
             ForceIs = (car, kg) => { lock (Seeded) Seeded.Add((car, kg)); },
             PressesThisRun = () => Presses,
@@ -203,6 +205,45 @@ CREATE TABLE ""database_version""(version_number INTEGER NOT NULL);
             cmd.Parameters.AddWithValue("$name", name);
             cmd.Parameters.Add("$data", SqliteType.Blob).Value = data;
             cmd.ExecuteNonQuery();
+        }
+
+        /// <summary>A profile row as SmartControl's editor would leave it after he saved a change: its bytes replaced, nothing else.</summary>
+        public void EditProfile(string id, byte[] data)
+        {
+            using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = SmartControlDb, Pooling = false }.ToString());
+            db.Open();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "UPDATE profile_sim_device SET data = $data WHERE id = $id";
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.Parameters.Add("$data", SqliteType.Blob).Value = data;
+            Assert.That(cmd.ExecuteNonQuery(), Is.EqualTo(1));
+        }
+
+        /// <summary>A profile row he deleted in SmartControl.</summary>
+        public void DeleteProfile(string id)
+        {
+            using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = SmartControlDb, Pooling = false }.ToString());
+            db.Open();
+            Run(db, $"DELETE FROM profile_sim_device WHERE id = '{id}'");
+        }
+
+        /// <summary>A profile of his own, added in SmartControl.</summary>
+        public void AddProfile(string id, string name, byte[] data)
+        {
+            using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = SmartControlDb, Pooling = false }.ToString());
+            db.Open();
+            AddProfile(db, id, name, data);
+        }
+
+        /// <summary>A session's telemetry file (empty: only its name and times are looked at), made and last written at <paramref name="atUtc"/>.</summary>
+        public string Ibt(string name, DateTime atUtc)
+        {
+            Directory.CreateDirectory(Telemetry);
+            string path = Path.Combine(Telemetry, name);
+            File.WriteAllBytes(path, new byte[16]);
+            File.SetCreationTimeUtc(path, atUtc);
+            File.SetLastWriteTimeUtc(path, atUtc);
+            return path;
         }
 
         public string FileSha(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));

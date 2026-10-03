@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace RacingDesk.Data.Restore
 {
@@ -35,8 +36,34 @@ namespace RacingDesk.Data.Restore
         public const long LivePreset = 1;
         public const string LivePresetName = "Default";
 
-        /// <summary>The switch profile's own name, before a car's is written into it ("Racing Desk – Porsche 963 GTP" after).</summary>
+        /// <summary>The switch profile's own name, before a car's is copied into it ("Racing Desk: Porsche 963 GTP" after, <see cref="SwitchRowName"/>).</summary>
         public const string SwitchProfileName = "Racing Desk";
+
+        /// <summary>
+        /// What SmartControl's list shows of Racing Desk's rows. A car's own profile ends in "· Racing Desk" and is named for the
+        /// car ("Porsche 963 GTP · Racing Desk"): the one he tunes in the editor. The switch profile, the one SmartControl Live
+        /// loads on F24, names the car it holds now ("Racing Desk: Porsche 963 GTP"), so that Live's voice says which car.
+        /// </summary>
+        public static string CarRowName(string car) => (car ?? "").Trim() + " · Racing Desk";
+
+        public static string SwitchRowName(string car) => "Racing Desk: " + (car ?? "").Trim();
+
+        /// <summary>
+        /// A name no other profile in SmartControl has (it keeps them unique, case aside): <paramref name="wanted"/>, else with the
+        /// car's folder after it ("Mazda MX-5 Cup · Racing Desk (mx5 mx52016)") for two cars of one name, and a number if even that is taken.
+        /// </summary>
+        public static string Unique(string wanted, IEnumerable<string> taken, string folder)
+        {
+            var names = new HashSet<string>((taken ?? new string[0]).Where(n => n != null).Select(n => n.Trim()), StringComparer.OrdinalIgnoreCase);
+            string name = (wanted ?? "").Trim();
+            if (!names.Contains(name)) return name;
+            string marked = name + " (" + (folder ?? "").Trim() + ")";
+            for (int i = 2; names.Contains(marked); i++) marked = name + " (" + (folder ?? "").Trim() + " " + i + ")";
+            return marked;
+        }
+
+        /// <summary>A force within this of another is the same force (SmartControl's are whole kilograms; the editor may write 70.0).</summary>
+        public const double SameForce = 0.01;
 
         /// <summary>The profile the switch profile starts as a copy of, before the first car is written into it.</summary>
         public const string SwitchProfileFrom = "Default";

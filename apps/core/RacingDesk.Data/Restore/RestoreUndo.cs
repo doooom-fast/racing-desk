@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
@@ -55,13 +56,27 @@ namespace RacingDesk.Data.Restore
             }
             var ours = store.RacingDeskProfileIds();
             var writer = ctx.Writer;
+
+            // The cars' own profiles, by their ids (a name he gave one since is his to give). Those he changed in SmartControl go
+            // too, and the copy taken just now is where they are kept: said.
+            var snapshot = ctx.ReadSmartControl();
+            var carsRemoved = new List<string>();
+            int changedByHim = 0;
             foreach (var car in cars)
             {
+                var held = snapshot?.Profiles.FirstOrDefault(p => p.Id == car.ProfileId);
+                string name = held?.Name?.Trim() is { Length: > 0 } now ? now : car.ProfileName;
+                bool his = held != null && !string.Equals(ViewFiles.Sha(held.Data), car.WrittenSha, StringComparison.OrdinalIgnoreCase);
                 var gone = writer.DeleteProfile(car.ProfileId, ours);
-                if (!gone.Ok) { r.Ok = false; r.Saw.Add($"SmartControl's profile '{car.ProfileName}': {gone.Why}"); continue; }
+                if (!gone.Ok) { r.Ok = false; r.Saw.Add($"SmartControl's profile '{name}': {gone.Why}"); continue; }
                 store.ForgetCarSmartControl(car.CarPath);
-                r.Did.Add($"SmartControl's profile '{car.ProfileName}' removed");
+                carsRemoved.Add(name);
+                if (his) changedByHim++;
             }
+            if (carsRemoved.Count == 1) r.Did.Add($"SmartControl's profile '{carsRemoved[0]}' removed");
+            else if (carsRemoved.Count > 1) r.Did.Add($"SmartControl's {carsRemoved.Count} profiles for cars removed");
+            if (changedByHim > 0)
+                r.Saw.Add($"{(changedByHim == 1 ? "One of them" : changedByHim + " of them")} had changes of yours; SmartControl's database as it was just before is kept in {ctx.SmartControlBackups}");
             if (sw == null) return;
             if (sw.BindingId.HasValue)
             {

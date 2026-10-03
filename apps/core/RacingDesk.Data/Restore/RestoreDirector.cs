@@ -11,16 +11,21 @@ namespace RacingDesk.Data.Restore
     /// <summary>
     /// Putting back each car's seat height and brakes (docs/view-and-pedals-plan.md), in the host, by itself:
     /// <list type="bullet">
-    /// <item><b>Brakes</b>: once, Racing Desk adds its own SmartControl profile and binds F24 to it in Live's Default preset
-    /// (<see cref="EnsureSetup"/>, with the SmartControl editor closed). When he is parked in a car — garage screen or pit
-    /// stall, still, brake released, on fresh frames, not a replay — and that car's brakes are not on the pedals yet, its base
-    /// at its force is written into that profile and F24 is pressed once (<see cref="PutBrakesOn"/>), only with the editor
-    /// closed, Live running and started after the binding was written, and iRacing in front and not elevated.</item>
+    /// <item><b>Brakes</b>: once, Racing Desk adds its own SmartControl profile (the switch profile) and binds F24 to it in
+    /// Live's Default preset (<see cref="EnsureSetup"/>, with the SmartControl editor closed). Each car also gets a profile of
+    /// its own, made the first time the car loads with the editor closed (<see cref="KeepCarRow"/>): his rule's base at the
+    /// car's force. It is the one he tunes in SmartControl — a force he changes there is the car's force, and the force his
+    /// keys leave in the car is written into it when he leaves the car or the sim. When he is parked in a car — garage screen
+    /// or pit stall, still, brake released, on fresh frames, not a replay — and that car's brakes are not on the pedals yet,
+    /// the car's own profile is copied, as it stands, into the switch profile and F24 is pressed once
+    /// (<see cref="PutBrakesOn"/>), only with the editor closed, Live running and started after the binding was written, and
+    /// iRacing in front and not elevated.</item>
     /// <item><b>Seat height</b>: when the sim has gone, what he changed in the car (app.ini above S) is folded into the car's
     /// camera file and app.ini goes back to S (<see cref="Fold"/>), so iRacing puts it back itself next time. Once, the heights
     /// he chose before go into the cars' camera files the same way (<see cref="MoveRemembered"/>). When the sim next starts,
-    /// app.ini is read: if it does not hold what Racing Desk left there, something else writes it, and the height part turns
-    /// itself off and puts each camera file back (<see cref="SelfCheck"/>).</item>
+    /// app.ini is read: if it does not hold what Racing Desk left there, and no session has run since (iRacing writes the
+    /// height itself when one does, with Racing Desk away), something else writes it, and the height part turns itself off and
+    /// puts each camera file back (<see cref="SelfCheck"/>).</item>
     /// </list>
     /// <see cref="See"/> is called on every telemetry frame and keeps to cheap decisions under a short lock; anything that
     /// touches a file, the store or SmartControl's database is queued for the director's own worker, one thing at a time, in
@@ -40,6 +45,11 @@ namespace RacingDesk.Data.Restore
         private bool _simSeen;              // a frame has come since the host started or the sim last went: the self-check is made at the first
         private string _brakesWaiting;      // why the last try did not put the brakes on, for the status; null once they went on
         private DateTime _setupTriedAt = DateTime.MinValue;
+
+        // A car's own profile that could not be written when it was asked (the editor was open, the copy first failed): the car and
+        // why, for the status; asked again when a look at the desk finds it has been waiting a while, and at the next car load.
+        private (string Car, string Why)? _keepWait;
+        private DateTime _keepTriedAt = DateTime.MinValue;
 
         /// <summary>How long a setup that could not be made waits before a look at the desk tries it again.</summary>
         public TimeSpan SetupTryAgainAfter { get; set; } = TimeSpan.FromSeconds(30);
@@ -107,7 +117,8 @@ namespace RacingDesk.Data.Restore
         /// <summary>
         /// The host has started. With the sim closed: a write of the view files that a stop cut short is put back, never finished;
         /// a put-back the self-check owes is made; the heights he chose before go into the cars' camera files, once. Then the
-        /// brakes' profile and key are made, if they are not there yet.
+        /// brakes' profile and key are made, if they are not there yet, and each car's own profile is taken up as he changed it
+        /// and given the force his keys left in the car.
         /// </summary>
         public void HostStarted()
         {
@@ -127,7 +138,7 @@ namespace RacingDesk.Data.Restore
                 var switches = Switches;
                 if (switches.HeightPutBackOwed) PutBackOwed();
                 else if (switches.Height) MoveRemembered(null);
-                if (switches.Brakes) Setup();
+                if (switches.Brakes && Setup().Ready) KeepRows();
             });
         }
 
@@ -200,8 +211,17 @@ namespace RacingDesk.Data.Restore
         {
             using (var store = _ctx.OpenStore())
                 if (store.HasRestoreTables) run.Name = RestorePlanner.NameOf(store, run.Car, run.Name);
-            // The profile and the key are made as soon as they can be: Live has them only from its next start.
-            if (Switches.Brakes) Setup();
+            if (!Switches.Brakes) return;
+            // The profile and the key are made as soon as they can be: Live has them only from its next start. The car's own
+            // profile with them: made the first time the car loads, with the editor closed; and what he changed in it, or what
+            // his keys left in the car, is taken up now, before anything is put on the pedals.
+            if (!Setup().Ready) return;
+            BrakesPlan plan;
+            using (var store = _ctx.OpenStore())
+                plan = RestorePlanner.PlanBrakes(store, run.Car, run.Name, _ctx.ReadSmartControl());
+            var kept = KeepCarRow(run.Car, run.Name, plan.State == "on" ? plan : null);
+            NoteKeep(run.Car, kept.Waiting);
+            if (kept.Waiting != null) _brakesWaiting = kept.Waiting;
         }
 
         // ── Brakes ──
@@ -214,11 +234,12 @@ namespace RacingDesk.Data.Restore
             public SmartControlSwitch Switch;
         }
 
-        private void Setup()
+        private SetupState Setup()
         {
             var state = EnsureSetup();
             if (state.Stopped != null) TurnBrakesOff(state.Stopped);
             else if (state.Waiting != null) _brakesWaiting = state.Waiting;
+            return state;
         }
 
         /// <summary>
@@ -368,10 +389,217 @@ namespace RacingDesk.Data.Restore
             _ctx.Log($"restore: {run.Car} — brakes not put on yet: {why}");
         }
 
+        // ── A car's own profile ──
+
+        /// <summary>What <see cref="KeepCarRow"/> left of one car's own profile.</summary>
+        private sealed class RowKept
+        {
+            /// <summary>Why a write that was needed was not made (the editor is open, the copy first failed, ...), in words; null when none was needed, or it went.</summary>
+            public string Waiting;
+
+            /// <summary>The profile's bytes as they stand now, after any write; null when there is none, or it is waited for.</summary>
+            public byte[] Bytes;
+
+            /// <summary>The force those bytes hold; null when they hold none.</summary>
+            public double? Kg;
+        }
+
+        private static bool SameForce(double a, double b) => Math.Abs(a - b) <= RestorePolicy.SameForce;
+
+        /// <summary>The base he gave the car is not the one its profile was made from (by the profile's id; by its name where an id was not kept).</summary>
+        private static bool BaseChanged(CarSmartControl row, BrakesPlan plan) =>
+            !string.IsNullOrEmpty(row.BaseId) && !string.IsNullOrEmpty(plan.BaseId)
+                ? !string.Equals(row.BaseId, plan.BaseId, StringComparison.OrdinalIgnoreCase)
+                : !string.Equals(row.BaseName?.Trim(), plan.BaseName?.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        private void NoteKeep(string car, string waiting)
+        {
+            lock (_gate)
+            {
+                if (waiting != null) _keepWait = (car, waiting);
+                else if (_keepWait.HasValue && string.Equals(_keepWait.Value.Car, car, StringComparison.OrdinalIgnoreCase)) _keepWait = null;
+            }
+        }
+
         /// <summary>
-        /// He is parked in a car whose brakes have not gone on in this car load: its base at its force goes into Racing Desk's
-        /// profile and F24 is pressed once, after every check holds; or nothing is done, and why is kept for the status. Nothing
-        /// of Apply, Save or Restore in SmartControl, nothing of the pedals' memory, no key but F24.
+        /// One car's own profile in SmartControl (the one he tunes there), brought up to date and read as it stands now; on the
+        /// director's worker. Every write needs the SmartControl editor closed and a copy of the database first, and is refused for
+        /// any row Racing Desk did not make:
+        /// <list type="bullet">
+        /// <item><b>His change wins.</b> A force in the profile other than the one Racing Desk last wrote there is a force he set in
+        /// the editor, and it is the car's force in the store from now on. A profile he has changed in any way is his: it is marked
+        /// edited, and the base he chooses for the car later does not make it again.</item>
+        /// <item><b>Made</b> the first time (<paramref name="plan"/> is the car's brakes, and 'on'): his rule's base at the car's
+        /// force, under <see cref="RestorePolicy.CarRowName"/>; made again if he deleted it.</item>
+        /// <item><b>Behind the store.</b> The force his keys left in the car, kept in the store when he left it, is written into
+        /// the profile — only the force and the hash move, by the hash rule, and every other byte stays as he left it.</item>
+        /// <item><b>Another base.</b> The base he chose for the car is not the one it was made from, and the profile is still as
+        /// Racing Desk wrote it: it is made again from the base he chose, at the car's force.</item>
+        /// </list>
+        /// With <paramref name="plan"/> null nothing is made or made again (a car whose brakes are not to be put on, or a look
+        /// at the car's exit): the force is taken up and kept, and no more.
+        /// </summary>
+        private RowKept KeepCarRow(string car, string name, BrakesPlan plan)
+        {
+            var result = new RowKept();
+            var before = _ctx.ReadSmartControl();
+            if (before == null) { result.Waiting = "Waiting for SmartControl's database, which couldn't be read."; return result; }
+
+            using var store = _ctx.OpenStore();
+            if (!store.HasRestoreTables) { result.Waiting = "Waiting for Racing Desk's store."; return result; }
+            var row = store.CarSmartControlOf(car);
+            var profile = row == null ? null : before.Profiles.FirstOrDefault(p => p.Id == row.ProfileId);
+            if (row != null && profile == null && before.Profiles.Count > 0)
+            {
+                // He deleted its profile in SmartControl: its record goes with it, and the profile is made again.
+                store.ForgetCarSmartControl(car);
+                _ctx.Log($"restore: {car} — its own profile in SmartControl was deleted; it is made again when the car next loads");
+                row = null;
+            }
+            if (row != null && profile == null) { result.Waiting = "Waiting for SmartControl's database, which couldn't be read."; return result; }
+
+            // What he changed in it. A force other than the one Racing Desk last wrote there is the car's force now; anything else
+            // he changed is his, and the profile is not made again behind his back.
+            if (row != null)
+            {
+                bool changed = false;
+                if (!string.Equals(ViewFiles.Sha(profile.Data), row.WrittenSha, StringComparison.OrdinalIgnoreCase) && row.State != "edited")
+                {
+                    row.State = "edited";
+                    changed = true;
+                }
+                if (SmartControlProfileEditor.TryReadForce(profile.Data, out double inProfile) && !SameForce(inProfile, row.WrittenKg))
+                {
+                    store.NotePedals(car, inProfile, false, 0, _ctx.Now());
+                    row.WrittenKg = inProfile;
+                    row.State = "edited";
+                    row.WaitingKg = null;
+                    row.WaitingAtUtc = null;
+                    changed = true;
+                    _ctx.Say(car, "brakes", "done", $"You set the {name}'s brake force to {Words.Kg(inProfile)} in its own SmartControl profile, so that is its force now.");
+                }
+                if (changed) store.SaveCarSmartControl(row);
+            }
+
+            // What it must hold: made, made again from another base, or brought to the force his keys left in the car.
+            byte[] target = null;
+            string kind = null;
+            int? saved = RestorePlanner.Usable(store.CarPedalFactsOf(car)?.ForceKg);
+            if (row == null)
+            {
+                if (plan?.State == "on" && plan.Bytes != null) { target = plan.Bytes; kind = "made"; }
+            }
+            else if (plan?.State == "on" && plan.Bytes != null && row.State == "made" && BaseChanged(row, plan))
+            {
+                target = plan.Bytes;
+                kind = "again";
+            }
+            else if (saved.HasValue && !SameForce(saved.Value, row.WrittenKg))
+            {
+                if (SmartControlProfileEditor.TryEdit(profile.Data, saved.Value, null, out target, out string whyNot)) kind = "force";
+                else
+                {
+                    target = null;
+                    _ctx.Log($"restore: {car} — its own profile couldn't take the force {saved} kg ({whyNot}); it is put on the pedals as it is");
+                }
+            }
+
+            if (target == null)
+            {
+                result.Bytes = profile?.Data;
+                result.Kg = profile != null && SmartControlProfileEditor.TryReadForce(profile.Data, out double held) ? held : (double?)null;
+                return result;
+            }
+
+            string what = kind == "made" ? $"to add the {name}'s own profile"
+                        : kind == "again" ? $"to make the {name}'s own profile again"
+                        : $"to keep the {name}'s brake force in its own profile";
+            if (_ctx.Probe.EditorRunning())
+            {
+                result.Waiting = $"Waiting for the SmartControl editor to close, {what}.";
+                result.Bytes = profile?.Data;
+                return result;
+            }
+            string notCopied = _ctx.BackUpBeforeWrite("brakes");
+            if (notCopied != null)
+            {
+                result.Waiting = "Waiting: SmartControl's database couldn't be copied first, so nothing was written (" + notCopied + ").";
+                result.Bytes = profile?.Data;
+                return result;
+            }
+
+            if (kind == "made")
+            {
+                string rowName = RestorePolicy.Unique(RestorePolicy.CarRowName(name), before.Profiles.Select(p => p.Name), car);
+                var made = _ctx.Writer.InsertProfile(rowName, target);
+                if (!made.Ok) { result.Waiting = $"Waiting: the {name}'s own profile couldn't be added ({made.Why})."; return result; }
+                var kept = new CarSmartControl
+                {
+                    CarPath = car, ProfileId = made.ProfileId, ProfileName = rowName, BaseName = plan.BaseName, BaseId = plan.BaseId, MadeAtUtc = _ctx.Now(),
+                    WrittenSha = made.Sha, WrittenKg = plan.Kg.Value, WrittenAtUtc = _ctx.Now(), State = "made",
+                };
+                store.SaveCarSmartControl(kept);        // from here the row is Racing Desk's, and undo knows it
+                // His own rows, compared before and after: a write of Racing Desk's must leave every one of them as it was.
+                var ours = new HashSet<string>(store.RacingDeskProfileIds(), StringComparer.OrdinalIgnoreCase);
+                string moved = HisRowsChanged(before, _ctx.ReadSmartControl(), ours, store.SmartControlSwitchRow()?.BindingId);
+                if (moved != null) _ctx.Say(null, "setup", "failed", "SmartControl: " + moved + " after Racing Desk wrote its own rows; its backups are in " + _ctx.SmartControlBackups + ".");
+                _ctx.Say(car, "brakes", "done", $"Racing Desk added the {name}'s own profile in SmartControl, {rowName}: {plan.BaseName} at {Words.Kg(plan.Kg.Value)}. Change its curve or force there and Racing Desk keeps it.");
+            }
+            else
+            {
+                // His name for it stays, if he renamed it.
+                var written = _ctx.Writer.UpdateProfile(row.ProfileId, profile.Name, target, store.RacingDeskProfileIds());
+                if (!written.Ok) { result.Waiting = $"Waiting: the {name}'s own profile couldn't be written ({written.Why})."; result.Bytes = profile.Data; return result; }
+                row.WrittenSha = written.Sha;
+                row.WrittenAtUtc = _ctx.Now();
+                row.WaitingKg = null;
+                row.WaitingAtUtc = null;
+                if (kind == "again")
+                {
+                    row.BaseName = plan.BaseName;
+                    row.BaseId = plan.BaseId;
+                    row.WrittenKg = plan.Kg.Value;
+                    row.State = "made";
+                    _ctx.Say(car, "brakes", "done", $"The {name}'s own profile in SmartControl was made again from {plan.BaseName}, the profile you chose for it.");
+                }
+                else
+                {
+                    row.WrittenKg = saved.Value;
+                    _ctx.Say(car, "brakes", "done", $"The {name}'s brake force, {Words.Kg(saved.Value)}, was kept in its own profile in SmartControl.");
+                }
+                store.SaveCarSmartControl(row);
+            }
+            result.Bytes = target;
+            result.Kg = SmartControlProfileEditor.TryReadForce(target, out double wrote) ? wrote : (double?)null;
+            return result;
+        }
+
+        /// <summary>
+        /// Every car's own profile brought up to date, one after the other (the host's start, a switch turned on, and a look at the
+        /// desk that finds one waiting): what he changed is taken up, and the force his keys left in a car is written into it.
+        /// </summary>
+        private void KeepRows(string only = null)
+        {
+            List<(string Car, string Name)> cars;
+            using (var store = _ctx.OpenStore())
+            {
+                if (!store.HasRestoreTables) return;
+                cars = store.CarSmartControls()
+                    .Where(r => only == null || string.Equals(r.CarPath, only, StringComparison.OrdinalIgnoreCase))
+                    .Select(r => (r.CarPath, RestorePlanner.NameOf(store, r.CarPath))).ToList();
+            }
+            foreach (var (car, name) in cars)
+            {
+                var kept = KeepCarRow(car, name, null);
+                NoteKeep(car, kept.Waiting);
+            }
+        }
+
+        /// <summary>
+        /// He is parked in a car whose brakes have not gone on in this car load: its own profile in SmartControl is kept up to
+        /// date, copied as it stands into Racing Desk's switch profile, and F24 is pressed once, after every check holds; or
+        /// nothing is pressed, and why is kept for the status. Nothing of Apply, Save or Restore in SmartControl, nothing of the
+        /// pedals' memory, no key but F24.
         /// </summary>
         private void PutBrakesOn(Run run)
         {
@@ -412,16 +640,24 @@ namespace RacingDesk.Data.Restore
                 return;
             }
 
+            // The car's own profile: made if it is not there yet, taken up as he changed it, brought to the force his keys left in
+            // the car — each with the editor closed and a copy first — and read as it stands now. That is what goes on the pedals.
+            var kept = KeepCarRow(car, run.Name, plan);
+            NoteKeep(car, kept.Waiting);
+            if (kept.Waiting != null) { Wait(run, kept.Waiting); return; }
+            if (kept.Bytes == null) { Wait(run, $"Waiting: the {run.Name}'s own profile isn't in SmartControl yet."); return; }
+            string sha = ViewFiles.Sha(kept.Bytes);
+
             // On the pedals already: the same car's same bytes, pressed since they were written, nothing moved since, Live not
             // started again since. Nothing to press; the force is the car's all the same.
             DateTime? liveStarted = _ctx.Probe.LiveStartedAtUtc();
-            if (sw.PedalsAtUtc.HasValue && string.Equals(sw.WrittenFor, car, StringComparison.OrdinalIgnoreCase) && sw.WrittenSha == plan.Sha
+            if (sw.PedalsAtUtc.HasValue && string.Equals(sw.WrittenFor, car, StringComparison.OrdinalIgnoreCase) && sw.WrittenSha == sha
                 && liveStarted.HasValue && liveStarted.Value <= sw.PedalsAtUtc.Value)
             {
                 run.Done = true;
                 _brakesWaiting = null;
-                _ctx.ForceIs(car, plan.Kg.Value);
-                _ctx.Log($"restore: {car} — its brakes are on the pedals already ({plan.BaseName}, {plan.Kg} kg)");
+                if (kept.Kg.HasValue) _ctx.ForceIs(car, kept.Kg.Value);
+                _ctx.Log($"restore: {car} — its brakes are on the pedals already (its own profile" + (kept.Kg.HasValue ? $", {Words.Kg(kept.Kg.Value)}" : "") + ")");
                 return;
             }
 
@@ -429,13 +665,16 @@ namespace RacingDesk.Data.Restore
             string front = NotInFront();
             if (front != null) { Wait(run, $"Waiting to put the {run.Name}'s brakes on: {front}."); return; }
 
-            if (!(string.Equals(sw.WrittenFor, car, StringComparison.OrdinalIgnoreCase) && sw.WrittenSha == plan.Sha))
+            if (!(string.Equals(sw.WrittenFor, car, StringComparison.OrdinalIgnoreCase) && sw.WrittenSha == sha))
             {
                 string notCopied = _ctx.BackUpBeforeWrite("brakes");
                 if (notCopied != null) { Wait(run, "Waiting: SmartControl's database couldn't be copied first, so nothing was written (" + notCopied + ")."); return; }
+                var now = _ctx.ReadSmartControl();
+                if (now == null) { Wait(run, "Waiting for SmartControl's database, which couldn't be read."); return; }
                 using var store = _ctx.OpenStore();
-                string name = $"{RestorePolicy.SwitchProfileName} – {run.Name}";
-                var written = _ctx.Writer.UpdateProfile(sw.ProfileId, name, plan.Bytes, store.RacingDeskProfileIds());
+                // The switch profile takes the car's own, byte for byte; its name says the car, so that Live's voice does.
+                string name = RestorePolicy.Unique(RestorePolicy.SwitchRowName(run.Name), now.Profiles.Where(p => p.Id != sw.ProfileId).Select(p => p.Name), car);
+                var written = _ctx.Writer.UpdateProfile(sw.ProfileId, name, kept.Bytes, store.RacingDeskProfileIds());
                 if (!written.Ok) { Wait(run, $"Waiting: the {run.Name}'s brakes couldn't be written ({written.Why})."); return; }
                 sw.ProfileName = name;
                 sw.WrittenSha = written.Sha;
@@ -443,6 +682,8 @@ namespace RacingDesk.Data.Restore
                 sw.WrittenAtUtc = _ctx.Now();
                 sw.PedalsAtUtc = null;
                 store.SaveSmartControlSwitch(sw);
+                var own = store.CarSmartControlOf(car);
+                if (own != null) { own.SwitchedAtUtc = _ctx.Now(); store.SaveCarSmartControl(own); }
             }
 
             // Right before the key: asked again, on what is so now — the write can take a moment, and he may have moved off.
@@ -476,25 +717,33 @@ namespace RacingDesk.Data.Restore
             }
             run.Done = true;
             _brakesWaiting = null;
-            // The force is the car's now: his +5 and -5 count from it.
-            _ctx.ForceIs(car, plan.Kg.Value);
-            _ctx.Say(car, "brakes", "done", $"The {run.Name}'s brakes went on: {plan.BaseName} at {plan.Kg} kg.");
+            // The force is the car's now: his +5 and -5 count from it. It is the force the profile holds, which is his if he changed it.
+            if (kept.Kg.HasValue) _ctx.ForceIs(car, kept.Kg.Value);
+            _ctx.Say(car, "brakes", "done", $"The {run.Name}'s brakes went on: its own profile, from {plan.BaseName}" + (kept.Kg.HasValue ? $", at {Words.Kg(kept.Kg.Value)}." : "."));
         }
 
         /// <summary>
-        /// What a run left of the pedals: a key he pressed in the car moved the force away from what Racing Desk put on, so the
-        /// row is not on the pedals as written any more, and the next car load presses again.
+        /// What a run left of the pedals (called once the run's force is in the store, when he leaves the car or the sim): a key he
+        /// pressed in the car moved the force away from what Racing Desk put on, so the switch profile is not on the pedals as
+        /// written any more and the next car load presses again, and the new force is written into the car's own profile — with
+        /// the editor closed and a copy first; while it is open it waits, and is written at the next look.
         /// </summary>
         public void PedalsLeft(PedalsSeen seen)
         {
             if (seen == null || string.IsNullOrWhiteSpace(seen.CarPath) || seen.Presses <= 0) return;
+            string car = seen.CarPath.Trim();
             Queue(() =>
             {
-                using var store = _ctx.OpenStore();
-                var sw = store.SmartControlSwitchRow();
-                if (sw?.PedalsAtUtc == null) return;
-                sw.PedalsAtUtc = null;
-                store.SaveSmartControlSwitch(sw);
+                using (var store = _ctx.OpenStore())
+                {
+                    var sw = store.SmartControlSwitchRow();
+                    if (sw?.PedalsAtUtc != null)
+                    {
+                        sw.PedalsAtUtc = null;
+                        store.SaveSmartControlSwitch(sw);
+                    }
+                }
+                if (Switches.Brakes) KeepRows(car);
             });
         }
 
@@ -518,7 +767,9 @@ namespace RacingDesk.Data.Restore
         /// <summary>
         /// The sim has started (its first frame): app.ini should hold what Racing Desk last wrote into it. If it holds something
         /// else, something writes its own value back over it, and the heights Racing Desk keeps would be counted twice: the height
-        /// part turns itself off, and each camera file is put back once iRacing has closed.
+        /// part turns itself off, and each camera file is put back once iRacing has closed. Unless a session has run since Racing
+        /// Desk's last write of the file (an .ibt telemetry file newer than it): then iRacing wrote the height itself, with Racing
+        /// Desk away, and that is no override — a line in the log, and the next fold keeps what he ends with.
         /// </summary>
         private void SelfCheck()
         {
@@ -535,6 +786,17 @@ namespace RacingDesk.Data.Restore
             if (h == null || b?.IniHeightWritten == null) return;     // nothing Racing Desk wrote to hold it to
             if (switches.HeightOnSinceUtc.HasValue && (b.IniWrittenAtUtc == null || b.IniWrittenAtUtc.Value < switches.HeightOnSinceUtc.Value)) return;
             if (Math.Abs(h.Value - b.IniHeightWritten.Value) < RestorePolicy.SmallestChange) return;
+
+            // iRacing writes the height he ends a session with into app.ini itself. If a session ran since Racing Desk last wrote the
+            // file — a telemetry file is newer than that write — it ran without Racing Desk, and this is iRacing's own write, not
+            // something that writes over Racing Desk's: nothing is turned off, and the fold at the next exit keeps what he ends with.
+            var ran = b.IniWrittenAtUtc.HasValue ? _ctx.SessionSince(b.IniWrittenAtUtc.Value) : null;
+            if (ran.HasValue)
+            {
+                _ctx.Log($"restore: app.ini's seat height is {Words.Cm(h.Value)}, not the {Words.Cm(b.IniHeightWritten.Value)} Racing Desk left there, " +
+                         $"but a session ran since without Racing Desk ({ran.Value.Name}, {ran.Value.AtUtc.ToLocalTime():yyyy-MM-dd HH:mm}): iRacing wrote it, so the seat height part stays on");
+                return;
+            }
 
             string why = $"app.ini's seat height was {Words.Cm(h.Value)} when iRacing started, not the {Words.Cm(b.IniHeightWritten.Value)} Racing Desk left there, so something else writes it";
             RestoreSwitches now;
@@ -760,13 +1022,18 @@ namespace RacingDesk.Data.Restore
             else if (sw?.BindingId == null)
             {
                 brakes = RestoreStatus.Of("waiting", _brakesWaiting ?? "Getting ready: Racing Desk adds its own SmartControl profile and its F24 key.");
-                if (_ctx.Now() - _setupTriedAt >= SetupTryAgainAfter) { _setupTriedAt = _ctx.Now(); Queue(Setup); }
+                if (_ctx.Now() - _setupTriedAt >= SetupTryAgainAfter) { _setupTriedAt = _ctx.Now(); Queue(() => Setup()); }
             }
             else
             {
+                (string Car, string Why)? keepWait;
+                lock (_gate) keepWait = _keepWait;
+                // A car's own profile that is waiting (the editor was open): asked again when a look finds it has waited a while.
+                if (keepWait.HasValue && _ctx.Now() - _keepTriedAt >= SetupTryAgainAfter) { _keepTriedAt = _ctx.Now(); Queue(() => KeepRows()); }
                 string live = LiveWaits(sw);
                 if (live != null) brakes = RestoreStatus.Of("waiting", live);
                 else if (_brakesWaiting != null) brakes = RestoreStatus.Of("waiting", _brakesWaiting);
+                else if (keepWait.HasValue) brakes = RestoreStatus.Of("waiting", keepWait.Value.Why);
                 else if (sw.PedalsAtUtc.HasValue && brakesCar != null) brakes = RestoreStatus.Of("working", $"Working: the last brakes it put on were the {brakesCar}'s.");
                 else brakes = RestoreStatus.Of("working", "Working: a car's brakes go on when you get in and stop with the brake released.");
             }
@@ -855,7 +1122,12 @@ namespace RacingDesk.Data.Restore
                 Save(now);
                 _ctx.Say(null, "setup", "done", $"Switches: brakes {(now.Brakes ? "on" : "off")}, seat height {(now.Height ? "on" : "off")}.");
             }
-            if (now.Brakes && !was.Brakes) { _brakesWaiting = null; Setup(); }
+            if (now.Brakes && !was.Brakes)
+            {
+                _brakesWaiting = null;
+                // Switched off, his keys may have moved a force that the car's own profile does not hold yet.
+                if (Setup().Ready) KeepRows();
+            }
             if (now.Height && !was.Height) MoveRemembered(null);
             return new RestoreResult { Action = "switches", Ok = true };
         });
@@ -876,6 +1148,7 @@ namespace RacingDesk.Data.Restore
                 _switches.HeightPutBackOwed = false;
                 now = _switches.Copy();
                 if (_run != null) _run.Done = true;
+                _keepWait = null;
             }
             Save(now);
             _brakesWaiting = null;

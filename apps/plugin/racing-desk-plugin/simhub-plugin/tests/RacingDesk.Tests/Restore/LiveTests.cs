@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Data.Sqlite;
@@ -159,7 +160,7 @@ namespace RacingDesk.Tests.Restore
 
             Assert.That(_rig.Keys.Sent, Is.EqualTo(1));
             sw = Switch();
-            Assert.That((sw.WrittenFor, sw.ProfileName), Is.EqualTo((Gtp, "Racing Desk – Porsche 963 GTP")));
+            Assert.That((sw.WrittenFor, sw.ProfileName), Is.EqualTo((Gtp, "Racing Desk: Porsche 963 GTP")), "named for the car, so that Live's voice says which");
             Assert.That(sw.SentAtUtc, Is.Not.Null);
             Assert.That(sw.PedalsAtUtc, Is.Not.Null);
             var row = Row(sw.ProfileId);
@@ -167,8 +168,18 @@ namespace RacingDesk.Tests.Restore
             Assert.That(SmartControlProfileEditor.HashHolds(row.Data), Is.True, "with the hash by the rule");
             Assert.That(ViewFiles.Sha(row.Data), Is.EqualTo(sw.WrittenSha), "read back as written");
             Assert.That(_rig.Seeded, Is.EqualTo(new[] { (Gtp, 70.0) }), "his +5 and -5 count from the car's force");
-            Assert.That(Lines(), Has.Some.EqualTo("The Porsche 963 GTP's brakes went on: Default at 70 kg."));
+            Assert.That(Lines(), Has.Some.EqualTo("The Porsche 963 GTP's brakes went on: its own profile, from Default, at 70 kg."));
             Assert.That(d.Status().Brakes, Has.Property("State").EqualTo("working").And.Property("Text").EqualTo("Working: the last brakes it put on were the Porsche 963 GTP's."));
+
+            // The car has a profile of its own, made when it loaded, and the switch profile holds a copy of it, byte for byte.
+            using (var store = Store())
+            {
+                var own = store.CarSmartControlOf(Gtp);
+                Assert.That((own.ProfileName, own.BaseName, own.WrittenKg, own.State), Is.EqualTo(("Porsche 963 GTP · Racing Desk", "Default", 70.0, "made")));
+                Assert.That(Row(own.ProfileId).Data, Is.EqualTo(row.Data));
+                Assert.That(own.ProfileId, Is.Not.EqualTo(sw.ProfileId));
+            }
+            Assert.That(Lines(), Has.Some.EqualTo("Racing Desk added the Porsche 963 GTP's own profile in SmartControl, Porsche 963 GTP · Racing Desk: Default at 70 kg. Change its curve or force there and Racing Desk keeps it."));
 
             // Once per car load: more parked frames press nothing more.
             Drive(d, 12);
@@ -179,7 +190,8 @@ namespace RacingDesk.Tests.Restore
             foreach (var p in before.Profiles) Assert.That(after.Profiles.Single(x => x.Id == p.Id).Data, Is.EqualTo(p.Data), p.Name);
             Assert.That(after.Keys.Where(k => k.Action != LiveAction.SetProfile).Select(k => k.FirstKey + k.SecondKey), Is.EqualTo(before.Keys.Select(k => k.FirstKey + k.SecondKey)));
             Assert.That(File.Exists(Path.Combine(_rig.Backups, "smartcontrol", "before-racing-desk.db")), Is.True);
-            Assert.That(Directory.GetFiles(Path.Combine(_rig.Backups, "smartcontrol"), "before-write-*.db"), Has.Length.EqualTo(2), "one before the setup, one before the car's brakes");
+            Assert.That(Directory.GetFiles(Path.Combine(_rig.Backups, "smartcontrol"), "before-write-*.db"), Has.Length.EqualTo(3),
+                "one before the setup, one before the car's own profile, one before it was copied into the switch profile");
         }
 
         [Test]
@@ -202,10 +214,26 @@ namespace RacingDesk.Tests.Restore
             _rig.Probe.Editor = true;
             Drive(d, 2);
             Assert.That((_rig.Keys.Sent, Switch().WrittenFor), Is.EqualTo((0, (string)null)));
-            Assert.That(d.Status().Brakes.Text, Is.EqualTo("Waiting for the SmartControl editor to close, to put the Porsche 963 GTP's brakes on."));
+            Assert.That(d.Status().Brakes.Text, Is.EqualTo("Waiting for the SmartControl editor to close, to add the Porsche 963 GTP's own profile."));
 
             _rig.Probe.Editor = false;
             Drive(d, 6);      // still parked: tried again every five seconds
+            Assert.That(_rig.Keys.Sent, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void WithTheEditorOpenOnlyWhenHeIsParked_TheCopyIntoTheSwitchProfileWaitsForIt()
+        {
+            var d = Started();
+            d.See(Garage());          // the car's own profile is made at the load, with the editor closed
+            Settle(d);
+            _rig.Probe.Editor = true;
+            Drive(d, 2);
+            Assert.That((_rig.Keys.Sent, Switch().WrittenFor), Is.EqualTo((0, (string)null)));
+            Assert.That(d.Status().Brakes.Text, Is.EqualTo("Waiting for the SmartControl editor to close, to put the Porsche 963 GTP's brakes on."));
+
+            _rig.Probe.Editor = false;
+            Drive(d, 6);
             Assert.That(_rig.Keys.Sent, Is.EqualTo(1));
         }
 
@@ -278,9 +306,10 @@ namespace RacingDesk.Tests.Restore
             Assert.That(_rig.Keys.Sent, Is.EqualTo(1));
             Assert.That(_rig.Seeded, Is.EqualTo(new[] { (Gtp, 70.0), (Gtp, 70.0) }));
 
-            // His keys moved the force in that run (+5 to 75, kept for the car): the next car load presses again, at 75.
-            d.PedalsLeft(new PedalsSeen { CarPath = Gtp, ForceKg = 75, Presses = 1, SeenAtUtc = _clock });
+            // His keys moved the force in that run (+5 to 75, kept for the car): the next car load presses again, at 75. The store
+            // has the force before the director is told, as the host does it.
             using (var store = Store()) store.NotePedals(Gtp, 75, true, 0, _clock);
+            d.PedalsLeft(new PedalsSeen { CarPath = Gtp, ForceKg = 75, Presses = 1, SeenAtUtc = _clock });
             d.SimGone();
             Settle(d);
             Assert.That(Switch().PedalsAtUtc, Is.Null);
@@ -514,6 +543,8 @@ namespace RacingDesk.Tests.Restore
             Exit(d, Gtp, S, S + 0.005);
             Assert.That(_rig.CamZ(Gtp), Is.EqualTo(0.01f));
             _rig.AppIni(S + 0.005);
+            // A session file from before Racing Desk's last write of app.ini is no session in between.
+            using (var written = Store()) _rig.Ibt("earlier.ibt", written.ViewBaselineRow().IniWrittenAtUtc.Value.AddHours(-5));
             Drive(d, 0.2);
             var switches = d.Switches;
             Assert.That((switches.Height, switches.HeightPutBackOwed), Is.EqualTo((false, true)));
@@ -530,6 +561,54 @@ namespace RacingDesk.Tests.Restore
             using var store = Store();
             Assert.That(store.CarViewKeeps(), Is.Empty);
             Assert.That(Lines(), Has.Some.StartWith("The seat height part turned itself off: app.ini's seat height was −1.5 cm when iRacing started"));
+        }
+
+        [Test]
+        public void ASessionThatRanWithoutRacingDesk_IsIRacingsOwnWrite_NotSomethingThatWritesOverRacingDesks()
+        {
+            var d = Moved();
+            Exit(d, Gtp, S, S + 0.005);
+            Assert.That(_rig.CamZ(Gtp), Is.EqualTo(0.005f));
+            DateTime wrote;
+            using (var store = Store()) wrote = store.ViewBaselineRow().IniWrittenAtUtc.Value;
+
+            // Racing Desk was not running for the next session: iRacing wrote the height he ended it with into app.ini, and left its
+            // telemetry file. The sim starts again with Racing Desk running.
+            _rig.AppIni(S + 0.015);
+            _rig.Ibt("session-without-racing-desk.ibt", wrote.AddHours(3));
+            Drive(d, 0.2);
+            var switches = d.Switches;
+            Assert.That((switches.Height, switches.HeightPutBackOwed, switches.HeightOffWhy), Is.EqualTo((true, false, (string)null)), "not turned off");
+            Assert.That(_rig.CamZ(Gtp), Is.EqualTo(0.005f), "and no camera file was put back");
+            Assert.That(_rig.Logged, Has.Some.Matches<string>(m => m.Contains("app.ini's seat height is −0.5 cm, not the −2.0 cm Racing Desk left there")
+                && m.Contains("a session ran since without Racing Desk (session-without-racing-desk.ibt") && m.EndsWith("iRacing wrote it, so the seat height part stays on")));
+            using (var store = Store()) Assert.That(store.ViewBaselineRow().LaunchHeight, Is.EqualTo(S + 0.015).Within(1e-9), "what the sim started with is kept all the same");
+
+            // The fold at the next exit keeps what he ends with: the run started at a height that was not S, and he changed it.
+            Exit(d, Gtp, S + 0.015, S + 0.02);
+            Assert.That(_rig.CamZ(Gtp), Is.EqualTo(0.025f).Within(1e-6), "0.5 cm already, and the 2.0 cm he ended at above S");
+            Assert.That(_rig.Files().AppIniHeight(), Is.EqualTo(S).Within(1e-9));
+            Assert.That(d.Switches.Height, Is.True);
+        }
+
+        [Test]
+        public void TheTelemetryFolder_IsLookedAtForNamesAndTimesAlone()
+        {
+            var since = new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc);
+            Assert.That(_ctx.SessionSince(since), Is.Null, "no folder");
+            _rig.Ibt("old.ibt", since.AddHours(-1));
+            string other = Path.Combine(_rig.Telemetry, "notes.txt");
+            File.WriteAllText(other, "not a session");
+            File.SetCreationTimeUtc(other, since.AddHours(9));
+            File.SetLastWriteTimeUtc(other, since.AddHours(9));
+            Assert.That(_ctx.SessionSince(since), Is.Null, "an older session, and a file that is not one");
+
+            _rig.Ibt("new.ibt", since.AddHours(2));
+            _rig.Ibt("newest.ibt", since.AddHours(4));
+            var found = _ctx.SessionSince(since);
+            Assert.That((found.Value.Name, found.Value.AtUtc), Is.EqualTo(("newest.ibt", since.AddHours(4))));
+            _ctx.TelemetryDir = null;
+            Assert.That(_ctx.SessionSince(since), Is.Null, "and none where the folder is not known");
         }
 
         [Test]
@@ -573,10 +652,13 @@ namespace RacingDesk.Tests.Restore
             Assert.That(after.Keys.Any(k => k.FirstKey == "F24"), Is.False);
             Assert.That(after.Keys, Has.Count.EqualTo(5), "his five keys stay");
             Assert.That(after.Profiles.Any(p => p.Id == id), Is.True, "F24 went, so the pedals may be on it: left");
-            Assert.That(undone.Saw, Has.Some.EqualTo("To finish, pick one of your own profiles in SmartControl, then delete the profile 'Racing Desk – Porsche 963 GTP' there"));
+            Assert.That(undone.Saw, Has.Some.EqualTo("To finish, pick one of your own profiles in SmartControl, then delete the profile 'Racing Desk: Porsche 963 GTP' there"));
+            Assert.That(undone.Did, Has.Some.EqualTo("SmartControl's profile 'Porsche 963 GTP · Racing Desk' removed"), "the car's own profile goes too");
+            Assert.That(after.Profiles.Count(p => p.Name.Contains("Racing Desk")), Is.EqualTo(1), "and only the switch profile is left");
             Assert.That(_rig.CamZ(Gtp), Is.EqualTo(0f));
             Assert.That(_rig.Files().AppIniHeight(), Is.EqualTo(S + 0.005).Within(1e-9), "app.ini as it was before Racing Desk first wrote it");
             using var store = Store();
+            Assert.That(store.CarSmartControls(), Is.Empty);
             Assert.That((store.SmartControlSwitchRow(), store.CarViewKeeps().Count), Is.EqualTo(((SmartControlSwitch)null, 0)));
             Assert.That(d.AnythingToUndo(), Is.False);
         }
@@ -606,6 +688,270 @@ namespace RacingDesk.Tests.Restore
         }
     }
 
+    /// <summary>
+    /// A profile of its own for each car in SmartControl (his words: "I thought you'd be making new Heusinkveld profiles for each car
+    /// as needed"): made the first time the car loads, the one he tunes, copied as it stands into the switch profile at the switch,
+    /// and given the force his keys leave in the car when he leaves it.
+    /// </summary>
+    [TestFixture]
+    public class LiveCarProfileTests : LiveRig
+    {
+        private const string Honda = "hondacivictyper", HondaName = "Honda Civic Type R TCR";
+
+        private string OwnId(string car = Gtp)
+        {
+            using var store = Store();
+            return store.CarSmartControlOf(car)?.ProfileId;
+        }
+
+        private int Backups() => Directory.GetFiles(Path.Combine(_rig.Backups, "smartcontrol"), "before-write-*.db").Length;
+
+        private static byte[] Force(byte[] profile, int kg)
+        {
+            Assert.That(SmartControlProfileEditor.TryEdit(profile, kg, null, out byte[] edited, out string why), Is.True, why);
+            return edited;
+        }
+
+        /// <summary>What he does in the SmartControl editor: a softer curve in the brake of the Ultimate pedals (the hash is SmartControl's to make).</summary>
+        private static byte[] Curve(byte[] profile)
+        {
+            string text = Encoding.UTF8.GetString(profile);
+            string curved = Regex.Replace(text, @"(<SimPedalsUltimate>.*?<BrakeProfile>.*?<TwentyPercentage>)20(</TwentyPercentage>)", "${1}25${2}", RegexOptions.Singleline);
+            Assert.That(curved, Is.Not.EqualTo(text));
+            return Encoding.UTF8.GetBytes(curved);
+        }
+
+        [Test]
+        public void EachCarGetsAProfileOfItsOwn_WhenItFirstLoads_NamedForIt_WithEveryNameUnique()
+        {
+            // A profile of his own that has the name the 963's would get: the 963's takes another, and his is left as it is.
+            byte[] his = Encoding.UTF8.GetBytes(RestoreRig.NewFormatProfile(60, 5, nilDescription: false));
+            _rig.AddProfile("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "Porsche 963 GTP · Racing Desk", his);
+            var d = Started();
+
+            d.See(Garage(Gtp, GtpName));         // one frame: he is not parked yet, and the profile is made all the same
+            Settle(d);
+            d.SimGone();
+            d.See(Garage(Honda, HondaName));
+            Settle(d);
+            d.SimGone();
+            d.See(Garage("somethingnew", "Something New"));
+            Settle(d);
+
+            using var store = Store();
+            var own = store.CarSmartControls().ToDictionary(c => c.CarPath);
+            Assert.That(own.Keys, Is.EquivalentTo(new[] { Gtp, Honda }), "not for a car it has no base for");
+            Assert.That(own[Gtp].ProfileName, Is.EqualTo("Porsche 963 GTP · Racing Desk (porsche963gtp)"), "his own name for a profile is not taken");
+            Assert.That(own[Honda].ProfileName, Is.EqualTo("Honda Civic Type R TCR · Racing Desk"));
+            Assert.That((own[Honda].BaseName, own[Honda].WrittenKg), Is.EqualTo(("LightBrake", 45.0)), "its base at the base's own force: he never set one");
+            Assert.That(SmartControlProfileEditor.TryReadForce(Row(own[Gtp].ProfileId).Data, out double kg) ? kg : -1, Is.EqualTo(70));
+
+            var all = SmartControl.Read(_rig.SmartControlDb).Profiles;
+            Assert.That(all.Select(p => p.Name.ToLowerInvariant()), Is.Unique, "SmartControl needs the names to differ");
+            Assert.That(all.Single(p => p.Id == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").Data, Is.EqualTo(his), "his own profile is as it was");
+            Assert.That(all.Count(p => p.Name.Contains("Racing Desk")), Is.EqualTo(4), "his, the two cars' and the switch profile");
+            Assert.That(_rig.Keys.Sent, Is.Zero, "nothing was pressed: he was not parked");
+
+            // The Cars page says where the car's profile is, in the sentence it has for the brakes.
+            var plan = RestorePlanner.PlanBrakes(store, Gtp, GtpName, SmartControl.Read(_rig.SmartControlDb));
+            Assert.That(plan.Words, Is.EqualTo("Put on when you get in and stop with the brake released: Default at 70 kg, the force you last set in it. "
+                + "Its own profile in SmartControl is Porsche 963 GTP · Racing Desk (porsche963gtp): change its curve or force there and Racing Desk keeps it."));
+        }
+
+        [Test]
+        public void WithTheEditorOpen_ItsProfileWaitsForTheEditor_AndIsMadeAtTheNextLoad()
+        {
+            var d = Started();
+            _rig.Probe.Editor = true;
+            d.See(Garage());
+            Settle(d);
+            Assert.That(OwnId(), Is.Null);
+            Assert.That(d.Status().Brakes, Has.Property("State").EqualTo("waiting").And.Property("Text").EqualTo("Waiting for the SmartControl editor to close, to add the Porsche 963 GTP's own profile."));
+
+            _rig.Probe.Editor = false;
+            d.SimGone();
+            d.See(Garage());
+            Settle(d);
+            Assert.That(OwnId(), Is.Not.Null);
+        }
+
+        [Test]
+        public void AtTheSwitch_ItIsCopiedAsItStands_WithTheCurveAndTheForceHeSetInSmartControl()
+        {
+            var d = Started();
+            Drive(d, 1.5);
+            string ownId = OwnId();
+            byte[] his = Curve(Force(Row(ownId).Data, 65));       // a softer curve and 65 kg, saved in the editor, which he has closed
+            _rig.EditProfile(ownId, his);
+
+            d.SimGone();
+            _clock = _clock.AddMinutes(2);
+            Drive(d, 1.5);
+
+            Assert.That(_rig.Keys.Sent, Is.EqualTo(2), "it is not what is on the pedals: pressed again");
+            Assert.That(Row(Switch().ProfileId).Data, Is.EqualTo(his), "the switch profile holds his profile byte for byte, curve included");
+            Assert.That(Row(ownId).Data, Is.EqualTo(his), "and his own is not rewritten");
+            Assert.That(_rig.Seeded.Last(), Is.EqualTo((Gtp, 65.0)), "his +5 and -5 count from the force he set");
+            using var store = Store();
+            Assert.That(store.CarPedalFactsOf(Gtp).ForceKg, Is.EqualTo(65), "the car's force in the store is his now");
+            var own = store.CarSmartControlOf(Gtp);
+            Assert.That((own.State, own.WrittenKg, own.SwitchedAtUtc.HasValue), Is.EqualTo(("edited", 65.0, true)));
+            Assert.That(Lines(), Has.Some.EqualTo("You set the Porsche 963 GTP's brake force to 65 kg in its own SmartControl profile, so that is its force now."));
+        }
+
+        [Test]
+        public void TheForceHisKeysLeaveInTheCar_IsWrittenIntoItsProfile_WhenHeLeavesIt_BackedUpFirst_WithTheHashByTheRule()
+        {
+            var d = Started();
+            Drive(d, 1.5);
+            string ownId = OwnId();
+            byte[] before = Row(ownId).Data;
+            int backups = Backups();
+
+            using (var store = Store()) store.NotePedals(Gtp, 75, false, 0, _clock);      // the host keeps the force first, then tells the director
+            d.PedalsLeft(new PedalsSeen { CarPath = Gtp, ForceKg = 75, Presses = 1, SeenAtUtc = _clock });
+            Settle(d);
+
+            byte[] after = Row(ownId).Data;
+            Assert.That(after, Is.EqualTo(Force(before, 75)), "the force and its hash moved by the rule, and no other byte");
+            Assert.That(SmartControlProfileEditor.HashHolds(after), Is.True);
+            Assert.That(Backups(), Is.EqualTo(backups + 1), "a copy of SmartControl's database first");
+            using (var store = Store())
+            {
+                var own = store.CarSmartControlOf(Gtp);
+                Assert.That((own.WrittenKg, own.WrittenSha), Is.EqualTo((75.0, ViewFiles.Sha(after))));
+            }
+            Assert.That(SmartControlProfileEditor.TryReadForce(Row(Switch().ProfileId).Data, out double kg) ? kg : -1, Is.EqualTo(70), "the switch profile is written at the next switch");
+            Assert.That(Switch().PedalsAtUtc, Is.Null, "and the pedals are not as written any more");
+            Assert.That(Lines(), Has.Some.EqualTo("The Porsche 963 GTP's brake force, 75 kg, was kept in its own profile in SmartControl."));
+            Assert.That(_rig.Keys.Sent, Is.EqualTo(1), "nothing was pressed at the exit");
+        }
+
+        [Test]
+        public void WithTheEditorOpenWhenHeLeaves_TheForceWaits_AndIsWrittenOnceItCloses()
+        {
+            var d = Started();
+            Drive(d, 1.5);
+            string ownId = OwnId();
+            byte[] before = Row(ownId).Data;
+
+            _rig.Probe.Editor = true;
+            using (var store = Store()) store.NotePedals(Gtp, 75, false, 0, _clock);
+            d.PedalsLeft(new PedalsSeen { CarPath = Gtp, ForceKg = 75, Presses = 1, SeenAtUtc = _clock });
+            Settle(d);
+            Assert.That(Row(ownId).Data, Is.EqualTo(before), "nothing is written under the open editor");
+            Assert.That(d.Status().Brakes, Has.Property("State").EqualTo("waiting")
+                .And.Property("Text").EqualTo("Waiting for the SmartControl editor to close, to keep the Porsche 963 GTP's brake force in its own profile."));
+
+            _rig.Probe.Editor = false;
+            _clock = _clock.AddSeconds(31);
+            d.Status();                              // a look at the desk that finds it has waited a while asks again
+            Settle(d);
+            Assert.That(SmartControlProfileEditor.TryReadForce(Row(ownId).Data, out double kg) ? kg : -1, Is.EqualTo(75));
+            Assert.That(d.Status().Brakes.State, Is.EqualTo("working"));
+        }
+
+        [Test]
+        public void AForceHeSetInSmartControl_WinsOverHisKeysOfTheSameRun()
+        {
+            var d = Started();
+            Drive(d, 1.5);
+            string ownId = OwnId();
+            byte[] his = Force(Row(ownId).Data, 65);
+            _rig.EditProfile(ownId, his);
+
+            using (var store = Store()) store.NotePedals(Gtp, 75, false, 0, _clock);
+            d.PedalsLeft(new PedalsSeen { CarPath = Gtp, ForceKg = 75, Presses = 1, SeenAtUtc = _clock });
+            Settle(d);
+
+            Assert.That(Row(ownId).Data, Is.EqualTo(his), "his profile is left as he saved it");
+            using var again = Store();
+            Assert.That(again.CarPedalFactsOf(Gtp).ForceKg, Is.EqualTo(65));
+        }
+
+        [Test]
+        public void ANewBaseHeChoseForTheCar_MakesItsProfileAgain_UnlessHeHasChangedIt()
+        {
+            var d = Started();
+            Drive(d, 1.5);
+            string ownId = OwnId();
+            void Choose(string name, string id)
+            {
+                using var store = Store();
+                store.BindCarPedals(new CarPedals { CarPath = Gtp, ProfileId = id, ProfileName = name, BoundAtUtc = _clock });
+                store.NotePedalsGiven(Gtp, "driver", null, _clock);
+            }
+
+            Choose("LightBrake", RestoreRig.LightId);
+            d.SimGone();
+            _clock = _clock.AddMinutes(2);
+            Drive(d, 1.5);
+            BrakesPlan plan;
+            using (var store = Store()) plan = RestorePlanner.PlanBrakes(store, Gtp, GtpName, SmartControl.Read(_rig.SmartControlDb));
+            Assert.That(Row(ownId).Data, Is.EqualTo(plan.Bytes), "made again from LightBrake, at the car's force");
+            Assert.That(SmartControlProfileEditor.TryReadForce(plan.Bytes, out double kg) ? kg : -1, Is.EqualTo(70));
+            Assert.That(Row(Switch().ProfileId).Data, Is.EqualTo(plan.Bytes));
+            Assert.That(_rig.Keys.Sent, Is.EqualTo(2));
+            using (var store = Store())
+            {
+                var own = store.CarSmartControlOf(Gtp);
+                Assert.That((own.BaseName, own.BaseId, own.ProfileId), Is.EqualTo(("LightBrake", RestoreRig.LightId, ownId)), "the same row");
+            }
+            Assert.That(Lines(), Has.Some.EqualTo("The Porsche 963 GTP's own profile in SmartControl was made again from LightBrake, the profile you chose for it."));
+
+            // Once he has changed it, it is his: a base chosen after that does not make it again.
+            byte[] his = Curve(Row(ownId).Data);
+            _rig.EditProfile(ownId, his);
+            Choose("Default", RestoreRig.DefaultId);
+            d.SimGone();
+            _clock = _clock.AddMinutes(2);
+            Drive(d, 1.5);
+            Assert.That(Row(ownId).Data, Is.EqualTo(his));
+            Assert.That(Row(Switch().ProfileId).Data, Is.EqualTo(his));
+            using (var store = Store()) Assert.That(store.CarSmartControlOf(Gtp).State, Is.EqualTo("edited"));
+        }
+
+        [Test]
+        public void IfHeDeletesItsProfile_ItIsMadeAgainWhenTheCarNextLoads()
+        {
+            var d = Started();
+            Drive(d, 1.5);
+            string first = OwnId();
+            _rig.DeleteProfile(first);
+
+            d.SimGone();
+            d.See(Garage());
+            Settle(d);
+            string second = OwnId();
+            Assert.That(second, Is.Not.Null.And.Not.EqualTo(first));
+            Assert.That(Row(second), Is.Not.Null);
+            Assert.That(Row(Switch().ProfileId), Is.Not.Null, "the switch profile is not his to lose by this");
+        }
+
+        [Test]
+        public void Undo_TakesTheCarsProfilesToo_AndSaysWhichHadChangesOfHis()
+        {
+            var d = Started();
+            Drive(d, 1.5);
+            d.SimGone();
+            _clock = _clock.AddMinutes(2);
+            Drive(d, 1.5, () => Garage(Honda, HondaName));
+            _rig.EditProfile(OwnId(Honda), Curve(Row(OwnId(Honda)).Data));
+            _rig.Probe.Sim = false;
+
+            var undone = d.UndoEverything();
+            Assert.That(undone.Ok, Is.True, undone.Text);
+            Assert.That(undone.Did, Has.Some.EqualTo("SmartControl's 2 profiles for cars removed"));
+            Assert.That(undone.Saw, Has.Some.StartWith("One of them had changes of yours; SmartControl's database as it was just before is kept in "));
+            var left = SmartControl.Read(_rig.SmartControlDb).Profiles;
+            Assert.That(left.Where(p => p.Name.Contains("Racing Desk")).Select(p => p.Name), Is.EqualTo(new[] { "Racing Desk: Honda Civic Type R TCR" }),
+                "F24 has been sent, so the switch profile stays for him to finish by hand");
+            Assert.That(left.Select(p => p.Name), Is.SupersetOf(new[] { "Default", "LightBrake", "Rain" }));
+            using var store = Store();
+            Assert.That(store.CarSmartControls(), Is.Empty);
+        }
+    }
+
     /// <summary>What he reads: plain sentences, no step codes, no trial, no capitals but names and acronyms, no customer id.</summary>
     [TestFixture]
     public class LiveWordsTests : LiveRig
@@ -621,6 +967,12 @@ namespace RacingDesk.Tests.Restore
             _rig.Probe.Editor = false;
             Drive(d, 6);
             said.Add(d.Status().Brakes.Text);
+            using (var store = Store()) store.NotePedals(Gtp, 75, false, 0, _clock);
+            _rig.Probe.Editor = true;
+            d.PedalsLeft(new PedalsSeen { CarPath = Gtp, ForceKg = 75, Presses = 1, SeenAtUtc = _clock });
+            Settle(d);
+            said.Add(d.Status().Brakes.Text);        // the force waits for the editor
+            _rig.Probe.Editor = false;
             Exit(d, Gtp, S, S + 0.005);
             Exit(d, "dallaraf3", S, S + 0.01);
             Exit(d, "porsche9922cup", S, S - 0.02);

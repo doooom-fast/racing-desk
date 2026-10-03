@@ -12,7 +12,7 @@
   ];
 
   const UNDO = 'Undo what Racing Desk changed';
-  const UNDO_ASK = 'This turns both off, takes Racing Desk’s profile and its F24 key out of SmartControl, and puts back the seat heights it kept in app.ini and the cars’ camera files. Close iRacing and the SmartControl editor first. Go on?';
+  const UNDO_ASK = 'This turns both off, takes Racing Desk’s profiles (one for each car, with anything you changed in them, and the one F24 switches) and its F24 key out of SmartControl, and puts back the seat heights it kept in app.ini and the cars’ camera files. Close iRacing and the SmartControl editor first. Go on?';
   const FROM_THE_APP = 'This is switched from the Racing Desk app.';
 
   const isRow = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);

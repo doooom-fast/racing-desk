@@ -58,13 +58,13 @@ test('what undo did is said under it, a sentence a line: what is left for him fi
     undone: {
       ok: true,
       did: ['the F24 key taken out of SmartControl Live', 'Porsche 963 GTP: its camera file\'s cockpit Z is 0.0 cm again, as before Racing Desk'],
-      saw: ['To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk – Porsche 963 GTP\' there'],
+      saw: ['To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk: Porsche 963 GTP\' there'],
     },
   });
   expect(view.undone).toEqual([
     { kind: 'did', text: 'the F24 key taken out of SmartControl Live.' },
     { kind: 'did', text: 'Porsche 963 GTP: its camera file\'s cockpit Z is 0.0 cm again, as before Racing Desk.' },
-    { kind: 'saw', text: 'To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk – Porsche 963 GTP\' there.' },
+    { kind: 'saw', text: 'To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk: Porsche 963 GTP\' there.' },
   ]);
   expect(model.resultLines({ ok: false, why: null, did: [], saw: ['SmartControl was left as it is: close the SmartControl editor, then press undo again'] }))
     .toEqual([{ kind: 'error', text: 'SmartControl was left as it is: close the SmartControl editor, then press undo again.' }]);
@@ -79,5 +79,5 @@ test('the words: plain, no trial, no step codes', () => {
     expect(s, s).not.toMatch(/\btrial\b/i);
     expect(s, s).not.toMatch(/\b(0a|0b|[ABC]\d{1,2})\b/);
   }
-  expect(model.UNDO_ASK).toBe('This turns both off, takes Racing Desk’s profile and its F24 key out of SmartControl, and puts back the seat heights it kept in app.ini and the cars’ camera files. Close iRacing and the SmartControl editor first. Go on?');
+  expect(model.UNDO_ASK).toBe('This turns both off, takes Racing Desk’s profiles (one for each car, with anything you changed in them, and the one F24 switches) and its F24 key out of SmartControl, and puts back the seat heights it kept in app.ini and the cars’ camera files. Close iRacing and the SmartControl editor first. Go on?');
 });

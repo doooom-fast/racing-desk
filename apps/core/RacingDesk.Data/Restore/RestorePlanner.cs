@@ -58,9 +58,16 @@ namespace RacingDesk.Data.Restore
         public string State { get; set; }
         public string Why { get; set; }
 
-        /// <summary>The profile's bytes, the base's with the force, its hash and the Description changed; and their SHA-256.</summary>
+        /// <summary>
+        /// The car's own profile as it would be made (or made again): the base's bytes with the force, its hash and the
+        /// Description changed; and their SHA-256. Once the car has one in SmartControl, what is on the pedals is that profile as it
+        /// stands, not these.
+        /// </summary>
         public byte[] Bytes { get; set; }
         public string Sha { get; set; }
+
+        /// <summary>The name the car's own profile has in SmartControl now (as he may have renamed it); null while it has none.</summary>
+        public string RowName { get; set; }
 
         /// <summary>The sentence the Cars page's Pedals panel shows.</summary>
         public string Words { get; set; }
@@ -265,6 +272,12 @@ namespace RacingDesk.Data.Restore
             p.State = "on";
             p.Words = $"Put on when you get in and stop with the brake released: {p.BaseName} at {p.Kg} kg"
                       + (p.KgFrom == "base" ? ", its own force, as you haven't set one in this car." : ", the force you last set in it.");
+
+            // Its own profile in SmartControl, once it has one: the sentence says where to change it.
+            var ownRow = store.CarSmartControlOf(car);
+            p.RowName = ownRow == null ? null : smartControl?.Profiles.FirstOrDefault(x => x.Id == ownRow.ProfileId)?.Name?.Trim();
+            if (!string.IsNullOrEmpty(p.RowName))
+                p.Words += $" Its own profile in SmartControl is {p.RowName}: change its curve or force there and Racing Desk keeps it.";
             return p;
         }
 

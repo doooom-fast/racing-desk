@@ -82,35 +82,50 @@ namespace RacingDesk.Data.Restore
 
     /// <summary>
     /// A SmartControl profile of a car's own (schema v9, <c>car_smartcontrol</c>), known by its id, never by what it says of
-    /// itself. Nothing makes one now — the cars' brakes go through the one switch profile — but a row an earlier build made is
-    /// still Racing Desk's: the writer may change it, and undo takes it away.
+    /// itself or by its name (he may rename it): made the first time the car loads, holding his rule's base at the car's force,
+    /// and the one he tunes in the SmartControl editor. It is never loaded on the pedals itself: at the switch it is copied, as
+    /// it stands, into the switch profile (<see cref="SmartControlSwitch"/>), and F24 loads that. The writer may change it and
+    /// undo takes it away.
     /// </summary>
     public sealed class CarSmartControl
     {
         public string CarPath { get; set; }
         public string ProfileId { get; set; }
+
+        /// <summary>The name Racing Desk gave it; the row may have been renamed since.</summary>
         public string ProfileName { get; set; }
         public string BaseName { get; set; }
         public string BaseId { get; set; }
         public DateTime MadeAtUtc { get; set; }
 
-        /// <summary>SHA-256 of the bytes Racing Desk last wrote: a row that differs has been edited in SmartControl.</summary>
+        /// <summary>
+        /// SHA-256 of the bytes Racing Desk last wrote (made, made again, or the force put in): a row that differs has been
+        /// changed in SmartControl since.
+        /// </summary>
         public string WrittenSha { get; set; }
+
+        /// <summary>
+        /// The force the row held when Racing Desk last wrote or looked at it: a row that holds another force now has had its
+        /// force changed in SmartControl, and that force is the car's (his edit wins; it is taken into the store).
+        /// </summary>
         public double WrittenKg { get; set; }
         public DateTime WrittenAtUtc { get; set; }
 
-        /// <summary>A force kept at the car's exit while the SmartControl editor was open, written once it is closed.</summary>
+        /// <summary>Not used by the cars' own profiles: a force the store holds that the row does not is simply waiting to be written.</summary>
         public double? WaitingKg { get; set; }
         public DateTime? WaitingAtUtc { get; set; }
 
+        /// <summary>"made" (as Racing Desk wrote it, so a base he chooses for the car later makes it again) or "edited" (he has changed it: it is his now).</summary>
         public string State { get; set; } = "made";
+
+        /// <summary>When it was last copied into the switch profile.</summary>
         public DateTime? SwitchedAtUtc { get; set; }
     }
 
     /// <summary>
     /// The one profile Racing Desk switches the pedals to, with F24 bound to it in his "Default" Live preset (schema v9,
-    /// <c>smartcontrol_switch</c>, one row): the car's brakes are written into it when he is parked in that car, and F24 is
-    /// sent once.
+    /// <c>smartcontrol_switch</c>, one row): the car's own profile is copied into it, as it stands, when he is parked in that
+    /// car, and F24 is sent once.
     /// </summary>
     public sealed class SmartControlSwitch
     {

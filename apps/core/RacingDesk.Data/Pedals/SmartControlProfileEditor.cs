@@ -237,9 +237,12 @@ namespace RacingDesk.Data.Pedals
             return all;
         }
 
-        /// <summary>The words the switch profile says of itself while it holds a car's brakes, where its base has a Description.</summary>
+        /// <summary>
+        /// The words a car's own profile says of itself, where its base has a Description. The switch profile is a copy of it, so
+        /// it says the same while it holds that car.
+        /// </summary>
         public static string DescriptionFor(string carName, string baseName) =>
-            $"Racing Desk puts the brakes of the car you are in here: now the {carName}'s, from {baseName}.";
+            $"Racing Desk's profile for the {carName}, from {baseName}. It goes on the pedals when you get in that car.";
 
         /// <summary>His profiles' names, for a name that must not be one of them.</summary>
         public static string UniqueName(string wanted, IEnumerable<string> taken)

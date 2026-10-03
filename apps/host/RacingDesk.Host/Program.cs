@@ -243,6 +243,7 @@ Data options:
                     StorePath = db,
                     Files = new ViewFiles(CarViewRecorder.DefaultDocuments, Path.Combine(root, "backups", "view"), probe, db),
                     Backups = Path.Combine(root, "backups"),
+                    TelemetryDir = o.TelemetryDir ?? IbtIngest.DefaultTelemetryDirectory,       // names and times alone: has a session run without Racing Desk?
                     Probe = probe,
                     Keys = new KeySender(),
                     PressesThisRun = () => pedals?.PressesThisRun ?? 0,

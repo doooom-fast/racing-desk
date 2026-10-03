@@ -141,7 +141,7 @@ test('undo asks first, and says what it did under it', async ({ page }) => {
     undone: {
       ok: true,
       did: ['the F24 key taken out of SmartControl Live', 'Porsche 963 GTP: its camera file\'s cockpit Z is 0.0 cm again, as before Racing Desk'],
-      saw: ['To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk – Porsche 963 GTP\' there'],
+      saw: ['To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk: Porsche 963 GTP\' there'],
     },
   });
   await openDesk(page, '#settings');
@@ -150,7 +150,7 @@ test('undo asks first, and says what it did under it', async ({ page }) => {
   page.once('dialog', (d) => { asked.push(d.message()); d.dismiss(); });
   await card.locator('#restore-undo').click();
   await expect.poll(() => asked.length).toBe(1);
-  expect(asked[0]).toBe('This turns both off, takes Racing Desk’s profile and its F24 key out of SmartControl, and puts back the seat heights it kept in app.ini and the cars’ camera files. Close iRacing and the SmartControl editor first. Go on?');
+  expect(asked[0]).toBe('This turns both off, takes Racing Desk’s profiles (one for each car, with anything you changed in them, and the one F24 switches) and its F24 key out of SmartControl, and puts back the seat heights it kept in app.ini and the cars’ camera files. Close iRacing and the SmartControl editor first. Go on?');
   await page.waitForTimeout(100);
   expect(await commands(page)).toEqual([]);
 
@@ -160,7 +160,7 @@ test('undo asks first, and says what it did under it', async ({ page }) => {
   await expect(card.locator('.restore-undo li')).toHaveText([
     'the F24 key taken out of SmartControl Live.',
     'Porsche 963 GTP: its camera file\'s cockpit Z is 0.0 cm again, as before Racing Desk.',
-    'To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk – Porsche 963 GTP\' there.',
+    'To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk: Porsche 963 GTP\' there.',
   ]);
   await expect(card.locator('#restore-brakes')).not.toBeChecked();
   await expect(card.locator('#restore-height')).not.toBeChecked();
