@@ -247,6 +247,7 @@ Data options:
                     Keys = new KeySender(),
                     Force = () => pedals?.Now,
                     PressesThisRun = () => pedals?.PressesThisRun ?? 0,
+                    ForceNotKnown = () => pedals?.ForceNotKnown("F24 switched the profile under the pedals"),
                     Log = m => Log.Info("[RacingDesk.Host] " + m),
                 }, Path.Combine(root, "restore.json"));
                 if (api != null) api.Restore.Director = restore;

@@ -72,6 +72,18 @@ namespace RacingDesk.Data.Restore
         /// <summary>The telemetry's last word on where he is (for B2's flags).</summary>
         public Func<SeatFacts> LastFacts { get; set; } = () => null;
 
+        /// <summary>
+        /// Whether he is parked now, by the parked rule on the newest frame (the director keeps it up to date on every frame); null
+        /// before a frame, and after the sim has gone. Asked right before a key is sent, on facts that are fresh.
+        /// </summary>
+        public Func<ParkedNow> Parked { get; set; } = () => null;
+
+        /// <summary>
+        /// Told when F24 has gone: a profile was switched under the pedals, so the force his keys had been followed to is the old
+        /// profile's, not the pedals' — it is not known again until a key sets one (docs/view-and-pedals-plan.md, D6).
+        /// </summary>
+        public Action ForceNotKnown { get; set; } = () => { };
+
         public Func<RestoreSwitches> Switches { get; set; } = () => new RestoreSwitches();
 
         public Action<string> Log { get; set; } = _ => { };

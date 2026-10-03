@@ -42,15 +42,24 @@ namespace RacingDesk.Data.Restore
             _ctx = ctx ?? throw new ArgumentNullException(nameof(ctx));
         }
 
+        /// <summary>
+        /// The steps of Part A that write SmartControl's database or send F24: for the sim closed. A profile or a key sent while he
+        /// drives would reach the pedals under his foot (Live loads the row as soon as the key is heard), so they refuse while it runs.
+        /// </summary>
+        private static readonly string[] ForTheSimClosed = { "A2", "A4", "A5", "A6", "A7" };
+
         public StepResult Run(string actionId)
         {
             var step = RestoreGate.StepOfAction(actionId ?? "");
             if (step == null) return StepResult.No(actionId, "there is no such step");
             string action = step.Actions.First(a => string.Equals(a.Id, actionId, StringComparison.OrdinalIgnoreCase)).Id;
-            StepResult r;
+            // A step for the sim closed is refused before it does anything, and before it is asked anything else.
+            StepResult r = ForTheSimClosed.Contains(action) && _ctx.Probe.SimRunning()
+                ? StepResult.No(action, $"iRacing is running: {action} is a step for the sim closed, because a profile or a key sent now would reach the pedals under your foot. Exit the sim first")
+                : null;
             try
             {
-                r = action switch
+                r = r ?? action switch
                 {
                     "0a" => WhatWouldMove(),
                     "0b" => BackUpEverything(),
@@ -261,12 +270,22 @@ namespace RacingDesk.Data.Restore
             }
             if (!_ctx.Probe.LiveRunning()) { r.Refused = r.Did.Count == 0; r.Why = "SmartControl Live is not running: the key would do nothing"; return r; }
             _ctx.Sleep(_ctx.SendDelay);
+            // The wait is for putting a window in front, and a lot can happen in it: the sim is asked again.
+            bool simUp = _ctx.Probe.SimRunning();
+            if (!needSim && simUp) { r.Why = $"iRacing started while Racing Desk waited: {action} is for the sim closed, and nothing was sent"; return r; }
+            if (needSim && !simUp) { r.Why = "the sim is not running any more: nothing was sent"; return r; }
             string front = _ctx.Probe.ForegroundProcess();
             bool? elevated = _ctx.Probe.ForegroundElevated();
             if (front == null) { r.Why = "no window was in front: nothing was sent"; return r; }
             if (elevated != false) { r.Why = $"{front} is in front and Racing Desk cannot tell that it is not elevated: Windows would drop the key, so nothing was sent"; return r; }
             if (needSim && !WindowsRigProbe.SimProcesses.Contains(front, StringComparer.OrdinalIgnoreCase)) { r.Why = $"{front} was in front, not iRacing: nothing was sent"; return r; }
             if (!_ctx.Probe.LiveRunning()) { r.Why = "SmartControl Live stopped: nothing was sent"; return r; }
+            // In the sim, only parked: the frames are asked once more now, after the wait, not the click's.
+            if (needSim)
+            {
+                string notParked = NotParked(_ctx.Parked());
+                if (notParked != null) { r.Why = notParked + ": nothing was sent"; return r; }
+            }
             // C1 is owed from the moment the key goes: it is written down first, so that nothing after the press can lose it.
             DateTime? before;
             using (var store = _ctx.OpenStore())
@@ -286,9 +305,24 @@ namespace RacingDesk.Data.Restore
                 r.Why = "Windows took no part of the key";
                 return r;
             }
+            // A profile was switched under the pedals: the force his keys had been followed to is not the pedals' now.
+            _ctx.ForceNotKnown();
             r.Did.Add($"{RestorePolicy.SwitchKey} sent, {_ctx.SendDelay.TotalSeconds:0} s after the click, with {front} in front");
             r.Ok = true;
             return r;
+        }
+
+        /// <summary>
+        /// Why he is not parked on the newest frame, in words; null when he is: the frame is fresh, and the parked rule — a place
+        /// the brakes may be switched in, still for a second, the brake released — holds on it.
+        /// </summary>
+        private string NotParked(ParkedNow park)
+        {
+            if (park == null) return "no frame has come from the sim to say you are parked";
+            double age = (_ctx.Now() - park.FactsAtUtc).TotalSeconds;
+            if (age > RestorePolicy.FactsFreshFor.TotalSeconds) return $"the sim's last frame is {age:0} s old, so it cannot say you are parked";
+            if (!park.Parked) return $"you are not parked ({park.Why})";
+            return null;
         }
 
         private StepResult Rewrite(string action, string baseName, int kg)
@@ -506,6 +540,8 @@ namespace RacingDesk.Data.Restore
             if (facts == null || !string.Equals(facts.CarPath, car, StringComparison.OrdinalIgnoreCase))
                 return StepResult.No("B2", $"the sim is not in the {car} (it says {facts?.CarPath ?? "nothing yet"})");
             if (!_ctx.Probe.LiveRunning()) return StepResult.No("B2", "SmartControl Live is not running");
+            string early = NotParked(_ctx.Parked());
+            if (early != null) return StepResult.No("B2", early + ": nothing was written or sent");
             var r = new StepResult();
             using var store = _ctx.OpenStore();
             var sw = store.SmartControlSwitchRow();

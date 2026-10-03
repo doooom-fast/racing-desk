@@ -27,6 +27,7 @@ namespace RacingDesk.Data.Restore
         private Task _work = Task.CompletedTask;
         private Run _run;
         private SeatFacts _last;
+        private ParkedNow _parkedNow;
 
         // The dry run, kept for a little: the desk asks every time it shows a car, and it reads files and two databases.
         private RestorePlan _plan;
@@ -49,6 +50,7 @@ namespace RacingDesk.Data.Restore
             _switches = RestoreSwitches.Load(switchesFile);
             _ctx.Switches = () => Switches;
             _ctx.LastFacts = () => { lock (_gate) return _last; };
+            _ctx.Parked = () => { lock (_gate) return _parkedNow; };
             FirstRun = new FirstRun(_ctx);
         }
 
@@ -147,6 +149,7 @@ namespace RacingDesk.Data.Restore
                 {
                     _run = new Run { Car = f.CarPath.Trim(), Name = string.IsNullOrWhiteSpace(f.CarName) ? f.CarPath.Trim() : f.CarName.Trim() };
                     _parked.Reset();
+                    _parkedNow = null;
                     started = _run;
                 }
                 car = _run.Car;
@@ -155,7 +158,11 @@ namespace RacingDesk.Data.Restore
                     _run.FlagsLogged = true;
                     flags = f.Flags();
                 }
-                if (!_run.ParkedSaid && _parked.Parked(f, out place, out _))
+                // Asked of every frame, so that the second he has been still is counted from the frames themselves, and the newest
+                // answer is what a key is checked against right before it goes (a click's frame is seconds old by then).
+                bool parked = _parked.Parked(f, out place, out string whyNot);
+                _parkedNow = new ParkedNow { Parked = parked, Place = place, Why = whyNot, FactsAtUtc = f.AtUtc };
+                if (!_run.ParkedSaid && parked)
                 {
                     _run.ParkedSaid = true;
                     parkedRun = _run;
@@ -167,12 +174,17 @@ namespace RacingDesk.Data.Restore
             if (parkedRun != null) { string at = place; Queue(() => Parked(parkedRun, at)); }
         }
 
-        /// <summary>The sim has stopped sending: the next car, or the same car again, is a run of its own.</summary>
+        /// <summary>
+        /// The sim has stopped sending: the next car, or the same car again, is a run of its own. The last frame goes with it, so
+        /// that nothing acts on a previous session's frame (B2's flags and its switch go by the frame, and a stale one is a lie).
+        /// </summary>
         public void SimGone()
         {
             lock (_gate)
             {
                 _run = null;
+                _last = null;
+                _parkedNow = null;
                 _parked.Reset();
             }
         }

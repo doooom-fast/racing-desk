@@ -184,6 +184,24 @@ namespace RacingDesk.Data.Pedals
         }
 
         /// <summary>
+        /// A profile was switched under the pedals (F24 sent by Racing Desk, with Live listening): the force the keys had been followed
+        /// to is the old profile's, not the pedals'. It is not known again until a key sets one, so that a force from before the
+        /// switch is never kept for the car, and what raising and lowering add up to afterwards cancels to nothing rather than
+        /// to a number (docs/view-and-pedals-plan.md, D6: the switched profile's own force is counted only once the switch is
+        /// proven, in a build that switches).
+        /// </summary>
+        public void ForceNotKnown(string why)
+        {
+            lock (_gate)
+            {
+                _leftKg = null;
+                if (_carPath == null || _force == null) return;
+                _force.Doubt();
+                _log("pedals: the brake force is not known after " + (string.IsNullOrWhiteSpace(why) ? "a switch" : why) + "; it is known again when a key sets one");
+            }
+        }
+
+        /// <summary>
         /// The sim has stopped sending, or the host is stopping: what the run left is handed over before this
         /// returns, and the keys are let go.
         /// </summary>

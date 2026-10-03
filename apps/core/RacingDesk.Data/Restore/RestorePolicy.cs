@@ -56,6 +56,9 @@ namespace RacingDesk.Data.Restore
         /// <summary>For at least this long, so that a profile is never put on the pedals as he moves off.</summary>
         public static readonly TimeSpan StillFor = TimeSpan.FromSeconds(1);
 
+        /// <summary>The frame the parked rule is asked of, right before a key, is no older than this.</summary>
+        public static readonly TimeSpan FactsFreshFor = TimeSpan.FromSeconds(3);
+
         /// <summary>The brake released: below this fraction of its travel. A new force under his foot would jump the brake.</summary>
         public const double BrakeReleasedBelow = 0.02;
 

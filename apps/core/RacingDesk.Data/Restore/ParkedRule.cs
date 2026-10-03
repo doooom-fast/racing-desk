@@ -42,6 +42,21 @@ namespace RacingDesk.Data.Restore
         private static int B(bool v) => v ? 1 : 0;
     }
 
+    /// <summary>Whether he is parked at the newest frame, by the parked rule, and how old that frame is: asked right before a key is sent.</summary>
+    public sealed class ParkedNow
+    {
+        public bool Parked { get; set; }
+
+        /// <summary>"garage screen" or "pit stall" when parked; the place he is in otherwise, if it is one.</summary>
+        public string Place { get; set; }
+
+        /// <summary>What is not so, in words, when he is not parked.</summary>
+        public string Why { get; set; }
+
+        /// <summary>When the frame these facts are from came.</summary>
+        public DateTime FactsAtUtc { get; set; }
+    }
+
     /// <summary>
     /// When he is parked, which is the only moment the brakes may be switched (docs/view-and-pedals-plan.md, the critique's
     /// B4 and B5): on the garage screen or in the pit stall; never on track, in the pit lane or in a replay file; still for at

@@ -190,6 +190,8 @@ namespace RacingDesk.Tests.Restore
             _rig.Probe.Live = true;
             Assert.That(Step("B2").Refused, Is.True, "the sim is not running");
             _rig.Probe.Sim = true;
+            // Parked at the garage screen: still for a second and a half by the frames themselves, the newest now.
+            _director.See(new SeatFacts { CarPath = Car, CarName = "Porsche 963 GTP", IsInGarage = true, SimMode = "full", AtUtc = DateTime.UtcNow.AddSeconds(-1.5) });
             _director.See(new SeatFacts { CarPath = Car, CarName = "Porsche 963 GTP", IsInGarage = true, SimMode = "full", AtUtc = DateTime.UtcNow });
             Assert.That(Step("B2-flags").Ok, Is.True);
 
@@ -353,20 +355,20 @@ namespace RacingDesk.Tests.Restore
     }
 
     /// <summary>
-    /// C1, his own profile and force again: owed after any F24 that went, until he says they are back; the look at the pedals'
-    /// memory comes first, and after the last press; and what it shows can fail the brakes part. Racing Desk presses nothing and
-    /// writes nothing in it.
+    /// A rig with the Racing Desk profile made and F24 bound (0b and A2 done, with both programs closed), Live running again, and a
+    /// clock the test holds: by default every look at it is a second later, so what came after what is certain.
     /// </summary>
-    [TestFixture]
-    public class ClosingTests
+    public abstract class MadeSwitchTests
     {
-        private RestoreRig _rig;
-        private RestoreDirector _director;
-        private DateTime _clock;
-        private const string Car = RestoreGate.TestCar;
+        private protected RestoreRig _rig;
+        protected RestoreDirector _director;
+        protected RestoreContext _ctx;
+        protected DateTime _clock;
+        protected bool _ticking = true;
+        protected const string Car = RestoreGate.TestCar;
 
         [SetUp]
-        public void SetUp()
+        public void MakeTheSwitch()
         {
             _rig = new RestoreRig();
             _rig.AppIni(-0.035);
@@ -375,9 +377,10 @@ namespace RacingDesk.Tests.Restore
             _rig.SmartControl();
             _rig.StoreWithCars((Car, "Porsche 963 GTP", -0.02, true, 0.0, "Default", RestoreRig.DefaultId, 70.0, "rule"));
             _clock = new DateTime(2026, 10, 2, 20, 0, 0, DateTimeKind.Utc);
-            var ctx = _rig.Context();
-            ctx.Now = () => _clock = _clock.AddSeconds(1);      // every look at the clock is a second later: what came after what is certain
-            _director = new RestoreDirector(ctx, null);
+            _ticking = true;
+            _ctx = _rig.Context();
+            _ctx.Now = () => _ticking ? _clock = _clock.AddSeconds(1) : _clock;
+            _director = new RestoreDirector(_ctx, null);
             _rig.Probe.Live = false;
             _rig.Probe.Editor = false;
             Assert.That(_director.RunStep("0b").Ok, Is.True);
@@ -385,22 +388,31 @@ namespace RacingDesk.Tests.Restore
             _rig.Probe.Live = true;
         }
 
-        [TearDown] public void TearDown() => _rig.Dispose();
+        [TearDown] public void TearDownTheRig() => _rig.Dispose();
 
-        private StepResult Step(string id) => _director.RunStep(id);
+        protected StepResult Step(string id) => _director.RunStep(id);
 
-        private ClosingState Closing()
+        protected ClosingState Closing()
         {
             using var store = new RacingDeskStore(_rig.Store);
             return RestoreClosing.Of(store);
         }
 
-        private IReadOnlyList<RestoreCheck> Checks()
+        protected IReadOnlyList<RestoreCheck> Checks()
         {
             using var store = new RacingDeskStore(_rig.Store);
             return store.RestoreChecks();
         }
+    }
 
+    /// <summary>
+    /// C1, his own profile and force again: owed after any F24 that went, until he says they are back; the look at the pedals'
+    /// memory comes first, and after the last press; and what it shows can fail the brakes part. Racing Desk presses nothing and
+    /// writes nothing in it.
+    /// </summary>
+    [TestFixture]
+    public class ClosingTests : MadeSwitchTests
+    {
         /// <summary>The look at the pedals: Live quit, the pedals plugged back in, SmartControl open.</summary>
         private void Looking() { _rig.Probe.Live = false; _rig.Probe.Editor = true; _rig.Probe.Pedals = true; }
 
@@ -576,6 +588,142 @@ namespace RacingDesk.Tests.Restore
             Assert.That(RestoreGate.Step("C1").Actions.Select(a => a.Id), Is.EqualTo(new[] { "C1-own", "C1-id", "C1-values", "C1" }));
             Assert.That(RestoreGate.Step("C1").Actions.Any(a => a.Writes || a.Presses), Is.False, "it presses and writes nothing");
             Assert.That(_director.RunStep("A8").Refused, Is.True);
+        }
+    }
+
+    /// <summary>
+    /// What stops a profile or a key from reaching the pedals when he is not ready for it: Part A's steps refuse while the sim runs,
+    /// B2 switches only when he is parked on fresh frames — asked again right before the key — and nothing acts on a frame from a
+    /// session that is over. The key sender and the machine are made up; the clock is the test's.
+    /// </summary>
+    [TestFixture]
+    public class SwitchingSafetyTests : MadeSwitchTests
+    {
+        private static SeatFacts Frame(DateTime at, double speed = 0, double brake = 0) => new SeatFacts
+        {
+            CarPath = Car, CarName = "Porsche 963 GTP", IsInGarage = true, SimMode = "full", SpeedMs = speed, Brake = brake, AtUtc = at,
+        };
+
+        /// <summary>The sim runs and he is parked at the garage screen: two frames a second and a half apart, the newest now.</summary>
+        private void Park()
+        {
+            _ticking = false;
+            _rig.Probe.Sim = true;
+            _rig.Probe.Front = "iRacingSim64DX11";
+            _director.See(Frame(_clock.AddSeconds(-1.5)));
+            _director.See(Frame(_clock));
+            Assert.That(_director.Settled().Wait(TimeSpan.FromSeconds(20)), Is.True);
+        }
+
+        [Test]
+        public void A2AndA4ToA7_AreForTheSimClosed_AndDoNothingWhileItRuns()
+        {
+            _rig.Probe.Sim = true;
+            string db = _rig.FileSha(_rig.SmartControlDb);
+            foreach (string step in new[] { "A2", "A4", "A5", "A6", "A7" })
+            {
+                var r = Step(step);
+                Assert.That(r.Refused, Is.True, step);
+                Assert.That(r.Why, Does.Contain("iRacing is running").And.Contain("a step for the sim closed"), step);
+            }
+            Assert.That(_rig.Keys.Sent, Is.Zero);
+            Assert.That(_rig.FileSha(_rig.SmartControlDb), Is.EqualTo(db), "SmartControl's database, to the byte");
+            Assert.That(Closing().Owed, Is.False);
+            // What only looks goes on while the sim runs.
+            Assert.That(Step("A1").Refused, Is.False);
+            Assert.That(Step("A3").Refused, Is.False);
+        }
+
+        [Test]
+        public void TheSimStartingWhileRacingDeskWaitsForTheWindow_StopsTheKey()
+        {
+            _ctx.Sleep = _ => _rig.Probe.Sim = true;       // he starts the sim in the five seconds he has to put a window in front
+            var r = Step("A4");
+            Assert.That(r.Ok, Is.False);
+            Assert.That(r.Why, Does.Contain("iRacing started while Racing Desk waited").And.Contain("nothing was sent"));
+            Assert.That(_rig.Keys.Sent, Is.Zero);
+            Assert.That(Closing().Owed, Is.False, "no key went, so nothing is owed");
+        }
+
+        [Test]
+        public void B2_SwitchesWhenParkedOnFreshFrames_AndTellsTheRecorderThatTheForceIsNotKnown()
+        {
+            int told = 0;
+            _ctx.ForceNotKnown = () => told++;
+            Park();
+            var b2 = Step("B2");
+            Assert.That(b2.Ok, Is.True, b2.Text);
+            Assert.That(_rig.Keys.Sent, Is.EqualTo(1));
+            Assert.That(told, Is.EqualTo(1), "a profile was switched under the pedals: the force his keys had followed is not theirs");
+            Assert.That(Closing().Owed, Is.True);
+        }
+
+        [TestCase(6.0, 0.0, "moving")]
+        [TestCase(0.0, 0.3, "the brake is pressed")]
+        public void B2_AsksWhetherHeIsParked_BeforeItWritesAnything_AndRefuses(double speed, double brake, string reason)
+        {
+            Park();
+            _director.See(Frame(_clock, speed, brake));
+            string db = _rig.FileSha(_rig.SmartControlDb);
+            var r = Step("B2");
+            Assert.That(r.Refused, Is.True);
+            Assert.That(r.Why, Does.Contain($"you are not parked ({reason}): nothing was written or sent"));
+            Assert.That(_rig.Keys.Sent, Is.Zero);
+            Assert.That(_rig.FileSha(_rig.SmartControlDb), Is.EqualTo(db), "SmartControl's database, to the byte");
+        }
+
+        [Test]
+        public void B2_RefusesOnFramesThatAreOld_OrThatHaveNotSeenHimStillForASecond()
+        {
+            Park();
+            _clock = _clock.AddSeconds(10);                 // the telemetry stopped: the newest frame is ten seconds old
+            var old = Step("B2");
+            Assert.That(old.Refused, Is.True);
+            Assert.That(old.Why, Does.Contain("the sim's last frame is 10 s old").And.Contain("cannot say you are parked"));
+
+            _director.SimGone();
+            _rig.Probe.Sim = true;
+            _director.See(Frame(_clock));                    // the first frame of a new session: his stillness starts with it
+            var soon = Step("B2");
+            Assert.That(soon.Refused, Is.True);
+            Assert.That(soon.Why, Does.Contain("not still for a second yet"));
+            Assert.That(_rig.Keys.Sent, Is.Zero);
+        }
+
+        [Test]
+        public void B2_AsksAgainRightBeforeTheKey_NotJustAtTheClick()
+        {
+            Park();
+            // He drives off in the seconds Racing Desk waits for the window: the click's frame was parked, the newest is not.
+            _ctx.Sleep = _ => _director.See(Frame(_clock, speed: 8));
+            var r = Step("B2");
+            Assert.That(r.Ok, Is.False);
+            Assert.That(r.Why, Does.Contain("you are not parked (moving): nothing was sent"));
+            Assert.That(_rig.Keys.Sent, Is.Zero, "no key went");
+            Assert.That(Closing().Owed, Is.False);
+            Assert.That(SmartControl.Read(_rig.SmartControlDb).Profiles.Select(p => p.Name), Has.Member("Racing Desk – Porsche 963 GTP"),
+                "the row was written first, as a row is: writing it moves nothing, and the key is what Live acts on");
+        }
+
+        [Test]
+        public void TheLastFrame_GoesWithTheSession_SoNothingActsOnAPreviousOne()
+        {
+            Park();
+            Assert.That(_ctx.LastFacts(), Is.Not.Null);
+            Assert.That(_ctx.Parked(), Is.Not.Null);
+            _director.SimGone();
+            Assert.That(_ctx.LastFacts(), Is.Null);
+            Assert.That(_ctx.Parked(), Is.Null);
+            Assert.That(_director.Now(), Is.Null);
+
+            // The probe still says the sim is up (it takes a moment to go): B2 has no frame to go by, and does nothing.
+            var flags = Step("B2-flags");
+            Assert.That(flags.Ok, Is.False);
+            Assert.That(flags.Saw, Has.Some.Contains("no telemetry has come from the sim yet"));
+            var b2 = Step("B2");
+            Assert.That(b2.Refused, Is.True);
+            Assert.That(b2.Why, Does.Contain("it says nothing yet"));
+            Assert.That(_rig.Keys.Sent, Is.Zero);
         }
     }
 }

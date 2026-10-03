@@ -423,6 +423,48 @@ namespace RacingDesk.Tests.Pedals
         }
 
         [Test]
+        public void AProfileSwitchedUnderThePedals_MakesTheForceNotKnown_SoNothingFromBeforeItIsKeptForTheCar()
+        {
+            var run = new Run(RigKeys());
+            run.GetIn(Gtp);
+            run.Tap(Gtp, PageDown);
+            Assert.That(run.Recorder.Now.ForceKg, Is.EqualTo(30));
+
+            // F24 switched the profile: the 30 kg is the old profile's. A +5 and a -5 after it cancel out, and do not make it known.
+            run.Recorder.ForceNotKnown("a switch");
+            Assert.That(run.Recorder.Now.ForceKg, Is.Null);
+            run.Tap(Gtp, RightCtrl, Up);
+            run.Tap(Gtp, RightCtrl, Down);
+            Assert.That(run.Recorder.Now.ForceKg, Is.Null, "+5 and -5 from a force that is not known are a change of nothing, not a force");
+            Assert.That(run.Recorder.PressesThisRun, Is.EqualTo(3), "his keys were pressed in this car all the same: his key wins");
+
+            run.Recorder.SimGone();
+            var left = run.Saved.Single();
+            Assert.That((left.ForceKg, left.ChangeKg, left.Presses), Is.EqualTo(((double?)null, 0.0, 3)), "so no force is kept for the car");
+            Assert.That(run.Log, Has.Some.EqualTo("pedals: the brake force is not known after a switch; it is known again when a key sets one"));
+
+            // A key that sets a force makes it known again.
+            var again = new Run(RigKeys());
+            again.GetIn(Gtp);
+            again.Recorder.ForceNotKnown("a switch");
+            again.Tap(Gtp, PageUp);
+            Assert.That(again.Recorder.Now.ForceKg, Is.EqualTo(50));
+        }
+
+        [Test]
+        public void AForceThatWasCarriedFromTheCarBefore_IsNotCarriedPastASwitch()
+        {
+            var run = new Run(RigKeys());
+            run.GetIn(Honda);
+            run.Tap(Honda, PageUp);
+            run.Recorder.SimGone();                      // 50 kg is carried to the next car, within the minute
+            run.Recorder.ForceNotKnown("a switch");      // ... unless F24 has changed the pedals since
+            run.Board.Tick(5000);
+            run.GetIn(Gtp);
+            Assert.That(run.Recorder.Now.ForceKg, Is.Null);
+        }
+
+        [Test]
         public void TheLogHasTheForceAndNeverTheKey()
         {
             var run = new Run(RigKeys());
