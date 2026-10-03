@@ -94,8 +94,10 @@
      theme — and the leaderboard's, the datastream's and the incidents' fainter 0.35 white with a rule beneath went.
      The tracking is the one thing changed from it: 0.08em was spacing for capitals, and sentence case takes half of
      that. Where a header sits in its panel (its padding and margins) is the panel's; what it looks like is here, and
-     the glance layout sizes it once for every cell (drive-view.css, --hdr-glance). */
-  :root { --hdr-size: var(--fs-xs); --hdr-weight: 700; --hdr-track: 0.04em; --hdr-color: var(--text-dim); }
+     the glance layout sizes it once for every cell (drive-view.css, --hdr-glance).
+     Later the same day he asked for headers larger in general and lighter than the data: Sofia Pro Comp Light (300) at
+     --fs-lg (13px), where the numbers are semi-bold to black; the glance layout's are larger to match (--hdr-glance). */
+  :root { --hdr-size: var(--fs-lg); --hdr-weight: 300; --hdr-track: 0.04em; --hdr-color: var(--text-dim); }
   .panel-label, .lb-header, .ds-header, .inc-label, .pb-tab, .race-timer-key {
     font-family: var(--ff);
     font-size: var(--hdr-size);

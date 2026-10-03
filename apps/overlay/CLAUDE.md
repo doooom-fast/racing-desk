@@ -120,14 +120,14 @@ the iPad, both pages OBS draws and the desk:
   `--hdr-track`, `--hdr-color`): `.lb-header`, `.ds-header`, `.inc-label`, `.panel-label` (the gaps' Ahead and Behind,
   the ratings', the laps panel's), `.pb-tab` (the pit box's tabs: the one that is open is white with its green rule
   beneath, as it was) and `.race-timer-key`, and in the glance layout the pit box's pages (`.pb-page::before`). Of the
-  two styles there were, the `.panel-label`'s: the HUD's face at its smallest size (`--fs-xs`), weight 700, the
+  two styles there were, the `.panel-label`'s: the HUD's face at its smallest size (`--fs-xs`), weight 700 — since the same evening, when he asked for headers larger in general and lighter than the data, Light (300) at `--fs-lg` (13px) — the
   theme's dim text colour (`--text-dim`), no rule beneath, and tracking of 0.04em, half its 0.08em, which was spacing
   for capitals. The other — 0.12em, white at 0.35 with a rule beneath: the leaderboard's, the datastream's and the
   incidents' — went. **Where it sits**: a panel's header is at its panel's top left, its text 11px in and 7px down
   from the panel's edge (the panel's border, its 6px and its 10px), the same for the leaderboard's, the datastream's
   and the incidents', on the rig and in the glance layout (`tests/unit/words-not-caps.spec.mjs`, "where it sits"; the
   leaderboard's and the incidents' were 2 to 4px off the datastream's). In the glance layout every one is one size,
-  `--hdr-glance` (`max(11px, min(1.35vmin, 15px))`, `drive-view.css`). **Not headers, and so not moved or restyled**
+  `--hdr-glance` (`max(14px, min(1.7vmin, 19px))`, `drive-view.css`; the gaps' Ahead and Behind on a line of their own height, so that they fit a 10.2" iPad's cell). **Not headers, and so not moved or restyled**
   (decided here and open to him): the labels that name a column and sit centred over it — Ahead and Behind, iRating
   and Safety, Laps to go — which have the one style and are placed by their column; the pit box's tab bar, whose tabs
   are centred across it and whose open tab is marked by white and its rule (a state, not a style); and the pedals'

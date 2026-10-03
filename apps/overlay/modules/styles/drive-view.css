@@ -45,8 +45,8 @@ body.drive-mode-active {
   --rd-glass-b: var(--ambient-b);
   --rd-bg: #050608;
   /* Every panel's header in this layout is one size, whatever its cell (dashboard.css, "One header for every panel"):
-     the label's 11px floor on an iPad, a little more on a larger screen, 15px at the most. */
-  --hdr-glance: max(11px, min(1.35vmin, 15px));
+     14px on an iPad, a little more on a larger screen, 19px at the most (11 to 15 until he asked for larger, lighter headers). */
+  --hdr-glance: max(14px, min(1.7vmin, 19px));
   background: var(--rd-bg) !important;
   position: fixed;
   inset: 0;
@@ -241,7 +241,7 @@ body.drive-mode-active #gapsBlock { grid-area: gaps; display: flex; flex-directi
    when the maps took their room) and are what they need now. */
 @container (max-height: 134px) { body.drive-mode-active #gapsBlock .gap-item .panel-label { display: none; } }
 body.drive-mode-active #gapsBlock .gap-item { gap: 0.4cqh; }
-body.drive-mode-active #gapsBlock .panel-label { font-size: var(--hdr-glance); }
+body.drive-mode-active #gapsBlock .panel-label { font-size: var(--hdr-glance); line-height: 1; margin-bottom: 0; }   /* the larger header's own line, no more: Ahead and Behind fit a 10.2" iPad's cell */
 body.drive-mode-active #gapsBlock .gap-time { font-size: max(20px, min(13.5cqh, 22cqw)); line-height: 1.1; }
 body.drive-mode-active #gapsBlock .gap-driver { font-size: max(11px, min(7cqh, 10cqw)); max-width: 100%; }
 /* The rig's driver name takes the body's tracking, 0.48px, which at its 10px is 0.048em: here its size is the cell's, so the

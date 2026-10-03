@@ -654,7 +654,7 @@ its Cars page):
   leaves out a label that only repeats the dial's generic name (ABS beside Anti-lock).
 - **One header for every panel** (`dashboard.css`, "One header for every panel"): the leaderboard's, the datastream's,
   the incidents', the gaps' Ahead and Behind, the ratings', the laps panel's, the pit box's tabs and pages and the
-  clock's key are one style — the HUD's face at its smallest size, bold, in the theme's dim text colour, 0.04em of
+  clock's key are one style — the HUD's face in Light (300) at `--fs-lg` (13px), larger than the data's labels and lighter than its numbers (he asked on 2026-10-02), in the theme's dim text colour, 0.04em of
   tracking, no rule beneath (the `.panel-label`'s of the two there were, its tracking halved for sentence case), at one
   size in the glance layout (`--hdr-glance`) — and the leaderboard's, the datastream's and the incidents' headers are
   one place, 11px in and 7px down from their panels' edges. **Open to him**: the labels over a column (Ahead and Behind,

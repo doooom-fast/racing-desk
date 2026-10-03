@@ -325,7 +325,9 @@ test.describe('one header for every panel', () => {
     }
     expect(one.caps).toBe('none');
     expect(one.rule).toBe('0px');
-    expect(one.weight).toBe('700');
+    // Larger than the data's labels and lighter than its numbers (he asked on 2026-10-02): Light at --fs-lg.
+    expect(one.weight).toBe('300');
+    expect(one.size).toBe('13px');
     // The dim text colour of the theme, and a tracking of 0.04 of the size.
     expect(one.colour).toBe('rgba(255, 255, 255, 0.55)');
     expect(parseFloat(one.tracking) / parseFloat(one.size)).toBeCloseTo(0.04, 3);
