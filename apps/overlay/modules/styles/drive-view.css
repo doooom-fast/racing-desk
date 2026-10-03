@@ -247,7 +247,9 @@ body.drive-mode-active #gapsBlock .gap-driver { font-size: max(11px, min(7cqh, 1
 /* The rig's driver name takes the body's tracking, 0.48px, which at its 10px is 0.048em: here its size is the cell's, so the
    tracking is given in em to stay the rig's. */
 body.drive-mode-active #gapsBlock .gap-driver { letter-spacing: 0.048em; }
-body.drive-mode-active #gapsBlock .gap-ir { font-size: max(11px, min(5.5cqh, 7.5cqw)); }
+/* The iRating is in a face whose letters are all one width, and the body's tracking (0.48px a letter) is 11px of a line like "3210
+   iRating · ▼0.5/lap": without it the words fit an iPad Air on its side (poll-engine.js _sayRating chooses the longest form that is whole). */
+body.drive-mode-active #gapsBlock .gap-ir { font-size: max(11px, min(5.5cqh, 7.5cqw)); letter-spacing: 0; }
 /* Beside the car's iRating, whether the gap to it is shrinking (▼) or growing (▲) over the last lap, green when that is
    good for him and red when it is not (gap-trend.js; poll-engine.js writes the words on the element). */
 body.drive-mode-active #gapsBlock .gap-ir[data-trend]::after { content: attr(data-trend); font-weight: 700; }
@@ -314,7 +316,7 @@ body.drive-mode-active .gl-overlay { width: 100%; height: 100%; }
       leaderboard.js counts how many rows the panel holds at that size. The race timeline stays at its foot. ── */
 body.drive-mode-active #leaderboardPanel { grid-area: lb; display: flex; flex-direction: column; gap: var(--rd-gap); background: none; border: none; }
 body.drive-mode-active #leaderboardPanel .lb-inner { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 0; }
-body.drive-mode-active .lb-header { font-size: var(--hdr-glance); padding: 0.3em 0.8em 0.45em; }
+body.drive-mode-active .lb-header { font-size: var(--hdr-glance); padding: 2px 10px 0.57em; }
 body.drive-mode-active #lbRows {
   flex: 1; min-height: 0; display: flex; flex-direction: column;
   font-size: clamp(14px, min(5cqw, 4.6cqh), 26px);
@@ -450,7 +452,16 @@ body.drive-mode-active .car-controls.car-controls-listed .ctrl-item.ctrl-off .ct
    MIG) leaves the room a long one needs (car-controls.js fits each label to its cell, its words where they are whole). */
 body.drive-mode-active .ctrl-mini { padding: 0 2px; flex: 1 1 auto; }
 body.drive-mode-active .ctrl-mini-label, body.drive-mode-active .ctrl-mini-value { line-height: 1.05; }
-body.drive-mode-active .ctrl-mini-label { font-size: max(11px, min(12cqh, 3cqw)); letter-spacing: 0; }
+body.drive-mode-active .ctrl-mini-label { font-size: calc(max(11px, min(12cqh, 3cqw)) * var(--mini-scale, 1)); letter-spacing: 0; }
+/* A row with more cells than the iPad has the width for (car-controls.js fitGlance): its cells close up (no border, 1px between
+   them and 1px of padding, the panel's own padding at 3px), then its labels go down
+   together from 11px to 9 (--mini-scale on the row); past that a label is cut at the edge of its own cell, as the rig's is, and
+   never runs into the next one's (the little room at the foot keeps the letters that hang below the line from being cut). */
+body.drive-mode-active .car-controls:has(#ctrlMore.ctrl-crowded) { padding-inline: 3px; }
+body.drive-mode-active .ctrl-more.ctrl-crowded { gap: 1px; }
+body.drive-mode-active .ctrl-more.ctrl-crowded .ctrl-mini { padding-inline: 1px; border-width: 0; }
+body.drive-mode-active .ctrl-more.ctrl-crowded .ctrl-mini.ctrl-mini-active { box-shadow: inset 0 0 0 1px hsla(150, 70%, 60%, 0.5); }
+body.drive-mode-active .ctrl-more.ctrl-crowded .ctrl-mini-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; padding-bottom: 0.15em; margin-bottom: -0.15em; }
 body.drive-mode-active .ctrl-mini-value { font-size: max(20px, min(20cqh, 5cqw)); }
 body.drive-mode-active .car-controls:has(#ctrlMore .ctrl-mini) { padding: 3px 6px; }
 body.drive-mode-active .car-controls:has(#ctrlMore .ctrl-mini) .ctrl-item { padding-block: 2px; }
@@ -563,6 +574,9 @@ body.drive-mode-active .pb-tire-circles {
     grid-template-rows: auto var(--pbr) auto;
   }
   body.drive-mode-active .pb-circle-cell .pb-circle-pos { position: static; grid-area: 1 / 1; justify-self: center; }
+  /* A line of its own over a ring in a cell of 125px or more: the words fit ("Right front" is about 70px at the floor). */
+  body.drive-mode-active .pb-circle-cell .pb-pos-words { display: inline; }
+  body.drive-mode-active .pb-circle-cell .pb-pos-short { display: none; }
   body.drive-mode-active .pb-circle-cell :is(.pb-wear-ring, .pb-circle-pct) { grid-area: 2 / 1; }
   body.drive-mode-active .pb-circle-cell .pb-circle-temp { grid-area: 3 / 1; }
 }
@@ -579,6 +593,10 @@ body.drive-mode-active .pb-circle-pct { grid-area: 1 / 1; place-self: center; fo
 /* The temperature: a caption to the ring's number, in the label's size and colour (it is the pits' reading, not live). */
 body.drive-mode-active .pb-circle-temp { grid-area: 2 / 1; font-size: max(11px, 0.55em); margin: 0; line-height: 1.2; white-space: nowrap; color: var(--text-dim); letter-spacing: 0.02em; }
 body.drive-mode-active .pb-circle-pos { position: absolute; top: 0; left: 0; font-size: max(11px, 0.55em); margin: 0; }
+/* Beside the ring's shoulder there is no room for "Right front": the corner's letters, as they were. The rig's pit box has
+   the words (pitbox.css), and so has the short wide box's, over each ring (above). */
+body.drive-mode-active .pb-pos-words { display: none; }
+body.drive-mode-active .pb-pos-short { display: inline; }
 body.drive-mode-active #pbCircleRF .pb-circle-pos, body.drive-mode-active #pbCircleRR .pb-circle-pos { left: auto; right: 0; }
 /* Each corner's name at the top of its cell, beside the ring's shoulder, the rear pair too: at the foot of the cell the
    rear names ran into the temperature captions there ("LR188°C") wherever the cell is narrow. */

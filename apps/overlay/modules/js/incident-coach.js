@@ -290,7 +290,7 @@
       severity = 'sp-warn';
     }
 
-    showFn(msg, severity, 'Incident Coach', 'ic-threat');
+    showFn(msg, severity, 'Incident coach', 'ic-threat');
   }
 
   // ── Main update function ───────────────────────────────────────
@@ -536,19 +536,19 @@
       breakdownEl.innerHTML =
         '<div class="rr-behavior-stat">' +
           '<div class="rr-bstat-val">' + (b.RageSpikes || 0) + '</div>' +
-          '<div class="rr-bstat-label">Rage Spikes</div>' +
+          '<div class="rr-bstat-label">Rage spikes</div>' +
         '</div>' +
         '<div class="rr-behavior-stat">' +
           '<div class="rr-bstat-val">' + (b.CooldownsTriggered || 0) + '</div>' +
-          '<div class="rr-bstat-label">Cool-Downs</div>' +
+          '<div class="rr-bstat-label">Cool-downs</div>' +
         '</div>' +
         '<div class="rr-behavior-stat">' +
           '<div class="rr-bstat-val">' + (b.RetaliationAttempts || 0) + '</div>' +
-          '<div class="rr-bstat-label">Retaliation Attempts</div>' +
+          '<div class="rr-bstat-label">Retaliation attempts</div>' +
         '</div>' +
         '<div class="rr-behavior-stat">' +
           '<div class="rr-bstat-val">' + Math.round(cleanPct) + '%</div>' +
-          '<div class="rr-bstat-label">Clean Laps</div>' +
+          '<div class="rr-bstat-label">Clean laps</div>' +
         '</div>' +
         '<div class="rr-behavior-stat">' +
           '<div class="rr-bstat-val">' + Math.round(b.TailgatingSeconds || 0) + 's</div>' +
@@ -556,7 +556,7 @@
         '</div>' +
         '<div class="rr-behavior-stat">' +
           '<div class="rr-bstat-val">' + (b.HardBrakingEvents || 0) + '</div>' +
-          '<div class="rr-bstat-label">Hard Braking</div>' +
+          '<div class="rr-bstat-label">Hard braking</div>' +
         '</div>';
     }
 
@@ -599,11 +599,11 @@
     // ── Flagged drivers summary ──────────────────────────────────
     const driversEl = document.getElementById('rrBehaviorDrivers');
     if (driversEl && _ic.threats.length > 0) {
-      driversEl.innerHTML = '<div class="rr-behavior-drivers-title">Flagged Drivers</div>' +
+      driversEl.innerHTML = '<div class="rr-behavior-drivers-title">Flagged drivers</div>' +
         _ic.threats.map(t =>
           '<div class="rr-behavior-driver ' + (THREAT_CLASSES[t.Level] || '') + '">' +
             '<span class="rr-bd-name">' + (t.Name || '?') + '</span>' +
-            '<span class="rr-bd-ir">' + (t.IRating || '—') + ' iR</span>' +
+            '<span class="rr-bd-ir">' + (t.IRating || '—') + ' iRating</span>' +
             '<span class="rr-bd-count">' + t.IncidentCount + ' incident(s)</span>' +
             '<span class="rr-bd-level">' + (THREAT_LABELS[t.Level] || '') + '</span>' +
           '</div>'

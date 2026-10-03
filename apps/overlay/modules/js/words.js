@@ -18,15 +18,15 @@
   // not. Single letters (a licence class, a corner's F or R, P for a position) are not words and are never changed.
   const ACRONYMS = Object.freeze([
     // Racing
-    'DRS', 'P2P', 'DQ', 'DNF', 'SOF', 'GT', 'GTP', 'GTE', 'GTD', 'GTO', 'LMP', 'LMH', 'LMDH', 'TCR', 'WRC', 'IMSA', 'NASCAR',
+    'DRS', 'P2P', 'DQ', 'DNF', 'TT', 'GOAT', 'ACC', 'AMS', 'GT', 'GTP', 'GTE', 'GTD', 'GTO', 'LMP', 'LMH', 'LMDH', 'TCR', 'WRC', 'IMSA', 'NASCAR',
     'FIA', 'DTM', 'ELMS', 'SCCA', 'MX', 'GR', 'AMG', 'BMW', 'VW', 'HPD', 'ARX', 'RSR', 'LMS', 'NSX', 'GTS', 'RS', 'GTI',
-    'DSC', 'ESC', 'MDM', 'MGU', 'ERS', 'SOC', 'HYS', 'IBS',
+    'DSC', 'ESC', 'MDM', 'MGU',
     // The four corners: words where there is room, these where there is not
     'LF', 'RF', 'LR', 'RR', 'FL', 'FR', 'RL',
     // The rig, the app and its files
     'OBS', 'HUD', 'TV', 'PC', 'USB', 'COM', 'LAN', 'QR', 'URL', 'HTTP', 'HTTPS', 'API', 'AI', 'ID', 'JSON', 'PDF', 'PNG',
     'JPEG', 'TGA', 'MP4', 'MKV', 'GB', 'MB', 'KB', 'NVENC', 'CQVBR', 'GPU', 'CPU', 'RGB', 'UI', 'OK', 'DNA', 'SSD', 'HDD',
-    'UTC', 'AM', 'PM', 'FOV', 'FPS', 'CC',
+    'UTC', 'AM', 'PM', 'CC',
   ]);
 
   // The car list's own short labels for its controls, as the cars show them (packages/car-list/cars.json, "label"): what

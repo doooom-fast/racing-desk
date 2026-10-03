@@ -367,7 +367,18 @@ test.describe('labelPlan: how wide a label is on the rig, and whether it takes a
   test('a label its cell holds at 8px or more on one line stays on one, as long as it is', () => {
     expect(labelPlan('BRAKE BIAS', false, across(3, 'full'))).toEqual({ len: 10, lines: 1 });
     expect(labelPlan('TC TOGGLE', false, across(4, 'compact'))).toEqual({ len: 9, lines: 1 });
-    expect(labelPlan('REAR BRAKE VALVE', false, across(3, 'full'))).toEqual({ len: 16, lines: 1 });
+    expect(labelPlan('FRONT TC TOGGLE', false, across(3, 'full'))).toEqual({ len: 15, lines: 1 });
+  });
+
+  test('the room is what the cell\'s 100cqi is: the panel\'s own 6px of padding and 1px of border are not the label\'s', () => {
+    // 240px less the panel's 14px, the gaps, and the cell's border and padding: 45.5px in a cell of four across at the compact
+    // size, which holds eleven characters at 8.27px and not twelve (7.58px, under the 8 a label wraps below). The plan took
+    // the panel's 14px for the label's, thought twelve held at 8.17px, and the stylesheet set it at 7.66px on one line.
+    expect(labelPlan('BIAS TARGET', false, across(4, 'compact'))).toEqual({ len: 11, lines: 1 });
+    expect(labelPlan('REAR ROLLBAR', false, across(4, 'compact'))).toEqual({ len: 7, lines: 2 });
+    // And a label of fifteen characters holds at 3 across at the full size, of sixteen does not.
+    expect(labelPlan('FRONT TC TOGGLE', false, across(3, 'full'))).toEqual({ len: 15, lines: 1 });
+    expect(labelPlan('REAR BRAKE VALVE', false, across(3, 'full'))).toEqual({ len: 10, lines: 2 });
   });
 
   test('one that would be set under 8px takes a second line, and is as wide as the wider of the two', () => {

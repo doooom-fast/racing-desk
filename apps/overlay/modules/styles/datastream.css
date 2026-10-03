@@ -162,7 +162,7 @@
     background: hsla(0, 0%, 5%, var(--panel-alpha, 0.90));
     border: 1px solid hsla(0, 0%, 100%, 0.14);
     border-radius: 8px;
-    padding: 4px 8px 6px;
+    padding: 6px 10px 4px;
     text-align: center;
     transition: background 0.4s ease, border-color 0.4s ease;
   }

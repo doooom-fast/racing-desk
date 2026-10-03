@@ -453,27 +453,32 @@
 
   // What a label of the rig's panel needs to be shown whole: how wide it is (the characters of its longest line, for
   // --ctrl-label-len) and whether it takes a second line. The cell's width is the panel's (PANEL_W, the stylesheet's
-  // 240px) less the gaps, shared by the cells across, less the cell's border and padding; a label is set as large as
+  // 240px) less its own padding and border (PANEL_EDGE on each side: .panel's 6px and 1px) and the gaps, shared by the
+  // cells across, less the cell's border and padding — the width the cell's 100cqi is, which the stylesheet sizes the label
+  // by, so the plan and the CSS agree on what fits (they differed by the panel's 14px, and a label planned on one line at
+  // 8.2px was set at 7.7px, under the 8 it wraps below); a label is set as large as
   // that holds it, up to its size's own (LABEL.base) and down to LABEL_FLOOR px. EM is the width of a character of the
   // label in em: Sofia Pro Comp at weight 600 with its tracking measures 0.34 to 0.53 across the car list's labels, and
   // 0.47 at the most for any of seven characters or more (the page's font is that one, not the fallback, which is half
   // as wide again), so 0.5 holds every one with a little over. A label that would be set under WRAP_BELOW px on one
   // line is broken into two where the words let it, at the split that makes the wider line narrowest, and is then set
   // to the width of that line; one word, or a label two lines do not help, stays on one.
-  const PANEL_W = 240;
+  const PANEL_W = 240, PANEL_EDGE = 7;
   const LABEL = Object.freeze({
     full:    Object.freeze({ base: 10, padX: 4, gap: 4 }),
     compact: Object.freeze({ base: 9,  padX: 3, gap: 4 }),
     tight:   Object.freeze({ base: 8,  padX: 2, gap: 2 }),
   });
   const LABEL_FLOOR = 7, WRAP_BELOW = 8, EM = 0.5, BORDER = 1;
+  // The sizes a crowded row of the glance layout's labels go down through, a fraction of their 11px: 10.5, 10, 9.5 and 9.
+  const MINI_SCALES = Object.freeze([0.95, 0.9, 0.86, 0.82]);
   function labelPlan(label, locked, fit) {
     const text = String(label || '');
     const len1 = Math.max(1, text.length + (locked ? 2 : 0));
     if (!fit) return { len: len1, lines: 1 };
     const t = LABEL[fit.tight ? 'tight' : fit.compact ? 'compact' : 'full'];
     const cols = Math.max(1, fit.cols || 1);
-    const inner = (PANEL_W - (cols - 1) * t.gap) / cols - 2 * BORDER - 2 * t.padX;
+    const inner = (PANEL_W - 2 * PANEL_EDGE - (cols - 1) * t.gap) / cols - 2 * BORDER - 2 * t.padX;
     const oneLine = Math.min(t.base, inner / (len1 * EM));
     const words = text.split(/\s+/).filter(Boolean);
     if (oneLine >= WRAP_BELOW || words.length < 2) return { len: len1, lines: 1 };
@@ -490,7 +495,7 @@
   function labelRoom(fit) {
     const t = LABEL[fit.tight ? 'tight' : fit.compact ? 'compact' : 'full'];
     const cols = Math.max(1, fit.cols || 1);
-    return (PANEL_W - (cols - 1) * t.gap) / cols - 2 * BORDER - 2 * t.padX;
+    return (PANEL_W - 2 * PANEL_EDGE - (cols - 1) * t.gap) / cols - 2 * BORDER - 2 * t.padX;
   }
 
   // A form of a label as the stylesheet sets it: its text, with the rollbar's mark as a character and a space.
@@ -559,6 +564,13 @@
    * its cell, measured: the words first, and a shorter form for one that is cut. Measured when the forms change, when
    * the panel is resized, and when a font arrives (the iPad's face comes from Adobe after the page has drawn) — not
    * on every frame.
+   *
+   * A row under the three with more cells than the iPad has the width for — at the narrowest form of every label —
+   * is made to fit in steps, the labels as large as they can be: its cells close up (`ctrl-crowded`: no border, 1px
+   * between them and 1px of padding), and then its labels go down together from their 11px to 9 (`--mini-scale`, by a
+   * twentieth to a fifth). Past that, where it cannot be done (the Audi R18's twelve dials, the Mercedes W12's and W13's, the 499P's
+   * seven on the smaller iPads), a label is cut with an ellipsis at the edge of its own cell and never runs into the next
+   * one's. The layouts are measured, so the row is whole wherever it can be.
    */
   function fitGlance(panel, state) {
     const labels = Array.from(panel.querySelectorAll('.ctrl-label, .ctrl-mini-label')).filter((l) => Array.isArray(l.__rdForms));
@@ -590,46 +602,71 @@
     };
     const over = (l) => widthOf(l) - room(l);
     const inRow = (l) => !!l.closest('.ctrl-more');
-    const at = new Map(labels.map((l) => [l, 0]));
-    const last = (l) => at.get(l) + 1 >= l.__rdForms.length;
-    const step = (l) => { at.set(l, at.get(l) + 1); writeLabel(l, l.__rdForms[at.get(l)]); };
-    for (const l of labels) writeLabel(l, l.__rdForms[0]);
-    for (let n = 0; n < 64; n++) {
-      let worst = null, most = 0.5;
+
+    // One pass at the row's present size: the form of each label, as the index into its forms.
+    const pass = () => {
+      const at = new Map(labels.map((l) => [l, 0]));
+      const last = (l) => at.get(l) + 1 >= l.__rdForms.length;
+      const step = (l) => { at.set(l, at.get(l) + 1); writeLabel(l, l.__rdForms[at.get(l)]); };
+      for (const l of labels) writeLabel(l, l.__rdForms[0]);
+      for (let n = 0; n < 64; n++) {
+        let worst = null, most = 0.5;
+        for (const l of labels) {
+          if (last(l)) continue;
+          const by = over(l);
+          if (by > most) { most = by; worst = l; }
+        }
+        if (!worst) break;
+        step(worst);
+      }
+      // A label of the row under the three still past its cell at its last form: a shorter form of another label of the
+      // row gives it room, the widest of them first, while there is one.
+      for (let n = 0; n < 64; n++) {
+        if (!labels.some((l) => inRow(l) && last(l) && over(l) > 0.5)) break;
+        let widest = null, most = -1;
+        for (const l of labels) {
+          if (!inRow(l) || last(l)) continue;
+          const w = widthOf(l);
+          if (w > most) { most = w; widest = l; }
+        }
+        if (!widest) break;
+        step(widest);
+      }
+      // A label past its cell still, where no form of it is whole (a row of more cells than an iPad has the width for):
+      // the narrowest of its forms.
       for (const l of labels) {
-        if (last(l)) continue;
-        const by = over(l);
-        if (by > most) { most = by; worst = l; }
+        if (l.__rdForms.length < 2 || over(l) <= 0.5) continue;
+        let best = at.get(l), least = widthOf(l);
+        for (let i = 0; i < l.__rdForms.length; i++) {
+          if (i === at.get(l)) continue;
+          writeLabel(l, l.__rdForms[i]);
+          const w = widthOf(l);
+          if (w < least - 0.01) { least = w; best = i; }
+        }
+        at.set(l, best);
+        writeLabel(l, l.__rdForms[best]);
       }
-      if (!worst) break;
-      step(worst);
-    }
-    // A label of the row under the three still past its cell at its last form: a shorter form of another label of the
-    // row gives it room, the widest of them first, while there is one.
-    for (let n = 0; n < 64; n++) {
-      if (!labels.some((l) => inRow(l) && last(l) && over(l) > 0.5)) break;
-      let widest = null, most = -1;
-      for (const l of labels) {
-        if (!inRow(l) || last(l)) continue;
-        const w = widthOf(l);
-        if (w > most) { most = w; widest = l; }
+      return at;
+    };
+
+    // The row under the three, as large as it can be made whole: at its size, its cells closed up, then its labels smaller.
+    const row = panel.querySelector('.ctrl-more');
+    const crowd = (closed, scale) => {
+      if (!row) return;
+      row.classList.toggle('ctrl-crowded', closed);
+      if (scale < 1) row.style.setProperty('--mini-scale', String(scale)); else row.style.removeProperty('--mini-scale');
+    };
+    const past = () => labels.some((l) => inRow(l) && over(l) > 0.5);
+    crowd(false, 1);
+    let at = pass();
+    if (row && past()) {
+      crowd(true, 1);
+      at = pass();
+      for (const scale of MINI_SCALES) {
+        if (!past()) break;
+        crowd(true, scale);
+        at = pass();
       }
-      if (!widest) break;
-      step(widest);
-    }
-    // A label past its cell still, where no form of it is whole (a row of more cells than an iPad has the width for):
-    // the narrowest of its forms, as the glance layout has always let a label run past a cell too small for it.
-    for (const l of labels) {
-      if (l.__rdForms.length < 2 || over(l) <= 0.5) continue;
-      let best = at.get(l), least = widthOf(l);
-      for (let i = 0; i < l.__rdForms.length; i++) {
-        if (i === at.get(l)) continue;
-        writeLabel(l, l.__rdForms[i]);
-        const w = widthOf(l);
-        if (w < least - 0.01) { least = w; best = i; }
-      }
-      at.set(l, best);
-      writeLabel(l, l.__rdForms[best]);
     }
     for (const l of labels) {
       l.__rdGlanceForm = l.__rdForms[at.get(l)];
