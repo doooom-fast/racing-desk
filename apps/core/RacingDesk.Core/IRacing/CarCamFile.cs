@@ -22,8 +22,8 @@ namespace RacingDesk.Plugin.IRacing
     /// nothing else, and reads nothing from a file that isn't laid out the way the ones on the rig are.
     ///
     /// It can also make the one change Racing Desk makes to such a file (docs/view-and-pedals-plan.md): the cockpit
-    /// camera's height, Z, at +60 of the cockpit record, and — behind a switch of its own, only once the first run has
-    /// shown that it adds to the horizon — its vertical shift at +84. Each edit is made on a copy and changes those four
+    /// camera's height, Z, at +60 of the cockpit record, and its vertical shift at +84 (undo puts one back; nothing else
+    /// writes it: the horizon is left out until it is shown to add). Each edit is made on a copy and changes those four
     /// bytes and no others, and only in a file laid out exactly as the 19 on the rig are: "MACC", version 14 or 15,
     /// 1,668 bytes (nine records of 184), the cockpit record found by its name. Anything else is refused, with why.
     /// </summary>

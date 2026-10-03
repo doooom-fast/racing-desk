@@ -5,19 +5,34 @@ using RacingDesk.Data.Pedals;
 
 namespace RacingDesk.Data.Restore
 {
-    /// <summary>The three switches of Settings → Cars, as the host keeps them (restore.json beside its settings).</summary>
+    /// <summary>
+    /// The two switches of Settings → Cars, as the host keeps them (restore.json beside its settings), and what a part that
+    /// turned itself off said of why. The host's file is the only place they are kept: the desk asks the host for them.
+    /// </summary>
     public sealed class RestoreSwitches
     {
-        /// <summary>"Put back each car's driver height": on, in trial.</summary>
-        public bool Height { get; set; } = true;
-
-        /// <summary>"A brake profile for each car": on, in trial.</summary>
+        /// <summary>"Brakes put back for each car": on unless he turns it off, or it turns itself off (<see cref="BrakesOffWhy"/>).</summary>
         public bool Brakes { get; set; } = true;
 
-        /// <summary>The horizon kept per car as well: off, until the first run shows the cockpit's vertical shift adds to it.</summary>
-        public bool Horizon { get; set; }
+        /// <summary>"Seat height put back for each car": on unless he turns it off, or the self-check does (<see cref="HeightOffWhy"/>).</summary>
+        public bool Height { get; set; } = true;
 
-        public RestoreSwitches Copy() => new RestoreSwitches { Height = Height, Brakes = Brakes, Horizon = Horizon };
+        /// <summary>Why a part turned itself off, in a sentence; null when he turned it off, or it is on.</summary>
+        public string BrakesOffWhy { get; set; }
+        public string HeightOffWhy { get; set; }
+        public DateTime? BrakesOffAtUtc { get; set; }
+        public DateTime? HeightOffAtUtc { get; set; }
+
+        /// <summary>
+        /// When he last turned the height part on: a write of app.ini Racing Desk made before then is not what the self-check holds
+        /// app.ini to (he turned it back on, and it gets a fresh start).
+        /// </summary>
+        public DateTime? HeightOnSinceUtc { get; set; }
+
+        /// <summary>The self-check turned the height part off with iRacing running: each car's camera file is put back once it closes.</summary>
+        public bool HeightPutBackOwed { get; set; }
+
+        public RestoreSwitches Copy() => (RestoreSwitches)MemberwiseClone();
 
         public static RestoreSwitches Load(string path)
         {
@@ -47,7 +62,7 @@ namespace RacingDesk.Data.Restore
         }
     }
 
-    /// <summary>What the director, the first run and undo all work with: the store, the files, SmartControl, the machine.</summary>
+    /// <summary>What the director and undo work with: the store, the files, SmartControl, the machine.</summary>
     public sealed class RestoreContext
     {
         /// <summary>The store (racing-desk.db); each use opens its own connection, as the host's other writers do.</summary>
@@ -65,12 +80,8 @@ namespace RacingDesk.Data.Restore
         public IRigProbe Probe { get; set; }
         public IKeySender Keys { get; set; }
 
-        /// <summary>The force the pedals recorder follows from Live's keys, and how many it has seen pressed in this run.</summary>
-        public Func<BrakeForceNow> Force { get; set; } = () => null;
+        /// <summary>How many of Live's force keys he has pressed in the car being followed: his key wins over a switch not yet made.</summary>
         public Func<int> PressesThisRun { get; set; } = () => 0;
-
-        /// <summary>The telemetry's last word on where he is (for B2's flags).</summary>
-        public Func<SeatFacts> LastFacts { get; set; } = () => null;
 
         /// <summary>
         /// Whether he is parked now, by the parked rule on the newest frame (the director keeps it up to date on every frame); null
@@ -79,19 +90,13 @@ namespace RacingDesk.Data.Restore
         public Func<ParkedNow> Parked { get; set; } = () => null;
 
         /// <summary>
-        /// Told when F24 has gone: a profile was switched under the pedals, so the force his keys had been followed to is the old
-        /// profile's, not the pedals' — it is not known again until a key sets one (docs/view-and-pedals-plan.md, D6).
+        /// Told when F24 has put a car's brakes on the pedals: the force his keys are followed from is the car's now, so that his
+        /// +5 and -5 count from it (his decision, docs/view-and-pedals-plan.md D6). The car's folder, and the force.
         /// </summary>
-        public Action ForceNotKnown { get; set; } = () => { };
-
-        public Func<RestoreSwitches> Switches { get; set; } = () => new RestoreSwitches();
+        public Action<string, double> ForceIs { get; set; } = (_, _) => { };
 
         public Action<string> Log { get; set; } = _ => { };
         public Func<DateTime> Now { get; set; } = () => DateTime.UtcNow;
-
-        /// <summary>How long after his click a key is sent: time to put Notepad (A4–A6) or iRacing (B2) in front.</summary>
-        public TimeSpan SendDelay { get; set; } = TimeSpan.FromSeconds(5);
-        public Action<TimeSpan> Sleep { get; set; } = d => System.Threading.Thread.Sleep(d);
 
         public double StartHeight { get; set; } = RestorePolicy.StartHeight;
 
@@ -101,13 +106,22 @@ namespace RacingDesk.Data.Restore
         public Func<string, string> BackUpSmartControl { get; set; }
 
         /// <summary>
-        /// Takes SmartControl's database aside before a step's first write, to a timestamped file in Racing Desk's own backup
+        /// Takes SmartControl's database aside before Racing Desk writes it, to a timestamped file in Racing Desk's own backup
         /// folder (SQLite's online backup, checked to open and to hold what the database holds; the last
-        /// <see cref="RestorePolicy.StepBackupsKept"/> are kept). Null when the copy is made and has checked out; else why not, and the
-        /// step then writes nothing.
+        /// <see cref="RestorePolicy.BackupsKept"/> are kept). The first copy ever is also kept for good, as
+        /// <c>before-racing-desk.db</c>. Null when the copy is made and has checked out; else why not, and nothing is written.
         /// </summary>
-        public string BackUpBeforeWrite(string step) =>
-            (BackUpSmartControl ?? (s => Writer.BackUpBeforeWrite(SmartControlBackups, s, Now(), RestorePolicy.StepBackupsKept)))(step);
+        public string BackUpBeforeWrite(string why)
+        {
+            if (BackUpSmartControl != null) return BackUpSmartControl(why);
+            var writer = Writer;
+            if (!File.Exists(BeforeRacingDesk))
+            {
+                string first = writer.Backup(BeforeRacingDesk);
+                if (first != null) return first;
+            }
+            return writer.BackUpBeforeWrite(SmartControlBackups, why, Now(), RestorePolicy.BackupsKept);
+        }
 
         public SmartControlSnapshot ReadSmartControl()
         {
@@ -122,10 +136,10 @@ namespace RacingDesk.Data.Restore
         /// <summary>The copy of SmartControl's database taken before Racing Desk first wrote it, kept for ever.</summary>
         public string BeforeRacingDesk => Path.Combine(SmartControlBackups, "before-racing-desk.db");
 
-        /// <summary>Writes a line of what was done to the store (the desk, the HUD) and to host.log.</summary>
-        public RestoreEvent Say(string car, string what, string state, string text, bool hud = false)
+        /// <summary>Writes a line of what was done to the store and to host.log.</summary>
+        public RestoreEvent Say(string car, string what, string state, string text)
         {
-            var e = new RestoreEvent { AtUtc = Now(), CarPath = car, What = what, State = state, Text = text, Hud = hud };
+            var e = new RestoreEvent { AtUtc = Now(), CarPath = car, What = what, State = state, Text = text };
             Log("restore: " + (car != null ? car + " — " : "") + text);
             try
             {

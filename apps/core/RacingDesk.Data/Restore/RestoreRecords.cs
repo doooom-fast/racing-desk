@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace RacingDesk.Data.Restore
 {
@@ -57,7 +59,7 @@ namespace RacingDesk.Data.Restore
         public DateTime DecidedAtUtc { get; set; }
         public string DecidedBy { get; set; }
 
-        /// <summary>app.ini's driverHeightAdj before Racing Desk first wrote it, and the first backup of the file.</summary>
+        /// <summary>app.ini's driverHeightAdj before Racing Desk first wrote it, the first backup of the file, and when Racing Desk last wrote it.</summary>
         public double? IniOriginal { get; set; }
         public string IniBackup { get; set; }
         public DateTime? IniWrittenAtUtc { get; set; }
@@ -70,18 +72,18 @@ namespace RacingDesk.Data.Restore
         public double? IniHeightWritten { get; set; }
         public double? VanishYWritten { get; set; }
 
-        /// <summary>When the one-time move of saved heights into the camera files was made; it is made once.</summary>
+        /// <summary>When the one-time move of the heights he chose before into the cars' camera files was made; it is made once.</summary>
         public DateTime? MigratedAtUtc { get; set; }
 
-        /// <summary>What app.ini held at the last launch check.</summary>
+        /// <summary>What app.ini held when the sim last started (the self-check), and when.</summary>
         public double? LaunchHeight { get; set; }
         public DateTime? LaunchAtUtc { get; set; }
     }
 
     /// <summary>
-    /// A car's own SmartControl profile, made by Racing Desk (schema v9, <c>car_smartcontrol</c>): known by its id, never by
-    /// what it says of itself. <see cref="State"/> is "gone" when he deleted it in SmartControl: the car then has none until
-    /// he asks for one again, rather than one made behind his back.
+    /// A SmartControl profile of a car's own (schema v9, <c>car_smartcontrol</c>), known by its id, never by what it says of
+    /// itself. Nothing makes one now — the cars' brakes go through the one switch profile — but a row an earlier build made is
+    /// still Racing Desk's: the writer may change it, and undo takes it away.
     /// </summary>
     public sealed class CarSmartControl
     {
@@ -107,7 +109,8 @@ namespace RacingDesk.Data.Restore
 
     /// <summary>
     /// The one profile Racing Desk switches the pedals to, with F24 bound to it in his "Default" Live preset (schema v9,
-    /// <c>smartcontrol_switch</c>, one row): the car's profile is copied into it at car load and F24 is sent once.
+    /// <c>smartcontrol_switch</c>, one row): the car's brakes are written into it when he is parked in that car, and F24 is
+    /// sent once.
     /// </summary>
     public sealed class SmartControlSwitch
     {
@@ -118,46 +121,70 @@ namespace RacingDesk.Data.Restore
         public long? PresetId { get; set; }
         public string Key { get; set; }
         public DateTime MadeAtUtc { get; set; }
+
+        /// <summary>When the binding was written: SmartControl Live reads its keys when it starts, so one that started before this has not got F24.</summary>
+        public DateTime? BoundAtUtc { get; set; }
+
+        /// <summary>What the row holds: the bytes' SHA-256, the car they are for (its folder), and when they were written.</summary>
         public string WrittenSha { get; set; }
         public string WrittenFor { get; set; }
         public DateTime? WrittenAtUtc { get; set; }
+
+        /// <summary>The last F24 Racing Desk sent. Once one has gone the pedals may be on this row, so it is never taken from under them.</summary>
         public DateTime? SentAtUtc { get; set; }
+
+        /// <summary>
+        /// When what the row holds went on the pedals; null while that is not known — the row written since, or his keys moved
+        /// the force since. Live starting again since then makes it not known too (asked of Live, not kept).
+        /// </summary>
+        public DateTime? PedalsAtUtc { get; set; }
     }
 
-    /// <summary>
-    /// A line of what was done, or in trial what would have been (schema v9, <c>restore_events</c>): for the desk, the HUD
-    /// (<see cref="Hud"/>) and host.log alike. Its id is the order lines are told in.
-    /// </summary>
+    /// <summary>A line of what was done (schema v9, <c>restore_events</c>), kept beside host.log's. Its id is the order lines came in.</summary>
     public sealed class RestoreEvent
     {
         public long Id { get; set; }
         public DateTime AtUtc { get; set; }
         public string CarPath { get; set; }
 
-        /// <summary>"height", "brakes", "setup", "check", "undo".</summary>
+        /// <summary>"height", "brakes", "setup", "undo".</summary>
         public string What { get; set; }
 
-        /// <summary>"trial", "done", "waiting", "refused", "failed".</summary>
+        /// <summary>"done", "waiting", "refused", "failed", "off".</summary>
         public string State { get; set; }
         public string Text { get; set; }
+    }
 
-        /// <summary>A line for the HUD, shown at the first moment in the car, never while OBS records.</summary>
-        public bool Hud { get; set; }
+    /// <summary>What a command did (undo, a switch), or why it did nothing.</summary>
+    public sealed class RestoreResult
+    {
+        public string Action { get; set; }
+        public bool Ok { get; set; }
+
+        /// <summary>Nothing was done: a condition of the command did not hold (iRacing running, the SmartControl editor open).</summary>
+        public bool Refused { get; set; }
+
+        /// <summary>Refused because another command is still running: one at a time, and a second is told so rather than queued.</summary>
+        public bool Busy { get; set; }
+        public string Why { get; set; }
+        public List<string> Did { get; } = new List<string>();
+        public List<string> Saw { get; } = new List<string>();
+
+        public string Text =>
+            string.Join(" ", new[] { Why }.Concat(Did).Concat(Saw).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.TrimEnd().EndsWith(".") ? s.TrimEnd() : s.TrimEnd() + "."));
+
+        internal static RestoreResult No(string action, string why) => new RestoreResult { Action = action, Refused = true, Why = why };
     }
 
     /// <summary>
-    /// One step of the supervised first run (schema v9, <c>restore_checks</c>): what its code saw when it last ran, and his
-    /// mark. The marks are what the live loop leaving trial is gated on (<see cref="RestoreGate"/>).
+    /// How one part stands, in a sentence for Settings → Cars: "working", "waiting" (for what, said), "stopped" (it turned itself
+    /// off, and why), or "off" (he switched it off).
     /// </summary>
-    public sealed class RestoreCheck
+    public sealed class RestoreStatus
     {
-        public string Step { get; set; }
-        public DateTime? RanAtUtc { get; set; }
-        public bool? RanOk { get; set; }
-        public string RanResult { get; set; }
+        public string State { get; set; }
+        public string Text { get; set; }
 
-        /// <summary>"passed", "failed", or null while he has not said.</summary>
-        public string Mark { get; set; }
-        public DateTime? MarkedAtUtc { get; set; }
+        public static RestoreStatus Of(string state, string text) => new RestoreStatus { State = state, Text = text };
     }
 }

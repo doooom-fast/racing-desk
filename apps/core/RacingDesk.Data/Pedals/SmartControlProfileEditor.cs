@@ -237,9 +237,9 @@ namespace RacingDesk.Data.Pedals
             return all;
         }
 
-        /// <summary>The words a car's profile says of itself, where its base has a Description.</summary>
+        /// <summary>The words the switch profile says of itself while it holds a car's brakes, where its base has a Description.</summary>
         public static string DescriptionFor(string carName, string baseName) =>
-            $"Made by Racing Desk for {carName} from {baseName}. Racing Desk keeps the force you set with your keys here.";
+            $"Racing Desk puts the brakes of the car you are in here: now the {carName}'s, from {baseName}.";
 
         /// <summary>His profiles' names, for a name that must not be one of them.</summary>
         public static string UniqueName(string wanted, IEnumerable<string> taken)

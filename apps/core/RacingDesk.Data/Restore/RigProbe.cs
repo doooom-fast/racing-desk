@@ -21,6 +21,12 @@ namespace RacingDesk.Data.Restore
 
         bool LiveRunning();
 
+        /// <summary>
+        /// When SmartControl Live started (the earliest, if two run): it reads its keys then, so a binding written after this is
+        /// not one it has. Null when it is not running or that cannot be asked.
+        /// </summary>
+        DateTime? LiveStartedAtUtc();
+
         /// <summary>The window in front belongs to a process above this one: a key sent now would be dropped. Null when not known.</summary>
         bool? ForegroundElevated();
 
@@ -35,9 +41,9 @@ namespace RacingDesk.Data.Restore
     }
 
     /// <summary>
-    /// The one key Racing Desk may send: F24, bound in SmartControl Live to its switch profile. The class that sends it is
-    /// the host's <c>KeySender</c>, the only place in the repo that sends a key; everything here is handed this, and the
-    /// tests hand a fake.
+    /// The one key Racing Desk may send: F24, bound in SmartControl Live to its switch profile, sent by the director when he
+    /// is parked in a car whose brakes are not on the pedals yet. The class that sends it is the host's <c>KeySender</c>, the
+    /// only place in the repo that sends a key; everything here is handed this, and the tests hand a fake.
     /// </summary>
     public interface IKeySender
     {
@@ -65,6 +71,29 @@ namespace RacingDesk.Data.Restore
         public bool EditorRunning() => Running(EditorProcess);
 
         public bool LiveRunning() => Running(LiveProcess);
+
+        public DateTime? LiveStartedAtUtc()
+        {
+            Process[] found;
+            try { found = Process.GetProcessesByName(LiveProcess); }
+            catch (Exception) { return null; }
+            try
+            {
+                DateTime? earliest = null;
+                foreach (var p in found)
+                {
+                    DateTime started;
+                    try { started = p.StartTime.ToUniversalTime(); }
+                    catch (Exception) { return null; }      // one that cannot be asked: when Live started is not known
+                    if (earliest == null || started < earliest) earliest = started;
+                }
+                return earliest;
+            }
+            finally
+            {
+                foreach (var p in found) p.Dispose();
+            }
+        }
 
         private static bool Running(string name)
         {

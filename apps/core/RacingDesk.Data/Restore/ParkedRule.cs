@@ -34,7 +34,7 @@ namespace RacingDesk.Data.Restore
 
         public const int InPitStall = 1;
 
-        /// <summary>The flags, as host.log and the first run's B2 write them down.</summary>
+        /// <summary>The flags, as host.log writes them down.</summary>
         public string Flags() => string.Format(CultureInfo.InvariantCulture,
             "IsOnTrack {0}, IsInGarage {1}, IsGarageVisible {2}, IsReplayPlaying {3}, PlayerTrackSurface {4}, OnPitRoad {5}, SimMode {6}, speed {7:0.0} m/s, brake {8:0}%",
             B(IsOnTrack), B(IsInGarage), B(IsGarageVisible), B(IsReplayPlaying), TrackSurface, B(OnPitRoad), SimMode ?? "?", SpeedMs, Brake * 100);
@@ -60,9 +60,9 @@ namespace RacingDesk.Data.Restore
     /// <summary>
     /// When he is parked, which is the only moment the brakes may be switched (docs/view-and-pedals-plan.md, the critique's
     /// B4 and B5): on the garage screen or in the pit stall; never on track, in the pit lane or in a replay file; still for at
-    /// least a second; the brake released. Which flags the garage screen really raises is written down in the first run (B2):
-    /// out of the car the sim may say a replay is playing behind the garage screen, so a replay is told by the session's
-    /// SimMode, not by IsReplayPlaying.
+    /// least a second; the brake released. Out of the car the sim may say a replay is playing behind the garage screen, so a
+    /// replay file is told by the session's SimMode, not by IsReplayPlaying; the flags of each car's first moments out of the
+    /// car are written to host.log, so that what the garage screen really raises can be read there.
     /// </summary>
     public sealed class ParkedRule
     {

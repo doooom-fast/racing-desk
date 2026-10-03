@@ -7,10 +7,9 @@ using RacingDesk.Data.Restore;
 namespace RacingDesk.Host
 {
     /// <summary>
-    /// <c>RacingDesk.Host restore --dry-run</c>: what putting back each car's height and brakes would do, worked out the way the
-    /// live host's trial does (<see cref="RestorePlanner"/>) and printed — the starting height app.ini would hold, each car's
-    /// camera file and the cockpit Z it would be given, each car's own SmartControl profile and its force. Everything is read
-    /// and nothing written: the store is opened read-only (not migrated), the view files and SmartControl's database are read
+    /// <c>RacingDesk.Host restore --dry-run</c>: what is kept for each car's seat height and brakes, worked out the way the live
+    /// host does (<see cref="RestorePlanner"/>) and printed — what app.ini holds, each car's camera file and what Racing Desk
+    /// keeps in it, each car's base and force. Everything is read and nothing written: the store is opened read-only (not migrated), the view files and SmartControl's database are read
     /// with their writers' leave. <c>--db</c>, <c>--documents</c> and <c>--smartcontrol</c> name copies to read instead of the
     /// rig's own, which is how it is run while anything else may have them open.
     /// </summary>
@@ -38,7 +37,7 @@ namespace RacingDesk.Host
 
             using var store = RacingDeskStore.OpenReadOnly(db);
             var plan = RestorePlanner.Plan(store, files, smartControl);
-            Console.WriteLine($"Trial — what would be done (S = {Words.Cm(plan.StartHeight)}); nothing is written by this.");
+            Console.WriteLine($"What is kept for each car (S = {Words.Cm(plan.StartHeight)}); nothing is written by this.");
             foreach (string line in plan.Lines) Console.WriteLine("  " + line);
             return 0;
         }

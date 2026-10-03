@@ -2,11 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using RacingDesk.Core.Cars;
 using RacingDesk.Data.Pedals;
 
 namespace RacingDesk.Data.Restore
 {
-    /// <summary>What would be kept in one car's camera file, or why nothing would.</summary>
+    /// <summary>A car's seat height as Racing Desk keeps it, or why it cannot.</summary>
     public sealed class ViewPlan
     {
         public string Car { get; set; }
@@ -17,46 +18,51 @@ namespace RacingDesk.Data.Restore
         public bool Writable { get; set; }
         public string Why { get; set; }
 
-        /// <summary>The cockpit Z the file holds now, and the one it would be given.</summary>
+        /// <summary>The cockpit Z the file holds now, and the one the one-time move would give it.</summary>
         public double? FileZ { get; set; }
         public double? NewZ { get; set; }
 
-        /// <summary>The height he chose in the car (app.ini's, when he drove it), and the Z the file had then.</summary>
+        /// <summary>The height he chose in the car (app.ini's, when he drove it).</summary>
         public double? ChosenHeight { get; set; }
-        public double? DrivenZ { get; set; }
         public bool Chosen { get; set; }
 
         /// <summary>The height he would have in the car: S in app.ini plus the file's Z.</summary>
         public double? Effective { get; set; }
 
-        /// <summary>"would-move", "already", "kept" (a build that acts) or "test" (the first run's value, in this one), "no-file", "not-writable", "beyond", "inherited", "nothing".</summary>
+        /// <summary>
+        /// "kept" (Racing Desk keeps it in the camera file), "to-move" (a height he chose before this build, not in the file yet:
+        /// the one-time move), "already", "no-file", "not-writable", "beyond", "not-chosen", "nothing".
+        /// </summary>
         public string State { get; set; }
 
-        /// <summary>The line the desk's View panel shows.</summary>
+        /// <summary>A sentence for the Cars page where there is something he needs to know (no camera file, one it cannot write, a height beyond the limit); else null.</summary>
         public string Words { get; set; }
     }
 
-    /// <summary>What a car's own SmartControl profile would be, or why there would be none.</summary>
+    /// <summary>The brakes Racing Desk puts on when he gets in a car: its base at its force, as the bytes of a profile, or why none.</summary>
     public sealed class BrakesPlan
     {
         public string Car { get; set; }
         public string Name { get; set; }
         public string BaseName { get; set; }
         public string BaseId { get; set; }
-        public double? BaseKg { get; set; }
-        public double? StoredKg { get; set; }
+
+        /// <summary>"store" (the profile the car was given, by the rule or by him) or "list" (the rule, by the car list, before it was given one).</summary>
+        public string BaseFrom { get; set; }
         public int? Kg { get; set; }
 
-        /// <summary>"stored" (the force his keys last set in the car) or "base" (his decision for a car he never set one in).</summary>
+        /// <summary>"saved" (the force his keys last set in the car) or "base" (his decision for a car he never set one in: 45 or 80).</summary>
         public string KgFrom { get; set; }
-        public string ProfileName { get; set; }
-        public string ProfileId { get; set; }
 
-        /// <summary>"would-make", "made", "none" (his choice), "no-base", "gone", "refused".</summary>
+        /// <summary>"on", "none" (his choice), "no-base", "refused".</summary>
         public string State { get; set; }
         public string Why { get; set; }
 
-        /// <summary>The line the desk's Pedals panel shows.</summary>
+        /// <summary>The profile's bytes, the base's with the force, its hash and the Description changed; and their SHA-256.</summary>
+        public byte[] Bytes { get; set; }
+        public string Sha { get; set; }
+
+        /// <summary>The sentence the Cars page's Pedals panel shows.</summary>
         public string Words { get; set; }
     }
 
@@ -64,77 +70,76 @@ namespace RacingDesk.Data.Restore
     {
         public double StartHeight { get; set; }
         public double? AppIniHeight { get; set; }
-        public string AppIniWords { get; set; }
         public bool SmartControlFound { get; set; }
         public List<ViewPlan> Views { get; } = new List<ViewPlan>();
         public List<BrakesPlan> Brakes { get; } = new List<BrakesPlan>();
 
-        /// <summary>The dry run, as lines: the heights first (the one-time move is what trial lists first), then the profiles.</summary>
+        /// <summary>What is kept for each car, as lines (the host's <c>restore --dry-run</c>).</summary>
         public List<string> Lines { get; } = new List<string>();
         public DateTime MadeAtUtc { get; set; }
     }
 
     /// <summary>
-    /// What trial says it would do, worked out from the store, iRacing's files and SmartControl's database — all read, nothing
-    /// written (docs/view-and-pedals-plan.md). The heights: each car with a view he chose and a camera file would have its
-    /// height kept in the file (new Z = the height he chose + the Z he drove it with − S), and app.ini would hold S for every
-    /// car. The brakes: each car with a base would get its own profile, from that base, at the force his keys last set in it,
-    /// or, where he never set one, at the base's own force (his decision of 2026-10-02: LightBrake 45 kg, Default 80 kg).
+    /// What Racing Desk keeps for each car, worked out from the store, iRacing's files and SmartControl's database, all read and
+    /// none written (docs/view-and-pedals-plan.md). The height: app.ini holds S for every car and each car's own height is in
+    /// its camera file's cockpit Z. The brakes: the car's base (the profile the rule gave it, or the one he chose) at the force
+    /// his keys last set in it, or, where he never set one, at the base's own force (his decision: LightBrake 45 kg, Default 80).
     /// </summary>
     public static class RestorePlanner
     {
         public static RestorePlan Plan(RacingDeskStore store, ViewFiles files, SmartControlSnapshot smartControl, double startHeight = RestorePolicy.StartHeight, DateTime? now = null)
         {
             var plan = new RestorePlan { StartHeight = startHeight, MadeAtUtc = now ?? DateTime.UtcNow, SmartControlFound = smartControl != null };
-            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (store != null) foreach (var car in store.Cars()) names[car.CarPath] = car.Name;
+            var names = Names(store);
             string NameOf(string car) => names.TryGetValue(car, out var n) && !string.IsNullOrWhiteSpace(n) ? n.Trim() : car;
 
-            // ── Heights ──
             plan.AppIniHeight = files?.AppIniHeight();
-            plan.AppIniWords = plan.AppIniHeight == null ? "app.ini's height could not be read"
-                : Math.Abs(plan.AppIniHeight.Value - startHeight) < RestorePolicy.SmallestChange ? $"app.ini holds {Words.Cm(startHeight)}, the starting height every car launches with"
-                : $"app.ini holds {Words.Cm(plan.AppIniHeight.Value)}; it would be put back to {Words.Cm(startHeight)}, the starting height every car launches with";
-
             var keeps = store?.CarViewKeeps().ToDictionary(k => k.CarPath, StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, CarViewKeep>(StringComparer.OrdinalIgnoreCase);
-            var views = store?.CarViewsList() ?? new List<CarView>();
-            foreach (var view in views.OrderBy(v => NameOf(v.CarPath), StringComparer.OrdinalIgnoreCase))
+            foreach (var view in (store?.CarViewsList() ?? new List<CarView>()).OrderBy(v => NameOf(v.CarPath), StringComparer.OrdinalIgnoreCase))
                 plan.Views.Add(PlanView(view, NameOf(view.CarPath), files, startHeight, keeps.TryGetValue(view.CarPath, out var k) ? k : null));
 
-            // ── Brakes ──
             if (store != null)
             {
-                var facts = store.CarPedalFactsList().ToDictionary(f => f.CarPath, StringComparer.OrdinalIgnoreCase);
-                var made = store.CarSmartControls().ToDictionary(c => c.CarPath, StringComparer.OrdinalIgnoreCase);
-                var pedals = store.CarPedalsList();
-                var taken = new List<string>(smartControl?.Profiles.Select(p => p.Name) ?? Enumerable.Empty<string>());
-                foreach (var bound in pedals.OrderBy(p => NameOf(p.CarPath), StringComparer.OrdinalIgnoreCase))
-                {
-                    facts.TryGetValue(bound.CarPath, out var f);
-                    made.TryGetValue(bound.CarPath, out var mine);
-                    var b = PlanBrakes(bound, f, mine, NameOf(bound.CarPath), smartControl, taken);
-                    if (b.ProfileName != null && b.State == "would-make") taken.Add(b.ProfileName);
-                    plan.Brakes.Add(b);
-                }
-                // A car he chose to have no profile: said, so the list is whole.
-                foreach (var f in facts.Values.Where(f => f.GivenBy == "none" && !pedals.Any(p => string.Equals(p.CarPath, f.CarPath, StringComparison.OrdinalIgnoreCase))))
-                    plan.Brakes.Add(new BrakesPlan { Car = f.CarPath, Name = NameOf(f.CarPath), State = "none", StoredKg = f.ForceKg, Words = "You chose that this car has no profile of its own: Racing Desk makes none and switches nothing." });
+                var cars = store.CarPedalsList().Select(p => p.CarPath)
+                    .Concat(store.CarPedalFactsList().Select(f => f.CarPath))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(NameOf, StringComparer.OrdinalIgnoreCase);
+                foreach (string car in cars) plan.Brakes.Add(PlanBrakes(store, car, NameOf(car), smartControl));
             }
 
-            // ── The dry run in words ──
-            plan.Lines.Add("Height: " + plan.AppIniWords + ".");
-            foreach (var v in plan.Views) plan.Lines.Add($"Height, {v.Name}: {v.Words}");
-            if (!plan.SmartControlFound) plan.Lines.Add("Brakes: SmartControl's database could not be read, so no profile would be made.");
-            else if (store?.SmartControlSwitchRow() == null)
-                plan.Lines.Add($"Brakes: once, in the first run (A2), with the SmartControl editor and Live closed: the profile '{RestorePolicy.SwitchProfileName}' "
-                               + $"(a copy of Default) and {RestorePolicy.SwitchKey} · Set profile in Live's {RestorePolicy.LivePresetName} preset. Your own profiles, presets and keys stay as they are.");
+            plan.Lines.Add("Seat height: app.ini " + (plan.AppIniHeight == null ? "could not be read"
+                : $"holds {Words.Cm(plan.AppIniHeight.Value)}; every car starts at {Words.Cm(startHeight)} there, and its own height is kept in its camera file") + ".");
+            foreach (var v in plan.Views) plan.Lines.Add($"Seat height, {v.Name}: " + (v.Words ?? Short(v)));
+            if (!plan.SmartControlFound) plan.Lines.Add("Brakes: SmartControl's database could not be read.");
             foreach (var b in plan.Brakes) plan.Lines.Add($"Brakes, {b.Name}: {b.Words}");
             return plan;
         }
 
+        private static Dictionary<string, string> Names(RacingDeskStore store)
+        {
+            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (store != null) foreach (var car in store.Cars()) names[car.CarPath] = car.Name;
+            return names;
+        }
+
+        /// <summary>The car's name as the store has it, else its folder.</summary>
+        public static string NameOf(RacingDeskStore store, string car, string fallback = null)
+        {
+            string name = store?.Cars().FirstOrDefault(c => string.Equals(c.CarPath, car, StringComparison.OrdinalIgnoreCase))?.Name;
+            return !string.IsNullOrWhiteSpace(name) ? name.Trim() : !string.IsNullOrWhiteSpace(fallback) ? fallback.Trim() : car;
+        }
+
+        private static string Short(ViewPlan v) => v.State switch
+        {
+            "kept" => $"{Words.Cm(v.Effective ?? 0)}, kept in its camera file.",
+            "to-move" => $"{Words.Cm(v.ChosenHeight ?? 0)} goes into its camera file (cockpit Z {Words.Cm(v.FileZ ?? 0)} to {Words.Cm(v.NewZ ?? 0)}) the next time Racing Desk starts with iRacing closed.",
+            "already" => $"{Words.Cm(v.Effective ?? 0)}, in its camera file already.",
+            _ => "nothing to keep.",
+        };
+
         public static ViewPlan PlanView(CarView view, string name, ViewFiles files, double startHeight, CarViewKeep keep = null)
         {
-            var p = new ViewPlan { Car = view.CarPath, Name = name, Chosen = view.Chosen, ChosenHeight = view.DriverHeight, DrivenZ = view.SeatZ };
+            var p = new ViewPlan { Car = view.CarPath, Name = name, Chosen = view.Chosen, ChosenHeight = view.DriverHeight };
             var cam = files?.Cam(view.CarPath);
             if (cam != null)
             {
@@ -146,140 +151,120 @@ namespace RacingDesk.Data.Restore
                 p.FileZ = cam.Z;
             }
 
-            if (keep != null && keep.WrittenZ.HasValue)
-            {
-                p.Effective = startHeight + keep.WrittenZ.Value;
-                if (RestorePolicy.ActingBuilt)
-                {
-                    p.State = "kept";
-                    p.Words = $"Height {Words.Cm(p.Effective.Value)}, kept in its camera file — iRacing puts it back when you get in.";
-                }
-                else
-                {
-                    // Nothing in this build keeps a height: what a camera file holds from Racing Desk is the first run's test value.
-                    p.State = "test";
-                    p.Words = $"The first run has put a test value in its camera file: cockpit Z {Words.Cm(keep.WrittenZ.Value)}, so the car starts at "
-                              + $"{Words.Cm(p.Effective.Value)} with app.ini at {Words.Cm(startHeight)}. It is a test, not the height you chose; undo puts it back.";
-                }
-                return p;
-            }
-            if (!view.Chosen)
-            {
-                p.State = "inherited";
-                p.Words = "Its view was carried over from the car driven before it, and not changed in this one: nothing is kept for it. "
-                          + (p.HasFile ? $"With app.ini at {Words.Cm(startHeight)} it would start at {Words.Cm(startHeight + (p.FileZ ?? 0))}."
-                                       : $"It would start at {Words.Cm(startHeight)}.");
-                return p;
-            }
-            if (view.DriverHeight == null)
-            {
-                p.State = "nothing";
-                p.Words = "Its height was not recorded.";
-                return p;
-            }
             if (!p.HasFile)
             {
                 p.State = "no-file";
-                p.Words = $"Trial: {Words.Cm(view.DriverHeight.Value)} is kept here, and iRacing cannot put it back until this car has a camera file: "
-                          + "save one once: " + RestorePolicy.SaveACameraFile + ".";
+                p.Words = (view.DriverHeight.HasValue ? $"Its seat height, {Words.Cm(view.DriverHeight.Value)}, is kept here only" : "Its seat height can't be put back")
+                          + $" because it has no camera file: save one once, {RestorePolicy.SaveACameraFile}.";
                 return p;
             }
             if (!p.Writable)
             {
                 p.State = "not-writable";
-                p.Words = $"Trial: its camera file is not one Racing Desk writes ({p.Why}); {Words.Cm(view.DriverHeight.Value)} is kept here only.";
+                p.Words = $"Its seat height is kept here only: its camera file isn't one Racing Desk can write ({p.Why}).";
                 return p;
             }
-            double driven = view.SeatZ ?? p.FileZ ?? 0;
-            double newZ = Math.Round(view.DriverHeight.Value + driven - startHeight, 4);
+            if (keep != null && keep.WrittenZ.HasValue)
+            {
+                p.State = "kept";
+                p.Effective = startHeight + keep.WrittenZ.Value;
+                return p;
+            }
+            if (!view.Chosen || view.DriverHeight == null)
+            {
+                p.State = view.DriverHeight == null ? "nothing" : "not-chosen";
+                p.Effective = startHeight + (p.FileZ ?? 0);
+                return p;
+            }
+            // The one-time move of a height he chose before: what app.ini held then above S, added to the file's Z as it is now
+            // (a camera file he has saved since keeps what he saved, and gets the app.ini part on top).
+            double newZ = Math.Round((p.FileZ ?? 0) + view.DriverHeight.Value - startHeight, 4);
             p.NewZ = newZ;
             p.Effective = startHeight + newZ;
             if (Math.Abs(newZ) > RestorePolicy.MaxCockpitZ + 1e-9)
             {
                 p.State = "beyond";
-                p.Words = $"Trial: its height would need a cockpit Z of {Words.Cm(newZ)}, beyond the ±{Words.Cm(RestorePolicy.MaxCockpitZ)} kept to until a test shows more: nothing would be written.";
+                p.Words = $"Its seat height isn't put back: it would need {Words.Cm(newZ)} in its camera file, beyond the ±{Words.Cm(RestorePolicy.MaxCockpitZ).TrimStart('+')} Racing Desk keeps to.";
                 return p;
             }
-            if (p.FileZ.HasValue && Math.Abs(newZ - p.FileZ.Value) < RestorePolicy.SmallestChange)
-            {
-                p.State = "already";
-                p.Words = $"Height {Words.Cm(p.Effective.Value)}: its camera file already holds it with app.ini at {Words.Cm(startHeight)}; nothing would change.";
-                return p;
-            }
-            p.State = "would-move";
-            p.Words = $"Trial: would keep the height you chose in it, {Words.Cm(view.DriverHeight.Value + driven)} in all "
-                      + $"(app.ini {Words.Cm(view.DriverHeight.Value)}, its camera file {Words.Cm(driven)}), in its camera file: "
-                      + $"cockpit Z {Words.Cm(p.FileZ ?? 0)} → {Words.Cm(newZ)}, with app.ini at {Words.Cm(startHeight)} for every car.";
+            p.State = Math.Abs(view.DriverHeight.Value - startHeight) < RestorePolicy.SmallestChange ? "already" : "to-move";
             return p;
         }
 
-        public static BrakesPlan PlanBrakes(CarPedals bound, CarPedalFacts facts, CarSmartControl mine, string name, SmartControlSnapshot smartControl, IEnumerable<string> takenNames)
+        /// <summary>The car's brakes, as they go on the pedals: from the store and SmartControl's profiles, in words for the Cars page.</summary>
+        public static BrakesPlan PlanBrakes(RacingDeskStore store, string car, string name, SmartControlSnapshot smartControl, CarList list = null)
         {
-            var p = new BrakesPlan { Car = bound.CarPath, Name = name, BaseName = bound.ProfileName?.Trim(), BaseId = bound.ProfileId, StoredKg = facts?.ForceKg };
-            if (facts?.GivenBy == "none")
+            var facts = store.CarPedalFactsOf(car);
+            var bound = store.CarPedalsOf(car);
+            var p = new BrakesPlan { Car = car, Name = name };
+            if (facts?.GivenBy == "none" && bound == null)
             {
                 p.State = "none";
-                p.Words = "You chose that this car has no profile of its own: Racing Desk makes none and switches nothing.";
+                p.Words = "None: you chose no profile for this car, so its brakes are left as they are.";
                 return p;
             }
-            if (mine != null)
+
+            // The base: the profile the car was given (by the rule, or by him on the desk), else the rule's by the car list.
+            SmartControlProfile from = null;
+            if (bound != null)
             {
-                p.ProfileId = mine.ProfileId;
-                p.ProfileName = mine.ProfileName;
-                p.Kg = (int)Math.Round(mine.WaitingKg ?? mine.WrittenKg);
-                if (mine.State == "gone")
+                p.BaseFrom = "store";
+                p.BaseName = bound.ProfileName?.Trim();
+                from = smartControl?.Profiles.FirstOrDefault(x => x.Id == bound.ProfileId)
+                       ?? smartControl?.Profiles.FirstOrDefault(x => string.Equals(x.Name?.Trim(), p.BaseName, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                string byList = CarPedalsKeeper.BaseByList((list ?? CarList.Default).Find(car));
+                if (byList == null)
                 {
-                    p.State = "gone";
-                    p.Words = $"Its profile '{mine.ProfileName}' was deleted in SmartControl: it has none until you ask for one again.";
+                    p.State = "no-base";
+                    p.Words = "Not yet: Racing Desk works out this car's brakes at the end of its first drive.";
                     return p;
                 }
-                p.State = "made";
-                // In a build that does not switch, a profile that is made is not switched to: the sentence says Trial, and so.
-                p.Words = RestorePolicy.ActingBuilt
-                    ? $"Its own SmartControl profile '{mine.ProfileName}' (from {mine.BaseName}), {p.Kg} kg — switched to when you get in, parked."
-                    : $"Trial: its own SmartControl profile '{mine.ProfileName}' (from {mine.BaseName}), {p.Kg} kg. Nothing is switched in this build; it would be switched to when you get in, parked.";
-                return p;
+                p.BaseFrom = "list";
+                p.BaseName = byList;
+                from = smartControl?.Profiles.FirstOrDefault(x => string.Equals(x.Name?.Trim(), byList, StringComparison.OrdinalIgnoreCase));
             }
-            var from = smartControl?.Profiles.FirstOrDefault(x => x.Id == bound.ProfileId)
-                       ?? smartControl?.Profiles.FirstOrDefault(x => string.Equals(x.Name?.Trim(), p.BaseName, StringComparison.OrdinalIgnoreCase));
             if (from == null)
             {
                 p.State = "no-base";
-                p.Words = smartControl == null ? "Trial: SmartControl could not be read, so its profile could not be made."
-                                               : $"Trial: SmartControl has no '{p.BaseName}' to make its profile from.";
+                p.Why = smartControl == null ? "SmartControl's database couldn't be read" : $"SmartControl has no profile named {p.BaseName}";
+                p.Words = $"Its brakes can't be put on: {p.Why}.";
                 return p;
             }
             p.BaseId = from.Id;
             p.BaseName = from.Name?.Trim();
-            if (SmartControlProfileEditor.TryReadForce(from.Data, out double baseKg)) p.BaseKg = baseKg;
-            int? stored = Usable(facts?.ForceKg);
-            if (stored.HasValue) { p.Kg = stored; p.KgFrom = "stored"; }
+
+            int? saved = Usable(facts?.ForceKg);
+            if (saved.HasValue) { p.Kg = saved; p.KgFrom = "saved"; }
             else
             {
-                // His decision for a car whose force he never set: its base's own force.
-                int? own = Usable(p.BaseKg) ?? (RestorePolicy.BaseForces.TryGetValue(p.BaseName ?? "", out int kg) ? kg : (int?)null);
-                p.Kg = own;
+                // His decision for a car whose force he never set: its base's own force — 45 for LightBrake, 80 for Default — and for
+                // another base he chose, the force that profile holds.
+                p.Kg = RestorePolicy.BaseForces.TryGetValue(p.BaseName ?? "", out int own) ? own
+                     : SmartControlProfileEditor.TryReadForce(from.Data, out double kg) ? Usable(kg) : null;
                 p.KgFrom = "base";
             }
             if (p.Kg == null)
             {
                 p.State = "refused";
-                p.Why = $"no force within {SmartControlProfileEditor.MinKg}–{SmartControlProfileEditor.MaxKg} kg";
-                p.Words = $"Trial: its profile could not be made: {p.Why}.";
+                p.Why = $"no force between {SmartControlProfileEditor.MinKg} and {SmartControlProfileEditor.MaxKg} kg";
+                p.Words = $"Its brakes can't be put on: {p.Why}.";
                 return p;
             }
-            p.ProfileName = SmartControlProfileEditor.UniqueName(name, takenNames);
-            if (!SmartControlProfileEditor.TryEdit(from.Data, p.Kg.Value, SmartControlProfileEditor.DescriptionFor(name, p.BaseName), out _, out string why))
+            if (!SmartControlProfileEditor.TryEdit(from.Data, p.Kg.Value, SmartControlProfileEditor.DescriptionFor(name, p.BaseName), out byte[] bytes, out string why))
             {
                 p.State = "refused";
                 p.Why = why;
-                p.Words = $"Trial: its profile could not be made from {p.BaseName}: {why}.";
+                p.Words = $"Its brakes can't be put on: {p.BaseName} at {p.Kg} kg couldn't be made ({why}).";
                 return p;
             }
-            p.State = "would-make";
-            p.Words = $"Trial: would make its own SmartControl profile '{p.ProfileName}' from {p.BaseName} at {p.Kg} kg"
-                      + (p.KgFrom == "base" ? $" ({p.BaseName}'s own force: you have not set one in this car)" : " (the force you last set in it)")
-                      + ", and switch to it when you get in, parked.";
+            p.Bytes = bytes;
+            p.Sha = ViewFiles.Sha(bytes);
+            p.State = "on";
+            p.Words = $"Put on when you get in and stop with the brake released: {p.BaseName} at {p.Kg} kg"
+                      + (p.KgFrom == "base" ? ", its own force, as you haven't set one in this car." : ", the force you last set in it.");
             return p;
         }
 
@@ -293,7 +278,7 @@ namespace RacingDesk.Data.Restore
         }
     }
 
-    /// <summary>Numbers as the desk and the HUD say them.</summary>
+    /// <summary>Numbers as the desk says them.</summary>
     public static class Words
     {
         /// <summary>Metres as centimetres to one place, signed with a real minus: -0.02 is "−2.0 cm".</summary>

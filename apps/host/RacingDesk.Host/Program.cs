@@ -33,9 +33,9 @@ namespace RacingDesk.Host
   RacingDesk.Host sql ""<select>""       run a read-only query against the store, print JSON
   RacingDesk.Host schedule             parse iRacing's season schedule PDF (--store to save it, --fetch to
                                     download it first)
-  RacingDesk.Host restore --dry-run    say what putting back each car's height and brakes would do, from the
-                                    store, iRacing's files and SmartControl's database, all read and none
-                                    written (--db, --documents, --smartcontrol name copies to read instead)
+  RacingDesk.Host restore --dry-run    say what is kept for each car's seat height and brakes, from the store,
+                                    iRacing's files and SmartControl's database, all read and none written
+                                    (--db, --documents, --smartcontrol name copies to read instead)
 
 Serve options:
   --http-port <n>      JSON contract port (default 8889)
@@ -228,9 +228,9 @@ Data options:
             var recorder = store != null && !o.NoRecord
                 ? new LiveRecorder(store, "live", _ => DateTime.UtcNow, m => Log.Info("[RacingDesk.Host] " + m))
                 : null;
-            // Putting back each car's height and brakes (docs/view-and-pedals-plan.md). In this build it is in trial: it says,
-            // on the desk, in this log and on the HUD, what it would do, and writes and presses nothing; the first run's buttons
-            // and undo write, each on his click. Made before the recorders it listens to, and handed to the data API's route.
+            // Putting back each car's seat height and brakes (docs/view-and-pedals-plan.md), by itself: the car's brakes go on
+            // the pedals when he is parked in it (F24, once), and the seat height he leaves a car with is kept in its camera file
+            // once the sim has gone. Made before the recorders it listens to, and handed to the data API's route.
             RestoreDirector restore = null;
             CarPedalsRecorder pedals = null;
             if (store != null)
@@ -245,9 +245,8 @@ Data options:
                     Backups = Path.Combine(root, "backups"),
                     Probe = probe,
                     Keys = new KeySender(),
-                    Force = () => pedals?.Now,
                     PressesThisRun = () => pedals?.PressesThisRun ?? 0,
-                    ForceNotKnown = () => pedals?.ForceNotKnown("F24 switched the profile under the pedals"),
+                    ForceIs = (car, kg) => pedals?.ForceIs(car, kg),
                     Log = m => Log.Info("[RacingDesk.Host] " + m),
                 }, Path.Combine(root, "restore.json"));
                 if (api != null) api.Restore.Director = restore;
@@ -317,7 +316,8 @@ Data options:
             // is what hears the stop, was never reached.
             raw.Start();
             Log.Info("[RacingDesk.Host] waiting for iRacing (Ctrl+C to stop)");
-            // A write of iRacing's view files that a stop cut short is finished or put back, and trial says what app.ini holds.
+            // A write of iRacing's view files that a stop cut short is put back; the heights he chose before go into the camera
+            // files once; Racing Desk's SmartControl profile and F24 are made if they are not there.
             restore?.HostStarted();
 
             if (store != null && !o.NoIngest)

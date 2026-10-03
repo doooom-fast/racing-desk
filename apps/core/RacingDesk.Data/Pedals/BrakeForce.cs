@@ -76,6 +76,13 @@ namespace RacingDesk.Data.Pedals
             ForceKg = null;
             ChangeKg = 0;
         }
+
+        /// <summary>The pedals are known to be at this force (a car's brakes put on by Racing Desk): the keys count from it.</summary>
+        public void Seed(double kg)
+        {
+            ForceKg = kg;
+            ChangeKg = 0;
+        }
     }
 
     /// <summary>What the watcher saw in one look.</summary>

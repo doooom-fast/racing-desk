@@ -120,10 +120,10 @@ namespace RacingDesk.Tests.Restore
             Directory.CreateDirectory(folder);
             File.WriteAllText(Path.Combine(folder, "before-racing-desk.db"), "kept for good");      // a copy of another kind: never pruned
             var at = new DateTime(2026, 10, 2, 20, 0, 0, DateTimeKind.Utc);
-            for (int i = 0; i < 13; i++) Assert.That(Writer.BackUpBeforeWrite(folder, "A5", at.AddMinutes(i), keep: 10), Is.Null);
+            for (int i = 0; i < 13; i++) Assert.That(Writer.BackUpBeforeWrite(folder, "brakes", at.AddMinutes(i), keep: 10), Is.Null);
             var copies = Directory.GetFiles(folder, "before-write-*.db").Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal).ToList();
             Assert.That(copies, Has.Count.EqualTo(10));
-            Assert.That(copies.First(), Is.EqualTo("before-write-" + at.AddMinutes(3).ToLocalTime().ToString("yyyy-MM-dd_HHmmss_fff", System.Globalization.CultureInfo.InvariantCulture) + "-A5.db"),
+            Assert.That(copies.First(), Is.EqualTo("before-write-" + at.AddMinutes(3).ToLocalTime().ToString("yyyy-MM-dd_HHmmss_fff", System.Globalization.CultureInfo.InvariantCulture) + "-brakes.db"),
                 "the three oldest went, and the others are named for their time and their step");
             Assert.That(File.ReadAllText(Path.Combine(folder, "before-racing-desk.db")), Is.EqualTo("kept for good"));
             string newest = Path.Combine(folder, copies.Last());
@@ -137,7 +137,7 @@ namespace RacingDesk.Tests.Restore
             Directory.CreateDirectory(_rig.Backups);
             string folder = Path.Combine(_rig.Backups, "smartcontrol");
             File.WriteAllText(folder, "a file where the folder of the copies should be");
-            var why = Writer.BackUpBeforeWrite(folder, "A5", DateTime.UtcNow);
+            var why = Writer.BackUpBeforeWrite(folder, "brakes", DateTime.UtcNow);
             Assert.That(why, Does.Contain("the backup could not be made"));
         }
 
@@ -372,6 +372,7 @@ namespace RacingDesk.Tests.Restore
             public bool SimRunning() => _left-- <= 0;
             public bool EditorRunning() => _rest.EditorRunning();
             public bool LiveRunning() => _rest.LiveRunning();
+            public DateTime? LiveStartedAtUtc() => _rest.LiveStartedAtUtc();
             public bool? ForegroundElevated() => _rest.ForegroundElevated();
             public string ForegroundProcess() => _rest.ForegroundProcess();
             public bool? PedalsConnected() => _rest.PedalsConnected();
@@ -460,7 +461,7 @@ namespace RacingDesk.Tests.Restore
         }
     }
 
-    /// <summary>Schema v9: six tables added, and nothing else of the store changed.</summary>
+    /// <summary>Schema v9: five tables added, and nothing else of the store changed.</summary>
     [TestFixture]
     public class RestoreStoreTests
     {
@@ -481,7 +482,7 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
-        public void AStoreFromV8_GainsTheSixTables_AndKeepsWhatItHad()
+        public void AStoreFromV8_GainsTheFiveTables_AndKeepsWhatItHad()
         {
             _rig.StoreWithCars(("porsche963gtp", "Porsche 963 GTP", -0.02, true, 0.0, "Default", RestoreRig.DefaultId, 70.0, "rule"));
             // Back to v8, as an earlier build left it.
@@ -489,7 +490,7 @@ namespace RacingDesk.Tests.Restore
             {
                 db.Open();
                 // A store made fresh says its version once; an earlier build's says 8.
-                RestoreRig.Run(db, "DROP TABLE car_view_keep; DROP TABLE view_baseline; DROP TABLE car_smartcontrol; DROP TABLE smartcontrol_switch; DROP TABLE restore_events; DROP TABLE restore_checks; UPDATE schema_version SET version = 8 WHERE version = 9;");
+                RestoreRig.Run(db, "DROP TABLE car_view_keep; DROP TABLE view_baseline; DROP TABLE car_smartcontrol; DROP TABLE smartcontrol_switch; DROP TABLE restore_events; UPDATE schema_version SET version = 8 WHERE version = 9;");
             }
             SqliteConnection.ClearAllPools();
             using (var read = RacingDeskStore.OpenReadOnly(_rig.Store))
@@ -504,7 +505,8 @@ namespace RacingDesk.Tests.Restore
                 Assert.That(store.HasRestoreTables, Is.True);
                 Assert.That(store.CarPedalFactsOf("porsche963gtp").ForceKg, Is.EqualTo(70), "what it had stays");
             }
-            Assert.That(Tables(_rig.Store), Is.SupersetOf(new[] { "car_view_keep", "view_baseline", "car_smartcontrol", "smartcontrol_switch", "restore_events", "restore_checks", "car_views", "car_pedals" }));
+            Assert.That(Tables(_rig.Store), Is.SupersetOf(new[] { "car_view_keep", "view_baseline", "car_smartcontrol", "smartcontrol_switch", "restore_events", "car_views", "car_pedals" }));
+            Assert.That(Tables(_rig.Store), Has.No.Member("restore_checks"), "the marks of a first run are not kept");
         }
 
         [Test]
@@ -513,26 +515,26 @@ namespace RacingDesk.Tests.Restore
             using var store = new RacingDeskStore(_rig.Store);
             var at = new DateTime(2026, 10, 2, 20, 0, 0, DateTimeKind.Utc);
             Assert.That(store.SaveCarSmartControl(new CarSmartControl { CarPath = "porsche963gtp", ProfileId = "ab", ProfileName = "Porsche 963 GTP", BaseName = "Default", MadeAtUtc = at, WrittenSha = "S", WrittenKg = 70, WrittenAtUtc = at }), Is.True);
-            Assert.That(store.SaveSmartControlSwitch(new SmartControlSwitch { ProfileId = "cd", ProfileName = "Racing Desk", Key = "F24", BindingId = 12, LinkId = 12, PresetId = 1, MadeAtUtc = at }), Is.True);
+            Assert.That(store.SaveSmartControlSwitch(new SmartControlSwitch { ProfileId = "cd", ProfileName = "Racing Desk", Key = "F24", BindingId = 12, LinkId = 12, PresetId = 1, MadeAtUtc = at, BoundAtUtc = at.AddSeconds(1), PedalsAtUtc = at.AddSeconds(2) }), Is.True);
             Assert.That(store.RacingDeskProfileIds(), Is.EquivalentTo(new[] { "ab", "cd" }));
+            var sw = store.SmartControlSwitchRow();
+            Assert.That((sw.BoundAtUtc, sw.PedalsAtUtc), Is.EqualTo(((DateTime?)at.AddSeconds(1), (DateTime?)at.AddSeconds(2))));
             Assert.That(store.CarSmartControlOf("PORSCHE963GTP").WrittenKg, Is.EqualTo(70), "a car's folder without regard to case, as the list has it");
 
-            long first = store.AddRestoreEvent(new RestoreEvent { CarPath = "porsche963gtp", What = "brakes", State = "trial", Text = "one", Hud = true, AtUtc = at });
-            long second = store.AddRestoreEvent(new RestoreEvent { What = "height", State = "trial", Text = "two", AtUtc = at });
-            Assert.That(store.RestoreEvents().Select(e => (e.Text, e.Hud)), Is.EqualTo(new[] { ("one", true), ("two", false) }));
+            long first = store.AddRestoreEvent(new RestoreEvent { CarPath = "porsche963gtp", What = "brakes", State = "done", Text = "one", AtUtc = at });
+            long second = store.AddRestoreEvent(new RestoreEvent { What = "height", State = "done", Text = "two", AtUtc = at });
+            Assert.That(store.RestoreEvents().Select(e => (e.Text, e.CarPath)), Is.EqualTo(new[] { ("one", "porsche963gtp"), ("two", (string)null) }));
             Assert.That(store.RestoreEvents(first).Single().Id, Is.EqualTo(second));
-
-            Assert.That(store.NoteCheckRan("A2", true, "made", at), Is.True);
-            Assert.That(store.MarkCheck("A2", "passed", at), Is.True);
-            Assert.That(store.MarkCheck("A2", "sure", at), Is.False);
-            var check = store.RestoreChecks().Single();
-            Assert.That((check.Step, check.RanOk, check.RanResult, check.Mark), Is.EqualTo(("A2", (bool?)true, "made", "passed")));
-            store.NoteCheckRan("A2", false, "again", at);
-            Assert.That(store.RestoreChecks().Single().Mark, Is.EqualTo("passed"), "running a step again leaves his mark");
 
             Assert.That(store.SaveViewBaseline(new ViewBaseline { StartHeight = -0.02, DecidedAtUtc = at, DecidedBy = "Kevin", IniOriginal = -0.035 }), Is.True);
             store.SaveViewBaseline(new ViewBaseline { StartHeight = -0.02, DecidedAtUtc = at, IniOriginal = -0.01 });
             Assert.That(store.ViewBaselineRow().IniOriginal, Is.EqualTo(-0.035), "what app.ini held before Racing Desk first wrote it is kept, not replaced");
+            Assert.That(store.NoteHeightsMoved(at), Is.True);
+            Assert.That(store.NoteLaunch(-0.025, at.AddMinutes(1)), Is.True);
+            var b = store.ViewBaselineRow();
+            Assert.That((b.MigratedAtUtc, b.LaunchHeight, b.LaunchAtUtc, b.IniOriginal), Is.EqualTo(((DateTime?)at, (double?)-0.025, (DateTime?)at.AddMinutes(1), (double?)-0.035)), "one value at a time, the rest as they were");
+            store.NoteHeightsMoved(null);
+            Assert.That(store.ViewBaselineRow().MigratedAtUtc, Is.Null);
         }
 
         [Test]
@@ -560,6 +562,7 @@ INSERT INTO view_baseline (id, start_height, decided_at, ini_original) VALUES (1
                 Assert.That(store.NoteIniValues(-0.035, -0.02, 0.19, 0.21, at), Is.True);
                 var b = store.ViewBaselineRow();
                 Assert.That((b.IniOriginal, b.IniHeightWritten, b.VanishYOriginal, b.VanishYWritten), Is.EqualTo(((double?)-0.035, (double?)-0.02, (double?)0.19, (double?)0.21)));
+                Assert.That(b.IniWrittenAtUtc, Is.EqualTo(at), "and when Racing Desk wrote it");
                 Assert.That(store.NoteIniValues(-0.5, -0.04, 0.5, 0.25, at), Is.True);
                 b = store.ViewBaselineRow();
                 Assert.That((b.IniOriginal, b.IniHeightWritten, b.VanishYOriginal, b.VanishYWritten), Is.EqualTo(((double?)-0.035, (double?)-0.04, (double?)0.19, (double?)0.25)),
@@ -576,7 +579,7 @@ INSERT INTO view_baseline (id, start_height, decided_at, ini_original) VALUES (1
         public void OldLinesGo_AsNewOnesCome()
         {
             using var store = new RacingDeskStore(_rig.Store);
-            for (int i = 0; i < RacingDeskStore.RestoreEventsKept + 20; i++) store.AddRestoreEvent(new RestoreEvent { What = "x", State = "trial", Text = "line " + i });
+            for (int i = 0; i < RacingDeskStore.RestoreEventsKept + 20; i++) store.AddRestoreEvent(new RestoreEvent { What = "x", State = "done", Text = "line " + i });
             Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM restore_events"), Is.EqualTo(RacingDeskStore.RestoreEventsKept));
             Assert.That(store.RestoreEvents(0, 1).Single().Text, Is.EqualTo("line " + (RacingDeskStore.RestoreEventsKept + 19)));
         }

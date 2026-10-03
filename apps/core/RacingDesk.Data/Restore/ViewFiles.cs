@@ -120,9 +120,10 @@ namespace RacingDesk.Data.Restore
     }
 
     /// <summary>
-    /// iRacing's view files, read and — only on his click in the first run, or by undo — written: <c>Documents\iRacing\app.ini</c>
-    /// (one value of [View] at a time) and a car's camera file (its cockpit Z, and the vertical shift behind its own
-    /// switch). The rules (docs/view-and-pedals-plan.md):
+    /// iRacing's view files, read, and written only with the sim closed — by the director once the sim has gone (a car's seat
+    /// height into its camera file, app.ini back to S), and by undo: <c>Documents\iRacing\app.ini</c> (one value of [View] at
+    /// a time) and a car's camera file (its cockpit Z; the vertical shift only ever put back). The rules
+    /// (docs/view-and-pedals-plan.md):
     /// <list type="bullet">
     /// <item>Never while the sim runs: both of its names are asked again right before each write.</item>
     /// <item>A copy aside first, under <c>%LOCALAPPDATA%\Racing Desk\backups\view\&lt;time&gt;\</c>; the first original of each
@@ -441,6 +442,8 @@ namespace RacingDesk.Data.Restore
             if (vanishY.HasValue && !AppIniEditor.TrySetValue(edited, "View", VanishYKey, vanishY.Value, out edited, out why)) return false;
             if (_probe.SimRunning()) { why = "iRacing started"; return false; }
             if (!Swap(AppIni, edited, out why)) return false;
+            // What app.ini holds now is Racing Desk's own last write of it: the check at the sim's next start holds it to this.
+            NoteIni(null, height, null, vanishY);
             why = null;
             return true;
         }
@@ -617,32 +620,6 @@ namespace RacingDesk.Data.Restore
             {
                 why = "the backup could not be made: " + ex.Message.Trim();
                 return null;
-            }
-        }
-
-        /// <summary>
-        /// 0b made its copies: a marker in the copies' own folder, made only once every file had been copied and read back. The
-        /// steps that write the view files ask for one before they write (<see cref="FirstRunCopyExists"/>).
-        /// </summary>
-        public void MarkFirstRunCopy(string stamp)
-        {
-            string folder = Path.Combine(_backups, stamp);
-            Directory.CreateDirectory(folder);
-            File.WriteAllText(Path.Combine(folder, FirstRunMarker), "0b copied app.ini, camera.ini and the camera files here, and each read back.\r\n");
-        }
-
-        public const string FirstRunMarker = "copied.txt";
-
-        /// <summary>Whether a first-run copy of iRacing's files, all of them, has been made.</summary>
-        public bool FirstRunCopyExists()
-        {
-            try
-            {
-                return Directory.Exists(_backups) && Directory.EnumerateDirectories(_backups, "first-run-*").Any(d => File.Exists(Path.Combine(d, FirstRunMarker)));
-            }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
-            {
-                return false;
             }
         }
 

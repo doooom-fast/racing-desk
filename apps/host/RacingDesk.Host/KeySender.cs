@@ -12,8 +12,8 @@ namespace RacingDesk.Host
     /// takes a key: a second key would be a change to this class, which a test holds to (<c>SendInputOnlyHereTests</c>
     /// fails on SendInput anywhere else in the repo).
     ///
-    /// In this build it is pressed only by the first run's buttons (A4–A6, B2), on his click; the loop that would press it at
-    /// car load is in trial and presses nothing. Windows drops a key sent to a program running above this one, which is why
+    /// It is pressed by the host's RestoreDirector alone, once per car load, when he is parked in a car whose brakes are not
+    /// on the pedals yet, with iRacing in front. Windows drops a key sent to a program running above this one, which is why
     /// the window in front is asked first (<see cref="IRigProbe.ForegroundElevated"/>).
     /// </summary>
     internal sealed class KeySender : IKeySender

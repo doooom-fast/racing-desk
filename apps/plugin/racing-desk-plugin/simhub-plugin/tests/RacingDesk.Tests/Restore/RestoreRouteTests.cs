@@ -76,35 +76,34 @@ namespace RacingDesk.Tests.Restore
             var (status, body) = Ask(null, HttpMethod.Get, "restore");
             Assert.That(status, Is.EqualTo(HttpStatusCode.OK));
             Assert.That((bool)body["available"], Is.False);
-            Assert.That(Ask(null, HttpMethod.Post, "restore", "{\"step\":\"A1\"}").Status, Is.EqualTo(HttpStatusCode.Conflict));
+            Assert.That(Ask(null, HttpMethod.Post, "restore", "{\"undo\":\"all\"}").Status, Is.EqualTo(HttpStatusCode.Conflict));
         }
 
         [Test]
-        public void TheRouteSays_Trial_TheSwitches_TheGate_EachCar_AndTheFirstRun()
+        public void TheRouteSays_TheSwitches_HowEachPartStands_WhetherThereIsAnythingToUndo_AndEachCarsSentences()
         {
             var director = Director();
-            for (int i = 0; i < 3; i++) director.See(new SeatFacts { CarPath = "porsche963gtp", CarName = "Porsche 963 GTP", IsInGarage = true, SimMode = "full", AtUtc = DateTime.UtcNow });
-            director.Settled().Wait(TimeSpan.FromSeconds(20));
             var (status, body) = Ask(director, HttpMethod.Get, "restore");
             Assert.That(status, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(((bool)body["available"], (string)body["mode"], (bool)body["acting"]), Is.EqualTo((true, "trial", false)));
-            Assert.That((double)body["startHeight"], Is.EqualTo(-0.02));
-            Assert.That(((bool)body["switches"]["height"], (bool)body["switches"]["brakes"], (bool)body["switches"]["horizon"]), Is.EqualTo((true, true, false)));
-            Assert.That(body["gate"]["brakes"]["needs"].Select(t => (string)t), Is.EqualTo(new[] { "A4", "A5", "A6", "B2" }));
-            Assert.That((bool)body["gate"]["brakes"]["acts"], Is.False);
-            Assert.That(body["lines"].Select(l => (string)l["text"]), Has.Some.EqualTo("Trial: brakes Porsche 963 GTP · 70 kg"));
+            Assert.That((bool)body["available"], Is.True);
+            Assert.That(((bool)body["switches"]["brakes"], (bool)body["switches"]["height"]), Is.EqualTo((true, true)));
+            Assert.That((string)body["status"]["brakes"]["state"], Is.EqualTo("waiting"));
+            Assert.That((string)body["status"]["brakes"]["text"], Does.StartWith("Getting ready"));
+            Assert.That((string)body["status"]["height"]["state"], Is.EqualTo("waiting"));
+            Assert.That((bool)body["undo"], Is.False);
             var car = body["cars"].Single(c => (string)c["car"] == "porsche963gtp");
-            Assert.That((string)car["pedals"]["state"], Is.EqualTo("would-make"));
-            Assert.That((double)car["pedals"]["kg"], Is.EqualTo(70));
-            Assert.That((string)car["view"]["state"], Is.EqualTo("already"));
-            var steps = body["firstRun"]["steps"].Select(s => (string)s["id"]).ToList();
-            Assert.That(steps, Is.EqualTo(new[] { "0a", "0b", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "C1" }));
-            Assert.That((string)body["now"]["place"], Is.EqualTo("garage screen"));
+            Assert.That((string)car["pedals"]["state"], Is.EqualTo("on"));
+            Assert.That((string)car["pedals"]["text"], Is.EqualTo("Put on when you get in and stop with the brake released: Default at 70 kg, the force you last set in it."));
+            Assert.That(car["view"].Type, Is.EqualTo(JTokenType.Null), "nothing he needs to know of its seat height");
+            foreach (string gone in new[] { "mode", "gate", "firstRun", "closing", "lines", "plan", "settled" })
+                Assert.That(body[gone], Is.Null, gone + " is not said any more");
 
-            long seq = (long)body["seq"];
-            var (_, since) = Ask(director, HttpMethod.Get, "restore?since=" + seq);
-            Assert.That(since["lines"], Is.Empty, "nothing after the newest");
-            Assert.That(since["cars"], Is.Null, "the HUD's poll is not sent the dry run");
+            // A part that is off has no sentences on the Cars page.
+            director.SetSwitches(false, null);
+            var (_, off) = Ask(director, HttpMethod.Get, "restore");
+            Assert.That((string)off["status"]["brakes"]["text"], Is.EqualTo("Off."));
+            Assert.That(off["cars"].Any(c => c["pedals"].Type != JTokenType.Null), Is.False);
+            Assert.That(director.Settled().Wait(TimeSpan.FromSeconds(20)), Is.True, "the setup a look at the desk asked for has finished");
         }
 
         [Test]
@@ -113,18 +112,15 @@ namespace RacingDesk.Tests.Restore
             var director = Director();
             var (status, body) = Ask(director, HttpMethod.Post, "restore", "{\"switches\":{\"brakes\":false}}");
             Assert.That(status, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That((bool)body["switches"]["brakes"], Is.False);
+            Assert.That(((bool)body["ok"], (bool)body["switches"]["brakes"], (bool)body["switches"]["height"]), Is.EqualTo((true, false, true)));
             Assert.That(director.Switches.Brakes, Is.False);
 
-            var step = Ask(director, HttpMethod.Post, "restore", "{\"step\":\"A1\"}");
-            Assert.That(step.Status, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That((string)step.Body["step"], Is.EqualTo("A1"));
-            Assert.That((bool)step.Body["ok"], Is.False, "Live is running in the made-up rig");
-            Assert.That(Ask(director, HttpMethod.Post, "restore", "{\"mark\":\"A1\",\"state\":\"passed\"}").Status, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(Ask(director, HttpMethod.Post, "restore", "{\"mark\":\"A1\",\"state\":\"sure\"}").Status, Is.EqualTo(HttpStatusCode.BadRequest));
-            Assert.That(Ask(director, HttpMethod.Post, "restore", "{\"step\":\"Z9\"}").Status, Is.EqualTo(HttpStatusCode.BadRequest));
-            Assert.That(Ask(director, HttpMethod.Post, "restore", "{\"undo\":\"everything\"}").Status, Is.EqualTo(HttpStatusCode.BadRequest));
-            Assert.That(Ask(director, HttpMethod.Post, "restore", "[1]").Status, Is.EqualTo(HttpStatusCode.BadRequest));
+            var undo = Ask(director, HttpMethod.Post, "restore", "{\"undo\":\"all\"}");
+            Assert.That(undo.Status, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(((string)undo.Body["action"], (bool)undo.Body["busy"], (bool)undo.Body["ok"]), Is.EqualTo(("undo", false, true)));
+            Assert.That(director.Switches.Height, Is.False, "undo turns both off");
+            foreach (string wrong in new[] { "{\"step\":\"A1\"}", "{\"mark\":\"A1\",\"state\":\"passed\"}", "{\"undo\":\"brakes\"}", "{\"switches\":{\"horizon\":true}}", "[1]" })
+                Assert.That(Ask(director, HttpMethod.Post, "restore", wrong).Status, Is.EqualTo(HttpStatusCode.BadRequest), wrong);
 
             // A page: refused by the data API's check before the route, and nothing changes.
             var page = Ask(director, HttpMethod.Post, "restore", "{\"switches\":{\"brakes\":true}}", r => r.Headers.Add("Origin", "null"));
@@ -133,44 +129,6 @@ namespace RacingDesk.Tests.Restore
             Assert.That(marked.Status, Is.EqualTo(HttpStatusCode.Forbidden));
             Assert.That(director.Switches.Brakes, Is.False);
             Assert.That(_rig.Keys.Sent, Is.Zero);
-        }
-
-        [Test]
-        public void TheRouteSaysWhatIsOwed_AndWhyTheBrakesPartFailed()
-        {
-            var director = Director();
-            var (_, quiet) = Ask(director, HttpMethod.Get, "restore");
-            Assert.That((bool)quiet["closing"]["owed"], Is.False, "no key has gone");
-            Assert.That(quiet["closing"]["eeprom"].Type, Is.EqualTo(JTokenType.Null));
-            Assert.That(quiet["gate"]["brakes"]["failed"].Type, Is.EqualTo(JTokenType.Null));
-
-            // F24 went, and then the look at the pedals' memory showed Racing Desk's profile with his old values.
-            var pressed = new DateTime(2026, 10, 2, 20, 0, 0, DateTimeKind.Utc);
-            using (var store = new RacingDeskStore(_rig.Store))
-            {
-                store.SaveSmartControlSwitch(new SmartControlSwitch { ProfileId = "ab", ProfileName = "Racing Desk", Key = "F24", BindingId = 7, MadeAtUtc = pressed, SentAtUtc = pressed });
-                store.NoteCheckRan(RestoreClosing.Id, false, "the pedals kept the id", pressed.AddMinutes(5));
-            }
-            var (_, owed) = Ask(director, HttpMethod.Get, "restore");
-            var closing = owed["closing"];
-            Assert.That(((bool)closing["owed"], (string)closing["eeprom"], (bool)closing["eepromFresh"]), Is.EqualTo((true, "id", true)));
-            Assert.That((string)closing["owedWords"], Does.StartWith("C1 is owed"));
-            Assert.That((string)closing["failed"], Does.Contain("The brakes part has failed").And.Contain("keep the profile id"));
-            Assert.That((string)owed["gate"]["brakes"]["failed"], Is.EqualTo((string)closing["failed"]));
-            Assert.That(((bool)owed["gate"]["brakes"]["proven"], (string)owed["gate"]["brakes"]["eeprom"]), Is.EqualTo((false, "id")));
-            Assert.That(owed["firstRun"]["steps"].Last["actions"].Select(a => (string)a["id"]), Is.EqualTo(new[] { "C1-own", "C1-id", "C1-values", "C1" }));
-        }
-
-        [Test]
-        public void TheTestRowUndo_IsACommand_AndEveryAnswerSaysWhetherRacingDeskWasBusy()
-        {
-            var director = Director();
-            var undo = Ask(director, HttpMethod.Post, "restore", "{\"undo\":\"test\"}");
-            Assert.That(undo.Status, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(((string)undo.Body["action"], (bool)undo.Body["busy"], (bool)undo.Body["ok"]), Is.EqualTo(("undo-test", false, true)));
-            var step = Ask(director, HttpMethod.Post, "restore", "{\"step\":\"A1\"}");
-            Assert.That((bool)step.Body["busy"], Is.False);
-            Assert.That(Ask(director, HttpMethod.Post, "restore", "{\"undo\":\"everything\"}").Status, Is.EqualTo(HttpStatusCode.BadRequest));
         }
 
         [Test]

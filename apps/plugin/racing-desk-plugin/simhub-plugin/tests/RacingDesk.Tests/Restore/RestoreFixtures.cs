@@ -20,9 +20,13 @@ namespace RacingDesk.Tests.Restore
         public string Front = "notepad";
         public int SimAsked;
 
+        /// <summary>When SmartControl Live started; null while it is not running, or that cannot be asked.</summary>
+        public DateTime? LiveStarted;
+
         public bool SimRunning() { SimAsked++; return Sim; }
         public bool EditorRunning() => Editor;
         public bool LiveRunning() => Live;
+        public DateTime? LiveStartedAtUtc() => Live ? LiveStarted : null;
         public bool? ForegroundElevated() => Elevated;
         public string ForegroundProcess() => Front;
         public bool? PedalsConnected() => Pedals;
@@ -53,6 +57,10 @@ namespace RacingDesk.Tests.Restore
         public readonly FakeKeys Keys = new FakeKeys();
         public readonly List<string> Logged = new List<string>();
 
+        /// <summary>The forces the key watcher was told the pedals are at (the car, the force), and the keys he pressed in the car.</summary>
+        public readonly List<(string Car, double Kg)> Seeded = new List<(string, double)>();
+        public int Presses;
+
         public RestoreRig()
         {
             Directory.CreateDirectory(Documents);
@@ -63,7 +71,9 @@ namespace RacingDesk.Tests.Restore
         public RestoreContext Context() => new RestoreContext
         {
             StorePath = Store, Files = Files(), SmartControlDb = SmartControlDb, Backups = Backups, Probe = Probe, Keys = Keys,
-            Log = m => { lock (Logged) Logged.Add(m); }, SendDelay = TimeSpan.Zero, Sleep = _ => { },
+            Log = m => { lock (Logged) Logged.Add(m); },
+            ForceIs = (car, kg) => { lock (Seeded) Seeded.Add((car, kg)); },
+            PressesThisRun = () => Presses,
         };
 
         public void Dispose()

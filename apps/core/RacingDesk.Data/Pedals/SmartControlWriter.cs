@@ -35,11 +35,11 @@ namespace RacingDesk.Data.Pedals
     /// <item>One short transaction with a 2-second busy timeout, foreign keys on as SmartControl has them, and the journal mode
     /// never touched (SmartControl's is the rollback journal).</item>
     /// <item>What was written is read back and compared, byte for byte.</item>
-    /// <item>A backup first: before the first write of each step of the first run (<see cref="BackUpBeforeWrite"/>) SQLite's own
-    /// online backup (<see cref="Backup"/>) is taken to a timestamped file in Racing Desk's own backup folder — it reads the
-    /// database consistently while SmartControl or Live may have it open — and checked to open and to hold what the database
-    /// holds; the write is refused if it does not check out, and the last ten such copies are kept. (Before the first write ever,
-    /// 0b keeps a copy for good.)</item>
+    /// <item>A backup first: before Racing Desk writes (<see cref="BackUpBeforeWrite"/>) SQLite's own online backup
+    /// (<see cref="Backup"/>) is taken to a timestamped file in Racing Desk's own backup folder — it reads the database
+    /// consistently while SmartControl or Live may have it open — and checked to open and to hold what the database holds; the
+    /// write is refused if it does not check out, and the last ten such copies are kept. (The first copy ever is also kept for
+    /// good, as <c>before-racing-desk.db</c>: RestoreContext.BackUpBeforeWrite.)</item>
     /// </list>
     /// Nothing here talks to the pedals; nothing here is SmartControl's Apply, Save or Restore, the only paths to EEPROM.
     /// </summary>
@@ -143,13 +143,13 @@ namespace RacingDesk.Data.Pedals
             }
         }
 
-        /// <summary>The name of a copy taken before a step's write: <c>before-write-&lt;time&gt;-&lt;step&gt;.db</c>.</summary>
+        /// <summary>The name of a copy taken before a write: <c>before-write-&lt;time&gt;-&lt;what&gt;.db</c>.</summary>
         public const string StepBackupPrefix = "before-write-";
 
         /// <summary>
-        /// A copy of the database before a step writes it (<see cref="Backup"/>, checked to open and to hold what the database holds)
-        /// in <paramref name="folder"/>, named for the time and the step; the newest <paramref name="keep"/> of these are kept and older
-        /// ones go. Null when the copy is made and has checked out; else why not, and the caller writes nothing.
+        /// A copy of the database before Racing Desk writes it (<see cref="Backup"/>, checked to open and to hold what the database
+        /// holds) in <paramref name="folder"/>, named for the time and what the write is; the newest <paramref name="keep"/> of these
+        /// are kept and older ones go. Null when the copy is made and has checked out; else why not, and the caller writes nothing.
         /// </summary>
         public string BackUpBeforeWrite(string folder, string step, DateTime atUtc, int keep = 10)
         {

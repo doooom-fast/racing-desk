@@ -350,7 +350,7 @@ namespace RacingDesk.Tests.Transport
             // The app's one write, by Node, as rig-api.js sends it: the host's own check of it is the one RigTests has.
             var bind = Ask("POST", "/racing-desk/data/pedals", r => r.Headers.Host = "localhost:" + _httpPort);
             Assert.That(bind.Status, Is.Not.EqualTo(HttpStatusCode.Forbidden), "a program's write reaches the route: " + bind.Body);
-            // And the first run's and the switches' (restore-api.js): a host with no director answers that it has none.
+            // And putting the cars back's (restore-api.js): a host with no director answers that it has none.
             var restore = Ask("POST", "/racing-desk/data/restore", r => r.Headers.Host = "localhost:" + _httpPort);
             Assert.That(restore.Status, Is.EqualTo(HttpStatusCode.Conflict), "a program's command reaches the route: " + restore.Body);
         }

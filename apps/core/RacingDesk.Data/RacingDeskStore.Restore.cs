@@ -7,7 +7,7 @@ using RacingDesk.Data.Restore;
 namespace RacingDesk.Data
 {
     /// <summary>
-    /// Schema v9: putting back each car's driver height and brakes (docs/view-and-pedals-plan.md). Six tables of their
+    /// Schema v9: putting back each car's seat height and brakes (docs/view-and-pedals-plan.md). Five tables of their
     /// own, added to a store and nothing in it changed, so an earlier build still records and ingests into a store this one
     /// has opened. Every reader here answers "none" for a store from before v9 (a read-only open does not migrate).
     /// </summary>
@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS smartcontrol_switch (
   key TEXT NOT NULL,
   made_at TEXT NOT NULL,
   written_sha TEXT, written_for TEXT, written_at TEXT,
-  sent_at TEXT
+  sent_at TEXT,
+  bound_at TEXT, pedals_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS restore_events (
@@ -61,14 +62,7 @@ CREATE TABLE IF NOT EXISTS restore_events (
   car_path TEXT,
   what TEXT NOT NULL,
   state TEXT NOT NULL,
-  text TEXT NOT NULL,
-  hud INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS restore_checks (
-  step TEXT PRIMARY KEY,
-  ran_at TEXT, ran_ok INTEGER, ran_result TEXT,
-  mark TEXT, marked_at TEXT
+  text TEXT NOT NULL
 );
 ";
 
@@ -160,8 +154,12 @@ ON CONFLICT(car_path) DO UPDATE SET cam_file = excluded.cam_file, own_z = exclud
 
         // ── view_baseline ──
 
-        /// <summary>The columns app.ini's values are kept in, which a v9 store made before they were kept may not have yet.</summary>
-        private static readonly string[] IniValueColumns = { "vy_original", "ini_height_written", "vy_written" };
+        /// <summary>The columns a v9 store made by an earlier build of it may not have yet: app.ini's values, and the switch's two times.</summary>
+        private static readonly (string Table, string Column, string Type)[] LaterColumns =
+        {
+            ("view_baseline", "vy_original", "REAL"), ("view_baseline", "ini_height_written", "REAL"), ("view_baseline", "vy_written", "REAL"),
+            ("smartcontrol_switch", "bound_at", "TEXT"), ("smartcontrol_switch", "pedals_at", "TEXT"),
+        };
 
         private bool HasColumn(string table, string column)
         {
@@ -173,11 +171,10 @@ ON CONFLICT(car_path) DO UPDATE SET cam_file = excluded.cam_file, own_z = exclud
         /// <summary>Adds the columns a v9 store made earlier lacks; a read-write open does it, a read-only one reads without them.</summary>
         private void EnsureRestoreColumns()
         {
-            if (!HasTable("view_baseline")) return;
-            foreach (string column in IniValueColumns)
+            foreach (var (table, column, type) in LaterColumns)
             {
-                if (HasColumn("view_baseline", column)) continue;
-                try { Exec("ALTER TABLE view_baseline ADD COLUMN " + column + " REAL"); }
+                if (!HasTable(table) || HasColumn(table, column)) continue;
+                try { Exec("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type); }
                 catch (SqliteException ex) when (ex.Message.IndexOf("duplicate column", StringComparison.OrdinalIgnoreCase) >= 0) { /* another opener was first */ }
             }
         }
@@ -201,24 +198,27 @@ ON CONFLICT(car_path) DO UPDATE SET cam_file = excluded.cam_file, own_z = exclud
         }
 
         /// <summary>
-        /// Keeps what Racing Desk has done to app.ini's two values, whichever step did it: the value of each before Racing Desk's
-        /// first write of it (kept, never replaced) and the value it last wrote (replaced). A value that is null leaves what is
-        /// kept as it is. The row is made, with S and the day it was decided, if there is none yet.
+        /// Keeps what Racing Desk has done to app.ini's two values, whatever wrote them: the value of each before Racing Desk's
+        /// first write of it (kept, never replaced), the value it last wrote (replaced) and when (<paramref name="atUtc"/>, kept
+        /// with a written value). A value that is null leaves what is kept as it is. The row is made, with S and the day it was
+        /// decided, if there is none yet.
         /// </summary>
         public bool NoteIniValues(double? heightBefore, double? heightWritten, double? vanishYBefore, double? vanishYWritten, DateTime atUtc)
         {
             if (!HasTable("view_baseline")) return false;
             EnsureRestoreColumns();
+            bool wrote = heightWritten.HasValue || vanishYWritten.HasValue;
             Exec(@"
-INSERT INTO view_baseline (id, start_height, decided_at, decided_by, ini_original, vy_original, ini_height_written, vy_written)
-VALUES (1, $s, $at, $by, $ho, $vo, $hw, $vw)
+INSERT INTO view_baseline (id, start_height, decided_at, decided_by, ini_original, vy_original, ini_height_written, vy_written, ini_written_at)
+VALUES (1, $s, $at, $by, $ho, $vo, $hw, $vw, $wat)
 ON CONFLICT(id) DO UPDATE SET
   ini_original = COALESCE(view_baseline.ini_original, excluded.ini_original),
   vy_original = COALESCE(view_baseline.vy_original, excluded.vy_original),
   ini_height_written = COALESCE(excluded.ini_height_written, view_baseline.ini_height_written),
-  vy_written = COALESCE(excluded.vy_written, view_baseline.vy_written)", null,
+  vy_written = COALESCE(excluded.vy_written, view_baseline.vy_written),
+  ini_written_at = COALESCE(excluded.ini_written_at, view_baseline.ini_written_at)", null,
                 ("$s", RestorePolicy.StartHeight), ("$at", Iso(RestorePolicy.DecidedAtUtc)), ("$by", RestorePolicy.DecidedBy),
-                ("$ho", heightBefore), ("$vo", vanishYBefore), ("$hw", heightWritten), ("$vw", vanishYWritten));
+                ("$ho", heightBefore), ("$vo", vanishYBefore), ("$hw", heightWritten), ("$vw", vanishYWritten), ("$wat", wrote ? Iso(atUtc) : null));
             return true;
         }
 
@@ -227,8 +227,23 @@ ON CONFLICT(id) DO UPDATE SET
         {
             if (!HasTable("view_baseline")) return false;
             EnsureRestoreColumns();
-            using var cmd = Cmd("UPDATE view_baseline SET ini_original = NULL, vy_original = NULL, ini_height_written = NULL, vy_written = NULL WHERE id = 1");
+            using var cmd = Cmd("UPDATE view_baseline SET ini_original = NULL, vy_original = NULL, ini_height_written = NULL, vy_written = NULL, ini_written_at = NULL WHERE id = 1");
             return cmd.ExecuteNonQuery() > 0;
+        }
+
+        /// <summary>When the one-time move of his earlier heights was made (null: owed again). The row is made, with S, if there is none.</summary>
+        public bool NoteHeightsMoved(DateTime? atUtc) => NoteBaseline("migrated_at = $v", ("$v", IsoOrNull(atUtc)));
+
+        /// <summary>What app.ini held when the sim last started, and when (the self-check).</summary>
+        public bool NoteLaunch(double? height, DateTime atUtc) => NoteBaseline("launch_height = $v, launch_at = $w", ("$v", height), ("$w", Iso(atUtc)));
+
+        private bool NoteBaseline(string set, params (string, object)[] values)
+        {
+            if (!HasTable("view_baseline")) return false;
+            Exec("INSERT INTO view_baseline (id, start_height, decided_at, decided_by) VALUES (1, $s, $at, $by) ON CONFLICT(id) DO NOTHING", null,
+                ("$s", RestorePolicy.StartHeight), ("$at", Iso(RestorePolicy.DecidedAtUtc)), ("$by", RestorePolicy.DecidedBy));
+            Exec("UPDATE view_baseline SET " + set + " WHERE id = 1", null, values);
+            return true;
         }
 
         public bool SaveViewBaseline(ViewBaseline b)
@@ -307,8 +322,10 @@ ON CONFLICT(car_path) DO UPDATE SET profile_id = excluded.profile_id, profile_na
         public SmartControlSwitch SmartControlSwitchRow()
         {
             if (!HasTable("smartcontrol_switch")) return null;
+            // A store opened read-only by a build that did not migrate it may not have the later columns: they read as none.
+            string Col(string c) => HasColumn("smartcontrol_switch", c) ? c : "NULL";
             using var cmd = Cmd(@"SELECT profile_id, profile_name, binding_id, link_id, preset_id, key, made_at, written_sha, written_for,
-  written_at, sent_at FROM smartcontrol_switch WHERE id = 1");
+  written_at, sent_at, " + Col("bound_at") + ", " + Col("pedals_at") + " FROM smartcontrol_switch WHERE id = 1");
             using var r = cmd.ExecuteReader();
             if (!r.Read()) return null;
             return new SmartControlSwitch
@@ -317,21 +334,26 @@ ON CONFLICT(car_path) DO UPDATE SET profile_id = excluded.profile_id, profile_na
                 BindingId = r.IsDBNull(2) ? (long?)null : r.GetInt64(2), LinkId = r.IsDBNull(3) ? (long?)null : r.GetInt64(3),
                 PresetId = r.IsDBNull(4) ? (long?)null : r.GetInt64(4), Key = r.GetString(5), MadeAtUtc = Utc(r.GetString(6)),
                 WrittenSha = Str(r, 7), WrittenFor = Str(r, 8), WrittenAtUtc = When(r, 9), SentAtUtc = When(r, 10),
+                BoundAtUtc = When(r, 11), PedalsAtUtc = When(r, 12),
             };
         }
 
         public bool SaveSmartControlSwitch(SmartControlSwitch row)
         {
             if (row == null || string.IsNullOrWhiteSpace(row.ProfileId) || !HasTable("smartcontrol_switch")) return false;
+            EnsureRestoreColumns();
             Exec(@"
-INSERT INTO smartcontrol_switch (id, profile_id, profile_name, binding_id, link_id, preset_id, key, made_at, written_sha, written_for, written_at, sent_at)
-VALUES (1, $id, $name, $bind, $link, $preset, $key, $made, $sha, $for, $wat, $sent)
+INSERT INTO smartcontrol_switch (id, profile_id, profile_name, binding_id, link_id, preset_id, key, made_at, written_sha, written_for, written_at,
+  sent_at, bound_at, pedals_at)
+VALUES (1, $id, $name, $bind, $link, $preset, $key, $made, $sha, $for, $wat, $sent, $bat, $pat)
 ON CONFLICT(id) DO UPDATE SET profile_id = excluded.profile_id, profile_name = excluded.profile_name, binding_id = excluded.binding_id,
   link_id = excluded.link_id, preset_id = excluded.preset_id, key = excluded.key, made_at = excluded.made_at,
-  written_sha = excluded.written_sha, written_for = excluded.written_for, written_at = excluded.written_at, sent_at = excluded.sent_at", null,
+  written_sha = excluded.written_sha, written_for = excluded.written_for, written_at = excluded.written_at, sent_at = excluded.sent_at,
+  bound_at = excluded.bound_at, pedals_at = excluded.pedals_at", null,
                 ("$id", row.ProfileId), ("$name", row.ProfileName), ("$bind", row.BindingId), ("$link", row.LinkId), ("$preset", row.PresetId),
                 ("$key", row.Key ?? "F24"), ("$made", Iso(row.MadeAtUtc)), ("$sha", row.WrittenSha), ("$for", row.WrittenFor),
-                ("$wat", IsoOrNull(row.WrittenAtUtc)), ("$sent", IsoOrNull(row.SentAtUtc)));
+                ("$wat", IsoOrNull(row.WrittenAtUtc)), ("$sent", IsoOrNull(row.SentAtUtc)), ("$bat", IsoOrNull(row.BoundAtUtc)),
+                ("$pat", IsoOrNull(row.PedalsAtUtc)));
             return true;
         }
 
@@ -363,10 +385,10 @@ ON CONFLICT(id) DO UPDATE SET profile_id = excluded.profile_id, profile_name = e
             if (e == null || string.IsNullOrWhiteSpace(e.Text) || !HasTable("restore_events")) return 0;
             using var tx = _db.BeginTransaction();
             long id;
-            using (var cmd = Cmd("INSERT INTO restore_events (at, car_path, what, state, text, hud) VALUES ($at, $car, $what, $state, $text, $hud); SELECT last_insert_rowid();", tx))
+            using (var cmd = Cmd("INSERT INTO restore_events (at, car_path, what, state, text) VALUES ($at, $car, $what, $state, $text); SELECT last_insert_rowid();", tx))
             {
                 P(cmd, "$at", Iso(e.AtUtc == default ? DateTime.UtcNow : e.AtUtc)); P(cmd, "$car", e.CarPath); P(cmd, "$what", e.What ?? "");
-                P(cmd, "$state", e.State ?? ""); P(cmd, "$text", e.Text); P(cmd, "$hud", e.Hud ? 1 : 0);
+                P(cmd, "$state", e.State ?? ""); P(cmd, "$text", e.Text);
                 id = (long)cmd.ExecuteScalar();
             }
             Exec("DELETE FROM restore_events WHERE id <= $cut", tx, ("$cut", id - RestoreEventsKept));
@@ -380,55 +402,13 @@ ON CONFLICT(id) DO UPDATE SET profile_id = excluded.profile_id, profile_name = e
         {
             var list = new List<RestoreEvent>();
             if (!HasTable("restore_events")) return list;
-            using var cmd = Cmd(@"SELECT id, at, car_path, what, state, text, hud FROM
+            using var cmd = Cmd(@"SELECT id, at, car_path, what, state, text FROM
   (SELECT * FROM restore_events WHERE id > $after ORDER BY id DESC LIMIT $limit) ORDER BY id");
             P(cmd, "$after", afterId); P(cmd, "$limit", Math.Max(1, limit));
             using var r = cmd.ExecuteReader();
             while (r.Read())
-                list.Add(new RestoreEvent
-                {
-                    Id = r.GetInt64(0), AtUtc = Utc(r.GetString(1)), CarPath = Str(r, 2), What = r.GetString(3), State = r.GetString(4),
-                    Text = r.GetString(5), Hud = r.GetInt64(6) != 0,
-                });
+                list.Add(new RestoreEvent { Id = r.GetInt64(0), AtUtc = Utc(r.GetString(1)), CarPath = Str(r, 2), What = r.GetString(3), State = r.GetString(4), Text = r.GetString(5) });
             return list;
-        }
-
-        // ── restore_checks ──
-
-        public IReadOnlyList<RestoreCheck> RestoreChecks()
-        {
-            var list = new List<RestoreCheck>();
-            if (!HasTable("restore_checks")) return list;
-            using var cmd = Cmd("SELECT step, ran_at, ran_ok, ran_result, mark, marked_at FROM restore_checks ORDER BY step");
-            using var r = cmd.ExecuteReader();
-            while (r.Read())
-                list.Add(new RestoreCheck
-                {
-                    Step = r.GetString(0), RanAtUtc = When(r, 1), RanOk = r.IsDBNull(2) ? (bool?)null : r.GetInt64(2) != 0,
-                    RanResult = Str(r, 3), Mark = Str(r, 4), MarkedAtUtc = When(r, 5),
-                });
-            return list;
-        }
-
-        /// <summary>What a step's code saw when it ran: kept beside his mark, which it leaves as it was.</summary>
-        public bool NoteCheckRan(string step, bool ok, string result, DateTime atUtc)
-        {
-            if (string.IsNullOrWhiteSpace(step) || !HasTable("restore_checks")) return false;
-            Exec(@"INSERT INTO restore_checks (step, ran_at, ran_ok, ran_result) VALUES ($s, $at, $ok, $res)
-ON CONFLICT(step) DO UPDATE SET ran_at = excluded.ran_at, ran_ok = excluded.ran_ok, ran_result = excluded.ran_result", null,
-                ("$s", step.Trim()), ("$at", Iso(atUtc)), ("$ok", ok ? 1 : 0), ("$res", result));
-            return true;
-        }
-
-        /// <summary>His mark for a step: "passed", "failed", or null to take it back.</summary>
-        public bool MarkCheck(string step, string mark, DateTime atUtc)
-        {
-            if (string.IsNullOrWhiteSpace(step) || !HasTable("restore_checks")) return false;
-            if (mark != null && mark != "passed" && mark != "failed") return false;
-            Exec(@"INSERT INTO restore_checks (step, mark, marked_at) VALUES ($s, $m, $at)
-ON CONFLICT(step) DO UPDATE SET mark = excluded.mark, marked_at = excluded.marked_at", null,
-                ("$s", step.Trim()), ("$m", mark), ("$at", mark == null ? null : Iso(atUtc)));
-            return true;
         }
 
         // ── helpers ──

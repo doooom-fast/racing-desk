@@ -134,6 +134,21 @@ namespace RacingDesk.Data.Pedals
         }
 
         /// <summary>
+        /// Racing Desk has put the car's brakes on the pedals (F24, with Live listening): the force is the car's now, and his keys
+        /// count from it — +5 from 70 is 75, kept for the car at the end of the run (his decision, docs/view-and-pedals-plan.md
+        /// D6). Only for the car being followed; nothing for another.
+        /// </summary>
+        public void ForceIs(string carPath, double kg)
+        {
+            lock (_gate)
+            {
+                if (_force == null || _carPath == null || !string.Equals(_carPath, carPath?.Trim(), StringComparison.OrdinalIgnoreCase)) return;
+                _force.Seed(kg);
+                _log("pedals: brake force " + CarPedalsKeeper.Kg(kg) + ", put on by Racing Desk with the car's brakes");
+            }
+        }
+
+        /// <summary>
         /// The car the driver's is, on every frame. <paramref name="absSetting"/>: the car publishes an ABS
         /// setting; <paramref name="absWorking"/>: the ABS is working at this moment; <paramref name="driving"/>:
         /// he is in the car, and not watching it from the garage or in a replay — laps and ABS count only then;
@@ -181,24 +196,6 @@ namespace RacingDesk.Data.Pedals
             }
             // Off this thread: the store is a file.
             if (left != null) Task.Run(() => Save(left));
-        }
-
-        /// <summary>
-        /// A profile was switched under the pedals (F24 sent by Racing Desk, with Live listening): the force the keys had been followed
-        /// to is the old profile's, not the pedals'. It is not known again until a key sets one, so that a force from before the
-        /// switch is never kept for the car, and what raising and lowering add up to afterwards cancels to nothing rather than
-        /// to a number (docs/view-and-pedals-plan.md, D6: the switched profile's own force is counted only once the switch is
-        /// proven, in a build that switches).
-        /// </summary>
-        public void ForceNotKnown(string why)
-        {
-            lock (_gate)
-            {
-                _leftKg = null;
-                if (_carPath == null || _force == null) return;
-                _force.Doubt();
-                _log("pedals: the brake force is not known after " + (string.IsNullOrWhiteSpace(why) ? "a switch" : why) + "; it is known again when a key sets one");
-            }
         }
 
         /// <summary>
@@ -374,6 +371,22 @@ namespace RacingDesk.Data.Pedals
         /// </summary>
         public static string BaseFor(bool hasAbs, bool formula, bool prototype = false) =>
             hasAbs && !formula && !prototype ? Light : Default;
+
+        /// <summary>
+        /// The base the rule gives a car by the canonical list alone, where the list says enough to give it — both its kind and
+        /// its anti-lock, or a formula car, or no anti-lock (the same reading <see cref="Keep"/> makes) — else null: what the car
+        /// shows in its first drive decides then. Putting the brakes on goes by it for a car that has not been given one yet.
+        /// </summary>
+        public static string BaseByList(CarEntry listed)
+        {
+            if (listed == null) return null;
+            bool kindListed = listed.Kind != null, absListed = listed.Abs != null;
+            bool formula = kindListed && listed.Kind == KindFormula;
+            bool abs = absListed && listed.Abs != CarEntry.None;
+            if (!(kindListed && absListed || kindListed && formula || absListed && !abs)) return null;
+            bool prototype = kindListed && listed.Kind == KindPrototype && abs && !formula;
+            return BaseFor(abs, formula, prototype);
+        }
 
         internal static string Kg(double kg) => kg.ToString("0.#", CultureInfo.InvariantCulture) + " kg";
 

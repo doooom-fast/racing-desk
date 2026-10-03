@@ -102,8 +102,8 @@ namespace RacingDesk.Host
         internal ReplayApi Replay { get; } = new ReplayApi();
 
         /// <summary>
-        /// Putting back each car's height and brakes, for <c>restore</c>: given the director by the live host (RunLive); a host with
-        /// none (a replay, a test) answers that it has none.
+        /// Putting back each car's seat height and brakes, for <c>restore</c>: given the director by the live host (RunLive); a host
+        /// with none (a replay, a test) answers that it has none.
         /// </summary>
         internal RestoreApi Restore { get; } = new RestoreApi();
 
@@ -290,15 +290,15 @@ namespace RacingDesk.Host
 
                 if (route == "restore" && ctx.Request.HttpMethod == "GET")
                 {
-                    // How putting back the heights and brakes stands: trial, the switches, the lines, each car in a sentence, the
-                    // first run. Not the store's alone, so answered before there is one.
+                    // How putting back the seat heights and brakes stands: the switches, a sentence for each part, each car's
+                    // sentences. Not the store's alone, so answered before there is one.
                     Restore.Get(ctx, (status, body) => Write(res, status, body));
                     return;
                 }
 
                 if (route == "restore" && ctx.Request.HttpMethod == "POST")
                 {
-                    // A switch, a first-run button, a mark, an undo: for a program on this machine alone, as the pedals' write is.
+                    // A switch, or undo: for a program on this machine alone, as the pedals' write is.
                     if (!LocalRequest.IsFromThisMachine(ctx.Request))
                     {
                         NoteRefusal("restore", LocalRequest.Refusal.ABrowser);
