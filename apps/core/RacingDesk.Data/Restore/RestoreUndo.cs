@@ -61,6 +61,32 @@ namespace RacingDesk.Data.Restore
             return r;
         }
 
+        /// <summary>
+        /// A7's test row, "RD test 65", on its own: the row Racing Desk added to see that SmartControl accepts one, without the Racing
+        /// Desk profile and F24 that Part B needs. Like every brake undo it waits for the editor to be closed and for C1.
+        /// </summary>
+        public static StepResult TestRow(RestoreContext ctx)
+        {
+            using var store = ctx.OpenStore();
+            if (RestoreClosing.Of(store).Owed) return StepResult.No("undo-test", RestoreClosing.UndoRefusal);
+            if (ctx.Probe.EditorRunning()) return StepResult.No("undo-test", "close the SmartControl editor first: it would save its own copy of a profile back");
+            var r = new StepResult { Action = "undo-test", Ok = true };
+            var row = store.CarSmartControlOf(FirstRun.A7Car);
+            if (row == null) r.Saw.Add("A7 has not added a row, or it has been removed already");
+            else
+            {
+                var gone = ctx.Writer.DeleteProfile(row.ProfileId, store.RacingDeskProfileIds());
+                if (!gone.Ok) { r.Ok = false; r.Saw.Add($"'{row.ProfileName}': {gone.Why}"); }
+                else
+                {
+                    store.ForgetCarSmartControl(row.CarPath);
+                    r.Did.Add($"the row '{row.ProfileName}' removed" + (gone.Why != null ? $" ({gone.Why})" : "") + "; the Racing Desk profile and F24 stay");
+                }
+            }
+            ctx.Say(null, "undo", r.Ok ? "done" : "failed", "Test row: " + r.Text);
+            return r;
+        }
+
         /// <summary>One car's height (<paramref name="car"/>), or every car's and app.ini's (null), put back by value.</summary>
         public static StepResult Heights(RestoreContext ctx, string car = null)
         {

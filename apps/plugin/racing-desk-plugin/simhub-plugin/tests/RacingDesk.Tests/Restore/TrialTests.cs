@@ -166,6 +166,19 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
+        public void TheHudsHeightLine_UsesThePlannedZ_OnlyWhereThePlanMovesItThereOrFindsItThere()
+        {
+            // FIA F4: +6 cm and a Z of +1 cm would need +9 cm of cockpit Z, beyond what is kept to: the plan refuses it.
+            var director = Director();
+            for (int i = 0; i <= 30; i++) director.See(Garage("formulair04", "FIA F4", i * 0.05));
+            Assert.That(director.Settled().Wait(TimeSpan.FromSeconds(20)), Is.True);
+            using var store = new RacingDeskStore(_rig.Store);
+            var lines = store.RestoreEvents().Select(e => e.Text).ToList();
+            Assert.That(lines, Has.Some.EqualTo("Trial: height FIA F4 · −1.0 cm (its camera file)"), "the file's own Z on S: what it would start at");
+            Assert.That(lines, Has.None.Contains("+7.0 cm"), "not the refused plan's");
+        }
+
+        [Test]
         public void InTrial_AParkedMomentSaysWhyItWouldNotSwitch()
         {
             _rig.Probe.Live = false;

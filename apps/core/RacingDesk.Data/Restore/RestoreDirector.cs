@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using RacingDesk.Data.Pedals;
 
@@ -22,6 +23,7 @@ namespace RacingDesk.Data.Restore
         private readonly RestoreContext _ctx;
         private readonly string _switchesFile;
         private readonly object _gate = new object();
+        private readonly object _commandGate = new object();      // one command at a time: held by RunStep and every undo
         private readonly ParkedRule _parked = new ParkedRule();
         private RestoreSwitches _switches;
         private Task _work = Task.CompletedTask;
@@ -239,7 +241,10 @@ namespace RacingDesk.Data.Restore
                 {
                     var plan = view == null ? null : RestorePlanner.PlanView(view, name, _ctx.Files, _ctx.StartHeight, keep);
                     run.View = plan;
-                    double z = keep?.WrittenZ ?? plan?.NewZ ?? cam.Z ?? 0;
+                    // The Z the plan would give is used only where the plan would move it there or finds it there already: a height
+                    // the plan refuses ("beyond", say) is not the height he would start at.
+                    double? plannedZ = plan != null && (plan.State == "would-move" || plan.State == "already") ? plan.NewZ : null;
+                    double z = keep?.WrittenZ ?? plannedZ ?? cam.Z ?? 0;
                     double eff = _ctx.StartHeight + z;
                     _ctx.Say(run.Car, "height", "trial",
                         $"Trial: with app.ini at {Words.Cm(_ctx.StartHeight)} and its camera file's cockpit Z at {Words.Cm(z)}, {name} would start at {Words.Cm(eff)}"
@@ -371,13 +376,30 @@ namespace RacingDesk.Data.Restore
             }
         }
 
-        /// <summary>Runs one of the first run's buttons, on his click; the dry run is made again after it.</summary>
-        public StepResult RunStep(string actionId)
+        /// <summary>
+        /// Runs one command, and only one at a time: a first-run button or an undo. A second that comes while one is running — a
+        /// double click, a retry after the app's own 30 seconds, the Cars page's undo beside a step — is told Racing Desk is busy
+        /// at once, and is not queued: two A2s at once would both insert a "Racing Desk" profile, and one would be a row nobody
+        /// could take away. The dry run is made again after it.
+        /// </summary>
+        private StepResult Exclusive(string action, Func<StepResult> run)
         {
-            var result = FirstRun.Run(actionId);
-            lock (_gate) _plan = null;
-            return result;
+            if (!Monitor.TryEnter(_commandGate))
+                return new StepResult { Action = action, Refused = true, Busy = true, Why = "Racing Desk is busy with another command: wait for it to finish, then try again" };
+            try
+            {
+                var result = run();
+                lock (_gate) _plan = null;
+                return result;
+            }
+            finally
+            {
+                Monitor.Exit(_commandGate);
+            }
         }
+
+        /// <summary>Runs one of the first run's buttons, on his click.</summary>
+        public StepResult RunStep(string actionId) => Exclusive(actionId, () => FirstRun.Run(actionId));
 
         public bool Mark(string step, string mark)
         {
@@ -388,18 +410,11 @@ namespace RacingDesk.Data.Restore
             return ok;
         }
 
-        public StepResult UndoBrakes()
-        {
-            var r = RestoreUndo.Brakes(_ctx);
-            lock (_gate) _plan = null;
-            return r;
-        }
+        public StepResult UndoBrakes() => Exclusive("undo-brakes", () => RestoreUndo.Brakes(_ctx));
 
-        public StepResult UndoHeights(string car = null)
-        {
-            var r = RestoreUndo.Heights(_ctx, car);
-            lock (_gate) _plan = null;
-            return r;
-        }
+        public StepResult UndoHeights(string car = null) => Exclusive(car == null ? "undo-heights" : "undo-height", () => RestoreUndo.Heights(_ctx, car));
+
+        /// <summary>Removes A7's "RD test 65" row on its own, leaving the Racing Desk profile and F24.</summary>
+        public StepResult UndoTestRow() => Exclusive("undo-test", () => RestoreUndo.TestRow(_ctx));
     }
 }

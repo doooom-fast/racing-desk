@@ -216,6 +216,59 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
+        public void ZeroB_CopiesTheViewFiles_EvenWhenSmartControlsCopyFails_AndSaysEachPartOnItsOwn()
+        {
+            File.Delete(_rig.SmartControlDb);        // SmartControl is not there to copy
+            var r = Step("0b");
+            Assert.That(r.Ok, Is.False);
+            Assert.That(r.Why, Does.Contain("SmartControl's database was not copied"));
+            Assert.That(r.Why, Does.Not.Contain("iRacing's files were not"), "the other part went well, and is said to");
+            Assert.That(r.Did, Has.Some.Contains("app.ini, camera.ini and 1 camera files copied"));
+            Assert.That(r.Saw, Has.Some.Contains("B1 and B4–B7 can go on; A2 waits for the SmartControl copy"));
+            Assert.That(_rig.Files().FirstRunCopyExists(), Is.True);
+            Assert.That(File.Exists(Path.Combine(_rig.Backups, "smartcontrol", "before-racing-desk.db")), Is.False);
+            Closed();
+            Assert.That(Step("A2").Why, Does.Contain("back everything up first"), "A2 still needs the SmartControl copy");
+            Assert.That(Step("B1").Ok, Is.True, "and B1 needs only the copy of iRacing's files");
+        }
+
+        [Test]
+        public void ZeroB_LeavesTheSmartControlCopy_WhenTheViewFilesCannotBeCopied_AndTheViewStepsWait()
+        {
+            Directory.CreateDirectory(_rig.Backups);
+            File.WriteAllText(Path.Combine(_rig.Backups, "view"), "a file where the folder of the copies should be");
+            var r = Step("0b");
+            Assert.That(r.Ok, Is.False);
+            Assert.That(r.Why, Does.Contain("iRacing's files were not all copied"));
+            Assert.That(r.Why, Does.Not.Contain("SmartControl's database was not copied"));
+            Assert.That(r.Did, Has.Some.Contains("SmartControl's database copied to before-racing-desk.db"));
+            Assert.That(r.Saw, Has.Some.Contains("A2 can go on; B1 and B4–B7 wait for the copy of iRacing's files"));
+            Assert.That(_rig.Files().FirstRunCopyExists(), Is.False);
+            byte[] ini = _rig.AppIniBytes();
+            var b1 = Step("B1");
+            Assert.That(b1.Refused, Is.True);
+            Assert.That(b1.Why, Does.Contain("back up first: 0b has not copied iRacing's files"));
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(ini));
+        }
+
+        [Test]
+        public void TheStepsThatWriteTheViewFiles_WaitFor0b_AndWriteNothingBefore()
+        {
+            byte[] ini = _rig.AppIniBytes(), cam = File.ReadAllBytes(_rig.CamPath(Car));
+            foreach (string step in new[] { "B1", "B4", "B5", "B6", "B6-b", "B7", "B7-restore" })
+            {
+                var r = Step(step);
+                Assert.That(r.Refused, Is.True, step);
+                Assert.That(r.Why, Does.Contain("back up first: 0b has not copied iRacing's files"), step);
+            }
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(ini));
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam));
+            Assert.That(Directory.Exists(Path.Combine(_rig.Backups, "view")), Is.False, "nothing was backed up, because nothing was going to be written");
+            Assert.That(Step("0b").Ok, Is.True);
+            Assert.That(Step("B1").Ok, Is.True);
+        }
+
+        [Test]
         public void TheMarks_AreHis_AndOnlyForSteps()
         {
             Assert.That(_director.Mark("A4", "passed"), Is.True);
@@ -724,6 +777,77 @@ namespace RacingDesk.Tests.Restore
             Assert.That(b2.Refused, Is.True);
             Assert.That(b2.Why, Does.Contain("it says nothing yet"));
             Assert.That(_rig.Keys.Sent, Is.Zero);
+        }
+    }
+
+    /// <summary>
+    /// One command at a time on the host: a first-run button or an undo. A second that comes while one runs is told Racing Desk is
+    /// busy, at once, and is not queued; after the first, commands go again. And A7's test row can be taken away on its own.
+    /// </summary>
+    [TestFixture]
+    public class OneCommandAtATimeTests : MadeSwitchTests
+    {
+        [Test]
+        public void ASecondCommand_WhileOneRuns_IsToldBusy_AndNothingIsQueued()
+        {
+            var entered = new System.Threading.ManualResetEventSlim();
+            var release = new System.Threading.ManualResetEventSlim();
+            _ctx.SendDelay = TimeSpan.FromSeconds(5);
+            _ctx.Sleep = _ => { entered.Set(); Assert.That(release.Wait(TimeSpan.FromSeconds(20)), Is.True); };     // A4 waits here for the window
+            var first = System.Threading.Tasks.Task.Run(() => Step("A4"));
+            Assert.That(entered.Wait(TimeSpan.FromSeconds(20)), Is.True);
+
+            foreach (var other in new[] { Step("A1"), Step("A2"), _director.UndoBrakes(), _director.UndoHeights(), _director.UndoHeights(Car), _director.UndoTestRow() })
+            {
+                Assert.That((other.Refused, other.Busy), Is.EqualTo((true, true)), other.Action);
+                Assert.That(other.Why, Does.Contain("busy with another command"));
+            }
+            Assert.That(_rig.Keys.Sent, Is.Zero, "the first has not sent its key yet, and none of the others did");
+
+            release.Set();
+            var done = first.Result;
+            Assert.That(done.Ok, Is.True, done.Text);
+            Assert.That(_rig.Keys.Sent, Is.EqualTo(1));
+            // Nothing was queued behind it: the next command is the next command.
+            _ctx.Sleep = _ => { };
+            var after = Step("A1");
+            Assert.That(after.Busy, Is.False);
+            Assert.That(_director.UndoHeights(Car).Busy, Is.False);
+        }
+
+        [Test]
+        public void ACommandThatThrows_LetsTheNextOneIn()
+        {
+            _ctx.Sleep = _ => throw new InvalidOperationException("the window did not come");
+            Assert.That(Step("A4").Ok, Is.False);
+            Assert.That(Step("A1").Busy, Is.False);
+        }
+
+        [Test]
+        public void ARD65TestRow_CanBeRemovedOnItsOwn_WhenTheEditorIsClosed_AndNotWhileC1IsOwed()
+        {
+            _rig.Probe.Editor = true;
+            Assert.That(Step("A7").Ok, Is.True);
+            var names = SmartControl.Read(_rig.SmartControlDb).Profiles.Select(p => p.Name).ToList();
+            Assert.That(names, Has.Member("RD test 65"));
+
+            Assert.That(_director.UndoTestRow().Why, Does.Contain("close the SmartControl editor first"));
+            _rig.Probe.Editor = false;
+            var done = _director.UndoTestRow();
+            Assert.That(done.Ok, Is.True, done.Text);
+            Assert.That(done.Text, Does.Contain("the row 'RD test 65' removed").And.Contain("the Racing Desk profile and F24 stay"));
+            var after = SmartControl.Read(_rig.SmartControlDb);
+            Assert.That(after.Profiles.Select(p => p.Name), Has.None.EqualTo("RD test 65"));
+            Assert.That(after.Profiles.Select(p => p.Name), Has.Some.StartsWith("Racing Desk"), "the switch profile, renamed by A7, stays");
+            Assert.That(after.Keys.Any(k => k.FirstKey == "F24"), Is.True);
+            using (var store = new RacingDeskStore(_rig.Store)) Assert.That(store.CarSmartControlOf(FirstRun.A7Car), Is.Null);
+            Assert.That(_director.UndoTestRow().Saw, Has.Some.Contains("has not added a row, or it has been removed already"));
+
+            // The same refusal as every brake undo while C1 is owed.
+            Assert.That(Step("A4").Ok, Is.True);
+            var owed = _director.UndoTestRow();
+            Assert.That(owed.Refused, Is.True);
+            Assert.That(owed.Why, Is.EqualTo(RestoreClosing.UndoRefusal));
         }
     }
 }

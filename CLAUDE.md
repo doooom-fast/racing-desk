@@ -385,7 +385,9 @@ files or to the pedals; putting the cars back is built **in trial** (last bullet
     presses nothing: `RestorePolicy.ActingBuilt` is false, whatever the switches and the first run's marks say.
   - **What writes is behind his click**: the first-run panel in Settings → Cars (`FirstRun`, one button per step of the
     supervised run: 0a, 0b, A1–A7, B1–B8, and C1, his own profile and force again — owed after any F24 that went, his
-    own hands only, the look at the pedals' memory first; each running only its step, asking first if it writes or presses) and undo
+    own hands only, the look at the pedals' memory first; each running only its step, asking first if it writes or presses; one
+    command at a time, a second is told Racing Desk is busy and is not queued; the steps that write iRacing's files wait for
+    0b's copy of them, and A2 and A4–A7 refuse while the sim runs) and undo
     (`RestoreUndo`: the brake profiles Racing Desk made, the heights it changed, per car or all). His marks are
     `restore_checks`; a part leaves trial only in a build that acts, with A4–A6 and B2 passed for the brakes (and C1's look
     showing the pedals kept nothing of Racing Desk's: a look that shows otherwise fails the brakes part) and B1, B4 and

@@ -160,6 +160,18 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
+        public void TheTestRowUndo_IsACommand_AndEveryAnswerSaysWhetherRacingDeskWasBusy()
+        {
+            var director = Director();
+            var undo = Ask(director, HttpMethod.Post, "restore", "{\"undo\":\"test\"}");
+            Assert.That(undo.Status, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(((string)undo.Body["action"], (bool)undo.Body["busy"], (bool)undo.Body["ok"]), Is.EqualTo(("undo-test", false, true)));
+            var step = Ask(director, HttpMethod.Post, "restore", "{\"step\":\"A1\"}");
+            Assert.That((bool)step.Body["busy"], Is.False);
+            Assert.That(Ask(director, HttpMethod.Post, "restore", "{\"undo\":\"everything\"}").Status, Is.EqualTo(HttpStatusCode.BadRequest));
+        }
+
+        [Test]
         public void TheRouteIsOnTheHostsList()
         {
             Assert.That(LocalDataApi.Routes, Does.Contain("restore"), "so DataRoutesThisMachineTests asks it of every kind of asker");

@@ -361,13 +361,14 @@ namespace RacingDesk.Host
                     switch (undo)
                     {
                         case "brakes": WriteResult(write, director.UndoBrakes()); return;
+                        case "test": WriteResult(write, director.UndoTestRow()); return;
                         case "heights": WriteResult(write, director.UndoHeights()); return;
                         case "height":
                             string car = Text(root, "car");
                             if (string.IsNullOrWhiteSpace(car) || car.Length > 200) { Error(write, 400, "car required"); return; }
                             WriteResult(write, director.UndoHeights(car.Trim()));
                             return;
-                        default: Error(write, 400, "undo is brakes, heights or height"); return;
+                        default: Error(write, 400, "undo is brakes, test, heights or height"); return;
                     }
                 }
                 Error(write, 400, "expected one of { switches }, { step }, { mark, state }, { undo, car? }");
@@ -379,6 +380,7 @@ namespace RacingDesk.Host
             json.WriteStartObject();
             json.WriteBoolean("ok", r.Ok);
             json.WriteBoolean("refused", r.Refused);
+            json.WriteBoolean("busy", r.Busy);
             json.WriteString("action", r.Action);
             json.WriteString("step", r.Step);
             json.WriteString("why", r.Why);

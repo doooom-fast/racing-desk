@@ -17,6 +17,9 @@ namespace RacingDesk.Data.Restore
 
         /// <summary>Nothing was done: a condition of the step did not hold (the sim running, a program open, a step before it not run).</summary>
         public bool Refused { get; set; }
+
+        /// <summary>Refused because another command is still running: one at a time, and a second is told so rather than queued.</summary>
+        public bool Busy { get; set; }
         public string Why { get; set; }
         public List<string> Did { get; } = new List<string>();
         public List<string> Saw { get; } = new List<string>();
@@ -125,20 +128,46 @@ namespace RacingDesk.Data.Restore
             return r;
         }
 
+        /// <summary>
+        /// Two copies, each on its own and each saying how it went: SmartControl's database (A2 needs it), and iRacing's view
+        /// files (B1 and B4–B7 need them). One failing does not stop the other.
+        /// </summary>
         private StepResult BackUpEverything()
         {
             if (_ctx.Probe.SimRunning()) return StepResult.No("0b", "iRacing is running: close it first, so that its files are not being written while they are copied");
             var r = new StepResult();
             string stamp = "first-run-" + _ctx.Now().ToLocalTime().ToString("yyyy-MM-dd_HHmmss", CultureInfo.InvariantCulture);
+            string databaseWhy = BackUpSmartControlDatabase(r, stamp);
+            string filesWhy = BackUpViewFiles(r, stamp);
+            var problems = new List<string>();
+            if (databaseWhy != null) problems.Add("SmartControl's database was not copied: " + databaseWhy);
+            if (filesWhy != null) problems.Add("iRacing's files were not all copied: " + filesWhy);
+            r.Ok = problems.Count == 0;
+            if (!r.Ok)
+            {
+                r.Why = string.Join(". ", problems);
+                if (databaseWhy != null && filesWhy == null) r.Saw.Add("B1 and B4–B7 can go on; A2 waits for the SmartControl copy");
+                else if (databaseWhy == null) r.Saw.Add("A2 can go on; B1 and B4–B7 wait for the copy of iRacing's files");
+            }
+            return r;
+        }
 
+        private string BackUpSmartControlDatabase(StepResult r, string stamp)
+        {
             string db = File.Exists(_ctx.BeforeRacingDesk) ? Path.Combine(_ctx.SmartControlBackups, stamp + ".db") : _ctx.BeforeRacingDesk;
             string bad = _ctx.Writer.Backup(db);
-            if (bad != null) { r.Why = "SmartControl's database: " + bad; return r; }
+            if (bad != null) return bad;
             var copy = SmartControl.Read(db);
             r.Did.Add($"SmartControl's database copied to {Path.GetFileName(db)}");
             r.Saw.Add($"the copy opens and passes its check: {copy?.Profiles.Count ?? 0} profiles, {copy?.Keys.Count ?? 0} keys");
+            return null;
+        }
 
+        /// <summary>app.ini, camera.ini and every camera file, each copied and read back; the run's marker is made only when all were.</summary>
+        private string BackUpViewFiles(StepResult r, string stamp)
+        {
             int cams = 0;
+            var problems = new List<string>();
             var files = new List<string> { "app.ini", "camera.ini" };
             files.AddRange(_ctx.Files.CarsWithCamFiles().Select(ViewFiles.DefaultCamFile));
             foreach (string rel in files)
@@ -147,20 +176,26 @@ namespace RacingDesk.Data.Restore
                 byte[] bytes = ViewFiles.ReadShared(full);
                 if (bytes == null) { r.Saw.Add(rel + " is not there"); continue; }
                 string path = _ctx.Files.Backup(full, rel, stamp, bytes, out string why);
-                if (path == null) { r.Why = rel + ": " + why; return r; }
+                if (path == null) { problems.Add(rel + ": " + why); continue; }
                 byte[] back = File.ReadAllBytes(path);
                 if (rel.EndsWith(".cam", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!CarCamFile.TryReadCockpit(back, out _)) { r.Why = rel + ": its copy does not read as a camera file"; return r; }
+                    if (!CarCamFile.TryReadCockpit(back, out _)) { problems.Add(rel + ": its copy does not read as a camera file"); continue; }
                     cams++;
                 }
-                else if (rel == "app.ini" && !AppIniEditor.TryReadValue(back, "View", "driverHeightAdj", out _)) { r.Why = "app.ini: its copy has no driver height"; return r; }
+                else if (rel == "app.ini" && !AppIniEditor.TryReadValue(back, "View", "driverHeightAdj", out _)) { problems.Add("app.ini: its copy has no driver height"); continue; }
             }
+            if (problems.Count > 0) return string.Join("; ", problems);
+            _ctx.Files.MarkFirstRunCopy(stamp);
             r.Did.Add($"app.ini, camera.ini and {cams} camera files copied to backups\\view\\{stamp}; the first original of each is kept in backups\\view\\original");
             r.Saw.Add("each copy reads back");
-            r.Ok = true;
-            return r;
+            return null;
         }
+
+        /// <summary>Refuses a step that writes iRacing's files until 0b has copied them: the copy that is kept for ever is the one from before anything was written.</summary>
+        private StepResult NeedsTheCopies(string action) =>
+            _ctx.Files.FirstRunCopyExists() ? null
+                : StepResult.No(action, "back up first: 0b has not copied iRacing's files (app.ini, camera.ini and every car.cam) yet, and this step writes them");
 
         // ── A: the pedals, with the sim closed ──
 
@@ -347,7 +382,8 @@ namespace RacingDesk.Data.Restore
             return Send(action, needSim: false, r);
         }
 
-        private const string A7Car = "(first run) RD test 65";
+        /// <summary>The key of A7's test row in the store: it is made by A7 and removed on its own by "Remove the RD test 65 row".</summary>
+        internal const string A7Car = "(first run) RD test 65";
 
         private StepResult WriteWithTheEditorOpen()
         {
@@ -473,6 +509,8 @@ namespace RacingDesk.Data.Restore
 
         private StepResult IniToStart()
         {
+            var copies = NeedsTheCopies("B1");
+            if (copies != null) return copies;
             if (_ctx.Probe.SimRunning()) return StepResult.No("B1", "iRacing is running: this is written with the sim closed (the iRacing UI may be open)");
             double? was = _ctx.Files.AppIniHeight();
             var change = _ctx.Files.Apply(new ViewChange { IniHeight = _ctx.StartHeight, Why = "first run B1" });
@@ -600,7 +638,8 @@ namespace RacingDesk.Data.Restore
         /// <summary>The 963's own cockpit Z: what Racing Desk found in its file before it first wrote it.</summary>
         private (CamFileState Cam, CarViewKeep Keep, double OwnZ, double OwnShift)? TestCarFile(string action, out StepResult refused)
         {
-            refused = null;
+            refused = NeedsTheCopies(action);
+            if (refused != null) return null;
             string car = RestoreGate.TestCar;
             if (_ctx.Probe.SimRunning()) { refused = StepResult.No(action, "iRacing is running: exit the sim first"); return null; }
             var cam = _ctx.Files.Cam(car);
@@ -685,6 +724,8 @@ namespace RacingDesk.Data.Restore
 
         private StepResult FovAsBefore()
         {
+            var copies = NeedsTheCopies("B7");
+            if (copies != null) return copies;
             double? fov = _ctx.Files.AppIniValue("drivingCamFOV");
             byte[] original = ViewFiles.ReadShared(_ctx.Files.Original("app.ini"));
             double? was = original != null && AppIniEditor.TryReadValue(original, "View", "drivingCamFOV", out double f) ? f : (double?)null;
@@ -695,6 +736,8 @@ namespace RacingDesk.Data.Restore
 
         private StepResult PutBack()
         {
+            var copies = NeedsTheCopies("B7-restore");
+            if (copies != null) return copies;
             if (_ctx.Probe.SimRunning()) return StepResult.No("B7-restore", "iRacing is running: exit the sim first");
             var r = new StepResult { Ok = true };
             using var store = _ctx.OpenStore();

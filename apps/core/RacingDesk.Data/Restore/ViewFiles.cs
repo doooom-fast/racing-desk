@@ -620,6 +620,32 @@ namespace RacingDesk.Data.Restore
             }
         }
 
+        /// <summary>
+        /// 0b made its copies: a marker in the copies' own folder, made only once every file had been copied and read back. The
+        /// steps that write the view files ask for one before they write (<see cref="FirstRunCopyExists"/>).
+        /// </summary>
+        public void MarkFirstRunCopy(string stamp)
+        {
+            string folder = Path.Combine(_backups, stamp);
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, FirstRunMarker), "0b copied app.ini, camera.ini and the camera files here, and each read back.\r\n");
+        }
+
+        public const string FirstRunMarker = "copied.txt";
+
+        /// <summary>Whether a first-run copy of iRacing's files, all of them, has been made.</summary>
+        public bool FirstRunCopyExists()
+        {
+            try
+            {
+                return Directory.Exists(_backups) && Directory.EnumerateDirectories(_backups, "first-run-*").Any(d => File.Exists(Path.Combine(d, FirstRunMarker)));
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+
         /// <summary>The first original of a file, kept for ever; null when Racing Desk never backed it up.</summary>
         public string Original(string relativePath)
         {

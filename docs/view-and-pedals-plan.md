@@ -111,6 +111,12 @@ add. So:
   the look was made after the last F24, that SmartControl is closed, Live is running and the pedals are listed. The panel
   shows C1 as owed until it is done, and "Remove the brake profiles Racing Desk made" refuses, with its reason, while it
   is owed: the pedals may be on one of those rows.
+- **0b copies two things, each on its own**: SmartControl's database (A2 needs it) and iRacing's `app.ini`, `camera.ini` and
+  every camera file (B1 and B4–B7 need them, and refuse until they are copied and read back). One failing does not stop the
+  other, and each says how it went. **A step that sends F24 or writes SmartControl's database refuses while the sim runs** (A2
+  and A4–A7), and B2 asks the parked rule once more on a fresh frame right before its key.
+- **One command at a time** on the host: a first-run button or an undo while another runs is told Racing Desk is busy, at
+  once, and is not queued. "Remove the RD test 65 row" takes A7's test row away on its own.
 - **The gate**: the brakes may leave trial once A4, A5, A6 and B2 are marked passed; the height once B1, B4 and B5; the
   horizon once B6 — and only in a build that acts. His +5 / −5 count from a switched profile's force under the same gate.
 - **Undo**, each on his click, asking first: "Remove the brake profiles Racing Desk made" (its car profiles, its switch
