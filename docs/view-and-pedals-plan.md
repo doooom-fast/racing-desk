@@ -6,19 +6,26 @@
 > `feature/restore-height-brakes` (`RestoreDirector`): his words, "Dude I WANT them mid session", "No trial mode". There is
 > no trial, no supervised first run and nothing on the HUD; Settings → Cars has two switches ("Brakes put back for each
 > car", "Seat height put back for each car"), a sentence each for how it stands, and one "Undo what Racing Desk changed".
-> - **Brakes**: once, with the SmartControl editor closed, Racing Desk adds its own profile "Racing Desk" (a copy of
+> - **Brakes**: once, with the SmartControl editor closed, Racing Desk adds its own switch profile "Racing Desk" (a copy of
 >   Default) and binds F24 · Set profile to it in Live's Default preset (backed up first; the first copy kept for good as
 >   `before-racing-desk.db`, the last ten others). Live reads its keys when it starts, so it works from Live's next start
->   (he restarts Live once, or the PC). When he is parked in a car (garage screen or pit stall, still a second, brake
->   released, fresh frames, not a replay), and its brakes are not on the pedals already, the car's base at its saved force
->   (or the base's own, 45 or 80) is written into that profile — the editor closed, the binding checked first and made again
->   if it is gone — and F24 is pressed once, only with Live started after the binding and iRacing in front and not elevated.
->   After it, the key watcher counts his +5 / −5 from the car's force.
+>   (he restarts Live once, or the PC). **Each car gets a profile of its own** in SmartControl, "Porsche 963 GTP · Racing
+>   Desk", made the first time the car loads (editor closed, backed up first): his rule's base at the car's saved force (or
+>   the base's own, 45 or 80). It is the one he tunes there: a force he sets in it is the car's force, anything else he
+>   changes is kept as it is, and the force his keys leave in the car is written into it when he leaves the car or the sim
+>   (the hash by the rule; waiting for the editor). When he is parked in a car (garage screen or pit stall, still a second,
+>   brake released, fresh frames, not a replay), and its brakes are not on the pedals already, the car's own profile is
+>   copied as it stands into the switch profile — renamed "Racing Desk: Porsche 963 GTP", so that Live's voice says which
+>   car; the editor closed, the binding checked first and made again if it is gone — and F24 is pressed once, only with Live
+>   started after the binding and iRacing in front and not elevated. After it, the key watcher counts his +5 / −5 from the
+>   profile's force. Undo takes the cars' profiles out too.
 > - **Seat height**: when the sim has gone, what he left app.ini at above S goes into the car's camera file's cockpit Z and
 >   app.ini goes back to S (both backed up, read back, the pair's intent kept); a car beyond ±5 cm keeps nothing, one
 >   without a camera file keeps its height in the store and the Cars page says how to save one. Once, the heights he chose
 >   before go into their camera files the same way. When the sim next starts, app.ini must hold what Racing Desk left there;
->   if not, the height part turns itself off and puts each camera file back once iRacing closes. The horizon is left out.
+>   if not, the height part turns itself off and puts each camera file back once iRacing closes — unless a telemetry file
+>   (.ibt) is newer than Racing Desk's last write of app.ini: a session ran without Racing Desk and iRacing wrote the height
+>   itself, which is no override (a line in the log; the next fold keeps what he ends with). The horizon is left out.
 >
 > The rest of this page is the design as it was settled before the build; where it speaks of a trial or a first run, that
 > is what was dropped. Facts are in [`height-and-pedals-findings.md`](height-and-pedals-findings.md).

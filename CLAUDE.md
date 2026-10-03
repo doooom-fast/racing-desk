@@ -380,21 +380,33 @@ files or to the pedals; putting the cars back (last bullet) does, by itself, by 
 - **Putting each car's seat height and brakes back** (2026-10-02, his words: "when I get in a car, its saved driver
   height and brake force should be set automatically", and then "No trial mode"; the plan has the design). It acts by
   itself, in the host (`RestoreDirector`, `RacingDesk.Data/Restore`); nothing of it is on the HUD.
-  - **Brakes**: once, with the SmartControl editor closed, its own profile "Racing Desk" (a copy of Default) and F24 · Set
-    profile bound to it in Live's Default preset; Live has the key from its next start (he restarts Live once). When he is
-    parked in a car (garage screen or pit stall, still a second, brake released, fresh frames, not a replay) and its brakes
-    are not on the pedals already, the car's base at its saved force (or the base's own: LightBrake 45, Default 80) is
-    written into that profile (editor closed, binding checked and made again if gone) and **F24** is pressed once — only
-    with Live started after the binding, iRacing in front and not elevated, and his own keys not pressed first in that car.
-    Then the key watcher's force is the car's (`CarPedalsRecorder.ForceIs`), so his +5 / −5 are kept right.
+  - **Brakes**: every car has **a profile of its own in SmartControl** ("Porsche 963 GTP · Racing Desk"), made the first time
+    the car loads (editor closed, a copy of the database first): his rule's base at the car's saved force (or the base's own:
+    LightBrake 45, Default 80). It is the one he tunes in SmartControl. A force he sets there is the car's force (the row
+    holds another than the `car_smartcontrol.written_kg` Racing Desk last wrote: his edit, which wins over his keys of the
+    same run); anything else he changes is his, kept as it is (the row is marked `edited`, and a base he picks for the car on
+    the desk makes it again only while it is still as Racing Desk wrote it); the force his keys leave in the car is written
+    into it when he leaves the car or the sim (`PedalsLeft`: the force and its hash by the rule, nothing else; it waits for the
+    editor and a copy first). Deleted in SmartControl, it is made again at the next load. There is also one **switch
+    profile** ("Racing Desk", a copy of Default) with F24 · Set profile bound to it in Live's Default preset; Live has the key
+    from its next start (he restarts Live once). When he is parked in a car (garage screen or pit stall, still a second,
+    brake released, fresh frames, not a replay) and its brakes are not on the pedals already, the car's own profile is
+    **copied as it stands** into the switch profile (editor closed, binding checked and made again if gone), which is renamed
+    "Racing Desk: Porsche 963 GTP" so that Live's voice says which car, and **F24** is pressed once — only with Live started
+    after the binding, iRacing in front and not elevated, and his own keys not pressed first in that car. Then the key
+    watcher's force is the one the profile holds (`CarPedalsRecorder.ForceIs`), so his +5 / −5 are kept right. Names are
+    `RestorePolicy.CarRowName` / `SwitchRowName`, kept unique.
   - **Seat height**: when the sim has gone (the recorder's `ViewRun`), app.ini above S (−0.020) goes into the car's camera
     file's cockpit Z and app.ini back to S; once, the heights he chose before go in the same way. A car beyond ±5 cm keeps
     nothing; one without a camera file keeps its height in the store, and the Cars page says how to save one. The
     self-check: at the sim's first frame app.ini must hold what Racing Desk last wrote; if not, the height part turns itself
-    off and puts the camera files back once iRacing closes. The horizon is left out.
-  - **Undo** (one button, Settings → Cars): both parts off, F24's binding and Racing Desk's rows out of SmartControl (its
-    profile left in place once F24 has gone, with one sentence on what to pick in SmartControl), the camera files and
-    app.ini put back by value (`RestoreUndo`). One command at a time, on the director's own worker.
+    off and puts the camera files back once iRacing closes — unless an `.ibt` in the telemetry folder (names and times only)
+    is newer than Racing Desk's last write of app.ini: a session ran without Racing Desk, iRacing wrote the height itself, a
+    line goes in the log and the next fold keeps what he ends with. The horizon is left out.
+  - **Undo** (one button, Settings → Cars): both parts off, F24's binding and Racing Desk's rows out of SmartControl (the
+    cars' own profiles, with a line if he had changed any; the switch profile left in place once F24 has gone, with one
+    sentence on what to pick in SmartControl), the camera files and app.ini put back by value (`RestoreUndo`). One command
+    at a time, on the director's own worker.
   - **The writers** back up first and read back after: `ViewFiles` (`app.ini` through `AppIniEditor`, which keeps the
     line's width; `car.cam` through `CarCamFile`; both process names of the sim checked before each write; an intent kept
     in the store when both files change, and put back by value at host start if a stop cut it short; undo puts values
