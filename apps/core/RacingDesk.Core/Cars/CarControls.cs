@@ -44,7 +44,10 @@ namespace RacingDesk.Core.Cars
         public double? Number { get; set; }
         public string Text { get; set; }
 
-        /// <summary>Where the value stands between the list's lowest and highest, 0 to 1; null where the list gives no range.</summary>
+        /// <summary>
+        /// Where the value stands in the control's range for the car, 0 to 1 (<see cref="CarControls.FillOf"/>); null
+        /// where the list gives no range, or names positions that are not a scale.
+        /// </summary>
         public double? Fill { get; set; }
 
         /// <summary>The session's fixed setup holds it where it is.</summary>
@@ -350,9 +353,8 @@ namespace RacingDesk.Core.Cars
             {
                 Id = control.Id, Label = label, Var = control.Var, Number = value,
                 Locked = fixedSetup && LockedByAFixedSetup(control),
+                Fill = FillOf(control, value),
             };
-            if (control.Min.HasValue && control.Max.HasValue && control.Max.Value > control.Min.Value)
-                reading.Fill = Math.Max(0, Math.Min(1, (value - control.Min.Value) / (control.Max.Value - control.Min.Value)));
 
             string named = control.PositionAt(value);
             if (named != null)
@@ -372,6 +374,28 @@ namespace RacingDesk.Core.Cars
             reading.State = ControlReading.Value;
             reading.Text = Show(control, value);
             return reading;
+        }
+
+        /// <summary>
+        /// Where a value stands in its control's range for the car, 0 to 1: the HUD's bar, which follows the value as
+        /// he turns the dial. Null where there is nothing true to fill: the list gives the control no range (none is
+        /// made up), or its positions are names of modes (TRACK / SPORT / NORMAL, OFF / MDM / ON), whose numbers are
+        /// not quantities, whatever range the list gives. Positions that are a scale (25%, 50%, 75%:
+        /// <see cref="CarControl.PositionsAreAScale"/>) fill by the position's place among them, and a value between
+        /// them by the range. Otherwise the list's range, lowest to highest, a value outside it held at the end.
+        /// </summary>
+        public static double? FillOf(CarControl control, double value)
+        {
+            if (control == null) return null;
+            if (control.Positions.Count > 0)
+            {
+                if (!control.PositionsAreAScale) return null;
+                for (int i = 0; i < control.Positions.Count; i++)
+                    if (Math.Abs(control.Positions[i].Key - value) < 0.0005) return (double)i / (control.Positions.Count - 1);
+            }
+            if (control.Min.HasValue && control.Max.HasValue && control.Max.Value > control.Min.Value)
+                return Math.Max(0, Math.Min(1, (value - control.Min.Value) / (control.Max.Value - control.Min.Value)));
+            return null;
         }
 
         // Off is what the list says is off. Where it says nothing, nought is off for the ABS and the traction

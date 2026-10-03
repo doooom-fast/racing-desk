@@ -777,7 +777,12 @@
     return trail;
   }
 
-  function _renderTrackTrail(trailEl, strokeWidth, playerIdx) {
+  // `near` is where the car is on the outline (_nearestTrackPoint): the point of the outline at or behind it (`seg`) and
+  // the place on the line itself (`x`, `y`). The trail runs along the outline's points to that one and then to the car,
+  // so it ends at the car and not at the nearest point of the outline, which at the iPad's closest view is a few pixels
+  // away. Written to a thousandth of a unit, as the view's box is: a tenth was three pixels there.
+  function _renderTrackTrail(trailEl, strokeWidth, near) {
+    var playerIdx = near ? near.seg : -1;
     if (!trailEl || playerIdx < 0 || _trackPathCoords.length < 4) {
       if (trailEl) trailEl.setAttribute('points', '');
       return;
@@ -803,21 +808,23 @@
       startIdx = (playerIdx - maxLen + n) % n;
       backDist = maxLen;
     }
-    // Nothing to draw yet (player hasn't moved from start)
+    // Nothing to draw yet (player hasn't moved from start): no stub from the point behind him to the car either, which
+    // would be a dab of trail under a car standing still and its colour read from the page's style every frame
     if (backDist === 0) {
       trailEl.setAttribute('points', '');
       return;
     }
+    var headC = { x: near.x, y: near.y };
 
-    // Build points from tail (startIdx) → head (playerIdx) along the track path
+    // Build points from tail (startIdx) → the point at or behind the car → the car, along the track path
     var pts = '';
     var tailC = _trackPathCoords[startIdx];
-    var headC = _trackPathCoords[playerIdx];
     for (var i = 0; i <= backDist; i++) {
       var ci = (startIdx + i) % n;
       var c = _trackPathCoords[ci];
-      pts += c.x.toFixed(1) + ',' + c.y.toFixed(1) + ' ';
+      pts += c.x.toFixed(3) + ',' + c.y.toFixed(3) + ' ';
     }
+    pts += headC.x.toFixed(3) + ',' + headC.y.toFixed(3);
 
     trailEl.setAttribute('points', pts);
     trailEl.setAttribute('stroke-width', String(strokeWidth));
@@ -827,10 +834,10 @@
     var gradId = trailEl.id + '-grad';
     var grad = document.getElementById(gradId);
     if (grad) {
-      grad.setAttribute('x1', tailC.x.toFixed(1));
-      grad.setAttribute('y1', tailC.y.toFixed(1));
-      grad.setAttribute('x2', headC.x.toFixed(1));
-      grad.setAttribute('y2', headC.y.toFixed(1));
+      grad.setAttribute('x1', tailC.x.toFixed(3));
+      grad.setAttribute('y1', tailC.y.toFixed(3));
+      grad.setAttribute('x2', headC.x.toFixed(3));
+      grad.setAttribute('y2', headC.y.toFixed(3));
       // Read brand color and lighten 50% toward white
       var raw = getComputedStyle(document.documentElement).getPropertyValue('--map-player-color').trim();
       var trailColor = raw || '#00acc1';
@@ -847,7 +854,8 @@
     }
   }
 
-  // Parse SVG path string into an array of {x, y} coordinates
+  // Every pair of numbers in a path string, in order — what the page took from the path before it read the path's own
+  // points (below), kept for a path it cannot read, which it then draws as it was given.
   function _parsePathCoords(svgPath) {
     const raw = svgPath.match(/[\d.]+[,\s]+[\d.]+/g);
     if (!raw) return [];
@@ -857,16 +865,149 @@
     });
   }
 
-  // Find the nearest point on the parsed track path to (px, py)
-  // Returns {x, y, dist, idx} of the closest path coordinate
-  function _nearestTrackPoint(px, py) {
-    var best = { x: px, y: py, dist: Infinity, idx: -1 };
-    for (var i = 0; i < _trackPathCoords.length; i++) {
-      var c = _trackPathCoords[i];
-      var dx = px - c.x, dy = py - c.y;
-      var d = dx * dx + dy * dy;
-      if (d < best.dist) { best.x = c.x; best.y = c.y; best.dist = d; best.idx = i; }
+  // ── The outline as the page draws it ──
+  // The host sends the outline as an SVG path (TrackMapProvider.BuildSvgPath): a Catmull-Rom spline through its points —
+  // one to a bin of the lap, about every 5 m — as cubic Béziers. The page reads the points the line passes through (the
+  // end of each segment; a Bézier's two control points are off the line) and draws the spline through them itself, to a
+  // thousandth of a unit, and everything else it does with the outline goes by points on that line: where the car is on
+  // it, the trail behind the car, the full map's fit, the sectors. It used to take every pair of numbers in the path,
+  // control points and all, as points of the line, and put the car and the trail on the nearest of them.
+  // Why (he saw it on 2026-10-02: "the iPad zoom map seems to be very squiggly"): the plugin wrote every number to a tenth
+  // of a unit, which at Le Mans is 6 m and more than the 5 m between its points, and at Bathurst 2.4 m. The line drawn
+  // from it strayed from his real one by 1 to 2 px at the iPad's closest view (30 px to a unit) and turned by 40 to 90
+  // degrees from one bit of it to the next, which is the squiggle, and the car and its trail stepped from one rounded
+  // point to the next. The host writes two decimals now (0.2 px there), but a plugin from before it is still at one, so
+  // where a path's rounding is a fifth of the spacing between its points or more, the points are smoothed a little before
+  // the spline is drawn through them: three passes of 1-2-1, about a point and a quarter either way (6 m at the host's
+  // 5 m spacing). On his own outlines (Le Mans, Bathurst, Jefferson) that leaves the line within 1.5 px of the true one
+  // at the iPad's closest view and turning by a degree or so between samples; a hairpin of 15 m radius is pulled in by
+  // about a metre where the points are 5 m apart, under a pixel there. A path rounded finely enough for its spacing —
+  // the host's two decimals, the demo's sparse circuit, the tests' — is drawn through its own points untouched.
+  const _OUTLINE_COARSE = 0.2;        // rounding of this share of the spacing between points, or more, is smoothed out
+  const _OUTLINE_SMOOTH_PASSES = 3;   // passes of 1-2-1 over the points then
+  const _OUTLINE_DP = 3;              // the decimals the page writes the line in
+
+  // What an SVG path from the host says: the points the line passes through, whether it is a curve through them or
+  // straight lines between them, whether it closes, and the most decimals any of its numbers was written with. `M x,y`,
+  // then `L x,y` (or bare pairs after M) or `C x1,y1 x2,y2 x,y`, then `Z`: absolute commands, which is all the host
+  // writes. Null for anything else.
+  function _readOutline(svgPath) {
+    const tokens = String(svgPath).match(/[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)/g);
+    if (!tokens || tokens[0] !== 'M') return null;
+    const pts = [];
+    let decimals = 0, curves = 0, closed = false, cmd = '', i = 0;
+    const isCmd = (t) => /^[A-Za-z]$/.test(t);
+    const num = () => {
+      const t = tokens[i];
+      if (t === undefined || isCmd(t)) return NaN;
+      i++;
+      const dot = t.indexOf('.');
+      if (dot >= 0) decimals = Math.max(decimals, t.length - dot - 1);
+      return +t;
+    };
+    while (i < tokens.length) {
+      const t = tokens[i];
+      if (isCmd(t)) {
+        i++;
+        if (t === 'Z') { closed = true; continue; }
+        if ((t !== 'M' && t !== 'L' && t !== 'C') || (t === 'M' && pts.length) || closed) return null;
+        cmd = t;
+        continue;
+      }
+      if (closed) return null;
+      if (cmd === 'C') {
+        const c = [num(), num(), num(), num()];
+        if (!c.every(Number.isFinite)) return null;
+        curves++;
+      }
+      const x = num(), y = num();
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      pts.push({ x: x, y: y });
+      if (cmd === 'M') cmd = 'L';
     }
+    // A loop that comes back to where it began ends on its first point: that point once.
+    if (closed && pts.length > 3 && pts[pts.length - 1].x === pts[0].x && pts[pts.length - 1].y === pts[0].y) pts.pop();
+    if (pts.length < 3) return null;
+    return { points: pts, curve: curves > 0, closed: closed, decimals: decimals };
+  }
+
+  // One pass of 1-2-1 over the points, round the loop when it is one; an open line keeps its ends.
+  function _smoothOutline(pts, closed) {
+    const n = pts.length;
+    return pts.map(function(b, i) {
+      if (!closed && (i === 0 || i === n - 1)) return b;
+      const a = pts[(i - 1 + n) % n], c = pts[(i + 1) % n];
+      return { x: (a.x + 2 * b.x + c.x) / 4, y: (a.y + 2 * b.y + c.y) / 4 };
+    });
+  }
+
+  // The outline the page draws, from the host's path: { d } the path for the <path> sources, { coords } points along the
+  // drawn line for everything else, and whether it was smoothed. A curve's points are the spline sampled at its points
+  // and a third and two-thirds of the way between them — as many as the pairs the page used to take from the host's
+  // path (its point, then two control points, a segment at a time), so the trail's length, the teleport rule and the
+  // sectors, which count in these points, are what they were. A path of straight lines is drawn as one, through its
+  // points. A path the page cannot read is drawn as it was given, with every pair of numbers in it as its points (and the
+  // self-check in updateTrackMap says when nothing of it renders).
+  function _outlineOf(svgPath) {
+    const read = _readOutline(svgPath);
+    if (!read) return { d: svgPath, coords: _parsePathCoords(svgPath), smoothed: false, read: false };
+    let pts = read.points;
+    const n = pts.length;
+    const segs = read.closed ? n : n - 1;
+    const gaps = [];
+    for (let k = 0; k < segs; k++) gaps.push(Math.hypot(pts[(k + 1) % n].x - pts[k].x, pts[(k + 1) % n].y - pts[k].y));
+    gaps.sort(function(a, b) { return a - b; });
+    const spacing = gaps[Math.floor(gaps.length / 2)];
+    const rounding = Math.pow(10, -read.decimals);
+    const smoothed = spacing > 0 && rounding / spacing >= _OUTLINE_COARSE;
+    if (smoothed) for (let k = 0; k < _OUTLINE_SMOOTH_PASSES; k++) pts = _smoothOutline(pts, read.closed);
+    const f = function(v) { return v.toFixed(_OUTLINE_DP); };
+    const at = function(k) { return read.closed ? pts[(k + n) % n] : pts[Math.max(0, Math.min(n - 1, k))]; };
+    let d = 'M ' + f(pts[0].x) + ',' + f(pts[0].y);
+    const coords = [{ x: pts[0].x, y: pts[0].y }];
+    for (let k = 0; k < segs; k++) {
+      const p0 = at(k - 1), p1 = at(k), p2 = at(k + 1), p3 = at(k + 2);
+      if (!read.curve) {
+        d += ' L ' + f(p2.x) + ',' + f(p2.y);
+        coords.push({ x: p2.x, y: p2.y });
+        continue;
+      }
+      // Catmull-Rom to a cubic Bézier, as the host builds it.
+      const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+      const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+      d += ' C ' + f(c1x) + ',' + f(c1y) + ' ' + f(c2x) + ',' + f(c2y) + ' ' + f(p2.x) + ',' + f(p2.y);
+      for (let s = 1; s <= 2; s++) {
+        const t = s / 3, u = 1 - t;
+        coords.push({
+          x: u * u * u * p1.x + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * p2.x,
+          y: u * u * u * p1.y + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * p2.y,
+        });
+      }
+      coords.push({ x: p2.x, y: p2.y });
+    }
+    // A line of straight segments that closes comes back to its first point by the Z alone, as the host's did.
+    if (read.closed && !read.curve) coords.pop();
+    if (read.closed) d += ' Z';
+    return { d: d, coords: coords, smoothed: smoothed, read: true };
+  }
+
+  // Where (px, py) is nearest on the outline: on the segment between two of its points (the last back to the first
+  // included), so that the car slides along the line drawn and does not hop from one point to the next. Returns
+  // { x, y, dist, seg, t, idx }: the place on the line, how far it is, the point at or behind it (`seg`) and how far
+  // on towards the next it is (`t`), and the nearer of the two (`idx`).
+  function _nearestTrackPoint(px, py) {
+    var best = { x: px, y: py, dist: Infinity, idx: -1, seg: -1, t: 0 };
+    var n = _trackPathCoords.length;
+    for (var i = 0; i < n; i++) {
+      var a = _trackPathCoords[i], b = _trackPathCoords[(i + 1) % n];
+      var ex = b.x - a.x, ey = b.y - a.y, len = ex * ex + ey * ey;
+      var t = len > 0 ? ((px - a.x) * ex + (py - a.y) * ey) / len : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      var qx = a.x + ex * t, qy = a.y + ey * t;
+      var d = (px - qx) * (px - qx) + (py - qy) * (py - qy);
+      if (d < best.dist) { best.x = qx; best.y = qy; best.dist = d; best.seg = i; best.t = t; }
+    }
+    if (best.seg >= 0) best.idx = best.t < 0.5 ? best.seg : (best.seg + 1) % n;
     best.dist = Math.sqrt(best.dist);
     return best;
   }
@@ -946,13 +1087,14 @@
   const _sectorColors = ['transparent', 'hsl(280,60%,55%)', 'hsl(130,60%,50%)', 'hsl(0,65%,50%)'];
   const _sectorActiveColor = 'hsla(0,0%,100%,0.25)';
 
-  // Split an SVG path string into N sector sub-paths.
+  // Split the outline into N sector sub-paths, along the points the page draws it by (_outlineOf).
   // boundaryPcts is an array of N-1 boundary percentages: the session's own (SplitTimeInfo, which poll-engine.js
   // keeps in window._sectorBoundaries), e.g. [0.35, 0.70]. Falls back to equal thirds if none are given.
-  // The host's outline has one point per LapDistPct bin, so point index ≈ pct * count.
-  function _splitPathIntoSectors(svgPath, boundaryPcts) {
-    const coords = svgPath.match(/[\d.]+[,\s]+[\d.]+/g);
+  // The host's outline has one point per LapDistPct bin, and the page's points are evenly three to each of those, so
+  // point index ≈ pct * count.
+  function _sectorPaths(coords, boundaryPcts) {
     if (!coords || coords.length < 6) return [];
+    var f = function(c) { return c.x.toFixed(_OUTLINE_DP) + ',' + c.y.toFixed(_OUTLINE_DP); };
 
     // Determine boundary indices from percentages
     var pcts = (Array.isArray(boundaryPcts) && boundaryPcts.length >= 1)
@@ -968,12 +1110,16 @@
       var pts = coords.slice(prevIdx, endIdx);
       if (pts.length === 0) { result.push(''); prevIdx = endIdx; continue; }
       var startPt = prevIdx === 0 ? pts[0] : coords[prevIdx - 1];
-      var d = 'M ' + startPt;
-      for (var j = (prevIdx === 0 ? 1 : 0); j < pts.length; j++) d += ' L ' + pts[j];
+      var d = 'M ' + f(startPt);
+      for (var j = (prevIdx === 0 ? 1 : 0); j < pts.length; j++) d += ' L ' + f(pts[j]);
       result.push(d);
       prevIdx = endIdx;
     }
     return result;
+  }
+  // The same from a path string, as the page reads it.
+  function _splitPathIntoSectors(svgPath, boundaryPcts) {
+    return _sectorPaths(_outlineOf(svgPath).coords, boundaryPcts);
   }
   window._splitPathIntoSectors = _splitPathIntoSectors;
 
@@ -1119,8 +1265,10 @@
     if (svgPath && svgPath !== _mapLastPath) {
       _mapLastPath = svgPath;
       _mapHasInit = false;
-      // Parse coordinates for snapping and off-track detection
-      _trackPathCoords = _parsePathCoords(svgPath);
+      // The line the page draws, and the points along it that the car, the trail, the fit and the sectors go by
+      // (_outlineOf: the host's points, a spline through them drawn here, smoothed first where the path is coarse).
+      const outline = _outlineOf(svgPath);
+      _trackPathCoords = outline.coords;
       _forgetTrail();   // the indices of the trail were of the outline before
       // The three rendered layers (outer / middle / inner) are <use>
       // elements that reference a single source <path> in <defs>. Update
@@ -1129,7 +1277,7 @@
       var _SRC_IDS = ['fullMapTrackSrc', 'zoomMapTrackSrc'];
       _SRC_IDS.forEach(function(id) {
         var el = document.getElementById(id);
-        if (el) el.setAttribute('d', svgPath);
+        if (el) el.setAttribute('d', outline.d);
       });
       // IDs of the rendered layers, used by the self-check below to
       // verify the path is visible (not just the defs source).
@@ -1173,7 +1321,7 @@
 
       // Split path into N sector sub-paths using native iRacing boundaries
       const boundaryPcts = Array.isArray(window._sectorBoundaries) ? window._sectorBoundaries : null;
-      const sectorPaths = _splitPathIntoSectors(svgPath, boundaryPcts);
+      const sectorPaths = _sectorPaths(_trackPathCoords, boundaryPcts);
       const sectorCount = sectorPaths.length;
 
       // Dynamically create/update sector path elements in the full map SVG
@@ -1193,18 +1341,20 @@
         }
       }
 
-      // Position start/finish marker at the first point of the path (LapDistPct=0)
-      const sfMatch = svgPath.match(/^M\s*([\d.]+)[,\s]+([\d.]+)/);
-      if (sfMatch) {
-        const sfX = +sfMatch[1], sfY = +sfMatch[2];
+      // Position start/finish marker at the first point of the line drawn (LapDistPct=0)
+      const sfMatch = outline.read ? null : svgPath.match(/^M\s*([\d.]+)[,\s]+([\d.]+)/);
+      if (outline.read || sfMatch) {
+        const sfX = outline.read ? _trackPathCoords[0].x : +sfMatch[1];
+        const sfY = outline.read ? _trackPathCoords[0].y : +sfMatch[2];
+        const sf = 'translate(' + sfX.toFixed(_OUTLINE_DP) + ',' + sfY.toFixed(_OUTLINE_DP) + ')';
         const fullSF = document.getElementById('fullMapSF');
         const zoomSF = document.getElementById('zoomMapSF');
         if (fullSF) {
-          fullSF.setAttribute('transform', 'translate(' + sfX.toFixed(1) + ',' + sfY.toFixed(1) + ')');
+          fullSF.setAttribute('transform', sf);
           fullSF.style.display = '';
         }
         if (zoomSF) {
-          zoomSF.setAttribute('transform', 'translate(' + sfX.toFixed(1) + ',' + sfY.toFixed(1) + ')');
+          zoomSF.setAttribute('transform', sf);
           zoomSF.style.display = '';
         }
       }
@@ -1254,9 +1404,9 @@
     const sx = _mapSmoothedX;
     const sy = _mapSmoothedY;
 
-    // Find player's nearest point on track (used for off-track detection + trail)
+    // Where the car is on the track (used for off-track detection + trail): the point of the outline at or behind it
     var playerNearest = _trackPathCoords.length > 10 ? _nearestTrackPoint(sx, sy) : null;
-    var playerIdx = playerNearest ? playerNearest.idx : -1;
+    var playerIdx = playerNearest ? playerNearest.seg : -1;
 
     // A teleport: the trail was anchored behind the car, and the car is somewhere else. Round the loop the short way
     // (a step across the line is a step); more than a fiftieth of the lap in one frame is no drive.
@@ -1325,9 +1475,10 @@
     // Ensure trail polylines exist and render using actual track geometry
     if (!_fullMapTrailEl)  _fullMapTrailEl  = _ensureTrailPolyline('fullMapSvg', 'fullMapPlayer', 'fullMapTrail');
     if (!_zoomMapTrailEl) _zoomMapTrailEl = _ensureTrailPolyline('zoomMapRotateGroup', 'zoomMapOpponents', 'zoomMapTrail');
-    // The width of the outline's outer layer (.map-track-outer): in the glance layout that is in pixels
-    _renderTrackTrail(_fullMapTrailEl, _dv.on && _dv.fullUnit ? 12 * _dv.fullUnit : 5, playerIdx);
-    _renderTrackTrail(_zoomMapTrailEl, _dv.on && _dv.zoomUnit ? 10 * _dv.zoomUnit : 2.5, playerIdx);
+    // The width of the outline's outer layer (.map-track-outer): in the glance layout that is in pixels (on the local
+    // view, at the view R_LINE_WEIGHTS across, and with the zoom from there)
+    _renderTrackTrail(_fullMapTrailEl, _dv.on && _dv.fullUnit ? 12 * _dv.fullUnit : 5, playerNearest);
+    _renderTrackTrail(_zoomMapTrailEl, _dv.on && _dv.zoomUnit ? 10 * _dv.zoomUnit : 2.5, playerNearest);
 
     // Self-check: warn once if trail polylines couldn't be created.
     // Their absence means _renderTrackTrail is silently no-op'ing and
@@ -1346,9 +1497,10 @@
     // Update zoom map — player always centered, track rotates so driving direction always points UP. The view's
     // radius follows his speed (map-zoom.js): closer in as he goes faster, by default — what he asked for — or
     // wider, or one view at every speed, by the "Following map zoom" setting; between the bounds the view has
-    // always had, and eased over about half a second so the noise in the speed is not in the map. The view's box,
-    // its pivot and the car's dot are written to a thousandth of a unit: at the closest the view is 11 units across
-    // and at speed it is the one that scrolls fastest, where steps of a tenth were jerks of two or three pixels.
+    // always had, eased over a fifth of a second and never faster than its cap, so that a speed that jumps (a reset, a
+    // tow, a crash) is not a jump in the map. The view's box, its pivot and the car's dot are written to a thousandth
+    // of a unit: at the closest the view is 11 units across and at speed it is the one that scrolls fastest, where
+    // steps of a tenth were jerks of two or three pixels.
     const zoomSvg = document.getElementById('zoomMapSvg');
     if (zoomSvg) {
       const spd = typeof speedMph === 'number' ? speedMph : 0;
@@ -1356,12 +1508,16 @@
 
       if (_dv.on && _dv.zoomAspect > 0) {
         // The glance layout: the view is the shape of its cell, as wide as the radius says, and the car is
-        // two-thirds of the way down it, so what is ahead gets the room. What is drawn in pixels is sized
-        // again when the pixels a unit is have moved by a few percent.
+        // two-thirds of the way down it, so what is ahead gets the room. What is drawn on it — the road's three
+        // lines, the trail, the car and the others — is sized in pixels for the view R_LINE_WEIGHTS across, and so
+        // in the map's own units: it grows as the view closes in and shrinks as it opens out, as on the rig's HUD,
+        // whose lines are in those units. It was sized again in pixels whenever the zoom moved by a few percent,
+        // which took the zoom back out of everything but the bends: on a straight the closest view looked like the
+        // widest. It is sized again only when the cell changes (_dvLayout puts zoomUnit to 0).
         const vw = zr * 2, vh = vw / _dv.zoomAspect;
         zoomSvg.setAttribute('viewBox', (sx - vw / 2).toFixed(3) + ' ' + (sy - vh * (2 / 3)).toFixed(3) + ' ' + vw.toFixed(3) + ' ' + vh.toFixed(3));
-        const unit = vw / _dv.zoomW;
-        if (Math.abs(unit - _dv.zoomUnit) > _dv.zoomUnit * 0.03) {
+        const unit = (2 * RacingDeskMapZoom.R_LINE_WEIGHTS) / _dv.zoomW;
+        if (unit !== _dv.zoomUnit) {
           _dv.zoomUnit = unit;
           zoomSvg.style.setProperty('--px', unit.toFixed(4));
           _dvSizeMarkers(zoomSvg, unit);
@@ -1515,9 +1671,10 @@
       }
     }
 
-    // Update glow position to follow player
-    glow.setAttribute('cx', px.toFixed(1));
-    glow.setAttribute('cy', py.toFixed(1));
+    // Update glow position to follow player: to a thousandth, as the car's dot on the local view is (a tenth is three
+    // pixels at the iPad's closest view, and the glow shimmered round the dot)
+    glow.setAttribute('cx', px.toFixed(3));
+    glow.setAttribute('cy', py.toFixed(3));
   }
 
   // ═══ EXPOSE ALL FUNCTIONS TO WINDOW ═══

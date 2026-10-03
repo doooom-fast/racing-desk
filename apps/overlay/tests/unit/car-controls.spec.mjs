@@ -97,22 +97,25 @@ test.describe('textOf, fillOf, announced: what a reading shows', () => {
   });
 
   test('a bar is filled by a value and by nothing else', () => {
-    for (const state of ['none', 'on', 'off', 'mode']) expect(fillOf({ state, value: 8, fill: 1 }, 'tc'), state).toBe(0);
-    expect(fillOf({ state: 'value', value: 8, fill: 0.25 }, 'tc')).toBe(0.25);
-    expect(fillOf({ state: 'value', value: 8, fill: 7 }, 'tc')).toBe(1);
-    expect(fillOf({ state: 'value', value: 8, fill: -1 }, 'tc')).toBe(0);
-    // Without the host's own fill, the bars the HUD always drew.
-    expect(fillOf({ state: 'value', value: 50 }, 'bb')).toBe(0.5);
-    expect(fillOf({ state: 'value', value: 90 }, 'bb')).toBe(1);
-    expect(fillOf({ state: 'value', value: 6 }, 'tc')).toBe(0.5);
-    expect(fillOf({ state: 'value', value: 30 }, 'abs')).toBe(1);
-    expect(fillOf({ state: 'value', value: 3 }, 'arbFront')).toBe(0);
-    // A position with a name is not a quantity: the number behind MDM does not fill a bar.
-    expect(fillOf({ state: 'value', value: 1, text: 'MDM' }, 'tc')).toBe(0);
-    expect(fillOf({ state: 'value', value: 6, text: '6' }, 'tc')).toBe(0.5);
-    expect(fillOf({ state: 'value', value: 54.5, text: '54.5' }, 'bb')).toBeCloseTo(0.6125, 4);
-    expect(fillOf({ state: 'value', text: 'MDM' }, 'tc')).toBe(0);
-    expect(fillOf(null, 'tc')).toBe(0);
+    for (const state of ['none', 'on', 'off', 'mode']) expect(fillOf({ state, value: 8, fill: 1 }), state).toBe(0);
+    expect(fillOf({ state: 'value', value: 8, fill: 0.25 })).toBe(0.25);
+    expect(fillOf({ state: 'value', value: 8, fill: 7 })).toBe(1);
+    expect(fillOf({ state: 'value', value: 8, fill: -1 })).toBe(0);
+    // The bar is where the value stands in that control's range for that car, which the host works out from the list:
+    // where it sends none (no range in the list, positions that are names), there is none. Nothing is made up here —
+    // not the 30 to 70 and 0 to 12 the HUD once drew for the three, which are the old panel's alone (a car the list
+    // does not have).
+    expect(fillOf({ state: 'value', value: 50 })).toBe(0);
+    expect(fillOf({ state: 'value', value: 6, text: '6' })).toBe(0);
+    expect(fillOf({ state: 'value', value: 30 })).toBe(0);
+    expect(fillOf({ state: 'value', value: 3 })).toBe(0);
+    // A position with a name is not a quantity: the host sends no fill for MDM, and the HUD makes none.
+    expect(fillOf({ state: 'value', value: 1, text: 'MDM' })).toBe(0);
+    // Positions that are a scale fill by the host's word (the MP4-30's target charge, 50% of 25 / 50 / 75).
+    expect(fillOf({ state: 'value', value: 50, text: '50%', fill: 0.5 })).toBe(0.5);
+    expect(fillOf({ state: 'value', text: 'MDM' })).toBe(0);
+    expect(fillOf({ state: 'value', value: 4, fill: '0.5' })).toBe(0);
+    expect(fillOf(null)).toBe(0);
   });
 
   test('the spotter\'s value: the text as shown, else the number, else nothing', () => {
@@ -191,10 +194,12 @@ test.describe('view: the panel, cell by cell', () => {
     expect(fillOf({ state: 'unread', value: 4, fill: 0.5 }, 'tc')).toBe(0);
   });
 
-  test('the bar is the host\'s fill, or the one the HUD always drew', () => {
-    const v = view({ car: 'x', more: [], bb: { state: 'value', value: 50 }, tc: { state: 'value', value: 6 }, abs: { state: 'value', value: 3, fill: 0.9 } });
-    expect(v.primary.map((c) => c.fill)).toEqual([0.5, 0.5, 0.9]);
+  test('the bar is the host\'s fill and nothing else: a control the list gives no range has none', () => {
+    const v = view({ car: 'x', more: [{ id: 'arbFront', state: 'value', value: 3, fill: 0.4 }, { id: 'tc2', state: 'value', value: 5 }],
+      bb: { state: 'value', value: 50 }, tc: { state: 'value', value: 6 }, abs: { state: 'value', value: 3, fill: 0.9 } });
+    expect(v.primary.map((c) => c.fill)).toEqual([0, 0, 0.9]);
     expect(v.primary.map((c) => c.text)).toEqual(['50', '6', '3']);
+    expect(v.more.map((c) => c.fill)).toEqual([0.4, 0]);
   });
 
   test('DRS and push-to-pass come last, with whether they are ready or on', () => {

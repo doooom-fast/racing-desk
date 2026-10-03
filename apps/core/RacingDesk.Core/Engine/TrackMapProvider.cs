@@ -497,7 +497,13 @@ namespace RacingDesk.Plugin.Engine
             return sb.ToString();
         }
 
-        private static string F(double v) => v.ToString("F1", CultureInfo.InvariantCulture);
+        // The map's numbers — the outline's points and control points, the other cars' places — to a hundredth of a unit.
+        // A tenth was 6 m at Le Mans, where the outline is 13.5 km and 90 units across, which is more than the 5 m between
+        // its points: at the iPad's following map, 30 px to a unit at its closest, the line drawn from it strayed from his
+        // real one by 1 to 2 px and turned 40 to 90 degrees from one bit of it to the next ("very squiggly", 2026-10-02),
+        // and a car beside him moved in 3 px steps. A hundredth keeps the line within 0.2 px of the true one there; a
+        // thousandth would add another byte to every number of a path sent thirty times a second for nothing seen.
+        private static string F(double v) => v.ToString("F2", CultureInfo.InvariantCulture);
 
         // ── Position interpolation ─────────────────────────────────────────
 

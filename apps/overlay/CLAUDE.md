@@ -77,7 +77,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `logo-livery-picker.js` | Pure: the window of a paint sheet with artwork in it, scored, and the crop of it; runs in the worker and in Node tests |
 | `logo-livery-worker.js` | A worker thread: reads one paint inside the paint folder, decodes it with `paints/tga.js`, asks the picker, answers with the PNG and no path |
 | `session-kind.js` | Pure: which session the frame says it is, from `RacingDesk.Plugin.SessionTypeName` — a test drive (iRacing's "Offline Testing") or not (see The glance layout, A test drive has no leaderboard) |
-| `map-zoom.js` | Pure: the following map's zoom with his speed (see The following map's zoom) — the curve, the ease, the follower a page keeps, the `followMapZoom` setting's words and its once-only migration in the settings file |
+| `map-zoom.js` | Pure: the following map's zoom with his speed (see The following map's zoom) — the curve, the ease on the view's scale and its cap, the follower a page keeps, the view at which the glance layout's local view has its pixel weights, the `followMapZoom` setting's words and its once-only migration in the settings file |
 
 Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
 
@@ -163,10 +163,13 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   (Track, Sport, the BMW's MDM) under the control's name (below), or **a dim dash under its name where the car has
   it and the sim is not saying what it reads** (`unread`, `.ctrl-unread`: the list gives no variable, or the car is not
   publishing it; never a made-up number, and the sim starting to say is not announced as a change). A control the fixed
-  setup holds gets a small lock mark (`.ctrl-locked`). A number fills its bar by the host's `fill`, else by the bars the
-  HUD always drew (bias `(n-30)/40`, TC and ABS `n/12`); **a name fills nothing** (the number behind `MDM` is a
-  position, not a quantity). A mode (the 570S's one dial) is a cell of its own, `#ctrlMode`, and the cells it covers
-  (`ctrl-hidden`) take no room.
+  setup holds gets a small lock mark (`.ctrl-locked`). **Every cell's bar is the host's `fill` and nothing else**
+  (`fillOf`; `--ctrl-pct`, the cell's `::before`): where the value stands in that control's range for that car, from
+  the list (root CLAUDE.md, The car's controls), written every frame, so it moves as he clicks. Where the host sends
+  none — the list has no range for the control, or its positions are names (the number behind MDM or Track is a
+  position, not a quantity) — there is no bar. The bars the HUD once drew for the three when the host sent none (bias
+  `(n-30)/40`, TC and ABS `n/12`) are the old panel's alone, for a car the list does not have (`poll-engine.js`). A mode
+  (the 570S's one dial) is a cell of its own, `#ctrlMode`, and the cells it covers (`ctrl-hidden`) take no room.
 - **A cell's name, in words where they fit** (he asked on 2026-10-02 for words instead of acronyms, with his own for the
   common ones: "for ABS: anti-lock, for bb: bias. for tc: traction", "mig: migration. arb: rollbar"). A control has up
   to three forms, longest first (`namesOf`, `formsOf`): its **words** — the car list's `words`, which the host sends
@@ -201,6 +204,24 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   step). The panel is some 90 to 120px tall at the iPad sizes and the row 33 to 44 of it: there is no second row to
   give, and a label of two lines would take the main row's room. The spotter's card says the words (`spoken`:
   `Traction slip ▲ 6`, `Assists ▼ Sport`), and push-to-pass its own (the SF23's "Overtake", else "Push to pass").
+- **Every cell is coloured by what the control acts on** (he asked on 2026-10-02: "we also need the color coding and um,
+  background scaling for all of these adjustments as well"): `familyOf` (`FAMILY`, by the list's control id, case-blind)
+  gives each cell `data-ctrl-family` and `data-ctrl-shade`, and `leaderboard.css` ("The controls' colours") colours its
+  value, its label and its bar by them, as bias, TC and ABS always were. **The brakes** in the bias red (the bias, its
+  target and fine trim, the migration and its gain, a rear brake valve, the R18's IBS), **traction** in its blue (TC and
+  its second, third and fourth dials, stability, the switch, launch), **the anti-lock** in its yellow (and its switch),
+  **the engine and the hybrid** in violet (engine, fuel and throttle maps, regen, boost, deploy, engine braking, the fuel
+  cut), **the chassis** in teal (the anti-roll bars, the differential, weight jacker, wing, drive split, power steering),
+  **a mode** in green; **DRS and push-to-pass have none**, their states (ready, open, on) being their colours. The shade
+  sets apart controls of one family that sit side by side (0 the family's own, 1 a lighter tint, 2 the hue turned, 3
+  muted: the 963's bias, target and migration are three reds). The palette is defined once, as custom properties
+  (`--ctrl-<family>-h/-s/-l`, the theme's lightness for a value, a label, the bar and the glow, the shades' offsets),
+  and redefined under `[data-theme="light"]`, darker, so every value reads at 4:1 or better and every label at 3.5:1 on
+  the light glass at its least kind (over a dark game); on the dark glass 4:1 and 3:1 (the bias red's own, as it always
+  was, is 4.4 and 3.3). The three are shade 0 of theirs, which are the colours they always had, with the key and
+  without it (the old panel keeps them by its ids). Every control id of the list has a family (a test fails for one
+  that is added without), and the glance layout carries the same colours (it is the HUD's panels laid out again; the
+  row cells there have no bar, as before).
 - **The car's other controls** (`#ctrlMore`, `.ctrl-mini`): every one the list gives the car, in the list's order — a
   second traction dial (the 963's TCLA, "Traction gain"), brake migration ("Migration"), the anti-roll bars ("Front
   rollbar", "Rear rollbar"), a throttle map, the hybrid's dials — then
@@ -287,7 +308,13 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   `tests/unit/fixtures/car-controls-wire.json`, which RacingDesk.Tests holds to what the host writes
   (`Cars/CarControlsWireTests.cs`, rewritten with `UPDATE_CAR_CONTROLS_WIRE=1`). The C# side cannot be tested over
   `:8889` without binding wildcard ports, so that hop is by the code: the runtime writes `s.CarControlsJson` into the
-  payload as an object.
+  payload as an object. `tests/unit/car-controls-colours.spec.mjs` holds the colours and the bars: every control id of
+  the real list has a family, each family its own hue on the value, the label and the bar and each shade apart from
+  its family's own, the three exactly as they always were (with the key and without), DRS and push-to-pass in their
+  own states, the contrast on the dark glass and the light, the bar following a value click by click, no bar where the
+  host sends none, and the glance layout's colours the rig's. Where the bar comes from is the host's:
+  RacingDesk.Tests `Cars/CarControlsFillTests.cs` (every range of the list fills 0 to 1 and holds at its ends, says
+  where it came from, positions that are a scale and names that are not, the bar following the value).
 
 ## The datastream's rig limits (`Wheel max`, `Sim feedback max`, `Brake max`)
 
@@ -577,8 +604,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   with a margin of nine pixels all round (worked out from the scale the circuit is drawn at, so it is pixels whatever the
   circuit and the cell: it was 6 % of the circuit's longer side), the local view takes its cell's shape with the car two-thirds of the way down, and what is drawn in pixels (the
   outline's three layers at 12 / 7 / 1.5px, the sectors at 8px, the car at 7px and the others at 5px) is worked out from
-  `--px` on the svg, the units of the map to a pixel. Told by `driveViewChanged` (drive-hud.js), on resize, and on a new
-  path; out of drive mode the maps are the HUD's own again. The outline is the host's, from his own laps (root
+  `--px` on the svg, the units of the map to a pixel. On the local view those are the weights (10 / 6 / 1.2px, the car 7,
+  the others 5, the trail 10) when the view is at its middle, and they follow its zoom with his speed from there, as the
+  rig's do (The following map's zoom, below). Told by `driveViewChanged` (drive-hud.js), on resize, and on a new
+  path; out of drive mode the maps are the HUD's own again. The line itself is drawn by the page from the host's
+  points (The outline the page draws, below). The outline is the host's, from his own laps (root
   CLAUDE.md, Track maps), and the host places the cars along it as a closed loop, so the page keeps a plain low-pass on
   the car's position and has no jump rule and no slow blend (crossing the line is one more step). The trail behind the
   car (a quarter of the lap at most, from where it was last anchored) is let go when the car is put somewhere else —
@@ -741,29 +771,50 @@ months; **"Fixed" is a third view, not that one** (the old map was never fixed: 
   cell's shape with the car two-thirds down, as before). The bounds are the two the local view has always had, so
   neither end is new on his rig: `R_CLOSE` 5.6 (the closest: an eleventh of the map across, never a blur of track) and
   `R_WIDE` 50/3 (the widest: a third of the map, never the whole circuit, which the full map beside it is). Between
-  them: **closer** is linear in speed from 0 to `SPEED_MAX_MPH`, 150 mph, clamped beyond (`r = R_WIDE − t·(R_WIDE −
-  R_CLOSE)`, `t = clamp(speed/150, 0, 1)`); **wider** is the old curve exactly (`r = R_CLOSE + t·(R_WIDE − R_CLOSE)`,
+  them: **closer** is linear in speed from 0 to `SPEED_MAX_MPH`, **120 mph**, clamped beyond (`r = R_WIDE − t·(R_WIDE −
+  R_CLOSE)`, `t = clamp(speed/120, 0, 1)`); **wider** is the old curve exactly (`r = R_CLOSE + t·(R_WIDE − R_CLOSE)`,
   `t = clamp(speed/75, 0, 1)`, `WIDER_MAX_MPH`: the line `5.6 + (min(speed, 75)/75)·(50/3 − 5.6)` that this replaced,
   held to it at every speed by a test), with the ease below in place of the old per-frame blend; **fixed** is
   `R_FIXED` 11.15, the middle. A speed that is no number is a standstill; a mode that is none of the three is
-  `closer`. Why 150 and linear in the radius: it is the plain reading of "in relation to that speed change", and a
-  speed most of his cars reach on a straight — the fastest (the GTPs, a GT3 down Le Mans' or Daytona's longest
-  straights) pass it and the view stays at its closest there; any higher a ceiling and the slower cars never get
-  close. (Magnification is 1/r, so a given change in mph zooms more at 140 mph than at 20; an even ratio per mph
-  would be `r = R_WIDE·(R_CLOSE/R_WIDE)^t`, which is a one-line change in `targetRadius` if it is ever wanted.)
-- **The ease** (`ease`, `follower`): the drawn radius follows the target with a first-order ease of time constant
-  `TAU_S` 0.4 s — 63 % of a step in 0.4 s, 90 % in 0.93 s, 99 % in 1.85 s — by the page's own clock
-  (`performance.now()`). A frame counts for the time since the one before it, `MAX_STEP_S` 0.1 s at most, so one
-  late frame (an iPad's Wi-Fi, a browser source in OBS) moves the view by about a fifth of what is left and the rest
-  comes over the next frames, as the car's own position does (`_mapSmoothedX`): a step is never a jump, and a stall
-  is not a pop. The first frame sets it outright, and so does a frame after `RESTART_AFTER_S`, two seconds, with none
-  (the page was in the background: the radius it held is from a speed long ago). A change of the setting eases to the
-  new view too. Telemetry noise of a mile an hour or two moves the target by less than a tenth of a unit, and the
-  ease takes the rest out. `webgl-helpers.js` keeps one `follower` and asks it each frame with the speed,
-  `_settings.followMapZoom` and the clock; everything else of the local view (the rotation to heading up, the cell's
-  shape, `--px`) is as it was, except that the view's box, its pivot and the car's dot are written to a thousandth of
-  a unit, not a tenth: at the closest the view is 11 units across and scrolls fastest at speed, where steps of a tenth
+  `closer`. Linear in the radius because it is the plain reading of "in relation to that speed change". **Why 120**
+  (it was 150 on 2026-10-01; the next day he asked to "zoom in faster on the HUD zoom map"): in his newest recorded
+  session (the 963 GTP at Bathurst, the OBS sidecar's speeds) half his moving time was under 87 mph, a quarter over
+  119 and a twentieth over 150, so at 150 the view sat at its closest a twentieth of the time and changed by 1.6 times
+  between his corners and his straights (the first and third quartiles of his speed). From 120 it is at its closest on
+  every straight of every car he drives but the MX-5 (which tops out near it) and changes by about twice between
+  corner and straight: 11.9 units at 52 mph, 8.6 at 87, 5.6 from 120. (An even ratio per mph,
+  `r = R_WIDE·(R_CLOSE/R_WIDE)^t`, spends its zoom on 0–50 mph, the pit lane and the hairpins, and changes less between
+  his corners and straights: 1.8 times.)
+- **The ease** (`ease`, `follower`) is on the view's scale, the log of the radius, so a zoom in and a zoom out of the same
+  size take the same time (on the radius a zoom out from the closest began with a kick): a first-order ease of time
+  constant `TAU_S` **0.2 s** — 63 % of a change in 0.2 s, 95 % in 0.6 s — by the page's own clock (`performance.now()`).
+  It was 0.4 s on the radius: braking at 40 mph a second (the first percentile of that session's frames) the view was
+  16 mph behind his speed, and is 8 now. His speed is smooth (from one frame to the next it bends by 0.6 mph at the
+  99th percentile), so the short ease lets no noise through. What no ease takes out is a speed that changes in a frame —
+  a reset to the pits, a tow, a crash into a wall (the sidecar has −728 mph a second), a frame with a bad speed — so the
+  scale also changes by no more than `MAX_RATE`, **1.5** (e^1.5, 4.5 times) a second: the whole range, three times,
+  takes three-quarters of a second at the least, and a lone bad frame moves the view by 5 % at most. His hardest braking
+  in that session (51 mph a second over half a second, resets left out) moves the target at 0.63 in that measure, so the
+  cap never holds his driving back (a test drives it frame by frame against the ease with no cap). A frame counts for
+  the time since the one before it, `MAX_STEP_S` 0.1 s at most, so one late frame (an iPad's Wi-Fi, a browser source in
+  OBS) moves the view by 16 % at most and the rest comes over the next frames, as the car's own position does
+  (`_mapSmoothedX`): a step is never a jump, and a stall is not a pop. The first frame sets it outright, and so does a
+  frame after `RESTART_AFTER_S`, two seconds, with none (the page was in the background, or he was out of the car: the
+  radius it held is from a speed long ago, and getting back in is not a zoom from there). A change of the setting eases
+  to the new view too. `webgl-helpers.js` keeps one `follower` and asks it each frame with the speed,
+  `_settings.followMapZoom` and the clock; the view's box, its pivot and the car's dot are written to a thousandth of a
+  unit, not a tenth: at the closest the view is 11 units across and scrolls fastest at speed, where steps of a tenth
   were jerks of two or three pixels (and the dot and the box's centre each rounded on their own and shimmered).
+- **The zoom is seen in what is drawn, on every overlay** (he said on 2026-10-02: "the iPad zoom map … doesn't zoom at
+  all"). The rig's HUD draws the road's three lines, the trail, the car and the others in the map's own units (2.5,
+  1.5, 0.3; the car 2), so they grow as the view closes in. The glance layout (the iPad, `/obs-ipad`, Ctrl+Shift+F)
+  drew them in pixels (`--px`, 10 / 6 / 1.2 px, the car 7, the others 5) and sized them again whenever the zoom moved
+  by 3 %, which took the zoom back out of everything but the bends: on a straight the view at 150 mph looked like the
+  view at rest (in a headless render of the iPad page, the road was 9.9 px at rest and 10.2 at 120 mph). Now `--px`
+  on the local view is the units to a pixel when the view is `R_LINE_WEIGHTS` across (the middle, `R_FIXED`), set when
+  the cell changes and not when the zoom does: those are the pixel weights at the middle view, two-thirds of them at
+  the widest and twice them at the closest (the road 6.7, 10 and 20 px), as the rig's do. The full circuit, which does
+  not zoom, keeps its weights in pixels.
 - **Where the setting goes**: `config.js` `_defaultSettings` has `closer`; the desk's Settings → Look offers the three;
   the pages OBS draws get it through the display allowlist (`remote-server.js` `DISPLAY_SETTINGS`), and the iPad
   through `IPAD_SETTINGS`, which now lets each key through only as the kind of value it is (a number for the panel
@@ -771,15 +822,63 @@ months; **"Fixed" is a third view, not that one** (the old map was never fixed: 
   (`migrate`, `migrateFile` through `settings-file.js`; `main.js` `migrateFollowMapZoom`, at start, before anything
   reads the file; a value that is none of the three is put to `closer`; a file that cannot be read is left as it is).
 - **Tests**: `tests/unit/map-zoom.spec.mjs` — the curve in Node (the bounds, each direction, the old curve exactly,
-  fixed, proportion, clamping, the ease's time constant, the follower, one late frame, a page back from the
-  background, noise), the migration (the function, the file, a first run, an unreadable file, main.js's call), and the
-  pages: the rig's HUD up and down a speed ramp in each mode and with the setting changed in place, its glance
-  layout, the iPad told the setting by its server (and a change within its ask), and `/obs` through the allowlist —
-  the settled view at each speed, every move within what the ease allows for the time it had (no jumps), the car at
-  the middle of its view to a thousandth of a unit. `desk-settings-model.spec.mjs` holds the control;
-  `remote-server.spec.mjs` the allowlists. The glance layout's two golden frames were re-made for it (and for the
-  incidents panel): at their 127 mph the view is close where it used to be at its widest. The rig's in-car frame is
+  fixed, proportion, clamping, his own speeds, the ease on the scale and its time constant, the cap, his hardest braking
+  not held back by it, the follower, one late frame, a page back from the background, noise), the migration (the
+  function, the file, a first run, an unreadable file, main.js's call), and the pages: the rig's HUD up and down a speed
+  ramp in each mode and with the setting changed in place, its glance layout, the iPad told the setting by its server
+  (and a change within its ask) and down and up a ramp in `closer`, `/obs` through the allowlist and `/obs-ipad` — the
+  settled view at each speed, every move within what the cap allows for the time it had (no jumps), the car at the
+  middle of its view to a thousandth of a unit, and the road and the car drawn three times as big at the closest view
+  as at the widest, on the rig's HUD and in the glance layout (where they are also their pixel weights times
+  `R_LINE_WEIGHTS` over the view's radius). `drive-view.spec.mjs` holds the car's dot to the same rule.
+  `desk-settings-model.spec.mjs` holds the control; `remote-server.spec.mjs` the allowlists. The glance layout's two
+  golden frames were re-made for it (and for the incidents panel) on 2026-10-01, and again on 2026-10-02: at their
+  127 mph the view is at its closest, and its road and car are drawn twice their old weights. The rig's in-car frame is
   unchanged: its fixture has no track map (`TrackMap.Ready` 0), so the local view draws nothing there.
+
+## The outline the page draws (`webgl-helpers.js`, "The outline as the page draws it")
+
+The host sends the outline as an SVG path, `RacingDesk.Plugin.TrackMap.SvgPath` (`TrackMapProvider.BuildSvgPath`): a
+Catmull-Rom spline through its points — one to a bin of the lap, about every 5 m — as cubic Béziers, `M x,y C x1,y1 x2,y2
+x,y … Z`. **The page reads the points the line passes through** (`_readOutline`: the end of each `C`, never its control
+points; `L` and bare pairs after `M` too) **and draws the spline through them itself** (`_outlineOf`), to a thousandth of
+a unit, on both maps' `<path>` sources; and **everything else it does with the outline goes by points on that line**
+(`_trackPathCoords`: the spline at each point and a third and two-thirds of the way to the next — as many as the pairs
+the page used to take from the host's path, so the trail's length, the teleport rule and the sectors, which count in
+them, are as they were): where the car is on it (`_nearestTrackPoint` puts the car on the nearest segment, so it slides
+along the line and does not hop from point to point), the trail (to the point at or behind the car and then the car,
+to a thousandth), the full map's fit, the sectors (`_sectorPaths`), the start/finish tick and the glow. A path the page
+cannot read (no `M` first, a command it does not know) is drawn as it came, its pairs of numbers taken as before, and
+the self-check says that nothing rendered.
+
+**Why** (he said on 2026-10-02: "the iPad zoom map seems to be very squiggly"): the host wrote every number to a tenth of a
+unit, which at Le Mans (13.5 km, 90 units across, 60 m to a unit) is 6 m — more than the 5 m between its points — and
+at Bathurst 2.4 m. The page took every pair of numbers in the path as a point of the line, control points included,
+and put the car and its trail on the nearest of them. At the iPad's following map, 30 px to a unit at its closest
+view, the line drawn from his own outlines (read from his store, built as the host builds them) turned by 40 to 90
+degrees from one bit of it to the next (a median of 45 at Le Mans, 18 at Bathurst, where the outline turns by 0.1 to
+0.3) and strayed from his real line by 1 to 2 px, its curves met at kinks (a control point rounded onto its end point),
+and the car and the trail stepped from one rounded point to the next. On the rig's small cell the same was under a
+pixel. **The host now writes two decimals** (root CLAUDE.md, Track maps): the line is within 0.2 px of the true one at
+the iPad's closest view. **A plugin from before that still sends one**, so where a path's rounding is a fifth of the
+spacing between its points or more (`_OUTLINE_COARSE`), the page smooths the points first: three passes of 1-2-1
+(`_OUTLINE_SMOOTH_PASSES`), about a point and a quarter either way, 6 m at the host's 5 m bins. On his own outlines
+that leaves the line within 1.5 px of the true one at the iPad's closest view and turning by a degree or so between
+samples; a hairpin of 15 m radius is pulled in by about a metre where the points are 5 m apart (the shorter circuits'
+points are closer and the pull less), under a pixel there. What one decimal threw away it cannot give back, so
+on a long shallow straight at Le Mans a faint long wave is left until the plugin is installed again. A path rounded
+finely enough for its spacing (the host's two decimals, the demo's sparse circuit, the tests' synthetic one) is drawn
+through its own points untouched.
+
+- **Tests**: `tests/unit/map-outline.spec.mjs` — a made-up circuit as long as Le Mans (the shape of `tests/frames.mjs`,
+  nobody's), a point every 5 m, sent as the host sends it at one decimal and at two to the real iPad page served
+  through `remote-server.js`'s handler, at the closest view: the one-decimal path itself wiggles by 2.1 px and its
+  curves meet at 90° kinks (so the test can fail: against the page before this, it did, at 2.1 px); what the page draws
+  from either wiggles by under half a pixel (a point from the middle of its neighbours), its curves meet within 6°, and
+  it is within 1.5 px of the circuit (0.4 at two decimals); the car's dot is within 0.6 px of the line while it drives
+  and the trail on it and ending at the car; the rig's HUD draws the same line from the same path; a path that is not
+  one is drawn as it came and said to render nothing. RacingDesk.Tests `TrackMapProviderTests` holds the host's two
+  decimals.
 
 ## Flags (`modules/js/session-flags.js`, `window.RacingDeskSessionFlags`)
 

@@ -19,6 +19,12 @@
 // cell shows the longest form that fits whole at its size: the words, then for a rollbar "Rollbar" with a small F or R,
 // then the car's own short label (TCLO, BBAL) — the fit-to-cell sizing shrinks each before the next is tried, and none
 // is cropped. Every value is shown in sentence case (None, On, Off, Track), whatever sent it.
+//
+// Every cell is coloured by what the control acts on and has the bar the three always had — he asked on 2026-10-02:
+// "we also need the color coding and um, background scaling for all of these adjustments as well". familyOf gives a
+// cell its family and its shade (the brakes red, traction blue, the anti-lock yellow, the engine and the hybrid
+// violet, the chassis teal, a mode green; leaderboard.css has the palette), and the bar is the host's fill: where the
+// value stands in that control's range for that car (fillOf).
 (function () {
   'use strict';
 
@@ -43,6 +49,46 @@
   // The three cells, in the panel's order, and the DOM ids they have always had.
   const SLOTS = Object.freeze([['bb', 'ctrlBB'], ['tc', 'ctrlTC'], ['abs', 'ctrlABS']]);
   const DASH = '—';
+
+  // What each control acts on, which is its colour (leaderboard.css, "The controls' colours"): [family, shade], by the
+  // list's control id (compared case-blind, as the host compares them). The families: the brakes in the bias red, the
+  // traction control in its blue, the anti-lock in its yellow, the engine and the hybrid in violet, the chassis in teal,
+  // and a mode (one dial standing for ABS, TC and stability) in green. The shade sets apart the controls of one family
+  // that sit side by side: 0 the family's own (what bias, TC and ABS always had), 1 a lighter tint, 2 the hue turned,
+  // 3 muted (the switches and the dials that are seldom turned). DRS and push-to-pass are not here: their states (ready,
+  // open, on) are their colours. Every id the car list uses is here (tests/unit/car-controls-colours.spec.mjs); one that
+  // is not is drawn without a colour of its own.
+  const FAMILY = Object.freeze({
+    // The brakes: the bias, its target and fine trim, the migration and its gain, a rear brake valve, a brake system.
+    brakebias: ['brake', 0], brakebiasfine: ['brake', 1], brakemisc: ['brake', 1], brakemagic: ['brake', 1],
+    brakemigration: ['brake', 2], brakemigrationgain: ['brake', 2],
+    rearbrakevalve: ['brake', 3], ibs: ['brake', 3], rfbrake: ['brake', 3], linelock: ['brake', 3],
+    // Traction: traction control and its second, third and fourth dials, stability, the switch, launch.
+    tc: ['traction', 0], tc2: ['traction', 1], esc: ['traction', 1], tc3: ['traction', 2], tc4: ['traction', 2],
+    tctoggle: ['traction', 3], launch: ['traction', 3],
+    // The anti-lock and its switch.
+    abs: ['abs', 0], abstoggle: ['abs', 3],
+    // The engine and the hybrid: engine and fuel maps, throttle maps, regen and boost, deploy, engine braking, the fuel cut.
+    enginemap: ['power', 0], fuelmix: ['power', 0], throttlemap: ['power', 1], regen: ['power', 1], boost: ['power', 1],
+    mgudeploy: ['power', 2], mgudeployfixed: ['power', 2], enginebraking: ['power', 3], boosthold: ['power', 3],
+    fuelcut: ['power', 3], fuelnocut: ['power', 3],
+    // The chassis: the anti-roll bars, the differential, the weight jacker, the wing, the drive split, power steering.
+    arbfront: ['chassis', 0], arbrear: ['chassis', 0], diffentry: ['chassis', 1], diffmid: ['chassis', 1], diffexit: ['chassis', 1],
+    diffpreload: ['chassis', 1], weightjacker: ['chassis', 2], wingtop: ['chassis', 2], drivebias: ['chassis', 2],
+    powersteering: ['chassis', 3],
+    mode: ['mode', 0],
+  });
+  // The three cells' families by their slot, whatever id the list gives them.
+  const SLOT_FAMILY = Object.freeze({ bb: 'brakebias', tc: 'tc', abs: 'abs' });
+
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+  /** A control's colour: { family, shade } by its id (or the slot of one of the three), or null for one with none. */
+  function familyOf(id) {
+    if (typeof id !== 'string') return null;
+    const key = (own(SLOT_FAMILY, id) ? SLOT_FAMILY[id] : id).toLowerCase();
+    return own(FAMILY, key) ? { family: FAMILY[key][0], shade: FAMILY[key][1] } : null;
+  }
 
   // The room the rig's panel has (leaderboard.css, .car-controls.ctrl-fit): the panel is as tall as it has always been
   // (the pedals under it lose nothing), and what it holds is a ladder of steps, each more cells across or down than the
@@ -128,19 +174,17 @@
   }
 
   /**
-   * How full a cell's bar is, 0 to 1: the host's, or the bar the HUD always drew for the three. A position with a
-   * name of its own (MDM, Track) is not a quantity, so the number behind it does not fill a bar.
+   * How full a cell's bar is, 0 to 1: the host's `fill`, which is where the value stands in that control's range for
+   * that car — the list's range (CarControls.Dial), or for named positions that are a scale (25%, 50%, 75%) the
+   * position's place among them. Where the host sends none there is no bar: the list has no range for the control,
+   * its positions are names and not a scale (MDM, TRACK: the number behind them is not a quantity), or the reading is
+   * not a value. Nothing is made up here: the bars the HUD once drew for the three when the host sent none (bias 30 to
+   * 70, TC and ABS 0 to 12) are the old panel's alone, for a car the list does not have (poll-engine.js).
    */
-  function fillOf(r, slot) {
+  function fillOf(r) {
     if (!r || r.state !== 'value') return 0;
     const fill = number(r.fill);
-    if (fill !== null) return Math.max(0, Math.min(1, fill));
-    if (typeof r.text === 'string' && r.text && !/^-?\d+(\.\d+)?$/.test(r.text.trim())) return 0;
-    const n = number(r.value);
-    if (n === null) return 0;
-    if (slot === 'bb') return Math.max(0, Math.min(1, (n - 30) / 40));
-    if (slot === 'tc' || slot === 'abs') return Math.max(0, Math.min(1, n / 12));
-    return 0;
+    return fill === null ? 0 : Math.max(0, Math.min(1, fill));
   }
 
   /** The value in a spotter's card: the text as shown (in sentence case), or the number. */
@@ -163,32 +207,38 @@
   function view(cc) {
     const primary = SLOTS.map(([slot, el]) => {
       const r = cc[slot];
-      if (!r) return { id: slot, el, slot, label: LABELS[slot], words: WORDS[slot], mark: null, text: DASH, state: 'unknown', fill: 0, hidden: false, locked: false, value: null };
+      const colour = familyOf(slot);
+      if (!r) return { id: slot, el, slot, label: LABELS[slot], words: WORDS[slot], mark: null, text: DASH, state: 'unknown', fill: 0, hidden: false, locked: false, value: null, family: colour.family, shade: colour.shade };
       const mode = r.state === 'mode';
       return {
         id: slot, el, slot,
         ...namesOf(r, slot === 'bb' ? 'brakeBias' : slot, slot),
         text: mode ? DASH : textOf(r),
         state: mode ? 'mode' : stateOf(r),
-        fill: fillOf(r, slot),
+        fill: fillOf(r),
         hidden: mode,
         locked: !!r.locked,
         value: number(r.value),
         by: mode && typeof r.by === 'string' ? labelCase(r.by) : null,
+        family: colour.family,
+        shade: colour.shade,
       };
     });
 
     const modes = [], more = [];
     for (const m of Array.isArray(cc.more) ? cc.more : []) {
+      const colour = familyOf(m.id);
       const cell = {
         id: m.id,
         ...namesOf(m, m.id, null),
         text: textOf(m),
         state: stateOf(m),
-        fill: fillOf(m, m.id),
+        fill: fillOf(m),
         locked: !!m.locked,
         value: number(m.value),
         active: false,
+        family: colour ? colour.family : null,
+        shade: colour ? colour.shade : null,
       };
       if (m.id === 'mode') modes.push(cell); else more.push(cell);
     }
@@ -207,6 +257,9 @@
         // DRS 1 and 2: it is there for the taking, and not yet open.
         ready: slot === 'drs' && r.active !== true && number(r.value) !== null && number(r.value) > 0,
         count: number(r.count),
+        // Their states are their colours (ready, open, on): no family.
+        family: null,
+        shade: null,
       });
     }
     return { primary, modes, more };
@@ -399,6 +452,7 @@
         el.classList.toggle('ctrl-mini-ready', !!cell.ready);
         el.classList.toggle('ctrl-mini-locked', !!cell.locked);
         el.classList.toggle('ctrl-omitted', omitted.has(cell.id));
+        paint(el, cell);
         el.style.setProperty('--ctrl-pct', Math.round(cell.fill * 100) + '%');
         seen[cell.id] = cell.text;
         values[cell.id] = cell.value;
@@ -694,8 +748,22 @@
     el.classList.toggle('ctrl-unread', cell.state === 'unread' || cell.state === 'unknown');
     el.classList.toggle('ctrl-locked', !!cell.locked);
     el.classList.toggle('ctrl-omitted', !!omit);
+    paint(el, cell);
     el.style.setProperty('--ctrl-pct', Math.round(cell.fill * 100) + '%');
     el.style.setProperty('--ctrl-value-len', String(Math.max(1, String(cell.text || '').length)));
+  }
+
+  // A cell's colour, for the stylesheet: its family and its shade of it, or neither (DRS, push-to-pass, an id the
+  // family table does not have). Written only when it changes.
+  function paint(el, cell) {
+    const family = cell.family || null;
+    const shade = family && cell.shade != null ? String(cell.shade) : null;
+    if (el.getAttribute('data-ctrl-family') !== family) {
+      if (family) el.setAttribute('data-ctrl-family', family); else el.removeAttribute('data-ctrl-family');
+    }
+    if (el.getAttribute('data-ctrl-shade') !== shade) {
+      if (shade) el.setAttribute('data-ctrl-shade', shade); else el.removeAttribute('data-ctrl-shade');
+    }
   }
 
   // Up, down, or neither: by the numbers behind the texts, where both are numbers.
@@ -723,6 +791,9 @@
         const el = panel.ownerDocument.getElementById(id);
         if (!el) continue;
         el.classList.remove('ctrl-none', 'ctrl-off', 'ctrl-on', 'ctrl-locked', 'ctrl-unread', 'ctrl-omitted');
+        // (the three keep their colours by their ids, as they always did)
+        el.removeAttribute('data-ctrl-family');
+        el.removeAttribute('data-ctrl-shade');
         el.style.removeProperty('--ctrl-label-len');
         el.style.removeProperty('--ctrl-value-len');
         const label = el.querySelector('.ctrl-label');
@@ -742,8 +813,8 @@
   }
 
   const api = {
-    KEY, LABELS, WORDS, ID_WORDS, ROOM, LABEL, LABEL_FLOOR, read, view, arrange, labelPlan, fitsWhole, chooseForm, formsOf,
-    signals, render, clear, textOf, fillOf, announced,
+    KEY, LABELS, WORDS, ID_WORDS, ROOM, LABEL, LABEL_FLOOR, FAMILY, read, view, arrange, labelPlan, fitsWhole, chooseForm, formsOf,
+    signals, render, clear, textOf, fillOf, familyOf, announced,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RacingDeskCarControls = api;
