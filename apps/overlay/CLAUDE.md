@@ -92,8 +92,9 @@ the iPad, both pages OBS draws and the desk:
   "Laps to go", "Tread measured in the pits", "No adjustments", "Pit limiter"), units as they are written (mph,
   km/h, rpm, kg, Nm, °C), an acronym in capitals. Tracking that was there for capitals is halved or gone.
 - **`words.js`** (`window.RacingDeskWords`, or `require` in Node; loaded before `car-controls.js` in `dashboard.html`):
-  `ACRONYMS`, what may be in capitals anywhere (DRS, P2P, DQ, OBS, HUD, TV, GT, GTP, MDM, the corners' LF/RF/LR/RR…);
-  `CAR_LABELS`, the car list's own short labels (TCLO, BBAL, FARB), shown only in a controls cell where the words do
+  `ACRONYMS`, what may be in capitals anywhere (DRS, P2P, DQ, OBS, HUD, TV, GT, GTP, MDM, the corners' LF/RF/LR/RR, the
+  sims' ACC and AMS, TT, GOAT…; not FPS, FOV, ERS or SOF, which are words now);
+  `CAR_LABELS`, the car list's own short labels (TCLO, BBAL, FARB, and HYS, IBS and SOC, which only a car's dash shows), shown only in a controls cell where the words do
   not fit and on the desk beside the words; `sentenceCase`, which lowers a word in capitals that is not an acronym and
   puts up the first letter of a text that begins with a lower-case word (NONE is None, SAFETY CAR Safety car, 1 LAP TO
   GREEN 1 lap to green; iRating and a name stay as they are); and `labelCase`, the same with the car's labels kept (TC
@@ -101,8 +102,18 @@ the iPad, both pages OBS draws and the desk:
   positions and labels (`car-controls.js`) and the strategist's calls (`poll-engine.js`) — since a SimHub plugin
   installed before 2026-10-02 still sends them in capitals.
 - **Words for acronyms**: the controls (The controls panel, below), Safety (the ratings' SR), Force feedback and Sim
-  feedback max (FFB), Frame rate (FPS), the desk's Field of view (FOV). What stays an acronym: what `ACRONYMS` has, the
-  corners' LF/RF/LR/RR on the pit box's rings (there is no room there for words), a licence class, a position's P4.
+  feedback max (FFB), Frame rate (FPS), the desk's Field of view (FOV), **iRating where the line is whole in its cell**
+  (the gaps' "3210 iRating": `_sayRating` in `poll-engine.js` writes the words, measures them to the fraction of a pixel
+  with the trend after them ("· ▼0.5/lap") and falls back to "3210 iR" where they are not whole — always on the rig,
+  whose cells are 66px across, and on an iPad on its side; the commentary, the desk and the results screen say iRating
+  outright), and **the pit box's corners**: Left front, Right front, Left rear and Right rear on the rig and in the
+  short wide box's one row over each ring, LF/RF/LR/RR in the glance layout's 2x2 where the name sits at the cell's
+  corner beside the ring's shoulder (`.pb-pos-words` / `.pb-pos-short`). What stays an acronym: what `ACRONYMS` has, a
+  licence class, a position's P4.
+- **Sentence case is for every heading**: Title Case hid where capitals were set by a stylesheet before ("Incident coach",
+  "Rage spikes", "Race summary", "Areas for improvement": the spotter's card, the results screen and its coach).
+  The scan reads for it (below). Names are as they are (Racing Desk, Trading Paints, Stream Deck), and so are the calc
+  engines' archetypes and moments, which are names given to the driver ("The Swiss Army Knife", "Win Streak").
 - **One header for every panel** (`dashboard.css`, "One header for every panel": `--hdr-size`, `--hdr-weight`,
   `--hdr-track`, `--hdr-color`): `.lb-header`, `.ds-header`, `.inc-label`, `.panel-label` (the gaps' Ahead and Behind,
   the ratings', the laps panel's), `.pb-tab` (the pit box's tabs: the one that is open is white with its green rule
@@ -110,18 +121,29 @@ the iPad, both pages OBS draws and the desk:
   two styles there were, the `.panel-label`'s: the HUD's face at its smallest size (`--fs-xs`), weight 700, the
   theme's dim text colour (`--text-dim`), no rule beneath, and tracking of 0.04em, half its 0.08em, which was spacing
   for capitals. The other — 0.12em, white at 0.35 with a rule beneath: the leaderboard's, the datastream's and the
-  incidents' — went, and the incidents' header sits at the top left on the rig too. Where a header sits is its
-  panel's; what it looks like is that rule's. In the glance layout every one is one size, `--hdr-glance`
-  (`max(11px, min(1.35vmin, 15px))`, `drive-view.css`). The maps' names are captions under the circuit, not
-  headers, and are as they were.
+  incidents' — went. **Where it sits**: a panel's header is at its panel's top left, its text 11px in and 7px down
+  from the panel's edge (the panel's border, its 6px and its 10px), the same for the leaderboard's, the datastream's
+  and the incidents', on the rig and in the glance layout (`tests/unit/words-not-caps.spec.mjs`, "where it sits"; the
+  leaderboard's and the incidents' were 2 to 4px off the datastream's). In the glance layout every one is one size,
+  `--hdr-glance` (`max(11px, min(1.35vmin, 15px))`, `drive-view.css`). **Not headers, and so not moved or restyled**
+  (decided here and open to him): the labels that name a column and sit centred over it — Ahead and Behind, iRating
+  and Safety, Laps to go — which have the one style and are placed by their column; the pit box's tab bar, whose tabs
+  are centred across it and whose open tab is marked by white and its rule (a state, not a style); and the pedals'
+  Throttle, Brake and Clutch, which are captions of their bars, as the maps' names are captions under the circuit and
+  are as they were.
 - **Tests**: `tests/unit/words-not-caps.spec.mjs`, with `words-scan.mjs`: `words.js` itself; no stylesheet in
   capitals; no word in capitals but an acronym in `dashboard.html` and `desk.html`, in the strings the scripts show (read
   with TypeScript's parser, so comments, keys, selectors and addresses are not taken for text; `remote-server.js`,
-  `main.js` and the Cars island among them), in the car list's labels, words and positions, and in the commentary's
-  titles, lines and fragments — and that the scan finds what it is for; the car list in words (his words on every car
-  that has the control, the car's own label where nothing settles the meaning); the one header on the rig and in the
-  glance layout; and the longest forms whole, on the rig at 3440x1440 and zoom 120 (by the arithmetic, in the page,
-  and with `RD_REAL_FONT=1` in Sofia Pro Comp) and at every iPad size in the glance layout, measured.
+  `main.js`, the Cars island and **the calc engines the desk's bundle holds** among them), in the car list's labels,
+  words and positions, and in the commentary's titles, lines and fragments — and that the scan finds what it is for
+  (a shown LEFT or a STARTED in a sentence is found: code words such as GET are exempt only as a whole string); no
+  abbreviation where the word fits (iR, SoF, Pos, Inc, avg, inc/race) and no heading in Title Case; the car list in
+  words (his words on every car that has the control, the car's own label where nothing settles the meaning); the one
+  header on the rig and in the glance layout, and where it sits; the pit box's corners; and the longest forms whole,
+  on the rig at 3440x1440 and zoom 120 (by the arithmetic, in the page, and with `RD_REAL_FONT=1` in Sofia Pro Comp:
+  no label the plan keeps on one line is set under 8px) and at every iPad size in the glance layout, measured: after a
+  change of car with the stylesheet's transitions on (963 to 720S to Cadillac to Acura: each main cell its longest
+  fitting form), the gaps' iRating, and the crowded rows.
 
 ## The controls panel (`.car-controls`: bias, traction, anti-lock, and what the car has besides)
 
@@ -158,15 +180,26 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   to the fraction of a pixel: every label at its words, then one at a time the label that runs furthest past its cell
   takes its next form; a label of the row under the three still past its cell at its last form gets room from another
   of the row, the widest first, taking its next form; again when the forms change, when the panel is resized and when a
-  font arrives, not on every frame). In the glance layout the cells of the row under the three are as wide as what
+  font arrives, not on every frame; **measured after the layout has settled**: the control cells do not animate their
+  size, `.ctrl-item` transitions its colours alone, where `transition: all` took a cell that was still growing from a
+  None to a value for the real one and left ABS and TCLO on a cell that Anti-lock and Traction slip fitted, after a car
+  change and on a fresh page). In the glance layout the cells of the row under the three are as wide as what
   they hold and share what is left over (`flex: 1 1 auto`; the row is the panel's width, `min-width: 0`, where before a
   row of long labels was as wide as their sum and ran past the panel), so a short label (TCLA, MIG) leaves the room a
   long one needs: the 963 and the 720S have every label whole at every iPad size. No form is ever cropped where a
-  shorter one would be whole. **What does not fit**: a row of more controls than an iPad has the width for at the 11px
-  floor — the Audi R18's, the Mercedes W12's and W13's and the Ferrari 499P's at every size, the Porsche 919's but on
-  the 12.9-inch, the BMW LMDh's and the Valkyrie's on the smaller iPads — shows each label in the narrowest of its forms,
-  and a few of them run past their cells, as every label of such a row did before (`words-not-caps.spec.mjs` holds the
-  rest whole and these at their narrowest). The spotter's card says the words (`spoken`:
+  shorter one would be whole. **A crowded row** — more cells than an iPad has the width for with every label at its
+  narrowest form — is made whole in steps, the labels as large as they can be (`fitGlance`): its cells close up
+  (`.ctrl-crowded`: no border, 1px between them and 1px of padding, the panel's own padding at 3px), and then its labels
+  go down together from 11px to 10.5, 10, 9.5 and 9 (`--mini-scale` on the row, `MINI_SCALES`), the forms chosen again
+  at each size. Measured at every iPad size (`words-not-caps.spec.mjs` holds each by what the row can hold): the BMW
+  LMDh's, the Valkyrie's and the 919's rows are **whole at every size** (at 9 to 11px, the cells closed up on most),
+  the Ferrari 499P's on the 12.9-inch, the Air, the mini and the 10.2-inch on their sides (at 9 to 11px), and the
+  Mercedes W12's and W13's ten dials on the 12.9-inch (at 9px). **What still does not fit**: a row that is not whole at
+  9px — the Audi R18's twelve dials at every size, the W12's and W13's on all the smaller iPads, the 499P's seven on the
+  9.7-inch and upright (the Air, the mini and the 10.2-inch) — is as small as it goes and **each label is cut with an
+  ellipsis at the edge of its own cell and never runs into the next one's** (the rig does the same past its last
+  step). The panel is some 90 to 120px tall at the iPad sizes and the row 33 to 44 of it: there is no second row to
+  give, and a label of two lines would take the main row's room. The spotter's card says the words (`spoken`:
   `Traction slip ▲ 6`, `Assists ▼ Sport`), and push-to-pass its own (the SF23's "Overtake", else "Push to pass").
 - **The car's other controls** (`#ctrlMore`, `.ctrl-mini`): every one the list gives the car, in the list's order — a
   second traction dial (the 963's TCLA, "Traction gain"), brake migration ("Migration"), the anti-roll bars ("Front
@@ -181,7 +214,9 @@ host sends it, from the hand-written car list (root CLAUDE.md, The car's control
   { display: contents }`, `leaderboard.css`) and its cells are the panel's.
 - **The rig's room** (`arrange`, `ROOM`, `labelPlan`; `.ctrl-fit`, `.ctrl-compact`, `.ctrl-tight`, `--ctrl-cols`,
   `data-ctrl-rows`, `.ctrl-omitted`, `.ctrl-label-2l`, added by `render` on the rig alone, never in the glance layout): the
-  panel is 240px wide and **as tall as it has always been** — it shares its column with the pedals, which lose nothing
+  panel is 240px wide (its content 226px: the panel's own 6px of padding and 1px of border each side are not the
+  cells', and `PANEL_EDGE` takes them off, so that the plan and the stylesheet's `100cqi` agree on what fits — a label
+  planned on one line at 8.2px was set at 7.7px, under the 8 it wraps below) and **as tall as it has always been** — it shares its column with the pedals, which lose nothing
   (118px each at his zoom, with one row or three) — so the room is a constant of the layout and not a measurement: **a
   ladder of steps**, each with more cells across or down and its type a size down: three across in one row (22px
   numbers, 10px labels), three across in two rows, four across in two rows (the compact size: 16px and 9px), and in

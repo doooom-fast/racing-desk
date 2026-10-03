@@ -562,16 +562,25 @@ its Cars page):
 - **Nothing is set in capitals but an acronym.** No stylesheet has `text-transform: uppercase` or small capitals, and
   text is written in sentence case: "Leaderboard", "Laps to go", "Wheel max", "Local yellow", "Pit limiter", "No
   adjustments"; units in their own case (mph, km/h, rpm, kg, Nm, °C). The acronyms that stay are
-  `apps/overlay/modules/js/words.js` `ACRONYMS` (DRS, P2P, DQ, OBS, HUD, TV, GT, GTP, MDM, the corners' LF/RF/LR/RR where
-  there is no room for words…); ABS, TC, BB, MIG, ARB, SR, FFB and RPM are not among them any more. Names are as they
+  `apps/overlay/modules/js/words.js` `ACRONYMS` (DRS, P2P, DQ, OBS, HUD, TV, GT, GTP, MDM, the corners' LF/RF/LR/RR in the
+  glance layout, the sims' ACC and AMS, TT, GOAT…); ABS, TC, BB, MIG, ARB, SR, FFB, RPM, FPS, FOV, ERS and SOF are not
+  among them any more. Names are as they
   are sent (a driver's, a car's as its maker spells it), and a licence class or a position's P4 is not a word. The car
-  list's own short labels (TCLO, BBAL, FARB) are `CAR_LABELS`, shown only where the words do not fit, and on the desk
-  beside them. `words.js` `sentenceCase` and `labelCase` put
-  what a host sends through the same rule, so a SimHub plugin installed before this change (NONE, ON, OFF, BRAKE BIAS,
-  the strategist's FUEL) is shown in sentence case too.
+  list's own short labels (TCLO, BBAL, FARB, and the dash's HYS, IBS and SOC) are `CAR_LABELS`, shown only where the words
+  do not fit, and on the desk beside them. `words.js` `sentenceCase` and `labelCase` put
+  what a host sends through the same rule, so a SimHub plugin installed before this change shows the controls' states
+  and positions (NONE, ON, OFF, BRAKE BIAS) and the strategist's label (FUEL) in sentence case too. **That is all it
+  can do**: the commentary card's titles and lines (Title Case, "ABS Activation", "FFB Torque Spike", "ERS depleted"),
+  and the strategist's messages ("ABS/TC working overtime", "FL+FR overheating"), are written by the host and by the
+  plugin, each with its own `racingdesk-data` and engine, and never go through `words.js`: they say their new words
+  only from a rebuilt exe (the app's own host) and from a plugin installed again (SimHub's), and the old ones until then.
 - **Words instead of acronyms where they fit**: Anti-lock, Bias, Traction, Migration, Rollbar (Front rollbar, Rear
-  rollbar), Safety (was SR), Force feedback (was FFB; "Sim feedback max"), iRating, Frame rate (was FPS), Field of
-  view (was FOV, on the desk), Hybrid battery (was ERS) and the like in the commentary; each control of the car list in
+  rollbar), Safety (was SR), Force feedback (was FFB; "Sim feedback max"), iRating (was iR: the gaps' line in the glance
+  layout where it is whole in its cell with the trend after it, "iR" on the rig's 66px cells and where it is not; the
+  commentary, the desk and the results screen say iRating outright), Frame rate (was FPS), Field of
+  view (was FOV, on the desk), Hybrid battery (was ERS) and the like in the commentary, Strength of field, Position,
+  Incidents and "incidents a race" on the desk, the pit box's corners (Left front… on the rig, LF… in the glance layout's
+  corners), the strategist's "Front-left and front-right overheating", and "g" in lower case; each control of the car list in
   words where a public source settles what it does (`packages/car-list/README.md`). The HUD's controls panel shows the
   longest form that is whole in its cell: the words, then a rollbar's "Rollbar" with a small F or R, then the car's
   label, never cropped (`car-controls.js` `chooseForm` on the rig, by the arithmetic the panel sizes its labels by;
@@ -581,17 +590,30 @@ its Cars page):
   the incidents', the gaps' Ahead and Behind, the ratings', the laps panel's, the pit box's tabs and pages and the
   clock's key are one style — the HUD's face at its smallest size, bold, in the theme's dim text colour, 0.04em of
   tracking, no rule beneath (the `.panel-label`'s of the two there were, its tracking halved for sentence case), at one
-  size in the glance layout (`--hdr-glance`).
+  size in the glance layout (`--hdr-glance`) — and the leaderboard's, the datastream's and the incidents' headers are
+  one place, 11px in and 7px down from their panels' edges. **Open to him**: the labels over a column (Ahead and Behind,
+  iRating and Safety, Laps to go) have the style and are centred over their column; the pit box's tab bar keeps its
+  centred tabs and its open tab's white and rule; the pedals' Throttle, Brake and Clutch are captions of their bars
+  and keep their own weight and white (`apps/overlay/CLAUDE.md`, Words, not capitals).
 - **Tests**: `apps/overlay/tests/unit/words-not-caps.spec.mjs` with `words-scan.mjs` (every stylesheet, page and script
-  that shows text, the Cars island, the car list and the commentary, read for capitals; the car list's words; the one
-  header on the rig and in the glance layout; the longest labels whole on the rig at 3440x1440 and zoom 120 and at
-  every iPad size), `Cars/CarControlsWireTests.cs` `TheListThisBuildCarriesHasItsWordsWhereTheMeaningIsKnown`.
+  that shows text, the Cars island, the calc engines the desk's bundle holds, the car list and the commentary, read for
+  capitals, for abbreviations that are not in capitals (iR, SoF, Pos, Inc, avg, inc/race) and for Title Case headings;
+  the car list's words; the one header on the rig and in the glance layout, and where it sits; the pit box's corners;
+  the longest labels whole on the rig at 3440x1440 and zoom 120 and at every iPad size, after a change of car with the
+  transitions on, the gaps' iRating, the crowded rows), `Cars/CarControlsWireTests.cs`
+  `TheListThisBuildCarriesHasItsWordsWhereTheMeaningIsKnown` and
+  `TheWordsAreWhatTheCarsOwnSourceCallsTheDialAndNothingIsRenamedThatAlreadyIsWords`, `IRacing/TyreWearTests.cs`
+  `TheOverheatingCallNamesTheCornersInWordsNotInLetters`.
 - **Not done**: the commentary's car and track facts (`commentary_cars.json`, `commentary_tracks.json`: makers' and
-  series' names and acronyms such as FIA, DTM, FWD) are as they were; the results screen is dormant and was only put
-  in sentence case. On an iPad the controls under the three are one row, and a car with more of them than the row has
-  the width for at the 11px floor (the Audi R18, the Mercedes W12 and W13, the Ferrari 499P; the Porsche 919, the BMW
-  LMDh and the Valkyrie on the smaller iPads) shows each label at its narrowest, and a few run past their cells, as all
-  of them did before; the overlay's CLAUDE.md, The controls panel.
+  series' names and acronyms such as FIA, DTM, ECU, FWD, NA) are as they were, and the topics' "temps" and the engines'
+  "min" and "hr" are as they were (units and clippings, not acronyms); the calc engines' archetypes and moments ("The Swiss
+  Army Knife", "Win Streak") are names and stay Title Case; the Stream Deck's action names (`remote-server.js`
+  `ACTIONS` and the plugin's manifest: "Open Settings", "Cycle Rating / Pos") are the Stream Deck's own and are as they
+  were. The results screen is dormant and is in sentence case now, its coach's headings and its iRating included. On an
+  iPad the controls under the three are one row: a row that is not whole at its narrowest forms is made whole by closing its
+  cells up and going down to 9px, and where even that is not enough (the Audi R18's twelve dials, the Mercedes W12's and
+  W13's ten but on the 12.9-inch, the Ferrari 499P's seven on the 9.7-inch and upright) each label is cut at its own
+  cell's edge, not run into the next's; the overlay's CLAUDE.md, The controls panel.
 
 ## Other drivers' names
 
