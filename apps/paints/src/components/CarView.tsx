@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { ago, millimetres, plain, signedPlain, when, type CarRestore, type CarView, type Rig } from "../rig";
 
 const DASH = "—";
@@ -42,17 +42,15 @@ function whose(view: CarView): string {
 
 /// The view a car was last driven with: iRacing keeps one driver height and one horizon for every car, so the
 /// host records them per car when the sim closes. Seat offsets are signed millimetres, and which way a sign points is
-/// not said: that has not been verified. Under it, what putting the height back says of the car (in trial: what it would
-/// keep in the car's camera file); the panel itself changes nothing of iRacing's, but where Racing Desk has written the
-/// car's camera file, one button puts it back as it was.
+/// not said: that has not been verified. Under it, where there is something he needs to know of putting the seat height
+/// back in this car (it has no camera file, and how to save one; or one Racing Desk cannot write), the host's sentence.
+/// The panel itself changes nothing of iRacing's.
 export function CarViewPanel({
   here,
   rig,
   view,
   lastDriven,
   restore = null,
-  carPath = null,
-  onUndoHeight,
 }: {
   /// Whether there is an app to have asked.
   here: boolean;
@@ -63,12 +61,7 @@ export function CarViewPanel({
   lastDriven: string | null;
   /// What putting the cars back says of this one; null where there is nothing (no app, a host from before it).
   restore?: CarRestore | null;
-  /// The host's own spelling of the car's path, which undo names.
-  carPath?: string | null;
-  onUndoHeight?: (carPath: string) => Promise<string>;
 }) {
-  const [undoing, setUndoing] = useState(false);
-  const [undone, setUndone] = useState<string | null>(null);
   if (!here || rig === null) {
     return (
       <div className="panel car-view">
@@ -114,25 +107,6 @@ export function CarViewPanel({
       {restore?.view && (
         <div className="note restore-line" data-restore={restore.viewState ?? ""}>
           {restore.view}
-        </div>
-      )}
-      {restore?.kept && carPath !== null && onUndoHeight && (
-        <div className="restore-undo">
-          <button
-            type="button"
-            disabled={undoing}
-            onClick={() => {
-              if (!window.confirm("Put this car's camera file back as it was before Racing Desk wrote it? iRacing must be closed.")) return;
-              setUndoing(true);
-              void onUndoHeight(carPath).then((said) => {
-                setUndone(said);
-                setUndoing(false);
-              });
-            }}
-          >
-            Undo Racing Desk's height for this car
-          </button>
-          {undone && <span className="note">{undone}</span>}
         </div>
       )}
     </div>

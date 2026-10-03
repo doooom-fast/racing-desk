@@ -1,5 +1,5 @@
-// Settings → Cars and the Desk page's line (modules/desk/restore-model.js): what the card says for each answer of the host,
-// the switches as the settings file has them, the first run's steps in their parts, undo, and the line for the car driven last.
+// Settings → Cars (modules/desk/restore-model.js): two rows, each a switch and how its part stands in a sentence, and one undo —
+// what the card says for each answer of the host.
 
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
@@ -7,98 +7,77 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const model = require('../../modules/desk/restore-model.js');
 
-const STEP = (id, part, actions, mark = null) => ({
-  id, part, title: `${id} title`, heDoes: `${id}: he does`, expected: `${id}: expect`, settles: '', mark: mark ? { state: mark, at: '2026-10-02T20:00:00Z' } : null,
-  actions: actions.map((a) => ({ id: a, label: `${a} label`, writes: /A2|B1/.test(a), presses: /A4/.test(a), ran: null })),
-});
-
 const ANSWER = {
   value: {
-    available: true, mode: 'trial', acting: false, seq: 9, startHeight: -0.02,
-    switches: { height: true, brakes: true, horizon: false },
-    gate: {
-      brakes: { on: true, proven: false, acts: false, needs: ['A4', 'A5', 'A6', 'B2'] },
-      height: { on: true, proven: true, acts: false, needs: ['B1', 'B4', 'B5'] },
-      horizon: { on: false, proven: false, acts: false, needs: ['B6'] },
+    available: true,
+    switches: { brakes: true, height: false },
+    status: {
+      brakes: { state: 'waiting', text: 'Starts working the next time SmartControl Live starts: quit it from its tray icon and start it again, or restart the PC.' },
+      height: { state: 'stopped', text: 'Turned itself off: app.ini\'s seat height was −1.5 cm when iRacing started, not the −2.0 cm Racing Desk left there, so something else writes it; each car\'s camera file was put back.' },
     },
-    lines: [
-      { seq: 7, at: '2026-10-02T20:38:00.000Z', car: 'porsche963gtp', what: 'brakes', state: 'trial', text: 'Trial: would make its own …', hud: false },
-      { seq: 8, at: '2026-10-02T20:38:01.000Z', car: 'porsche963gtp', what: 'brakes', state: 'trial', text: 'Trial: brakes Porsche 963 GTP · 70 kg', hud: true },
-      { seq: 9, at: '2026-10-02T20:38:01.500Z', car: 'porsche963gtp', what: 'height', state: 'trial', text: 'Trial: height Porsche 963 GTP · −2.0 cm (its camera file)', hud: true },
-    ],
-    plan: { appIni: 'app.ini holds −2.0 cm', lines: ['Height: app.ini holds −2.0 cm, the starting height every car launches with.', 'Brakes, Porsche 963 GTP: Trial: would make …'] },
-    firstRun: { steps: [STEP('0a', 'Before he sits down', ['0a']), STEP('A1', 'A · the pedals', ['A1'], 'passed'), STEP('A2', 'A · the pedals', ['A2']), STEP('A7', 'A · the pedals', ['A7', 'A7-check'])] },
-    made: { switch: null, profiles: [], heights: [], appIniOriginal: null },
+    undo: true,
+    cars: [],
   },
 };
 
-test('the switches are the settings file\'s, the height and the brakes on and the horizon off by default', () => {
-  expect(model.switchesFrom({})).toEqual({ height: true, brakes: true, horizon: false });
-  expect(model.switchesFrom({ restoreHeight: false, restoreHorizon: true })).toEqual({ height: false, brakes: true, horizon: true });
-  expect(model.SWITCHES.map((s) => s.label)).toEqual(['Put back each car’s driver height', 'A brake profile for each car', 'The horizon per car too']);
-});
-
-test('the card says trial, and under each switch what it waits for', () => {
-  const view = model.card(ANSWER, { settings: { restoreHorizon: false } });
-  expect(view.line).toBe(model.TRIAL);
+test('two rows in sentence case, each with its switch and how it stands, as the host says', () => {
+  const view = model.card(ANSWER);
+  expect(view.line).toBeNull();
   expect(view.ready).toBe(true);
-  const [height, brakes, horizon] = view.switches;
-  expect(brakes.state).toBe(`${model.TRIAL} It leaves trial once A4, A5, A6 and B2 have passed.`);
-  expect(height.state).toBe('Proven by the first run (B1, B4 and B5). This build still only says what it would do; the next one acts.');
-  expect(horizon.state).toBe('Off.');
-  expect(view.switches.every((s) => s.enabled)).toBe(true);
-  expect(view.plan).toHaveLength(2);
-  // The steps in their parts, in the host's order, with his marks.
-  expect(view.parts.map((p) => [p.part, p.steps.map((s) => s.id)])).toEqual([['Before he sits down', ['0a']], ['A · the pedals', ['A1', 'A2', 'A7']]]);
-  expect(view.parts[1].steps[0].mark).toBe('passed');
-  expect(view.parts[1].steps[2].actions.map((a) => a.id)).toEqual(['A7', 'A7-check']);
-  // Nothing made yet: nothing to undo.
-  expect(view.undo.map((u) => [u.cmd, u.enabled])).toEqual([['brakes', false], ['heights', false]]);
+  expect(view.rows.map((r) => r.label)).toEqual(['Brakes put back for each car', 'Seat height put back for each car']);
+  expect(view.rows.map((r) => [r.key, r.value, r.state, r.enabled])).toEqual([['brakes', true, 'waiting', true], ['height', false, 'stopped', true]]);
+  expect(view.rows[0].status).toBe(ANSWER.value.status.brakes.text);
+  expect(view.rows[1].status).toBe(ANSWER.value.status.height.text);
+  expect(view.undo).toEqual({ label: 'Undo what Racing Desk changed', enabled: true });
+  expect(view.undone).toEqual([]);
 });
 
-test('without the app, with an old host, with a host that cannot be asked or that does not put cars back, it says so and offers nothing', () => {
-  expect(model.card(null, { inApp: false }).line).toBe(model.FROM_THE_APP);
-  expect(model.card(null, { inApp: false }).switches.every((s) => !s.enabled)).toBe(true);
-  expect(model.card({ missing: true }).line).toMatch(/older than the app/);
-  expect(model.card({ error: 'Nothing is answering at http://localhost:18889.' }).line).toBe('The host could not be asked: Nothing is answering at http://localhost:18889.');
-  expect(model.card({ value: { available: false, why: 'a replay' } }).line).toBe('a replay');
-  for (const answer of [{ missing: true }, { error: 'x' }, { value: { available: false } }]) {
-    const view = model.card(answer);
-    expect(view.parts).toEqual([]);
-    expect(view.undo.every((u) => !u.enabled)).toBe(true);
-  }
+test('undo is offered only when there is something to undo, and nothing is while a command runs', () => {
+  const nothing = JSON.parse(JSON.stringify(ANSWER));
+  nothing.value.undo = false;
+  expect(model.card(nothing).undo.enabled).toBe(false);
+  const busy = model.card(ANSWER, { busy: true });
+  expect(busy.undo.enabled).toBe(false);
+  expect(busy.rows.every((r) => !r.enabled)).toBe(true);
 });
 
-test('undo is offered for what Racing Desk made, and a press under way holds every button', () => {
-  const made = JSON.parse(JSON.stringify(ANSWER));
-  made.value.made = { switch: { profile: 'Racing Desk', key: 'F24', bound: true }, profiles: [{ car: 'porsche963gtp' }], heights: [{ car: 'porsche963gtp' }], appIniOriginal: -0.035 };
-  const view = model.card(made);
-  expect(view.undo.map((u) => u.enabled)).toEqual([true, true]);
-  expect(view.undo[0].hint).toMatch(/^1 car profile, the Racing Desk profile and F24\./);
-  expect(view.undo[1].hint).toMatch(/^1 camera file put back as they were, and app\.ini’s height/);
-  const busy = model.card(made, { busy: true });
-  expect(busy.undo.every((u) => !u.enabled)).toBe(true);
-  expect(busy.switches.every((s) => !s.enabled)).toBe(true);
+test('without the app, or without an answer, the card says why and nothing can be switched', () => {
+  const away = model.card(null, { inApp: false });
+  expect(away.line).toBe('This is switched from the Racing Desk app.');
+  expect(away.rows.every((r) => !r.enabled && r.status === '')).toBe(true);
+  expect(away.undo.enabled).toBe(false);
+  expect(model.card(null).line).toBe('Asking the host…');
+  expect(model.card({ missing: true }).line).toBe('This host is older than the app: it does not put cars back yet.');
+  expect(model.card({ error: 'Nothing is answering at 127.0.0.1:18889.' }).line).toBe('The host could not be asked: Nothing is answering at 127.0.0.1:18889.');
+  expect(model.card({ value: { available: false, why: 'this host does not put cars\' seat heights and brakes back (a replay, or a host from before it)' } }).line)
+    .toBe('this host does not put cars\' seat heights and brakes back (a replay, or a host from before it)');
 });
 
-test('a press that writes or presses is asked again, in words; what a press did is said under it', () => {
-  const step = { id: 'A2', actions: [] };
-  expect(model.confirmText({ label: 'Make it', writes: true }, step)).toBe('A2 · Make it: this writes SmartControl’s database (backed up first). Go on?');
-  expect(model.confirmText({ label: 'Lower', writes: true }, { id: 'B4' })).toBe('B4 · Lower: this writes iRacing’s view files (backed up first). Go on?');
-  expect(model.confirmText({ label: 'Send', presses: true }, { id: 'A4' })).toMatch(/presses F24 five seconds after you click/);
-  expect(model.resultLines({ ok: false, refused: true, why: 'quit both first' })).toEqual([{ kind: 'refused', text: 'quit both first' }]);
-  expect(model.resultLines({ ok: true, did: ['made'], saw: ['his rows as they were'] })).toEqual([{ kind: 'did', text: 'made' }, { kind: 'saw', text: 'his rows as they were' }]);
+test('what undo did is said under it, a sentence a line: what is left for him first if it did not all go', () => {
+  const view = model.card(ANSWER, {
+    undone: {
+      ok: true,
+      did: ['the F24 key taken out of SmartControl Live', 'Porsche 963 GTP: its camera file\'s cockpit Z is 0.0 cm again, as before Racing Desk'],
+      saw: ['To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk – Porsche 963 GTP\' there'],
+    },
+  });
+  expect(view.undone).toEqual([
+    { kind: 'did', text: 'the F24 key taken out of SmartControl Live.' },
+    { kind: 'did', text: 'Porsche 963 GTP: its camera file\'s cockpit Z is 0.0 cm again, as before Racing Desk.' },
+    { kind: 'saw', text: 'To finish, pick one of your own profiles in SmartControl, then delete the profile \'Racing Desk – Porsche 963 GTP\' there.' },
+  ]);
+  expect(model.resultLines({ ok: false, why: null, did: [], saw: ['SmartControl was left as it is: close the SmartControl editor, then press undo again'] }))
+    .toEqual([{ kind: 'error', text: 'SmartControl was left as it is: close the SmartControl editor, then press undo again.' }]);
+  expect(model.resultLines({ ok: false, error: 'Racing Desk is busy with another command: wait for it to finish, then try again' }))
+    .toEqual([{ kind: 'error', text: 'Racing Desk is busy with another command: wait for it to finish, then try again.' }]);
   expect(model.resultLines(null)).toEqual([{ kind: 'error', text: 'The app did not answer.' }]);
-  const view = model.card(ANSWER, { results: { A2: { ok: true, did: ['made'] } } });
-  expect(view.parts[1].steps[1].actions[0].said).toEqual([{ kind: 'did', text: 'made' }]);
 });
 
-test('the Desk page\'s line is the newest car\'s lines, as the HUD was told them', () => {
-  const last = model.lastAction(ANSWER, { timeFormat: () => '2:38 PM' });
-  expect(last).toEqual({ car: 'porsche963gtp', name: 'Porsche 963 GTP', trial: true, text: 'Trial · Porsche 963 GTP, 2:38 PM: brakes 70 kg · height −2.0 cm (its camera file)' });
-  const noFile = { value: { available: true, lines: [{ seq: 1, at: '2026-10-02T20:00:00Z', car: 'lotus79', hud: true, text: 'Trial: no camera file for the Lotus 79 yet' }] } };
-  expect(model.lastAction(noFile).text).toBe('Trial · Lotus 79: no camera file yet');
-  expect(model.lastAction(noFile).name).toBe('Lotus 79');
-  expect(model.lastAction({ value: { available: true, lines: [] } })).toBeNull();
-  expect(model.lastAction({ error: 'x' })).toBeNull();
+test('the words: plain, no trial, no step codes', () => {
+  const all = [model.UNDO, model.UNDO_ASK, model.FROM_THE_APP, ...model.SWITCHES.map((s) => s.label)];
+  for (const s of all) {
+    expect(s, s).not.toMatch(/\btrial\b/i);
+    expect(s, s).not.toMatch(/\b(0a|0b|[ABC]\d{1,2})\b/);
+  }
+  expect(model.UNDO_ASK).toBe('This turns both off, takes Racing Desk’s profile and its F24 key out of SmartControl, and puts back the seat heights it kept in app.ini and the cars’ camera files. Close iRacing and the SmartControl editor first. Go on?');
 });

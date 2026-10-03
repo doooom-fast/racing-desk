@@ -114,8 +114,8 @@ function given(bound: CarPedals | null, told: boolean, profiles: Profile[] | nul
 /// profile's brake is, who gave the car the profile, and the brake force the car was last driven with. The
 /// choice is the one thing the page writes to the host, through the app; nothing here changes the pedals
 /// themselves. A profile SmartControl no longer has stays in the car's own list, so the select says what the
-/// host has, not "none". Under it, what putting the brakes back says of the car: its own SmartControl profile, made from
-/// that base at the force he last set in it and switched to when he gets in, parked — in trial, what it would make.
+/// host has, not "none". Under it, what putting the brakes back says of the car: the base and the force it puts on when he
+/// gets in and stops, or why none.
 export function CarPedalsPanel({
   here,
   rig,

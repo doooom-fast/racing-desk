@@ -63,7 +63,6 @@
   }
 
   const dateFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
-  const timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
   const dateTimeFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   // ── Data ─────────────────────────────────────────────────
@@ -132,7 +131,6 @@
     $('offline').hidden = true;
     raceLinks = await loadRaceLinks();
     render();
-    renderRestoreLast();
     setFreshness(`${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)} · ${ms} ms`);
     // A Cars page that found no host — the desk can be up before the host is — reads again now that there is
     // one, its list of cars as well as their views and pedals: the cars have no names until the host gives
@@ -196,10 +194,7 @@
     try {
       const status = await getJson('status');
       if (!lastStatus || status.sessions !== lastStatus.sessions || status.lastSessionAt !== lastStatus.lastSessionAt) await load();
-      else {
-        setFreshness(`${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)}`);
-        renderRestoreLast();
-      }
+      else setFreshness(`${status.sessions.toLocaleString()} sessions · last ${ago(status.lastSessionAt)}`);
     } catch (_) { /* host restarting — the next poll retries */ }
   }
 
@@ -1113,13 +1108,11 @@
     recordingCommand('password', value);
   }
 
-  // ── Cars: putting back each car's height and brakes ───────
-  // The app's host does it (docs/view-and-pedals-plan.md), in trial in this build: it says what it would do and writes and
-  // presses nothing. The card has the three switches (kept in overlay-settings.json, and told to the host by main.js), what
-  // trial would do for each car, the two undos, and the first run: one button per step, each running only that step's real
-  // code on his click — one that writes or presses a key asks first — and his mark beside it. restore-model.js says what each
-  // reads; this is the DOM and the asking (window.racingDesk.restore, which main.js answers from the host). The Desk page has
-  // one line of it: the car driven last, and what was done, or would have been, when he got in.
+  // ── Cars: putting back each car's seat height and brakes ──
+  // The app's host does it by itself (docs/view-and-pedals-plan.md): the car's brakes go on when he is parked in it, and the
+  // seat height he leaves a car with is kept in its camera file. The card has its two switches, each with how it stands in a
+  // sentence (the host's), and one undo, which asks first. restore-model.js says what each reads; this is the DOM and the asking
+  // (window.racingDesk.restore, which main.js answers from the host). The host does one command at a time.
 
   function restoreBridge() {
     const bridge = window.racingDesk;
@@ -1127,14 +1120,9 @@
   }
 
   let restoreAnswer = null;    // what restore:read last answered
-  let restoreBusy = false;     // a press is under way (a first-run step can wait five seconds for its key)
-  let restoreResults = {};     // what each press answered in this sitting, by the button's id
+  let restoreBusy = false;     // a command under way: the switches and the undo wait for it
+  let restoreUndone = null;    // what the undo answered in this sitting
   let restoreAsked = 0;
-  let restoreDrawn = 0;        // the newest drawing of the card: an older one that finishes late draws nothing
-  // A switch he just moved, until main.js has written it to the settings file: the card shows what he set, not the file's
-  // old value for the moment between.
-  let restoreSwitching = {};
-  const restoreOpen = { plan: false, run: false };   // the two folds, as he leaves them
 
   async function loadRestore() {
     const bridge = restoreBridge();
@@ -1147,137 +1135,50 @@
     drawRestoreCard();
   }
 
-  async function drawRestoreCard() {
+  function drawRestoreCard() {
     const el = $('settings-restore');
     if (!el || !RestoreModel || currentPage !== 'settings') return;
-    const mine = ++restoreDrawn;
-    const bridge = settingsBridge();
-    let settings = {};
-    if (bridge) {
-      try { settings = (await bridge.getSettings()) || {}; } catch (_) { settings = {}; }
-    }
-    if (mine !== restoreDrawn) return;
-    settings = { ...settings };
-    for (const sw of RestoreModel.SWITCHES) if (Object.prototype.hasOwnProperty.call(restoreSwitching, sw.key)) settings[sw.setting] = restoreSwitching[sw.key];
-    const view = RestoreModel.card(restoreAnswer, { inApp: !!restoreBridge(), settings, results: restoreResults, busy: restoreBusy });
+    const view = RestoreModel.card(restoreAnswer, { inApp: !!restoreBridge(), undone: restoreUndone, busy: restoreBusy });
     const off = (enabled) => (enabled ? '' : ' disabled');
-    const said = (lines) => (lines && lines.length ? `<ul class="step-said">${lines.map((l) => `<li class="said-${esc(l.kind)}">${esc(l.text)}</li>`).join('')}</ul>` : '');
-    const undoSaid = (cmd) => (restoreResults['undo-' + cmd] ? said(RestoreModel.resultLines(restoreResults['undo-' + cmd])) : '');
     el.innerHTML = `
       <h2>Cars</h2>
-      <p class="restore-line" id="restore-line" role="status">${esc(view.line)}${view.busy ? ' Working…' : ''}</p>
-      ${view.switches.map((s) => `
+      ${view.line ? `<p class="restore-line" id="restore-line" role="status">${esc(view.line)}</p>` : ''}
+      ${view.rows.map((r) => `
       <div class="field">
-        <label class="name" for="restore-${esc(s.key)}">${esc(s.label)}</label>
-        <span class="hint">${esc(s.hint)}</span>
-        ${s.state ? `<span class="restore-state" id="restore-${esc(s.key)}-state">${esc(s.state)}</span>` : ''}
-        <span class="control"><input type="checkbox" class="switch" id="restore-${esc(s.key)}" data-restore-switch="${esc(s.key)}"${s.value ? ' checked' : ''}${off(s.enabled)}></span>
+        <label class="name" for="restore-${esc(r.key)}">${esc(r.label)}</label>
+        <span class="restore-state" id="restore-${esc(r.key)}-state" data-state="${esc(r.state)}" role="status">${esc(r.status)}</span>
+        <span class="control"><input type="checkbox" class="switch" id="restore-${esc(r.key)}" data-restore-switch="${esc(r.key)}"${r.value ? ' checked' : ''}${off(r.enabled)}></span>
       </div>`).join('')}
       <div class="restore-undo">
-        ${view.undo.map((u) => `<div><button type="button" data-restore-undo="${esc(u.cmd)}"${off(u.enabled)}>${esc(u.label)}</button><span class="hint">${esc(u.hint)}</span>${undoSaid(u.cmd)}</div>`).join('')}
-      </div>
-      ${view.ready ? `
-      <details class="restore-plan" data-restore-fold="plan"${restoreOpen.plan ? ' open' : ''}>
-        <summary>What trial would do for your cars</summary>
-        ${view.planError ? `<p class="remote-error">${esc(view.planError)}</p>` : `<ul>${view.plan.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`}
-      </details>
-      <details class="restore-first-run" data-restore-fold="run"${restoreOpen.run ? ' open' : ''}>
-        <summary>The first run, with you at the rig</summary>
-        <p class="restore-intro">${esc(view.firstRunIntro)}</p>
-        ${view.parts.map((part) => `
-        <h3>${esc(part.part)}</h3>
-        ${part.steps.map((st) => `
-        <div class="restore-step" data-step="${esc(st.id)}">
-          <div class="step-title"><span class="mono">${esc(st.id)}</span>${esc(st.title)}</div>
-          <p>${esc(st.heDoes)}</p>
-          <p class="expected">Expect: ${esc(st.expected)}</p>
-          ${st.settles ? `<p class="settles">Settles: ${esc(st.settles)}</p>` : ''}
-          <div class="step-buttons">
-            ${st.actions.map((a) => `<button type="button" data-restore-step="${esc(a.id)}"${off(!view.busy)}>${esc(a.label)}</button>`).join('')}
-            <span class="step-mark" role="group" aria-label="${esc(st.id)}, his mark">
-              <button type="button" data-restore-mark="${esc(st.id)}" data-mark="passed" aria-pressed="${st.mark === 'passed'}"${off(!view.busy)}>Passed</button>
-              <button type="button" data-restore-mark="${esc(st.id)}" data-mark="failed" aria-pressed="${st.mark === 'failed'}"${off(!view.busy)}>Failed</button>
-            </span>
-          </div>
-          ${st.actions.map((a) => (a.said ? said(a.said) : a.ran ? `<p class="step-ran">Last run ${esc(a.ran.at ? dateTimeFmt.format(new Date(a.ran.at)) : '')}: ${esc(a.ran.ok ? '' : 'did not pass — ')}${esc(a.ran.result)}</p>` : '')).join('')}
-        </div>`).join('')}`).join('')}
-      </details>` : ''}`;
+        <button type="button" id="restore-undo"${off(view.undo.enabled)}>${esc(view.undo.label)}</button>
+        ${view.undone.length ? `<ul>${view.undone.map((l) => `<li class="said-${esc(l.kind)}">${esc(l.text)}</li>`).join('')}</ul>` : ''}
+      </div>`;
   }
 
-  async function restoreCommand(body, key) {
+  async function restoreCommand(body) {
     const bridge = restoreBridge();
-    if (!bridge || restoreBusy) return;
+    if (!bridge || restoreBusy) return null;
     restoreBusy = true;
     drawRestoreCard();
     let answer;
     try { answer = await bridge.command(body); } catch (err) { answer = { ok: false, error: err.message }; }
     restoreBusy = false;
-    if (key) restoreResults[key] = answer;
     await loadRestore();
+    return answer;
   }
 
-  function stepOf(actionId) {
-    const steps = restoreAnswer && restoreAnswer.value && restoreAnswer.value.firstRun && Array.isArray(restoreAnswer.value.firstRun.steps) ? restoreAnswer.value.firstRun.steps : [];
-    for (const step of steps) for (const a of step.actions || []) if (a.id === actionId) return { step, action: a };
-    return null;
+  async function onRestoreClick(ev) {
+    const undo = ev.target.closest('#restore-undo');
+    if (!undo || undo.disabled) return;
+    if (!window.confirm(RestoreModel.UNDO_ASK)) return;
+    const answer = await restoreCommand({ undo: 'all' });
+    if (answer) { restoreUndone = answer; drawRestoreCard(); }
   }
 
-  function onRestoreClick(ev) {
-    const stepButton = ev.target.closest('[data-restore-step]');
-    if (stepButton && !stepButton.disabled) {
-      const found = stepOf(stepButton.dataset.restoreStep);
-      if (!found) return;
-      if ((found.action.writes || found.action.presses) && !window.confirm(RestoreModel.confirmText(found.action, found.step))) return;
-      restoreCommand({ step: found.action.id }, found.action.id);
-      return;
-    }
-    const mark = ev.target.closest('[data-restore-mark]');
-    if (mark && !mark.disabled) {
-      // Pressed again, a mark is taken back.
-      const state = mark.getAttribute('aria-pressed') === 'true' ? null : mark.dataset.mark;
-      restoreCommand({ mark: mark.dataset.restoreMark, state });
-      return;
-    }
-    const undo = ev.target.closest('[data-restore-undo]');
-    if (undo && !undo.disabled) {
-      const cmd = undo.dataset.restoreUndo;
-      const ask = cmd === 'brakes'
-        ? 'Remove every SmartControl profile Racing Desk made, its own profile and F24? Your own profiles, presets and keys stay. Close the SmartControl editor first.'
-        : 'Put every camera file Racing Desk changed back as it was, and app.ini\'s height? iRacing must be closed.';
-      if (!window.confirm(ask)) return;
-      restoreCommand({ undo: cmd }, 'undo-' + cmd);
-    }
-  }
-
-  async function onRestoreChange(ev) {
+  function onRestoreChange(ev) {
     const el = ev.target.closest('[data-restore-switch]');
     if (!el || restoreBusy) return;
-    const key = el.dataset.restoreSwitch;
-    restoreSwitching = { [key]: !!el.checked };
-    try {
-      await restoreCommand({ switches: { [key]: !!el.checked } });
-    } finally {
-      restoreSwitching = {};
-      drawRestoreCard();
-    }
-  }
-
-  function onRestoreToggle(ev) {
-    const fold = ev.target.closest && ev.target.closest('[data-restore-fold]');
-    if (fold) restoreOpen[fold.dataset.restoreFold] = fold.open;
-  }
-
-  // The Desk page's line: the newest car's lines as the HUD was told them. Read with the lines alone: no dry run for it.
-  async function renderRestoreLast() {
-    const el = $('restore-last');
-    if (!el || !RestoreModel) return;
-    const bridge = restoreBridge();
-    if (!bridge) { el.hidden = true; return; }
-    let answer = null;
-    try { answer = await bridge.read({ linesOnly: true }); } catch (_) { answer = null; }
-    const last = RestoreModel.lastAction(answer, { timeFormat: (d) => timeFmt.format(d) });
-    el.hidden = !last;
-    el.textContent = last ? last.text : '';
+    restoreCommand({ switches: { [el.dataset.restoreSwitch]: !!el.checked } });
   }
 
   // ── Wiring ───────────────────────────────────────────────
@@ -1336,7 +1237,6 @@
   $('settings-recording').addEventListener('submit', onRecordingSubmit);
   $('settings-restore').addEventListener('click', onRestoreClick);
   $('settings-restore').addEventListener('change', onRestoreChange);
-  $('settings-restore').addEventListener('toggle', onRestoreToggle, true);
   $('recording-pill').addEventListener('click', onRecordingClick);
   $('detail').addEventListener('click', onRecordingClick);
   if (recordingBridge() && typeof recordingBridge().onState === 'function') {

@@ -397,38 +397,16 @@ h2 {
 .recording-password .control { grid-column: 2; grid-row: 1 / span 2; display: flex; align-items: center; gap: 8px; }
 .settings input[type="password"] { width: 200px; font: inherit; font-size: 13px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--hairline-strong); border-radius: 6px; padding: 5px 8px; }
 #recording-folder { width: 320px; font-family: var(--ff-mono); font-size: 12px; }
-/* Cars: putting back each car's height and brakes — the switches, undo, the dry run and the first run's steps. */
+/* Settings → Cars: putting back each car's seat height and brakes — two switches, each with how it stands, and one undo. */
 .settings .restore-card { margin-top: var(--gap); }
-.restore-card .restore-line { font: 600 15px/1.3 var(--ff); color: var(--text); margin: 6px 0 4px; max-width: 90ch; }
-.restore-card .restore-state { grid-column: 1; color: var(--text-2); font-size: 12px; max-width: 80ch; }
-.restore-card .restore-undo { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 12px 0 4px; }
-.restore-card .restore-undo div { display: grid; gap: 3px; max-width: 46ch; }
-.restore-card .restore-undo .hint { color: var(--text-3); font-size: 12px; }
+.restore-card .restore-line { color: var(--text-2); font-size: 13px; margin: 6px 0 4px; max-width: 90ch; }
+.restore-card .restore-state { grid-column: 1; color: var(--text-2); font-size: 12.5px; max-width: 80ch; }
+.restore-card .restore-state[data-state="stopped"] { color: var(--warn, #d8a24a); }
+.restore-card .restore-undo { display: grid; gap: 4px; justify-items: start; margin: 12px 0 4px; max-width: 90ch; }
+.restore-card .restore-undo ul { margin: 2px 0 0; padding: 0; list-style: none; font-size: 12.5px; }
+.restore-card .restore-undo li { margin: 2px 0; color: var(--text-2); }
+.restore-card .restore-undo li.said-error { color: var(--warn, #d8a24a); }
 .restore-card button { font: inherit; font-size: 12.5px; }
-.restore-card details { border-top: 1px solid var(--hairline); padding: 8px 0 2px; margin-top: 10px; }
-.restore-card summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
-.restore-card .restore-plan li { color: var(--text-2); font-size: 12.5px; margin: 4px 0; max-width: 110ch; }
-.restore-card .restore-intro { color: var(--text-3); font-size: 12.5px; margin: 8px 0; max-width: 100ch; }
-.restore-card h3 { font: 600 13px/1.3 var(--ff); color: var(--text-2); margin: 14px 0 4px; text-transform: none; }
-.restore-step { border-top: 1px solid var(--hairline); padding: 8px 0; display: grid; gap: 4px; }
-.restore-step .step-title { font-weight: 600; font-size: 13.5px; }
-.restore-step .step-title .mono { font-family: var(--ff-mono); color: var(--text-3); margin-right: 6px; }
-.restore-step p { margin: 0; font-size: 12.5px; color: var(--text-2); max-width: 110ch; }
-.restore-step .expected { color: var(--text); }
-.restore-step .settles { color: var(--text-3); }
-.restore-step .step-buttons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 2px; }
-.restore-step .step-said { margin: 2px 0 0; padding: 0; list-style: none; font-size: 12.5px; }
-.restore-step .step-said li { margin: 2px 0; max-width: 110ch; }
-.restore-step .said-did, .restore-step .said-saw { color: var(--text-2); }
-.restore-step .said-error { color: var(--loss); }
-.restore-step .said-refused { color: var(--warn, #d8a24a); }
-.restore-step .step-ran { color: var(--text-3); font-size: 12px; }
-.restore-step .step-mark { display: inline-flex; gap: 4px; margin-left: auto; }
-.restore-step .step-mark button[aria-pressed="true"][data-mark="passed"] { border-color: var(--gain); color: var(--gain); }
-.restore-step .step-mark button[aria-pressed="true"][data-mark="failed"] { border-color: var(--loss); color: var(--loss); }
-/* The Desk page's line: what was last done, or in trial would be, for the car driven last. One line across the page. */
-.restore-last { grid-column: 1 / -1; margin: 0; padding: 7px 14px; border: 1px solid var(--hairline); border-radius: var(--r); background: var(--panel); color: var(--text-2); font-size: 12.5px; }
-.restore-last[hidden] { display: none; }
 /* The HUD on an iPad: a card of its own under the rest, the address beside its code. */
 .settings .remote { margin-top: var(--gap); }
 .remote-say { color: var(--text-3); font-size: 12.5px; margin: 10px 0 0; max-width: 72ch; }

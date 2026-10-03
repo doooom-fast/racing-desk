@@ -302,17 +302,13 @@ test.describe('recording', () => {
     expect(calls(/recording\.feed\(/g)).toHaveLength(1);
     // The desk's Save replay is the same keeper call, from the desk.
     expect(code).toMatch(/case 'saveReplay': return await recording\.saveReplay\(\{ source: 'desk' \}\);/);
-    // Nothing of a recording is sent to the HUD's page to draw: it is in the picture. What the HUD may be told goes to the one
-    // channel, hud-notice, from two places and no more: the keeper's notice (the recording's two sentences, "OBS is not open"
-    // and "OBS didn't start recording") and restoreNotice (the car's height and brakes, as putting them back says them; never
-    // while OBS records — restore-api.spec.mjs holds that).
+    // Nothing of a recording is sent to the HUD's page to draw: it is in the picture. The two sentences it may be
+    // told go through the keeper's notice, to the one channel.
     expect(code).not.toMatch(/webContents\.send\('(?:toggle-recording|save-replay-buffer|recording-state|recording-debug|toggle-replay-director)'[^)]*overlayWindow/);
     const toOverlay = calls(/overlayWindow\.webContents\.send\('([\w-]+)'/g).map((c) => c.match(/'([\w-]+)'/)[1]);
     expect(toOverlay.filter((ch) => /record|replay|obs/i.test(ch))).toEqual([]);
     expect(toOverlay).toContain('hud-notice');
-    expect(toOverlay.filter((ch) => ch === 'hud-notice')).toHaveLength(2);
     expect(code).toMatch(/notice:\s*\(text\)\s*=>\s*\{\s*if \(overlayWindow && !overlayWindow\.isDestroyed\(\)\) overlayWindow\.webContents\.send\('hud-notice', text\);\s*\},/);
-    expect(code).toMatch(/function restoreNotice\(text\) \{\s*if \(overlayWindow && !overlayWindow\.isDestroyed\(\)\) overlayWindow\.webContents\.send\('hud-notice', text\);\s*\}/);
   });
 
   test('OBS is started by nothing but a press: never at start unless he turned that on, never from auto-record or a key', () => {

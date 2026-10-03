@@ -637,6 +637,7 @@ test('main.js answers rig:read and rig:bindPedals to the desk window and no othe
   const fromDesk = /\bconst fromDesk = \(event\) => ([^;\n]+);/.exec(MAIN);
   expect(fromDesk, 'fromDesk is one expression over the event').not.toBeNull();
   expect(fromDesk[1]).toContain('event.sender === deskWindow.webContents');
+  expect(fromDesk[1]).toContain('deskFrames.isDeskFrame(event.senderFrame, DESK_HTML)');       // and the frame that sent it is at desk.html
   expect(fromDesk[1]).toContain('!deskWindow.isDestroyed()');
   expect(fromDesk[1]).not.toContain('||');
   expect(MAIN.match(/\bfromDesk\s*=/g)).toHaveLength(1);   // and it is not made to mean something else later

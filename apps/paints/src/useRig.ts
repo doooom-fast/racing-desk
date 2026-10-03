@@ -19,8 +19,6 @@ export interface RigState {
   notes: ReadonlyMap<string, PedalNote>;
   refresh: () => Promise<void>;
   bind: (carPath: string, profileId: string | null) => Promise<void>;
-  /// Puts the car's camera file back as it was before Racing Desk wrote it (undo, on his click); what it answered, in words.
-  undoHeight: (carPath: string) => Promise<string>;
 }
 
 const isRow = (v: unknown): v is Record<string, unknown> =>
@@ -153,23 +151,5 @@ export function useRig(): RigState {
     setSaving(without);
   }, []);
 
-  const undoHeight = useCallback(
-    async (carPath: string): Promise<string> => {
-      const restore = deskRestore();
-      if (!restore) return "This is the Racing Desk app's to do.";
-      let result: unknown;
-      try {
-        result = await restore.command({ undo: "height", car: carPath });
-      } catch (e) {
-        result = { ok: false, error: errorText(e) };
-      }
-      await refresh();
-      if (isRow(result) && result.ok === true) return "Put back as it was before Racing Desk.";
-      const why = isRow(result) ? (typeof result.why === "string" && result.why) || (typeof result.error === "string" && result.error) : null;
-      return `Not put back: ${why || "no reason given"}`;
-    },
-    [refresh],
-  );
-
-  return { here: deskRig() !== null, rig, saving, notes, refresh, bind, undoHeight };
+  return { here: deskRig() !== null, rig, saving, notes, refresh, bind };
 }

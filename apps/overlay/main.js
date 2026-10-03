@@ -33,6 +33,7 @@ const runtimeActions = require('./modules/js/runtime-actions');
 const logoLivery   = require('./modules/js/logo-livery');
 const rigLimitsMod = require('./modules/js/rig-limits');
 const restoreApiMod = require('./modules/js/restore-api');
+const deskFrames   = require('./modules/js/desk-frame');
 
 // ── Log ─────────────────────────────────────────────────────
 // From source, racing-desk-debug.log beside this file. In the built app, overlay.log beside the host's log in
@@ -244,12 +245,16 @@ function localHostUrl() {
 // at SimHub.
 // `page` is one of the desk's pages — desk, cars, settings (desk.js showPage); without one, the desk opens where
 // it was.
+// The desk's own page. The window is held to it (showDesk, modules/js/desk-frame.js), and the desk's IPC channel is answered to it
+// alone (fromDesk): that channel writes his files (paints, a car's pedals, undo).
+const DESK_HTML = path.join(__dirname, 'desk.html');
+
 function loadDesk(page) {
   deskHost = localHostUrl();
   const query = { host: deskHost };
   if (hostNote) query.note = hostNote;
   if (page) query.page = page;
-  deskWindow.loadFile(path.join(__dirname, 'desk.html'), { query });
+  deskWindow.loadFile(DESK_HTML, { query });
 }
 
 function showDesk(page) {
@@ -272,6 +277,9 @@ function showDesk(page) {
     autoHideMenuBar: true,
     webPreferences: { nodeIntegration: false, contextIsolation: true, preload: path.join(__dirname, 'preload.js') },
   });
+  // The window shows desk.html and nothing else: a navigation the page starts to any other address, or a window it opens, is stopped
+  // (the app's own loadFile, below, is not the page's). External links go through open-external, which has its own allowlist.
+  deskFrames.guardWindow(deskWindow.webContents, DESK_HTML, { log: logToFile });
   loadDesk(page);
   // Closing the desk quits the app, as closing any program's window does: the HUD's window is hidden and the
   // tray icon sits behind Windows' overflow arrow, so otherwise the app would carry on with nothing on screen.
@@ -423,26 +431,10 @@ const rigLimits = rigLimitsMod.createRigLimits({
 
 ipcMain.handle('get-rig-limits', async () => rigLimits.current());
 
-// ── Putting back each car's height and brakes (modules/js/restore-api.js; docs/view-and-pedals-plan.md) ──
-// The app's host does it, in trial in this build: it says what it would do, and writes and presses nothing. This process
-// asks it for the desk (restore:read, restore:command, below) and tells the HUD its lines: on the HUD keeper's own poll,
-// while he is in the car, a line said at the garage screen shown at his first moment in it, two seconds each — through the
-// one channel the HUD is told a sentence on (hud-notice), and never while OBS records, because OBS films the HUD's screen.
+// ── Putting back each car's seat height and brakes (modules/js/restore-api.js; docs/view-and-pedals-plan.md) ──
+// The app's host does it, by itself. This process asks it for the desk (restore:read, restore:command, below), and nothing
+// else: the HUD is told nothing of it.
 const restoreApi = restoreApiMod.createRestoreApi({ host: () => localHostUrl() });
-function restoreNotice(text) {
-  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('hud-notice', text);
-}
-function obsFilming() {
-  const s = typeof recording !== 'undefined' && recording ? recording.status() : null;
-  return !!(s && (s.recording || s.starting));
-}
-const restoreLines = restoreApiMod.createRestoreLines({ host: () => localHostUrl(), show: restoreNotice, recording: obsFilming, log: logToFile });
-// The three switches are the settings file's (Settings → Cars); the host keeps a copy for the moments before it is told.
-function tellRestoreSwitches(why) {
-  restoreApi.tellSwitches(loadSettingsSync()).then((answer) => {
-    if (!answer.ok) logToFile(`[RacingDesk] restore: the host was not told the switches (${why}): ${answer.error}`);
-  });
-}
 
 // ── The HUD is on screen only while the driver is in the car ──
 // The window is made hidden and modules/js/hud-visibility.js is the only thing that reveals it: while the
@@ -465,7 +457,7 @@ const hud = hudVisibility.createHudVisibility({
   // The same answer is what the livery behind the car badge goes by (livery, below): which car he is in, and when —
   // what auto-record and the replay buffer go by (recording.feed: the keeper, below) — and when the brake force is
   // asked of the host for the datastream (rigLimits.feed, above).
-  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()).then((payload) => { livery.feed(payload); recording.feed(payload); rigLimits.feed(payload); restoreLines.feed(payload); return payload; }),
+  fetchPayload: () => hudVisibility.fetchPayload(hudTelemetryUrl()).then((payload) => { livery.feed(payload); recording.feed(payload); rigLimits.feed(payload); return payload; }),
   loadPage: () => loadDashboard(),
   keepVisible: isDev,
   onSwitch: () => tickHudSwitch(),
@@ -630,8 +622,7 @@ const recording = obs.createRecordingKeeper({
   // is not put on the HUD (and into the video) when it is.
   obsRunning: () => obs.launcher.isObsRunning({ exec: execFileAsync }),
   startObs: startObsIfClosed,
-  // The recording's two sentences the HUD may show, and no other of the recording's (putting the cars back has lines of its
-  // own on the same channel, restoreNotice above, never while OBS records).
+  // The two sentences the HUD may show, and no other.
   notice: (text) => { if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.webContents.send('hud-notice', text); },
   onChange: () => { buildTrayMenu(); tellDeskRecording(); },
   log: logToFile,
@@ -1258,7 +1249,6 @@ app.whenReady().then(async () => {
   if (isDev) hudKeys.hold(true);
 
   await startLocalHost();
-  tellRestoreSwitches('the app started');
   if (!process.argv.includes(NO_DESK)) showDesk();
 });
 
@@ -1617,8 +1607,10 @@ ipcMain.handle('get-logo-livery', async () => {
   return crop ? crop.dataUrl : null;
 });
 
-// These are the desk window's. The HUD shares the preload, and has no business with the paint folder.
-const fromDesk = (event) => !!deskWindow && !deskWindow.isDestroyed() && event.sender === deskWindow.webContents;
+// These are the desk window's. The HUD shares the preload, and has no business with the paint folder. The sender is the desk's own
+// webContents AND a frame at desk.html: the same webContents is the same whatever page it is showing, and null once its frame has
+// navigated away or been destroyed (modules/js/desk-frame.js; the window is also held to its page, in showDesk).
+const fromDesk = (event) => !!deskWindow && !deskWindow.isDestroyed() && event.sender === deskWindow.webContents && deskFrames.isDeskFrame(event.senderFrame, DESK_HTML);
 
 ipcMain.handle('paints:invoke', async (event, name, args) => {
   if (!fromDesk(event)) return { error: 'Paints belongs to the desk window.' };
@@ -1680,35 +1672,20 @@ ipcMain.handle('rig:read', async (event) => {
   return rig.read();
 });
 
-// ── IPC: putting back each car's height and brakes — Settings → Cars, the Desk page's line, the Cars page's lines ──
-// The desk window alone. restore:read answers the host's GET (trial, the switches, the lines, each car in a sentence, the dry
-// run, the first run's steps) as { value }, { missing } or { error }; restore:command one of { switches }, { step }, { mark,
-// state }, { undo, car? } as { ok, … } or { ok: false, error }. The switches are written into overlay-settings.json first,
-// beside everything else in it, and then told to the host. A first-run button writes or presses only through here, on his
-// click; the host refuses what a step's conditions do not allow.
-const RESTORE_NOT_DESK = 'Putting the cars back is the desk window\'s.';
-ipcMain.handle('restore:read', async (event, opts) => {
+// ── IPC: putting back each car's seat height and brakes — Settings → Cars and the Cars page's sentences ──
+// The desk window alone. restore:read answers the host's GET (the two switches, a sentence for each part, whether there is
+// anything to undo, each car's sentences) as { value }, { missing } or { error }; restore:command takes { switches: { brakes?,
+// height? } } or { undo: 'all' } and answers { ok, … } or { ok: false, error }. The host keeps the switches (restore.json).
+const RESTORE_NOT_DESK = "Putting the cars back is the desk window's.";
+ipcMain.handle('restore:read', async (event) => {
   if (!fromDesk(event)) return { error: RESTORE_NOT_DESK };
-  // The Desk page's line asks for the lines alone (no dry run: it reads files and two databases).
-  const linesOnly = !!(opts && opts.linesOnly === true);
-  const answer = await restoreApi.read(linesOnly ? '?since=0' : '');
-  // A host that says other switches than the file has was not told, or kept another: it is told now.
-  const said = !linesOnly && answer.value && answer.value.available === true && answer.value.switches;
-  const want = restoreApiMod.switchesOf(loadSettingsSync());
-  if (said && restoreApiMod.SWITCHES.some((k) => said[k] !== want[k])) tellRestoreSwitches('the host said other switches');
-  return answer;
+  return restoreApi.read();
 });
 
 ipcMain.handle('restore:command', async (event, body) => {
   if (!fromDesk(event)) return { ok: false, error: RESTORE_NOT_DESK };
   const problem = restoreApiMod.commandProblem(body);
   if (problem) return { ok: false, error: problem };
-  if (body.switches) {
-    const settings = loadSettingsSync();
-    for (const key of restoreApiMod.SWITCHES) if (typeof body.switches[key] === 'boolean') settings[restoreApiMod.SETTINGS_KEYS[key]] = body.switches[key];
-    saveSettingsSync(settings);
-    return restoreApi.command({ switches: restoreApiMod.switchesOf(settings) });
-  }
   return restoreApi.command(body);
 });
 

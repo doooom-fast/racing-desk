@@ -1117,17 +1117,12 @@ export default function App() {
               {/* The car as it is driven, under its name and above its liveries: side by side, and in sight
                   without scrolling whatever the car has to wear. */}
               <div className="car-rig">
-                {/* Keyed by the car, like the pedals (and apart from them, being siblings): what an undo said of
-                    one car is not another's. */}
                 <CarViewPanel
-                  key={`view ${car.folder}`}
                   here={rig.here}
                   rig={rig.rig}
                   view={rig.rig?.views?.get(carKey) ?? null}
                   lastDriven={lastDriven.get(carKey) ?? null}
                   restore={rig.rig?.restore?.cars.get(carKey) ?? null}
-                  carPath={rig.rig?.paths.get(carKey) ?? null}
-                  onUndoHeight={rig.undoHeight}
                 />
                 {/* Keyed by the car: where the keyboard was while one car's pedals were saved is not
                     another's. */}

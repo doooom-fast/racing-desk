@@ -1,12 +1,7 @@
-// A sentence the main process wants said on the HUD for a moment, and only these: the recording's two, "OBS is not open"
-// and "OBS didn't start recording", and Racing Desk's own lines about the car he is in — its brakes and its height, as
-// putting them back says them ("Trial: brakes Porsche 963 GTP · 70 kg", "Trial: height Porsche 963 GTP · −2.0 cm (its
-// camera file)", "Trial: no camera file for the Lotus 79 yet"; modules/js/restore-api.js), shown at his first moment in
-// the car, one after another. Nothing of a recording's state is ever drawn on the HUD — OBS records the screen the HUD is
-// on, so a red dot or a timer here would be in every video: the recording's two are never recorded, because there is no
-// recording, and the car's lines are never shown while OBS records. Only the rig's HUD is told: the iPad and the pages
-// OBS draws have no main process behind them. The notice fades after two seconds. Nothing here reads the telemetry or
-// the settings.
+// A sentence the main process wants said on the HUD for a moment, and the only one: "OBS is not open" or "OBS didn't
+// start recording". Nothing of a recording's state is ever drawn on the HUD — OBS records the screen the HUD is on,
+// so a red dot or a timer here would be in every video. These two are never recorded, because there is no recording.
+// The notice fades after two seconds. Nothing here reads the telemetry or the settings.
 (function () {
   'use strict';
 

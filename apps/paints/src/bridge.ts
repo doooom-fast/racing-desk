@@ -20,12 +20,10 @@ export interface DeskRig {
   bindPedals(carPath: string, profileId: string | null): Promise<unknown>;
 }
 
-/// Putting back each car's height and brakes, as the app's host says it (apps/overlay/modules/js/restore-api.js): read
-/// answers { value } | { missing } | { error }; command takes one of the host's commands and answers { ok, … }. Never a
-/// rejection from the app.
+/// Putting back each car's seat height and brakes, as the app's host says it (apps/overlay/modules/js/restore-api.js): read
+/// answers { value } | { missing } | { error }. The Cars page only reads. Never a rejection from the app.
 export interface DeskRestore {
-  read(opts?: { linesOnly?: boolean }): Promise<unknown>;
-  command(body: Record<string, unknown>): Promise<unknown>;
+  read(): Promise<unknown>;
 }
 
 declare global {
@@ -52,9 +50,7 @@ export function deskRig(): DeskRig | null {
 /// The way to what putting the cars back says of them, or null where there is none: the Tauri shell, a desk from before it.
 export function deskRestore(): DeskRestore | null {
   const restore = window.racingDesk?.restore;
-  return restore && typeof restore.read === "function" && typeof restore.command === "function"
-    ? (restore as DeskRestore)
-    : null;
+  return restore && typeof restore.read === "function" ? (restore as DeskRestore) : null;
 }
 
 /// `detectPaths` -> `detect_paths`: the Rust command's name for the same call.
