@@ -118,7 +118,6 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "Throttle shape",
-     "words": "Throttle map",
      "note": "Published, seen only 1. Neither the garage nor the manual has a throttle setting for this car."
     },
     {
@@ -1780,13 +1779,14 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "Bias",
+     "words": "Bias",
      "note": "percent front; variable name by analogy, not seen on this rig"
     },
     {
      "id": "p2p",
      "var": "P2P_Status",
      "label": "OT",
-     "words": "Overtake",
+     "words": "Push to pass",
      "off": 0,
      "positions": {
       "0": "Off",
@@ -2737,7 +2737,6 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "Throttle shape",
-     "words": "Throttle map",
      "range": [
       1,
       3
@@ -2967,7 +2966,6 @@
      "id": "throttleMap",
      "var": "dcThrottleShape",
      "label": "Throttle shape",
-     "words": "Throttle map",
      "range": [
       1,
       10
@@ -4765,6 +4763,7 @@
      "id": "brakeBias",
      "var": "dcBrakeBias",
      "label": "Bias",
+     "words": "Bias",
      "note": "Garage: Brake Pressure Bias. Seen 46.5 to 48."
     },
     {
@@ -6587,7 +6586,6 @@
      "id": "launch",
      "var": "dcTractionControl",
      "label": "Start limit",
-     "words": "Launch limit",
      "note": "garage: Launch Control RPM; this car has no traction control: the variable carries the launch control's Start Limit (garage 2 reads 2); seen 2 to 6"
     }
    ],
@@ -6636,7 +6634,6 @@
      "id": "launch",
      "var": "dcTractionControl",
      "label": "Start limit",
-     "words": "Launch limit",
      "note": "garage: Launch Control RPM; this car has no traction control: the variable carries the launch control's Start Limit on the SF23 Honda driven here; variable name by analogy, not seen on this rig"
     }
    ],
@@ -7137,7 +7134,7 @@
      "id": "engineMap",
      "var": "dcFuelMixture",
      "label": "Mode",
-     "words": "Engine map",
+     "words": "Engine power",
      "note": "engine power dial: power and the shift-light point, to save fuel; 2011 release notes say a fuel mixture adjustment was added to this car and mapped to the fuel mixture control, which is taken to be this dial; whether it is instead a separate control, and whether the variable is dcFuelMixture or dcEnginePower, is not known: no car of this family driven here has either"
     },
     {

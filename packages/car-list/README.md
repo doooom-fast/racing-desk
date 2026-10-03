@@ -27,10 +27,14 @@ control has two names:
   `.ibt` files): "Bias" for every brake bias, "Migration", "Front rollbar" and "Rear rollbar", "Anti-lock" where the
   label is ABS, "Traction" where it is TC or the car's one traction dial, "Traction slip" and "Traction gain" for a
   prototype's two (the 963's TCLO and TCLA, as its garage names them), "Assists" for a dial that is ABS, TC and
-  stability at once, "Stability" for DSC and ESC, "Throttle map", "Engine map" and so on. Where the label is words
-  already (Weight jacker, Top wing) there are no `words`. Where what a control does is not settled, there are none and
-  the label is all there is: the BMW LMDh's TCLON and TCLAT (its 2023 manual and the 963 disagree on which is the slip
-  and which the gain). DRS is an acronym, and stays one.
+  stability at once, "Stability" for DSC and ESC, "Throttle map", "Engine map" and so on. They are what the car's own
+  source calls the dial ("Engine power" for the FW31's MODE, as its setup guide has it; "Push to pass" for the IR18's OT,
+  as the IL15 and the DW12 say it). Where the label is words that say what the dial is in the car's own terms (Weight
+  jacker, Top wing, Start limit, Throttle shape) there are no `words`: the car's name stands, and nothing is renamed that a
+  source does not rename. `words` are given for a label that does not say it (Map, Mix, Mode: "Engine map", "Fuel mix"),
+  for his own words for the common ones (Bias for Brake bias), and for an abbreviation a source settles. Where what a
+  control does is not settled, there are none and the label is all there is: the BMW LMDh's TCLON and TCLAT (its 2023
+  manual and the 963 disagree on which is the slip and which the gain). DRS is an acronym, and stays one.
 - **`positions`** are named in sentence case (Track, Sport, Normal, Off, Safety car); MDM, a name, stays in capitals.
 
 The HUD's controls panel shows the longest form that is whole in a cell at its size: the words, then for a rollbar

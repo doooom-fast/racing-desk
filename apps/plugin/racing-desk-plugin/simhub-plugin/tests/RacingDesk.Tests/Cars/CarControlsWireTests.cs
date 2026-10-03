@@ -200,6 +200,31 @@ namespace RacingDesk.Tests.Cars
         }
 
         [Test]
+        public void TheWordsAreWhatTheCarsOwnSourceCallsTheDialAndNothingIsRenamedThatAlreadyIsWords()
+        {
+            // A review of 2026-10-02 found four sets of words that paraphrased what a car's source says, and his Bias missing on two cars.
+            var list = CarList.Default;
+            Assume.That(list.Cars, Is.Not.Empty, "the list is not in this tree");
+
+            // The FW31's setup guide lists the dial as "engine power (MODE)", not an engine map.
+            Assert.That(list.Find("williamsfw31").Control("engineMap").Words, Is.EqualTo("Engine power"));
+            // The IR18's own note says push to pass, as the IL15's and the DW12's label says it; the SF23's is its Overtake System.
+            Assert.That(list.Find("dallarair18").Control("p2p").Words, Is.EqualTo("Push to pass"));
+            Assert.That(list.Find("dallaradw12").Control("p2p").Label, Is.EqualTo("Push to pass"));
+            Assert.That(list.Find("superformulasf23 honda").Control("p2p").Words, Is.EqualTo("Overtake"));
+            // A label that is words already and the car's own is not renamed: Start limit, Throttle shape. The Acura has no throttle
+            // setting at all, by its own note.
+            foreach (var path in new[] { "superformulasf23 honda", "superformulasf23 toyota" })
+                Assert.That(list.Find(path).Control("launch").Words, Is.Null, $"{path}: its Start limit is words already");
+            foreach (var path in new[] { "acuransxevo22gt3", "ferrarievogt3", "fordmustanggt3" })
+                Assert.That(list.Find(path).Control("throttleMap").Words, Is.Null, $"{path}: its Throttle shape is words already");
+            // His Bias for every brake bias, said as words on every car, the IR18's and the 963's labels (Bias) included.
+            foreach (var car in list.Cars)
+                foreach (var c in car.Controls.Where(c => c.Id == "brakeBias"))
+                    Assert.That(c.Words, Is.EqualTo("Bias"), $"{car.Path}: his word for the brake bias");
+        }
+
+        [Test]
         public void ADialTheListGivesAndTheCarDoesNotPublishStillLeavesWhatIsKnown()
         {
             // Fixed ABS with a variable nobody publishes: it has ABS, the driver cannot turn it, so it is ON — and
