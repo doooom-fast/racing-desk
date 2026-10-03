@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS view_baseline (
   start_height REAL NOT NULL, decided_at TEXT NOT NULL, decided_by TEXT,
   ini_original REAL, ini_backup TEXT, ini_written_at TEXT,
   migrated_at TEXT,
-  launch_height REAL, launch_at TEXT
+  launch_height REAL, launch_at TEXT,
+  vy_original REAL, ini_height_written REAL, vy_written REAL
 );
 
 CREATE TABLE IF NOT EXISTS car_smartcontrol (
@@ -159,11 +160,35 @@ ON CONFLICT(car_path) DO UPDATE SET cam_file = excluded.cam_file, own_z = exclud
 
         // ── view_baseline ──
 
+        /// <summary>The columns app.ini's values are kept in, which a v9 store made before they were kept may not have yet.</summary>
+        private static readonly string[] IniValueColumns = { "vy_original", "ini_height_written", "vy_written" };
+
+        private bool HasColumn(string table, string column)
+        {
+            using var cmd = Cmd("SELECT 1 FROM pragma_table_info('" + table + "') WHERE name = $c");
+            P(cmd, "$c", column);
+            return cmd.ExecuteScalar() != null;
+        }
+
+        /// <summary>Adds the columns a v9 store made earlier lacks; a read-write open does it, a read-only one reads without them.</summary>
+        private void EnsureRestoreColumns()
+        {
+            if (!HasTable("view_baseline")) return;
+            foreach (string column in IniValueColumns)
+            {
+                if (HasColumn("view_baseline", column)) continue;
+                try { Exec("ALTER TABLE view_baseline ADD COLUMN " + column + " REAL"); }
+                catch (SqliteException ex) when (ex.Message.IndexOf("duplicate column", StringComparison.OrdinalIgnoreCase) >= 0) { /* another opener was first */ }
+            }
+        }
+
         public ViewBaseline ViewBaselineRow()
         {
             if (!HasTable("view_baseline")) return null;
+            // A store opened read-only by a build that did not migrate it may not have the later columns: they read as none.
+            string Col(string c) => HasColumn("view_baseline", c) ? c : "NULL";
             using var cmd = Cmd(@"SELECT start_height, decided_at, decided_by, ini_original, ini_backup, ini_written_at, migrated_at,
-  launch_height, launch_at FROM view_baseline WHERE id = 1");
+  launch_height, launch_at, " + Col("vy_original") + ", " + Col("ini_height_written") + ", " + Col("vy_written") + " FROM view_baseline WHERE id = 1");
             using var r = cmd.ExecuteReader();
             if (!r.Read()) return null;
             return new ViewBaseline
@@ -171,7 +196,39 @@ ON CONFLICT(car_path) DO UPDATE SET cam_file = excluded.cam_file, own_z = exclud
                 StartHeight = r.GetDouble(0), DecidedAtUtc = Utc(r.GetString(1)), DecidedBy = Str(r, 2),
                 IniOriginal = Real(r, 3), IniBackup = Str(r, 4), IniWrittenAtUtc = When(r, 5), MigratedAtUtc = When(r, 6),
                 LaunchHeight = Real(r, 7), LaunchAtUtc = When(r, 8),
+                VanishYOriginal = Real(r, 9), IniHeightWritten = Real(r, 10), VanishYWritten = Real(r, 11),
             };
+        }
+
+        /// <summary>
+        /// Keeps what Racing Desk has done to app.ini's two values, whichever step did it: the value of each before Racing Desk's
+        /// first write of it (kept, never replaced) and the value it last wrote (replaced). A value that is null leaves what is
+        /// kept as it is. The row is made, with S and the day it was decided, if there is none yet.
+        /// </summary>
+        public bool NoteIniValues(double? heightBefore, double? heightWritten, double? vanishYBefore, double? vanishYWritten, DateTime atUtc)
+        {
+            if (!HasTable("view_baseline")) return false;
+            EnsureRestoreColumns();
+            Exec(@"
+INSERT INTO view_baseline (id, start_height, decided_at, decided_by, ini_original, vy_original, ini_height_written, vy_written)
+VALUES (1, $s, $at, $by, $ho, $vo, $hw, $vw)
+ON CONFLICT(id) DO UPDATE SET
+  ini_original = COALESCE(view_baseline.ini_original, excluded.ini_original),
+  vy_original = COALESCE(view_baseline.vy_original, excluded.vy_original),
+  ini_height_written = COALESCE(excluded.ini_height_written, view_baseline.ini_height_written),
+  vy_written = COALESCE(excluded.vy_written, view_baseline.vy_written)", null,
+                ("$s", RestorePolicy.StartHeight), ("$at", Iso(RestorePolicy.DecidedAtUtc)), ("$by", RestorePolicy.DecidedBy),
+                ("$ho", heightBefore), ("$vo", vanishYBefore), ("$hw", heightWritten), ("$vw", vanishYWritten));
+            return true;
+        }
+
+        /// <summary>app.ini's values are Racing Desk's no longer (undo has put back what it could): the next first write is a first.</summary>
+        public bool ForgetIniValues()
+        {
+            if (!HasTable("view_baseline")) return false;
+            EnsureRestoreColumns();
+            using var cmd = Cmd("UPDATE view_baseline SET ini_original = NULL, vy_original = NULL, ini_height_written = NULL, vy_written = NULL WHERE id = 1");
+            return cmd.ExecuteNonQuery() > 0;
         }
 
         public bool SaveViewBaseline(ViewBaseline b)

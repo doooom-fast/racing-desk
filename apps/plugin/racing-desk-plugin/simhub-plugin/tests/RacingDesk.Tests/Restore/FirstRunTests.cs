@@ -166,6 +166,9 @@ namespace RacingDesk.Tests.Restore
             Assert.That(_rig.CamShift(Car), Is.EqualTo(0.03f).Within(1e-6), "the horizon pair: the cockpit's shift 0.01 + 0.02");
             Assert.That(Step("B6-b").Ok, Is.True);
             Assert.That(_rig.Files().AppIniValue("DrivingVanishY"), Is.EqualTo(0.21).Within(1e-9));
+            Assert.That(Step("B6-b").Ok, Is.True);
+            Assert.That(Step("B6-b").Ok, Is.True);
+            Assert.That(_rig.Files().AppIniValue("DrivingVanishY"), Is.EqualTo(0.21).Within(1e-9), "the original plus 0.02, the same however many times it is pressed");
 
             Assert.That(Step("B7").Ok, Is.True, "the FOV is as it was");
             var back = Step("B7-restore");
@@ -273,7 +276,7 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
-        public void AHeight_IsPutBackFromTheOriginal_OrHisSaveKeptLessWhatWasAdded()
+        public void AHeight_IsPutBackByItsFourBytes_AndWhatHeSavedBeforeItsWriteStays()
         {
             byte[] cam = File.ReadAllBytes(_rig.CamPath(Car));
             _director.RunStep("0b");
@@ -283,16 +286,68 @@ namespace RacingDesk.Tests.Restore
             _rig.Probe.Sim = true;
             Assert.That(_director.UndoHeights(Car).Refused, Is.True);
             _rig.Probe.Sim = false;
-            Assert.That(_director.UndoHeights(Car).Ok, Is.True);
-            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam));
+            var undone = _director.UndoHeights(Car);
+            Assert.That(undone.Ok, Is.True, undone.Text);
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam), "the file is as it was, to the byte");
+            using (var store = new RacingDeskStore(_rig.Store)) Assert.That(store.CarViewKeepOf(Car), Is.Null);
 
-            // He saves the file himself after Racing Desk wrote it: his save stays, less the 2 cm Racing Desk had added.
+            // He saves the file after 0b copied it and before Racing Desk wrote it (his seat moved): undo puts back what it held
+            // when Racing Desk wrote — his seat save stays. (A put back of the 0b copy would have taken it away.)
+            _rig.Cam(Car, -0.15f, 0.0f, 0.01f);
+            byte[] saved = File.ReadAllBytes(_rig.CamPath(Car));
+            Assert.That(_director.RunStep("B4").Ok, Is.True);
+            Assert.That(_rig.CamZ(Car), Is.EqualTo(-0.02f));
+            Assert.That(_director.UndoHeights(Car).Ok, Is.True);
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(saved), "his save stays: only Racing Desk's four bytes were changed back");
+            Assert.That(BitConverter.ToSingle(File.ReadAllBytes(_rig.CamPath(Car)), 12 + 8 * 184 + 52), Is.EqualTo(-0.15f), "the seat he moved");
+        }
+
+        [Test]
+        public void AFileHeSavedAfterRacingDeskWroteIt_IsLeftAsItIs_WithTheCopysPathSaid()
+        {
+            _director.RunStep("0b");
+            Assert.That(_director.RunStep("B1").Ok, Is.True);
             Assert.That(_director.RunStep("B4").Ok, Is.True);
             _rig.Cam(Car, -0.15f, -0.01f);
+            byte[] his = File.ReadAllBytes(_rig.CamPath(Car));
             var undone = _director.UndoHeights();
             Assert.That(undone.Ok, Is.True, undone.Text);
-            Assert.That(_rig.CamZ(Car), Is.EqualTo(0.01f).Within(1e-6));
-            Assert.That(_rig.Files().AppIniHeight(), Is.EqualTo(-0.035).Within(1e-9), "all of it: app.ini's height as it was before Racing Desk");
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(his), "touched not at all");
+            Assert.That(undone.Text, Does.Contain("you saved its camera file since Racing Desk wrote it; it is left as it is"));
+            Assert.That(undone.Text, Does.Contain(Path.Combine("backups", "view", "original", "cameras", "cars", "porsche963gtp", "car.cam")), "with the copy's path");
+            using var store = new RacingDeskStore(_rig.Store);
+            Assert.That(store.CarViewKeepOf(Car), Is.Null, "and it is his now");
+        }
+
+        [Test]
+        public void UndoEverything_PutsAppInisTwoValuesBack_FromBeforeRacingDesksFirstWriteOfEach_WhicheverStepMadeIt()
+        {
+            byte[] ini = _rig.AppIniBytes();
+            _director.RunStep("0b");
+            // No B1: B5 is the first to write the height, and B6-b the first to write the horizon.
+            Assert.That(_director.RunStep("B5").Ok, Is.True);
+            Assert.That(_director.RunStep("B6-b").Ok, Is.True);
+            Assert.That(_rig.Files().AppIniHeight(), Is.EqualTo(-0.04).Within(1e-9));
+            Assert.That(_rig.Files().AppIniValue("DrivingVanishY"), Is.EqualTo(0.21).Within(1e-9));
+            var undone = _director.UndoHeights();
+            Assert.That(undone.Ok, Is.True, undone.Text);
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(ini), "both values as they were before Racing Desk first wrote them");
+            Assert.That(undone.Text, Does.Contain("driver height is −3.5 cm").And.Contain("horizon is 0.190"));
+            using var store = new RacingDeskStore(_rig.Store);
+            Assert.That(store.ViewBaselineRow().IniOriginal, Is.Null, "and what was kept of them is let go: the next write is a first");
+        }
+
+        [Test]
+        public void UndoEverything_LeavesAnAppIniValueHeChangedSince()
+        {
+            _director.RunStep("0b");
+            Assert.That(_director.RunStep("B5").Ok, Is.True);
+            // The sim ran, he moved the height in the car, and iRacing wrote app.ini at its exit.
+            _rig.AppIni(-0.05, vanishY: 0.19);
+            byte[] his = _rig.AppIniBytes();
+            var undone = _director.UndoHeights();
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(his));
+            Assert.That(undone.Text, Does.Contain("app.ini's driver height is −5.0 cm now, not what Racing Desk wrote").And.Contain("left as it is"));
         }
     }
 }

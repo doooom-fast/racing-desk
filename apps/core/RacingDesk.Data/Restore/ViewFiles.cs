@@ -32,8 +32,8 @@ namespace RacingDesk.Data.Restore
 
     /// <summary>
     /// What one write of iRacing's view files was to do, kept in the store before either file is touched (critique H1):
-    /// app.ini is written first, the camera file after; a host that stops between them finishes the write, or puts the
-    /// files back, at its next start (<see cref="ViewFiles.Settle"/>).
+    /// app.ini is written first, the camera file after; a host that stops between them puts app.ini back, by its value,
+    /// at its next start (<see cref="ViewFiles.Settle"/>) — the step was cut short, and is not finished behind his back.
     /// </summary>
     public sealed class ViewIntent
     {
@@ -47,6 +47,15 @@ namespace RacingDesk.Data.Restore
         public string CamBackup { get; set; }
         public double? NewZ { get; set; }
         public double? NewShift { get; set; }
+
+        /// <summary>
+        /// The values of app.ini the write changes, as they were and as they were to be: what a cut-short write is put back
+        /// by. (Whole-file copies are kept for a recovery by hand, and are never put back by Racing Desk itself.)
+        /// </summary>
+        public double? IniHeightBefore { get; set; }
+        public double? IniVanishYBefore { get; set; }
+        public double? IniHeightAfter { get; set; }
+        public double? IniVanishYAfter { get; set; }
         public string Why { get; set; }
     }
 
@@ -67,6 +76,37 @@ namespace RacingDesk.Data.Restore
 
         /// <summary>What the change is for, said in the log and kept with the intent.</summary>
         public string Why { get; set; }
+
+        /// <summary>
+        /// The camera file itself, by its path under <c>Documents\iRacing</c>, when it is known (undo, a settling): that file and
+        /// no other, and camera.ini's LastCarSet is not asked again. Null looks the car's file up as iRacing would.
+        /// </summary>
+        public string CamFile { get; set; }
+
+        /// <summary>
+        /// Write a value only while the file still holds exactly this: what Racing Desk wrote there. A value that is something
+        /// else was changed since (by iRacing, or him), is his, and is refused, with nothing written for it.
+        /// </summary>
+        public double? ExpectIniHeight { get; set; }
+        public double? ExpectIniVanishY { get; set; }
+        public double? ExpectCockpitZ { get; set; }
+        public double? ExpectCockpitShift { get; set; }
+
+        /// <summary>
+        /// A value is being put back to what it was before Racing Desk wrote it: the limits of a write (|Z| of 5 cm, the
+        /// horizon's) do not apply to a value that was in the file already, only that it reads as a camera tool's.
+        /// </summary>
+        public bool Restoring { get; set; }
+    }
+
+    /// <summary>What <see cref="ViewFiles.Settle"/> found of one write that a stop had cut short, for the desk and host.log.</summary>
+    public sealed class SettleNote
+    {
+        public string Car { get; set; }
+        public string Text { get; set; }
+
+        /// <summary>"info" (nothing to be done, log only), "done" (app.ini put back), "left" (the files had changed since), "failed".</summary>
+        public string State { get; set; }
     }
 
     public sealed class ViewWriteResult
@@ -94,7 +134,10 @@ namespace RacingDesk.Data.Restore
     /// ±0.05 m (critique H7).</item>
     /// <item>Where camera.ini's LastCarSet names a file for the car, that file and no other (critique H5).</item>
     /// <item>Both files changed together are written app.ini first, with what is to be done kept in the store before
-    /// either (critique H1).</item>
+    /// either (critique H1). A step that is cut short is put back, by value, never finished.</item>
+    /// <item>Put back means value by value: a camera file's cockpit Z (four bytes) or one value of app.ini is set to what it
+    /// was, and only while it still holds what Racing Desk wrote. A file he has saved since is his and is left as it is. The
+    /// whole-file copies are for recovering by hand, and Racing Desk never puts one back itself.</item>
     /// </list>
     /// </summary>
     public sealed class ViewFiles
@@ -149,7 +192,18 @@ namespace RacingDesk.Data.Restore
                 string candidate = SafeRelative(Path.Combine("cameras", named.Trim()));
                 if (candidate != null) { rel = candidate; fromLast = true; }
             }
-            var state = new CamFileState { RelativePath = rel, FullPath = Path.Combine(_documents, rel), FromLastCarSet = fromLast };
+            return CamAt(rel, fromLast);
+        }
+
+        /// <summary>
+        /// A camera file as it is now, by its path under <c>Documents\iRacing</c>; nothing is looked up. Null for a path that
+        /// is not a file of iRacing's folder. Undo and a settling go by the file Racing Desk wrote, not by one found again.
+        /// </summary>
+        public CamFileState CamAt(string relativePath, bool fromLastCarSet = false)
+        {
+            string rel = SafeRelative(relativePath);
+            if (rel == null) return null;
+            var state = new CamFileState { RelativePath = rel, FullPath = Path.Combine(_documents, rel), FromLastCarSet = fromLastCarSet };
             byte[] bytes = ReadShared(state.FullPath);
             state.Exists = bytes != null;
             if (!state.Exists) { state.Why = "it has no camera file"; return state; }
@@ -211,10 +265,15 @@ namespace RacingDesk.Data.Restore
 
         // ── Writing ──
 
+        /// <summary>The two values of app.ini's [View] that Racing Desk changes, and how close a read value is to a written one.</summary>
+        public const string HeightKey = "driverHeightAdj", VanishYKey = "DrivingVanishY";
+        public const double IniTolerance = 1e-6;
+
         /// <summary>
         /// Makes a change to the view files: app.ini first, then the car's camera file, each backed up, swapped in and read
         /// back, with the intent kept in the store before either when both are changed. Refused, with nothing written, while
-        /// the sim runs, for a camera file laid out another way, or for a Z beyond the limit.
+        /// the sim runs, for a camera file laid out another way, for a Z beyond the limit (unless it is being put back), and
+        /// for a value that is not what Racing Desk wrote where the change says it should still be.
         /// </summary>
         public ViewWriteResult Apply(ViewChange change)
         {
@@ -228,14 +287,21 @@ namespace RacingDesk.Data.Restore
 
             // What each file is to become, worked out before anything is written: a change that cannot be made leaves both.
             byte[] iniBefore = null, iniAfter = null;
+            double? heightBefore = null, vanishBefore = null;
             if (ini)
             {
                 iniBefore = ReadAppIni();
                 if (iniBefore == null) { result.Why = "there is no app.ini"; return result; }
+                heightBefore = ReadIni(iniBefore, HeightKey);
+                vanishBefore = ReadIni(iniBefore, VanishYKey);
+                if (change.ExpectIniHeight.HasValue && !Holds(heightBefore, change.ExpectIniHeight.Value))
+                { result.Why = "app.ini's driverHeightAdj is no longer what Racing Desk wrote: it is left as it is"; return result; }
+                if (change.ExpectIniVanishY.HasValue && !Holds(vanishBefore, change.ExpectIniVanishY.Value))
+                { result.Why = "app.ini's DrivingVanishY is no longer what Racing Desk wrote: it is left as it is"; return result; }
                 iniAfter = iniBefore;
-                if (change.IniHeight.HasValue && !AppIniEditor.TrySetValue(iniAfter, "View", "driverHeightAdj", change.IniHeight.Value, out iniAfter, out string why1))
+                if (change.IniHeight.HasValue && !AppIniEditor.TrySetValue(iniAfter, "View", HeightKey, change.IniHeight.Value, out iniAfter, out string why1))
                 { result.Why = "app.ini: " + why1; return result; }
-                if (change.IniVanishY.HasValue && !AppIniEditor.TrySetValue(iniAfter, "View", "DrivingVanishY", change.IniVanishY.Value, out iniAfter, out string why2))
+                if (change.IniVanishY.HasValue && !AppIniEditor.TrySetValue(iniAfter, "View", VanishYKey, change.IniVanishY.Value, out iniAfter, out string why2))
                 { result.Why = "app.ini: " + why2; return result; }
             }
 
@@ -243,21 +309,25 @@ namespace RacingDesk.Data.Restore
             byte[] camBefore = null, camAfter = null;
             if (cam)
             {
-                camState = Cam(change.CarPath);
+                camState = change.CamFile != null ? CamAt(change.CamFile) : Cam(change.CarPath);
                 if (camState == null) { result.Why = "the car's name is not one a camera file is kept under"; return result; }
-                if (!camState.Exists) { result.Why = "the car has no camera file: save one in the car once (Ctrl+F12, Save Car, name car.cam)"; return result; }
+                if (!camState.Exists) { result.Why = "the car has no camera file: save one (" + RestorePolicy.SaveACameraFile + ")"; return result; }
                 if (!camState.Writable) { result.Why = "its camera file is not one Racing Desk writes: " + camState.Why; return result; }
                 camBefore = ReadShared(camState.FullPath);
+                if (change.ExpectCockpitZ.HasValue && !HoldsFloat(camState.Z, change.ExpectCockpitZ.Value))
+                { result.Why = "its camera file's cockpit Z is no longer what Racing Desk wrote: you saved the file since, and it is left as it is"; return result; }
+                if (change.ExpectCockpitShift.HasValue && !HoldsFloat(camState.VerticalShift, change.ExpectCockpitShift.Value))
+                { result.Why = "its camera file's vertical shift is no longer what Racing Desk wrote: you saved the file since, and it is left as it is"; return result; }
                 camAfter = camBefore;
                 if (change.CockpitZ.HasValue)
                 {
-                    if (Math.Abs(change.CockpitZ.Value) > RestorePolicy.MaxCockpitZ + 1e-9)
+                    if (!change.Restoring && Math.Abs(change.CockpitZ.Value) > RestorePolicy.MaxCockpitZ + 1e-9)
                     { result.Why = $"a cockpit Z of {Metres(change.CockpitZ.Value)} is beyond the ±{Metres(RestorePolicy.MaxCockpitZ)} kept to until a test shows more"; return result; }
                     if (!CarCamFile.TryWriteCockpitZ(camAfter, (float)change.CockpitZ.Value, out camAfter, out string why3)) { result.Why = "camera file: " + why3; return result; }
                 }
                 if (change.CockpitShift.HasValue)
                 {
-                    if (Math.Abs(change.CockpitShift.Value) > RestorePolicy.MaxVerticalShift + 1e-9)
+                    if (!change.Restoring && Math.Abs(change.CockpitShift.Value) > RestorePolicy.MaxVerticalShift + 1e-9)
                     { result.Why = $"a vertical shift of {change.CockpitShift.Value:0.###} is beyond ±{RestorePolicy.MaxVerticalShift:0.##}"; return result; }
                     if (!CarCamFile.TryWriteCockpitVerticalShift(camAfter, (float)change.CockpitShift.Value, out camAfter, out string why4)) { result.Why = "camera file: " + why4; return result; }
                 }
@@ -276,35 +346,60 @@ namespace RacingDesk.Data.Restore
                 if (result.CamBackup == null) { result.Why = whyBackup; return result; }
             }
 
-            // Both files: what is to be done is kept before either is touched.
+            // Both files: what is to be done is kept before either is touched, with the values app.ini is to be put back by.
             var intent = ini && cam ? new ViewIntent
             {
                 Car = change.CarPath, CamFile = camState.RelativePath,
                 IniBefore = Sha(iniBefore), IniAfter = Sha(iniAfter), IniBackup = result.IniBackup,
                 CamBefore = Sha(camBefore), CamAfter = Sha(camAfter), CamBackup = result.CamBackup,
                 NewZ = change.CockpitZ, NewShift = change.CockpitShift, Why = change.Why,
+                IniHeightBefore = change.IniHeight.HasValue ? heightBefore : null,
+                IniVanishYBefore = change.IniVanishY.HasValue ? vanishBefore : null,
+                IniHeightAfter = change.IniHeight.HasValue ? ReadIni(iniAfter, HeightKey) : null,
+                IniVanishYAfter = change.IniVanishY.HasValue ? ReadIni(iniAfter, VanishYKey) : null,
             } : null;
             if (intent != null) KeepIntent(intent);
 
             if (ini)
             {
                 if (_probe.SimRunning()) { result.Why = "iRacing started: nothing was written"; ForgetIntent(intent); return result; }
+                // What app.ini held, kept before Racing Desk's first write of each value: it is what undo puts back.
+                if (!NoteIni(change.IniHeight.HasValue ? heightBefore : null, null, change.IniVanishY.HasValue ? vanishBefore : null, null))
+                { result.Why = "what app.ini holds could not be kept in the store first, so nothing was written"; ForgetIntent(intent); return result; }
                 if (!Swap(AppIni, iniAfter, out string why)) { result.Why = "app.ini was not written: " + why; ForgetIntent(intent); return result; }
+                if (!NoteIni(null, change.IniHeight.HasValue ? ReadIni(iniAfter, HeightKey) : null, null, change.IniVanishY.HasValue ? ReadIni(iniAfter, VanishYKey) : null))
+                    result.Did.Add("(what was written could not be kept in the store, so undo will leave app.ini's values as they are)");
                 result.Did.Add("app.ini " + string.Join(", ", new[]
                 {
-                    change.IniHeight.HasValue ? "driverHeightAdj " + AppIniEditor.Format(change.IniHeight.Value) : null,
-                    change.IniVanishY.HasValue ? "DrivingVanishY " + AppIniEditor.Format(change.IniVanishY.Value) : null,
+                    change.IniHeight.HasValue ? HeightKey + " " + AppIniEditor.Format(change.IniHeight.Value) : null,
+                    change.IniVanishY.HasValue ? VanishYKey + " " + AppIniEditor.Format(change.IniVanishY.Value) : null,
                 }.Where(s => s != null)));
             }
             if (cam)
             {
-                if (_probe.SimRunning() || !Swap(camState.FullPath, camAfter, out string why))
+                bool simUp = _probe.SimRunning();
+                string whySwap = null;
+                if (simUp || !Swap(camState.FullPath, camAfter, out whySwap))
                 {
-                    // app.ini has been written and the camera file has not: put app.ini back, so the next run in this car does
-                    // not get the change twice. Whatever cannot be put back now is put right at the next start (Settle).
-                    string whyCam = _probe.SimRunning() ? "iRacing started" : "the camera file was not written";
-                    if (ini && !_probe.SimRunning() && Swap(AppIni, iniBefore, out _)) { result.Did.Add("app.ini put back"); ForgetIntent(intent); }
-                    result.Why = whyCam + (ini ? (result.Did.Contains("app.ini put back") ? "; app.ini was put back" : "; app.ini is put back at the next start") : "");
+                    // The step is cut short: app.ini has been written and the camera file has not. app.ini is put back by its value,
+                    // so that the next run in this car does not get the change twice — if nothing has written it since, and the sim
+                    // is not up. If that cannot be done now, the next start of Racing Desk does it (Settle), on the same terms.
+                    simUp = simUp || _probe.SimRunning();      // asked again: the swap itself refuses when the sim has started
+                    string whyCam = simUp ? "iRacing started before the camera file was written" : "the camera file was not written (" + whySwap + ")";
+                    if (!ini) { result.Why = whyCam; return result; }
+                    string notBack = null;
+                    if (!simUp && PutIniValuesBack(intent.IniHeightBefore, intent.IniVanishYBefore, intent.IniAfter, out notBack))
+                    {
+                        ForgetIntent(intent);
+                        result.Did.Add("app.ini put back");
+                        result.Why = whyCam + "; app.ini was put back to what it held, and the step stopped there";
+                    }
+                    else
+                    {
+                        result.Why = whyCam + "; app.ini could not be put back now" + (notBack != null ? " (" + notBack + ")" : "")
+                                     + ". When Racing Desk next starts it puts app.ini back to what it held, if nothing else has written app.ini by then "
+                                     + "(iRacing rewrites it when it exits), and says so on the desk";
+                    }
                     return result;
                 }
                 result.CamSha = Sha(camAfter);
@@ -319,77 +414,147 @@ namespace RacingDesk.Data.Restore
             return result;
         }
 
+        private static double? ReadIni(byte[] file, string key) =>
+            file != null && AppIniEditor.TryReadValue(file, "View", key, out double v) ? v : (double?)null;
+
+        private static bool Holds(double? now, double wrote) => now.HasValue && Math.Abs(now.Value - wrote) < IniTolerance;
+
+        /// <summary>A camera file's value as a float holds exactly what was written: the four bytes there are the same.</summary>
+        internal static bool HoldsFloat(double? now, double wrote) => now.HasValue && SameFloat(now.Value, wrote);
+
+        /// <summary>Two values are the same four bytes in a camera file (as floats; 0 and -0 are one).</summary>
+        internal static bool SameFloat(double a, double b) => (float)a == (float)b;
+
         /// <summary>
-        /// Puts a file back from a backup: the backup must be a camera file or app.ini of the rig's layout, and the sim closed.
-        /// The file as it is now is backed up first, like any other write.
+        /// Puts the values of app.ini back by value — one value at a time, in the width it had — and only while the file is
+        /// still exactly <paramref name="onlyIfSha"/> (what was written): a file that is anything else was changed since, by
+        /// iRacing or him, and is left as it is. The sim is asked again right before the swap.
         /// </summary>
-        public ViewWriteResult Restore(string relativePath, string backupPath)
+        private bool PutIniValuesBack(double? height, double? vanishY, string onlyIfSha, out string why)
         {
-            var result = new ViewWriteResult();
-            string rel = SafeRelative(relativePath);
-            if (rel == null) { result.Why = "not a file of iRacing's view"; return result; }
-            if (_probe.SimRunning()) { result.Why = "iRacing is running: its files are written only while it is closed"; return result; }
-            byte[] backup = ReadShared(backupPath);
-            if (backup == null) { result.Why = "the backup is not there"; return result; }
-            bool isCam = rel.EndsWith(".cam", StringComparison.OrdinalIgnoreCase);
-            if (isCam && !CarCamFile.IsWritable(backup, out string whyCam)) { result.Why = "the backup is not a camera file of the rig's layout: " + whyCam; return result; }
-            if (!isCam && !string.Equals(rel, "app.ini", StringComparison.OrdinalIgnoreCase)) { result.Why = "only app.ini and camera files are put back"; return result; }
-            string full = Path.Combine(_documents, rel);
-            byte[] now = ReadShared(full);
-            if (now != null && now.AsSpan().SequenceEqual(backup)) { result.Ok = true; result.Did.Add(rel + " is already as the backup"); return result; }
-            if (now != null)
+            why = null;
+            byte[] now = ReadAppIni();
+            if (now == null) { why = "there is no app.ini"; return false; }
+            if (onlyIfSha != null && Sha(now) != onlyIfSha) { why = "app.ini is no longer what was written"; return false; }
+            byte[] edited = now;
+            if (height.HasValue && !AppIniEditor.TrySetValue(edited, "View", HeightKey, height.Value, out edited, out why)) return false;
+            if (vanishY.HasValue && !AppIniEditor.TrySetValue(edited, "View", VanishYKey, vanishY.Value, out edited, out why)) return false;
+            if (_probe.SimRunning()) { why = "iRacing started"; return false; }
+            if (!Swap(AppIni, edited, out why)) return false;
+            why = null;
+            return true;
+        }
+
+        /// <summary>Keeps what Racing Desk has done to app.ini's values (see <see cref="RacingDeskStore.NoteIniValues"/>); true where there is no store to keep it in.</summary>
+        private bool NoteIni(double? heightBefore, double? heightWritten, double? vanishBefore, double? vanishWritten)
+        {
+            if (_storePath == null) return true;
+            try
             {
-                result.CamBackup = Backup(full, rel, Stamp(), now, out string whyBackup);
-                if (result.CamBackup == null) { result.Why = whyBackup; return result; }
+                using var store = new RacingDeskStore(_storePath);
+                return store.NoteIniValues(heightBefore, heightWritten, vanishBefore, vanishWritten, _now());
             }
-            if (_probe.SimRunning() || !Swap(full, backup, out string why)) { result.Why = rel + " was not put back: " + (_probe.SimRunning() ? "iRacing started" : "it could not be written"); return result; }
-            result.Ok = true;
-            result.CamSha = Sha(backup);
-            result.Did.Add(rel + " put back");
-            return result;
+            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException || ex is IOException)
+            {
+                return false;
+            }
         }
 
         /// <summary>
-        /// At the host's start, with the sim closed: a two-file write that was cut short is finished or put back (critique
-        /// H1). app.ini written and the camera file not: the camera file is written now, if it is still as it was. Neither
-        /// written: the intent is let go. Files changed since by somebody else: left as they are, and said.
+        /// At the host's start, with the sim closed: a two-file write that was cut short is put back, not finished (critique
+        /// H1). app.ini written and the camera file not: app.ini's value is put back to what it was, by value, and the camera
+        /// file is not touched. Both written: the record is let go. Neither: the record is let go. app.ini holding neither what
+        /// was written nor what it was, or the camera file changed since: nothing is touched, and it is said. The camera file
+        /// is the one the write named and no other: camera.ini's LastCarSet is not asked again.
         /// </summary>
-        public IReadOnlyList<string> Settle()
+        public IReadOnlyList<SettleNote> Settle()
         {
-            var said = new List<string>();
-            if (_storePath == null || !File.Exists(_storePath)) return said;
-            if (_probe.SimRunning()) return said;
+            var notes = new List<SettleNote>();
+            if (_storePath == null || !File.Exists(_storePath)) return notes;
+            if (_probe.SimRunning()) return notes;
             List<CarViewKeep> pending;
             using (var store = new RacingDeskStore(_storePath))
                 pending = store.CarViewKeeps().Where(k => !string.IsNullOrEmpty(k.Intent)).ToList();
             foreach (var keep in pending)
             {
+                string car = keep.CarPath;
                 ViewIntent intent;
                 try { intent = JsonSerializer.Deserialize<ViewIntent>(keep.Intent); }
                 catch (JsonException) { intent = null; }
-                if (intent == null) { ClearIntent(keep.CarPath); said.Add($"view: {keep.CarPath} — a write's record could not be read; let go"); continue; }
-                string ini = Sha(ReadAppIni());
-                var camPath = Path.Combine(_documents, intent.CamFile ?? "");
-                byte[] camNow = ReadShared(camPath);
-                string cam = Sha(camNow);
-                if (ini == intent.IniAfter && cam == intent.CamAfter)
-                    said.Add($"view: {keep.CarPath} — the write was done; its record let go");
-                else if (ini == intent.IniBefore && cam == intent.CamBefore)
-                    said.Add($"view: {keep.CarPath} — the write was not begun; its record let go");
-                else if (ini == intent.IniAfter && cam == intent.CamBefore)
+                if (intent == null)
                 {
-                    // Finish it: the camera file is written as it was to be.
-                    var change = new ViewChange { CarPath = intent.Car, CockpitZ = intent.NewZ, CockpitShift = intent.NewShift, Why = "finishing a write cut short" };
-                    var done = Apply(change);
-                    said.Add(done.Ok ? $"view: {keep.CarPath} — a write cut short was finished ({string.Join("; ", done.Did)})"
-                                     : $"view: {keep.CarPath} — a write cut short could not be finished: {done.Why}; app.ini put back from its backup" +
-                                       (Restore("app.ini", intent.IniBackup).Ok ? "" : " — and that failed too"));
+                    ClearIntent(car);
+                    notes.Add(new SettleNote { Car = car, State = "info", Text = "a write's record could not be read; let go" });
+                    continue;
+                }
+                string camRel = SafeRelative(intent.CamFile);
+                string ini = Sha(ReadAppIni());
+                string cam = camRel == null ? null : Sha(ReadShared(Path.Combine(_documents, camRel)));
+
+                if (ini == intent.IniAfter && cam == intent.CamAfter)
+                {
+                    notes.Add(new SettleNote { Car = car, State = "info", Text = "the write was done; its record let go" });
+                }
+                else if (ini == intent.IniBefore && cam == intent.CamBefore)
+                {
+                    notes.Add(new SettleNote { Car = car, State = "info", Text = "the write was not begun; its record let go" });
+                }
+                else if (ini != null && ini == intent.IniAfter && cam != null && cam == intent.CamBefore)
+                {
+                    // Cut short: app.ini was written and the camera file was not. Put back, never finished.
+                    double? h = intent.IniHeightBefore, v = intent.IniVanishYBefore;
+                    if (!h.HasValue && !v.HasValue) (h, v) = ValuesToPutBackFrom(intent.IniBackup);
+                    if (!h.HasValue && !v.HasValue)
+                    {
+                        notes.Add(new SettleNote { Car = car, State = "failed", Text = $"a step for {car} was cut short, and app.ini could not be put back: Racing Desk has no record of what it held. Its copy from before is at {intent.IniBackup}" });
+                        ClearIntent(car);
+                        continue;
+                    }
+                    if (PutIniValuesBack(h, v, intent.IniAfter, out string why))
+                    {
+                        string put = string.Join(", ", new[] { h.HasValue ? "driver height " + Words.Cm(h.Value) : null, v.HasValue ? "horizon " + v.Value.ToString("0.000", CultureInfo.InvariantCulture) : null }.Where(s => s != null));
+                        notes.Add(new SettleNote
+                        {
+                            Car = car, State = "done",
+                            Text = $"A step for {car} was cut short: Racing Desk was stopped after it wrote app.ini and before it wrote the car's camera file. app.ini was put back ({put}); the camera file was not touched.",
+                        });
+                    }
+                    else
+                    {
+                        // Not put back: the record stays, and the next start tries again (or finds app.ini changed, and lets it go).
+                        notes.Add(new SettleNote
+                        {
+                            Car = car, State = "failed",
+                            Text = $"A step for {car} was cut short, and app.ini could not be put back ({why}). Racing Desk tries again at its next start. Its copy from before is at {intent.IniBackup}",
+                        });
+                        continue;
+                    }
                 }
                 else
-                    said.Add($"view: {keep.CarPath} — the files changed since a write was cut short (iRacing, or by hand): left as they are");
-                ClearIntent(keep.CarPath);
+                {
+                    notes.Add(new SettleNote
+                    {
+                        Car = car, State = "left",
+                        Text = $"A step for {car} was cut short, and app.ini and its camera file have changed since (iRacing, or by hand): both are left as they are. Racing Desk's copies from before are at {intent.IniBackup} and {intent.CamBackup}",
+                    });
+                }
+                ClearIntent(car);
             }
-            return said;
+            return notes;
+        }
+
+        /// <summary>The two values as a backup of app.ini holds them: for a record that kept none of its own.</summary>
+        private (double? Height, double? VanishY) ValuesToPutBackFrom(string backupPath)
+        {
+            byte[] backup = ReadShared(backupPath);
+            byte[] now = ReadAppIni();
+            if (backup == null || now == null) return (null, null);
+            double? Differs(string key)
+            {
+                double? was = ReadIni(backup, key), is_ = ReadIni(now, key);
+                return was.HasValue && is_.HasValue && Math.Abs(was.Value - is_.Value) >= IniTolerance ? was : null;
+            }
+            return (Differs(HeightKey), Differs(VanishYKey));
         }
 
         private void KeepIntent(ViewIntent intent)
@@ -409,6 +574,10 @@ namespace RacingDesk.Data.Restore
             ClearIntent(intent.Car);
         }
 
+        /// <summary>
+        /// The write is done, or given up: its record goes. A row that was made only to hold the record — nothing was kept in
+        /// it — goes with it, so that a write that was refused leaves no row for undo to find.
+        /// </summary>
         private void ClearIntent(string car)
         {
             if (_storePath == null) return;
@@ -417,8 +586,14 @@ namespace RacingDesk.Data.Restore
             if (row == null) return;
             row.Intent = null;
             row.IntentAtUtc = null;
-            store.SaveCarViewKeep(row);
+            if (KeepsAnything(row)) store.SaveCarViewKeep(row);
+            else store.ForgetCarViewKeep(car);
         }
+
+        /// <summary>Whether a row keeps anything of a written height, beside the record of a write.</summary>
+        private static bool KeepsAnything(CarViewKeep k) =>
+            k.WrittenSha != null || k.WrittenAtUtc.HasValue || k.OwnZ.HasValue || k.OwnVerticalShift.HasValue || k.WrittenZ.HasValue
+            || k.WrittenVerticalShift.HasValue || k.OriginalBackup != null || k.PendingD.HasValue || k.AddedZ != 0 || k.AddedVerticalShift != 0;
 
         // ── Backups ──
 

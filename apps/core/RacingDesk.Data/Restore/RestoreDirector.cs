@@ -104,19 +104,25 @@ namespace RacingDesk.Data.Restore
         // ── The host's start ──
 
         /// <summary>
-        /// The host has started. A write of the view files that a stop cut short is finished or put back (with the sim closed),
-        /// the starting height is written down, and what app.ini holds is compared with it: trial says what it would put back.
+        /// The host has started. A write of the view files that a stop cut short is put back, never finished (with the sim
+        /// closed), the starting height is written down, and what app.ini holds is compared with it: trial says what it would put back.
         /// </summary>
         public void HostStarted()
         {
             Queue(() =>
             {
-                foreach (string line in _ctx.Files.Settle()) _ctx.Log("restore: " + line);
+                // A step that a stop cut short is put back, not finished (ViewFiles.Settle): what is only in the way of nothing is
+                // logged; a step put back, or left, or one that could not be put back, is a line on the desk as well.
+                foreach (var note in _ctx.Files.Settle())
+                {
+                    if (note.State == "info") _ctx.Log($"restore: {note.Car} — {note.Text}");
+                    else _ctx.Say(note.Car, "settle", note.State, note.Text);
+                }
                 using (var store = _ctx.OpenStore())
                 {
                     if (!store.HasRestoreTables) return;
                     if (store.ViewBaselineRow() == null)
-                        store.SaveViewBaseline(new ViewBaseline { StartHeight = _ctx.StartHeight, DecidedAtUtc = new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc), DecidedBy = "Kevin, 2026-10-02" });
+                        store.SaveViewBaseline(new ViewBaseline { StartHeight = _ctx.StartHeight, DecidedAtUtc = RestorePolicy.DecidedAtUtc, DecidedBy = RestorePolicy.DecidedBy });
                 }
                 if (!Switches.Height || _ctx.Probe.SimRunning()) return;
                 double? h = _ctx.Files.AppIniHeight();

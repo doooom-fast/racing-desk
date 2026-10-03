@@ -378,8 +378,8 @@ namespace RacingDesk.Data.Restore
             if (change.Ok)
             {
                 using var store = _ctx.OpenStore();
-                var b = store.ViewBaselineRow() ?? new ViewBaseline { StartHeight = _ctx.StartHeight, DecidedAtUtc = _ctx.Now(), DecidedBy = "Kevin, 2026-10-02" };
-                b.IniOriginal = b.IniOriginal ?? was;
+                // What app.ini held before Racing Desk's first write is kept by the writer itself, whichever step makes it.
+                var b = store.ViewBaselineRow() ?? new ViewBaseline { StartHeight = _ctx.StartHeight, DecidedAtUtc = RestorePolicy.DecidedAtUtc, DecidedBy = RestorePolicy.DecidedBy };
                 b.IniBackup = b.IniBackup ?? change.IniBackup;
                 // The file's own time, which B1-check compares with: whether anything wrote app.ini again before the garage screen.
                 b.IniWrittenAtUtc = AppIniWrittenAtUtc() ?? _ctx.Now();
@@ -567,9 +567,15 @@ namespace RacingDesk.Data.Restore
             var file = TestCarFile("B6-b", out var refused);
             if (file == null) return refused;
             var (_, _, own, shift) = file.Value;
-            double? vy = _ctx.Files.AppIniValue("DrivingVanishY");
+            double? vy = _ctx.Files.AppIniValue(ViewFiles.VanishYKey);
             if (vy == null) return StepResult.No("B6-b", "app.ini has no DrivingVanishY");
-            return WriteTestCar("B6-b", new ViewChange { CarPath = RestoreGate.TestCar, CockpitShift = shift, IniVanishY = vy.Value + 0.02, Why = "first run B6" }, own, shift, file.Value.Keep?.AddedZ ?? 0, 0);
+            // The original plus 0.02, however many times it is pressed: the value it held before Racing Desk's first write of it,
+            // else the one it holds now (this is that first write).
+            double was;
+            using (var store = _ctx.OpenStore()) was = store.ViewBaselineRow()?.VanishYOriginal ?? vy.Value;
+            var r = WriteTestCar("B6-b", new ViewChange { CarPath = RestoreGate.TestCar, CockpitShift = shift, IniVanishY = was + 0.02, Why = "first run B6" }, own, shift, file.Value.Keep?.AddedZ ?? 0, 0);
+            if (r.Ok) r.Saw.Add($"DrivingVanishY is {AppIniEditor.Format(was)} + 0.02, however many times this is pressed");
+            return r;
         }
 
         private StepResult FovAsBefore()
@@ -586,27 +592,14 @@ namespace RacingDesk.Data.Restore
         {
             if (_ctx.Probe.SimRunning()) return StepResult.No("B7-restore", "iRacing is running: exit the sim first");
             var r = new StepResult { Ok = true };
-            byte[] original = ViewFiles.ReadShared(_ctx.Files.Original("app.ini"));
-            if (original != null && AppIniEditor.TryReadValue(original, "View", "driverHeightAdj", out double h) && AppIniEditor.TryReadValue(original, "View", "DrivingVanishY", out double vy))
-            {
-                var ini = _ctx.Files.Apply(new ViewChange { IniHeight = h, IniVanishY = vy, Why = "first run B7: as before" });
-                r.Did.AddRange(ini.Did);
-                if (!ini.Ok) { r.Ok = false; r.Why = ini.Why; return r; }
-            }
-            else r.Saw.Add("no first original of app.ini: it was left as it is");
-            string rel = ViewFiles.DefaultCamFile(RestoreGate.TestCar);
             using var store = _ctx.OpenStore();
+            // The same as undo: app.ini's two values, and the 963's cockpit, each back to what it held before Racing Desk wrote
+            // it and only while it still holds what Racing Desk wrote. The whole-file copies are not put back by this.
+            RestoreUndo.PutBackIni(_ctx, store, r);
             var keep = store.CarViewKeepOf(RestoreGate.TestCar);
-            string camRel = keep?.CamFile ?? rel;
-            string camOriginal = keep?.OriginalBackup ?? _ctx.Files.Original(camRel);
-            if (camOriginal != null)
-            {
-                var cam = _ctx.Files.Restore(camRel, camOriginal);
-                r.Did.AddRange(cam.Did);
-                if (!cam.Ok) { r.Ok = false; r.Why = cam.Why; return r; }
-                store.ForgetCarViewKeep(RestoreGate.TestCar);
-            }
-            else r.Saw.Add("no first original of the 963's camera file: it was left as it is");
+            if (keep != null) RestoreUndo.PutBackCam(_ctx, store, keep, r);
+            else r.Saw.Add("Racing Desk has written nothing into the 963's camera file");
+            if (r.Did.Count == 0 && r.Saw.Count == 0) r.Saw.Add("Racing Desk has written nothing into app.ini");
             return r;
         }
 

@@ -7,7 +7,7 @@ namespace RacingDesk.Data.Restore
     /// split into his own (what the file held before Racing Desk first wrote it, or after he saved it himself since) and
     /// what Racing Desk has added on top, so that the view kept for the car never counts the same height twice and undo
     /// can tell the two apart. A write under way is written down first (<see cref="Intent"/>), so that a host that stops
-    /// half-way finishes or rolls it back at its next start.
+    /// half-way puts it back, by value, at its next start (it is never finished behind his back).
     /// </summary>
     public sealed class CarViewKeep
     {
@@ -61,6 +61,14 @@ namespace RacingDesk.Data.Restore
         public double? IniOriginal { get; set; }
         public string IniBackup { get; set; }
         public DateTime? IniWrittenAtUtc { get; set; }
+
+        /// <summary>
+        /// The same for DrivingVanishY: its value before Racing Desk first wrote it. And the value each of the two was last
+        /// given by Racing Desk, whichever step wrote it: undo puts a value back only while the file still holds that one.
+        /// </summary>
+        public double? VanishYOriginal { get; set; }
+        public double? IniHeightWritten { get; set; }
+        public double? VanishYWritten { get; set; }
 
         /// <summary>When the one-time move of saved heights into the camera files was made; it is made once.</summary>
         public DateTime? MigratedAtUtc { get; set; }

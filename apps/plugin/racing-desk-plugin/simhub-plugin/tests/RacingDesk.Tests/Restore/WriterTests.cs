@@ -183,25 +183,156 @@ namespace RacingDesk.Tests.Restore
             Assert.That(Directory.Exists(_rig.Backups), Is.False, "a write refused before it began backs nothing up");
         }
 
-        [Test]
-        public void TheSimStartingBetweenTheTwoFiles_PutsAppIniBack_OrLeavesItForTheNextStart()
+        /// <summary>A two-file write that the sim starting cuts short: app.ini written, the camera file not, a record left.</summary>
+        private ViewWriteResult CutShort(out byte[] ini, out byte[] cam)
         {
-            byte[] ini = _rig.AppIniBytes();
+            ini = _rig.AppIniBytes();
+            cam = File.ReadAllBytes(_rig.CamPath(Car));
             var probe = new SimStartsAfter(asked: 4, _rig.Probe);
+            var files = new ViewFiles(_rig.Documents, Path.Combine(_rig.Backups, "view"), probe, _rig.Store);
+            return files.Apply(new ViewChange { CarPath = Car, IniHeight = -0.02, CockpitZ = -0.005 });
+        }
+
+        [Test]
+        public void TheSimStartingBetweenTheTwoFiles_LeavesAppIniForTheNextStart_WhichPutsItBack_AndFinishesNothing()
+        {
+            var r = CutShort(out byte[] ini, out byte[] cam);
+            Assert.That(r.Ok, Is.False);
+            Assert.That(r.Why, Does.Contain("iRacing started before the camera file was written"));
+            Assert.That(r.Why, Does.Contain("When Racing Desk next starts it puts app.ini back").And.Contain("if nothing else has written app.ini by then"),
+                "the message says what the next start does, and on what terms");
+            Assert.That(_rig.CamZ(Car), Is.EqualTo(0f), "the camera file was not written");
+            Assert.That(_rig.Files().AppIniHeight(), Is.EqualTo(-0.02).Within(1e-9), "app.ini cannot be put back while the sim runs");
+            // The sim is up: the record says what was to be done, and the values to put back by.
+            ViewIntent intent;
+            using (var store = new RacingDeskStore(_rig.Store)) intent = System.Text.Json.JsonSerializer.Deserialize<ViewIntent>(store.CarViewKeepOf(Car).Intent);
+            Assert.That((intent.IniHeightBefore, intent.IniHeightAfter, intent.CamFile), Is.EqualTo(((double?)-0.035, (double?)-0.02, ViewFiles.DefaultCamFile(Car))));
+
+            // The next start, with the sim closed: the step was cut short, and app.ini is put back by its value — not finished.
+            var note = _rig.Files().Settle().Single();
+            Assert.That(note.State, Is.EqualTo("done"));
+            Assert.That(note.Text, Does.Contain("was cut short").And.Contain("app.ini was put back").And.Contain("the camera file was not touched"));
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam), "the camera file is not written by a settling");
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(ini), "this made-up app.ini is byte for byte as it was");
+            using (var store = new RacingDeskStore(_rig.Store)) Assert.That(store.CarViewKeepOf(Car), Is.Null, "the row made only to hold the record goes with it");
+            Assert.That(_rig.Files().Settle(), Is.Empty, "and it is settled once");
+        }
+
+        [Test]
+        public void ASettling_WaitsForTheSimToClose_AndTouchesNothingWhileItRuns()
+        {
+            CutShort(out _, out byte[] cam);
+            byte[] cut = _rig.AppIniBytes();
+            _rig.Probe.Sim = true;
+            Assert.That(_rig.Files().Settle(), Is.Empty);
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(cut));
+            using var store = new RacingDeskStore(_rig.Store);
+            Assert.That(store.CarViewKeepOf(Car).Intent, Is.Not.Null, "the record waits");
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam));
+        }
+
+        [Test]
+        public void ASettling_TouchesNothing_WhenAppIniHoldsNeitherWhatWasWrittenNorWhatItWas()
+        {
+            CutShort(out _, out byte[] cam);
+            // The sim ran, and rewrote app.ini at its exit with a height of its own.
+            _rig.AppIni(-0.03);
+            byte[] theirs = _rig.AppIniBytes();
+            var note = _rig.Files().Settle().Single();
+            Assert.That(note.State, Is.EqualTo("left"));
+            Assert.That(note.Text, Does.Contain("changed since").And.Contain("both are left as they are"));
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(theirs));
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam));
+            using var store = new RacingDeskStore(_rig.Store);
+            Assert.That(store.CarViewKeepOf(Car), Is.Null, "the record is let go all the same");
+        }
+
+        [Test]
+        public void ASettling_OfAWriteThatWasDone_JustLetsItsRecordGo()
+        {
+            CutShort(out _, out _);
+            // The camera file is written as it was to be (by a hand, or a run that got further): both files hold the new state.
+            _rig.Cam(Car, -0.11f, -0.005f, 0.01f);
+            byte[] ini = _rig.AppIniBytes(), cam = File.ReadAllBytes(_rig.CamPath(Car));
+            var note = _rig.Files().Settle().Single();
+            Assert.That((note.State, note.Text), Is.EqualTo(("info", "the write was done; its record let go")));
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(ini));
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam));
+            using var store = new RacingDeskStore(_rig.Store);
+            Assert.That(store.CarViewKeepOf(Car), Is.Null);
+        }
+
+        [Test]
+        public void ASettling_GoesByTheFileTheWriteNamed_NotByWhatCameraIniSaysNow()
+        {
+            CutShort(out byte[] ini, out byte[] cam);
+            // camera.ini now names another file for the car; that file is not the one the write named, and is not looked at.
+            string other = Path.Combine(_rig.Documents, "cameras", "cars", "porsche963gtp", "race.cam");
+            File.WriteAllBytes(other, RestoreRig.CarCam(15, 0.5f, 0f, 0.04f));
+            byte[] otherBytes = File.ReadAllBytes(other);
+            _rig.CameraIni((Car, @"cars\porsche963gtp\race.cam"));
+            var note = _rig.Files().Settle().Single();
+            Assert.That(note.State, Is.EqualTo("done"), "the file the write named is as it was, so app.ini is put back");
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(ini));
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam));
+            Assert.That(File.ReadAllBytes(other), Is.EqualTo(otherBytes), "the file camera.ini names now is never written");
+        }
+
+        [Test]
+        public void ARecordWithNoValuesOfItsOwn_IsPutBackFromTheBackupsValues_NotTheWholeFile()
+        {
+            CutShort(out byte[] ini, out _);
+            // A record that kept no values (from before they were kept): the values are read from the copy taken first, and
+            // only the one that differs is set back.
+            using (var store = new RacingDeskStore(_rig.Store))
+            {
+                var row = store.CarViewKeepOf(Car);
+                var intent = System.Text.Json.JsonSerializer.Deserialize<ViewIntent>(row.Intent);
+                intent.IniHeightBefore = intent.IniVanishYBefore = intent.IniHeightAfter = intent.IniVanishYAfter = null;
+                row.Intent = System.Text.Json.JsonSerializer.Serialize(intent);
+                store.SaveCarViewKeep(row);
+            }
+            var note = _rig.Files().Settle().Single();
+            Assert.That(note.State, Is.EqualTo("done"));
+            Assert.That(_rig.AppIniBytes(), Is.EqualTo(ini));
+            Assert.That(_rig.Files().AppIniValue("DrivingVanishY"), Is.EqualTo(0.19).Within(1e-9));
+        }
+
+        [Test]
+        public void AWriteThatIsRefusedAfterItsRecordWasKept_LeavesNoRowForUndoToFind()
+        {
+            var probe = new SimStartsAfter(asked: 1, _rig.Probe);       // the sim is up by the time app.ini is to be written
             var files = new ViewFiles(_rig.Documents, Path.Combine(_rig.Backups, "view"), probe, _rig.Store);
             var r = files.Apply(new ViewChange { CarPath = Car, IniHeight = -0.02, CockpitZ = -0.005 });
             Assert.That(r.Ok, Is.False);
-            Assert.That(r.Why, Does.Contain("iRacing started"));
-            Assert.That(_rig.CamZ(Car), Is.EqualTo(0f), "the camera file was not written");
-            // The sim is up: app.ini cannot be put back now, and its record says what to do at the next start.
-            using (var store = new RacingDeskStore(_rig.Store)) Assert.That(store.CarViewKeepOf(Car).Intent, Is.Not.Null);
+            Assert.That(r.Why, Does.Contain("nothing was written"));
+            using var store = new RacingDeskStore(_rig.Store);
+            Assert.That(store.CarViewKeepOf(Car), Is.Null);
+            Assert.That(store.CarViewKeeps(), Is.Empty);
+        }
 
-            // The next start, with the sim closed: the write is finished.
-            var said = _rig.Files().Settle();
-            Assert.That(said.Single(), Does.Contain("finished"));
-            Assert.That(_rig.CamZ(Car), Is.EqualTo(-0.005f));
-            Assert.That(_rig.Files().AppIniHeight(), Is.EqualTo(-0.02).Within(1e-9));
-            using (var store = new RacingDeskStore(_rig.Store)) Assert.That(store.CarViewKeepOf(Car).Intent, Is.Null);
+        [Test]
+        public void ARowThatKeepsAHeight_StaysWhenARecordIsLetGo()
+        {
+            using (var store = new RacingDeskStore(_rig.Store))
+                store.SaveCarViewKeep(new CarViewKeep { CarPath = Car, CamFile = ViewFiles.DefaultCamFile(Car), OwnZ = 0, WrittenZ = -0.02, WrittenSha = "x", SeenAtUtc = DateTime.UtcNow });
+            Assert.That(_rig.Files().Apply(new ViewChange { CarPath = Car, IniHeight = -0.02, CockpitZ = -0.005 }).Ok, Is.True);
+            using var again = new RacingDeskStore(_rig.Store);
+            var row = again.CarViewKeepOf(Car);
+            Assert.That((row.OwnZ, row.WrittenZ, row.Intent), Is.EqualTo(((double?)0.0, (double?)-0.02, (string)null)));
+        }
+
+        [Test]
+        public void WhatAppIniHeld_IsKeptByTheWriter_BeforeItsFirstWriteOfEachValue_WhicheverStepMakesIt()
+        {
+            var files = _rig.Files();
+            Assert.That(files.Apply(new ViewChange { IniVanishY = 0.21 }).Ok, Is.True);       // the horizon first, on its own
+            Assert.That(files.Apply(new ViewChange { IniHeight = -0.04 }).Ok, Is.True);       // the height later
+            Assert.That(files.Apply(new ViewChange { IniHeight = -0.05, IniVanishY = 0.25 }).Ok, Is.True);
+            using var store = new RacingDeskStore(_rig.Store);
+            var b = store.ViewBaselineRow();
+            Assert.That((b.IniOriginal, b.VanishYOriginal), Is.EqualTo(((double?)-0.035, (double?)0.19)), "each as it was before Racing Desk's first write of that value");
+            Assert.That((b.IniHeightWritten, b.VanishYWritten), Is.EqualTo(((double?)-0.05, (double?)0.25)), "and each as Racing Desk last wrote it");
         }
 
         /// <summary>The sim, closed until it has been asked a number of times, then running.</summary>
@@ -238,18 +369,66 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
-        public void AFileIsPutBack_FromABackup_OnlyAsAFileOfItsKind()
+        public void AValueIsPutBack_ByItsFourBytes_AndOnlyWhileItIsWhatRacingDeskWrote()
         {
             var files = _rig.Files();
-            byte[] cam = File.ReadAllBytes(_rig.CamPath(Car));
-            files.Apply(new ViewChange { CarPath = Car, CockpitZ = 0.03 });
             string rel = ViewFiles.DefaultCamFile(Car);
-            Assert.That(files.Restore(rel, files.Original(rel)).Ok, Is.True);
+            byte[] cam = File.ReadAllBytes(_rig.CamPath(Car));
+            Assert.That(files.Apply(new ViewChange { CarPath = Car, CockpitZ = 0.03 }).Ok, Is.True);
+            byte[] wrote = File.ReadAllBytes(_rig.CamPath(Car));
+
+            // Still what Racing Desk wrote: back to what it held, four bytes, and the file is as it was to the byte.
+            var put = files.Apply(new ViewChange { CamFile = rel, CockpitZ = 0.0, ExpectCockpitZ = 0.03, Restoring = true });
+            Assert.That(put.Ok, Is.True, put.Why);
             Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(cam));
-            string junk = Path.Combine(_rig.Dir, "junk.cam");
-            File.WriteAllBytes(junk, new byte[] { 1, 2, 3 });
-            Assert.That(files.Restore(rel, junk).Why, Does.Contain("not a camera file"));
-            Assert.That(files.Restore(@"..\outside.ini", files.Original("app.ini") ?? junk).Why, Does.Contain("not a file of iRacing's view"));
+
+            // He saved it since (Z 0.04, his seat moved too): nothing is written, and the file is his.
+            _rig.Cam(Car, -0.2f, 0.04f, 0.01f);
+            byte[] his = File.ReadAllBytes(_rig.CamPath(Car));
+            var refused = files.Apply(new ViewChange { CamFile = rel, CockpitZ = 0.0, ExpectCockpitZ = 0.03, Restoring = true });
+            Assert.That(refused.Ok, Is.False);
+            Assert.That(refused.Why, Does.Contain("no longer what Racing Desk wrote").And.Contain("you saved the file since"));
+            Assert.That(File.ReadAllBytes(_rig.CamPath(Car)), Is.EqualTo(his));
+            Assert.That(wrote, Is.Not.EqualTo(his));
+        }
+
+        [Test]
+        public void AValueThatWasInTheFileBefore_IsPutBack_WhateverTheLimitOfAWrite()
+        {
+            var files = _rig.Files();
+            _rig.Cam(Car, -0.11f, 0.08f, 0.01f);            // his own Z, beyond the 5 cm a write is kept to
+            string rel = ViewFiles.DefaultCamFile(Car);
+            Assert.That(files.Apply(new ViewChange { CarPath = Car, CockpitZ = 0.04 }).Ok, Is.True);
+            Assert.That(files.Apply(new ViewChange { CarPath = Car, CockpitZ = 0.08 }).Why, Does.Contain("beyond"), "a write is held to the limit");
+            Assert.That(files.Apply(new ViewChange { CamFile = rel, CockpitZ = 0.08, ExpectCockpitZ = 0.04, Restoring = true }).Ok, Is.True, "a put back is not");
+            Assert.That(_rig.CamZ(Car), Is.EqualTo(0.08f));
+        }
+
+        [Test]
+        public void AnAppIniValue_IsPutBack_OnlyWhileItHoldsWhatWasWritten()
+        {
+            var files = _rig.Files();
+            Assert.That(files.Apply(new ViewChange { IniHeight = -0.04 }).Ok, Is.True);
+            var refused = files.Apply(new ViewChange { IniHeight = -0.035, ExpectIniHeight = -0.05, Restoring = true });
+            Assert.That(refused.Ok, Is.False);
+            Assert.That(refused.Why, Does.Contain("no longer what Racing Desk wrote"));
+            Assert.That(files.AppIniHeight(), Is.EqualTo(-0.04).Within(1e-9));
+            Assert.That(files.Apply(new ViewChange { IniHeight = -0.035, ExpectIniHeight = -0.04, Restoring = true }).Ok, Is.True);
+            Assert.That(files.AppIniHeight(), Is.EqualTo(-0.035).Within(1e-9));
+        }
+
+        [Test]
+        public void TheFileNamedInTheChange_IsTheOneWritten_AndCameraIniIsNotAskedAgain()
+        {
+            string race = Path.Combine(_rig.Documents, "cameras", "cars", "porsche963gtp", "race.cam");
+            File.WriteAllBytes(race, RestoreRig.CarCam(15, 0.5f, 0f, 0.02f));
+            _rig.CameraIni((Car, @"cars\porsche963gtp\race.cam"));       // iRacing would load race.cam now
+            byte[] raceBytes = File.ReadAllBytes(race);
+            var r = _rig.Files().Apply(new ViewChange { CarPath = Car, CamFile = ViewFiles.DefaultCamFile(Car), CockpitZ = 0.03 });
+            Assert.That(r.Ok, Is.True, r.Why);
+            Assert.That(_rig.CamZ(Car), Is.EqualTo(0.03f), "car.cam, which the change named");
+            Assert.That(File.ReadAllBytes(race), Is.EqualTo(raceBytes), "race.cam, which camera.ini names, was not looked up");
+            Assert.That(_rig.Files().Apply(new ViewChange { CarPath = Car, CamFile = @"..\app.ini", CockpitZ = 0.03 }).Why, Does.Contain("not one a camera file is kept under"));
         }
     }
 
@@ -326,6 +505,43 @@ namespace RacingDesk.Tests.Restore
             Assert.That(store.SaveViewBaseline(new ViewBaseline { StartHeight = -0.02, DecidedAtUtc = at, DecidedBy = "Kevin", IniOriginal = -0.035 }), Is.True);
             store.SaveViewBaseline(new ViewBaseline { StartHeight = -0.02, DecidedAtUtc = at, IniOriginal = -0.01 });
             Assert.That(store.ViewBaselineRow().IniOriginal, Is.EqualTo(-0.035), "what app.ini held before Racing Desk first wrote it is kept, not replaced");
+        }
+
+        [Test]
+        public void AV9StoreMadeBeforeAppInisValuesWereKept_GainsTheirColumns_AndIsReadWithoutThemReadOnly()
+        {
+            _rig.StoreWithCars(("porsche963gtp", "Porsche 963 GTP", -0.02, true, 0.0, "Default", RestoreRig.DefaultId, 70.0, "rule"));
+            // As an earlier build of v9 left it: the baseline table without the three columns.
+            using (var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = _rig.Store, Pooling = false }.ToString()))
+            {
+                db.Open();
+                RestoreRig.Run(db, @"DROP TABLE view_baseline;
+CREATE TABLE view_baseline (id INTEGER PRIMARY KEY CHECK (id = 1), start_height REAL NOT NULL, decided_at TEXT NOT NULL, decided_by TEXT,
+  ini_original REAL, ini_backup TEXT, ini_written_at TEXT, migrated_at TEXT, launch_height REAL, launch_at TEXT);
+INSERT INTO view_baseline (id, start_height, decided_at, ini_original) VALUES (1, -0.02, '2026-10-02T12:00:00.000Z', -0.035)");
+            }
+            SqliteConnection.ClearAllPools();
+            using (var read = RacingDeskStore.OpenReadOnly(_rig.Store))
+            {
+                var b = read.ViewBaselineRow();
+                Assert.That((b.IniOriginal, b.VanishYOriginal, b.IniHeightWritten), Is.EqualTo(((double?)-0.035, (double?)null, (double?)null)), "read as it is, with no columns to read");
+            }
+            using (var store = new RacingDeskStore(_rig.Store))
+            {
+                var at = new DateTime(2026, 10, 2, 20, 0, 0, DateTimeKind.Utc);
+                Assert.That(store.NoteIniValues(-0.035, -0.02, 0.19, 0.21, at), Is.True);
+                var b = store.ViewBaselineRow();
+                Assert.That((b.IniOriginal, b.IniHeightWritten, b.VanishYOriginal, b.VanishYWritten), Is.EqualTo(((double?)-0.035, (double?)-0.02, (double?)0.19, (double?)0.21)));
+                Assert.That(store.NoteIniValues(-0.5, -0.04, 0.5, 0.25, at), Is.True);
+                b = store.ViewBaselineRow();
+                Assert.That((b.IniOriginal, b.IniHeightWritten, b.VanishYOriginal, b.VanishYWritten), Is.EqualTo(((double?)-0.035, (double?)-0.04, (double?)0.19, (double?)0.25)),
+                    "what it held before the first write stays; what it last wrote is replaced");
+                Assert.That(store.NoteIniValues(null, null, null, null, at), Is.True);
+                Assert.That(store.ViewBaselineRow().IniHeightWritten, Is.EqualTo(-0.04), "nothing given leaves what is kept");
+                Assert.That(store.ForgetIniValues(), Is.True);
+                var gone = store.ViewBaselineRow();
+                Assert.That((gone.IniOriginal, gone.IniHeightWritten, gone.VanishYOriginal, gone.VanishYWritten), Is.EqualTo(((double?)null, (double?)null, (double?)null, (double?)null)));
+            }
         }
 
         [Test]

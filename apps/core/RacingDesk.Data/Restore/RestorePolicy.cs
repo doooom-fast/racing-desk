@@ -13,6 +13,13 @@ namespace RacingDesk.Data.Restore
         /// <summary>S: the height every car launches with, app.ini's driverHeightAdj. His decision: -0.020, his height then.</summary>
         public const double StartHeight = -0.020;
 
+        /// <summary>The day S was decided, and by whom: kept with it in the store.</summary>
+        public static readonly DateTime DecidedAtUtc = new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc);
+        public const string DecidedBy = "Kevin, 2026-10-02";
+
+        /// <summary>How a camera file is saved for a car that has none, said the one way everywhere (B8's): the desk, the HUD and host.log.</summary>
+        public const string SaveACameraFile = "out of the car, in replay, Ctrl+F12, Save Car, name car.cam";
+
         /// <summary>A change of height smaller than this is no change (the sim's steps are 0.005 m).</summary>
         public const double SmallestChange = 0.0005;
 

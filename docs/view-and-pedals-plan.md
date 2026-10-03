@@ -57,7 +57,7 @@ add. So:
   under half a millimetre is no change. His own Z is kept apart from what Racing Desk added (`own_z`, `added_z`), so undo
   can take back exactly its own. The field of view is never touched.
 - **The order of a write**, so that a stop halfway leaves nothing wrong: the intent is kept in the store first, then
-  `app.ini` is set to S, then the camera file is written; a host start finishes a cut-short write or puts it back, with the
+  `app.ini` is set to S, then the camera file is written; a host start puts a cut-short write back (app.ini's value, never finishing the step), with the
   sim closed. A change waiting for the sim to close expires when the car is next driven.
 - **The camera file**: MACC version 14 or 15, 1,668 bytes, nine 184-byte records; the cockpit record is found by its name
   and its Z is at +60. A file that is not that shape is refused and said.
@@ -102,8 +102,12 @@ add. So:
   horizon once B6 — and only in a build that acts. His +5 / −5 count from a switched profile's force under the same gate.
 - **Undo**, each on his click, asking first: "Remove the brake profiles Racing Desk made" (its car profiles, its switch
   profile and F24, with the editor closed; his own rows are never touched) and "Undo everything Racing Desk changed" for the
-  height (every camera file it wrote put back from its first original, and `app.ini`'s height; with iRacing closed), and
-  per car from the car's View panel.
+  height (with iRacing closed), and per car from the car's View panel. **Undo puts values back, never whole files**: a camera
+  file's cockpit Z (and vertical shift) is set to what it held before Racing Desk wrote it — the same four bytes, nothing else
+  of the file — and `app.ini`'s driver height and horizon likewise, one value at a time, from what each held before Racing
+  Desk's first write of it, whichever step made that write. Each is put back only while it still holds what Racing Desk
+  wrote; one he saved or changed since is his, left as it is, and said with the path of the copy Racing Desk took first. The
+  whole-file copies are for recovering by hand and are never put back by Racing Desk itself.
 
 ### What is stored (schema v9, tables only)
 

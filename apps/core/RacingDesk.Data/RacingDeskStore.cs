@@ -207,7 +207,12 @@ CREATE TABLE IF NOT EXISTS track_geometry_build (
         {
             Exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)");
             long current = Scalar<long>(StoredVersion);
-            if (current >= SchemaVersion) return;
+            if (current >= SchemaVersion)
+            {
+                // A v9 store made before app.ini's values were kept apart gains the columns for them (nothing else of it changes).
+                EnsureRestoreColumns();
+                return;
+            }
 
             // One step per version, so a store from any earlier version catches up in one open.
             while (current > 0 && current < SchemaVersion)

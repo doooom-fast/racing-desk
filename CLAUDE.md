@@ -390,7 +390,7 @@ files or to the pedals; putting the cars back is built **in trial** (last bullet
     and B5 for the height.
   - **The writers** back up first and read back after: `ViewFiles` (`app.ini` through `AppIniEditor`, which keeps the
     line's width; `car.cam` through `CarCamFile`; both process names of the sim checked before each write; an intent kept
-    in the store when both files change, finished or put back at host start) and `SmartControlWriter` (the vendor's own
+    in the store when both files change, and put back by value at host start if a stop cut it short; undo puts values back too, never a whole-file copy) and `SmartControlWriter` (the vendor's own
     SQL shapes, database version 1 only, a short transaction with a busy timeout, the journal mode never changed, **any
     row it did not make refused**: his six profiles, presets and five keys are never touched).
   - **One key, ever**: `KeySender.SendF24` in the host (`SendInput`, F24 alone, which nothing on the rig is bound to). Its
