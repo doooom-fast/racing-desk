@@ -249,7 +249,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "tire-wear",   // its own cooldown: a temperature call a minute ago must not swallow the one call a measurement gets
                     Severity = 4,
-                    Label = "TYRES",
+                    Label = "Tyres",
                     Message = $"{WorstTireLabel()} measured at {TyreWear.DisplayPercent(worst.Value)}% tread{paceNote}. {act}",
                     CooldownSeconds = WearCooldownSec
                 };
@@ -267,7 +267,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "tire-wear",
                     Severity = 2,
-                    Label = "TYRES",
+                    Label = "Tyres",
                     Message = $"{WorstTireLabel()} measured at {TyreWear.DisplayPercent(worst.Value)}% tread{lapsNote}. {think}",
                     CooldownSeconds = WearCooldownSec
                 };
@@ -278,17 +278,14 @@ namespace RacingDesk.Plugin.Engine.Strategy
             if (anyHot && (now - _lastTempCall).TotalSeconds >= TempCooldownSec)
             {
                 _lastTempCall = now;
-                var hotTires = new List<string>();
-                if (TempState[0] == 2) hotTires.Add("FL");
-                if (TempState[1] == 2) hotTires.Add("FR");
-                if (TempState[2] == 2) hotTires.Add("RL");
-                if (TempState[3] == 2) hotTires.Add("RR");
+                var hotTires = new List<int>();
+                for (int i = 0; i < 4; i++) if (TempState[i] == 2) hotTires.Add(i);
                 return new StrategyCall
                 {
                     Module = "tire",
                     Severity = 2,
-                    Label = "TYRES",
-                    Message = $"{string.Join("+", hotTires)} overheating — ease the inputs to bring temps down.",
+                    Label = "Tyres",
+                    Message = $"{CornersInWords(hotTires)} overheating — ease the inputs to bring temperatures down.",
                     CooldownSeconds = TempCooldownSec
                 };
             }
@@ -303,7 +300,7 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "tire",
                     Severity = 1,
-                    Label = "TYRES",
+                    Label = "Tyres",
                     Message = "Tyres still building temperature — be gentle for another lap or two.",
                     CooldownSeconds = TempCooldownSec
                 };
@@ -318,9 +315,9 @@ namespace RacingDesk.Plugin.Engine.Strategy
                 {
                     Module = "tire",
                     Severity = sev,
-                    Label = "GRIP",
+                    Label = "Grip",
                     Message = GripScore > 0.8
-                        ? "Significant grip loss detected — ABS/TC working overtime. Consider pitting."
+                        ? "Significant grip loss detected — the anti-lock and traction control are working overtime. Consider pitting."
                         : "Grip starting to fade — you may notice longer braking zones.",
                     CooldownSeconds = GripCooldownSec
                 };
@@ -409,7 +406,27 @@ namespace RacingDesk.Plugin.Engine.Strategy
             {
                 if (TreadRemaining[i].HasValue && worst.HasValue && TreadRemaining[i].Value <= worst.Value) { idx = i; break; }
             }
-            return new[] { "Front-left", "Front-right", "Rear-left", "Rear-right" }[idx];
+            return CornerNames[idx];
+        }
+
+        /// <summary>The corners in the order the arrays hold them, [FL, FR, RL, RR], in words (the HUD says no letters for them).</summary>
+        private static readonly string[] CornerNames = { "Front-left", "Front-right", "Rear-left", "Rear-right" };
+
+        /// <summary>
+        /// The corners at these indexes as a sentence says them: "Front-left", "Front-left and front-right", "Front-left,
+        /// front-right and rear-left", "All four tyres" for the lot.
+        /// </summary>
+        internal static string CornersInWords(IReadOnlyList<int> corners)
+        {
+            if (corners.Count >= 4) return "All four tyres";
+            var names = new List<string>();
+            for (int n = 0; n < corners.Count; n++)
+            {
+                string name = CornerNames[corners[n]];
+                names.Add(n == 0 ? name : char.ToLowerInvariant(name[0]) + name.Substring(1));
+            }
+            if (names.Count <= 1) return string.Join("", names);
+            return string.Join(", ", names.Take(names.Count - 1)) + " and " + names[names.Count - 1];
         }
     }
 }

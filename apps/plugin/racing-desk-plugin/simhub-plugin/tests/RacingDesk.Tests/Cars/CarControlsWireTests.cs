@@ -124,9 +124,13 @@ namespace RacingDesk.Tests.Cars
             var more = cars.SelectMany(c => c["more"] is JArray a ? a.Cast<JToken>() : Enumerable.Empty<JToken>()).ToList();
             Assert.That(more.Select(m => (string)m["id"]), Is.SupersetOf(new[] { "brakeMigration", "tc2", "arbFront", "arbRear", "mode", "throttleMap" }));
             Assert.That(more.Any(m => (string)m["state"] == "unread" && m["value"] == null && m["text"] == null), Is.True, "a dial the car is not publishing: its label and no value");
-            Assert.That(cars.Select(c => (string)c["drs"]?["text"]).Where(t => t != null).Distinct(), Is.EquivalentTo(new[] { "OFF", "NEXT", "READY", "OPEN" }));
+            Assert.That(cars.Select(c => (string)c["drs"]?["text"]).Where(t => t != null).Distinct(), Is.EquivalentTo(new[] { "Off", "Next", "Ready", "Open" }));
             Assert.That(cars.Select(c => (bool?)c["p2p"]?["active"]).Where(a => a != null).Distinct(), Is.EquivalentTo(new bool?[] { false, true }));
-            Assert.That(cars.Select(c => (string)c["tc"]?["text"]), Is.SupersetOf(new[] { "MDM", "OFF", "ON", "NONE" }), "a dial that is a word");
+            Assert.That(cars.Select(c => (string)c["tc"]?["text"]), Is.SupersetOf(new[] { "MDM", "Off", "On", "None" }), "a dial that is a word");
+            Assert.That(cars.SelectMany(c => new[] { c["abs"], c["tc"], c["bb"] }).Concat(cars.SelectMany(c => c["more"] is JArray a ? a.Cast<JToken>() : Enumerable.Empty<JToken>()))
+                .Where(t => t != null).Select(t => (string)t["text"]).Where(t => t != null).Where(t => t.Length > 1 && t == t.ToUpperInvariant() && t.Any(char.IsLetter) && t != "MDM"), Is.Empty,
+                "no word the host sends is in capitals but an acronym (he asked on 2026-10-02)");
+            Assert.That(cars.Select(c => (string)c["tc"]?["words"]).Where(w => w != null), Is.SupersetOf(new[] { "Traction slip", "Stability" }), "the words the list gives go with the label");
             Assert.That(cars.Any(c => c["fixedSetup"] == null), Is.False, "the fixture's readings all came with the session's word on the setup");
         }
 
@@ -158,6 +162,69 @@ namespace RacingDesk.Tests.Cars
         }
 
         [Test]
+        public void TheListThisBuildCarriesHasItsWordsWhereTheMeaningIsKnown()
+        {
+            // He asked on 2026-10-02 for words instead of acronyms where they fit, and gave his own for the common ones:
+            // ABS anti-lock, BB bias, TC traction, MIG migration, ARB rollbar. The list carries them as `words`, and its
+            // labels are the cars' own short forms in sentence case: no word in capitals but an abbreviation the car shows.
+            var list = CarList.Default;
+            Assume.That(list.Cars, Is.Not.Empty, "the list is not in this tree");
+            var wrong = new List<string>();
+            foreach (var car in list.Cars)
+                foreach (var c in car.Controls)
+                {
+                    string? expected = c.Id switch
+                    {
+                        "brakeBias" => "Bias",
+                        "brakeMigration" => "Migration",
+                        "arbFront" => "Front rollbar",
+                        "arbRear" => "Rear rollbar",
+                        _ => null,
+                    };
+                    string? words = c.Words ?? c.Label;
+                    if (expected != null && words != expected) wrong.Add($"{car.Path} {c.Id}: \"{words}\", not \"{expected}\"");
+                    if (c.Id == "abs" && c.Label == "ABS" && c.Words != "Anti-lock") wrong.Add($"{car.Path} abs: \"{c.Words}\", not \"Anti-lock\"");
+                    if (c.Id == "tc" && c.Label == "TC" && c.Words != "Traction") wrong.Add($"{car.Path} tc: \"{c.Words}\", not \"Traction\"");
+                    if (c.Words != null && c.Words.Split(' ').Any(w => w.Length > 1 && w.All(ch => !char.IsLetter(ch) || char.IsUpper(ch)) && w.Any(char.IsLetter)))
+                        wrong.Add($"{car.Path} {c.Id}: the words \"{c.Words}\" have a word in capitals");
+                    foreach (var p in c.Positions)
+                        if (p.Value.Length > 1 && p.Value == p.Value.ToUpperInvariant() && p.Value.Any(char.IsLetter) && p.Value != "MDM")
+                            wrong.Add($"{car.Path} {c.Id}: the position \"{p.Value}\" is in capitals");
+                }
+            Assert.That(wrong, Is.Empty, string.Join("\n", wrong));
+
+            // TCLO is the car's own word for its traction slip, as its garage says; the BMW's TCLON is not settled.
+            var porsche = list.Find("porsche963gtp");
+            Assert.That((porsche.Control("tc").Label, porsche.Control("tc").Words, porsche.Control("tc2").Words), Is.EqualTo(("TCLO", "Traction slip", "Traction gain")));
+            Assert.That(list.Find("bmwlmdh").Control("tc").Words, Is.Null, "what TCLON does is not settled, so the car's label is all there is");
+        }
+
+        [Test]
+        public void TheWordsAreWhatTheCarsOwnSourceCallsTheDialAndNothingIsRenamedThatAlreadyIsWords()
+        {
+            // A review of 2026-10-02 found four sets of words that paraphrased what a car's source says, and his Bias missing on two cars.
+            var list = CarList.Default;
+            Assume.That(list.Cars, Is.Not.Empty, "the list is not in this tree");
+
+            // The FW31's setup guide lists the dial as "engine power (MODE)", not an engine map.
+            Assert.That(list.Find("williamsfw31").Control("engineMap").Words, Is.EqualTo("Engine power"));
+            // The IR18's own note says push to pass, as the IL15's and the DW12's label says it; the SF23's is its Overtake System.
+            Assert.That(list.Find("dallarair18").Control("p2p").Words, Is.EqualTo("Push to pass"));
+            Assert.That(list.Find("dallaradw12").Control("p2p").Label, Is.EqualTo("Push to pass"));
+            Assert.That(list.Find("superformulasf23 honda").Control("p2p").Words, Is.EqualTo("Overtake"));
+            // A label that is words already and the car's own is not renamed: Start limit, Throttle shape. The Acura has no throttle
+            // setting at all, by its own note.
+            foreach (var path in new[] { "superformulasf23 honda", "superformulasf23 toyota" })
+                Assert.That(list.Find(path).Control("launch").Words, Is.Null, $"{path}: its Start limit is words already");
+            foreach (var path in new[] { "acuransxevo22gt3", "ferrarievogt3", "fordmustanggt3" })
+                Assert.That(list.Find(path).Control("throttleMap").Words, Is.Null, $"{path}: its Throttle shape is words already");
+            // His Bias for every brake bias, said as words on every car, the IR18's and the 963's labels (Bias) included.
+            foreach (var car in list.Cars)
+                foreach (var c in car.Controls.Where(c => c.Id == "brakeBias"))
+                    Assert.That(c.Words, Is.EqualTo("Bias"), $"{car.Path}: his word for the brake bias");
+        }
+
+        [Test]
         public void ADialTheListGivesAndTheCarDoesNotPublishStillLeavesWhatIsKnown()
         {
             // Fixed ABS with a variable nobody publishes: it has ABS, the driver cannot turn it, so it is ON — and
@@ -170,7 +237,7 @@ namespace RacingDesk.Tests.Cars
                     { ""id"": ""brakeBias"", ""var"": ""dcBrakeBias"", ""label"": ""BBAL"" } ] } ] }").Find("a");
             var state = CarControls.Read(car, new CarListTests.Car().Read, null);
 
-            Assert.That((state.Abs.State, state.Abs.Text), Is.EqualTo(("on", "ON")));
+            Assert.That((state.Abs.State, state.Abs.Text), Is.EqualTo(("on", "On")));
             Assert.That((state.Tc.State, state.Tc.Label, state.Tc.Number, state.Tc.Text), Is.EqualTo(("unread", "TC", (double?)null, (string)null)));
             Assert.That((state.BrakeBias.State, state.BrakeBias.Label), Is.EqualTo(("unread", "BBAL")));
             var json = JObject.Parse(state.ToJson());

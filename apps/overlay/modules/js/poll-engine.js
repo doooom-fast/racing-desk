@@ -107,6 +107,36 @@
     else { delete el.dataset.trend; delete el.dataset.trendCls; }
   }
 
+  // The iRating beside a car of the gaps block, in the longest form that is whole in its cell: "3210 iRating", else
+  // "3210 iR" (he asked on 2026-10-02 for words instead of acronyms where they fit). The rig's cells are 66px across
+  // and hold only the short form; an iPad's hold the words, but on its side, with the trend after them ("· ▼0.5/lap"),
+  // not always. Measured when what it says, the trend after it, or the box it is in changes — never on every frame.
+  const _ratingSaid = [null, null];
+  let _ratingBox = 0, _ratingWatched = false;
+  function _sayRating(index, el, rating) {
+    if (!el) return;
+    if (!_ratingWatched) {
+      _ratingWatched = true;
+      const block = document.getElementById('gapsBlock');
+      if (block && typeof ResizeObserver === 'function') new ResizeObserver(() => { _ratingBox++; }).observe(block);
+      if (document.fonts && typeof document.fonts.addEventListener === 'function') document.fonts.addEventListener('loadingdone', () => { _ratingBox++; });
+    }
+    const key = rating + '|' + (el.dataset.trend || '') + '|' + _ratingBox;
+    if (_ratingSaid[index] === key) return;
+    _ratingSaid[index] = key;
+    if (!(rating > 0)) { el.textContent = ''; return; }
+    el.textContent = rating + ' iRating';
+    // Whole: its natural width, with the trend after it, no more than the cell's (to the fraction of a pixel: scrollWidth and
+    // clientWidth are whole numbers, and a line 0.3px too long was called whole and wrapped).
+    const cell = el.getBoundingClientRect().width;
+    el.style.width = 'max-content';
+    el.style.whiteSpace = 'nowrap';
+    const natural = el.getBoundingClientRect().width;
+    el.style.width = '';
+    el.style.whiteSpace = '';
+    if (natural > cell + 0.02) el.textContent = rating + ' iR';
+  }
+
   function _setInCar(inCar) {
     inCar = !!inCar;
     if (inCar === _prevInRace) return;
@@ -462,7 +492,7 @@
     if (pitSug) {
       const remLaps = +d('DataCorePlugin.GameData.RemainingLaps', 'Demo.RemainingLaps') || 0;
       pitSug.textContent = (fuelLapsEst > 0 && remLaps > 0 && fuelLapsEst < remLaps)
-        ? 'PIT in ~' + Math.ceil(fuelLapsEst) + ' laps' : '';
+        ? 'Pit in ~' + Math.ceil(fuelLapsEst) + ' laps' : '';
     }
 
     // ─── Tyres ───
@@ -803,7 +833,7 @@
         // Lap-limited race: show current lap time instead of useless 168:00:00 countdown. The glance layout has the
         // time on this lap in its hero already, so its clock says the laps to go.
         if (driveClock && remLaps >= 1) { timerEl.textContent = '' + remLaps; clockKey = 'Laps to go'; }
-        else if (remLaps === 1) timerEl.textContent = 'Final Lap';
+        else if (remLaps === 1) timerEl.textContent = 'Final lap';
         else if (remLaps === 0) { timerEl.textContent = 'Finish'; clockKey = 'Flag'; }
         else if (curLapTime > 0) {
           const lm = Math.floor(curLapTime / 60);
@@ -1086,11 +1116,13 @@
       const irB     = _demo ? (+v('RacingDesk.Plugin.Demo.IRBehind') || 0)  : (+v('IRacingExtraProperties.iRacing_Opponent_Behind_IRating') || 0);
       if (gapTimes.length >= 2) { gapTimes[0].textContent = (gAhead && Math.abs(gAhead) >= 0.05) ? fmtGap(-Math.abs(gAhead)) : '—'; gapTimes[1].textContent = (gBehind && Math.abs(gBehind) >= 0.05) ? fmtGap(Math.abs(gBehind)) : '—'; }
       if (gapDrivers.length >= 2) { gapDrivers[0].textContent = dAhead || '—'; gapDrivers[1].textContent = dBehind || '—'; }
-      if (gapIRs.length >= 2) { gapIRs[0].textContent = irA > 0 ? irA + ' iR' : ''; gapIRs[1].textContent = irB > 0 ? irB + ' iR' : ''; }
       if (gapIRs.length >= 2) {
         const trend = _gapTrend.update(lap, dAhead, gAhead, dBehind, gBehind);
         _sayTrend(0, gapIRs[0], trend.ahead);
         _sayTrend(1, gapIRs[1], trend.behind);
+        // After the trend: the line is measured with what follows it.
+        _sayRating(0, gapIRs[0], irA);
+        _sayRating(1, gapIRs[1], irB);
       }
       if (gapItems.length >= 2) {
         if (dAhead !== _lastDriverAhead && _lastDriverAhead) flashElement(gapItems[0], 'ahead-changed');
@@ -1118,9 +1150,9 @@
     const gapsBlock = document.getElementById('gapsBlock');
     if (gapsBlock) {
       const flagLabels = {
-        yellow: 'CAUTION', caution: 'CAUTION', localyellow: 'LOCAL YELLOW', onetogreen: '1 LAP TO GREEN', red: 'RED FLAG', blue: 'BLUE FLAG',
-        white: 'LAST LAP', debris: 'DEBRIS', checkered: 'FINISH', black: 'BLACK FLAG', furled: 'BLACK FLAG WARNING', disqualify: 'DISQUALIFIED',
-        green: 'GREEN', greenheld: 'GREEN HELD', meatball: 'MEATBALL', orange: 'LAPPED CAR',
+        yellow: 'Caution', caution: 'Caution', localyellow: 'Local yellow', onetogreen: '1 lap to green', red: 'Red flag', blue: 'Blue flag',
+        white: 'Last lap', debris: 'Debris', checkered: 'Finish', black: 'Black flag', furled: 'Black flag warning', disqualify: 'Disqualified',
+        green: 'Green', greenheld: 'Green held', meatball: 'Meatball', orange: 'Lapped car',
       };
       const flagContexts = {
         yellow: 'Full course caution — hold position', caution: 'Full course caution — hold position',
@@ -1178,7 +1210,7 @@
       gapsBlock.className = gapsBlock.className.replace(/\bflag-\S+/g, '').trim();
       if (showFlag !== 'none') {
         gapsBlock.classList.add('flag-active', 'flag-' + showFlag);
-        const lbl = flagLabels[showFlag] || showFlag.toUpperCase();
+        const lbl = flagLabels[showFlag] || (showFlag.charAt(0).toUpperCase() + showFlag.slice(1));
         const ctx = flagContexts[showFlag] || '';
         const fl1 = document.getElementById('flagLabel1');
         const fc1 = document.getElementById('flagCtx1');
@@ -1256,8 +1288,12 @@
     var stVis = +v('RacingDesk.Plugin.Strategy.Visible') || 0;
     if (stVis && !_strategyWasVisible && !cmVis) {
       // Show strategy call through the commentary panel with amber hue (45)
-      var stLabel = vs('RacingDesk.Plugin.Strategy.Label') || 'STRATEGY';
+      // The strategist's label and call in sentence case, whatever the host wrote them in (a plugin from before this
+      // sends FUEL and "FUEL CRITICAL"); the call keeps the abbreviations a car shows (its old "ABS/TC working overtime").
+      var stLabel = vs('RacingDesk.Plugin.Strategy.Label') || 'Strategy';
+      if (window.RacingDeskWords) stLabel = window.RacingDeskWords.sentenceCase(stLabel);
       var stText  = vs('RacingDesk.Plugin.Strategy.Text') || '';
+      if (window.RacingDeskWords) stText = window.RacingDeskWords.labelCase(stText);
       var stSev   = +v('RacingDesk.Plugin.Strategy.Severity') || 1;
       if (stText) {
         showCommentary(45, stLabel, stText, 'strategy', 'strategy_call', stSev);

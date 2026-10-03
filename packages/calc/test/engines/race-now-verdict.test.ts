@@ -198,6 +198,21 @@ describe('evaluateRaceNow', () => {
     expect(res.stats.hourAvgIncidents).not.toBeNull()
     expect(res.stats.hourSampleCount).toBeGreaterThan(0)
   })
+
+  it('says its figures in words, not abbreviations (incidents a race, average), which the desk shows as written', () => {
+    const profile = buildProfile({
+      baselineIncidents: 3,
+      baselinePosition: 10,
+      baselineSessions: 10,
+      hourOverrides: {
+        20: { sessionCount: 8, avgIncidents: 1.2, avgPosition: 4 },
+      },
+    })
+    const res = evaluateRaceNow(profile, new Date('2026-04-18T20:00:00Z'), 'UTC')!
+    expect(res.detail).toMatch(/\d+\.\d incidents a race near .* \([+-]?\d+\.\d against your average\)/)
+    expect(res.detail).toMatch(/P\d+\.\d average finish/)
+    expect(res.detail).not.toMatch(/inc\/|\bavg\b|\bvs\b/)
+  })
 })
 
 // ── buildPracticeAlternatives ───────────────────────────────────────────────

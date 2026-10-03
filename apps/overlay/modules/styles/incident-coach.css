@@ -22,8 +22,7 @@
   backdrop-filter: blur(4px);
   font-family: var(--ff-mono);
   font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   pointer-events: none;
   transition: background 0.6s ease, opacity 0.4s ease;
 }
@@ -297,8 +296,7 @@
 .rr-behavior-title {
   font-family: var(--ff-mono);
   font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: hsla(0, 0%, 100%, 0.5);
 }
 
@@ -336,8 +334,7 @@
 
 .rr-bstat-label {
   font-size: 8px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: hsla(0, 0%, 100%, 0.35);
   margin-top: 2px;
 }
@@ -359,8 +356,7 @@
 .rr-behavior-drivers-title {
   font-family: var(--ff-mono);
   font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: hsla(0, 0%, 100%, 0.4);
   margin: 12px 0 6px;
 }
@@ -412,8 +408,7 @@
 .rr-bd-level {
   font-family: var(--ff-mono);
   font-size: 8px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   font-weight: 600;
 }
 

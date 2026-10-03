@@ -362,9 +362,10 @@ test("/obs-ipad in a wide box: each tyre's name is centred over its own ring, an
       const cell = document.getElementById('pbCircle' + c);
       const name = cell.querySelector('.pb-circle-pos').getBoundingClientRect();
       const ring = cell.querySelector('.pb-wear-ring').getBoundingClientRect();
-      return { c, text: cell.querySelector('.pb-circle-pos').textContent, nameMid: (name.left + name.right) / 2, ringMid: (ring.left + ring.right) / 2, nameBottom: name.bottom, ringTop: ring.top, ringLeft: ring.left, shown: cell.getClientRects().length > 0 };
+      return { c, text: cell.querySelector('.pb-circle-pos').innerText, nameMid: (name.left + name.right) / 2, ringMid: (ring.left + ring.right) / 2, nameBottom: name.bottom, ringTop: ring.top, ringLeft: ring.left, shown: cell.getClientRects().length > 0 };
     }));
-    expect(corners.map((k) => [k.c, k.text, k.shown])).toEqual([['LF', 'LF', true], ['RF', 'RF', true], ['LR', 'LR', true], ['RR', 'RR', true]]);
+    // A line of its own over each ring, with the room for words: the corners are named, not abbreviated.
+    expect(corners.map((k) => [k.c, k.text, k.shown])).toEqual([['LF', 'Left front', true], ['RF', 'Right front', true], ['LR', 'Left rear', true], ['RR', 'Right rear', true]]);
     for (const k of corners) {
       expect(Math.abs(k.nameMid - k.ringMid), `${k.c}: the name is centred over its ring`).toBeLessThanOrEqual(2);
       expect(k.nameBottom, `${k.c}: the name is over the ring, not on it`).toBeLessThanOrEqual(k.ringTop + 1);

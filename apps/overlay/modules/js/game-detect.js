@@ -69,7 +69,7 @@
     const el = document.getElementById('connStatus');
     if (!el) return;
     el.className = 'conn-status ' + state;
-    const titles = { connected: 'Connected to plugin server', disconnected: 'Cannot reach plugin server — is the The Racing Desk plugin loaded in SimHub?', connecting: 'Connecting to plugin server...' };
+    const titles = { connected: 'Connected to plugin server', disconnected: 'Cannot reach plugin server — is the Racing Desk plugin loaded in SimHub?', connecting: 'Connecting to plugin server...' };
     el.title = titles[state] || '';
 
     // Settings-embedded warning banner

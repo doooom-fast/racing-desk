@@ -36,7 +36,7 @@
   // ── Formatting ───────────────────────────────────────────
 
   const CATEGORY_LABEL = {
-    sports_car: 'Sports Car', formula_car: 'Formula', oval: 'Oval', dirt_oval: 'Dirt Oval', dirt_road: 'Dirt Road', road: 'Road',
+    sports_car: 'Sports car', formula_car: 'Formula', oval: 'Oval', dirt_oval: 'Dirt oval', dirt_road: 'Dirt road', road: 'Road',
   };
 
   function lapTime(s) {
@@ -231,8 +231,8 @@
       </div>`).join('');
     const s = desk.stats;
     const stat = (value, label) => `<div class="stat"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
-    $('stats').innerHTML = stat(s.races, 'races') + stat(s.laps.toLocaleString(), 'race laps') + stat(s.tracks, 'tracks') +
-      stat(s.cars, 'cars') + stat(s.wins, 'wins') + stat(s.podiums, 'podiums');
+    $('stats').innerHTML = stat(s.races, 'Races') + stat(s.laps.toLocaleString(), 'Race laps') + stat(s.tracks, 'Tracks') +
+      stat(s.cars, 'Cars') + stat(s.wins, 'Wins') + stat(s.podiums, 'Podiums');
   }
 
   function renderRaceNow() {
@@ -251,10 +251,10 @@
       <div class="headline">${esc(v.headline)}</div>
       <div class="detail-line">${esc(v.detail)}</div>
       <div class="figures">
-        ${fig(st.hourAvgIncidents != null ? st.hourAvgIncidents.toFixed(1) + 'x' : '—', `inc/race this hour (${st.hourSampleCount})`)}
-        ${fig(st.overallAvgIncidents != null ? st.overallAvgIncidents.toFixed(1) + 'x' : '—', 'your average')}
-        ${fig(st.hourAvgPosition != null ? 'P' + st.hourAvgPosition.toFixed(1) : '—', 'avg finish this hour')}
-        ${fig(st.dayAvgIncidents != null ? st.dayAvgIncidents.toFixed(1) + 'x' : '—', `on ${st.currentDayLabel}s (${st.daySampleCount})`)}
+        ${fig(st.hourAvgIncidents != null ? st.hourAvgIncidents.toFixed(1) + 'x' : '—', `Incidents a race this hour (${st.hourSampleCount})`)}
+        ${fig(st.overallAvgIncidents != null ? st.overallAvgIncidents.toFixed(1) + 'x' : '—', 'Your average')}
+        ${fig(st.hourAvgPosition != null ? 'P' + st.hourAvgPosition.toFixed(1) : '—', 'Average finish this hour')}
+        ${fig(st.dayAvgIncidents != null ? st.dayAvgIncidents.toFixed(1) + 'x' : '—', `On ${st.currentDayLabel}s (${st.daySampleCount})`)}
       </div>`;
   }
 
@@ -291,7 +291,7 @@
         <h3>${title}</h3>
         <div class="window">${esc(s.days)}<br>${esc(s.hours)}</div>
         <p>${esc(s.paragraph)}</p>
-        <p class="num">${signed(s.avgIRatingDelta, 1)} iR/race</p>
+        <p class="num">${signed(s.avgIRatingDelta, 1)} iRating a race</p>
       </div>`;
     el.innerHTML = `<h2>When you race well</h2><div class="sides">${side('strengths', 'Strongest', w.strengths)}${side('watch', 'Watch out', w.watchOut)}</div>`;
   }
@@ -305,7 +305,7 @@
       return `
         <div class="race-row${e.id === selectedRaceId ? ' selected' : ''}" data-id="${esc(e.id)}">
           <div class="pos" style="color:${esc(vm.positionColorHex || 'inherit')}">${esc(vm.positionDisplay || '—')}<small>${esc(vm.fieldSizeLabel || '')}</small></div>
-          <div><div class="track">${esc(e.trackDisplayName)}</div><div class="sub">${esc(dateTimeFmt.format(new Date(e.startedAt)))}${e.strengthOfField ? ` · SoF ${e.strengthOfField.toLocaleString()}` : ''}</div></div>
+          <div><div class="track">${esc(e.trackDisplayName)}</div><div class="sub">${esc(dateTimeFmt.format(new Date(e.startedAt)))}${e.strengthOfField ? ` · Strength of field ${e.strengthOfField.toLocaleString()}` : ''}</div></div>
           <div class="car">${esc(e.carName)}</div>
           <div class="cell">${esc(vm.bestLapLabel)}</div>
           <div class="cell">${e.incidents}x</div>
@@ -344,8 +344,8 @@
       dateTimeFmt.format(new Date(e.startedAt)),
       e.carName,
       e.startPosition && e.finishPosition ? `P${e.startPosition} → P${e.finishPosition} of ${e.fieldSize}` : null,
-      e.strengthOfField ? `SoF ${e.strengthOfField.toLocaleString()}` : null,
-      e.iRatingDelta != null ? `${e.iRatingDelta > 0 ? '+' : ''}${e.iRatingDelta} iR` : null,
+      e.strengthOfField ? `Strength of field ${e.strengthOfField.toLocaleString()}` : null,
+      e.iRatingDelta != null ? `${e.iRatingDelta > 0 ? '+' : ''}${e.iRatingDelta} iRating` : null,
     ].filter(Boolean).map(esc).join(' · ');
 
     el.innerHTML = `
@@ -360,7 +360,7 @@
       </div>
       <div class="laps-scroll">
         <table class="laps-table">
-          <thead><tr><th>Lap</th><th>Time</th><th>Pos</th><th>Inc</th><th>Fuel</th></tr></thead>
+          <thead><tr><th>Lap</th><th>Time</th><th>Position</th><th>Incidents</th><th>Fuel</th></tr></thead>
           <tbody>${laps.map((l) => `
             <tr class="${best && l.lap_time_s === best ? 'best' : ''}">
               <td>${l.lap}${l.pitted ? ' <span class="dim">pit</span>' : ''}</td>
@@ -454,7 +454,7 @@
         const hue = rel >= 0 ? 142 : 0;
         const alpha = 0.25 + 0.75 * Math.sqrt(b.count / maxCount);
         const sat = 25 + Math.abs(rel) * 45;
-        cells += `<span class="heat-cell" style="background:hsla(${hue},${sat}%,55%,${alpha.toFixed(2)})" title="${label} ${h}:00 — ${b.count} races, ${b.avgIncidents.toFixed(1)}x avg, ${b.irDeltaSum >= 0 ? '+' : ''}${b.irDeltaSum} iR"></span>`;
+        cells += `<span class="heat-cell" style="background:hsla(${hue},${sat}%,55%,${alpha.toFixed(2)})" title="${label} ${h}:00 — ${b.count} races, ${b.avgIncidents.toFixed(1)}x average, ${b.irDeltaSum >= 0 ? '+' : ''}${b.irDeltaSum} iRating"></span>`;
       }
     });
     el.innerHTML = `<h2>Your week · incidents by hour</h2><div class="heat-grid">${cells}</div>
@@ -504,7 +504,7 @@
     const tracks = (desk.mastery && desk.mastery.tracks) || [];
     el.innerHTML = `<h2>Track mastery</h2><ul class="rank">${tracks.slice(0, 8).map((t) => `
       <li><span class="name"><span class="tier-dot tier-${esc(t.masteryTier)}"></span>${esc(t.trackName)}</span><span class="score">${t.masteryScore}</span>
-      <span class="sub">${t.totalSessions} races · avg ${t.avgPosition != null ? 'P' + t.avgPosition.toFixed(1) : '—'} · best ${t.bestPosition != null ? 'P' + t.bestPosition : '—'} · ${t.avgIncidents.toFixed(1)}x · ${esc(t.trend)}</span></li>`).join('')}</ul>`;
+      <span class="sub">${t.totalSessions} races · average ${t.avgPosition != null ? 'P' + t.avgPosition.toFixed(1) : '—'} · best ${t.bestPosition != null ? 'P' + t.bestPosition : '—'} · ${t.avgIncidents.toFixed(1)}x · ${esc(t.trend)}</span></li>`).join('')}</ul>`;
   }
 
   function renderCars() {

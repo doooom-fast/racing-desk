@@ -82,7 +82,7 @@
     const penEl = document.getElementById('incToPen');
     const dqEl  = document.getElementById('incToDQ');
     if (penEl && hasPenalty) {
-      penEl.textContent = toPen > 0 ? toPen : 'PENALTY';
+      penEl.textContent = toPen > 0 ? toPen : 'Penalty';
       penEl.className = 'inc-thresh-val' + (toPen === 0 ? ' thresh-hit' : toPen <= 3 ? ' thresh-crit' : toPen <= 6 ? ' thresh-near' : '');
     }
     if (dqEl) {

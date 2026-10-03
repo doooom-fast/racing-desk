@@ -247,12 +247,12 @@
           if (isIRacingSync) {
             window.debugConsole.logIRacingSync(
               'error',
-              `${method} ${url} → ERROR: ${message}`
+              `${method} ${url} → error: ${message}`
             );
           } else if (isNetworkSync) {
             window.debugConsole.logNetwork(
               'error',
-              `${method} ${url} → ERROR: ${message}`
+              `${method} ${url} → error: ${message}`
             );
           }
 

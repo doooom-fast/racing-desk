@@ -193,9 +193,9 @@
     // Info text
     if (info) {
       let source;
-      if (!state.enabled) source = 'OFF';
-      else if (state.hasData && !state.polled) source = 'Screen Capture';
-      else if (state.polled) source = 'Flag State';
+      if (!state.enabled) source = 'Off';
+      else if (state.hasData && !state.polled) source = 'Screen capture';
+      else if (state.polled) source = 'Flag state';
       else source = 'No region set';
 
       const rect = _captureRect

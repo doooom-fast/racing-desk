@@ -68,7 +68,7 @@ namespace RacingDesk.Tests.Cars
                 Assert.That((string)sent["tc"]["state"], Is.EqualTo("mode"));
                 Assert.That((string)sent["bb"]["state"], Is.EqualTo("none"));
                 var mode = sent["more"].Single();
-                Assert.That((string)mode["text"], Is.AnyOf("TRACK", "SPORT", "NORMAL"));
+                Assert.That((string)mode["text"], Is.AnyOf("Track", "Sport", "Normal"));
                 Assert.That(said, Is.Empty, "the car publishes what the list says it does: " + string.Join(" | ", said));
             }
         }

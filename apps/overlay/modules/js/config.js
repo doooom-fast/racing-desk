@@ -456,7 +456,7 @@ let _cycleLastSwitch = 0;
 let _prevLap = 0;
 
 // Driver & car state
-let _driverDisplayName = 'YOU';
+let _driverDisplayName = 'You';
 let _lastCarModel = null;
 let _lastDriverAhead = '';
 let _lastDriverBehind = '';

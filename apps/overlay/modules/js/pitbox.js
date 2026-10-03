@@ -650,7 +650,7 @@
     }
     // Pit fuel add
     if (_els.fuelVal) {
-      _els.fuelVal.textContent = fuelRequested ? fuelDisplay : 'OFF';
+      _els.fuelVal.textContent = fuelRequested ? fuelDisplay : 'Off';
       var fuelValClass = 'pb-value selectable';
       if (fuelRequested) fuelValClass += ' active';
       else fuelValClass += ' inactive';
@@ -796,7 +796,7 @@
 
   function updateToggle(key, el, isOn) {
     if (!el) return;
-    el.textContent = isOn ? 'YES' : 'NO';
+    el.textContent = isOn ? 'Yes' : 'No';
     el.className = 'pb-value ' + (isOn ? 'on' : 'off');
     checkAndFlash(key, isOn ? 1 : 0, el.parentElement);
   }

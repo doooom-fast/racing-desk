@@ -22,6 +22,7 @@ import {
 } from '../../src/engines/next-race-ideas'
 
 const {
+  scoreTier,
   scoreTimeOfDay,
   scoreDayOfWeek,
   scoreCarFamiliarity,
@@ -123,6 +124,14 @@ describe('sessionMatchesCarClass', () => {
 })
 
 // ── scoreTimeOfDay ───────────────────────────────────────────────────────────
+
+describe('scoreTier', () => {
+  it('names its tiers in sentence case, as every label the desk shows is (no capitals but an acronym)', () => {
+    expect([90, 80, 79, 60, 59, 40, 39, 0].map((n) => scoreTier(n).label)).toEqual([
+      'Best fit', 'Best fit', 'Strong', 'Strong', 'Decent', 'Decent', 'Stretch', 'Stretch',
+    ])
+  })
+})
 
 describe('scoreTimeOfDay', () => {
   it('returns 5 with insufficient data', () => {
@@ -500,7 +509,7 @@ function makeSuggestion(overrides: Partial<RaceSuggestion>): RaceSuggestion {
     commentary: overrides.commentary ?? 'Test commentary',
     viewModel: overrides.viewModel ?? {
       scoreColorHex: '#34c759',
-      scoreTierLabel: 'BEST FIT',
+      scoreTierLabel: 'Best fit',
       startsInLabel: 'in 30 min',
       startsInShortLabel: '30m',
       durationLabel: null,
@@ -1028,7 +1037,7 @@ describe('viewModel new fields — wire shape', () => {
     const fixture = makeSuggestion({})
     expect(fixture.viewModel).toEqual({
       scoreColorHex: '#34c759',
-      scoreTierLabel: 'BEST FIT',
+      scoreTierLabel: 'Best fit',
       startsInLabel: 'in 30 min',
       startsInShortLabel: '30m',
       durationLabel: null,

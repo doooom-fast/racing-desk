@@ -10,15 +10,15 @@
 
   var _tones = {
     broadcast: {
-      label: 'Broadcast Commentator',
+      label: 'Broadcast commentator',
       instruction: 'You are an enthusiastic, dramatic motorsport commentator — think Martin Brundle or David Croft doing a post-race debrief on Sky F1. Use vivid language, exclamation marks where the moment deserves it, and build narrative tension around key battles and turning points. Reference specific laps and incidents with flair. Make the driver feel like their race was worth watching.'
     },
     coach: {
-      label: 'Racing Engineer',
+      label: 'Racing engineer',
       instruction: 'You are a professional racing engineer debriefing your driver after a session. Be direct, analytical, and data-driven. Reference specific lap numbers, time deltas, and trends. Prioritize actionable feedback over praise. Use precise language — "your entry speed into T4 is costing you 0.3s" rather than "you could be faster in the corners." Treat the driver as a peer who wants to improve.'
     },
     mentor: {
-      label: 'Friendly Mentor',
+      label: 'Friendly mentor',
       instruction: 'You are an experienced sim racer mentoring a newer driver. Be encouraging and approachable — celebrate what went well before addressing areas for growth. Frame suggestions positively ("try braking 5m later" rather than "you\'re braking too early"). Use casual language and explain the reasoning behind your advice so the driver learns the "why," not just the "what."'
     }
   };
@@ -41,7 +41,7 @@
       instruction: 'Provide a structured analysis with the sections defined below. Each section should be 2-4 sentences. Focus on the most impactful observations.'
     },
     deep: {
-      label: 'Deep Dive (~$0.15)',
+      label: 'Deep dive (~$0.15)',
       model: 'claude-sonnet-4-6',
       maxTokens: 1500,
       instruction: 'Provide a thorough, detailed analysis. Go deep on lap-by-lap trends, identify micro-patterns (e.g., pace drop after incidents, tyre deg curve shape), and give specific corner-level advice where the data supports it. Include a strategy recommendation for the next race.'
@@ -124,8 +124,8 @@
 
     return {
       position: isDemo ? +(p[pre + 'Position']) || 0 : +(p['DataCorePlugin.GameData.Position']) || 0,
-      trackName: isDemo ? (p[pre + 'TrackName'] || 'Unknown Track') : (p['DataCorePlugin.GameData.TrackName'] || 'Unknown Track'),
-      carModel: isDemo ? (p[pre + 'CarModel'] || 'Unknown Car') : (p['DataCorePlugin.GameData.CarModel'] || 'Unknown Car'),
+      trackName: isDemo ? (p[pre + 'TrackName'] || 'Unknown track') : (p['DataCorePlugin.GameData.TrackName'] || 'Unknown track'),
+      carModel: isDemo ? (p[pre + 'CarModel'] || 'Unknown car') : (p['DataCorePlugin.GameData.CarModel'] || 'Unknown car'),
       totalLaps: isDemo ? +(p[pre + 'TotalLaps']) || 0 : +(p['DataCorePlugin.GameData.TotalLaps']) || 0,
       currentLap: isDemo ? +(p[pre + 'CurrentLap']) || 0 : +(p['DataCorePlugin.GameData.CurrentLap']) || 0,
       bestLapTime: isDemo ? +(p[pre + 'BestLapTime']) || 0 : +(p['DataCorePlugin.GameData.BestLapTime']) || 0,
@@ -200,7 +200,7 @@
     // Summary (always present)
     if (analysis.summary) {
       html += '<div class="rr-ai-section">';
-      html += '<div class="rr-ai-section-label">Race Summary</div>';
+      html += '<div class="rr-ai-section-label">Race summary</div>';
       html += '<div class="rr-ai-section-text">' + _escapeHtml(analysis.summary) + '</div>';
       html += '</div>';
     }
@@ -208,7 +208,7 @@
     // Pace analysis (standard + deep)
     if (analysis.paceAnalysis) {
       html += '<div class="rr-ai-section">';
-      html += '<div class="rr-ai-section-label">Pace Analysis</div>';
+      html += '<div class="rr-ai-section-label">Pace analysis</div>';
       html += '<div class="rr-ai-section-text">' + _escapeHtml(analysis.paceAnalysis) + '</div>';
       html += '</div>';
     }
@@ -216,7 +216,7 @@
     // Key moments (standard + deep)
     if (analysis.keyMoments) {
       html += '<div class="rr-ai-section">';
-      html += '<div class="rr-ai-section-label">Key Moments</div>';
+      html += '<div class="rr-ai-section-label">Key moments</div>';
       html += '<div class="rr-ai-section-text">' + _escapeHtml(analysis.keyMoments) + '</div>';
       html += '</div>';
     }
@@ -224,7 +224,7 @@
     // Improvements
     if (analysis.improvements && analysis.improvements.length > 0) {
       html += '<div class="rr-ai-section">';
-      html += '<div class="rr-ai-section-label">Areas for Improvement</div>';
+      html += '<div class="rr-ai-section-label">Areas for improvement</div>';
       html += '<div class="rr-ai-tips">';
       analysis.improvements.forEach(function(tip) {
         html += '<div class="rr-ai-tip-item">→ ' + _escapeHtml(tip) + '</div>';
@@ -236,7 +236,7 @@
     // Next focus
     if (analysis.nextFocus) {
       html += '<div class="rr-ai-section rr-ai-focus">';
-      html += '<div class="rr-ai-section-label">Next Session Focus</div>';
+      html += '<div class="rr-ai-section-label">Next session focus</div>';
       html += '<div class="rr-ai-section-text">' + _escapeHtml(analysis.nextFocus) + '</div>';
       html += '</div>';
     }
@@ -244,7 +244,7 @@
     // Strategy note (deep only)
     if (analysis.strategyNote) {
       html += '<div class="rr-ai-section">';
-      html += '<div class="rr-ai-section-label">Strategy Note</div>';
+      html += '<div class="rr-ai-section-label">Strategy note</div>';
       html += '<div class="rr-ai-section-text">' + _escapeHtml(analysis.strategyNote) + '</div>';
       html += '</div>';
     }
@@ -309,7 +309,7 @@
         _renderAnalysis(resultEl, analysis, depth);
         if (btn) {
           btn.disabled = false;
-          btn.textContent = 'Regenerate Analysis';
+          btn.textContent = 'Regenerate analysis';
         }
       })
       .catch(function(err) {
@@ -319,7 +319,7 @@
         }
         if (btn) {
           btn.disabled = false;
-          btn.textContent = 'Retry Analysis';
+          btn.textContent = 'Retry analysis';
         }
       });
   };

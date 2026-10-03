@@ -236,7 +236,7 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     expect(m.opponent).toBeCloseTo(5, 0);
   });
 
-  test('the local view is the shape of its cell, with the car two-thirds of the way down', async ({ page }) => {
+  test('the local view is the shape of its cell, with the car two-thirds of the way down, drawn bigger as the view closes in', async ({ page }) => {
     const m = await page.evaluate(() => {
       const svg = document.getElementById('zoomMapSvg');
       const r = svg.getBoundingClientRect();
@@ -246,12 +246,15 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
         cellAspect: r.width / r.height, viewAspect: vb[2] / vb[3],
         down: (+player.getAttribute('cy') - vb[1]) / vb[3], across: (+player.getAttribute('cx') - vb[0]) / vb[2],
         radius: parseFloat(player.getAttribute('r')) * svg.getScreenCTM().a,
+        viewRadius: vb[2] / 2, weights: RacingDeskMapZoom.R_LINE_WEIGHTS,
       };
     });
     expect(m.viewAspect / m.cellAspect).toBeCloseTo(1, 1);
     expect(m.down).toBeCloseTo(2 / 3, 1);
     expect(m.across).toBeCloseTo(0.5, 1);
-    expect(m.radius).toBeCloseTo(7, 0);
+    // Seven pixels in radius when the view is R_LINE_WEIGHTS across, and in proportion to the zoom either side of it, as
+    // the rig's HUD draws it (map-zoom.js; the zoom with the speed is held in map-zoom.spec.mjs).
+    expect(m.radius).toBeCloseTo((7 * m.weights) / m.viewRadius, 0);
   });
 
   test('the leaderboard\'s rows share its height: as many as fit, filling the panel', async ({ page }) => {
@@ -383,7 +386,8 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     await hud.waitForTimeout(1500);   // the colours' own transitions (0.4s) have run
     const rig = await style(hud);
 
-    // The HUD's own panel label is a small-caps label in its display face; so is the iPad's. And so on, item by item:
+    // The HUD's own panel label is in its display face, in sentence case (no capitals but an acronym since 2026-10-02);
+    // so is the iPad's. And so on, item by item:
     // the face, the weight, the case, the tracking, the colour; the panel's base and its glass streak. (What differs
     // is the size, which is the cell's.)
     // Tracking is compared to within a hundredth of an em: what inherits the body's (0.48px) has it in pixels, so its
@@ -397,7 +401,8 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     }
     expect(rig.place.face).toBe('JetBrains Mono');
     expect(rig.skew).not.toBe('none');
-    expect(rig.label.caps).toBe('uppercase');
+    expect(rig.label.caps).toBe('none');
+    expect(rig.header.caps).toBe('none');
     await hud.close();
 
     // The glass on the iPad is lit as the rig's plastic mode lights it: an overhead glow in the ambient colour over each

@@ -186,7 +186,7 @@ namespace RacingDesk.Core.Cars
         // The list against itself: said as soon as the car is known.
         private void Consistent()
         {
-            Consistent(CarControls.AbsId, _car.Abs, "ABS");
+            Consistent(CarControls.AbsId, _car.Abs, "anti-lock");
             Consistent(CarControls.TcId, _car.Tc, "traction control");
             Consistent(CarControls.BrakeBiasId, _car.BrakeBias, "brake bias");
         }
@@ -232,7 +232,7 @@ namespace RacingDesk.Core.Cars
                 Say("unlisted", $"the car publishes {string.Join(", ", unlisted)}, which the list gives to no control");
 
             if (_car.Abs == CarEntry.None && unlisted.Contains("dcABS"))
-                Say("abs:dial", "the list says no ABS and the car publishes dcABS; in some cars that is another dial under ABS's name");
+                Say("abs:dial", "the list says no anti-lock and the car publishes dcABS; in some cars that is another dial under that name");
             if (_car.Tc == CarEntry.None && unlisted.Contains("dcTractionControl"))
                 Say("tc:dial", "the list says no traction control and the car publishes dcTractionControl");
         }
@@ -241,7 +241,7 @@ namespace RacingDesk.Core.Cars
         {
             if (_car.Abs != CarEntry.None || _said.Contains("abs:working")) return;
             double? working = CarControls.Number(variable(AbsWorking));
-            if (working.HasValue && working.Value > 0.5) Say("abs:working", "the list says no ABS and the ABS has been seen working");
+            if (working.HasValue && working.Value > 0.5) Say("abs:working", "the list says no anti-lock and the anti-lock has been seen working");
         }
 
         private void Moved(Func<string, object> variable)

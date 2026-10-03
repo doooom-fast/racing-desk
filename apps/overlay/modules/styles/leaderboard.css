@@ -22,7 +22,12 @@
     border-radius: var(--corner-r-sm);
     background: hsla(0,0%,100%,0.03);
     border: 1px solid transparent;
-    transition: all var(--t-med);
+    /* Colour only, never the cell's size: a cell that goes from None to a value (a car change) is as wide as it will be
+       at once. With `all` its flex and padding were animated for a third of a second, and the glance layout, which
+       measures each label against its cell in the frame the cells change (car-controls.js fitGlance) and does not
+       measure again, took the half-grown cell for the real one and kept a label on its short form (ABS, TCLO) that the
+       words (Anti-lock, Traction slip) fit. */
+    transition: background var(--t-med), border-color var(--t-med);
     position: relative;
     overflow: hidden;
     display: flex;
@@ -60,11 +65,12 @@
     font-size: var(--fs-xs);
     font-weight: var(--fw-semi);
     color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.02em;
     position: relative;
     z-index: 1;
   }
+  /* A rollbar whose words do not fit its cell: "Rollbar" and a small F or R for its end (car-controls.js). */
+  .ctrl-mark { font-size: 0.8em; opacity: 0.85; }
   .ctrl-value {
     font-family: var(--ff-mono);
     font-size: 22px;
@@ -76,16 +82,76 @@
     white-space: nowrap;
   }
 
-  /* Per-control bar colors */
-  #ctrlBB::before  { background: hsla(355, 75%, 33%, 0.12); }
-  #ctrlTC::before  { background: hsla(215, 75%, 33%, 0.12); }
-  #ctrlABS::before { background: hsla(48, 80%, 33%, 0.12); }
-  #ctrlBB .ctrl-value  { color: hsl(355, 80%, 65%); }
-  #ctrlTC .ctrl-value  { color: hsl(215, 80%, 68%); }
-  #ctrlABS .ctrl-value { color: hsl(48, 85%, 62%); }
-  #ctrlBB .ctrl-label  { color: hsl(355, 50%, 55%); }
-  #ctrlTC .ctrl-label  { color: hsl(215, 50%, 58%); }
-  #ctrlABS .ctrl-label { color: hsl(48, 55%, 52%); }
+  /* ── The controls' colours, by family (car-controls.js familyOf: data-ctrl-family, data-ctrl-shade) ──
+     Every control cell is coloured by what it acts on, as brake bias, traction control and ABS always were. The
+     brakes are the bias red (the bias, its target and fine trim, the migration and its gain, a rear brake valve, a
+     brake system), traction the traction blue (traction control, its second, third and fourth dials, stability, the
+     switch, launch), the anti-lock its yellow, the engine and the hybrid violet (engine, fuel and throttle maps, regen,
+     boost, deploy, engine braking, the fuel cut), the chassis teal (the anti-roll bars, the differential, weight
+     jacker, wing, drive split, power steering) and a mode green. DRS and push-to-pass have none: their states (ready,
+     open, on) are their colours, below.
+
+     The palette is defined here once. A family is a hue, a saturation and a step of lightness (the yellow is set darker
+     and the blue lighter, as the three always were); a control's shade of its family turns the hue, the saturation and
+     the lightness a little: 1 a lighter tint (a deeper one on the light theme), 2 the hue turned, 3 muted. From those
+     come the value, the label (the value's saturation less 30, at the label's lightness), the bar behind them and the
+     glow of an aid cutting in, each at the theme's own lightness, so the light theme has the same families, set dark
+     enough to read on its pale glass. The three cells are shade 0 of theirs, which is the colours they always had:
+     on the dark glass a value of hsl(355 80% 65%), hsl(215 80% 68%), hsl(48 85% 62%), and the label, bar and glow
+     they had. The worst case on the dark glass (a bright game behind it, the bar full) is 4.1:1 for a value and 3.1:1
+     for a label, the bias red's own being 4.4 and 3.3; on the light theme over a dark game 4.0 and 3.8. */
+  :root {
+    --ctrl-brake-h: 355;    --ctrl-brake-s: 80%;    --ctrl-brake-l: 0%;
+    --ctrl-traction-h: 215; --ctrl-traction-s: 80%; --ctrl-traction-l: 3%;
+    --ctrl-abs-h: 48;       --ctrl-abs-s: 85%;      --ctrl-abs-l: -3%;
+    --ctrl-power-h: 275;    --ctrl-power-s: 75%;    --ctrl-power-l: 5%;
+    --ctrl-chassis-h: 172;  --ctrl-chassis-s: 66%;  --ctrl-chassis-l: -8%;
+    --ctrl-mode-h: 150;     --ctrl-mode-s: 70%;     --ctrl-mode-l: -3%;
+    /* The theme's: a value's lightness and a label's, how much less saturated a label is (and the least it may be),
+       the bar's and the glow's lightness and opacity. */
+    --ctrl-value-l: 65%;  --ctrl-label-l: 55%;  --ctrl-label-desat: 30%;  --ctrl-label-s-min: 14%;
+    --ctrl-fill-desat: 5%;  --ctrl-fill-l: 33%;  --ctrl-fill-a: 0.12;  --ctrl-glow-l: 55%;  --ctrl-glow-a: 0.23;
+    /* The shades: hue turned, saturation and lightness added. */
+    --ctrl-shade1-h: 6;    --ctrl-shade1-s: -12%;  --ctrl-shade1-l: 10%;
+    --ctrl-shade2-h: -14;  --ctrl-shade2-s: 0%;    --ctrl-shade2-l: -2%;
+    --ctrl-shade3-h: 0;    --ctrl-shade3-s: -22%;  --ctrl-shade3-l: 6%;
+  }
+  [data-theme="light"] {
+    --ctrl-brake-l: 0%;  --ctrl-traction-l: 0%;  --ctrl-abs-l: -10%;  --ctrl-power-l: 2%;  --ctrl-chassis-l: -9%;  --ctrl-mode-l: -9%;
+    --ctrl-value-l: 34%;  --ctrl-label-l: 38%;
+    --ctrl-fill-l: 50%;  --ctrl-fill-a: 0.16;  --ctrl-glow-l: 50%;  --ctrl-glow-a: 0.22;
+    --ctrl-shade1-l: -5%;  --ctrl-shade3-l: 2%;
+  }
+  #ctrlBB,  .car-controls [data-ctrl-family="brake"]    { --ctrl-fam-h: var(--ctrl-brake-h);    --ctrl-fam-s: var(--ctrl-brake-s);    --ctrl-fam-l: var(--ctrl-brake-l); }
+  #ctrlTC,  .car-controls [data-ctrl-family="traction"] { --ctrl-fam-h: var(--ctrl-traction-h); --ctrl-fam-s: var(--ctrl-traction-s); --ctrl-fam-l: var(--ctrl-traction-l); }
+  #ctrlABS, .car-controls [data-ctrl-family="abs"]      { --ctrl-fam-h: var(--ctrl-abs-h);      --ctrl-fam-s: var(--ctrl-abs-s);      --ctrl-fam-l: var(--ctrl-abs-l); }
+  .car-controls [data-ctrl-family="power"]   { --ctrl-fam-h: var(--ctrl-power-h);   --ctrl-fam-s: var(--ctrl-power-s);   --ctrl-fam-l: var(--ctrl-power-l); }
+  .car-controls [data-ctrl-family="chassis"] { --ctrl-fam-h: var(--ctrl-chassis-h); --ctrl-fam-s: var(--ctrl-chassis-s); --ctrl-fam-l: var(--ctrl-chassis-l); }
+  .car-controls [data-ctrl-family="mode"]    { --ctrl-fam-h: var(--ctrl-mode-h);    --ctrl-fam-s: var(--ctrl-mode-s);    --ctrl-fam-l: var(--ctrl-mode-l); }
+  .car-controls [data-ctrl-shade="1"] { --ctrl-dh: var(--ctrl-shade1-h); --ctrl-ds: var(--ctrl-shade1-s); --ctrl-dl: var(--ctrl-shade1-l); }
+  .car-controls [data-ctrl-shade="2"] { --ctrl-dh: var(--ctrl-shade2-h); --ctrl-ds: var(--ctrl-shade2-s); --ctrl-dl: var(--ctrl-shade2-l); }
+  .car-controls [data-ctrl-shade="3"] { --ctrl-dh: var(--ctrl-shade3-h); --ctrl-ds: var(--ctrl-shade3-s); --ctrl-dl: var(--ctrl-shade3-l); }
+  #ctrlBB, #ctrlTC, #ctrlABS, .car-controls [data-ctrl-family] {
+    --ctrl-c-value: hsl(calc(var(--ctrl-fam-h) + var(--ctrl-dh, 0)), calc(var(--ctrl-fam-s) + var(--ctrl-ds, 0%)),
+      calc(var(--ctrl-value-l) + var(--ctrl-fam-l) + var(--ctrl-dl, 0%)));
+    --ctrl-c-label: hsl(calc(var(--ctrl-fam-h) + var(--ctrl-dh, 0)),
+      max(calc(var(--ctrl-fam-s) - var(--ctrl-label-desat) + var(--ctrl-ds, 0%)), var(--ctrl-label-s-min)),
+      calc(var(--ctrl-label-l) + var(--ctrl-fam-l) + var(--ctrl-dl, 0%)));
+    --ctrl-c-fill: hsla(calc(var(--ctrl-fam-h) + var(--ctrl-dh, 0)), calc(var(--ctrl-fam-s) - var(--ctrl-fill-desat) + var(--ctrl-ds, 0%)),
+      var(--ctrl-fill-l), var(--ctrl-fill-a));
+    --ctrl-c-glow: hsla(calc(var(--ctrl-fam-h) + var(--ctrl-dh, 0)), calc(var(--ctrl-fam-s) - var(--ctrl-fill-desat) + var(--ctrl-ds, 0%)),
+      var(--ctrl-glow-l), var(--ctrl-glow-a));
+  }
+  /* The value and the label in the family's colour, and the bar behind them: the three, a mode, and every other
+     control the car has (the row beneath, .ctrl-mini). */
+  #ctrlBB .ctrl-value, #ctrlTC .ctrl-value, #ctrlABS .ctrl-value,
+  .car-controls [data-ctrl-family] .ctrl-value,
+  .car-controls [data-ctrl-family] .ctrl-mini-value { color: var(--ctrl-c-value); }
+  #ctrlBB .ctrl-label, #ctrlTC .ctrl-label, #ctrlABS .ctrl-label,
+  .car-controls [data-ctrl-family] .ctrl-label,
+  .car-controls [data-ctrl-family] .ctrl-mini-label { color: var(--ctrl-c-label); }
+  #ctrlBB::before, #ctrlTC::before, #ctrlABS::before,
+  .car-controls .ctrl-item[data-ctrl-family]::before { background: var(--ctrl-c-fill); }
 
   /* Control bar change flash — brightens the fill bar and value */
   .ctrl-item.ctrl-changed::before {
@@ -110,22 +176,19 @@
   .ctrl-item.ctrl-active::after {
     opacity: 1 !important;
   }
-  #ctrlABS.ctrl-active { background: hsla(48, 80%, 55%, 0.23); }
-  #ctrlTC.ctrl-active  { background: hsla(215, 75%, 55%, 0.23); }
-  #ctrlBB.ctrl-active  { background: hsla(355, 75%, 55%, 0.23); }
+  #ctrlABS.ctrl-active, #ctrlTC.ctrl-active, #ctrlBB.ctrl-active { background: var(--ctrl-c-glow); }
 
   /* Hidden controls (car doesn't have TC/ABS) */
   .ctrl-item.ctrl-hidden { display: none; }
   .ctrl-value-fixed {
     opacity: 0.5 !important;
     font-size: 14px !important;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.01em;
   }
 
   /* ── The car's controls by the canonical list (modules/js/car-controls.js) ──
      A mode (one dial for ABS, TC and stability) is a cell of its own and the cells it stands for are hidden.
-     In the glance layout (drive-view.css) a control the car lacks reads NONE and takes only the width NONE needs,
+     In the glance layout (drive-view.css) a control the car lacks reads None and takes only the width None needs,
      and the car's other controls — a second traction dial, brake migration, the bars, DRS, push-to-pass — are a
      row of small cells under the three, there only for a car that has any. On the rig's HUD every one of them is
      a cell like the three (.ctrl-fit, below). */
@@ -153,16 +216,18 @@
     opacity: 0.6;
     vertical-align: 1px;
   }
+  /* (a mode's green is its family's: data-ctrl-family="mode", above) */
   .car-controls.car-controls-listed .ctrl-item.ctrl-mode { flex: 1.6; }
-  .car-controls.car-controls-listed .ctrl-item.ctrl-mode::before { background: hsla(150, 60%, 33%, 0.12); }
-  .car-controls.car-controls-listed .ctrl-item.ctrl-mode .ctrl-value { color: hsl(150, 70%, 62%); }
-  .car-controls.car-controls-listed .ctrl-item.ctrl-mode .ctrl-label { color: hsl(150, 40%, 52%); }
   .car-controls.car-controls-listed .ctrl-item .ctrl-value.ctrl-value-fixed { opacity: 0.9; font-size: 15px; }
+  /* The row is the panel's width whatever its labels (min-width: 0): its cells share it, and a label is fitted to its
+     cell (car-controls.js), not the cell to its label — a row of long labels was as wide as their sum, and ran past the
+     panel. */
   .ctrl-more {
     flex: 0 0 100%;
     display: flex;
     gap: var(--gap);
     min-height: 0;
+    min-width: 0;
   }
   .ctrl-mini {
     flex: 1;
@@ -182,8 +247,7 @@
     font-size: 9px;
     font-weight: var(--fw-semi);
     color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.02em;
     white-space: nowrap;
   }
   .ctrl-mini-value {
@@ -197,6 +261,8 @@
   }
   .ctrl-mini.ctrl-mini-off .ctrl-mini-value { opacity: 0.5; }
   .ctrl-mini.ctrl-mini-unread .ctrl-mini-value { opacity: 0.35; }
+  /* DRS and push-to-pass: no family, and their states are their colours — DRS that can be opened, DRS open,
+     push-to-pass on. */
   .ctrl-mini.ctrl-mini-ready { background: hsla(150, 60%, 45%, 0.16); }
   .ctrl-mini.ctrl-mini-ready .ctrl-mini-value { color: hsl(150, 70%, 65%); }
   .ctrl-mini.ctrl-mini-active { background: hsla(150, 70%, 50%, 0.32); border-color: hsla(150, 70%, 60%, 0.5); }
@@ -210,7 +276,7 @@
      full size, four across in two rows at the compact size (.ctrl-compact), and in three rows of four or five at the
      tight one (.ctrl-tight), as many across as the module says (--ctrl-cols) — every control the car has, the step
      taken being the smallest that holds them. The car's other controls are cells like the three — the row they sit
-     in dissolves (display: contents) — with the bar the three have; a NONE cell is a full cell, last, and only there
+     in dissolves (display: contents) — with the bar the three have; a None cell is a full cell, last, and only there
      where its slot would not make a row of its own (.ctrl-omitted); an unread one is its label over a dim dash. The
      glance layout has none of this (drive-view.css lays the panel out as a cell of its grid, and the module adds no
      .ctrl-fit there). */
@@ -249,6 +315,9 @@
     pointer-events: none;
     transition: height var(--t-med);
   }
+  /* The bar in the control's family colour, as the three's: its height is where the value stands in that control's
+     range for that car (car-controls.js fillOf), and moves with every click. */
+  .car-controls.ctrl-fit .ctrl-mini[data-ctrl-family]::before { background: var(--ctrl-c-fill); }
   .car-controls.ctrl-fit .ctrl-mini-label {
     font-size: var(--fs-xs);
     position: relative;
@@ -265,7 +334,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .car-controls.ctrl-fit .ctrl-mini-value.ctrl-mini-word { font-size: 15px; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.05em; }
+  .car-controls.ctrl-fit .ctrl-mini-value.ctrl-mini-word { font-size: 15px; opacity: 0.9; letter-spacing: 0.01em; }
   .car-controls.ctrl-fit .ctrl-mini-none .ctrl-mini-value { opacity: 0.45; }
   .car-controls.ctrl-fit .ctrl-mini-off .ctrl-mini-value { font-size: 18px; opacity: 0.75; }
   .car-controls.ctrl-fit .ctrl-mini-locked .ctrl-mini-label::after {
@@ -282,7 +351,7 @@
   }
   .car-controls.ctrl-fit .ctrl-value { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   /* A number of five characters (48.25) is wider than a cell at the number's size: a step down. A word wider than
-     its cell (AUTOMATIC), or a number of six characters: smaller still. */
+     its cell (Automatic), or a number of six characters: smaller still. */
   .car-controls.ctrl-fit .ctrl-value.ctrl-value-wide,
   .car-controls.ctrl-fit .ctrl-mini-value.ctrl-value-wide { font-size: 18px; letter-spacing: -0.03em; }
   .car-controls.ctrl-fit .ctrl-value.ctrl-value-long,
@@ -293,7 +362,7 @@
   .car-controls.ctrl-fit.ctrl-compact .ctrl-value,
   .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value { font-size: 16px; }
   .car-controls.ctrl-fit.ctrl-compact .ctrl-label,
-  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-label { font-size: 9px; letter-spacing: 0.04em; }
+  .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-label { font-size: 9px; letter-spacing: 0.01em; }
   .car-controls.ctrl-fit.ctrl-compact .ctrl-item .ctrl-value.ctrl-value-fixed,
   .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value.ctrl-mini-word { font-size: 12px !important; }
   .car-controls.ctrl-fit.ctrl-compact .ctrl-item.ctrl-off .ctrl-value,
@@ -302,14 +371,17 @@
   .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value.ctrl-value-wide { font-size: 14px; }
   .car-controls.ctrl-fit.ctrl-compact .ctrl-value.ctrl-value-long,
   .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value.ctrl-value-long { font-size: 10px !important; }
-  /* Tight: three rows in the panel's height (the rows' gap is 2px, the number 13px, the label 8px at most). */
-  .car-controls.ctrl-fit.ctrl-tight { --gap: 2px; }
+  /* Tight: three rows in the panel's height (2px between the cells across and 1px between the rows, the number 13px,
+     the label 8px at most). Any row may have a label on two lines (a control in words: "Rear lateral slip"), so the
+     cells have no padding above and below and a two-line cell's number is 11px (below): three rows of two-line cells
+     are 82px of the 84 inside the panel. */
+  .car-controls.ctrl-fit.ctrl-tight { --gap: 2px; row-gap: 1px; }
   .car-controls.ctrl-fit.ctrl-tight .ctrl-item,
-  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini { padding: 1px 2px; gap: 0; }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini { padding: 0 2px; gap: 0; }
   .car-controls.ctrl-fit.ctrl-tight .ctrl-value,
   .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-value { font-size: 13px; }
   .car-controls.ctrl-fit.ctrl-tight .ctrl-label,
-  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-label { letter-spacing: 0.03em; }
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-label { letter-spacing: 0; }
   .car-controls.ctrl-fit.ctrl-tight .ctrl-item .ctrl-value.ctrl-value-fixed,
   .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-value.ctrl-mini-word { font-size: 11px !important; }
   .car-controls.ctrl-fit.ctrl-tight .ctrl-item.ctrl-off .ctrl-value,
@@ -318,7 +390,7 @@
   .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-value.ctrl-value-wide { font-size: 12px; }
   /* A label no larger than its cell holds: the module says how many characters it is (--ctrl-label-len: the longest
      line of it), the cell is the container its width is read from, and the label is set at the size the panel's
-     type has, or smaller to fit — BRAKE BIAS three across, TC TOGGLE four across — down to 7px. The width a character
+     type has, or smaller to fit — Anti-lock three across, Traction toggle four across — down to 7px. The width a character
      takes is the page's own font's (Sofia Pro Comp, 600, 0.43 em at the mean and 0.47 at the most for a label of seven
      characters or more: the module's EM is 0.5 to hold them all). A label the one line cannot hold above 8px is
      wrapped onto a second (.ctrl-label-2l, the module's labelPlan) and cut with an ellipsis only past that. */
@@ -349,14 +421,14 @@
   .car-controls.ctrl-fit.ctrl-tight .ctrl-label.ctrl-label-2l,
   .car-controls.ctrl-fit.ctrl-tight .ctrl-mini-label.ctrl-label-2l { font-size: 7px; }
   .car-controls.ctrl-fit.ctrl-tight .ctrl-item:has(.ctrl-label-2l) .ctrl-value,
-  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini:has(.ctrl-label-2l) .ctrl-mini-value { font-size: 12px; }
-  /* A long value (AUTOMATIC, a number of six) the same way, by its own length (--ctrl-value-len). */
+  .car-controls.ctrl-fit.ctrl-tight .ctrl-mini:has(.ctrl-label-2l) .ctrl-mini-value { font-size: 11px; }
+  /* A long value (Automatic, a number of six) the same way, by its own length (--ctrl-value-len). */
   .car-controls.ctrl-fit .ctrl-value.ctrl-value-long,
   .car-controls.ctrl-fit .ctrl-mini-value.ctrl-value-long { font-size: clamp(7px, calc(100cqi / (var(--ctrl-value-len, 9) * 0.62)), 11px) !important; }
   .car-controls.ctrl-fit.ctrl-compact .ctrl-value.ctrl-value-long,
   .car-controls.ctrl-fit.ctrl-compact .ctrl-mini-value.ctrl-value-long { font-size: clamp(7px, calc(100cqi / (var(--ctrl-value-len, 9) * 0.62)), 10px) !important; }
 
-  /* "No Adjustments" fallback when all controls are hidden */
+  /* "No adjustments" fallback when all controls are hidden */
   .ctrl-no-adj {
     display: none;
     flex: 1;
@@ -365,9 +437,8 @@
     text-align: center;
     font-size: 14px;
     font-weight: var(--fw-bold);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.02em;
     color: hsla(0, 0%, 100%, 0.25);
-    text-transform: uppercase;
   }
   .car-controls.no-adj .ctrl-no-adj {
     display: flex;
@@ -401,8 +472,7 @@
   .pedal-channel-label {
     font-size: var(--fs-xs);
     font-weight: var(--fw-semi);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.02em;
   }
   .pedal-channel-label.throttle { color: hsla(0, 0%, 100%, 0.9); }
   .pedal-channel-label.brake { color: hsla(0, 0%, 100%, 0.9); }
@@ -475,8 +545,7 @@
     font-size: 14px;
     font-weight: 600;
     color: hsla(0, 0%, 100%, 0.3);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
     white-space: nowrap;
     z-index: 5;
     pointer-events: none;
@@ -611,15 +680,10 @@
     padding: 6px 0;
     overflow: hidden;
   }
+  /* The header's type is every panel's (dashboard.css, "One header for every panel"); this is where it sits: its text 11px in
+     from the panel's edge and 7px down, as the datastream's and the incidents' are (the panel's own 6px and the border). */
   .lb-header {
-    font-family: var(--ff);
-    font-size: 14px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: hsla(0, 0%, 100%, 0.35);
-    padding: 2px 10px 5px;
-    border-bottom: 1px solid hsla(0, 0%, 100%, 0.12);
+    padding: 0 10px 6px;
   }
   .lb-row {
     display: grid;

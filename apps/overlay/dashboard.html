@@ -75,23 +75,23 @@
     <!-- COL: Controls + Layered Pedals -->
     <div class="controls-pedals-block">
       <div class="panel car-controls">
-        <div class="ctrl-item" id="ctrlBB" style="--ctrl-pct:0%;"><div class="ctrl-label">BB</div><div class="ctrl-value">—</div></div>
-        <div class="ctrl-item" id="ctrlTC" style="--ctrl-pct:0%;"><div class="ctrl-label">TC</div><div class="ctrl-value">—</div></div>
-        <div class="ctrl-item" id="ctrlABS" style="--ctrl-pct:0%;"><div class="ctrl-label">ABS</div><div class="ctrl-value">—</div></div>
-        <div class="ctrl-no-adj" id="ctrlNoAdj">NO ADJUSTMENTS</div>
+        <div class="ctrl-item" id="ctrlBB" style="--ctrl-pct:0%;"><div class="ctrl-label">Bias</div><div class="ctrl-value">—</div></div>
+        <div class="ctrl-item" id="ctrlTC" style="--ctrl-pct:0%;"><div class="ctrl-label">Traction</div><div class="ctrl-value">—</div></div>
+        <div class="ctrl-item" id="ctrlABS" style="--ctrl-pct:0%;"><div class="ctrl-label">Anti-lock</div><div class="ctrl-value">—</div></div>
+        <div class="ctrl-no-adj" id="ctrlNoAdj">No adjustments</div>
       </div>
       <div class="panel pedals-area" id="pedalsArea">
         <div class="pedal-labels-row">
           <div class="pedal-label-group">
-            <div class="pedal-channel-label throttle">THROTTLE</div>
+            <div class="pedal-channel-label throttle">Throttle</div>
             <div class="pedal-pct">—%</div>
           </div>
           <div class="pedal-label-group">
-            <div class="pedal-channel-label brake">BRAKE</div>
+            <div class="pedal-channel-label brake">Brake</div>
             <div class="pedal-pct">—%</div>
           </div>
           <div class="pedal-label-group" id="clutchLabelGroup">
-            <div class="pedal-channel-label clutch">CLUTCH</div>
+            <div class="pedal-channel-label clutch">Clutch</div>
             <div class="pedal-pct">—%</div>
           </div>
         </div>
@@ -195,7 +195,7 @@
               </div>
             </div>
             <div class="rating-item">
-              <div class="panel-label">SR</div>
+              <div class="panel-label">Safety</div>
               <div class="rating-value">—</div>
               <div class="rating-delta">—</div>
               <div class="sr-pie-container">
@@ -265,7 +265,7 @@
         <div class="tacho-gear" id="gearText">N</div>
         <div class="tacho-speed-cluster">
           <div class="speed-value" id="speedText">0</div>
-          <div class="speed-unit">MPH</div>
+          <div class="speed-unit">mph</div>
         </div>
       </div>
       <span class="tacho-rpm" id="rpmText" style="color: var(--text-dim);">0</span>
@@ -410,7 +410,7 @@
 
     <!-- Steering torque -->
     <div class="ds-row" data-ds-field="dsShowFfb">
-      <span class="ds-label">FFB</span>
+      <span class="ds-label">Force feedback</span>
       <span class="ds-value" id="dsSteerTorque">0.0 Nm</span>
     </div>
 
@@ -425,7 +425,7 @@
       <span class="ds-value" id="dsWheelMax">—</span>
     </div>
     <div class="ds-row" data-ds-field="dsShowFfbMax">
-      <span class="ds-label">Sim FFB max</span>
+      <span class="ds-label">Sim feedback max</span>
       <span class="ds-value" id="dsFfbMax">—</span>
     </div>
     <div class="ds-row" data-ds-field="dsShowBrakeMax">
@@ -447,7 +447,7 @@
 
     <!-- FPS -->
     <div class="ds-row" data-ds-field="dsShowFps">
-      <span class="ds-label">FPS</span>
+      <span class="ds-label">Frame rate</span>
       <span class="ds-value" id="dsFps" style="color:var(--text-dim);">—</span>
     </div>
 
@@ -517,7 +517,7 @@
               <span class="pb-circle-pct" id="pbWearLFVal">—</span>
               <span class="pb-circle-temp" id="pbTempLF">—</span>
             </div>
-            <span class="pb-circle-pos">LF</span>
+            <span class="pb-circle-pos" title="Left front"><span class="pb-pos-words">Left front</span><span class="pb-pos-short">LF</span></span>
           </div>
           <div class="pb-circle-cell" id="pbCircleRF">
             <svg class="pb-wear-ring" viewBox="0 0 64 64">
@@ -529,7 +529,7 @@
               <span class="pb-circle-pct" id="pbWearRFVal">—</span>
               <span class="pb-circle-temp" id="pbTempRF">—</span>
             </div>
-            <span class="pb-circle-pos">RF</span>
+            <span class="pb-circle-pos" title="Right front"><span class="pb-pos-words">Right front</span><span class="pb-pos-short">RF</span></span>
           </div>
           <div class="pb-circle-cell" id="pbCircleLR">
             <svg class="pb-wear-ring" viewBox="0 0 64 64">
@@ -541,7 +541,7 @@
               <span class="pb-circle-pct" id="pbWearLRVal">—</span>
               <span class="pb-circle-temp" id="pbTempLR">—</span>
             </div>
-            <span class="pb-circle-pos">LR</span>
+            <span class="pb-circle-pos" title="Left rear"><span class="pb-pos-words">Left rear</span><span class="pb-pos-short">LR</span></span>
           </div>
           <div class="pb-circle-cell" id="pbCircleRR">
             <svg class="pb-wear-ring" viewBox="0 0 64 64">
@@ -553,7 +553,7 @@
               <span class="pb-circle-pct" id="pbWearRRVal">—</span>
               <span class="pb-circle-temp" id="pbTempRR">—</span>
             </div>
-            <span class="pb-circle-pos">RR</span>
+            <span class="pb-circle-pos" title="Right rear"><span class="pb-pos-words">Right rear</span><span class="pb-pos-short">RR</span></span>
           </div>
         </div>
         <!-- What the rings' number is: iRacing measures tread in the pits and nowhere else, so it is the last
@@ -602,8 +602,8 @@
         <div class="pb-row pb-row-window hidden" id="pbRowWindow"><span class="pb-label"><span class="pb-win-long">Pit window</span><span class="pb-win-short">Window</span></span><span class="pb-value" id="pbWindow">—</span></div>
 
         <div class="pb-divider"></div>
-        <div class="pb-row"><span class="pb-label">Fast repair</span><span class="pb-value off" id="pbFastRepair">NO</span></div>
-        <div class="pb-row"><span class="pb-label">Tearoff</span><span class="pb-value off" id="pbWindshield">NO</span></div>
+        <div class="pb-row"><span class="pb-label">Fast repair</span><span class="pb-value off" id="pbFastRepair">No</span></div>
+        <div class="pb-row"><span class="pb-label">Tearoff</span><span class="pb-value off" id="pbWindshield">No</span></div>
       </div>
 
       <!-- ═══ WEATHER TAB ═══ -->
@@ -671,7 +671,7 @@
       <rect x="9" y="25" width="10" height="2" rx="1" fill="hsla(0, 0%, 100%, 0.3)"/>
     </svg>
     <div class="rc-content">
-      <div class="rc-title" id="rcTitle">RACE CONTROL</div>
+      <div class="rc-title" id="rcTitle">Race control</div>
       <div class="rc-detail" id="rcDetail">—</div>
     </div>
   </div>
@@ -682,7 +682,7 @@
   <canvas class="pit-gl-canvas" id="pitGlCanvas"></canvas>
   <div class="pit-inner">
     <div class="pit-icon">P</div>
-    <div class="pit-label">Pit Limiter</div>
+    <div class="pit-label">Pit limiter</div>
     <div class="pit-speed" id="pitSpeed"></div>
     <div class="pit-limit" id="pitLimit"></div>
   </div>
@@ -695,15 +695,15 @@
   <div class="race-end-content" id="raceEndContent">
     <div class="re-position" id="rePosition">P1</div>
     <div class="re-title-block">
-      <h1 class="re-title" id="reTitle">VICTORY!</h1>
+      <h1 class="re-title" id="reTitle">Victory!</h1>
       <p class="re-subtitle" id="reSubtitle" style="display:none;"></p>
     </div>
-    <div class="re-clean-badge" id="reCleanBadge" style="display:none;"><span>✓</span> CLEAN RACE</div>
+    <div class="re-clean-badge" id="reCleanBadge" style="display:none;"><span>✓</span> Clean race</div>
     <div class="re-stats">
-      <div class="re-stat"><div class="re-stat-label">POSITION</div><div class="re-stat-val" id="reStatPos">P1</div></div>
-      <div class="re-stat"><div class="re-stat-label">INCIDENTS</div><div class="re-stat-val" id="reStatInc">0</div></div>
-      <div class="re-stat"><div class="re-stat-label">BEST LAP</div><div class="re-stat-val" id="reStatLap">—</div></div>
-      <div class="re-stat"><div class="re-stat-label">iRATING</div><div class="re-stat-val" id="reStatIR">—</div></div>
+      <div class="re-stat"><div class="re-stat-label">Position</div><div class="re-stat-val" id="reStatPos">P1</div></div>
+      <div class="re-stat"><div class="re-stat-label">Incidents</div><div class="re-stat-val" id="reStatInc">0</div></div>
+      <div class="re-stat"><div class="re-stat-label">Best lap</div><div class="re-stat-val" id="reStatLap">—</div></div>
+      <div class="re-stat"><div class="re-stat-label">iRating</div><div class="re-stat-val" id="reStatIR">—</div></div>
     </div>
   </div>
 </div>
@@ -716,15 +716,15 @@
     <div class="rr-header">
       <div id="rrPosition">—</div>
       <div class="rr-header-text">
-        <h2 id="rrTrack">Track Name</h2>
+        <h2 id="rrTrack">Track name</h2>
         <div id="rrMeta">Car • 0/0 laps • 0:00.000</div>
       </div>
       <div class="rr-rating">
-        <div class="rr-rating-label">iR Delta</div>
+        <div class="rr-rating-label">iRating delta</div>
         <div id="rrIRDelta">—</div>
       </div>
       <div class="rr-rating">
-        <div class="rr-rating-label">SR Delta</div>
+        <div class="rr-rating-label">Safety delta</div>
         <div id="rrSRDelta">—</div>
       </div>
     </div>
@@ -732,38 +732,38 @@
     <!-- Charts Row -->
     <div class="rr-charts">
       <div class="rr-chart">
-        <div class="rr-chart-title">Lap Times</div>
+        <div class="rr-chart-title">Lap times</div>
         <canvas id="rrLapChart" class="rr-chart-canvas"></canvas>
       </div>
       <div class="rr-chart">
-        <div class="rr-chart-title">Position Over Race</div>
+        <div class="rr-chart-title">Position over the race</div>
         <canvas id="rrPosChart" class="rr-chart-canvas"></canvas>
       </div>
       <div class="rr-chart">
-        <div class="rr-chart-title">Performance Delta</div>
+        <div class="rr-chart-title">Performance delta</div>
         <canvas id="rrPerfChart" class="rr-chart-canvas"></canvas>
       </div>
     </div>
 
     <!-- Key Moments Timeline -->
     <div>
-      <h3 class="rr-section-title">Key Moments</h3>
+      <h3 class="rr-section-title">Key moments</h3>
       <div id="rrMoments"></div>
     </div>
 
     <!-- Coaching Tips -->
     <div>
-      <h3 class="rr-section-title">Coaching Tips</h3>
+      <h3 class="rr-section-title">Coaching tips</h3>
       <div id="rrTips"></div>
     </div>
 
     <!-- Incident Coach: Behavior Report Section -->
     <div id="rrBehaviorSection" style="display:none;">
-      <h3 class="rr-section-title">Behavior Report</h3>
+      <h3 class="rr-section-title">Behavior report</h3>
       <div class="rr-behavior-grid">
         <div class="rr-behavior-score">
           <div class="rr-behavior-score-num" id="rrBehaviorScore">—</div>
-          <div class="rr-behavior-score-label">COMPOSURE</div>
+          <div class="rr-behavior-score-label">Composure</div>
         </div>
         <div class="rr-behavior-breakdown" id="rrBehaviorBreakdown"></div>
       </div>
@@ -773,8 +773,8 @@
 
     <!-- AI Analysis Section -->
     <div id="rrAISection">
-      <h3 class="rr-section-title">AI Race Coach</h3>
-      <button id="rrAIBtn">Generate AI Analysis</button>
+      <h3 class="rr-section-title">AI race coach</h3>
+      <button id="rrAIBtn">Generate AI analysis</button>
       <div id="rrAIResult"></div>
     </div>
   </div>
@@ -800,10 +800,10 @@
       <div class="grid-flag-stripe" id="flagStripe3"></div>
     </div>
     <div class="grid-bg" id="gridBg"></div>
-    <div class="grid-title">Formation Lap</div>
+    <div class="grid-title">Formation lap</div>
     <div class="grid-cars"><span id="gridCarsGridded">0</span> <span class="grid-cars-total">/ <span id="gridCarsTotal">0</span> gridded</span></div>
     <div class="grid-strip" id="gridStrip"></div>
-    <div class="grid-start-type" id="gridStartType">Rolling Start</div>
+    <div class="grid-start-type" id="gridStartType">Rolling start</div>
   </div>
   <!-- F1-style start lights (replaces info when lights active) -->
   <div class="start-lights" id="startLights">
@@ -814,7 +814,7 @@
       <div class="light-col"><div class="light-bulb" id="light4t"></div><div class="light-bulb" id="light4b"></div></div>
       <div class="light-col"><div class="light-bulb" id="light5t"></div><div class="light-bulb" id="light5b"></div></div>
     </div>
-    <div class="lights-go" id="lightsGo">GO!</div>
+    <div class="lights-go" id="lightsGo">Go!</div>
   </div>
 </div>
 
@@ -854,6 +854,7 @@
 <script src="modules/js/in-car.js"></script>
 <script src="modules/js/session-kind.js"></script>
 <script src="modules/js/session-flags.js"></script>
+<script src="modules/js/words.js"></script>
 <script src="modules/js/car-controls.js"></script>
 <script src="modules/js/lap-delta.js"></script>
 <script src="modules/js/gap-trend.js"></script>

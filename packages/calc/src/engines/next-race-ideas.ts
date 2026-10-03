@@ -162,7 +162,7 @@ export interface RaceSuggestion {
   viewModel: {
     /** Hex color for the score chip background (e.g. "#34c759"). */
     scoreColorHex: string
-    /** Short human label for the score tier (e.g. "BEST FIT"). */
+    /** Short human label for the score tier (e.g. "Best fit"). */
     scoreTierLabel: string
     /** Human countdown ("in 2 hr 15 min" / "Starting now" / "Friday at 7:00 PM"). */
     startsInLabel: string
@@ -207,10 +207,10 @@ export interface RaceSuggestion {
  */
 
 const SCORE_TIERS = [
-  { min: 80, hex: '#34c759', label: 'BEST FIT' },
-  { min: 60, hex: '#c7d93a', label: 'STRONG' },
-  { min: 40, hex: '#ffcf4a', label: 'DECENT' },
-  { min: 0,  hex: '#ff8c42', label: 'STRETCH' },
+  { min: 80, hex: '#34c759', label: 'Best fit' },
+  { min: 60, hex: '#c7d93a', label: 'Strong' },
+  { min: 40, hex: '#ffcf4a', label: 'Decent' },
+  { min: 0,  hex: '#ff8c42', label: 'Stretch' },
 ] as const
 
 function scoreTier(score: number): { hex: string; label: string } {
@@ -1384,4 +1384,5 @@ export const _testing = {
   incidentsPerLap,
   diversifySelections,
   isWithinCurrentWeekWindow,
+  scoreTier,
 }

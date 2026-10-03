@@ -25,15 +25,12 @@
     border-bottom: 1px solid hsla(0, 0%, 100%, 0.08);
     background: hsla(0, 0%, 100%, 0.02);
   }
+  /* The tabs are the pit box's header: their type is every panel's header's (dashboard.css, "One header for every
+     panel"), and the page being shown is the one in white over the green rule. */
   .pb-tab {
     flex: 1;
     text-align: center;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
     padding: 7px 2px;
-    color: hsla(0, 0%, 100%, 0.35);
     cursor: pointer;
     transition: color 0.15s, background 0.15s;
     border-bottom: 2px solid transparent;
@@ -59,8 +56,7 @@
   .pb-section-label {
     font-size: var(--fs-xs);
     font-weight: 600;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
     color: var(--text-dim, hsla(0, 0%, 100%, 0.4));
     margin-bottom: 4px;
   }
@@ -236,8 +232,11 @@
     color: hsla(0, 0%, 100%, 0.4);
     letter-spacing: 0.5px;
     margin-top: 0px;
-    text-transform: uppercase;
   }
+  /* The corner's name under its ring: in words on the rig, where the cell has the room ("Right front" is about 50px under a
+     ring of 80, in a column of 128); LF, RF, LR and RR in the glance layout, where the name sits at the cell's corner beside
+     the ring's shoulder (drive-view.css). */
+  .pb-pos-short { display: none; }
 
   /* ── Selectable tire state (pit change toggle) ── */
   .pb-circle-cell.selectable {

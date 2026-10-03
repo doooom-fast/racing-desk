@@ -93,7 +93,7 @@ namespace RacingDesk.Plugin.Engine
                 double lapsEst = FuelLapsRemaining;
                 if (lapsEst <= 0 || RemainingLaps <= 0) return "";
                 if (lapsEst < RemainingLaps)
-                    return "PIT in ~" + ((int)Math.Ceiling(lapsEst)).ToString() + " laps";
+                    return "Pit in ~" + ((int)Math.Ceiling(lapsEst)).ToString() + " laps";
                 return "";
             }
         }

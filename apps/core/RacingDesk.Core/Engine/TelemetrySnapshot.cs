@@ -608,7 +608,7 @@ namespace RacingDesk.Plugin.Engine
             ? (IsImperial ? LitersToGallons(FuelPerLap) : FuelPerLap).ToString("F2")
             : "\u2014";
 
-        /// <summary>Pit fuel suggestion like "PIT in ~5 laps", or empty if not applicable.</summary>
+        /// <summary>Pit fuel suggestion like "Pit in ~5 laps", or empty if not applicable.</summary>
         public string PitSuggestion
         {
             get
@@ -616,7 +616,7 @@ namespace RacingDesk.Plugin.Engine
                 double lapsEst = FuelLapsRemaining;   // 0 while the fuel per lap is not known
                 if (lapsEst <= 0 || RemainingLaps <= 0) return "";
                 if (lapsEst < RemainingLaps)
-                    return "PIT in ~" + ((int)System.Math.Ceiling(lapsEst)).ToString() + " laps";
+                    return "Pit in ~" + ((int)System.Math.Ceiling(lapsEst)).ToString() + " laps";
                 return "";
             }
         }

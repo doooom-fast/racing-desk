@@ -2,7 +2,7 @@
  * The datastream's three rows for what the rig is set to (dashboard.html, datastream.js): "Wheel max", the wheel's maximum
  * torque in Nm (what the wheel base itself says, DS.MozaWheelbaseMaxNm, else what the app's host says of it — the base's
  * reading or Pit House's saved preset for it — handed to the page by the main process, rig-limits.js, through the
- * preload), "Sim FFB max", iRacing's own force scale from SteeringWheelMaxForceNm (DS.SteerMaxForceNm, sent only where the
+ * preload), "Sim feedback max", iRacing's own force scale from SteeringWheelMaxForceNm (DS.SteerMaxForceNm, sent only where the
  * sim says it: the strength slider in Nm the sim maps to full output, which is not the wheel's maximum), and "Brake
  * max", SmartControl's brake force in kg as the app's host follows it, handed to the page the same way. Each is a dash
  * while not known — no key, no main process, the demo — and never a number of the page's own. They are the rig HUD's
@@ -67,10 +67,10 @@ test.describe('the rows', () => {
     await expect(page.locator('#dsWheelMax')).toHaveText('11.6 Nm');
     const r = await rows(page);
     expect(r.ffb.text).toBe('7.8 Nm');
-    expect([r.wheelMax.label, r.ffbMax.label, r.brakeMax.label]).toEqual(['Wheel max', 'Sim FFB max', 'Brake max']);
+    expect([r.wheelMax.label, r.ffbMax.label, r.brakeMax.label]).toEqual(['Wheel max', 'Sim feedback max', 'Brake max']);
     expect([r.wheelMax.shown, r.ffbMax.shown, r.brakeMax.shown]).toEqual([true, true, true]);
-    // The rows sit under FFB, in the panel's order: the wheel's, then the sim's scale, then the brake's.
-    expect(await page.evaluate(() => [...document.querySelectorAll('.ds-inner .ds-row')].map((r) => r.querySelector('.ds-label').textContent).slice(0, 8))).toEqual(['Lat', 'Long', 'Peak', 'Yaw', 'FFB', 'Wheel max', 'Sim FFB max', 'Brake max']);
+    // The rows sit under the force feedback, in the panel's order: the wheel's, then the sim's scale, then the brake's.
+    expect(await page.evaluate(() => [...document.querySelectorAll('.ds-inner .ds-row')].map((r) => r.querySelector('.ds-label').textContent).slice(0, 8))).toEqual(['Lat', 'Long', 'Peak', 'Yaw', 'Force feedback', 'Wheel max', 'Sim feedback max', 'Brake max']);
   });
 
   test('the wheel\'s maximum: what the base itself says in the frame first, else the main process\'s, else a dash', async ({ page }) => {

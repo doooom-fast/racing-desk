@@ -11,7 +11,7 @@
     {
       "id": "spin_catch",
       "category": "car_response",
-      "title": "Big Save",
+      "title": "Big save",
       "sentiment": "technical_analytical",
       "severity": 5,
       "eventExposition": "Snap oversteer — yaw rate hit {value} rad/s, full correction from {driver}",
@@ -37,10 +37,10 @@
     {
       "id": "wall_contact",
       "category": "racing_experience",
-      "title": "Wall / Barrier Contact",
+      "title": "Wall / barrier contact",
       "sentiment": "frustration_negative",
       "severity": 5,
-      "eventExposition": "Hard impact — {value}G vertical spike, {driver} into the barrier",
+      "eventExposition": "Hard impact — {value}g vertical spike, {driver} into the barrier",
       "sessionTypes": [],
       "description": "Heavy impact — car hit a barrier or another vehicle at significant speed.",
       "triggers": [
@@ -63,11 +63,11 @@
     {
       "id": "catastrophic_impact",
       "category": "racing_experience",
-      "title": "Catastrophic Impact",
+      "title": "Catastrophic impact",
       "sentiment": "frustration_negative",
       "severity": 5,
       "priority": 10,
-      "eventExposition": "Catastrophic impact — {value}G vertical spike. Race-ending contact.",
+      "eventExposition": "Catastrophic impact — {value}g vertical spike. Race-ending contact.",
       "sessionTypes": [],
       "description": "Extreme impact that likely ends the session. Triggers above wall contact threshold.",
       "triggers": [
@@ -89,10 +89,10 @@
     {
       "id": "off_track",
       "category": "racing_experience",
-      "title": "Off Track",
+      "title": "Off track",
       "sentiment": "self_deprecating",
       "severity": 4,
-      "eventExposition": "Off track — vertical G spiked to {value}, {driver} left the racing surface",
+      "eventExposition": "Off track — vertical g spiked to {value}, {driver} left the racing surface",
       "sessionTypes": [],
       "description": "Car left the track surface — run-off, gravel, grass.",
       "triggers": [
@@ -114,10 +114,10 @@
     {
       "id": "kerb_hit",
       "category": "car_response",
-      "title": "Kerb / Curb Hit",
+      "title": "Kerb / curb hit",
       "sentiment": "technical_analytical",
       "severity": 2,
-      "eventExposition": "Heavy kerb strike — significant vertical impact beyond normal track use — {value}G vertical spike over the apex kerb",
+      "eventExposition": "Heavy kerb strike — significant vertical impact beyond normal track use — {value}g vertical spike over the apex kerb",
       "sessionTypes": [],
       "description": "Heavy kerb strike — significant vertical impact beyond normal track use.",
       "triggers": [
@@ -139,10 +139,10 @@
     {
       "id": "abs_activation",
       "category": "car_response",
-      "title": "ABS Activation",
+      "title": "Anti-lock activation",
       "sentiment": "technical_analytical",
       "severity": 1,
-      "eventExposition": "ABS fired under braking — system intervened for {driver}",
+      "eventExposition": "The anti-lock fired under braking — the system intervened for {driver}",
       "sessionTypes": [],
       "description": "ABS system fired — brakes locked before the system intervened.",
       "triggers": [
@@ -154,20 +154,20 @@
         }
       ],
       "commentaryPrompts": [
-        "ABS fired for {driver}. The brake pressure exceeded the tyre's grip threshold — the system pulsed the calipers to prevent a flat spot on the compound.",
-        "ABS active under braking for {driver}. The front tyres hit their slip ratio limit — without the intervention that's a locked wheel and a ruined tyre surface.",
-        "The ABS intervened for {driver} in that braking zone. The pedal pressure was past what the current tyre grip could handle — the electronics modulated to keep rotation.",
-        "ABS cycling for {driver}. The brake torque exceeded tyre adhesion — the system is releasing and reapplying pressure faster than any driver could manage manually."
+        "The anti-lock fired for {driver}. The brake pressure exceeded the tyre's grip threshold — the system pulsed the calipers to prevent a flat spot on the compound.",
+        "Anti-lock active under braking for {driver}. The front tyres hit their slip ratio limit — without the intervention that's a locked wheel and a ruined tyre surface.",
+        "The anti-lock intervened for {driver} in that braking zone. The pedal pressure was past what the current tyre grip could handle — the electronics modulated to keep rotation.",
+        "The anti-lock cycling for {driver}. The brake torque exceeded tyre adhesion — the system is releasing and reapplying pressure faster than any driver could manage manually."
       ],
       "cooldownMinutes": 10
     },
     {
       "id": "tc_intervention",
       "category": "car_response",
-      "title": "Traction Control Cut",
+      "title": "Traction control cut",
       "sentiment": "technical_analytical",
       "severity": 1,
-      "eventExposition": "TC cut power on corner exit for {driver}",
+      "eventExposition": "Traction control cut power on corner exit for {driver}",
       "sessionTypes": [],
       "description": "TC cut power on corner exit — rear sliding under throttle.",
       "triggers": [
@@ -179,17 +179,17 @@
         }
       ],
       "commentaryPrompts": [
-        "TC cutting power on exit for {driver}. The rear tyre slip ratio exceeded the threshold — the system reduced engine torque to prevent wheelspin.",
-        "Traction control fired on {driver}'s car. The throttle application exceeded what the rear tyres could transmit — the ECU cut ignition to match power to grip.",
-        "TC intervention for {driver} on corner exit. The rear axle was spinning faster than the front — the system pulled engine power until the slip ratio normalised.",
-        "The TC stepped in for {driver}. The throttle map shows the system chopped about 15-20% of requested power — that's the cost of keeping the rear tyres alive."
+        "Traction control cutting power on exit for {driver}. The rear tyre slip ratio exceeded the threshold — the system reduced engine torque to prevent wheelspin.",
+        "Traction control fired on {driver}'s car. The throttle application exceeded what the rear tyres could transmit — the engine computer cut ignition to match power to grip.",
+        "Traction control intervention for {driver} on corner exit. The rear axle was spinning faster than the front — the system pulled engine power until the slip ratio normalised.",
+        "The traction control stepped in for {driver}. The throttle map shows the system chopped about 15-20% of requested power — that's the cost of keeping the rear tyres alive."
       ],
       "cooldownMinutes": 10
     },
     {
       "id": "close_battle",
       "category": "racing_experience",
-      "title": "Close Racing",
+      "title": "Close racing",
       "sentiment": "excitement_positive",
       "severity": 3,
       "eventExposition": "Wheel-to-wheel — {driver} within 0.8% track distance, door-to-door racing",
@@ -216,7 +216,7 @@
     {
       "id": "position_gained",
       "category": "racing_experience",
-      "title": "Position Gained",
+      "title": "Position gained",
       "sentiment": "excitement_positive",
       "severity": 4,
       "eventExposition": "Overtake — {driver} past {ahead}, moving up to P{value}",
@@ -242,7 +242,7 @@
     {
       "id": "position_lost",
       "category": "racing_experience",
-      "title": "Position Lost",
+      "title": "Position lost",
       "sentiment": "frustration_negative",
       "severity": 4,
       "eventExposition": "Overtaken — {behind} got past {driver}, dropped to P{value}",
@@ -268,7 +268,7 @@
     {
       "id": "yellow_flag",
       "category": "racing_experience",
-      "title": "Yellow Flag",
+      "title": "Yellow flag",
       "sentiment": "neutral_narrative",
       "severity": 4,
       "eventExposition": "Yellow flag — caution deployed, incident on track",
@@ -292,7 +292,7 @@
     {
       "id": "debris_on_track",
       "category": "racing_experience",
-      "title": "Debris on Track",
+      "title": "Debris on track",
       "sentiment": "neutral_narrative",
       "severity": 3,
       "eventExposition": "Debris flag — hazardous material reported on the circuit",
@@ -317,7 +317,7 @@
     {
       "id": "race_start",
       "category": "racing_experience",
-      "title": "Race Start",
+      "title": "Race start",
       "sentiment": "excitement_positive",
       "severity": 4,
       "eventExposition": "Race start — lights out, {driver} underway from P{value}",
@@ -343,7 +343,7 @@
     {
       "id": "formation_lap",
       "category": "racing_experience",
-      "title": "Formation / Pace Lap",
+      "title": "Formation / pace lap",
       "sentiment": "neutral_narrative",
       "severity": 2,
       "eventExposition": "Formation lap — {driver} building to race start from P{value}",
@@ -370,7 +370,7 @@
     {
       "id": "personal_best",
       "category": "racing_experience",
-      "title": "Personal Best Lap",
+      "title": "Personal best lap",
       "sentiment": "excitement_positive",
       "severity": 3,
       "eventExposition": "Personal best — {driver} sets a new fastest lap",
@@ -385,7 +385,7 @@
       ],
       "commentaryPrompts": [
         "That's a personal best for {driver}. The lap did what it needed to do — clean, committed, no mistakes where it mattered.",
-        "PB for {driver}. That's {car} working and the driving matching it — every sector contributed.",
+        "Personal best for {driver}. That's {car} working and the driving matching it — every sector contributed.",
         "New personal best from {driver}. That's the result of getting the setup right and then actually executing on it.",
         "Personal best lap for {driver} and it looked like one. The confidence is there — time to build on it."
       ],
@@ -394,7 +394,7 @@
     {
       "id": "pit_entry",
       "category": "racing_experience",
-      "title": "Pit Lane Entry",
+      "title": "Pit lane entry",
       "sentiment": "neutral_narrative",
       "severity": 3,
       "eventExposition": "{driver} into pit entry on lap {value}",
@@ -420,10 +420,10 @@
     {
       "id": "high_cornering_load",
       "category": "car_response",
-      "title": "Maximum Cornering Load",
+      "title": "Maximum cornering load",
       "sentiment": "car_praise",
       "severity": 2,
-      "eventExposition": "Peak lateral load — {value}G through this corner for {driver}",
+      "eventExposition": "Peak lateral load — {value}g through this corner for {driver}",
       "sessionTypes": [],
       "description": "Very high lateral g sustained through a fast corner.",
       "triggers": [
@@ -435,20 +435,20 @@
         }
       ],
       "commentaryPrompts": [
-        "{value}G lateral through that corner for {driver}. That's near the absolute tyre adhesion limit — the downforce is doing most of the work at this speed.",
-        "{driver} pulling {value}G through the apex. At that load, the suspension geometry and aero balance have to be perfect or {car} snaps.",
-        "Peak cornering at {value}G for {driver}. The tyre load is enormous — the contact patches are carrying several times {manufacturer}'s weight through lateral force.",
-        "{driver} through that section at {value}G. That's the aerodynamic platform generating enough downforce to push the tyres well past what mechanical grip alone allows."
+        "{value}g lateral through that corner for {driver}. That's near the absolute tyre adhesion limit — the downforce is doing most of the work at this speed.",
+        "{driver} pulling {value}g through the apex. At that load, the suspension geometry and aero balance have to be perfect or {car} snaps.",
+        "Peak cornering at {value}g for {driver}. The tyre load is enormous — the contact patches are carrying several times {manufacturer}'s weight through lateral force.",
+        "{driver} through that section at {value}g. That's the aerodynamic platform generating enough downforce to push the tyres well past what mechanical grip alone allows."
       ],
       "cooldownMinutes": 6
     },
     {
       "id": "ffb_torque_spike",
       "category": "hardware",
-      "title": "FFB Torque Spike",
+      "title": "Force feedback torque spike",
       "sentiment": "technical_analytical",
       "severity": 3,
-      "eventExposition": "FFB spike — steering torque jumped by {value}Nm for {driver}",
+      "eventExposition": "Force feedback spike — steering torque jumped by {value} Nm for {driver}",
       "sessionTypes": [],
       "description": "Large sudden torque spike through the steering — major kerb or snap load.",
       "triggers": [
@@ -462,7 +462,7 @@
       "commentaryPrompts": [
         "The wheel kicked {value}Nm through {driver}'s hands. That torque spike means the front tyres hit something — kerb, bump, or sudden load change at the contact patch.",
         "{value}Nm torque spike through the steering for {driver}. That level of force feedback indicates a major front-end load event — the suspension is at full compression.",
-        "Steering torque spiked to {value}Nm for {driver}. That's the front tyres reporting a sudden lateral or longitudinal load — the FFB is translating tyre force directly to the wheel.",
+        "Steering torque spiked to {value}Nm for {driver}. That's the front tyres reporting a sudden lateral or longitudinal load — the force feedback is translating tyre force directly to the wheel.",
         "{driver} took {value}Nm through the wheel there. At that torque level the steering motor is at peak output — the real-car equivalent would be physically difficult to hold."
       ],
       "cooldownMinutes": 5
@@ -470,7 +470,7 @@
     {
       "id": "low_fuel",
       "category": "racing_experience",
-      "title": "Low Fuel",
+      "title": "Low fuel",
       "sentiment": "neutral_narrative",
       "severity": 3,
       "eventExposition": "Low fuel — {driver}'s tank at {value}%, running close to empty",
@@ -497,7 +497,7 @@
     {
       "id": "wet_track",
       "category": "racing_experience",
-      "title": "Wet Conditions",
+      "title": "Wet conditions",
       "sentiment": "neutral_narrative",
       "severity": 3,
       "eventExposition": "Wet track declared — conditions changing for {driver}",
@@ -522,7 +522,7 @@
     {
       "id": "track_temp_cold",
       "category": "game_feel",
-      "title": "Cold Track Conditions",
+      "title": "Cold track conditions",
       "sentiment": "neutral_narrative",
       "severity": 1,
       "eventExposition": "Cold track surface — {value}°C, {driver} building temperature",
@@ -547,7 +547,7 @@
     {
       "id": "tyre_wear_high",
       "category": "car_response",
-      "title": "High Tyre Wear",
+      "title": "High tyre wear",
       "sentiment": "technical_analytical",
       "severity": 2,
       "eventExposition": "High tyre wear — {driver}'s worst tyre measured at {value}% tread",
@@ -565,14 +565,14 @@
         "{driver}'s worst tyre is down to {value}% tread. The grip drop-off from this point accelerates — the compound is past its effective window.",
         "Tyre wear at {value}% tread for {driver}. The rubber has lost enough depth that the thermal performance changes — grip spikes early in a corner and falls off at exit.",
         "{driver}'s worst tyre reading {value}% remaining. At this wear level the contact patch is shrinking and {car} understeers more on entry and oversteers more on power.",
-        "Down to {value}% on the worst corner for {driver}. The braking performance degrades significantly from here — stopping distances grow and the ABS works harder."
+        "Down to {value}% on the worst corner for {driver}. The braking performance degrades significantly from here — stopping distances grow and the anti-lock works harder."
       ],
       "cooldownMinutes": 6
     },
     {
       "id": "hot_tyres",
       "category": "car_response",
-      "title": "Overheating Tyres",
+      "title": "Overheating tyres",
       "sentiment": "technical_analytical",
       "severity": 3,
       "eventExposition": "Tyre overheating — {driver}'s front temps at {value}°F",
@@ -603,10 +603,10 @@
     {
       "id": "heavy_braking",
       "category": "car_response",
-      "title": "Major Braking Zone",
+      "title": "Major braking zone",
       "sentiment": "excitement_positive",
       "severity": 2,
-      "eventExposition": "Heavy braking — {value}G deceleration for {driver} into this corner",
+      "eventExposition": "Heavy braking — {value}g deceleration for {driver} into this corner",
       "sessionTypes": [],
       "description": "Extreme longitudinal deceleration — very heavy braking event.",
       "triggers": [
@@ -618,17 +618,17 @@
         }
       ],
       "commentaryPrompts": [
-        "{value}G deceleration for {driver} into that corner. The brake disc temperatures spike by hundreds of degrees in a zone like that.",
-        "{driver} pulling {value}G under braking. At that deceleration, the front axle is carrying nearly all {manufacturer}'s weight — the rear is barely touching the ground.",
-        "{value}G braking event for {driver}. The tyre contact patches are at maximum longitudinal load — the ABS threshold is fractions away.",
-        "Peak braking at {value}G for {driver}. The kinetic energy being converted to heat through the discs in that distance is enormous — the brake temps will show it."
+        "{value}g deceleration for {driver} into that corner. The brake disc temperatures spike by hundreds of degrees in a zone like that.",
+        "{driver} pulling {value}g under braking. At that deceleration, the front axle is carrying nearly all {manufacturer}'s weight — the rear is barely touching the ground.",
+        "{value}g braking event for {driver}. The tyre contact patches are at maximum longitudinal load — the anti-lock threshold is fractions away.",
+        "Peak braking at {value}g for {driver}. The kinetic energy being converted to heat through the discs in that distance is enormous — the brake temps will show it."
       ],
       "cooldownMinutes": 5
     },
     {
       "id": "qualifying_push",
       "category": "racing_experience",
-      "title": "Hot Qualifying Lap",
+      "title": "Hot qualifying lap",
       "sentiment": "excitement_positive",
       "severity": 3,
       "eventExposition": "Hot lap — {driver} running {value}s ahead of personal best in qualifying",
@@ -655,7 +655,7 @@
     {
       "id": "incident_spike",
       "category": "racing_experience",
-      "title": "iRacing Incident Points",
+      "title": "iRacing incident points",
       "sentiment": "frustration_negative",
       "severity": 4,
       "eventExposition": "Incident — {driver} picks up penalty points, now at {value}x total",
@@ -672,17 +672,17 @@
         "Incident points for {driver}. iRacing saw that and the Safety Rating is going to reflect it.",
         "The incident counter goes up for {driver}. In iRacing that's permanent — every contact is recorded and it matters.",
         "That's on {driver}'s record now. The iRating system doesn't care about context — it logs the incident and moves on.",
-        "Another incident point for {driver}. The SR implications are real and they don't go away quickly."
+        "Another incident point for {driver}. The safety rating implications are real and they don't go away quickly."
       ],
       "cooldownMinutes": 3
     },
     {
       "id": "ers_low",
       "category": "car_response",
-      "title": "ERS Battery Low",
+      "title": "Hybrid battery low",
       "sentiment": "technical_analytical",
       "severity": 2,
-      "eventExposition": "ERS depleted — {driver}'s battery at {value}%, no hybrid boost",
+      "eventExposition": "Hybrid battery empty — {driver}'s battery at {value}%, no hybrid boost",
       "sessionTypes": [],
       "description": "ERS battery nearly depleted — losing hybrid power.",
       "triggers": [
@@ -694,9 +694,9 @@
         }
       ],
       "commentaryPrompts": [
-        "ERS at {value}% for {driver}. Without the hybrid boost, straight-line speed drops by 15-20 km/h — that's a massive deficit when defending or attacking.",
-        "{driver}'s battery at {value}%. The electric motor provides peak torque at low RPM — losing it means slower corner exits until regen refills the pack.",
-        "ERS depleted to {value}% for {driver}. The car loses its acceleration advantage out of slow corners — the ICE alone can't match the combined power output.",
+        "Hybrid battery at {value}% for {driver}. Without the hybrid boost, straight-line speed drops by 15-20 km/h — that's a massive deficit when defending or attacking.",
+        "{driver}'s battery at {value}%. The electric motor provides peak torque at low rpm — losing it means slower corner exits until regen refills the pack.",
+        "Hybrid battery down to {value}% for {driver}. The car loses its acceleration advantage out of slow corners — the engine alone can't match the combined power output.",
         "{driver}'s hybrid at {value}%. The regen zones on this circuit need to refill the battery before the next deployment zone or the lap time drops by over a second."
       ],
       "cooldownMinutes": 5
@@ -704,7 +704,7 @@
     {
       "id": "track_temp_hot",
       "category": "game_feel",
-      "title": "High Track Temperature",
+      "title": "High track temperature",
       "sentiment": "technical_analytical",
       "severity": 1,
       "eventExposition": "Track surface at {value}°C — high temps for {driver}",
@@ -729,7 +729,7 @@
     {
       "id": "drs_active",
       "category": "car_response",
-      "title": "DRS Open",
+      "title": "DRS open",
       "sentiment": "excitement_positive",
       "severity": 2,
       "eventExposition": "DRS open — {driver}'s rear wing deployed",
@@ -754,10 +754,10 @@
     {
       "id": "car_balance_sustained",
       "category": "car_response",
-      "title": "Car On The Limit",
+      "title": "Car on the limit",
       "sentiment": "car_praise",
       "severity": 1,
-      "eventExposition": "{driver}'s car hooked up — sustained {value}G lateral load",
+      "eventExposition": "{driver}'s car hooked up — sustained {value}g lateral load",
       "sessionTypes": [],
       "description": "Sustained high lateral load — car working perfectly through a complex corner.",
       "triggers": [
@@ -769,17 +769,17 @@
         }
       ],
       "commentaryPrompts": [
-        "{driver}'s car is sustaining {value}G through that section — right at the mechanical grip limit of the tyres.",
-        "That's a well-sorted car from {driver}. Holding {value}G lateral means the aero balance and tyre pressures are dialled in perfectly.",
-        "{driver} carrying {value}G consistently through the complex. That sustained load only happens when front and rear grip are properly matched.",
-        "Completely hooked up for {driver}. The lateral data shows {value}G sustained — the setup is converting every bit of available grip into cornering speed."
+        "{driver}'s car is sustaining {value}g through that section — right at the mechanical grip limit of the tyres.",
+        "That's a well-sorted car from {driver}. Holding {value}g lateral means the aero balance and tyre pressures are dialled in perfectly.",
+        "{driver} carrying {value}g consistently through the complex. That sustained load only happens when front and rear grip are properly matched.",
+        "Completely hooked up for {driver}. The lateral data shows {value}g sustained — the setup is converting every bit of available grip into cornering speed."
       ],
       "cooldownMinutes": 7
     },
     {
       "id": "black_flag",
       "category": "racing_experience",
-      "title": "Black Flag",
+      "title": "Black flag",
       "sentiment": "frustration_negative",
       "severity": 5,
       "eventExposition": "Black flag — {driver} disqualified from session",
@@ -803,7 +803,7 @@
     {
       "id": "rapid_gear_change",
       "category": "car_response",
-      "title": "Aggressive Gear Shift",
+      "title": "Aggressive gear shift",
       "sentiment": "technical_analytical",
       "severity": 1,
       "eventExposition": "Aggressive shift from {driver} — rapid gear change into the corner",
@@ -827,7 +827,7 @@
     {
       "id": "long_stint",
       "category": "racing_experience",
-      "title": "Long Stint Distance",
+      "title": "Long stint distance",
       "sentiment": "neutral_narrative",
       "severity": 2,
       "eventExposition": "Long stint — {driver} at {value} laps completed, management critical",
@@ -854,7 +854,7 @@
     {
       "id": "session_time_low",
       "category": "racing_experience",
-      "title": "Session Time Running Out",
+      "title": "Session time running out",
       "sentiment": "neutral_narrative",
       "severity": 3,
       "eventExposition": "Time running out — {value} seconds remaining for {driver}",
@@ -881,7 +881,7 @@
     {
       "id": "brake_bias_change",
       "category": "car_response",
-      "title": "Brake Bias Adjustment",
+      "title": "Brake bias adjustment",
       "sentiment": "technical_analytical",
       "severity": 2,
       "eventExposition": "{driver} adjusts brake bias to {value}%",
@@ -906,10 +906,10 @@
     {
       "id": "tc_setting_change",
       "category": "car_response",
-      "title": "Traction Control Adjusted",
+      "title": "Traction control adjusted",
       "sentiment": "technical_analytical",
       "severity": 2,
-      "eventExposition": "{driver} changes TC level to {value}",
+      "eventExposition": "{driver} changes the traction control to {value}",
       "sessionTypes": [],
       "description": "Driver changed traction control level — more or less electronic intervention.",
       "triggers": [
@@ -922,8 +922,8 @@
       ],
       "commentaryPrompts": [
         "{driver} changes the traction control level. Dialing it up means more protection on corner exit but slower acceleration; dialing it down is faster but riskier.",
-        "TC adjustment from {driver}. That's a conscious decision about how much {car} is allowed to slide on exit — more TC costs time, less TC costs consistency.",
-        "{driver} adjusting TC there. Some circuits and corners demand more intervention than others — this is the driver adapting to the track in real time.",
+        "Traction control adjustment from {driver}. That's a conscious decision about how much {car} is allowed to slide on exit — more traction control costs time, less costs consistency.",
+        "{driver} adjusting the traction control there. Some circuits and corners demand more intervention than others — this is the driver adapting to the track in real time.",
         "Traction control change from {driver}. This is about finding the right balance between the computer's protection and the driver's confidence on the throttle."
       ],
       "cooldownMinutes": 5
@@ -931,10 +931,10 @@
     {
       "id": "abs_setting_change",
       "category": "car_response",
-      "title": "ABS Level Adjusted",
+      "title": "Anti-lock level adjusted",
       "sentiment": "technical_analytical",
       "severity": 2,
-      "eventExposition": "{driver} changes ABS level to {value}",
+      "eventExposition": "{driver} changes the anti-lock to {value}",
       "sessionTypes": [],
       "description": "Driver changed ABS level — more or less electronic intervention under braking.",
       "triggers": [
@@ -946,17 +946,17 @@
         }
       ],
       "commentaryPrompts": [
-        "{driver} moves ABS to level {value}. Higher settings trigger the anti-lock earlier in the pedal travel — shorter braking zones but the system intervenes before peak deceleration.",
-        "ABS now at {value} for {driver}. Lower ABS allows the tyres to reach a higher slip ratio before intervening — that means shorter stopping distances but more risk of flat spots.",
-        "{driver} sets ABS to {value}. As the tyres wear and the track rubbers in, the optimal ABS level shifts — the lock-up threshold changes through the stint.",
-        "ABS level {value} for {driver}. This setting determines how close to the tyre's grip limit the brakes can push before the electronics step in and modulate pressure."
+        "{driver} moves the anti-lock to {value}. Higher settings trigger the anti-lock earlier in the pedal travel — shorter braking zones but the system intervenes before peak deceleration.",
+        "Anti-lock now at {value} for {driver}. A lower anti-lock setting allows the tyres to reach a higher slip ratio before intervening — that means shorter stopping distances but more risk of flat spots.",
+        "{driver} sets the anti-lock to {value}. As the tyres wear and the track rubbers in, the best anti-lock setting shifts — the lock-up threshold changes through the stint.",
+        "Anti-lock at {value} for {driver}. This setting determines how close to the tyre's grip limit the brakes can push before the electronics step in and modulate pressure."
       ],
       "cooldownMinutes": 5
     },
     {
       "id": "arb_front_change",
       "category": "car_response",
-      "title": "Front ARB Adjusted",
+      "title": "Front rollbar adjusted",
       "sentiment": "technical_analytical",
       "severity": 2,
       "eventExposition": "{driver} adjusts front anti-roll bar to {value}",
@@ -971,9 +971,9 @@
         }
       ],
       "commentaryPrompts": [
-        "{driver} adjusts the front anti-roll bar. Stiffer front ARB reduces body roll in fast corners but can make the front end less responsive in slow turns.",
-        "Front ARB change from {driver}. This directly affects how much the front end rolls in corners — stiffer is more responsive but pushes the front grip limit lower.",
-        "{driver} changing the front ARB there. In a car like the MX-5 or GT3, the anti-roll bars are one of the biggest handling levers available mid-race.",
+        "{driver} adjusts the front anti-roll bar. A stiffer front rollbar reduces body roll in fast corners but can make the front end less responsive in slow turns.",
+        "Front rollbar change from {driver}. This directly affects how much the front end rolls in corners — stiffer is more responsive but pushes the front grip limit lower.",
+        "{driver} changing the front rollbar there. In a car like the MX-5 or GT3, the anti-roll bars are one of the biggest handling levers available mid-race.",
         "Front anti-roll bar adjustment from {driver}. Softening it helps put the front tyres to work in tight sections; stiffening it keeps {car} stable at speed."
       ],
       "cooldownMinutes": 5
@@ -981,7 +981,7 @@
     {
       "id": "arb_rear_change",
       "category": "car_response",
-      "title": "Rear ARB Adjusted",
+      "title": "Rear rollbar adjusted",
       "sentiment": "technical_analytical",
       "severity": 2,
       "eventExposition": "{driver} adjusts rear anti-roll bar to {value}",
@@ -996,8 +996,8 @@
         }
       ],
       "commentaryPrompts": [
-        "{driver} adjusts the rear anti-roll bar. Stiffer rear ARB adds oversteer — the rear rotates more — while softer makes {car} more stable but potentially slower to turn.",
-        "Rear ARB change from {driver}. This is a handling balance adjustment — more rear stiffness means more rotation, less means more rear grip and stability.",
+        "{driver} adjusts the rear anti-roll bar. A stiffer rear rollbar adds oversteer — the rear rotates more — while softer makes {car} more stable but potentially slower to turn.",
+        "Rear rollbar change from {driver}. This is a handling balance adjustment — more rear stiffness means more rotation, less means more rear grip and stability.",
         "{driver} changing the rear anti-roll bar. If {car} is understeering, stiffening the rear can free it up. If the rear is loose, softening it adds grip.",
         "Rear anti-roll bar at {value} for {driver}. This is the most direct lever for mid-corner balance — it changes how much rear grip transfers during weight shift."
       ],
@@ -1006,7 +1006,7 @@
     {
       "id": "edu_brake_bias_forward",
       "category": "car_response",
-      "title": "Brake Bias — Forward Shift",
+      "title": "Brake bias — forward shift",
       "sentiment": "technical_analytical",
       "severity": 1,
       "eventExposition": "Brake bias moved forward to {value}% — more front braking",
@@ -1022,7 +1022,7 @@
       ],
       "commentaryPrompts": [
         "Brake bias forward for {driver}. What that does: more braking force goes to the front axle. {car} will brake straighter and more predictably, but the rear won't help rotate the car into the corner. You do this when the rear is locking up or stepping out under braking.",
-        "{driver} pushes bias forward. The physics: when you brake, weight transfers to the front wheels. Forward bias means the front tyres do more work — they have more load, so they can handle it. But the rear tyres now have less braking force AND less weight, so the rear end can become loose under heavy braking if you go too far.",
+        "{driver} pushes bias forward. The physics: when you brake, weight transfers to the front wheels. Forward bias means the front tyres do more work — they have more load, so they can handle it. But the rear tyres now have less braking force and less weight, so the rear end can become loose under heavy braking if you go too far.",
         "More front bias from {driver}. This is a stability trade — {car} will stop in a straight line more reliably, but you lose some ability to rotate the car under braking. In fast corners where braking stability matters, forward bias is the safer call.",
         "Bias forward for {driver}. Think of it this way: the front axle is pulling {car} to a stop. The rear axle is just following. More forward bias means the front does even more of the work — the car tracks straighter but turns in less aggressively. It's the conservative choice when confidence under braking drops."
       ],
@@ -1031,7 +1031,7 @@
     {
       "id": "edu_brake_bias_rear",
       "category": "car_response",
-      "title": "Brake Bias — Rearward Shift",
+      "title": "Brake bias — rearward shift",
       "sentiment": "technical_analytical",
       "severity": 1,
       "eventExposition": "Brake bias moved rearward to {value}% — more rear braking",
@@ -1056,10 +1056,10 @@
     {
       "id": "edu_tc_increase",
       "category": "car_response",
-      "title": "TC Up — More Protection",
+      "title": "Traction control up — more protection",
       "sentiment": "technical_analytical",
       "severity": 1,
-      "eventExposition": "TC increased to {value} — more electronic traction protection",
+      "eventExposition": "Traction control up to {value} — more electronic protection",
       "sessionTypes": [],
       "description": "Educational: driver increased TC. Explains what higher TC does.",
       "triggers": [
@@ -1071,20 +1071,20 @@
         }
       ],
       "commentaryPrompts": [
-        "TC up for {driver}. More traction control means the electronics cut engine power earlier when the rear wheels start to spin. The car is safer on corner exit but slower — every TC intervention is the computer saying 'you wanted more throttle than the tyres can handle.' The upside is consistency and tyre preservation.",
-        "{driver} adds more TC. What happens: the ECU monitors rear wheel speed relative to the fronts. When the rears spin faster, it cuts ignition or throttle. Higher TC means tighter tolerance — it intervenes sooner. You lose peak acceleration but gain predictability. In the wet or on worn tyres, more TC is often faster because it prevents the wheelspin that really kills lap time.",
-        "More TC from {driver}. The physics: a tyre generates peak forward force at about 5-8% slip ratio. Above that, it starts sliding and you lose both drive and wear them faster. Higher TC keeps you closer to that optimal window — you sacrifice the ability to use deliberate oversteer but gain reliability on every exit.",
-        "TC increased for {driver}. Here's when you want more: when the rear tyres are getting worn and grip is dropping, when the track surface is slippery, or when you're racing wheel-to-wheel and can't afford a snap of oversteer on exit. It's the smart play when consistency beats outright pace."
+        "Traction control up for {driver}. More traction control means the electronics cut engine power earlier when the rear wheels start to spin. The car is safer on corner exit but slower — every traction control intervention is the computer saying 'you wanted more throttle than the tyres can handle.' The upside is consistency and tyre preservation.",
+        "{driver} adds more traction control. What happens: the engine computer monitors rear wheel speed relative to the fronts. When the rears spin faster, it cuts ignition or throttle. More traction control means tighter tolerance — it intervenes sooner. You lose peak acceleration but gain predictability. In the wet or on worn tyres, more traction control is often faster because it prevents the wheelspin that really kills lap time.",
+        "More traction control from {driver}. The physics: a tyre generates peak forward force at about 5-8% slip ratio. Above that, it starts sliding and you lose both drive and wear them faster. More traction control keeps you closer to that optimal window — you sacrifice the ability to use deliberate oversteer but gain reliability on every exit.",
+        "Traction control up for {driver}. Here's when you want more: when the rear tyres are getting worn and grip is dropping, when the track surface is slippery, or when you're racing wheel-to-wheel and can't afford a snap of oversteer on exit. It's the smart play when consistency beats outright pace."
       ],
       "cooldownMinutes": 8
     },
     {
       "id": "edu_tc_decrease",
       "category": "car_response",
-      "title": "TC Down — Less Protection",
+      "title": "Traction control down — less protection",
       "sentiment": "technical_analytical",
       "severity": 1,
-      "eventExposition": "TC decreased to {value} — less electronic traction protection",
+      "eventExposition": "Traction control down to {value} — less electronic protection",
       "sessionTypes": [],
       "description": "Educational: driver decreased TC. Explains what lower TC does.",
       "triggers": [
@@ -1096,20 +1096,20 @@
         }
       ],
       "commentaryPrompts": [
-        "TC down from {driver}. Less traction control gives the driver more freedom — and more responsibility. The electronics intervene later, letting the rear slip more before cutting power. This means faster corner exits if the driver can manage the wheelspin. It also means {car} can be used more aggressively — power oversteer becomes a tool, not a mistake.",
-        "{driver} lowers TC. Why: every TC intervention costs time. The system cuts power to save you, but that cut means you're not accelerating as hard as the tyres would actually allow. Reducing TC lets you exploit the full throttle map. The trade-off is that if the rear breaks away, you have less of a safety net. This is a confidence move.",
-        "Less TC for {driver}. The driver is saying 'I can manage the rear myself.' Lower TC allows deliberate wheelspin that the driver can control with throttle modulation. In high-power cars like GT3 or prototypes, the best drivers run as little TC as possible — they're faster because the computer isn't second-guessing their throttle inputs.",
-        "TC decreased by {driver}. Here's the gamble: on a dry track with good tyre temperature, less TC is almost always faster. But it requires precise throttle application — smoothly unwinding the steering while progressively adding throttle. If you stab the throttle, the rear goes immediately. It rewards finesse."
+        "Traction control down from {driver}. Less traction control gives the driver more freedom — and more responsibility. The electronics intervene later, letting the rear slip more before cutting power. This means faster corner exits if the driver can manage the wheelspin. It also means {car} can be used more aggressively — power oversteer becomes a tool, not a mistake.",
+        "{driver} lowers the traction control. Why: every intervention costs time. The system cuts power to save you, but that cut means you're not accelerating as hard as the tyres would actually allow. Less traction control lets you exploit the full throttle map. The trade-off is that if the rear breaks away, you have less of a safety net. This is a confidence move.",
+        "Less traction control for {driver}. The driver is saying 'I can manage the rear myself.' Less of it allows deliberate wheelspin that the driver can control with throttle modulation. In high-power cars like GT3 or prototypes, the best drivers run as little traction control as possible — they're faster because the computer isn't second-guessing their throttle inputs.",
+        "Traction control down for {driver}. Here's the gamble: on a dry track with good tyre temperature, less traction control is almost always faster. But it requires precise throttle application — smoothly unwinding the steering while progressively adding throttle. If you stab the throttle, the rear goes immediately. It rewards finesse."
       ],
       "cooldownMinutes": 8
     },
     {
       "id": "edu_abs_increase",
       "category": "car_response",
-      "title": "ABS Up — Earlier Intervention",
+      "title": "Anti-lock up — earlier intervention",
       "sentiment": "technical_analytical",
       "severity": 1,
-      "eventExposition": "ABS increased to {value} — earlier anti-lock intervention",
+      "eventExposition": "Anti-lock up to {value} — earlier intervention",
       "sessionTypes": [],
       "description": "Educational: driver increased ABS. Explains what higher ABS does.",
       "triggers": [
@@ -1121,20 +1121,20 @@
         }
       ],
       "commentaryPrompts": [
-        "ABS up for {driver}. Higher ABS means the anti-lock system kicks in earlier in the brake pedal travel. The car won't lock wheels as easily, but it also won't achieve peak deceleration because the system releases brake pressure before the tyre reaches its maximum braking grip. You trade stopping distance for predictability and tyre preservation.",
-        "{driver} raises ABS. Here's the trade-off: a tyre generates maximum braking force at around 8-12% slip — just before it locks. Higher ABS keeps the tyre below that peak, which means consistent braking and no flat spots, but you brake over a slightly longer distance. In traffic, this extra predictability can be worth more than raw stopping power.",
-        "More ABS from {driver}. What this changes: the braking zone gets slightly longer, but it becomes much more repeatable. You can hit the brakes hard without worrying about lock-ups. For drivers who struggle with modulation under pressure — in a battle or after a long stint — higher ABS is the safer, often faster choice because you brake later with more confidence.",
-        "ABS increased for {driver}. Think of ABS as a ceiling on how hard you can brake. Higher ABS sets that ceiling lower — you can never quite reach the tyre's absolute limit, but you also never exceed it. As tyres wear and grip drops, raising ABS prevents the lock-ups that increasingly worn rubber is prone to."
+        "Anti-lock up for {driver}. A higher setting means the anti-lock kicks in earlier in the brake pedal travel. The car won't lock wheels as easily, but it also won't achieve peak deceleration because the system releases brake pressure before the tyre reaches its maximum braking grip. You trade stopping distance for predictability and tyre preservation.",
+        "{driver} raises the anti-lock. Here's the trade-off: a tyre generates maximum braking force at around 8-12% slip — just before it locks. A higher anti-lock setting keeps the tyre below that peak, which means consistent braking and no flat spots, but you brake over a slightly longer distance. In traffic, this extra predictability can be worth more than raw stopping power.",
+        "More anti-lock from {driver}. What this changes: the braking zone gets slightly longer, but it becomes much more repeatable. You can hit the brakes hard without worrying about lock-ups. For drivers who struggle with modulation under pressure — in a battle or after a long stint — more anti-lock is the safer, often faster choice because you brake later with more confidence.",
+        "Anti-lock up for {driver}. Think of the anti-lock as a ceiling on how hard you can brake. A higher setting puts that ceiling lower — you can never quite reach the tyre's absolute limit, but you also never exceed it. As tyres wear and grip drops, raising the anti-lock prevents the lock-ups that increasingly worn rubber is prone to."
       ],
       "cooldownMinutes": 8
     },
     {
       "id": "edu_abs_decrease",
       "category": "car_response",
-      "title": "ABS Down — Later Intervention",
+      "title": "Anti-lock down — later intervention",
       "sentiment": "technical_analytical",
       "severity": 1,
-      "eventExposition": "ABS decreased to {value} — later anti-lock intervention",
+      "eventExposition": "Anti-lock down to {value} — later intervention",
       "sessionTypes": [],
       "description": "Educational: driver decreased ABS. Explains what lower ABS does.",
       "triggers": [
@@ -1146,20 +1146,20 @@
         }
       ],
       "commentaryPrompts": [
-        "ABS down from {driver}. Less ABS means the system waits longer before modulating brake pressure, letting the tyres get closer to their absolute limit before intervening. This means shorter braking distances — you can brake later — but it's more demanding. A slight over-application locks a wheel, and that's a flat spot.",
-        "{driver} lowers ABS. The reward: shorter braking zones. The system lets the tyre reach higher slip ratios where braking force is at its peak. The risk: the margin between peak braking and a lock-up gets very thin. This works best on fresh tyres with full grip — as the tyre degrades, that margin shrinks and lock-ups become more likely.",
-        "Less ABS for {driver}. This is about extracting maximum braking performance. Lower ABS settings let the driver use more of the tyre's available grip under braking. It requires excellent pedal feel and modulation — knowing exactly how hard you can press before the tyre gives up. It's the faster setting, if you have the skill for it.",
-        "ABS reduced by {driver}. Here's why: on a grippy surface with fresh tyres, lower ABS is faster because you brake deeper into corners. The tyre can handle it. But conditions change — if it starts to rain, if the tyres go off, or if track temperature shifts — you might need to bump it back up. It's a dynamic adjustment through the race."
+        "Anti-lock down from {driver}. Less anti-lock means the system waits longer before modulating brake pressure, letting the tyres get closer to their absolute limit before intervening. This means shorter braking distances — you can brake later — but it's more demanding. A slight over-application locks a wheel, and that's a flat spot.",
+        "{driver} lowers the anti-lock. The reward: shorter braking zones. The system lets the tyre reach higher slip ratios where braking force is at its peak. The risk: the margin between peak braking and a lock-up gets very thin. This works best on fresh tyres with full grip — as the tyre degrades, that margin shrinks and lock-ups become more likely.",
+        "Less anti-lock for {driver}. This is about extracting maximum braking performance. Lower anti-lock settings let the driver use more of the tyre's available grip under braking. It requires excellent pedal feel and modulation — knowing exactly how hard you can press before the tyre gives up. It's the faster setting, if you have the skill for it.",
+        "Anti-lock down for {driver}. Here's why: on a grippy surface with fresh tyres, less anti-lock is faster because you brake deeper into corners. The tyre can handle it. But conditions change — if it starts to rain, if the tyres go off, or if track temperature shifts — you might need to bump it back up. It's a dynamic adjustment through the race."
       ],
       "cooldownMinutes": 8
     },
     {
       "id": "edu_abs_tc_interaction",
       "category": "car_response",
-      "title": "ABS/TC Balance — The Setup Relationship",
+      "title": "Anti-lock and traction control balance — the setup relationship",
       "sentiment": "technical_analytical",
       "severity": 1,
-      "eventExposition": "ABS and TC working together — {driver}'s electronic aids are calibrated",
+      "eventExposition": "Anti-lock and traction control working together — {driver}'s electronic aids are calibrated",
       "sessionTypes": [],
       "description": "Educational: triggered after both ABS and TC have been adjusted. Explains how they interact.",
       "triggers": [
@@ -1170,16 +1170,16 @@
         }
       ],
       "commentaryPrompts": [
-        "ABS and TC work as a pair — here's how they interact. ABS manages the braking end of the corner: how hard you can stop without locking up. TC manages the exit: how hard you can accelerate without spinning. Together, they define the electronic envelope of {car}. If you lower both, you have more freedom but more responsibility. If you raise both, the car drives itself more but you lose peak performance. The best drivers tune them asymmetrically — maybe low ABS because they have great pedal feel, but moderate TC because the exit grip is unpredictable.",
-        "An important concept: ABS and TC are not independent systems — they share the same tyres. If you've been leaning on high TC and the rear tyres are getting heat-cycled from wheelspin, your ABS performance changes too because those rear tyres also brake. The condition of the rubber connects everything. When {driver} adjusts one, the optimal setting for the other may shift too.",
-        "Here's the advanced concept: ABS and TC interact through tyre condition. Heavy TC intervention means the rear tyres see thermal cycles — heat from wheelspin, cool down, repeat. This changes their grip characteristics, which in turn affects how the ABS needs to work on those same tyres. The best approach is to find the minimum intervention level for both that you can drive consistently with."
+        "Anti-lock and traction control work as a pair — here's how they interact. The anti-lock manages the braking end of the corner: how hard you can stop without locking up. Traction control manages the exit: how hard you can accelerate without spinning. Together, they define the electronic envelope of {car}. If you lower both, you have more freedom but more responsibility. If you raise both, the car drives itself more but you lose peak performance. The best drivers tune them asymmetrically — maybe little anti-lock because they have great pedal feel, but moderate traction control because the exit grip is unpredictable.",
+        "An important concept: anti-lock and traction control are not independent systems — they share the same tyres. If you've been leaning on high traction control and the rear tyres are getting heat-cycled from wheelspin, your anti-lock performance changes too because those rear tyres also brake. The condition of the rubber connects everything. When {driver} adjusts one, the optimal setting for the other may shift too.",
+        "Here's the advanced concept: anti-lock and traction control interact through tyre condition. Heavy traction control intervention means the rear tyres see thermal cycles — heat from wheelspin, cool down, repeat. This changes their grip characteristics, which in turn affects how the anti-lock needs to work on those same tyres. The best approach is to find the minimum intervention level for both that you can drive consistently with."
       ],
       "cooldownMinutes": 15
     },
     {
       "id": "edu_bias_for_conditions",
       "category": "car_response",
-      "title": "Adapting Bias to Track Conditions",
+      "title": "Adapting bias to track conditions",
       "sentiment": "technical_analytical",
       "severity": 1,
       "eventExposition": "Brake bias strategy — adapting to changing conditions",
@@ -1202,7 +1202,7 @@
     {
       "id": "track_context",
       "category": "game_feel",
-      "title": "Track Notes",
+      "title": "Track notes",
       "sentiment": "technical_analytical",
       "severity": 1,
       "eventExposition": "",
@@ -1228,7 +1228,7 @@
     {
       "id": "car_context",
       "category": "game_feel",
-      "title": "Car Notes",
+      "title": "Car notes",
       "sentiment": "technical_analytical",
       "severity": 1,
       "eventExposition": "",
@@ -1254,7 +1254,7 @@
     {
       "id": "prerace_track",
       "category": "game_feel",
-      "title": "Pre-Race: Track Preview",
+      "title": "Pre-race: track preview",
       "sentiment": "neutral_narrative",
       "severity": 3,
       "eventExposition": "",
@@ -1280,7 +1280,7 @@
     {
       "id": "prerace_car",
       "category": "game_feel",
-      "title": "Pre-Race: Car Preview",
+      "title": "Pre-race: car preview",
       "sentiment": "neutral_narrative",
       "severity": 3,
       "eventExposition": "",
@@ -1306,7 +1306,7 @@
     {
       "id": "prerace_circuit_detail",
       "category": "game_feel",
-      "title": "Pre-Race: Circuit Detail",
+      "title": "Pre-race: circuit detail",
       "sentiment": "technical_analytical",
       "severity": 2,
       "eventExposition": "",
@@ -1332,7 +1332,7 @@
     {
       "id": "prerace_manufacturer",
       "category": "game_feel",
-      "title": "Pre-Race: Manufacturer Heritage",
+      "title": "Pre-race: manufacturer heritage",
       "sentiment": "neutral_narrative",
       "severity": 2,
       "eventExposition": "",
@@ -1358,7 +1358,7 @@
     {
       "id": "race_track_insight",
       "category": "game_feel",
-      "title": "Track Insight",
+      "title": "Track insight",
       "sentiment": "neutral_narrative",
       "severity": 3,
       "eventExposition": "",
@@ -1384,7 +1384,7 @@
     {
       "id": "race_car_insight",
       "category": "game_feel",
-      "title": "Car Spotlight",
+      "title": "Car spotlight",
       "sentiment": "neutral_narrative",
       "severity": 3,
       "eventExposition": "",
@@ -1410,7 +1410,7 @@
     {
       "id": "race_circuit_detail",
       "category": "game_feel",
-      "title": "Circuit Detail",
+      "title": "Circuit detail",
       "sentiment": "technical_analytical",
       "severity": 2,
       "eventExposition": "",
@@ -1436,7 +1436,7 @@
     {
       "id": "race_manufacturer_heritage",
       "category": "game_feel",
-      "title": "Manufacturer Heritage",
+      "title": "Manufacturer heritage",
       "sentiment": "neutral_narrative",
       "severity": 2,
       "eventExposition": "",

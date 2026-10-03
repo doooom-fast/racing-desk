@@ -84,7 +84,7 @@ export function CarViewPanel({
             <Fact label="Height">{mm(view.height)}</Fact>
             <Fact label="Horizon">{view.horizon === null ? DASH : signedPlain(view.horizon)}</Fact>
             <Fact label="Head horizon">{view.headHorizon === null ? DASH : plain(view.headHorizon)}</Fact>
-            <Fact label="FOV">
+            <Fact label="Field of view">
               {view.fov === null ? (
                 DASH
               ) : (

@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
@@ -186,6 +188,51 @@ namespace RacingDesk.Tests.IRacing
             map.UpdateDemo(0.3, 5, 1.0);
             Assert.That(map.OpponentCount, Is.EqualTo(5));
             Assert.That(map.PlayerX, Is.InRange(0, 100));
+        }
+
+        [Test]
+        public void ABigCircuitIsSentSmoothToAHundredthOfAUnitAndSoAreTheOtherCars()
+        {
+            // A circle as long as Le Mans (13.5 km), a point every 5 m, as his own outlines are: 90 units across, so a
+            // unit is 48 m and the points are 0.105 units apart. The circle turns by 0.13 degrees from one point to the
+            // next. To a tenth of a unit (the path before 2026-10-02) its points turned by 45 degrees at the median and
+            // some fell on the one before; to a hundredth, 3 at the median and under 8 at the most — what the HUD and
+            // the iPad draw at their following map's closest view, where a tenth was 3 px ("very squiggly").
+            const int n = 2700;
+            double radius = 13500 / (2 * Math.PI);
+            var points = new (double X, double Z, double Pct)[n];
+            for (int i = 0; i < n; i++)
+            {
+                double a = 2 * Math.PI * i / n;
+                points[i] = (radius * Math.Cos(a), -radius * Math.Sin(a), (double)i / n);
+            }
+            var map = new TrackMapProvider();
+            map.Apply(new TrackOutline { TrackId = 268, CleanLaps = 3, LengthMeters = 13500, Points = points }, TrackMapProvider.StatusReady);
+            Assert.That(map.IsReady, Is.True);
+
+            string path = map.SvgPath;
+            var numbers = Regex.Matches(path, @"-?\d+(\.\d+)?").Cast<Match>().Select(m => m.Value).ToList();
+            Assert.That(numbers.All(v => Regex.IsMatch(v, @"^-?\d+\.\d{2}$")), Is.True, "every number to two decimals: " + string.Join(" ", numbers.Take(12)));
+            Assert.That(numbers.Count, Is.EqualTo(2 + 6 * n), "M and a curve to each point");
+            // The points the line passes through: M's, then the last pair of each curve.
+            var on = new List<(double X, double Y)> { (double.Parse(numbers[0], CultureInfo.InvariantCulture), double.Parse(numbers[1], CultureInfo.InvariantCulture)) };
+            for (int c = 0; c < n - 1; c++)
+                on.Add((double.Parse(numbers[2 + 6 * c + 4], CultureInfo.InvariantCulture), double.Parse(numbers[2 + 6 * c + 5], CultureInfo.InvariantCulture)));
+            var turns = new List<double>();
+            for (int i = 0; i < on.Count; i++)
+            {
+                var a = on[(i - 1 + on.Count) % on.Count]; var b = on[i]; var c = on[(i + 1) % on.Count];
+                Assert.That(a != b && b != c, Is.True, $"point {i} is not the one before or after it");
+                double t = Math.Abs(Math.Atan2(c.Y - b.Y, c.X - b.X) - Math.Atan2(b.Y - a.Y, b.X - a.X)) * 180 / Math.PI;
+                turns.Add(t > 180 ? 360 - t : t);
+            }
+            turns.Sort();
+            Assert.That(turns[turns.Count / 2], Is.LessThan(5), "median turn between neighbouring points, degrees");
+            Assert.That(turns[turns.Count - 1], Is.LessThan(10), "largest turn between neighbouring points, degrees");
+
+            // The other cars, the same: a car at three-tenths of the lap is placed to a hundredth.
+            map.Update(0.1, new float[] { 0f, 0.3f }, new bool[] { false, false }, 0, 1);
+            Assert.That(map.OpponentData, Does.Match(@"^\d+\.\d{2},\d+\.\d{2},0$"));
         }
 
         // ── The plugin's source: the host over loopback ──

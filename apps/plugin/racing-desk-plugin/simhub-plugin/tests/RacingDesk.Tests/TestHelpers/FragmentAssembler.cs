@@ -159,7 +159,7 @@ namespace RacingDesk.Tests.TestHelpers
         private static string FormatDriver(string name, int rating)
         {
             if (string.IsNullOrEmpty(name)) return "the car";
-            return rating > 0 ? $"{name} ({rating:N0} iR)" : name;
+            return rating > 0 ? $"{name} ({rating:N0} iRating)" : name;
         }
     }
 }

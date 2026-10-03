@@ -258,6 +258,37 @@ test('populates every panel from the local store', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('the desk says its figures in words, not abbreviations: strength of field, position, incidents, average, iRating', async ({ page }) => {
+  const errors = await openDesk(page, `http://127.0.0.1:${host.address().port}`);
+  await expect(page.locator('.race-row')).toHaveCount(30);
+  await expect(page.locator('.laps-table tbody tr')).not.toHaveCount(0);
+
+  // The lap table's columns and what it says of the race, whole in the card (no sideways scrolling for the words).
+  await expect(page.locator('.laps-table th')).toHaveText(['Lap', 'Time', 'Position', 'Incidents', 'Fuel']);
+  expect(await page.locator('.laps-scroll').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the lap table is not wider than its card').toBe(true);
+  const meta = await page.locator('.race-detail .meta, #race-detail .meta, .meta').first().textContent();
+  expect(meta).not.toMatch(/\bSoF\b|\biR\b/);
+
+  // The race now card's figures begin with a capital, and say what they count.
+  const figures = await page.locator('#race-now .figure span').allTextContents();
+  expect(figures.length).toBe(4);
+  expect(figures[0]).toMatch(/^Incidents a race this hour \(\d+\)$/);
+  expect(figures[1]).toBe('Your average');
+  expect(figures[2]).toBe('Average finish this hour');
+  expect(figures[3]).toMatch(/^On \w+s \(\d+\)$/);
+  expect(await page.locator('#race-now').textContent()).not.toMatch(/inc\/|\bavg\b/);
+
+  // The week's heat map says "average" and "iRating" in what it says on hovering, and the strongest window an iRating a race.
+  const titles = await page.locator('.heat-cell[title]').evaluateAll((els) => els.map((el) => el.getAttribute('title')));
+  expect(titles.length).toBeGreaterThan(0);
+  for (const title of titles) {
+    expect(title, title).toMatch(/ races, \d+\.\dx average, [+-]?\d+ iRating$/);
+  }
+  expect(await page.locator('#when').textContent()).toMatch(/iRating a race/);
+  expect(await page.locator('#tracks .sub').first().textContent()).toMatch(/ races · average /);
+  expect(errors).toEqual([]);
+});
+
 test('says how to fetch the schedule when there is none', async ({ page }) => {
   const bare = await startMockHost(buildHistory(), null);
   try {
@@ -1788,7 +1819,7 @@ const rigReads = (page) => page.evaluate(() => window.__rig.reads);
 const askedFor = (server, route) => server.asked.filter((a) => a.route === route).length;
 
 const NO_VIEW = 'Not recorded yet — it will be after the next time you drive it.';
-const VIEW_FACTS = ['Last driven', 'Height', 'Horizon', 'Head horizon', 'FOV', 'Seat fore/aft', 'Seat sideways', 'Seat up/down', 'The view is'];
+const VIEW_FACTS = ['Last driven', 'Height', 'Horizon', 'Head horizon', 'Field of view', 'Seat fore/aft', 'Seat sideways', 'Seat up/down', 'The view is'];
 
 test('the one list of cars marks the cars with a view or pedals, and what the host keeps is read through the app', async ({ page }) => {
   const own = await startMockHost(buildHistory());
@@ -2100,12 +2131,12 @@ test('a car\'s pedals say who gave it its profile and why, the force it was last
   // Given by the rule, which went by its ABS: a copy of LightBrake, as the select says.
   await lookAt(app, 'McLaren 570S GT4');
   await expect(select).toHaveValue('5511aacc');
-  await expect(pedals.locator('.given')).toHaveText('From LightBrake — given by the rule: it has ABS.');
+  await expect(pedals.locator('.given')).toHaveText('From LightBrake — given by the rule: it has anti-lock brakes.');
   await expect(pedals.locator('.brake')).toHaveText(/^brake max 60 kg · bottom deadzone 4% · linear curve · brake force 62 kg in this car, set \S/);
   await expect(pedals.locator('.brake')).toHaveText(SET_AT);
   // The sentence is the select's description: a screen reader says it with the profile.
   await expect(select).toHaveAttribute('aria-describedby', 'car-pedals-given');
-  await expect(pedals.locator('#car-pedals-given')).toHaveText('From LightBrake — given by the rule: it has ABS.');
+  await expect(pedals.locator('#car-pedals-given')).toHaveText('From LightBrake — given by the rule: it has anti-lock brakes.');
   await expect(pedals.getByLabel('Pedal profile for McLaren 570S GT4')).toHaveValue('5511aacc');
 
   // A formula car starts from Default whatever its ABS; no force is known for this one, and none is made up.
@@ -2122,17 +2153,17 @@ test('a car\'s pedals say who gave it its profile and why, the force it was last
   await lookAt(app, 'Caterham Seven 420R');
   await expect(select).toHaveValue('');
   await expect(select).toBeEnabled();
-  await expect(pedals.locator('.given')).toHaveText('No profile yet: not driven enough yet to say whether it has ABS.');
+  await expect(pedals.locator('.given')).toHaveText('No profile yet: not driven enough yet to say whether it has anti-lock brakes.');
   await expect(pedals.locator('.brake')).toHaveText(/^brake force 55 kg in this car, set \S/);
   await expect(pedals.locator('.brake')).toHaveText(SET_AT);
   // Enough is known, and the rule has not been round since.
   await lookAt(app, 'oldcar');
-  await expect(pedals.locator('.given')).toHaveText('No profile yet: it has ABS, and the rule gives it one when it is next driven.');
+  await expect(pedals.locator('.given')).toHaveText('No profile yet: it has anti-lock brakes, and the rule gives it one when it is next driven.');
   await expect(pedals.locator('.brake')).toHaveCount(0);
   // A car the host knows and keeps nothing of is waiting like any other.
   await lookAt(app, 'nissangtpzxt');
   await expect(select).toBeEnabled();
-  await expect(pedals.locator('.given')).toHaveText('No profile yet: not driven enough yet to say whether it has ABS.');
+  await expect(pedals.locator('.given')).toHaveText('No profile yet: not driven enough yet to say whether it has anti-lock brakes.');
   // None, and his choice: the rule leaves it alone, and the page does not say it is waiting.
   await lookAt(app, 'Mazda MX-5 Cup', app.locator('.sidebar .group').nth(1).locator('.car', { hasText: 'Mazda MX-5 Cup' }));
   await expect(select).toHaveValue('');
@@ -2152,7 +2183,7 @@ test('a car\'s pedals say who gave it its profile and why, the force it was last
   const again = page.locator(APP);
   await lookAt(again, 'oldcar');
   await expect(again.locator('.car-pedals .given'))
-    .toHaveText('No profile yet: it has ABS, and the rule would give it one from LightBrake or Default, neither of which SmartControl has.');
+    .toHaveText('No profile yet: it has anti-lock brakes, and the rule would give it one from LightBrake or Default, neither of which SmartControl has.');
   await lookAt(again, 'nissangtpzxt');
   await expect(again.locator('.car-pedals select')).toBeDisabled();
   await expect(again.locator('.car-pedals .given')).toHaveCount(0);
@@ -2189,7 +2220,7 @@ test('a profile taken away leaves the force the car was driven with on the page'
   const told = page.locator(APP);
   const given = told.locator('.car-pedals .given');
   await lookAt(told, 'McLaren 570S GT4');
-  await expect(given).toHaveText('From LightBrake — given by the rule: it has ABS.');
+  await expect(given).toHaveText('From LightBrake — given by the rule: it has anti-lock brakes.');
   await told.locator('.car-pedals select').selectOption({ label: 'no profile of its own' });
   await expect(told.locator('.car-pedals .pedal-note.saved')).toHaveText('saved');
   await expect(given).toHaveText('You chose that this car has none.');
@@ -2550,7 +2581,7 @@ test('a car\'s view and pedals are in sight without scrolling in the desk\'s sma
     await lookAt(app, 'McLaren 570S GT4');
     await expect(app.locator('.versions .card')).toHaveCount(3);
     await expect(app.locator('.car-view dd')).toHaveCount(9);
-    await expect(app.locator('.car-pedals .given')).toHaveText('From LightBrake — given by the rule: it has ABS.');
+    await expect(app.locator('.car-pedals .given')).toHaveText('From LightBrake — given by the rule: it has anti-lock brakes.');
     await expect(app.locator('.car-pedals .live-keys .key')).toHaveCount(4);
     expect(await scrolled(), at).toBe(0);
     expect(await allInSight(app.locator('.car-view')), `the view, at ${at}`).toBe(true);
@@ -2683,18 +2714,18 @@ test('a car with no profile yet is said to wait on what the car list says, not o
   const given = app.locator('.car-pedals .given');
 
   await lookAt(app, 'McLaren 570S GT4');
-  await expect(given).toHaveText('No profile yet: the car list says it has ABS, and the rule gives it one from LightBrake when it is next driven.');
+  await expect(given).toHaveText('No profile yet: the car list says it has anti-lock brakes, and the rule gives it one from LightBrake when it is next driven.');
   await lookAt(app, 'nissangtpzxt');
   await expect(given).toHaveText('No profile yet: the car list says it is a prototype, and the rule gives it one from Default when it is next driven.');
   // A car the list does not have waits on the data, as before.
   await lookAt(app, 'oldcar');
-  await expect(given).toHaveText('No profile yet: it has ABS, and the rule gives it one when it is next driven.');
+  await expect(given).toHaveText('No profile yet: it has anti-lock brakes, and the rule gives it one when it is next driven.');
   expect(errors).toEqual([]);
 
   // A host with no list: the prototype waits on the data, and the data's word is the only one there is.
   const { app: bare2 } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig: { ...TOLD, pedals: held(pedals) } });
   await lookAt(bare2, 'nissangtpzxt');
-  await expect(bare2.locator('.car-pedals .given')).toHaveText('No profile yet: it has ABS, and the rule gives it one when it is next driven.');
+  await expect(bare2.locator('.car-pedals .given')).toHaveText('No profile yet: it has anti-lock brakes, and the rule gives it one when it is next driven.');
 });
 
 test('a car\'s controls, as the list has them: its kind, what it has, the car\'s own names for its dials, and how it was checked', async ({ page }) => {
@@ -2706,7 +2737,7 @@ test('a car\'s controls, as the list has them: its kind, what it has, the car\'s
   await lookAt(app, 'McLaren 570S GT4');
   expect(await stripOf(app)).toEqual(CONTROLS_STRIP);
   await expect(panel.locator('h3')).toHaveText('Controls');
-  await expect(facts.locator('dt')).toHaveText(['Kind', 'ABS', 'Traction control', 'Brake bias']);
+  await expect(facts.locator('dt')).toHaveText(['Kind', 'Anti-lock', 'Traction control', 'Brake bias']);
   await expect(facts.locator('dd')).toHaveText(['GT car', 'adjustable ESC', 'adjustable ESC', 'none']);
   // The rows of controls are folded until asked for, so that the car's liveries stay in sight under this panel.
   const rows = panel.locator('.control-rows');
@@ -2731,11 +2762,13 @@ test('a car\'s controls, as the list has them: its kind, what it has, the car\'s
     'Brake bias BAL 40 to 60',
     'Traction control TC1 1 to 12, 1 is off',
     'Brake migration MIG -6 to 6',
-    'Throttle map MAP never off',
-    'TC toggle TC <b>TOGGLE</b>',
-    'ABS toggle ABS',
+    // MAP is the word "map" in capitals, and a part of "Throttle map": the car's label says nothing the line does not.
+    'Throttle map never off',
+    'Traction toggle TC <b>TOGGLE</b>',
+    'Anti-lock toggle ABS',
     'Power steering PS only 3',
-    'DRS DRS status',
+    // DRS is the dial's generic name: its own label would say it twice.
+    'DRS status',
   ]);
   await expect(panel.locator('.controls li b')).toHaveCount(0);
   // The variable that carries a control is under its row, for whoever is putting the list right.
@@ -2753,6 +2786,59 @@ test('a car\'s controls, as the list has them: its kind, what it has, the car\'s
   await expect(panel.locator('.control-rows')).toHaveCount(0);
   await expect(panel.locator('.checked')).toHaveText('Written from the manuals; not checked against your telemetry yet.');
   await expect(panel.locator('.disagreements')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+// A car whose labels are mostly words (the Audi R18's Fuel cut, a Brake bias he calls Bias), and the few abbreviations the cars show:
+// the list's entry for the Nissan, put in its place for this one test (the page lists the cars of its catalogue).
+const WORDS_CAR = {
+  path: 'nissangtpzxt', name: 'Nissan GTP ZX-T', kind: 'prototype', abs: 'adjustable', tc: 'adjustable', brakeBias: 'adjustable',
+  controls: [
+    { id: 'abs', var: 'dcABS', label: 'ABS', words: 'Anti-lock', range: [1, 12] },
+    { id: 'tc', var: 'dcTractionControl', label: 'TCLO', words: 'Traction slip', range: [1, 12] },
+    { id: 'tc2', var: 'dcTractionControl2', label: 'TCLAT', range: [1, 12] },
+    { id: 'brakeBias', var: 'dcBrakeBias', label: 'Brake bias', words: 'Bias', range: [40, 60] },
+    { id: 'arbFront', var: 'dcAntiRollFront', label: 'AR-F', words: 'Front rollbar', range: [1, 9] },
+    { id: 'fuelCut', var: 'dcFuelCut', label: 'Fuel cut' },
+    { id: 'diffPreload', var: 'dcDiffPreload', label: 'Diff', range: [0, 8] },
+    { id: 'mguDeploy', var: 'dcMguDeploy', label: 'Deploy mode', range: [1, 8] },
+    { id: 'launch', var: 'dcLaunch', label: 'Start limit', range: [1, 9] },
+    { id: 'wingTop', var: 'dcWingTop', label: 'Top wing', range: [1, 9] },
+    { id: 'throttleMap', var: 'dcThrottleShape', label: 'Pedal', words: 'Throttle map', range: [1, 5] },
+  ],
+  checked: 'written',
+};
+
+test('the Cars page names each control once: the words, else the car\'s own label where that is words, and an abbreviation beside them with the words to hover on', async ({ page }) => {
+  const rig = { ...TOLD, controls: listOf([...LIST_CARS.filter((c) => c.path !== WORDS_CAR.path), WORDS_CAR], LIST_KEPT) };
+  const { errors, app } = await openCars(page, `http://127.0.0.1:${host.address().port}`, { rig });
+  const panel = app.locator('.car-controls');
+  await lookAt(app, 'nissangtpzxt');
+  // The three facts: the car's label beside them only where it says more (the dial's generic name, and a "Brake bias" under Brake bias, do not).
+  await expect(panel.locator('.facts dt')).toHaveText(['Kind', 'Anti-lock', 'Traction control', 'Brake bias']);
+  await expect(panel.locator('.facts dd')).toHaveText(['Prototype', 'adjustable', 'adjustable TCLO', 'adjustable']);
+  await expect(panel.locator('.facts dd .tag')).toHaveText(['TCLO']);
+  await expect(panel.locator('.facts dd .tag')).toHaveAttribute('title', 'Traction slip');
+  const rows = panel.locator('.control-rows');
+  await rows.locator('summary').click();
+  await expect(panel.locator('.controls li')).toHaveText([
+    'Anti-lock 1 to 12',
+    'Traction slip TCLO 1 to 12',
+    'Traction control 2 TCLAT 1 to 12',
+    'Bias 40 to 60',
+    'Front rollbar AR-F 1 to 9',
+    'Fuel cut',
+    'Diff preload 0 to 8',
+    'Deploy mode 1 to 8',
+    'Start limit 1 to 9',
+    'Top wing 1 to 9',
+    'Throttle map Pedal 1 to 5',
+  ]);
+  // An abbreviation has the words to hover on, with or without the list's words for it.
+  expect(await panel.locator('.controls li .tag').evaluateAll((els) => els.map((el) => [el.textContent, el.getAttribute('title')])))
+    .toEqual([['TCLO', 'Traction slip'], ['TCLAT', 'Traction control 2'], ['AR-F', 'Front rollbar'], ['Pedal', 'Throttle map']]);
+  // And no row says its own name twice, or an acronym for a label that is words already.
+  for (const text of await panel.locator('.controls li').allTextContents()) expect(text, text).not.toMatch(/\b(\w[\w ]*?) \1\b/);
   expect(errors).toEqual([]);
 });
 

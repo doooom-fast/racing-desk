@@ -98,7 +98,7 @@
     const nameText = document.createTextNode('');
     const pitChip = document.createElement('span');
     pitChip.style.cssText = 'font-size:10px;color:hsla(0,70%,55%,1);margin-left:4px;';
-    pitChip.textContent = 'IN PIT';
+    pitChip.textContent = 'In pit';
     pitChip.style.display = 'none';
     name.appendChild(nameText);
     name.appendChild(pitChip);
@@ -305,7 +305,7 @@
     // The panel is the standings, whichever row it centres on: it never shows relative (on-track) timings, so it
     // is called the leaderboard either way.
     const headerEl = document.querySelector('.lb-header');
-    if (headerEl && headerEl.textContent !== 'LEADERBOARD') headerEl.textContent = 'LEADERBOARD';
+    if (headerEl && headerEl.textContent !== 'Leaderboard') headerEl.textContent = 'Leaderboard';
     let maxRows = _settings.lbMaxRows || 5;
 
     if (driveView) {

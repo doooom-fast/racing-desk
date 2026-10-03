@@ -36,11 +36,18 @@ namespace RacingDesk.Core.Cars
 
         public string Id { get; set; }
         public string Label { get; set; }
+
+        /// <summary>The control in words, from the car list ("Traction slip"), for the HUD to show where it fits; null where the list gives none.</summary>
+        public string Words { get; set; }
+
         public string State { get; set; }
         public double? Number { get; set; }
         public string Text { get; set; }
 
-        /// <summary>Where the value stands between the list's lowest and highest, 0 to 1; null where the list gives no range.</summary>
+        /// <summary>
+        /// Where the value stands in the control's range for the car, 0 to 1 (<see cref="CarControls.FillOf"/>); null
+        /// where the list gives no range, or names positions that are not a scale.
+        /// </summary>
         public double? Fill { get; set; }
 
         /// <summary>The session's fixed setup holds it where it is.</summary>
@@ -123,6 +130,7 @@ namespace RacingDesk.Core.Cars
             bool first = true;
             Text(sb, ref first, "id", r.Id);
             Text(sb, ref first, "label", r.Label);
+            Text(sb, ref first, "words", r.Words);
             Text(sb, ref first, "state", r.State);
             if (r.Number.HasValue) Raw(sb, ref first, "value", Num(r.Number.Value));
             Text(sb, ref first, "text", r.Text);
@@ -181,6 +189,12 @@ namespace RacingDesk.Core.Cars
     public static class CarControls
     {
         public const string AbsId = "abs", TcId = "tc", BrakeBiasId = "brakeBias", ModeId = "mode", DrsId = "drs", PushToPassId = "p2p";
+
+        /// <summary>
+        /// The words the HUD is sent for a state that is a word, in sentence case (he asked on 2026-10-02 for no text in
+        /// capitals but an acronym): the car has none, it is on, it is off; DRS detected, in the zone, open.
+        /// </summary>
+        public const string NoneText = "None", OnText = "On", OffText = "Off", NextText = "Next", ReadyText = "Ready", OpenText = "Open";
 
         /// <summary>The sim's own variables for the two systems a car reports and does not set.</summary>
         public const string DrsStatus = "DRS_Status", PushToPassStatus = "P2P_Status", PushToPassCount = "P2P_Count";
@@ -272,7 +286,9 @@ namespace RacingDesk.Core.Cars
                 }
                 // Every control the list gives the car, read or not: one the car is not publishing goes out as
                 // unread, and the HUD shows its label with a dash (he asked for a panel for every adjustment).
-                state.More.Add(Dial(control, control.Label ?? control.Id, variable, locked));
+                var more = Dial(control, control.Label ?? control.Id, variable, locked);
+                more.Words = control.Words;
+                state.More.Add(more);
             }
             return state;
         }
@@ -283,17 +299,21 @@ namespace RacingDesk.Core.Cars
         // adjustable — and where the list gives the car a control of that name, that control is read.
         private static ControlReading Primary(CarEntry car, string id, string having, string label, Func<string, object> variable, bool locked)
         {
-            if (having == CarEntry.None) return new ControlReading { Id = id, Label = label, State = ControlReading.None, Text = "NONE" };
+            if (having == CarEntry.None) return new ControlReading { Id = id, Label = label, State = ControlReading.None, Text = NoneText };
 
             var control = car.Control(id);
             if (control != null)
             {
                 var reading = Dial(control, control.Label ?? label, variable, locked);
+                reading.Words = control.Words;
                 if (reading.State != ControlReading.Unread) return reading;
                 // Listed with no variable, or with one the car is not publishing: it cannot be read. What is
                 // still true is that the car has it, and whether the driver can turn it: ON where he cannot,
                 // and where he can, its label and a dash.
-                return having == CarEntry.Fixed ? On(id, control.Label ?? label) : reading;
+                if (having != CarEntry.Fixed) return reading;
+                var on = On(id, control.Label ?? label);
+                on.Words = control.Words;
+                return on;
             }
 
             if (having == null) return null;
@@ -303,7 +323,7 @@ namespace RacingDesk.Core.Cars
         }
 
         private static ControlReading On(string id, string label) =>
-            new ControlReading { Id = id, Label = label, State = ControlReading.On, Text = "ON" };
+            new ControlReading { Id = id, Label = label, State = ControlReading.On, Text = OnText };
 
         /// <summary>The mode that stands for one of the three, where the car has one and no control of that name.</summary>
         internal static CarControl ModeFor(CarEntry car, string id)
@@ -333,28 +353,49 @@ namespace RacingDesk.Core.Cars
             {
                 Id = control.Id, Label = label, Var = control.Var, Number = value,
                 Locked = fixedSetup && LockedByAFixedSetup(control),
+                Fill = FillOf(control, value),
             };
-            if (control.Min.HasValue && control.Max.HasValue && control.Max.Value > control.Min.Value)
-                reading.Fill = Math.Max(0, Math.Min(1, (value - control.Min.Value) / (control.Max.Value - control.Min.Value)));
 
             string named = control.PositionAt(value);
             if (named != null)
             {
                 bool off = string.Equals(named, "off", StringComparison.OrdinalIgnoreCase);
                 reading.State = off ? ControlReading.Off : ControlReading.Value;
-                reading.Text = off ? "OFF" : named;
+                reading.Text = off ? OffText : named;
                 return reading;
             }
 
             if (IsOff(control, value))
             {
                 reading.State = ControlReading.Off;
-                reading.Text = "OFF";
+                reading.Text = OffText;
                 return reading;
             }
             reading.State = ControlReading.Value;
             reading.Text = Show(control, value);
             return reading;
+        }
+
+        /// <summary>
+        /// Where a value stands in its control's range for the car, 0 to 1: the HUD's bar, which follows the value as
+        /// he turns the dial. Null where there is nothing true to fill: the list gives the control no range (none is
+        /// made up), or its positions are names of modes (TRACK / SPORT / NORMAL, OFF / MDM / ON), whose numbers are
+        /// not quantities, whatever range the list gives. Positions that are a scale (25%, 50%, 75%:
+        /// <see cref="CarControl.PositionsAreAScale"/>) fill by the position's place among them, and a value between
+        /// them by the range. Otherwise the list's range, lowest to highest, a value outside it held at the end.
+        /// </summary>
+        public static double? FillOf(CarControl control, double value)
+        {
+            if (control == null) return null;
+            if (control.Positions.Count > 0)
+            {
+                if (!control.PositionsAreAScale) return null;
+                for (int i = 0; i < control.Positions.Count; i++)
+                    if (Math.Abs(control.Positions[i].Key - value) < 0.0005) return (double)i / (control.Positions.Count - 1);
+            }
+            if (control.Min.HasValue && control.Max.HasValue && control.Max.Value > control.Min.Value)
+                return Math.Max(0, Math.Min(1, (value - control.Min.Value) / (control.Max.Value - control.Min.Value)));
+            return null;
         }
 
         // Off is what the list says is off. Where it says nothing, nought is off for the ABS and the traction
@@ -380,16 +421,16 @@ namespace RacingDesk.Core.Cars
             double? read = Number(variable(name));
             if (!read.HasValue) return null;
             int value = (int)Math.Round(read.Value);
-            var reading = new ControlReading { Id = DrsId, Label = control.Label ?? "DRS", Var = name, Number = value, Active = value == 3 };
+            var reading = new ControlReading { Id = DrsId, Label = control.Label ?? "DRS", Words = control.Words, Var = name, Number = value, Active = value == 3 };
             string named = control.PositionAt(value);
             if (value <= 0)
             {
                 reading.State = ControlReading.Off;
-                reading.Text = named ?? "OFF";
+                reading.Text = named ?? OffText;
                 return reading;
             }
             reading.State = ControlReading.Value;
-            reading.Text = named ?? (value == 1 ? "NEXT" : value == 2 ? "READY" : value == 3 ? "OPEN" : value.ToString(CultureInfo.InvariantCulture));
+            reading.Text = named ?? (value == 1 ? NextText : value == 2 ? ReadyText : value == 3 ? OpenText : value.ToString(CultureInfo.InvariantCulture));
             return reading;
         }
 
@@ -402,11 +443,11 @@ namespace RacingDesk.Core.Cars
             double? count = Number(variable(PushToPassCount));
             var reading = new ControlReading
             {
-                Id = PushToPassId, Label = control.Label ?? "P2P", Var = name, Number = active ? 1 : 0, Active = active,
+                Id = PushToPassId, Label = control.Label ?? "P2P", Words = control.Words, Var = name, Number = active ? 1 : 0, Active = active,
                 State = active ? ControlReading.Value : ControlReading.Off,
             };
             if (count.HasValue && count.Value >= 0 && count.Value < NoLimit) reading.Count = (int)Math.Round(count.Value);
-            reading.Text = active ? "ON" : reading.Count.HasValue ? reading.Count.Value.ToString(CultureInfo.InvariantCulture) : "OFF";
+            reading.Text = active ? OnText : reading.Count.HasValue ? reading.Count.Value.ToString(CultureInfo.InvariantCulture) : OffText;
             return reading;
         }
     }

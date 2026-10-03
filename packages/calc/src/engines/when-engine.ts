@@ -532,7 +532,7 @@ export function generateWhenInsights(profile: WhenProfile): WhenInsight[] {
     if (worstIncHour.avgIncidents > avgInc * 1.4 && worstIncHour.sessionCount >= 3) {
       insights.push({
         type: 'negative',
-        text: `Incident rate spikes at ${worstIncHour.label} (${worstIncHour.avgIncidents.toFixed(1)} avg). Watch for fatigue or traffic`,
+        text: `Incident rate spikes at ${worstIncHour.label} (${worstIncHour.avgIncidents.toFixed(1)} on average). Watch for fatigue or traffic`,
       })
     }
   }
@@ -568,7 +568,7 @@ export function generateWhenInsights(profile: WhenProfile): WhenInsight[] {
         if (heavyDayDelta < -5) {
           insights.push({
             type: 'negative',
-            text: `High volume on ${heavyDay.label} but avg ${heavyDayDelta.toFixed(0)} iR. Quality over quantity`,
+            text: `High volume on ${heavyDay.label} but an average of ${heavyDayDelta.toFixed(0)} iRating. Quality over quantity`,
           })
         }
       }
@@ -633,7 +633,7 @@ function pickFallbackBad(index: number, profile: WhenProfile): string {
   const highIncHours = activeHours.filter(h => h.avgIncidents > avgIncidents * 1.2)
 
   const fallbacks = [
-    avgIncidents > 0 ? `${avgIncidents.toFixed(1)} avg incidents per session. Room to improve` : `Not enough data to find patterns yet`,
+    avgIncidents > 0 ? `${avgIncidents.toFixed(1)} incidents a session on average. Room to improve` : `Not enough data to find patterns yet`,
     lowWinHours.length > 0 ? `${lowWinHours.length} time slots with zero wins despite multiple races` : `No major red flags yet. Stay consistent`,
     highIncHours.length > 0 ? `${highIncHours.length} hours show above-average incidents. Fatigue or traffic` : `More laps will reveal track-specific weaknesses`,
   ]

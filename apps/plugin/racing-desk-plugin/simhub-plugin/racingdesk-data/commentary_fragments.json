@@ -126,10 +126,10 @@
       "topicId": "abs_activation",
       "fragments": {
         "openers": [
-          "ABS fired for {driver}.",
-          "ABS active on that braking.",
+          "The anti-lock fired for {driver}.",
+          "Anti-lock active on that braking.",
           "The system intervened.",
-          "ABS on the brakes.",
+          "Anti-lock on the brakes.",
           "System engaged for {driver}.",
           "Brakes locked and caught."
         ],
@@ -156,21 +156,21 @@
       "topicId": "tc_intervention",
       "fragments": {
         "openers": [
-          "TC cutting in for {driver}.",
+          "Traction control cutting in for {driver}.",
           "Traction control fired.",
-          "TC intervention on exit.",
+          "Traction control on exit.",
           "The system stepped in.",
-          "TC active for {driver}.",
+          "Traction control active for {driver}.",
           "System cut the power."
         ],
         "bodies": [
           "The system is working and it's costing {driver} a small amount of traction — a tradeoff in the setup.",
           "The rear wants to go and the computer says not yet — the balance between {driver} and the electronics.",
           "{driver} can feel it choking the throttle application — the question is whether the setting is right.",
-          "Running TC means {driver} is trading raw exit speed for consistency — depends on the circuit.",
+          "Running traction control means {driver} is trading raw exit speed for consistency — depends on the circuit.",
           "That chop in the throttle response is the system being protective when it needs to be.",
           "The car wanted more grip than available and the electronics prevented the slide for {driver}.",
-          "That's the tuning point right there — is the TC doing its job or costing {driver} time.",
+          "That's the tuning point right there — is the traction control doing its job or costing {driver} time.",
           "{driver} should note that intervention for the setup review."
         ],
         "closers": [
@@ -397,10 +397,10 @@
       "fragments": {
         "openers": [
           "Personal best for {driver}.",
-          "New PB.",
+          "New personal best.",
           "Personal best lap.",
           "{driver} sets the best.",
-          "That's it — PB.",
+          "That's it — personal best.",
           "Quickest lap yet."
         ],
         "bodies": [
@@ -458,7 +458,7 @@
         "openers": [
           "Maximum lateral load for {driver}.",
           "Peak cornering load.",
-          "Full lateral G.",
+          "Full lateral g.",
           "{driver}'s car is planted.",
           "Absolute grip.",
           "Full cornering load."
@@ -494,9 +494,9 @@
           "Torque spike through here."
         ],
         "bodies": [
-          "That's the FFB telling {driver} exactly what the front tyre just experienced.",
+          "That's the force feedback telling {driver} exactly what the front tyre just experienced.",
           "That's direct communication from the car to {driver} — the wheel is doing its job.",
-          "That's the value of good FFB — {driver} felt it before seeing the car move.",
+          "That's the value of good force feedback — {driver} felt it before seeing the car move.",
           "Everything that went through the contact patch came straight to {driver}'s hands.",
           "The front end just loaded and the wheel transmitted every bit of it back to {driver}.",
           "That's feedback that matters and it's telling {driver} the car's at the limit.",
@@ -737,15 +737,15 @@
           "iRacing saw that and {driver}'s Safety Rating is going to reflect it.",
           "In iRacing that's permanent — every contact is recorded and it matters for {driver}'s rating.",
           "The iRating system doesn't care about context — it logs {driver}'s incident and moves on.",
-          "The SR implications are real for {driver} and they don't go away quickly — cleaner driving needed.",
+          "The safety rating implications are real for {driver} and they don't go away quickly — cleaner driving needed.",
           "That contact just got recorded and the rating hit is automatic for {driver}.",
           "iRacing flagged that and {driver}'s incident is part of the official record now.",
           "The system saw contact and logged it against {driver} regardless of circumstances.",
-          "That incident just cost {driver} SR and the rating impact is immediate."
+          "That incident just cost {driver} safety rating, and the impact is immediate."
         ],
         "closers": [
           "Drive cleaner.",
-          "SR taking a hit.",
+          "Safety rating taking a hit.",
           "Rating drops.",
           "Move forward.",
           ""
@@ -756,12 +756,12 @@
       "topicId": "ers_low",
       "fragments": {
         "openers": [
-          "ERS almost gone for {driver}.",
+          "Hybrid battery almost gone for {driver}.",
           "Battery depleted.",
           "The hybrid is out.",
-          "ERS empty for {driver}.",
+          "Hybrid battery empty for {driver}.",
           "Battery running dry.",
-          "ERS at critical."
+          "Hybrid battery critical."
         ],
         "bodies": [
           "The performance difference without the hybrid is immediately noticeable for {driver} on every straight.",
@@ -769,9 +769,9 @@
           "Managing these depletion windows is a core skill — it changes {driver}'s car completely.",
           "That's the delta between hybrid and non-hybrid performance for {driver}.",
           "The boost is gone and {driver}'s car just lost a significant amount of power.",
-          "Without ERS deployment the straights get much slower for {driver} and passing becomes harder.",
+          "Without the hybrid's deployment the straights get much slower for {driver} and passing becomes harder.",
           "The energy is gone and the next few laps are going to feel a lot slower for {driver}.",
-          "ERS being empty means {driver}'s car is down on performance until it recharges."
+          "An empty hybrid battery means {driver}'s car is down on performance until it recharges."
         ],
         "closers": [
           "No more boost.",
@@ -1026,21 +1026,21 @@
       "topicId": "tc_setting_change",
       "fragments": {
         "openers": [
-          "{driver} changes TC level.",
+          "{driver} changes the traction control.",
           "Traction control adjusted.",
-          "TC change from {driver}.",
-          "{driver} dials the TC.",
-          "TC level shift.",
+          "Traction control change from {driver}.",
+          "{driver} dials the traction control.",
+          "Traction control shift.",
           "Intervention level changed."
         ],
         "bodies": [
-          "Dialing TC up gives {driver} more protection on exit but costs acceleration; dialing down is faster but riskier.",
+          "Dialing traction control up gives {driver} more protection on exit but costs acceleration; dialing down is faster but riskier.",
           "That's a conscious decision from {driver} about how much the car is allowed to slide on exit.",
-          "Some circuits and corners demand more TC intervention — {driver} is adapting to the track in real time.",
+          "Some circuits and corners demand more traction control — {driver} is adapting to the track in real time.",
           "This is about finding the right balance between the computer's protection and {driver}'s throttle confidence.",
-          "Higher TC keeps {driver} safe from rear slides but takes the edge off exit speed.",
-          "Lower TC lets {driver} use more of the car's potential but demands perfect throttle application.",
-          "That TC change from {driver} is a response to the rear grip level — the car communicates and the driver adjusts.",
+          "More traction control keeps {driver} safe from rear slides but takes the edge off exit speed.",
+          "Less traction control lets {driver} use more of the car's potential but demands perfect throttle application.",
+          "That traction control change from {driver} is a response to the rear grip level — the car communicates and the driver adjusts.",
           "The setting change shows {driver} is actively managing the car's electronics to match conditions."
         ],
         "closers": [
@@ -1056,22 +1056,22 @@
       "topicId": "abs_setting_change",
       "fragments": {
         "openers": [
-          "{driver} adjusts ABS level.",
-          "ABS setting changed.",
-          "ABS change from {driver}.",
-          "{driver} moves the ABS.",
+          "{driver} adjusts the anti-lock.",
+          "Anti-lock setting changed.",
+          "Anti-lock change from {driver}.",
+          "{driver} moves the anti-lock.",
           "Braking system adjusted.",
-          "ABS level shift."
+          "Anti-lock shift."
         ],
         "bodies": [
-          "Higher ABS means the system intervenes earlier for {driver} to prevent lock-ups; lower lets the threshold be managed personally.",
-          "Lower ABS gives {driver} shorter stopping distances if the pedal is managed well, but risks flat-spotting.",
+          "More anti-lock means the system intervenes earlier for {driver} to prevent lock-ups; lower lets the threshold be managed personally.",
+          "Less anti-lock gives {driver} shorter stopping distances if the pedal is managed well, but risks flat-spotting.",
           "In a car with this much downforce, the braking threshold changes corner to corner — {driver} is matching the setting.",
-          "That ABS change is about trust in the brake pedal — more intervention means safer but less feel for {driver} at the limit.",
-          "Adjusting ABS shows {driver} is fine-tuning the braking system to match how the car is responding.",
-          "The ABS change means {driver} felt something in the braking zones that needed addressing.",
-          "Lower ABS means {driver} is confident enough to manage the lock-up threshold directly.",
-          "Higher ABS from {driver} means prioritizing consistency over absolute braking performance."
+          "That anti-lock change is about trust in the brake pedal — more intervention means safer but less feel for {driver} at the limit.",
+          "Adjusting the anti-lock shows {driver} is fine-tuning the braking system to match how the car is responding.",
+          "The anti-lock change means {driver} felt something in the braking zones that needed addressing.",
+          "Less anti-lock means {driver} is confident enough to manage the lock-up threshold directly.",
+          "More anti-lock from {driver} means prioritizing consistency over absolute braking performance."
         ],
         "closers": [
           "Pedal feel refined.",
@@ -1086,22 +1086,22 @@
       "topicId": "arb_front_change",
       "fragments": {
         "openers": [
-          "{driver} adjusts front ARB.",
+          "{driver} adjusts the front rollbar.",
           "Front anti-roll bar changed.",
-          "Front ARB from {driver}.",
+          "Front rollbar from {driver}.",
           "{driver} moves the front bar.",
           "Roll stiffness adjusted.",
-          "Front ARB shift."
+          "Front rollbar shift."
         ],
         "bodies": [
-          "Stiffer front ARB reduces body roll for {driver} in fast corners but can make the front less responsive in slow turns.",
+          "A stiffer front rollbar reduces body roll for {driver} in fast corners but can make the front less responsive in slow turns.",
           "This directly affects how much {driver}'s front end rolls — stiffer is more responsive but pushes the front grip limit.",
           "The anti-roll bars are one of the biggest handling levers available to {driver} mid-race.",
-          "Softening the front ARB helps put {driver}'s front tyres to work in tight sections; stiffening keeps the car stable at speed.",
-          "That ARB change shows {driver} is actively managing the car's handling balance while racing.",
-          "Front ARB adjustment means {driver} felt the front end wasn't responding as needed and is correcting it.",
+          "Softening the front rollbar helps put {driver}'s front tyres to work in tight sections; stiffening keeps the car stable at speed.",
+          "That rollbar change shows {driver} is actively managing the car's handling balance while racing.",
+          "Front rollbar adjustment means {driver} felt the front end wasn't responding as needed and is correcting it.",
           "A stiffer front bar makes {driver}'s car more direct and responsive but reduces mechanical front grip.",
-          "Softening the front ARB gives {driver} more front grip in slow corners at the cost of high-speed stability."
+          "Softening the front rollbar gives {driver} more front grip in slow corners at the cost of high-speed stability."
         ],
         "closers": [
           "Handling balance.",
@@ -1116,22 +1116,22 @@
       "topicId": "arb_rear_change",
       "fragments": {
         "openers": [
-          "{driver} adjusts rear ARB.",
+          "{driver} adjusts the rear rollbar.",
           "Rear anti-roll bar changed.",
-          "Rear ARB from {driver}.",
+          "Rear rollbar from {driver}.",
           "{driver} moves the rear bar.",
           "Rear roll stiffness adjusted.",
-          "Rear ARB shift."
+          "Rear rollbar shift."
         ],
         "bodies": [
-          "Stiffer rear ARB adds oversteer for {driver} — the rear rotates more — while softer makes the car more stable.",
+          "A stiffer rear rollbar adds oversteer for {driver} — the rear rotates more — while softer makes the car more stable.",
           "This is a handling balance adjustment from {driver} — more rear stiffness means more rotation, less means more grip.",
           "If {driver}'s car is understeering, stiffening the rear can free it up; if the rear is loose, softening adds grip.",
           "The rear anti-roll bar is one of the first things drivers change when the car doesn't feel balanced — {driver} is reacting.",
-          "That ARB change is {driver} directly adjusting how the car behaves in the corners — a fundamental handling lever.",
+          "That rollbar change is {driver} directly adjusting how the car behaves in the corners — a fundamental handling lever.",
           "Stiffer rear bar means {driver} wants the car to rotate more — probably dealing with understeer.",
           "Softening the rear bar means {driver} wants more rear stability — probably dealing with oversteer.",
-          "The rear ARB adjustment shows {driver} is reading the car's behavior and responding mid-session."
+          "The rear rollbar adjustment shows {driver} is reading the car's behavior and responding mid-session."
         ],
         "closers": [
           "Balance adjusted.",

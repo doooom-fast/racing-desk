@@ -218,7 +218,11 @@ data?… get rid of all of it").
   `DataUpdate` thread; again every 5 s while there is nothing (and while what there is is SimHub's shared map, below)
   and every 60 s once there is his own, swapping the outline when it has gained laps. The iPad's proxy serves
   `/racing-desk/` alone and refuses queries, so the route is never reachable from the
-  network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was, plus
+  network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was — but for
+  the numbers of the path and of the other cars' places, written to a hundredth of a unit since 2026-10-02
+  (`TrackMapProvider.F`): a tenth was 6 m at Le Mans, more than the 5 m between the outline's points, and drew a squiggle
+  on the iPad's following map (the overlay's CLAUDE.md, The outline the page draws; beside SimHub this takes the plugin
+  installed again, and the page smooths a one-decimal path from an older plugin meanwhile) — plus
   `TrackMap.Status`: `ready`, `crowd` (drawn, on SimHub's shared map: the cell says "SimHub's map until your
   first clean lap", one line under the circuit, above its name), `first-lap` (no outline of this layout yet: the map cell says "Map
   after one clean lap"), `no-host` (the app's host does not answer the plugin: the cell says "No map yet — the app is
@@ -425,47 +429,66 @@ with PdfPig (laid out as fixed-pitch text, like `pdftotext -layout`), parses eve
 ## The car's controls
 
 What the HUD's controls panel says of the car he is in: ABS, traction control, brake bias, the car's other dials
-(a second traction dial, brake migration, anti-roll bars, throttle map), DRS and push-to-pass. What each car
+(a second traction dial, brake migration, anti-roll bars, throttle map), DRS and push-to-pass — in words where they fit
+("Anti-lock", "Bias", "Traction slip", "Front rollbar"; see Words, not capitals, below). What each car
 publishes, and why none of it can be trusted to say what a car *has*: [`docs/car-controls-findings.md`](docs/car-controls-findings.md).
 
 - **What a car has is written by hand, once, in one list**, at `packages/car-list/cars.json` (he decided this on
   2026-09-29: "i don't think we can reliably do databased detection"): `{ version, cars: [ { path, name, kind, abs,
-  tc, brakeBias, controls: [ { id, var, label, off?, range?, positions?, note? } ], checked, sources } ] }`. `path` is
+  tc, brakeBias, controls: [ { id, var, label, words?, off?, range?, positions?, note? } ], checked, sources } ] }`. `path` is
   the sim's folder for the car (`mx5 mx52016`), `abs` and `tc` are `none`, `fixed` (it has it, he cannot turn it) or
   `adjustable`, `brakeBias` is `none` or `adjustable`, and each control gives the telemetry variable that carries
-  it and the car's own word for it (`TCLO`, `ESC`, `BBAL`). The file is embedded in `RacingDesk.Core` as
+  it, the car's own short label for it in sentence case (`TCLO`, `ESC`, `BBAL`, `TC toggle`, `Brake bias`) and, where
+  what it does in that car is known, the control in words (`words`: `Traction slip`, `Bias`, `Front rollbar`;
+  `packages/car-list/README.md` says which and from where). The file is embedded in `RacingDesk.Core` as
   `RacingDesk.Core.Cars.cars.json`, so the host and the SimHub plugin carry the same list; a tree without the file
   builds without one, and every car is then not known. `RacingDesk.Core.Cars.CarList` reads it (`Find(path)` is
   case-blind and takes `-`, `_` and space as one; what it does not know it leaves, an entry that is wrong is put in
   `Problems` and the rest are read; `tests/…/Cars/CarListTests.cs`). Keys the code also reads that the list may
   carry: `lockedWhenFixed`, `covers` (which of abs, tc and brakeBias a `mode` stands for) and `decimals`.
   **What a control's keys must look like to be read**: `off` a number, or `false` for "no value of this is off";
-  `range` `[low, high]`, low not above high; `positions` an object of value to name, `{ "0": "TRACK", "1": "SPORT" }`
-  (a name of `off` is the off position); `lockedWhenFixed` a boolean; `covers` an array of `abs`, `tc`, `brakeBias`;
+  `range` `[low, high]`, low not above high; `positions` an object of value to name, `{ "0": "Track", "1": "Sport" }`
+  (a name of `off`, in any case, is the off position); `words` a string; `lockedWhenFixed` a boolean; `covers` an array of `abs`, `tc`, `brakeBias`;
   `decimals` 0 to 3. A key of the wrong kind is taken as not said, not as an error. The ids the code knows are `abs`,
   `tc`, `tc2`… (a dial that is traction control), `brakeBias`, `mode` (which may be listed more than once), `drs` and
   `p2p` (its `var` may be left out: `DRS_Status`, `P2P_Status`); any other id (`brakeMigration`, `arbFront`,
   `arbRear`, `throttleMap`…) is a cell in the row beneath the three, in the order the list gives them.
+  **A `range` says where it came from, in the control's `note`** (`CarControlsFillTests` holds every one to it, but for
+  two Supercars throttle maps of 2026-09-29 whose manual is too large to fetch and check, named there): a
+  manual, release notes, an article, or — for a car he drives — the lowest and highest his own `.ibt` files show, in
+  one form, `Range from his files: seen 46 to 55 in 55 files to 2026-10-02`: every frame of every file read while he was
+  in the car (`IsOnTrack`), a value counted where it was held for half a second or more (a single frame of noughts as a
+  car loads, or a value rolled past while a button is held, is not a setting), outward to two places for a dial that is
+  not whole. Ranges were added for every control a source could be named for on 2026-10-02 (he asked for the bar on
+  every adjustment); a control with none has no bar rather than a made-up one. A range from his files is what he has
+  used, not what the car allows, so a value beyond it is held at the end of the bar and the check says so in the log
+  and on the desk (`value:<var>`): the reminder to widen it.
 - **The telemetry is asked three things and nothing more** (`Cars/CarControls.cs`): the value each listed control
   has now (`var`), whether the session's setup is fixed (`WeekendInfo.WeekendOptions.IsFixedSetup`), and the check
   below. Nothing here works out what a car has.
-- **NONE, ON, OFF, a value, a mode** — each of the three, the sentence the HUD reads:
-  - **NONE**: the list says the car has none. Whatever the sim publishes under that name is not it — `dcABS` in the
-    GTP cars is the brake migration, and their ABS reads NONE.
-  - **ON**: the car has it and he cannot turn it (`fixed`; the MX-5's ABS), so there is no number to show.
-  - **OFF**: it has a dial and the dial is at its off position — `off` in the control, else a position named `off`
+- **None, On, Off, a value, a mode** — each of the three, the sentence the HUD reads (the host writes them in
+  sentence case since 2026-10-02; the HUD puts what an older host sends, NONE, ON, OFF, through `words.js` too):
+  - **None**: the list says the car has none. Whatever the sim publishes under that name is not it — `dcABS` in the
+    GTP cars is the brake migration, and their anti-lock reads None.
+  - **On**: the car has it and he cannot turn it (`fixed`; the MX-5's ABS), so there is no number to show.
+  - **Off**: it has a dial and the dial is at its off position — `off` in the control, else a position named `off`
     in `positions`, else nought for ABS and traction control only (his rule), unless the control says `"off": false`.
-    A fixed setup can hold ABS off, so OFF is not always his to change: the reading says `locked`.
+    A fixed setup can hold ABS off, so Off is not always his to change: the reading says `locked`.
   - **A value**: the number as the list's `decimals` says (brake bias to one place), or the name of the position
-    (`TRACK`, `SPORT`, the BMW's `MDM`), under the label the list gives. A number has a bar from the control's
-    `range`; a name has none.
-  - **A mode**: one dial standing for several (the 570S's ABS, traction and stability under `TRACK`/`SPORT`/`NORMAL`):
+    (Track, Sport, the BMW's MDM), under the words or the label the list gives. A number has a bar, `fill`: where it
+    stands in the control's `range` for that car, held at the ends (`CarControls.FillOf`). A control with no range has
+    none, and nothing is made up for it. Positions fill only where they are a scale (`CarControl.PositionsAreAScale`:
+    numbers, a percent sign allowed, or `off` at an end, running one way — the MP4-30's `25%`, `50%`, `75%`), by the
+    position's place among them; the names of modes (Track / Sport / Normal, Off / MDM / On, Dry / Wet) fill nothing,
+    whatever range the list gives.
+  - **A mode**: one dial standing for several (the 570S's ABS, traction and stability, "Assists", under Track/Sport/Normal):
     the mode is a cell of its own and the cells it covers are not shown.
   - A fixed setup holds ABS and traction control (`locked`), and nothing else, unless the list says otherwise.
     That is as far as his own files go (§10 of the findings): the sim does not say which dials a fixed setup locks.
 - **What is sent**: one key, `RacingDesk.Plugin.CarControls` (`TelemetryFrame.CarControlsKey`), an object on `:8889`
   and its text on the MessagePack feed: `car`, `name`, `kind`, `fixedSetup`, `abs`, `tc`, `bb` (each
-  `{ id, label, state: none|on|off|value|mode|unread, value?, text?, fill?, locked?, var?, by? }`), `more` (the car's
+  `{ id, label, words?, state: none|on|off|value|mode|unread, value?, text?, fill?, locked?, var?, by? }`, `words` the
+  list's for the control and `text` None, On, Off, Next, Ready, Open or a position's name, in sentence case), `more` (the car's
   other controls, every one the list gives it, in the list's order), `drs` and `p2p`. **It is sent only where there is
   something true to say**: for a car the list has, not in the demo. A control the car has by the list whose value
   cannot be read — the list gives no variable, the car is not publishing it, a frame of garbage — is sent as `unread`
@@ -519,7 +542,7 @@ publishes, and why none of it can be trusted to say what a car *has*: [`docs/car
   takes away — and nothing is kept in one that does not (`tests/…/CarListRemarksStoreTests.cs`).
 - **A car the list does not have** shows what it showed before there was a list: no key is sent, and the HUD goes by
   the raw `dc…` values and the old hand-written table in `apps/overlay/modules/js/config.js`. Nothing is made up —
-  no NONE, no car's own labels, no DRS or push-to-pass. The check says once, in the log, that the car is missing.
+  no None, no car's own labels, no DRS or push-to-pass. The check says once, in the log, that the car is missing.
 - **Not built**: the HUD does not say what the check found; of a car's controls nothing is remembered but what the
   check said; the desk cannot yet say that a pedal profile *already given* came from the list (the host's log line
   says so). A car with no profile yet is said to wait on the list's answer where the list has one (the Desk
@@ -569,18 +592,82 @@ furled, disqualified or the start lights. So the host also sends the field itsel
   there and nowhere else.
 - **What the HUD shows of it** (the overlay's CLAUDE.md has the detail): a **local yellow** (0x8 or 0x100, with no caution
   bit, and not once the chequered flag is out) is the lighter yellow — thin stripes round the edge, the panels left as they
-  are, "LOCAL YELLOW — slow in this sector"; a **full-course caution** (0x4000 or 0x8000) is the full yellow the glance
+  are, "Local yellow — slow in this sector"; a **full-course caution** (0x4000 or 0x8000) is the full yellow the glance
   layout has always given `yellow`, worded "full course caution"; **one lap to green** (0x200 **with** a caution bit) is
-  yellow and white and says "1 LAP TO GREEN", and 0x200 without one is nothing — it is never ranked above the white or the
+  yellow and white and says "1 lap to green", and 0x200 without one is nothing — it is never ranked above the white or the
   chequered flag, and practice, the grid, the parade and the cool-down show no flag for it; **green held** (0x400) is the
   green, shown only as the green is, after another flag (it is up at the end of the parade and through the start in
-  his recordings, where nothing is shown); the **black flag furled** (0x80000) is "BLACK FLAG WARNING", a grey ring with
+  his recordings, where nothing is shown); the **black flag furled** (0x80000) is "Black flag warning", a grey ring with
   its own banner; **disqualified** (0x20000) is its own state with its own banner; **ten and five to go and halfway** are a card each in the spotter's stack,
   said once; the start lights **set** and **go** light the grid's lights when the plugin's own phase says nothing.
 - **With no such key** — a SimHub plugin from before it, a replay of one, a sim that does not say — the HUD is exactly as it
   was, from `currentFlagState`. Beside SimHub the key arrives only once the plugin has been installed again from a build that
   carries it (`apps/plugin/scripts/windows/install.bat`; ask before running it), and the app has to be built again
   (`npm run build`) for its own host and for the HUD.
+
+## Words, not capitals
+
+He asked on 2026-10-02: "i'm thinking we get rid of any all-caps text that isn't an acronym and also that we use words
+instead of acronyms where we can, though things like tCLO may be hard" — with his own words for the common ones, "for
+ABS: anti-lock, for bb: bias. for tc: traction", "mig: migration. arb: rollbar" — and one style for every panel's
+header. So, everywhere Racing Desk shows text (the HUD, its glance layout, the iPad, both pages OBS draws, the desk and
+its Cars page):
+
+- **Nothing is set in capitals but an acronym.** No stylesheet has `text-transform: uppercase` or small capitals, and
+  text is written in sentence case: "Leaderboard", "Laps to go", "Wheel max", "Local yellow", "Pit limiter", "No
+  adjustments"; units in their own case (mph, km/h, rpm, kg, Nm, °C). The acronyms that stay are
+  `apps/overlay/modules/js/words.js` `ACRONYMS` (DRS, P2P, DQ, OBS, HUD, TV, GT, GTP, MDM, the corners' LF/RF/LR/RR in the
+  glance layout, the sims' ACC and AMS, TT, GOAT…); ABS, TC, BB, MIG, ARB, SR, FFB, RPM, FPS, FOV, ERS and SOF are not
+  among them any more. Names are as they
+  are sent (a driver's, a car's as its maker spells it), and a licence class or a position's P4 is not a word. The car
+  list's own short labels (TCLO, BBAL, FARB, and the dash's HYS, IBS and SOC) are `CAR_LABELS`, shown only where the words
+  do not fit, and on the desk beside them. `words.js` `sentenceCase` and `labelCase` put
+  what a host sends through the same rule, so a SimHub plugin installed before this change shows the controls' states
+  and positions (NONE, ON, OFF, BRAKE BIAS) and the strategist's label (FUEL) in sentence case too. **That is all it
+  can do**: the commentary card's titles and lines (Title Case, "ABS Activation", "FFB Torque Spike", "ERS depleted"),
+  and the strategist's messages ("ABS/TC working overtime", "FL+FR overheating"), are written by the host and by the
+  plugin, each with its own `racingdesk-data` and engine, and never go through `words.js`: they say their new words
+  only from a rebuilt exe (the app's own host) and from a plugin installed again (SimHub's), and the old ones until then.
+- **Words instead of acronyms where they fit**: Anti-lock, Bias, Traction, Migration, Rollbar (Front rollbar, Rear
+  rollbar), Safety (was SR), Force feedback (was FFB; "Sim feedback max"), iRating (was iR: the gaps' line in the glance
+  layout where it is whole in its cell with the trend after it, "iR" on the rig's 66px cells and where it is not; the
+  commentary, the desk and the results screen say iRating outright), Frame rate (was FPS), Field of
+  view (was FOV, on the desk), Hybrid battery (was ERS) and the like in the commentary, Strength of field, Position,
+  Incidents and "incidents a race" on the desk, the pit box's corners (Left front… on the rig, LF… in the glance layout's
+  corners), the strategist's "Front-left and front-right overheating", and "g" in lower case; each control of the car list in
+  words where a public source settles what it does (`packages/car-list/README.md`). The HUD's controls panel shows the
+  longest form that is whole in its cell: the words, then a rollbar's "Rollbar" with a small F or R, then the car's
+  label, never cropped (`car-controls.js` `chooseForm` on the rig, by the arithmetic the panel sizes its labels by;
+  measured in the glance layout). The desk shows the car's label beside the words with the words as its title, and
+  leaves out a label that only repeats the dial's generic name (ABS beside Anti-lock).
+- **One header for every panel** (`dashboard.css`, "One header for every panel"): the leaderboard's, the datastream's,
+  the incidents', the gaps' Ahead and Behind, the ratings', the laps panel's, the pit box's tabs and pages and the
+  clock's key are one style — the HUD's face at its smallest size, bold, in the theme's dim text colour, 0.04em of
+  tracking, no rule beneath (the `.panel-label`'s of the two there were, its tracking halved for sentence case), at one
+  size in the glance layout (`--hdr-glance`) — and the leaderboard's, the datastream's and the incidents' headers are
+  one place, 11px in and 7px down from their panels' edges. **Open to him**: the labels over a column (Ahead and Behind,
+  iRating and Safety, Laps to go) have the style and are centred over their column; the pit box's tab bar keeps its
+  centred tabs and its open tab's white and rule; the pedals' Throttle, Brake and Clutch are captions of their bars
+  and keep their own weight and white (`apps/overlay/CLAUDE.md`, Words, not capitals).
+- **Tests**: `apps/overlay/tests/unit/words-not-caps.spec.mjs` with `words-scan.mjs` (every stylesheet, page and script
+  that shows text, the Cars island, the calc engines the desk's bundle holds, the car list and the commentary, read for
+  capitals, for abbreviations that are not in capitals (iR, SoF, Pos, Inc, avg, inc/race) and for Title Case headings;
+  the car list's words; the one header on the rig and in the glance layout, and where it sits; the pit box's corners;
+  the longest labels whole on the rig at 3440x1440 and zoom 120 and at every iPad size, after a change of car with the
+  transitions on, the gaps' iRating, the crowded rows), `Cars/CarControlsWireTests.cs`
+  `TheListThisBuildCarriesHasItsWordsWhereTheMeaningIsKnown` and
+  `TheWordsAreWhatTheCarsOwnSourceCallsTheDialAndNothingIsRenamedThatAlreadyIsWords`, `IRacing/TyreWearTests.cs`
+  `TheOverheatingCallNamesTheCornersInWordsNotInLetters`.
+- **Not done**: the commentary's car and track facts (`commentary_cars.json`, `commentary_tracks.json`: makers' and
+  series' names and acronyms such as FIA, DTM, ECU, FWD, NA) are as they were, and the topics' "temps" and the engines'
+  "min" and "hr" are as they were (units and clippings, not acronyms); the calc engines' archetypes and moments ("The Swiss
+  Army Knife", "Win Streak") are names and stay Title Case; the Stream Deck's action names (`remote-server.js`
+  `ACTIONS` and the plugin's manifest: "Open Settings", "Cycle Rating / Pos") are the Stream Deck's own and are as they
+  were. The results screen is dormant and is in sentence case now, its coach's headings and its iRating included. On an
+  iPad the controls under the three are one row: a row that is not whole at its narrowest forms is made whole by closing its
+  cells up and going down to 9px, and where even that is not enough (the Audi R18's twelve dials, the Mercedes W12's and
+  W13's ten but on the 12.9-inch, the Ferrari 499P's seven on the 9.7-inch and upright) each label is cut at its own
+  cell's edge, not run into the next's; the overlay's CLAUDE.md, The controls panel.
 
 ## Other drivers' names
 
@@ -1231,10 +1318,12 @@ millimetres and the page does not say which way is forward — that has not been
   Taking a profile away leaves the force on the page.
 - **Controls** (`components/CarControls.tsx`, under the view and the pedals, across both) is what the car list says
   of the car, and where the car has been found disagreeing with it. In plain words: the kind ("GT car",
-  "Prototype"); ABS, traction control and brake bias each as none, fixed or adjustable with the car's own name for the
-  dial (`adjustable ESC`; a mode dial that stands for several is the label of each); each control as its function,
-  its label and its range or named positions ("Traction control TCS 1 to 12, 1 is off", "Mode ESC 0 TRACK · 1 SPORT ·
-  2 NORMAL"); and "Checked against your telemetry." or "Written from the manuals; not checked against your
+  "Prototype"); anti-lock, traction control and brake bias each as none, fixed or adjustable with the car's own name for
+  the dial where it says more than the dial's generic one (`adjustable TCLO`, the list's words, "Traction slip", its
+  title; ABS beside Anti-lock is left out; a mode dial that stands for several is the label of each); each control as
+  its words (the list's, else what it is for), the car's own label beside them where it is not the same, with the words
+  as its title, and its range or named positions ("Traction TCS 1 to 12, 1 is off", "Assists ABS/TC/ESC 0 Track · 1
+  Sport · 2 Normal"); and "Checked against your telemetry." or "Written from the manuals; not checked against your
   telemetry yet." (beside the heading). The kind and the three dials are a line; **the rows of controls are folded**
   under "Each control, its label and values 8" and open with one press (see the Cars paragraph for why). Above them,
   **where the car and the list disagree**: each thing the check kept, as a sentence with when it was first and last

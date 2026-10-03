@@ -85,7 +85,7 @@ namespace RacingDesk.Tests.Strategy
             var s = new TelemetrySnapshot { FuelLevel = 28.4, FuelPerLap = 0, RemainingLaps = 8 };
             Assert.That(s.PitSuggestion, Is.EqualTo(""));
             s.FuelLapsComputed = 5.68;   // 8 to go
-            Assert.That(s.PitSuggestion, Is.EqualTo("PIT in ~6 laps"));
+            Assert.That(s.PitSuggestion, Is.EqualTo("Pit in ~6 laps"));
             s.FuelLapsComputed = 9.47;   // enough
             Assert.That(s.PitSuggestion, Is.EqualTo(""));
         }
@@ -119,7 +119,7 @@ namespace RacingDesk.Tests.Strategy
             Assert.That(fuel.AvgBurnPerLap, Is.EqualTo(0));
             Assert.That(fuel.FuelLapsRemaining, Is.EqualTo(0));
             Assert.That(fuel.PitWindowClose, Is.EqualTo(0));
-            Assert.That(fuel.Evaluate(stint, s), Is.Null, "no FUEL CRITICAL for a number that is not known");
+            Assert.That(fuel.Evaluate(stint, s), Is.Null, "no fuel-critical call for a number that is not known");
 
             // A stint whose laps cost 3.2 litres each: the real laps of fuel, and the call when they are few. (The
             // average is a trimmed mean, so a lap of 3.2 after two of nought would still be nought.)
@@ -140,7 +140,7 @@ namespace RacingDesk.Tests.Strategy
             Assert.That(costed.FuelLapsRemaining, Is.EqualTo(5.0 / 3.2).Within(1e-9));
             var call = costed.Evaluate(next, s);
             Assert.That(call, Is.Not.Null, "under three laps of fuel, known: the call");
-            Assert.That(call.Label, Is.EqualTo("FUEL"));
+            Assert.That(call.Label, Is.EqualTo("Fuel"));
         }
     }
 
@@ -627,7 +627,7 @@ SessionInfo:
                 longestTime = Math.Max(longestTime, s.SessionTimeRemain);
                 if (coordinator.Fuel.AvgBurnPerLap > 0.01) withBurn++;
                 if (coordinator.Fuel.FuelHealthState == 2) state2++;
-                if (coordinator.IsVisible && coordinator.CurrentLabel == "FUEL") calls++;
+                if (coordinator.IsVisible && coordinator.CurrentLabel == "Fuel") calls++;
             }
             Assume.That(withBurn, Is.GreaterThan(0), "no lap of the test drive was costed, so there is nothing to ask of the strategist");
             Assert.That(state2, Is.EqualTo(0), $"fuel critical in {state2} of {frames} frames of a session with no end (time remaining read up to {longestTime:F0} s)");
