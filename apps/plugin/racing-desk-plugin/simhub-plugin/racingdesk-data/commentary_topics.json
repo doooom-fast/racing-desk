@@ -40,7 +40,7 @@
       "title": "Wall / barrier contact",
       "sentiment": "frustration_negative",
       "severity": 5,
-      "eventExposition": "Hard impact — {value}G vertical spike, {driver} into the barrier",
+      "eventExposition": "Hard impact — {value}g vertical spike, {driver} into the barrier",
       "sessionTypes": [],
       "description": "Heavy impact — car hit a barrier or another vehicle at significant speed.",
       "triggers": [
@@ -67,7 +67,7 @@
       "sentiment": "frustration_negative",
       "severity": 5,
       "priority": 10,
-      "eventExposition": "Catastrophic impact — {value}G vertical spike. Race-ending contact.",
+      "eventExposition": "Catastrophic impact — {value}g vertical spike. Race-ending contact.",
       "sessionTypes": [],
       "description": "Extreme impact that likely ends the session. Triggers above wall contact threshold.",
       "triggers": [
@@ -92,7 +92,7 @@
       "title": "Off track",
       "sentiment": "self_deprecating",
       "severity": 4,
-      "eventExposition": "Off track — vertical G spiked to {value}, {driver} left the racing surface",
+      "eventExposition": "Off track — vertical g spiked to {value}, {driver} left the racing surface",
       "sessionTypes": [],
       "description": "Car left the track surface — run-off, gravel, grass.",
       "triggers": [
@@ -117,7 +117,7 @@
       "title": "Kerb / curb hit",
       "sentiment": "technical_analytical",
       "severity": 2,
-      "eventExposition": "Heavy kerb strike — significant vertical impact beyond normal track use — {value}G vertical spike over the apex kerb",
+      "eventExposition": "Heavy kerb strike — significant vertical impact beyond normal track use — {value}g vertical spike over the apex kerb",
       "sessionTypes": [],
       "description": "Heavy kerb strike — significant vertical impact beyond normal track use.",
       "triggers": [
@@ -423,7 +423,7 @@
       "title": "Maximum cornering load",
       "sentiment": "car_praise",
       "severity": 2,
-      "eventExposition": "Peak lateral load — {value}G through this corner for {driver}",
+      "eventExposition": "Peak lateral load — {value}g through this corner for {driver}",
       "sessionTypes": [],
       "description": "Very high lateral g sustained through a fast corner.",
       "triggers": [
@@ -435,10 +435,10 @@
         }
       ],
       "commentaryPrompts": [
-        "{value}G lateral through that corner for {driver}. That's near the absolute tyre adhesion limit — the downforce is doing most of the work at this speed.",
-        "{driver} pulling {value}G through the apex. At that load, the suspension geometry and aero balance have to be perfect or {car} snaps.",
-        "Peak cornering at {value}G for {driver}. The tyre load is enormous — the contact patches are carrying several times {manufacturer}'s weight through lateral force.",
-        "{driver} through that section at {value}G. That's the aerodynamic platform generating enough downforce to push the tyres well past what mechanical grip alone allows."
+        "{value}g lateral through that corner for {driver}. That's near the absolute tyre adhesion limit — the downforce is doing most of the work at this speed.",
+        "{driver} pulling {value}g through the apex. At that load, the suspension geometry and aero balance have to be perfect or {car} snaps.",
+        "Peak cornering at {value}g for {driver}. The tyre load is enormous — the contact patches are carrying several times {manufacturer}'s weight through lateral force.",
+        "{driver} through that section at {value}g. That's the aerodynamic platform generating enough downforce to push the tyres well past what mechanical grip alone allows."
       ],
       "cooldownMinutes": 6
     },
@@ -606,7 +606,7 @@
       "title": "Major braking zone",
       "sentiment": "excitement_positive",
       "severity": 2,
-      "eventExposition": "Heavy braking — {value}G deceleration for {driver} into this corner",
+      "eventExposition": "Heavy braking — {value}g deceleration for {driver} into this corner",
       "sessionTypes": [],
       "description": "Extreme longitudinal deceleration — very heavy braking event.",
       "triggers": [
@@ -618,10 +618,10 @@
         }
       ],
       "commentaryPrompts": [
-        "{value}G deceleration for {driver} into that corner. The brake disc temperatures spike by hundreds of degrees in a zone like that.",
-        "{driver} pulling {value}G under braking. At that deceleration, the front axle is carrying nearly all {manufacturer}'s weight — the rear is barely touching the ground.",
-        "{value}G braking event for {driver}. The tyre contact patches are at maximum longitudinal load — the anti-lock threshold is fractions away.",
-        "Peak braking at {value}G for {driver}. The kinetic energy being converted to heat through the discs in that distance is enormous — the brake temps will show it."
+        "{value}g deceleration for {driver} into that corner. The brake disc temperatures spike by hundreds of degrees in a zone like that.",
+        "{driver} pulling {value}g under braking. At that deceleration, the front axle is carrying nearly all {manufacturer}'s weight — the rear is barely touching the ground.",
+        "{value}g braking event for {driver}. The tyre contact patches are at maximum longitudinal load — the anti-lock threshold is fractions away.",
+        "Peak braking at {value}g for {driver}. The kinetic energy being converted to heat through the discs in that distance is enormous — the brake temps will show it."
       ],
       "cooldownMinutes": 5
     },
@@ -757,7 +757,7 @@
       "title": "Car on the limit",
       "sentiment": "car_praise",
       "severity": 1,
-      "eventExposition": "{driver}'s car hooked up — sustained {value}G lateral load",
+      "eventExposition": "{driver}'s car hooked up — sustained {value}g lateral load",
       "sessionTypes": [],
       "description": "Sustained high lateral load — car working perfectly through a complex corner.",
       "triggers": [
@@ -769,10 +769,10 @@
         }
       ],
       "commentaryPrompts": [
-        "{driver}'s car is sustaining {value}G through that section — right at the mechanical grip limit of the tyres.",
-        "That's a well-sorted car from {driver}. Holding {value}G lateral means the aero balance and tyre pressures are dialled in perfectly.",
-        "{driver} carrying {value}G consistently through the complex. That sustained load only happens when front and rear grip are properly matched.",
-        "Completely hooked up for {driver}. The lateral data shows {value}G sustained — the setup is converting every bit of available grip into cornering speed."
+        "{driver}'s car is sustaining {value}g through that section — right at the mechanical grip limit of the tyres.",
+        "That's a well-sorted car from {driver}. Holding {value}g lateral means the aero balance and tyre pressures are dialled in perfectly.",
+        "{driver} carrying {value}g consistently through the complex. That sustained load only happens when front and rear grip are properly matched.",
+        "Completely hooked up for {driver}. The lateral data shows {value}g sustained — the setup is converting every bit of available grip into cornering speed."
       ],
       "cooldownMinutes": 7
     },

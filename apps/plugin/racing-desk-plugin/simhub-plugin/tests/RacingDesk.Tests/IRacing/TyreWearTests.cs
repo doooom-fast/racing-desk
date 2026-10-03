@@ -597,6 +597,35 @@ SplitTimeInfo:
         }
 
         [Test]
+        public void TheOverheatingCallNamesTheCornersInWordsNotInLetters()
+        {
+            // He asked on 2026-10-02 for words instead of acronyms where they fit: the card has the room, and the wear calls
+            // beside this one already say "Front-left". The hot corners are named as a sentence names them.
+            string Call(params double[] temps)
+            {
+                var s = Snap(100);
+                s.TyreTempFL = temps[0]; s.TyreTempFR = temps[1]; s.TyreTempRL = temps[2]; s.TyreTempRR = temps[3];
+                var t = new TireTracker();
+                t.UpdateFrame(s);
+                var call = t.Evaluate(new StintData());
+                Assert.That(call, Is.Not.Null, "a tyre over its window is called");
+                Assert.That(call.Label, Is.EqualTo("Tyres"));
+                return call.Message;
+            }
+
+            Assert.That(Call(120, 90, 90, 90), Does.StartWith("Front-left overheating"));
+            Assert.That(Call(90, 90, 90, 125), Does.StartWith("Rear-right overheating"));
+            Assert.That(Call(120, 118, 90, 90), Does.StartWith("Front-left and front-right overheating"));
+            Assert.That(Call(120, 118, 117, 90), Does.StartWith("Front-left, front-right and rear-left overheating"));
+            Assert.That(Call(120, 118, 117, 130), Does.StartWith("All four tyres overheating"));
+            foreach (var message in new[] { Call(120, 118, 90, 90), Call(90, 109, 90, 125) })
+            {
+                Assert.That(message, Does.Not.Match(@"\b(FL|FR|RL|RR)\b"), "no letters for the corners");
+                Assert.That(message, Does.Contain("temperatures"), "and no 'temps'");
+            }
+        }
+
+        [Test]
         public void TheTreadIsNotAGripFactor()
         {
             // A reading of the tread (15, or 38) is rated once, from the measurement. It must not also become a grip score

@@ -332,9 +332,9 @@ namespace RacingDesk.Plugin.Engine
                 {
                     Id = "car_balance_fallback",
                     Category = "car_response",
-                    Title = "Car Balance",
+                    Title = "Car balance",
                     Severity = 2,
-                    EventExposition = "Lateral load at {value}G — car working hard through the corner",
+                    EventExposition = "Lateral load at {value}g — car working hard through the corner",
                     CommentaryPrompts = new List<string>
                     {
                         "Talk about how the car is feeling right now — is it balanced or fighting you?",
@@ -350,7 +350,7 @@ namespace RacingDesk.Plugin.Engine
                 {
                     Id = "fuel_fallback",
                     Category = "racing_experience",
-                    Title = "Fuel Strategy",
+                    Title = "Fuel strategy",
                     Severity = 3,
                     EventExposition = "Fuel at {value}% — running low on this stint",
                     CommentaryPrompts = new List<string>
@@ -783,7 +783,7 @@ namespace RacingDesk.Plugin.Engine
         private static string FormatDriver(string name, int rating)
         {
             if (string.IsNullOrEmpty(name)) return "the car";
-            return rating > 0 ? $"{name} ({rating:N0} iR)" : name;
+            return rating > 0 ? $"{name} ({rating:N0} iRating)" : name;
         }
 
         /// <summary>

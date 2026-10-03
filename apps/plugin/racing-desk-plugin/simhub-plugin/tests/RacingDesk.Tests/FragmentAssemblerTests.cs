@@ -177,7 +177,7 @@ namespace RacingDesk.Tests
             _assembler.LoadFragmentsFromJson(json);
             string result = _assembler.Assemble("test", _context);
             StringAssert.Contains("Sarah K.", result);
-            StringAssert.Contains("2,847 iR", result);
+            StringAssert.Contains("2,847 iRating", result);
         }
 
         [Test]
@@ -198,7 +198,7 @@ namespace RacingDesk.Tests
             _assembler.LoadFragmentsFromJson(json);
             string result = _assembler.Assemble("test", _context);
             StringAssert.Contains("James W.", result);
-            StringAssert.Contains("2,100 iR", result);
+            StringAssert.Contains("2,100 iRating", result);
         }
 
         [Test]
@@ -241,7 +241,7 @@ namespace RacingDesk.Tests
             _assembler.LoadFragmentsFromJson(json);
             string result = _assembler.Assemble("test", _context);
             StringAssert.Contains("Sarah K.", result);
-            Assert.IsFalse(result.Contains("iR"), "Should not include iR rating when rating is 0");
+            Assert.IsFalse(result.Contains("iRating"), "Should not include the iRating when the rating is 0");
         }
 
         #endregion
