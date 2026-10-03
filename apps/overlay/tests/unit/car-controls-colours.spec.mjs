@@ -134,16 +134,16 @@ const withControls = (cc) => ({ ...MOCK_TELEMETRY, [KEY]: cc, 'DataCorePlugin.Ga
 const dial = (id, value, fill, label = id.toUpperCase()) => ({ id, label, state: 'value', value, text: String(value), ...(fill == null ? {} : { fill }) });
 const EVERY = {
   car: 'madeup colours', name: 'Made-up Colours', kind: 'prototype', fixedSetup: false,
-  bb: { ...dial('brakeBias', 52, 0.5), label: 'BIAS' }, tc: { ...dial('tc', 4, 0.3), label: 'TC' }, abs: { ...dial('abs', 3, 0.2), label: 'ABS' },
+  bb: { ...dial('brakeBias', 52, 0.5), label: 'Bias' }, tc: { ...dial('tc', 4, 0.3), label: 'TC' }, abs: { ...dial('abs', 3, 0.2), label: 'ABS' },
   more: [
     dial('brakeBiasFine', 1, 0.6), dial('brakeMigration', 2, 0.4), dial('rearBrakeValve', 3, 0.5),
     dial('tc2', 5, 0.4), dial('tc3', 2, 0.5), dial('tcToggle', 0, 0),
     dial('absToggle', 1, 1),
     dial('engineMap', 2, 0.1), dial('throttleMap', 3, 0.7), dial('mguDeploy', 4, 0.5), dial('engineBraking', 5, 0.4),
     dial('arbFront', 3, 0.5), dial('diffEntry', 4, 0.3), dial('weightJacker', 2, 0.55), dial('powerSteering', 3, 0.5),
-    { id: 'mode', label: 'ESC', state: 'value', value: 1, text: 'SPORT' },
+    { id: 'mode', label: 'ESC', state: 'value', value: 1, text: 'Sport' },
   ],
-  drs: { id: 'drs', label: 'DRS', state: 'off', value: 0, text: 'OFF', var: 'DRS_Status', active: false },
+  drs: { id: 'drs', label: 'DRS', state: 'off', value: 0, text: 'Off', var: 'DRS_Status', active: false },
   p2p: { id: 'p2p', label: 'OT', state: 'off', value: 0, text: '65', var: 'P2P_Status', active: false, count: 65 },
 };
 

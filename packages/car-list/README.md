@@ -76,7 +76,7 @@ half a second or more, written `Range from his files: seen 46 to 55 in 55 files 
 source has no range and no bar:
 nothing is made up. A range from his files is what he has used, not what the car allows, so when he goes past it the
 check says so (`value:<var>`) and the range wants widening. Named positions fill a bar only where they are a scale
-(numbers, like the MP4-30's `25%`, `50%`, `75%`); names of modes (`TRACK`, `MDM`, `DRY`) never do.
+(numbers, like the MP4-30's `25%`, `50%`, `75%`); names of modes (`Track`, `MDM`, `Dry`) never do.
 
 ## Changing it
 
