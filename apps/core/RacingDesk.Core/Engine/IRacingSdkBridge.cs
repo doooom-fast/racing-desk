@@ -83,6 +83,10 @@ namespace RacingDesk.Plugin.Engine
         private string _playerRealName;
         // His car's name while a teammate drives it (a team race): the teammate is another driver.
         private string _playerCarShown;
+        // His car's number while he is the one in it (the session says so: Pseudonymizer.IsHim). His own car with him in it
+        // is his, whatever SimHub calls him: a SimHub name not quite the session's is not another driver (he said on
+        // 2026-10-03: "don't change my name in the leaderboard").
+        private string _playerCarNumber;
         private System.Diagnostics.Stopwatch _unnamedFor;
         private bool _unnamedWarned;
 
@@ -103,8 +107,9 @@ namespace RacingDesk.Plugin.Engine
                 if (!_fieldNamed) { NoteUnnamed(); return null; }
                 string trimmedName = (name ?? "").Trim();
                 if (IsHisName(trimmedName)) return name;
-                if (trimmedName.Length > 0 && _nameByRealName.TryGetValue(trimmedName, out string byName)) return byName;
                 string number = CarNumberKey(carNumber);
+                if (_playerCarNumber != null && number.Length > 0 && number == _playerCarNumber) return trimmedName.Length > 0 ? name : (_playerRealName ?? "");
+                if (trimmedName.Length > 0 && _nameByRealName.TryGetValue(trimmedName, out string byName)) return byName;
                 if (number.Length > 0 && _nameByCarNumber.TryGetValue(number, out string byNumber)) return byNumber;
                 if (isPlayer && _playerCarShown != null) return _playerCarShown;
                 return (_names ?? (_names = PseudonymBook.Default.NewSession())).For(0, trimmedName);
@@ -125,6 +130,8 @@ namespace RacingDesk.Plugin.Engine
                 if (g.Length == 0 || IsHisName(g)) return given ?? "";
                 if (_nameByRealName.TryGetValue(g, out string byName)) return byName;
                 if (_playerCarShown != null) return _playerCarShown;
+                // He is in his car: the player is him, whatever SimHub calls him.
+                if (_playerCarNumber != null) return given;
                 return (_names ?? (_names = PseudonymBook.Default.NewSession())).For(0, g);
             }
         }
@@ -153,6 +160,7 @@ namespace RacingDesk.Plugin.Engine
             _nameByRealName.Clear();
             _playerRealName = null;
             _playerCarShown = null;
+            _playerCarNumber = null;
             var di = si.DriverInfo;
             var drivers = di?.Drivers;
             if (drivers != null)
@@ -162,6 +170,8 @@ namespace RacingDesk.Plugin.Engine
                     if (d == null || d.CarIsPaceCar != 0 || !Pseudonymizer.IsHim(di, d)) continue;
                     string real = (d.UserName ?? "").Trim();
                     _playerRealName = real.Length > 0 ? real : null;
+                    _playerCarNumber = CarNumberKey(d.CarNumber);
+                    if (_playerCarNumber.Length == 0) _playerCarNumber = null;
                 }
                 foreach (var named in names.NameField(si))
                 {
@@ -190,6 +200,7 @@ namespace RacingDesk.Plugin.Engine
                 _nameByRealName.Clear();
                 _playerRealName = null;
                 _playerCarShown = null;
+                _playerCarNumber = null;
                 _fieldNamed = false;
                 _unnamedFor = null;
                 _unnamedWarned = false;
