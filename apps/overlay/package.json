@@ -20,11 +20,12 @@
     "test:desk": "playwright test --project=desk"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@racing-desk/calc": "*",
+    "@racing-desk/replay": "*",
     "cross-env": "^7.0.3",
     "electron": "33.4.11",
     "electron-builder": "^25.1.8",
-    "@playwright/test": "^1.58.2",
-    "@racing-desk/replay": "*",
-    "@racing-desk/calc": "*"
+    "lucide-static": "^1.51.0"
   }
 }
