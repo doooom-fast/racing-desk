@@ -18,6 +18,12 @@
   let _simLightsPhase = 0;
   let _simLightsTimer = null;
 
+  // GO is shown for two seconds from the moment the lights go green, and not again while the green holds: iRacing's own
+  // start-go flag stays up through the whole first lap, and the GO stayed with it (he said on 2026-10-03: "hide GO after
+  // 2 seconds, it stays all 1st lap"). _goSinceMs is when this green began; 0 while the lights are not green.
+  const GO_SHOWN_MS = 2000;
+  let _goSinceMs = 0;
+
   function updateGrid(p, isDemo) {
     const pre = isDemo ? 'RacingDesk.Plugin.Demo.Grid.' : 'RacingDesk.Plugin.Grid.';
     const sessionState = +(p[pre + 'SessionState']) || 0;
@@ -52,6 +58,15 @@
     }
     // Use synthetic phase when plugin isn't sending one
     if (lightsPhase === 0 && _simLightsPhase > 0) lightsPhase = _simLightsPhase;
+
+    // Two seconds of GO, then the lights are put away as after any start, until the green is over.
+    if (lightsPhase === 7) {
+      const now = Date.now();
+      if (!_goSinceMs) _goSinceMs = now;
+      if (now - _goSinceMs > GO_SHOWN_MS) lightsPhase = 0;
+    } else {
+      _goSinceMs = 0;
+    }
 
     // SessionState 3 = ParadeLaps (formation), or lights sequence active
     // Phase 8 = post-green holdover — keep module visible while it fades naturally

@@ -430,6 +430,23 @@ test.describe('the start lights, from the field, on the grid', () => {
     await serve(page, RACE({ state: 4, flag: 'green', sessionFlags: 0x80000000 | GREEN }));
     expect(await lights(page)).toEqual({ active: true, bulbs: ['lit-green', 'lit-green', 'lit-green'], go: true });
   });
+
+  test('go is shown for two seconds, though the sim keeps its start-go flag up through the first lap, and not again', async ({ page }) => {
+    test.setTimeout(60000);
+    const shown = () => page.evaluate(() => document.getElementById('gridModule').classList.contains('grid-visible'));
+    await openAt(page, 1180, 820, RACE({ state: 3, flag: 'none', sessionFlags: 0x40000000 }));
+    const from = Date.now();   // the green, as near as the page is told of it: serving waits for the page to draw it
+    await serve(page, RACE({ state: 4, flag: 'green', sessionFlags: 0x80000000 | GREEN }));
+    expect((await lights(page)).go, 'the green: GO').toBe(true);
+    expect(await shown()).toBe(true);
+    // The flag stays up, frame after frame: the lights go two seconds after the green, and do not come back.
+    await expect.poll(shown, { timeout: 6000, intervals: [100] }).toBe(false);
+    const after = Date.now() - from;
+    expect(after, 'put away near two seconds after the green').toBeGreaterThan(1500);
+    expect(after).toBeLessThan(3500);
+    await page.waitForTimeout(1500);
+    expect(await shown(), 'still the start-go flag: no GO again').toBe(false);
+  });
 });
 
 test.describe('the wording fits: nothing cut off at the smallest cells', () => {
