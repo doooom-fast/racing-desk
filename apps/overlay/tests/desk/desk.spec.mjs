@@ -4486,7 +4486,7 @@ test('with OBS open the pill says so and Record is one press; recording, it coun
   await expect(card.locator('#recording-password')).toHaveCount(0);
   await expect(card.locator('#recording-folder')).toHaveValue('D:\\Racing Desk\\Recordings');
   await expect(card.locator('#recording-obsStartOnRecord')).toBeChecked();
-  await expect(card.locator('#recording-obsStartWithApp')).not.toBeChecked();
+  await expect(card.locator('#recording-obsStartWithApp'), 'OBS starts with the app by Record by itself alone').toHaveCount(0);
   expect(await recordingCommands(page)).toEqual([]);   // looking at the page asks nothing of OBS
 
   await pill.locator('.recording-button').click();
@@ -4567,12 +4567,12 @@ test('the two switches are saved through the settings file, like the rest of the
   await stubRecording(page, OBS_READY);
   await openDesk(page, `http://127.0.0.1:${host.address().port}`, '&page=settings');
   const card = page.locator('#settings-recording');
-  await card.locator('#recording-obsStartWithApp').check();
+  await card.locator('#recording-recordingChapters').uncheck();
   await card.locator('#recording-obsStartOnRecord').uncheck();
   await expect.poll(() => page.evaluate(() => window.__k10.saved.length)).toBe(2);
   const saved = await page.evaluate(() => window.__k10.saved);
-  expect(saved[0]).toMatchObject({ zoom: 120, obsStartWithApp: true });
-  expect(saved[1]).toMatchObject({ zoom: 120, obsStartWithApp: true, obsStartOnRecord: false });
+  expect(saved[0]).toMatchObject({ zoom: 120, recordingChapters: false });
+  expect(saved[1]).toMatchObject({ zoom: 120, recordingChapters: false, obsStartOnRecord: false });
   // Choosing the folder and opening it are the app's commands, not keys.
   await card.locator('button[data-recording-cmd="openFolder"]').click();
   await card.locator('button[data-recording-cmd="chooseFolder"]').click();

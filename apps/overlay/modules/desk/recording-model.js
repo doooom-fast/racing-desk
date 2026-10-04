@@ -9,11 +9,10 @@
   'use strict';
 
   const SWITCHES = [
-    { key: 'recordingAutoRecord', label: 'Record by itself', def: true, hint: 'In a race from the green flag; in practice and qualifying from pit exit. It stops on a new session, five seconds after the end of the race, and when you leave the car, and stops only the recordings it started. OBS has to be open already.' },
+    { key: 'recordingAutoRecord', label: 'Record by itself', def: true, hint: 'In a race from the green flag; in practice and qualifying from pit exit. It stops on a new session, five seconds after the end of the race, and when you leave the car, and stops only the recordings it started. While this is on, OBS opens with Racing Desk, minimised to the tray; off, OBS opens only when you press Record.' },
     { key: 'recordingInstantReplay', label: 'Instant replay', def: false, hint: "OBS's replay buffer runs while you are in the car. Ctrl+Shift+B, the tray or the Stream Deck saves the last 20 seconds as a clip, with its telemetry beside it." },
     { key: 'recordingChapters', label: 'Chapters', def: true, hint: 'A chapter in the video for each lap, incident, pit stop and place gained, which a player or editor can jump to. Hybrid MP4 only, which Set up OBS sets.' },
     { key: 'obsStartOnRecord', label: 'Start OBS when I press Record', def: true, hint: 'From the desk, the tray or the Stream Deck, out of the car. A key in the car never starts OBS: the HUD says "OBS is not open" instead.' },
-    { key: 'obsStartWithApp', label: 'Start OBS with Racing Desk', def: false, hint: 'Off unless you turn it on. OBS opens minimised to the tray when Racing Desk starts.' },
     { key: 'obsHudSource', label: 'HUD drawn by OBS', def: false, hint: "Off unless you turn it on. OBS draws the HUD itself, from a page Racing Desk serves on this PC, as a browser source named Racing Desk HUD in each of your scenes just above the game, and the HUD's own window is left out of your screen capture. Off, the HUD is in the picture through your screen capture, as before. Nothing of yours is removed either way." },
     { key: 'tvShotsHideFacecam', label: 'Hide the facecam during TV shots', def: true, hint: 'While a TV take is recorded your camera source is hidden in OBS, and shown again after.' },
   ];

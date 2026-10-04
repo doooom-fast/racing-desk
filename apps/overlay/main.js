@@ -583,7 +583,7 @@ async function startObsWithApp() {
   for (;;) {
     const payload = await hudVisibility.fetchPayload(hudTelemetryUrl()).catch(() => null);
     const decision = obs.launcher.startWithApp({
-      enabled: loadSettingsSync().obsStartWithApp === true,
+      enabled: loadSettingsSync().recordingAutoRecord !== false,
       relaunched: process.argv.includes(NO_OBS_START),
       answered: !!payload,
       inCar: RacingDeskInCar.inCar(payload),
@@ -1219,10 +1219,11 @@ app.whenReady().then(async () => {
     startSettingsWatcher();
 
     // OBS: the client tries its WebSocket every 5 s from here on; OBS itself is started only on his press, unless
-    // he turned "Start OBS with Racing Desk" on.
+    // "Record by itself" is on (he said on 2026-10-03: "Don't open OBS automatically unless the settings are set to
+    // auto-record"; the "Start OBS with Racing Desk" switch went with it).
     recording.start();
     obsClient.start();
-    if (!isDev && loadSettingsSync().obsStartWithApp === true) {
+    if (!isDev && loadSettingsSync().recordingAutoRecord !== false) {
       startObsWithApp().catch((err) => logToFile(`[RacingDesk] OBS with the app: ${err.message}`));
     }
 

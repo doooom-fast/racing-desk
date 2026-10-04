@@ -151,7 +151,7 @@ test('the card: buttons and sentences for the states, the switches, the folder',
   expect(ready.details).toEqual(['About 9 hours of recording left on D: at 100 Mbps.']);   // 400 GB at 12.5 MB/s
   expect(ready.folder).toBe('D:\\Racing Desk\\Recordings');
   expect(ready.switches.map((s) => [s.key, s.value, s.enabled])).toEqual([
-    ['recordingAutoRecord', true, true], ['recordingInstantReplay', false, true], ['recordingChapters', true, true], ['obsStartOnRecord', true, true], ['obsStartWithApp', false, true],
+    ['recordingAutoRecord', true, true], ['recordingInstantReplay', false, true], ['recordingChapters', true, true], ['obsStartOnRecord', true, true],
     ['obsHudSource', false, true], ['tvShotsHideFacecam', true, true],
   ]);
   // "HUD drawn by OBS", on: what it has done, from the app's last word on it — named for what it draws.

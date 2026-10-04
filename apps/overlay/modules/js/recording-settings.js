@@ -42,7 +42,7 @@ const ADDED = Object.freeze({
   recordingInstantReplaySeconds: 20,   // OBS's RecRBTime, which Set up OBS writes
   recordingChapters: true,
   obsStartOnRecord: true,              // Record from the desk, the tray or the Stream Deck starts OBS when it is closed
-  obsStartWithApp: false,              // never at Racing Desk's start unless he turns this on
+  obsStartWithApp: false,              // no longer read: OBS starts with Racing Desk while recordingAutoRecord is on (2026-10-03)
   obsPath: null,                       // null: the default install, C:\Program Files\obs-studio
   obsHudSource: false,                 // "HUD drawn by OBS": the HUD as a browser source in his scenes, off unless he turns it on
   localServerPort: 9091,               // the listener on 127.0.0.1 for the Stream Deck and the OBS page (remote-server.js)
