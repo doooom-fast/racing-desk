@@ -420,10 +420,10 @@ test.describe('the actions', () => {
   });
 
   test('are for a program on the rig that says it is one, and only the ones there are', async () => {
-    const ran = await ask('/api/action/toggle-leaderboard', aProgram);
+    const ran = await ask('/api/action/cycle-rating', aProgram);
     expect(ran.status).toBe(200);
     expect(JSON.parse(ran.body)).toEqual({ ok: true });
-    expect(ran.dispatched).toEqual(['toggle-leaderboard']);
+    expect(ran.dispatched).toEqual(['cycle-rating']);
 
     // Node's fetch, which the Stream Deck button uses, says what mode it is in and no more.
     const viaNodeFetch = await ask('/api/action/quit', { ...onTheRig, headers: { [remote.ACTION_HEADER]: '1', 'sec-fetch-mode': 'cors', 'user-agent': 'node' } });

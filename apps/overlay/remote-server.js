@@ -186,7 +186,6 @@ const ACTIONS = Object.freeze([
   { name: 'reset-window', label: 'Reset Window', category: 'app' },
   { name: 'quit', label: 'Quit Overlay', category: 'app' },   // the HUD is put away; the app carries on
   { name: 'toggle-drive-mode', label: 'Drive Mode', category: 'hud' },
-  { name: 'toggle-leaderboard', label: 'Leaderboard', category: 'hud' },
   { name: 'cycle-rating', label: 'Cycle Rating/Pos', category: 'hud' },
   { name: 'cycle-car-logo', label: 'Cycle Logo', category: 'hud' },
   { name: 'zoom-in', label: 'Zoom In', category: 'hud' },
@@ -200,11 +199,6 @@ const ACTIONS = Object.freeze([
   { name: 'stop-recording', label: 'Stop recording', category: 'recording' },
   { name: 'save-replay-buffer', label: 'Save Replay', category: 'recording' },
   { name: 'tv-shots', label: 'TV shots', category: 'recording' },
-  { name: 'restart-demo', label: 'Restart Demo', category: 'demo' },
-  { name: 'toggle-rating-editor', label: 'Rating Editor', category: 'editor' },
-  { name: 'preset-broadcast', label: 'Broadcast Mode', category: 'preset' },
-  { name: 'preset-practice', label: 'Practice Mode', category: 'preset' },
-  { name: 'preset-qualifying', label: 'Qualifying Mode', category: 'preset' },
 ]);
 
 // The settings the HUD page in OBS is told of: what the rig's own HUD draws by — the panels (show*), the zoom, the

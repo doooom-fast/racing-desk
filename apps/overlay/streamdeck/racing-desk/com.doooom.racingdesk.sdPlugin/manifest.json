@@ -1,6 +1,6 @@
 {
 	"Name": "RacingDesk Overlay",
-	"Version": "0.2.1.0",
+	"Version": "0.2.2.0",
 	"Author": "Kevin Conboy",
 	"Actions": [
 		{
@@ -49,21 +49,6 @@
 			]
 		},
 		{
-			"Name": "Rating Editor",
-			"UUID": "com.doooom.racingdesk.toggle-rating-editor",
-			"Icon": "imgs/actions/toggle-rating-editor/icon",
-			"Tooltip": "Open/close iRating/SR editor",
-			"Controllers": [
-				"Keypad"
-			],
-			"States": [
-				{
-					"Image": "imgs/actions/toggle-rating-editor/key",
-					"TitleAlignment": "bottom"
-				}
-			]
-		},
-		{
 			"Name": "Zoom In",
 			"UUID": "com.doooom.racingdesk.zoom-in",
 			"Icon": "imgs/actions/zoom-in/icon",
@@ -94,21 +79,6 @@
 			]
 		},
 		{
-			"Name": "Restart Demo",
-			"UUID": "com.doooom.racingdesk.restart-demo",
-			"Icon": "imgs/actions/restart-demo/icon",
-			"Tooltip": "Restart the demo data sequence",
-			"Controllers": [
-				"Keypad"
-			],
-			"States": [
-				{
-					"Image": "imgs/actions/restart-demo/key",
-					"TitleAlignment": "bottom"
-				}
-			]
-		},
-		{
 			"Name": "Cycle Rating / Pos",
 			"UUID": "com.doooom.racingdesk.cycle-rating",
 			"Icon": "imgs/actions/cycle-rating/icon",
@@ -134,21 +104,6 @@
 			"States": [
 				{
 					"Image": "imgs/actions/cycle-car-logo/key",
-					"TitleAlignment": "bottom"
-				}
-			]
-		},
-		{
-			"Name": "Toggle Leaderboard",
-			"UUID": "com.doooom.racingdesk.toggle-leaderboard",
-			"Icon": "imgs/actions/toggle-leaderboard/icon",
-			"Tooltip": "Show/hide the leaderboard panel",
-			"Controllers": [
-				"Keypad"
-			],
-			"States": [
-				{
-					"Image": "imgs/actions/toggle-leaderboard/key",
 					"TitleAlignment": "bottom"
 				}
 			]
@@ -239,51 +194,6 @@
 			"States": [
 				{
 					"Image": "imgs/actions/dismiss-commentary/key",
-					"TitleAlignment": "bottom"
-				}
-			]
-		},
-		{
-			"Name": "Broadcast Mode",
-			"UUID": "com.doooom.racingdesk.preset-broadcast",
-			"Icon": "imgs/actions/preset-broadcast/icon",
-			"Tooltip": "Apply broadcast production preset",
-			"Controllers": [
-				"Keypad"
-			],
-			"States": [
-				{
-					"Image": "imgs/actions/preset-broadcast/key",
-					"TitleAlignment": "bottom"
-				}
-			]
-		},
-		{
-			"Name": "Practice Mode",
-			"UUID": "com.doooom.racingdesk.preset-practice",
-			"Icon": "imgs/actions/preset-practice/icon",
-			"Tooltip": "Apply practice session preset",
-			"Controllers": [
-				"Keypad"
-			],
-			"States": [
-				{
-					"Image": "imgs/actions/preset-practice/key",
-					"TitleAlignment": "bottom"
-				}
-			]
-		},
-		{
-			"Name": "Qualifying Mode",
-			"UUID": "com.doooom.racingdesk.preset-qualifying",
-			"Icon": "imgs/actions/preset-qualifying/icon",
-			"Tooltip": "Apply qualifying session preset",
-			"Controllers": [
-				"Keypad"
-			],
-			"States": [
-				{
-					"Image": "imgs/actions/preset-qualifying/key",
 					"TitleAlignment": "bottom"
 				}
 			]
