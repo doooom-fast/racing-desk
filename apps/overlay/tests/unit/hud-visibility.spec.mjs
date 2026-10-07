@@ -468,6 +468,31 @@ test.describe('the page', () => {
     expect(win.sent).toHaveLength(3);
   });
 
+  test('with the incident coach on, switched off, it goes on reading: the coach speaks from it', async () => {
+    // The page was silenced with the HUD (2026-10-07 review); the coach is off unless he switches it on.
+    const { win, hud, feed, getIn, pass } = rig();
+    const coached = { ...IN_THE_CAR, 'RacingDesk.Plugin.DS.IncidentCoach.Active': 1 };
+    await getIn();
+    hud.putAway();
+    expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', false]);
+    feed.payload = coached;
+    await pass(500);
+    expect(win.isVisible()).toBe(false);
+    expect(hud.pageActive()).toBe(true);
+    expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', true]);
+    feed.payload = { ...coached, 'RacingDesk.Plugin.DS.IncidentCoach.Active': 0 };
+    await pass(500);
+    expect(hud.pageActive()).toBe(false);
+    expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', false]);
+    // Out of the car it rests, coach or no coach.
+    feed.payload = coached;
+    await pass(500);
+    expect(hud.pageActive()).toBe(true);
+    feed.payload = { ...SIM_CLOSED, 'RacingDesk.Plugin.DS.IncidentCoach.Active': 1 };
+    await pass(3000);
+    expect(hud.pageActive()).toBe(false);
+  });
+
   test('not loaded yet, he is already in the car: shown once it has loaded, and told then', async () => {
     const { win, hud, getIn } = rig({ loaded: false });
     await getIn();

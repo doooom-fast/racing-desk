@@ -15,6 +15,10 @@
 
   function create() {
     let lap = 0;
+    // After a gap in the frames (resume): nothing is taken until a lap begins, for a gap taken in the middle of a lap and
+    // one taken at the start of the next are not a lap apart. The lap the frames came back on, once seen.
+    let held = false;
+    let heldLap = null;
     // Per side: the car whose gap it is, the gap at the start of this lap, and at the start of the lap before.
     const side = { ahead: { name: '', now: 0, before: 0 }, behind: { name: '', now: 0, before: 0 } };
 
@@ -42,6 +46,12 @@
      * say of each: { ahead, behind }, each { text, cls: 'good' | 'bad', change } or null.
      */
     function update(currentLap, aheadName, aheadGap, behindName, behindGap) {
+      if (held) {
+        if (heldLap === null) heldLap = currentLap;
+        if (currentLap === heldLap) return { ahead: null, behind: null };
+        held = false;
+        heldLap = null;
+      }
       const newLap = currentLap !== lap;
       if (currentLap < lap) { side.ahead = { name: '', now: 0, before: 0 }; side.behind = { name: '', now: 0, before: 0 }; }
       lap = currentLap;
@@ -53,9 +63,13 @@
       };
     }
 
-    function reset() { lap = 0; side.ahead = { name: '', now: 0, before: 0 }; side.behind = { name: '', now: 0, before: 0 }; }
+    function reset() { lap = 0; held = false; heldLap = null; side.ahead = { name: '', now: 0, before: 0 }; side.behind = { name: '', now: 0, before: 0 }; }
 
-    return { update, reset };
+    // The frames stopped and have begun again (the rig's HUD switched off and on, or he got out and back in): what was
+    // taken is from before the gap, and nothing is said until a lap has begun and run whole.
+    function resume() { reset(); held = true; }
+
+    return { update, reset, resume };
   }
 
   const api = { create, STEADY };

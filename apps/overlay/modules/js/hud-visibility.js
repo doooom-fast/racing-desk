@@ -7,7 +7,7 @@
 // reloaded; and the timer that was to hide it again was re-armed by every frame, so once shown it stayed on
 // screen until the app was quit. Here the process that owns the window asks the telemetry itself — once a second,
 // twice in the car — and tells the page (in-race-state). Out of the car, and with the HUD switched off or put away, the
-// page does nothing at all.
+// page does nothing at all, unless the incident coach is on: it speaks from the page.
 //
 // A page that has died is this module's to bring back as well: main.js says what became of the page (loading,
 // loaded, failed, its process gone) and is asked to load it again.
@@ -19,6 +19,9 @@ const { createInCarSignal } = require('./in-car');
 const { telemetryBase } = require('../../remote-server');
 
 const TELEMETRY_PATH = '/racing-desk/';
+// The incident coach, when he has switched it on, speaks from the HUD's page (incident-coach.js, voice-coach.js): the
+// telemetry says whether it is on.
+const COACH_KEY = 'RacingDesk.Plugin.DS.IncidentCoach.Active';
 const OUT_OF_CAR_POLL_MS = 1000;
 const IN_CAR_POLL_MS = 500;
 const ANSWER_WITHIN_MS = 1500;
@@ -139,6 +142,7 @@ function createHudVisibility({
     },
   });
   let switchedOff = false;   // the driver's own choice, from the tray, Ctrl+Shift+H or the Stream Deck
+  let coachOn = false;       // the incident coach is on, by the last answer (COACH_KEY)
   let pageReady = false;     // the page is loaded, and its process alive
   let loading = false;       // a load is under way
   let gone = 0;              // times the page's process has gone since a load last finished
@@ -163,8 +167,8 @@ function createHudVisibility({
     win.setFocusable(false);
   }
 
-  // The page is told whether to read and draw (pageActive): in the car with the HUD on. It went on reading at thirty a
-  // second and drawing, effects and all, into the hidden window while the HUD was switched off.
+  // The page is told whether to read and draw (pageActive): in the car with the HUD on, or with the incident coach on. It
+  // went on reading at thirty a second and drawing, effects and all, into the hidden window while the HUD was switched off.
   function tellPage(win) {
     const active = pageActive();
     if (!pageReady || toldPage === active) return;
@@ -226,6 +230,7 @@ function createHudVisibility({
         payload = null;
       }
       signal.feed(payload);
+      if (payload && typeof payload === 'object') coachOn = Number(payload[COACH_KEY]) > 0 || payload[COACH_KEY] === true;
       if (justGotIn) {
         justGotIn = false;
         await prepare();
@@ -391,9 +396,10 @@ function createHudVisibility({
   }
 
   // Whether the page is to read and draw: while he is in the car with the HUD switched on. Switched off or put away, its
-  // window is hidden and the page does neither; switched back on, it reads at once and is shown (tellPage, apply).
+  // window is hidden and the page does neither; switched back on, it reads at once and is shown (tellPage, apply). With
+  // the incident coach on it goes on reading in the hidden window, as it always did, for the coach speaks from it.
   function pageActive() {
-    return signal.inCar() && !switchedOff;
+    return signal.inCar() && (!switchedOff || coachOn);
   }
 
   function state() {

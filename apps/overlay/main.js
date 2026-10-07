@@ -440,9 +440,9 @@ const restoreApi = restoreApiMod.createRestoreApi({ host: () => localHostUrl() }
 // The window is made hidden and modules/js/hud-visibility.js is the only thing that reveals it: while the
 // telemetry says he is in the car (modules/js/in-car.js), he has not switched the HUD off, and the page is
 // loaded. It is this process that asks the telemetry — once a second, twice in the car — and tells the page
-// (in-race-state); out of the car, and with the HUD switched off or put away, the page neither polls nor draws, so at
-// the sim's menus, in the garage, in a replay, with the sim closed, the HUD costs a request a second and nothing is
-// ever quit to get it off the screen.
+// (in-race-state); out of the car, and with the HUD switched off or put away (the incident coach off, as it is unless
+// he switches it on: it speaks from the page), the page neither polls nor draws, so at the sim's menus, in the garage,
+// in a replay, with the sim closed, the HUD costs a request a second and nothing is ever quit to get it off the screen.
 // The garage and the replay are told from the car by the telemetry's own IsOnTrack, which the app's host sends;
 // a source that sends none (a SimHub plugin from before 2026-09-29) has a session under way taken for in the car.
 // The driver's own switch is kept until the app is quit: off stays off when he gets in, on shows nothing while
