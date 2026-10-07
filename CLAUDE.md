@@ -221,9 +221,9 @@ data?… get rid of all of it").
   `DataUpdate` thread; again every 5 s while there is nothing (and while what there is is SimHub's shared map, below)
   and every 60 s once there is his own, swapping the outline when it has gained laps. With the app closed nobody answers:
   the plugin first looks whether anything listens at the host's port (`HostOutlineSource.Reachable`, Windows' table of
-  listening ports, which throws nothing for SimHub to log with its stack) and asks nobody if not, and each answer in a row
-  that found no host puts the next ask off twice as long, 5 s up to 2 min (`TrackMapProvider.NoHostBackOff`); it is said
-  in the log once. The iPad's proxy serves
+  listening ports, which throws nothing for SimHub to log with its stack) and asks nobody if not, looking again every 5 s;
+  each ask in a row that the host did not answer puts the next off twice as long, 5 s up to 2 min
+  (`TrackMapProvider.NoHostBackOff`); it is said in the log once. The iPad's proxy serves
   `/racing-desk/` alone and refuses queries, so the route is never reachable from the
   network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was — but for
   the numbers of the path and of the other cars' places, written to a hundredth of a unit since 2026-10-02

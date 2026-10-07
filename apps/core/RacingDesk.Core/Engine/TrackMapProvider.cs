@@ -39,9 +39,9 @@ namespace RacingDesk.Plugin.Engine
         private readonly object _askGate = new object();
         private bool _asking;
         private DateTime _askDue = DateTime.MinValue;
-        private (int TrackId, TrackOutline Outline, string Status)? _answer;
+        private (int TrackId, TrackOutline Outline, string Status, bool Failed)? _answer;
         private bool _saidNoHost;
-        // Answers in a row that found no host: each waits twice as long as the last before the next ask (NoHostBackOff).
+        // Asks in a row that the host did not answer: each waits twice as long as the last before the next (NoHostBackOff).
         private int _noHostStreak;
         private Func<DateTime> _now = () => DateTime.UtcNow;
 
@@ -64,8 +64,9 @@ namespace RacingDesk.Plugin.Engine
         internal static readonly TimeSpan NoHostBackOffMax = TimeSpan.FromMinutes(2);
 
         /// <summary>
-        /// How long after the <paramref name="streak"/>th answer in a row that found no host the next ask waits: 5 s, then
-        /// twice as long each time, up to two minutes. The app is not running, and asking every five seconds changes nothing.
+        /// How long after the <paramref name="streak"/>th ask in a row that the host did not answer the next ask waits: 5 s,
+        /// then twice as long each time, up to two minutes. Something listens at its port and does not answer, and asking
+        /// every five seconds changes nothing.
         /// </summary>
         internal static TimeSpan NoHostBackOff(int streak)
         {
@@ -359,6 +360,7 @@ namespace RacingDesk.Plugin.Engine
         {
             TrackOutline outline = null;
             string status;
+            bool failed = false;
             if (source is IOutlineSourceReachability reach && !reach.Reachable())
             {
                 // Nothing listens where the host would be: not asked, so nothing is thrown.
@@ -374,11 +376,12 @@ namespace RacingDesk.Plugin.Engine
                 catch (Exception ex)
                 {
                     status = StatusNoHost;
+                    failed = true;
                     SayNoHost(ex.GetType().Name);
                 }
             lock (_askGate)
             {
-                _answer = (trackId, outline, status);
+                _answer = (trackId, outline, status, failed);
                 _asking = false;
             }
         }
@@ -394,7 +397,7 @@ namespace RacingDesk.Plugin.Engine
         /// <summary>Takes the source's answer on the telemetry thread. Public so a host can apply one it already has.</summary>
         public void TakeAnswer()
         {
-            (int TrackId, TrackOutline Outline, string Status)? answer;
+            (int TrackId, TrackOutline Outline, string Status, bool Failed)? answer;
             lock (_askGate)
             {
                 answer = _answer;
@@ -403,14 +406,21 @@ namespace RacingDesk.Plugin.Engine
             if (answer == null) return;
             if (answer.Value.TrackId == _currentTrackId) Apply(answer.Value.Outline, answer.Value.Status);
             // Asked again in five seconds while there is nothing, in a minute once there is (it may have gained laps);
-            // with SimHub's shared map up, every five seconds still, so his own takes its place within seconds. With no
-            // host, less often each time it is not there (NoHostBackOff), up to two minutes.
+            // with SimHub's shared map up, every five seconds still, so his own takes its place within seconds. A host
+            // that was asked and did not answer is asked less often each time (NoHostBackOff), up to two minutes; with
+            // nothing listening at its port nobody was asked, and the look (Windows' table of listening ports) is taken
+            // again every five seconds, so the app's opening is seen within seconds.
             var again = _ready && _applied != null && !_applied.Crowd ? AskAgainWith : AskAgainWithout;
             if (answer.Value.Status == StatusNoHost)
             {
-                _noHostStreak++;
-                var backOff = NoHostBackOff(_noHostStreak);
-                if (backOff > again) again = backOff;
+                if (answer.Value.Failed)
+                {
+                    _noHostStreak++;
+                    var backOff = NoHostBackOff(_noHostStreak);
+                    if (backOff > again) again = backOff;
+                }
+                else
+                    _noHostStreak = 0;
             }
             else
             {

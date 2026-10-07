@@ -64,6 +64,54 @@ namespace RacingDesk.Tests
             Assert.That(RacingDeskRuntime.OpponentIRating(typeof(SimHubShaped), new SimHubShaped()), Is.EqualTo(0), "not known: 0");
             Assert.That(RacingDeskRuntime.OpponentIRating(typeof(HostShaped), new HostShaped { IRating = 1980 }), Is.EqualTo(1980));
             Assert.That(RacingDeskRuntime.OpponentIRating(typeof(object), new object()), Is.EqualTo(0));
+            Assert.That(RacingDeskRuntime.OpponentIRating(typeof(SimHubShaped), new SimHubShaped { IRacing_IRating = double.NaN }), Is.EqualTo(0), "not a number: 0, not a throw");
+            Assert.That(RacingDeskRuntime.OpponentIRating(typeof(SimHubShaped), new SimHubShaped { IRacing_IRating = double.PositiveInfinity }), Is.EqualTo(0));
+        }
+
+        // ── The gap to him, as the leaderboard carries it ──────────────────────────────────────────────────────────
+        // The HUD's default board (focus on him) sorts the rows by the gap and shows it: negative for a car ahead of him,
+        // positive for one behind (leaderboard.js). SimHub's GaptoPlayer read 0 for every car before (the name was not
+        // SimHub's), so the board stood in the order of the race with no gaps; now it is read, and these keep the board
+        // right whatever SimHub gives.
+
+        private sealed class SimHubGap
+        {
+            public double? GaptoPlayer { get; set; }
+        }
+
+        private static double? Gap(double? g) => RacingDeskRuntime.OpponentGap(typeof(SimHubGap), new SimHubGap { GaptoPlayer = g });
+
+        [Test]
+        public void AGapIsItsSize_AndOneThatIsNotKnownOrNotANumberIsNone()
+        {
+            Assert.That(Gap(1.25), Is.EqualTo(1.25));
+            Assert.That(Gap(-1.25), Is.EqualTo(1.25), "the size; the sign is the race's");
+            Assert.That(Gap(null), Is.Null);
+            Assert.That(Gap(0), Is.Null, "0 is no gap SimHub knows");
+            // NaN or Infinity printed into the :8889 answer would make all of it invalid JSON, and the HUD would stop.
+            Assert.That(Gap(double.NaN), Is.Null);
+            Assert.That(Gap(double.PositiveInfinity), Is.Null);
+            Assert.That(Gap(double.NegativeInfinity), Is.Null);
+            Assert.That(RacingDeskRuntime.OpponentGap(typeof(object), new object()), Is.Null);
+        }
+
+        [Test]
+        public void TheGapsAreSignedByTheOrderOfTheRace_WhicheverSignTheSourceGives()
+        {
+            // He is P3. The sizes come from the source, the signs from the positions: a car ahead negative, behind positive.
+            var rows = new List<(int, double?, bool)> { (1, 4.0, false), (2, 1.5, false), (3, null, true), (4, 0.8, false), (5, 3.2, false) };
+            Assert.That(RacingDeskRuntime.LeaderboardGaps(rows, 3), Is.EqualTo(new[] { -4.0, -1.5, 0, 0.8, 3.2 }));
+        }
+
+        [Test]
+        public void WhileAnyOtherCarsGapIsNotKnown_NoRowCarriesOne_AndTheBoardStaysInTheOrderOfTheRace()
+        {
+            // A car with no gap would carry 0 and be sorted in beside him: instead none carries one, as before the gaps were read.
+            var rows = new List<(int, double?, bool)> { (1, 4.0, false), (2, null, false), (3, null, true), (4, 0.8, false) };
+            Assert.That(RacingDeskRuntime.LeaderboardGaps(rows, 3), Is.EqualTo(new double[4]));
+            // His position not known: nobody is ahead of him or behind.
+            var known = new List<(int, double?, bool)> { (1, 4.0, false), (2, 1.0, false) };
+            Assert.That(RacingDeskRuntime.LeaderboardGaps(known, 0), Is.EqualTo(new double[2]));
         }
     }
 }

@@ -264,6 +264,21 @@ namespace RacingDesk.Plugin
         /// <param name="liveLeaderboard">Builds the leaderboard JSON for the player's position, or null when unavailable.</param>
         private void Advance(TelemetrySnapshot next, Func<string> trackIdProvider, Func<int, string> liveLeaderboard)
         {
+            try
+            {
+                AdvanceFrame(next, trackIdProvider, liveLeaderboard);
+            }
+            finally
+            {
+                // A new data update, counted once all of it is in (the leaderboard, the map and the commentary are updated
+                // after the snapshot): the HTTP answer is built again for the first request after it (TelemetryAnswer). An
+                // answer built while the frame was still going is then a frame's, and is not kept past its end.
+                System.Threading.Interlocked.Increment(ref _frames);
+            }
+        }
+
+        private void AdvanceFrame(TelemetrySnapshot next, Func<string> trackIdProvider, Func<int, string> liveLeaderboard)
+        {
             var incoming = next ?? new TelemetrySnapshot();
 
             // A corner whose tyre was changed at the last stop (or fitted by a reset to the pits) shows the set that came
@@ -277,8 +292,6 @@ namespace RacingDesk.Plugin
             // Capture current telemetry every frame (cheap snapshot)
             _previous = _current;
             _current = incoming;
-            // A new data update: the HTTP answer is built again for the first request that comes in it (TelemetryAnswer).
-            System.Threading.Interlocked.Increment(ref _frames);
 
             // ── Start position tracking ──
             // Capture the grid position once when the session goes to Racing (state 4)
@@ -678,7 +691,48 @@ namespace RacingDesk.Plugin
         {
             var p = t.GetProperty("IRacing_IRating") ?? t.GetProperty("IRating") ?? t.GetProperty("Irating");
             var v = p?.GetValue(opp);
-            return v == null ? 0 : Convert.ToInt32(v, System.Globalization.CultureInfo.InvariantCulture);
+            if (v == null) return 0;
+            if (v is int i) return i;
+            // A double that is not a whole, finite number an int holds is not an iRating (and would throw).
+            double d = Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture);
+            return double.IsNaN(d) || d < 0 || d > int.MaxValue ? 0 : Convert.ToInt32(d);
+        }
+
+        /// <summary>
+        /// The gap between a car and him the source gives, in seconds and whatever its sign: SimHub's <c>GaptoPlayer</c>
+        /// (a double that may be null), or the host's <c>GapToPlayer</c>. Null where the source gives none, or gives 0 or
+        /// something that is not a finite number: a car whose gap is not known.
+        /// </summary>
+        internal static double? OpponentGap(Type t, object opp)
+        {
+            var v = (t.GetProperty("GaptoPlayer") ?? t.GetProperty("GapToPlayer"))?.GetValue(opp);
+            if (v == null) return null;
+            double d = v is double dd ? dd : Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture);
+            if (double.IsNaN(d) || double.IsInfinity(d) || d == 0) return null;
+            return Math.Abs(d);
+        }
+
+        /// <summary>
+        /// The gap each row of the leaderboard carries, as the HUD reads it (leaderboard.js, focus on him: negative for a
+        /// car ahead of him, positive for one behind, 0 for his own row, which it shows with no gap and sorts in his
+        /// place): the size from the source, the sign from the order of the race (a lower position is ahead), so that the
+        /// board is right whichever sign the source uses. All of them or none: while any other car's gap is not known, or
+        /// his position is not, every row carries 0 and the board stays in the order of the race with no gaps shown —
+        /// as it was before the gaps were read — instead of a car whose gap is not known being sorted in beside him.
+        /// </summary>
+        internal static double[] LeaderboardGaps(IReadOnlyList<(int Pos, double? Gap, bool IsPlayer)> rows, int playerPos)
+        {
+            var gaps = new double[rows.Count];
+            if (playerPos <= 0) return gaps;
+            for (int i = 0; i < rows.Count; i++)
+                if (!rows[i].IsPlayer && rows[i].Gap == null) return gaps;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var r = rows[i];
+                if (r.IsPlayer) continue;
+                gaps[i] = r.Pos < playerPos ? -r.Gap.Value : r.Gap.Value;
+            }
+            return gaps;
         }
 
         private static bool Flag(Type t, object opp, string name)
@@ -704,7 +758,7 @@ namespace RacingDesk.Plugin
                 if (opps == null || opps.Count == 0) return "[]";
 
                 // Collect all opponent data
-                var entries = new System.Collections.Generic.List<string>(opps.Count + 1);
+                var rows = new System.Collections.Generic.List<(int Pos, string Name, int IRating, double Best, double Last, double? Gap, bool InPit, bool IsPlayer)>(opps.Count + 1);
                 foreach (var opp in opps)
                 {
                     var t = opp.GetType();
@@ -721,32 +775,33 @@ namespace RacingDesk.Plugin
                     if (bestProp != null) { var v = bestProp.GetValue(opp); if (v is TimeSpan ts && ts.TotalSeconds > 0) best = ts.TotalSeconds; }
                     var lastProp = t.GetProperty("LastLapTime");
                     if (lastProp != null) { var v = lastProp.GetValue(opp); if (v is TimeSpan ts2 && ts2.TotalSeconds > 0) last = ts2.TotalSeconds; }
-                    double gapToPlayer = 0;
-                    var gapProp = t.GetProperty("GaptoPlayer") ?? t.GetProperty("GapToPlayer");
-                    if (gapProp != null) { var v = gapProp.GetValue(opp); if (v != null) gapToPlayer = Convert.ToDouble(v); }
+                    double? gap = OpponentGap(t, opp);
                     bool inPit = Flag(t, opp, "IsCarInPit") || Flag(t, opp, "IsCarInPitLane") || Flag(t, opp, "IsInPit") || Flag(t, opp, "IsInPitLane");
                     bool isPlayer = (pos == playerPos);
 
                     if (pos <= 0) continue;
-
-                    // Compact: [pos,"name",irating,bestLap,lastLap,gap,inPit,isPlayer]
-                    entries.Add(string.Format(ic,
-                        "[{0},\"{1}\",{2},{3:F3},{4:F3},{5:F2},{6},{7}]",
-                        pos, Escape(name), irating, best, last, gapToPlayer, inPit ? 1 : 0, isPlayer ? 1 : 0));
+                    rows.Add((pos, name, irating, best, last, gap, inPit, isPlayer));
                 }
 
-                // Sort by position
-                entries.Sort((a, b) =>
-                {
-                    // Extract position number from "[pos,..."
-                    int pa = int.Parse(a.Substring(1, a.IndexOf(',') - 1));
-                    int pb = int.Parse(b.Substring(1, b.IndexOf(',') - 1));
-                    return pa.CompareTo(pb);
-                });
+                // The gaps as the HUD reads them (LeaderboardGaps): signed by the order of the race, and all of them or none.
+                var gaps = LeaderboardGaps(rows.Select(r => (r.Pos, r.Gap, r.IsPlayer)).ToList(), playerPos);
+
+                // Sorted by position (a stable sort: rows the source puts in one place keep its order)
+                var order = Enumerable.Range(0, rows.Count).OrderBy(i => rows[i].Pos).ToList();
 
                 // Send all drivers (no windowing — let the JS decide what to display)
                 // Limit to a reasonable max (60 drivers) to avoid excessive data transfer
-                if (entries.Count > 60) entries = entries.GetRange(0, 60);
+                if (order.Count > 60) order = order.GetRange(0, 60);
+
+                // Compact: [pos,"name",irating,bestLap,lastLap,gap,inPit,isPlayer]
+                var entries = new System.Collections.Generic.List<string>(order.Count);
+                foreach (int i in order)
+                {
+                    var r = rows[i];
+                    entries.Add(string.Format(ic,
+                        "[{0},\"{1}\",{2},{3:F3},{4:F3},{5:F2},{6},{7}]",
+                        r.Pos, Escape(r.Name), r.IRating, r.Best, r.Last, gaps[i], r.InPit ? 1 : 0, r.IsPlayer ? 1 : 0));
+                }
 
                 return "[" + string.Join(",", entries) + "]";
             }

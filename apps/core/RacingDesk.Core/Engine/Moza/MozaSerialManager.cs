@@ -46,6 +46,12 @@ namespace RacingDesk.Plugin.Engine.Moza
         /// <summary>How long a port another program holds is left alone before it is looked at again.</summary>
         internal const int HeldPortRetryMs = 5 * 60 * 1000;
 
+        /// <summary>
+        /// How often the ports are looked for with nothing having changed, while no base is connected or a port is held and
+        /// Pit House is not running: the slow search that keeps a missed base from being lost for the run.
+        /// </summary>
+        internal const int SlowSearchMs = HeldPortRetryMs;
+
         // ── State ─────────────────────────────────────────────────────
         private readonly ConcurrentDictionary<string, MozaDevice> _devices = new ConcurrentDictionary<string, MozaDevice>();
         private readonly ConcurrentDictionary<string, SerialPort> _ports = new ConcurrentDictionary<string, SerialPort>();
@@ -57,13 +63,17 @@ namespace RacingDesk.Plugin.Engine.Moza
         private volatile bool _disposed = false;
 
         // ── When the ports are looked for (DiscoverDevices) ───────────
-        // Never on a timer: at the start, when the machine's list of COM ports changes, when Pit House quits (it lets go
-        // of the base's ports), when a device drops, and on ForceRediscovery; and never while Pit House runs, which holds
-        // the base's ports for as long as it does (on the rig, all day). Poll thread only, but for the flag.
+        // At the start, when the machine's list of COM ports changes, when Pit House quits (it lets go of the base's
+        // ports), when a device drops, and on ForceRediscovery; and every SlowSearchMs while no base is connected or a port
+        // is held (Pit House's helpers can hold the base after it quits, and a failed WMI read finds no Moza port), so that
+        // nothing is lost for the run. Never while Pit House runs, which holds the base's ports for as long as it does (on
+        // the rig, all day), and not on a timer once the base is connected and nothing is held. Poll thread only, but for
+        // the flag.
         private volatile bool _searchAsked = true;
         private string[] _portsSeen;
         private DateTime _nextPortCheck = DateTime.MinValue;
         private DateTime _nextPitHouseCheck = DateTime.MinValue;
+        private DateTime _nextSlowSearch = DateTime.MinValue;
         private bool _pitHouseRunning;
 
         /// <summary>How many times the ports have been looked for, Pit House or not: for a test.</summary>
@@ -558,7 +568,7 @@ namespace RacingDesk.Plugin.Engine.Moza
             {
                 try
                 {
-                    // Discovery, when something asks for it (NoteWhatChanged), never on a timer
+                    // Discovery, when something asks for it (NoteWhatChanged): on a timer only while no base is connected or a port is held
                     if (NoteWhatChanged())
                         DiscoverDevices();
 
@@ -590,7 +600,9 @@ namespace RacingDesk.Plugin.Engine.Moza
         /// <summary>
         /// Whether the ports are to be looked for now, and forgets that they were: the list of COM ports is read every
         /// <see cref="PortListCheckMs"/> (a registry read) and a change in it asks for a look; while Pit House runs the
-        /// processes are read every <see cref="PitHouseCheckMs"/>, and its quitting asks for one. Poll thread.
+        /// processes are read every <see cref="PitHouseCheckMs"/>, and its quitting asks for one; while it does not, and no
+        /// base is connected or a port is held, a look is asked for <see cref="SlowSearchMs"/> after the last, held ports
+        /// included. Poll thread.
         /// </summary>
         internal bool NoteWhatChanged()
         {
@@ -611,9 +623,24 @@ namespace RacingDesk.Plugin.Engine.Moza
                 CheckForPitHouse();
                 if (!_pitHouseRunning) _searchAsked = true;   // it let go of the base's ports
             }
+            if (!_pitHouseRunning && now >= _nextSlowSearch && (Wheelbase == null || HoldsAPort()))
+            {
+                _searchAsked = true;
+                _retryHeldPorts = true;   // a held port is looked at again too, whenever it was last
+            }
             if (!_searchAsked) return false;
             _searchAsked = false;
+            _nextSlowSearch = now.AddMilliseconds(SlowSearchMs);
             return true;
+        }
+
+        /// <summary>Whether another program holds a port that is still there, as discovery last found.</summary>
+        private bool HoldsAPort()
+        {
+            if (_heldPortRetryAt.Count == 0 || _portsSeen == null) return false;
+            foreach (var name in _portsSeen)
+                if (_heldPortRetryAt.ContainsKey(name)) return true;
+            return false;
         }
 
         private static bool SamePorts(string[] a, string[] b) =>
