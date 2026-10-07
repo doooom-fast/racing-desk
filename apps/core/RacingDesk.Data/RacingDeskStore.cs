@@ -484,13 +484,16 @@ ON CONFLICT(car_path) DO UPDATE SET
         }
 
         /// <summary>
-        /// The file has been read at this length and time: its sessions stored, or found unreadable (its error kept), which
-        /// stays so until the file changes. The ingest reads neither again.
+        /// The file has been read at this length and time: its sessions stored, or, given <paramref name="finalError"/>, found
+        /// wrong with an error kept that ends so (<see cref="IbtIngest.FinalMark"/>), which stays so until the file changes.
+        /// The ingest reads neither again; a file kept with any other error it reads at the next pass.
         /// </summary>
-        public bool IsIngested(string path, long length, DateTime mtimeUtc)
+        public bool IsIngested(string path, long length, DateTime mtimeUtc, string finalError = null)
         {
-            using var cmd = Cmd("SELECT 1 FROM ingested_files WHERE path = $p AND length = $l AND mtime = $m");
+            using var cmd = Cmd("SELECT 1 FROM ingested_files WHERE path = $p AND length = $l AND mtime = $m AND (error IS NULL"
+                + (string.IsNullOrEmpty(finalError) ? ")" : " OR substr(error, -length($f)) = $f)"));
             P(cmd, "$p", path); P(cmd, "$l", length); P(cmd, "$m", Iso(mtimeUtc));
+            if (!string.IsNullOrEmpty(finalError)) P(cmd, "$f", finalError);
             return cmd.ExecuteScalar() != null;
         }
 

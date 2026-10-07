@@ -42,7 +42,7 @@ namespace RacingDesk.Data
 
         /// <param name="frameStep">Read every Nth frame (3 = 20 Hz; enough for laps, incidents and geometry).</param>
         /// <param name="force">Re-read files already stored (after an accumulator change).</param>
-        /// <param name="pause">Asked before a file is read, at most every <see cref="PauseCheckEvery"/>; while it returns true, ingest waits (e.g. while iRacing runs).</param>
+        /// <param name="pause">Asked once before a pass looks anything up and again before each file is read; while it returns true, ingest waits (e.g. while iRacing runs).</param>
         /// <summary>
         /// Sessions stored before schema v2 have no category. It lives in the file's session YAML, so fill it in
         /// from the header alone instead of re-reading every frame.
@@ -175,9 +175,6 @@ namespace RacingDesk.Data
         /// <summary>A file written in the last two minutes may still be the sim's: it is left for later.</summary>
         public static readonly TimeSpan SettleTime = TimeSpan.FromMinutes(2);
 
-        /// <summary>How often a pass asks whether the sim is running, at the most (see <see cref="Run"/>).</summary>
-        public static readonly TimeSpan PauseCheckEvery = TimeSpan.FromSeconds(2);
-
         /// <summary>
         /// A file that could not be opened or read at all, rather than one read and found wrong: a sharing violation, a
         /// drive that is not there, no access. A file cut short is wrong (InvalidDataException, EndOfStreamException).
@@ -186,16 +183,53 @@ namespace RacingDesk.Data
             (ex is IOException && !(ex is EndOfStreamException)) || ex is UnauthorizedAccessException;
 
         /// <summary>
-        /// Whether a file is one to read now: settled, and not read before at this length and time — read, or found
-        /// unreadable, which is as final until the file changes.
+        /// A file read and found wrong: cut short, or not an .ibt at all. Anything else thrown while a file is read or stored
+        /// (a bug, the store, an outline that could not be kept) says nothing final of the file, which is read again at the
+        /// next pass.
+        /// </summary>
+        internal static bool FoundWrong(Exception ex) => ex is InvalidDataException || ex is EndOfStreamException;
+
+        /// <summary>
+        /// Ends the error kept for a file this build found wrong, and only such a file's: the store takes the file as done
+        /// while its error ends so (<see cref="RacingDeskStore.IsIngested"/>). The build is the compiler's stamp of this
+        /// assembly and of the one with the .ibt reader, so a build with a changed reader reads such a file once more.
+        /// </summary>
+        internal static readonly string FinalMark = " [found wrong by build " + Build(typeof(IbtIngest)) + "-" + Build(typeof(IbtFile)) + "]";
+
+        private static string Build(Type t) => t.Assembly.ManifestModule.ModuleVersionId.ToString("N").Substring(0, 8);
+
+        /// <summary>
+        /// Whether a file is one to read now: settled, and not read before at this length and time — read, or found wrong by
+        /// this build, which is as final until the file changes.
         /// </summary>
         public bool WantsFile(FileInfo f, DateTime nowUtc, bool force = false) =>
-            nowUtc - f.LastWriteTimeUtc >= SettleTime && (force || !_store.IsIngested(f.FullName, f.Length, f.LastWriteTimeUtc));
+            nowUtc - f.LastWriteTimeUtc >= SettleTime && (force || !_store.IsIngested(f.FullName, f.Length, f.LastWriteTimeUtc, FinalMark));
+
+        /// <summary>
+        /// Waits while <paramref name="pause"/> says the sim runs. True if it waited (so what was looked up before is looked
+        /// at again); <paramref name="cancelled"/> when the pass was stopped while it waited.
+        /// </summary>
+        private bool WaitForTheSim(Func<bool> pause, CancellationToken ct, out bool cancelled)
+        {
+            cancelled = false;
+            if (pause == null || !pause()) return false;
+            _log("paused while iRacing is running");
+            while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+            cancelled = ct.IsCancellationRequested;
+            if (!cancelled) _log("resumed");
+            return true;
+        }
 
         public IngestSummary Run(string directory, int frameStep = 3, int limit = int.MaxValue, CancellationToken ct = default,
             bool force = false, Func<bool> pause = null)
         {
             var summary = new IngestSummary();
+            // Asking Windows for its processes (a few milliseconds) costs more than looking a file up in the store, and a pass
+            // looks thousands up to read a few: the sim is asked about once before the pass looks anything up, so a pass that
+            // starts while he drives waits before it touches the disk, and then before every file it reads, but not before
+            // every file it looks up.
+            WaitForTheSim(pause, ct, out bool stopped);
+            if (stopped) return summary;
             // Backfill reads ~100 GB; never let it compete with the sim for the disk.
             using var lowIo = BackgroundIo.Enter();
             BackfillCategories(ct);
@@ -204,10 +238,6 @@ namespace RacingDesk.Data
                 ? new DirectoryInfo(directory).EnumerateFiles("*.ibt").OrderBy(f => f.LastWriteTimeUtc).ToList()
                 : new List<FileInfo>();
 
-            // Asking Windows for its processes costs more than looking a file up in the store, and a pass looks thousands up to
-            // read a few: the sim is asked about before a file is read, not before each file, and at most every two seconds,
-            // so a pass with nothing to read asks nothing and a long one still stops for the sim.
-            TimeSpan nextPauseCheck = TimeSpan.Zero;
             foreach (var f in files)
             {
                 if (ct.IsCancellationRequested || summary.FilesIngested >= limit) break;
@@ -221,19 +251,12 @@ namespace RacingDesk.Data
                     summary.FilesSkipped++;
                     continue;
                 }
-                if (pause != null && clock.Elapsed >= nextPauseCheck)
+                if (WaitForTheSim(pause, ct, out bool cancelled))
                 {
-                    if (pause())
-                    {
-                        _log("paused while iRacing is running");
-                        while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
-                        if (ct.IsCancellationRequested) break;
-                        _log("resumed");
-                        // The sim has had the disk since the file was looked up: it is looked at again as it is now.
-                        try { f.Refresh(); } catch { /* read as listed */ }
-                        if (!f.Exists || !WantsFile(f, DateTime.UtcNow, force)) { summary.FilesSkipped++; continue; }
-                    }
-                    nextPauseCheck = clock.Elapsed + PauseCheckEvery;
+                    if (cancelled) break;
+                    // The sim has had the disk since the file was looked up: it is looked at again as it is now.
+                    try { f.Refresh(); } catch { /* read as listed */ }
+                    if (!f.Exists || !WantsFile(f, DateTime.UtcNow, force)) { summary.FilesSkipped++; continue; }
                 }
                 long length = f.Length;
                 DateTime mtime = f.LastWriteTimeUtc;
@@ -266,11 +289,14 @@ namespace RacingDesk.Data
                 }
                 catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
-                    // Unreadable: kept as done at this length and time (WantsFile), so that it is not read again at every
-                    // pass — the watch's is every minute — but only once it has changed, or with --force.
+                    // Found wrong: kept as done at this length and time (WantsFile), so that it is not read again at every
+                    // pass — the watch's is every minute — but only once it has changed, by a later build, or with --force.
+                    // Anything else is kept as it always was, and read again at the next pass: an outline that could not be
+                    // kept after the file's sessions were has those sessions put back then.
                     summary.FilesFailed++;
                     _log($"skip {f.Name}: {ex.GetType().Name}: {ex.Message}");
-                    _store.SaveIngestedFile(f.FullName, length, mtime, Array.Empty<SessionRecord>(), ex.GetType().Name + ": " + ex.Message);
+                    string error = ex.GetType().Name + ": " + ex.Message + (FoundWrong(ex) ? FinalMark : "");
+                    _store.SaveIngestedFile(f.FullName, length, mtime, Array.Empty<SessionRecord>(), error);
                 }
 
                 if ((summary.FilesIngested + summary.FilesFailed) % 100 == 0 && summary.FilesIngested > 0)
