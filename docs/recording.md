@@ -310,6 +310,12 @@ once (what was pressed before it began is not done again); the mode presets and 
 reach it by its ten-second ask of the settings. The source is the size of the rig's HUD window in DIPs, which is what the
 rig's page is laid out in, and OBS scales it up to the game (a source in physical pixels would lay the page out larger
 than the rig's, and the recorded HUD would be smaller than the one he sees wherever the screen is not at 100 %).
+**The source is drawn at 30 frames a second** (`fps_custom: true, fps: 30` in the source's settings, both views): the
+HUD's data changes 30 times a second (the poll is every 33 ms), so a source at the canvas's rate redraws the same numbers
+twice. The settings are written when the source is made and again at every connect to OBS, so an older source (made at the
+canvas's rate) is put right the next time Racing Desk meets OBS. **The page runs no WebGL effect** (the glows, bloom and
+flashes): `/obs` and `/obs-ipad` never start the effects loop and make no WebGL context, so OBS's browser is not asked
+for a GPU effect pass on top of the page.
 
 **What OBS draws is a choice under the switch** (`obsHudView`, asked for 2026-10-01: "I'd like a setting for the hud in
 obs to be the iPad version"): **Rig HUD**, the above, or **iPad dashboard**, the glance layout the iPad is shown. The
@@ -321,11 +327,10 @@ he has the HUD away, no voice coach, the display-settings allowlist; the rig's p
 glance layout has no zoom, and the rig's zoom key would scale the whole grid). **It keeps to his display settings, as the
 rig HUD OBS draws does, not to the iPad's own defaults** (decided 2026-10-01 after a review pointed out that the iPad is
 told none of the look keys): this page runs on the rig, in OBS's browser next to the sim, so his switches for the rig
-apply to it — effects off (`showWebGL`) takes the WebGL canvases out (the tacho's bloom, the spotter's glow), ambient
-light off (`ambientMode`) stops the light — where the iPad draws those on its own graphics. Rendered with his values
-(ambient light off, effects off) beside the same page with neither: only the WebGL canvases differ; the layout, the glass
-(the overhead glow and the sweep are in the page's CSS, not in the canvases), the flag card, race control's banner and
-the transparent page are the same, and `hud-page-obs-ipad.spec.mjs` holds it, live. **The page behind and between the panels
+apply to it. (Since 2026-10-07 no WebGL effect runs on this page whatever they say, and there is no ambient light to
+switch: `no-fx-on-glance.spec.mjs`.) The layout, the glass (the overhead glow and the sweep are in the page's CSS, not in
+canvases), the flag card, race control's banner and the transparent page follow them, and `hud-page-obs-ipad.spec.mjs`
+holds it, live. **The page behind and between the panels
 is transparent**: no black page, no flag pattern in the gutters and no frame at the edge (those are the iPad's, which
 has no game behind it), so the game shows through the gutters; a flag still reads from the flag card in the gaps block,
 race control's banner and the panels' flag-coloured borders and tint. Never on the iPad's server; the iPad's own view is

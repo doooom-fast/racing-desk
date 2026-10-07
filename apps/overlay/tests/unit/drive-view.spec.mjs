@@ -370,7 +370,6 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
         panelBase: get('#gapsBlock', (cs) => cs.backgroundColor),
         // (its width is the rig's 2px, which the rig's zoom setting reads back divided by the zoom)
         edge: get('#lbRows .lb-row.lb-player', (cs) => cs.borderLeftColor),
-        streak: get('#gapsBlock', () => getComputedStyle(document.getElementById('gapsBlock'), '::after').backgroundImage.split('),')[0]),
       };
     });
     const ipad = await style(page);
@@ -388,7 +387,7 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
 
     // The HUD's own panel label is in its display face, in sentence case (no capitals but an acronym since 2026-10-02);
     // so is the iPad's. And so on, item by item:
-    // the face, the weight, the case, the tracking, the colour; the panel's base and its glass streak. (What differs
+    // the face, the weight, the case, the tracking, the colour; the panel's base. (What differs
     // is the size, which is the cell's.)
     // Tracking is compared to within a hundredth of an em: what inherits the body's (0.48px) has it in pixels, so its
     // share of an em moves a little with the size, which is all that differs.
@@ -405,8 +404,8 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     expect(rig.header.caps).toBe('none');
     await hud.close();
 
-    // The glass on the iPad is lit as the rig's plastic mode lights it: an overhead glow in the ambient colour over each
-    // panel, a tint through it and a hairline of that colour for an edge.
+    // The glass is lit by its own layers, in one fixed blue-grey (nothing is sampled from the screen): an overhead glow
+    // over each panel, a tint through it and a hairline of that colour for an edge.
     const glass = await page.evaluate(() => {
       const cs = getComputedStyle(document.getElementById('gapsBlock'));
       const glow = getComputedStyle(document.getElementById('gapsBlock'), '::before');
@@ -687,28 +686,30 @@ test.describe('what the background flag and the race-control banner say together
     await openAt(page, 1180, 820, RACE());
     const glass = await page.evaluate(() => {
       const hero = document.getElementById('positionPage');
-      const panel = document.querySelector('.map-panel');   // a .panel: the glow and the streak are its pseudo-elements
+      const panel = document.querySelector('.map-panel');   // a .panel: the glow is its pseudo-element
       const alpha = (image) => [...image.matchAll(/rgba\(\d+, \d+, \d+, ([\d.]+)\)/g)].map((m) => +m[1]);
       return {
         shine: getComputedStyle(document.body).getPropertyValue('--rd-shine').trim(),
         tint: alpha(getComputedStyle(hero).backgroundImage),
         glow: +getComputedStyle(panel, '::before').opacity,
-        streak: +getComputedStyle(panel, '::after').opacity,
-        lum: +getComputedStyle(document.documentElement).getPropertyValue('--ambient-lum') || 0,
+        streak: getComputedStyle(panel, '::after').content,
+        lum: +getComputedStyle(document.body).getPropertyValue('--rd-glass-lum') || 0,
         brand: document.getElementById('brandLogoSquare').getClientRects().length,
         car: document.getElementById('carLogoSquare').getClientRects().length,
         row: getComputedStyle(document.body).gridTemplateAreas.includes('brand'),
       };
     });
     expect(glass.shine).toBe('0.15');
-    // The tint the rig has at 0.26 / 0.16 / 0.20, the overhead glow at 0.45 + lum × 0.5, the streak at 0.25 + lum × 0.35.
+    // The tint the rig has at 0.26 / 0.16 / 0.20, the overhead glow at 0.45 + lum × 0.5, and no streak: the glass has
+    // no specular layer of the screen-capture light's any more.
     // (an alpha is kept to the nearest 1/255 when it is read back)
     expect(glass.tint).toHaveLength(3);
     expect(glass.tint[0]).toBeCloseTo(0.26 * 0.15, 2);
     expect(glass.tint[1]).toBeCloseTo(0.16 * 0.15, 2);
     expect(glass.tint[2]).toBeCloseTo(0.20 * 0.15, 2);
     expect(glass.glow).toBeCloseTo((0.45 + glass.lum * 0.5) * 0.15, 2);
-    expect(glass.streak).toBeCloseTo((0.25 + glass.lum * 0.35) * 0.15, 2);
+    expect(glass.lum).toBeCloseTo(0.54, 2);
+    expect(glass.streak).toBe('none');
     expect([glass.brand, glass.car, glass.row]).toEqual([0, 0, false]);
     // On the rig's own glance layout (no rd-remote) the glass is as it was, and the badges are cells.
     await page.evaluate(() => document.documentElement.classList.remove('rd-remote'));

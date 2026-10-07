@@ -37,9 +37,9 @@ function recorder(answer = { status: 200, text: '{"ok":true}' }) {
 
 // ── What may be asked ──
 
-test('the routes are the five the HUD uses, and none that writes to the hardware', () => {
+test('the routes are the four the HUD uses, and none that writes to the hardware', () => {
   expect(Object.keys(ACTIONS).sort()).toEqual([
-    'bindPedalProfile', 'listPedalProfiles', 'restartdemo', 'setPedalProfile', 'setrect',
+    'bindPedalProfile', 'listPedalProfiles', 'restartdemo', 'setPedalProfile',
   ]);
   expect(TIMEOUT_MS).toBe(3000);
   expect(MAX_LENGTH).toBe(200);
@@ -50,8 +50,6 @@ test('a route is asked for with the arguments it takes', () => {
   expect(problemWith('restartdemo')).toBeNull();
   expect(problemWith('restartdemo', null)).toBeNull();
   expect(problemWith('listPedalProfiles', {})).toBeNull();
-  expect(problemWith('setrect', { x: 0.1, y: 0.2, w: 0.5, h: 0.4 })).toBeNull();
-  expect(problemWith('setrect', { x: -0.02, y: 0, w: 1.04, h: 1 })).toBeNull();   // a drag that ended outside the window
   expect(problemWith('setPedalProfile', { id: '283f91ae' })).toBeNull();
   expect(problemWith('bindPedalProfile', { id: '283f91ae' })).toBeNull();
   expect(problemWith('bindPedalProfile', { id: '283f91ae', car: 'mx5 mx52016' })).toBeNull();   // the car is the sim's, left out
@@ -73,11 +71,8 @@ test('an argument the route does not take, or one that is missing or wrong, is r
   expect(problemWith('setPedalProfile', { id: 'a', key: 'b' })).toBe('setPedalProfile takes no "key".');
   expect(problemWith('setPedalProfile', { id: 'a', action: 'mozaReconnect' })).toBe('setPedalProfile takes no "action".');
   expect(problemWith('setPedalProfile', {})).toBe('setPedalProfile needs "id".');
-  expect(problemWith('setrect', { x: 0, y: 0, w: 1 })).toBe('setrect needs "h".');
-  expect(problemWith('setrect', { x: '0.1', y: 0, w: 1, h: 1 })).toBe('"x" is not a share of the screen.');
-  expect(problemWith('setrect', { x: NaN, y: 0, w: 1, h: 1 })).toBe('"x" is not a share of the screen.');
-  expect(problemWith('setrect', { x: Infinity, y: 0, w: 1, h: 1 })).toBe('"x" is not a share of the screen.');
-  expect(problemWith('setrect', { x: 0, y: 0, w: 1e9, h: 1 })).toBe('"w" is not a share of the screen.');
+  expect(problemWith('bindPedalProfile', { car: 'mx5' })).toBe('bindPedalProfile needs "id".');
+  expect(problemWith('setrect', { x: 0.1, y: 0.2, w: 0.5, h: 0.4 })).toBe('That is not a route the page may ask for.');   // the screen capture's route is gone
   expect(problemWith('setPedalProfile', { id: '' })).toBe('"id" is not a name.');
   expect(problemWith('setPedalProfile', { id: 7 })).toBe('"id" is not a name.');
   expect(problemWith('setPedalProfile', { id: 'a'.repeat(MAX_LENGTH + 1) })).toBe(`"id" is longer than ${MAX_LENGTH} characters.`);
@@ -93,8 +88,8 @@ test('the request is a GET of the route with its arguments, written here and not
   expect(actionRequest(URL_8889, 'restartdemo', {})).toEqual({ url: `${URL_8889}?action=restartdemo`, method: 'GET', headers: { Accept: 'application/json' } });
   expect(actionRequest('http://localhost:8889/racing-desk', 'restartdemo').url).toBe(`${URL_8889}?action=restartdemo`);   // no path doubled
   expect(actionRequest('http://localhost:18889/racing-desk/', 'restartdemo').url).toBe('http://localhost:18889/racing-desk/?action=restartdemo');
-  expect(actionRequest(URL_8889, 'setrect', { x: 0.1, y: 0.25, w: 0.5, h: 1 }).url)
-    .toBe(`${URL_8889}?action=setrect&x=0.100000&y=0.250000&w=0.500000&h=1.000000`);
+  expect(actionRequest(URL_8889, 'bindPedalProfile', { id: 'a1', car: 'mx5' }).url)
+    .toBe(`${URL_8889}?action=bindPedalProfile&id=a1&car=mx5`);
   // A name is encoded: nothing in it can start another parameter or another route.
   const url = actionRequest(URL_8889, 'setPedalProfile', { id: 'a&action=mozaReconnect#x y' }).url;
   expect(url).toBe(`${URL_8889}?action=setPedalProfile&id=a%26action%3DmozaReconnect%23x%20y`);
@@ -180,10 +175,10 @@ function startRuntime() {
 test('as it leaves Node: a request the runtime takes, where the same with a page\'s marks is refused', async () => {
   const runtime = await startRuntime();
   try {
-    expect(await createRuntimeActions({ url: runtime.url }).run('setrect', { x: 0.1, y: 0.2, w: 0.5, h: 0.4 })).toEqual({ ok: true, body: { ok: true } });
+    expect(await createRuntimeActions({ url: runtime.url }).run('bindPedalProfile', { id: 'a1', car: 'mx5' })).toEqual({ ok: true, body: { ok: true } });
     const asked = runtime.state.asked[0];
     expect(asked.method).toBe('GET');
-    expect(asked.url).toBe('/racing-desk/?action=setrect&x=0.100000&y=0.200000&w=0.500000&h=0.400000');
+    expect(asked.url).toBe('/racing-desk/?action=bindPedalProfile&id=a1&car=mx5');
     for (const mark of ['origin', 'referer', 'sec-fetch-site', 'sec-fetch-dest', 'sec-fetch-user']) expect(asked.headers, mark).not.toHaveProperty(mark);
 
     // What a page would send: the same request with one of its marks. The stand-in refuses each, as the runtime does.
@@ -263,9 +258,9 @@ test('without the app the page asks as it always did, and is refused where the r
   const answer = (status, body) => async (url) => { asked.push(url); return { ok: status === 200, status, json: async () => body }; };
 
   const plain = pageRuntimeAction({ window: {}, fetch: answer(200, { ok: true }) });
-  expect(await plain('setrect', { x: 0.1, y: 0.2 })).toEqual({ ok: true });
+  expect(await plain('restartdemo')).toEqual({ ok: true });
   expect(await plain('setPedalProfile', { id: 'a b' })).toEqual({ ok: true });
-  expect(asked).toEqual([`${URL_8889}?action=setrect&x=0.1&y=0.2`, `${URL_8889}?action=setPedalProfile&id=a%20b`]);
+  expect(asked).toEqual([`${URL_8889}?action=restartdemo`, `${URL_8889}?action=setPedalProfile&id=a%20b`]);
 
   asked.length = 0;
   const onAnIpad = pageRuntimeAction({ window: { _simhubUrlOverride: 'http://192.168.1.50:9090/racing-desk/' }, fetch: answer(403, { error: 'x' }) });
@@ -353,6 +348,6 @@ test('no script of the page fetches an ?action= route itself: it asks through ru
 test('every route a script asks runtimeAction for is one the main process passes on', () => {
   const asked = pageScripts().flatMap(({ name, code }) => routesAskedFor(code).map((route) => ({ name, route })));
   // The scan finds the HUD's own calls (a regex that found none would pass for all of them).
-  expect(new Set(asked.map(({ route }) => route))).toEqual(new Set(['restartdemo', 'setrect', 'listPedalProfiles', 'setPedalProfile', 'bindPedalProfile']));
+  expect(new Set(asked.map(({ route }) => route))).toEqual(new Set(['restartdemo', 'listPedalProfiles', 'setPedalProfile', 'bindPedalProfile']));
   expect(asked.filter(({ route }) => !Object.prototype.hasOwnProperty.call(ACTIONS, route))).toEqual([]);
 });

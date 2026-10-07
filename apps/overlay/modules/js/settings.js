@@ -234,27 +234,6 @@
       c.style.display = webglOn ? '' : 'none';
     });
 
-    // Ambient light mode — migrate legacy boolean to 3-way string
-    if (typeof _settings.showAmbientLight === 'boolean') {
-      _settings.ambientMode = _settings.showAmbientLight ? 'reflective' : 'off';
-      delete _settings.showAmbientLight;
-    }
-    // Ambient mode lifecycle. The legacy applyAmbientMode helper lived
-    // in connections.js (deleted with the in-overlay UI). Inline the
-    // tiny dispatch here so 'off'/'auto'/anything-else flips the ambient
-    // light render loop on/off via the API in ambient-light.js.
-    // Ambient runs only when the setting is on AND we're in a car (_isIdle
-    // false). At boot / at the menus the overlay stays dormant; poll-engine's
-    // in-car enter handler starts ambient once there's live car data.
-    const ambMode = _settings.ambientMode || 'auto';
-    if (ambMode !== 'off' && !_isIdle) {
-      if (typeof window.startAmbientLight === 'function') window.startAmbientLight();
-    } else {
-      if (typeof window.stopAmbientLight === 'function') window.stopAmbientLight();
-    }
-    // Restore saved capture region — only when ambient is on AND active.
-    if (ambMode !== 'off' && !_isIdle && typeof window.restoreAmbientCapture === 'function') window.restoreAmbientCapture();
-
     // Bonkers pit limiter toggle
     document.body.classList.toggle('bonkers-off', _settings.showBonkers === false);
 
@@ -367,7 +346,6 @@
       document.body.classList.add('mode-minimal');
       // Set all effect toggles to off for Minimal mode
       _settings.showWebGL = false;
-      _settings.ambientMode = 'off';
       _settings.showBorders = false;
       _settings.showSentimentHalo = false;
       _settings.showCommentaryGlow = false;
@@ -382,7 +360,6 @@
       document.body.classList.add('mode-minimal-plus');
       // Racing-educated Tufte: data-reactive effects on, static decoration off
       _settings.showWebGL = true;  // but CSS reduces intensity to 60%
-      _settings.ambientMode = 'off';
       _settings.showBorders = false;
       _settings.showSentimentHalo = true;  // but CSS reduces to 40% alpha
       _settings.showCommentaryGlow = false;
@@ -396,7 +373,6 @@
     } else {
       // Standard — restore defaults
       _settings.showWebGL = true;
-      _settings.ambientMode = 'reflective';
       _settings.showBorders = true;
       _settings.showSentimentHalo = true;
       _settings.showCommentaryGlow = true;

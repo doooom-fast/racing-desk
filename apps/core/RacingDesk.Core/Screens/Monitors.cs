@@ -22,8 +22,7 @@ namespace RacingDesk.Core.Screens
 
     /// <summary>
     /// The monitors, from Windows (<c>EnumDisplayMonitors</c>), in physical pixels: the look is made per-monitor aware.
-    /// The host's <c>/racing-desk/data/monitors</c> route answers with them, and the ambient sampler finds the primary
-    /// one in them (<see cref="SimMonitor"/>).
+    /// The host's <c>/racing-desk/data/monitors</c> route answers with them.
     /// </summary>
     public sealed class Win32MonitorSource : IMonitorSource
     {

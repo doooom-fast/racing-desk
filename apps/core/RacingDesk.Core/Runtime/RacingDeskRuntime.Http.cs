@@ -90,7 +90,7 @@ namespace RacingDesk.Plugin
         /// </summary>
         private static readonly HashSet<string> KnownActions = new HashSet<string>(StringComparer.Ordinal)
         {
-            "restartdemo", "setrect",
+            "restartdemo",
             "listPedalProfiles", "setPedalProfile", "bindPedalProfile", "importMozaPedals",
             "listMozaDevices", "getMozaWheelbaseSettings", "setMozaWheelbaseSetting", "getMozaPedalSettings",
             "setMozaPedalSetting", "getMozaHandbrakeSettings", "setMozaHandbrakeSetting", "getMozaShifterSettings",
@@ -103,7 +103,7 @@ namespace RacingDesk.Plugin
         // What has been written down in the log so far, once each: a program on this machine that is refused (an app from
         // before this check, say) is found by its line, and a device on the LAN that keeps asking does not fill the log. A
         // name is written once for each kind of asker — a connection from this machine, and one from another — so that a
-        // device on the network that asks for setrect first has not used up the line an older app's setrect would have had.
+        // device on the network that asks for restartdemo first has not used up the line an older app's restartdemo would have had.
         // Only the unknown names are counted against a budget; a name the runtime has a route for is always written.
         private readonly HashSet<string> _refusedActions = new HashSet<string>(StringComparer.Ordinal);
         private int _refusedUnknownActions;
@@ -243,37 +243,6 @@ namespace RacingDesk.Plugin
                     if (action == "restartdemo")
                     {
                         _engine.DemoTelemetry.Reset();
-                        byte[] okBytes = System.Text.Encoding.UTF8.GetBytes("{\"ok\":true}");
-                        ctx.Response.ContentType = "application/json";
-                        ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
-                        ctx.Response.StatusCode = 200;
-                        ctx.Response.OutputStream.Write(okBytes, 0, okBytes.Length);
-                        ctx.Response.OutputStream.Close();
-                        continue;
-                    }
-
-                    // ── Ambient capture rect — dashboard sends the region via query params ──
-                    if (action == "setrect")
-                    {
-                        try
-                        {
-                            // Parse x, y, w, h from query string (ratios 0-1)
-                            var qs = ctx.Request.QueryString;
-                            double rx = double.Parse(qs["x"] ?? "0", ic);
-                            double ry = double.Parse(qs["y"] ?? "0", ic);
-                            double rw = double.Parse(qs["w"] ?? "0", ic);
-                            double rh = double.Parse(qs["h"] ?? "0", ic);
-                            if (rw > 0.01 && rh > 0.01)
-                            {
-                                _screenColorSampler.SetRect(rx, ry, rw, rh);
-                                Log.Info(
-                                    $"[RacingDesk] Ambient rect set: x={rx:F3} y={ry:F3} w={rw:F3} h={rh:F3}");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.Warn($"[RacingDesk] setrect error: {ex.Message}");
-                        }
                         byte[] okBytes = System.Text.Encoding.UTF8.GetBytes("{\"ok\":true}");
                         ctx.Response.ContentType = "application/json";
                         ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
@@ -1068,12 +1037,6 @@ namespace RacingDesk.Plugin
             // ── Extra (homebridge / legacy) ──
             Jp(sb, "currentFlagState", Escape(flagState));
             Jp(sb, "nearestCarDistance", nearestDist, ic);
-
-            // ── Ambient light — screen color sampled by ScreenColorSampler ──
-            Jp(sb, "RacingDesk.Plugin.DS.AmbientR", _screenColorSampler.HasColor ? _screenColorSampler.R : 0);
-            Jp(sb, "RacingDesk.Plugin.DS.AmbientG", _screenColorSampler.HasColor ? _screenColorSampler.G : 0);
-            Jp(sb, "RacingDesk.Plugin.DS.AmbientB", _screenColorSampler.HasColor ? _screenColorSampler.B : 0);
-            Jp(sb, "RacingDesk.Plugin.DS.AmbientHasData", _screenColorSampler.HasColor ? 1 : 0);
 
             // ── Moza hardware summary ──
             if (_mozaSerial != null)

@@ -38,7 +38,7 @@
 //                              between the panels: no black page, no flag pattern in the gutters, so the game shows
 //                              through. "iPad dashboard" under "HUD drawn by OBS". Never on the iPad's server. It is
 //                              given his display settings as /obs is (the allowlist below), not the iPad's few: the page
-//                              runs on the rig next to the sim, so his switch for effects and for ambient light applies
+//                              runs on the rig next to the sim, so his display settings apply
 //   GET /api/settings-display  his display settings, the allowlist alone (DISPLAY_SETTINGS: the zoom, the position,
 //                              the panels, the look, the two panel-background sliders): never a key, the paints, the
 //                              iPad's or the recording's keys. The OBS pages ask every ten seconds
@@ -209,7 +209,7 @@ const ACTIONS = Object.freeze([
 // position, the look, the leaderboard's rows, the glance layout's switch — and nothing that is a key, a folder, an
 // address or a device. A key not listed here is not sent, whatever is added to the settings file later.
 const DISPLAY_SETTINGS = Object.freeze([
-  'zoom', 'layoutPosition', 'bottomYOffset', 'visualPreset', 'theme', 'ambientMode', 'driveMode', 'rallyMode',
+  'zoom', 'layoutPosition', 'bottomYOffset', 'visualPreset', 'theme', 'driveMode', 'rallyMode',
   'lbMaxRows', 'lbFocus', 'lbExpandToFill', 'logoSubtitle', 'incPenalty', 'incDQ', 'forceFlag',
   // The two "Panel background" sliders (settings.js applyPanelBackground): the rig's and the iPad's, and the one for
   // the HUD drawn by OBS, which the OBS pages read instead.
@@ -444,17 +444,13 @@ document.addEventListener('DOMContentLoaded', function () {
     { label: 'Reconnect', keep: false, fn: function () {
         if (typeof _connFails !== 'undefined') { _connFails = 0; _backoffUntil = 0; }
       } },
-    // The HUD's effects (the WebGL glows, the flag's moving pattern) cost an iPad its frame rate: one that stutters
-    // can go without them. Kept on this iPad; the numbers, the colours and the flags are the same either way.
+    // The flag's moving pattern costs an iPad frame rate: one that stutters can go without it (the iPad runs no WebGL
+    // effect at all). Kept on this iPad; the numbers, the colours and the flags are the same either way.
     { label: function () { return window._rdEffectsOff ? 'Effects: off' : 'Effects: on'; }, keep: true, fn: function () {
         var off = !window._rdEffectsOff;
         window._rdEffectsOff = off;
         try { localStorage.setItem('rd-effects', off ? 'off' : 'on'); } catch (e) {}
         document.documentElement.classList.toggle('rd-effects-off', off);
-        var inCar = typeof _isIdle === 'undefined' || !_isIdle;
-        if (typeof window.setGLFXActive === 'function') window.setGLFXActive(!off && inCar);
-        if (off && typeof window.stopAmbientLight === 'function') window.stopAmbientLight();
-        if (!off && inCar && typeof window.startAmbientLight === 'function') window.startAmbientLight();
       } },
   ];
   var labelOf = function (a) { return typeof a.label === 'function' ? a.label() : a.label; };

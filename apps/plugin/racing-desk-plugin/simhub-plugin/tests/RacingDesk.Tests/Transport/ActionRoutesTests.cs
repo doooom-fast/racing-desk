@@ -57,7 +57,7 @@ namespace RacingDesk.Tests.Transport
             // The ones that write to the hardware and the pedal profiles are certainly among them.
             Assert.That(found, Is.SupersetOf(new[]
             {
-                "restartdemo", "setrect",
+                "restartdemo",
                 "listPedalProfiles", "setPedalProfile", "bindPedalProfile", "importMozaPedals",
                 "listMozaDevices", "getMozaWheelbaseSettings", "setMozaWheelbaseSetting", "getMozaPedalSettings",
                 "setMozaPedalSetting", "getMozaHandbrakeSettings", "setMozaHandbrakeSetting", "getMozaShifterSettings",
@@ -302,12 +302,12 @@ namespace RacingDesk.Tests.Transport
         public void TheLog_WritesAnAppsRefusalOnThisMachine_AsItsOwnLine_AndOnlyOnce()
         {
             // The connection is this machine's, and a browser's marks are on it: an app from before the check, as it sends it.
-            Ask("/racing-desk/?action=setrect&x=0.1&y=0.1&w=0.5&h=0.5", r => r.Headers.Add("Origin", "null"));
-            Ask("/racing-desk/?action=setrect&x=0.1&y=0.1&w=0.5&h=0.5", r => r.Headers.Add("Origin", "null"));
+            Ask("/racing-desk/?action=restartdemo", r => r.Headers.Add("Origin", "null"));
+            Ask("/racing-desk/?action=restartdemo", r => r.Headers.Add("Origin", "null"));
 
             var lines = Refusals();
             Assert.That(lines.Count, Is.EqualTo(1));
-            Assert.That(lines[0], Does.Contain("?action=setrect refused").And.Contain("this machine's"));
+            Assert.That(lines[0], Does.Contain("?action=restartdemo refused").And.Contain("this machine's"));
         }
 
         [Test]
@@ -315,11 +315,11 @@ namespace RacingDesk.Tests.Transport
         {
             var runtime = _runtime!;
 
-            // A device on the network asked for setrect first; an app on this machine that asks for it is not left without its line.
-            Assert.That(runtime.NoteRefusal("setrect", fromThisMachine: false), Is.True);
-            Assert.That(runtime.NoteRefusal("setrect", fromThisMachine: false), Is.False);
-            Assert.That(runtime.NoteRefusal("setrect", fromThisMachine: true), Is.True);
-            Assert.That(runtime.NoteRefusal("setrect", fromThisMachine: true), Is.False);
+            // A device on the network asked for restartdemo first; an app on this machine that asks for it is not left without its line.
+            Assert.That(runtime.NoteRefusal("restartdemo", fromThisMachine: false), Is.True);
+            Assert.That(runtime.NoteRefusal("restartdemo", fromThisMachine: false), Is.False);
+            Assert.That(runtime.NoteRefusal("restartdemo", fromThisMachine: true), Is.True);
+            Assert.That(runtime.NoteRefusal("restartdemo", fromThisMachine: true), Is.False);
 
             int written = 0;
             for (int i = 0; i < 1000; i++)

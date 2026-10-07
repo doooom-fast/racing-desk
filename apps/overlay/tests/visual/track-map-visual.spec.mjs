@@ -38,8 +38,7 @@ function stableTrackPath() {
   return path + ' Z';
 }
 
-// Freeze CSS animations and disable ambient-light color mutation so the
-// screenshot is deterministic across runs.
+// Freeze CSS animations so the screenshot is deterministic across runs.
 async function freezeAnimations(page) {
   await page.addStyleTag({
     content: `
@@ -52,7 +51,7 @@ async function freezeAnimations(page) {
     `,
   });
   await page.evaluate(() => {
-    // Pin the map player color so ambient sampling can't shift it
+    // Pin the map player color
     document.documentElement.style.setProperty('--map-player-color', '#00acc1');
   });
 }

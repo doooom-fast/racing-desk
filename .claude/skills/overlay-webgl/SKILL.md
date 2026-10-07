@@ -3,9 +3,9 @@ name: overlay-webgl
 description: |
   Overlay WebGL system expert for the Electron HUD's real-time visual effects.
   Use when working on the tachometer glow, bloom effects, post-processing shaders,
-  ambient light system, g-force vignette, glare canvas, or any GPU-rendered visual effects.
-  Triggers: WebGL, shader, GLSL, fragment shader, bloom, glow, glare, vignette, ambient light,
-  tachometer effects, post-processing, GPU, render pipeline, screen capture, desktopCapturer.
+  g-force vignette, glare canvas, or any GPU-rendered visual effects.
+  Triggers: WebGL, shader, GLSL, fragment shader, bloom, glow, glare, vignette,
+  tachometer effects, post-processing, GPU, render pipeline.
 ---
 
 # Overlay WebGL System Expert
@@ -17,10 +17,7 @@ You are an expert on the WebGL2 visual effects pipeline in the RacingDesk overla
 ```
 racing-desk-overlay/modules/js/webgl.js                  # Main WebGL pipeline (112KB) — shaders, bloom, glow, vignette
 racing-desk-overlay/modules/js/webgl-helpers.js           # Tachometer segments, pedal bars, shader utilities (55KB)
-racing-desk-overlay/modules/js/ambient-light.js           # Screen color sampling, LERP interpolation, CSS var updates (6KB)
-racing-desk-overlay/modules/js/ambient-capture.js         # Capture region selection UI (10KB)
-racing-desk-overlay/modules/styles/effects.css            # Effect CSS (glow animations, vignettes, ambient breathing)
-racing-desk-overlay/main.js                              # desktopCapturer setup for ambient light
+racing-desk-overlay/modules/styles/effects.css            # Effect CSS (glow animations, vignettes)
 ```
 
 ## WebGL Pipeline Architecture
@@ -71,20 +68,9 @@ All panel edge glows are rendered in a single WebGL pass on one canvas rather th
 
 The glare canvas renders at **half device-pixel-ratio** for performance — the glow effects don't need full resolution.
 
-### Ambient Light System
+### Who runs the effects
 
-**ambient-light.js** (6KB):
-- Main process captures a configurable screen region at ~4fps using Electron's `desktopCapturer`
-- Extracts the dominant color from the captured frame
-- Sends color to renderer via IPC
-- Renderer applies LERP color interpolation (α=0.30) for smooth transitions
-- Updates CSS custom variables: `--ambient-r`, `--ambient-g`, `--ambient-b` (0-1 range)
-- These drive glass refraction `::after` pseudo-elements on all panels
-- Two modes: matte and reflective
-
-**ambient-capture.js** (10KB):
-- UI for selecting which screen region to capture
-- Region persisted in settings
+Only the rig's HUD over the game. The glance layout (the iPad's page, `/obs-ipad`, Ctrl+Shift+F) and the HUD page in OBS (`/obs`) never start the effects loop (`fxAllowed()` in `webgl.js`), and the iPad's and OBS's pages make no WebGL context (`NO_FX_PAGE`). There is no ambient light: the screen-capture colour, its CSS variables, the glare pass's ambient glow and glass dome were removed on 2026-10-07.
 
 ### Effect Types
 
@@ -94,7 +80,6 @@ The glare canvas renders at **half device-pixel-ratio** for performance — the 
 | Bloom pulse | RPM zone (green/yellow/red) | Pulsing brightness on zone change |
 | Light sweep | Time (periodic) | Moving highlight across dashboard |
 | Panel glow | Per-panel telemetry values | Individual panel edge illumination |
-| Dome specular | Camera angle (fixed) | Glass dome highlight simulation |
 | G-force vignette | Lateral G value | Screen edge darkening proportional to G |
 | RPM redline | RPM > 95% of max | Intensified red glow + flash |
 
@@ -103,7 +88,6 @@ The glare canvas renders at **half device-pixel-ratio** for performance — the 
 `effects.css` (37KB) handles effects that don't need GPU shaders:
 - Race control banner flag stripe animation
 - Commentary panel border glow + backdrop blur
-- Ambient breathing animation (CSS keyframes, independent of JS)
 - Incident coach cool-down vignette fade
 - Panel hover/active states
 
@@ -133,6 +117,6 @@ The overlay targets 30fps (33ms per frame). WebGL effects share this budget with
 3. **DPR compensation** — All canvas sizing must account for `window.devicePixelRatio`. The glare canvas intentionally halves this.
 4. **No external GL libraries** — No Three.js, no Babylon.js, no REGL. Everything is raw WebGL2 calls.
 5. **Uniform names are API** — Shader uniform names are referenced from JS. Renaming requires updating both the GLSL and JS.
-6. **Ambient light is IPC-driven** — Screen capture happens in the main process. The renderer only receives the dominant color via IPC. Don't try to use `desktopCapturer` from the renderer.
+6. **No screen capture** — nothing in the app samples the screen for the HUD's light; don't add it back.
 7. **CSS effects complement WebGL** — Some effects are pure CSS (backdrop-blur, keyframe animations). Use CSS when GPU shaders aren't needed.
 8. **ARM fallback** — On ARM devices, WebGL may use software rendering. Effects should degrade gracefully (reduce complexity, not crash).

@@ -108,7 +108,7 @@ Racing HUDs exist in a unique space: they must convey dense, rapidly-changing da
 |--------|---------------|----------------|
 | Target viewer | Stream audience | The driver, at a glance |
 | Information density | High (all panels, effects, branding), placed by the layout settings | The same panels, every one, as the cells of one grid that fills the screen |
-| Visual effects | Full WebGL pipeline (bloom, glow, ambient) | The HUD's own, except the glare pass and the rig's screen capture; the iPad's menu can switch them off |
+| Visual effects | Full WebGL pipeline (bloom, glow) | None: the iPad runs no WebGL effect and makes no WebGL context; its menu's "Effects" stops the flag's moving pattern |
 | Panels shown | All enabled panels | Every panel, whatever the settings hide from the rig's screen |
 | Branding | Logo, manufacturer, game logo visible | The Racing Desk mark and the car's badge |
 | Commentary | AI commentary panel visible | The card, over the pit box |

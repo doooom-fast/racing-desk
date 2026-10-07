@@ -46,11 +46,21 @@ test.describe('settings model', () => {
   });
 
   test('a value the HUD would not understand shows the default instead', () => {
-    const view = settingsView({ zoom: 'big', layoutPosition: 'top-centre', ambientMode: 7, coachDepth: null });
+    const view = settingsView({ zoom: 'big', layoutPosition: 'top-centre', coachDepth: null });
     expect(valueOf(view, 'zoom')).toBe(165);
     expect(valueOf(view, 'layoutPosition')).toBe('top-right');
-    expect(valueOf(view, 'ambientMode')).toBe('reflective');
     expect(valueOf(view, 'coachDepth')).toBe('standard');
+  });
+
+  test('the screen-capture light is gone from the desk, and a file that still holds its keys loads as before', () => {
+    const fields = (view) => view.flatMap((s) => s.fields);
+    const keys = fields(settingsView({})).map((f) => f.key);
+    expect(keys).not.toContain('ambientMode');
+    // His file from before: the old switch and the old capture region are in it, and nothing about them shows or breaks.
+    const old = settingsView({ zoom: 120, theme: 'light', ambientMode: 'reflective', showAmbientLight: true, ambientCaptureRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 } });
+    expect(fields(old).map((f) => f.key)).toEqual(keys);
+    expect(valueOf(old, 'zoom')).toBe(120);
+    expect(valueOf(old, 'theme')).toBe('light');
   });
 
   test('a control value becomes what the file should hold', () => {

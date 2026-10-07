@@ -49,7 +49,6 @@ body.mode-minimal .section {
 body.mode-minimal .tacho-block canvas,
 body.mode-minimal #glareCanvas,
 body.mode-minimal .gl-overlay,
-body.mode-minimal .ambient-canvas,
 body.mode-minimal .glare-canvas,
 body.mode-minimal .webgl-context {
   display: none !important;
@@ -258,7 +257,6 @@ body.mode-minimal-plus .tacho-block canvas {
 }
 
 body.mode-minimal-plus #glareCanvas,
-body.mode-minimal-plus .ambient-canvas,
 body.mode-minimal-plus .glare-canvas {
   display: none !important;
 }
