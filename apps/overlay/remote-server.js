@@ -9,8 +9,8 @@
 //   GET /racing-desk/       the telemetry, fetched from the plugin or host on this machine — and nothing else of
 //                           theirs: a request carrying a query (?action=…) is refused, so nothing on the network
 //                           can change a setting, a pedal profile or the wheel base through here. One fetch serves
-//                           every page that asks within a frame, gzipped, and without the track's outline for a page
-//                           that says it has it (sharedTelemetry, below)
+//                           every page that asks within a frame, gzipped for the iPad, and without the track's outline
+//                           for a page that says it has it (sharedTelemetry, below)
 //   GET /modules/… /images/… /fonts/…   what the page is made of, and no other file of the app's
 //   GET /livery-crop.png    the crop of the car's paint behind the HUD's car badge, as the main process holds it in
 //                           memory (modules/js/logo-livery.js): one fixed address, no query, nothing from disk, and
@@ -564,7 +564,7 @@ function staticFile(appDir, pathname) {
 // frame from the plugin or host, which builds it afresh for every request: two pages, sixty frames a second built and
 // sent on. Now an answer fetched less than SHARE_MS ago is every page's, and a page that asks while a fetch is under
 // way waits for that one: one fetch a frame, however many pages. It is gathered whole before it is sent on, and
-// gzipped for a page that takes it (a browser always does).
+// gzipped for a page on another machine that takes it (a browser always does): the iPad's, not OBS's on the rig.
 //
 // The track's outline (OUTLINE_KEY) is two thirds of the frame and changes when the track does. Each answer says which
 // outline it has (OUTLINE_ID_KEY, a hash of it), and a page that says it holds that one (the header OUTLINE_HEADER)
@@ -789,12 +789,15 @@ function sharedTelemetry(config) {
   const keepMs = Number.isFinite(config.shareMs) ? config.shareMs : SHARE_MS;
   if (share.last && Date.now() - share.last.at < keepMs) return Promise.resolve(share.last);
   if (!share.pending) {
-    share.pending = fetchTelemetry(config, target).then((answer) => {
+    // Cleared however it ends: a fetch that failed would otherwise be every page's answer until the app was restarted.
+    const pending = fetchTelemetry(config, target).then((answer) => {
       const ready = readied(answer, share);
       share.last = ready;
-      share.pending = null;
       return ready;
+    }).finally(() => {
+      if (share.pending === pending) share.pending = null;
     });
+    share.pending = pending;
   }
   return share.pending;
 }
@@ -827,7 +830,9 @@ function proxyTelemetry(config, req, res) {
       });
       res.end(data);
     };
-    if (!acceptsGzip(req.headers['accept-encoding'])) { send(body, false); return null; }
+    // Gzipped only for a page on another machine (the iPad): one on the rig itself, OBS's, would have it zipped and unzipped
+    // on the rig, the sim's machine, to save a transfer that costs nothing.
+    if (isLocal(req) || !acceptsGzip(req.headers['accept-encoding'])) { send(body, false); return null; }
     return ready.gzipped(lean).then((zipped) => { if (zipped) send(zipped, true); else send(body, false); });
   }).catch((err) => {
     if (!res.headersSent) sendJson(res, 502, { error: NOT_ANSWERING, detail: err && err.message ? err.message : String(err) });

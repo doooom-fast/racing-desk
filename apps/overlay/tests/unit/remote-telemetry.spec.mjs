@@ -46,8 +46,9 @@ const configOf = (rig, more = {}) => ({
   addresses: () => [], names: () => [], get: rig.get, ...more,
 });
 
-// One request from the rig itself, as a page sends it; the answer as it was sent, bytes and all.
-function ask(config, headers = {}) {
+// One request from the rig itself, as a page sends it (or `from` another machine's address); the answer as it was sent,
+// bytes and all.
+function ask(config, headers = {}, { from = '127.0.0.1' } = {}) {
   return new Promise((resolve) => {
     const out = { status: null, headers: {}, bytes: Buffer.alloc(0) };
     const res = {
@@ -60,7 +61,7 @@ function ask(config, headers = {}) {
         resolve(out);
       },
     };
-    const req = { method: 'GET', url: '/racing-desk/', headers: { host: '127.0.0.1:9091', ...headers }, socket: { remoteAddress: '127.0.0.1' } };
+    const req = { method: 'GET', url: '/racing-desk/', headers: { host: '127.0.0.1:9091', ...headers }, socket: { remoteAddress: from } };
     remote.handleRequest(config, req, res);
   });
 }
@@ -95,6 +96,20 @@ test.describe('one fetch for every page', () => {
     const next = await ask(config);
     expect(rig.asked).toBe(2);
     expect(JSON.parse(textOf(next))[OUTLINE_KEY]).toBe(OTHER_SVG);
+  });
+
+  test('a fetch that fails outright is let go of: the next page fetches again, where it was given that failure until a restart', async () => {
+    const rig = rigOf([TEXT], { now: true });
+    let broken = true;
+    // A request that is neither answered nor errs, for the fetch itself to fail.
+    const get = (...args) => (broken ? {} : rig.get(...args));
+    const config = configOf(rig, { get, shareMs: 0 });
+    expect((await ask(config)).status).toBe(502);
+    broken = false;
+    const next = await ask(config);
+    expect(next.status).toBe(200);
+    expect(JSON.parse(textOf(next))[OUTLINE_KEY]).toBe(SVG_PATH);
+    expect(rig.asked).toBe(1);
   });
 
   test("the iPad's server and the loopback one share it: two pages, one on each, one fetch", async () => {
@@ -192,14 +207,19 @@ test.describe('the outline', () => {
 });
 
 test.describe('gzip', () => {
-  test('for a page that takes it, which a browser always does; never for one that does not', async () => {
+  // The iPad's page, from another machine on the network, with the key it was given.
+  const iPadOf = (config) => (headers = {}) => ask(config, { host: '192.168.1.10:9090', cookie: `${remote.KEY_COOKIE}=${config.key}`, ...headers }, { from: '192.168.1.20' });
+
+  test("for the iPad's page when it takes it, which a browser always does; never for one that does not", async () => {
     const rig = rigOf([TEXT], { now: true });
-    const config = configOf(rig, { shareMs: 60000 });
-    const plain = await ask(config);
+    const config = configOf(rig, { shareMs: 60000, addresses: () => [{ address: '192.168.1.10' }] });
+    const iPad = iPadOf(config);
+    const plain = await iPad();
+    expect(plain.status).toBe(200);
     expect(plain.headers['Content-Encoding']).toBeUndefined();
     expect(plain.headers['Content-Length']).toBe(plain.bytes.length);
     for (const accept of ['gzip, deflate, br', 'br;q=1, gzip;q=0.5', 'GZIP']) {
-      const out = await ask(config, { 'accept-encoding': accept });
+      const out = await iPad({ 'accept-encoding': accept });
       expect(out.headers['Content-Encoding'], accept).toBe('gzip');
       expect(out.headers.Vary).toMatch(/accept-encoding/i);
       expect(out.headers['Content-Length']).toBe(out.bytes.length);
@@ -207,9 +227,23 @@ test.describe('gzip', () => {
       expect(zlib.gunzipSync(out.bytes).equals(plain.bytes), accept).toBe(true);
     }
     for (const accept of ['gzip;q=0', 'br', 'deflate', 'identity', 'x-gzip-ish']) {
-      const out = await ask(config, { 'accept-encoding': accept });
+      const out = await iPad({ 'accept-encoding': accept });
       expect(out.headers['Content-Encoding'], accept).toBeUndefined();
       expect(out.bytes.equals(plain.bytes), accept).toBe(true);
+    }
+    expect(rig.asked).toBe(1);
+  });
+
+  test("never for a page on the rig itself (OBS's): zipped and unzipped there, on the sim's machine, for nothing", async () => {
+    const rig = rigOf([TEXT], { now: true });
+    const config = configOf(rig, { shareMs: 60000, addresses: () => [{ address: '192.168.1.10' }] });
+    const zipped = await iPadOf(config)({ 'accept-encoding': 'gzip, deflate, br' });
+    expect(zipped.headers['Content-Encoding']).toBe('gzip');
+    for (const host of ['127.0.0.1:9091', 'localhost:9091', '192.168.1.10:9090']) {
+      const out = await ask(config, { host, 'accept-encoding': 'gzip, deflate, br' });
+      expect(out.status, host).toBe(200);
+      expect(out.headers['Content-Encoding'], host).toBeUndefined();
+      expect(out.bytes.equals(zlib.gunzipSync(zipped.bytes)), host).toBe(true);
     }
     expect(rig.asked).toBe(1);
   });
@@ -257,17 +291,18 @@ for (const [name, where, loopback] of [['the iPad\'s page', '/', false], ['OBS\'
       const read = await page.evaluate(() => _latestSnapshot);
       expect(read).toEqual(payload);
       expect(await page.evaluate(() => document.getElementById('fullMapTrackSrc').getAttribute('d').length)).toBeGreaterThan(100);
-      // The first ask names none; once it has one, every ask names it, and is answered gzipped and without the outline.
+      // The first ask names none; once it has one, every ask names it, and is answered without the outline. Not gzipped:
+      // this page is on the rig itself (gzip is for the iPad's, from another machine: the 'gzip' tests above).
       expect(asked[0]).toBeNull();
       const named = asked.filter((h) => h !== null);
       expect(named.length).toBeGreaterThan(15);
       expect(new Set(named).size).toBe(1);
       expect(asked.indexOf(named[0])).toBeLessThanOrEqual(2);
-      expect(sizes[0].encoding).toBe('gzip');
+      expect(sizes[0].encoding).toBeNull();
       const later = sizes.slice(3);
       expect(later.length).toBeGreaterThan(10);
       for (const s of later) {
-        expect(s.encoding).toBe('gzip');
+        expect(s.encoding).toBeNull();
         expect(s.length).toBeLessThan(sizes[0].length / 2);
       }
     } finally {
