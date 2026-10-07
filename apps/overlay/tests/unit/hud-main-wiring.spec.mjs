@@ -311,7 +311,7 @@ test.describe('recording', () => {
     expect(code).toMatch(/notice:\s*\(text\)\s*=>\s*\{\s*if \(overlayWindow && !overlayWindow\.isDestroyed\(\)\) overlayWindow\.webContents\.send\('hud-notice', text\);\s*\},/);
   });
 
-  test('OBS is started by nothing but a press: never at start unless Record by itself is on, never from auto-record's own start or a key', () => {
+  test('OBS is started by nothing but a press: never at start unless Record by itself is on, never from a key', () => {
     const starts = calls(/startObsIfClosed\(\)/g);
     // Two callers: Open OBS (a press) and the app's start behind the switch (startObsWithApp, below); and the keeper's
     // startObs (a press, out of the car, by its own rule), handed the function itself.

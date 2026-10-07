@@ -255,7 +255,7 @@ test('without the app the card is read-only and says so', () => {
   expect(card.openObs.show).toBe(false);
   expect(card.setup.show).toBe(false);
   expect(card.switches.every((s) => s.enabled === false)).toBe(true);
-  expect(card.switches.map((s) => s.value)).toEqual([true, false, true, true, false, false, true]);
+  expect(card.switches.map((s) => s.value)).toEqual([true, false, true, true, false, true]);
   expect(card.view).toMatchObject({ key: 'obsHudView', value: 'rig', enabled: false });
   expect(card.panelBackground).toMatchObject({ key: 'obsPanelBackground', value: 90, enabled: false });
 });
