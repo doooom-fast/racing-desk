@@ -238,6 +238,39 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
+        public void WhileTheEditorStaysOpen_TheTriesLookAtTheProcessesAndNotAtTheDatabases()
+        {
+            var d = Started();
+            d.See(Garage());
+            Settle(d);
+            _rig.Probe.Editor = true;
+            Drive(d, 2);      // the first try reads as it always did, and finds the editor open
+            const string waiting = "Waiting for the SmartControl editor to close, to put the Porsche 963 GTP's brakes on.";
+            Assert.That(d.Status().Brakes.Text, Is.EqualTo(waiting));
+
+            // SmartControl's database taken away while the editor stays open: a try that read it would find it gone, and turn
+            // the brakes off for good (its database isn't on this PC). Parked, a try is made every five seconds.
+            string aside = _rig.SmartControlDb + ".aside";
+            File.Move(_rig.SmartControlDb, aside);
+            try
+            {
+                Drive(d, 16);
+            }
+            finally
+            {
+                File.Move(aside, _rig.SmartControlDb);
+            }
+            Assert.That(d.Switches.Brakes, Is.True, "the database was not looked at while the editor stayed open");
+            Assert.That(d.Status().Brakes.Text, Is.EqualTo(waiting), "and the wait is what it was");
+            Assert.That(_rig.Keys.Sent, Is.Zero);
+
+            _rig.Probe.Editor = false;
+            Drive(d, 6);      // closed: the next try is made in full
+            Assert.That(_rig.Keys.Sent, Is.EqualTo(1));
+            Assert.That(Switch().WrittenFor, Is.EqualTo(Gtp));
+        }
+
+        [Test]
         public void WithTheKeyGone_ItIsMadeAgain_AndNothingIsPressedUntilLiveStartsAgain()
         {
             var d = Started();

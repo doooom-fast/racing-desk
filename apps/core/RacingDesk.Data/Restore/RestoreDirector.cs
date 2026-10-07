@@ -70,6 +70,12 @@ namespace RacingDesk.Data.Restore
             /// <summary>A try is queued or under way, and when the last one was asked for (by the frame's time).</summary>
             public bool Trying;
             public DateTime TriedAt = DateTime.MinValue;
+
+            /// <summary>
+            /// The last try waited for the SmartControl editor to close, and this is what it said: until the editor has closed,
+            /// a try is one look at the processes and none at the two databases.
+            /// </summary>
+            public string EditorWait;
         }
 
         /// <param name="switchesFile">restore.json, beside the host's settings; null keeps them in memory (a test's).</param>
@@ -230,6 +236,8 @@ namespace RacingDesk.Data.Restore
         {
             public bool Ready;
             public string Waiting;
+            /// <summary>What it waits for is the SmartControl editor to close.</summary>
+            public bool Editor;
             public string Stopped;
             public SmartControlSwitch Switch;
         }
@@ -269,6 +277,7 @@ namespace RacingDesk.Data.Restore
             if (_ctx.Probe.EditorRunning())
                 return new SetupState
                 {
+                    Editor = true,
                     Waiting = sw == null ? "Waiting for the SmartControl editor to close, to add Racing Desk's own profile and its F24 key."
                                          : "Waiting for the SmartControl editor to close, to put Racing Desk's profile and its F24 key back.",
                 };
@@ -389,6 +398,13 @@ namespace RacingDesk.Data.Restore
             _ctx.Log($"restore: {run.Car} — brakes not put on yet: {why}");
         }
 
+        /// <summary><see cref="Wait"/>, noting whether it is the SmartControl editor that is waited for (see <see cref="Run.EditorWait"/>).</summary>
+        private void WaitFor(Run run, string why, bool editor)
+        {
+            if (editor) run.EditorWait = why;
+            Wait(run, why);
+        }
+
         // ── A car's own profile ──
 
         /// <summary>What <see cref="KeepCarRow"/> left of one car's own profile.</summary>
@@ -396,6 +412,9 @@ namespace RacingDesk.Data.Restore
         {
             /// <summary>Why a write that was needed was not made (the editor is open, the copy first failed, ...), in words; null when none was needed, or it went.</summary>
             public string Waiting;
+
+            /// <summary>What it waits for is the SmartControl editor to close.</summary>
+            public bool Editor;
 
             /// <summary>The profile's bytes as they stand now, after any write; null when there is none, or it is waited for.</summary>
             public byte[] Bytes;
@@ -516,6 +535,7 @@ namespace RacingDesk.Data.Restore
                         : $"to keep the {name}'s brake force in its own profile";
             if (_ctx.Probe.EditorRunning())
             {
+                result.Editor = true;
                 result.Waiting = $"Waiting for the SmartControl editor to close, {what}.";
                 result.Bytes = profile?.Data;
                 return result;
@@ -616,9 +636,17 @@ namespace RacingDesk.Data.Restore
             string notParked = NotParked(_ctx.Parked());
             if (notParked != null) { Wait(run, "Waiting: " + notParked + "."); return; }
 
+            // The editor was open at the last try, and it is still: the try is as it was, and SmartControl's database and the
+            // store are not read again every few seconds while it stays open. Once it has closed the try is made in full.
+            if (run.EditorWait != null)
+            {
+                if (_ctx.Probe.EditorRunning()) { Wait(run, run.EditorWait); return; }
+                run.EditorWait = null;
+            }
+
             var setup = EnsureSetup();
             if (setup.Stopped != null) { TurnBrakesOff(setup.Stopped); return; }
-            if (!setup.Ready) { Wait(run, setup.Waiting); return; }
+            if (!setup.Ready) { WaitFor(run, setup.Waiting, setup.Editor); return; }
             var sw = setup.Switch;
             string live = LiveWaits(sw);
             if (live != null) { Wait(run, live); return; }
@@ -644,7 +672,7 @@ namespace RacingDesk.Data.Restore
             // the car — each with the editor closed and a copy first — and read as it stands now. That is what goes on the pedals.
             var kept = KeepCarRow(car, run.Name, plan);
             NoteKeep(car, kept.Waiting);
-            if (kept.Waiting != null) { Wait(run, kept.Waiting); return; }
+            if (kept.Waiting != null) { WaitFor(run, kept.Waiting, kept.Editor); return; }
             if (kept.Bytes == null) { Wait(run, $"Waiting: the {run.Name}'s own profile isn't in SmartControl yet."); return; }
             string sha = ViewFiles.Sha(kept.Bytes);
 
@@ -661,7 +689,7 @@ namespace RacingDesk.Data.Restore
                 return;
             }
 
-            if (_ctx.Probe.EditorRunning()) { Wait(run, $"Waiting for the SmartControl editor to close, to put the {run.Name}'s brakes on."); return; }
+            if (_ctx.Probe.EditorRunning()) { WaitFor(run, $"Waiting for the SmartControl editor to close, to put the {run.Name}'s brakes on.", editor: true); return; }
             string front = NotInFront();
             if (front != null) { Wait(run, $"Waiting to put the {run.Name}'s brakes on: {front}."); return; }
 
