@@ -50,6 +50,16 @@ namespace RacingDesk.Plugin.Engine
         TrackOutline Get(int trackId);
     }
 
+    /// <summary>
+    /// A source that can tell, without throwing, that it cannot be asked now: SimHub logs every exception thrown in its
+    /// process with its stack, caught or not, and a host that is not running would otherwise be one each time it is asked.
+    /// </summary>
+    public interface IOutlineSourceReachability
+    {
+        /// <summary>False when the source surely cannot answer now; true when it may (only asking can tell).</summary>
+        bool Reachable();
+    }
+
     /// <summary>An outline source over a function: the host's own store, or a test's.</summary>
     public sealed class LocalOutlineSource : IOutlineSource
     {
