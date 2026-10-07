@@ -183,6 +183,23 @@
     return fetch(url, { ...opts, signal: ac.signal }).finally(() => clearTimeout(timer));
   }
 
+  // ─── The track's outline, kept by a page that reads through remote-server.js ───
+  // The iPad's page and OBS's (window._remoteMode, _obsMode) are sent the outline only when it is not the one they say
+  // they hold: each frame names its outline (RacingDesk.Remote.OutlineId), and one sent without it is given the kept
+  // one back here, so the rest of the page reads the frame as the plugin made it. The rig's HUD reads the plugin
+  // itself, which names no outline, and sends nothing of this.
+  const _OUTLINE_KEY = 'RacingDesk.Plugin.TrackMap.SvgPath';
+  const _OUTLINE_ID_KEY = 'RacingDesk.Remote.OutlineId';
+  let _outlineKept = null;   // { id, svg }
+  function _outlineBack(data) {
+    if (!data || typeof data !== 'object' || !Object.prototype.hasOwnProperty.call(data, _OUTLINE_ID_KEY)) return data;
+    const id = data[_OUTLINE_ID_KEY];
+    delete data[_OUTLINE_ID_KEY];
+    if (Object.prototype.hasOwnProperty.call(data, _OUTLINE_KEY)) _outlineKept = { id: id, svg: data[_OUTLINE_KEY] };
+    else if (_outlineKept && _outlineKept.id === id) data[_OUTLINE_KEY] = _outlineKept.svg;
+    return data;
+  }
+
   // ─── Fetch properties from SimHub HTTP API ───
   // Uses exponential backoff on failure to avoid socket exhaustion.
   async function fetchProps() {
@@ -193,10 +210,11 @@
 
     // Single GET — our plugin serves everything in one JSON blob
     const url = window._simhubUrlOverride || SIMHUB_URL;
+    const opts = (window._remoteMode || window._obsMode) && _outlineKept ? { headers: { 'X-RD-Outline': String(_outlineKept.id) } } : {};
     try {
-      const resp = await fetchWithTimeout(url, {}, TIMEOUT_MS);
+      const resp = await fetchWithTimeout(url, opts, TIMEOUT_MS);
       if (resp.ok) {
-        const data = await resp.json();
+        const data = _outlineBack(await resp.json());
         _connFails = 0;
         _updateConnStatus('connected');
         return data;

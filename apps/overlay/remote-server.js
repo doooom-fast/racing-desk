@@ -8,7 +8,9 @@
 //                           the internet for anything: Adobe's kit of the HUD's typefaces, once the page has loaded
 //   GET /racing-desk/       the telemetry, fetched from the plugin or host on this machine — and nothing else of
 //                           theirs: a request carrying a query (?action=…) is refused, so nothing on the network
-//                           can change a setting, a pedal profile or the wheel base through here
+//                           can change a setting, a pedal profile or the wheel base through here. One fetch serves
+//                           every page that asks within a frame, gzipped, and without the track's outline for a page
+//                           that says it has it (sharedTelemetry, below)
 //   GET /modules/… /images/… /fonts/…   what the page is made of, and no other file of the app's
 //   GET /livery-crop.png    the crop of the car's paint behind the HUD's car badge, as the main process holds it in
 //                           memory (modules/js/logo-livery.js): one fixed address, no query, nothing from disk, and
@@ -53,6 +55,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
+const zlib = require('zlib');
+const { Writable } = require('stream');
 // The following map's zoom setting: its key and its words, so the pages are told it and nothing that is not one of them.
 const mapZoom = require('./modules/js/map-zoom');
 
@@ -555,29 +559,280 @@ function staticFile(appDir, pathname) {
   return { file: resolved, type: MIME[ext] };
 }
 
-function proxyTelemetry(config, res) {
-  const target = `${config.telemetryBase}${TELEMETRY_PATH}`;
-  const failed = (detail) => {
-    if (!res.headersSent) sendJson(res, 502, { error: 'The telemetry is not answering on the rig.', detail });
-    else if (!res.writableEnded) res.end();
-  };
-  const upstream = (config.get || http.get)(target, { timeout: PROXY_TIMEOUT_MS }, (answer) => {
+// ── The telemetry, fetched once for every page that asks ──
+// Each page polls thirty times a second (the iPad, OBS's /obs or /obs-ipad), and each request was a fetch of the whole
+// frame from the plugin or host, which builds it afresh for every request: two pages, sixty frames a second built and
+// sent on. Now an answer fetched less than SHARE_MS ago is every page's, and a page that asks while a fetch is under
+// way waits for that one: one fetch a frame, however many pages. It is gathered whole before it is sent on, and
+// gzipped for a page that takes it (a browser always does).
+//
+// The track's outline (OUTLINE_KEY) is two thirds of the frame and changes when the track does. Each answer says which
+// outline it has (OUTLINE_ID_KEY, a hash of it), and a page that says it holds that one (the header OUTLINE_HEADER)
+// is sent the frame without it; the page puts the one it kept back in (game-detect.js), so what it draws from is the
+// frame as it was. The outline is cut out of the text as it came, not parsed and written again, so every other byte
+// of the frame is the plugin's own.
+const SHARE_MS = 25;
+const OUTLINE_KEY = 'RacingDesk.Plugin.TrackMap.SvgPath';
+const OUTLINE_ID_KEY = 'RacingDesk.Remote.OutlineId';
+const OUTLINE_HEADER = 'x-rd-outline';
+const MAX_TELEMETRY_BYTES = 16 * 1024 * 1024;
+// The fastest level, and a smaller hash table: three fifths of the main thread's time of the defaults for a frame, and
+// the same size.
+const GZIP_OPTIONS = Object.freeze({ level: zlib.constants.Z_BEST_SPEED, memLevel: 5 });
+const NOT_ANSWERING = 'The telemetry is not answering on the rig.';
+
+// What was fetched last, and the fetch under way, for each address and each way of asking (`config.get`, the tests';
+// http.get's are the app's two servers' together).
+const _sharedByGet = new WeakMap();
+const _shared = new Map();
+function sharedFor(config, target) {
+  let byTarget = _shared;
+  if (typeof config.get === 'function') {
+    byTarget = _sharedByGet.get(config.get);
+    if (!byTarget) { byTarget = new Map(); _sharedByGet.set(config.get, byTarget); }
+  }
+  let share = byTarget.get(target);
+  if (!share) {
+    share = { last: null, pending: null, outline: { literal: null, id: null } };
+    byTarget.set(target, share);
+  }
+  return share;
+}
+
+// One fetch: resolves { status, body } or { error }, never rejects.
+function fetchTelemetry(config, target) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (answer) => { if (!done) { done = true; resolve(answer); } };
+    const failed = (detail) => finish({ error: String(detail) });
+    let upstream;
     try {
-      // Telemetry is JSON whatever the rig calls it, and a status is one a browser knows.
-      const status = Number.isInteger(answer.statusCode) && answer.statusCode >= 200 && answer.statusCode <= 599 ? answer.statusCode : 502;
-      res.writeHead(status, { ...NO_STORE, 'Content-Type': 'application/json; charset=utf-8' });
-      if (typeof answer.on === 'function') {
-        answer.on('error', () => failed('the answer broke off'));
-        answer.on('close', () => { if (!res.writableEnded) res.end(); });
-      }
-      answer.pipe(res);
+      upstream = (config.get || http.get)(target, { timeout: PROXY_TIMEOUT_MS }, (answer) => {
+        try {
+          // Telemetry is JSON whatever the rig calls it, and a status is one a browser knows.
+          const status = Number.isInteger(answer.statusCode) && answer.statusCode >= 200 && answer.statusCode <= 599 ? answer.statusCode : 502;
+          const chunks = [];
+          let size = 0;
+          const sink = new Writable({
+            write(chunk, _encoding, callback) {
+              const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+              size += buf.length;
+              if (size > MAX_TELEMETRY_BYTES) { callback(new Error('the answer is too big to be telemetry')); return; }
+              chunks.push(buf);
+              callback();
+            },
+            final(callback) { finish({ status, body: Buffer.concat(chunks) }); callback(); },
+          });
+          sink.on('error', (err) => failed(err.message));
+          if (typeof answer.on === 'function') {
+            answer.on('error', () => failed('the answer broke off'));
+            // An answer whole has ended the sink before its 'close'; one cut short never ends it.
+            answer.on('close', () => setImmediate(() => failed('the answer broke off')));
+          }
+          answer.pipe(sink);
+        } catch (err) {
+          failed(err.message);
+        }
+      });
     } catch (err) {
       failed(err.message);
+      return;
     }
+    upstream.on('error', (err) => failed(err.message));
+    upstream.on('timeout', () => upstream.destroy(new Error('timeout')));
+    upstream.on('upgrade', (_answer, socket) => { socket.destroy(); failed('the rig answered with something that is not telemetry'); });
   });
-  upstream.on('error', (err) => failed(err.message));
-  upstream.on('timeout', () => upstream.destroy(new Error('timeout')));
-  upstream.on('upgrade', (_answer, socket) => { socket.destroy(); failed('the rig answered with something that is not telemetry'); });
+}
+
+// Where a member of the top-level object is in JSON text: the object's opening brace, the span to cut to take the
+// member out (a comma beside it with it), and its value's span. The value has to be a string or null; anything else,
+// or text that is not an object, is null — and the frame is then sent as it came.
+function findMember(text, key) {
+  const isSpace = (c) => c === ' ' || c === '\t' || c === '\n' || c === '\r';
+  let open = 0;
+  if (text.charCodeAt(0) === 0xfeff) open = 1;
+  while (open < text.length && isSpace(text[open])) open++;
+  if (text[open] !== '{') return null;
+  const token = JSON.stringify(key);
+  for (let from = open + 1; ;) {
+    const at = text.indexOf(token, from);
+    if (at < 0) return null;
+    from = at + 1;
+    // A member's name: after the brace or a comma (inside a string its quote would be after a backslash), before a
+    // colon, and of the top-level object, not of one inside it.
+    let before = at - 1;
+    while (before > open && isSpace(text[before])) before--;
+    if (text[before] !== ',' && text[before] !== '{') continue;
+    if (!topLevelAt(text, open, at)) continue;
+    let colon = at + token.length;
+    while (colon < text.length && isSpace(text[colon])) colon++;
+    if (text[colon] !== ':') continue;
+    let valueStart = colon + 1;
+    while (valueStart < text.length && isSpace(text[valueStart])) valueStart++;
+    let valueEnd = -1;
+    if (text[valueStart] === '"') {
+      const end = stringEnd(text, valueStart);
+      if (end > 0) valueEnd = end + 1;
+    } else if (text.startsWith('null', valueStart)) {
+      valueEnd = valueStart + 4;
+    }
+    if (valueEnd < 0) return null;
+    let after = valueEnd;
+    while (after < text.length && isSpace(text[after])) after++;
+    if (text[after] !== ',' && text[after] !== '}') return null;
+    // The comma before it goes with it; the first member takes the comma after it instead, if there is one.
+    let cutStart = at, cutEnd = valueEnd;
+    if (text[before] === ',') cutStart = before;
+    else if (text[after] === ',') cutEnd = after + 1;
+    return { open, cutStart, cutEnd, valueStart, valueEnd };
+  }
+}
+
+// Whether `at` is in the top-level object of the JSON text whose brace is at `open`, outside any string.
+// Strings are stepped over by searching for their closing quote, which is most of the frame's text.
+function topLevelAt(text, open, at) {
+  // No brace before it but the object's own: there is no other object it could be inside.
+  const brace = text.indexOf('{', open + 1);
+  if (brace < 0 || brace > at) return true;
+  let depth = 0;
+  let i = open;
+  while (i < at) {
+    const quote = text.indexOf('"', i);
+    const stop = quote < 0 || quote > at ? at : quote;
+    for (let j = i; j < stop; j++) {
+      const c = text.charCodeAt(j);
+      if (c === 123 || c === 91) depth++;
+      else if (c === 125 || c === 93) depth--;
+    }
+    if (stop === at) break;
+    const end = stringEnd(text, quote);
+    if (end < 0 || end >= at) return false;   // `at` is inside it
+    i = end + 1;
+  }
+  return depth === 1;
+}
+
+// Where the JSON string that opens at `quote` closes: the first quote after it with an even run of backslashes before
+// it, found by searching rather than by stepping through it (an outline is tens of thousands of characters). -1: never.
+function stringEnd(text, quote) {
+  let end = quote;
+  for (;;) {
+    end = text.indexOf('"', end + 1);
+    if (end < 0) return -1;
+    let slashes = 0;
+    while (text.charCodeAt(end - 1 - slashes) === 92) slashes++;
+    if (slashes % 2 === 0) return end;
+  }
+}
+
+// The text with a member put first in its object.
+function withFirstMember(text, open, member) {
+  let next = open + 1;
+  while (next < text.length && (text[next] === ' ' || text[next] === '\t' || text[next] === '\n' || text[next] === '\r')) next++;
+  return text.slice(0, open + 1) + member + (text[next] === '}' ? '' : ',') + text.slice(open + 1);
+}
+
+// An answer as it is sent on: { status, at, id, body(lean), gzipped(lean) }, or { error, at }. `id` is the outline's,
+// or null where the frame has none to leave out; each form of the body is made the first time a page needs it.
+function readied(answer, share) {
+  const at = Date.now();
+  if (answer.error) return { error: answer.error, at };
+  const ready = { status: answer.status, at, id: null, made: { full: answer.body, lean: null }, zipped: { full: null, lean: null } };
+  if (answer.status === 200) {
+    try {
+      const text = answer.body.toString('utf8');
+      const found = findMember(text, OUTLINE_KEY);
+      if (found) {
+        const literal = text.slice(found.valueStart, found.valueEnd);
+        if (share.outline.literal !== literal) {
+          share.outline = { literal, id: crypto.createHash('sha1').update(literal).digest('hex').slice(0, 16) };
+        }
+        const id = share.outline.id;
+        const member = `${JSON.stringify(OUTLINE_ID_KEY)}:${JSON.stringify(id)}`;
+        ready.id = id;
+        ready.made = {
+          full: null,
+          lean: null,
+          make: (lean) => Buffer.from(lean
+            ? withFirstMember(text.slice(0, found.cutStart) + text.slice(found.cutEnd), found.open, member)
+            : withFirstMember(text, found.open, member), 'utf8'),
+        };
+      }
+    } catch (e) {
+      ready.id = null;
+      ready.made = { full: answer.body, lean: null };
+    }
+  }
+  ready.body = (lean) => {
+    const form = lean && ready.id ? 'lean' : 'full';
+    if (!ready.made[form]) ready.made[form] = ready.made.make(form === 'lean');
+    return ready.made[form];
+  };
+  ready.gzipped = (lean) => {
+    const form = lean && ready.id ? 'lean' : 'full';
+    if (!ready.zipped[form]) {
+      const body = ready.body(lean);
+      ready.zipped[form] = new Promise((resolve) => {
+        zlib.gzip(body, GZIP_OPTIONS, (err, zipped) => resolve(err ? null : zipped));
+      });
+    }
+    return ready.zipped[form];
+  };
+  return ready;
+}
+
+// The frame for a page: the one fetched less than SHARE_MS ago (`config.shareMs`, for the tests), the fetch under way,
+// or a new one.
+function sharedTelemetry(config) {
+  const target = `${config.telemetryBase}${TELEMETRY_PATH}`;
+  const share = sharedFor(config, target);
+  const keepMs = Number.isFinite(config.shareMs) ? config.shareMs : SHARE_MS;
+  if (share.last && Date.now() - share.last.at < keepMs) return Promise.resolve(share.last);
+  if (!share.pending) {
+    share.pending = fetchTelemetry(config, target).then((answer) => {
+      const ready = readied(answer, share);
+      share.last = ready;
+      share.pending = null;
+      return ready;
+    });
+  }
+  return share.pending;
+}
+
+function acceptsGzip(header) {
+  if (typeof header !== 'string') return false;
+  return header.split(',').some((part) => {
+    const [coding, ...params] = part.trim().toLowerCase().split(';');
+    if (coding.trim() !== 'gzip') return false;
+    const q = params.map((p) => p.trim()).find((p) => p.startsWith('q='));
+    return !q || Number(q.slice(2)) > 0;
+  });
+}
+
+function proxyTelemetry(config, req, res) {
+  sharedTelemetry(config).then((ready) => {
+    if (ready.error) {
+      sendJson(res, 502, { error: NOT_ANSWERING, detail: ready.error });
+      return null;
+    }
+    const lean = ready.id !== null && req.headers[OUTLINE_HEADER] === ready.id;
+    const body = ready.body(lean);
+    const send = (data, zipped) => {
+      res.writeHead(ready.status, {
+        ...NO_STORE,
+        'Content-Type': 'application/json; charset=utf-8',
+        Vary: 'accept-encoding, x-rd-outline',
+        'Content-Length': data.length,
+        ...(zipped ? { 'Content-Encoding': 'gzip' } : {}),
+      });
+      res.end(data);
+    };
+    if (!acceptsGzip(req.headers['accept-encoding'])) { send(body, false); return null; }
+    return ready.gzipped(lean).then((zipped) => { if (zipped) send(zipped, true); else send(body, false); });
+  }).catch((err) => {
+    if (!res.headersSent) sendJson(res, 502, { error: NOT_ANSWERING, detail: err && err.message ? err.message : String(err) });
+    else if (!res.writableEnded) res.end();
+  });
 }
 
 // The whole of what the server does with a request. `config` is { appDir, telemetryBase, key, dispatchAction,
@@ -682,7 +937,7 @@ function handleRequest(config, req, res) {
       return;
     }
     if (typeof config.served === 'function') { try { config.served('telemetry'); } catch (e) { /* a note, no more */ } }
-    proxyTelemetry(config, res);
+    proxyTelemetry(config, req, res);
     return;
   }
 
@@ -937,10 +1192,10 @@ const lan = createServer();
 
 module.exports = {
   DEFAULT_PORT, LOCAL_DEFAULT_PORT, TELEMETRY_DEFAULT, ACTIONS, ACTION_HEADER, KEY_COOKIE, KEY_PARAM, CROP_PATH, OBS_PATH, OBS_IPAD_PATH, SETTINGS_PATH, STATUS_PATH,
-  DISPLAY_SETTINGS, IPAD_SETTINGS,
+  DISPLAY_SETTINGS, IPAD_SETTINGS, SHARE_MS, OUTLINE_KEY, OUTLINE_ID_KEY, OUTLINE_HEADER,
   start: lan.start, stop: lan.stop, isRunning: lan.isRunning, getInfo: lan.getInfo, getLanAddress, setActionDispatcher,
   createServer, startWithRetry, RETRY_DELAYS_MS,
   // The parts, for the tests.
   newKey, isKey, lanAddresses, telemetryBase, namesThisMachine, isLocal, fromBrowser, staticFile, injectRemoteOverrides,
-  injectObsOverrides, displaySettingsOf, ipadSettingsOf, handleRequest,
+  injectObsOverrides, displaySettingsOf, ipadSettingsOf, handleRequest, findMember,
 };
