@@ -1567,31 +1567,60 @@
     _ensureOpponentDots(fullG, count, _dv.on && _dv.fullUnit ? _DV_OPPONENT_PX * _dv.fullUnit : 2.5);
     _ensureOpponentDots(zoomG, count, _dv.on && _dv.zoomUnit ? _DV_OPPONENT_PX * _dv.zoomUnit : 1.5);
 
-    // Update positions
+    // Where each car is, and which of them pulse: the _NEAR_PULSED nearest to him within _NEAR_D2, of those on track.
+    // Every car within that distance pulsed, with a drop-shadow at its peak: at a start, the whole field on both maps.
     const fullDots = fullG.children;
     const zoomDots = zoomG.children;
+    _nearIdx.fill(-1);
+    _nearD2.fill(Infinity);
     for (let i = 0; i < count; i++) {
       const seg = parts[i].split(',');
-      if (seg.length < 2) continue;
+      _oppOk[i] = seg.length >= 2 ? 1 : 0;
+      if (!_oppOk[i]) continue;
       // Clamp opponent coords to 0–100
       const ox = Math.max(0, Math.min(100, +seg[0]));
       const oy = Math.max(0, Math.min(100, +seg[1]));
-      const inPit = seg[2] === '1';
-
-      fullDots[i].setAttribute('cx', ox);
-      fullDots[i].setAttribute('cy', oy);
-      fullDots[i].style.display = inPit ? 'none' : '';
-      fullDots[i].classList.toggle('close', _isClose(sx, sy, ox, oy));
-      // Add pulse animation for nearby opponents (~20% track proximity)
-      fullDots[i].classList.toggle('map-opponent-near', _isNear(sx, sy, ox, oy));
-
-      zoomDots[i].setAttribute('cx', ox);
-      zoomDots[i].setAttribute('cy', oy);
-      zoomDots[i].style.display = inPit ? 'none' : '';
-      zoomDots[i].classList.toggle('close', _isClose(sx, sy, ox, oy));
-      // Add pulse animation for nearby opponents (~20% track proximity)
-      zoomDots[i].classList.toggle('map-opponent-near', _isNear(sx, sy, ox, oy));
+      _oppX[i] = ox;
+      _oppY[i] = oy;
+      _oppPit[i] = seg[2] === '1' ? 1 : 0;
+      if (_oppPit[i]) continue;
+      const dx = sx - ox, dy = sy - oy, d2 = dx * dx + dy * dy;
+      if (!(d2 < _NEAR_D2) || !(d2 < _nearD2[_NEAR_PULSED - 1])) continue;
+      let k = _NEAR_PULSED - 1;
+      while (k > 0 && d2 < _nearD2[k - 1]) { _nearD2[k] = _nearD2[k - 1]; _nearIdx[k] = _nearIdx[k - 1]; k--; }
+      _nearD2[k] = d2;
+      _nearIdx[k] = i;
     }
+    // The same on both maps. A dot is written only where it differs from what it was given last.
+    for (let i = 0; i < count; i++) {
+      if (!_oppOk[i]) continue;
+      const ox = _oppX[i], oy = _oppY[i], inPit = _oppPit[i] === 1;
+      const close = _isClose(sx, sy, ox, oy);
+      const near = _nearIdx.indexOf(i) >= 0;
+      _drawOpponent(fullDots[i], ox, oy, inPit, close, near);
+      _drawOpponent(zoomDots[i], ox, oy, inPit, close, near);
+    }
+  }
+
+  // The cars that pulse, at most, and within what distance of him (squared, in map units: ~20 units).
+  const _NEAR_PULSED = 3;
+  const _NEAR_D2 = 400;
+  const _nearIdx = new Int16Array(_NEAR_PULSED);
+  const _nearD2 = new Float64Array(_NEAR_PULSED);
+  const _oppX = new Float64Array(_MAP_MAX_OPPONENTS);
+  const _oppY = new Float64Array(_MAP_MAX_OPPONENTS);
+  const _oppPit = new Uint8Array(_MAP_MAX_OPPONENTS);
+  const _oppOk = new Uint8Array(_MAP_MAX_OPPONENTS);
+
+  // One car's dot: its place, shown or not (in the pits), and its two classes, each written only when it changes. They
+  // were all written for every car on both maps on every frame, the same values most of them, each a style invalidation.
+  // What was written is kept on the element, so a dot made afresh (_ensureOpponentDots) is written whole.
+  function _drawOpponent(dot, x, y, hidden, close, near) {
+    if (dot._rdX !== x) { dot._rdX = x; dot.setAttribute('cx', x); }
+    if (dot._rdY !== y) { dot._rdY = y; dot.setAttribute('cy', y); }
+    if (dot._rdHidden !== hidden) { dot._rdHidden = hidden; dot.style.display = hidden ? 'none' : ''; }
+    if (dot._rdClose !== close) { dot._rdClose = close; dot.classList.toggle('close', close); }
+    if (dot._rdNear !== near) { dot._rdNear = near; dot.classList.toggle('map-opponent-near', near); }
   }
 
   function _ensureOpponentDots(parent, count, radius) {
@@ -1609,12 +1638,6 @@
   function _isClose(px, py, ox, oy) {
     const dx = px - ox, dy = py - oy;
     return (dx * dx + dy * dy) < 64; // ~8 SVG units
-  }
-
-  function _isNear(px, py, ox, oy) {
-    // Proximity pulse: ~20% of track (distance ~20 SVG units = ~400 units squared)
-    const dx = px - ox, dy = py - oy;
-    return (dx * dx + dy * dy) < 400; // ~20 SVG units
   }
 
   function _updateTrackGlow(svgEl, px, py) {

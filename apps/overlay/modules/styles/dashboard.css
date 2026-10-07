@@ -1537,16 +1537,12 @@
   .map-opponent { fill: hsla(0,0%,100%,0.35); }
   .map-opponent.close { fill: var(--orange); }
 
-  /* Pulse animation for nearby opponents */
+  /* The pulse of the cars near him: the three nearest within ~20 map units (webgl-helpers.js, _NEAR_PULSED), and in
+     opacity alone. It had a drop-shadow at its peak on every car within that distance, which at a start is the whole
+     field on both maps: a filter redrawn every frame on the sim's own screen and GPU. */
   @keyframes map-opponent-pulse {
-    0%, 100% {
-      opacity: 0.7;
-      filter: none;
-    }
-    50% {
-      opacity: 1;
-      filter: drop-shadow(0 0 3px hsla(0,70%,60%,0.6));
-    }
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
   }
   .map-opponent.map-opponent-near {
     animation: map-opponent-pulse 1.5s ease-in-out infinite;

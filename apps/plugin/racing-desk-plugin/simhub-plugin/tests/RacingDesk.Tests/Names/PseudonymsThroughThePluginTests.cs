@@ -173,16 +173,18 @@ namespace RacingDesk.Tests.Names
         }
 
         [Test]
-        public void HisOwnCarWithHimInItIsHisWhateverSimHubCallsHim()
+        public void HisOwnNameIsHisWhateverItsCaseSpacingOrAccents()
         {
             // He said on 2026-10-03: "don't change my name in the leaderboard". SimHub's name for him need not be the
-            // session's to the letter; his own car, with him in it, is his all the same.
+            // session's to the letter: its case, spacing and accents may differ, and it is his all the same. A different
+            // name in his car is another driver (SimHubFlaggingAnotherCarAsThePlayerIsNotTakenAsHim, the team race tests).
             var bridge = new IRacingSdkBridge();
             bridge.ApplySessionInfo(SessionInfoYaml.Parse(SyntheticField.Yaml()));
-            string simHubs = SyntheticField.PlayerName + " Jr";
+            string simHubs = "  " + SyntheticField.PlayerName.ToUpperInvariant().Replace(" ", "   ").Replace("E", "É") + " ";
             Assert.That(bridge.PlayerName(simHubs), Is.EqualTo(simHubs), "the player is him");
-            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, simHubs, true), Is.EqualTo(simHubs), "his row, by his car's number");
-            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, simHubs, false), Is.EqualTo(simHubs), "whatever SimHub's flag says");
+            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, simHubs, true), Is.EqualTo(simHubs), "his row");
+            Assert.That(bridge.OpponentName("", simHubs, false), Is.EqualTo(simHubs), "whatever SimHub's flag or number says");
+            Assert.That(bridge.PlayerName(SyntheticField.PlayerName + " Jr"), Is.Not.EqualTo(SyntheticField.PlayerName + " Jr"), "another name is another driver");
             // A rival's real name is still a character's, even said of the player.
             var rival = SyntheticField.Rivals.First();
             Assert.That(bridge.PlayerName(rival.Name), Is.Not.EqualTo(rival.Name));

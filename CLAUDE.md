@@ -960,8 +960,12 @@ the telemetry says he is in the car, he has not switched the HUD off, and the pa
 with the sim closed, or once the telemetry has not answered for three seconds it is hidden — two seconds after he
 gets out, so it does not blink between sessions — and nothing is ever quit to get it off the screen. The decision
 is the main process's, not the page's: it asks the telemetry the page reads, once a second (twice in the car), and
-tells the page (`in-race-state`), which polls and draws only while he is in. A hidden page is not relied on to
-notice him getting back in. What "in the car" means is one function, `inCar` in `modules/js/in-car.js`
+tells the page (`in-race-state`), which polls and draws only while he is in with the HUD switched on (`pageActive`:
+switched off or put away, the hidden page neither reads nor draws, and switched back on it starts as it does when he
+gets in; what the page keeps of the session itself — his best lap for the delta, the leaderboard's lap trails, the
+gap trend — has only the laps it read). A hidden page is not relied on to notice him getting back in. The window is
+put on top as it is shown, and again when the focus leaves the desk for the sim (`hud.raise`, on Electron's
+`browser-window-blur`); it is not put down and up on a timer. What "in the car" means is one function, `inCar` in `modules/js/in-car.js`
 (`tests/unit/in-car.spec.mjs`): demo mode; or the sim running and iRacing's own `IsOnTrack` and not a replay, which
 the payload carries as `DataCorePlugin.GameRawData.Telemetry.IsOnTrack` (`TelemetryCapture.InCar`, sent only where
 the sim says it: a key that is sent is believed, so one made up would hide the HUD for good) — so the garage
@@ -1128,7 +1132,12 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
 - **Read-only from the network.** GET and HEAD only. `/racing-desk/` is proxied to the telemetry the HUD itself
   reads (`localhost:8889`, or a saved `simhubUrl` that ends in `/racing-desk/`) and a request carrying a query is
   refused — the plugin and host take `?action=…` on that same path, wheel-base settings among them, and none of it
-  can be reached through here (nor from anywhere but a program on the rig: they refuse the rest themselves). Files
+  can be reached through here (nor from anywhere but a program on the rig: they refuse the rest themselves). One fetch
+  of it serves every page that asks within 25 ms (`SHARE_MS`), the iPad's and OBS's alike, where each request was a
+  fetch of the whole frame; the answer is gzipped for a page that takes it, and the track's outline
+  (`TrackMap.SvgPath`, two thirds of the frame) is left out for a page that says, by `X-RD-Outline`, it holds the one
+  the frame names (`RacingDesk.Remote.OutlineId`, a hash of it), and put back by the page (`game-detect.js`), so it
+  draws from the frame as the plugin made it (`tests/unit/remote-telemetry.spec.mjs`). Files
   are served from `modules/`, `images/` and `fonts/` only; the one other thing served is the crop of his paint behind the car badge, from the main process's memory at `/livery-crop.png` (The
   livery behind the car badge, below) — no query, nothing from disk, 404 while there is none.
 - **A key in the address.** `http://<rig>:9090/?k=<8 characters>`; the page hands it back as a cookie. Made the

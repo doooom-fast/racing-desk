@@ -126,6 +126,26 @@ test.describe('in the app: main.js decides', () => {
     await expect.poll(() => pollsIn(page, 500)).toBeGreaterThan(0);
   });
 
+  test('told to start again, the lap it was reading is ended: nothing read after the gap is joined to it', async ({ page }) => {
+    // Switched off at 30% of a lap and back on at 60% two laps later, the delta (lap-delta.js) joined the two into one lap
+    // that could become his best, and the gaps' trend (gap-trend.js) took a gap from the middle of a lap for its start.
+    await openWith(page, { main: true });
+    await expect.poll(() => listening(page)).toBe(true);
+    await page.evaluate(() => {
+      window.__ended = [];
+      const lap = _lapDeltaTracker.breakLap;
+      const trend = _gapTrend.resume;
+      _lapDeltaTracker.breakLap = () => { window.__ended.push('lap'); lap(); };
+      _gapTrend.resume = () => { window.__ended.push('trend'); trend(); };
+    });
+    await mainSays(page, true);
+    expect(await page.evaluate(() => window.__ended)).toEqual(['lap', 'trend']);
+    await mainSays(page, false);
+    expect(await page.evaluate(() => window.__ended)).toHaveLength(2);
+    await mainSays(page, true);
+    expect(await page.evaluate(() => window.__ended)).toEqual(['lap', 'trend', 'lap', 'trend']);
+  });
+
   test('already in the car when the page loads: it asks main, and starts', async ({ page }) => {
     await openWith(page, { main: true, inCarAtStart: true });
     await expect.poll(() => inCar(page)).toBe(true);
