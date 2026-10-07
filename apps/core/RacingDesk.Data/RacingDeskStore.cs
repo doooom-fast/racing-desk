@@ -483,9 +483,13 @@ ON CONFLICT(car_path) DO UPDATE SET
                 ExecKept("UPDATE cars SET seen = " + SeenCount + "$p) WHERE car_path = $p", tx, ("$p", path));
         }
 
+        /// <summary>
+        /// The file has been read at this length and time: its sessions stored, or found unreadable (its error kept), which
+        /// stays so until the file changes. The ingest reads neither again.
+        /// </summary>
         public bool IsIngested(string path, long length, DateTime mtimeUtc)
         {
-            using var cmd = Cmd("SELECT 1 FROM ingested_files WHERE path = $p AND length = $l AND mtime = $m AND error IS NULL");
+            using var cmd = Cmd("SELECT 1 FROM ingested_files WHERE path = $p AND length = $l AND mtime = $m");
             P(cmd, "$p", path); P(cmd, "$l", length); P(cmd, "$m", Iso(mtimeUtc));
             return cmd.ExecuteScalar() != null;
         }

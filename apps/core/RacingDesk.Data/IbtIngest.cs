@@ -42,7 +42,7 @@ namespace RacingDesk.Data
 
         /// <param name="frameStep">Read every Nth frame (3 = 20 Hz; enough for laps, incidents and geometry).</param>
         /// <param name="force">Re-read files already stored (after an accumulator change).</param>
-        /// <param name="pause">Checked before each file; while it returns true, ingest waits (e.g. while iRacing runs).</param>
+        /// <param name="pause">Asked before a file is read, at most every <see cref="PauseCheckEvery"/>; while it returns true, ingest waits (e.g. while iRacing runs).</param>
         /// <summary>
         /// Sessions stored before schema v2 have no category. It lives in the file's session YAML, so fill it in
         /// from the header alone instead of re-reading every frame.
@@ -175,7 +175,20 @@ namespace RacingDesk.Data
         /// <summary>A file written in the last two minutes may still be the sim's: it is left for later.</summary>
         public static readonly TimeSpan SettleTime = TimeSpan.FromMinutes(2);
 
-        /// <summary>Whether a file is one to read now: settled, and not read before at this length and time.</summary>
+        /// <summary>How often a pass asks whether the sim is running, at the most (see <see cref="Run"/>).</summary>
+        public static readonly TimeSpan PauseCheckEvery = TimeSpan.FromSeconds(2);
+
+        /// <summary>
+        /// A file that could not be opened or read at all, rather than one read and found wrong: a sharing violation, a
+        /// drive that is not there, no access. A file cut short is wrong (InvalidDataException, EndOfStreamException).
+        /// </summary>
+        internal static bool Unreached(Exception ex) =>
+            (ex is IOException && !(ex is EndOfStreamException)) || ex is UnauthorizedAccessException;
+
+        /// <summary>
+        /// Whether a file is one to read now: settled, and not read before at this length and time — read, or found
+        /// unreadable, which is as final until the file changes.
+        /// </summary>
         public bool WantsFile(FileInfo f, DateTime nowUtc, bool force = false) =>
             nowUtc - f.LastWriteTimeUtc >= SettleTime && (force || !_store.IsIngested(f.FullName, f.Length, f.LastWriteTimeUtc));
 
@@ -191,16 +204,13 @@ namespace RacingDesk.Data
                 ? new DirectoryInfo(directory).EnumerateFiles("*.ibt").OrderBy(f => f.LastWriteTimeUtc).ToList()
                 : new List<FileInfo>();
 
+            // Asking Windows for its processes costs more than looking a file up in the store, and a pass looks thousands up to
+            // read a few: the sim is asked about before a file is read, not before each file, and at most every two seconds,
+            // so a pass with nothing to read asks nothing and a long one still stops for the sim.
+            TimeSpan nextPauseCheck = TimeSpan.Zero;
             foreach (var f in files)
             {
                 if (ct.IsCancellationRequested || summary.FilesIngested >= limit) break;
-                if (pause != null && pause())
-                {
-                    _log("paused while iRacing is running");
-                    while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
-                    if (ct.IsCancellationRequested) break;
-                    _log("resumed");
-                }
                 summary.FilesSeen++;
                 // The file as it is now, not as it was when the folder was listed: a pass over the history takes
                 // long enough for the sim to have written more files, and more of a file, since.
@@ -210,6 +220,20 @@ namespace RacingDesk.Data
                 {
                     summary.FilesSkipped++;
                     continue;
+                }
+                if (pause != null && clock.Elapsed >= nextPauseCheck)
+                {
+                    if (pause())
+                    {
+                        _log("paused while iRacing is running");
+                        while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+                        if (ct.IsCancellationRequested) break;
+                        _log("resumed");
+                        // The sim has had the disk since the file was looked up: it is looked at again as it is now.
+                        try { f.Refresh(); } catch { /* read as listed */ }
+                        if (!f.Exists || !WantsFile(f, DateTime.UtcNow, force)) { summary.FilesSkipped++; continue; }
+                    }
+                    nextPauseCheck = clock.Elapsed + PauseCheckEvery;
                 }
                 long length = f.Length;
                 DateTime mtime = f.LastWriteTimeUtc;
@@ -233,8 +257,17 @@ namespace RacingDesk.Data
                     summary.Laps += result.Sessions.Sum(s => s.Laps.Count);
                     summary.BytesRead += length;
                 }
+                catch (Exception ex) when (Unreached(ex))
+                {
+                    // Not reached (another program holds it, the drive went): that says nothing of the file, which is read
+                    // again at the next pass, as it always was.
+                    summary.FilesSkipped++;
+                    _log($"{f.Name} couldn't be opened ({ex.GetType().Name}: {ex.Message}); left for the next pass");
+                }
                 catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
+                    // Unreadable: kept as done at this length and time (WantsFile), so that it is not read again at every
+                    // pass — the watch's is every minute — but only once it has changed, or with --force.
                     summary.FilesFailed++;
                     _log($"skip {f.Name}: {ex.GetType().Name}: {ex.Message}");
                     _store.SaveIngestedFile(f.FullName, length, mtime, Array.Empty<SessionRecord>(), ex.GetType().Name + ": " + ex.Message);
