@@ -599,7 +599,7 @@ test('the iPad: told the setting by its server and following it; told a change w
     his.followMapZoom = 'closer';
     await expect.poll(() => page.evaluate(() => _settings.followMapZoom), { timeout: 10000 }).toBe('closer');
     const after = await hold(page, t.feed, 150);
-    expect(after.settled).toBeCloseTo(2 * mz.R_CLOSE, 0);
+    expect(after.settled).toBeCloseTo(2 * mz.R_CLOSE * mz.GLANCE_VIEW, 0);   // the glance layout's view is closer than the rig's
     expect(after.jumps).toEqual([]);
     // Closer at speed, his: down a ramp and up it again, the view opens out and closes in, and the road and the car are
     // drawn with it ("the iPad zoom map ... doesn't zoom at all").

@@ -509,8 +509,8 @@ test.describe('the flag is the background', () => {
     // Cleared, the frame goes too.
     await serve(page, RACE({ flag: 'none' }));
     await expect.poll(() => page.evaluate(() => document.body.dataset.flag), { timeout: 8000 }).toBe('none');
-    await page.waitForTimeout(500);
-    expect(await page.evaluate(() => getComputedStyle(document.body, '::after').opacity)).toBe('0');
+    // (a 0.35 s fade: polled, as a busy machine draws its frames late)
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::after').opacity), { timeout: 8000 }).toBe('0');
     // On the rig's own glance layout the flag is as it was: full strength in the gutters, and no frame.
     await page.evaluate(() => document.documentElement.classList.remove('rd-remote'));
     await serve(page, RACE({ flag: 'yellow' }));

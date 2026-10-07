@@ -513,7 +513,7 @@ namespace RacingDesk.Plugin
         // iPad view, OBS and the desk each ask, and the answer (the track outline alone is tens of kilobytes) was built
         // again for each. Written into buffers that are kept, so a build allocates next to nothing. The HTTP loop is one
         // thread, and these are its own. An answer older than AnswerMaxAge is built again even with no update between,
-        // so the hardware's and the ambient light's parts move on while the telemetry stands still.
+        // so the hardware's part moves on while the telemetry stands still.
         private int _frames;
         private int _answerFrame = -1;
         private readonly StringBuilder _answerText = new StringBuilder(64 * 1024);
