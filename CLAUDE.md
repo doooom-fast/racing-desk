@@ -909,8 +909,9 @@ npm run test:desk                   # desk.html over a mock host, headless, off-
 
 Build once with `npm run build`, then the app is `apps/overlay/dist/win-unpacked/Racing Desk.exe` — the Start menu and
 Desktop "Racing Desk" shortcuts point there; "shipping" is `git pull && npm run build`. It starts its own RacingDesk.Host
-(`modules/js/host-launcher.js`): beside SimHub on `:18889`/`:18890` with `--no-hardware` while SimHub holds `:8889`,
-on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\Racing Desk\host.log`.
+(`modules/js/host-launcher.js`): beside SimHub on `:18889`/`:18890` with `--no-hardware --beside-simhub` while SimHub holds
+`:8889` (the HUD reads SimHub's plugin, so that host builds no telemetry of its own: it records, ingests, follows the track's
+outline, puts each car's brakes and seat height back and answers the desk's data routes), on `:8889`/`:8890` otherwise, or it uses a host already running; the host's output goes to `%LOCALAPPDATA%\Racing Desk\host.log`.
 There is no console window. **Closing the desk window quits the app** (minimise it to keep the HUD while racing) — the
 HUD's window is hidden and Windows 11 tucks the tray icon behind its overflow arrow, so an app that outlived its window
 would run with nothing on screen. The tray's "Quit Racing Desk" quits too, and nothing else does. **Quitting the
@@ -980,7 +981,7 @@ to hold twelve from start to quit. It holds one, Ctrl+Shift+O (the desk); the HU
 in (`onInCar`) and let go when he gets out. In dev mode they are held throughout. (M, which reset the track map, is held
 by nothing: the map is the host's, from his own laps, and there is nothing to reset.)
 **A limit:** beside SimHub the HUD reads SimHub's plugin on `:8889`; if SimHub goes in mid-session the HUD is
-hidden, though the app's own host on `:18889` has the same telemetry. There is no falling back to it.
+hidden, and the app's own host on `:18889` builds no telemetry to fall back to (`--beside-simhub`).
 
 **The HUD is on the screen iRacing is on** (`modules/js/hud-display.js`, `tests/unit/hud-display.spec.mjs`). It used to
 be put on the primary screen, always, so it was on the wrong monitor whenever the primary was not the one the sim runs

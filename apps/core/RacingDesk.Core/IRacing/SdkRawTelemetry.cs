@@ -24,6 +24,26 @@ namespace RacingDesk.Plugin.IRacing
         public event Action Connected { add => _sdk.OnConnected += value; remove => _sdk.OnConnected -= value; }
         public event Action Disconnected { add => _sdk.OnDisconnected += value; remove => _sdk.OnDisconnected -= value; }
 
+        /// <summary>
+        /// Raised on the SDK's own thread each time it has parsed the sim's session info again, with the session as
+        /// <see cref="SessionInfo"/> gives it (every other driver renamed). The host's one reader of the sim hands the
+        /// runtime's SDK bridge its facts this way, so that the YAML is parsed once and not by a second reader.
+        /// </summary>
+        public event Action<IRacingSdkSessionInfo> SessionInfoRead;
+
+        public SdkRawTelemetry()
+        {
+            _sdk.OnSessionInfo += () =>
+            {
+                var handlers = SessionInfoRead;
+                if (handlers == null || !_sdk.IsConnected) return;
+                // Not SessionInfo, which waits for the telemetry's variables too: the session can be parsed before them.
+                var data = _sdk.Data;
+                var si = _naming.Named(data.SessionInfo, data.SessionInfoUpdate);
+                if (si != null) handlers(si);
+            };
+        }
+
         /// <summary>Starts reading the sim, and returns at once: see <see cref="SdkStart"/>.</summary>
         public void Start() => SdkStart.Start(_sdk);
         public void Stop() { if (_sdk.IsStarted) _sdk.Stop(); }

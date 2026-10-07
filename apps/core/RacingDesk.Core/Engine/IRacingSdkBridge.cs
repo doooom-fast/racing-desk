@@ -250,6 +250,29 @@ namespace RacingDesk.Plugin.Engine
         }
 
         /// <summary>
+        /// Takes its facts from the host's own reader of the sim instead of a reader of its own (<see cref="Start"/> is not
+        /// called): connected and gone as that reader is, and the session as it parses it, every other driver renamed. One
+        /// reader of iRacing in the host, and the session YAML parsed once — at 63 cars it is some 30 ms and 13 MB a time.
+        /// </summary>
+        public void Follow(SdkRawTelemetry raw)
+        {
+            if (raw == null) throw new ArgumentNullException(nameof(raw));
+            raw.Connected += OnConnected;
+            raw.Disconnected += OnDisconnected;
+            raw.SessionInfoRead += si =>
+            {
+                try
+                {
+                    ParseSessionInfo(si);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("[RacingDesk] Error parsing session info: " + ex.Message);
+                }
+            };
+        }
+
+        /// <summary>
         /// Stop the SDK background threads. Call from Plugin.End().
         /// </summary>
         public void Stop()

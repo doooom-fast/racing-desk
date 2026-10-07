@@ -786,6 +786,16 @@ namespace RacingDesk.Plugin.Engine
         }
 
         /// <summary>
+        /// One frame of the car list's check and nothing else of the capture, for a host that builds no telemetry of its own
+        /// (RacingDesk.Host beside SimHub, whose plugin serves the HUD): what the check says of the car is still said, and kept.
+        /// </summary>
+        public static void FollowCar(ITelemetrySource pm)
+        {
+            if (pm == null || !pm.GameRunning) return;
+            CarControls(pm, InCar(pm));
+        }
+
+        /// <summary>
         /// The controls of the car the driver is in. Which car, and whether its setup is fixed, is the source's
         /// to say where it can (the host's own reader) and the SDK bridge's where it cannot (SimHub).
         /// </summary>

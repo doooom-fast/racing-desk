@@ -123,6 +123,17 @@ namespace RacingDesk.Plugin.IRacing
         /// </summary>
         public string OpponentName(object opponent) => (opponent as OpponentData)?.Name;
 
+        /// <summary>
+        /// Which car the driver is in, from the session, and nothing else: for a host that only follows the car (the car, the
+        /// layout and the sim's own variables are read as they are asked) and builds no telemetry, so no normalized data and
+        /// no opponents. <see cref="Update"/> does this too.
+        /// </summary>
+        public void UpdateSession()
+        {
+            var si = GameRunning ? _raw.SessionInfo : null;
+            if (si != null) IndexDrivers(si);
+        }
+
         /// <summary>Recompute normalized data and derived values for the current frame.</summary>
         public void Update()
         {

@@ -44,22 +44,22 @@ test.describe('classifyStatus', () => {
 });
 
 test.describe('choosePorts and hostArgs', () => {
-  test('beside SimHub: 18889/18890 and no hardware', () => {
+  test('beside SimHub: 18889/18890, no hardware and no telemetry of its own', () => {
     const ports = choosePorts('other');
-    expect(ports).toEqual({ http: 18889, ws: 18890, noHardware: true });
-    expect(hostArgs(ports)).toEqual(['--http-port', '18889', '--ws-port', '18890', '--no-hardware']);
+    expect(ports).toEqual({ http: 18889, ws: 18890, noHardware: true, besideSimHub: true });
+    expect(hostArgs(ports)).toEqual(['--http-port', '18889', '--ws-port', '18890', '--no-hardware', '--beside-simhub']);
   });
 
   test('otherwise the usual ports, with hardware', () => {
     for (const what of ['free', 'host']) {
-      expect(choosePorts(what), what).toEqual({ http: 8889, ws: 8890, noHardware: false });
+      expect(choosePorts(what), what).toEqual({ http: 8889, ws: 8890, noHardware: false, besideSimHub: false });
     }
     expect(hostArgs(choosePorts('free'))).toEqual(['--http-port', '8889', '--ws-port', '8890']);
   });
 
   test('the host is told which process to outlive by no more than a moment', () => {
     expect(hostArgs(choosePorts('free'), { parentPid: 1234 })).toEqual(['--http-port', '8889', '--ws-port', '8890', '--parent-pid', '1234']);
-    expect(hostArgs(choosePorts('other'), { parentPid: 1234 })).toEqual(['--http-port', '18889', '--ws-port', '18890', '--no-hardware', '--parent-pid', '1234']);
+    expect(hostArgs(choosePorts('other'), { parentPid: 1234 })).toEqual(['--http-port', '18889', '--ws-port', '18890', '--no-hardware', '--beside-simhub', '--parent-pid', '1234']);
   });
 });
 
@@ -138,7 +138,7 @@ test.describe('startHost', () => {
     expect(result.url).toBe('http://localhost:18889');
     expect(result.reason).toMatch(/^SimHub holds :8889, host on :18889 without hardware \(pid 4242, log /);
     expect(f.probed.map((u) => new URL(u).port)).toEqual(['8889', '18889']);
-    expect(f.spawned[0].args).toEqual(['--http-port', '18889', '--ws-port', '18890', '--no-hardware', '--parent-pid', '777']);
+    expect(f.spawned[0].args).toEqual(['--http-port', '18889', '--ws-port', '18890', '--no-hardware', '--beside-simhub', '--parent-pid', '777']);
   });
 
   test('a host already running is used, not duplicated', async () => {

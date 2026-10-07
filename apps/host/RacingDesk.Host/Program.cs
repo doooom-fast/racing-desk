@@ -51,6 +51,9 @@ Serve options:
                        (always off in --ibt mode)
   --loopback-only      listen on 127.0.0.1 and no other address (probes and replays that nothing on the
                        network has any business reaching); the default is every address, for the iPad view
+  --beside-simhub      live mode: SimHub's plugin serves the HUD on :8889 (the app says so when it starts this
+                       host on :18889), so build no telemetry of its own: record, ingest, follow the track's
+                       outline and put each car's brakes and seat height back, and no more
   --parent-pid <n>     stop when that process exits (the app that started this host)
 
 Data options:
@@ -187,7 +190,8 @@ Data options:
                 WsPort = o.WsPort,
                 LoopbackOnly = o.LoopbackOnly,
                 EnableHardware = !replay && !o.NoHardware,
-                EnableSdkBridge = !replay,
+                // Never a reader of the sim of its own: live, RunLive feeds the bridge from the host's one reader.
+                EnableSdkBridge = false,
                 Outlines = new LocalOutlineSource(outlines.ForTrack),
                 Host = "host",
                 ExtraRoutes = api.TryHandle,
@@ -201,10 +205,19 @@ Data options:
             new HostStop(stop, grace, m => Log.Info("[RacingDesk.Host] " + m), m => Log.Warn("[RacingDesk.Host] " + m), end, runtime.StopListening);
 
         // Live: tick on every SDK telemetry frame while connected; when iRacing isn't running, keep ticking at
-        // ~60 Hz with an empty frame, as SimHub does, so idle and demo state stay current.
+        // ~60 Hz with an empty frame, as SimHub does, so idle and demo state stay current. Beside SimHub (--beside-simhub)
+        // there is no ticking at all: its plugin serves the HUD, and this host only follows the car.
         private static void RunLive(HostOptions o, RacingDeskRuntime runtime, RacingDeskStore store, TrackOutlines outlines, ManualResetEventSlim stop, LocalDataApi api = null, string dataDir = null)
         {
+            // The one reader of the sim in the host: the runtime's SDK bridge is fed from it rather than reading the sim again.
             using var raw = new SdkRawTelemetry();
+            // The HUD reads :8889, and beside SimHub that is SimHub's plugin, so this host's telemetry (the snapshot, the
+            // leaderboard, the WebSocket frame, the engines) would be built sixty times a second for nobody. What the host is
+            // for goes on: recording, ingest, the track's outline, putting each car's brakes and seat height back, the car
+            // list's check, and the data routes the desk reads.
+            bool telemetry = !o.BesideSimHub;
+            if (telemetry) runtime.FollowSdk(raw);
+            else Log.Info("[RacingDesk.Host] beside SimHub: its plugin serves the HUD, so this host builds no telemetry of its own");
             // The replay route drives the sim's replay and cameras through this reader, for the app's TV shots; a file
             // replay (PlayIbt) hands it nothing, and the route says so.
             if (api != null) api.Replay.Replay = raw;
@@ -283,8 +296,7 @@ Data options:
             {
                 lock (gate)
                 {
-                    source.Update();
-                    runtime.Tick(source);
+                    Frame(source, runtime, telemetry);
                     recorder?.Feed(raw);
                 }
                 // What follows the car is a nicety. Nothing thrown by it may end the telemetry, which an
@@ -338,11 +350,14 @@ Data options:
                 ingest.Start();
             }
 
-            while (!stop.Wait(16))
-            {
-                if (raw.IsConnected) continue;
-                lock (gate) { runtime.Tick(source); }
-            }
+            if (telemetry)
+                while (!stop.Wait(16))
+                {
+                    if (raw.IsConnected) continue;
+                    lock (gate) { runtime.Tick(source); }
+                }
+            else
+                stop.Wait();
             raw.Stop();
             if (keepRemark != null) follower.Said -= keepRemark;
             lock (gate) recorder?.Flush();
@@ -351,6 +366,26 @@ Data options:
             pedals?.SimGone();
             // What that queued for putting the brakes back is given a moment, and no more: the stop is bounded (HostStop).
             try { restore?.Settled().Wait(TimeSpan.FromSeconds(1)); } catch (AggregateException) { }
+        }
+
+        /// <summary>
+        /// What the telemetry thread makes of one frame of the sim. With <paramref name="telemetry"/>, the runtime's whole frame
+        /// (the snapshot, the leaderboard, the WebSocket frame, the engines), which the HUD reads from a host on :8889. Without
+        /// it, beside SimHub: which car he is in, and the car list's check of it (the desk's remarks); what follows the car
+        /// reads the sim's own variables as it asks for them, and nothing is built for the HUD.
+        /// </summary>
+        internal static void Frame(IRacingTelemetrySource source, RacingDeskRuntime runtime, bool telemetry)
+        {
+            if (telemetry)
+            {
+                source.Update();
+                runtime.Tick(source);
+            }
+            else
+            {
+                source.UpdateSession();
+                TelemetryCapture.FollowCar(source);
+            }
         }
 
         /// <summary>Where the frame has the driver, for putting the brakes back: the sim's own variables, read once a frame.</summary>
@@ -619,6 +654,7 @@ Data options:
         public int WsPort = 8890;
         public bool NoHardware;
         public bool LoopbackOnly;
+        public bool BesideSimHub;
         public int ParentPid;
         public string DataDir;
         public double ExitAfterSeconds;
@@ -678,6 +714,7 @@ Data options:
                     case "--ws-port": o.WsPort = (int)Num(); break;
                     case "--no-hardware": o.NoHardware = true; break;
                     case "--loopback-only": o.LoopbackOnly = true; break;
+                    case "--beside-simhub": o.BesideSimHub = true; break;
                     case "--parent-pid": o.ParentPid = (int)Num(); break;
                     case "--data-dir": o.DataDir = Next(); break;
                     case "--exit-after": o.ExitAfterSeconds = Num(); break;

@@ -1,7 +1,8 @@
 // Starts RacingDesk.Host beside the overlay so the app is one double-click: probe :8889, decide where the host
 // goes, spawn it with no console window, and hand main.js the URL the desk should read. The port rule:
-// SimHub's plugin holds :8889 while SimHub runs, so beside it the host serves :18889/:18890 and leaves the
-// Moza serial port alone; otherwise it takes :8889/:8890 itself. The host's stdout goes to
+// SimHub's plugin holds :8889 while SimHub runs, so beside it the host serves :18889/:18890, leaves the
+// Moza serial port alone and builds no telemetry of its own (--beside-simhub: the HUD reads SimHub's plugin);
+// otherwise it takes :8889/:8890 itself. The host's stdout goes to
 // %LOCALAPPDATA%\RacingDesk\host.log, since there is no window to read it in, and every start attempt writes
 // its one-line outcome there too — the packaged app has nowhere else a person can read it.
 //
@@ -38,13 +39,14 @@ function classifyStatus(probeResult) {
 
 function choosePorts(what8889Is) {
   return what8889Is === 'other'
-    ? { ...BESIDE_SIMHUB_PORTS, noHardware: true }
-    : { ...HOST_PORTS, noHardware: false };
+    ? { ...BESIDE_SIMHUB_PORTS, noHardware: true, besideSimHub: true }
+    : { ...HOST_PORTS, noHardware: false, besideSimHub: false };
 }
 
 function hostArgs(ports, { parentPid } = {}) {
   const args = ['--http-port', String(ports.http), '--ws-port', String(ports.ws)];
   if (ports.noHardware) args.push('--no-hardware');
+  if (ports.besideSimHub) args.push('--beside-simhub');
   if (parentPid) args.push('--parent-pid', String(parentPid));
   return args;
 }

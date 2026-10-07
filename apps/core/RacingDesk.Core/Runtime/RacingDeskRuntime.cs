@@ -46,7 +46,10 @@ namespace RacingDesk.Plugin
             /// the rig's hardware (e.g. replaying an .ibt beside a running SimHub).
             /// </summary>
             public bool EnableHardware { get; set; } = true;
-            /// <summary>The direct iRacing SDK bridge used for iRating / SR / delta. Off when replaying a file.</summary>
+            /// <summary>
+            /// The direct iRacing SDK bridge used for iRating / SR / delta, reading the sim itself (the SimHub plugin). Off when
+            /// replaying a file, and in RacingDesk.Host, whose own reader feeds the bridge (<see cref="FollowSdk"/>).
+            /// </summary>
             public bool EnableSdkBridge { get; set; } = true;
             /// <summary>
             /// Extra HTTP routes a host serves under the contract prefix (RacingDesk.Host: the local data API). Return true
@@ -244,6 +247,12 @@ namespace RacingDesk.Plugin
                 _wsPublisher = null;
             }
         }
+
+        /// <summary>
+        /// The SDK bridge's facts (iRating, the field's ratings, the session's options) from the host's own reader of the sim,
+        /// for a runtime started with <see cref="Options.EnableSdkBridge"/> off: one reader of iRacing, not two.
+        /// </summary>
+        public void FollowSdk(IRacing.SdkRawTelemetry raw) => _sdkBridge.Follow(raw);
 
         /// <summary>Advances the runtime by one telemetry frame read from <paramref name="source"/>.</summary>
         public void Tick(ITelemetrySource source)
