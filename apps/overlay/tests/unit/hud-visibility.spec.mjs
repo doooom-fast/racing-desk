@@ -398,11 +398,27 @@ test.describe('quitting the overlay', () => {
     expect(win.calls).toEqual([]);
   });
 
-  test('the page goes on reading, so the HUD is whole the moment it is switched back on', async () => {
-    const { win, hud, getIn } = rig();
-    hud.putAway();
+  test('put away, the page neither reads nor draws; switched back on, it is told to before the window is shown', async () => {
+    // It went on reading thirty times a second and drawing into the hidden window, effects and all, for as long as the
+    // HUD was away (a race of it, if that was why he put it away).
+    const { win, hud, getIn, pass } = rig();
     await getIn();
     expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', true]);
+    hud.putAway();
+    expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', false]);
+    await pass(5000);
+    expect(win.sent.filter(([, active]) => active === true)).toHaveLength(1);
+    expect(hud.pageActive()).toBe(false);
+    const before = win.sent.length;
+    const order = [];
+    const send = win.webContents.send;
+    win.webContents.send = (...args) => { order.push('told'); send(...args); };
+    const showInactive = win.showInactive;
+    win.showInactive = () => { order.push('shown'); showInactive(); };
+    expect(hud.toggle()).toEqual({ ok: true, visible: true, hudOff: false });
+    expect(win.sent.slice(before)).toEqual([['in-race-state', true]]);
+    expect(order).toEqual(['told', 'shown']);
+    expect(hud.pageActive()).toBe(true);
   });
 
   test('in dev mode the window is hidden, and that is all', () => {
@@ -436,12 +452,20 @@ test.describe('the page', () => {
     expect(win.sent).toEqual([['in-race-state', false], ['in-race-state', true], ['in-race-state', false]]);
   });
 
-  test('is told whatever the switch says: switched off, the HUD goes on reading', async () => {
-    const { win, hud, getIn } = rig();
+  test('is told to read and draw only in the car with the HUD on: switched off, it is told it is not, in the car or out', async () => {
+    const { win, hud, getIn, getOut } = rig();
     hud.toggle({ anywhere: true });
     await getIn();
     expect(win.isVisible()).toBe(false);
-    expect(win.sent[win.sent.length - 1]).toEqual(['in-race-state', true]);
+    expect(win.sent).toEqual([['in-race-state', false]]);
+    expect(hud.pageActive()).toBe(false);
+    expect(hud.toggle()).toEqual({ ok: true, visible: true, hudOff: false });
+    expect(win.sent).toEqual([['in-race-state', false], ['in-race-state', true]]);
+    expect(hud.toggle()).toEqual({ ok: true, visible: false, hudOff: true });
+    expect(win.sent).toEqual([['in-race-state', false], ['in-race-state', true], ['in-race-state', false]]);
+    await getOut();
+    await getIn();
+    expect(win.sent).toHaveLength(3);
   });
 
   test('not loaded yet, he is already in the car: shown once it has loaded, and told then', async () => {
@@ -1031,5 +1055,41 @@ test.describe('fetchPayload', () => {
 
   test('null when the request cannot even be made', async () => {
     expect(await fetchPayload('nowhere', { get: () => { throw new Error('Invalid URL'); } })).toBeNull();
+  });
+});
+
+test.describe('on top of the sim', () => {
+  // main.js asks (hud.raise) when the focus leaves one of the app's own windows for the sim. Nothing puts it down and up
+  // on a timer any more (hud-main-wiring.spec.mjs holds main.js to that).
+  test('on screen, it is put down and back on top once, and neither shown, focused nor moved', async () => {
+    const { win, hud, getIn } = rig();
+    await getIn();
+    win.calls.length = 0;
+    expect(hud.raise()).toBe(true);
+    expect(win.calls).toEqual([['setAlwaysOnTop', false], ['setAlwaysOnTop', true, 'screen-saver']]);
+  });
+
+  test('hidden — out of the car, switched off — or in dev mode, or with no window, it is left as it is', async () => {
+    const out = rig();
+    expect(out.hud.raise()).toBe(false);
+    expect(out.win.calls).toEqual([]);
+    const off = rig();
+    await off.getIn();
+    off.hud.putAway();
+    off.win.calls.length = 0;
+    expect(off.hud.raise()).toBe(false);
+    expect(off.win.calls).toEqual([]);
+    const dev = rig({ keepVisible: true });
+    dev.win.visible = true;
+    expect(dev.hud.raise()).toBe(false);
+    expect(dev.win.calls).toEqual([]);
+    expect(rig({ window: null, loaded: false }).hud.raise()).toBe(false);
+  });
+
+  test('shown, it is put on top as it is revealed, and only then', async () => {
+    const { win, getIn, pass } = rig();
+    await getIn();
+    await pass(10000);
+    expect(win.calls.filter((c) => Array.isArray(c) && c[0] === 'setAlwaysOnTop')).toEqual([['setAlwaysOnTop', true, 'screen-saver']]);
   });
 });

@@ -440,8 +440,9 @@ const restoreApi = restoreApiMod.createRestoreApi({ host: () => localHostUrl() }
 // The window is made hidden and modules/js/hud-visibility.js is the only thing that reveals it: while the
 // telemetry says he is in the car (modules/js/in-car.js), he has not switched the HUD off, and the page is
 // loaded. It is this process that asks the telemetry — once a second, twice in the car — and tells the page
-// (in-race-state); out of the car the page neither polls nor draws, so at the sim's menus, in the garage, in a
-// replay, with the sim closed, the HUD costs a request a second and nothing is ever quit to get it off the screen.
+// (in-race-state); out of the car, and with the HUD switched off or put away, the page neither polls nor draws, so at
+// the sim's menus, in the garage, in a replay, with the sim closed, the HUD costs a request a second and nothing is
+// ever quit to get it off the screen.
 // The garage and the replay are told from the car by the telemetry's own IsOnTrack, which the app's host sends;
 // a source that sends none (a SimHub plugin from before 2026-09-29) has a session under way taken for in the car.
 // The driver's own switch is kept until the app is quit: off stays off when he gets in, on shows nothing while
@@ -1018,19 +1019,13 @@ async function createOverlay() {
     hudScreen.refresh();
   });
 
-  // ── Windows: periodically re-assert always-on-top ──────────
-  // DirectX fullscreen exclusive mode can steal z-order even from
-  // screen-saver level windows. Re-assert every 5 seconds — but only
-  // while the overlay is actually shown (in-car). When hidden there is
-  // nothing to keep on top, and skipping the churn keeps us dormant.
-  if (process.platform === 'win32') {
-    setInterval(() => {
-      if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
-        overlayWindow.setAlwaysOnTop(false);
-        overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-      }
-    }, 5000);
-  }
+  // ── On top of the sim ──
+  // The HUD is put on top of every window as it is shown (hud-visibility.js, reveal), and again whenever the focus leaves
+  // one of the app's own windows — the desk — for the sim, the moment the sim's window could come up over it (hud.raise).
+  // It was put down and back up every five seconds for as long as it was on screen (2026-03-17: "DirectX fullscreen
+  // exclusive mode can steal z-order even from screen-saver level windows"), which is two changes of the window order on
+  // the sim's screen every five seconds of a race; what it was for is the sim taking the front, and that is when it is done.
+  app.on('browser-window-blur', () => { hud.raise(); });
 
   // ── Crash recovery ──────────────────────────────────────────
   // The HUD's keeper loads the page again (hud-visibility.js pageGone): for every reason but a clean exit, two
@@ -1392,9 +1387,10 @@ function installStreamDeckPlugin() {
 // ── IPC: In the car or not ──
 // Decided here (hud, above) and sent to the HUD's page as in-race-state on each change, and once more whenever
 // the page has been loaded. A page asks for it as it starts, in case that was sent before it was listening.
-// Nothing a page says shows or hides the window.
+// Nothing a page says shows or hides the window. What the page is told is whether to read and draw: in the car with
+// the HUD switched on (hud.pageActive).
 ipcMain.handle('get-in-race-state', async () => {
-  return hud.state().inCar;
+  return hud.pageActive();
 });
 
 // ── IPC: Recording, for the desk's Recording card and masthead ──

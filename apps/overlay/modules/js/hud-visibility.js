@@ -6,7 +6,8 @@
 // running the frames and timers of a window nobody could see, and on the page not having crashed or been
 // reloaded; and the timer that was to hide it again was re-armed by every frame, so once shown it stayed on
 // screen until the app was quit. Here the process that owns the window asks the telemetry itself — once a second,
-// twice in the car — and tells the page (in-race-state). Out of the car the page does nothing at all.
+// twice in the car — and tells the page (in-race-state). Out of the car, and with the HUD switched off or put away, the
+// page does nothing at all.
 //
 // A page that has died is this module's to bring back as well: main.js says what became of the page (loading,
 // loaded, failed, its process gone) and is asked to load it again.
@@ -162,12 +163,14 @@ function createHudVisibility({
     win.setFocusable(false);
   }
 
+  // The page is told whether to read and draw (pageActive): in the car with the HUD on. It went on reading at thirty a
+  // second and drawing, effects and all, into the hidden window while the HUD was switched off.
   function tellPage(win) {
-    const inCar = signal.inCar();
-    if (!pageReady || toldPage === inCar) return;
+    const active = pageActive();
+    if (!pageReady || toldPage === active) return;
     try {
-      win.webContents.send('in-race-state', inCar);
-      toldPage = inCar;
+      win.webContents.send('in-race-state', active);
+      toldPage = active;
     } catch (e) {
       log(`[RacingDesk] HUD: the page could not be told (${e.message})`);
     }
@@ -371,12 +374,34 @@ function createHudVisibility({
     }
   }
 
+  // The window put back at the top of the windows that are always on top, once, if it is on screen: main.js asks when the
+  // focus leaves one of the app's own windows for the sim. Down and up again, as it was every five seconds (main.js, "On
+  // top of the sim"): a window already on top is not moved by being told so. Never shown, focused or moved by it.
+  function raise() {
+    const win = liveWindow();
+    if (!win || keepVisible || !win.isVisible()) return false;
+    try {
+      win.setAlwaysOnTop(false);
+      win.setAlwaysOnTop(true, 'screen-saver');
+    } catch (e) {
+      log(`[RacingDesk] HUD: could not be put on top (${e.message})`);
+      return false;
+    }
+    return true;
+  }
+
+  // Whether the page is to read and draw: while he is in the car with the HUD switched on. Switched off or put away, its
+  // window is hidden and the page does neither; switched back on, it reads at once and is shown (tellPage, apply).
+  function pageActive() {
+    return signal.inCar() && !switchedOff;
+  }
+
   function state() {
     const win = liveWindow();
     return { inCar: signal.inCar(), hudOff: switchedOff, pageReady, visible: !!win && win.isVisible() };
   }
 
-  return { start, stop, poll, toggle, putAway, pageLoading, pageLoaded, pageFailed, pageGone, state };
+  return { start, stop, poll, toggle, putAway, raise, pageActive, pageLoading, pageLoaded, pageFailed, pageGone, state };
 }
 
 module.exports = {

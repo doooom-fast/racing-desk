@@ -126,7 +126,31 @@ test.describe('the keys', () => {
   });
 });
 
+test.describe('on top of the sim', () => {
+  test('no timer puts the HUD down and up again: it is put on top as it is shown, and when the focus leaves the desk for the sim', () => {
+    // Every five seconds of a race it was setAlwaysOnTop(false) and back to true: two changes of the window order on the
+    // sim's screen. hud-visibility.js puts it on top as it reveals it, and hud.raise once when asked.
+    expect(calls(/\boverlayWindow\s*\??\.\s*setAlwaysOnTop\s*\(\s*false\b/g)).toEqual([]);
+    const timers = [...code.matchAll(/\bset(?:Interval|Timeout)\s*\(/g)].map((m) => {
+      let depth = 0;
+      for (let i = code.indexOf('(', m.index); i < code.length; i++) {
+        if (code[i] === '(') depth++;
+        if (code[i] === ')' && --depth === 0) return code.slice(m.index, i + 1);
+      }
+      return code.slice(m.index);
+    });
+    expect(timers.length).toBeGreaterThan(0);
+    expect(timers.filter((t) => /setAlwaysOnTop|moveTop|hud\.raise/.test(t))).toEqual([]);
+    expect(code).toMatch(/app\.on\('browser-window-blur',\s*\(\)\s*=>\s*\{\s*hud\.raise\(\);\s*\}\);/);
+    expect(calls(/\bhud\.raise\(/g)).toHaveLength(1);
+  });
+});
+
 test.describe('the page', () => {
+  test('is told to read and draw only while he is in the car with the HUD on, when it asks as much as when it is told', () => {
+    expect(code).toMatch(/ipcMain\.handle\('get-in-race-state',\s*async\s*\(\)\s*=>\s*\{\s*return hud\.pageActive\(\);\s*\}\);/);
+  });
+
   test('what becomes of it is said to hud-visibility, and nothing else decides to load it again after a crash', () => {
     expect(code).toMatch(/'did-start-navigation',\s*\(details\)\s*=>\s*\{\s*if\s*\(details\.isMainFrame\s*&&\s*!details\.isSameDocument\)\s*hud\.pageLoading\(\);/);
     expect(code).toMatch(/'did-finish-load',\s*\(\)\s*=>\s*\{\s*hud\.pageLoaded\(\);\s*\}/);
@@ -311,7 +335,7 @@ test.describe('recording', () => {
     expect(code).toMatch(/notice:\s*\(text\)\s*=>\s*\{\s*if \(overlayWindow && !overlayWindow\.isDestroyed\(\)\) overlayWindow\.webContents\.send\('hud-notice', text\);\s*\},/);
   });
 
-  test('OBS is started by nothing but a press: never at start unless Record by itself is on, never from auto-record's own start or a key', () => {
+  test("OBS is started by nothing but a press: never at start unless Record by itself is on, never from auto-record's own start or a key", () => {
     const starts = calls(/startObsIfClosed\(\)/g);
     // Two callers: Open OBS (a press) and the app's start behind the switch (startObsWithApp, below); and the keeper's
     // startObs (a press, out of the car, by its own rule), handed the function itself.
