@@ -129,7 +129,10 @@ swallowed): the ambient capture rect, the demo restart and pedal-profile switchi
 and the only trace is one line in SimHub's log for each (`?action=setrect refused: …`). So install the plugin from
 this change only with, or after, an exe built from it; an older plugin with the newer exe works. **Left reachable from
 the network, on purpose:** the telemetry (`GET /racing-desk/` with no action: read-only, and the iPad's path) and the
-`:8890` feed (it reads nothing from its clients).
+`:8890` feed (it reads nothing from its clients). **What they cost:** the telemetry answer is built once for each data
+update into buffers that are kept, and every request in that update (the HUD, the iPad view, OBS, the desk) is served
+the same bytes (`RacingDeskRuntime.TelemetryAnswer`; built again after 500 ms with no update); the `:8890` frame is
+built and packed only while a client is connected (`WsTelemetryPublisher.HasClients`).
 
 **The host's data reads are for programs on this machine too, by a rule of their own** (asked for and approved, 2026-10-01: they
 carry the driver's customer id — `sessions`, `session` — and the store's path — `status` — and they were open to any
@@ -216,7 +219,11 @@ data?… get rid of all of it").
   crowd, updatedAt, points: [[x, z, pct], …] }` (metres east and south, so the map is north-up), 404 while there is
   none, 400 without an id. The plugin reads no file of his and no store. Asked on a pool thread, never SimHub's
   `DataUpdate` thread; again every 5 s while there is nothing (and while what there is is SimHub's shared map, below)
-  and every 60 s once there is his own, swapping the outline when it has gained laps. The iPad's proxy serves
+  and every 60 s once there is his own, swapping the outline when it has gained laps. With the app closed nobody answers:
+  the plugin first looks whether anything listens at the host's port (`HostOutlineSource.Reachable`, Windows' table of
+  listening ports, which throws nothing for SimHub to log with its stack) and asks nobody if not, and each answer in a row
+  that found no host puts the next ask off twice as long, 5 s up to 2 min (`TrackMapProvider.NoHostBackOff`); it is said
+  in the log once. The iPad's proxy serves
   `/racing-desk/` alone and refuses queries, so the route is never reachable from the
   network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was — but for
   the numbers of the path and of the other cars' places, written to a hundredth of a unit since 2026-10-02
@@ -751,7 +758,14 @@ licence stay what they are. No route sends a customer id (the sessions' `driver_
   would be alone — and a driver who joined after the field was named, or a path that began later, can be served in a
   different order than the one that named the field first. When a session has more drivers than names the next gets a
   numbered form of the one he prefers (`H. Incandenza II`), never one in use, so no two drivers in a session share a
-  name. Nobody can turn a name back into an id without the salt.
+  name. Nobody can turn a name back into an id without the salt. **What it costs, and where**: a driver's ranking is
+  one HMAC for each name of the list (336), tens of milliseconds for a new field of 60. The book keeps each key's ranking
+  and priority for as long as its salt is the same (up to `PseudonymBook.KeptKeysLimit` keys), so the next server with
+  the same drivers, or a late joiner, costs lookups; a field is hashed before any lock is taken, with one HMAC for the
+  batch (`PseudonymBook.Prepare`), and the plugin's bridge names it on the SDK's thread into maps of its own and swaps
+  them in under the lock SimHub's data loop asks names under, so a frame never waits on the hashing. An update whose
+  `DriverInfo` text and session are what the field was last named from is not named again. The names are the same as
+  before all this, to the letter (`FieldNamingCostTests` names fields of 60 by both).
 - **The demo's rivals are characters too** (`Names/DemoNames.cs`); the fixtures and tests use characters or a few made-up
   names, and `NoRealNamesInFixturesTests` scans the tests, fixtures and sources for a driver-shaped string that is neither.
   The tests run with a book and salt of their own (`TestNames`), so none reads or writes the rig's salt. The full chain,

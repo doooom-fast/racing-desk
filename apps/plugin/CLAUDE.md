@@ -16,7 +16,15 @@ The plugin is **distributed separately** from the The Racing Desk Windows instal
 - **iRacing SDK shared-memory bridge** via `IRacingSdkBridge.cs`
 - **Direct iRacing API client** via `IRacingDataClient.cs` — authenticates against `members-ng.iracing.com/auth` with stored local credentials to fetch live iRating + Safety Rating
 - **Anthropic prompt fragments** — 240+ pre-generated Haiku-4.5 commentary fragments for offline use, **plus** live API hooks for the overlay's race-coach (the overlay handles the API call, not this plugin)
-- **MozaSerialManager** — direct serial control of Moza wheels for force-feedback events triggered by telemetry
+- **MozaSerialManager** — direct serial control of Moza wheels for force-feedback events triggered by telemetry. It looks
+  for the ports never while MOZA Pit House runs (process `MOZA Pit House`; it holds the base's ports, on the rig all day,
+  and is looked at once a minute while it does), and otherwise only at the start, when the list of COM ports changes, when
+  Pit House quits, when a device drops and on `mozaReconnect` — never on a timer. It opens, checks or writes to a port
+  only when Windows describes it as Moza's or its USB vendor id is Moza's (`346E`); a Valve receiver or an Arduino is
+  never touched. (The diagnostic route's `probe=1`, asked by hand, still writes to the others.)
+- **SimHub's opponents** are read by GameReaderCommon's own names: `IRacing_IRating`, `GaptoPlayer`, `IsCarInPit`,
+  `IsCarInPitLane` (`SimHubOpponentTests` reads them from SimHub's installed assembly); the host's opponents keep
+  `IRating`, `GapToPlayer`, `IsInPit`, read after them.
 
 ## What it exposes
 
