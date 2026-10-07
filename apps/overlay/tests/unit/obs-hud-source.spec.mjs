@@ -91,7 +91,7 @@ test('switched on: one browser source, in every scene just above the game video 
     // One input, made once, with the page's address and the HUD's size, as a browser source that keeps its page.
     expect(requests('CreateInput')).toHaveLength(1);
     expect(requests('CreateInput')[0].data).toMatchObject({ sceneName: 'Large Video', inputName: INPUT_NAME, inputKind: 'browser_source', sceneItemEnabled: true });
-    expect(requests('CreateInput')[0].data.inputSettings).toEqual({ url: 'http://127.0.0.1:9091/obs', width: 3440, height: 1440, fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false });
+    expect(requests('CreateInput')[0].data.inputSettings).toEqual({ url: 'http://127.0.0.1:9091/obs', width: 3440, height: 1440, fps_custom: true, fps: 30, shutdown: false, restart_when_active: false, reroute_audio: false });
     expect(server.state.inputs.filter((i) => i.inputName === INPUT_NAME)).toHaveLength(1);
     // The other scenes got an item of the same input (CreateSceneItem), not a second input.
     expect(requests('CreateSceneItem').map((q) => q.data.sceneName).sort()).toEqual(['2up', 'Small Video']);
@@ -431,7 +431,7 @@ test('the iPad dashboard: the source is the /obs-ipad page at 1180 by 820, put i
     expect(answer.did).toBe('The iPad dashboard is a browser source in 3 of your scenes, in its corner over the game.');
     expect(IPAD_SOURCE).toEqual({ width: 1180, height: 820 });
     expect(IPAD_PLACE).toEqual({ height: 0.5, inset: 0.02 });
-    expect(requests('CreateInput')[0].data.inputSettings).toEqual({ url: URLS.ipad, width: 1180, height: 820, fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false });
+    expect(requests('CreateInput')[0].data.inputSettings).toEqual({ url: URLS.ipad, width: 1180, height: 820, fps_custom: true, fps: 30, shutdown: false, restart_when_active: false, reroute_audio: false });
     // Above the game, below the facecam, as the rig HUD is.
     for (const scene of ALL) expect(names(scene), scene).toEqual(['game video', INPUT_NAME, 'Video Capture Device']);
     // In the corner, scaled inside bounds that keep the page's shape: 720 high by 1036 wide on the 1440 canvas, 29 px in
@@ -470,7 +470,7 @@ test('the iPad dashboard: the source is the /obs-ipad page at 1180 by 820, put i
     expect(requests('SetSceneItemIndex')).toHaveLength(0);
     // The address (and nothing of the size) kept current, then the size to his box: the page loaded afresh at it.
     expect(requests('SetInputSettings').map((q) => q.data.inputSettings)).toEqual([
-      { url: URLS.ipad, fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false },
+      { url: URLS.ipad, fps_custom: true, fps: 30, shutdown: false, restart_when_active: false, reroute_audio: false },
       { width: 1200, height: 834 },
     ]);
     expect(inputNow()).toMatchObject({ url: URLS.ipad, width: 1200, height: 834 });
@@ -813,4 +813,29 @@ test('nothing written of an item that is there (the state file lost, or the swit
     // Written down as placed now, so that the choice going to the rig HUD and back finds his place.
     expect(Object.values(other.get().ipad)).toEqual([null, null, null]);
   } finally { back.dispose(); }
+});
+
+test('the HUD source is drawn at 30 frames a second, for either view: made so, and put right at the next connect when an older Racing Desk made it at the canvas rate', async () => {
+  for (const view of ['rig', 'ipad']) {
+    const r = rig({ view });
+    try {
+      await until(() => r.client.identified());
+      await r.source.apply({ on: true, fresh: true, protect: r.protect });
+      // Made at 30: the data changes 30 times a second, so a faster source only draws the same numbers again.
+      expect(inputNow(), view).toMatchObject({ url: URLS[view], fps_custom: true, fps: 30 });
+      // An older Racing Desk left it on the canvas's rate (fps_custom off). The next connect sets it again, nothing else of his touched.
+      const input = server.state.inputs.find((i) => i.inputName === INPUT_NAME);
+      input.settings.fps_custom = false;
+      delete input.settings.fps;
+      server.requests.length = 0;
+      await r.source.apply({ on: true, protect: r.protect });
+      expect(requests('SetInputSettings')[0].data.inputSettings, view).toMatchObject({ fps_custom: true, fps: 30 });
+      expect(inputNow(), view).toMatchObject({ fps_custom: true, fps: 30 });
+    } finally {
+      r.dispose();
+      // The next view starts from a new OBS.
+      await server.close();
+      server = await startFakeObs({ password: PASSWORD });
+    }
+  }
 });

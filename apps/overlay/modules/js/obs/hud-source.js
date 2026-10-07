@@ -71,6 +71,8 @@ const IPAD_SOURCE = Object.freeze({ width: 1180, height: 820 });
 // lap") came out at 7.7 px of the canvas, and under 5 px once the video is scaled down for upload; at half they are
 // 9.7 px, and the numbers (20 px and up) 17.6 px and up. It is one drag in OBS to change, and then it is his.
 const IPAD_PLACE = Object.freeze({ height: 0.5, inset: 0.02 });
+// The rate the browser source is drawn at: the HUD's data changes 30 times a second, and nothing on the page moves faster.
+const HUD_FPS = 30;
 // The source follows the item's box this long after the last SceneItemTransformChanged of a drag.
 const FOLLOW_AFTER_MS = 1200;
 // What a browser source's width and height may be (obs-browser's own range), so a box OBS reports oddly cannot be asked for.
@@ -143,9 +145,11 @@ function createHudSource({ client, url, size = () => null, view = () => 'rig', i
   // when it is made (`withSize`), and no size after — the item's box is its size (followBox, below).
   function inputSettings(which, { withSize = true } = {}) {
     const s = which === 'ipad' ? ipadSource() : (hudSize() || { width: 1920, height: 1080 });
-    // fps_custom off: OBS drives CEF at the canvas's rate. shutdown off: the page keeps its session state (the
-    // session best, the sparklines) across scene switches. restart_when_active off: likewise.
-    const settings = { url: pageUrl(which), fps_custom: false, shutdown: false, restart_when_active: false, reroute_audio: false };
+    // fps_custom on at 30: the HUD's data changes 30 times a second (the poll is every 33 ms), so a browser source
+    // drawn at the canvas's rate (60, or more) redraws the same numbers twice. OBS re-applies this on every connect, which
+    // is where it sticks. shutdown off: the page keeps its session state (the session best, the sparklines) across scene
+    // switches. restart_when_active off: likewise.
+    const settings = { url: pageUrl(which), fps_custom: true, fps: HUD_FPS, shutdown: false, restart_when_active: false, reroute_audio: false };
     if (withSize) Object.assign(settings, { width: s.width, height: s.height });
     return settings;
   }
