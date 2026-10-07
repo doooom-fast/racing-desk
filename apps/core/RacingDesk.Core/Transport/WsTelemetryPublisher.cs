@@ -16,6 +16,13 @@ namespace RacingDesk.Plugin.Transport
         private readonly Func<DateTime> _clock;
         private readonly Dictionary<Guid, ClientState> _clientState = new Dictionary<Guid, ClientState>();
         private readonly object _clientStateLock = new object();
+        private volatile int _clients;
+
+        /// <summary>Whether any client is connected: with none, there is nothing to build a frame for.</summary>
+        public bool HasClients => _clients > 0;
+
+        /// <summary>How many frames have been packed (snapshots and deltas): for a test.</summary>
+        internal int Packed { get; private set; }
 
         // MessagePack serialization settings.
         // TypelessContractlessStandardResolver is required for serializing object-typed members
@@ -61,6 +68,7 @@ namespace RacingDesk.Plugin.Transport
                         LastSent = new Dictionary<string, object>(),
                         LastFullSent = _clock(),
                     };
+                    _clients = _clientState.Count;
 
                     Log.Info($"[RacingDesk.WsTelemetryPublisher] Tracking client {conn.Id}");
                 }
@@ -73,6 +81,7 @@ namespace RacingDesk.Plugin.Transport
             lock (_clientStateLock)
             {
                 _clientState.Remove(conn.Id);
+                _clients = _clientState.Count;
                 Log.Info($"[RacingDesk.WsTelemetryPublisher] Removed client {conn.Id}");
             }
         }
@@ -83,10 +92,11 @@ namespace RacingDesk.Plugin.Transport
         /// </summary>
         public void Tick(Dictionary<string, object> currentDict)
         {
-            if (currentDict == null) return;
+            if (currentDict == null || !HasClients) return;
 
             var now = _clock();
-            var snapshotPayload = SerializeSnapshot(currentDict);
+            // Packed when a client is due one (on its first frame after five seconds), not every frame for nobody.
+            byte[] snapshotPayload = null;
 
             lock (_clientStateLock)
             {
@@ -108,6 +118,7 @@ namespace RacingDesk.Plugin.Transport
                         // Send full snapshot + resync
                         try
                         {
+                            snapshotPayload = snapshotPayload ?? SerializeSnapshot(currentDict);
                             state.Connection.Send(snapshotPayload);
                             state.LastSent = new Dictionary<string, object>(currentDict);
                             state.LastFullSent = now;
@@ -189,6 +200,7 @@ namespace RacingDesk.Plugin.Transport
                 d = dict
             };
 
+            Packed++;
             return MessagePackSerializer.Serialize(envelope, _serializerOptions.Value);
         }
 
@@ -204,6 +216,7 @@ namespace RacingDesk.Plugin.Transport
                 d = dict
             };
 
+            Packed++;
             return MessagePackSerializer.Serialize(envelope, _serializerOptions.Value);
         }
 

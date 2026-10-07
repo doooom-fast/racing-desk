@@ -120,6 +120,9 @@ namespace RacingDesk.Plugin
         internal Transport.WsServer _wsServer;
         internal Transport.WsTelemetryPublisher _wsPublisher;
 
+        /// <summary>How many WebSocket frames have been built: for a test.</summary>
+        internal int WsFramesBuilt { get; private set; }
+
         // Pitbox wheel button counters — each incremented by a SimHub action,
         // read by dashboard each poll frame to detect changes.
         internal volatile int _pitboxTabCycle = 0;
@@ -274,6 +277,8 @@ namespace RacingDesk.Plugin
             // Capture current telemetry every frame (cheap snapshot)
             _previous = _current;
             _current = incoming;
+            // A new data update: the HTTP answer is built again for the first request that comes in it (TelemetryAnswer).
+            System.Threading.Interlocked.Increment(ref _frames);
 
             // ── Start position tracking ──
             // Capture the grid position once when the session goes to Racing (state 4)
@@ -319,9 +324,11 @@ namespace RacingDesk.Plugin
                     _current.IsInPitLane);
             }
 
-            // Publish telemetry via WebSocket (every frame for real-time overlay)
-            if (_wsPublisher != null)
+            // Publish telemetry via WebSocket (every frame for real-time overlay), and only while a client is connected:
+            // with nobody on the :8890 feed the frame is neither built nor packed.
+            if (_wsPublisher != null && _wsPublisher.HasClients)
             {
+                WsFramesBuilt++;
                 try
                 {
                     var telemetryDict = Transport.TelemetryFrame.BuildDict(
