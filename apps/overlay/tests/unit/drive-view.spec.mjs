@@ -246,7 +246,7 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
         cellAspect: r.width / r.height, viewAspect: vb[2] / vb[3],
         down: (+player.getAttribute('cy') - vb[1]) / vb[3], across: (+player.getAttribute('cx') - vb[0]) / vb[2],
         radius: parseFloat(player.getAttribute('r')) * svg.getScreenCTM().a,
-        viewRadius: vb[2] / 2, weights: RacingDeskMapZoom.R_LINE_WEIGHTS,
+        viewRadius: vb[2] / 2, weights: RacingDeskMapZoom.R_LINE_WEIGHTS, dot: RacingDeskMapZoom.GLANCE_DOT,
       };
     });
     expect(m.viewAspect / m.cellAspect).toBeCloseTo(1, 1);
@@ -254,7 +254,7 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     expect(m.across).toBeCloseTo(0.5, 1);
     // Seven pixels in radius when the view is R_LINE_WEIGHTS across, and in proportion to the zoom either side of it, as
     // the rig's HUD draws it (map-zoom.js; the zoom with the speed is held in map-zoom.spec.mjs).
-    expect(m.radius).toBeCloseTo((7 * m.weights) / m.viewRadius, 0);
+    expect(m.radius).toBeCloseTo((7 * m.dot * m.weights) / m.viewRadius, 0);
   });
 
   test('the leaderboard\'s rows share its height: as many as fit, filling the panel', async ({ page }) => {

@@ -69,6 +69,13 @@
   // The view at which the glance layout draws this map's road and cars at their pixel weights; closer in they are
   // drawn bigger and wider out smaller, in proportion, so that the zoom is seen (webgl-helpers.js).
   const R_LINE_WEIGHTS = R_FIXED;
+  // The glance layout's following map (the iPad, the OBS pages, Ctrl+Shift+F) is closer than the rig's and drawn heavier.
+  // He said on 2026-10-07: "iPad zoom map needs to fill its space better, it's mostly a small dot with narrow lines".
+  // Its view is GLANCE_VIEW of the rig's at the same speed; its road and trail are GLANCE_WEIGHT times their pixel
+  // weights and its cars GLANCE_DOT times (webgl-helpers.js, drive-view.css). The rig's HUD is unchanged.
+  const GLANCE_VIEW = 0.7;
+  const GLANCE_WEIGHT = 2;
+  const GLANCE_DOT = 1.5;
 
   /** The mode a setting's value means: one of MODES, else the default. */
   function modeOf(value) {
@@ -149,7 +156,7 @@
 
   const api = {
     KEY, MODES, DEFAULT, OPTIONS, R_CLOSE, R_WIDE, R_FIXED, SPEED_MAX_MPH, WIDER_MAX_MPH, TAU_S, MAX_RATE, MAX_STEP_S,
-    RESTART_AFTER_S, R_LINE_WEIGHTS, modeOf, targetRadius, ease, follower, migrate, migrateFile,
+    RESTART_AFTER_S, R_LINE_WEIGHTS, GLANCE_VIEW, GLANCE_WEIGHT, GLANCE_DOT, modeOf, targetRadius, ease, follower, migrate, migrateFile,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RacingDeskMapZoom = api;
