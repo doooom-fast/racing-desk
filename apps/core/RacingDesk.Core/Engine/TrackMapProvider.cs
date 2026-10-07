@@ -39,8 +39,10 @@ namespace RacingDesk.Plugin.Engine
         private readonly object _askGate = new object();
         private bool _asking;
         private DateTime _askDue = DateTime.MinValue;
-        private (int TrackId, TrackOutline Outline, string Status)? _answer;
+        private (int TrackId, TrackOutline Outline, string Status, bool Failed)? _answer;
         private bool _saidNoHost;
+        // Asks in a row that the host did not answer: each waits twice as long as the last before the next (NoHostBackOff).
+        private int _noHostStreak;
         private Func<DateTime> _now = () => DateTime.UtcNow;
 
         /// <summary>The map has an outline and places the cars on it.</summary>
@@ -59,6 +61,19 @@ namespace RacingDesk.Plugin.Engine
 
         private static readonly TimeSpan AskAgainWithout = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan AskAgainWith = TimeSpan.FromSeconds(60);
+        internal static readonly TimeSpan NoHostBackOffMax = TimeSpan.FromMinutes(2);
+
+        /// <summary>
+        /// How long after the <paramref name="streak"/>th ask in a row that the host did not answer the next ask waits: 5 s,
+        /// then twice as long each time, up to two minutes. Something listens at its port and does not answer, and asking
+        /// every five seconds changes nothing.
+        /// </summary>
+        internal static TimeSpan NoHostBackOff(int streak)
+        {
+            if (streak <= 1) return AskAgainWithout;
+            double seconds = AskAgainWithout.TotalSeconds * Math.Pow(2, Math.Min(streak - 1, 10));
+            return seconds >= NoHostBackOffMax.TotalSeconds ? NoHostBackOffMax : TimeSpan.FromSeconds(seconds);
+        }
 
         /// <summary>What the map says with the outline it has: ready, or crowd while the outline is SimHub's shared map.</summary>
         private string ReadyStatus => _applied != null && _applied.Crowd ? StatusCrowd : StatusReady;
@@ -164,6 +179,7 @@ namespace RacingDesk.Plugin.Engine
             lock (_askGate) _answer = null;
             _status = _outlines == null || trackId <= 0 ? StatusNone : StatusFirstLap;
             _saidNoHost = false;
+            _noHostStreak = 0;
             _askDue = DateTime.MinValue;
             Log.Info($"[RacingDesk] Track map: '{_currentTrackName}' (id {trackId}), asking for its outline");
         }
@@ -344,31 +360,44 @@ namespace RacingDesk.Plugin.Engine
         {
             TrackOutline outline = null;
             string status;
-            try
+            bool failed = false;
+            if (source is IOutlineSourceReachability reach && !reach.Reachable())
             {
-                outline = source.Get(trackId);
-                status = outline == null ? StatusFirstLap : outline.Crowd ? StatusCrowd : StatusReady;
-            }
-            catch (Exception ex)
-            {
+                // Nothing listens where the host would be: not asked, so nothing is thrown.
                 status = StatusNoHost;
-                if (!_saidNoHost)
-                {
-                    _saidNoHost = true;
-                    Log.Info($"[RacingDesk] Track map: the host did not answer for its outline ({ex.GetType().Name}); the maps are the app's, and it is asked again");
-                }
+                SayNoHost("nothing listens at the host's address");
             }
+            else
+                try
+                {
+                    outline = source.Get(trackId);
+                    status = outline == null ? StatusFirstLap : outline.Crowd ? StatusCrowd : StatusReady;
+                }
+                catch (Exception ex)
+                {
+                    status = StatusNoHost;
+                    failed = true;
+                    SayNoHost(ex.GetType().Name);
+                }
             lock (_askGate)
             {
-                _answer = (trackId, outline, status);
+                _answer = (trackId, outline, status, failed);
                 _asking = false;
             }
+        }
+
+        // Once for each layout, and again only after the host has answered: never once for each ask, and never with a stack.
+        private void SayNoHost(string why)
+        {
+            if (_saidNoHost) return;
+            _saidNoHost = true;
+            Log.Info($"[RacingDesk] Track map: the host did not answer for its outline ({why}); the maps are the app's, and it is asked again, less often while it stays away");
         }
 
         /// <summary>Takes the source's answer on the telemetry thread. Public so a host can apply one it already has.</summary>
         public void TakeAnswer()
         {
-            (int TrackId, TrackOutline Outline, string Status)? answer;
+            (int TrackId, TrackOutline Outline, string Status, bool Failed)? answer;
             lock (_askGate)
             {
                 answer = _answer;
@@ -377,8 +406,28 @@ namespace RacingDesk.Plugin.Engine
             if (answer == null) return;
             if (answer.Value.TrackId == _currentTrackId) Apply(answer.Value.Outline, answer.Value.Status);
             // Asked again in five seconds while there is nothing, in a minute once there is (it may have gained laps);
-            // with SimHub's shared map up, every five seconds still, so his own takes its place within seconds.
-            _askDue = _now() + (_ready && _applied != null && !_applied.Crowd ? AskAgainWith : AskAgainWithout);
+            // with SimHub's shared map up, every five seconds still, so his own takes its place within seconds. A host
+            // that was asked and did not answer is asked less often each time (NoHostBackOff), up to two minutes; with
+            // nothing listening at its port nobody was asked, and the look (Windows' table of listening ports) is taken
+            // again every five seconds, so the app's opening is seen within seconds.
+            var again = _ready && _applied != null && !_applied.Crowd ? AskAgainWith : AskAgainWithout;
+            if (answer.Value.Status == StatusNoHost)
+            {
+                if (answer.Value.Failed)
+                {
+                    _noHostStreak++;
+                    var backOff = NoHostBackOff(_noHostStreak);
+                    if (backOff > again) again = backOff;
+                }
+                else
+                    _noHostStreak = 0;
+            }
+            else
+            {
+                if (_noHostStreak > 0) _saidNoHost = false;   // a later absence is said again, once
+                _noHostStreak = 0;
+            }
+            _askDue = _now() + again;
         }
 
         /// <summary>An outline for the current layout, applied now (a test's, or an answer taken by hand).</summary>

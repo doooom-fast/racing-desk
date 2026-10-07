@@ -560,10 +560,13 @@ namespace RacingDesk.Tests
 
         private const string Generic = "Microsoft USB Serial Device (COM{0}) USB Serial Device";
 
+        /// <summary>Moza's USB vendor id, as the base's ports carry it on the rig behind a generic description.</summary>
+        private const string Moza = MozaSerialManager.MozaVendorId;
+
         private void RigPortsHeldByPitHouse()
         {
-            _fake.Add("COM6", string.Format(Generic, 6));
-            _fake.Add("COM13", string.Format(Generic, 13));
+            _fake.Add("COM6", string.Format(Generic, 6), Moza);
+            _fake.Add("COM13", string.Format(Generic, 13), Moza);
             _fake.Held.Add("COM6");
             _fake.Held.Add("COM13");
         }
@@ -662,7 +665,7 @@ namespace RacingDesk.Tests
         [Test]
         public void RealOpenFailure_StaysVisible_EveryCycle()
         {
-            _fake.Add("COM20", string.Format(Generic, 20));
+            _fake.Add("COM20", string.Format(Generic, 20), Moza);
             _fake.OpenFailure = name => new IOException("The semaphore timeout period has expired.");
 
             Cycles(3);
@@ -674,7 +677,7 @@ namespace RacingDesk.Tests
         [Test]
         public void PortTakenBetweenCheckAndOpen_IsTreatedAsHeld()
         {
-            _fake.Add("COM6", string.Format(Generic, 6));
+            _fake.Add("COM6", string.Format(Generic, 6), Moza);
             _fake.OpenFailure = name => new UnauthorizedAccessException($"Access to the port '{name}' is denied.");
 
             Cycles(30);
@@ -811,6 +814,206 @@ namespace RacingDesk.Tests
             Assert.That((string?)parsed["pitHouseWarning"], Does.Contain("PitHouse.exe"));
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        //  When the ports are looked at, and which
+        //  The search walked every port every ten seconds, Pit House or not (its process name was
+        //  never matched: it is "MOZA Pit House"), and wrote Moza read commands to any port nothing
+        //  described as Moza, a Valve receiver's included. Now it never runs while Pit House does,
+        //  runs again when the list of ports changes (or Pit House quits, or a device drops, or it is
+        //  asked to), and every five minutes only while no base is connected or a port is held; and
+        //  it talks only to a port that is Moza's by its description or vendor id.
+        // ═══════════════════════════════════════════════════════════════
+
+        [Test]
+        public void PitHouseIsKnownByTheNameItsProcessHas()
+        {
+            Assert.That(MozaSerialManager.IncludesPitHouse(new[] { "MOZA Pit House.exe" }), Is.True);
+            Assert.That(MozaSerialManager.IncludesPitHouse(new[] { "PitHouse.exe" }), Is.True, "as older installs named it");
+            Assert.That(MozaSerialManager.IncludesPitHouse(new[] { "MozaBackgroundSystem.exe" }), Is.False, "a helper is not Pit House");
+            Assert.That(MozaSerialManager.IncludesPitHouse(new string[0]), Is.False);
+        }
+
+        [Test]
+        public void ThePitHouseRunningOnThisMachineIsFound()
+        {
+            // Read-only: the machine's process list, as the plugin reads it. On the rig Pit House runs all day.
+            Assume.That(System.Diagnostics.Process.GetProcessesByName("MOZA Pit House"), Is.Not.Empty, "Pit House is not running here");
+            Assert.That(MozaSerialManager.RunningMozaProcesses(), Does.Contain("MOZA Pit House.exe"));
+        }
+
+        [Test]
+        public void WhilePitHouseRuns_NoPortIsLookedAt()
+        {
+            RigPortsHeldByPitHouse();
+            _mozaPrograms.Add("MOZA Pit House.exe");
+
+            Cycles(360); // an hour of being asked
+
+            Assert.That(_manager.PitHouseRunning, Is.True);
+            Assert.That(_manager.Searches, Is.EqualTo(0));
+            Assert.That(_fake.Checks, Is.Empty, "no port checked");
+            Assert.That(_fake.Opens, Is.Empty, "none opened, nothing written");
+            Assert.That(PitHouseWarns, Is.EqualTo(1), "said once");
+        }
+
+        [Test]
+        public void APortThatIsNotMozas_IsNeverOpenedCheckedOrWrittenTo()
+        {
+            _fake.Add("COM3", string.Format(Generic, 3), "28DE");   // a Valve receiver, as on the rig
+            _fake.Add("COM20", "USB-SERIAL CH340 (COM20)");        // an Arduino, no vendor known
+            _fake.OpenSucceeds = true;
+
+            Cycles(3);
+
+            Assert.That(_fake.Checks, Is.Empty);
+            Assert.That(_fake.Opens, Is.Empty);
+            Assert.That(_warns, Is.Empty, string.Join("\n", _warns));
+        }
+
+        [Test]
+        public void APortWithMozasVendorId_IsProbed_AndOneDescribedAsMozas_IsOpenedWithoutAProbe()
+        {
+            _fake.Add("COM13", string.Format(Generic, 13), Moza);
+            _fake.Add("COM6", "Gudsen MOZA R21 Ultra Base (COM6)");
+
+            Cycles(1);
+
+            Assert.That(_fake.Opens, Is.EquivalentTo(new[] { "COM13", "COM6" }), "the probe opens COM13 to ask it; COM6 is opened as the base");
+            Assert.That(WarnsAbout("Probe open failed on COM13"), Is.EqualTo(1), "the fake's port cannot be had");
+        }
+
+        /// <summary>The poll loop, for a while: the ports are looked for when NoteWhatChanged asks, every two seconds.</summary>
+        private void RunFor(TimeSpan span)
+        {
+            var end = _now + span;
+            while (_now < end)
+            {
+                if (_manager.NoteWhatChanged()) _manager.DiscoverDevices();
+                _now = _now.AddSeconds(2);
+            }
+        }
+
+        [Test]
+        public void ThePortsAreLookedForAtTheStart_WhenTheListChanges_AndEveryFiveMinutesWhileNoBaseIsConnected()
+        {
+            RigPortsHeldByPitHouse();
+
+            Assert.That(_manager.NoteWhatChanged(), Is.True, "at the start");
+            var asked = new List<double>();
+            DateTime start = _now;
+            for (int i = 0; i < 1800; i++) // an hour, every two seconds
+            {
+                _now = _now.AddSeconds(2);
+                if (_manager.NoteWhatChanged()) asked.Add((_now - start).TotalMinutes);
+            }
+            Assert.That(asked, Is.EqualTo(Enumerable.Range(1, 12).Select(n => n * 5.0).ToList()), "every five minutes, and only then: no base is connected");
+
+            _fake.Add("COM20", string.Format(Generic, 20), Moza);
+            Assert.That(_manager.NoteWhatChanged(), Is.False, "not before the next look at the list");
+            _now = _now.AddMilliseconds(MozaSerialManager.PortListCheckMs);
+            Assert.That(_manager.NoteWhatChanged(), Is.True, "the list changed");
+            _now = _now.AddMilliseconds(MozaSerialManager.PortListCheckMs);
+            Assert.That(_manager.NoteWhatChanged(), Is.False);
+
+            _manager.ForceRediscovery();
+            Assert.That(_manager.NoteWhatChanged(), Is.True, "asked to");
+        }
+
+        [Test]
+        public void OnceTheBaseIsConnected_ThePortsAreNotLookedForOnATimer()
+        {
+            _fake.Add("COM6", "Gudsen MOZA R21 Ultra Base (COM6)");
+            _fake.OpenSucceeds = true;
+
+            RunFor(TimeSpan.FromHours(1));
+
+            Assert.That(_manager.Wheelbase, Is.Not.Null, "the base is connected");
+            Assert.That(_manager.Searches, Is.EqualTo(1), "looked for at the start, and not again");
+            Assert.That(_fake.Opens, Is.EqualTo(new[] { "COM6" }));
+        }
+
+        [Test]
+        public void ABasePitHousesHelpersStillHold_IsLookedAtAgainEveryFiveMinutes_AndFoundWhenTheyLetGo()
+        {
+            // Pit House has quit, and its helpers hold the base's port all the same.
+            _fake.Add("COM6", "Gudsen MOZA R21 Ultra Base (COM6)");
+            _fake.Held.Add("COM6");
+            _fake.OpenSucceeds = true;
+            _mozaPrograms.Add("MozaBackgroundSystem.exe");
+
+            RunFor(TimeSpan.FromMinutes(10));
+            Assert.That(_manager.PitHouseRunning, Is.False, "a helper is not Pit House");
+            Assert.That(_fake.ChecksOf("COM6"), Is.EqualTo(2), "at the start and five minutes on");
+            Assert.That(_fake.Opens, Is.Empty);
+
+            _fake.Held.Clear();   // the helpers let go
+            _mozaPrograms.Clear();
+            RunFor(TimeSpan.FromMinutes(5));
+            Assert.That(_manager.Wheelbase, Is.Not.Null, "found at the next look");
+
+            int searches = _manager.Searches;
+            RunFor(TimeSpan.FromHours(1));
+            Assert.That(_manager.Searches, Is.EqualTo(searches), "and not looked for again once it is connected");
+            Assert.That(WarnsAbout("COM6 is held by another program"), Is.EqualTo(1), "said once");
+        }
+
+        [Test]
+        public void AWmiReadThatFails_DoesNotLoseTheBaseForTheRun()
+        {
+            // The base as on the rig: Moza's vendor id behind a generic description, found only by its vendor id (WMI).
+            _fake.Add("COM13", string.Format(Generic, 13), Moza);
+            _fake.WmiReadsThatFail = 1;
+
+            RunFor(TimeSpan.FromMinutes(5));   // the last look 2 s before the five minutes are up
+            Assert.That(_fake.Opens, Is.Empty, "with no vendor ids, no port is Moza's");
+
+            RunFor(TimeSpan.FromSeconds(2));
+            Assert.That(_fake.Opens, Is.EqualTo(new[] { "COM13" }), "looked for again five minutes on, and probed");
+        }
+
+        [Test]
+        public void PitHouseQuitting_IsSeen_AndThePortsAreLookedForThen()
+        {
+            RigPortsHeldByPitHouse();
+            _mozaPrograms.Add("MOZA Pit House.exe");
+            int asked = 0;
+            _manager = new MozaSerialManager(
+                msg => { lock (_infos) _infos.Add(msg); },
+                msg => { lock (_warns) _warns.Add(msg); },
+                _fake,
+                () => _now,
+                () => { asked++; return _mozaPrograms.ToArray(); });
+
+            Assert.That(_manager.NoteWhatChanged(), Is.True);
+            _manager.DiscoverDevices();
+            Assert.That(_manager.PitHouseRunning, Is.True);
+            Assert.That(asked, Is.EqualTo(1));
+
+            // While it runs, the processes are looked at once a minute, and the ports not at all.
+            for (int i = 0; i < 300; i++) // ten minutes
+            {
+                _now = _now.AddSeconds(2);
+                Assert.That(_manager.NoteWhatChanged(), Is.False);
+            }
+            Assert.That(asked, Is.EqualTo(1 + 10));
+            Assert.That(_fake.Checks, Is.Empty);
+
+            // It quits: seen at the next look, and the ports are looked for.
+            _mozaPrograms.Clear();
+            _fake.Held.Clear();
+            bool asks = false;
+            for (int i = 0; i < 30 && !asks; i++) { _now = _now.AddSeconds(2); asks = _manager.NoteWhatChanged(); }
+            Assert.That(asks, Is.True);
+            _manager.DiscoverDevices();
+            Assert.That(_manager.Searches, Is.EqualTo(1));
+            Assert.That(_fake.Opens, Is.EquivalentTo(new[] { "COM6", "COM13" }), "the base's ports, probed now that they are free");
+
+            // And once it has gone, the processes are not looked at again until something asks for the ports.
+            int after = asked;
+            for (int i = 0; i < 300; i++) { _now = _now.AddSeconds(2); _manager.NoteWhatChanged(); }
+            Assert.That(asked, Is.EqualTo(after));
+        }
+
         // The real CheckAccess, on things that are not devices: a port that is not there, and files —
         // "\\.\" + a file's full path names the file, and Windows refuses a read-only file to a
         // write open with the same error (5, access denied) it gives for a port another handle has.
@@ -854,6 +1057,8 @@ namespace RacingDesk.Tests
         {
             public readonly List<string> Names = new List<string>();
             public readonly Dictionary<string, string> Descriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            public readonly Dictionary<string, string> Vendors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            public int NameReads;
             public readonly HashSet<string> Held = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             public readonly List<string> Checks = new List<string>();
             public readonly List<string> Opens = new List<string>();
@@ -861,21 +1066,32 @@ namespace RacingDesk.Tests
             /// <summary>Open gives back a port object that was never opened, which cannot be written to.</summary>
             public bool OpenSucceeds;
 
-            public void Add(string name, string description)
+            public void Add(string name, string description, string vendor = "")
             {
                 Names.Add(name);
                 Descriptions[name] = description;
+                Vendors[name] = vendor;
             }
 
             public int ChecksOf(string name) => Checks.Count(c => c == name);
 
-            public string[] GetPortNames() => Names.ToArray();
+            public string[] GetPortNames() { NameReads++; return Names.ToArray(); }
 
-            public Dictionary<string, MozaSerialManager.PortWmiInfo> GetPortInfo() =>
-                Descriptions.ToDictionary(
+            /// <summary>How many of the next WMI reads come back empty, as one that failed does.</summary>
+            public int WmiReadsThatFail;
+
+            public Dictionary<string, MozaSerialManager.PortWmiInfo> GetPortInfo()
+            {
+                if (WmiReadsThatFail > 0)
+                {
+                    WmiReadsThatFail--;
+                    return new Dictionary<string, MozaSerialManager.PortWmiInfo>(StringComparer.OrdinalIgnoreCase);
+                }
+                return Descriptions.ToDictionary(
                     kv => kv.Key,
-                    kv => new MozaSerialManager.PortWmiInfo { Description = kv.Value },
+                    kv => new MozaSerialManager.PortWmiInfo { Description = kv.Value, Vid = Vendors.TryGetValue(kv.Key, out var v) ? v : "" },
                     StringComparer.OrdinalIgnoreCase);
+            }
 
             public MozaPortAccess CheckAccess(string portName)
             {

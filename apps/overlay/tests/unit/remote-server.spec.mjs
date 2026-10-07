@@ -266,9 +266,11 @@ test.describe('the telemetry', () => {
     for (const statusCode of [99, 101, 600, 0, undefined, 'OK']) {
       expect((await ask('/racing-desk/', { ...withKey, answer: { statusCode } })).status, String(statusCode)).toBe(502);
     }
-    // A rig that breaks off part-way, or throws, still ends the iPad's request.
+    // A rig that breaks off part-way, or throws, still ends the iPad's request: the answer is gathered whole before
+    // anything is sent on (remote-server.js, sharedTelemetry), so it is said to have failed rather than cut short.
     const threw = await ask('/racing-desk/', { ...withKey, answer: { pipe: () => { throw new Error('gone'); } } });
-    expect(threw.status).toBe(200);   // the status had gone out; the answer is ended, not left open
+    expect(threw.status).toBe(502);
+    expect(JSON.parse(threw.body).error).toBe('The telemetry is not answering on the rig.');
   });
 
   test('when the rig\'s telemetry is not answering, that is what the iPad is told', async () => {

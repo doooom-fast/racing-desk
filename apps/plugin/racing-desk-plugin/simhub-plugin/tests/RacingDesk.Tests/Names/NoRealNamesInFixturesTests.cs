@@ -51,6 +51,8 @@ namespace RacingDesk.Tests.Names
                 "Caution Driver", "Track Specialist", "Rising Star",
                 "Ann One", "Al One", "Bo Two", "Cy Three", "Dee Four", "A. One", "B. Two", "C. Three",
                 "Zebedee Quorntalk", "Somebody Else", "Somebody New", "Nowhere Motorsport",
+                // map-opponents.spec.mjs numbers a full grid of them: "Z. Racer01" to "Z. Racer62".
+                "Z. Racer",
             };
             allowed.Add(SyntheticField.TeammateName);
             allowed.Add("L. Quarrendine");

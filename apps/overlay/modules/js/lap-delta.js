@@ -57,6 +57,13 @@
       cur = null; best = null; bestSectors = []; lastPct = -1; lastT = -1;
     }
 
+    // The frames stopped and have begun again (the rig's HUD switched off and on, or he got out and back in): the lap under
+    // way is over and is not joined to what comes after the gap, which would make one lap of two and could be taken for his
+    // best. The bests are kept; the next lap begun at the line is measured against them.
+    function breakLap() {
+      cur = null; lastPct = -1; lastT = -1;
+    }
+
     // A lap has ended at the line: keep it if it was seen whole.
     function close() {
       if (!cur || !cur.fromLine || !cur.clean || cur.pcts.length < MIN_SAMPLES) return;
@@ -136,7 +143,7 @@
       return out;
     }
 
-    return { feed, view, reset };
+    return { feed, view, reset, breakLap };
   }
 
   /**

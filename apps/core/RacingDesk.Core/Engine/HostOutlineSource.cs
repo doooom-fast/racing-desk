@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Net;
 using System.Net.Http;
+using System.Net.NetworkInformation;
 using Newtonsoft.Json.Linq;
 
 namespace RacingDesk.Plugin.Engine
@@ -10,9 +12,11 @@ namespace RacingDesk.Plugin.Engine
     /// The SimHub plugin's outline source: the app's host, beside SimHub on loopback, serves the store's outlines
     /// at <c>/racing-desk/data/outline?track=&lt;TrackID&gt;</c>. The host is the only process that reads the
     /// driver's .ibt files and the store; the plugin, inside SimHub, asks it and reads no file. A 404 is "no outline
-    /// yet" (null); a host that cannot be reached throws, and the map says so.
+    /// yet" (null); a host that cannot be reached throws, and the map says so. Whether anything listens at the host's
+    /// port on this machine is looked at first (<see cref="Reachable"/>), so that with the app closed the map asks
+    /// nobody, and nothing is thrown for SimHub to log with its stack.
     /// </summary>
-    public sealed class HostOutlineSource : IOutlineSource, IDisposable
+    public sealed class HostOutlineSource : IOutlineSource, IOutlineSourceReachability, IDisposable
     {
         /// <summary>Where the app's host runs beside SimHub, unless the settings say another.</summary>
         public const string DefaultHostUrl = "http://127.0.0.1:18889";
@@ -24,6 +28,28 @@ namespace RacingDesk.Plugin.Engine
         {
             _baseUrl = (string.IsNullOrWhiteSpace(hostUrl) ? DefaultHostUrl : hostUrl.Trim()).TrimEnd('/');
             _http = new HttpClient { Timeout = timeout ?? TimeSpan.FromSeconds(2) };
+        }
+
+        /// <summary>
+        /// False when the host's address is this machine's and nothing listens at its port (the app is not running):
+        /// read from Windows' table of listening ports, which throws nothing. True for an address elsewhere, where only
+        /// asking can tell.
+        /// </summary>
+        public bool Reachable()
+        {
+            if (!Uri.TryCreate(_baseUrl, UriKind.Absolute, out var uri) || !uri.IsLoopback) return true;
+            try
+            {
+                foreach (var listener in IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners())
+                    if (listener.Port == uri.Port && (IPAddress.IsLoopback(listener.Address) ||
+                        listener.Address.Equals(IPAddress.Any) || listener.Address.Equals(IPAddress.IPv6Any)))
+                        return true;
+                return false;
+            }
+            catch (NetworkInformationException)
+            {
+                return true;
+            }
         }
 
         public string Url(int trackId) => _baseUrl + "/racing-desk/data/outline?track=" + trackId.ToString(CultureInfo.InvariantCulture);

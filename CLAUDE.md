@@ -129,7 +129,10 @@ swallowed): the ambient capture rect, the demo restart and pedal-profile switchi
 and the only trace is one line in SimHub's log for each (`?action=setrect refused: …`). So install the plugin from
 this change only with, or after, an exe built from it; an older plugin with the newer exe works. **Left reachable from
 the network, on purpose:** the telemetry (`GET /racing-desk/` with no action: read-only, and the iPad's path) and the
-`:8890` feed (it reads nothing from its clients).
+`:8890` feed (it reads nothing from its clients). **What they cost:** the telemetry answer is built once for each data
+update into buffers that are kept, and every request in that update (the HUD, the iPad view, OBS, the desk) is served
+the same bytes (`RacingDeskRuntime.TelemetryAnswer`; built again after 500 ms with no update); the `:8890` frame is
+built and packed only while a client is connected (`WsTelemetryPublisher.HasClients`).
 
 **The host's data reads are for programs on this machine too, by a rule of their own** (asked for and approved, 2026-10-01: they
 carry the driver's customer id — `sessions`, `session` — and the store's path — `status` — and they were open to any
@@ -216,7 +219,11 @@ data?… get rid of all of it").
   crowd, updatedAt, points: [[x, z, pct], …] }` (metres east and south, so the map is north-up), 404 while there is
   none, 400 without an id. The plugin reads no file of his and no store. Asked on a pool thread, never SimHub's
   `DataUpdate` thread; again every 5 s while there is nothing (and while what there is is SimHub's shared map, below)
-  and every 60 s once there is his own, swapping the outline when it has gained laps. The iPad's proxy serves
+  and every 60 s once there is his own, swapping the outline when it has gained laps. With the app closed nobody answers:
+  the plugin first looks whether anything listens at the host's port (`HostOutlineSource.Reachable`, Windows' table of
+  listening ports, which throws nothing for SimHub to log with its stack) and asks nobody if not, looking again every 5 s;
+  each ask in a row that the host did not answer puts the next off twice as long, 5 s up to 2 min
+  (`TrackMapProvider.NoHostBackOff`); it is said in the log once. The iPad's proxy serves
   `/racing-desk/` alone and refuses queries, so the route is never reachable from the
   network. The HUD's contract (`TrackMap.SvgPath`, `PlayerX/Y`, `PlayerHeading`, `Opponents`) is as it was — but for
   the numbers of the path and of the other cars' places, written to a hundredth of a unit since 2026-10-02
@@ -751,7 +758,14 @@ licence stay what they are. No route sends a customer id (the sessions' `driver_
   would be alone — and a driver who joined after the field was named, or a path that began later, can be served in a
   different order than the one that named the field first. When a session has more drivers than names the next gets a
   numbered form of the one he prefers (`H. Incandenza II`), never one in use, so no two drivers in a session share a
-  name. Nobody can turn a name back into an id without the salt.
+  name. Nobody can turn a name back into an id without the salt. **What it costs, and where**: a driver's ranking is
+  one HMAC for each name of the list (336), tens of milliseconds for a new field of 60. The book keeps each key's ranking
+  and priority for as long as its salt is the same (up to `PseudonymBook.KeptKeysLimit` keys), so the next server with
+  the same drivers, or a late joiner, costs lookups; a field is hashed before any lock is taken, with one HMAC for the
+  batch (`PseudonymBook.Prepare`), and the plugin's bridge names it on the SDK's thread into maps of its own and swaps
+  them in under the lock SimHub's data loop asks names under, so a frame never waits on the hashing. An update whose
+  `DriverInfo` text and session are what the field was last named from is not named again. The names are the same as
+  before all this, to the letter (`FieldNamingCostTests` names fields of 60 by both).
 - **The demo's rivals are characters too** (`Names/DemoNames.cs`); the fixtures and tests use characters or a few made-up
   names, and `NoRealNamesInFixturesTests` scans the tests, fixtures and sources for a driver-shaped string that is neither.
   The tests run with a book and salt of their own (`TestNames`), so none reads or writes the rig's salt. The full chain,
@@ -947,8 +961,12 @@ the telemetry says he is in the car, he has not switched the HUD off, and the pa
 with the sim closed, or once the telemetry has not answered for three seconds it is hidden — two seconds after he
 gets out, so it does not blink between sessions — and nothing is ever quit to get it off the screen. The decision
 is the main process's, not the page's: it asks the telemetry the page reads, once a second (twice in the car), and
-tells the page (`in-race-state`), which polls and draws only while he is in. A hidden page is not relied on to
-notice him getting back in. What "in the car" means is one function, `inCar` in `modules/js/in-car.js`
+tells the page (`in-race-state`), which polls and draws only while he is in with the HUD switched on (`pageActive`:
+switched off or put away, the hidden page neither reads nor draws, and switched back on it starts as it does when he
+gets in; what the page keeps of the session itself — his best lap for the delta, the leaderboard's lap trails, the
+gap trend — has only the laps it read). A hidden page is not relied on to notice him getting back in. The window is
+put on top as it is shown, and again when the focus leaves the desk for the sim (`hud.raise`, on Electron's
+`browser-window-blur`); it is not put down and up on a timer. What "in the car" means is one function, `inCar` in `modules/js/in-car.js`
 (`tests/unit/in-car.spec.mjs`): demo mode; or the sim running and iRacing's own `IsOnTrack` and not a replay, which
 the payload carries as `DataCorePlugin.GameRawData.Telemetry.IsOnTrack` (`TelemetryCapture.InCar`, sent only where
 the sim says it: a key that is sent is believed, so one made up would hide the HUD for good) — so the garage
@@ -1115,7 +1133,12 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
 - **Read-only from the network.** GET and HEAD only. `/racing-desk/` is proxied to the telemetry the HUD itself
   reads (`localhost:8889`, or a saved `simhubUrl` that ends in `/racing-desk/`) and a request carrying a query is
   refused — the plugin and host take `?action=…` on that same path, wheel-base settings among them, and none of it
-  can be reached through here (nor from anywhere but a program on the rig: they refuse the rest themselves). Files
+  can be reached through here (nor from anywhere but a program on the rig: they refuse the rest themselves). One fetch
+  of it serves every page that asks within 25 ms (`SHARE_MS`), the iPad's and OBS's alike, where each request was a
+  fetch of the whole frame; the answer is gzipped for a page that takes it, and the track's outline
+  (`TrackMap.SvgPath`, two thirds of the frame) is left out for a page that says, by `X-RD-Outline`, it holds the one
+  the frame names (`RacingDesk.Remote.OutlineId`, a hash of it), and put back by the page (`game-detect.js`), so it
+  draws from the frame as the plugin made it (`tests/unit/remote-telemetry.spec.mjs`). Files
   are served from `modules/`, `images/` and `fonts/` only; the one other thing served is the crop of his paint behind the car badge, from the main process's memory at `/livery-crop.png` (The
   livery behind the car badge, below) — no query, nothing from disk, 404 while there is none.
 - **A key in the address.** `http://<rig>:9090/?k=<8 characters>`; the page hands it back as a cookie. Made the

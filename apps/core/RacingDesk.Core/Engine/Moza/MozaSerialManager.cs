@@ -32,11 +32,25 @@ namespace RacingDesk.Plugin.Engine.Moza
         internal const int ReadTimeoutMs = 500;
         internal const int WriteTimeoutMs = 500;
         private const int PollIntervalMs = 2000;
-        private const int DiscoveryIntervalMs = 10000;
+
+        /// <summary>How often the machine's list of COM ports is read (from the registry: cheap) to see whether it changed.</summary>
+        internal const int PortListCheckMs = 2000;
+
+        /// <summary>How often, while Pit House runs, the processes are looked at to see whether it has quit.</summary>
+        internal const int PitHouseCheckMs = 60 * 1000;
+
+        /// <summary>Moza's USB vendor id: a port without it, and not described as Moza's, is never opened or written to.</summary>
+        internal const string MozaVendorId = "346E";
         private const int ReadBufferSize = 256;
 
         /// <summary>How long a port another program holds is left alone before it is looked at again.</summary>
         internal const int HeldPortRetryMs = 5 * 60 * 1000;
+
+        /// <summary>
+        /// How often the ports are looked for with nothing having changed, while no base is connected or a port is held and
+        /// Pit House is not running: the slow search that keeps a missed base from being lost for the run.
+        /// </summary>
+        internal const int SlowSearchMs = HeldPortRetryMs;
 
         // ── State ─────────────────────────────────────────────────────
         private readonly ConcurrentDictionary<string, MozaDevice> _devices = new ConcurrentDictionary<string, MozaDevice>();
@@ -47,7 +61,26 @@ namespace RacingDesk.Plugin.Engine.Moza
         private Thread _pollThread;
         private volatile bool _running;
         private volatile bool _disposed = false;
-        private DateTime _lastDiscovery = DateTime.MinValue;
+
+        // ── When the ports are looked for (DiscoverDevices) ───────────
+        // At the start, when the machine's list of COM ports changes, when Pit House quits (it lets go of the base's
+        // ports), when a device drops, and on ForceRediscovery; and every SlowSearchMs while no base is connected or a port
+        // is held (Pit House's helpers can hold the base after it quits, and a failed WMI read finds no Moza port), so that
+        // nothing is lost for the run. Never while Pit House runs, which holds the base's ports for as long as it does (on
+        // the rig, all day), and not on a timer once the base is connected and nothing is held. Poll thread only, but for
+        // the flag.
+        private volatile bool _searchAsked = true;
+        private string[] _portsSeen;
+        private DateTime _nextPortCheck = DateTime.MinValue;
+        private DateTime _nextPitHouseCheck = DateTime.MinValue;
+        private DateTime _nextSlowSearch = DateTime.MinValue;
+        private bool _pitHouseRunning;
+
+        /// <summary>How many times the ports have been looked for, Pit House or not: for a test.</summary>
+        internal int Searches { get; private set; }
+
+        /// <summary>Whether MOZA Pit House was running when last looked at.</summary>
+        internal bool PitHouseRunning => _pitHouseRunning;
 
         // ── Ports another program holds ───────────────────────────────
         // Windows gives a serial port to one handle at a time, so while another program has a port
@@ -63,7 +96,7 @@ namespace RacingDesk.Plugin.Engine.Moza
         private readonly Func<IReadOnlyList<string>> _runningMozaProcesses;
 
         // The programs the warning about Moza software was last logged for, so that it is logged once for each set of
-        // them and not at every discovery cycle. Pit House runs all day on the rig: the cycle is 10 s. Poll thread only.
+        // them and not each time the processes are looked at. Pit House runs all day on the rig. Poll thread only.
         private string _pitHouseLogged = "";
 
         // ── Logging callback (injected by Plugin.cs) ──────────────────
@@ -215,7 +248,7 @@ namespace RacingDesk.Plugin.Engine.Moza
         public void ForceRediscovery()
         {
             _retryHeldPorts = true;
-            _lastDiscovery = DateTime.MinValue;
+            _searchAsked = true;
         }
 
         /// <summary>
@@ -535,12 +568,9 @@ namespace RacingDesk.Plugin.Engine.Moza
             {
                 try
                 {
-                    // Periodic discovery
-                    if ((DateTime.UtcNow - _lastDiscovery).TotalMilliseconds >= DiscoveryIntervalMs)
-                    {
+                    // Discovery, when something asks for it (NoteWhatChanged): on a timer only while no base is connected or a port is held
+                    if (NoteWhatChanged())
                         DiscoverDevices();
-                        _lastDiscovery = DateTime.UtcNow;
-                    }
 
                     // Process queued writes
                     ProcessWriteQueue();
@@ -567,11 +597,68 @@ namespace RacingDesk.Plugin.Engine.Moza
         //  DEVICE DISCOVERY
         // ═══════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Whether the ports are to be looked for now, and forgets that they were: the list of COM ports is read every
+        /// <see cref="PortListCheckMs"/> (a registry read) and a change in it asks for a look; while Pit House runs the
+        /// processes are read every <see cref="PitHouseCheckMs"/>, and its quitting asks for one; while it does not, and no
+        /// base is connected or a port is held, a look is asked for <see cref="SlowSearchMs"/> after the last, held ports
+        /// included. Poll thread.
+        /// </summary>
+        internal bool NoteWhatChanged()
+        {
+            var now = _utcNow();
+            if (now >= _nextPortCheck)
+            {
+                _nextPortCheck = now.AddMilliseconds(PortListCheckMs);
+                var names = _portSystem.GetPortNames() ?? new string[0];
+                if (_portsSeen == null || !SamePorts(names, _portsSeen))
+                {
+                    _portsSeen = (string[])names.Clone();
+                    _searchAsked = true;
+                }
+            }
+            if (_pitHouseRunning && now >= _nextPitHouseCheck)
+            {
+                _nextPitHouseCheck = now.AddMilliseconds(PitHouseCheckMs);
+                CheckForPitHouse();
+                if (!_pitHouseRunning) _searchAsked = true;   // it let go of the base's ports
+            }
+            if (!_pitHouseRunning && now >= _nextSlowSearch && (Wheelbase == null || HoldsAPort()))
+            {
+                _searchAsked = true;
+                _retryHeldPorts = true;   // a held port is looked at again too, whenever it was last
+            }
+            if (!_searchAsked) return false;
+            _searchAsked = false;
+            _nextSlowSearch = now.AddMilliseconds(SlowSearchMs);
+            return true;
+        }
+
+        /// <summary>Whether another program holds a port that is still there, as discovery last found.</summary>
+        private bool HoldsAPort()
+        {
+            if (_heldPortRetryAt.Count == 0 || _portsSeen == null) return false;
+            foreach (var name in _portsSeen)
+                if (_heldPortRetryAt.ContainsKey(name)) return true;
+            return false;
+        }
+
+        private static bool SamePorts(string[] a, string[] b) =>
+            a.Length == b.Length && new HashSet<string>(a, StringComparer.OrdinalIgnoreCase).SetEquals(b);
+
         internal void DiscoverDevices()
         {
             try
             {
                 CheckForPitHouse();
+                if (_pitHouseRunning)
+                {
+                    // Pit House has the base's ports for as long as it runs (the warning above says so, once): nothing
+                    // is opened, checked or written to until it quits, which NoteWhatChanged sees.
+                    _nextPitHouseCheck = _utcNow().AddMilliseconds(PitHouseCheckMs);
+                    return;
+                }
+                Searches++;
 
                 if (_retryHeldPorts)
                 {
@@ -607,8 +694,8 @@ namespace RacingDesk.Plugin.Engine.Moza
                     }
                 }
 
-                // Query WMI for USB serial device descriptions
-                var portDescriptions = GetUsbSerialDescriptions();
+                // Query WMI for USB serial device descriptions and vendor ids
+                var portInfo = GetUsbPortWmiInfo();
 
                 // Drop the not-Moza probe cache if the port set has changed
                 // (hot-plug, USB cable replug, etc.) so new devices get a probe.
@@ -626,17 +713,22 @@ namespace RacingDesk.Plugin.Engine.Moza
 
                     // Try to match against Moza USB patterns
                     string description = "";
-                    if (portDescriptions.TryGetValue(portName, out string desc))
-                        description = desc;
+                    string vendor = "";
+                    if (portInfo.TryGetValue(portName, out var info))
+                    {
+                        description = info.Description ?? "";
+                        vendor = info.Vid ?? "";
+                    }
 
                     var match = ClassifyDevice(description);
                     bool identifiedByProbe = false;
                     if (match == null)
                     {
-                        // Description regex didn't match — fall back to the
-                        // protocol probe. This is the path that catches Moza
-                        // hardware presenting with generic COM names where the
-                        // description contains no "Gudsen"/"MOZA" substring.
+                        // Not described as Moza's. A port whose USB vendor is not Moza's either is somebody else's
+                        // device (a Valve receiver, a button box, an Arduino): it is never opened, checked or written to.
+                        if (!IsMozaVendor(vendor)) continue;
+                        // Moza's own vendor id behind a generic description ("USB Serial Device", as the base presents
+                        // on the rig): the protocol probe says which device it is.
                         var probedType = OpenAndProbe(portName, discovery: true);
                         if (probedType == null) continue;
                         match = (probedType.Value, "");
@@ -720,27 +812,13 @@ namespace RacingDesk.Plugin.Engine.Moza
             }
         }
 
-        /// <summary>
-        /// Queries WMI Win32_PnPEntity for USB serial port descriptions.
-        /// Returns a dictionary of COM port name → description string.
-        /// </summary>
-        private Dictionary<string, string> GetUsbSerialDescriptions()
-        {
-            var rich = GetUsbPortWmiInfo();
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var kvp in rich)
-            {
-                result[kvp.Key] = kvp.Value.Description;
-            }
-            return result;
-        }
+        /// <summary>Whether a port's USB vendor id is Moza's (<see cref="MozaVendorId"/>).</summary>
+        internal static bool IsMozaVendor(string vid) => string.Equals((vid ?? "").Trim(), MozaVendorId, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
-        /// Per-port WMI data. Richer than GetUsbSerialDescriptions — includes
-        /// the raw HardwareID plus extracted USB VID/PID, which the diagnostic
-        /// surfaces so users whose devices come back with generic/empty
-        /// descriptions (no "Gudsen"/"MOZA" substring) can still be identified
-        /// by vendor/product ID.
+        /// Per-port WMI data: the description, the raw HardwareID and the USB
+        /// VID/PID taken from it. Discovery classifies by the description and
+        /// probes only a port whose VID is Moza's; the diagnostic shows all of it.
         /// </summary>
         internal class PortWmiInfo
         {
@@ -750,12 +828,7 @@ namespace RacingDesk.Plugin.Engine.Moza
             public string Pid { get; set; } = "";  // 4-char hex, no prefix
         }
 
-        /// <summary>
-        /// Like GetUsbSerialDescriptions but also pulls HardwareID/VID/PID. The
-        /// discovery path (ClassifyDevice) still uses the plain description
-        /// dictionary to keep the string-match classifier untouched; only the
-        /// diagnostic JSON reads the richer data.
-        /// </summary>
+        /// <summary>What WMI says of each serial port, by port name (<see cref="PortWmiInfo"/>); empty if it cannot say.</summary>
         private Dictionary<string, PortWmiInfo> GetUsbPortWmiInfo()
         {
             try
@@ -806,39 +879,56 @@ namespace RacingDesk.Plugin.Engine.Moza
         /// </summary>
         private static readonly string[] PitHouseProcessCandidates = new[]
         {
-            "PitHouse",              // main UI
+            "MOZA Pit House",        // main UI, as the process is named on the rig ("MOZA Pit House.exe")
+            "PitHouse",              // main UI, as older installs named it
             "MozaBackgroundSystem",  // sync daemon, keeps running after UI close
             "MozaService",           // some installers register this as a service helper
             "MozaUsbGateway",        // USB bridge, holds devices for the daemon
             "Nextmotion",            // older Moza companion
         };
 
-        /// <summary>The Moza programs that are running on this machine, by file name.</summary>
-        private static IReadOnlyList<string> RunningMozaProcesses()
+        /// <summary>The programs that are Pit House itself, of the candidates: while one runs, the ports are not looked at.</summary>
+        private static readonly string[] PitHouseItself = { "MOZA Pit House", "PitHouse" };
+
+        /// <summary>Whether the programs <see cref="RunningMozaProcesses"/> found include Pit House itself.</summary>
+        internal static bool IncludesPitHouse(IReadOnlyList<string> running) =>
+            running != null && running.Any(r => PitHouseItself.Any(p => string.Equals(r, p + ".exe", StringComparison.OrdinalIgnoreCase)));
+
+        /// <summary>The Moza programs that are running on this machine, by file name: one look at the processes for all of them.</summary>
+        internal static IReadOnlyList<string> RunningMozaProcesses()
         {
             var offenders = new List<string>();
-            foreach (var name in PitHouseProcessCandidates)
+            var processes = System.Diagnostics.Process.GetProcesses();
+            try
             {
-                var processes = System.Diagnostics.Process.GetProcessesByName(name);
-                if (processes.Length > 0)
-                {
-                    offenders.Add(name + ".exe");
-                    foreach (var p in processes) p.Dispose();
-                }
+                foreach (var name in PitHouseProcessCandidates)
+                    if (processes.Any(p => string.Equals(SafeName(p), name, StringComparison.OrdinalIgnoreCase)))
+                        offenders.Add(name + ".exe");
+            }
+            finally
+            {
+                foreach (var p in processes) p.Dispose();
             }
             return offenders;
         }
 
+        private static string SafeName(System.Diagnostics.Process p)
+        {
+            try { return p.ProcessName; }
+            catch (InvalidOperationException) { return ""; }   // gone between the list and the look
+        }
+
         /// <summary>
-        /// Keeps <see cref="PitHouseWarning"/> as the machine is, at every discovery cycle, and logs it once for each set
-        /// of programs that is running — not at every cycle. It is a way of finding out why a port is held, and Pit House
-        /// holds the base's two for as long as it runs, which on the rig is all day.
+        /// Keeps <see cref="PitHouseWarning"/> and <see cref="PitHouseRunning"/> as the machine is, each time the ports are
+        /// looked for and while Pit House runs, and logs the warning once for each set of programs that is running. Pit
+        /// House holds the base's two ports for as long as it runs, which on the rig is all day.
         /// </summary>
         private void CheckForPitHouse()
         {
             try
             {
                 var offenders = _runningMozaProcesses();
+                _pitHouseRunning = IncludesPitHouse(offenders);
 
                 if (offenders.Count > 0)
                 {
@@ -899,9 +989,8 @@ namespace RacingDesk.Plugin.Engine.Moza
 
         /// <summary>
         /// Cache of ports we've probed and confirmed don't speak the Moza
-        /// protocol. Avoids re-spamming Arduinos/3D printers/CNC controllers
-        /// on every 10s discovery cycle. Cleared when the port set changes
-        /// so hot-plugged devices get a fresh probe.
+        /// protocol (only a port with Moza's vendor id is ever probed). Cleared
+        /// when the port set changes so hot-plugged devices get a fresh probe.
         /// </summary>
         private readonly HashSet<string> _probedNotMoza = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -1162,6 +1251,7 @@ namespace RacingDesk.Plugin.Engine.Moza
                     {
                         _logWarn($"[MozaSerial] {device.DisplayName} disconnected after {MozaDevice.MaxFailures} failures");
                         ClosePort(device.PortName);
+                        _searchAsked = true;   // looked for again, once
                     }
                     return; // Stop polling this device on failure
                 }

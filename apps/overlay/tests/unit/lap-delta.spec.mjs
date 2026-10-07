@@ -104,6 +104,33 @@ test.describe('the module', () => {
     expect(d.view().best).toBeCloseTo(-0.5, 1);
   });
 
+  test('a gap in the frames ends the lap under way: the laps either side are not joined into one, and the best is kept', () => {
+    // The rig's HUD switched off at 30% of a lap and back on at 60% two laps later: the samples after the gap were added to
+    // the lap from before it, and the one lap made of two became his best.
+    const run = (d, lapTime, from, to) => {
+      for (let pct = from; pct < to; pct += 1 / (lapTime * 30)) d.feed({ session: 'Race|x', pct, t: pct * lapTime, boundaries: [1 / 3, 2 / 3] });
+    };
+    const race = (d, gap) => {
+      run(d, 90, 0, 1);       // his best, seen whole
+      run(d, 95, 0, 0.3);     // switched off here
+      gap(d);
+      run(d, 85, 0.6, 1);     // and back on here, two laps later
+      run(d, 90, 0, 0.2);     // a lap at his best's pace
+    };
+    const joined = LD.create();
+    race(joined, () => {});
+    expect(joined.view().bestTime).toBeCloseTo(85, 0);
+    expect(joined.view().best).toBeLessThan(-0.5);
+    const broken = LD.create();
+    race(broken, (d) => {
+      d.breakLap();
+      expect(d.view().bestTime).toBeCloseTo(90, 1);
+      expect(d.view().best).toBeNull();
+    });
+    expect(broken.view().bestTime).toBeCloseTo(90, 1);
+    expect(broken.view().best).toBeCloseTo(0, 1);
+  });
+
   test('a new session starts again', () => {
     const d = LD.create();
     drive(d, 90);

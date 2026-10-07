@@ -42,17 +42,21 @@ namespace RacingDesk.Tests.Names
             return port;
         }
 
-        /// <summary>SimHub's Opponent, as far as the engine reads it by property name.</summary>
+        /// <summary>
+        /// SimHub's Opponent, as far as the engine reads it by property name: the names and types GameReaderCommon gives
+        /// them (SimHubOpponentTests reads them from SimHub's own assembly).
+        /// </summary>
         public sealed class Opponent
         {
             public string Name { get; set; } = "";
             public string CarNumber { get; set; } = "";
             public int Position { get; set; }
-            public int IRating { get; set; }
-            public double GapToPlayer { get; set; }
+            public double? IRacing_IRating { get; set; }
+            public double? GaptoPlayer { get; set; }
             public TimeSpan BestLapTime { get; set; }
             public TimeSpan LastLapTime { get; set; }
-            public bool IsInPit { get; set; }
+            public bool IsCarInPit { get; set; }
+            public bool IsCarInPitLane { get; set; }
             public bool IsPlayer { get; set; }
         }
 
@@ -93,12 +97,13 @@ namespace RacingDesk.Tests.Names
             {
                 Data.PlayerName = SyntheticField.PlayerName;
                 Data.Position = SyntheticField.PlayerPosition;
-                Data.Opponents.Add(new Opponent { Name = SyntheticField.PlayerName, CarNumber = SyntheticField.PlayerNumber, Position = SyntheticField.PlayerPosition, IRating = 1500, IsPlayer = true });
+                Data.Opponents.Add(new Opponent { Name = SyntheticField.PlayerName, CarNumber = SyntheticField.PlayerNumber, Position = SyntheticField.PlayerPosition, IRacing_IRating = 1500, IsPlayer = true });
                 foreach (var r in SyntheticField.Rivals)
                     Data.Opponents.Add(new Opponent
                     {
-                        Name = r.Name, CarNumber = r.Number, Position = r.Position, IRating = r.IRating,
-                        GapToPlayer = (r.Position - SyntheticField.PlayerPosition) * 1.8,
+                        Name = r.Name, CarNumber = r.Number, Position = r.Position, IRacing_IRating = r.IRating,
+                        GaptoPlayer = (r.Position - SyntheticField.PlayerPosition) * 1.8,
+                        IsCarInPitLane = ReferenceEquals(r, SyntheticField.Behind),
                         BestLapTime = TimeSpan.FromSeconds(92 + r.Position * 0.3), LastLapTime = TimeSpan.FromSeconds(92.4 + r.Position * 0.3),
                     });
                 const string raw = "DataCorePlugin.GameRawData.Telemetry.";
@@ -168,16 +173,18 @@ namespace RacingDesk.Tests.Names
         }
 
         [Test]
-        public void HisOwnCarWithHimInItIsHisWhateverSimHubCallsHim()
+        public void HisOwnNameIsHisWhateverItsCaseSpacingOrAccents()
         {
             // He said on 2026-10-03: "don't change my name in the leaderboard". SimHub's name for him need not be the
-            // session's to the letter; his own car, with him in it, is his all the same.
+            // session's to the letter: its case, spacing and accents may differ, and it is his all the same. A different
+            // name in his car is another driver (SimHubFlaggingAnotherCarAsThePlayerIsNotTakenAsHim, the team race tests).
             var bridge = new IRacingSdkBridge();
             bridge.ApplySessionInfo(SessionInfoYaml.Parse(SyntheticField.Yaml()));
-            string simHubs = SyntheticField.PlayerName + " Jr";
+            string simHubs = "  " + SyntheticField.PlayerName.ToUpperInvariant().Replace(" ", "   ").Replace("E", "É") + " ";
             Assert.That(bridge.PlayerName(simHubs), Is.EqualTo(simHubs), "the player is him");
-            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, simHubs, true), Is.EqualTo(simHubs), "his row, by his car's number");
-            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, simHubs, false), Is.EqualTo(simHubs), "whatever SimHub's flag says");
+            Assert.That(bridge.OpponentName(SyntheticField.PlayerNumber, simHubs, true), Is.EqualTo(simHubs), "his row");
+            Assert.That(bridge.OpponentName("", simHubs, false), Is.EqualTo(simHubs), "whatever SimHub's flag or number says");
+            Assert.That(bridge.PlayerName(SyntheticField.PlayerName + " Jr"), Is.Not.EqualTo(SyntheticField.PlayerName + " Jr"), "another name is another driver");
             // A rival's real name is still a character's, even said of the player.
             var rival = SyntheticField.Rivals.First();
             Assert.That(bridge.PlayerName(rival.Name), Is.Not.EqualTo(rival.Name));
@@ -231,7 +238,15 @@ namespace RacingDesk.Tests.Names
                     int pos = (int)row[0]!;
                     string name = (string)row[1]!;
                     if (pos == SyntheticField.PlayerPosition) Assert.That(name, Is.EqualTo(SyntheticField.PlayerName));
-                    else Assert.That(name, Is.EqualTo(expected[SyntheticField.Rivals.Single(r => r.Position == pos).Number]), $"P{pos}");
+                    else
+                    {
+                        var rival = SyntheticField.Rivals.Single(r => r.Position == pos);
+                        Assert.That(name, Is.EqualTo(expected[rival.Number]), $"P{pos}");
+                        // Read by SimHub's own names: the iRating, the gap and the pit lane, which used to read 0.
+                        Assert.That((int)row[2]!, Is.EqualTo(rival.IRating), $"P{pos} iRating");
+                        Assert.That((double)row[5]!, Is.EqualTo((pos - SyntheticField.PlayerPosition) * 1.8).Within(0.006), $"P{pos} gap");
+                        Assert.That((int)row[6]!, Is.EqualTo(ReferenceEquals(rival, SyntheticField.Behind) ? 1 : 0), $"P{pos} in the pits");
+                    }
                 }
 
                 using var http = new HttpClient();

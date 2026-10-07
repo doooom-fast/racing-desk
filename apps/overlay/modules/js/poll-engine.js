@@ -145,6 +145,9 @@
       if (_mainDecides) {
         _snapshotDirty = false;   // what was last read is from the last time he was in
         startConnectionClean();   // and so is any backoff (game-detect.js)
+        // The page read nothing while he was out or the HUD was switched off: the lap under way then is not this one.
+        _lapDeltaTracker.breakLap();
+        _gapTrend.resume();
       }
     } else if (!_isIdle) {
       // Out with no frame to say so (the source went quiet): the flag the other modules read still has to change.

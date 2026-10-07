@@ -286,9 +286,8 @@ namespace RacingDesk.Plugin.Engine
                         // The source names the car, never this reader: the character's name for another driver, his
                         // own for his (ITelemetrySource.OpponentName; root CLAUDE.md, Other drivers' names).
                         string name  = pm.OpponentName(opp) ?? "";
-                        int   irating = 0;
-                        var irProp = t.GetProperty("IRating") ?? t.GetProperty("Irating");
-                        if (irProp != null) { var v = irProp.GetValue(opp); if (v != null) irating = Convert.ToInt32(v); }
+                        // SimHub's name for it is IRacing_IRating (a double that may be null); the host's opponents say IRating.
+                        int   irating = RacingDeskRuntime.OpponentIRating(t, opp);
 
                         // Try to read gap-to-player from the opponent object
                         double gapToPlayer = 0;
