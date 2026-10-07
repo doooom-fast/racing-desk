@@ -671,6 +671,23 @@ namespace RacingDesk.Plugin
         }
 
         /// <summary>
+        /// An opponent's iRating, by the name SimHub gives it (<c>IRacing_IRating</c>, a double that may be null) or the
+        /// host's (<c>IRating</c>); 0 where neither says.
+        /// </summary>
+        internal static int OpponentIRating(Type t, object opp)
+        {
+            var p = t.GetProperty("IRacing_IRating") ?? t.GetProperty("IRating") ?? t.GetProperty("Irating");
+            var v = p?.GetValue(opp);
+            return v == null ? 0 : Convert.ToInt32(v, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private static bool Flag(Type t, object opp, string name)
+        {
+            var v = t.GetProperty(name)?.GetValue(opp);
+            return v is bool b ? b : v is int i && i != 0;
+        }
+
+        /// <summary>
         /// Build leaderboard JSON from the source's Opponents list (read by property name, the name itself asked of the
         /// source: the character's for another driver, his own for his — ITelemetrySource.OpponentName).
         /// Returns a window of drivers centred on the player, compact JSON array.
@@ -695,20 +712,19 @@ namespace RacingDesk.Plugin
                     // A car the source cannot name yet (iRacing, before its session has been read) is left out, not shown nameless.
                     string name = source.OpponentName(opp);
                     if (name == null) continue;
-                    int irating = 0;
-                    var irProp = t.GetProperty("IRating") ?? t.GetProperty("Irating");
-                    if (irProp != null) { var v = irProp.GetValue(opp); if (v != null) irating = Convert.ToInt32(v); }
+                    // SimHub's Opponent (GameReaderCommon) names these IRacing_IRating (double?), GaptoPlayer (double?, seconds)
+                    // and IsCarInPit / IsCarInPitLane; the host's own opponents (IRacingTelemetrySource) IRating, GapToPlayer
+                    // and IsInPit. Read by the names SimHub has first: the others never matched it, and read 0.
+                    int irating = OpponentIRating(t, opp);
                     double best = 0, last = 0;
                     var bestProp = t.GetProperty("BestLapTime");
                     if (bestProp != null) { var v = bestProp.GetValue(opp); if (v is TimeSpan ts && ts.TotalSeconds > 0) best = ts.TotalSeconds; }
                     var lastProp = t.GetProperty("LastLapTime");
                     if (lastProp != null) { var v = lastProp.GetValue(opp); if (v is TimeSpan ts2 && ts2.TotalSeconds > 0) last = ts2.TotalSeconds; }
                     double gapToPlayer = 0;
-                    var gapProp = t.GetProperty("GapToPlayer");
+                    var gapProp = t.GetProperty("GaptoPlayer") ?? t.GetProperty("GapToPlayer");
                     if (gapProp != null) { var v = gapProp.GetValue(opp); if (v != null) gapToPlayer = Convert.ToDouble(v); }
-                    bool inPit = false;
-                    var pitProp = t.GetProperty("IsInPit") ?? t.GetProperty("IsInPitLane");
-                    if (pitProp != null) { var v = pitProp.GetValue(opp); if (v is bool b) inPit = b; else if (v is int iv) inPit = iv != 0; }
+                    bool inPit = Flag(t, opp, "IsCarInPit") || Flag(t, opp, "IsCarInPitLane") || Flag(t, opp, "IsInPit") || Flag(t, opp, "IsInPitLane");
                     bool isPlayer = (pos == playerPos);
 
                     if (pos <= 0) continue;
