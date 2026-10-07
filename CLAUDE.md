@@ -63,7 +63,7 @@ a window over whatever the driver is doing is the least of it. The app's own hos
 the iPad view needs the LAN.
 
 The host also serves the store read-only at
-`:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals,restore,outline?track=}` — that's what the desk
+`:8889/racing-desk/data/{status,sessions,session?id=,schedule,cars,views,pedals,restore,soundbar,outline?track=}` — that's what the desk
 reads (through the app's main process, not from its page), and `outline` is what the SimHub plugin's track map reads (see
 Track maps) — **to programs on this machine only**: a request from another address, naming another host, or that a browser
 sent (any page, the desk's own included) gets a 403 with no CORS header (see below, after the `?action=` routes). If
@@ -72,7 +72,8 @@ through it: `POST /racing-desk/data/pedals` (`{ car_path, profile_id | null }`),
 by the same check as the runtime's `?action=` routes make (below), which is now the one every read has too: a request
 from another machine, one that names a host other than this machine's own, or one a browser sent (`Origin`, `Referer`,
 `Sec-Fetch-*`) gets 403, so the desk page sends it through main.js. `POST /racing-desk/data/restore` is the other write,
-by the same check: a switch, or undo (see Per car, for the rig).
+by the same check: a switch, or undo (see Per car, for the rig). `POST /racing-desk/data/soundbar` is the last: the sound bar's
+switch, or which playback device it is (see iRacing's LFE on the sound bar, under Per car, for the rig).
 Beside them, `GET /racing-desk/data/simwindow` says where the sim's window is and `GET /racing-desk/data/monitors` lists
 the monitors, both in physical pixels (see **The HUD is on the screen iRacing is on**, under Desk), and
 `GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
@@ -430,6 +431,42 @@ files or to the pedals; putting the cars back (last bullet) does, by itself, by 
   - Tests: `RacingDesk.Tests/Restore/` (`LiveTests.cs`: the loop over made-up files and a fake key sender; editors, writers,
     the route); on the overlay `tests/unit/restore-api.spec.mjs`, `tests/unit/desk-restore-model.spec.mjs`,
     `tests/desk/restore.spec.mjs` and the Cars page's test in `tests/desk/desk.spec.mjs`.
+- **iRacing's LFE on the sound bar** (2026-10-07, his words: "is it feasible for racing desk to swap audio channels when I'm
+  using the external speakers, and disable lfe? And then turn them back to normal ... with a normal setup", then "yes"). The
+  channel swap is Equalizer APO's, not Racing Desk's. In the host (`SoundBarLfe`, `RacingDesk.Data/Audio`; nothing of it is on
+  the HUD):
+  - **The device is watched, not polled**: Windows' Core Audio by COM (`WindowsAudioDevices`: `IMMDeviceEnumerator` and
+    `IMMNotificationClient`, read-only — endpoints listed and named, no stream opened, the default never changed). Windows' call
+    only queues a look; a look is one default-device read and one app.ini read, on a worker.
+  - **The sound bar** is the playback device he chose from the active ones, or, with none chosen, the one whose name has
+    `SineAudio` in it (`SoundBarLfe.DefaultDeviceName`). The switch (`Turn iRacing's LFE off on the sound bar`) is on by default;
+    both are kept in `soundbar.json` beside `restore.json`.
+  - **What is switched**: `[Audio] xa2_mixToLFE` (the game's sound mixed into the LFE channel as well as the normal ones — what
+    the sound bar's sub gets) and `[BassShaker] LFEEnabled` (the bass shaker effect on the LFE device). Both go to 0, in the
+    spelling the line has (`0`, or `0.000000` where the file writes decimals). **Not touched**: `devLFEAPI`, `devLFEId` and
+    `devLFEName` (which device the bass shaker plays to: his iRacing choice, and what makes the LFE reach the sound bar),
+    `loudnessLFE`, `enableLFEBKAmpCut`, `enableGameEffects`, `enablePysEffects` and `volGameMaster_dB` (they only shape an effect
+    `LFEEnabled` already stops). A value already off is not kept or touched.
+  - **Kept first, put back by value**: what the file held goes into the store (`soundbar_lfe_keep`, a table of its own made the
+    first time, so the schema version is not touched) before any write, with `written_ok` false until the file has been read
+    back, so a stop in between is not taken for his own change. Anything else becoming the default, the switch turned off, or the
+    host starting with another device puts the kept values back. **A value he changed himself since is his**: it is left, and it
+    becomes the kept value (the desk says "Left iRacing's LFE as you set it").
+  - **Every write is `ViewFiles.ApplyIniText`**, the seat height's own writer: only with both of the sim's processes closed
+    (asked again before the swap), a copy of app.ini first (`backups/view`), single-value edits through `AppIniEditor.TrySetText`
+    that keep the line's width, the tab and the comment, then swapped in and read back. One app.ini writer at a time in the
+    process (`ViewFiles.IniWrites`), because this and the seat height's put-back both run when the sim closes. While the sim runs
+    nothing is written, not even a copy; the desk says it waits, and the change is made when the sim stops sending (`SimGone`) or
+    when a five-second look finds both processes gone.
+  - **At host start** the first look waits for `RestoreDirector.Settled()`, so that a view write a stop cut short is put back
+    before app.ini is looked at for anything else.
+  - **The route**: `GET /racing-desk/data/soundbar` (the switch, the active devices, the one taken for the sound bar and whether
+    it is connected, `onSoundBar`, and `status`: `state`, `last`, `lastAtUtc`, `waiting`, `problem`); `POST` takes
+    `{ enabled }` or `{ device }` (an empty id goes back to the SineAudio one), for programs on this machine only.
+  - **The desk**: Settings → Sound (`#settings-soundbar`): the switch, the choice of device, and one sentence (the problem, or
+    what it waits for, or what it did last and when). Overlay `modules/js/soundbar-api.js`, `modules/desk/soundbar-model.js`.
+  - Tests: `RacingDesk.Tests/Restore/SoundBarTests.cs` (fake devices, temp copies of app.ini; his real app.ini is never read);
+    on the overlay `tests/unit/soundbar-api.spec.mjs`, `tests/unit/desk-soundbar-model.spec.mjs`, `tests/desk/soundbar.spec.mjs`.
 
 ## Season schedule
 

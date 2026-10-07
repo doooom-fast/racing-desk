@@ -99,6 +99,19 @@ namespace RacingDesk.Data.Restore
         public bool Restoring { get; set; }
     }
 
+    /// <summary>One value of app.ini, spelled as the file spells it, to be set (<see cref="ViewFiles.ApplyIniText"/>).</summary>
+    public sealed class IniTextChange
+    {
+        public string Section { get; set; }
+        public string Key { get; set; }
+
+        /// <summary>The new spelling: <c>0</c>, or <c>1</c>.</summary>
+        public string Text { get; set; }
+
+        /// <summary>Write only while the file holds exactly this (ignoring case); null writes whatever is there.</summary>
+        public string Expect { get; set; }
+    }
+
     /// <summary>What <see cref="ViewFiles.Settle"/> found of one write that a stop had cut short, for the desk and host.log.</summary>
     public sealed class SettleNote
     {
@@ -278,6 +291,17 @@ namespace RacingDesk.Data.Restore
         /// </summary>
         public ViewWriteResult Apply(ViewChange change)
         {
+            lock (IniWrites) return ApplyLocked(change);
+        }
+
+        /// <summary>
+        /// One writer of app.ini at a time in this process: the seat height's put-back and the sound bar's LFE switch both read the file,
+        /// change a value and swap it in, and two of them at once (both run when the sim has closed) would lose one of the two edits.
+        /// </summary>
+        private static readonly object IniWrites = new object();
+
+        private ViewWriteResult ApplyLocked(ViewChange change)
+        {
             var result = new ViewWriteResult();
             if (change == null) { result.Why = "nothing to change"; return result; }
             if (_probe.SimRunning()) { result.Why = "iRacing is running: its files are written only while it is closed"; return result; }
@@ -415,6 +439,54 @@ namespace RacingDesk.Data.Restore
             return result;
         }
 
+        /// <summary>
+        /// Sets values of app.ini that are spelled as they stand (a switch, <c>1</c> and <c>0</c>), each in its own section, with the
+        /// sim closed: the same care as <see cref="Apply"/> takes. Nothing is written for a value that is not what the change says it
+        /// should be (<see cref="IniTextChange.Expect"/>): it was changed since, and is left. The file is backed up before it is touched,
+        /// the new one is swapped in and read back, and each value is read from the file again. Refused, with nothing written, while
+        /// the sim runs, for a key that is not in the file once, or a value that does not fit its line.
+        /// </summary>
+        public ViewWriteResult ApplyIniText(IReadOnlyList<IniTextChange> changes)
+        {
+            lock (IniWrites) return ApplyIniTextLocked(changes);
+        }
+
+        private ViewWriteResult ApplyIniTextLocked(IReadOnlyList<IniTextChange> changes)
+        {
+            var result = new ViewWriteResult();
+            if (changes == null || changes.Count == 0) { result.Why = "nothing to change"; return result; }
+            if (_probe.SimRunning()) { result.Why = "iRacing is running: its files are written only while it is closed"; return result; }
+
+            byte[] before = ReadAppIni();
+            if (before == null) { result.Why = "there is no app.ini"; return result; }
+            byte[] after = before;
+            foreach (var change in changes)
+            {
+                if (!AppIniEditor.TryReadText(after, change.Section, change.Key, out string now))
+                { result.Why = $"app.ini: {change.Key} is not in [{change.Section}] once"; return result; }
+                if (change.Expect != null && !string.Equals(now, change.Expect, StringComparison.OrdinalIgnoreCase))
+                { result.Why = $"app.ini's {change.Key} is no longer what Racing Desk saw: it is left as it is"; return result; }
+                if (!AppIniEditor.TrySetText(after, change.Section, change.Key, change.Text, out after, out string whySet))
+                { result.Why = "app.ini: " + whySet; return result; }
+            }
+            if (after.AsSpan().SequenceEqual(before)) { result.Ok = true; return result; }
+
+            result.IniBackup = Backup(AppIni, "app.ini", Stamp(), before, out string whyBackup);
+            if (result.IniBackup == null) { result.Why = whyBackup; return result; }
+            if (_probe.SimRunning()) { result.Why = "iRacing started: nothing was written"; return result; }
+            if (!Swap(AppIni, after, out string why)) { result.Why = "app.ini was not written: " + why; return result; }
+
+            byte[] back = ReadAppIni();
+            foreach (var change in changes)
+            {
+                if (back == null || !AppIniEditor.TryReadText(back, change.Section, change.Key, out string read) || !string.Equals(read, change.Text.Trim(), StringComparison.OrdinalIgnoreCase))
+                { result.Why = $"app.ini's {change.Key} did not read back as written"; return result; }
+                result.Did.Add($"app.ini [{change.Section}] {change.Key} {change.Text.Trim()}");
+            }
+            result.Ok = true;
+            return result;
+        }
+
         private static double? ReadIni(byte[] file, string key) =>
             file != null && AppIniEditor.TryReadValue(file, "View", key, out double v) ? v : (double?)null;
 
@@ -432,6 +504,11 @@ namespace RacingDesk.Data.Restore
         /// iRacing or him, and is left as it is. The sim is asked again right before the swap.
         /// </summary>
         private bool PutIniValuesBack(double? height, double? vanishY, string onlyIfSha, out string why)
+        {
+            lock (IniWrites) return PutIniValuesBackLocked(height, vanishY, onlyIfSha, out why);
+        }
+
+        private bool PutIniValuesBackLocked(double? height, double? vanishY, string onlyIfSha, out string why)
         {
             why = null;
             byte[] now = ReadAppIni();

@@ -65,6 +65,42 @@ namespace RacingDesk.Plugin.IRacing
             return true;
         }
 
+        /// <summary>
+        /// The value of <paramref name="key"/> as the file spells it (trimmed of its padding), when it is in <paramref name="section"/>
+        /// once: for a switch such as <c>LFEEnabled=1</c>, which the sim writes as a whole number and not with six decimals.
+        /// </summary>
+        public static bool TryReadText(byte[] file, string section, string key, out string text)
+        {
+            text = null;
+            if (!TryFind(file, section, key, out var spot, out _)) return false;
+            text = Bytes.GetString(file, spot.ValueStart, spot.ValueEnd - spot.ValueStart).Trim();
+            return text.Length > 0;
+        }
+
+        /// <summary>
+        /// A copy of the file with <paramref name="key"/> in <paramref name="section"/> spelled <paramref name="text"/> and nothing
+        /// else changed: the value goes where the old one was and is padded to the same width, so the line keeps its form (<c>1</c>
+        /// stays a whole number, the tab and the comment stay where they are). A word that would not fit, or that has a tab, a
+        /// semicolon, an equals sign or a line break in it, is refused.
+        /// </summary>
+        public static bool TrySetText(byte[] file, string section, string key, string text, out byte[] edited, out string why)
+        {
+            edited = null;
+            if (string.IsNullOrWhiteSpace(text) || text.IndexOfAny(new[] { '\t', ';', '=', '\r', '\n', '[', ']' }) >= 0) { why = "the value is not one that fits on a line of the file"; return false; }
+            if (!TryFind(file, section, key, out var spot, out why)) return false;
+            text = text.Trim();
+            int width = spot.ValueEnd - spot.ValueStart;
+            if (text.Length > width) { why = $"{text} is wider than the {width} characters the value has on its line"; return false; }
+            byte[] padded = Bytes.GetBytes(text.PadRight(width, ' '));
+            var copy = (byte[])file.Clone();
+            Buffer.BlockCopy(padded, 0, copy, spot.ValueStart, width);
+            for (int i = 0; i < copy.Length; i++)
+                if (copy[i] != file[i] && (i < spot.ValueStart || i >= spot.ValueEnd)) { why = "the edit reached past the value"; return false; }
+            edited = copy;
+            why = null;
+            return true;
+        }
+
         private struct Spot
         {
             public int ValueStart, ValueEnd;   // the value and the spaces padding it, up to the tab, the comment or the line's end

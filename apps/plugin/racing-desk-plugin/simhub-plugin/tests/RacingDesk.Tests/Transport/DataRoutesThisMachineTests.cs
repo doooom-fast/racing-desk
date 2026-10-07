@@ -334,7 +334,7 @@ namespace RacingDesk.Tests.Transport
             // The app's main process, the rest of it: Node's fetch (Host and Sec-Fetch-Mode, and no Origin) for the replay, the car names, the sim's
             // window and the monitors, the rig's reads and probes (http.get: a Host and nothing more), and the SimHub plugin's
             // outlines (HttpClient on 127.0.0.1, in OutlineRouteTests, which runs through the runtime with this check).
-            foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay", "brakeforce", "wheelmax", "restore", "restore?since=0" })
+            foreach (string route in new[] { "status", "sessions", "schedule", "session?id=1", "cars", "views", "pedals", "controls", "simwindow", "monitors", "replay", "brakeforce", "wheelmax", "restore", "restore?since=0", "soundbar" })
             {
                 var viaFetch = Ask("GET", "/racing-desk/data/" + route, r =>
                 {
@@ -353,6 +353,9 @@ namespace RacingDesk.Tests.Transport
             // And putting the cars back's (restore-api.js): a host with no director answers that it has none.
             var restore = Ask("POST", "/racing-desk/data/restore", r => r.Headers.Host = "localhost:" + _httpPort);
             Assert.That(restore.Status, Is.EqualTo(HttpStatusCode.Conflict), "a program's command reaches the route: " + restore.Body);
+            // And the sound bar's switch (soundbar-api.js): the same, a host with no service answers that it has none.
+            var soundBar = Ask("POST", "/racing-desk/data/soundbar", r => r.Headers.Host = "localhost:" + _httpPort);
+            Assert.That(soundBar.Status, Is.EqualTo(HttpStatusCode.Conflict), "a program's command reaches the route: " + soundBar.Body);
         }
 
         // ── Preflight ────────────────────────────────────────────────

@@ -59,7 +59,7 @@ namespace RacingDesk.Host
         internal static readonly string[] Routes =
         {
             "status", "sessions", "session", "schedule", "cars", "views", "pedals", "controls", "simwindow", "monitors", "outline", "replay",
-            "brakeforce", "wheelmax", "restore",
+            "brakeforce", "wheelmax", "restore", "soundbar",
         };
 
         private const string NotThisMachine = "this is for the app on this machine";
@@ -106,6 +106,12 @@ namespace RacingDesk.Host
         /// with none (a replay, a test) answers that it has none.
         /// </summary>
         internal RestoreApi Restore { get; } = new RestoreApi();
+
+        /// <summary>
+        /// iRacing's LFE off while the sound bar is the default playback device, for <c>soundbar</c>: given the service by the live
+        /// host (RunLive); a host with none (a replay, a test) answers that it has none.
+        /// </summary>
+        internal SoundBarApi SoundBar { get; } = new SoundBarApi();
 
         /// <summary>
         /// The track outlines, for <c>outline?track=</c>: the store's, the one being made from the session he is
@@ -306,6 +312,26 @@ namespace RacingDesk.Host
                         return;
                     }
                     Restore.Post(ctx, (status, body) => Write(res, status, body));
+                    return;
+                }
+
+                if (route == "soundbar" && ctx.Request.HttpMethod == "GET")
+                {
+                    // The sound bar's LFE switch, the playback devices and how it stands. Not the store's, so answered before there is one.
+                    SoundBar.Get(ctx, (status, body) => Write(res, status, body));
+                    return;
+                }
+
+                if (route == "soundbar" && ctx.Request.HttpMethod == "POST")
+                {
+                    // The switch, or the device: for a program on this machine alone, as the pedals' write is.
+                    if (!LocalRequest.IsFromThisMachine(ctx.Request))
+                    {
+                        NoteRefusal("soundbar", LocalRequest.Refusal.ABrowser);
+                        Error(res, 403, NotThisMachine);
+                        return;
+                    }
+                    SoundBar.Post(ctx, (status, body) => Write(res, status, body));
                     return;
                 }
 

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Newtonsoft.Json;
 using RacingDesk.Data;
+using RacingDesk.Data.Audio;
 using RacingDesk.Data.Pedals;
 using RacingDesk.Data.Restore;
 using RacingDesk.Data.Schedule;
@@ -240,11 +241,17 @@ Data options:
             // once the sim has gone. Made before the recorders it listens to, and handed to the data API's route.
             RestoreDirector restore = null;
             CarPedalsRecorder pedals = null;
+            SoundBarLfe soundBar = null;
             if (store != null)
             {
                 string root = dataDir ?? DataFolder.Path;
                 string db = o.Db ?? RacingDeskStore.DefaultPath;
                 var probe = new WindowsRigProbe();
+                // iRacing's LFE off while the sound bar is the default playback device, and back as it was for anything else: Windows'
+                // own change call is listened to, and app.ini is written only with the sim closed, through the same safe writer.
+                soundBar = MakeSoundBar(db, new ViewFiles(CarViewRecorder.DefaultDocuments, Path.Combine(root, "backups", "view"), probe, db), probe,
+                    Path.Combine(root, "soundbar.json"));
+                if (api != null) api.SoundBar.Service = soundBar;
                 restore = new RestoreDirector(new RestoreContext
                 {
                     StorePath = db,
@@ -317,6 +324,7 @@ Data options:
                 views?.SimGone();
                 pedals?.SimGone();
                 restore?.SimGone();
+                soundBar?.SimGone();       // a change that waited for the sim to close is looked at again
                 crowd.Gone();
             };
             // Returns at once (SdkStart). IRSDKSharper's own Start() could wait for ever, and then the loop below, which
@@ -326,6 +334,9 @@ Data options:
             // A write of iRacing's view files that a stop cut short is put back; the heights he chose before go into the camera
             // files once; Racing Desk's SmartControl profile and F24 are made if they are not there.
             restore?.HostStarted();
+            // After that: the default playback device is looked at once now and then whenever Windows says it changed. Waits for the
+            // work HostStarted queued, so that a view write that was cut short is put back before app.ini is looked at for anything else.
+            soundBar?.Start(restore?.Settled());
 
             if (store != null && !o.NoIngest)
             {
@@ -360,6 +371,24 @@ Data options:
             pedals?.SimGone();
             // What that queued for putting the brakes back is given a moment, and no more: the stop is bounded (HostStop).
             try { restore?.Settled().Wait(TimeSpan.FromSeconds(1)); } catch (AggregateException) { }
+            soundBar?.Dispose();
+        }
+
+        /// <summary>
+        /// The sound bar's LFE switch over Windows' audio, or null (said in the log) where Windows' audio can't be asked: the rest of
+        /// the host goes on without it.
+        /// </summary>
+        private static SoundBarLfe MakeSoundBar(string db, ViewFiles files, IRigProbe probe, string settingsFile)
+        {
+            try
+            {
+                return new SoundBarLfe(new WindowsAudioDevices(), files, probe, db, settingsFile, m => Log.Info("[RacingDesk.Host] " + m));
+            }
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException || ex is InvalidCastException || ex is PlatformNotSupportedException || ex is TypeLoadException)
+            {
+                Log.Warn("[RacingDesk.Host] soundbar: Windows' audio could not be asked, so the sound bar's LFE switch is off — " + ex.Message.Trim());
+                return null;
+            }
         }
 
         /// <summary>
