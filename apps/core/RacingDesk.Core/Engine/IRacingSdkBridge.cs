@@ -374,7 +374,9 @@ namespace RacingDesk.Plugin.Engine
             {
                 try
                 {
-                    ParseSessionInfo(si);
+                    // No YAML text comes with a renamed session, so there is nothing to tell an unchanged DriverInfo by: the
+                    // field is named each time (outside _lock, from the book's kept rankings).
+                    ParseSessionInfo(si, null);
                 }
                 catch (Exception ex)
                 {
