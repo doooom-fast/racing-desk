@@ -81,6 +81,7 @@ namespace RacingDesk.Core.Names
         public string[] ForMany(IReadOnlyList<KeyValuePair<long, string>> drivers)
         {
             if (drivers == null) return new string[0];
+            _book.Prepare(drivers.Select(d => KeyFor(d.Key, d.Value)));
             lock (_gate) return ForManyLocked(drivers);
         }
 
@@ -108,6 +109,10 @@ namespace RacingDesk.Core.Names
 
         private static string CustKey(long custId) => "cust:" + custId.ToString(CultureInfo.InvariantCulture);
 
+        /// <summary>What a driver is known by under the salt: the customer id, or the name for a driver without one.</summary>
+        private static string KeyFor(long custId, string realName) =>
+            custId > 0 ? CustKey(custId) : "name:" + (realName ?? "").Trim().ToLowerInvariant();
+
         private string KeyOf(long custId, string realName, out string already)
         {
             already = null;
@@ -115,7 +120,7 @@ namespace RacingDesk.Core.Names
             string n = (realName ?? "").Trim();
             // Already one of this session's names (the model applied twice): it stays what it is.
             if (n.Length > 0 && _taken.Contains(n)) already = n;
-            return "name:" + n.ToLowerInvariant();
+            return KeyFor(custId, realName);
         }
 
         private string ForLocked(long custId, string realName)
@@ -192,7 +197,9 @@ namespace RacingDesk.Core.Names
         /// Names every driver of the session model who is not him and not the pace car, as one field: the racers first, in
         /// the order of their keys' priority, and then the spectators, who so never take a racer's first choice. The model
         /// is not changed (<see cref="Apply"/> does that); the answer is in the model's order. A driver with neither an id
-        /// nor a name is not named.
+        /// nor a name is not named. The hashing that a driver new to this book costs is done before the gate is taken
+        /// (<see cref="PseudonymBook.Prepare"/>), so whoever asks for one name meanwhile (<see cref="For"/>) does not wait
+        /// on a new field's.
         /// </summary>
         internal IReadOnlyList<FieldName> NameField(IRacingSdkSessionInfo info)
         {
@@ -200,17 +207,18 @@ namespace RacingDesk.Core.Names
             var di = info?.DriverInfo;
             var drivers = di?.Drivers;
             if (drivers == null) return result;
+            var racers = new List<IRacingSdkSessionInfo.DriverInfoModel.DriverModel>();
+            var spectators = new List<IRacingSdkSessionInfo.DriverInfoModel.DriverModel>();
+            foreach (var d in drivers)
+            {
+                if (d == null || d.CarIsPaceCar != 0 || IsHim(di, d)) continue;
+                if (string.IsNullOrWhiteSpace(d.UserName) && d.UserID <= 0) continue;
+                (d.IsSpectator != 0 ? spectators : racers).Add(d);
+            }
+            _book.Prepare(racers.Concat(spectators).Select(d => KeyFor(d.UserID, d.UserName)));
             lock (_gate)
             {
                 BeginSessionLocked(SessionKeyOf(info));
-                var racers = new List<IRacingSdkSessionInfo.DriverInfoModel.DriverModel>();
-                var spectators = new List<IRacingSdkSessionInfo.DriverInfoModel.DriverModel>();
-                foreach (var d in drivers)
-                {
-                    if (d == null || d.CarIsPaceCar != 0 || IsHim(di, d)) continue;
-                    if (string.IsNullOrWhiteSpace(d.UserName) && d.UserID <= 0) continue;
-                    (d.IsSpectator != 0 ? spectators : racers).Add(d);
-                }
                 var shown = new Dictionary<IRacingSdkSessionInfo.DriverInfoModel.DriverModel, string>();
                 foreach (var group in new[] { racers, spectators })
                 {
@@ -237,36 +245,39 @@ namespace RacingDesk.Core.Names
         {
             var di = info?.DriverInfo;
             if (di?.Drivers == null) return info;
-            lock (_gate)
+            bool team = (info.WeekendInfo?.TeamRacing ?? 0) != 0;
+            // The teams' labels are hashed before the drivers' names are given, like theirs (NameField); a label is the
+            // book's alone, and nothing here needs the gate.
+            if (team && !_book.List.IsEmpty)
+                _book.Prepare(di.Drivers.Where(d => d != null && d.TeamID > 0).Select(d => TeamKey(d.TeamID)).Distinct(), priorities: false);
+            var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var named in NameField(info))
             {
-                bool team = (info.WeekendInfo?.TeamRacing ?? 0) != 0;
-                var labels = new Dictionary<string, string>(StringComparer.Ordinal);
-                foreach (var named in NameField(info))
+                var d = named.Driver;
+                string shown = named.Shown;
+                bool hadTeam = !string.IsNullOrWhiteSpace(d.TeamName);
+                d.UserName = shown;
+                d.AbbrevName = shown;
+                d.Initials = Initials(shown);
+                if (!hadTeam) continue;
+                if (!team) { d.TeamName = shown; continue; }
+                string key = d.TeamID > 0 ? TeamKey(d.TeamID) : "driver:" + shown;
+                if (!labels.TryGetValue(key, out string label)) labels[key] = label = TeamLabel(key);
+                d.TeamName = label;
+            }
+            // His own entry stays his, but a team race's team name may be made of his teammates' names: it is the label too.
+            if (team)
+                foreach (var d in di.Drivers)
                 {
-                    var d = named.Driver;
-                    string shown = named.Shown;
-                    bool hadTeam = !string.IsNullOrWhiteSpace(d.TeamName);
-                    d.UserName = shown;
-                    d.AbbrevName = shown;
-                    d.Initials = Initials(shown);
-                    if (!hadTeam) continue;
-                    if (!team) { d.TeamName = shown; continue; }
-                    string key = d.TeamID > 0 ? "team:" + d.TeamID.ToString(CultureInfo.InvariantCulture) : "driver:" + shown;
+                    if (d == null || d.CarIsPaceCar != 0 || !IsHim(di, d) || string.IsNullOrWhiteSpace(d.TeamName)) continue;
+                    string key = d.TeamID > 0 ? TeamKey(d.TeamID) : "driver:him";
                     if (!labels.TryGetValue(key, out string label)) labels[key] = label = TeamLabel(key);
                     d.TeamName = label;
                 }
-                // His own entry stays his, but a team race's team name may be made of his teammates' names: it is the label too.
-                if (team)
-                    foreach (var d in di.Drivers)
-                    {
-                        if (d == null || d.CarIsPaceCar != 0 || !IsHim(di, d) || string.IsNullOrWhiteSpace(d.TeamName)) continue;
-                        string key = d.TeamID > 0 ? "team:" + d.TeamID.ToString(CultureInfo.InvariantCulture) : "driver:him";
-                        if (!labels.TryGetValue(key, out string label)) labels[key] = label = TeamLabel(key);
-                        d.TeamName = label;
-                    }
-            }
             return info;
         }
+
+        private static string TeamKey(long teamId) => "team:" + teamId.ToString(CultureInfo.InvariantCulture);
 
         /// <summary>
         /// A team's name as shown: "Team " and the surname of the character this team's id prefers (the same team, the same

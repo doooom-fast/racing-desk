@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using RacingDesk.Plugin;
 
 namespace RacingDesk.Core.Names
@@ -127,25 +129,107 @@ namespace RacingDesk.Core.Names
             return salt;
         }
 
+        // ── What the hashing gave, kept for as long as this book lives (and so for as long as its salt is the same) ──
+        // A rival met again — on the next server, in the next session, as a late joiner — costs a lookup, not one HMAC for
+        // every name of the list. Bounded: past the limit the lot is dropped and made again as it is asked for.
+        internal const int KeptKeysLimit = 2048;
+        private readonly object _keptGate = new object();
+        private readonly Dictionary<string, int[]> _ranks = new Dictionary<string, int[]>(StringComparer.Ordinal);
+        private readonly Dictionary<string, ulong> _priorities = new Dictionary<string, ulong>(StringComparer.Ordinal);
+        private byte[][] _nameBytes;
+        private int _hashed;
+
+        /// <summary>How many keys this book has ranked by hashing (not from what it kept): for a test.</summary>
+        internal int Hashed => Volatile.Read(ref _hashed);
+
+        /// <summary>Called as a key's ranking is hashed, with the key, on the thread that hashes it: for a test.</summary>
+        internal Action<string> Ranking { get; set; }
+
         /// <summary>
         /// Every name of the list in the order a key prefers them, best first: each name is scored by
         /// <c>HMAC-SHA256(salt, "rank|" + key + "|" + the name as the work gives it)</c> and the highest score leads
         /// (rendezvous hashing). A name's score depends on that name and the key alone, so a key's order is the same
         /// whatever order the file lists the names in and however many it holds: a name added to the list changes the
         /// choice only of the keys that prefer it to the one they had. Ties (a 64-bit coincidence) go to the name that sorts first.
+        /// The order is kept (<see cref="KeptKeysLimit"/>) and the same array handed out again: it is not to be changed.
         /// </summary>
         internal int[] Rank(string key)
         {
+            lock (_keptGate)
+                if (_ranks.TryGetValue(key, out int[] kept)) return kept;
+            int[] order;
+            using (var hmac = new HMACSHA256(_salt)) order = RankWith(hmac, key);
+            Keep(_ranks, key, order);
+            return order;
+        }
+
+        /// <summary>
+        /// Which of two keys named in the same moment is served first when they want the same name: a number of the key's
+        /// own under the salt (<c>HMAC-SHA256(salt, "priority|" + key)</c>), so that who keeps a contested name does not
+        /// depend on the order the field is listed in. Kept, like the ranking.
+        /// </summary>
+        internal ulong Priority(string key)
+        {
+            lock (_keptGate)
+                if (_priorities.TryGetValue(key, out ulong kept)) return kept;
+            ulong p = Number("priority|" + key);
+            Keep(_priorities, key, p);
+            return p;
+        }
+
+        /// <summary>
+        /// Ranks and prioritises every key not yet known, with one HMAC for the lot: what a field about to be named is
+        /// given first, so that naming it is lookups. Nothing is held while it hashes but the HMAC itself.
+        /// </summary>
+        internal void Prepare(IEnumerable<string> keys, bool priorities = true)
+        {
+            if (keys == null) return;
+            HMACSHA256 hmac = null;
+            try
+            {
+                foreach (string key in keys)
+                {
+                    if (key == null) continue;
+                    bool rank, priority;
+                    lock (_keptGate)
+                    {
+                        rank = !List.IsEmpty && !_ranks.ContainsKey(key);
+                        priority = priorities && !_priorities.ContainsKey(key);
+                    }
+                    if (!rank && !priority) continue;
+                    hmac = hmac ?? new HMACSHA256(_salt);
+                    if (rank) Keep(_ranks, key, RankWith(hmac, key));
+                    if (priority) Keep(_priorities, key, Score(hmac, Encoding.UTF8.GetBytes("priority|" + key)));
+                }
+            }
+            finally
+            {
+                hmac?.Dispose();
+            }
+        }
+
+        private int[] RankWith(HMACSHA256 hmac, string key)
+        {
+            Ranking?.Invoke(key);
+            Interlocked.Increment(ref _hashed);
             var entries = List.Entries;
             int n = entries.Count;
+            var names = NameBytes();
+            // "rank|" + key + "|" + name, in one buffer: the key's part once, each name's bytes after it. The key ends at
+            // the '|', so its bytes are the same alone as in the whole string.
+            byte[] head = Encoding.UTF8.GetBytes("rank|" + key + "|");
+            int longest = 0;
+            foreach (var b in names) longest = Math.Max(longest, b.Length);
+            var message = new byte[head.Length + longest];
+            Buffer.BlockCopy(head, 0, message, 0, head.Length);
             var scores = new ulong[n];
             var order = new int[n];
-            using (var hmac = new HMACSHA256(_salt))
-                for (int i = 0; i < n; i++)
-                {
-                    scores[i] = BitConverter.ToUInt64(hmac.ComputeHash(Encoding.UTF8.GetBytes("rank|" + key + "|" + entries[i].Name)), 0);
-                    order[i] = i;
-                }
+            for (int i = 0; i < n; i++)
+            {
+                Buffer.BlockCopy(names[i], 0, message, head.Length, names[i].Length);
+                scores[i] = BitConverter.ToUInt64(hmac.ComputeHash(message, 0, head.Length + names[i].Length), 0);
+                order[i] = i;
+            }
             Array.Sort(order, (a, b) =>
             {
                 int c = scores[b].CompareTo(scores[a]);
@@ -154,12 +238,27 @@ namespace RacingDesk.Core.Names
             return order;
         }
 
-        /// <summary>
-        /// Which of two keys named in the same moment is served first when they want the same name: a number of the key's
-        /// own under the salt (<c>HMAC-SHA256(salt, "priority|" + key)</c>), so that who keeps a contested name does not
-        /// depend on the order the field is listed in.
-        /// </summary>
-        internal ulong Priority(string key) => Number("priority|" + key);
+        private byte[][] NameBytes()
+        {
+            var have = Volatile.Read(ref _nameBytes);
+            if (have != null) return have;
+            var entries = List.Entries;
+            var made = new byte[entries.Count][];
+            for (int i = 0; i < made.Length; i++) made[i] = Encoding.UTF8.GetBytes(entries[i].Name);
+            Interlocked.CompareExchange(ref _nameBytes, made, null);
+            return Volatile.Read(ref _nameBytes);
+        }
+
+        private void Keep<T>(Dictionary<string, T> kept, string key, T value)
+        {
+            lock (_keptGate)
+            {
+                if (kept.Count >= KeptKeysLimit) kept.Clear();
+                kept[key] = value;
+            }
+        }
+
+        private static ulong Score(HMACSHA256 hmac, byte[] message) => BitConverter.ToUInt64(hmac.ComputeHash(message), 0);
 
         /// <summary>A number of the key's own under the salt, for a build that carries no list.</summary>
         internal ulong Number(string key, int probe = 0) => Number("number|" + key + "|" + probe.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -167,7 +266,7 @@ namespace RacingDesk.Core.Names
         private ulong Number(string message)
         {
             using (var hmac = new HMACSHA256(_salt))
-                return BitConverter.ToUInt64(hmac.ComputeHash(Encoding.UTF8.GetBytes(message)), 0);
+                return Score(hmac, Encoding.UTF8.GetBytes(message));
         }
     }
 }
