@@ -405,6 +405,14 @@ h2 {
 .restore-card .restore-undo li { margin: 2px 0; color: var(--text-2); }
 .restore-card .restore-undo li.said-error { color: var(--warn, #d8a24a); }
 .restore-card button { font: inherit; font-size: 12.5px; }
+/* Settings → Sound: iRacing's LFE off on the sound bar — a switch, the choice of the sound bar, and one sentence. */
+.settings .soundbar-card { margin-top: var(--gap); }
+.soundbar-card .soundbar-line { color: var(--text-2); font-size: 13px; margin: 6px 0 4px; max-width: 90ch; }
+.soundbar-card .soundbar-hint { grid-column: 1; color: var(--text-3); font-size: 12px; max-width: 70ch; }
+.soundbar-card .soundbar-state { color: var(--text-2); font-size: 12.5px; margin: 10px 0 0; max-width: 80ch; }
+.soundbar-card .soundbar-state[data-state="problem"], .soundbar-card .soundbar-said { color: var(--warn, #d8a24a); }
+.soundbar-card .soundbar-said { font-size: 12.5px; margin: 6px 0 0; max-width: 80ch; }
+.soundbar-card select { font: inherit; font-size: 13px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--hairline-strong); border-radius: 6px; padding: 5px 8px; max-width: 340px; }
 /* The HUD on an iPad: a card of its own under the rest, the address beside its code. */
 .settings .remote { margin-top: var(--gap); }
 .remote-say { color: var(--text-3); font-size: 12.5px; margin: 10px 0 0; max-width: 72ch; }

@@ -82,6 +82,13 @@ contextBridge.exposeInMainWorld('racingDesk', {
     read: () => ipcRenderer.invoke('restore:read'),
     command: (body) => ipcRenderer.invoke('restore:command', body),
   },
+  // Desk window: iRacing's LFE off while the sound bar is the speakers (modules/js/soundbar-api.js), asked of the app's host by
+  // main.js — Settings → Sound. read() resolves to { value }, { missing: true } or { error }; command(body) — { enabled } or
+  // { device } — to { ok, … } or { ok: false, error }. What went wrong is an answer, not a rejection.
+  soundBar: {
+    read: () => ipcRenderer.invoke('soundbar:read'),
+    command: (body) => ipcRenderer.invoke('soundbar:command', body),
+  },
   // Desk window: what the desk reads of the host's store, asked for by main.js (modules/js/desk-reads.js) because the host answers
   // programs on this machine and no page, this one included. read('status' | 'sessions' | 'schedule') or read('session', id)
   // resolves to { value }, or { error } with `notHere` (the host is on another machine, so it was not asked), `noAnswer` or

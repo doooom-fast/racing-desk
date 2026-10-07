@@ -18,6 +18,7 @@
   const SettingsModel = window.RacingDeskSettingsModel;
   const RecordingModel = window.RacingDeskRecordingModel;
   const RestoreModel = window.RacingDeskRestoreModel;
+  const SoundBarModel = window.RacingDeskSoundBarModel;
 
   const $ = (id) => document.getElementById(id);
   // The masthead's freshness line: its words are also the line's tooltip, for the windows too narrow to show them.
@@ -695,6 +696,7 @@
     }).join('')}</div>`).join('');
     renderRecordingCard();
     loadRestore();
+    loadSoundBar();
     await renderRemote();
   }
 
@@ -1181,6 +1183,72 @@
     restoreCommand({ switches: { [el.dataset.restoreSwitch]: !!el.checked } });
   }
 
+  // ── Sound: iRacing's LFE off while the sound bar is the speakers ──
+  // The app's host does it by itself: it listens for Windows changing the default playback device and edits iRacing's app.ini
+  // only with the sim closed. The card has the switch, the choice of which playback device is the sound bar, and one sentence on
+  // what was done last (the host's). soundbar-model.js says what each reads; this is the DOM and the asking
+  // (window.racingDesk.soundBar, which main.js answers from the host).
+
+  function soundBarBridge() {
+    const bridge = window.racingDesk;
+    return bridge && bridge.soundBar && typeof bridge.soundBar.read === 'function' && typeof bridge.soundBar.command === 'function' ? bridge.soundBar : null;
+  }
+
+  let soundBarAnswer = null;   // what soundbar:read last answered
+  let soundBarBusy = false;    // a command under way
+  let soundBarSaid = '';       // what the last command said when it could not be done
+  let soundBarAsked = 0;
+
+  async function loadSoundBar() {
+    const bridge = soundBarBridge();
+    if (!bridge) { soundBarAnswer = null; drawSoundBarCard(); return; }
+    const mine = ++soundBarAsked;
+    let answer;
+    try { answer = await bridge.read(); } catch (err) { answer = { error: err.message }; }
+    if (mine !== soundBarAsked) return;
+    soundBarAnswer = answer;
+    drawSoundBarCard();
+  }
+
+  function drawSoundBarCard() {
+    const el = $('settings-soundbar');
+    if (!el || !SoundBarModel || currentPage !== 'settings') return;
+    const view = SoundBarModel.card(soundBarAnswer, { inApp: !!soundBarBridge(), busy: soundBarBusy, said: soundBarSaid });
+    const off = (enabled) => (enabled ? '' : ' disabled');
+    el.innerHTML = `
+      <h2>${esc(view.title)}</h2>
+      ${view.line ? `<p class="soundbar-line" id="soundbar-line" role="status">${esc(view.line)}</p>` : ''}
+      <div class="field">
+        <label class="name" for="soundbar-switch">${esc(view.switch.label)}</label>
+        <span class="control"><input type="checkbox" class="switch" id="soundbar-switch"${view.switch.value ? ' checked' : ''}${off(view.switch.enabled)}></span>
+      </div>
+      <div class="field">
+        <label class="name" for="soundbar-device">${esc(view.device.label)}</label>
+        ${view.device.note ? `<span class="soundbar-hint" id="soundbar-hint">${esc(view.device.note)}</span>` : ''}
+        <span class="control"><select id="soundbar-device"${off(view.device.enabled)}>${view.device.options.map((o) => `<option value="${esc(o.id)}"${o.selected ? ' selected' : ''}${o.disabled ? ' disabled' : ''}>${esc(o.label)}</option>`).join('')}</select></span>
+      </div>
+      ${view.ready ? `<p class="soundbar-state" id="soundbar-state" data-state="${esc(view.status.state)}" role="status">${esc(view.status.text)}</p>` : ''}
+      ${view.said ? `<p class="soundbar-said" id="soundbar-said" role="status">${esc(view.said)}</p>` : ''}`;
+  }
+
+  async function soundBarCommand(body) {
+    const bridge = soundBarBridge();
+    if (!bridge || soundBarBusy) return;
+    soundBarBusy = true;
+    drawSoundBarCard();
+    let answer;
+    try { answer = await bridge.command(body); } catch (err) { answer = { ok: false, error: err.message }; }
+    soundBarBusy = false;
+    soundBarSaid = SoundBarModel.saidBy(answer);
+    await loadSoundBar();
+  }
+
+  function onSoundBarChange(ev) {
+    if (soundBarBusy) return;
+    if (ev.target.closest('#soundbar-switch')) soundBarCommand({ enabled: !!ev.target.checked });
+    else if (ev.target.closest('#soundbar-device')) soundBarCommand({ device: ev.target.value });
+  }
+
   // ── Wiring ───────────────────────────────────────────────
 
   $('race-list').addEventListener('click', (ev) => {
@@ -1237,6 +1305,7 @@
   $('settings-recording').addEventListener('submit', onRecordingSubmit);
   $('settings-restore').addEventListener('click', onRestoreClick);
   $('settings-restore').addEventListener('change', onRestoreChange);
+  $('settings-soundbar').addEventListener('change', onSoundBarChange);
   $('recording-pill').addEventListener('click', onRecordingClick);
   $('detail').addEventListener('click', onRecordingClick);
   if (recordingBridge() && typeof recordingBridge().onState === 'function') {

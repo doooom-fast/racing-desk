@@ -58,6 +58,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `obs/tv-shots.js` | **Main process**: TV shots — the sidecar's moments (places gained, incidents, the pit lane) found again in iRacing's replay by their `sn`/`st` through the host's replay route (the SDK's own commands; no key; refused by the host while he is on track), recorded through a TV camera on his car by its number as one take in the race's folder, the recording paused between moments, a moment the sim does not reach skipped, the take ended where it is when he gets in the car, OBS stops it, iRacing leaves its replay, Stop or the quit; the facecam hidden, kept in `tv-state.json` and put back whatever happened, auto-record held; progress to the desk, the tray and the Stream Deck |
 | `obs/recordings-index.js` | Pure: the recordings folder read by each folder's sidecar header — the race's recording by the session's start and track, the latest for the tray |
 | `hud-notice.js` | The one thing the HUD may be told of recording, for two seconds: "OBS is not open", "OBS didn't start recording" |
+| `soundbar-api.js` | **Main process**: iRacing's LFE off while the sound bar is the speakers, as the desk sees it — the host's `GET`/`POST /racing-desk/data/soundbar` asked by Node (`soundbar:read`, `soundbar:command`, answered to the desk window alone: `{ enabled }` or `{ device }`). The host keeps the switch and the choice; the HUD is told nothing of it. Root CLAUDE.md, Per car, for the rig |
 | `restore-api.js` | **Main process**: putting back each car's seat height and brakes, as the desk sees it — the host's `GET`/`POST /racing-desk/data/restore` asked by Node (`restore:read`, `restore:command`, answered to the desk window alone: `{ switches: { brakes?, height? } }` or `{ undo: 'all' }`). The host keeps the switches; the HUD is told nothing of it. Root CLAUDE.md, Per car, for the rig |
 | `desk-frame.js` | The desk window is held to `desk.html` (a navigation or a new window the page starts is stopped), and its IPC channel answers a sender frame at that file alone (`fromDesk`) |
 | `telemetry-sidecar.js` | Pure: the `.telemetry.jsonl` beside the video, written by the keeper; every frame carries the sim's `SessionNum` and `SessionTime` (`docs/telemetry-sidecar-schema.md`) |
@@ -1106,6 +1107,17 @@ page. The Cars page shows the host's sentence for a car on its Pedals panel (the
 only where he needs to know something (no camera file, and how to save one) (`apps/paints/src/useRig.ts` reads it beside
 the rest; the page only reads). Tests: `tests/unit/desk-restore-model.spec.mjs`, `tests/unit/restore-api.spec.mjs`,
 `tests/desk/restore.spec.mjs`, and "putting the cars back" in `tests/desk/desk.spec.mjs`.
+
+## Settings → Sound: iRacing's LFE off on the sound bar
+
+The card under the Cars card (`#settings-soundbar`; root CLAUDE.md, Per car, for the rig). Its model is
+`modules/desk/soundbar-model.js` (pure); `desk.js` does the DOM and asks `window.racingDesk.soundBar` (preload →
+`soundbar:read` / `soundbar:command` in main.js → `modules/js/soundbar-api.js` → the host). One switch, "Turn iRacing's LFE off
+on the sound bar" (on by default; the host keeps it in `soundbar.json`), a list "Sound bar" of the active playback devices
+(the one chosen, or the one with SineAudio in its name; a chosen one that is away stays listed as "not connected"), and one
+sentence under them: the problem, or what it waits for, or what it did last and when ("…, today at 2:30 pm"), or why nothing
+has been done. Nothing of it is in the settings file or on the HUD. Tests: `tests/unit/desk-soundbar-model.spec.mjs`,
+`tests/unit/soundbar-api.spec.mjs`, `tests/desk/soundbar.spec.mjs`.
 
 ## Panel background
 

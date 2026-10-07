@@ -33,6 +33,7 @@ const runtimeActions = require('./modules/js/runtime-actions');
 const logoLivery   = require('./modules/js/logo-livery');
 const rigLimitsMod = require('./modules/js/rig-limits');
 const restoreApiMod = require('./modules/js/restore-api');
+const soundBarApiMod = require('./modules/js/soundbar-api');
 const deskFrames   = require('./modules/js/desk-frame');
 
 // ── Log ─────────────────────────────────────────────────────
@@ -435,6 +436,11 @@ ipcMain.handle('get-rig-limits', async () => rigLimits.current());
 // The app's host does it, by itself. This process asks it for the desk (restore:read, restore:command, below), and nothing
 // else: the HUD is told nothing of it.
 const restoreApi = restoreApiMod.createRestoreApi({ host: () => localHostUrl() });
+
+// ── iRacing's LFE off while the sound bar is the speakers (modules/js/soundbar-api.js) ──
+// The app's host does it, by itself: it listens for Windows changing the default playback device and edits iRacing's app.ini
+// only with the sim closed. This process asks it for the desk (soundbar:read, soundbar:command, below), and nothing else.
+const soundBarApi = soundBarApiMod.createSoundBarApi({ host: () => localHostUrl() });
 
 // ── The HUD is on screen only while the driver is in the car ──
 // The window is made hidden and modules/js/hud-visibility.js is the only thing that reveals it: while the
@@ -1684,6 +1690,23 @@ ipcMain.handle('restore:command', async (event, body) => {
   const problem = restoreApiMod.commandProblem(body);
   if (problem) return { ok: false, error: problem };
   return restoreApi.command(body);
+});
+
+// ── IPC: iRacing's LFE off on the sound bar — Settings → Sound ──
+// The desk window alone. soundbar:read answers the host's GET (the switch, the playback devices, the one taken for the sound bar and
+// how it stands) as { value }, { missing } or { error }; soundbar:command takes { enabled } or { device } and answers { ok, … } or
+// { ok: false, error }. The host keeps the switch and the choice (soundbar.json).
+const SOUNDBAR_NOT_DESK = "The sound bar's switch is the desk window's.";
+ipcMain.handle('soundbar:read', async (event) => {
+  if (!fromDesk(event)) return { error: SOUNDBAR_NOT_DESK };
+  return soundBarApi.read();
+});
+
+ipcMain.handle('soundbar:command', async (event, body) => {
+  if (!fromDesk(event)) return { ok: false, error: SOUNDBAR_NOT_DESK };
+  const problem = soundBarApiMod.commandProblem(body);
+  if (problem) return { ok: false, error: problem };
+  return soundBarApi.command(body);
 });
 
 ipcMain.handle('rig:bindPedals', async (event, carPath, profileId) => {

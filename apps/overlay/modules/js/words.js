@@ -27,6 +27,8 @@
     'OBS', 'HUD', 'TV', 'PC', 'USB', 'COM', 'LAN', 'QR', 'URL', 'HTTP', 'HTTPS', 'API', 'AI', 'ID', 'JSON', 'PDF', 'PNG',
     'JPEG', 'TGA', 'MP4', 'MKV', 'GB', 'MB', 'KB', 'NVENC', 'CQVBR', 'GPU', 'CPU', 'RGB', 'UI', 'OK', 'DNA', 'SSD', 'HDD',
     'UTC', 'AM', 'PM', 'CC',
+    // Audio: the bass channel, in his own words ("disable lfe")
+    'LFE',
   ]);
 
   // The car list's own short labels for its controls, as the cars show them (packages/car-list/cars.json, "label"): what
