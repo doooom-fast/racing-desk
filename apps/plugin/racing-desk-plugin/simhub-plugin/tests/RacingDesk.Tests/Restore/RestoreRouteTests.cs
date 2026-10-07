@@ -157,7 +157,7 @@ namespace RacingDesk.Tests.Restore
 
         private static readonly string[] Roots = { "apps", "packages", "scripts" };
         private static readonly string[] Extensions = { ".cs", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".py", ".ps1", ".psm1", ".bat", ".cmd", ".vbs", ".sh", ".ahk" };
-        private static readonly Regex Skip = new Regex(@"[\\/](node_modules|bin|obj|dist|\.git|\.worktrees|publish|win-unpacked)[\\/]", RegexOptions.IgnoreCase);
+        private static readonly Regex Skip = new Regex(@"[\\/](node_modules|bin|obj|dist|\.git|\.worktrees|publish|win-unpacked|\.venv|venv|site-packages|__pycache__)[\\/]", RegexOptions.IgnoreCase);
 
         /// <summary>Every way a program sends a key or a click to another, by the name it is called by.</summary>
         private static readonly (string Name, Regex Pattern)[] Senders =
