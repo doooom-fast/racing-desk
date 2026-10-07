@@ -1,15 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using IRSDKSharper;
 using NUnit.Framework;
+using RacingDesk.Core.Cars;
 using RacingDesk.Host;
 using RacingDesk.Plugin;
 using RacingDesk.Plugin.Engine;
 using RacingDesk.Plugin.IRacing;
+using RacingDesk.Tests.Cars;
 using RacingDesk.Tests.Names;
 using HostProgram = RacingDesk.Host.Program;
 
@@ -62,7 +65,18 @@ namespace RacingDesk.Tests.IRacing
             Assert.That(bridge.IsConnected, Is.True, "connected when the host's reader is");
             Assert.That(bridge.IsStarted, Is.False, "and no reader of its own was started");
 
-            Raise(raw, typeof(SdkRawTelemetry), "SessionInfoRead", SessionInfoYaml.Parse(SyntheticField.Yaml()));
+            // The SDK's session thread with no sim behind it (none here): nothing is passed on, and nothing thrown at it.
+            Assert.DoesNotThrow(() => Raise(sdk, typeof(IRacingSdk), "OnSessionInfo"));
+            Assert.That(bridge.TrackId, Is.Zero);
+
+            // What the SDK's session thread does with a session it has parsed: renamed, then handed to the bridge.
+            IRacingSdkSessionInfo handed = null;
+            raw.SessionInfoRead += si => handed = si;
+            raw.SessionRead(SessionInfoYaml.Parse(SyntheticField.Yaml()), 1);
+            Assert.That(handed, Is.Not.Null);
+            var shown = handed.DriverInfo.Drivers.Select(d => d.UserName).ToList();
+            SyntheticField.AssertNoRivalIn(string.Join("\n", shown), "the session the bridge is given");
+            Assert.That(shown, Has.Member(SyntheticField.PlayerName), "his own name is his");
             Assert.That(bridge.PlayerIRating, Is.EqualTo(1500));
             Assert.That(bridge.PlayerLicenseString, Is.EqualTo("A 2.37"));
             Assert.That(bridge.PlayerCarPath, Is.EqualTo("mx5 mx52016"));
@@ -71,10 +85,46 @@ namespace RacingDesk.Tests.IRacing
             Assert.That(bridge.FieldSize, Is.GreaterThanOrEqualTo(7), "his and the six rivals' ratings, for the iRating estimate");
             Assert.That(bridge.FieldNamed, Is.True);
 
+            // A handler that throws stays on the session thread's side of the line: the SDK's loop never sees it.
+            raw.SessionInfoRead += _ => throw new InvalidOperationException("a handler broke");
+            Assert.DoesNotThrow(() => raw.SessionRead(SessionInfoYaml.Parse(SyntheticField.Yaml()), 2));
+
             Raise(sdk, typeof(IRacingSdk), "OnDisconnected");
             Assert.That(bridge.IsConnected, Is.False);
             Assert.That(bridge.TrackId, Is.Zero, "the session of the sim that went is not the next one's");
             Assert.That(bridge.FieldNamed, Is.False);
+        }
+
+        [Test]
+        public void OnlyAHostThatBuildsTelemetry_FeedsTheBridge()
+        {
+            foreach (bool beside in new[] { true, false })
+            {
+                using var raw = new SdkRawTelemetry();
+                var runtime = new RacingDeskRuntime(new Settings(), new RacingDeskRuntime.Options
+                {
+                    AssemblyDirectory = _dir, PluginsDataDirectory = _dir,
+                    HttpPort = FreePort(), WsPort = FreePort(),
+                    EnableHardware = false, EnableSdkBridge = false, LoopbackOnly = true,
+                });
+                var o = HostOptions.Parse(beside ? new[] { "--beside-simhub" } : new string[0]);
+                Assert.That(HostProgram.Telemetry(o, runtime, raw), Is.EqualTo(!beside));
+
+                object sdk = typeof(SdkRawTelemetry).GetField("_sdk", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(raw);
+                var connected = (Delegate)typeof(IRacingSdk).GetField("OnConnected", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(sdk);
+                connected?.DynamicInvoke();
+                var told = typeof(SdkRawTelemetry).GetField("SessionInfoRead", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(raw);
+                if (beside)
+                {
+                    Assert.That(runtime._sdkBridge.IsConnected, Is.False, "beside SimHub the bridge is left alone");
+                    Assert.That(told, Is.Null, "and no session is renamed for it");
+                }
+                else
+                {
+                    Assert.That(runtime._sdkBridge.IsConnected, Is.True, "a host on :8889 feeds the bridge from its reader");
+                    Assert.That(told, Is.Not.Null);
+                }
+            }
         }
 
         [Test]
@@ -88,9 +138,13 @@ namespace RacingDesk.Tests.IRacing
                 HttpPort = FreePort(), WsPort = FreePort(),
                 EnableHardware = false, EnableSdkBridge = false, LoopbackOnly = true,
             });
+            // A follower of its own: the shared one may already be on this car from another test.
+            var was = TelemetryCapture._carControls;
+            TelemetryCapture._carControls = new CarControlsFollower(CarListTests.List(), _ => { });
             try
             {
                 runtime.Start();
+                Assert.That(TelemetryCapture.Cars.CarPath, Is.Null);
                 for (int i = 0; i < 12; i++) HostProgram.Frame(source, runtime, telemetry: false);
                 Assert.That(source.CarPath, Is.EqualTo("mx5 mx52016"), "which car he is in, for the recorders, the restore and the car list");
                 Assert.That(HostProgram.SeatOf(source).CarPath, Is.EqualTo("mx5 mx52016"), "the restore's facts: the car");
@@ -106,6 +160,7 @@ namespace RacingDesk.Tests.IRacing
             finally
             {
                 runtime.Stop();
+                TelemetryCapture._carControls = was;
             }
         }
 

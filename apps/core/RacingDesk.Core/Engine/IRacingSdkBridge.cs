@@ -253,6 +253,8 @@ namespace RacingDesk.Plugin.Engine
         /// Takes its facts from the host's own reader of the sim instead of a reader of its own (<see cref="Start"/> is not
         /// called): connected and gone as that reader is, and the session as it parses it, every other driver renamed. One
         /// reader of iRacing in the host, and the session YAML parsed once — at 63 cars it is some 30 ms and 13 MB a time.
+        /// The session comes already renamed, so the names this bridge keeps for the field (for SimHub's, in the plugin) are
+        /// not the drivers' own here: nothing in the host reads them, and nothing should without a reader of the raw session.
         /// </summary>
         public void Follow(SdkRawTelemetry raw)
         {

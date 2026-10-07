@@ -211,13 +211,7 @@ Data options:
         {
             // The one reader of the sim in the host: the runtime's SDK bridge is fed from it rather than reading the sim again.
             using var raw = new SdkRawTelemetry();
-            // The HUD reads :8889, and beside SimHub that is SimHub's plugin, so this host's telemetry (the snapshot, the
-            // leaderboard, the WebSocket frame, the engines) would be built sixty times a second for nobody. What the host is
-            // for goes on: recording, ingest, the track's outline, putting each car's brakes and seat height back, the car
-            // list's check, and the data routes the desk reads.
-            bool telemetry = !o.BesideSimHub;
-            if (telemetry) runtime.FollowSdk(raw);
-            else Log.Info("[RacingDesk.Host] beside SimHub: its plugin serves the HUD, so this host builds no telemetry of its own");
+            bool telemetry = Telemetry(o, runtime, raw);
             // The replay route drives the sim's replay and cameras through this reader, for the app's TV shots; a file
             // replay (PlayIbt) hands it nothing, and the route says so.
             if (api != null) api.Replay.Replay = raw;
@@ -366,6 +360,24 @@ Data options:
             pedals?.SimGone();
             // What that queued for putting the brakes back is given a moment, and no more: the stop is bounded (HostStop).
             try { restore?.Settled().Wait(TimeSpan.FromSeconds(1)); } catch (AggregateException) { }
+        }
+
+        /// <summary>
+        /// Whether this host builds telemetry of its own, and if it does, the runtime's SDK bridge fed from the host's one
+        /// reader. The HUD reads :8889, and beside SimHub that is SimHub's plugin, so this host's telemetry (the snapshot, the
+        /// leaderboard, the WebSocket frame, the engines, the bridge's facts) would be built sixty times a second for nobody.
+        /// What the host is for goes on: recording, ingest, the track's outline, putting each car's brakes and seat height
+        /// back, the car list's check, and the data routes the desk reads.
+        /// </summary>
+        internal static bool Telemetry(HostOptions o, RacingDeskRuntime runtime, SdkRawTelemetry raw)
+        {
+            if (o.BesideSimHub)
+            {
+                Log.Info("[RacingDesk.Host] beside SimHub: its plugin serves the HUD, so this host builds no telemetry of its own");
+                return false;
+            }
+            runtime.FollowSdk(raw);
+            return true;
         }
 
         /// <summary>

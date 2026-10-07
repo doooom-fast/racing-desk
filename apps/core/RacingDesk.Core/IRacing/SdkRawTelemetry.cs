@@ -35,13 +35,42 @@ namespace RacingDesk.Plugin.IRacing
         {
             _sdk.OnSessionInfo += () =>
             {
-                var handlers = SessionInfoRead;
-                if (handlers == null || !_sdk.IsConnected) return;
+                if (SessionInfoRead == null || !_sdk.IsConnected) return;
                 // Not SessionInfo, which waits for the telemetry's variables too: the session can be parsed before them.
-                var data = _sdk.Data;
-                var si = _naming.Named(data.SessionInfo, data.SessionInfoUpdate);
-                if (si != null) handlers(si);
+                IRacingSdkSessionInfo parsed;
+                int update;
+                try
+                {
+                    var data = _sdk.Data;
+                    parsed = data.SessionInfo;
+                    update = data.SessionInfoUpdate;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("[RacingDesk] session info not passed on: " + ex.Message);
+                    return;
+                }
+                SessionRead(parsed, update);
             };
+        }
+
+        /// <summary>
+        /// The session the SDK has parsed, renamed and handed to <see cref="SessionInfoRead"/>. Nothing thrown here reaches the
+        /// SDK's session thread, whose loop has one handler for everything.
+        /// </summary>
+        internal void SessionRead(IRacingSdkSessionInfo parsed, int update)
+        {
+            var handlers = SessionInfoRead;
+            if (handlers == null) return;
+            try
+            {
+                var si = _naming.Named(parsed, update);
+                if (si != null) handlers(si);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("[RacingDesk] session info not passed on: " + ex.Message);
+            }
         }
 
         /// <summary>Starts reading the sim, and returns at once: see <see cref="SdkStart"/>.</summary>
