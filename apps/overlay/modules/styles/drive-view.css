@@ -303,9 +303,9 @@ body.drive-mode-active .map-panel .map-sector       { stroke-width: calc(8 * var
 body.drive-mode-active .map-zoom-panel { grid-area: local; display: flex; flex-direction: column; padding: 0; }
 body.drive-mode-active .map-zoom-panel .map-zoom-svg { width: 100%; height: 100%; flex: 1 1 0; }
 body.drive-mode-active .map-zoom-panel .map-zoom-label { display: none; }
-body.drive-mode-active .map-zoom-panel .map-track-outer { stroke-width: calc(10 * var(--px, 0.2)); }
-body.drive-mode-active .map-zoom-panel .map-track      { stroke-width: calc(6 * var(--px, 0.2)); }
-body.drive-mode-active .map-zoom-panel .map-track-inner { stroke-width: calc(1.2 * var(--px, 0.2)); }
+body.drive-mode-active .map-zoom-panel .map-track-outer { stroke-width: calc(20 * var(--px, 0.2)); }   /* twice its old weight: map-zoom.js GLANCE_WEIGHT */
+body.drive-mode-active .map-zoom-panel .map-track      { stroke-width: calc(12 * var(--px, 0.2)); }
+body.drive-mode-active .map-zoom-panel .map-track-inner { stroke-width: calc(2.4 * var(--px, 0.2)); }
 /* The glow under the car is sized in pixels by the script, and does not breathe in units. */
 body.drive-mode-active #trackPlayerGlow { animation: none; }
 /* The panels' own WebGL canvases fill their cell and no more (webgl.js sizes their drawing to the cell's outer box). */

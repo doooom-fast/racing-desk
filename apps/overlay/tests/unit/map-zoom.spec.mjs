@@ -452,27 +452,28 @@ async function expectDrawnWithTheZoom(page, feed, label, { glance }) {
   const wide = await drawnSizes(page);
   await hold(page, feed, 120);
   const close = await drawnSizes(page);
-  expect(wide.viewRadius, `${label}: standing still, the widest view`).toBeCloseTo(mz.R_WIDE, 1);
-  expect(close.viewRadius, `${label}: at 120 mph, the closest view`).toBeCloseTo(mz.R_CLOSE, 1);
+  const k = glance ? mz.GLANCE_VIEW : 1;   // the glance layout's view is closer than the rig's (2026-10-07)
+  expect(wide.viewRadius, `${label}: standing still, the widest view`).toBeCloseTo(mz.R_WIDE * k, 1);
+  expect(close.viewRadius, `${label}: at 120 mph, the closest view`).toBeCloseTo(mz.R_CLOSE * k, 1);
   expect(close.outer / wide.outer, `${label}: the road's outer line (${wide.outer.toFixed(1)} px, then ${close.outer.toFixed(1)})`).toBeCloseTo(mz.R_WIDE / mz.R_CLOSE, 1);
   expect(close.car / wide.car, `${label}: the car (${wide.car.toFixed(1)} px, then ${close.car.toFixed(1)})`).toBeCloseTo(mz.R_WIDE / mz.R_CLOSE, 1);
   if (!glance) return;
   for (const [at, m] of [['standing still', wide], ['at 120 mph', close]]) {
-    expect(m.outer, `${label}, ${at}: the road's outer line`).toBeCloseTo((10 * m.weights) / m.viewRadius, 0);
-    expect(m.car, `${label}, ${at}: the car`).toBeCloseTo((7 * m.weights) / m.viewRadius, 0);
+    expect(m.outer, `${label}, ${at}: the road's outer line`).toBeCloseTo((10 * mz.GLANCE_WEIGHT * m.weights) / m.viewRadius, 0);
+    expect(m.car, `${label}, ${at}: the car`).toBeCloseTo((7 * mz.GLANCE_DOT * m.weights) / m.viewRadius, 0);
   }
 }
 
-function expectCloser(widths, jumps, label) {
+function expectCloser(widths, jumps, label, k = 1) {
   for (let i = 1; i < widths.length; i++) expect(widths[i], `${label}: ${widths.join(' → ')}`).toBeLessThan(widths[i - 1]);
-  expect(widths[0]).toBeCloseTo(2 * mz.R_WIDE, 0);
-  expect(widths[widths.length - 1]).toBeCloseTo(2 * mz.R_CLOSE, 0);
+  expect(widths[0]).toBeCloseTo(2 * mz.R_WIDE * k, 0);
+  expect(widths[widths.length - 1]).toBeCloseTo(2 * mz.R_CLOSE * k, 0);
   expect(jumps, `${label}: jumps`).toEqual([]);
 }
-function expectWider(widths, jumps, label) {
+function expectWider(widths, jumps, label, k = 1) {
   for (let i = 1; i < widths.length; i++) expect(widths[i], `${label}: ${widths.join(' → ')}`).toBeGreaterThan(widths[i - 1]);
-  expect(widths[0]).toBeCloseTo(2 * mz.R_CLOSE, 0);
-  expect(widths[widths.length - 1]).toBeCloseTo(2 * mz.R_WIDE, 0);
+  expect(widths[0]).toBeCloseTo(2 * mz.R_CLOSE * k, 0);
+  expect(widths[widths.length - 1]).toBeCloseTo(2 * mz.R_WIDE * k, 0);
   expect(jumps, `${label}: jumps`).toEqual([]);
 }
 function expectFixed(widths, label) {
@@ -533,7 +534,7 @@ test('the rig\'s glance layout (Ctrl+Shift+F): the same curve, in the cell\'s sh
   const feed = await openRig(page, {}, { drive: true });
   await page.waitForFunction(() => document.getElementById('zoomMapSvg').style.getPropertyValue('--px') !== '', null, { timeout: 10000 });
   const up = await ramp(page, feed, [0, 60, 120]);
-  expectCloser(up.widths, up.jumps, 'glance, up');
+  expectCloser(up.widths, up.jumps, 'glance, up', mz.GLANCE_VIEW);
   const v = await view(page);
   expect(v.across).toBeCloseTo(0.5, 1);
   expect(v.down).toBeCloseTo(2 / 3, 1);
@@ -593,7 +594,7 @@ test('the iPad: told the setting by its server and following it; told a change w
     await page.waitForFunction(() => document.getElementById('zoomMapSvg').style.getPropertyValue('--px') !== '', null, { timeout: 10000 });
     expect((await view(page)).mode).toBe('wider');
     const up = await ramp(page, t.feed, [0, 40, 75]);
-    expectWider(up.widths, up.jumps, 'iPad, wider');
+    expectWider(up.widths, up.jumps, 'iPad, wider', mz.GLANCE_VIEW);
     // He changes it on the desk: the iPad's next ask brings the word, and the view eases the other way.
     his.followMapZoom = 'closer';
     await expect.poll(() => page.evaluate(() => _settings.followMapZoom), { timeout: 10000 }).toBe('closer');
@@ -603,9 +604,9 @@ test('the iPad: told the setting by its server and following it; told a change w
     // Closer at speed, his: down a ramp and up it again, the view opens out and closes in, and the road and the car are
     // drawn with it ("the iPad zoom map ... doesn't zoom at all").
     const down = await ramp(page, t.feed, [...RAMP].reverse());
-    expectWider(down.widths, down.jumps, 'iPad, closer, down');
+    expectWider(down.widths, down.jumps, 'iPad, closer, down', mz.GLANCE_VIEW);
     const back = await ramp(page, t.feed, RAMP);
-    expectCloser(back.widths, back.jumps, 'iPad, closer, up');
+    expectCloser(back.widths, back.jumps, 'iPad, closer, up', mz.GLANCE_VIEW);
     await expectDrawnWithTheZoom(page, t.feed, 'the iPad', { glance: true });
     // Nothing else of his settings came with it (the zoom is the HUD's own default, not his 120).
     expect(await page.evaluate(() => [_settings.remoteServerKey, _settings.zoom])).toEqual([undefined, 165]);
@@ -665,7 +666,7 @@ test('the iPad dashboard OBS draws (/obs-ipad): the glance layout, closer at spe
     await page.waitForFunction(() => document.getElementById('zoomMapSvg').style.getPropertyValue('--px') !== '', null, { timeout: 10000 });
     expect((await view(page)).mode).toBe('closer');
     const up = await ramp(page, t.feed, RAMP);
-    expectCloser(up.widths, up.jumps, 'OBS iPad, closer');
+    expectCloser(up.widths, up.jumps, 'OBS iPad, closer', mz.GLANCE_VIEW);
     await expectDrawnWithTheZoom(page, t.feed, 'the iPad dashboard in OBS', { glance: true });
   } finally {
     await local.stop();
