@@ -79,8 +79,8 @@ namespace RacingDesk.Core.Screens
 
     /// <summary>
     /// The sim's main window, from Windows, in physical pixels (the look is made per-monitor aware, see
-    /// <see cref="PerMonitorAwareScope"/>). The host's <c>/racing-desk/data/simwindow</c> route answers with it, and the
-    /// ambient sampler looks at the monitor it is on (<see cref="SimMonitor"/>).
+    /// <see cref="PerMonitorAwareScope"/>). The host's <c>/racing-desk/data/simwindow</c> route answers with it, for the HUD
+    /// to be put on the same screen.
     /// </summary>
     public sealed class Win32SimWindowSource : ISimWindowSource
     {

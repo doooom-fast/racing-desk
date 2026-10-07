@@ -64,7 +64,6 @@ namespace RacingDesk.Plugin.Transport
         /// <param name="trackMap">Track map provider (for track map state).</param>
         /// <param name="pitboxCounters">Pitbox button counters (array of 7 volatile ints).</param>
         /// <param name="leaderboardJson">Leaderboard JSON (pre-serialized).</param>
-        /// <param name="screenColorSampler">Screen color sampler (for ambient light).</param>
         /// <param name="mozaSerial">Moza hardware manager (nullable).</param>
         /// <param name="pedalProfiles">Pedal profile manager (nullable).</param>
         /// <param name="lightsPhase">Formation-lights phase (0=off, 1-5=building reds, 6=all-red, 7=green, 8=fade). Tracked at plugin scope, not on the snapshot.</param>
@@ -79,7 +78,6 @@ namespace RacingDesk.Plugin.Transport
             Engine.TrackMapProvider trackMap = null,
             int[] pitboxCounters = null,
             string leaderboardJson = null,
-            Engine.ScreenColorSampler screenColorSampler = null,
             Engine.Moza.MozaSerialManager mozaSerial = null,
             Engine.PedalProfileManager pedalProfiles = null,
             int lightsPhase = 0,
@@ -561,22 +559,6 @@ namespace RacingDesk.Plugin.Transport
             dict["currentFlagState"] = Escape(GetFlagState(s, demo));
             double nearestDist = CalculateNearestCarDistance(s);
             dict["nearestCarDistance"] = nearestDist;
-
-            // Ambient light
-            if (screenColorSampler != null)
-            {
-                dict["RacingDesk.Plugin.DS.AmbientR"] = screenColorSampler.HasColor ? screenColorSampler.R : 0;
-                dict["RacingDesk.Plugin.DS.AmbientG"] = screenColorSampler.HasColor ? screenColorSampler.G : 0;
-                dict["RacingDesk.Plugin.DS.AmbientB"] = screenColorSampler.HasColor ? screenColorSampler.B : 0;
-                dict["RacingDesk.Plugin.DS.AmbientHasData"] = screenColorSampler.HasColor ? 1 : 0;
-            }
-            else
-            {
-                dict["RacingDesk.Plugin.DS.AmbientR"] = 0;
-                dict["RacingDesk.Plugin.DS.AmbientG"] = 0;
-                dict["RacingDesk.Plugin.DS.AmbientB"] = 0;
-                dict["RacingDesk.Plugin.DS.AmbientHasData"] = 0;
-            }
 
             return dict;
         }

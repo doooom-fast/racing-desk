@@ -1,7 +1,7 @@
 // The runtime's ?action= routes, asked for by this process on the HUD's behalf.
 //
 //   GET <runtime>/racing-desk/?action=restartdemo
-//   GET <runtime>/racing-desk/?action=setrect&x=0.1&y=0.2&w=0.5&h=0.4
+//   GET <runtime>/racing-desk/?action=setPedalProfile&id=283f91ae
 //   403 { "error": "this is for a program on this machine" }     to anything that is not one
 //
 // They write to the wheel base and the pedals, change the pedal profiles and the runtime's state, and several of the
@@ -18,14 +18,11 @@
 const rigApi = require('./rig-api');
 
 const TIMEOUT_MS = 3000;
-const MAX_RATIO = 10;      // of a share of the screen: nothing a drag on it could come to is more
 const MAX_LENGTH = 200;   // of a profile's id or a car's name: short names, and the page is not to be trusted with more
 
-// What each route takes. 'ratio' is a finite number, a share of the screen as the page measured it (a drag that ends outside
-// the window leaves the 0 to 1 a little, and the screen sampler clamps it to the monitor); 'name' a short string with nothing in it that is not printable.
+// What each route takes. 'name' is a short string with nothing in it that is not printable.
 const ACTIONS = Object.freeze({
   restartdemo: Object.freeze({}),
-  setrect: Object.freeze({ x: 'ratio', y: 'ratio', w: 'ratio', h: 'ratio' }),
   listPedalProfiles: Object.freeze({}),
   setPedalProfile: Object.freeze({ id: 'name' }),
   bindPedalProfile: Object.freeze({ id: 'name', car: 'name' }),
@@ -43,11 +40,10 @@ function problemWith(name, params) {
   for (const [key, kind] of Object.entries(wanted)) {
     const value = given[key];
     if (value === undefined) {
-      // Optional: the runtime has its own answer for a car that is not named (the one in the sim) and for a rect that is not sent.
+      // Optional: the runtime has its own answer for a car that is not named (the one in the sim).
       if (key === 'car') continue;
       return `${name} needs "${key}".`;
     }
-    if (kind === 'ratio' && !(typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= MAX_RATIO)) return `"${key}" is not a share of the screen.`;
     if (kind === 'name') {
       if (typeof value !== 'string' || !value.length) return `"${key}" is not a name.`;
       if (value.length > MAX_LENGTH) return `"${key}" is longer than ${MAX_LENGTH} characters.`;
@@ -57,13 +53,13 @@ function problemWith(name, params) {
   return null;
 }
 
-// The request, as data. The query is built here from what was checked: a name is encoded, a number is written as a number.
+// The request, as data. The query is built here from what was checked: a name is encoded.
 // Only GET, and only the headers a program sends: never an Origin.
 function actionRequest(telemetryUrl, name, params) {
   const query = [`action=${encodeURIComponent(name)}`];
   for (const key of Object.keys(ACTIONS[name])) {
     const value = (params || {})[key];
-    if (value !== undefined) query.push(`${key}=${encodeURIComponent(typeof value === 'number' ? value.toFixed(6) : value)}`);
+    if (value !== undefined) query.push(`${key}=${encodeURIComponent(value)}`);
   }
   return { url: `${telemetryUrl.replace(/\/?$/, '/')}?${query.join('&')}`, method: 'GET', headers: { Accept: 'application/json' } };
 }

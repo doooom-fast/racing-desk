@@ -1478,7 +1478,7 @@
     // The width of the outline's outer layer (.map-track-outer): in the glance layout that is in pixels (on the local
     // view, at the view R_LINE_WEIGHTS across, and with the zoom from there)
     _renderTrackTrail(_fullMapTrailEl, _dv.on && _dv.fullUnit ? 12 * _dv.fullUnit : 5, playerNearest);
-    _renderTrackTrail(_zoomMapTrailEl, _dv.on && _dv.zoomUnit ? 10 * _dv.zoomUnit : 2.5, playerNearest);
+    _renderTrackTrail(_zoomMapTrailEl, _dv.on && _dv.zoomUnit ? 10 * RacingDeskMapZoom.GLANCE_WEIGHT * _dv.zoomUnit : 2.5, playerNearest);
 
     // Self-check: warn once if trail polylines couldn't be created.
     // Their absence means _renderTrackTrail is silently no-op'ing and
@@ -1514,13 +1514,13 @@
         // whose lines are in those units. It was sized again in pixels whenever the zoom moved by a few percent,
         // which took the zoom back out of everything but the bends: on a straight the closest view looked like the
         // widest. It is sized again only when the cell changes (_dvLayout puts zoomUnit to 0).
-        const vw = zr * 2, vh = vw / _dv.zoomAspect;
+        const vw = zr * 2 * RacingDeskMapZoom.GLANCE_VIEW, vh = vw / _dv.zoomAspect;
         zoomSvg.setAttribute('viewBox', (sx - vw / 2).toFixed(3) + ' ' + (sy - vh * (2 / 3)).toFixed(3) + ' ' + vw.toFixed(3) + ' ' + vh.toFixed(3));
         const unit = (2 * RacingDeskMapZoom.R_LINE_WEIGHTS) / _dv.zoomW;
         if (unit !== _dv.zoomUnit) {
           _dv.zoomUnit = unit;
           zoomSvg.style.setProperty('--px', unit.toFixed(4));
-          _dvSizeMarkers(zoomSvg, unit);
+          _dvSizeMarkers(zoomSvg, unit * RacingDeskMapZoom.GLANCE_DOT);
         }
       } else {
         // ViewBox always centered on player — NO clamping, overflow="visible"

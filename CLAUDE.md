@@ -90,7 +90,7 @@ known; the overlay's CLAUDE.md, The datastream's rig limits).
 `setMozaPedalSetting` and `setMozaHandbrakeSetting` queue writes to the wheel base, the pedals and the handbrake;
 `mozaRefresh` and `mozaReconnect` make the Moza manager poll again and look for its ports again; `importMozaPedals`
 reads Pit House's files and saves a profile; `setPedalProfile` and `bindPedalProfile` change the active pedal profile
-and the car bindings, which are written to disk; `restartdemo` and `setrect` change the runtime's state; and the reads
+and the car bindings, which are written to disk; `restartdemo` changes the runtime's state; and the reads
 (`getMoza*Settings`, `listMozaDevices`, `listPedalProfiles`, `listSerialPortDiagnostic`, which opens the machine's
 serial ports and with `probe=1` writes to the ones nothing calls Moza) ask the hardware or the machine. (`resetmap` and
 `listtracks` are gone with the recorded maps: see Track maps.) Those ports answer every
@@ -119,15 +119,15 @@ is on), which hands the demo action to the HUD, and the HUD's own calls go throu
 (`docs/recording.md`). A route added to the file is behind the check by being below it; `ActionRoutesTests` reads every
 `action == "…"` in the file, asks each from another machine, from a page and from this one, and fails on one that is
 let through (and on a way of looking at the action it cannot read, and on one missing from `KnownActions`). The HUD is a page — a file, whose requests carry `Origin: null` — so its own calls
-(`restartdemo`, `setrect`, the pedal profiles) are made by the main process: `runtimeAction` in
+(`restartdemo` and the pedal profiles) are made by the main process: `runtimeAction` in
 `modules/js/config.js` → the preload → `runtime:action` in `main.js` → `modules/js/runtime-actions.js`, which passes on
 only those routes, with their arguments checked, to a runtime on this machine (`tests/unit/runtime-actions.spec.mjs`
 fails on a script that fetches an `?action=` route itself, anywhere under `modules/` or in the inline scripts of
 `dashboard.html` and `desk.html`, and on one that asks `runtimeAction` for a route that is not in `ACTIONS`; a route the
 HUD needs goes in `ACTIONS`). **Install order:** an exe from before this check makes the HUD's calls from the page
 (`Origin: null`), and a runtime with the check refuses them, with nothing visible in the HUD (the calls' errors are
-swallowed): the ambient capture rect, the demo restart and pedal-profile switching stop working,
-and the only trace is one line in SimHub's log for each (`?action=setrect refused: …`). So install the plugin from
+swallowed): the demo restart and pedal-profile switching stop working,
+and the only trace is one line in SimHub's log for each (`?action=restartdemo refused: …`). So install the plugin from
 this change only with, or after, an exe built from it; an older plugin with the newer exe works. **Left reachable from
 the network, on purpose:** the telemetry (`GET /racing-desk/` with no action: read-only, and the iPad's path) and the
 `:8890` feed (it reads nothing from its clients). **What they cost:** the telemetry answer is built once for each data
@@ -1124,25 +1124,17 @@ layouts. The rule, in the order it is applied:
    stability; the real `EnumDisplayMonitors` was run once on this machine (one screen then), not on both screens; the
    rule, the wiring and the host's routes are tested, the Electron calls are not.
 
-   **The ambient colour follows the sim's screen** (it looked at the primary or the first screen, always, until
-   2026-09-29). A screen he chose in Settings for the HUD is the HUD's place: while the sim runs the colour is sampled on
-   the screen the sim's window is on — with the HUD on the small screen by his choice and the sim on the ultrawide, the
-   colour's region is ratios taken from the HUD's window on the chosen screen. While the sim has no window the colour is
-   sampled on the primary. (A recording was of the sim's screen by the same rule, through the Electron recorder's
-   `getDisplayMedia`; since 2026-09-30 OBS records, through his own display capture, and the app grants no screen
-   capture at all — `docs/recording.md`; `hud-display.js` no longer keeps the sim's screen for a recording.)
-   - **The ambient colour** (`RacingDesk.Core/Engine/ScreenColorSampler.cs`, in the app's host and in the SimHub plugin
-     alike) is sampled on the monitor the sim's window is on — `RacingDesk.Core/Screens/SimMonitor.cs`, with the same
-     lookup the `simwindow` route makes (it and the monitors' lookup moved from the host into `RacingDesk.Core/Screens/`
-     so both can use them) — and, if the sim's window names no monitor, the listed monitor with most of it; while the sim
-     has no window on screen or the look fails, the primary monitor, from the same `EnumDisplayMonitors` list the
-     `monitors` route gives. Looked for again every 2 s at most (it lists every process; the sampler runs four times a
-     second), and at once after a capture fails — once: a capture that goes on failing (the screen locked) waits the 2 s. The lookup and the capture are both made per-monitor aware on the
-     sampler's own thread, so they agree in physical pixels on screens of different scales; the region the HUD sets is
-     ratios of that monitor, from its own corner. Logged once per change (`ScreenColor: sampling the monitor iRacing is
-     on, 3440x1440 at (0, 0)`). `tests/…/Screens/SimMonitorTests.cs`, with fake window and monitor sources. Not verified
-     on the rig: a capture of the sim's screen beside the 175 % one, and a recording of it — nothing was built or
-     captured here — and the SimHub plugin samples the sim's monitor only once it has been installed again.
+   **No screen is captured any more** (2026-10-07, `perf/no-surface-fx`). The ambient colour the plugin sampled from the
+   sim's screen (`ScreenColorSampler`, with `SimMonitor` choosing the monitor) is gone with everything it drove: the
+   `DS.AmbientR/G/B/HasData` keys, the `setrect` action, the overlay's `ambient-light.js`, `ambient-capture.js` and
+   `ambient.css` (the panels' glow and glass streak), the glare pass's ambient glow and glass dome in `webgl.js`, the
+   `ambientMode` setting and its control on the desk, and the Windows Forms reference the sampler alone needed. A settings
+   file that still holds `ambientMode`, `showAmbientLight` or `ambientCaptureRect` loads as before: nothing reads them.
+   `SimWindow.cs` and `Monitors.cs` stay (the host's `simwindow` and `monitors` routes put the HUD on the sim's screen).
+   (A recording was of the sim's screen by the same rule, through the Electron recorder's `getDisplayMedia`; since
+   2026-09-30 OBS records, through his own display capture, and the app grants no screen capture at all —
+   `docs/recording.md`.) The glance layout's glass has one fixed tint (`--rd-glass-*` in `drive-view.css`), and a flag
+   tints it as before.
 
 **The main process's log** (`logToFile` in `main.js`, `modules/js/app-log.js`, `tests/unit/hud-log.spec.mjs`): in
 the built app `%LOCALAPPDATA%\Racing Desk\overlay.log`, beside `host.log` — it was written beside `main.js`, which
@@ -1202,9 +1194,9 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
   main HUD's typefaces are not changed by any of this.
 - **What the page is told, not what it works out**: `window._remoteMode` and `window._simhubUrlOverride` are set
   before any of the HUD's scripts run, and `settings.js` leaves the address alone in remote mode. (It used to reset
-  it, which had the iPad asking itself for telemetry.) In remote mode there is no voice coach; the HUD's effects and
-  its ambient light are there (the colour the plugin samples from the rig's screen) unless "Effects: off" in the menu,
-  which the iPad keeps; and a strip says "No data from the rig" when the numbers stop arriving. Of his settings the
+  it, which had the iPad asking itself for telemetry.) In remote mode there is no voice coach and no WebGL effect (the
+  loop is not started and no WebGL context is made: `webgl.js`, `NO_FX_PAGE`, `tests/unit/no-fx-on-glance.spec.mjs`);
+  "Effects: off" in the menu stops the flag's moving pattern, and the iPad keeps the choice; and a strip says "No data from the rig" when the numbers stop arriving. Of his settings the
   iPad is told two things, the "Panel background" slider of Settings → Look (`panelBackground`, 90 unless he moves it:
   how solid the panels are, with a shadow under the numbers as it goes down) and "Following map zoom" from the same
   page (`followMapZoom`: which way the local map zooms with his speed, one of three words; `apps/overlay/modules/js/map-zoom.js`),

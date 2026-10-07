@@ -180,7 +180,7 @@
   }
 
   // ─── Poll-rate control + active/dormant switch ───
-  // The overlay is "active" only while the driver is in the car. Dormant, the FX + ambient loops are paused, and
+  // The overlay is "active" only while the driver is in the car. Dormant, the FX loop is paused, and
   // the poll and the frames stop altogether when main.js decides (slow to once a second when the page has to
   // notice for itself). This is required, not just nice-to-have: the anti-throttling switches in main.js keep
   // timers + rAF running at full speed even when the window is hidden, so the renderer has to self-regulate.
@@ -197,16 +197,9 @@
       setPollRate(0);
       _stopFrames();
     }
-    // The page on an iPad draws the HUD's effects as the rig does, unless they have been switched off from its menu
-    // (remote-server.js keeps that in the iPad's own storage): an iPad too slow for them can go without.
-    var effects = active && !(window._remoteMode && window._rdEffectsOff === true);
-    if (typeof window.setGLFXActive === 'function') window.setGLFXActive(effects);
-    var ambMode = (_settings && _settings.ambientMode) || 'auto';
-    if (effects && ambMode !== 'off') {
-      if (typeof window.startAmbientLight === 'function') window.startAmbientLight();
-    } else {
-      if (typeof window.stopAmbientLight === 'function') window.stopAmbientLight();
-    }
+    // The rig's HUD runs the WebGL effects while he is in the car. The glance layout (the iPad's page, /obs-ipad,
+    // Ctrl+Shift+F) and the HUD page in OBS never do: webgl.js sees to that, whatever is asked here.
+    if (typeof window.setGLFXActive === 'function') window.setGLFXActive(active);
   }
 
   // ─── rAF render loop — DOM writes synchronized to display refresh rate ───
@@ -1252,19 +1245,7 @@
         }
       }
       _lastFlagState = flagState;
-      // Expose for ambient-light.js polled color source
       window._currentFlagState = flagState;
-    }
-
-    // ─── Ambient light — feed screen color from C# plugin ───
-    {
-      const ambHas = +v('RacingDesk.Plugin.DS.AmbientHasData') || 0;
-      if (ambHas && typeof window.updateAmbientFromPoll === 'function') {
-        const ambR = +v('RacingDesk.Plugin.DS.AmbientR') || 0;
-        const ambG = +v('RacingDesk.Plugin.DS.AmbientG') || 0;
-        const ambB = +v('RacingDesk.Plugin.DS.AmbientB') || 0;
-        window.updateAmbientFromPoll(ambR, ambG, ambB);
-      }
     }
 
     // ─── Commentary ───

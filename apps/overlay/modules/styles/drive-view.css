@@ -5,8 +5,8 @@
    empty band. Nothing is moved and nothing is copied. The HUD's wrappers step aside (display: contents) and its
    panels become the cells, so every module goes on writing to the same elements it always did, in the colours, the
    states and the type it always had, and the two screens are one product. The panels keep the rig's glass: the
-   tinted, lit panel of ambient.css, in the ambient colour the telemetry carries (on an iPad there is no game behind
-   it to take a colour from), and when a flag is out the whole background behind them is that flag.
+   tinted, lit panel, in one fixed blue-grey (nothing is sampled from the screen any more), and when a flag is out
+   the whole background behind them is that flag.
 
    What is in a cell is sized from the cell: each is a size container and its type is in cq units, so one set of rules
    serves an iPad mini, an Air on its side and a 12.9-inch Pro alike. A cell's own padding and gaps stay in px (a cq
@@ -40,9 +40,10 @@
 body.drive-mode-active {
   --rd-frame: clamp(8px, 1.2vmin, 14px);         /* the edge round the grid: where a flag shows at its boldest */
   --rd-gap: clamp(5px, 0.75vmin, 9px);
-  --rd-glass-r: var(--ambient-r);                  /* the glass's tint: the ambient colour, or the flag's */
-  --rd-glass-g: var(--ambient-g);
-  --rd-glass-b: var(--ambient-b);
+  --rd-glass-r: 115;                               /* the glass's tint: a fixed blue-grey, or the flag's */
+  --rd-glass-g: 140;
+  --rd-glass-b: 191;
+  --rd-glass-lum: 0.54;                            /* how bright that tint is (the perceptual luminance of the above) */
   --rd-bg: #050608;
   /* Every panel's header in this layout is one size, whatever its cell (dashboard.css, "One header for every panel"):
      14px on an iPad, a little more on a larger screen, 19px at the most (11 to 15 until he asked for larger, lighter headers). */
@@ -112,9 +113,12 @@ body.drive-mode-active :is(#dashboard, .main-row, .main-area, .controls-pedals-b
   #cycleRatingPos, .timer-row, #secContainer, .logo-col)::after { content: none !important; display: none !important; }
 
 /* What only the rig's screen needs. The glare pass (webgl.js) lights panels by where they are on the screen, from its
-   middle; here the glass is the panels' own (below), which lights each one alike. */
-body.drive-mode-active :is(.cycle-sizer, .cycle-dots, #connStatus, #connBanner, #gameLogoOverlay, .ambient-canvas,
-  #glareCanvas, .pb-tabs, .lb-brand) { display: none !important; }
+   middle; here the glass is the panels' own (below), which lights each one alike. No WebGL effect is drawn in this
+   layout at all (webgl.js does not run its effects loop while it is on): the canvases of the effects are hidden, so
+   a frame one of them held when the layout was entered on the rig is not left on screen. */
+body.drive-mode-active :is(.cycle-sizer, .cycle-dots, #connStatus, #connBanner, #gameLogoOverlay,
+  #glareCanvas, .pb-tabs, .lb-brand, .gl-overlay, .mfr-flag-canvas, .commentary-gl-canvas, .inc-gl-canvas, .pit-gl-canvas,
+  .sp-gl-canvas, .grid-flag-gl) { display: none !important; }
 
 /* Every panel is a cell whatever the rig's settings show, and nothing in a cell is a touch target: the cells are data. */
 body.drive-mode-active :is(.car-controls, .pedals-area, .map-panel, .map-zoom-panel, #positionPage, #ratingPage,
@@ -138,10 +142,8 @@ body.drive-mode-active :is(.car-controls, .pedals-area, .map-panel, .map-zoom-pa
 body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: flex !important; }
 
 /* ── The glass ─────────────────────────────────────────────────────────────────────────────────────────────────────
-   The rig's panel: near-black at nine-tenths, a hairline edge, and over it the light of ambient.css — an overhead glow
-   and a sweep in the ambient colour, and the specular streak of a glass surface. On the rig the WebGL glare adds to
-   it by where a panel sits on the screen; here each panel is lit the same, by its own layers, a little brighter to
-   make up for the glare pass it does not have. The four panels that draw their own inner card (leaderboard,
+   The rig's panel: near-black at nine-tenths, a hairline edge, and over it the light of an overhead glow and a sweep,
+   in the glass's tint. Each panel is lit the same, by its own layers; no effect is drawn on the GPU in this layout. The four panels that draw their own inner card (leaderboard,
    datastream, pit box, incidents) take the same background on the card. */
 body.drive-mode-active :is(.car-controls, .pedals-area, .map-panel, .map-zoom-panel, #positionPage, #ratingPage,
   #gapsBlock, .tacho-block, #raceTimerBlock, #lapsPanel, .lb-inner, .ds-inner, .pb-inner, .inc-inner) {
@@ -156,7 +158,7 @@ body.drive-mode-active :is(.car-controls, .pedals-area, .map-panel, .map-zoom-pa
   border: 1px solid rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.30);
   border-radius: var(--corner-r);
   box-shadow:
-    inset 0 0 36px 6px rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc((0.14 + var(--ambient-lum) * 0.18) * var(--rd-shine, 1) * var(--panel-glass, 1))),
+    inset 0 0 36px 6px rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), calc((0.14 + var(--rd-glass-lum) * 0.18) * var(--rd-shine, 1) * var(--panel-glass, 1))),
     inset 0 1px 0 rgba(255, 255, 255, calc(0.10 * var(--rd-shine, 1) * var(--panel-glass, 1)));
   transition: background 0.6s ease, border-color 0.6s ease;
 }
@@ -164,7 +166,7 @@ body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) {
   background: var(--bg-logo);
   border-radius: var(--corner-r);
 }
-/* The overhead glow and the sweep (ambient.css's ::before, which the rig shows in its plastic mode), tinted by the glass. */
+/* The overhead glow and the sweep, tinted by the glass. */
 body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel, .incidents-panel,
   .laps-panel)::before {
   display: block;
@@ -183,11 +185,8 @@ body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-panel, .datastream
     linear-gradient(155deg, transparent 8%,
       rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.10) 30%,
       rgba(var(--rd-glass-r), var(--rd-glass-g), var(--rd-glass-b), 0.04) 55%, transparent 72%);
-  opacity: calc((0.45 + var(--ambient-lum) * 0.5) * var(--rd-shine, 1) * var(--panel-glass, 1));
+  opacity: calc((0.45 + var(--rd-glass-lum) * 0.5) * var(--rd-shine, 1) * var(--panel-glass, 1));
 }
-/* The specular streak is ambient.css's ::after, the rig's own, and shows as it is. */
-body.drive-mode-active.ambient-off :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel,
-  .incidents-panel, .laps-panel)::before { display: none; }
 
 /* ═══ The cells ════════════════════════════════════════════════════════════════════════════════════════════════════ */
 
@@ -304,9 +303,9 @@ body.drive-mode-active .map-panel .map-sector       { stroke-width: calc(8 * var
 body.drive-mode-active .map-zoom-panel { grid-area: local; display: flex; flex-direction: column; padding: 0; }
 body.drive-mode-active .map-zoom-panel .map-zoom-svg { width: 100%; height: 100%; flex: 1 1 0; }
 body.drive-mode-active .map-zoom-panel .map-zoom-label { display: none; }
-body.drive-mode-active .map-zoom-panel .map-track-outer { stroke-width: calc(10 * var(--px, 0.2)); }
-body.drive-mode-active .map-zoom-panel .map-track      { stroke-width: calc(6 * var(--px, 0.2)); }
-body.drive-mode-active .map-zoom-panel .map-track-inner { stroke-width: calc(1.2 * var(--px, 0.2)); }
+body.drive-mode-active .map-zoom-panel .map-track-outer { stroke-width: calc(20 * var(--px, 0.2)); }   /* twice its old weight: map-zoom.js GLANCE_WEIGHT */
+body.drive-mode-active .map-zoom-panel .map-track      { stroke-width: calc(12 * var(--px, 0.2)); }
+body.drive-mode-active .map-zoom-panel .map-track-inner { stroke-width: calc(2.4 * var(--px, 0.2)); }
 /* The glow under the car is sized in pixels by the script, and does not breathe in units. */
 body.drive-mode-active #trackPlayerGlow { animation: none; }
 /* The panels' own WebGL canvases fill their cell and no more (webgl.js sizes their drawing to the cell's outer box). */
@@ -896,8 +895,8 @@ body.drive-mode-active:is([data-flag="green"], [data-flag="greenheld"], [data-fl
 body.drive-mode-active #carLogoSquare {
   background: linear-gradient(var(--logo-tint, transparent), var(--logo-tint, transparent)), var(--rd-bg) !important;
 }
-/* The livery under the badge (dashboard.css, .car-livery) takes the glass's colour as the panels do — the ambient
-   colour, or the flag's when one is out, and more of it under the flags the panels take more under (the list is the
+/* The livery under the badge (dashboard.css, .car-livery) takes the glass's colour as the panels do — the
+   resting blue-grey, or the flag's when one is out, and more of it under the flags the panels take more under (the list is the
    panels', above: a local yellow, a blue, a furled black flag and the plain black leave the panels as they are, and
    leave this as it is) — over the darkening that keeps the mark readable. The crop is opaque, so the flag's pattern
    shows through it no more than the base. */
@@ -931,12 +930,11 @@ body.drive-mode-active #gapsBlock.flag-active .flag-overlay { background: hsla(0
   body.drive-mode-active::before { animation: none !important; }
 }
 html.rd-effects-off body.drive-mode-active::before { animation: none !important; }
-html.rd-effects-off body.drive-mode-active .gl-overlay { display: none !important; }
 
 /* ═══ On an iPad (html.rd-remote, which remote-server.js sets; the rig's own Ctrl+Shift+F is as it was) ═══════════
    What he asked for on 2026-09-30: "we don't need the super shiny backgrounds, it's pretty noisy. I'd like them
    brought back to about 15% opacity", and "we don't need the logos". So the glass's light — its tint, the overhead
-   glow and the sweep, the specular streak, the inset glow — is at fifteen hundredths of the rig's (--rd-shine, used
+   glow and the sweep, the inset glow — is at fifteen hundredths of the rig's (--rd-shine, used
    by the glass rules above); the flags' own treatment of the glass is as it was. The two badges, the Racing Desk mark
    and the car's maker with the car's name, are not cells here, and the row they were in is the controls, the pedals
    and the clock. The menu's sign (remote-server.js) is a small round button in the top right corner.
@@ -944,8 +942,6 @@ html.rd-effects-off body.drive-mode-active .gl-overlay { display: none !importan
    by OBS") has the same look — the glass, no badges, the row — and OBS mode's behaviour; what is the iPad's alone (the
    menu, the flag behind and between the panels, the frame, the black page) it does not have: the end of this file. */
 html:is(.rd-remote, .rd-glance) body.drive-mode-active { --rd-shine: 0.15; }
-html:is(.rd-remote, .rd-glance) body.drive-mode-active :is(.panel, .tacho-block, .leaderboard-panel, .datastream-panel, .pitbox-panel,
-  .incidents-panel, .laps-panel)::after { opacity: calc((0.25 + var(--ambient-lum) * 0.35) * var(--rd-shine, 1) * var(--panel-glass, 1)) !important; }
 /* The flag behind and between the panels at fifteen hundredths too, under every flag: the renders of the first cut had
    the stripes at full strength in every gutter and round the edge, which is the noise he asked to have brought down.
    A flag is still read at a glance from the flag card in the gaps block, race control's banner and the panels'

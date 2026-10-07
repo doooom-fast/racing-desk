@@ -294,11 +294,6 @@ const PROP_KEYS = [
   'RacingDesk.Plugin.DS.SafetyRatingDisplay',
   'RacingDesk.Plugin.DS.GapAheadFormatted',
   'RacingDesk.Plugin.DS.GapBehindFormatted',
-  // Ambient light (screen color from C# plugin)
-  'RacingDesk.Plugin.DS.AmbientR',
-  'RacingDesk.Plugin.DS.AmbientG',
-  'RacingDesk.Plugin.DS.AmbientB',
-  'RacingDesk.Plugin.DS.AmbientHasData',
   // Demo Datastream
   'RacingDesk.Plugin.Demo.DS.LatG',
   'RacingDesk.Plugin.Demo.DS.LongG',
@@ -706,7 +701,7 @@ const _defaultSettings = {
   showMaps: true, showTimer: true,
   showK10Logo: true, showCarLogo: true, showGameLogo: true, simhubUrl: 'http://localhost:8889/racing-desk/',
   layoutPosition: 'top-right',
-  showWebGL: true, showBonkers: true, ambientMode: 'reflective',
+  showWebGL: true, showBonkers: true,
   // How solid the panels are, 0 to 100 (settings.js applyPanelBackground): 90 is the panels as they have always been.
   panelBackground: 90,
   // The following map's zoom with his speed (modules/js/map-zoom.js): 'closer' at speed, 'wider', or 'fixed'.
@@ -764,8 +759,8 @@ const _defaultSettings = {
 
 let _settings = Object.assign({}, _defaultSettings);
 // A top-level `let` in a classic script is not a property of window, so `window._settings` was undefined from the
-// first recording code in April 2026 until 2026-09-30, and every module that read it (ambient-capture.js's capture
-// rect among them) got nothing. settings.js assigns into this object, never replaces it, so the reference stays current.
+// first recording code in April 2026 until 2026-09-30, and every module that read it (the screen capture's rect
+// among them, which is gone) got nothing. settings.js assigns into this object, never replaces it, so the reference stays current.
 window._settings = _settings;
 
 // Discord state

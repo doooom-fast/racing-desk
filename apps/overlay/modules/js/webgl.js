@@ -27,7 +27,13 @@
       }
       return p;
     }
+    // The pages that are never the rig's own HUD over the game — the iPad's, and the two OBS draws (/obs and /obs-ipad)
+    // — run no WebGL effect, so they make no WebGL context either: eleven of them are a good part of what an iPad has to
+    // give. (The glance layout on the rig, Ctrl+Shift+F, is the rig's page and keeps its contexts; its loop is stopped
+    // below, by fxAllowed.)
+    const NO_FX_PAGE = !!(window._remoteMode || window._obsMode || window._obsGlance);
     function initGL(canvasId) {
+      if (NO_FX_PAGE) return null;
       const c = document.getElementById(canvasId);
       if (!c) return null;
       const gl = c.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: true });
@@ -247,7 +253,7 @@
     //    • Draw call skip rate (% of frames where glare had nothing to draw)
     //
     //  Access from console:  window._glarePerf
-    //  Logs a summary every 5 seconds when ambient light is active.
+    //  Logs a summary every 5 seconds.
     // ══════════════════════════════════════════════════════════════
     const _glarePerf = {
       fps: 0,
@@ -317,8 +323,7 @@
             : '0.0';
           console.log(
             `[GlarePerf] FPS=${this.fps} | GPU=${this.frameTimeMs.toFixed(2)}ms | ` +
-            `draws=${this.drawCalls} skipped=${skipPct}% | ` +
-            `ambient=${window._ambientGL ? window._ambientGL.lum.toFixed(2) : 'off'}`
+            `draws=${this.drawCalls} skipped=${skipPct}%`
           );
         }
       },
@@ -391,8 +396,6 @@
       yawRate: 0, yawRateTarget: 0,
       steer: 0, steerTarget: 0,
     };
-    // Expose for CSS-only plastic mode (ambient-light.js reads these)
-    window._pfx = _pfx;
     const _pfxLerp = { speed: 3.0, rpm: 8.0, latG: 5.0, longG: 5.0, yawRate: 4.0, steer: 6.0 };
 
     /** Resize a full-screen canvas at half DPR for soft effects */
@@ -446,11 +449,6 @@
         uniform float uYawRate;
         uniform float uSteer;   // steering wheel angle, -1..+1 (negative=left)
 
-        // Ambient light (from Electron screen capture)
-        uniform vec3  uAmbientColor;  // 0-1 RGB
-        uniform float uAmbientLum;    // perceptual luminance 0-1
-        uniform int   uAmbientMode;   // 0=off, 1=matte, 2=reflective
-
         // ── Rounded-rect SDF — negative inside, positive outside ──
         float roundedRectSDF(vec2 uv, vec4 rect, vec2 radius) {
           vec2 center = rect.xy + rect.zw * 0.5;
@@ -481,7 +479,6 @@
           return base + (1.0 - base) * (0.5 + 0.5 * sin(t * speed * 0.6));
         }
 
-        // ── AMBIENT GLOW — single centered radial, panel-masked ──
         // ── Steer-rotated UV helper ──
         // Rotates UV around a center point by -uSteer (inverted: glare moves
         // opposite the wheel).  ±1 → ∓0.25 rad ≈ ∓14°.
@@ -491,41 +488,6 @@
           float cs = cos(a), sn = sin(a);
           vec2 d = uv - center;
           return vec2(d.x * cs - d.y * sn, d.x * sn + d.y * cs) + center;
-        }
-
-        // ── PERF-LITE: single centered radial glow + sweep only ──
-        // Removed: shimmer (sin×sin pow4), edgeBloom (duplicate panelMask loop).
-        // Kept: center glow, bloom pulse, light sweep — enough to sell
-        // sun/cloud movement across glass surfaces.
-        vec4 ambientGlow(vec2 uv) {
-          if (uAmbientMode == 0 || uAmbientLum < 0.01) return vec4(0.0);
-          float modeMul = (uAmbientMode == 1) ? 0.5 : 1.0;
-
-          // Speed scales movement: idle ×0.075, full speed ×0.5 (75% slower)
-          float spdMul = 0.075 + uSpeed * 0.425;
-
-          // Single radial glow from screen center
-          vec2 center = vec2(0.5, 0.45);
-          float dist = length(uv - center);
-          float glow = exp(-dist * dist * 1.8) * 2.0;
-
-          // Bloom pulse: slow breathing
-          float bloom = 0.8 + 0.2 * sin(uTime * 1.5 * spdMul);
-          glow *= bloom;
-
-          // Steer-rotated UV for sweep (rotation at 25% of original)
-          vec2 rUV = steerRotateUV(uv, center);
-
-          // Light sweep: diagonal band simulating sun/cloud movement
-          float sweep = sin(rUV.x * 2.0 + rUV.y * 1.3 - uTime * 0.2 * spdMul) * 0.5 + 0.5;
-          sweep = pow(sweep, 3.0) * 0.7;
-
-          float total = (glow + sweep) * uAmbientLum * modeMul;
-          total = min(total, 2.5);
-
-          vec3 col = uAmbientColor * total;
-          float alpha = total * 0.8;
-          return vec4(col, clamp(alpha, 0.0, 1.0));
         }
 
         // EFFECT 1: Panel glow — top-edge reflective source
@@ -615,83 +577,6 @@
           return vec4(col * alpha, alpha);
         }
 
-        // ── Spherical glass reflection per panel ──
-        // Each module has a convex glass dome surface that catches a specular
-        // highlight from an overhead light source, shifted by steering angle.
-        // Dome height scales with ambient mode: full in reflective, 50% in matte.
-        vec4 glassReflection(vec2 uv) {
-          if (uAmbientMode == 0 || uAmbientLum < 0.005) return vec4(0.0);
-
-          // Dome height: reflective=1.0, matte=0.5
-          float domeScale = (uAmbientMode == 1) ? 0.5 : 1.0;
-
-          // Light source: overhead, slightly shifted by steering
-          vec3 lightDir = normalize(vec3(
-            -0.15 + uSteer * 0.12,   // x: steer shifts highlight
-            -0.3,                     // y: slightly above center
-            1.0                       // z: toward viewer
-          ));
-
-          vec3 totalCol = vec3(0.0);
-          float totalAlpha = 0.0;
-
-          for (int i = 0; i < 16; i++) {
-            if (i >= uPanelCount) break;
-            vec4 r = uPanelRect[i];
-            if (r.z < 0.001 || r.w < 0.001) continue;
-
-            // Normalize UV within this panel
-            vec2 local = (uv - r.xy) / r.zw;
-            if (local.x < 0.0 || local.x > 1.0 || local.y < 0.0 || local.y > 1.0) continue;
-
-            // SDF-based soft edge (reuse panel SDF for feathering)
-            float sdf = roundedRectSDF(uv, r, uPanelRadius[i]);
-            float fw = fwidth(sdf);
-            float inside = smoothstep(fw, -fw * 2.0, sdf);
-            if (inside < 0.001) continue;
-
-            // Map local coords to box-shaped dome surface normal
-            // The dome fills the entire panel rect, curving down at edges
-            vec2 centered = local - 0.5;  // -0.5..+0.5
-
-            // Box dome: use rounded-rect distance instead of circular
-            // Panel border-radius in local 0-1 space
-            vec2 panelRLocal = uPanelRadius[i] / r.zw;
-            // SDF of a rounded rect in local space (0 at boundary, negative inside)
-            vec2 q = abs(centered) - (0.5 - panelRLocal);
-            float boxSdf = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - min(panelRLocal.x, panelRLocal.y);
-            // Map to 0 at center, 1 at panel edge
-            float edgeDist = smoothstep(-0.5, 0.0, boxSdf);
-
-            // Dome height: 1 at center, 0 at edges (box-shaped falloff)
-            float z = (1.0 - edgeDist) * domeScale;
-            if (z < 0.001) continue;
-
-            // Surface normal: gradient of the dome height
-            // Approximate partial derivatives from the box SDF
-            vec2 grad = centered * 2.0;  // base gradient pointing outward
-            // Steepen near edges using the box shape
-            float edgeSteep = smoothstep(0.3, 0.5, max(abs(centered.x), abs(centered.y)));
-            grad *= (1.0 + edgeSteep * 3.0);
-            vec3 normal = normalize(vec3(-grad, z));
-
-            // Specular: Blinn-Phong only (Fresnel rim + caustic shimmer removed)
-            vec3 viewDir = vec3(0.0, 0.0, 1.0);
-            vec3 halfVec = normalize(lightDir + viewDir);
-            float spec = pow(max(dot(normal, halfVec), 0.0), 32.0 * domeScale + 8.0);
-
-            vec3 specCol = mix(vec3(1.0), uAmbientColor * 1.5 + 0.5, 0.3);
-            float intensity = spec * 0.3 * uAmbientLum * domeScale;
-
-            float a = clamp(intensity * inside * uPanelAlpha[i], 0.0, 0.5);
-            totalCol += specCol * a;
-            totalAlpha += a;
-          }
-
-          totalAlpha = clamp(totalAlpha, 0.0, 0.6);
-          return vec4(totalCol, totalAlpha);
-        }
-
         void main() {
           vec2 uv = vUV;
           uv.y = 1.0 - uv.y;
@@ -701,8 +586,6 @@
           if (mask < 0.001) { fragColor = vec4(0.0); return; }
 
           // Layer all effects
-          vec4 ambient  = ambientGlow(uv);
-          vec4 glass    = glassReflection(uv);
           vec4 glow     = panelGlow(uv);
           vec4 vignette = gForceVignette(uv);
           vec4 aberr    = speedAberration(uv);
@@ -712,14 +595,6 @@
           // Additive composite
           vec3 col = vec3(0.0);
           float alpha = 0.0;
-
-          // Glass dome: base layer (between module content and glare)
-          col += glass.rgb;
-          alpha += glass.a;
-
-          // Ambient glow: on top of glass
-          col += ambient.rgb;
-          alpha += ambient.a;
 
           col += glow.rgb;
           alpha += glow.a;
@@ -778,10 +653,6 @@
         const uBrakeHeat = gGL.getUniformLocation(prog, 'uBrakeHeat');
         const uYawRate   = gGL.getUniformLocation(prog, 'uYawRate');
         const uSteer     = gGL.getUniformLocation(prog, 'uSteer');
-        // Ambient light uniforms
-        const uAmbientColor = gGL.getUniformLocation(prog, 'uAmbientColor');
-        const uAmbientLum   = gGL.getUniformLocation(prog, 'uAmbientLum');
-        const uAmbientMode  = gGL.getUniformLocation(prog, 'uAmbientMode');
 
         const buf = gGL.createBuffer();
         gGL.bindBuffer(gGL.ARRAY_BUFFER, buf);
@@ -882,19 +753,9 @@
         // Init perf instrumentation
         _glarePerf.init(gGL);
 
-        let _glareCleared = false;
         window._glareFXFrame = function(dt) {
           _postfxTime += dt;
           lerpPFX(dt);
-
-          // The glance layout (drive mode, and the iPad) lights its panels with their own glass (drive-view.css) and
-          // hides this canvas: nothing is measured or drawn for it.
-          if (document.body.classList.contains('drive-mode-active')) {
-            if (!_glareCleared && gC.width > 0) { gGL.clearColor(0, 0, 0, 0); gGL.clear(gGL.COLOR_BUFFER_BIT); }
-            _glareCleared = true;
-            return;
-          }
-          _glareCleared = false;
 
           // Refresh panel list every ~60 frames
           _panelRefreshCounter++;
@@ -924,13 +785,12 @@
           const { rects: panelRects, alphas: panelAlphas, radii: panelRadii } = getAllPanelRectsUV();
 
           const hasGlow    = count > 0;
-          const hasAmbient = (window._ambientGL && window._ambientGL.lum > 0.01);
           // PERF-LITE: brakeHeat and speed aberration removed, only check
           // g-force vignette and RPM redline (the two remaining telemetry effects)
           const hasEffects = Math.abs(_pfx.latG) > 0.25 || Math.abs(_pfx.longG) > 0.25 ||
                              _pfx.rpm > 0.86;
 
-          if (!hasGlow && !hasAmbient && !hasEffects) {
+          if (!hasGlow && !hasEffects) {
             if (gC.width > 0) {
               gGL.clearColor(0, 0, 0, 0);
               gGL.clear(gGL.COLOR_BUFFER_BIT);
@@ -987,12 +847,6 @@
           gGL.uniform1f(uBrakeHeat, _pfx.brakeHeat);
           gGL.uniform1f(uYawRate,   Math.abs(_pfx.yawRate));
           gGL.uniform1f(uSteer,     _pfx.steer);
-
-          // Ambient light uniforms (from Electron screen capture)
-          const amb = window._ambientGL || { r: 0.3, g: 0.4, b: 0.55, lum: 0.35 };
-          gGL.uniform3f(uAmbientColor, amb.r, amb.g, amb.b);
-          gGL.uniform1f(uAmbientLum, amb.lum);
-          gGL.uniform1i(uAmbientMode, window._ambientModeInt !== undefined ? window._ambientModeInt : 2);
 
           gGL.drawArrays(gGL.TRIANGLE_STRIP, 0, 4);
 
@@ -1361,7 +1215,7 @@
        ════════════════════════════════════════════ */
     // Not on an iPad, nor in the iPad dashboard OBS draws: the brand square is not shown there (drive-view.css), and its
     // canvas would draw into a hidden box.
-    const brandLogoCtx = window._remoteMode || window._obsGlance ? null : initGL('brandLogoGlCanvas');
+    const brandLogoCtx = initGL('brandLogoGlCanvas');
     let _brandLogoTime = 0;
 
     if (brandLogoCtx) {
@@ -2391,7 +2245,7 @@
     // race green lights. Fades out over 1s via CSS transition.
     // ═══════════════════════════════════════════════════════════════
     // Not on an iPad either, nor in the iPad dashboard OBS draws: the car's badge, where the maker's flag flies, is not shown there.
-    const mfrFlagCtx = window._remoteMode || window._obsGlance ? null : initGL('mfrFlagCanvas');
+    const mfrFlagCtx = initGL('mfrFlagCanvas');
     let _mfrFlagActive = false;
     let _mfrFlagTime = 0;
     let _mfrFlagDuration = 5.0; // seconds before fade-out starts
@@ -2768,18 +2622,26 @@
 
     /* ── Master FX animation loop ── */
     let _lastFXTime = 0;
-    // Paused until there is live car data on screen. poll-engine flips this
-    // via window.setGLFXActive() on the debounced in-car edges, so the GPU
-    // FX loop does zero work at the menus (the GL context stays warm for an
+    // What poll-engine asked for, through window.setGLFXActive() on the debounced in-car edges: paused until there is
+    // live car data on screen, so the GPU FX loop does zero work at the menus (the GL context stays warm for an
     // instant resume). Starts false — boot is dormant.
-    let _fxActive = false;
+    let _fxWanted = false;
     let _fxFrame = 0;   // the frame asked for; 0 while dormant, when none is
+
+    // The WebGL effects — the glows, the bloom, the flashes — are the rig's HUD over the game, and nothing else's. The
+    // glance layout (the iPad's page, /obs-ipad, and Ctrl+Shift+F on the rig) and the HUD page OBS draws (/obs) never run
+    // them, whatever is asked for: the loop is not started, and one that was going stops at its next frame. Everything
+    // else on those pages draws as it does.
+    function fxAllowed() {
+      if (NO_FX_PAGE) return false;
+      return !(document.body && document.body.classList.contains('drive-mode-active'));
+    }
     function fxLoop(now) {
       const dt = Math.min((now - _lastFXTime) / 1000, 0.05); // cap at 50ms
       _lastFXTime = now;
-      // Dormant (not in a car): no work and no next frame — a hidden window's frames still run, so an idle
-      // loop would go round for nothing. setGLFXActive starts it again.
-      if (!_fxActive) {
+      // Dormant (not in a car, or a layout that runs no effects): no work and no next frame — a hidden window's frames
+      // still run, so an idle loop would go round for nothing. setGLFXActive and refreshGLFX start it again.
+      if (!_fxWanted || !fxAllowed()) {
         _fxFrame = 0;
         return;
       }
@@ -2803,13 +2665,21 @@
       _fxFrame = requestAnimationFrame(fxLoop);
     }
 
-    // Active/dormant switch — driven by poll-engine setOverlayActive().
-    window.setGLFXActive = function(on) {
-      _fxActive = !!on;
-      if (_fxActive && !_fxFrame) {
+    function startFX() {
+      if (_fxWanted && fxAllowed() && !_fxFrame) {
         _fxFrame = requestAnimationFrame((now) => { _lastFXTime = now; _fxFrame = requestAnimationFrame(fxLoop); });
       }
+    }
+
+    // Active/dormant switch — driven by poll-engine setOverlayActive().
+    window.setGLFXActive = function(on) {
+      _fxWanted = !!on;
+      startFX();
     };
+    // drive-hud.js says so when the layout changes: leaving the glance layout on the rig starts the effects again.
+    window.refreshGLFX = startFX;
+    // Whether the effects loop is going (a frame is asked for): the tests ask.
+    window.isGLFXRunning = function() { return _fxFrame !== 0; };
 
     /* ── Public API for main update loop ── */
     window.updateGLFX = function(rpmRatio, thr, brk, clt) {

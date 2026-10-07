@@ -140,9 +140,9 @@ A fullscreen WebGL2 fragment shader system (`webgl.js`) provides real-time visua
 
 The glare canvas renders at half device-pixel-ratio for performance. Per-frame timing and draw call counts are exposed via `window._glarePerf` for monitoring.
 
-### Ambient Light Engine
+### No screen capture, no WebGL on the glance pages
 
-The Electron main process captures a configurable screen region at ~4fps using `desktopCapturer`, extracts the dominant color, and sends it to the renderer via IPC. The ambient light module (`ambient-light.js`) uses LERP color interpolation to smooth transitions and updates CSS custom variables that drive glass refraction `::after` pseudo-elements on all panels. Two modes: matte and reflective.
+The HUD no longer samples the sim's screen: there is no ambient light, no capture region and no `ambientMode` setting (a settings file that still holds the old keys loads as before). The WebGL effects (glare, bloom, glow, vignette) are the rig HUD's alone: the glance layout (the iPad's page, `/obs-ipad`, Ctrl+Shift+F) and the HUD page in OBS (`/obs`) never start the effects loop and make no WebGL context.
 
 ## Architecture
 
@@ -162,7 +162,6 @@ The Electron main process captures a configurable screen region at ~4fps using `
 │  ┌─────────────────────────────────────┐ │
 │  │ main.js         (main process)      │ │
 │  │ • Window management + transparency  │ │
-│  │ • Screen capture (ambient light)    │ │
 │  │ • Settings persistence (IPC)        │ │
 │  │ • Global hotkeys                    │ │
 │  │ • Crash recovery                    │ │
@@ -172,7 +171,6 @@ The Electron main process captures a configurable screen region at ~4fps using `
 │  │ • k10.getSettings()                 │ │
 │  │ • k10.saveSettings()               │ │
 │  │ • k10.onSettingsMode()             │ │
-│  │ • k10.onAmbientColor()            │ │
 │  ├─────────────────────────────────────┤ │
 │  │ dashboard.html   (renderer)         │ │
 │  │ • 51 JS modules (no build step)     │ │
@@ -204,8 +202,6 @@ The Electron main process captures a configurable screen region at ~4fps using `
 | `config.js` | Property subscriptions, state management, demo mode switching |
 | `webgl.js` | WebGL2 fragment shader — glare, bloom, glow, vignette |
 | `webgl-helpers.js` | Shader compilation, icon atlas generation |
-| `ambient-light.js` | Screen color sampling, LERP interpolation, CSS variable updates |
-| `ambient-capture.js` | Capture region UI configuration |
 | `drive-hud.js` | The switch for the glance layout (drive mode: Ctrl+Shift+F, and an iPad): the layout itself is `modules/styles/drive-view.css` |
 | `leaderboard.js` | Full-field position/gap leaderboard |
 | `datastream.js` | Live telemetry data stream |

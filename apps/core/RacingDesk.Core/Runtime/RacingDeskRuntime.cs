@@ -150,9 +150,6 @@ namespace RacingDesk.Plugin
         // Leaderboard: compact JSON string of nearby drivers, updated each eval cycle
         internal volatile string _leaderboardJson = "[]";
 
-        // Screen color sampler — replaces Electron desktopCapturer for ambient light
-        internal readonly ScreenColorSampler _screenColorSampler = new ScreenColorSampler();
-
 
         /// <summary>Loads datasets and starts hardware, samplers and the :8889 / :8890 servers.</summary>
         public void Start()
@@ -183,12 +180,8 @@ namespace RacingDesk.Plugin
             TelemetryCapture._sdkBridge = _sdkBridge;
             if (_options.EnableSdkBridge) _sdkBridge.Start();
 
-            // Start screen color sampler for ambient lighting
-            // (runs at ~4fps on a background thread — zero impact on main loop)
             if (_options.EnableHardware)
             {
-                _screenColorSampler.Start();
-
                 // Initialise pedal profile manager (per-car curves + Moza integration)
                 string pedalDataDir = _options.PluginsDataDirectory;
                 _pedalProfiles = new PedalProfileManager(pedalDataDir);
@@ -362,7 +355,6 @@ namespace RacingDesk.Plugin
                         _trackMap,
                         new[] { _pitboxTabCycle, _pitboxTabCycleBack, _pitboxNext, _pitboxPrev, _pitboxIncrement, _pitboxDecrement, _pitboxToggle },
                         _leaderboardJson,
-                        _screenColorSampler,
                         _mozaSerial,
                         _pedalProfiles,
                         _lightsPhase,
@@ -432,7 +424,6 @@ namespace RacingDesk.Plugin
         public void Stop()
         {
             _sdkBridge.Stop();
-            _screenColorSampler.Dispose();
             _mozaSerial?.Dispose();
             _incidentCoach?.End();
             StopListening();

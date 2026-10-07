@@ -19,8 +19,6 @@
     <LangVersion>8.0</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <!-- ScreenColorSampler: System.Drawing (GDI+ screen capture; the monitor is found with Win32, Screens/) -->
-    <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <!-- CA1416: Windows-only APIs are expected; both targets are Windows. -->
     <NoWarn>$(NoWarn);CA1416</NoWarn>

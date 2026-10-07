@@ -46,6 +46,8 @@
       finally { _reapplying = false; }
     }
     if (typeof driveViewChanged === 'function') driveViewChanged(_active);
+    // The glance layout runs no WebGL effect (webgl.js): leaving it on the rig starts them again.
+    if (typeof window.refreshGLFX === 'function') window.refreshGLFX();
   }
 
   // ── Init ──

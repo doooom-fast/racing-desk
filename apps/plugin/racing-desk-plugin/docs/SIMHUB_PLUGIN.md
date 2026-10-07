@@ -19,8 +19,7 @@ plugin/RacingDesk.Plugin/
     ├── TelemetrySnapshot.cs            Data model (cross-game normalized)
     ├── TelemetrySnapshot.Capture.cs    SimHub-specific telemetry capture (reflection)
     ├── DemoSequence.cs                 Curated demo events for testing without a live session
-    ├── FeedbackEngine.cs               User feedback tracking (adjusts cooldown multipliers)
-    └── ScreenColorSampler.cs           GDI+ ambient light screen capture
+    └── FeedbackEngine.cs               User feedback tracking (adjusts cooldown multipliers)
 ```
 
 ## How It Runs

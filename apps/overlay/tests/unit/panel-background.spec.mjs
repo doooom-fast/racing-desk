@@ -28,8 +28,7 @@ function freePort() {
   });
 }
 
-// What the slider changes, read from the page: the base fill's alpha on a main panel and on a secondary one, the glass
-// streak's opacity, and the shadow under the numbers (its first layer's alpha, 0 when there is none).
+// What the slider changes, read from the page: the base fill's alpha on a main panel and on a secondary one, and the shadow under the numbers (its first layer's alpha, 0 when there is none).
 const look = (page) => page.evaluate(() => {
   const alphaOf = (colour) => { const m = colour.match(/rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?\)/); return m ? (m[4] === undefined ? 1 : +m[4]) : null; };
   const panel = document.querySelector('.map-panel');
@@ -41,8 +40,6 @@ const look = (page) => page.evaluate(() => {
     alpha: getComputedStyle(document.documentElement).getPropertyValue('--panel-alpha').trim(),
     panel: alphaOf(getComputedStyle(panel).backgroundColor),
     lb: alphaOf(getComputedStyle(document.querySelector('.lb-inner')).backgroundColor),
-    streak: +getComputedStyle(panel, '::after').opacity,
-    lum: +getComputedStyle(document.documentElement).getPropertyValue('--ambient-lum') || 0,
     thin: document.body.classList.contains('panels-thin'),
     shadow: shadow === 'none' ? 0 : alphaOf(shadow),
     shadowText: shadow,
@@ -63,9 +60,6 @@ async function openRig(page, settings = {}) {
   await page.goto(pathToFileURL(path.join(OVERLAY, 'dashboard.html')).href);
   await page.evaluate((s) => { Object.assign(_settings, s); _settings.showWebGL = false; applySettings(); }, settings);
   await page.waitForFunction(() => typeof _isIdle !== 'undefined' && _isIdle === false && _pollFrame > 6, null, { timeout: 10000 });
-  // The ambient light moves --ambient-lum as it runs, and the streak's opacity follows it over 0.4 s: held still here,
-  // so that what is read is the slider's doing and nothing else's.
-  await page.evaluate(() => { if (typeof window.stopAmbientLight === 'function') window.stopAmbientLight(); document.documentElement.style.setProperty('--ambient-lum', '0.35'); });
   await page.waitForTimeout(800);
   return { serve: (next) => { payload = next; } };
 }
@@ -77,17 +71,15 @@ test('on the rig: 90 is the panels as they were, and the sliders at 0, 50 and 10
   expect(asBefore.alpha).toBe('0.9');
   expect(asBefore.panel).toBeCloseTo(0.9, 2);
   expect(asBefore.lb).toBeCloseTo(0.9, 2);
-  expect(asBefore.streak).toBeCloseTo(0.25 + asBefore.lum * 0.35, 2);   // the glass as ambient.css always had it
   expect(asBefore.thin).toBe(false);
   expect(asBefore.shadow).toBe(0);
 
-  // The panels' colours fade to a new value (background over 0.6 s, the streak over 0.4 s): read once they have settled.
+  // The panels' colours fade to a new value (background over 0.6 s): read once they have settled.
   const set = async (s) => { await page.evaluate((v) => { Object.assign(_settings, v); applySettings(); }, s); await page.waitForTimeout(800); };
   await set({ panelBackground: 100 });
   const solid = await look(page);
   expect(solid.panel).toBe(1);
   expect(solid.lb).toBe(1);
-  expect(solid.streak).toBeCloseTo(0.25 + solid.lum * 0.35, 2);   // the glass never goes up
   expect(solid.thin).toBe(false);
   expect(solid.shadow).toBe(0);
 
@@ -95,7 +87,6 @@ test('on the rig: 90 is the panels as they were, and the sliders at 0, 50 and 10
   const half = await look(page);
   expect(half.panel).toBeCloseTo(0.5, 2);
   expect(half.lb).toBeCloseTo(0.5, 2);
-  expect(half.streak).toBeCloseTo((0.25 + half.lum * 0.35) * (0.5 / 0.9), 2);
   expect(half.thin).toBe(true);
   expect(half.shadow).toBeGreaterThan(0.3);
   expect(half.shadow).toBeLessThan(0.5);
@@ -105,7 +96,6 @@ test('on the rig: 90 is the panels as they were, and the sliders at 0, 50 and 10
   const none = await look(page);
   expect(none.panel).toBe(0);
   expect(none.lb).toBe(0);
-  expect(none.streak).toBe(0);
   expect(none.thin).toBe(true);
   expect(none.shadow).toBeCloseTo(0.9, 2);
   expect(none.shadow).toBeGreaterThan(half.shadow);
@@ -156,12 +146,6 @@ test("the shadow takes its colour from the theme — a pale halo under the light
     expect(at.bannerGlass, theme).toBe(1);
     expect(at.spotter, theme).toBe('none');
   }
-  // Their glass streak, drawn when the light is on (ambient.css), is at its full strength at 0, as it is at 90: the
-  // spotter's ::after follows the light's brightness and nothing of the slider.
-  await set({ panelBackground: 0, theme: 'dark' });
-  const streak = await page.evaluate(() => ({ spotter: +getComputedStyle(document.getElementById('spotterPanel'), '::after').opacity, panel: +getComputedStyle(document.querySelector('.map-panel'), '::after').opacity, lum: +getComputedStyle(document.documentElement).getPropertyValue('--ambient-lum') }));
-  expect(streak.panel).toBe(0);
-  expect(streak.spotter).toBeCloseTo(0.25 + streak.lum * 0.35, 2);
 });
 
 // The iPad's server and the loopback one, each over a stand-in telemetry, with his settings as a box the test changes.
@@ -253,7 +237,6 @@ for (const [name, which] of [['the rig HUD OBS draws', 'obs'], ['the iPad dashbo
       expect(none.alpha).toBe('0');
       expect(none.panel).toBe(0);
       expect(none.lb).toBe(0);
-      expect(none.streak).toBe(0);
       expect(none.thin).toBe(true);
       expect(none.shadow).toBeCloseTo(0.9, 2);
       // The rig's slider came with the page (the allowlist) and is not what this page draws by.

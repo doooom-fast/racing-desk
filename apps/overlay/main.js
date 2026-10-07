@@ -1720,7 +1720,7 @@ ipcMain.handle('rig:bindPedals', async (event, carPath, profileId) => {
 // ── IPC: the runtime's ?action= routes, for the HUD ──
 // The runtime (the SimHub plugin, or the host) answers a request for one of its ?action= routes only when a program on this
 // machine made it, and a page's request is not one: it carries an Origin, "null" for a file. So the HUD's own calls —
-// restartdemo, setrect, and the pedal profiles — are asked for here, by Node (modules/js/runtime-actions.js), which
+// restartdemo and the pedal profiles — are asked for here, by Node (modules/js/runtime-actions.js), which
 // sends none. Only those routes, with their arguments checked, of a runtime on this machine; answered { ok, body } or
 // { ok: false, error }, and never thrown. The HUD's window and the desk's ask; nothing else has a preload.
 const hudActions = runtimeActions.createRuntimeActions({
@@ -1800,17 +1800,3 @@ ipcMain.handle('renew-remote-server-key', async (event) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// AMBIENT LIGHT — Screen Color Capture (REMOVED)
-//
-// The Electron desktopCapturer pipeline has been replaced by a
-// native C# ScreenColorSampler in the SimHub plugin. The plugin
-// captures a small screen region using Graphics.CopyFromScreen()
-// on a background thread at ~4 FPS and embeds the averaged RGB
-// in the telemetry JSON (DS.AmbientR/G/B/HasData).
-//
-// The dashboard JS reads ambient color from poll data via
-// poll-engine.js → updateAmbientFromPoll() in ambient-light.js.
-//
-// No Electron IPC or desktopCapturer is needed anymore.
-// ═══════════════════════════════════════════════════════════════

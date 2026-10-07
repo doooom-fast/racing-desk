@@ -67,6 +67,11 @@ async function openGlance(page, width, height, at = 0) {
   // by how many frames the page had had in a second and a half (it was, one run in three, with the clutch).
   await page.waitForFunction(() => typeof _pollFrame !== 'undefined' && _pollFrame > 75, null, { timeout: 15000 });
   await page.waitForTimeout(1500);
+  // The spotter's card comes up when the race frame's first gap is read and goes after its few seconds (spotter.js). The
+  // picture is of the layout, not of the card: how soon the page gets its frames (it runs no WebGL effect here, so it
+  // gets them fast) must not decide whether a card that is on its way out is in it, so it is not drawn.
+  await page.addStyleTag({ content: '#spotterStack { visibility: hidden !important; }' });
+  await page.waitForTimeout(300);
 }
 
 test('glance layout — a race, iPad on its side (1180x820)', async ({ page }) => {

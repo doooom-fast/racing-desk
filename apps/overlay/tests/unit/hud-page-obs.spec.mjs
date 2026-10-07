@@ -6,7 +6,7 @@
  * What is held: the page knows it is OBS's and decides in-car for itself; out of the car it is not drawn at all (OBS
  * would composite whatever it showed over the garage), in the car it is; his display settings reach it — the zoom,
  * the position — from the allowlist, and nothing else of the settings file is in the page; the voice coach is off (the
- * rig is already talking); the livery crop is fetched from the server it came from; the ambient capture never asks
+ * rig is already talking); the livery crop is fetched from the server it came from; the page never asks
  * the runtime for anything; the settings are asked for again and a change on the desk reaches the page.
  */
 

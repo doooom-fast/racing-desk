@@ -49,7 +49,7 @@
 <link rel="stylesheet" href="modules/styles/effects.css">
 <link rel="stylesheet" href="modules/styles/modes.css">
 <link rel="stylesheet" href="modules/styles/rally.css">
-<link rel="stylesheet" href="modules/styles/ambient.css">
+<link rel="stylesheet" href="modules/styles/panel-base.css">
 <link rel="stylesheet" href="modules/styles/pitbox.css">
 <link rel="stylesheet" href="modules/styles/race-results.css">
 <link rel="stylesheet" href="modules/styles/incident-coach.css">
@@ -59,8 +59,6 @@
 </head>
 <body>
 
-<!-- Ambient light glow — full viewport WebGL canvas behind all panels -->
-<canvas class="ambient-canvas" id="ambientGlCanvas"></canvas>
 <!-- Full-screen glare canvas — renders all panel edge glows in one pass -->
 <canvas id="glareCanvas" style="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:60;"></canvas>
 
@@ -845,8 +843,6 @@
 <script src="modules/js/incident-coach.js"></script>
 <script src="modules/js/fps.js"></script>
 <script src="modules/js/webgl.js"></script>
-<script src="modules/js/ambient-light.js"></script>
-<script src="modules/js/ambient-capture.js"></script>
 <script src="modules/js/commentary-viz.js"></script>
 <script src="modules/js/game-logo.js"></script>
 <script src="modules/js/drive-hud.js"></script>

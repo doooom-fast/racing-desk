@@ -82,7 +82,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `session-kind.js` | Pure: which session the frame says it is, from `RacingDesk.Plugin.SessionTypeName` — a test drive (iRacing's "Offline Testing") or not (see The glance layout, A test drive has no leaderboard) |
 | `map-zoom.js` | Pure: the following map's zoom with his speed (see The following map's zoom) — the curve, the ease on the view's scale and its cap, the follower a page keeps, the view at which the glance layout's local view has its pixel weights, the `followMapZoom` setting's words and its once-only migration in the settings file |
 
-Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `ambient-light`, `ambient-capture`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
+Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
 
 ## Words, not capitals (`modules/js/words.js`), and one header for every panel
 
@@ -446,12 +446,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   the cell asks and none of it is cut off (`Full course yellow — hold position` had read `FULL COURSE YELLOV` when it was set in capitals); a flag
   that replaces the one it is about (yellow, then blue) takes it away at once (`poll-engine.js`), so it never says yellow
   over a blue screen (this is the rig's HUD too).
-- **The glass**: each panel is the rig's — near-black at nine-tenths, an edge, and over it ambient.css's light (the
-  overhead glow and sweep of its plastic mode, and its specular streak), tinted by the ambient colour. On the rig the WebGL
-  glare pass adds to it by where a panel is on the screen; in the glance layout that pass is skipped (`webgl.js`) and each
-  panel is lit the same, by its own layers. On an iPad there is no game behind it, so the colour is the one the telemetry
-  carries (`DS.AmbientR/G/B`, the plugin's sample of the rig's screen), or the flag's when there is none (`ambient-light.js`,
-  which now writes the colour only when it changes).
+- **The glass**: each panel is the rig's — near-black at nine-tenths, an edge, and over it an overhead glow and a sweep,
+  in the glass's tint: one fixed blue-grey (`--rd-glass-r/g/b` and `--rd-glass-lum` on the body in `drive-view.css`), or
+  the flag's when one is out. Nothing is sampled from the screen (the sim's-screen ambient colour, `ambient.css`, the
+  panels' specular streak and the glare pass's ambient glow and glass dome were removed on 2026-10-07). The glance layout
+  runs no WebGL effect at all (see "No WebGL effect" below), so each panel is lit the same, by its own layers.
 - **Flags are the background**: `poll-engine.js` writes the flag on show (the gaps block's, held as long as it holds it) to
   `body[data-flag]`, written only when it changes. The page behind the panels takes it full-bleed — the edge and every
   gutter — as the flag's own colour or pattern (checkered a checkerboard, the meatball an orange disc on black, debris the
@@ -469,9 +468,11 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
 - **Effects**: the HUD's own, on an iPad too — the tacho's redline flash and glow, the pit limiter's blue, the gaps' and the
   position's ahead/behind pulses, the leaderboard's P1 shimmer and gain/lose pulses, the incidents' levels, the spotter, the
   maps' close and near cars. The iPad's menu has "Effects: on/off", kept in its own storage (`rd-effects`), for an iPad
-  that cannot keep up; off, the WebGL canvases and the flag's movement stop and the numbers, colours and flags stay. What
-  cannot work without the game behind it is not there: the screen-capture colour of the rig's own ambient light (the iPad
-  takes the plugin's sample instead) and the glare pass.
+  that cannot keep up; off, the flag's movement stops and the numbers, colours and flags stay. **No WebGL effect**: the
+  glance layout (the iPad's page, `/obs-ipad`, Ctrl+Shift+F on the rig) and the HUD page in OBS (`/obs`) never start
+  `webgl.js`'s effects loop (`fxAllowed()`; `refreshGLFX` starts it again when the rig leaves the glance layout), the
+  iPad's and OBS's pages make no WebGL context at all (`NO_FX_PAGE`), and the canvases of the effects are hidden in the
+  glance layout (`drive-view.css`). The maps and every other cell draw as they did. `tests/unit/no-fx-on-glance.spec.mjs`.
 - **Every cell is a size container** (`container-type: size`) and what is in it is sized in `cq` units, with floors: no
   label under 11px, **no number under 20px** (the tyres' wear and temperature, the fuel, the laps panel, the datastream,
   the pedals' percentages, the incidents' counts, the tacho's revs, the clock, the sectors and every other value), the
@@ -701,7 +702,7 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   pattern behind or between the panels, no frame, and a transparent page in place of the black one, so the game shows
   through the gutters; `hud-page-obs-ipad.spec.mjs` renders it over a board and reads the pixels), what he asked for on
   2026-09-30: the glass's light at fifteen hundredths of the rig's
-  (`--rd-shine: 0.15` — the tint, the overhead glow and the sweep, the specular streak and the inset glow all take
+  (`--rd-shine: 0.15` — the tint, the overhead glow and the sweep and the inset glow all take
   the one factor; the flags' own treatment of the glass does not), the flag's pattern behind and between the panels
   at fifteen hundredths too, under every flag (`body::before` at 0.15; the first cut's renders had the stripes at
   full strength in every gutter, which is the noise he meant), with a thin frame at the very edge of the screen —
@@ -727,7 +728,7 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   `_SafetyRating`, `DS.EstimatedIRatingDelta`); the car's controls (`CarControls`, `DS.AbsActive`, `TcActive`); the pedals (`GameData.Throttle`, `Brake`, `Clutch`);
   the pit box (`DS.Fuel*`, `Tyre*` wear and temperature, `Strategy.*`, `AirTemp`, `TrackTemp`, `WeatherWet`,
   `PitBox.FastRepairRequested`, `WindshieldRequested`); the datastream (`DS.LatG`, `LongG`, `YawRate`, `SteerTorque`);
-  the incidents (`DS.Incident*`); the flags (`currentFlagState`, and iRacing's `SessionFlags` where the host sends it); the danger rings on both maps (`DS.IncidentCoach.*`); the ambient colour (`DS.Ambient*`); the spotter, the
+  the incidents (`DS.Incident*`); the flags (`currentFlagState`, and iRacing's `SessionFlags` where the host sends it); the danger rings on both maps (`DS.IncidentCoach.*`); the spotter, the
   commentary and race control. **Left out**, and why: the pit menu's controls and their state (`PitBox.PitSv*`, `Has*`,
   `Tire*` requests, `TiresRequested`, `FuelRequested`, and the requested tyre pressures `PitBox.Pressure*`: the rig's pit
   box does not show pressures either, and there is nothing to press on a screen with no touch targets); `Strategy.GripScore`
@@ -915,7 +916,7 @@ there is, with no such key** (a SimHub plugin from before it, a replay, the demo
   sentence case since 2026-10-02: Words, not capitals); the
   glance layout's background is per state (`drive-view.css`, `body[data-flag]`) and the rig's gaps block has a
   `.flag-<state>` class for each (`dashboard.css`, where `.flag-label` is centred and balanced, since the longer labels
-  wrap to two lines in the rig's 272px block; `webgl.js` has the WebGL colours and `ambient-light.js` the ambient colour).
+  wrap to two lines in the rig's 272px block; `webgl.js` has the WebGL colours).
   Race control's banner is up for the caution (worded "Full course caution — hold position"), the black flag furled and
   disqualified, as it is for red, black, the meatball and chequered; a local yellow and one lap to green are in the gaps
   block only — a sector and a lap are not events. A flag is held for a minimum time from when it comes up (`FLAG_HOLD_MS`
@@ -1085,7 +1086,7 @@ page-only actions pressed on the rig, `hudActions`, which the OBS page asks once
 in `keyboard.js`), `/api/settings-display` (the allowlist `DISPLAY_SETTINGS` and the `show*` switches, never a key, a
 folder, an address or a device), `/obs` (hidden from the first paint until the page has started, and while he has the
 HUD away) and `/obs-ipad` (the same page as the glance layout, for "iPad dashboard" under the switch; it takes the display
-allowlist like `/obs`, so his rig's switches for effects and ambient light apply to it, where the iPad is told none of
+allowlist like `/obs`, so his rig's display switches apply to it, where the iPad is told none of
 them: the page runs on the rig, next to the sim). The iPad's server
 answers `/api/settings-display` too, with the panel background and the following map's zoom and no more (`IPAD_SETTINGS`), behind the key. It is started
 with retries (`startWithRetry`) until it is up. `tests/unit/remote-server.spec.mjs`, `tests/unit/hud-page-obs.spec.mjs`
@@ -1128,13 +1129,11 @@ the two, so a recording can be clearer or more see-through than what he drives w
 (`applyPanelBackground`, from `applySettings`) reads the one the page goes by (`window._obsMode` reads the OBS one),
 writes it to `:root` as `--panel-alpha` and marks `body.panels-thin` under 90. `base.css` makes `--bg`, `--bg-panel`
 and `--bg-logo` from it (the secondary panels' own fills in `leaderboard.css`, `datastream.css` and `pitbox.css` read
-it too), scales the glass by `--panel-glass` — down with it, never up: the streak and plastic glow of `ambient.css`,
-the glance layout's tints, inset glow and overhead glow, and its opaque base under a flag — and under 90 lays a soft
+it too), scales the glass by `--panel-glass` — down with it, never up: the glance layout's tints, inset glow and overhead glow, and its opaque base under a flag — and under 90 lays a soft
 `text-shadow` on the panels (it inherits to every word in them; an effect with a shadow of its own keeps it) whose
 alpha is `--panel-shadow`, 0 at 90 and 1 at nought, and whose colour is `--panel-shadow-rgb`: black under the dark theme,
 white under the light one (dark text, so a pale halo and not a smear). **The spotter's card and race control's banner are
-not panels**: their fills are their own and solid, so they keep `--panel-glass` at 1 (their streak and plastic glow are as
-at 90) and `--panel-shadow` at 0, whatever the slider says. **90 is the panels as they have always been**, on every surface: the
+not panels**: their fills are their own and solid, so they keep `--panel-glass` at 1 and `--panel-shadow` at 0, whatever the slider says. **90 is the panels as they have always been**, on every surface: the
 rig's nine-tenths, the iPad's the same, the glance layout's opaque base under a flag opaque at 90 and above, so the
 defaults change nothing and the golden frames are as they were. The rig's page is told by the desk's settings path, the
 iPad by its server's `/api/settings-display` (the panel background and the following map's zoom, asked again every ten seconds), the OBS pages
