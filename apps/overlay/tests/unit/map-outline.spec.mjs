@@ -199,13 +199,13 @@ async function openIpad(page, t) {
   await page.waitForFunction(() => typeof _isIdle !== 'undefined' && _isIdle === false && _pollFrame > 5
     && document.getElementById('zoomMapTrackSrc').getAttribute('d').length > 1000
     && document.getElementById('zoomMapSvg').style.getPropertyValue('--px') !== '', null, { timeout: 20000 });
-  // The closest view: the car at 120 mph, and the view settled.
-  await page.waitForFunction((r) => Math.abs(+document.getElementById('zoomMapSvg').getAttribute('viewBox').split(/\s+/)[2] - 2 * r) < 0.05, mz.R_CLOSE, { timeout: 10000 });
+  // The closest view: the car at 120 mph, and the view settled (the glance layout's view is GLANCE_VIEW of the rig's, since 2026-10-07).
+  await page.waitForFunction((r) => Math.abs(+document.getElementById('zoomMapSvg').getAttribute('viewBox').split(/\s+/)[2] - 2 * r) < 0.05, mz.R_CLOSE * mz.GLANCE_VIEW, { timeout: 10000 });
   return { close: () => new Promise((resolve) => { ipad.close(resolve); ipad.closeAllConnections(); }) };
 }
 
 // Pixels to a map unit on the iPad's following map at its closest view.
-const pxPerUnit = (page) => page.evaluate((r) => document.getElementById('zoomMapSvg').getBoundingClientRect().width / (2 * r), mz.R_CLOSE);
+const pxPerUnit = (page) => page.evaluate((r) => document.getElementById('zoomMapSvg').getBoundingClientRect().width / (2 * r), mz.R_CLOSE * mz.GLANCE_VIEW);
 const drawn = (page) => page.evaluate(() => document.getElementById('zoomMapTrackSrc').getAttribute('d'));
 
 test('the plugin\'s path before the change is the squiggle: at one decimal its points wander by two pixels at the iPad\'s closest view, and its curves meet at kinks', () => {
@@ -232,7 +232,7 @@ test('the iPad draws the outline smooth from a plugin\'s one-decimal path and fr
     expect(max(wiggles(onePts)) * px, 'one decimal: the line\'s wiggle, px').toBeLessThan(0.5);
     expect(max(joints(one)), 'one decimal: the worst kink where two curves meet, degrees').toBeLessThan(6);
     const oneHints = hintsOn(TRUE, onePts);
-    expect(max(onePts.map((p, i) => distanceTo(TRUE, p, oneHints[i]))) * px, 'one decimal: off the circuit, px').toBeLessThan(1.5);
+    expect(max(onePts.map((p, i) => distanceTo(TRUE, p, oneHints[i]))) * px, 'one decimal: off the circuit, px').toBeLessThan(1.6);   // (1.5 until the glance layout's view was brought in to 0.7 of the rig's: a unit is 1.43 times the pixels now)
 
     // The host now: two decimals, drawn through its own points, within a fifth of a pixel of the circuit.
     t.feed.svg = hostPath(2);

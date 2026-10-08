@@ -81,6 +81,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `logo-livery-worker.js` | A worker thread: reads one paint inside the paint folder, decodes it with `paints/tga.js`, asks the picker, answers with the PNG and no path |
 | `session-kind.js` | Pure: which session the frame says it is, from `RacingDesk.Plugin.SessionTypeName` — a test drive (iRacing's "Offline Testing") or not (see The glance layout, A test drive has no leaderboard) |
 | `map-zoom.js` | Pure: the following map's zoom with his speed (see The following map's zoom) — the curve, the ease on the view's scale and its cap, the follower a page keeps, the view at which the glance layout's local view has its pixel weights, the `followMapZoom` setting's words and its once-only migration in the settings file |
+| `map-motion.js` | Pure: the glance layout's two maps between the data frames and the start/finish tick (see The maps between the data frames) — a position round the loop the short way, a heading the shortest way, the clock that says how far through a step the page is, what is a jump, and the road's direction at the line |
 
 Plus the original set: `poll-engine`, `config`, `webgl`, `webgl-helpers`, `drive-hud` (only the switch for the glance layout), `leaderboard`, `datastream`, `spotter`, `pitbox`, `sector-hud`, `track-map`, `game-logo`, `car-logos`, `game-detect`, `settings`, `connections`, `keyboard`, `commentary`, etc.
 
@@ -883,6 +884,79 @@ through its own points untouched.
   and the trail on it and ending at the car; the rig's HUD draws the same line from the same path; a path that is not
   one is drawn as it came and said to render nothing. RacingDesk.Tests `TrackMapProviderTests` holds the host's two
   decimals.
+
+## The maps between the data frames, and the start/finish tick (`modules/js/map-motion.js`, `window.RacingDeskMapMotion`)
+
+Asked on 2026-10-07, in two parts. **"In the OBS version, and the iPad version, the animations don't seem as smooth as they
+used to be"** — and, offered the OBS HUD back at 60 frames a second and the iPad's map animated between the updates, "yes
+both". **"Start, finish lines on maps seem to be strangely placed. They need to go perpendicular to the track at that
+point."**
+
+- **The OBS HUD sources are drawn at 60 again** (`obs/hud-source.js` `HUD_FPS`; `fps_custom: true, fps: 60`, re-applied at
+  every connect, so a source an earlier build made at 30 is put right the next time Racing Desk meets OBS). They were
+  30 from `a3872eaa` the same day, because the data changes 30 times a second; but the page moves at more than that (its
+  CSS animations and transitions, and now the maps), and a source at 30 shows all of it in steps.
+- **In the glance layout the maps' moving parts are drawn at the display's rate between the data frames**
+  (`webgl-helpers.js` `animateTrackMap`, called by `poll-engine.js` `_rafLoop` on every animation frame that has no new
+  data; it returns at once unless the glance layout is on: the iPad, `/obs-ipad`, Ctrl+Shift+F). Until then the page drew only
+  when a frame arrived, about thirty a second, and the following map being 30 % closer that day (map-zoom.js `GLANCE_VIEW`)
+  made each frame move the car further on the screen. What moves: the car's dot and glow on both maps, the **following
+  map's view** (its centre, its turn, its radius), **the other cars' dots on both**, and **the trail** behind the car. The
+  rig's HUD is not in it (its maps are drawn on the data frames alone, as they were; a test holds it); the zoom's ease
+  (`map-zoom.js`) is not touched: the radius it gives for a frame is one end of a step.
+  - **One data interval behind.** A data frame sets a step from where the maps are drawn (`_motion.cur`) to the frame
+    (`_motion.to`); the picture runs along it over one data interval (`createClock()`: the frames' own spacing, eased,
+    held between 12 and 100 ms) and stays at the frame if the next is late. It is always between two places the page knows;
+    nothing is guessed ahead. A step starts from what is *drawn*, not from the last frame, so a frame that comes early or
+    late is not a pop.
+  - **How each thing moves.** His place and the others': a straight line in the map's x/y (on the closed outline there is
+    no seam at the line: the host places every car round the whole loop). **The trail's head: along the outline**, by its
+    point index with a fraction (`_nearAtIndex`; the outline's points are three to a bin of the lap, evenly, so the index is
+    the page's stand-in for LapDistPct, which the map's payload does not carry), **round the loop the short way**: from
+    239.6 to 0.4 of 240 is 0.8 of a point forward over the line, not 239 back (`lerpAround`; held in `map-motion.spec.mjs`, in
+    Node and with the car driven over the line on the iPad's page). The view's turn: the shortest way round (`lerpAngle`:
+    0 to 330 is 30 degrees, not 330). A trail is a quarter of the lap at most, so more than half a lap between the trail's
+    start and the car's drawn place means the drawn car has not yet reached where the frame began the trail: no trail yet
+    (`_renderTrackTrail`'s `lagging`), not one round the whole lap.
+  - **Jumps are not slides.** A car's step of more than `JUMP_LAP_FRACTION` (a fiftieth) of the lap, in map units
+    (`_motion.limit`, from the outline's length) — a reset, a tow — a car that was not there (the list of the other cars
+    has no ids, so one that comes or goes shifts the rest: a jump for those that moved by more than the limit), one that
+    has just come out of or gone into the pits, and any frame after 250 ms with none (`STALL_MS`) are drawn where they
+    are, at once. In the glance layout a jump of **his** car also puts the page's low-pass on his place back to the new
+    place (`_mapHasInit = false`; it carried him there over a dozen frames, which the maps would show as a slide). The host
+    low-passes the car's place itself (half a frame), so a long tow still arrives as a few quick steps of its own.
+  - **The work of a frame between data frames is small**: no read of layout or style (the trail's colour is read on the
+    data frames, not between); only an attribute that changes is written (`_putAttr`, `_moveDot`; the others' places are
+    kept to a thousandth of a unit); the trail is built from the outline's points as strings made once (`_coordStrings`);
+    the other cars' dots on the following map are not written while they are further than 1.6 view-diagonals from the car
+    (they are not in the view, and every dot is written on the data frame). Nothing is written while the picture is at the
+    newest frame. A test counts: reads, writes of what was there, and the names of the attributes written (`cx`, `cy`,
+    `viewBox`, `transform`, the trail's points and gradient).
+  - **In a headless browser** the glance layout's glass (backdrop filters, shadows) takes software rendering 150 ms or more
+    a frame, so the page draws no oftener than the data comes and there is nothing between the frames to see; the motion
+    tests strip those from the page (a style tag) to get a display's rate. On an iPad or in OBS the page is not that
+    slow; the maps repaint twice as often as they did.
+- **The start/finish tick is across the road** (`webgl-helpers.js` `updateTrackMap`, `map-motion.js` `startFinishAngle`).
+  The tick is a vertical `<line>` in `dashboard.html` (`#fullMapSF`, `#zoomMapSF`) and was put at the outline's first point
+  with a translate alone, so it was across the road only where the road ran along the screen, and along it where the road ran
+  down it (the test circuit's line is exactly that case). It is now `translate(x,y) rotate(a)`, `a` the road's direction at
+  that point: the direction of a chord across it, 0.3 % of the lap either side of the point (and not less than 1.5 of the
+  outline's points), wrapping past the end of the closed outline. A chord symmetric about the point is parallel to the road
+  there on a circle however long, and short enough not to reach the next bend. **The first point is the line**: the host sorts
+  an outline by LapDistPct, his own outline's bin `b` is at `b/bins` (so its first point is p 0) and SimHub's shared
+  map has p 0 for its first point, resampled from it (`GeometryTests`, `CrowdMapsTests` hold both), so the page needs no
+  offset; a path the page cannot read has no loop to read the road from, and the tick is turned to its first step.
+  **In the glance layout the tick is sized to the road** (`_dvSizeStartFinish`, beside `_dvSizeMarkers`): 1.2 times the
+  outer line's width from end to end (round ends included) — 12 px on the full map, 10 · `GLANCE_WEIGHT` on the following
+  map, times `--px`, so it grows and shrinks with the zoom as the road does — at a stroke of a fifth of its length;
+  the rig's sizes (7 long at 1.5 on the full map, 4 at 0.8 on the local view) stay, and are put back when the layout is left.
+- **Tests**: `tests/unit/map-motion.spec.mjs` (the arithmetic in Node; on the iPad's page over a stand-in telemetry that
+  answers every 150 ms: the dot, the view and the other cars move between the frames and land on the frame; the line
+  is crossed the short way; a tow is a jump; the turn is the short one; a frame between data frames reads nothing and
+  writes only changes; the rig's HUD does not move between its frames), `tests/unit/map-start-finish.spec.mjs` (the
+  angle in Node; on the iPad, the rig and the rig's glance layout the tick is at right angles to the road as the browser's
+  own matrices have it, for outlines that start at four places round the circuit, and its size), and
+  `tests/unit/obs-hud-source.spec.mjs` for the 60.
 
 ## Flags (`modules/js/session-flags.js`, `window.RacingDeskSessionFlags`)
 

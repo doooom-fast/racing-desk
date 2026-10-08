@@ -310,10 +310,13 @@ once (what was pressed before it began is not done again); the mode presets and 
 reach it by its ten-second ask of the settings. The source is the size of the rig's HUD window in DIPs, which is what the
 rig's page is laid out in, and OBS scales it up to the game (a source in physical pixels would lay the page out larger
 than the rig's, and the recorded HUD would be smaller than the one he sees wherever the screen is not at 100 %).
-**The source is drawn at 30 frames a second** (`fps_custom: true, fps: 30` in the source's settings, both views): the
-HUD's data changes 30 times a second (the poll is every 33 ms), so a source at the canvas's rate redraws the same numbers
-twice. The settings are written when the source is made and again at every connect to OBS, so an older source (made at the
-canvas's rate) is put right the next time Racing Desk meets OBS. **The page runs no WebGL effect** (the glows, bloom and
+**The source is drawn at 60 frames a second** (`fps_custom: true, fps: 60` in the source's settings, both views): the
+HUD's data changes 30 times a second, but the page moves at more than that — its CSS animations and transitions and, in
+the iPad dashboard, the two maps, which are drawn between the data frames (overlay CLAUDE.md, The maps between the data
+frames) — and a source at 30 showed all of it in steps (he said on 2026-10-07: "the animations don't seem as smooth as they
+used to be"). It was 30 for a few hours of that day (`a3872eaa`). The settings are written when the source is made and
+again at every connect to OBS, so an older source (made at the canvas's rate, or at 30) is put right the next time Racing
+Desk meets OBS. **The page runs no WebGL effect** (the glows, bloom and
 flashes): `/obs` and `/obs-ipad` never start the effects loop and make no WebGL context, so OBS's browser is not asked
 for a GPU effect pass on top of the page.
 

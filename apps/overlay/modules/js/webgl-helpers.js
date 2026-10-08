@@ -777,14 +777,39 @@
     return trail;
   }
 
+  // A write to an attribute, made only where it changes: what was written is kept on the element, as _drawOpponent keeps
+  // an opponent's. In the glance layout the maps are drawn between the data frames too (animateTrackMap), sixty times
+  // a second, and a write that changes nothing is still a style invalidation.
+  function _putAttr(el, name, value) {
+    var key = '_rd_' + name;
+    if (el[key] === value) return;
+    el[key] = value;
+    el.setAttribute(name, value);
+  }
+
+  // The outline's points as the "x,y" strings the trail is written in, made once for each outline: the trail is
+  // redrawn on every frame, and between the data frames in the glance layout, from 375 of them.
+  let _coordStrs = [], _coordStrsOf = null;
+  function _coordStrings() {
+    if (_coordStrsOf !== _trackPathCoords) {
+      _coordStrsOf = _trackPathCoords;
+      _coordStrs = _trackPathCoords.map(function(c) { return c.x.toFixed(3) + ',' + c.y.toFixed(3); });
+    }
+    return _coordStrs;
+  }
+
   // `near` is where the car is on the outline (_nearestTrackPoint): the point of the outline at or behind it (`seg`) and
   // the place on the line itself (`x`, `y`). The trail runs along the outline's points to that one and then to the car,
   // so it ends at the car and not at the nearest point of the outline, which at the iPad's closest view is a few pixels
   // away. Written to a thousandth of a unit, as the view's box is: a tenth was three pixels there.
-  function _renderTrackTrail(trailEl, strokeWidth, near) {
+  // `lagging` is the glance layout's: the car is drawn a step behind the frame (animateTrackMap), so it may not yet have
+  // reached the point where the frame's reset began the trail, and then there is no trail yet, not one round the whole
+  // lap. `between` is a frame drawn between two data frames: nothing is read from the page's style (the trail's colour
+  // is the car's, and changes with the car, not with a step).
+  function _renderTrackTrail(trailEl, strokeWidth, near, lagging, between) {
     var playerIdx = near ? near.seg : -1;
     if (!trailEl || playerIdx < 0 || _trackPathCoords.length < 4) {
-      if (trailEl) trailEl.setAttribute('points', '');
+      if (trailEl) _putAttr(trailEl, 'points', '');
       return;
     }
 
@@ -803,6 +828,8 @@
     var startIdx = _trailStartIdx;
     // How many points back from player to the trail start?
     var backDist = (playerIdx - startIdx + n) % n;
+    // (a trail is a quarter of the lap at most: more than half is the car being behind where it began)
+    if (lagging && backDist > n / 2) backDist = 0;
     // Clamp to max trail length (but never wrap past the trail start)
     if (backDist > maxLen) {
       startIdx = (playerIdx - maxLen + n) % n;
@@ -811,33 +838,31 @@
     // Nothing to draw yet (player hasn't moved from start): no stub from the point behind him to the car either, which
     // would be a dab of trail under a car standing still and its colour read from the page's style every frame
     if (backDist === 0) {
-      trailEl.setAttribute('points', '');
+      _putAttr(trailEl, 'points', '');
       return;
     }
     var headC = { x: near.x, y: near.y };
 
     // Build points from tail (startIdx) → the point at or behind the car → the car, along the track path
+    var strs = _coordStrings();
     var pts = '';
     var tailC = _trackPathCoords[startIdx];
-    for (var i = 0; i <= backDist; i++) {
-      var ci = (startIdx + i) % n;
-      var c = _trackPathCoords[ci];
-      pts += c.x.toFixed(3) + ',' + c.y.toFixed(3) + ' ';
-    }
+    for (var i = 0; i <= backDist; i++) pts += strs[(startIdx + i) % n] + ' ';
     pts += headC.x.toFixed(3) + ',' + headC.y.toFixed(3);
 
-    trailEl.setAttribute('points', pts);
-    trailEl.setAttribute('stroke-width', String(strokeWidth));
+    _putAttr(trailEl, 'points', pts);
+    _putAttr(trailEl, 'stroke-width', String(strokeWidth));
 
     // Update gradient: tail (transparent) → head (opaque near player)
     // Color follows the car manufacturer brand, pushed 50% toward white
     var gradId = trailEl.id + '-grad';
     var grad = document.getElementById(gradId);
     if (grad) {
-      grad.setAttribute('x1', tailC.x.toFixed(3));
-      grad.setAttribute('y1', tailC.y.toFixed(3));
-      grad.setAttribute('x2', headC.x.toFixed(3));
-      grad.setAttribute('y2', headC.y.toFixed(3));
+      _putAttr(grad, 'x1', tailC.x.toFixed(3));
+      _putAttr(grad, 'y1', tailC.y.toFixed(3));
+      _putAttr(grad, 'x2', headC.x.toFixed(3));
+      _putAttr(grad, 'y2', headC.y.toFixed(3));
+      if (between) return;
       // Read brand color and lighten 50% toward white
       var raw = getComputedStyle(document.documentElement).getPropertyValue('--map-player-color').trim();
       var trailColor = raw || '#00acc1';
@@ -1143,6 +1168,34 @@
     for (let i = 0; i < dots.length; i++) dots[i].setAttribute('r', (_DV_OPPONENT_PX * unit).toFixed(3));
   }
 
+  // The start/finish tick across the road. On the rig it is the HUD's own, in the map's units: 7 long at a stroke of 1.5 on
+  // the full map and 4 long at 0.8 on the local view (dashboard.html's two <line>s). In the glance layout the road is drawn
+  // in pixels (drive-view.css: the outer line is 12 px on the full map and 10 · GLANCE_WEIGHT on the local view, times the
+  // map's `--px`), and the tick is sized to it: 1.2 times the outer line's width from end to end, so it reaches a tenth
+  // of that over the road's edge on both sides, at a stroke of a fifth of its length. (Its ends are round, so the line itself is
+  // that much shorter by the stroke: the tick as seen is the 1.2.)
+  const _SF_RIG = { fullMapSF: { half: 3.5, stroke: 1.5 }, zoomMapSF: { half: 2, stroke: 0.8 } };
+  const _DV_SF_LENGTH = 1.2, _DV_SF_STROKE = 0.2;
+  const _DV_ROAD_OUTER_PX = { fullMapSF: 12, zoomMapSF: 10 * RacingDeskMapZoom.GLANCE_WEIGHT };
+
+  // `unit` is the map's units to a pixel as the road's lines are given them (`--px`); null puts the rig's tick back.
+  function _dvSizeStartFinish(svg, id, unit) {
+    const line = svg && svg.querySelector('#' + id + ' line');
+    if (!line) return;
+    let half, stroke;
+    if (unit) {
+      const length = _DV_SF_LENGTH * _DV_ROAD_OUTER_PX[id] * unit;
+      stroke = _DV_SF_STROKE * length;
+      half = (length - stroke) / 2;
+    } else {
+      half = _SF_RIG[id].half;
+      stroke = _SF_RIG[id].stroke;
+    }
+    line.setAttribute('y1', (-half).toFixed(3));
+    line.setAttribute('y2', half.toFixed(3));
+    line.setAttribute('stroke-width', stroke.toFixed(3));
+  }
+
   // The room kept round the outline inside the svg, in pixels: the outline's outer stroke reaches 6px past its centre line
   // and the car's dot 7px, so nine is room for both at the edge. It was a share of the circuit's longer side (6 % of it on
   // each side, 22px of a 366px circuit), which took a seventh of the cell's height from a circuit that is limited by
@@ -1182,6 +1235,7 @@
         _dv.fullUnit = 1 / Math.min(r.width / vb[2], r.height / vb[3]);
         fullSvg.style.setProperty('--px', _dv.fullUnit.toFixed(4));
         _dvSizeMarkers(fullSvg, _dv.fullUnit);
+        _dvSizeStartFinish(fullSvg, 'fullMapSF', _dv.fullUnit);
       }
     }
     const zoomSvg = document.getElementById('zoomMapSvg');
@@ -1198,6 +1252,7 @@
   // Told by drive-hud.js that the layout has changed. Out of drive mode the maps are the HUD's own again.
   function driveViewChanged(on) {
     _dv.on = !!on;
+    _motionReset();
     if (_dv.on) {
       _dvLayout();
       return;
@@ -1217,7 +1272,10 @@
     };
     restore(fullSvg, 4, 2.5);
     restore(zoomSvg, 2, 1.5);
+    _dvSizeStartFinish(fullSvg, 'fullMapSF', null);
+    _dvSizeStartFinish(zoomSvg, 'zoomMapSF', null);
     _dv.zoomUnit = 0;
+    _motionReset();
   }
   window.driveViewChanged = driveViewChanged;
   window.addEventListener('resize', _dvLayout);
@@ -1232,6 +1290,257 @@
 
   // Smoothed heading for local map rotation
   let _mapSmoothedHeading = 0;
+  // Where the car was on the last frame, as the page had it (snapped to the outline, before its low-pass): a reset or a
+  // tow is a step of more than a car drives in a data interval, and in the glance layout it is not blended to.
+  let _mapRawX = 0, _mapRawY = 0;
+
+  // ═══ THE MAPS BETWEEN THE DATA FRAMES (glance layout only) ═══
+  // The page draws when a frame of telemetry arrives, about thirty a second. In the glance layout the moving parts of the
+  // two maps are drawn at the display's rate in between (animateTrackMap, from poll-engine.js's rAF loop), from where they
+  // were drawn to the newest frame over one data interval: the car's dot and its glow, the trail behind it, the following
+  // map's view (its centre, its turn and its size) and the other cars' dots. map-motion.js has the reasons and the rules;
+  // here `from` and `to` are the two ends of a step and `cur` what is drawn now (the others' places are in the arrays
+  // beside _oppX / _oppY, which are the newest frame's). The rig's HUD is not in it: its maps are drawn on the data frames
+  // only, as they always were.
+  const _motion = {
+    clock: RacingDeskMapMotion.createClock(),
+    live: false,      // a step is set: the glance layout is on and a frame has been seen since the maps were cleared
+    phase: 1,         // how far through the step the maps were last drawn; 1 is the newest frame
+    limit: 10,        // map units: more than this in one data interval is a jump (JUMP_LAP_FRACTION of the lap)
+    count: 0,         // the other cars in the step
+    // x, y: his place; s: where he is on the outline, as a point index with a fraction (-1: not on it); h: the heading
+    // of the view's turn, degrees; z: the view's radius, map units
+    from: { x: 50, y: 50, s: -1, h: NaN, z: NaN },
+    to:   { x: 50, y: 50, s: -1, h: NaN, z: NaN },
+    cur:  { x: 50, y: 50, s: -1, h: NaN, z: NaN },
+  };
+  const _oppFromX = new Float64Array(_MAP_MAX_OPPONENTS);
+  const _oppFromY = new Float64Array(_MAP_MAX_OPPONENTS);
+  const _oppCurX = new Float64Array(_MAP_MAX_OPPONENTS);
+  const _oppCurY = new Float64Array(_MAP_MAX_OPPONENTS);
+  const _oppHave = new Uint8Array(_MAP_MAX_OPPONENTS);      // drawn on the last frame, so there is somewhere to slide from
+  const _oppWasPit = new Uint8Array(_MAP_MAX_OPPONENTS);
+  const _oppClose = new Uint8Array(_MAP_MAX_OPPONENTS);
+  const _oppNear = new Uint8Array(_MAP_MAX_OPPONENTS);
+
+  // Nothing is drawn between frames until a frame has been seen again: a new outline (its indices are another's), the
+  // glance layout switched on or off, the maps cleared.
+  function _motionReset() {
+    _motion.live = false;
+    _motion.phase = 1;
+    _motion.count = 0;
+    _motion.clock.reset();
+    _oppHave.fill(0);
+  }
+
+  // A data frame in the glance layout: the step now runs from where the maps are drawn to this frame. What was a jump
+  // (a reset or a tow, a car that is new, back from the pits or gone in, a frame after a stall) has no step: it is
+  // drawn where it is. The caller has put the newest frame's other cars into _oppX / _oppY / _oppPit / _oppOk.
+  function _motionSet(sx, sy, s, heading, radius, count, now) {
+    const M = RacingDeskMapMotion;
+    const m = _motion, from = m.from, to = m.to, cur = m.cur;
+    const timed = m.clock.frame(now);
+    const stepped = timed && m.live;   // not the first frame, and not one after a stall
+    to.x = sx; to.y = sy; to.s = s; to.h = heading; to.z = radius;
+    if (stepped) {
+      from.x = cur.x; from.y = cur.y; from.s = cur.s; from.h = cur.h; from.z = cur.z;
+      if (M.jumped(cur.x, cur.y, sx, sy, m.limit)) { from.x = sx; from.y = sy; from.s = s; }
+      else if (!(cur.s >= 0) || !(s >= 0)) from.s = s;
+      if (!Number.isFinite(from.h) || !Number.isFinite(heading)) from.h = heading;
+      if (!Number.isFinite(from.z) || !Number.isFinite(radius)) from.z = radius;
+    } else {
+      from.x = sx; from.y = sy; from.s = s; from.h = heading; from.z = radius;
+    }
+    for (let i = 0; i < _MAP_MAX_OPPONENTS; i++) {
+      if (i >= count || !_oppOk[i]) { _oppHave[i] = 0; continue; }
+      const ox = _oppX[i], oy = _oppY[i];
+      const slide = stepped && _oppHave[i] === 1 && _oppWasPit[i] === _oppPit[i] && !M.jumped(_oppCurX[i], _oppCurY[i], ox, oy, m.limit);
+      _oppFromX[i] = slide ? _oppCurX[i] : ox;
+      _oppFromY[i] = slide ? _oppCurY[i] : oy;
+      _oppHave[i] = 1;
+      _oppWasPit[i] = _oppPit[i];
+    }
+    m.count = count;
+    m.live = true;
+    m.phase = stepped ? 0 : 1;   // the clock has just been told this frame's time: 0
+    _motionBlend(m.phase);
+  }
+
+  // What is drawn at `p` of the way from `from` to `to`: his place and the others' in a straight line, where he is on the
+  // outline round the loop the short way (a step over the start/finish line is a short one), the heading the shortest
+  // way round, the view's radius. At 1 it is the newest frame exactly. The others' places are kept to a thousandth of a
+  // unit, which is what is written (a hundredth of a pixel at the closest view), so a dot is not written for less.
+  function _motionBlend(p) {
+    const M = RacingDeskMapMotion;
+    const m = _motion, f = m.from, t = m.to, c = m.cur;
+    const count = m.count;
+    if (p >= 1) {
+      c.x = t.x; c.y = t.y; c.s = t.s; c.h = t.h; c.z = t.z;
+      for (let i = 0; i < count; i++) { _oppCurX[i] = _oppX[i]; _oppCurY[i] = _oppY[i]; }
+      return;
+    }
+    c.x = M.lerp(f.x, t.x, p);
+    c.y = M.lerp(f.y, t.y, p);
+    const n = _trackPathCoords.length;
+    c.s = f.s >= 0 && t.s >= 0 && n > 0 ? M.lerpAround(f.s, t.s, p, n) : t.s;
+    c.h = Number.isFinite(f.h) && Number.isFinite(t.h) ? M.lerpAngle(f.h, t.h, p) : t.h;
+    c.z = Number.isFinite(f.z) && Number.isFinite(t.z) ? M.lerp(f.z, t.z, p) : t.z;
+    for (let i = 0; i < count; i++) {
+      if (!_oppOk[i]) continue;
+      _oppCurX[i] = Math.round(M.lerp(_oppFromX[i], _oppX[i], p) * 1000) / 1000;
+      _oppCurY[i] = Math.round(M.lerp(_oppFromY[i], _oppY[i], p) * 1000) / 1000;
+    }
+  }
+
+  // The place on the outline at a point index with a fraction (the car's `s`): the shape _nearestTrackPoint gives, for the
+  // trail. One object, overwritten; null where he is not on the outline.
+  const _nearAt = { x: 0, y: 0, dist: 0, idx: -1, seg: -1, t: 0 };
+  function _nearAtIndex(s) {
+    const n = _trackPathCoords.length;
+    if (!(s >= 0) || n < 4) return null;
+    const seg = Math.min(n - 1, Math.floor(s));
+    const t = s - seg;
+    const a = _trackPathCoords[seg], b = _trackPathCoords[(seg + 1) % n];
+    _nearAt.seg = seg;
+    _nearAt.t = t;
+    _nearAt.x = a.x + (b.x - a.x) * t;
+    _nearAt.y = a.y + (b.y - a.y) * t;
+    return _nearAt;
+  }
+
+  // The elements the maps move, looked up once and again if one has been taken out of the page.
+  const _byIdCache = Object.create(null);
+  function _mapEl(id) {
+    let el = _byIdCache[id];
+    if (!el || !el.isConnected) el = _byIdCache[id] = document.getElementById(id);
+    return el;
+  }
+
+  // The car's dot and the glow under it, on both maps. The full map's dot is to a tenth of a unit on the rig, as it always
+  // was, and to a thousandth in the glance layout, where it moves between the frames.
+  function _paintPlayer(x, y) {
+    const dp = _dv.on ? 3 : 1;
+    const fullPlayer = _mapEl('fullMapPlayer');
+    const zoomPlayer = _mapEl('zoomMapPlayer');
+    if (fullPlayer) {
+      _putAttr(fullPlayer, 'cx', x.toFixed(dp));
+      _putAttr(fullPlayer, 'cy', y.toFixed(dp));
+    }
+    if (zoomPlayer) {
+      // Thousandths of a unit, as the view's box is: rounded to a tenth, the dot and the box's centre each
+      // round on their own and the car wobbles against the middle of its view (see _paintView).
+      _putAttr(zoomPlayer, 'cx', x.toFixed(3));
+      _putAttr(zoomPlayer, 'cy', y.toFixed(3));
+    }
+    // Track glow effect following player position
+    const glowFullSvg = _mapEl('fullMapSvg');
+    const glowZoomSvg = _mapEl('zoomMapSvg');
+    if (glowFullSvg) _updateTrackGlow(glowFullSvg, x, y);
+    if (glowZoomSvg) _updateTrackGlow(glowZoomSvg, x, y);
+  }
+
+  // The trail on both maps, ending at `near` (the car's place on the outline). `lagging`: the glance layout, where the
+  // car is drawn a step behind the newest frame. `between`: a frame drawn between two data frames.
+  function _paintTrails(near, lagging, between) {
+    // Ensure trail polylines exist and render using actual track geometry
+    if (!_fullMapTrailEl)  _fullMapTrailEl  = _ensureTrailPolyline('fullMapSvg', 'fullMapPlayer', 'fullMapTrail');
+    if (!_zoomMapTrailEl) _zoomMapTrailEl = _ensureTrailPolyline('zoomMapRotateGroup', 'zoomMapOpponents', 'zoomMapTrail');
+    // The width of the outline's outer layer (.map-track-outer): in the glance layout that is in pixels (on the local
+    // view, at the view R_LINE_WEIGHTS across, and with the zoom from there)
+    _renderTrackTrail(_fullMapTrailEl, _dv.on && _dv.fullUnit ? 12 * _dv.fullUnit : 5, near, lagging, between);
+    _renderTrackTrail(_zoomMapTrailEl, _dv.on && _dv.zoomUnit ? 10 * RacingDeskMapZoom.GLANCE_WEIGHT * _dv.zoomUnit : 2.5, near, lagging, between);
+  }
+
+  // The local view: player always centered, track rotates so driving direction always points UP. The view's
+  // radius follows his speed (map-zoom.js): closer in as he goes faster, by default — what he asked for — or
+  // wider, or one view at every speed, by the "Following map zoom" setting; between the bounds the view has
+  // always had, eased over a fifth of a second and never faster than its cap, so that a speed that jumps (a reset, a
+  // tow, a crash) is not a jump in the map. The view's box, its pivot and the car's dot are written to a thousandth
+  // of a unit: at the closest the view is 11 units across and at speed it is the one that scrolls fastest, where
+  // steps of a tenth were jerks of two or three pixels. `h` is the turn of the view (NaN: none, the heading was no
+  // number); `between` is a frame drawn between two data frames, which sizes nothing and clears nothing.
+  function _paintView(x, y, zr, h, between) {
+    const zoomSvg = _mapEl('zoomMapSvg');
+    if (!zoomSvg) return;
+    if (_dv.on && _dv.zoomAspect > 0) {
+      // The glance layout: the view is the shape of its cell, as wide as the radius says, and the car is
+      // two-thirds of the way down it, so what is ahead gets the room. What is drawn on it — the road's three
+      // lines, the trail, the car and the others — is sized in pixels for the view R_LINE_WEIGHTS across, and so
+      // in the map's own units: it grows as the view closes in and shrinks as it opens out, as on the rig's HUD,
+      // whose lines are in those units. It was sized again in pixels whenever the zoom moved by a few percent,
+      // which took the zoom back out of everything but the bends: on a straight the closest view looked like the
+      // widest. It is sized again only when the cell changes (_dvLayout puts zoomUnit to 0).
+      const vw = zr * 2 * RacingDeskMapZoom.GLANCE_VIEW, vh = vw / _dv.zoomAspect;
+      _putAttr(zoomSvg, 'viewBox', (x - vw / 2).toFixed(3) + ' ' + (y - vh * (2 / 3)).toFixed(3) + ' ' + vw.toFixed(3) + ' ' + vh.toFixed(3));
+      if (!between) {
+        const unit = (2 * RacingDeskMapZoom.R_LINE_WEIGHTS) / _dv.zoomW;
+        if (unit !== _dv.zoomUnit) {
+          _dv.zoomUnit = unit;
+          zoomSvg.style.setProperty('--px', unit.toFixed(4));
+          _dvSizeMarkers(zoomSvg, unit * RacingDeskMapZoom.GLANCE_DOT);
+          _dvSizeStartFinish(zoomSvg, 'zoomMapSF', unit);
+        }
+      }
+    } else {
+      // ViewBox always centered on player — NO clamping, overflow="visible"
+      // handles content outside the 0-100 range. Player is always at center.
+      _putAttr(zoomSvg, 'viewBox', (x - zr).toFixed(3) + ' ' + (y - zr).toFixed(3) + ' ' + (zr * 2).toFixed(3) + ' ' + (zr * 2).toFixed(3));
+    }
+
+    if (!between) {
+      // Clear any legacy CSS rotation on the SVG element
+      zoomSvg.style.transform = '';
+      zoomSvg.style.transformOrigin = '';
+    }
+
+    // Rotate the inner group around the player's SVG coordinate so
+    // the driving direction always points up. Player dot is outside
+    // the group so it stays upright and visually centered.
+    if (Number.isFinite(h)) {
+      const rotGrp = _mapEl('zoomMapRotateGroup');
+      if (rotGrp) _putAttr(rotGrp, 'transform', 'rotate(' + (-h).toFixed(2) + ',' + x.toFixed(3) + ',' + y.toFixed(3) + ')');
+    }
+  }
+
+  // One car's dot moved, where it has moved (written only where it differs from what it was given last).
+  function _moveDot(dot, x, y) {
+    if (!dot) return;
+    if (dot._rdX !== x) { dot._rdX = x; dot.setAttribute('cx', x); }
+    if (dot._rdY !== y) { dot._rdY = y; dot.setAttribute('cy', y); }
+  }
+
+  // A frame between two data frames (glance layout): what moves, as it is `phase` of the way to the newest frame — and
+  // nothing else. No read from the page's layout or style; only an attribute that changes is written.
+  function animateTrackMap() {
+    const m = _motion;
+    if (!m.live || !_dv.on) return;
+    const p = m.clock.phase(performance.now());
+    if (p === m.phase) return;   // at the newest frame already (or no time has passed)
+    m.phase = p;
+    _motionBlend(p);
+    const c = m.cur;
+    _paintPlayer(c.x, c.y);
+    _paintTrails(_nearAtIndex(c.s), true, true);
+    _paintView(c.x, c.y, c.z, c.h, true);
+    const fullG = _mapEl('fullMapOpponents');
+    const zoomG = _mapEl('zoomMapOpponents');
+    if (!fullG || !zoomG) return;
+    // The local view takes in this much round the car at most (the view is the cell's shape, the car two-thirds down); a
+    // dot much farther is not in it, and is written at the next data frame, as every dot is.
+    let reach2 = Infinity;
+    if (_dv.zoomAspect > 0 && c.z > 0) {
+      const vw = c.z * 2 * RacingDeskMapZoom.GLANCE_VIEW, reach = 1.6 * Math.hypot(vw, vw / _dv.zoomAspect);
+      reach2 = reach * reach;
+    }
+    const fullDots = fullG.children, zoomDots = zoomG.children;
+    for (let i = 0; i < m.count; i++) {
+      if (!_oppOk[i] || _oppPit[i] === 1) continue;
+      const x = _oppCurX[i], y = _oppCurY[i];
+      _moveDot(fullDots[i], x, y);
+      const dx = x - c.x, dy = y - c.y;
+      if (dx * dx + dy * dy <= reach2) _moveDot(zoomDots[i], x, y);
+    }
+  }
 
   function updateTrackMap(svgPath, playerX, playerY, opponentStr, speedMph, headingDeg, status) {
     // While there is no map the cell says why (the host's TrackMap.Status); with one it says nothing.
@@ -1243,6 +1552,7 @@
       _mapHasInit = false;
       _trackPathCoords = [];
       _forgetTrail();
+      _motionReset();
       // Clear the source paths — the <use> layers pointing at them
       // (outer/middle/inner × full/zoom) clear in lockstep.
       ['fullMapTrackSrc', 'zoomMapTrackSrc'].forEach(function(id) {
@@ -1270,6 +1580,11 @@
       const outline = _outlineOf(svgPath);
       _trackPathCoords = outline.coords;
       _forgetTrail();   // the indices of the trail were of the outline before
+      _motionReset();   // and so were the car's, in the step between frames
+      // A car does not drive a fiftieth of the lap in a data interval: more than that, in map units, is a jump.
+      _motion.limit = outline.read
+        ? Math.max(1, RacingDeskMapMotion.JUMP_LAP_FRACTION * RacingDeskMapMotion.loopLength(_trackPathCoords))
+        : 10;
       // The three rendered layers (outer / middle / inner) are <use>
       // elements that reference a single source <path> in <defs>. Update
       // the two source paths (full + zoom) and all six rendered layers
@@ -1295,9 +1610,9 @@
         var _missingEls = [];
         var _zeroBbox = [];
         for (var _i = 0; _i < _LAYER_IDS.length; _i++) {
-          var _el = document.getElementById(_LAYER_IDS[_i]);
-          if (!_el) { _missingEls.push(_LAYER_IDS[_i]); continue; }
-          var _bb = _el.getBBox && _el.getBBox();
+          var _el2 = document.getElementById(_LAYER_IDS[_i]);
+          if (!_el2) { _missingEls.push(_LAYER_IDS[_i]); continue; }
+          var _bb = _el2.getBBox && _el2.getBBox();
           if (_bb && (_bb.width > 0 || _bb.height > 0)) { _anyRendered = true; }
           else { _zeroBbox.push(_LAYER_IDS[_i]); }
         }
@@ -1341,12 +1656,19 @@
         }
       }
 
-      // Position start/finish marker at the first point of the line drawn (LapDistPct=0)
+      // Position start/finish marker at the first point of the line drawn: LapDistPct 0, which is the first point of
+      // every outline the host serves (his own, one point to each bin b/bins of the lap; SimHub's shared map, whose first
+      // point is p 0 and whose resampled bins start at it too). The tick is a vertical line (dashboard.html), so it is
+      // turned by the way the road runs there — `rotate` of the road's direction — and lies across it.
       const sfMatch = outline.read ? null : svgPath.match(/^M\s*([\d.]+)[,\s]+([\d.]+)/);
       if (outline.read || sfMatch) {
         const sfX = outline.read ? _trackPathCoords[0].x : +sfMatch[1];
         const sfY = outline.read ? _trackPathCoords[0].y : +sfMatch[2];
-        const sf = 'translate(' + sfX.toFixed(_OUTLINE_DP) + ',' + sfY.toFixed(_OUTLINE_DP) + ')';
+        // (a path that could not be read has no loop to read the road from: the way to its next pair of numbers)
+        const sfAngle = outline.read
+          ? RacingDeskMapMotion.startFinishAngle(_trackPathCoords)
+          : (_trackPathCoords.length > 1 ? Math.atan2(_trackPathCoords[1].y - _trackPathCoords[0].y, _trackPathCoords[1].x - _trackPathCoords[0].x) * 180 / Math.PI : 0);
+        const sf = 'translate(' + sfX.toFixed(_OUTLINE_DP) + ',' + sfY.toFixed(_OUTLINE_DP) + ') rotate(' + sfAngle.toFixed(2) + ')';
         const fullSF = document.getElementById('fullMapSF');
         const zoomSF = document.getElementById('zoomMapSF');
         if (fullSF) {
@@ -1390,6 +1712,12 @@
       }
     }
 
+    // In the glance layout a reset or a tow is a step, not a drive: the car is where it now is, with no blend from where
+    // it was (the low-pass below would carry it there over a dozen frames, and the maps would show it sliding).
+    if (_dv.on && _mapHasInit && RacingDeskMapMotion.jumped(_mapRawX, _mapRawY, playerX, playerY, _motion.limit)) _mapHasInit = false;
+    _mapRawX = playerX;
+    _mapRawY = playerY;
+
     // A low-pass filter on the position. The host places the car along a closed loop, the line included, so there
     // is no jump at the line to guard against: a step is a step, and a slow blend after one would be a slide.
     if (!_mapHasInit) {
@@ -1427,26 +1755,6 @@
       el.classList.toggle('on-track', !isOffTrack);
     });
 
-    // Update player dot
-    const fullPlayer = document.getElementById('fullMapPlayer');
-    const zoomPlayer = document.getElementById('zoomMapPlayer');
-    if (fullPlayer) {
-      fullPlayer.setAttribute('cx', sx.toFixed(1));
-      fullPlayer.setAttribute('cy', sy.toFixed(1));
-    }
-    if (zoomPlayer) {
-      // Thousandths of a unit, as the view's box below is: rounded to a tenth, the dot and the box's centre each
-      // round on their own and the car wobbles against the middle of its view (see the box).
-      zoomPlayer.setAttribute('cx', sx.toFixed(3));
-      zoomPlayer.setAttribute('cy', sy.toFixed(3));
-    }
-
-    // Update track glow effect following player position
-    const glowFullSvg = document.getElementById('fullMapSvg');
-    const glowZoomSvg = document.getElementById('zoomMapSvg');
-    if (glowFullSvg) _updateTrackGlow(glowFullSvg, sx, sy);
-    if (glowZoomSvg) _updateTrackGlow(glowZoomSvg, sx, sy);
-
     // G-force trail — read current G from datastream globals
     const latG  = window._ambientLatG  || 0;
     const longG = window._ambientLongG || 0;
@@ -1472,71 +1780,23 @@
       }
     }
 
-    // Ensure trail polylines exist and render using actual track geometry
-    if (!_fullMapTrailEl)  _fullMapTrailEl  = _ensureTrailPolyline('fullMapSvg', 'fullMapPlayer', 'fullMapTrail');
-    if (!_zoomMapTrailEl) _zoomMapTrailEl = _ensureTrailPolyline('zoomMapRotateGroup', 'zoomMapOpponents', 'zoomMapTrail');
-    // The width of the outline's outer layer (.map-track-outer): in the glance layout that is in pixels (on the local
-    // view, at the view R_LINE_WEIGHTS across, and with the zoom from there)
-    _renderTrackTrail(_fullMapTrailEl, _dv.on && _dv.fullUnit ? 12 * _dv.fullUnit : 5, playerNearest);
-    _renderTrackTrail(_zoomMapTrailEl, _dv.on && _dv.zoomUnit ? 10 * RacingDeskMapZoom.GLANCE_WEIGHT * _dv.zoomUnit : 2.5, playerNearest);
-
-    // Self-check: warn once if trail polylines couldn't be created.
-    // Their absence means _renderTrackTrail is silently no-op'ing and
-    // the trail feature is dead for this session.
-    if (!_trailCheckDone && _trackPathCoords.length > 10) {
-      _trailCheckDone = true;
-      if (!_fullMapTrailEl || !_zoomMapTrailEl) {
-        console.warn('[K10 track-map] Trail polyline(s) failed to attach.',
-          '\n  fullMapTrail:', !!_fullMapTrailEl,
-          '\n  zoomMapTrail:', !!_zoomMapTrailEl,
-          '\n  fullMapSvg present:', !!document.getElementById('fullMapSvg'),
-          '\n  zoomMapRotateGroup present:', !!document.getElementById('zoomMapRotateGroup'));
-      }
+    // The local view for this frame: the radius its zoom has eased to (a step of the follower, once a data frame) and
+    // the heading smoothed towards the car's.
+    const now = performance.now();
+    // In the glance layout the step the maps were on is first brought up to the time of this frame, as the animation frames
+    // between data frames bring it to theirs, before the newest frame's places replace its end: a frame that comes early,
+    // or a page that draws no oftener than its data comes (a slow iPad, a headless browser in software), then goes on from
+    // where the maps would have been, one step behind the data, and not from wherever the last animation frame left them.
+    if (_dv.on && _motion.live) {
+      const p = _motion.clock.phase(now);
+      _motion.phase = p;
+      _motionBlend(p);
     }
-
-    // Update zoom map — player always centered, track rotates so driving direction always points UP. The view's
-    // radius follows his speed (map-zoom.js): closer in as he goes faster, by default — what he asked for — or
-    // wider, or one view at every speed, by the "Following map zoom" setting; between the bounds the view has
-    // always had, eased over a fifth of a second and never faster than its cap, so that a speed that jumps (a reset, a
-    // tow, a crash) is not a jump in the map. The view's box, its pivot and the car's dot are written to a thousandth
-    // of a unit: at the closest the view is 11 units across and at speed it is the one that scrolls fastest, where
-    // steps of a tenth were jerks of two or three pixels.
     const zoomSvg = document.getElementById('zoomMapSvg');
+    let zr = NaN, heading = NaN;
     if (zoomSvg) {
       const spd = typeof speedMph === 'number' ? speedMph : 0;
-      const zr = _followZoom.radius(spd, _followZoomMode(), performance.now());
-
-      if (_dv.on && _dv.zoomAspect > 0) {
-        // The glance layout: the view is the shape of its cell, as wide as the radius says, and the car is
-        // two-thirds of the way down it, so what is ahead gets the room. What is drawn on it — the road's three
-        // lines, the trail, the car and the others — is sized in pixels for the view R_LINE_WEIGHTS across, and so
-        // in the map's own units: it grows as the view closes in and shrinks as it opens out, as on the rig's HUD,
-        // whose lines are in those units. It was sized again in pixels whenever the zoom moved by a few percent,
-        // which took the zoom back out of everything but the bends: on a straight the closest view looked like the
-        // widest. It is sized again only when the cell changes (_dvLayout puts zoomUnit to 0).
-        const vw = zr * 2 * RacingDeskMapZoom.GLANCE_VIEW, vh = vw / _dv.zoomAspect;
-        zoomSvg.setAttribute('viewBox', (sx - vw / 2).toFixed(3) + ' ' + (sy - vh * (2 / 3)).toFixed(3) + ' ' + vw.toFixed(3) + ' ' + vh.toFixed(3));
-        const unit = (2 * RacingDeskMapZoom.R_LINE_WEIGHTS) / _dv.zoomW;
-        if (unit !== _dv.zoomUnit) {
-          _dv.zoomUnit = unit;
-          zoomSvg.style.setProperty('--px', unit.toFixed(4));
-          _dvSizeMarkers(zoomSvg, unit * RacingDeskMapZoom.GLANCE_DOT);
-        }
-      } else {
-        // ViewBox always centered on player — NO clamping, overflow="visible"
-        // handles content outside the 0-100 range. Player is always at center.
-        const vx = sx - zr;
-        const vy = sy - zr;
-        zoomSvg.setAttribute('viewBox', vx.toFixed(3) + ' ' + vy.toFixed(3) + ' ' + (zr * 2).toFixed(3) + ' ' + (zr * 2).toFixed(3));
-      }
-
-      // Clear any legacy CSS rotation on the SVG element
-      zoomSvg.style.transform = '';
-      zoomSvg.style.transformOrigin = '';
-
-      // Rotate the inner group around the player's SVG coordinate so
-      // the driving direction always points up. Player dot is outside
-      // the group so it stays upright and visually centered.
+      zr = _followZoom.radius(spd, _followZoomMode(), now);
       if (typeof headingDeg === 'number') {
         let diff = headingDeg - _mapSmoothedHeading;
         if (diff > 180) diff -= 360;
@@ -1545,32 +1805,15 @@
         if (Math.abs(diff) < 0.5) diff = 0;
         _mapSmoothedHeading += diff * 0.15;
         _mapSmoothedHeading = ((_mapSmoothedHeading % 360) + 360) % 360;
-
-        const rotGrp = document.getElementById('zoomMapRotateGroup');
-        if (rotGrp) {
-          rotGrp.setAttribute('transform',
-            'rotate(' + (-_mapSmoothedHeading).toFixed(2) + ',' + sx.toFixed(3) + ',' + sy.toFixed(3) + ')');
-        }
+        heading = _mapSmoothedHeading;
       }
     }
 
-    // Parse and render opponents
-    const fullG = document.getElementById('fullMapOpponents');
-    const zoomG = document.getElementById('zoomMapOpponents');
-    if (!fullG || !zoomG) return;
-
-    // Parse "x,y,pit;x,y,pit;..." format
+    // The other cars: "x,y,pit;x,y,pit;..." — where each is, which of them pulse (the _NEAR_PULSED nearest to him within
+    // _NEAR_D2, of those on track: every car within that distance pulsed, with a drop-shadow at its peak; at a start, the
+    // whole field on both maps) and which are close.
     const parts = opponentStr ? opponentStr.split(';') : [];
     const count = Math.min(parts.length, _MAP_MAX_OPPONENTS);
-
-    // Ensure we have enough circle elements (create/remove as needed)
-    _ensureOpponentDots(fullG, count, _dv.on && _dv.fullUnit ? _DV_OPPONENT_PX * _dv.fullUnit : 2.5);
-    _ensureOpponentDots(zoomG, count, _dv.on && _dv.zoomUnit ? _DV_OPPONENT_PX * _dv.zoomUnit : 1.5);
-
-    // Where each car is, and which of them pulse: the _NEAR_PULSED nearest to him within _NEAR_D2, of those on track.
-    // Every car within that distance pulsed, with a drop-shadow at its peak: at a start, the whole field on both maps.
-    const fullDots = fullG.children;
-    const zoomDots = zoomG.children;
     _nearIdx.fill(-1);
     _nearD2.fill(Infinity);
     for (let i = 0; i < count; i++) {
@@ -1591,14 +1834,65 @@
       _nearD2[k] = d2;
       _nearIdx[k] = i;
     }
-    // The same on both maps. A dot is written only where it differs from what it was given last.
     for (let i = 0; i < count; i++) {
       if (!_oppOk[i]) continue;
-      const ox = _oppX[i], oy = _oppY[i], inPit = _oppPit[i] === 1;
-      const close = _isClose(sx, sy, ox, oy);
-      const near = _nearIdx.indexOf(i) >= 0;
-      _drawOpponent(fullDots[i], ox, oy, inPit, close, near);
-      _drawOpponent(zoomDots[i], ox, oy, inPit, close, near);
+      _oppClose[i] = _isClose(sx, sy, _oppX[i], _oppY[i]) ? 1 : 0;
+      _oppNear[i] = _nearIdx.indexOf(i) >= 0 ? 1 : 0;
+    }
+
+    // What is drawn: on the rig, this frame. In the glance layout, the step towards it from where the maps were, as far
+    // through as the clock says it is (the start of it, now; animateTrackMap draws the rest as the frames come).
+    const glance = _dv.on;
+    let shown, xs, ys;
+    if (glance) {
+      _motionSet(sx, sy, playerNearest ? playerNearest.seg + playerNearest.t : -1, heading, zr, count, now);
+      shown = _motion.cur;
+      xs = _oppCurX;
+      ys = _oppCurY;
+    } else {
+      _motion.live = false;
+      shown = _motion.to;
+      shown.x = sx; shown.y = sy; shown.h = heading; shown.z = zr;
+      xs = _oppX;
+      ys = _oppY;
+    }
+
+    _paintPlayer(shown.x, shown.y);
+
+    _paintTrails(glance ? _nearAtIndex(shown.s) : playerNearest, glance, false);
+
+    // Self-check: warn once if trail polylines couldn't be created.
+    // Their absence means _renderTrackTrail is silently no-op'ing and
+    // the trail feature is dead for this session.
+    if (!_trailCheckDone && _trackPathCoords.length > 10) {
+      _trailCheckDone = true;
+      if (!_fullMapTrailEl || !_zoomMapTrailEl) {
+        console.warn('[K10 track-map] Trail polyline(s) failed to attach.',
+          '\n  fullMapTrail:', !!_fullMapTrailEl,
+          '\n  zoomMapTrail:', !!_zoomMapTrailEl,
+          '\n  fullMapSvg present:', !!document.getElementById('fullMapSvg'),
+          '\n  zoomMapRotateGroup present:', !!document.getElementById('zoomMapRotateGroup'));
+      }
+    }
+
+    if (zoomSvg) _paintView(shown.x, shown.y, shown.z, shown.h, false);
+
+    const fullG = document.getElementById('fullMapOpponents');
+    const zoomG = document.getElementById('zoomMapOpponents');
+    if (!fullG || !zoomG) return;
+
+    // Ensure we have enough circle elements (create/remove as needed)
+    _ensureOpponentDots(fullG, count, _dv.on && _dv.fullUnit ? _DV_OPPONENT_PX * _dv.fullUnit : 2.5);
+    _ensureOpponentDots(zoomG, count, _dv.on && _dv.zoomUnit ? _DV_OPPONENT_PX * _dv.zoomUnit : 1.5);
+
+    // The same on both maps. A dot is written only where it differs from what it was given last.
+    const fullDots = fullG.children;
+    const zoomDots = zoomG.children;
+    for (let i = 0; i < count; i++) {
+      if (!_oppOk[i]) continue;
+      const inPit = _oppPit[i] === 1, close = _oppClose[i] === 1, near = _oppNear[i] === 1;
+      _drawOpponent(fullDots[i], xs[i], ys[i], inPit, close, near);
+      _drawOpponent(zoomDots[i], xs[i], ys[i], inPit, close, near);
     }
   }
 
@@ -1696,8 +1990,8 @@
 
     // Update glow position to follow player: to a thousandth, as the car's dot on the local view is (a tenth is three
     // pixels at the iPad's closest view, and the glow shimmered round the dot)
-    glow.setAttribute('cx', px.toFixed(3));
-    glow.setAttribute('cy', py.toFixed(3));
+    _putAttr(glow, 'cx', px.toFixed(3));
+    _putAttr(glow, 'cy', py.toFixed(3));
   }
 
   // ═══ EXPOSE ALL FUNCTIONS TO WINDOW ═══
