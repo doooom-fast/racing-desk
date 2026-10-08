@@ -17,6 +17,9 @@
   .dashboard.layout-br { bottom: var(--edge-z, var(--edge)); right: var(--edge-z, var(--edge)); }
   .dashboard.layout-bl { bottom: var(--edge-z, var(--edge)); left: var(--edge-z, var(--edge)); }
   .dashboard.layout-ac { top: 500px; left: 50%; transform: translateX(-50%); }
+  /* Top and bottom centre: centred left to right, held to the edge like the corners */
+  .dashboard.layout-tc { top: var(--edge-z, var(--edge)); left: 50%; transform: translateX(-50%); }
+  .dashboard.layout-bc { bottom: var(--edge-z, var(--edge)); left: 50%; transform: translateX(-50%); }
 
   /* ── Horizontal flow ── */
   /* Right corners: RTL — logo+tacho at right edge, data panels extend left */
@@ -32,23 +35,33 @@
   .dashboard.layout-bl .main-area { flex-direction: row-reverse; }
 
   /* Absolute center: LTR default */
-  .dashboard.layout-ac .main-row { flex-direction: row; }
-  .dashboard.layout-ac .main-area { flex-direction: row-reverse; }
+  .dashboard.layout-ac .main-row,
+  .dashboard.layout-tc .main-row,
+  .dashboard.layout-bc .main-row { flex-direction: row; }
+  .dashboard.layout-ac .main-area,
+  .dashboard.layout-tc .main-area,
+  .dashboard.layout-bc .main-area { flex-direction: row-reverse; }
 
   /* ── Corner rounding for LTR flow (left corners) ── */
   .dashboard.layout-tl .fuel-block,
   .dashboard.layout-bl .fuel-block,
-  .dashboard.layout-ac .fuel-block {
+  .dashboard.layout-ac .fuel-block,
+  .dashboard.layout-tc .fuel-block,
+  .dashboard.layout-bc .fuel-block {
     border-top-left-radius: 0; border-top-right-radius: var(--corner-r);
   }
   .dashboard.layout-tl .tyres-block,
   .dashboard.layout-bl .tyres-block,
-  .dashboard.layout-ac .tyres-block {
+  .dashboard.layout-ac .tyres-block,
+  .dashboard.layout-tc .tyres-block,
+  .dashboard.layout-bc .tyres-block {
     border-bottom-left-radius: 0; border-bottom-right-radius: var(--corner-r);
   }
   .dashboard.layout-tl .tacho-block,
   .dashboard.layout-bl .tacho-block,
-  .dashboard.layout-ac .tacho-block {
+  .dashboard.layout-ac .tacho-block,
+  .dashboard.layout-tc .tacho-block,
+  .dashboard.layout-bc .tacho-block {
     border-top-right-radius: 0; border-bottom-right-radius: 0;
     border-top-left-radius: var(--corner-r); border-bottom-left-radius: var(--corner-r);
   }
@@ -1313,7 +1326,9 @@
   /* Left corners (LTR): timer aligns left, offset past logo + tacho */
   .dashboard.layout-tl .timer-row,
   .dashboard.layout-bl .timer-row,
-  .dashboard.layout-ac .timer-row {
+  .dashboard.layout-ac .timer-row,
+  .dashboard.layout-tc .timer-row,
+  .dashboard.layout-bc .timer-row {
     justify-content: flex-start;
     padding-left: calc(var(--row-h) + 140px + var(--gap) * 2);
   }

@@ -19,7 +19,12 @@
     'top-left':        'layout-tl',
     'bottom-right':    'layout-br',
     'bottom-left':     'layout-bl',
-    'centered':        'layout-ac',
+    // Centred left to right and held to the top or the bottom edge, like the corners (he said on 2026-10-08: "The
+    // centered version of the overlay needs to keep it locked to the bottom and top of the screen, not in the actual
+    // center of the entire screen. Only centered horizontally."). The old 'centered' choice is bottom centre now.
+    'top-center':      'layout-tc',
+    'bottom-center':   'layout-bc',
+    'centered':        'layout-bc',
     'absolute-center': 'layout-ac'
   };
   var _allLayoutClasses = Object.keys(_layoutPositionMap).map(function(k) { return _layoutPositionMap[k]; });
@@ -32,9 +37,9 @@
     _allLayoutClasses.forEach(function(c) { dash.classList.remove(c); });
     dash.classList.add(_layoutPositionMap[pos] || 'layout-tr');
 
-    var isBottom = pos.indexOf('bottom') !== -1;
+    var isBottom = pos.indexOf('bottom') !== -1 || pos === 'centered';
     var isRight  = pos.indexOf('right')  !== -1;
-    var isCenter = (pos === 'absolute-center' || pos === 'centered');
+    var isCenter = (pos === 'absolute-center');
 
     // Commentary: diagonally opposite the main HUD.
     var cmtCol = document.getElementById('commentaryCol');
@@ -99,7 +104,7 @@
 
     // Bottom Y-offset: only meaningful for bottom-anchored layouts.
     var yOff = (_settings.bottomYOffset || 0) + 'px';
-    var isBottomLayout = pos.indexOf('bottom') === 0;
+    var isBottomLayout = pos.indexOf('bottom') === 0 || pos === 'centered';
     if (sec)    sec.style.marginBottom    = isBottomLayout ? yOff : '';
     if (inc)    inc.style.marginBottom    = isBottomLayout ? yOff : '';
     if (cmtCol) cmtCol.style.marginBottom = isBottomLayout ? yOff : '';

@@ -28,7 +28,8 @@
           hint: 'Where the main HUD sits. The other panels place themselves around it.',
           options: [
             ['top-right', 'Top right'], ['top-left', 'Top left'],
-            ['bottom-right', 'Bottom right'], ['bottom-left', 'Bottom left'], ['centered', 'Centred'],
+            ['bottom-right', 'Bottom right'], ['bottom-left', 'Bottom left'],
+            ['top-center', 'Top centre'], ['bottom-center', 'Bottom centre'],
           ],
         },
         { key: 'zoom', label: 'Zoom', type: 'range', def: 165, min: 50, max: 250, step: 5, unit: '%', hint: 'Scale of every panel.' },

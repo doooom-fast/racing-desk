@@ -144,7 +144,8 @@
   }
   /* Bottom layouts: timer on top, main HUD hugs bottom screen edge */
   .dashboard.layout-br,
-  .dashboard.layout-bl {
+  .dashboard.layout-bl,
+  .dashboard.layout-bc {
     flex-direction: column-reverse;
   }
   .main-row {
