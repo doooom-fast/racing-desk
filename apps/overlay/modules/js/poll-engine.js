@@ -206,7 +206,13 @@
   let _rafId = 0;
   function _rafLoop() {
     _rafId = requestAnimationFrame(_rafLoop);
-    if (!_snapshotDirty || !_latestSnapshot) return;
+    if (!_snapshotDirty || !_latestSnapshot) {
+      // No new frame since the last one: in the glance layout (the iPad, /obs-ipad, Ctrl+Shift+F) the two maps' moving
+      // parts go on between the data frames, at the display's rate (webgl-helpers.js animateTrackMap, map-motion.js). Nothing
+      // anywhere else; on the rig's HUD it returns at once.
+      if (typeof animateTrackMap === 'function') animateTrackMap();
+      return;
+    }
     _snapshotDirty = false;
     _renderFrame(_latestSnapshot);
   }
