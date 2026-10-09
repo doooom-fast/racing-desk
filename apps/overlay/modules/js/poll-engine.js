@@ -359,6 +359,8 @@
       // On an iPad, back in the car — the same car, after the garage, say — the rig chooses another section of the
       // paint, as it does on its own screen: ask for it (car-logos.js). A change of car asks, below.
       if (!nowIdle && (window._remoteMode || window._obsMode) && typeof requestRemoteLivery === 'function') requestRemoteLivery();
+      // The Racing Desk's own tile shows another part of the DOOOOM wordmark each time he is back in the car (brand-livery.js).
+      if (!nowIdle && typeof rollBrandLivery === 'function') rollBrandLivery();
     }
 
     // Skip rest of update in idle (except settings remain responsive)
@@ -537,6 +539,7 @@
       // On an iPad the crop of the car's paint behind the badge is the rig's to choose; the page asks for it
       // (car-logos.js). In the app the main process sends it of its own accord.
       if ((window._remoteMode || window._obsMode) && typeof requestRemoteLivery === 'function') requestRemoteLivery();
+      if (typeof rollBrandLivery === 'function') rollBrandLivery();
       // Track car usage for driver profile heatmap
       if (carModel && !_demo && typeof recordCarSession === 'function') recordCarSession(carModel);
     }

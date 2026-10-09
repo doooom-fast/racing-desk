@@ -29,6 +29,8 @@
     'UTC', 'AM', 'PM', 'CC',
     // Audio: the bass channel, in his own words ("disable lfe")
     'LFE',
+    // His brand, which is spelled in capitals (the Racing Desk's tile is a part of its wordmark, and says so: "DOOOOM logo")
+    'DOOOOM',
   ]);
 
   // The car list's own short labels for its controls, as the cars show them (packages/car-list/cars.json, "label"): what

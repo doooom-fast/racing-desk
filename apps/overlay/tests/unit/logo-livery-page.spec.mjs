@@ -1,10 +1,13 @@
 /**
  * The livery behind the car badge, on the page (modules/js/car-logos.js; #carLivery in dashboard.html): the real
  * dashboard.html, headless. In the app the crop the main process chose is laid under the logo, over the maker's
- * colour, and taken away when it says there is none. On an iPad the badge is not shown (he asked for the logos to go,
- * 2026-09-30), so the crop is never asked for, through remote-server.js's real server on 127.0.0.1. In a browser with
- * nothing behind it the badge is the maker's colour and nothing is asked for. In the glance layout on the rig the
- * darkening over the crop deepens under the flags the panels take a heavier tint under, and under no others.
+ * colour, and taken away when it says there is none. On an iPad the badge is back (he asked for the logos to go on
+ * 2026-09-30 and for them back on 2026-10-08, top left, the Racing Desk's first), so the crop is asked for when the car
+ * changes and when he is back in it, through remote-server.js's real server on 127.0.0.1; and the Racing Desk's own
+ * tile, a part of the DOOOOM wordmark (modules/js/brand-livery.js), takes its two colours from that crop and shows
+ * another part of the wordmark each time he is back in the car. In a browser with nothing behind it the badge is the
+ * maker's colour and nothing is asked for. In the glance layout on the rig the darkening over the crop deepens under
+ * the flags the panels take a heavier tint under, and under no others.
  */
 
 import { test, expect } from '@playwright/test';
@@ -35,6 +38,7 @@ function cropOf(r, g, b, size = 8) {
   return tga.toPng({ width: size, height: size, rgb });
 }
 const dataUrlOf = (png) => `data:image/png;base64,${png.toString('base64')}`;
+const rgbOf = (css) => (/rgb\((\d+), (\d+), (\d+)\)/.exec(css) || []).slice(1).map(Number);
 
 const PORSCHE = MOCK_TELEMETRY;   // 'Porsche 911 GT3 R'
 const BMW = { ...MOCK_TELEMETRY, 'DataCorePlugin.GameData.CarModel': 'BMW M4 GT3' };
@@ -224,10 +228,24 @@ test.describe('on an iPad', () => {
     await new Promise((resolve) => { telemetry.close(resolve); telemetry.closeAllConnections(); });
   });
 
-  // He asked for the logos to go from the iPad (2026-09-30): the car's badge is not shown there, so the crop of the
-  // paint under it is never asked for — not when the car changes, not when he gets back in the car.
-  test('the badge is not shown and the crop is never asked for: when the car changes, nor back in the car', async ({ page }) => {
-    test.setTimeout(60000);
+  // He asked for the logos to go from the iPad on 2026-09-30 and for them back on 2026-10-08: the tiles are drawn, the crop
+  // of the paint under the car's is asked for when the page opens, when the car changes and when he gets back in the car,
+  // and the Racing Desk's tile (a part of the DOOOOM wordmark) takes its colours from it.
+  const brand = (page) => page.evaluate(() => {
+    const el = document.getElementById('brandLivery');
+    const cs = getComputedStyle(el);
+    const svg = el.querySelector('svg');
+    return {
+      body: cs.getPropertyValue('--brand-body').trim(), ink: cs.getPropertyValue('--brand-ink').trim(), fromPaint: el.classList.contains('from-paint'),
+      window: svg.getAttribute('viewBox'),
+      mask: (svg.querySelector('mask image') || {}).href ? svg.querySelector('mask image').href.baseVal : '',
+      lettering: getComputedStyle(svg.querySelector('rect')).fill,
+      images: document.querySelectorAll('#brandLogoSquare img').length,
+    };
+  });
+
+  test('the two tiles are back and the crop is asked for: when the page opens, when the car changes, back in the car; the Racing Desk\'s tile takes its colours from it and shows another part of the wordmark each time', async ({ page }) => {
+    test.setTimeout(90000);
     const onTrack = (value) => ({ ...PORSCHE, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': value });
     payload = onTrack(1);
     crop = { png: cropOf(200, 30, 30), id: '1-1' };
@@ -239,26 +257,136 @@ test.describe('on an iPad', () => {
     await page.goto(`http://127.0.0.1:${port}/?k=${KEY}`);
     await expect.poll(() => badge(page).then((b) => b.label), { timeout: 15000 }).toBe('911 GT3 R');
     expect(await page.evaluate(() => document.body.classList.contains('drive-mode-active'))).toBe(true);
-    const notDrawn = () => page.evaluate(() => ['brandLogoSquare', 'carLogoSquare'].map((id) => document.getElementById(id).getClientRects().length));
-    expect(await notDrawn()).toEqual([0, 0]);
+    const drawn = () => page.evaluate(() => ['brandLogoSquare', 'carLogoSquare'].map((id) => document.getElementById(id).getClientRects().length > 0));
+    expect(await drawn()).toEqual([true, true]);
 
-    // The car changes; he leaves the car and gets back in. Nothing is asked for.
+    // Asked for when the page opens, and shown under the car's logo.
+    await expect.poll(() => requested.filter((u) => CROP_URL.test(u)).length, { timeout: 10000 }).toBeGreaterThan(0);
+    await expect.poll(() => badge(page), { timeout: 10000 }).toMatchObject({ hasLivery: true });
+    // The Racing Desk's tile: the wordmark as the mask, no old mark in it, and the paint's own colours: the red ground, the
+    // lettering lighter than it.
+    await expect.poll(() => brand(page).then((b) => b.fromPaint), { timeout: 10000 }).toBe(true);
+    let b = await brand(page);
+    expect(b.mask).toContain('doooom-mark.png');
+    expect(rgbOf(b.lettering), 'the lettering is filled with the ink').toEqual(rgbOf(b.ink));
+    expect(b.images, 'the old mark is gone from the tile').toBe(0);
+    expect(rgbOf(b.body)).toEqual([200, 30, 30]);
+    expect(rgbOf(b.ink)[0]).toBeGreaterThan(230);
+    expect(rgbOf(b.ink)[1]).toBeGreaterThan(190);
+
+    // The car changes: asked for again, and the colours follow the crop that is chosen then.
+    const before = requested.filter((u) => CROP_URL.test(u)).length;
+    crop = { png: cropOf(30, 30, 200), id: '2-1' };
     payload = { ...BMW, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': 1 };
-    await expect.poll(() => badge(page).then((b) => b.label), { timeout: 15000 }).toBe('M4 GT3');
-    payload = onTrack(0);
-    await expect.poll(() => page.evaluate(() => document.body.classList.contains('idle-state')), { timeout: 15000 }).toBe(true);
-    payload = onTrack(1);
-    await expect.poll(() => page.evaluate(() => document.body.classList.contains('idle-state')), { timeout: 15000 }).toBe(false);
-    await page.waitForTimeout(1500);
-    expect(requested.filter((u) => CROP_URL.test(u))).toEqual([]);
-    const b = await badge(page);
-    expect(b.hasLivery).toBe(false);
-    expect(b.image).toBe('');
-    expect(await notDrawn()).toEqual([0, 0]);
-    // The way in is still there and does nothing; the colour of the car's maker is still set for the map's car.
-    await page.evaluate(() => window.requestRemoteLivery());
-    await page.waitForTimeout(500);
-    expect(requested.filter((u) => CROP_URL.test(u))).toEqual([]);
+    await expect.poll(() => badge(page).then((x) => x.label), { timeout: 15000 }).toBe('M4 GT3');
+    await expect.poll(() => requested.filter((u) => CROP_URL.test(u)).length, { timeout: 10000 }).toBeGreaterThan(before);
+    await expect.poll(() => brand(page).then((x) => rgbOf(x.body).join()), { timeout: 15000 }).toBe('30,30,200');
+
+    // He leaves the car and gets back in: asked for again, and another part of the wordmark (a roll is of continuous
+    // numbers, so a part the same as the last is not a chance worth a test; three goes, one at least differs).
+    const windows = [(await brand(page)).window];
+    for (let i = 0; i < 3; i++) {
+      const asked = requested.filter((u) => CROP_URL.test(u)).length;
+      payload = { ...BMW, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': 0 };
+      await expect.poll(() => page.evaluate(() => document.body.classList.contains('idle-state')), { timeout: 15000 }).toBe(true);
+      payload = { ...BMW, 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack': 1 };
+      await expect.poll(() => page.evaluate(() => document.body.classList.contains('idle-state')), { timeout: 15000 }).toBe(false);
+      await expect.poll(() => requested.filter((u) => CROP_URL.test(u)).length, { timeout: 10000 }).toBeGreaterThan(asked);
+      windows.push((await brand(page)).window);
+    }
+    expect(new Set(windows).size, `the windows: ${windows.join(' | ')}`).toBeGreaterThan(1);
+    expect(await drawn()).toEqual([true, true]);
+    // The way in stays: the colour of the car's maker is still set for the map's car.
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--map-player-color').trim())).not.toBe('');
+  });
+});
+
+// ── The Racing Desk's tile on its own: a part of the DOOOOM wordmark in the colours of the paint, or the glass's own ──
+test.describe('the Racing Desk\'s tile', () => {
+  test('with no paint it is the glass\'s colours; a crop of one colour gives the ground and a lighter lettering; two colours give those two; no paint puts it back', async ({ page }) => {
+    await open(page, { bridge: true, crop: null });
+    await expect.poll(() => page.evaluate(() => typeof window.__liverySays === 'function')).toBe(true);
+    await page.evaluate(() => document.body.classList.add('drive-mode-active'));
+    const read = () => page.evaluate(() => {
+      const el = document.getElementById('brandLivery');
+      const cs = getComputedStyle(el);
+      return { body: cs.getPropertyValue('--brand-body').trim(), ink: cs.getPropertyValue('--brand-ink').trim(), fromPaint: el.classList.contains('from-paint') };
+    });
+    expect(await read()).toEqual({ body: 'rgb(22, 25, 32)', ink: 'rgb(115, 140, 191)', fromPaint: false });
+    // One colour: its own lightness picks the lettering (lighter on a dark ground, darker on a light one).
+    await page.evaluate((url) => window.__liverySays(url), dataUrlOf(cropOf(200, 30, 30)));
+    await expect.poll(() => read().then((r) => r.fromPaint)).toBe(true);
+    let r = await read();
+    expect(rgbOf(r.body)).toEqual([200, 30, 30]);
+    expect(rgbOf(r.ink)[1]).toBeGreaterThan(190);
+    await page.evaluate((url) => window.__liverySays(url), dataUrlOf(cropOf(235, 235, 230)));
+    await expect.poll(() => read().then((x) => rgbOf(x.body).join())).toBe('235,235,230');
+    r = await read();
+    expect(rgbOf(r.ink)[0], 'on a light ground the lettering is dark').toBeLessThan(60);
+    // Two colours: a half and a half (the crop is drawn as a picture of four pixels' width, in the page).
+    const two = await page.evaluate(() => {
+      const c = document.createElement('canvas'); c.width = c.height = 8;
+      const g = c.getContext('2d');
+      g.fillStyle = 'rgb(10, 40, 160)'; g.fillRect(0, 0, 8, 8);
+      g.fillStyle = 'rgb(250, 190, 20)'; g.fillRect(0, 0, 8, 3);
+      return c.toDataURL('image/png');
+    });
+    await page.evaluate((url) => window.__liverySays(url), two);
+    // (the crop is scaled to a few pixels in the page, so the edge between the two is a blend: the colours are near, not exact)
+    await expect.poll(() => read().then((x) => { const c = rgbOf(x.body); return c[0] < 50 && c[2] > 130; })).toBe(true);
+    r = await read();
+    expect(rgbOf(r.ink)[0]).toBeGreaterThan(220);
+    expect(rgbOf(r.ink)[1]).toBeGreaterThan(160);
+    expect(rgbOf(r.ink)[2]).toBeLessThan(60);
+    // Told there is no paint (another car): the glass's colours again.
+    await page.evaluate(() => window.__liverySays(null));
+    await expect.poll(() => read().then((x) => x.fromPaint)).toBe(false);
+    expect(await read()).toMatchObject({ body: 'rgb(22, 25, 32)', ink: 'rgb(115, 140, 191)' });
+  });
+
+  test('it shows the wordmark, a part of it, in both colours, and the part is rolled again each time it is asked for', async ({ page }) => {
+    test.setTimeout(60000);
+    await open(page, { bridge: true, crop: dataUrlOf(cropOf(30, 60, 180)) });
+    await page.setViewportSize({ width: 1180, height: 820 });
+    await page.evaluate(() => { _settings.showWebGL = false; setDriveMode(true); });
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('brandLivery')).getPropertyValue('--brand-body').trim()), { timeout: 10000 }).toBe('rgb(30, 60, 180)');
+    // A part of the wordmark with a good deal of lettering in it: the middle of the rolls' numbers.
+    await page.evaluate(() => window.rollBrandLivery(() => 0.5));
+    await page.waitForTimeout(600);
+    // The tile as it is drawn: some of it the ground and some the lettering, neither all there is.
+    const share = async () => {
+      const box = await page.locator('#brandLogoSquare').boundingBox();
+      const shot = await page.screenshot({ clip: box });
+      return page.evaluate(async ({ b64, w, h }) => {
+        const img = new Image();
+        img.src = 'data:image/png;base64,' + b64;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const g = c.getContext('2d', { willReadFrequently: true });
+        g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, img.width, img.height).data;
+        let ground = 0, letters = 0, n = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          n++;
+          // the ground is the blue, darkened toward the edges; the lettering is the lighter tint of it
+          if (d[i] < 60 && d[i + 2] > 70) ground++;
+          else if (d[i] > 100 && d[i + 1] > 110) letters++;
+        }
+        return { ground: ground / n, letters: letters / n, w: img.width, h: img.height };
+      }, { b64: shot.toString('base64') });
+    };
+    const first = await share();
+    expect(first.ground, `the ground: ${JSON.stringify(first)}`).toBeGreaterThan(0.1);
+    expect(first.letters, `the lettering: ${JSON.stringify(first)}`).toBeGreaterThan(0.08);
+    expect(Math.abs(first.w - first.h), 'the tile is square').toBeLessThanOrEqual(1);
+    // Rolled again: the parts differ (twenty rolls, a dozen at least distinct).
+    const parts = await page.evaluate(() => {
+      const svg = document.querySelector('#brandLivery svg');
+      const seen = new Set();
+      for (let i = 0; i < 20; i++) { window.rollBrandLivery(); seen.add(svg.getAttribute('viewBox')); }
+      return seen.size;
+    });
+    expect(parts).toBeGreaterThanOrEqual(15);
   });
 });

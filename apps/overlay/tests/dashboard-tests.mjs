@@ -69,10 +69,10 @@ test.describe('Page structure', () => {
     expect(hasHist).toBeTruthy();
   });
 
-  test('K10 logo image is present', async ({ page }) => {
+  test('the brand tile is a part of the DOOOOM wordmark, a livery detail', async ({ page }) => {
     await load(page);
-    const logo = page.locator('#brandLogoSquare img');
-    await expect(logo).toHaveAttribute('src', 'images/branding/logomark.png');
+    await expect(page.locator('#brandLogoSquare #brandLivery svg mask image')).toBeAttached();
+    await expect(page.locator('#brandLogoSquare img')).toHaveCount(0);
   });
 
   test('settings overlay element exists', async ({ page }) => {

@@ -131,7 +131,7 @@
   }
   window.applyZoom = applyZoom;
 
-  // Logo subtitle: small text under the K10 logo square. The setting
+  // Logo subtitle: small text under the DOOOOM logo tile (brandLogoSquare). The setting
   // ships from the host but no DOM was wired before; insert lazily so
   // the logo column doesn't grow when the subtitle is empty.
   function applyLogoSubtitle() {

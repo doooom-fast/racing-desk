@@ -113,6 +113,8 @@
       layer.style.backgroundImage = '';
       sq.classList.remove('has-livery');
     }
+    // The Racing Desk's own tile takes its two colours from the same crop (brand-livery.js); no paint, its own.
+    if (window.RacingDeskBrandLivery) window.RacingDeskBrandLivery.followPaint(_liveryUrl);
   }
   window.setCarLivery = setCarLivery;
 
@@ -140,15 +142,14 @@
   }
 
   // The car has changed (or he is back in it): the page that is not the rig's own window asks the server it came from
-  // for the crop of his paint behind the badge. In the page OBS draws (window._obsMode) the badge is in the picture,
-  // so the crop is fetched from the loopback listener, a few times over the first seconds in case the rig has not
-  // chosen it yet. On an iPad the badge is not shown (drive-view.css: he asked for the logos to go, 2026-09-30), so
-  // the crop is never asked for there: nothing is fetched — nor in the iPad dashboard OBS draws (window._obsGlance),
-  // which has no badge either. The way in stays for all three; fetchRemoteLivery is what asks.
+  // for the crop of his paint behind the badge, a few times over the first seconds in case the rig has not chosen it
+  // yet: from the loopback listener in the pages OBS draws (window._obsMode, the iPad dashboard too: its badges are back,
+  // 2026-10-08), from the rig's server on an iPad (window._remoteMode; he asked for the logos to go on 2026-09-30, and
+  // for them back on 2026-10-08). fetchRemoteLivery is what asks.
   function requestRemoteLivery() {
     for (const t of _liveryTimers) clearTimeout(t);
     _liveryTimers = [];
-    if (!window._obsMode || window._obsGlance || typeof fetch !== 'function') return;
+    if (!(window._remoteMode || window._obsMode) || typeof fetch !== 'function') return;
     const ask = ++_liveryAsk;
     _liveryTimers = LIVERY_ASK_AT_MS.map((ms) => setTimeout(() => { fetchRemoteLivery(ask); }, ms));
   }

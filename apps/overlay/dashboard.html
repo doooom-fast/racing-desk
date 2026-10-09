@@ -273,8 +273,19 @@
     <!-- COL: Logo (two stacked squares) -->
     <div class="logo-col">
       <div class="logo-square" id="brandLogoSquare">
-        <canvas class="gl-overlay" id="brandLogoGlCanvas" style="z-index:1;"></canvas>
-        <img src="images/branding/logomark.png" alt="RacingDesk" style="width:75%;height:auto;opacity:1;position:relative;z-index:2;">
+        <!-- A part of the DOOOOM wordmark, large and cropped by the square, in the colours of the car's paint: the wordmark
+             as an SVG mask (an <image>, which a page from a file may draw, where a CSS mask of a file's image is refused), a
+             window on it (the viewBox) and two colours (modules/js/brand-livery.js, .brand-livery in dashboard.css). -->
+        <div class="brand-livery" id="brandLivery" role="img" aria-label="DOOOOM">
+          <svg class="brand-livery-art" viewBox="130 0 208 208" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+            <defs>
+              <mask id="brandLiveryMask" maskUnits="userSpaceOnUse" x="0" y="0" width="1400" height="260">
+                <image href="images/branding/doooom-mark.png" x="0" y="0" width="1400" height="260"></image>
+              </mask>
+            </defs>
+            <rect x="0" y="0" width="1400" height="260" mask="url(#brandLiveryMask)"></rect>
+          </svg>
+        </div>
       </div>
       <div class="logo-square" id="carLogoSquare">
         <!-- A section of the car's own paint, under everything else in the square: the main process chooses it
@@ -820,6 +831,7 @@
 <script src="modules/js/config.js"></script>
 <script src="modules/js/settings.js"></script>
 <script src="modules/js/keyboard.js"></script>
+<script src="modules/js/brand-livery.js"></script>
 <script src="modules/js/car-logos.js"></script>
 <script src="modules/js/game-detect.js"></script>
 <script src="modules/js/map-zoom.js"></script>

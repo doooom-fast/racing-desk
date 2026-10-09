@@ -56,7 +56,7 @@
         on('showIncidents', 'Incidents'),
         on('showSpotter', 'Spotter'),
         on('showBonkers', 'Pit limiter', 'The flash while the limiter is on.'),
-        on('showK10Logo', 'Racing Desk logo'),
+        on('showK10Logo', 'DOOOOM logo'),
         on('showCarLogo', 'Car logo'),
         on('showGameLogo', 'Game logo'),
       ],
@@ -86,7 +86,7 @@
         on('showWebGL', 'WebGL effects', 'Glare, bloom and vignette.'),
         {
           key: 'logoSubtitle', label: 'Logo subtitle', type: 'text', def: '', placeholder: 'none',
-          hint: 'A short line under the Racing Desk logo.',
+          hint: 'A short line under the DOOOOM logo.',
         },
       ],
     },
