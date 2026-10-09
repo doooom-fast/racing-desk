@@ -56,6 +56,10 @@ namespace RacingDesk.Plugin.Engine
         /// <summary>What follows the car the driver is in: the list it reads, and what its check has said this run.</summary>
         public static RacingDesk.Core.Cars.CarControlsFollower Cars => _carControls;
 
+        // ── The three cells in Assetto Corsa and Assetto Corsa EVO, from SimHub's raw data (no car list for them yet) ──
+        internal static RacingDesk.Core.Cars.AcCarControls _acControls = new RacingDesk.Core.Cars.AcCarControls();
+        private static bool _saidNoAcStatus;
+
         // ── iRating estimator (legacy shared memory reader, kept as fallback) ────
         private static IRatingEstimator _irEstimator;
         private static SectorTracker _sectorTracker = new SectorTracker();
@@ -370,6 +374,21 @@ namespace RacingDesk.Plugin.Engine
 
             GameId detectedGame = DetectGame(s.GameName);
 
+            // Assetto Corsa and EVO: what the shared memory says of the car's bias, anti-lock and traction (Cars/AcCarControls.cs),
+            // read once here for the three cells, the pit box's HasABS/HasTC and the two settings below.
+            RacingDesk.Core.Cars.CarControlsState acControls = null;
+            if (detectedGame == GameId.AC || detectedGame == GameId.ACEvo)
+            {
+                try
+                {
+                    acControls = _acControls.See(pm, detectedGame == GameId.ACEvo ? RacingDesk.Core.Cars.AcCarControls.Game.AssettoCorsaEvo : RacingDesk.Core.Cars.AcCarControls.Game.AssettoCorsa, s.CarModel);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn($"[RacingDesk] Assetto Corsa controls: {ex.Message}");
+                }
+            }
+
             // ── Game-aware driver controls and telemetry ─────────────────────
             // Steering angle: game-specific raw → iRacing radians, ACC degrees
             if (detectedGame == GameId.ACC || detectedGame == GameId.AC || detectedGame == GameId.ACEvo || detectedGame == GameId.ACRally)
@@ -387,9 +406,18 @@ namespace RacingDesk.Plugin.Engine
             // Brake bias: game-specific (percentage 0-100)
             s.BrakeBias = GetGameBrakeBias(pm, detectedGame);
 
-            // Traction control & ABS settings
-            s.TractionControlSetting = GetGameTC(pm, detectedGame);
-            s.AbsSetting = GetGameABS(pm, detectedGame);
+            // Traction control & ABS settings. Assetto Corsa's memory has no level (the cells go by AcCarControls); EVO's is
+            // the electronics block's, where SimHub gives it.
+            if (detectedGame == GameId.AC || detectedGame == GameId.ACEvo)
+            {
+                s.TractionControlSetting = _acControls.TcLevel ?? 0;
+                s.AbsSetting = _acControls.AbsLevel ?? 0;
+            }
+            else
+            {
+                s.TractionControlSetting = GetGameTC(pm, detectedGame);
+                s.AbsSetting = GetGameABS(pm, detectedGame);
+            }
 
             // Fix #12: Steering torque — cross-game
             if (detectedGame == GameId.ACC || detectedGame == GameId.AC || detectedGame == GameId.ACEvo || detectedGame == GameId.ACRally)
@@ -485,15 +513,23 @@ namespace RacingDesk.Plugin.Engine
             }
 
             // ── iRating / Safety Rating ─────────────────────────────────────
+            // iRacing's alone (2026-10-09): the bridge, the shared-memory estimator, the plugin properties and the caches
+            // below are all iRacing's, and the cache of the last known iRating would have been shown in Assetto Corsa after
+            // an iRacing session in the same SimHub run. In another sim the HUD is sent nought, which it shows as a dash.
             // Priority chain:
             // 1. IRacingSdkBridge (IRSDKSharper — direct SDK with proper YAML parsing)
             // 2. IRacingExtraProperties plugin properties
             // 3. SimHub normalized properties
             // 4. iRacing raw telemetry via SimHub
             // 5. Opponents collection fallback
+            bool ratingsGame = detectedGame == GameId.IRacing || detectedGame == GameId.Unknown;
+            if (!ratingsGame)
+            {
+                s.EstimatedIRatingDelta = int.MinValue; // sentinel: no data
+            }
 
             // Try SDK bridge first (most reliable — proper SDK with parsed YAML)
-            if (_sdkBridge != null && _sdkBridge.IsConnected)
+            if (ratingsGame && _sdkBridge != null && _sdkBridge.IsConnected)
             {
                 s.IRating = _sdkBridge.PlayerIRating;
                 s.SafetyRating = _sdkBridge.PlayerSafetyRating;
@@ -516,7 +552,7 @@ namespace RacingDesk.Plugin.Engine
             }
 
             // Fallback: legacy IRatingEstimator (hand-rolled shared memory reader)
-            if (s.IRating == 0)
+            if (ratingsGame && s.IRating == 0)
             {
                 if (_irEstimator == null) _irEstimator = new IRatingEstimator();
                 _irEstimator.TryReadSessionInfo();
@@ -524,9 +560,11 @@ namespace RacingDesk.Plugin.Engine
                 if (s.IsStandingStart == false)
                     s.IsStandingStart = _irEstimator.IsStandingStart;
             }
-            if (s.SafetyRating == 0 && _irEstimator != null)
+            if (ratingsGame && s.SafetyRating == 0 && _irEstimator != null)
                 s.SafetyRating = _irEstimator.PlayerSafetyRating;
 
+            if (ratingsGame)
+            {
             // Fallback: IRacingExtraProperties plugin
             if (s.IRating == 0)
                 s.IRating = GetPluginProp<int>(pm, "IRacingExtraProperties.iRacing_DriverInfo_IRating");
@@ -564,7 +602,8 @@ namespace RacingDesk.Plugin.Engine
             // Fix #3: Estimated iRating change — use int.MinValue as sentinel for "no data"
             // so that JS can distinguish "delta is 0" (valid) from "no data yet" (show —)
             s.EstimatedIRatingDelta = int.MinValue; // sentinel: no data
-            if (s.Position > 0 && s.IRating > 0)
+            }   // ratingsGame
+            if (ratingsGame && s.Position > 0 && s.IRating > 0)
             {
                 if (_sdkBridge != null && _sdkBridge.IsConnected)
                 {
@@ -650,7 +689,7 @@ namespace RacingDesk.Plugin.Engine
 
             // ── Grid / Formation state ────────────────────────────────────
             s.SessionState = GetRaw<int>(pm, "SessionState");
-            s.InCar        = InCar(pm);
+            s.InCar        = InCar(pm, detectedGame);
             // The sim's own clock, for the recording's sidecar: iRacing's alone, and only where it said.
             s.SessionNum   = detectedGame == GameId.IRacing ? SessionNum(pm) : null;
             s.SessionTime  = detectedGame == GameId.IRacing ? SessionTime(pm) : null;
@@ -732,10 +771,17 @@ namespace RacingDesk.Plugin.Engine
 
             // Fix #16: ACC cars always have TC and ABS — the iRacing dc* detection
             // never triggers for ACC because ACC uses different property paths (Graphics.TC/ABS).
-            if (detectedGame == GameId.ACC || detectedGame == GameId.ACEvo || detectedGame == GameId.AC || detectedGame == GameId.ACRally)
+            if (detectedGame == GameId.ACC || detectedGame == GameId.ACRally)
             {
                 _hasTC = true;
                 _hasABS = true;
+            }
+            // Assetto Corsa and EVO: the car has the aid when it has been seen working, or a level read above nought, in this
+            // car this run (AcCarControls) — not every car of those games has anti-lock or traction control.
+            else if (detectedGame == GameId.AC || detectedGame == GameId.ACEvo)
+            {
+                _hasTC = _acControls.HasTc;
+                _hasABS = _acControls.HasAbs;
             }
 
             s.HasTC = _hasTC;       s.HasABS = _hasABS;
@@ -780,6 +826,8 @@ namespace RacingDesk.Plugin.Engine
 
             // ── What the car has, and what each control reads now ───────────
             if (detectedGame == GameId.IRacing) s.CarControlsJson = CarControls(pm, s.InCar);
+            // Assetto Corsa and EVO: the three cells from the shared memory, sent in the same shape (Cars/AcCarControls.cs).
+            else if (acControls != null) s.CarControlsJson = acControls.ToJson();
 
             return s;
         }
@@ -837,13 +885,12 @@ namespace RacingDesk.Plugin.Engine
             }
         }
 
+        // (Assetto Corsa and EVO are not asked here: their memory has no such level under ACC's names — Cars/AcCarControls.cs.)
         private static float GetGameTC(ITelemetrySource pm, GameId game)
         {
             switch (game)
             {
                 case GameId.ACC:
-                case GameId.AC:
-                case GameId.ACEvo:
                 case GameId.ACRally:
                     return GetRaw<float>(pm, "Graphics.TC", "DataCorePlugin.GameRawData.");
                 case GameId.RaceRoom:
@@ -859,8 +906,6 @@ namespace RacingDesk.Plugin.Engine
             switch (game)
             {
                 case GameId.ACC:
-                case GameId.AC:
-                case GameId.ACEvo:
                 case GameId.ACRally:
                     return GetRaw<float>(pm, "Graphics.ABS", "DataCorePlugin.GameRawData.");
                 case GameId.RaceRoom:
@@ -1044,16 +1089,69 @@ namespace RacingDesk.Plugin.Engine
         }
 
         /// <summary>
-        /// iRacing's IsOnTrack, and not a replay of it. Null from a sim that publishes no such variable: nothing
-        /// is said rather than "out of the car", which would hide the HUD for good.
+        /// Whether the driver is in the car, by the game the source names: iRacing's IsOnTrack, Assetto Corsa's status.
+        /// Null from a sim that says nothing of it: nothing is said rather than "out of the car", which would hide the HUD
+        /// for good.
         /// </summary>
-        internal static bool? InCar(ITelemetrySource pm)
+        internal static bool? InCar(ITelemetrySource pm) => InCar(pm, DetectGame(pm?.GameName));
+
+        private static bool? InCar(ITelemetrySource pm, GameId game)
+        {
+            if (game == GameId.AC || game == GameId.ACEvo || game == GameId.ACC) return InCarAssetto(pm);
+            return InCarIRacing(pm);
+        }
+
+        /// <summary>iRacing's IsOnTrack, and not a replay of it.</summary>
+        private static bool? InCarIRacing(ITelemetrySource pm)
         {
             try
             {
                 object onTrack = pm.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnTrack");
                 if (onTrack == null) return null;
                 return Flag(onTrack) && !Flag(pm.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsReplayPlaying"));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>The spellings SimHub may give the graphics page's status, Assetto Corsa's and EVO's.</summary>
+        internal static readonly string[] AssettoStatusPaths = { "DataCorePlugin.GameRawData.Graphics.Status", "DataCorePlugin.GameRawData.Graphics.status" };
+
+        /// <summary>
+        /// Assetto Corsa, EVO and Competizione (2026-10-09): in the car while the graphics page's status is live
+        /// (AC_STATUS: 0 off, 1 replay, 2 live, 3 pause), which is what iRacing's IsOnTrack is to the HUD — a replay is out,
+        /// and so is the pause the setup screen puts the sim into. SimHub hands the status over as its enum, an int or text,
+        /// so the name is read first (AC_LIVE) and the number after. Where the status is not under either spelling, SimHub's
+        /// own IsReplayPlaying is the next best: the game running and not in a replay is taken as in the car, said once in
+        /// the log so that the parity run on the rig shows it. Null only where the source has no data at all.
+        /// </summary>
+        internal static bool? InCarAssetto(ITelemetrySource pm)
+        {
+            try
+            {
+                foreach (string path in AssettoStatusPaths)
+                {
+                    object status = pm.GetPropertyValue(path);
+                    if (status == null) continue;
+                    string name = status.ToString() ?? "";
+                    if (name.IndexOf("LIVE", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                    if (name.IndexOf("REPLAY", StringComparison.OrdinalIgnoreCase) >= 0 || name.IndexOf("PAUSE", StringComparison.OrdinalIgnoreCase) >= 0 || name.IndexOf("OFF", StringComparison.OrdinalIgnoreCase) >= 0) return false;
+                    double? n = RacingDesk.Core.Cars.AcCarControls.AsNumber(status);
+                    if (n.HasValue) return n.Value == 2;
+                    return false;
+                }
+                object d = pm.NewData;
+                if (d == null) return null;
+                var replayProp = d.GetType().GetProperty("IsReplayPlaying", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+                if (replayProp == null) return null;
+                if (!_saidNoAcStatus)
+                {
+                    _saidNoAcStatus = true;
+                    Log.Warn("[RacingDesk] Assetto Corsa: SimHub gives no Graphics.Status, so in the car is the game running and not a replay");
+                }
+                return !Flag(replayProp.GetValue(d));
             }
             catch
             {
