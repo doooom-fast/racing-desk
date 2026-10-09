@@ -76,6 +76,7 @@ Far more than just the telemetry HUD. Notable additions beyond the original modu
 | `laps-panel.js` | The glance layout's laps panel: the times, the sectors, the three gaps and the fuel to the flag (see The glance layout) |
 | `gap-trend.js` | Whether the cars ahead and behind are closing or dropping away, lap on lap: the ▼ or ▲ beside their iRating in the gaps block of the glance layout (see The glance layout) |
 | `session-flags.js` | iRacing's own flag field (`SessionFlags`, the host's `DataCorePlugin.GameRawData.Telemetry.SessionFlags`) read into the flag the page shows: a local yellow apart from a full-course caution, one lap to green, green held, the black flag furled, disqualified, the small notices and the start lights (see Flags) |
+| `brand-livery.js` | The Racing Desk's own tile as a detail of a livery: which part of the DOOOOM wordmark shows (rolled each time he is back in the car), the two colours taken from the car tile's crop of his paint; pure where it can be, runs in the page and in Node (see The Racing Desk's tile) |
 | `logo-livery.js` | **Main process only**: the crop of his own paint behind the car badge — which paint, when it is chosen, what is kept and handed to the page and the iPad (see The livery behind the car badge) |
 | `logo-livery-picker.js` | Pure: the window of a paint sheet with artwork in it, scored, and the crop of it; runs in the worker and in Node tests |
 | `logo-livery-worker.js` | A worker thread: reads one paint inside the paint folder, decodes it with `paints/tga.js`, asks the picker, answers with the PNG and no path |
@@ -392,54 +393,45 @@ become the cells, and every module goes on writing to the elements it always did
 states are the HUD's. (The layout that was here before — `#driveHud`, `drive-mode.js`, the `dm-*` and `dh-*` rules,
 `modules/components/` — is gone; it had a face, a track and a colour of its own.)
 
-- **The cells** (24 columns; landscape, then portrait): the position block (`#positionPage`: the place, the places since
-  the start, the lap, the live lap, the delta), the gaps ahead and behind (`#gapsBlock`, with its flag overlay), the tacho,
-  the leaderboard with its sparklines and the race timeline, the full circuit and the local view, the laps panel
-  (below), iRating and safety rating (`#ratingPage`, which on the rig takes turns with the position block; here both are
-  up), the car's controls, the pedals, the Racing Desk mark and the car's badge, the clock (`#raceTimerBlock`), the pit
-  box (its tyres, fuel and weather side by side, not tabs), the datastream, the incidents. Landscape:
-  `hero×7 gaps×4 tacho×7 lb×6 / map×11 local×7 lb / map local lb / ctrl×6 pedals×5 brand×2 car×2 timer×3 rating×6 /
-  pit×10 ds×5 inc×3 laps×6` (rows 18 / 30 / 13 / 12 / 23.5 fr, and 16.5 / 30 / 14.5 / 12 / 23.5 on a screen wider than 3:2
-  on its side — the mini, the rig's 16:9 and ultrawide, a wide box in OBS — which is short for its width; under 1100px wide —
-  the 9.7" — the right-hand column is 7 and the maps 10 and 7, for the leaderboard's names and the laps panel's two columns
-  of times); portrait: `hero×9 gaps×7 tacho×8 / map×15 local×9 / lb×15 laps×9 / lb rating×9 / ctrl×8 pedals×6 brand×2
-  car×3 timer×5 / pit×13 ds×6 inc×5` (rows 14 / 27.5 / 16 / 8 / 8 / 17 fr: the controls' row keeps the 8 a prototype's dials
-  in a row beneath want). **The maps are 1.5 times what they were** (he asked on 2026-10-01: "Make the maps 1.5x their size
-  on iPad version"), **as drawn**: the circuit's outline is at least 1.45 times the 6253ff1 layout's, on both axes, at every
-  iPad size and on the rig's two screens (1.495 at the smallest, the mini on its side; 1.5 to 1.7 elsewhere), and the
-  following map's cell, whose scale follows its width, at least 1.75 times as wide. Before, the circuit had 7 columns over
-  34 row-units and the following map 4, with the laps panel and the ratings beside them (`map×7 local×4 laps×6 lb×7`,
-  rows 20 / 24 / 10 / 13 / 29). The floors leave no width for the maps beside a 6-column leaderboard and a 6-column laps
-  panel, so the laps panel and the ratings are under the leaderboard in its column and the maps' rows are theirs: at
-  1180x820 the circuit's cell is 528x352 where it was 334x281, the following map's 334x352 where it was 188x281. **The
-  first cut gave the cells the room and counted the cells** (1.9 times the area at 1180x820), and the circuit was drawn
-  only 1.2 to 1.4 times: a circuit is limited by the height of its cell on a screen on its side, which had grown 1.2
-  times, and the svg's margin round it was 6 % of the circuit's longer side (22px of 366, a seventh of that height). So
-  the margin is nine pixels (`_DV_MAP_MARGIN_PX` in `webgl-helpers.js`: the outline's outer stroke reaches 6px past its
-  centre line and the car's dot 7px; the svg's overflow is visible, so the glow shows into the cell's 4px of padding), and
-  the rows were shared out for it: the maps 43 of 96.5 row-units on its side (44.5 of 96.5 on a wide screen; they were 34
-  of 96, and 41 in the first cut) and upright 27.5 of 90.5 (21, and 27). What the maps cost, which he has not been asked
-  about: on its side the leaderboard has the top three rows only (whole rows on an Air 16, where it had 21; 15 on the mini,
-  the 9.7" and the 10.2"; 18 on the 12.9"); upright the leaderboard has 7 to 9 rows where it had 9, the tacho moved into
-  the hero's row (`hero×9 gaps×7 tacho×8`; the place is on 9 columns of 24 where it was on 14, still at 80px), and the
-  laps panel, in 16 row-units where it had 20, has lost its heading ("Laps 12 / 20", which the hero's "Lap 12" and the
-  clock's laps to go say) and its third row of times ("Optimal", "vs all-time"); and the gaps block drops the words
-  "Ahead" and "Behind" in a cell under 138px (134 inside; its padding and the gap between its items are 1px and 2px so that
-  the Air on its side, 145px, keeps them), which is the 9.7" and the mini on their sides (the order, the sign and the
-  colour say which is which). The tacho was in the maps' row upright (`tacho×8 map×11
-  local×5`, rows 15 / 21 / 20 / 9 / 8 / 17) and is in the hero's now, so the maps have the row to themselves (498x343 and
-  296x343 at 820x1180, where they were 363x264 and 162x264). The gaps block is a column in both orientations (its cell is
-  near-square in both now), and upright the menu's button is over the tacho's corner, so its speed stops short of it as
-  in a landscape test drive. The rows the floors allow: a prototype's dials want 12 units, the pit box with the engine
-  calling 23.5 (where the fuel page gives up the pit's add under 240px and the window under 185px; the datastream its
-  g-force diamond under 180px, and its row of the track's temperature always, which the weather page beside it says
-  larger; the ratings their bar's thousands under 135px, and keep the room those take where they are shown). The hero
-  wants 16.5 (the tacho's gear is cut off below about 118px: 16 on a mini). `drive-view.spec.mjs` holds the circuit's
-  drawn size against the old layout's (a table of what 6253ff1 drew of the test circuit at every size), the margin round
-  it, the following map's width, and the two maps to 27 % of the screen at every size. The tracks are `fr`, the edge round the grid
-  `clamp(8px, 1.2vmin, 14px)` and the gutters `clamp(5px, 0.75vmin, 9px)`; nothing is set per device. Every panel is a cell
-  whatever the rig's settings hide from its own screen (`settings.js` `applySettings` shows them all in drive mode, and
-  leaving drive mode puts the settings' choice back), and nothing in a cell is a touch target.
+- **The cells** (he asked on 2026-10-08, of the iPad: "Maps on iPad version should always be square and equally sized",
+  "I want the logos back on iPad version always square in the top left next to each other. My logo first", and "No tires or
+  fuel on iPad"). **One grid for every size**, laid out from one length, `--rd-sq`, the side of the two maps
+  (`drive-view.css`, the first rule): landscape, **30 columns, of which the first twenty are the two maps' ten each**
+  (`repeat(20, var(--rd-col)) repeat(10, minmax(0, 1fr))`, `--rd-col` = (`--rd-sq` less nine gutters) / 10) and the last ten
+  the leaderboard's column, and rows `tile / 30⁄43 of --rd-sq / 13⁄43 of it / 12fr / 23.5fr` (the maps' row is two, so that a
+  test drive can stack two panels beside them: the maps span both). `--rd-sq` is **a third of the width, or what the height
+  leaves, whichever is less**: the second is 0.4514 of the height less 0.663 gutters, which is the 12 and 23.5 row-units
+  the controls' row and the bottom row have always had, and the top row's height (`--rd-tile`), solved for the maps (the
+  top row is the two tiles' side: four columns of a map, 0.4 of it less 0.6 gutters). On a screen as short as 4:3 the width
+  is the least (the 9.7", the 10.2", the 12.9": the maps and the leaderboard are thirds of the screen, and every column is
+  the same width); on a wider one — the Air at 1.44, the mini at 1.52, the rig — the height is, and the leaderboard's column
+  has what the maps do not (434px wide at 1180x820, 357 high). Upright, the maps are the halves of the width (`--rd-sq` is
+  half the width, and the 20 columns are the page's own, ten to a map). **Landscape**:
+  `brand×4 car×4 hero×9 gaps×5 tacho×8 / map×10 local×10 lb×10 (two rows) / ctrl×9 pedals×8 timer×3 rating×10 /
+  pit×7 ds×8 inc×5 laps×10`; **upright**: `brand×2 car×2 rating×10 timer×6 (a strip, as tall as the tiles are wide) /
+  hero×8 gaps×5 tacho×7 / map×10 local×10 / lb×12 laps×8 (two rows) / ctrl×10 pedals×10 / pit×7 ds×8 inc×5`, rows
+  `tile / 14fr / --rd-sq / 12fr / 8fr / 10fr / 17fr`. The tiles are four columns of a map wide (landscape: 139px at
+  1180x820) or two (upright: 75px at 820x1180), and their row is as tall as they are wide, so **they are square at every
+  size, and the maps are square and the same size at every size** (`holdSquares` in `tests/glance-measure.mjs`: a pixel and
+  a half; it is held at every size of `drive-view.spec.mjs`, the rig's three screens, and the ten boxes OBS is given). The
+  gaps block keeps its words "Ahead" and "Behind" down to a cell 135px inside, which the row at 1180x820 (139) has; under
+  that (the 9.7", the mini) it gives them up as it did. **What the squares cost, which he has not been asked about**: the
+  circuit's cell is 357x357 at 1180x820 where it was 528x352 (1.5x, asked 2026-10-01), so the circuit is drawn about 1.2
+  times what the 6253ff1 layout drew where it was drawn 1.5 to 1.7 times (1.1 on the rig's wide screens, which are short
+  for their width: a square cannot be wider than the height); the following map is 357 square where it was 334 by 352; the
+  leaderboard has 9 rows where it had 16 (it is beside the maps, in their row, and not in the top row too: 434x357 where it
+  was 285x490); and upright, 6 where it had 9 (the strip of tiles takes 75px, and the maps 56 more). The hero keeps its 80px
+  place, the pit box is half what it was (the weather alone: 248 wide beside the datastream at 1180x820, where the tyres and
+  the fuel had the room), the laps panel and the ratings are under the leaderboard as they were (and the laps panel's type
+  is capped by its height, `10.5cqh`: its width is more than it was, and a font sized by it did not fit 189px). **The
+  first cut** put the lines at 24 columns, with the tiles three columns wide: the gaps block lost its words at 1180x820
+  (a tile of 133px is a row of 133, under the 135 it wants), so the grid is 30 columns of which a tile is four. Every
+  panel is a cell whatever the rig's settings hide from its own screen (`settings.js` `applySettings` shows them all in
+  drive mode, and leaving drive mode puts the settings' choice back: `showK10Logo` and `showCarLogo` are the rig HUD's
+  switches for its two tiles and do not apply here, as no setting does), and nothing in a cell is a touch target.
+  `drive-view.spec.mjs` holds the circuit's drawn size against the 6253ff1 layout's (a table of what it drew of the test
+  circuit at every size, 1.1 at the least now), the margin round it (nine pixels), and the two maps to 24 % of an iPad's
+  screen (15 % of the rig's wide ones).
 - **What comes and goes** is laid over the cells, as it is over the game on the rig: the spotter's calls over the datastream
   (the least glanced-at cell, and not the circuit), race control over the top of the track, the finish (`#raceEndScreen`)
   over the track and the local view, the commentary card over the pit box, the pit limiter and the grid from the top edge.
@@ -696,10 +688,10 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   has the one `Offline Testing` session and nothing else does (only those fields; nothing of a file is printed).
 - **The menu** (remote-server.js) is a small round button in the top right corner of the iPad's screen, over the frame
   and the corner of whatever cell is there, faint until it is open; its list opens on the side with the more room. On
-  the rig there is no menu. Upright, that corner is the gaps block, and its strip of sectors stops short of the button.
+  the rig there is no menu. On its side that corner is the tacho, whose speed stops short of the button; upright it is the clock, whose words are in the middle of its cell and clear of it.
 - **On an iPad only** (`html.rd-remote`, the rules at the end of `drive-view.css`; the rig's own Ctrl+Shift+F keeps
   everything it had; the iPad dashboard OBS draws, `html.rd-glance` from the loopback listener's `/obs-ipad`, shares
-  the look — the glass, no badges, the row, the sectors — and has none of what is the iPad's alone: no menu, no flag
+  the look — the glass, the two tiles at the top left, the sectors — and has none of what is the iPad's alone: no menu, no flag
   pattern behind or between the panels, no frame, and a transparent page in place of the black one, so the game shows
   through the gutters; `hud-page-obs-ipad.spec.mjs` renders it over a board and reads the pixels), what he asked for on
   2026-09-30: the glass's light at fifteen hundredths of the rig's
@@ -712,13 +704,13 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   computed layers, the frame's `mask-composite` being `exclude`, and the pixels of a screenshot under each of the five
   flags — the gutter between the relative and the laps panel under 80 of 255, the edge over 150 — so a frame whose
   mask stopped taking the inside out, in an engine that does not honour it, would be caught); the flag card in the gaps block, race
-  control's banner and the panels' flag-coloured borders are as strong as they were, and no badges: the Racing Desk mark and the car's
-  maker are not shown, the row they were in is the controls, the pedals and the clock (landscape `ctrl×7 pedals×6
-  timer×5` beside the ratings' six — `ctrl×7 pedals×5 timer×5` beside seven under 1100px wide — portrait `ctrl×9 pedals×8
-  timer×7`), their WebGL canvases (the chevron drift, the maker's flag) are not
-  started, and the crop of his paint is never asked for (`car-logos.js` `requestRemoteLivery` fetches nothing on an
-  iPad; in the page OBS draws, where the badge is in the picture, the same call fetches the crop from the loopback
-  listener).
+  control's banner and the panels' flag-coloured borders are as strong as they were. **The two tiles are back** (he asked on
+  2026-10-08: "always square in the top left next to each other. My logo first"; they went on 2026-09-30, "we don't need the
+  logos"): the Racing Desk's own tile first, a part of the DOOOOM wordmark in the colours of the car's paint (The Racing Desk's
+  tile, below), then the car's, with its maker's mark and its name over the crop of his paint, and the crop is asked for again
+  (`car-logos.js` `requestRemoteLivery` fetches from the rig's server on an iPad and from the loopback listener in both pages
+  OBS draws, when the page opens, when the car changes and when he is back in it). The maker's flag canvas of the car's tile
+  is not started on these pages (`NO_FX_PAGE`); the Racing Desk's tile has no canvas at all.
 - **Data**: the plugin sends 330 keys; the glance layout reads the ones a driver reads at a glance, every one the rig's
   HUD reads (all its panels are here) and what the panels above add. By panel: position, places since the start, lap, live
   lap, the delta (`Position`, `DS.StartPosition`, `PositionDelta`, `CurrentLap`, `CurrentLapTime`, `DS.LapDelta`); the gaps,
@@ -743,9 +735,10 @@ states are the HUD's. (The layout that was here before — `#driveHud`, `drive-m
   `hud-page-obs-ipad.spec.mjs`, which holds the page OBS draws to it at ten boxes (a wide strip, a thin one, a square, a
   1080p box, tall columns, a small box, his whole 3440x1440 canvas) with the engine calling as well — and
   opens the rig's own two screens (1920x1080, 2560x1080) from the file with drive mode switched on — no server and no
-  `html.rd-remote`, so the two badges are cells and the glass is the rig's — in a race, at P12 and P21, with a prototype's
+  `html.rd-remote`, so the glass is the rig's (the two tiles are cells on both) — in a race, at P12 and P21, with a prototype's
   dials, a formula car's DRS, under a yellow flag, with the strategist calling, and out of a race, and holds it to: every
-  panel a cell, inside the screen, none on another,
+  panel a cell, inside the screen, none on another, the two maps square and the same size and the two tiles square at the top
+  left, his first, and no tyres or fuel (`holdSquares`),
   the cells the screen, nothing cut off by its cell or out of sight (every line of text against the box its ancestors show),
   no label under 11px and no number under 20px, the HUD's own type, colours and glass (compared with the HUD's page, item
   by item); the flags as the background and gone when cleared; race control's whole sentence for each flag at every size;
@@ -1026,19 +1019,18 @@ and when, and why the main process and never the page does it. This is the page'
   lapped the panels are as they were, and so is the badge (`tests/unit/logo-livery-page.spec.mjs` holds the list) —
   over an opaque base: the crop is opaque, so the flag's pattern shows through the badge no more than it did.
 - **The badge is not one shape.** It is 204 by 138 (1.5 to 1) in the glance layout on the rig's ultrawide at 2560 by
-  1080, 91 by 105 (0.87) on an iPad at 1180 by 820, and square (162 by 162) on the rig's HUD, measured. The crop is cut
+  1080 (before the tiles were squares: square now, 139 at 1180 by 820 and 183 at 1920 by 1080), and square (162 by 162) on the rig's HUD, measured. The crop is cut
   at the widest of them (`BADGE_ASPECT` in the picker, 1.5 to 1: 512 across and 341 high), the layer is `cover`, so a
   narrower badge shows the middle of it, and the picker scores that middle too (below), so the section has artwork in
   it in every badge.
-- **On an iPad** the badge is not shown at all (he asked for the logos to go, 2026-09-30; The glance layout, above), so
-  the crop is never asked for: `requestRemoteLivery()`, which `poll-engine.js` calls where the car's model changes
-  and where the page's in-car state goes from out to in, fetches nothing there. The server still serves `/livery-crop.png`
-  from the main process's memory — the one address, no query, the key's cookie — and `fetchRemoteLivery`
-  (`window._fetchRemoteLivery`) is what reads it: a 200 as a blob URL, a 404 as the layer emptied, the same crop
-  told again (its `ETag`) kept as it is. **In the page OBS draws** (`window._obsMode`, served by the loopback listener
-  at `/obs`) the badge is in the picture, so the same `requestRemoteLivery()` does fetch: a few asks over the first
-  seconds (`LIVERY_ASK_AT_MS`), in case the rig has not chosen the crop yet, from the listener the page came from
-  (`tests/unit/hud-page-obs.spec.mjs`).
+- **On an iPad** the badge is back (he asked for the logos to go on 2026-09-30 and for them back on 2026-10-08; The glance
+  layout, above): `requestRemoteLivery()`, which `poll-engine.js` calls where the car's model changes and where the page's
+  in-car state goes from out to in, asks for the crop on the iPad (`window._remoteMode`) and in both pages OBS draws
+  (`window._obsMode`, the iPad dashboard too), a few asks over the first seconds (`LIVERY_ASK_AT_MS`), in case the rig has
+  not chosen the crop yet. The server serves `/livery-crop.png` from the main process's memory — the one address, no
+  query, the key's cookie — and `fetchRemoteLivery` (`window._fetchRemoteLivery`) is what reads it: a 200 as a blob URL, a
+  404 as the layer emptied, the same crop told again (its `ETag`) kept as it is. The loopback listener answers the same
+  (`tests/unit/hud-page-obs.spec.mjs`, `hud-page-obs-ipad.spec.mjs`; the iPad: `logo-livery-page.spec.mjs`).
 - **The picker** (`logo-livery-picker.js`, `chooseWindow` / `chooseCrop`): the sheet is averaged down to 320 across,
   every pixel gets a luminance, an edge (a step of 24 or more to the next pixel) and a hue bin (twelve round the
   wheel, and one for everything with no hue to speak of: grey, white and near-black are one colour, so black-and-white
@@ -1085,6 +1077,46 @@ and when, and why the main process and never the page does it. This is the page'
   (their fixture names no car the rig has), so they are unchanged.
 - **Not built**: the helmet and the suit (they come with the livery he applies, not from here); a preview of the
   crop on the desk; preferring a panel that faces the right way up.
+
+## The Racing Desk's tile (`#brandLogoSquare`, `#brandLivery`, `modules/js/brand-livery.js`)
+
+He asked on 2026-10-08: "Change the k10 logo to a livery image that shows some aspect of the doooom logo". The tile that
+was the old mark over a drifting WebGL chevron field (the "K10 logo background" of `webgl.js`, removed with it) is **a
+part of the DOOOOM wordmark, large and cropped by the square, in the colours of the car's paint**, as a square of the flank
+of a DOOOOM car shows a letter or two. It is the first of the two tiles at the top left of the glance layout (on the rig's
+Ctrl+Shift+F, on an iPad and in both pages OBS draws) and is the same on the rig's own HUD.
+- **What is drawn**: one element (`#brandLivery`, `.brand-livery` in `dashboard.css`) with an SVG in it: a rect filled with
+  `--brand-ink` over `--brand-body`, masked by the wordmark (`images/branding/doooom-mark.png`, an `<image>` in the SVG's
+  `<mask>`), and a darkening over both as the car tile's (lighter: it has no text over it). **The mask is the wordmark as
+  alpha, 1400 by 260, a palette of sixteen levels, 30 KB** — web-sized from `apps/livery/art/doooom/art_doooom.png`
+  (2798 by 519, white lettering on grey, which is not shipped) — and the part of it that shows is the SVG's `viewBox`, which
+  the script sets once. Nothing moves, nothing is drawn per frame, and there is no canvas, no WebGL and no `<img>` in the
+  tile. **It is an SVG mask and not a CSS `mask-image` because the app's page is a file**: Chromium refuses a CSS mask whose
+  image is a file's (the first cut drew the colours and no lettering in the app and in every test that opens the page from
+  the file, and was right on an iPad, over http; `logo-livery-page.spec.mjs` reads the pixels of the tile from the file).
+- **Which part shows** (`pickWindow(rand)`, pure): a square window from half to four fifths of the wordmark's height (a
+  letter or two, cropped top and bottom), anywhere along it and above its lowest tenth (the stray tops of the SPEEDSPORTS
+  line under the wordmark). The window is the SVG's `viewBox` (`x y side side`), so a square of any size shows exactly it
+  (`brand-livery.spec.mjs`). **It is rolled again each
+  time he is back in the car and when the car changes** (`poll-engine.js` calls `rollBrandLivery`, where it already asks for
+  the car's crop), as the car tile's crop is. A test pins the roll with `window._brandRoll` (a number in [0, 1), set by an init
+  script, as the specs set `_displaySettingsEveryMs`): the golden frames do, since a frame has to be the same one every run.
+- **The colours** follow the car tile's crop (`setCarLivery` calls `followPaint`, in the app, on an iPad and in OBS alike): the
+  crop is drawn at 24 by 24 on a canvas, its pixels sorted into four levels a channel, **the commonest is the ground and the
+  commonest colour 90 or more away from it (and at least 2.5 in 100 of the crop) is the lettering**; with none (a paint of
+  one colour, a gradient) the lettering is the ground made lighter if it is dark and darker if it is light, and the two
+  always differ in lightness by a quarter or more. With no crop (no paint for the car, a car he has no paint for, a
+  browser) the tile is the glass's own colours, `rgb(22, 25, 32)` under `rgb(115, 140, 191)`. The script is loaded before
+  `car-logos.js`, so a crop given when the page loads (the app's) finds it.
+- **The words**: the setting is "DOOOOM logo" (`showK10Logo`, its key unchanged, on the rig HUD's own switches; the glance
+  layout shows every panel whatever they say), and "DOOOOM" is in `words.js`'s acronyms: his brand is spelled in capitals.
+- **Tests**: `tests/unit/brand-livery.spec.mjs` (the window: bounds, the CSS numbers, the same numbers the same part, every
+  part and size comes up; the palette: two colours, shades of one, dark and light single colours, a near colour and a speck,
+  the commonest far colour and not the furthest, transparent pixels; the asset: a 1400 by 260 palette PNG under 60 KB with
+  its alpha, the source art not shipped), `logo-livery-page.spec.mjs` (the page: the tile's colours from the crop through
+  the app's bridge, the pixels of a screenshot of the tile with both colours in it, twenty rolls different; on an iPad
+  through the real server, the crop asked for, the colours following a change of car, another window each time he is back
+  in the car), `drive-view.spec.mjs` and `hud-page-obs-ipad.spec.mjs` (the tile square at the top left, his first).
 
 ## The delta: what the gap is against
 

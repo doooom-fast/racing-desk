@@ -1205,8 +1205,8 @@ the game. The rules it is built on, each with tests in `tests/unit/remote-server
 - **What he asked for on 2026-09-30** (`html.rd-remote` rules at the end of `drive-view.css`; the rig's own
   Ctrl+Shift+F is as it was): the glass's light — its tint, the overhead glow and the sweep, the specular streak, the
   inset glow — at fifteen hundredths of the rig's (`--rd-shine`), the flags' own treatment of the glass as it was;
-  no badges (the Racing Desk mark and the car's maker are not cells on the iPad, and the crop of his paint is never
-  asked for), the row they were in being the controls, the pedals and the clock; the menu's sign a small round button
+  (and on 2026-10-08: the two tiles back, square at the top left, his first, the maps square and the same size, and no
+  tyres or fuel: the overlay's CLAUDE.md, The glance layout); the menu's sign a small round button
   in the top right corner; and a sector never cropped in the laps panel (see the overlay's CLAUDE.md). The same look
   is what OBS draws when "iPad dashboard" is chosen under "HUD drawn by OBS" (the loopback listener's `/obs-ipad`,
   `html.rd-glance`): the glance layout in OBS mode over a transparent page, with no flag pattern between the panels,
@@ -1230,7 +1230,7 @@ set Auto-Lock to Never.
 
 **The livery behind the car badge** (`modules/js/logo-livery.js`; asked for 2026-09-30: "the splash of color beneath
 the car logo to be the livery preview cropped to a random artwork filled section"). The square under the car's logo
-on the HUD — the rig's, and the glance layout's on the rig (an iPad shows no badge since 2026-09-30) — was a flat splash of the maker's colour.
+on the HUD — the rig's, and the glance layout's, on the rig, on an iPad (its badge is back since 2026-10-08) and in the pages OBS draws — was a flat splash of the maker's colour.
 Now it is a section of the paint the sim is showing on his car: `Documents\iRacing\paint\<car>\car_<customer id>.tga`,
 the very bytes the sim reads, cropped to a window with artwork in it and laid under the logo, with a darkening over
 it so the mark and the car's name read on any paint. **The main process chooses it, never the page**: the page reads
@@ -1256,9 +1256,9 @@ What leaves the main process is the crop alone: a PNG 512 across and 341 high �
 takes (the glance layout's on the rig's ultrawide is 204 by 138 and the rig HUD's is square, which shows the middle of
 it, `cover`) — handed to the HUD's page as a data URL (`logo-livery`, and `get-logo-livery` for a page that loaded
 after), and served from memory at `/livery-crop.png` by the iPad's server and by the loopback listener (above). The iPad
-never asks for it: it shows no badge. The page OBS draws (`window._obsMode`, "HUD drawn by OBS" in `docs/recording.md`)
-is the one that does, from the loopback listener, whenever the car changes and whenever he is back in the car
-(`car-logos.js` `requestRemoteLivery`, which fetches nothing on an iPad).
+asks for it (its badge is back, 2026-10-08), and so do both pages OBS draws (`window._obsMode`, "HUD drawn by OBS" in
+`docs/recording.md`): whenever the car changes and whenever he is back in the car (`car-logos.js` `requestRemoteLivery`).
+The Racing Desk's own tile takes its two colours from the same crop (the overlay's CLAUDE.md, The Racing Desk's tile).
 **No log line carries the customer id or the paint's path**; the reasons the worker gives back have no path in them.
 The picker's rules and the page's side are in `apps/overlay/CLAUDE.md`, The livery behind the car badge.
 
