@@ -29,6 +29,15 @@ test.describe('the commands', () => {
     expect(restoreApi.commandBody({ undo: 'all', car: 'x' })).toEqual({ undo: 'all' });
     expect(restoreApi.SWITCHES).toEqual(['brakes', 'height']);
   });
+
+  test('his brake-force keys are put back or moved again, and nothing else is asked of them', () => {
+    for (const body of [{ keys: 'undo' }, { keys: 'move' }]) expect(restoreApi.commandProblem(body), JSON.stringify(body)).toBeNull();
+    for (const body of [{ keys: 'all' }, { keys: true }, { keys: { undo: true } }, { keys: 'F1' }, { keys: 'RCONTROL' }])
+      expect(restoreApi.commandProblem(body), JSON.stringify(body)).toBe('The brake-force keys are put back or moved, nothing else.');
+    expect(restoreApi.commandBody({ keys: 'undo', first: 'ZOOM' })).toEqual({ keys: 'undo' });
+    expect(restoreApi.commandBody({ keys: 'move' })).toEqual({ keys: 'move' });
+    expect(restoreApi.KEYS).toEqual(['undo', 'move']);
+  });
 });
 
 // A stand-in for the app's host: it answers whom the host answers (tests/this-machine-rule.mjs), and keeps what it was asked.

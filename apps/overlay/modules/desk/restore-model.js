@@ -1,5 +1,5 @@
 // Settings → Cars: putting back each car's seat height and brakes (docs/view-and-pedals-plan.md), as the desk shows it — two
-// rows, each a switch and how it stands in a sentence, and one undo. Pure — no DOM, no bridge — so it runs in the desk and in
+// rows, each a switch and how it stands in a sentence, one line for his brake-force keys (with its own undo), and one undo. Pure — no DOM, no bridge — so it runs in the desk and in
 // the unit tests alike; desk.js does the DOM and the asking (window.racingDesk.restore, which main.js answers from the app's
 // host: modules/js/restore-api.js). The host keeps the switches and says how each part stands: working, waiting for
 // something (said), or turned itself off (and why).
@@ -10,6 +10,14 @@
     { key: 'brakes', label: 'Brakes put back for each car' },
     { key: 'height', label: 'Seat height put back for each car' },
   ];
+
+  // His brake-force keys (his decision of 2026-10-09: Assetto Corsa's F1–F3 cameras are built in, so SmartControl Live's
+  // F1–F4 moved to Right Ctrl + F1–F4). The host moves them once by itself; the line says which keys set the force now, and
+  // whether SmartControl Live must start again to have the change.
+  const KEYS_LABEL = 'Brake force keys';
+  const KEYS_UNDO = 'Undo';
+  const KEYS_UNDO_ASK = 'This puts SmartControl Live’s brake-force keys back on F1–F4 alone, as they were before Racing Desk moved them. Close the SmartControl editor first. Go on?';
+  const KEYS_MOVE = 'Move to Right Ctrl';
 
   const UNDO = 'Undo what Racing Desk changed';
   const UNDO_ASK = 'This turns both off, takes Racing Desk’s profiles (one for each car, with anything you changed in them, and the one F24 switches) and its F24 key out of SmartControl, and puts back the seat heights it kept in app.ini and the cars’ camera files. Close iRacing and the SmartControl editor first. Go on?';
@@ -30,10 +38,33 @@
   }
 
   /**
-   * The card. `answer` is restore:read's ({ value } | { missing } | { error }); `inApp` whether there is an app to ask;
-   * `undone` what the undo answered in this sitting; `busy` a command under way.
+   * The brake-force keys' line: which keys set the force now (the host's sentence), what restarting SmartControl Live brings
+   * until it has started again, what the move waits for or why it was not made, and undo (or move, once undone). Null when the
+   * host says nothing of them (a host from before them).
    */
-  function card(answer, { inApp = true, undone = null, busy = false } = {}) {
+  function keysRow(value, ready, busy, said) {
+    const k = ready && isRow(value.keys) ? value.keys : null;
+    if (!k || !text(k.text)) return null;
+    const restart = text(k.restart) || null;
+    return {
+      label: KEYS_LABEL,
+      text: text(k.text),
+      state: text(k.state),
+      restart,
+      said: text(k.said) || null,
+      undo: { label: KEYS_UNDO, shown: k.undo === true, enabled: k.undo === true && !busy },
+      move: { label: KEYS_MOVE, shown: k.undo !== true && k.move === true, enabled: k.move === true && !busy },
+      // What the command did; the restart, which the line says already, once.
+      done: said ? resultLines(said).filter((l) => l.text !== restart) : [],
+    };
+  }
+
+  /**
+   * The card. `answer` is restore:read's ({ value } | { missing } | { error }); `inApp` whether there is an app to ask;
+   * `undone` what the undo answered in this sitting; `keysDone` what a command to the brake-force keys answered; `busy` a
+   * command under way.
+   */
+  function card(answer, { inApp = true, undone = null, keysDone = null, busy = false } = {}) {
     const value = isRow(answer) && isRow(answer.value) ? answer.value : null;
     let line = null;
     if (!inApp) line = FROM_THE_APP;
@@ -59,12 +90,13 @@
           enabled: ready && !busy,
         };
       }),
+      keys: keysRow(value, ready, busy, keysDone),
       undo: { label: UNDO, enabled: ready && !busy && value.undo === true },
       undone: undone ? resultLines(undone) : [],
     };
   }
 
-  const api = { SWITCHES, UNDO, UNDO_ASK, FROM_THE_APP, resultLines, card };
+  const api = { SWITCHES, UNDO, UNDO_ASK, FROM_THE_APP, KEYS_LABEL, KEYS_UNDO, KEYS_UNDO_ASK, KEYS_MOVE, resultLines, card };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RacingDeskRestoreModel = api;
 })();

@@ -405,6 +405,10 @@ h2 {
 .restore-card .restore-undo li { margin: 2px 0; color: var(--text-2); }
 .restore-card .restore-undo li.said-error { color: var(--warn, #d8a24a); }
 .restore-card button { font: inherit; font-size: 12.5px; }
+.restore-card #restore-keys-restart { color: var(--text); font-weight: 600; }
+.restore-card .restore-keys-done { margin: 2px 0 0; padding: 0; list-style: none; font-size: 12.5px; max-width: 90ch; }
+.restore-card .restore-keys-done li { margin: 2px 0; color: var(--text-2); }
+.restore-card .restore-keys-done li.said-error { color: var(--warn, #d8a24a); }
 /* Settings → Sound: iRacing's LFE off on the sound bar — a switch, the choice of the sound bar, and one sentence. */
 .settings .soundbar-card { margin-top: var(--gap); }
 .soundbar-card .soundbar-line { color: var(--text-2); font-size: 13px; margin: 6px 0 4px; max-width: 90ch; }

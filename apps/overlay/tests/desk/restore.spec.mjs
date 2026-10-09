@@ -67,6 +67,10 @@ async function stubApp(page, { answer = ANSWER, undone = { ok: true, did: [], sa
           }
           return { ok: true, switches: copy(v.switches) };
         }
+        if (body.keys === 'undo') {
+          v.keys = { state: 'undone', text: 'F1, F2, F3, F4 set 30, 50, 80, 100 kg; Up adds 5 kg; Down takes off 5 kg.', restart: 'Restart SmartControl Live (or the PC) to use F1–F4 for brake force again.', said: null, undo: false, move: true };
+          return { ok: true, action: 'keys', did: ['the brake-force keys are on F1–F4 again, as before Racing Desk moved them'], saw: ['Restart SmartControl Live (or the PC) to use F1–F4 for brake force again.'] };
+        }
         v.switches = { brakes: false, height: false };
         v.status = { brakes: { state: 'off', text: 'Off.' }, height: { state: 'off', text: 'Off.' } };
         v.undo = false;
@@ -165,6 +169,43 @@ test('undo asks first, and says what it did under it', async ({ page }) => {
   await expect(card.locator('#restore-brakes')).not.toBeChecked();
   await expect(card.locator('#restore-height')).not.toBeChecked();
   await expect(card.locator('#restore-undo')).toBeDisabled();
+});
+
+test('his brake-force keys: one line says which set the force now and to restart Live, and Undo asks first and puts them back', async ({ page }) => {
+  const moved = JSON.parse(JSON.stringify(ANSWER));
+  moved.value.keys = {
+    state: 'moved', text: 'F1, F2, F3, F4 set 30, 50, 80, 100 kg; Up adds 5 kg; Down takes off 5 kg.',
+    restart: 'Restart SmartControl Live (or the PC) to use Right Ctrl + F1–F4 for brake force.', said: null, undo: true, move: false,
+  };
+  await stubApp(page, { answer: moved });
+  const errors = await openDesk(page, '#settings');
+  const row = page.locator('#settings-restore #restore-keys');
+  await expect(row.locator('.name')).toHaveText('Brake force keys');
+  await expect(row.locator('#restore-keys-state')).toContainText('F1, F2, F3, F4 set 30, 50, 80, 100 kg; Up adds 5 kg; Down takes off 5 kg.');
+  await expect(row.locator('#restore-keys-restart')).toHaveText('Restart SmartControl Live (or the PC) to use Right Ctrl + F1–F4 for brake force.');
+  await expect(row.locator('#restore-keys-undo')).toHaveText('Undo');
+  await expect(row.locator('#restore-keys-move')).toHaveCount(0);
+  expect(await commands(page)).toEqual([]);
+
+  const asked = [];
+  page.once('dialog', (d) => { asked.push(d.message()); d.dismiss(); });
+  await row.locator('#restore-keys-undo').click();
+  await expect.poll(() => asked.length).toBe(1);
+  expect(asked[0]).toBe('This puts SmartControl Live’s brake-force keys back on F1–F4 alone, as they were before Racing Desk moved them. Close the SmartControl editor first. Go on?');
+  await page.waitForTimeout(100);
+  expect(await commands(page)).toEqual([]);
+
+  page.once('dialog', (d) => d.accept());
+  await row.locator('#restore-keys-undo').click();
+  await expect.poll(() => commands(page)).toEqual([{ keys: 'undo' }]);
+  await expect(page.locator('#settings-restore .restore-keys-done li')).toHaveText([
+    'the brake-force keys are on F1–F4 again, as before Racing Desk moved them.',
+  ]);
+  await expect(row.locator('#restore-keys-restart')).toHaveText('Restart SmartControl Live (or the PC) to use F1–F4 for brake force again.');
+  await expect(row.locator('#restore-keys-undo')).toHaveCount(0);
+  await expect(row.locator('#restore-keys-move')).toHaveText('Move to Right Ctrl');
+  await expect(page.locator('#restore-brakes')).toBeChecked();      // the keys' undo is its own: the switches stay
+  expect(errors).toEqual([]);
 });
 
 test('without the app the card is read-only and says so, and the Desk page has no line of it', async ({ page }) => {

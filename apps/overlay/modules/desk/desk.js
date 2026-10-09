@@ -1124,6 +1124,7 @@
   let restoreAnswer = null;    // what restore:read last answered
   let restoreBusy = false;     // a command under way: the switches and the undo wait for it
   let restoreUndone = null;    // what the undo answered in this sitting
+  let restoreKeysDone = null;  // what a command to the brake-force keys answered in this sitting
   let restoreAsked = 0;
 
   async function loadRestore() {
@@ -1140,8 +1141,9 @@
   function drawRestoreCard() {
     const el = $('settings-restore');
     if (!el || !RestoreModel || currentPage !== 'settings') return;
-    const view = RestoreModel.card(restoreAnswer, { inApp: !!restoreBridge(), undone: restoreUndone, busy: restoreBusy });
+    const view = RestoreModel.card(restoreAnswer, { inApp: !!restoreBridge(), undone: restoreUndone, keysDone: restoreKeysDone, busy: restoreBusy });
     const off = (enabled) => (enabled ? '' : ' disabled');
+    const k = view.keys;
     el.innerHTML = `
       <h2>Cars</h2>
       ${view.line ? `<p class="restore-line" id="restore-line" role="status">${esc(view.line)}</p>` : ''}
@@ -1151,6 +1153,13 @@
         <span class="restore-state" id="restore-${esc(r.key)}-state" data-state="${esc(r.state)}" role="status">${esc(r.status)}</span>
         <span class="control"><input type="checkbox" class="switch" id="restore-${esc(r.key)}" data-restore-switch="${esc(r.key)}"${r.value ? ' checked' : ''}${off(r.enabled)}></span>
       </div>`).join('')}
+      ${k ? `
+      <div class="field restore-keys" id="restore-keys" data-state="${esc(k.state)}">
+        <span class="name">${esc(k.label)}</span>
+        <span class="restore-state" id="restore-keys-state" role="status">${esc(k.text)}${k.restart ? `<br><b id="restore-keys-restart">${esc(k.restart)}</b>` : ''}${k.said ? `<br><span id="restore-keys-said">${esc(k.said)}</span>` : ''}</span>
+        <span class="control">${k.undo.shown ? `<button type="button" id="restore-keys-undo"${off(k.undo.enabled)}>${esc(k.undo.label)}</button>` : ''}${k.move.shown ? `<button type="button" id="restore-keys-move"${off(k.move.enabled)}>${esc(k.move.label)}</button>` : ''}</span>
+      </div>
+      ${k.done.length ? `<ul class="restore-keys-done">${k.done.map((l) => `<li class="said-${esc(l.kind)}">${esc(l.text)}</li>`).join('')}</ul>` : ''}` : ''}
       <div class="restore-undo">
         <button type="button" id="restore-undo"${off(view.undo.enabled)}>${esc(view.undo.label)}</button>
         ${view.undone.length ? `<ul>${view.undone.map((l) => `<li class="said-${esc(l.kind)}">${esc(l.text)}</li>`).join('')}</ul>` : ''}
@@ -1170,6 +1179,14 @@
   }
 
   async function onRestoreClick(ev) {
+    const keysUndo = ev.target.closest('#restore-keys-undo');
+    const keysMove = ev.target.closest('#restore-keys-move');
+    if ((keysUndo && !keysUndo.disabled) || (keysMove && !keysMove.disabled)) {
+      if (keysUndo && !window.confirm(RestoreModel.KEYS_UNDO_ASK)) return;
+      const answer = await restoreCommand({ keys: keysUndo ? 'undo' : 'move' });
+      if (answer) { restoreKeysDone = answer; drawRestoreCard(); }
+      return;
+    }
     const undo = ev.target.closest('#restore-undo');
     if (!undo || undo.disabled) return;
     if (!window.confirm(RestoreModel.UNDO_ASK)) return;

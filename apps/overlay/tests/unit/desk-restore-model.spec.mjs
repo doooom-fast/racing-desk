@@ -73,8 +73,42 @@ test('what undo did is said under it, a sentence a line: what is left for him fi
   expect(model.resultLines(null)).toEqual([{ kind: 'error', text: 'The app did not answer.' }]);
 });
 
+const KEYS_TEXT = 'Right Ctrl + F1, F2, F3, F4 set 30, 50, 80, 100 kg; Up adds 5 kg; Down takes off 5 kg.';
+const RESTART = 'Restart SmartControl Live (or the PC) to use Right Ctrl + F1–F4 for brake force.';
+
+test('his brake-force keys: which set the force now, the restart until Live has started again, and undo', () => {
+  const moved = JSON.parse(JSON.stringify(ANSWER));
+  moved.value.keys = { state: 'moved', text: 'F1, F2, F3, F4 set 30, 50, 80, 100 kg; Up adds 5 kg; Down takes off 5 kg.', restart: RESTART, said: null, undo: true, move: false };
+  const view = model.card(moved);
+  expect(view.keys).toEqual({
+    label: 'Brake force keys',
+    text: 'F1, F2, F3, F4 set 30, 50, 80, 100 kg; Up adds 5 kg; Down takes off 5 kg.',
+    state: 'moved',
+    restart: RESTART,
+    said: null,
+    undo: { label: 'Undo', shown: true, enabled: true },
+    move: { label: 'Move to Right Ctrl', shown: false, enabled: false },
+    done: [],
+  });
+
+  // Live has started again: no restart; and while a command runs, nothing is pressed.
+  moved.value.keys = { ...moved.value.keys, text: KEYS_TEXT, restart: null };
+  expect(model.card(moved).keys.restart).toBeNull();
+  expect(model.card(moved, { busy: true }).keys.undo.enabled).toBe(false);
+
+  // Undone: the move is offered back; what the undo did is said under the line.
+  moved.value.keys = { state: 'undone', text: KEYS_TEXT, restart: 'Restart SmartControl Live (or the PC) to use F1–F4 for brake force again.', said: null, undo: false, move: true };
+  const undone = model.card(moved, { keysDone: { ok: true, did: ['the brake-force keys are on F1–F4 again, as before Racing Desk moved them'], saw: [] } });
+  expect([undone.keys.undo.shown, undone.keys.move.shown, undone.keys.move.enabled]).toEqual([false, true, true]);
+  expect(undone.keys.done).toEqual([{ kind: 'did', text: 'the brake-force keys are on F1–F4 again, as before Racing Desk moved them.' }]);
+
+  // A host from before the keys says nothing of them, and the card has no line for them.
+  expect(model.card(ANSWER).keys).toBeNull();
+  expect(model.card(null, { inApp: false }).keys).toBeNull();
+});
+
 test('the words: plain, no trial, no step codes', () => {
-  const all = [model.UNDO, model.UNDO_ASK, model.FROM_THE_APP, ...model.SWITCHES.map((s) => s.label)];
+  const all = [model.UNDO, model.UNDO_ASK, model.FROM_THE_APP, model.KEYS_LABEL, model.KEYS_UNDO, model.KEYS_UNDO_ASK, model.KEYS_MOVE, ...model.SWITCHES.map((s) => s.label)];
   for (const s of all) {
     expect(s, s).not.toMatch(/\btrial\b/i);
     expect(s, s).not.toMatch(/\b(0a|0b|[ABC]\d{1,2})\b/);

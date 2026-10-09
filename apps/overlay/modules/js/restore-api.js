@@ -7,7 +7,8 @@
 // nothing of it.
 //
 //   read()          → { value } | { missing: true } | { error }        the host's answer, never a rejection
-//   command(body)   → { ok, … } | { ok: false, error }                  { switches: { brakes?, height? } } or { undo: 'all' }
+//   command(body)   → { ok, … } | { ok: false, error }                  { switches: { brakes?, height? } }, { undo: 'all' },
+//                                                                         or { keys: 'undo' | 'move' } for his brake-force keys
 const rigApi = require('./rig-api');
 
 const RESTORE_PATH = '/racing-desk/data/restore';
@@ -17,6 +18,9 @@ const MAX_ANSWER_BYTES = 2000000;
 
 // The two switches of Settings → Cars.
 const SWITCHES = Object.freeze(['brakes', 'height']);
+
+// What can be asked of his brake-force keys: put back on F1–F4 as they were, or moved to Right Ctrl + F1–F4 again.
+const KEYS = Object.freeze(['undo', 'move']);
 
 const isRow = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -31,6 +35,7 @@ function commandProblem(body) {
     return null;
   }
   if (keys.includes('undo')) return body.undo === 'all' ? null : 'Undo puts back everything Racing Desk changed, or nothing.';
+  if (keys.includes('keys')) return KEYS.includes(body.keys) ? null : 'The brake-force keys are put back or moved, nothing else.';
   return 'That is not a command Racing Desk takes.';
 }
 
@@ -41,7 +46,8 @@ function commandBody(body) {
     for (const k of SWITCHES) if (typeof body.switches[k] === 'boolean') switches[k] = body.switches[k];
     return { switches };
   }
-  return { undo: 'all' };
+  if ('undo' in body) return { undo: 'all' };
+  return { keys: body.keys };
 }
 
 function request(base, method, pathAndQuery, body, timeoutMs) {
@@ -109,4 +115,4 @@ function createRestoreApi({ host, send = rigApi.send, readTimeoutMs = READ_TIMEO
   return { read, command };
 }
 
-module.exports = { RESTORE_PATH, READ_TIMEOUT_MS, COMMAND_TIMEOUT_MS, SWITCHES, commandProblem, commandBody, createRestoreApi };
+module.exports = { RESTORE_PATH, READ_TIMEOUT_MS, COMMAND_TIMEOUT_MS, SWITCHES, KEYS, commandProblem, commandBody, createRestoreApi };

@@ -1209,7 +1209,12 @@ The card under the Recording card (`#settings-restore`; root CLAUDE.md, Per car,
 `restore:read` / `restore:command` in main.js → `modules/js/restore-api.js` → the host). Two rows, "Brakes put back for each
 car" and "Seat height put back for each car", each a switch (on by default; the host keeps it) and the host's sentence for
 how it stands — working, waiting for something (said), or turned itself off (and why); and one "Undo what Racing Desk
-changed", which asks first and says under it what it did. No trial, no first run, nothing on the HUD and no line on the Desk
+changed", which asks first and says under it what it did. Between them, one line "Brake force keys" (the host's `keys`,
+2026-10-09): which of SmartControl Live's keys set the force now, in the host's sentence ("Right Ctrl + F1, F2, F3, F4 set 30,
+50, 80, 100 kg; Up adds 5 kg; Down takes off 5 kg."), "Restart SmartControl Live (or the PC) to use Right Ctrl + F1–F4 for
+brake force." in bold until Live has started since the host moved them, what the move waits for or why it was not made, and
+its own "Undo" (asks first, then `{ keys: 'undo' }`), or "Move to Right Ctrl" once undone (`{ keys: 'move' }`); what the
+command did is said under the line. No trial, no first run, nothing on the HUD and no line on the Desk
 page. The Cars page shows the host's sentence for a car on its Pedals panel (the brakes that go on) and on its View panel
 only where he needs to know something (no camera file, and how to save one) (`apps/paints/src/useRig.ts` reads it beside
 the rest; the page only reads). Tests: `tests/unit/desk-restore-model.spec.mjs`, `tests/unit/restore-api.spec.mjs`,
