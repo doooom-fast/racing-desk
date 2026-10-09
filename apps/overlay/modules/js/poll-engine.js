@@ -945,7 +945,9 @@
       : (_demo ? (+v('RacingDesk.Plugin.Demo.IRating') || 0) : (+v('IRacingExtraProperties.iRacing_DriverInfo_IRating') || 0));
     let sr = window._manualSafetyRating > 0 ? window._manualSafetyRating
       : (_demo ? (+v('RacingDesk.Plugin.Demo.SafetyRating') || 0) : (+v('IRacingExtraProperties.iRacing_DriverInfo_SafetyRating') || 0));
-    _hasRatingData = (ir > 0 || sr > 0);
+    // In another sim there is no iRating, whatever was typed into Settings for iRacing: the cycle never turns to the
+    // ratings page there (game-detect.js, applyGameMode).
+    _hasRatingData = getGameFeatures().hasIRating && (ir > 0 || sr > 0);
 
     // Initial rating backfill (one-time on first connection)
     if (typeof window.initialRatingSync === 'function') {

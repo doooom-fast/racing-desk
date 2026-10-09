@@ -30,7 +30,10 @@ namespace RacingDesk.Core.Screens
     /// </summary>
     public sealed class SimWindowInfo
     {
-        /// <summary>The sim's process, by name: iRacingSim64DX11 or iRacingSim64.</summary>
+        /// <summary>
+        /// The sim's process, by name: iRacingSim64DX11 or iRacingSim64, acs (Assetto Corsa), AssettoCorsaEVO, AC2-Win64-Shipping
+        /// (<see cref="RacingDesk.Core.Sims.SimProcesses.All"/>). The HUD names the game from it.
+        /// </summary>
         public string Process { get; set; }
 
         public ScreenRect Window { get; set; }
@@ -84,8 +87,12 @@ namespace RacingDesk.Core.Screens
     /// </summary>
     public sealed class Win32SimWindowSource : ISimWindowSource
     {
-        // The sim's executables, the DX11 one first. iRacingUI.exe is the launcher, not the sim.
-        private static readonly string[] ProcessNames = { "iRacingSim64DX11", "iRacingSim64" };
+        /// <summary>
+        /// The sims' executables, iRacing's DX11 one first, then Assetto Corsa's acs, Assetto Corsa EVO's and Competizione's
+        /// (the one list, <see cref="RacingDesk.Core.Sims.SimProcesses.All"/>). iRacingUI.exe and AssettoCorsa.exe are
+        /// launchers, not the sim: neither has the window the HUD goes on.
+        /// </summary>
+        public static readonly string[] ProcessNames = RacingDesk.Core.Sims.SimProcesses.All;
 
         public SimWindowInfo Find()
         {

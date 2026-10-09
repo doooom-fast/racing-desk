@@ -14,9 +14,12 @@
   var _customLogoUrl = null;
   var _loadAttempted = {};  // { gameId: true } — prevents retry spam on 404
 
-  // Map game IDs to SVG filenames
+  // Map game IDs to SVG filenames. Assetto Corsa's and EVO's (2026-10-09) are wordmarks drawn in the HUD's own face, not
+  // Kunos's marks; the game ids are game-detect.js's.
   var GAME_LOGO_FILES = {
-    'iracing': 'iracing.svg'
+    'iracing': 'iracing.svg',
+    'ac': 'assetto-corsa.svg',
+    'acevo': 'assetto-corsa-evo.svg'
   };
 
   // Logo-corner mapping: dashboard position → logo position
@@ -102,6 +105,8 @@
     }
     var url = basePath + 'images/logos/' + file;
 
+    // Asked once per game: a file that is not there (a 404, a page that may not read files) is not asked for on every frame.
+    _loadAttempted[gameId] = true;
     fetch(url)
       .then(function(r) { return r.ok ? r.text() : ''; })
       .then(function(svg) {

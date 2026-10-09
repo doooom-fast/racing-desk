@@ -15,7 +15,7 @@ import http from 'node:http';
 const require = createRequire(import.meta.url);
 const {
   physicalSize, normaliseDisplays, displayName, listDisplays, matchSimWindow, parseSimWindow, fetchSimWindow,
-  parseMonitors, fetchMonitors, matchMonitors, ASK_WITHIN_MS,
+  parseMonitors, fetchMonitors, matchMonitors, ASK_WITHIN_MS, gameOfProcess,
   parseSimIni, simSizeFromIni, simIniPath, readSimIni, chooseDisplay, boundsFor, createHudDisplay,
 } = require('../../modules/js/hud-display.js');
 const { PREPARE_WITHIN_MS } = require('../../modules/js/hud-visibility.js');
@@ -252,6 +252,30 @@ test.describe('the rule, with his screens', () => {
     expect(choose({ simWindow: onTheUltrawide, ini: parseSimIni(HIS_INI) })).toMatchObject({ key: '1', reason: 'sim', why: 'iRacing is running on it' });
     // The window beats the ini: he has moved it since the ini was written.
     expect(choose({ simWindow: onTheSmall, ini: parseSimIni(HIS_INI) })).toMatchObject({ key: '2', reason: 'sim' });
+  });
+
+  test('the reason names the sim the host found: Assetto Corsa and EVO as well as iRacing (2026-10-09)', () => {
+    expect(choose({ simWindow: onTheUltrawide, simGame: 'Assetto Corsa' })).toMatchObject({ key: '1', reason: 'sim', why: 'Assetto Corsa is running on it', game: 'Assetto Corsa' });
+    expect(choose({ simWindow: onTheSmall, simGame: 'Assetto Corsa EVO' })).toMatchObject({ key: '2', reason: 'sim', why: 'Assetto Corsa EVO is running on it' });
+    expect(choose({ simWindow: onTheUltrawide })).toMatchObject({ why: 'iRacing is running on it', game: 'iRacing' });
+    expect(choose({ simWindow: onTheUltrawide, simGame: '' })).toMatchObject({ why: 'iRacing is running on it' });
+    // The screen it was last seen on, with the host silent: the same sim is named.
+    expect(choose({ simKept: '2', keptGame: 'Assetto Corsa' })).toMatchObject({ key: '2', reason: 'sim', why: 'Assetto Corsa was last on it, and the host did not say where it is now' });
+    expect(choose({ simKept: '2' })).toMatchObject({ why: 'iRacing was last on it, and the host did not say where it is now' });
+    // A decision that is not the sim's names no game.
+    expect(choose({ ini: parseSimIni(HIS_INI) }).game).toBeNull();
+  });
+
+  test("the host's process name is the game", () => {
+    expect(gameOfProcess('iRacingSim64DX11')).toBe('iRacing');
+    expect(gameOfProcess('iRacingSim64')).toBe('iRacing');
+    expect(gameOfProcess('acs')).toBe('Assetto Corsa');
+    expect(gameOfProcess('acs.exe')).toBe('Assetto Corsa');
+    expect(gameOfProcess('AssettoCorsaEVO')).toBe('Assetto Corsa EVO');
+    expect(gameOfProcess('AC2-Win64-Shipping')).toBe('Assetto Corsa Competizione');
+    // A host from before the other sims named iRacing's window and nothing else; one that names a stranger is "the sim".
+    for (const none of [null, undefined, '', '  ']) expect(gameOfProcess(none), String(none)).toBe('iRacing');
+    expect(gameOfProcess('rFactor2')).toBe('the sim');
   });
 
   test('a screen he chose beats the sim and the ini, while it is connected', () => {
@@ -676,7 +700,24 @@ test.describe('the keeper', () => {
     const { hud, said, state } = keeper();
     state.sim = { state: 'unknown' };
     expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'ini' });
-    expect(said.at(-1)).toContain('(the host did not say where iRacing is)');
+    expect(said.at(-1)).toContain('(the host did not say where the sim is)');
+  });
+
+  test("Assetto Corsa's window on the small screen takes the HUD there, and the line says which sim; silent, the host leaves it", async () => {
+    const { hud, win, said, state } = keeper();
+    hud.place();
+    state.sim = { ...RUNNING_ON_SMALL, process: 'acs' };
+    expect(await hud.refresh()).toMatchObject({ key: '2', reason: 'sim', why: 'Assetto Corsa is running on it', game: 'Assetto Corsa' });
+    expect(win.getBounds()).toEqual({ x: 0, y: 0, width: 823, height: 618 });
+    expect(said.filter((line) => line.includes('HUD screen:')).at(-1)).toBe('[RacingDesk] HUD screen: 1440 × 1080 (left, primary) — Assetto Corsa is running on it');
+
+    state.sim = HOST_SILENT;
+    expect(await hud.refresh()).toMatchObject({ key: '2', reason: 'sim', why: 'Assetto Corsa was last on it, and the host did not say where it is now' });
+
+    state.sim = { ...RUNNING_ON_ULTRAWIDE, process: 'AssettoCorsaEVO' };
+    expect(await hud.refresh()).toMatchObject({ key: '1', reason: 'sim', why: 'Assetto Corsa EVO is running on it' });
+    expect(said.filter((line) => line.includes('HUD screen:')).at(-1)).toContain('Assetto Corsa EVO is running on it');
+    noShowing(win);
   });
 
   test('a host that never answers is not waited for beyond the limit, and the ini decides', async () => {
@@ -950,7 +991,7 @@ test.describe('the keeper: what the host says of the screens, and what it does n
       expect(win.getBounds()).toEqual({ x: 0, y: 0, width: 823, height: 618 });
     }
     expect(await hud.reset()).toMatchObject({ key: '2' });
-    expect(said.at(-1)).toContain('(the host did not say where iRacing is)');
+    expect(said.at(-1)).toContain('(the host did not say where the sim is)');
 
     // A window made afresh in that time goes where the sim was, not where the ini says.
     win.bounds = { x: 100, y: 100, width: 500, height: 300 };

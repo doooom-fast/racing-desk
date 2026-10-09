@@ -178,7 +178,7 @@ namespace RacingDesk.Tests.IRacing
             // waiting when it is cancelled.
             var summary = ingest.Run(Telemetry, frameStep: 3, ct: cts.Token, pause: () => { cts.Cancel(); return true; });
             Assert.That((summary.FilesSeen, summary.FilesIngested), Is.EqualTo((0, 0)), "nothing looked up, nothing read while the sim runs");
-            Assert.That(log, Has.Some.EqualTo("paused while iRacing is running"));
+            Assert.That(log, Has.Some.EqualTo("paused while a sim is running"));
             Assert.That(store.Scalar<long>("SELECT COUNT(*) FROM ingested_files"), Is.Zero);
         }
 

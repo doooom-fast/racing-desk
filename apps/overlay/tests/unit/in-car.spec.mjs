@@ -65,6 +65,18 @@ test.describe('inCar: one payload', () => {
     expect(inCar({ ...IN_THE_CAR, [KEYS.onTrack]: null })).toBe(true);
     expect(inCar({ ...IN_THE_CAR, [KEYS.onTrack]: '' })).toBe(true);
   });
+
+  test("Assetto Corsa and EVO (2026-10-09): the same key carries the game's status, and iRacing's session state is nought there", () => {
+    // SimHub publishes no SessionState for Assetto Corsa, so without the key the HUD would never have come on; the host
+    // sends the key from the graphics page's status (TelemetryCapture.InCarAssetto), and the page reads it as it does iRacing's.
+    for (const game of ['AssettoCorsa', 'AssettoCorsaEVO']) {
+      const live = { ...IN_THE_CAR, 'RacingDesk.Plugin.GameId': game, [KEYS.sessionState]: 0, [KEYS.onTrack]: 1 };
+      expect(inCar(live), game).toBe(true);
+      expect(inCar({ ...live, [KEYS.onTrack]: 0 }), `${game}: a replay, the pause, loading`).toBe(false);
+      expect(inCar({ ...live, [KEYS.onTrack]: undefined }), `${game}: nothing said, no session state`).toBe(false);
+      expect(inCar({ ...live, [KEYS.gameRunning]: 0 }), `${game}: closed`).toBe(false);
+    }
+  });
 });
 
 test.describe('createInCarSignal: a run of polls', () => {

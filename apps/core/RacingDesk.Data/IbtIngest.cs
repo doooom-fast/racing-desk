@@ -119,7 +119,7 @@ namespace RacingDesk.Data
                     if (pause())
                     {
                         Store();
-                        _log("car names: paused while iRacing is running");
+                        _log("car names: paused while a sim is running");
                         while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
                         if (ct.IsCancellationRequested) break;
                         _log("car names: resumed");
@@ -213,7 +213,7 @@ namespace RacingDesk.Data
         {
             cancelled = false;
             if (pause == null || !pause()) return false;
-            _log("paused while iRacing is running");
+            _log("paused while a sim is running");
             while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
             cancelled = ct.IsCancellationRequested;
             if (!cancelled) _log("resumed");
@@ -345,7 +345,7 @@ namespace RacingDesk.Data
                     if (ct.IsCancellationRequested) break;
                     if (pause != null && pause())
                     {
-                        _log("outlines: paused while iRacing is running");
+                        _log("outlines: paused while a sim is running");
                         while (pause() && !ct.IsCancellationRequested) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
                         if (ct.IsCancellationRequested) break;
                         _log("outlines: resumed");

@@ -22,8 +22,24 @@ namespace RacingDesk.Data
             return new Scope(entered);
         }
 
-        /// <summary>True while iRacing's simulator process is running.</summary>
-        public static bool SimRunning() => Process.GetProcessesByName("iRacingSim64DX11").Length > 0;
+        /// <summary>
+        /// True while any sim on the rig is running — iRacing, Assetto Corsa, Assetto Corsa EVO or Competizione
+        /// (<see cref="RacingDesk.Core.Sims.SimProcesses.All"/>). The heavy work waits on this whatever he is driving: it
+        /// knew iRacing alone until 2026-10-09, and would have read the .ibt history while he raced in Assetto Corsa.
+        /// </summary>
+        public static bool SimRunning() => SimRunning(ProcessIsRunning);
+
+        /// <summary>The same, asking <paramref name="running"/> for each of the sims' process names (a test's fake).</summary>
+        public static bool SimRunning(Func<string, bool> running) => RacingDesk.Core.Sims.SimProcesses.AnyRunning(RacingDesk.Core.Sims.SimProcesses.All, running);
+
+        private static bool ProcessIsRunning(string name)
+        {
+            Process[] found;
+            try { found = Process.GetProcessesByName(name); }
+            catch (Exception) { return true; }     // not being able to ask is not the sim being away: wait, as a guard should
+            foreach (var p in found) p.Dispose();
+            return found.Length > 0;
+        }
 
         private sealed class Scope : IDisposable
         {

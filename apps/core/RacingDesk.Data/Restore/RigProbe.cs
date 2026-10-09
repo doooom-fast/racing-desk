@@ -54,7 +54,12 @@ namespace RacingDesk.Data.Restore
     /// <summary>Windows' answers, by its own calls. The process names are the ones the rig has.</summary>
     public sealed class WindowsRigProbe : IRigProbe
     {
-        public static readonly string[] SimProcesses = { "iRacingSim64DX11", "iRacingSim64" };
+        /// <summary>
+        /// iRacing's two, from the one list (<see cref="RacingDesk.Core.Sims.SimProcesses.IRacing"/>): what is written behind this
+        /// probe is iRacing's own files — app.ini, a car's camera file — and the key for its pedals profile, so it is iRacing that
+        /// must be closed or in front, whatever else is running. The host's heavy I/O waits on every sim (BackgroundIo).
+        /// </summary>
+        public static readonly string[] SimProcesses = RacingDesk.Core.Sims.SimProcesses.IRacing;
         public const string EditorProcess = "SmartControl";
         public const string LiveProcess = "SmartControl Live";
 

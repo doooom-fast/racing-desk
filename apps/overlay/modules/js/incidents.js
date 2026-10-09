@@ -11,6 +11,25 @@
 
     const countEl = document.getElementById('incCount');
     if (!countEl) return;
+
+    // Another sim (game-detect.js, GAME_FEATURES): iRacing counts incidents; Assetto Corsa and EVO do not, and nought would
+    // be a count. The rig's HUD hides the panel (game-hidden); the glance layout keeps its cell, and the count is a dash
+    // with no x, no colour and no limits under it.
+    const counted = typeof getGameFeatures !== 'function' || getGameFeatures().hasIncidents !== false;
+    panel.classList.toggle('inc-none', !counted);
+    if (!counted) {
+      countEl.textContent = '—';
+      for (let i = 0; i <= 5; i++) panel.classList.toggle('inc-level-' + i, i === 0);
+      panel.classList.add('inc-no-limits');
+      panel.dataset.digits = '1';
+      const thresholds = document.querySelector('#incidentsPanel .inc-thresholds');
+      const progress = document.getElementById('incProgress');
+      if (thresholds) thresholds.style.display = 'none';
+      if (progress) progress.style.display = 'none';
+      if (window.setIncidentsGL) window.setIncidentsGL('');
+      _dsPrevIncidents = -1;
+      return;
+    }
     countEl.textContent = incidentCount;
 
     // Flash on increment

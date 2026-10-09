@@ -252,5 +252,17 @@
     document.body.classList.toggle('game-iracing', _isIRacing);
     document.body.classList.toggle('game-rally', _isRally);
     document.body.classList.toggle('game-acc', _currentGameId === 'acc');
+    document.body.classList.toggle('game-ac', _currentGameId === 'ac');
     document.body.classList.toggle('game-acevo', _currentGameId === 'acevo');
+
+    // iRacing's panels in another sim (2026-10-09, Assetto Corsa and EVO through SimHub): the ratings (iRating, Safety,
+    // the licence) and the incidents are iRacing's alone, and neither is made up for a sim that has none. On the rig's HUD
+    // the incidents panel is hidden (dashboard.css, game-hidden) and the ratings' cycle stays on the position page with
+    // no dots; in the glance layout, whose grid has a cell for each, the two cards stay and say a dash (incidents.js;
+    // poll-engine.js writes the ratings as dashes where there is no number, and never cycles to them).
+    const incidents = document.getElementById('incidentsPanel');
+    if (incidents) incidents.classList.toggle('game-hidden', !feat.hasIncidents);
+    const cycle = document.getElementById('cycleRatingPos');
+    if (cycle) cycle.classList.toggle('game-one-page', !feat.hasIRating);
+    if (!feat.hasIRating && typeof showPositionPage === 'function') showPositionPage();
   }

@@ -2,7 +2,8 @@
 // and whose sim runs on the big one, the HUD landed on the wrong monitor. The rule, in the order it is applied:
 //
 //   1. a screen he chose in Settings (`hudDisplay`), while it is connected;
-//   2. otherwise ("Automatic", the default) the screen the sim's window is on, while the sim runs;
+//   2. otherwise ("Automatic", the default) the screen the sim's window is on, while a sim runs — iRacing, Assetto Corsa
+//      or Assetto Corsa EVO, whichever the host finds (it names the process, and the reason names the game);
 //   3. otherwise the screen whose physical size matches the size iRacing is set to run at, which is in
 //      Documents\iRacing\rendererDX11Monitor.ini (read here, never written);
 //   4. otherwise the largest screen, and if several are as large the primary one among them.
@@ -222,6 +223,22 @@ function layoutOf(displays) {
   return displays.map((d) => `${d.key}@${d.bounds.x},${d.bounds.y},${d.bounds.width},${d.bounds.height}x${d.scaleFactor}`).sort().join(';');
 }
 
+// The game a process name belongs to, for the reason the rule gives ("Assetto Corsa is running on it"): the host says which
+// sim's window it found, by the names of RacingDesk.Core.Sims.SimProcesses. No process named is iRacing's (a host from
+// before the other sims); a name that is none of these is "the sim".
+const GAMES_BY_PROCESS = Object.freeze({
+  iracingsim64dx11: 'iRacing',
+  iracingsim64: 'iRacing',
+  acs: 'Assetto Corsa',
+  assettocorsaevo: 'Assetto Corsa EVO',
+  'ac2-win64-shipping': 'Assetto Corsa Competizione',
+});
+function gameOfProcess(process) {
+  if (typeof process !== 'string' || !process.trim()) return 'iRacing';
+  const key = process.trim().replace(/\.exe$/i, '').toLowerCase();
+  return GAMES_BY_PROCESS[key] || 'the sim';
+}
+
 // The host's answer to /racing-desk/data/simwindow, once parsed: { state: 'running', window, monitor, process },
 // { state: 'not-running' } (JSON null, or no window), or { state: 'unknown' } for anything that is not an answer.
 function parseSimWindow(body) {
@@ -386,28 +403,36 @@ function describeIni(size, matches, workArea) {
  *   simKept     the key of the screen the sim was last seen on, given only when the host did not say where it is now
  *               (which is not the same as saying it is not running): while that screen is connected it is the answer
  *   ini         parseSimIni's answer, or null
+ *   simGame     the game whose window simWindow is, in words (gameOfProcess); iRacing when not said
+ *   keptGame    the game that was on simKept's screen, in words; iRacing when not said
  *
- * → { display, key, reason, why, choiceMissing } — reason: chosen, only, sim, ini, largest, primary — or null when
+ * → { display, key, reason, why, choiceMissing, game } — reason: chosen, only, sim, ini, largest, primary — or null when
  * there are no screens. `choiceMissing` is a choice that names a screen that is not connected: it is not used and
- * is not lost, and comes back into force when the screen does.
+ * is not lost, and comes back into force when the screen does. `game` is the sim a 'sim' decision was made for.
  */
-function chooseDisplay({ displays, choice = null, simWindow = null, simKept = null, ini = null }) {
+function chooseDisplay({ displays, choice = null, simWindow = null, simKept = null, ini = null, simGame = null, keptGame = null }) {
   const list = normaliseDisplays(displays).sort(byPosition);
   if (!list.length) return null;
   const primary = list.find((d) => d.primary) || list[0];
   const wanted = typeof choice === 'string' && choice.trim() && choice.trim() !== AUTO ? choice.trim() : null;
   const chosen = wanted === null ? null : list.find((d) => d.key === wanted) || null;
   const choiceMissing = wanted !== null && chosen === null;
-  const made = (display, reason, why) => ({ display, key: display.key, reason, why, choiceMissing });
+  const made = (display, reason, why, game = null) => ({ display, key: display.key, reason, why, choiceMissing, game });
 
   if (chosen) return made(chosen, 'chosen', 'you chose it in Settings');
   if (list.length === 1) return made(list[0], 'only', 'it is the only screen');
 
   const onIt = matchSimWindow(simWindow, list);
-  if (onIt) return made(onIt.display, 'sim', 'iRacing is running on it');
+  if (onIt) {
+    const game = typeof simGame === 'string' && simGame.trim() ? simGame.trim() : 'iRacing';
+    return made(onIt.display, 'sim', `${game} is running on it`, game);
+  }
 
   const kept = typeof simKept === 'string' ? list.find((d) => d.key === simKept) || null : null;
-  if (kept) return made(kept, 'sim', 'iRacing was last on it, and the host did not say where it is now');
+  if (kept) {
+    const game = typeof keptGame === 'string' && keptGame.trim() ? keptGame.trim() : 'iRacing';
+    return made(kept, 'sim', `${game} was last on it, and the host did not say where it is now`, game);
+  }
 
   const size = simSizeFromIni(ini);
   if (size) {
@@ -552,8 +577,8 @@ function createHudDisplay({
     }
   }
 
-  function decide(list, simWindow, simKept) {
-    return chooseDisplay({ displays: list, choice: saved(), simWindow, simKept, ini: iniNow() });
+  function decide(list, simWindow, simKept, simGame = null, keptGame = null) {
+    return chooseDisplay({ displays: list, choice: saved(), simWindow, simKept, ini: iniNow(), simGame, keptGame });
   }
 
   // The screen the sim was last seen on: where the HUD stays for a round in which the host did not say where it is.
@@ -561,11 +586,16 @@ function createHudDisplay({
     return last && last.reason === 'sim' ? last.key : null;
   }
 
+  // And which sim it was, for the reason given.
+  function lastSimGame() {
+    return last && last.reason === 'sim' ? last.game : null;
+  }
+
   // Said once for each change of the choice or of why it was made — not at every poll that finds it the same.
   function say(decision, list, sim) {
     const notes = [];
     if (decision.choiceMissing) notes.push('the screen chosen in Settings is not connected, so it is Automatic for now');
-    if (sim === 'unknown') notes.push('the host did not say where iRacing is');
+    if (sim === 'unknown') notes.push('the host did not say where the sim is');
     const key = `${decision.key}|${decision.reason}|${notes.join('|')}`;
     if (key === lastLogged) return;
     lastLogged = key;
@@ -601,7 +631,7 @@ function createHudDisplay({
   function decideWithoutAsking() {
     const list = connected();
     choiceUsed = saved();
-    const decision = decide(list, null, lastSimScreen());
+    const decision = decide(list, null, lastSimScreen(), null, lastSimGame());
     if (decision) {
       last = decision;
       say(decision, list, 'not-asked');
@@ -669,8 +699,11 @@ function createHudDisplay({
     }
     // The host not saying is not the sim being closed: it is where it was last seen, while that screen is there.
     const simKept = sim.state === 'unknown' && !sim.skipped ? lastSimScreen() : null;
+    // Which sim: the host names the process whose window it found (iRacing's, Assetto Corsa's acs, AssettoCorsaEVO).
+    const simGame = sim.state === 'running' ? gameOfProcess(sim.process) : null;
+    const keptGame = simKept ? lastSimGame() : null;
     choiceUsed = saved();
-    const decision = decide(list, simWindow, simKept);
+    const decision = decide(list, simWindow, simKept, simGame, keptGame);
     if (!decision) return null;
     last = decision;
     say(decision, list, sim.skipped ? 'not-asked' : sim.state);
@@ -740,7 +773,7 @@ function createHudDisplay({
 module.exports = {
   AUTO, SIM_WINDOW_PATH, MONITORS_PATH, ASK_WITHIN_MS,
   physicalSize, displayKey, normaliseDisplays, positionWords, displayName, listDisplays,
-  matchSimWindow, parseSimWindow, fetchSimWindow, parseMonitors, fetchMonitors, matchMonitors,
+  matchSimWindow, parseSimWindow, fetchSimWindow, parseMonitors, fetchMonitors, matchMonitors, gameOfProcess,
   parseSimIni, simSizeFromIni, simIniPath, readSimIni,
   chooseDisplay, boundsFor, createHudDisplay,
 };

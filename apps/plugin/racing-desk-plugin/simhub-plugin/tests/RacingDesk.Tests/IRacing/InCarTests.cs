@@ -18,12 +18,32 @@ namespace RacingDesk.Tests.IRacing
         private sealed class Source : ITelemetrySource
         {
             public readonly Dictionary<string, object> Values = new Dictionary<string, object>();
+            public string Game = "IRacing";
+            public object Data = null;
             public bool GameRunning => true;
-            public string GameName => "IRacing";
-            public object NewData => null;
+            public string GameName => Game;
+            public object NewData => Data;
             public object GetPropertyValue(string fullName) => Values.TryGetValue(fullName, out var v) ? v : null;
             public string OpponentName(object opponent) => null;
         }
+
+        /// <summary>SimHub's normalized data as far as this reads it: whether a replay is playing.</summary>
+        private sealed class Normalized
+        {
+            public bool IsReplayPlaying { get; set; }
+        }
+
+        private const string AssettoStatus = "DataCorePlugin.GameRawData.Graphics.Status";
+
+        private static bool? InAssetto(string game, object status = null, string statusKey = AssettoStatus, object data = null, object onTrack = null)
+        {
+            var source = new Source { Game = game, Data = data };
+            if (status != null) source.Values[statusKey] = status;
+            if (onTrack != null) source.Values[Raw + "IsOnTrack"] = onTrack;
+            return TelemetryCapture.InCar(source);
+        }
+
+        private enum FakeStatus { AC_OFF = 0, AC_REPLAY = 1, AC_LIVE = 2, AC_PAUSE = 3 }
 
         private static bool? InCar(object onTrack, object replay = null)
         {
@@ -60,6 +80,56 @@ namespace RacingDesk.Tests.IRacing
         {
             Assert.That(InCar(null), Is.Null);
             Assert.That(InCar(null, true), Is.Null);
+        }
+
+        // ── Assetto Corsa and Assetto Corsa EVO, through SimHub (2026-10-09) ──
+
+        [Test]
+        public void AssettoCorsaIsInTheCarWhileTheGraphicsStatusIsLive()
+        {
+            foreach (string game in new[] { "AssettoCorsa", "AssettoCorsaEVO" })
+            {
+                // SimHub hands the status over as its enum (named), an int or text: the name first, the number after.
+                Assert.That(InAssetto(game, FakeStatus.AC_LIVE), Is.True, game + ": live, by name");
+                Assert.That(InAssetto(game, FakeStatus.AC_REPLAY), Is.False, game + ": a replay");
+                Assert.That(InAssetto(game, FakeStatus.AC_PAUSE), Is.False, game + ": paused — the setup screen, the menu over the car");
+                Assert.That(InAssetto(game, FakeStatus.AC_OFF), Is.False, game + ": off, loading");
+                Assert.That(InAssetto(game, 2), Is.True, game + ": live, by number");
+                Assert.That(InAssetto(game, 1), Is.False);
+                Assert.That(InAssetto(game, 3), Is.False);
+                Assert.That(InAssetto(game, 0), Is.False);
+                Assert.That(InAssetto(game, "AC_LIVE"), Is.True, game + ": live, as text");
+                Assert.That(InAssetto(game, "2"), Is.True);
+                Assert.That(InAssetto(game, "AC_REPLAY"), Is.False);
+                Assert.That(InAssetto(game, 2.0), Is.True);
+                Assert.That(InAssetto(game, 2, "DataCorePlugin.GameRawData.Graphics.status"), Is.True, game + ": the lower-case spelling SimHub may use");
+            }
+        }
+
+        [Test]
+        public void AssettoCorsaGoesByItsOwnStatus_NotByIRacingsKey()
+        {
+            // A source that says both: the status decides; iRacing's IsOnTrack is another sim's word.
+            Assert.That(InAssetto("AssettoCorsa", FakeStatus.AC_REPLAY, onTrack: true), Is.False);
+            Assert.That(InAssetto("AssettoCorsa", FakeStatus.AC_LIVE, onTrack: false), Is.True);
+            // iRacing is as it was: IsOnTrack, and nothing of a status.
+            var source = new Source();
+            source.Values[AssettoStatus] = FakeStatus.AC_LIVE;
+            Assert.That(TelemetryCapture.InCar(source), Is.Null, "iRacing with no IsOnTrack says nothing, whatever a status key says");
+            source.Values[Raw + "IsOnTrack"] = true;
+            Assert.That(TelemetryCapture.InCar(source), Is.True);
+        }
+
+        [Test]
+        public void WithoutTheStatus_TheGameRunningAndNotAReplayIsInTheCar_AndNothingAtAllSaysNothing()
+        {
+            // The spellings were read from SimHub's assembly and not yet seen live: if neither is there, SimHub's own flag
+            // for a replay is the next best, so the HUD is not hidden for good by a name.
+            Assert.That(InAssetto("AssettoCorsa", data: new Normalized { IsReplayPlaying = false }), Is.True);
+            Assert.That(InAssetto("AssettoCorsa", data: new Normalized { IsReplayPlaying = true }), Is.False);
+            Assert.That(InAssetto("AssettoCorsaEVO", data: new Normalized { IsReplayPlaying = false }), Is.True);
+            Assert.That(InAssetto("AssettoCorsa", data: new object()), Is.Null, "normalized data with no such flag: nothing is said");
+            Assert.That(InAssetto("AssettoCorsa"), Is.Null, "no data at all");
         }
 
         [Test]
