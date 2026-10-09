@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The game's name as a wordmark in the HUD's own face, for the corner the game logo sits in (game-logo.js). Not Kunos's mark. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 486.1 120.7" role="img" aria-label="Assetto Corsa">
+  <style>
+    .wm { fill: #fff; font-family: "stolzl", sofia-pro-comp, "Segoe UI", sans-serif; font-weight: 700; }
+  </style>
+  <text class="wm" x="243" y="80" text-anchor="middle" font-size="62" letter-spacing="1.5">Assetto Corsa</text>
+</svg>

@@ -1658,3 +1658,11 @@
     top: auto; bottom: auto; left: auto; right: auto;
     margin: 0;
   }
+
+/* ── iRacing's panels in another sim (game-detect.js, applyGameMode; 2026-10-09) ──
+   Assetto Corsa and EVO count no incidents and have no iRating. On the rig's HUD the incidents panel goes, and the
+   ratings' cycle has one page and no dots. The glance layout (body.drive-mode-active) keeps both cells of its grid, and
+   the cards say a dash: the count with no x after it (incidents.js, inc-none). */
+body:not(.drive-mode-active) #incidentsPanel.game-hidden { display: none !important; }
+body:not(.drive-mode-active) #cycleRatingPos.game-one-page .cycle-dots { display: none; }
+#incidentsPanel.inc-none .inc-x { display: none; }

@@ -257,8 +257,8 @@ export function scanScriptAbbreviations(file) {
 // names. They are taken out before a text is judged.
 const NAMES = [
   'The Racing Desk', 'Racing Desk', 'Trading Paints', 'Stream Deck', 'Windows', 'Visual Studio', 'Hybrid MP4', 'Application Support',
-  'Page Up', 'Page Down', 'Right Ctrl', 'Left Ctrl', 'Wikimedia Commons', 'Assetto Corsa Competizione', 'Civic Type R', 'Show in Explorer',
-  'Auto-Lock',
+  'Page Up', 'Page Down', 'Right Ctrl', 'Left Ctrl', 'Wikimedia Commons', 'Assetto Corsa Competizione', 'Assetto Corsa EVO', 'Assetto Corsa',
+  'Civic Type R', 'Show in Explorer', 'Auto-Lock',
 ];
 const SMALL = new Set(['a', 'an', 'the', 'of', 'for', 'to', 'in', 'on', 'at', 'by', 'and', 'or', 'but', 'with', 'from', 'vs', 'per']);
 

@@ -29,6 +29,8 @@
     'UTC', 'AM', 'PM', 'CC',
     // Audio: the bass channel, in his own words ("disable lfe")
     'LFE',
+    // Assetto Corsa EVO, as Kunos writes the game's name (the HUD's screen says which sim is on it; the game's logo)
+    'EVO',
     // His brand, which is spelled in capitals (the Racing Desk's tile is a part of its wordmark, and says so: "DOOOOM logo")
     'DOOOOM',
   ]);

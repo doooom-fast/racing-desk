@@ -10,7 +10,8 @@
     sessionState: 'RacingDesk.Plugin.Grid.SessionState',
     demoMode: 'RacingDesk.Plugin.DemoMode',
     // iRacing's own "the player is in the car, physics running", and not a replay. The app's host sends it, 1 or
-    // 0, and only where the sim says it (TelemetryCapture.InCar); sent, it decides.
+    // 0, and only where the sim says it (TelemetryCapture.InCar); sent, it decides. In Assetto Corsa and EVO the same
+    // key carries the graphics page's status — live is in, a replay or the pause is out — so the page need not know the sim.
     onTrack: 'DataCorePlugin.GameRawData.Telemetry.IsOnTrack',
   });
 
