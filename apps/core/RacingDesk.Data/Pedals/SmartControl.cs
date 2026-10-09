@@ -57,6 +57,9 @@ namespace RacingDesk.Data.Pedals
         /// <summary>Kilograms: the force to set, or the size of the step. Nought for a profile key.</summary>
         public double Value { get; internal set; }
 
+        /// <summary>The action's value as the row stores it ("30", or a profile's id); null where the row has none.</summary>
+        public string ActionValue { get; internal set; }
+
         /// <summary>For a profile key (<see cref="LiveAction.SetProfile"/>): the id of the profile it switches to, as Live keeps it.</summary>
         public string ProfileId { get; internal set; }
 
@@ -157,6 +160,7 @@ namespace RacingDesk.Data.Pedals
                     {
                         Action = action,
                         Value = action == LiveAction.SetProfile || value == null ? 0 : Number(value) ?? 0,
+                        ActionValue = value,
                         ProfileId = action == LiveAction.SetProfile ? value?.Trim() : null,
                         FirstKey = rows.IsDBNull(2) ? "" : rows.GetString(2),
                         SecondKey = rows.IsDBNull(3) ? "" : rows.GetString(3),

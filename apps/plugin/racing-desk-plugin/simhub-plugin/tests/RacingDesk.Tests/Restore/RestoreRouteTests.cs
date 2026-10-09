@@ -132,6 +132,47 @@ namespace RacingDesk.Tests.Restore
         }
 
         [Test]
+        public void HisBrakeKeys_AreSaid_AndUndoneOnAProgramsWord_AndNotAPages()
+        {
+            SqliteConnectionPools();
+            File.Delete(_rig.SmartControlDb);
+            _rig.SmartControlAsHisIs();
+            _rig.Probe.Live = false;        // Live reads its keys when it starts: nothing to restart
+            new RestoreSwitches { Brakes = false, Height = false }.Save(Path.Combine(_rig.Dir, "restore.json"));
+            var director = Director();
+            Assert.That(director.BrakeKeys.Move(asked: false).Ok, Is.True);
+
+            var (status, body) = Ask(director, HttpMethod.Get, "restore");
+            Assert.That(status, Is.EqualTo(HttpStatusCode.OK));
+            var keys = body["keys"];
+            Assert.That((string)keys["state"], Is.EqualTo("moved"));
+            Assert.That((string)keys["text"], Is.EqualTo("Right Ctrl + F1, F2, F3, F4 set 30, 50, 80, 100 kg; Up adds 5 kg; Down takes off 5 kg."));
+            Assert.That(keys["restart"].Type, Is.EqualTo(JTokenType.Null));
+            Assert.That(((bool)keys["undo"], (bool)keys["move"]), Is.EqualTo((true, false)));
+
+            // A page: refused before the route, and the keys stay.
+            Assert.That(Ask(director, HttpMethod.Post, "restore", "{\"keys\":\"undo\"}", r => r.Headers.Add("Origin", "null")).Status, Is.EqualTo(HttpStatusCode.Forbidden));
+            Assert.That(director.BrakeKeys.Record().State, Is.EqualTo(BrakeKeysRecord.Moved));
+            Assert.That(Ask(director, HttpMethod.Post, "restore", "{\"keys\":\"all\"}").Status, Is.EqualTo(HttpStatusCode.BadRequest));
+
+            var undo = Ask(director, HttpMethod.Post, "restore", "{\"keys\":\"undo\"}");
+            Assert.That(undo.Status, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(((string)undo.Body["action"], (bool)undo.Body["ok"]), Is.EqualTo(("keys", true)));
+            Assert.That(undo.Body["did"].Select(d => (string)d), Is.EqualTo(new[] { "the brake-force keys are on F1–F4 again, as before Racing Desk moved them" }));
+            var (_, after) = Ask(director, HttpMethod.Get, "restore");
+            Assert.That(((string)after["keys"]["state"], (bool)after["keys"]["undo"], (bool)after["keys"]["move"]), Is.EqualTo(("undone", false, true)));
+            Assert.That((string)after["keys"]["text"], Is.EqualTo("F1, F2, F3, F4 set 30, 50, 80, 100 kg; Up adds 5 kg; Down takes off 5 kg."));
+
+            var move = Ask(director, HttpMethod.Post, "restore", "{\"keys\":\"move\"}");
+            Assert.That((bool)move.Body["ok"], Is.True);
+            Assert.That(director.BrakeKeys.Record().State, Is.EqualTo(BrakeKeysRecord.Moved));
+            Assert.That(director.Settled().Wait(TimeSpan.FromSeconds(20)), Is.True);
+            Assert.That(_rig.Keys.Sent, Is.Zero);
+        }
+
+        private static void SqliteConnectionPools() => Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        [Test]
         public void TheRouteIsOnTheHostsList()
         {
             Assert.That(LocalDataApi.Routes, Does.Contain("restore"), "so DataRoutesThisMachineTests asks it of every kind of asker");

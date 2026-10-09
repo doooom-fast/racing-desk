@@ -272,9 +272,11 @@ Data options:
                 : null;
             // The pedals each car is driven with. The brake force is followed from SmartControl Live's own keys —
             // those keys and no others, and only while the sim is sending — because nothing on the PC records it.
-            // SmartControl's files are read and never written here.
+            // SmartControl's files are read and never written here. The keys are the ones Live acts on: until Live has started
+            // again after Racing Desk moved his brake-force keys to Right Ctrl, it still has the ones of before.
             if (store != null)
-                pedals = new CarPedalsRecorder(() => SmartControl.Read(), seen => { SavePedals(o, seen); restore?.PedalsLeft(seen); }, m => Log.Info("[RacingDesk.Host] " + m));
+                pedals = new CarPedalsRecorder(() => restore != null ? restore.KeysAsLiveHasThem(SmartControl.Read()) : SmartControl.Read(),
+                    seen => { SavePedals(o, seen); restore?.PedalsLeft(seen); }, m => Log.Info("[RacingDesk.Host] " + m));
             // The force the keys have left the pedals at, for the HUD's datastream (the brakeforce route, asked by the
             // app's main process); a host with no recorder answers not known.
             if (api != null) api.BrakeForce = () => pedals?.Now;
@@ -332,7 +334,8 @@ Data options:
             raw.Start();
             Log.Info("[RacingDesk.Host] waiting for iRacing (Ctrl+C to stop)");
             // A write of iRacing's view files that a stop cut short is put back; the heights he chose before go into the camera
-            // files once; Racing Desk's SmartControl profile and F24 are made if they are not there.
+            // files once; Racing Desk's SmartControl profile and F24 are made if they are not there; his brake-force keys F1–F4 move
+            // to Right Ctrl + F1–F4, once (with the SmartControl editor closed, or when it closes).
             restore?.HostStarted();
             // After that: the default playback device is looked at once now and then whenever Windows says it changed. Waits for the
             // work HostStarted queued, so that a view write that was cut short is put back before app.ini is looked at for anything else.

@@ -337,6 +337,10 @@ files or to the pedals; putting the cars back (last bullet) does, by itself, by 
     brake force and no others** — `LiveKeyWatcher.Watched` — and never about a key that text is typed with,
     whatever Live has bound. It is asked on a telemetry frame, so only while the sim is sending; there is no
     clock in it. **Nothing is kept but the force**: the log has the force, never the key.
+  - **Live's keys as it stores them**: `keyboard_binding.first_key` may not be empty, so a key on its own is stored as
+    `ZOOM` + the key (`VK_ZOOM`, beside the modifiers in Live's own list; `LiveKeyWatcher.NoKey`): his F1 · 30 kg is `ZOOM`,
+    `F1`, which is F1 alone, and `RCONTROL`, `F1` is Right Ctrl held with F1. Until 2026-10-09 the watcher knew no `ZOOM`,
+    watched none of his keys, and "Brake max" never filled.
   - The force is known from the first key that *sets* one. **A number that may be wrong is not kept**: a step key
     held until Windows repeats it leaves the force not known until a key sets one, a key pressed while
     SmartControl Live is not running is not counted, and a look after a gap in the frames only looks.
@@ -419,14 +423,32 @@ files or to the pedals; putting the cars back (last bullet) does, by itself, by 
     line's width; `car.cam` through `CarCamFile`; both process names of the sim checked before each write; an intent kept
     in the store when both files change, and put back by value at host start if a stop cut it short; undo puts values
     back too, never a whole-file copy) and `SmartControlWriter` (the vendor's own SQL shapes, database version 1 only, a
-    short transaction with a busy timeout, the journal mode never changed, **any row it did not make refused**: his six
-    profiles, presets and five keys are never touched). Never SmartControl's Apply, Save or Restore; nothing to the
-    pedals' memory; no HID.
+    short transaction with a busy timeout, the journal mode never changed, **any row it did not make refused**: his
+    profiles, presets and keys are never touched, but for the one change below). Never SmartControl's Apply, Save or
+    Restore; nothing to the pedals' memory; no HID.
+  - **His brake-force keys on Right Ctrl** (2026-10-09, his words: "Move brake keys to Right Ctrl+F1..F4": Assetto Corsa's
+    F1/F2/F3 cameras are built into the game). `BrakeKeyMove` (`Restore/BrakeKeys.cs`), from the director, whatever the two
+    switches say: once, at the host's start or when the SmartControl editor closes (a look every 10 s while it is open), the
+    set-force keys F1–F4 (action 8) of Live's Default preset whose first key is `ZOOM` get `RCONTROL` (Live's own name,
+    `RestorePolicy.BrakeKeysHeld`) — that column of those rows and nothing else (`SmartControlWriter.SetBrakeKeysFirstKey`:
+    the vendor's `UPDATE keyboard_binding … WHERE id`, each row only while it holds what was read and is in that preset
+    alone, the chord free, every row or none, read back). Up and Down, his other keys, profiles and presets and F24 stay.
+    The editor closed, a copy first (`before-write-…-brakekeys.db`), what each row held kept in `brake-keys.json` beside
+    `restore.json` before the write, every key and profile read back after, then marked done: never again by itself (a
+    refusal, such as Right Ctrl + F3 bound already, is said once and also marks it done). Live reads its keys when it
+    starts, so until it has started after the write (`RestorePolicy.LiveHasWrite`, the same comparison as F24's) the desk
+    says "Restart SmartControl Live (or the PC) to use Right Ctrl + F1–F4 for brake force." and the key follower goes by
+    the keys Live started with (`BrakeKeyMove.AsLiveHasThem`, in the host's `CarPedalsRecorder` read). Settings → Cars has
+    the line and its own **Undo** (`POST …/restore { "keys": "undo" }`): the rows that still hold what Racing Desk wrote get
+    back exactly what they held, one he changed since is left and said, with the same editor, copy and read-back rules;
+    `{ "keys": "move" }` makes the move again on his word. Tests: `RacingDesk.Tests/Restore/BrakeKeysTests.cs` over a
+    database shaped as his (`RestoreRig.SmartControlAsHisIs`), the follower's in `Pedals/BrakeForceTests.cs`.
   - **One key, ever**: `KeySender.SendF24` in the host (`SendInput`, F24 alone, which nothing on the rig is bound to).
     `SendInputOnlyHereTests` fails if `SendInput` appears in any other file. Tests inject a fake sender.
   - **Schema v9 adds tables only** (`car_view_keep`, `view_baseline`, `car_smartcontrol`, `smartcontrol_switch`,
     `restore_events`); `GET /racing-desk/data/restore` (this machine only) answers the two switches, a sentence for each
-    part, whether there is anything to undo, and each car's sentences; `POST` takes a switch or undo. The host keeps the
+    part, whether there is anything to undo, each car's sentences, and his brake-force keys (`keys`: `state`, `text`,
+    `restart`, `said`, `undo`, `move`); `POST` takes a switch, undo, or `{ "keys": "undo" | "move" }`. The host keeps the
     switches in `restore.json` beside its settings.
   - Tests: `RacingDesk.Tests/Restore/` (`LiveTests.cs`: the loop over made-up files and a fake key sender; editors, writers,
     the route); on the overlay `tests/unit/restore-api.spec.mjs`, `tests/unit/desk-restore-model.spec.mjs`,

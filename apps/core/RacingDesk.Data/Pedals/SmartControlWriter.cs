@@ -22,6 +22,24 @@ namespace RacingDesk.Data.Pedals
         public static SmartControlWrite No(string why) => new SmartControlWrite { Why = why };
     }
 
+    /// <summary>One of his brake-force keys to be moved: its row, what the row holds as stored, and its first key before and after.</summary>
+    public sealed class BrakeKeyChange
+    {
+        public long BindingId { get; set; }
+
+        /// <summary>Live's action: 8, set the brake force. No other is moved.</summary>
+        public int ActionType { get; set; } = 8;
+
+        /// <summary>The force as the row stores it ("30").</summary>
+        public string ActionValue { get; set; }
+
+        /// <summary>The key itself ("F1"), which stays.</summary>
+        public string SecondKey { get; set; }
+
+        public string From { get; set; }
+        public string To { get; set; }
+    }
+
     /// <summary>
     /// Heusinkveld SmartControl's database, written — only the rows Racing Desk makes, and only as SmartControl itself writes
     /// them (its own statements, from LibHeusinkveld): a profile is <c>INSERT INTO [profile_sim_device] (id, name, data)</c> and
@@ -30,8 +48,10 @@ namespace RacingDesk.Data.Pedals
     /// <c>INSERT INTO [profile_smartcontrol_live_keyboard_binding] …</c>. The rules (docs/view-and-pedals-plan.md):
     /// <list type="bullet">
     /// <item>The database must be the one SmartControl 26.02 keeps (<c>database_version</c> 1): any other is refused.</item>
-    /// <item>A row Racing Desk did not make — his six profiles, his presets, his five keys — is never updated or deleted:
-    /// every such call names the ids Racing Desk made, and anything else is refused, whatever was asked.</item>
+    /// <item>A row Racing Desk did not make — his six profiles, his presets, his keys — is never updated or deleted:
+    /// every such call names the ids Racing Desk made, and anything else is refused, whatever was asked. The one exception is his
+    /// own decision of 2026-10-09: the first key of his set-force keys F1–F4, moved to Right Ctrl and back
+    /// (<see cref="SetBrakeKeysFirstKey"/>), that column of those rows and nothing else.</item>
     /// <item>One short transaction with a 2-second busy timeout, foreign keys on as SmartControl has them, and the journal mode
     /// never touched (SmartControl's is the rollback journal).</item>
     /// <item>What was written is read back and compared, byte for byte.</item>
@@ -430,6 +450,129 @@ FROM [keyboard_binding] k JOIN [profile_smartcontrol_live_keyboard_binding] l ON
                 }
                 tx.Commit();
                 return new SmartControlWrite { Ok = true, BindingId = bindingId, LinkId = linkId ?? 0 };
+            }
+            catch (SqliteException ex)
+            {
+                return SmartControlWrite.No("SmartControl's database was not written: " + ex.Message.Trim());
+            }
+        }
+
+        // ── His brake-force keys: the first key, and nothing else ──
+
+        /// <summary>The first keys a brake-force binding may be moved between: Live's "no first key" and Right Ctrl, as Live names them.</summary>
+        public static readonly IReadOnlyCollection<string> MovableFirstKeys = new[] { LiveKeyWatcher.NoKey, Restore.RestorePolicy.BrakeKeysHeld };
+
+        /// <summary>
+        /// The one change he asked Racing Desk to make to rows of his (2026-10-09, "Move brake keys to Right Ctrl+F1..F4"): the first key
+        /// of his own set-force bindings (action 8), from <see cref="BrakeKeyChange.From"/> to <see cref="BrakeKeyChange.To"/>, both of
+        /// <see cref="MovableFirstKeys"/>, and nothing else of the row. Each row must be in Live's preset <paramref name="presetId"/> and no
+        /// other, and hold just what it held when Racing Desk read it (action, force, both keys); the chord it moves to must be free in
+        /// that preset. One transaction with the vendor's own <c>UPDATE keyboard_binding … WHERE id</c>, every row or none, then read
+        /// back. Any other row, a profile, a preset, F24's binding, the raise and lower keys: refused, whatever is asked.
+        /// </summary>
+        public SmartControlWrite SetBrakeKeysFirstKey(IReadOnlyList<BrakeKeyChange> changes, long presetId, string presetName)
+        {
+            string refused = Refusal();
+            if (refused != null) return SmartControlWrite.No(refused);
+            if (changes == null || changes.Count == 0) return SmartControlWrite.No("no keys named");
+            foreach (var change in changes)
+            {
+                if (change == null || change.BindingId <= 0) return SmartControlWrite.No("a key without its row");
+                if (change.ActionType != 8) return SmartControlWrite.No("only the keys that set the brake force are moved");
+                if (!MovableFirstKeys.Contains(change.From) || !MovableFirstKeys.Contains(change.To))
+                    return SmartControlWrite.No($"a first key is moved between {string.Join(" and ", MovableFirstKeys)} and no other");
+                if (string.IsNullOrWhiteSpace(change.SecondKey) || LiveKeyWatcher.IsNoKey(change.SecondKey)) return SmartControlWrite.No("a key moved keeps its own key");
+            }
+            if (changes.Select(c => c.BindingId).Distinct().Count() != changes.Count) return SmartControlWrite.No("a row is named twice");
+            var ids = new HashSet<long>(changes.Select(c => c.BindingId));
+            try
+            {
+                using var c = Open();
+                using (var tx = c.BeginTransaction())
+                {
+                    using (var preset = c.CreateCommand())
+                    {
+                        preset.Transaction = tx;
+                        preset.CommandText = "SELECT name FROM [profile_smartcontrol_live] WHERE id = @id";
+                        preset.Parameters.AddWithValue("@id", presetId);
+                        string name = preset.ExecuteScalar() as string;
+                        if (name == null) return SmartControlWrite.No($"Live has no preset {presetId}");
+                        if (presetName != null && !string.Equals(name.Trim(), presetName, StringComparison.Ordinal)) return SmartControlWrite.No($"Live's preset {presetId} is \"{name}\", not \"{presetName}\"");
+                    }
+                    foreach (var change in changes)
+                    {
+                        long type;
+                        object value, second;
+                        string first;
+                        using (var read = c.CreateCommand())
+                        {
+                            read.Transaction = tx;
+                            read.CommandText = "SELECT action_type, action_value, first_key, second_key FROM [keyboard_binding] WHERE id = @id";
+                            read.Parameters.AddWithValue("@id", change.BindingId);
+                            using var r = read.ExecuteReader();
+                            if (!r.Read()) return SmartControlWrite.No($"the key in row {change.BindingId} is not there any more");
+                            type = r.IsDBNull(0) ? -1 : r.GetInt64(0);
+                            value = r.GetValue(1);
+                            first = r.IsDBNull(2) ? null : r.GetString(2);
+                            second = r.GetValue(3);
+                        }
+                        string secondText = second is DBNull ? null : Convert.ToString(second, CultureInfo.InvariantCulture);
+                        string valueText = value is DBNull ? null : Convert.ToString(value, CultureInfo.InvariantCulture);
+                        if (type != change.ActionType || valueText != change.ActionValue || first != change.From || secondText != change.SecondKey)
+                            return SmartControlWrite.No($"the key in row {change.BindingId} is not as Racing Desk read it; it is left as it is");
+                        using (var links = c.CreateCommand())
+                        {
+                            links.Transaction = tx;
+                            links.CommandText = "SELECT fk_profile_smartcontrol_live_id FROM [profile_smartcontrol_live_keyboard_binding] WHERE fk_keyboard_binding_id = @id";
+                            links.Parameters.AddWithValue("@id", change.BindingId);
+                            using var r = links.ExecuteReader();
+                            var presets = new List<long>();
+                            while (r.Read()) presets.Add(r.GetInt64(0));
+                            if (presets.Count != 1 || presets[0] != presetId) return SmartControlWrite.No($"the key in row {change.BindingId} is not in Live's {presetName ?? presetId.ToString(CultureInfo.InvariantCulture)} preset alone; it is left as it is");
+                        }
+                        using (var taken = c.CreateCommand())
+                        {
+                            taken.Transaction = tx;
+                            taken.CommandText = @"SELECT k.id FROM [keyboard_binding] k JOIN [profile_smartcontrol_live_keyboard_binding] l ON l.fk_keyboard_binding_id = k.id
+WHERE l.fk_profile_smartcontrol_live_id = @preset AND UPPER(k.first_key) = UPPER(@first) AND UPPER(COALESCE(k.second_key, '')) = UPPER(@second)";
+                            taken.Parameters.AddWithValue("@preset", presetId);
+                            taken.Parameters.AddWithValue("@first", change.To);
+                            taken.Parameters.AddWithValue("@second", change.SecondKey);
+                            using var r = taken.ExecuteReader();
+                            while (r.Read())
+                                if (!ids.Contains(r.GetInt64(0)))
+                                    return SmartControlWrite.No((LiveKeyWatcher.IsNoKey(change.To) ? "" : Restore.BrakeKeyMove.KeyName(change.To) + " + ")
+                                        + $"{Restore.BrakeKeyMove.KeyName(change.SecondKey)} is bound already in SmartControl Live's {presetName ?? "own"} preset");
+                        }
+                        using (var cmd = c.CreateCommand())
+                        {
+                            // The vendor's own statement, with the row's own action, force and second key: only the first key differs.
+                            cmd.Transaction = tx;
+                            cmd.CommandText = "UPDATE keyboard_binding SET action_type = @action_type, action_value = @action_value, first_key = @first_key, second_key = @second_key WHERE id = @id";
+                            cmd.Parameters.AddWithValue("@action_type", type);
+                            cmd.Parameters.AddWithValue("@action_value", value);
+                            cmd.Parameters.AddWithValue("@first_key", change.To);
+                            cmd.Parameters.AddWithValue("@second_key", second);
+                            cmd.Parameters.AddWithValue("@id", change.BindingId);
+                            if (cmd.ExecuteNonQuery() != 1) return SmartControlWrite.No($"the key in row {change.BindingId} was not written");
+                        }
+                    }
+                    tx.Commit();
+                }
+
+                // Read back: each row is what was written, and still in the preset alone.
+                foreach (var change in changes)
+                {
+                    using var check = c.CreateCommand();
+                    check.CommandText = @"SELECT k.action_type, k.action_value, k.first_key, k.second_key, l.fk_profile_smartcontrol_live_id
+FROM [keyboard_binding] k JOIN [profile_smartcontrol_live_keyboard_binding] l ON l.fk_keyboard_binding_id = k.id WHERE k.id = @id";
+                    check.Parameters.AddWithValue("@id", change.BindingId);
+                    using var r = check.ExecuteReader();
+                    if (!r.Read() || r.GetInt64(0) != change.ActionType || Convert.ToString(r.GetValue(1), CultureInfo.InvariantCulture) != change.ActionValue
+                        || r.GetString(2) != change.To || (r.IsDBNull(3) ? null : r.GetString(3)) != change.SecondKey || r.GetInt64(4) != presetId || r.Read())
+                        return SmartControlWrite.No($"the key in row {change.BindingId} did not read back as written");
+                }
+                return new SmartControlWrite { Ok = true };
             }
             catch (SqliteException ex)
             {

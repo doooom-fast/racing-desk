@@ -74,6 +74,31 @@ namespace RacingDesk.Data.Restore
         /// <summary>The copies of SmartControl's database kept from before Racing Desk writes it (the last ones; older ones go).</summary>
         public const int BackupsKept = 10;
 
+        /// <summary>
+        /// Whether SmartControl Live has what was written to its database at <paramref name="writtenUtc"/>: it reads its keys when it
+        /// starts, so it has them when it started at or after the write. False when when it started is not known.
+        /// </summary>
+        public static bool LiveHasWrite(DateTime? liveStartedUtc, DateTime writtenUtc) => liveStartedUtc.HasValue && liveStartedUtc.Value >= writtenUtc;
+
+        // ── His brake-force keys on Right Ctrl (his decision of 2026-10-09: "Move brake keys to Right Ctrl+F1..F4") ──
+        // Assetto Corsa's F1, F2 and F3 cameras are built into the game, so his set-force keys move to a chord no sim uses.
+
+        /// <summary>
+        /// Live's own name for Right Ctrl, the first key his set-force keys move to: <c>VK_RCONTROL</c> in Live's list of the keys a
+        /// binding's first key can be (beside <c>VK_LCONTROL</c>, <c>VK_ZOOM</c>), stored without its <c>VK_</c> as the vendor's own
+        /// first-run setup stores <c>LCONTROL</c> for its Default preset's Ctrl+D.
+        /// </summary>
+        public const string BrakeKeysHeld = "RCONTROL";
+
+        /// <summary>The keys whose set-force bindings move: F1–F4. Up and Down (+5 / −5) stay as they are; they clash with nothing.</summary>
+        public static readonly IReadOnlyList<string> BrakeKeysMoved = new[] { "F1", "F2", "F3", "F4" };
+
+        /// <summary>What the desk says until SmartControl Live has started again after the move (it reads its keys when it starts).</summary>
+        public const string BrakeKeysRestart = "Restart SmartControl Live (or the PC) to use Right Ctrl + F1–F4 for brake force.";
+
+        /// <summary>The same after the move is undone.</summary>
+        public const string BrakeKeysRestartUndone = "Restart SmartControl Live (or the PC) to use F1–F4 for brake force again.";
+
         /// <summary>The bases' own forces, his decision for a car whose force he never set: LightBrake 45 kg, Default 80 kg.</summary>
         public static readonly IReadOnlyDictionary<string, int> BaseForces = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {

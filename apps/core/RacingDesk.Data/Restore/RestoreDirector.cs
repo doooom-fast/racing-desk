@@ -78,14 +78,25 @@ namespace RacingDesk.Data.Restore
             public string EditorWait;
         }
 
-        /// <param name="switchesFile">restore.json, beside the host's settings; null keeps them in memory (a test's).</param>
+        // His brake-force keys moved to Right Ctrl, once (BrakeKeyMove), and the look that waits for the SmartControl editor to close.
+        private readonly BrakeKeyMove _keys;
+        private Timer _editorLook;
+
+        /// <summary>While the keys' move waits for the SmartControl editor to close, how often it looks whether it has.</summary>
+        public TimeSpan EditorLookEvery { get; set; } = TimeSpan.FromSeconds(10);
+
+        /// <param name="switchesFile">restore.json, beside the host's settings; null keeps them in memory (a test's). brake-keys.json goes beside it.</param>
         public RestoreDirector(RestoreContext ctx, string switchesFile)
         {
             _ctx = ctx ?? throw new ArgumentNullException(nameof(ctx));
             _switchesFile = switchesFile;
             _switches = RestoreSwitches.Load(switchesFile);
             _ctx.Parked = () => { lock (_gate) return _parkedNow; };
+            _keys = new BrakeKeyMove(ctx, switchesFile == null ? null : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(switchesFile)) ?? "", "brake-keys.json"));
         }
+
+        /// <summary>His brake-force keys on Right Ctrl: the move, its undo, and what the desk says of them.</summary>
+        public BrakeKeyMove BrakeKeys => _keys;
 
         public RestoreContext Context => _ctx;
 
@@ -146,7 +157,58 @@ namespace RacingDesk.Data.Restore
                 else if (switches.Height) MoveRemembered(null);
                 if (switches.Brakes && Setup().Ready) KeepRows();
             });
+            // His brake-force keys to Right Ctrl + F1–F4, once, whatever the switches say: his decision, not a part of putting cars back.
+            Queue(KeysLook);
         }
+
+        // ── His brake-force keys ──
+
+        /// <summary>The keys' move, if it is still to be made; while the SmartControl editor is open, it is looked at again once it closes.</summary>
+        private void KeysLook()
+        {
+            _keys.Move(asked: false);
+            if (_keys.WaitingForEditor != null) WatchEditor();
+        }
+
+        /// <summary>A look every <see cref="EditorLookEvery"/> at whether the SmartControl editor is still open (one question to Windows); gone once it has closed.</summary>
+        private void WatchEditor()
+        {
+            lock (_gate)
+            {
+                if (_editorLook != null) return;
+                var every = EditorLookEvery;
+                _editorLook = new Timer(_ =>
+                {
+                    try
+                    {
+                        if (_ctx.Probe.EditorRunning()) return;
+                    }
+                    catch (Exception)
+                    {
+                        return;
+                    }
+                    lock (_gate)
+                    {
+                        if (_editorLook == null) return;
+                        _editorLook.Dispose();
+                        _editorLook = null;
+                    }
+                    Queue(KeysLook);
+                }, null, every, every);
+            }
+        }
+
+        /// <summary>How his brake-force keys stand, for Settings → Cars. On the asker's thread: SmartControl's database read, and a look at Live.</summary>
+        public BrakeKeysStatus KeysStatus() => _keys.Status();
+
+        /// <summary>Puts his brake-force keys back exactly as they were before Racing Desk moved them (Settings → Cars).</summary>
+        public RestoreResult UndoBrakeKeys() => Exclusive("keys", () => _keys.Undo());
+
+        /// <summary>Moves his brake-force keys to Right Ctrl + F1–F4 on his word (after an undo, or when the move was not made by itself).</summary>
+        public RestoreResult MoveBrakeKeys() => Exclusive("keys", () => _keys.Move(asked: true));
+
+        /// <summary>The keys SmartControl Live acts on now, for the key follower: see <see cref="BrakeKeyMove.AsLiveHasThem(SmartControlSnapshot)"/>.</summary>
+        public SmartControlSnapshot KeysAsLiveHasThem(SmartControlSnapshot snapshot) => _keys.AsLiveHasThem(snapshot);
 
         // ── Every frame ──
 
@@ -369,7 +431,7 @@ namespace RacingDesk.Data.Restore
             DateTime? started = _ctx.Probe.LiveStartedAtUtc();
             DateTime bound = sw.BoundAtUtc ?? sw.MadeAtUtc;
             if (started == null) return "Waiting: Racing Desk can't tell when SmartControl Live started, so it can't tell whether Live has the F24 key.";
-            if (started.Value < bound) return "Starts working the next time SmartControl Live starts: quit it from its tray icon and start it again, or restart the PC.";
+            if (!RestorePolicy.LiveHasWrite(started, bound)) return "Starts working the next time SmartControl Live starts: quit it from its tray icon and start it again, or restart the PC.";
             return null;
         }
 

@@ -11,9 +11,11 @@ namespace RacingDesk.Host
     /// app on this machine and no page (the data API's own check, <see cref="LocalDataApi"/>, is made first).
     ///
     /// <c>GET</c> answers the two switches, how each part stands in a sentence (working, waiting for something, turned itself
-    /// off), whether there is anything to undo, and each car's sentences for the Cars page. <c>POST</c> takes one thing at a
-    /// time, for a program on this machine alone (the stricter check the pedals' write makes): <c>{ "switches": { "brakes",
-    /// "height" } }</c> or <c>{ "undo": "all" }</c>. A host with no director (a replay) answers that it has none.
+    /// off), whether there is anything to undo, each car's sentences for the Cars page, and his brake-force keys (<c>keys</c>:
+    /// which set the force now, whether SmartControl Live must start again to have Racing Desk's change, undo or move).
+    /// <c>POST</c> takes one thing at a time, for a program on this machine alone (the stricter check the pedals' write makes):
+    /// <c>{ "switches": { "brakes", "height" } }</c>, <c>{ "undo": "all" }</c>, or <c>{ "keys": "undo" | "move" }</c> for his
+    /// brake-force keys. A host with no director (a replay) answers that it has none.
     /// </summary>
     internal sealed class RestoreApi
     {
@@ -44,6 +46,9 @@ namespace RacingDesk.Host
             string planWhy = null;
             try { plan = director.Plan(); }
             catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException || ex is System.IO.IOException || ex is InvalidOperationException) { planWhy = ex.Message; }
+            BrakeKeysStatus keys = null;
+            try { keys = director.KeysStatus(); }
+            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException || ex is System.IO.IOException || ex is InvalidOperationException) { keys = new BrakeKeysStatus { State = "unknown", Text = "SmartControl Live's keys couldn't be read: " + ex.Message.Trim() }; }
             write(200, json =>
             {
                 json.WriteStartObject();
@@ -57,6 +62,15 @@ namespace RacingDesk.Host
                 Status(json, "height", height);
                 json.WriteEndObject();
                 json.WriteBoolean("undo", undo);
+                // His brake-force keys: which set the force now, whether Live must start again to have the change, undo or move.
+                json.WriteStartObject("keys");
+                json.WriteString("state", keys.State);
+                json.WriteString("text", keys.Text);
+                json.WriteString("restart", keys.Restart);
+                json.WriteString("said", keys.Said);
+                json.WriteBoolean("undo", keys.Undo);
+                json.WriteBoolean("move", keys.Move);
+                json.WriteEndObject();
                 WriteCars(json, plan, switches);
                 if (planWhy != null) json.WriteString("carsError", planWhy);
                 json.WriteEndObject();
@@ -157,11 +171,19 @@ namespace RacingDesk.Host
                     WriteResult(write, director.UndoEverything());
                     return;
                 }
+                if (root.TryGetProperty("keys", out var keys) && keys.ValueKind == JsonValueKind.String)
+                {
+                    string what = keys.GetString();
+                    if (what == "undo") { WriteResult(write, director.UndoBrakeKeys()); return; }
+                    if (what == "move") { WriteResult(write, director.MoveBrakeKeys()); return; }
+                    Error(write, 400, "keys is undo or move");
+                    return;
+                }
                 Error(write, 400, Expected);
             }
         }
 
-        private const string Expected = "expected { switches: { brakes?, height? } } or { undo: \"all\" }";
+        private const string Expected = "expected { switches: { brakes?, height? } }, { undo: \"all\" } or { keys: \"undo\" | \"move\" }";
 
         private static void WriteResult(Action<int, Action<Utf8JsonWriter>> write, RestoreResult r) => write(200, json =>
         {
