@@ -1328,6 +1328,21 @@ Golden frames pin the replay to a frame, block all non-plugin network, fix `Date
 screenshots with a 100-pixel allowance (runs are pixel-exact; a single colour rule moves ~1.3k px).
 No CI — run locally.
 
+## Another sim: Assetto Corsa and Assetto Corsa EVO (2026-10-09)
+
+The page knows the game from `RacingDesk.Plugin.GameId` (`game-detect.js`: `detectGameId`, `GAME_FEATURES`, `applyGameMode`;
+the body carries `game-iracing`, `game-ac`, `game-acevo`, `game-acc`). In Assetto Corsa and EVO the plugin sends what the
+root CLAUDE.md's "Assetto Corsa and Assetto Corsa EVO" section says — in the car under iRacing's `IsOnTrack` key, the
+three cells under `RacingDesk.Plugin.CarControls` in the list's shape — so `in-car.js` and `car-controls.js` are as they
+are. What the page does for a game without iRating or incidents (`GAME_FEATURES.hasIRating`, `hasIncidents`): on the
+rig's HUD `#incidentsPanel` gets `game-hidden` (dashboard.css hides it outside the glance layout) and the ratings' cycle
+`#cycleRatingPos` gets `game-one-page` (its dots hidden) and is held on the position page (`showPositionPage()`;
+`_hasRatingData` is false whatever Settings holds, so it never turns); in the glance layout, whose grid has a cell for
+each, both cards stay — the incidents' count is a dash with no x (`incidents.js`, `inc-none`), the ratings dashes. The
+game's logo is `images/logos/assetto-corsa.svg` or `assetto-corsa-evo.svg` (`game-logo.js`), wordmarks in the HUD's face.
+Tests: `tests/unit/hud-page-assetto.spec.mjs` (the real page in both games and back in iRacing), `in-car.spec.mjs`,
+`hud-display.spec.mjs` (the reason names the game).
+
 ## The HUD's screen
 
 `modules/js/hud-display.js` chooses the screen the transparent window covers, and `main.js` only hands it what Electron
@@ -1335,7 +1350,8 @@ knows (`connectedDisplays`, `screen.screenToDipRect`) and the settings: nothing 
 `getPrimaryDisplay()` is used once, for the primary's id (`tests/unit/hud-main-wiring.spec.mjs`). The rule and its
 reasons are in the root CLAUDE.md (Desk, "The HUD is on the screen iRacing is on"). Short: a screen chosen in Settings
 (`hudDisplay`, "HUD screen" in Layout, Automatic by default) while it is connected → the screen the sim's window is on
-(the host's `/racing-desk/data/simwindow`; while the host does not say, the screen it was last on) → the screen that is
+(the host's `/racing-desk/data/simwindow`, which names the process — iRacing's, Assetto Corsa's `acs`, `AssettoCorsaEVO` —
+so the reason says which game; while the host does not say, the screen it was last on) → the screen that is
 the size `rendererDX11Monitor.ini` says iRacing runs at → the largest. It is decided at start, when he gets in the car
 (`hud-visibility`'s `beforeReveal`, before the window is revealed), on any screen being added, removed or changed, on a
 change of the setting, and by Ctrl+Shift+R. A screen's size is not DIPs times its scale: Electron's DIPs are the

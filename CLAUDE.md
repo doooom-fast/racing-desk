@@ -200,6 +200,53 @@ columns it always had; v9 adds the five tables of putting the cars back, see Per
 earlier build writes an outline by position, eleven values, and a column added to that table would make it fail and
 then delete the sessions it had just stored from the same file.
 
+## Assetto Corsa and Assetto Corsa EVO (through SimHub)
+
+He asked for both on 2026-10-08 and chose to start with the HUD (the plan's steps 1 and 2, 2026-10-09; the research and the
+later steps — maps, car lists, OBS auto-record, pedals, the host's own readers, the EVO camera keys — are in the plan he was
+given, not here). SimHub is the data path: its own readers of the two games' shared memory (`acpmf_*`, `acevo_pmf_*`) feed
+the plugin as they feed it iRacing, and `TelemetryCapture` names the game from SimHub's `GameName` (`AssettoCorsa`,
+`AssettoCorsaEVO`: `DetectGame`; the page's `game-detect.js` the same from `RacingDesk.Plugin.GameId`). What is built:
+
+- **One list of the sims' processes** (`RacingDesk.Core.Sims.SimProcesses`: iRacing's two, `acs` — AssettoCorsa.exe and
+  Content Manager are launchers — `AssettoCorsaEVO`, `AC2-Win64-Shipping`). `BackgroundIo.SimRunning` goes by all of
+  them, so the host's heavy work (the `.ibt` history, the car scan, the outline rebuild, the watch for finished files,
+  the schedule fetch) waits whatever he drives; it knew iRacing alone before and would have read the history while he
+  raced in Assetto Corsa. The HUD's screen is found by any of their windows (`Win32SimWindowSource.ProcessNames`, and
+  `hud-display.js` names the game in its reason: "Assetto Corsa is running on it"). The writers of iRacing's own files
+  (`WindowsRigProbe.SimProcesses`: app.ini, a car's camera file, the F24 key) stay iRacing's: those files are iRacing's
+  alone. Tests: `tests/…/Sims/SimProcessesTests.cs`.
+- **In the car** (`TelemetryCapture.InCarAssetto`): the graphics page's `Status` — live is in; a replay, the pause (the
+  setup screen, the menu over the car) and loading are out — sent under the one key the HUD already reads for iRacing
+  (`IsOnTrack`), so `in-car.js`, main.js and the iPad's page need not know the sim. SimHub hands the status over as its
+  enum, an int or text, so the name is read first and the number after; without the status under either spelling,
+  SimHub's `IsReplayPlaying` is the next best (the game running and not a replay is in), said once in the log so the
+  parity run shows it. SimHub publishes no `SessionState` for these games, so without this the HUD never came on.
+- **The three cells** (`RacingDesk.Core.Cars.AcCarControls`, sent as `RacingDesk.Plugin.CarControls` in the list's shape,
+  with his words — Bias, Anti-lock, Traction): the bias is the physics page's, to one place; Assetto Corsa's memory has no
+  anti-lock or traction level, only the aid "in action" (`Physics.Abs`, `Physics.TC`, 0..1 while it works), so the cell is
+  a dash until the aid has been seen working in this car this run and On after — Off is never said there (no intervention
+  is a car with the aid off, one without it, or no hard braking yet), and the level he cycles with the A and T keys is not
+  in the memory. EVO's `electronics` block carries `abs_level` and `tc_level` where SimHub decodes it: a level is the value,
+  nought is Off only once the car is known to have the aid (a level above nought, or the aid seen working), a dash else.
+  `PitBox.HasABS`/`HasTC` are these, not the old "every Assetto Corsa car has both". The property names were read from
+  SimHub's reader assembly (`ACSharedMemory.dll`, strings only) and not yet seen live: each is asked for under the spellings
+  it may have, and his parity run per game will settle them. iRacing's path — the car list, `CarControlsFollower` — is
+  untouched. Tests: `tests/…/Cars/AcCarControlsTests.cs`, `IRacing/InCarTests.cs`.
+- **Nothing of iRacing's made up for another sim**: the iRating, safety rating, licence and the estimate are iRacing's
+  alone in the capture (the cache of the last known iRating used to carry into another sim's session in the same SimHub
+  run); the flag field, the session clock and the force slider are already sent only where the sim says them. On the HUD
+  (`game-detect.js` `applyGameMode`): the rig's incidents panel is hidden and the ratings' cycle stays on the position
+  page with no dots; the glance layout's grid keeps both cells, and the cards say a dash (the incidents' count with no x:
+  `incidents.js`, `inc-none`); the gaps' iRating lines and the leaderboard's iRating column are empty by what they always
+  did with nought; `_hasRatingData` is false whatever is typed into Settings for iRacing. Other drivers are named from the
+  book of characters as for every sim but iRacing (`SimHubNaming.Other`). Flags come mapped from `Graphics.Flag`.
+- **Logos**: `images/logos/assetto-corsa.svg` and `assetto-corsa-evo.svg` are wordmarks in the HUD's own face, not Kunos's
+  marks; `game-logo.js` asks for a logo once per game. "EVO" is in `words.js`'s acronyms, as the game's name is written.
+- On the overlay: `tests/unit/hud-page-assetto.spec.mjs` (the real page in both games and back in iRacing),
+  `hud-display.spec.mjs`, `in-car.spec.mjs`. No live run has been made: he does one parity run per game, with SimHub and
+  the game, which the "verify" cells of the plan wait on.
+
 ## Track maps
 
 The map on the HUD and the iPad is one outline per layout, keyed by the sim's `TrackID`, derived from `Lat`/`Lon` in
