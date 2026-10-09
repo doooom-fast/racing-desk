@@ -361,6 +361,20 @@ namespace RacingDesk.Tests.Pedals
         }
 
         [Test]
+        public void ZoomBesideANameNotKnown_IsStillLeftOut()
+        {
+            var bound = HisKeys(moved: false).Concat(new[]
+            {
+                new LiveKey { Action = LiveAction.SetBrakeForce, Value = 60, FirstKey = "ZOOM", SecondKey = "NOPE" },
+                new LiveKey { Action = LiveAction.SetBrakeForce, Value = 70, FirstKey = "ZOOM", SecondKey = "ZOOM" },
+                new LiveKey { Action = LiveAction.SetBrakeForce, Value = 90, FirstKey = "ZOOM", SecondKey = "" },
+            }).ToList();
+            var watcher = new Keys().Watcher(bound);
+            Assert.That(watcher.NotWatched.Select(k => k.Value), Is.EqualTo(new[] { 60.0, 70.0, 90.0 }), "NOPE is no name known, and ZOOM + ZOOM or ZOOM + nothing is no key at all");
+            Assert.That(watcher.Watched, Is.EqualTo(new[] { Up, Down, KeyF1, KeyF2, KeyF3, KeyF4 }), "his six, and not F24 (Set profile)");
+        }
+
+        [Test]
         public void AfterTheMove_RightCtrlWithF1SetsTheForce_AndF1AloneDoesNot()
         {
             var board = new Keys();

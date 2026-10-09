@@ -49,7 +49,9 @@
   Nothing is ever written to the pedals directly: no HID, no serial port, nothing to the pedals' memory.
 - **One key, ever: F24**, sent by `KeySender` alone (a test fails if `SendInput` appears anywhere else). No key is pressed
   for the height. SmartControl's Apply, Save and Restore are never automated.
-- **His own six profiles, his Live presets and his five keys are never changed.** The writer refuses any row it did not
+- **His own six profiles, his Live presets and his brake-force keys are never changed** (six by 2026-10-08: F1–F4, Up and
+  Down, each stored as `ZOOM` + the key, Live's form for a key on its own), but for the move of F1–F4 to Right Ctrl he
+  asked for on 2026-10-09 (CLAUDE.md, His brake-force keys on Right Ctrl). The writer refuses any row it did not
   make (it is given the ids Racing Desk made, and nothing else).
 - Every file the app changes is copied aside first (the first original of each kept for good) and read back after;
   SmartControl's database is backed up whole before the first write ever (0b, kept for good) and again before the first
@@ -177,7 +179,7 @@ switches, the gate, the lines, the dry run and the first run's steps; `POST` tak
   all 1,668 bytes, none read-only), and of SmartControl's database folder and file; Controlled Folder Access is off.
 - **R4** SmartControl's database: version 1, journal mode delete; `profile_sim_device` (id TEXT, name TEXT, data BLOB of
   UTF-8 bytes whose XML says utf-16), `keyboard_binding` (action_type INTEGER, action_value TEXT, first_key, second_key) and
-  its link table to `profile_smartcontrol_live`; his five keys are actions 8, 9 and 10 in preset 1; the vendor seeds
+  its link table to `profile_smartcontrol_live`; his five keys are actions 8, 9 and 10 in preset 1 (six by 2026-10-08: `ZOOM` + F1–F4, UP, DOWN); the vendor seeds
   SetProfile bindings itself (NUMPAD1–4), which is the shape the writer copies.
 - **R5** The SimHub plugin's old `PedalProfileManager` has one profile and no car bound in either `PedalProfiles` folder, and
   no Pit House folder has the `DeviceConfig` or `profiles` it imports from: it cannot act as a second applier.
