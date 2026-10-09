@@ -151,8 +151,14 @@ namespace RacingDesk.Data.Pedals
             {
                 // The force keys and no others: a profile key (F24, Racing Desk's own, among them) is not asked about.
                 if (key == null || !IsForceKey(key.Action)) continue;
-                int? first = VirtualKey(key.FirstKey), second = VirtualKey(key.SecondKey);
-                bool pair = !string.IsNullOrWhiteSpace(key.SecondKey);
+                // Live keeps a key on its own as ZOOM + the key (its first key cannot be empty): ZOOM + F1 is F1 alone, and
+                // RCONTROL + F1 is Right Ctrl held with F1.
+                string firstName = key.FirstKey, secondName = key.SecondKey;
+                if (IsNoKey(firstName)) { firstName = secondName; secondName = null; }
+                else if (IsNoKey(secondName)) secondName = null;
+                if (IsNoKey(firstName)) firstName = null;
+                int? first = VirtualKey(firstName), second = VirtualKey(secondName);
+                bool pair = !string.IsNullOrWhiteSpace(secondName);
                 // A step of nothing, or a force of none, is a binding SmartControl wrote some other way than is read here.
                 bool sound = key.Value > 0 && !double.IsNaN(key.Value) && !double.IsInfinity(key.Value);
                 if (!sound || first == null || (pair && second == null) || TypedWith(first.Value) || (pair && TypedWith(second.Value)))
@@ -234,8 +240,25 @@ namespace RacingDesk.Data.Pedals
             || (key >= 0xBA && key <= 0xC0) || (key >= 0xDB && key <= 0xDF);    // punctuation
 
         /// <summary>
+        /// The name Live stores where a binding has no first key: <c>keyboard_binding.first_key</c> may not be empty, so a key on
+        /// its own is stored as <c>ZOOM</c> + the key (<c>VK_ZOOM</c>, 0xFB, beside the modifiers in Live's own list, and on no
+        /// ordinary keyboard). His F1 · 30 kg is <c>ZOOM</c>, <c>F1</c>: F1 alone.
+        /// </summary>
+        public const string NoKey = "ZOOM";
+
+        /// <summary>Whether a key's name is Live's placeholder for no key (<see cref="NoKey"/>), with or without its <c>VK_</c>.</summary>
+        public static bool IsNoKey(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            string n = name.Trim().ToUpperInvariant();
+            if (n.StartsWith("VK_", StringComparison.Ordinal)) n = n.Substring(3);
+            return n == NoKey;
+        }
+
+        /// <summary>
         /// Windows' number for a key by the name SmartControl writes, which is Windows' own name for it without
-        /// the <c>VK_</c>: <c>PRIOR</c> is Page Up, <c>RCONTROL</c> the right Ctrl. Null for a name not known.
+        /// the <c>VK_</c>: <c>PRIOR</c> is Page Up, <c>RCONTROL</c> the right Ctrl. Null for a name not known, and for
+        /// <see cref="NoKey"/>, which stands for no key.
         /// </summary>
         public static int? VirtualKey(string name)
         {

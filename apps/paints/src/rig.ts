@@ -507,7 +507,9 @@ export function keyWords(key: LiveKey): { keys: string; does: string } {
         : key.action === "lower"
           ? `${kg} less`
           : `${key.action ?? "other"}${key.value === null ? "" : ` (${plain(key.value)})`}`;
-  return { keys: key.keys.map((k) => KEY_NAMES.get(k) ?? k).join(" + ") || "?", does: does.trim() };
+  // Live stores a key on its own as ZOOM + the key (its first key cannot be empty): ZOOM is no key, and is not shown.
+  const keys = key.keys.filter((k) => k.trim().toUpperCase() !== "ZOOM");
+  return { keys: keys.map((k) => KEY_NAMES.get(k) ?? k).join(" + ") || "?", does: does.trim() };
 }
 
 /// How long ago, in the desk's words.

@@ -314,8 +314,91 @@ namespace RacingDesk.Tests.Pedals
         [TestCase("F0")]
         [TestCase("PAGEUP")]
         [TestCase("é")]
+        [TestCase("ZOOM")]
         public void AndNotByAnyOther(string name) =>
             Assert.That(LiveKeyWatcher.VirtualKey(name), Is.Null);
+
+        // ------------------------------------------------------------------ his keys, as Live keeps them
+
+        private const int KeyF1 = 0x70, KeyF2 = 0x71, KeyF3 = 0x72, KeyF4 = 0x73, Zoom = 0xFB;
+
+        /// <summary>
+        /// His keys read from a database shaped as SmartControl Live keeps his (made-up profiles): a key on its own is stored as
+        /// ZOOM + the key. Moved: F1–F4 with Live's RCONTROL as their first key, as Racing Desk leaves them.
+        /// </summary>
+        private static IReadOnlyList<LiveKey> HisKeys(bool moved)
+        {
+            using var rig = new RacingDesk.Tests.Restore.RestoreRig();
+            rig.SmartControlAsHisIs();
+            if (moved) foreach (long id in new long[] { 6, 7, 8, 12 }) rig.SetFirstKey(id, "RCONTROL");
+            return SmartControl.Read(rig.SmartControlDb).Keys;
+        }
+
+        [TestCase("ZOOM", true)]
+        [TestCase("VK_ZOOM", true)]
+        [TestCase(" zoom ", true)]
+        [TestCase("RCONTROL", false)]
+        [TestCase("", false)]
+        [TestCase(null, false)]
+        public void ZoomIsLivesNameForNoKey(string name, bool none) => Assert.That(LiveKeyWatcher.IsNoKey(name), Is.EqualTo(none));
+
+        [Test]
+        public void HisKeysAsLiveKeepsThem_AreWatched_AndF1AloneSetsTheForce()
+        {
+            var board = new Keys();
+            var watcher = board.Watcher(HisKeys(moved: false));
+            Assert.That(watcher.NotWatched, Is.Empty, "every one of his force keys is watched (F24 is a profile key, never one)");
+            Assert.That(watcher.Watched, Is.EqualTo(new[] { Up, Down, KeyF1, KeyF2, KeyF3, KeyF4 }));
+            Look(watcher, board);
+
+            board.Down.Add(KeyF1);
+            Assert.That(Look(watcher, board).Pressed.Select(k => k.Value), Is.EqualTo(new[] { 30.0 }), "ZOOM + F1 is F1 alone");
+            board.Down.Clear();
+            Look(watcher, board);
+            board.Down.Add(Up);
+            Assert.That(Look(watcher, board).Pressed.Select(k => (k.Action, k.Value)), Is.EqualTo(new[] { (LiveAction.RaiseBrakeForce, 5.0) }), "Up alone: 5 kg more");
+            Assert.That(board.Asked, Has.No.Member(Zoom), "the placeholder is never asked about");
+        }
+
+        [Test]
+        public void AfterTheMove_RightCtrlWithF1SetsTheForce_AndF1AloneDoesNot()
+        {
+            var board = new Keys();
+            var watcher = board.Watcher(HisKeys(moved: true));
+            Assert.That(watcher.NotWatched, Is.Empty);
+            Assert.That(watcher.Watched, Is.EqualTo(new[] { Up, Down, KeyF1, KeyF2, KeyF3, KeyF4, RightCtrl }));
+            Look(watcher, board);
+
+            board.Down.Add(KeyF1);
+            Assert.That(Look(watcher, board).Pressed, Is.Empty, "F1 alone is the sim's camera now, and nothing of Live's");
+            board.Down.Clear();
+            Look(watcher, board);
+            board.Down.Add(RightCtrl);
+            Assert.That(Look(watcher, board).Pressed, Is.Empty);
+            board.Down.Add(KeyF4);
+            Assert.That(Look(watcher, board).Pressed.Select(k => k.Value), Is.EqualTo(new[] { 100.0 }), "Right Ctrl + F4");
+            board.Down.Clear();
+            Look(watcher, board);
+            board.Down.Add(Down);
+            Assert.That(Look(watcher, board).Pressed.Select(k => k.Action), Is.EqualTo(new[] { LiveAction.LowerBrakeForce }), "Up and Down stay as they were");
+        }
+
+        [Test]
+        public void BrakeMax_FillsFromHisKeys_BeforeAndAfterTheMove()
+        {
+            foreach (bool moved in new[] { false, true })
+            {
+                var run = new Run(HisKeys(moved));
+                run.GetIn(Gtp);
+                Assert.That(run.Recorder.Now.ForceKg, Is.Null, "a dash until a key sets a force");
+                if (moved) run.Tap(Gtp, RightCtrl, KeyF2); else run.Tap(Gtp, KeyF2);
+                Assert.That(run.Recorder.Now.ForceKg, Is.EqualTo(50), moved ? "Right Ctrl + F2" : "F2");
+                run.Tap(Gtp, Up);
+                Assert.That(run.Recorder.Now.ForceKg, Is.EqualTo(55));
+                run.Recorder.SimGone();
+                Assert.That(run.Saved.Single().ForceKg, Is.EqualTo(55), "and the car keeps it");
+            }
+        }
 
         // ------------------------------------------------------------------ a run in a car
 

@@ -140,12 +140,12 @@ const CODE = new Set([
 // space): the keys of the host's stored reasons (the host keeps "ABS" and "no ABS" as why a car was given its profile;
 // CarPedals turns them into words), the dials' generic names compared with a car's labels, the acronym lists themselves,
 // the demo's car names as their makers spell them, the makers' countries' codes, which pick a flag, the names Windows
-// gives the keys SmartControl reports (rig.ts turns them into "Page Up"), the two lines of code that are written in a
-// template (the tasklist filter, the WebSocket's upgrade request), and the Stream Deck's own names for its actions,
-// which remote-server.js serves to the plugin as data and no page of Racing Desk draws.
+// gives the keys SmartControl reports (rig.ts turns them into "Page Up", and leaves out ZOOM, Live's "no key"), the two
+// lines of code that are written in a template (the tasklist filter, the WebSocket's upgrade request), and the Stream
+// Deck's own names for its actions, which remote-server.js serves to the plugin as data and no page of Racing Desk draws.
 const NOT_SHOWN = {
   'apps/paints/src/components/CarPedals.tsx': ['ABS', 'no ABS'],
-  'apps/paints/src/rig.ts': ['ABS', 'TC', 'BB', 'DRS', 'PRIOR', 'NEXT', 'PAUSE', 'RCONTROL', 'UP', 'DOWN'],
+  'apps/paints/src/rig.ts': ['ABS', 'TC', 'BB', 'DRS', 'PRIOR', 'NEXT', 'PAUSE', 'RCONTROL', 'UP', 'DOWN', 'ZOOM'],
   'apps/overlay/modules/js/car-controls.js': ['ABS', 'TC', 'BB'],
   'apps/overlay/modules/js/config.js': ['GTP ZX-T', 'JS P320', 'Elantra N TC', 'DE', 'GB', 'JP', 'IT', 'US', 'KR', 'FR'],
   'apps/overlay/modules/js/obs/launcher.js': ['IMAGENAME eq'],

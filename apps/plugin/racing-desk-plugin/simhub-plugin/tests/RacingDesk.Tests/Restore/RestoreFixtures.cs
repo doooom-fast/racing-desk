@@ -190,6 +190,84 @@ CREATE TABLE ""database_version""(version_number INTEGER NOT NULL);
             }
         }
 
+        /// <summary>The switch profile F24 is bound to in <see cref="SmartControlAsHisIs"/>, made up.</summary>
+        public const string SwitchId = "abcdefabcdefabcdefabcdefabcdef01";
+
+        /// <summary>
+        /// His keys as SmartControl Live keeps them on the rig (2026-10-07; read from a copy, rows and ids as they are, every
+        /// profile's bytes made up): F1–F4 set 30, 50, 80 and 100 kg and Up and Down add and take off 5 kg, each stored with Live's
+        /// "none" first key ZOOM; Racing Desk's F24 sets its switch profile; all in the Default preset, whose own shortcut is
+        /// LCONTROL + D.
+        /// </summary>
+        public static readonly (long Id, int Type, string Value, string First, string Second)[] HisKeys =
+        {
+            (6, 8, "50", "ZOOM", "F2"), (7, 8, "30", "ZOOM", "F1"), (8, 8, "80", "ZOOM", "F3"), (9, 9, "5", "ZOOM", "UP"),
+            (10, 10, "5", "ZOOM", "DOWN"), (12, 8, "100", "ZOOM", "F4"), (13, 1, SwitchId, "F24", ""),
+        };
+
+        /// <summary>A database in the vendor's schema with his keys as Live keeps them (<see cref="HisKeys"/>) and made-up profiles.</summary>
+        public void SmartControlAsHisIs()
+        {
+            using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = SmartControlDb, Pooling = false }.ToString());
+            db.Open();
+            Run(db, VendorSchema);
+            Run(db, "INSERT INTO database_version (version_number) VALUES (1)");
+            Run(db, "INSERT INTO profile_smartcontrol_live (id, name) VALUES (0, '(empty)'); INSERT INTO profile_smartcontrol_live (id, name, shortcut_first_key, shortcut_second_key) VALUES (1, 'Default', 'LCONTROL', 'D')");
+            AddProfile(db, DefaultId, "Default", Encoding.UTF8.GetBytes(NewFormatProfile(80, 5, nilDescription: true)));
+            AddProfile(db, LightId, "LightBrake", Encoding.UTF8.GetBytes(OldFormatProfile(45, 4)));
+            AddProfile(db, RainId, "Rain", Encoding.UTF8.GetBytes(NewFormatProfile(75, 5, nilDescription: false)));
+            AddProfile(db, SwitchId, "Racing Desk: Ligier JS P320", Encoding.UTF8.GetBytes(NewFormatProfile(60, 5, nilDescription: true)));
+            foreach (var (id, type, value, first, second) in HisKeys)
+            {
+                using var cmd = db.CreateCommand();
+                cmd.CommandText = "INSERT INTO keyboard_binding (id, action_type, action_value, first_key, second_key) VALUES ($id, $type, $value, $first, $second);" +
+                                  "INSERT INTO profile_smartcontrol_live_keyboard_binding (fk_profile_smartcontrol_live_id, fk_keyboard_binding_id) VALUES (1, $id)";
+                cmd.Parameters.AddWithValue("$id", id);
+                cmd.Parameters.AddWithValue("$type", type);
+                cmd.Parameters.AddWithValue("$value", value);
+                cmd.Parameters.AddWithValue("$first", first);
+                cmd.Parameters.AddWithValue("$second", second);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>Every row of SmartControl's five tables, a blob by its hash: two databases that say the same say it alike.</summary>
+        public string SmartControlRows(string path = null)
+        {
+            using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path ?? SmartControlDb, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+            db.Open();
+            var all = new StringBuilder();
+            foreach (string table in new[] { "database_version", "profile_sim_device", "keyboard_binding", "profile_smartcontrol_live", "profile_smartcontrol_live_keyboard_binding" })
+            {
+                all.Append('[').Append(table).Append("]\n");
+                using var cmd = db.CreateCommand();
+                cmd.CommandText = $"SELECT * FROM \"{table}\" ORDER BY rowid";
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    for (int i = 0; i < r.FieldCount; i++)
+                    {
+                        object v = r.GetValue(i);
+                        all.Append(v is byte[] blob ? "#" + Convert.ToHexString(SHA256.HashData(blob)) : v is DBNull ? "NULL" : Convert.ToString(v, CultureInfo.InvariantCulture)).Append('|');
+                    }
+                    all.Append('\n');
+                }
+            }
+            return all.ToString();
+        }
+
+        /// <summary>One key's first key, set as Live's own editor would leave it after he changed it there.</summary>
+        public void SetFirstKey(long bindingId, string first)
+        {
+            using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = SmartControlDb, Pooling = false }.ToString());
+            db.Open();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "UPDATE keyboard_binding SET first_key = $first WHERE id = $id";
+            cmd.Parameters.AddWithValue("$id", bindingId);
+            cmd.Parameters.AddWithValue("$first", first);
+            Assert.That(cmd.ExecuteNonQuery(), Is.EqualTo(1));
+        }
+
         public static void Run(SqliteConnection db, string sql)
         {
             using var cmd = db.CreateCommand();
