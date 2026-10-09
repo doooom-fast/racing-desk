@@ -40,6 +40,8 @@ test.afterAll(async () => {
 async function openAtFrame(page, frame) {
   await fetch(`http://127.0.0.1:${replay.port}/__replay/control?frame=${frame}&pause=1`);
   await page.clock.setFixedTime(FIXED_TIME);
+  // The Racing Desk's tile shows a part of the DOOOOM wordmark that is rolled at random (brand-livery.js): pinned.
+  await page.addInitScript(() => { window._brandRoll = 0.37; });
   // Plugin traffic → replay server; everything else remote is blocked so frames never depend on
   // the network (fonts fall back deterministically).
   await page.route(/^https?:\/\//, async (route) => {

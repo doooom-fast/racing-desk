@@ -56,6 +56,9 @@ test.afterAll(async () => {
 
 async function openGlance(page, width, height, at = 0) {
   await page.clock.setFixedTime(FIXED_TIME);
+  // The Racing Desk's tile shows a part of the DOOOOM wordmark that is rolled at random (brand-livery.js): pinned, so that
+  // the frame is the same one every run.
+  await page.addInitScript(() => { window._brandRoll = 0.37; });
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
   await page.setViewportSize({ width, height });
   await fetch(`http://127.0.0.1:${replay.port}/__replay/control?frame=${at}&pause=1`);
