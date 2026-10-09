@@ -1064,11 +1064,15 @@ namespace RacingDesk.Plugin
             => Key(sb, key).Append(val).Append(",\n");
         private static void Jp(StringBuilder sb, string key, long val)
             => Key(sb, key).Append(val.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\n");
+        // A number that is not finite (NaN, Infinity) is null on the wire: written as it is, it made the whole answer
+        // something no JSON reader takes, and the HUD then had the one frame it read before it and no other. iRacing's
+        // numbers are always finite; Assetto Corsa's, through SimHub, are not always (he said on 2026-10-09: "It shows one
+        // frame of data and nothing else").
         private static void Jp(StringBuilder sb, string key, double val, System.Globalization.CultureInfo ic)
-            => Key(sb, key).Append(val.ToString("G", ic)).Append(",\n");
+            => Key(sb, key).Append(double.IsNaN(val) || double.IsInfinity(val) ? "null" : val.ToString("G", ic)).Append(",\n");
         /// <summary>A number the sim may not have said: <c>null</c> on the wire where it has not (tyre wear not yet measured).</summary>
         private static void Jp(StringBuilder sb, string key, double? val, System.Globalization.CultureInfo ic)
-            => Key(sb, key).Append(val.HasValue ? val.Value.ToString("G", ic) : "null").Append(",\n");
+            => Jp(sb, key, val ?? double.NaN, ic);
         private static void Jp(StringBuilder sb, string key, string val)
             => Key(sb, key).Append('"').Append(val).Append("\",\n");
 

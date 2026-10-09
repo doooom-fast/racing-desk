@@ -995,6 +995,18 @@ async function createOverlay() {
   });
   loadDashboard();
   logToFile('[RacingDesk] Overlay created hidden — shown while the driver is in the car');
+  // The HUD page's own errors, into this log: a page that stops reading the telemetry said so only to a console nobody
+  // sees (2026-10-09, the HUD frozen on one frame in Assetto Corsa). Each message once a minute at the most.
+  const pageErrorsSaid = new Map();
+  overlayWindow.webContents.on('console-message', (event, level, message) => {
+    if (level < 3) return;   // errors only
+    const text = String(message || '').slice(0, 300);
+    const now = Date.now();
+    if (now - (pageErrorsSaid.get(text) || 0) < 60000) return;
+    pageErrorsSaid.set(text, now);
+    if (pageErrorsSaid.size > 200) pageErrorsSaid.clear();
+    logToFile(`[RacingDesk] HUD page error: ${text}`);
+  });
 
   overlayWindow.webContents.on('did-finish-load', () => {
     hud.pageLoaded();
