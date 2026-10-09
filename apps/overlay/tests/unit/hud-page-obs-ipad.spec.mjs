@@ -5,7 +5,7 @@
  *
  * What is held: the page is the glance layout from the start, in OBS mode (it knows it is OBS's, decides in-car for
  * itself, is not drawn at all out of the car or while he has the HUD away, asks for no key, says nothing aloud); it
- * has the iPad's look (the glass at fifteen hundredths, no badges, no crop asked for) and none of what is the iPad's
+ * has the iPad's look (the glass at fifteen hundredths, the two tiles at the top left, the crop of his paint asked for) and none of what is the iPad's
  * alone (no menu); and the page behind and between the panels is transparent — no black, no flag pattern in the
  * gutters, no frame at the edge — so the game shows through, which a render over a checkerboard proves. A flag is
  * still read from the flag card, race control's banner and the panels' flag-coloured borders. The rig's page-only
@@ -20,7 +20,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { frame, fieldWith } from '../frames.mjs';
-import { CELLS, measure } from '../glance-measure.mjs';
+import { CELLS, measure, squares, holdSquares } from '../glance-measure.mjs';
 
 const require = createRequire(import.meta.url);
 const remote = require('../../remote-server.js');
@@ -150,7 +150,7 @@ function keep(name, png) {
   return file;
 }
 
-test('the glance layout in OBS mode: hidden out of the car, drawn in it with the iPad\'s look over a transparent page; no menu, no badges, no crop, no key, nothing said aloud', async ({ page }) => {
+test('the glance layout in OBS mode: hidden out of the car, drawn in it with the iPad\'s look over a transparent page; the two tiles at the top left, no menu, no key, nothing said aloud', async ({ page }) => {
   test.setTimeout(60000);
   const r = await rig();
   try {
@@ -186,17 +186,17 @@ test('the glance layout in OBS mode: hidden out of the car, drawn in it with the
     expect(look.body).toBe('rgba(0, 0, 0, 0)');
     expect(look.shine).toBe('0.15');
     expect(look.tint[0]).toBeCloseTo(0.26 * 0.15, 2);
-    expect([look.brand, look.car, look.row, look.menu]).toEqual([0, 0, false, 0]);
+    // The two tiles are back (2026-10-08), at the top left, his first; there is no menu.
+    expect([look.brand > 0, look.car > 0, look.row, look.menu]).toEqual([true, true, true, 0]);
     // His zoom reached the page (the allowlist) and is undone by the layout, as on the iPad.
     expect(look.zoom).toBe('1.2');
     expect(look.dashZoom).toBe('1');
     expect(look.flagLayer).toBe('none');
     expect(look.frame).toBe('none');
     expect(look.rows).toBeGreaterThanOrEqual(3);
-    // The crop of his paint is never asked for: there is no badge to put it under.
-    await page.waitForTimeout(1200);
-    expect(requested.filter((u) => u === `http://127.0.0.1:${r.port}/livery-crop.png`)).toEqual([]);
-    expect(r.state.crops).toBe(0);
+    // The crop of his paint is asked for again, from the listener the page came from: the car's tile is under it.
+    await expect.poll(() => r.state.crops, { timeout: 10000 }).toBeGreaterThan(0);
+    expect(requested.filter((u) => u === `http://127.0.0.1:${r.port}/livery-crop.png`).length).toBeGreaterThan(0);
     // Nothing of his keys in the page; the voice coach is off; nothing asked of the runtime.
     const html = await page.content();
     for (const secret of ['SECRET', '424242']) expect(html).not.toContain(secret);
@@ -308,7 +308,8 @@ test('rendered over a checkerboard at 1180x820 with a yellow flag out: the board
 // the least iPad in its orientation, LEAST_BOX, at the box's shape scaled up to it, which OBS draws into the box). At what
 // a wide strip, the corner it is first put in on his 1440 canvas, a square, a 1080p box, a tall column, an iPad's own box,
 // a thin strip, a small box, his whole 3440x1440 canvas and a column as tall as it are laid out at: every panel a cell
-// inside the page, none over another, the cells the page, and — the glance layout's own measure, drive-view.spec.mjs'
+// inside the page, none over another, the cells the page, the two maps square and the same size, the two tiles square at
+// the top left, and — the glance layout's own measure, drive-view.spec.mjs'
 // (tests/glance-measure.mjs) — nothing cut off by its cell or out of sight, no label under 11px and no number under 20px:
 // a short cell gives up what it must (drive-view.css) rather than overflow. (The first cut checked scroll overflow on a
 // short list and no text; the iR bar's thousands hung out of their row on the two biggest boxes, unseen.)
@@ -339,6 +340,8 @@ for (const [boxW, boxH, what] of BOXES) {
         expect.soft(m.overflowing, `${label}: content cut off by its cell`).toEqual([]);
         expect.soft(m.cutOff, `${label}: text cut off or left out of sight`).toEqual([]);
         expect.soft(m.small, `${label}: type too small to glance at`).toEqual([]);
+        // The maps square and the same size, the two tiles square at the top left (his first), no tyres and no fuel (2026-10-08).
+        holdSquares(expect, await squares(page), label);
       }
       expect(errors).toEqual([]);
     } finally {
@@ -347,31 +350,24 @@ for (const [boxW, boxH, what] of BOXES) {
   });
 }
 
-// A box short and wide lays the four tyres in one row (drive-view.css): each corner's name is a line over its own ring,
-// centred, and not at the cell's top corner, where in a row the right front's and the left rear's sat side by side
-// between two rings ("RF LR").
-test("/obs-ipad in a wide box: each tyre's name is centred over its own ring, and in the order the corners are", async ({ page }) => {
+// A box short and wide has no tyres to lay in a row, as it had (he asked, 2026-10-08, for no tyres and no fuel): the pit box is
+// the weather alone, in the box's own pit cell, with every line of it whole.
+test('/obs-ipad in a wide box: the pit box is the weather alone, whole, with no tyres and no fuel', async ({ page }) => {
   test.setTimeout(90000);
   const [width, height] = laidOutAt(1600, 600);
   const r = await rig({ settings: { showWebGL: false } });
   try {
     const { errors } = await open(page, r, { width, height });
-    r.feed.payload = RACE();
+    r.feed.payload = RACE({ extra: CALLS });
     await drawn(page);
-    const corners = await page.evaluate(() => ['LF', 'RF', 'LR', 'RR'].map((c) => {
-      const cell = document.getElementById('pbCircle' + c);
-      const name = cell.querySelector('.pb-circle-pos').getBoundingClientRect();
-      const ring = cell.querySelector('.pb-wear-ring').getBoundingClientRect();
-      return { c, text: cell.querySelector('.pb-circle-pos').innerText, nameMid: (name.left + name.right) / 2, ringMid: (ring.left + ring.right) / 2, nameBottom: name.bottom, ringTop: ring.top, ringLeft: ring.left, shown: cell.getClientRects().length > 0 };
-    }));
-    // A line of its own over each ring, with the room for words: the corners are named, not abbreviated.
-    expect(corners.map((k) => [k.c, k.text, k.shown])).toEqual([['LF', 'Left front', true], ['RF', 'Right front', true], ['LR', 'Left rear', true], ['RR', 'Right rear', true]]);
-    for (const k of corners) {
-      expect(Math.abs(k.nameMid - k.ringMid), `${k.c}: the name is centred over its ring`).toBeLessThanOrEqual(2);
-      expect(k.nameBottom, `${k.c}: the name is over the ring, not on it`).toBeLessThanOrEqual(k.ringTop + 1);
-    }
-    // Four rings in a row, in the order of the corners.
-    expect(corners.map((k) => k.ringLeft)).toEqual([...corners.map((k) => k.ringLeft)].sort((a, b) => a - b));
+    const m = await page.evaluate(() => {
+      const cell = document.getElementById('pitBoxPanel').getBoundingClientRect();
+      const inside = ['pbAirTemp', 'pbTrackTemp', 'pbConditions'].map((id) => { const b = document.getElementById(id).getBoundingClientRect(); return b.left >= cell.left - 0.5 && b.right <= cell.right + 0.5 && b.top >= cell.top - 0.5 && b.bottom <= cell.bottom + 0.5; });
+      return { inside, tyres: document.getElementById('pbPageTyres').getClientRects().length, fuel: document.getElementById('pbPageFuel').getClientRects().length, rings: document.querySelectorAll('.pb-circle-cell').length ? [...document.querySelectorAll('.pb-circle-cell')].map((c) => c.getClientRects().length) : [] };
+    });
+    expect(m.inside).toEqual([true, true, true]);
+    expect([m.tyres, m.fuel]).toEqual([0, 0]);
+    expect(m.rings.every((n) => n === 0)).toBe(true);
     expect(errors).toEqual([]);
   } finally {
     await r.close();

@@ -92,9 +92,11 @@ async function openAt(page, width, height, first, rig) {
 // The weather page, measured.
 const measure = (page) => page.evaluate(() => {
   const weather = document.getElementById('pbPageWeather');
-  const fuel = document.getElementById('pbPageFuel');
-  const header = (el) => {
-    const cs = getComputedStyle(el, '::before');
+  // (the fuel page is not drawn in the glance layout since 2026-10-08; the header is held against the datastream's, which is
+  // the same one header, --hdr-glance)
+  const other = document.querySelector('#datastreamPanel .ds-header');
+  const header = (el, pseudo) => {
+    const cs = getComputedStyle(el, pseudo || null);
     return { content: cs.content, size: cs.fontSize, weight: cs.fontWeight, caps: cs.textTransform, tracking: cs.letterSpacing, colour: cs.color, align: cs.textAlign };
   };
   const px = (id) => parseFloat(getComputedStyle(document.getElementById(id)).fontSize);
@@ -135,7 +137,7 @@ const measure = (page) => page.evaluate(() => {
   };
   const slack = Math.max(1, parseFloat(cs.fontSize) * 0.3);
   return {
-    header: header(weather), fuelHeader: header(fuel),
+    header: header(weather, '::before'), fuelHeader: header(other),
     headerLine: parseFloat(getComputedStyle(weather, '::before').fontSize) * 1.2,
     content, topmost,
     air: px('pbAirTemp'), track: px('pbTrackTemp'), conditions: px('pbConditions'), icon: px('pbWeatherIcon'),
@@ -163,8 +165,9 @@ for (const [width, height, what] of [...IPADS, ...RIG]) {
       // The header: the pit box's one rule for its three pages, at the top, the page's own things under it.
       expect(m.header.content, label).toBe('"Weather"');
       const { content: _c, ...weatherType } = m.header;
-      const { content: _f, ...fuelType } = m.fuelHeader;
-      expect(weatherType, `${label}: the header's type is the fuel page's`).toEqual(fuelType);
+      const { content: _f, align: _a, ...otherType } = m.fuelHeader;
+      delete weatherType.align;
+      expect(weatherType, `${label}: the header's type is the other panels' (the datastream's)`).toEqual(otherType);
       expect(m.topmost, `${label}: the first thing of the page's own is under the header`).toBeGreaterThanOrEqual(m.content.top + m.headerLine - 2);
       // The page sizes its own values; each name is over its value; nothing under the floors.
       expect(m.container, label).toBe('size');

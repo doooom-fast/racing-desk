@@ -290,6 +290,7 @@ const headers = (page) => page.evaluate(() => {
     laps: pick(document.querySelector('#lapsPanel .panel-label')),
     tab: pick(tab),
     tyres: pick(document.getElementById('pbPageTyres'), '::before'),
+    weather: pick(document.getElementById('pbPageWeather'), '::before'),
     clock: pick(document.getElementById('raceTimerKey')),
   };
 });
@@ -370,7 +371,7 @@ test.describe('one header for every panel', () => {
     await page.waitForFunction(() => document.body.classList.contains('drive-mode-active') && document.getElementById('raceTimerKey').textContent !== '');
     const h = await headers(page);
     const one = h.datastream;
-    for (const key of ['leaderboard', 'datastream', 'incidents', 'ahead', 'rating', 'laps', 'tyres', 'clock']) {
+    for (const key of ['leaderboard', 'datastream', 'incidents', 'ahead', 'rating', 'laps', 'weather', 'clock']) {
       const { family, ...type } = h[key];
       const { family: f1, ...want } = one;
       expect(type, key).toEqual(want);

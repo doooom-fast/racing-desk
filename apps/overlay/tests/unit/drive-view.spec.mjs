@@ -20,7 +20,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { frame, fieldWith } from '../frames.mjs';
-import { CELLS, CELLS_RIG, measure } from '../glance-measure.mjs';
+import { CELLS, CELLS_RIG, measure, squares, holdSquares } from '../glance-measure.mjs';
 
 const require = createRequire(import.meta.url);
 const remote = require('../../remote-server.js');
@@ -179,6 +179,7 @@ for (const size of SIZES) {
       expect.soft(m.cutOff, `${label}: text cut off or left out of sight`).toEqual([]);
       expect.soft(m.small, `${label}: type too small to glance at`).toEqual([]);
       expect(m.gear, `${label}: the gear`).toBeGreaterThanOrEqual(40);
+      holdSquares(expect, await squares(page), label);
       if (name === 'practice') {
         // Out of a race the place is a rank of best laps; the number that changes what he does is the live delta.
         expect(m.kind).toBe('nonrace');
@@ -266,7 +267,9 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
       return { count: rows.length, room: box.height, bottomGap: box.bottom - last.bottom, row: last.height, fs, wide: rows.every((r) => r.scrollWidth <= r.clientWidth + 1) };
     });
     // A full field of twenty-one at this size, each a line and a bit of its own type, and no band of black under the last.
-    expect(m.count).toBeGreaterThanOrEqual(12);
+    // (Nine since the maps are square and the leaderboard has the row beside them, 434 by 357: sixteen when it had the top
+    // row too, beside two maps that were not.)
+    expect(m.count).toBeGreaterThanOrEqual(8);
     expect(m.row).toBeGreaterThanOrEqual(m.fs * 1.5);
     expect(m.bottomGap).toBeLessThan(m.row * 0.5);
     expect(m.wide).toBe(true);
@@ -284,12 +287,12 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     expect(m.height).toBeGreaterThan(15);
   });
 
-  test('the pit box shows its tyres, its fuel and the weather at once, where on the rig they are tabs', async ({ page }) => {
+  test('the pit box is the weather, with no tabs: no tyres and no fuel (the rig\'s own HUD keeps them)', async ({ page }) => {
     const m = await page.evaluate(() => ['pbPageTyres', 'pbPageFuel', 'pbPageWeather'].map((id) => {
       const r = document.getElementById(id).getBoundingClientRect();
       return r.width > 40 && r.height > 40;
     }));
-    expect(m).toEqual([true, true, true]);
+    expect(m).toEqual([false, false, true]);
     expect(await page.locator('.pb-tabs').isVisible()).toBe(false);
   });
 
@@ -330,8 +333,8 @@ test.describe('on the screen, at the size of an iPad Air on its side', () => {
     expect(fab.height).toBeGreaterThanOrEqual(44);
     expect(fab.x + fab.width).toBeGreaterThan(1180 - 60);
     expect(fab.y).toBeLessThan(60);
-    // The badges are not on an iPad, and the menu is where the Racing Desk mark no longer is.
-    expect(await page.evaluate(() => ['brandLogoSquare', 'carLogoSquare'].map((id) => document.getElementById(id).getClientRects().length))).toEqual([0, 0]);
+    // The tiles are at the top left (they are back, 2026-10-08), and the menu is at the top right, over the tacho.
+    expect(await page.evaluate(() => ['brandLogoSquare', 'carLogoSquare'].map((id) => document.getElementById(id).getClientRects().length > 0))).toEqual([true, true]);
     await page.locator('#rd-remote-menu-fab').click();
     const panel = await page.locator('#rd-remote-menu-panel').boundingBox();
     expect(panel.y + panel.height <= fab.y || panel.y >= fab.y + fab.height).toBe(true);
@@ -682,7 +685,7 @@ test.describe('what the background flag and the race-control banner say together
     }
   });
 
-  test('the glass shows fifteen hundredths of the rig\'s light, and the badges are not there', async ({ page }) => {
+  test('the glass shows fifteen hundredths of the rig\'s light, and the two tiles are cells', async ({ page }) => {
     await openAt(page, 1180, 820, RACE());
     const glass = await page.evaluate(() => {
       const hero = document.getElementById('positionPage');
@@ -710,7 +713,7 @@ test.describe('what the background flag and the race-control banner say together
     expect(glass.glow).toBeCloseTo((0.45 + glass.lum * 0.5) * 0.15, 2);
     expect(glass.lum).toBeCloseTo(0.54, 2);
     expect(glass.streak).toBe('none');
-    expect([glass.brand, glass.car, glass.row]).toEqual([0, 0, false]);
+    expect([glass.brand > 0, glass.car > 0, glass.row]).toEqual([true, true, true]);
     // On the rig's own glance layout (no rd-remote) the glass is as it was, and the badges are cells.
     await page.evaluate(() => document.documentElement.classList.remove('rd-remote'));
     const rig = await page.evaluate(() => {
@@ -825,79 +828,47 @@ test.describe('the clock', () => {
   });
 });
 
-// ── The pit box's strategy calls, read on a screen with nothing to press ──────────────────────────────────────────────
-test.describe('the strategy engine\'s calls in the pit box', () => {
-  test('a call for tyres and one for fuel are shown, worded for a screen with nothing to press, and gone when the call is', async ({ page }) => {
-    await openAt(page, 1180, 820, RACE());
-    const calls = () => page.evaluate(() => ['pbStratSuggest', 'pbFuelStratSuggest'].map((id) => {
-      const el = document.getElementById(id);
-      return [getComputedStyle(el).display !== 'none', el.textContent.trim().replace(/\s+/g, ' '), getComputedStyle(el.querySelector('button')).pointerEvents];
-    }));
-    expect((await calls()).map((c) => c[0])).toEqual([false, false]);
-    await serve(page, RACE({ extra: CALLS }));
-    const on = await calls();
-    expect(on.map((c) => c[0])).toEqual([true, true]);
-    expect(on[0][1]).toMatch(/Change · ~12 laps/);
-    // (the engine's laps of fuel, the 9.1 that the fuel page says beside it: one number for one thing; the strategist's own is 6)
-    expect(on[1][1]).toMatch(/Stop · ~9 laps/);
-    expect(on.map((c) => c[2])).toEqual(['none', 'none']);
-    // The fuel strategy's pit window is a line in the fuel page, and the laps on this set of tyres are in the tyres' heading
-    // (what the rings' number is — iRacing measures tread in the pits and nowhere else — is a line under the rings: tyre-wear.spec.mjs).
-    const more = () => page.evaluate(() => [document.getElementById('pbRowWindow').getClientRects().length > 0, document.getElementById('pbWindow').textContent,
-      getComputedStyle(document.getElementById('pbPageTyres'), '::before').content]);
-    expect(await more()).toEqual([true, 'L18–24', '"Tyres · 14 laps"']);
-    await serve(page, RACE());
-    expect((await calls()).map((c) => c[0])).toEqual([false, false]);
-    expect(await more()).toEqual([false, '', '"Tyres"']);
+// ── No tyres and no fuel (he asked, 2026-10-08: "No tires or fuel on iPad"): the pit box is the weather ─────────────────
+// The strategy engine's calls (a change of tyres, a stop for fuel, the pit window) are lines of the tyres' and the fuel's
+// pages, which the glance layout does not draw; the rig's own HUD keeps them (hud-visibility.spec.mjs, the settings).
+test.describe('no tyres and no fuel in the pit box', () => {
+  test('the engine calling for tyres and for fuel puts nothing in the pit box: the weather is all of it', async ({ page }) => {
+    await openAt(page, 1180, 820, RACE({ extra: CALLS }));
+    const m = await page.evaluate(() => {
+      const shown = (id) => document.getElementById(id).getClientRects().length > 0;
+      const cell = document.getElementById('pitBoxPanel').getBoundingClientRect();
+      const weather = document.getElementById('pbPageWeather').getBoundingClientRect();
+      return {
+        pages: ['pbPageTyres', 'pbPageFuel', 'pbPageWeather'].map(shown),
+        calls: ['pbStratSuggest', 'pbFuelStratSuggest', 'pbRowWindow', 'pbCircleLF', 'pbCircleRR'].map(shown),
+        text: document.getElementById('pitBoxPanel').innerText,
+        heading: getComputedStyle(document.getElementById('pbPageWeather'), '::before').content,
+        fills: [weather.width / cell.width, weather.height / cell.height],
+      };
+    });
+    expect(m.pages).toEqual([false, false, true]);
+    expect(m.calls, 'no call, no pit window, no ring is drawn').toEqual([false, false, false, false, false]);
+    expect(m.text).not.toMatch(/Tyres|Tread|Fuel|Pit add|Window|Change|Stop/);
+    expect(m.heading).toBe('"Weather"');   // (the heading is the page's ::before, not text)
+    // The weather has the whole of the cell, bar its glass's edge.
+    expect(m.fills[0]).toBeGreaterThan(0.9);
+    expect(m.fills[1]).toBeGreaterThan(0.85);
   });
 });
 
-// The pit window beside the strategy call is its name over its laps in the fuel page, whatever width the page has: the whole
-// of "L18–24" with the name in its long form where there is room for both ("Pit window": the 12.9" Pro) and in its short
-// form where there is not ("Window": the Air, the 10.2" on its side, whose page was cut to "L18–…" under a name over two
-// lines), and the window given up while the engine calls only on a page too narrow for even that.
-test.describe('the pit window in the fuel page', () => {
-  for (const [width, height, name, short] of [[1366, 1024, '12.9" Pro, landscape', false], [1180, 820, 'Air, landscape', true], [1080, 810, '10.2", landscape', true]]) {
-    test(`${width}x${height} (${name}): the window is whole beside the call, with the name in its ${short ? 'short' : 'long'} form`, async ({ page }) => {
-      test.setTimeout(60000);
-      await openAt(page, width, height, RACE({ extra: CALLS }));
-      const row = await page.evaluate(() => {
-        const label = document.querySelector('#pbRowWindow .pb-label');
-        const value = document.getElementById('pbWindow');
-        const shown = (el) => el.getClientRects().length > 0;
-        const text = [...label.children].filter(shown).map((e) => e.textContent).join('');
-        const lines = Math.round(label.getBoundingClientRect().height / parseFloat(getComputedStyle(label).lineHeight));
-        const page_ = document.getElementById('pbPageFuel').getBoundingClientRect();
-        return {
-          shown: shown(document.getElementById('pbRowWindow')), text, lines, value: value.textContent,
-          valueFits: value.scrollWidth <= value.clientWidth + 1, valueInside: value.getBoundingClientRect().right <= page_.right + 0.5,
-        };
-      });
-      expect(row.shown, 'the window is shown').toBe(true);
-      expect(row.value).toBe('L18–24');
-      expect(row.text, 'the name').toBe(short ? 'Window' : 'Pit window');
-      expect(row.lines, 'the name is one line').toBe(1);
-      expect(row.valueFits, 'the laps are whole').toBe(true);
-      expect(row.valueInside, 'and inside the page').toBe(true);
-    });
-  }
-});
-
-// ── The maps are the layout's largest cells: he asked (2026-10-01) for them "1.5x their size" ──
-// Before: the full circuit 7 columns of 24 and the following map 4, over 34 of the 96 row-units on an iPad on its side
-// (together 15 % of the screen at 1180x820; the circuit's cell 334x281). Now the laps panel and the ratings are under
-// the leaderboard in its column (the leaderboard keeps the top three rows), so the maps' rows are theirs: the circuit
-// 11 columns and the local view 7, over 43 row-units of 96.5 (44.5 on a screen wider than 3:2: the mini, the rig; the
-// circuit's cell 528x352 at 1180x820); upright the tacho moves into the hero's row and the two maps have their row to
-// themselves (15 and 9 columns of 24, over 27.5 of 90.5).
+// ── The maps are square and the same size (he asked, 2026-10-08: "Maps on iPad version should always be square and equally
+// sized"), and the two tiles are square at the top left ("always square in the top left next to each other. My logo first") ──
+// At every size an iPad has, on its side and upright, and at the rig's own screens: the full circuit's cell and the following
+// map's are the same square (the grid is laid out from one side, --rd-sq in drive-view.css: a third of the width, or what the
+// height leaves, whichever is less; upright, half the width), the Racing Desk's tile and the car's are squares side by side in
+// the corner, his first, and the tacho and the others lie beside and under them.
 //
-// The first cut held only the cells' share of the screen, and the circuit was drawn 1.2 to 1.4 times what it was, not 1.5:
-// a circuit is limited by its cell's height on a screen on its side, and the cells had gained mostly width (and an svg's
-// margin was 6 % of the circuit's longer side, a seventh of that height). So what is held is what is seen: the circuit's
-// drawn size, against the 6253ff1 layout's — the outline of this test's circuit, in px, as that layout drew it at each
-// size, in a race — at least 1.45 times at every size on both axes (1.5 asked: the margin is nine pixels now and the rows
-// were shared out for it; the smallest ratio is 1.495, the mini on its side), and the following map's cell, whose scale
-// follows its width, the same. And the circuit fitted to its cell is in it whole, with that margin round it.
+// What the squares cost the circuit, which he has not been asked about: on 2026-10-01 he asked for the maps "1.5x their size"
+// and the circuit's cell became 528x352 at 1180x820 (drawn 1.5 to 1.7 times what the 6253ff1 layout drew); two squares cannot
+// both be that wide on a screen that is 1.44 times as wide as it is tall, so the circuit's cell is 357x357 now and the circuit
+// is drawn about 1.2 times what 6253ff1 drew (1.1 on the rig's wide screens, which are short for their width), and the
+// following map, which was 334 wide, is 357 square. What is held is what is seen: the maps' share of the screen, the circuit
+// whole in its cell with the nine pixels round it, and its drawn size against the table of what 6253ff1 drew.
 const BEFORE = {
   // [the circuit's outline w, h], the following map's cell width
   '1180x820': [[282, 200], 188], '820x1180': [[276, 195], 162], '1366x1024': [[328, 232], 217], '1024x768': [[242, 171], 163],
@@ -907,10 +878,11 @@ const BEFORE = {
 for (const size of SIZES) {
   const [width, height] = size;
   const rig = RIG.includes(size);
-  test(`${describeSize(size)}: the two maps are 1.5 times what they were, and the circuit is whole in its cell`, async ({ page }) => {
+  test(`${describeSize(size)}: the two maps are square and the same size, the two tiles square at the top left, and the circuit is whole in its cell`, async ({ page }) => {
     test.setTimeout(60000);
     if (rig) await openRig(page, width, height, RACE());
     else await openAt(page, width, height, RACE());
+    holdSquares(expect, await squares(page), describeSize(size));
     const m = await page.evaluate(() => {
       const area = (sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return b.width * b.height; };
       const screen = innerWidth * innerHeight;
@@ -927,17 +899,17 @@ for (const size of SIZES) {
       };
     });
     const label = describeSize(size);
-    expect(m.map + m.local, `${label}: the two maps' share of the screen`).toBeGreaterThanOrEqual(0.27);
-    expect(m.map, `${label}: the circuit's share`).toBeGreaterThanOrEqual(0.16);
-    expect(m.local, `${label}: the following map's share`).toBeGreaterThanOrEqual(0.10);
+    // The two maps are the largest cells there are: at least 24 % of an iPad's screen (25 % at 1180x820, 31 % upright on the
+    // mini), and 15 % of the rig's wide ones, which are short for their width, where a square cannot be wider than the height.
+    expect(m.map + m.local, `${label}: the two maps' share of the screen`).toBeGreaterThanOrEqual(rig ? 0.15 : 0.24);
     expect(m.circuitInside, `${label}: the circuit is whole in its cell`).toBe(true);
     expect(m.circuitFills, `${label}: the circuit fills its cell on one axis`).toBeGreaterThanOrEqual(0.85);
     expect(m.margin, `${label}: the room round the circuit is the strokes' and the car's, nine pixels`).toBeGreaterThanOrEqual(8);
     expect(m.margin, `${label}: and no more than that`).toBeLessThanOrEqual(11);
     const [[w0, h0], localW0] = BEFORE[`${width}x${height}`];
-    expect(m.outline[0] / w0, `${label}: the circuit's drawn width, against ${w0}px before`).toBeGreaterThanOrEqual(1.45);
-    expect(m.outline[1] / h0, `${label}: the circuit's drawn height, against ${h0}px before`).toBeGreaterThanOrEqual(1.45);
-    expect(m.localWidth / localW0, `${label}: the following map's width, against ${localW0}px before`).toBeGreaterThanOrEqual(1.45);
+    expect(m.outline[0] / w0, `${label}: the circuit's drawn width, against ${w0}px before`).toBeGreaterThanOrEqual(1.1);
+    expect(m.outline[1] / h0, `${label}: the circuit's drawn height, against ${h0}px before`).toBeGreaterThanOrEqual(1.1);
+    expect(m.localWidth / localW0, `${label}: the following map's width, against ${localW0}px before`).toBeGreaterThanOrEqual(1.1);
   });
 }
 
@@ -957,19 +929,18 @@ for (const [width, height, what] of RIG_SECTORS) {
     expect.soft(m.overflowing, `${label}: content cut off by its cell`).toEqual([]);
     expect.soft(m.cutOff, `${label}: text cut off or left out of sight`).toEqual([]);
     expect.soft(m.small, `${label}: type too small`).toEqual([]);
-    // The pit box in particular: the rear tyres' names and the two services were below its foot on this screen.
+    // The pit box in particular: the weather's lines are inside it (no tyres and no fuel since 2026-10-08).
     const pit = await page.evaluate(() => {
       const cell = document.getElementById('pitBoxPanel').getBoundingClientRect();
       const low = [];
-      for (const sel of ['#pbCircleLR .pb-circle-pos', '#pbCircleRR .pb-circle-pos', '#pbTempLR', '#pbTempRR', '#pbFuelLaps', '#pbConditions']) {
+      for (const sel of ['#pbConditions']) {
         const b = document.querySelector(sel).getBoundingClientRect();
         if (b.bottom > cell.bottom + 0.5 || b.top < cell.top) low.push(sel);
       }
-      const services = ['#pbFastRepair', '#pbWindshield'].map((s) => { const el = document.querySelector(s); return el.getClientRects().length === 0 ? 'left out' : (el.getBoundingClientRect().bottom <= cell.bottom + 0.5 ? 'in' : 'below'); });
-      return { low, services };
+      return { low };
     });
     expect(pit.low, `${label}: the pit box's contents are inside it`).toEqual([]);
-    expect(pit.services.filter((s) => s === 'below'), `${label}: the services are inside the pit box or left out, never below it`).toEqual([]);
+    holdSquares(expect, await squares(page), label);
   });
 }
 

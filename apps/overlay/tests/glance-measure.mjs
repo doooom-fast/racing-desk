@@ -4,16 +4,17 @@
  * the screen, none over another, nothing cut off by its cell, no label under 11px and no number under 20px.
  */
 
-// Every panel of the HUD, and the one each is. On an iPad (which is what this server serves) the two badges, the
-// Racing Desk mark and the car's maker, are not shown — he asked for the logos to go — so they are not cells here;
-// the rig's own Ctrl+Shift+F keeps them.
+// Every panel of the HUD, and the one each is: the two badges, the Racing Desk's and the car's maker's (the two squares at
+// the top left, his first), are cells on an iPad as on the rig's own Ctrl+Shift+F — he asked for the logos back on
+// 2026-10-08, after they had gone on 2026-09-30. (The pit box is the weather alone here: no tyres and no fuel.)
 export const CELLS = {
+  brand: '#brandLogoSquare', car: '#carLogoSquare',
   hero: '#positionPage', gaps: '#gapsBlock', tacho: '.tacho-block', lb: '#leaderboardPanel', map: '.map-panel',
   local: '.map-zoom-panel', laps: '#lapsPanel', rating: '#ratingPage', ctrl: '.car-controls', pedals: '.pedals-area',
   timer: '#raceTimerBlock', pit: '#pitBoxPanel', ds: '#datastreamPanel', inc: '#incidentsPanel',
 };
-// On the rig's own screen the two badges are cells too.
-export const CELLS_RIG = { ...CELLS, brand: '#brandLogoSquare', car: '#carLogoSquare' };
+// The same on the rig's own screen (kept as a name: the tests that open the page from the file ask for it).
+export const CELLS_RIG = CELLS;
 
 // Everything the rules are held to, measured in the page. Each is a list of what breaks it: nothing, when it holds.
 export function measure(page, cells = CELLS) {
@@ -142,3 +143,58 @@ export function measure(page, cells = CELLS) {
   }, cells);
 }
 
+
+// What he asked for on 2026-10-08, measured in the page and held at every size and box the glance layout is drawn at (the
+// iPad's seven, the rig's screens, the boxes OBS is given): the full map and the following map are square and the same
+// size; the Racing Desk's tile and the car's are square, side by side in the top left corner, his first; and the pit box is
+// the weather alone, no tyres and no fuel.
+export function squares(page) {
+  return page.evaluate(() => {
+    const box = (sel) => { const el = document.querySelector(sel); if (!el || el.getClientRects().length === 0) return null; const r = el.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; };
+    const rects = {};
+    for (const [name, sel] of Object.entries({
+      map: '.map-panel', local: '.map-zoom-panel', brand: '#brandLogoSquare', car: '#carLogoSquare', hero: '#positionPage', gaps: '#gapsBlock',
+      tacho: '.tacho-block', lb: '#leaderboardPanel', laps: '#lapsPanel', rating: '#ratingPage', ctrl: '.car-controls', pedals: '.pedals-area',
+      timer: '#raceTimerBlock', pit: '#pitBoxPanel', ds: '#datastreamPanel', inc: '#incidentsPanel',
+    })) rects[name] = box(sel);
+    const pit = document.getElementById('pitBoxPanel');
+    return {
+      rects, vw: innerWidth, vh: innerHeight,
+      tyres: document.getElementById('pbPageTyres').getClientRects().length, fuel: document.getElementById('pbPageFuel').getClientRects().length,
+      weather: document.getElementById('pbPageWeather').getClientRects().length,
+      pitText: pit.innerText,
+    };
+  });
+}
+
+// (a pixel or so: the grid's tracks are fractions of a pixel)
+export function holdSquares(expect, s, label, { lb = true } = {}) {
+  const near = (a, b, why) => expect(Math.abs(a - b), `${label}: ${why} (${a.toFixed(1)} against ${b.toFixed(1)})`).toBeLessThanOrEqual(1.5);
+  const { map, local, brand, car } = s.rects;
+  for (const [name, r] of Object.entries({ map, local, brand, car })) {
+    expect(r, `${label}: ${name} is drawn`).not.toBeNull();
+    near(r.w, r.h, `${name} is square`);
+  }
+  near(map.w, local.w, 'the two maps are the same width');
+  near(map.h, local.h, 'the two maps are the same height');
+  expect(local.l, `${label}: the full map is first, the following map beside it`).toBeGreaterThanOrEqual(map.r);
+  near(map.t, local.t, 'the two maps are in one row');
+  // The tiles: side by side in the top left corner, the Racing Desk's first, one size, in a row of their own at the top.
+  near(brand.w, car.w, 'the two tiles are one size');
+  near(brand.t, car.t, 'the two tiles are in one row');
+  expect(car.l, `${label}: the Racing Desk's tile is first, the car's after it`).toBeGreaterThanOrEqual(brand.r);
+  expect(car.l - brand.r, `${label}: the tiles are side by side, a gutter apart`).toBeLessThanOrEqual(20);
+  const others = Object.entries(s.rects).filter(([n, r]) => r && n !== 'brand' && n !== 'car');
+  for (const [n, r] of others) {
+    expect(r.t, `${label}: ${n} is not above the tiles`).toBeGreaterThanOrEqual(brand.t - 1);
+    expect(r.l, `${label}: ${n} is not left of the Racing Desk's tile`).toBeGreaterThanOrEqual(brand.l - 1);
+  }
+  // Nothing under the tiles at the left edge is above the maps: the top row is the tiles' row.
+  expect(brand.t, `${label}: the tiles are at the top`).toBeLessThanOrEqual(30);
+  expect(brand.l, `${label}: the Racing Desk's tile is at the left`).toBeLessThanOrEqual(30);
+  // No tyres and no fuel: the pit box is the weather.
+  expect([s.tyres, s.fuel], `${label}: no tyres and no fuel`).toEqual([0, 0]);
+  expect(s.weather, `${label}: the weather is there`).toBeGreaterThan(0);
+  expect(s.pitText, `${label}: nothing of the tyres or the fuel is written in the pit box`).not.toMatch(/Tyres|Tread|Fuel|Pit add|Pit window|Left front/i);
+  if (lb) expect(s.rects.lb, `${label}: the leaderboard is there`).not.toBeNull();
+}

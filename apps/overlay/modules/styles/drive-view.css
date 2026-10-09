@@ -14,27 +14,28 @@
    under 20px (the leaderboard's rows and a caption to a name aside: apps/overlay/CLAUDE.md), and a cell that cannot
    hold a number at 20px gives up the least useful thing in it by @container query and never shrinks the number.
 
-   Landscape (24 columns; rows 18 / 30 / 13 / 12 / 23.5,       Portrait (24 columns; rows 14 / 27.5 / 16 / 8 / 8 / 17):
-   16.5 / 30 / 14.5 / 12 / 23.5 wider than 3:2):
-     hero×7   gaps×4   tacho×7          lb×6              hero×9    gaps×7   tacho×8
-     map×11            local×7          lb                map×15             local×9
-     map               local            lb                lb×15              laps×9
-     ctrl×6   pedals×5 brand×2 car×2 timer×3 rating×6     lb                 rating×9
-     pit×10            ds×5    inc×3   laps×6             ctrl×8 pedals×6 brand×2 car×3 timer×5
-                                                          pit×13        ds×6    inc×5
-   The maps are the largest cells: he asked (2026-10-01) for them "1.5x their size", and the circuit is drawn at least
-   1.45 times what it was at every size (the first cut gave its cell 1.9 times the area and drew it 1.2 to 1.4 times: a
-   circuit is limited by the height of its cell on a screen on its side, and its svg's margin was a seventh of that). On
-   its side the laps panel and the ratings are under the leaderboard in its column (the leaderboard keeps the top three
-   rows, sixteen of its rows on an Air where it had twenty-one), so the maps' rows are theirs: the circuit 11 columns over
-   43 row-units where it had 7 over 34 (at 1180x820 its cell is 528x352 where it was 334x281), the following map 7 over
-   43 where it had 4 over 34 (334 by 352 where it was 188 by 281); a screen wider than 3:2 is short for its width and
-   gives them 44.5. Under 1100px wide (the 9.7") the right-hand column is seven, for the leaderboard's names and the laps
-   panel's two columns of times, and the maps ten and seven. Upright the tacho moves into the hero's row and the two maps
-   have the row to themselves.
+   The two maps are square and the same size, the grid is laid out from their side (--rd-sq, below), and the two tiles at
+   the top left are square: he asked on 2026-10-08 ("Maps on iPad version should always be square and equally sized",
+   "the logos back on iPad version always square in the top left next to each other. My logo first", "No tires or fuel on
+   iPad"). Landscape: 30 columns, the first twenty the two maps' ten each, the last ten the leaderboard's column;
+   upright: 20 columns, ten to a map.
+
+   Landscape (30 columns; rows tile / maps 30+13 / 12 / 23.5):             Upright (20 columns):
+     brand×4 car×4 hero×9    gaps×5   tacho×8                              brand×2 car×2 rating×10      timer×6
+     map×10         local×10         lb×10                                 hero×8      gaps×5    tacho×7
+     map            local            lb                                    map×10            local×10
+     ctrl×9 pedals×8 timer×3 rating×10                                     lb×12                  laps×8
+     pit×7  ds×8     inc×5   laps×10                                       lb                     laps
+                                                                           ctrl×10         pedals×10
+                                                                           pit×7   ds×8   inc×5
+   The side is a third of the width or what the height leaves once the rows under the maps have what they need,
+   whichever is less (upright, half the width): on a screen as short as 4:3 the maps and the leaderboard are thirds of
+   the width and every column is the same, on a wider one the leaderboard's column has what the maps do not. The tiles
+   are four columns of a map wide (two upright) and the top row is as tall as they are wide. What it costs, which he has
+   not been asked about: the circuit's cell is 357x357 at 1180x820 where it was 528x352, and the leaderboard has 9 rows
+   (the overlay's CLAUDE.md, The glance layout). The pit box is the weather alone: no tyres and no fuel.
    On an iPad the menu (remote-server.js) is a small round button laid over the top right corner, the one touch target
-   on the screen, and the badges are not shown. What comes and goes is laid over the cells, as it is over the game on
-   the rig (the end of this file).
+   on the screen. What comes and goes is laid over the cells, as it is over the game on the rig (the end of this file).
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 body.drive-mode-active {
@@ -58,44 +59,57 @@ body.drive-mode-active {
            max(var(--rd-frame), env(safe-area-inset-bottom)) max(var(--rd-frame), env(safe-area-inset-left));
   display: grid;
   gap: var(--rd-gap);
-  grid-template-columns: repeat(24, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 18fr) minmax(0, 30fr) minmax(0, 13fr) minmax(0, 12fr) minmax(0, 23.5fr);
+  /* The room the grid has: the screen less the edge round it (and an iPad's safe areas). */
+  --rd-padt: max(var(--rd-frame), env(safe-area-inset-top));
+  --rd-padr: max(var(--rd-frame), env(safe-area-inset-right));
+  --rd-padb: max(var(--rd-frame), env(safe-area-inset-bottom));
+  --rd-padl: max(var(--rd-frame), env(safe-area-inset-left));
+  --rd-w: calc(100vw - var(--rd-padl) - var(--rd-padr));
+  --rd-h: calc(100vh - var(--rd-padt) - var(--rd-padb));
+  /* THE MAPS ARE SQUARE AND THE SAME SIZE (he asked, 2026-10-08), whatever the screen. --rd-sq is their side, and the grid
+     below is laid out from it: the first twenty of its thirty columns are the two maps' ten each (so a map is whole
+     columns, and the row they share is --rd-sq tall), the last ten are the leaderboard's. Landscape: the side is a third
+     of the width, or what the height leaves once the rows under the maps have what they need, whichever is less. (The
+     second is 0.4514 of the height less 0.663 gutters: the 12 and 23.5 row-units the controls' row and the bottom row have
+     always had, and the top row's height, which is the two tiles' side, four columns of a map or 0.4 of it less 0.6
+     gutters, solved for the maps.) On a screen as short as 4:3 the width is the least and the maps and the leaderboard are
+     thirds of it; on a wider one the height is, and the leaderboard's column has what the maps do not. The tiles at the
+     top left, the Racing Desk's and the car's, are four columns of a map wide and the top row is as tall as they are:
+     square at every size. */
+  --rd-sq: min(calc((var(--rd-w) - 2 * var(--rd-gap)) / 3), calc(0.4514 * var(--rd-h) - 0.663 * var(--rd-gap)));
+  --rd-col: calc((var(--rd-sq) - 9 * var(--rd-gap)) / 10);
+  --rd-tile: calc(4 * var(--rd-col) + 3 * var(--rd-gap));
+  grid-template-columns: repeat(20, var(--rd-col)) repeat(10, minmax(0, 1fr));
+  /* The maps' row is two, 30 to 13 as the layout has always cut it, so that a test drive can stack two panels beside them. */
+  grid-template-rows: var(--rd-tile) calc((var(--rd-sq) - var(--rd-gap)) * 30 / 43) calc((var(--rd-sq) - var(--rd-gap)) * 13 / 43) minmax(0, 12fr) minmax(0, 23.5fr);
   grid-template-areas:
-    "hero hero hero hero hero hero hero gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho lb lb lb lb lb lb"
-    "map map map map map map map map map map map local local local local local local local lb lb lb lb lb lb"
-    "map map map map map map map map map map map local local local local local local local lb lb lb lb lb lb"
-    "ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals brand brand car car timer timer timer rating rating rating rating rating rating"
-    "pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds inc inc inc laps laps laps laps laps laps";
+    "brand brand brand brand car car car car hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho"
+    "map map map map map map map map map map local local local local local local local local local local lb lb lb lb lb lb lb lb lb lb"
+    "map map map map map map map map map map local local local local local local local local local local lb lb lb lb lb lb lb lb lb lb"
+    "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals timer timer timer rating rating rating rating rating rating rating rating rating rating"
+    "pit pit pit pit pit pit pit ds ds ds ds ds ds ds ds inc inc inc inc inc laps laps laps laps laps laps laps laps laps laps";
 }
-/* Under 1100px wide (the 9.7" iPad, 1024): the leaderboard's names and the laps panel's two columns of times want seven
-   columns, not six, so the right-hand column is seven and the maps ten and seven. */
-@media (orientation: landscape) and (max-width: 1099px) {
+@supports (height: 100dvh) {
+  body.drive-mode-active { --rd-h: calc(100dvh - var(--rd-padt) - var(--rd-padb)); }
+}
+/* Upright (a screen at least a quarter taller than it is wide: the iPads, a tall box in OBS; a square box is laid out as
+   a screen on its side, which has the room), the maps are the two halves of the width and the 20 columns are the page's
+   own, ten to a map; their row is as tall as they are wide, and the tiles are two columns of a map (the row they are in is a
+   strip: the tiles, the ratings and the clock). */
+@media (orientation: portrait) and (max-aspect-ratio: 4/5) {
   body.drive-mode-active {
+    --rd-sq: calc((var(--rd-w) - var(--rd-gap)) / 2);
+    --rd-tile: calc(2 * var(--rd-col) + var(--rd-gap));
+    grid-template-columns: repeat(20, minmax(0, 1fr));
+    grid-template-rows: var(--rd-tile) minmax(0, 14fr) var(--rd-sq) minmax(0, 12fr) minmax(0, 8fr) minmax(0, 10fr) minmax(0, 17fr);
     grid-template-areas:
-      "hero hero hero hero hero hero hero gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho lb lb lb lb lb lb lb"
-      "map map map map map map map map map map local local local local local local local lb lb lb lb lb lb lb"
-      "map map map map map map map map map map local local local local local local local lb lb lb lb lb lb lb"
-      "ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals brand brand car car timer timer timer rating rating rating rating rating rating rating"
-      "pit pit pit pit pit pit pit pit pit pit ds ds ds ds inc inc inc laps laps laps laps laps laps laps";
-  }
-}
-/* A screen wider than 3:2 on its side (the mini, 1133x744, the rig's 16:9 and ultrawide, a wide box in OBS) is short for its
-   width, and a circuit is limited by its cell's height: the maps have a little more of it, the hero a little less (which
-   still holds the place at its 80px). The others (the Air, 1.44; the 9.7", the 10.2" and the 12.9", 1.33) have it as it is,
-   where the gaps block keeps the words "Ahead" and "Behind" (it wants 138px inside). */
-@media (orientation: landscape) and (min-aspect-ratio: 3/2) {
-  body.drive-mode-active { grid-template-rows: minmax(0, 16.5fr) minmax(0, 30fr) minmax(0, 14.5fr) minmax(0, 12fr) minmax(0, 23.5fr); }
-}
-@media (orientation: portrait) {
-  body.drive-mode-active {
-    grid-template-rows: minmax(0, 14fr) minmax(0, 27.5fr) minmax(0, 16fr) minmax(0, 8fr) minmax(0, 8fr) minmax(0, 17fr);
-    grid-template-areas:
-      "hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho"
-      "map map map map map map map map map map map map map map map local local local local local local local local local"
-      "lb lb lb lb lb lb lb lb lb lb lb lb lb lb lb laps laps laps laps laps laps laps laps laps"
-      "lb lb lb lb lb lb lb lb lb lb lb lb lb lb lb rating rating rating rating rating rating rating rating rating"
-      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals brand brand car car car timer timer timer timer timer"
-      "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
+      "brand brand car car rating rating rating rating rating rating rating rating rating rating timer timer timer timer timer timer"
+      "hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho"
+      "map map map map map map map map map map local local local local local local local local local local"
+      "lb lb lb lb lb lb lb lb lb lb lb lb laps laps laps laps laps laps laps laps"
+      "lb lb lb lb lb lb lb lb lb lb lb lb laps laps laps laps laps laps laps laps"
+      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals pedals pedals"
+      "pit pit pit pit pit pit pit ds ds ds ds ds ds ds ds inc inc inc inc inc";
   }
 }
 
@@ -409,7 +423,7 @@ body.drive-mode-active .laps-panel > * { font-size: max(20px, min(7.9cqh, 7.6cqw
    times; the sectors' times and the second column's second row. What is left is what he needs the most. */
 @container (max-height: 236px) {
   .laps-head, .laps-col .laps-row:nth-child(3) { display: none; }
-  body.drive-mode-active .laps-panel > * { font-size: max(20px, min(11.6cqh, 7.6cqw)); }
+  body.drive-mode-active .laps-panel > * { font-size: max(20px, min(10.5cqh, 7.6cqw)); }   /* (was 11.6cqh, which the panel's width had always been the smaller of: at 434px wide it is not, and a 189px panel did not hold the 20.5px it asked for) */
 }
 @container (max-height: 172px) { .laps-sectors .sector-delta { display: none; } }
 @container (max-height: 148px) { .laps-col .laps-row:nth-child(2) { display: none; } }
@@ -502,6 +516,13 @@ body.drive-mode-active #raceTimerBlock .race-timer-lap .timer-label { font-size:
 /* A cell too short for the clock and the last lap under it (a wide box in OBS) keeps the clock: the last lap is in the
    laps panel and the leaderboard's row. */
 @container (max-height: 90px) { body.drive-mode-active #raceTimerBlock .race-timer-lap { display: none; } }
+/* A cell under 100px across (three columns of a map on a screen as square as a 900x900 box in OBS, whose header is the size
+   of its 1024 tall page's) says what it is over two lines rather than run past its side, and keeps the clock alone: the last
+   lap ("1:32.440" is 96px at the number's floor) is in the laps panel and the leaderboard's row. */
+@container (max-width: 100px) {
+  body.drive-mode-active #raceTimerBlock .race-timer-key { white-space: normal; text-align: center; line-height: 1.1; }
+  body.drive-mode-active #raceTimerBlock .race-timer-lap { display: none; }
+}
 
 /* ── The pit box: tyres, fuel and weather side by side (on the rig they are tabs) ───────────────────────────────────
    Every number in it is 20px or more, but for the tyres' temperatures, which are a caption under their rings (he
@@ -511,15 +532,18 @@ body.drive-mode-active #raceTimerBlock .race-timer-lap .timer-label { font-size:
 /* Named, so that a rule for what is inside the rings' own container (below) can still ask the pit box's size. */
 body.drive-mode-active #pitBoxPanel { grid-area: pit; display: flex; background: none; border: none; container-name: pitbox; }
 body.drive-mode-active .pb-inner { flex: 1; display: flex; min-width: 0; }
-/* The three pages share the width 38 / 34 / 28: the weather had 24, and its values are sized by its own box (below). */
-body.drive-mode-active .pb-content { flex: 1; display: grid; grid-template-columns: minmax(0, 38fr) minmax(0, 34fr) minmax(0, 28fr); min-width: 0; }
+/* No tyres and no fuel in the glance layout (he asked, 2026-10-08: "No tires or fuel on iPad"): the pit box is the weather
+   alone, one page the width of its cell. The rig's own HUD keeps the pages, by his settings (the same markup, the same
+   modules writing to it: they are only not drawn here). The rules below for the tyres' rings, the strategy call and the
+   fuel page stay for the page that is not drawn. */
+body.drive-mode-active :is(#pbPageTyres, #pbPageFuel) { display: none !important; }
+body.drive-mode-active .pb-content { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
 /* Upright the pit box is narrow (13 columns of a narrow screen), and the tyres' and the fuel's pages keep the widths they
    had, 40 and 36 (the line under the rings, the call above them and the pit window are as wide as they are, and were cut
    off at 38 and 34 on a mini and an Air); the weather has the rest, 24, its values still sized by its own box. Where its
    page is too narrow for the sky beside the air (under 90px inside), the sky gives way (below, after the weather's own
    rules): the conditions say the same. */
 @media (orientation: portrait) {
-  body.drive-mode-active .pb-content { grid-template-columns: minmax(0, 40fr) minmax(0, 36fr) minmax(0, 24fr); }
   /* The weather's and the fuel's pages' sides a little narrower there, so a three-digit air in °F has the page's width at
      its floor, and the pit window's laps a space after its name ("Pit window L18–24", not "Pit windowL18–24"). */
   body.drive-mode-active :is(#pbPageWeather, #pbPageFuel) { padding-left: 6px; padding-right: 6px; }
@@ -935,11 +959,11 @@ html.rd-effects-off body.drive-mode-active::before { animation: none !important;
    What he asked for on 2026-09-30: "we don't need the super shiny backgrounds, it's pretty noisy. I'd like them
    brought back to about 15% opacity", and "we don't need the logos". So the glass's light — its tint, the overhead
    glow and the sweep, the inset glow — is at fifteen hundredths of the rig's (--rd-shine, used
-   by the glass rules above); the flags' own treatment of the glass is as it was. The two badges, the Racing Desk mark
-   and the car's maker with the car's name, are not cells here, and the row they were in is the controls, the pedals
-   and the clock. The menu's sign (remote-server.js) is a small round button in the top right corner.
+   by the glass rules above); the flags' own treatment of the glass is as it was. The two badges — "we don't need the
+   logos" (2026-09-30), and back on 2026-10-08 — are the two tiles at the top left. The menu's sign (remote-server.js) is
+   a small round button in the top right corner.
    The iPad dashboard OBS draws (html.rd-glance, the loopback listener's /obs-ipad: "iPad dashboard" under "HUD drawn
-   by OBS") has the same look — the glass, no badges, the row — and OBS mode's behaviour; what is the iPad's alone (the
+   by OBS") has the same look — the glass, the two tiles — and OBS mode's behaviour; what is the iPad's alone (the
    menu, the flag behind and between the panels, the frame, the black page) it does not have: the end of this file. */
 html:is(.rd-remote, .rd-glance) body.drive-mode-active { --rd-shine: 0.15; }
 /* The flag behind and between the panels at fifteen hundredths too, under every flag: the renders of the first cut had
@@ -970,40 +994,6 @@ html.rd-remote body.drive-mode-active:not(.rd-no-data)::after {
   transition: opacity 0.35s ease;
 }
 html.rd-remote body.drive-mode-active:not(.rd-no-data)[data-flag]:not([data-flag="none"]):not([data-flag="orange"])::after { opacity: 1; }
-html:is(.rd-remote, .rd-glance) body.drive-mode-active :is(#brandLogoSquare, #carLogoSquare) { display: none !important; }
-html:is(.rd-remote, .rd-glance) body.drive-mode-active {
-  grid-template-areas:
-    "hero hero hero hero hero hero hero gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho lb lb lb lb lb lb"
-    "map map map map map map map map map map map local local local local local local local lb lb lb lb lb lb"
-    "map map map map map map map map map map map local local local local local local local lb lb lb lb lb lb"
-    "ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals timer timer timer timer timer rating rating rating rating rating rating"
-    "pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds inc inc inc laps laps laps laps laps laps";
-}
-@media (orientation: landscape) and (max-width: 1099px) {
-  html:is(.rd-remote, .rd-glance) body.drive-mode-active {
-    grid-template-areas:
-      "hero hero hero hero hero hero hero gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho lb lb lb lb lb lb lb"
-      "map map map map map map map map map map local local local local local local local lb lb lb lb lb lb lb"
-      "map map map map map map map map map map local local local local local local local lb lb lb lb lb lb lb"
-      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals timer timer timer timer timer rating rating rating rating rating rating rating"
-      "pit pit pit pit pit pit pit pit pit pit ds ds ds ds inc inc inc laps laps laps laps laps laps laps";
-  }
-}
-@media (orientation: portrait) {
-  /* Upright, the tacho is the corner the menu's button is over: its speed and unit stop short of the button (44px, and
-     the frame it is set in from the screen's edge, less the tacho's own side padding), as in a landscape test drive. */
-  html.rd-remote body.drive-mode-active .tacho-speed-cluster { margin-right: calc(44px + var(--rd-gap) - 10px); }
-  html:is(.rd-remote, .rd-glance) body.drive-mode-active {
-    grid-template-areas:
-      "hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho"
-      "map map map map map map map map map map map map map map map local local local local local local local local local"
-      "lb lb lb lb lb lb lb lb lb lb lb lb lb lb lb laps laps laps laps laps laps laps laps laps"
-      "lb lb lb lb lb lb lb lb lb lb lb lb lb lb lb rating rating rating rating rating rating rating rating rating"
-      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals timer timer timer timer timer timer timer"
-      "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
-  }
-}
-
 /* ═══ The iPad dashboard OBS draws (html.rd-glance; remote-server.js, /obs-ipad) ═══════════════════════════════════
    A browser source composites over the game, so there is nothing of a page here: the body is transparent (the glance
    layout's own dark page is the iPad's, which has no game behind it), and the flag's pattern is not drawn behind or
@@ -1016,60 +1006,40 @@ html.rd-glance body.drive-mode-active::before { display: none !important; conten
 /* ═══ A test drive: no leaderboard, and its column goes to the other panels ═══════════════════════════════════════
    iRacing's solo testing session ("Offline Testing" in the session's type on both paths; poll-engine.js writes
    body.session-testdrive from it, session-kind.js) has no field to list — one row, and a column of nothing under it.
-   He asked for the leaderboard to go in one, on every overlay (2026-10-01). Here the cell goes too, and the 24
-   columns are shared out again among the rest: on its side the hero, the maps and the laps panel each gain, and the
-   pit box, the datastream and the incidents share the bottom row; upright the laps panel and the ratings keep the
-   width they had (their numbers are sized from the cell's height, so a strip the width of the screen would only be
-   empty glass) and the following map, the one that zooms with his speed, takes the rest of their two rows beside
-   them — nine columns by a column of fifteen — with the full map having the row above to itself and the tacho in
-   the hero's row, where it is upright in a race too. The rows keep their heights, so nothing else moves up or down.
-   Any other session (practice, qualifying, a race with other cars) is the layout above, the moment the frame says so.
-   These rules are after the iPad's and outrank them (one class more), so the test drive's grid is the same on the
-   rig's Ctrl+Shift+F (with its badges), on an iPad and in the page OBS draws (without). */
+   He asked for the leaderboard to go in one, on every overlay (2026-10-01). Here the cell goes too, and its column goes
+   to the other panels: on its side the laps panel and the ratings are stacked in it beside the maps (the maps' row is
+   two rows for it, 30 to 13), the controls', the pedals' and the clock's row shares the whole width, and the bottom
+   row is the weather, the datastream and the incidents; upright the laps panel and the datastream take the two rows the
+   leaderboard had. The maps are the same square and the same size as in any session, and so is the top row, the two tiles
+   and the hero, the gaps and the tacho. Any other session (practice, qualifying, a race with other cars) is the layout
+   above, the moment the frame says so. */
 body.drive-mode-active.session-testdrive #leaderboardPanel { display: none !important; }
 body.drive-mode-active.session-testdrive {
   grid-template-areas:
-    "hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho tacho"
-    "map map map map map map map map map local local local local local local laps laps laps laps laps laps laps laps laps"
-    "map map map map map map map map map local local local local local local rating rating rating rating rating rating rating rating rating"
-    "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals brand brand brand car car car timer timer timer timer"
-    "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
+    "brand brand brand brand car car car car hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho"
+    "map map map map map map map map map map local local local local local local local local local local laps laps laps laps laps laps laps laps laps laps"
+    "map map map map map map map map map map local local local local local local local local local local rating rating rating rating rating rating rating rating rating rating"
+    "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals pedals pedals timer timer timer timer timer timer timer timer timer timer"
+    "pit pit pit pit pit pit pit pit ds ds ds ds ds ds ds ds ds ds ds ds inc inc inc inc inc inc inc inc inc inc";
 }
-html:is(.rd-remote, .rd-glance) body.drive-mode-active.session-testdrive {
-  grid-template-areas:
-    "hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho tacho"
-    "map map map map map map map map map local local local local local local laps laps laps laps laps laps laps laps laps"
-    "map map map map map map map map map local local local local local local rating rating rating rating rating rating rating rating rating"
-    "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals timer timer timer timer timer timer timer"
-    "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
-}
-@media (orientation: portrait) {
+@media (orientation: portrait) and (max-aspect-ratio: 4/5) {
   body.drive-mode-active.session-testdrive {
     grid-template-areas:
-      "hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho"
-      "map map map map map map map map map map map map map map map map map map map map map map map map"
-      "laps laps laps laps laps laps laps laps laps local local local local local local local local local local local local local local local"
-      "rating rating rating rating rating rating rating rating rating local local local local local local local local local local local local local local local"
-      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals brand brand car car car timer timer timer timer timer"
-      "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
-  }
-  html:is(.rd-remote, .rd-glance) body.drive-mode-active.session-testdrive {
-    grid-template-areas:
-      "hero hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho tacho"
-      "map map map map map map map map map map map map map map map map map map map map map map map map"
-      "laps laps laps laps laps laps laps laps laps local local local local local local local local local local local local local local local"
-      "rating rating rating rating rating rating rating rating rating local local local local local local local local local local local local local local local"
-      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals timer timer timer timer timer timer timer"
-      "pit pit pit pit pit pit pit pit pit pit pit pit pit ds ds ds ds ds ds inc inc inc inc inc";
+      "brand brand car car rating rating rating rating rating rating rating rating rating rating timer timer timer timer timer timer"
+      "hero hero hero hero hero hero hero hero gaps gaps gaps gaps gaps tacho tacho tacho tacho tacho tacho tacho"
+      "map map map map map map map map map map local local local local local local local local local local"
+      "laps laps laps laps laps laps laps laps laps laps laps laps ds ds ds ds ds ds ds ds"
+      "laps laps laps laps laps laps laps laps laps laps laps laps ds ds ds ds ds ds ds ds"
+      "ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl ctrl pedals pedals pedals pedals pedals pedals pedals pedals pedals pedals"
+      "pit pit pit pit pit pit pit pit pit pit pit inc inc inc inc inc inc inc inc inc";
   }
 }
 /* On its side, the tacho is the cell in the top right corner, where the iPad's menu button is (remote-server.js: 44px,
    set in from the corner by the frame — the same inset as the grid's padding — over the corner of whatever cell is
-   there). In a race that corner is the empty end of the leaderboard's header; here it is the speed, and the button
-   struck through the last digit of it. The speed and its unit stop short of the button, by the width of the button and
-   a gutter less the tacho's own side padding (10px); the revs under them are lower than the button reaches and keep
-   the edge. Upright the corner is the tacho in every session, and the same rule is set above with the iPad's grid.
-   The OBS page has no button, and the rig's own Ctrl+Shift+F neither. */
-@media (orientation: landscape) {
-  html.rd-remote body.drive-mode-active.session-testdrive .tacho-speed-cluster { margin-right: calc(44px + var(--rd-gap) - 10px); }
+   there). The speed and its unit stop short of the button, by the width of the button and a gutter less the tacho's own
+   side padding (10px); the revs under them are lower than the button reaches and keep the edge. Upright (the strip of tiles)
+   the corner is the clock, whose words are in the middle of its cell, and there is nothing to move. The OBS page has no
+   button, and the rig's own Ctrl+Shift+F neither. */
+@media (min-aspect-ratio: 4/5) {
+  html.rd-remote body.drive-mode-active .tacho-speed-cluster { margin-right: calc(44px + var(--rd-gap) - 10px); }
 }

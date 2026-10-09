@@ -21,6 +21,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { frame, fieldWith } from '../frames.mjs';
+import { squares, holdSquares } from '../glance-measure.mjs';
 
 const require = createRequire(import.meta.url);
 const remote = require('../../remote-server.js');
@@ -160,12 +161,14 @@ function measure(page, cells) {
   }, cells);
 }
 
+// (the two tiles at the top left are cells on an iPad too since 2026-10-08, as on the rig)
 const CELLS = {
+  brand: '#brandLogoSquare', car: '#carLogoSquare',
   hero: '#positionPage', gaps: '#gapsBlock', tacho: '.tacho-block', lb: '#leaderboardPanel', map: '.map-panel',
   local: '.map-zoom-panel', laps: '#lapsPanel', rating: '#ratingPage', ctrl: '.car-controls', pedals: '.pedals-area',
   timer: '#raceTimerBlock', pit: '#pitBoxPanel', ds: '#datastreamPanel', inc: '#incidentsPanel',
 };
-const CELLS_RIG = { ...CELLS, brand: '#brandLogoSquare', car: '#carLogoSquare' };
+const CELLS_RIG = CELLS;
 const without = (cells, key) => Object.fromEntries(Object.entries(cells).filter(([k]) => k !== key));
 
 // The rig's HUD, from the file, as the app has it.
@@ -384,12 +387,12 @@ test.describe('the iPad', () => {
     });
   }
 
-  // Upright, a test drive keeps the laps panel and the ratings at the width they have in a race (their numbers are sized
-  // from the cell's height, so a strip the width of the screen is empty glass), and the room the leaderboard had goes to
-  // the following map beside them, which spans both rows; the full map has the row above to itself, with the tacho in
-  // the hero's row beside the gaps (where it is upright in a race too, since the maps grew: drive-view.css).
+  // Upright, a test drive has the same two square maps as any session (the full map and the following map, side by side, each
+  // half the width: 2026-10-08), and the room the leaderboard had goes to the laps panel and the datastream, which share the
+  // two rows under them, the ratings staying in the strip at the top with the tiles and the clock. No strip of empty glass:
+  // the laps panel is under the full map and the datastream under the following one, a little narrower.
   for (const [width, height, what] of [[820, 1180, 'Air'], [744, 1133, 'mini'], [810, 1080, '10.2"']]) {
-    test(`${width}x${height} (${what}, upright): a test drive gives the following map the room beside the laps panel and the ratings, not a strip of empty glass`, async ({ page }) => {
+    test(`${width}x${height} (${what}, upright): a test drive has the two square maps, and the laps panel and the datastream share the rows under them, not a strip of empty glass`, async ({ page }) => {
       test.setTimeout(90000);
       feed.payload = TEST_DRIVE();
       await page.addInitScript(() => { try { localStorage.setItem('rd-effects', 'off'); } catch (e) { /* none */ } });
@@ -402,27 +405,32 @@ test.describe('the iPad', () => {
       const rects = () => page.evaluate((cells) => Object.fromEntries(Object.entries(cells).map(([k, sel]) => {
         const b = document.querySelector(sel).getBoundingClientRect();
         return [k, { left: b.left, top: b.top, right: b.right, bottom: b.bottom, w: b.width, h: b.height }];
-      })), { laps: '#lapsPanel', rating: '#ratingPage', local: '.map-zoom-panel', map: '.map-panel', tacho: '.tacho-block' });
+      })), { laps: '#lapsPanel', ds: '#datastreamPanel', rating: '#ratingPage', local: '.map-zoom-panel', map: '.map-panel', tacho: '.tacho-block' });
       const td = await rects();
-      expect(td.laps.w, 'the laps panel is no strip').toBeLessThan(width * 0.45);
-      expect(td.rating.w, 'the ratings are no strip').toBeLessThan(width * 0.45);
-      expect(td.local.left, 'the following map is beside the laps panel').toBeGreaterThanOrEqual(td.laps.right);
-      expect(Math.abs(td.local.top - td.laps.top)).toBeLessThanOrEqual(2);
-      expect(Math.abs(td.local.bottom - td.rating.bottom)).toBeLessThanOrEqual(2);
-      // The tacho is in the hero's row, above the full map, which has its row to itself.
-      expect(td.tacho.bottom).toBeLessThanOrEqual(td.map.top + 1);
-      expect(td.map.w, 'the full map has the row to itself').toBeGreaterThan(width * 0.9);
+      holdSquares(expect, await squares(page), `${width}x${height}`, { lb: false });
+      // The maps fill the width between them, the full map first; the tacho is in the hero's row above them.
       expect(td.local.right).toBeGreaterThan(width * 0.9);
-      // The laps panel and the ratings are the width they have in a race, and the following map is the larger (a race's
-      // following map upright is already nine columns of twenty-four by the maps' row).
+      expect(td.local.left).toBeGreaterThanOrEqual(td.map.right);
+      expect(td.tacho.bottom).toBeLessThanOrEqual(td.map.top + 1);
+      // The laps panel is under the full map and the datastream under the following one, level, to the foot of the same two rows.
+      expect(td.laps.top, 'the laps panel is under the maps').toBeGreaterThanOrEqual(td.map.bottom);
+      expect(td.laps.w, 'the laps panel is no strip').toBeLessThan(width * 0.65);
+      expect(td.ds.w, 'nor the datastream').toBeLessThan(width * 0.65);
+      expect(Math.abs(td.ds.top - td.laps.top)).toBeLessThanOrEqual(2);
+      expect(Math.abs(td.ds.bottom - td.laps.bottom)).toBeLessThanOrEqual(2);
+      expect(td.ds.right).toBeGreaterThan(width * 0.9);
+      expect(td.laps.left).toBeLessThan(width * 0.05);
+      // The ratings stay up in the strip with the tiles and the clock, as in a race.
+      expect(td.rating.top).toBeLessThan(td.map.top);
+      // A race has the same two squares, to the pixel.
       feed.payload = RACE();
       await frames(page);
       await page.waitForFunction(() => document.querySelectorAll('#lbRows .lb-row').length >= 3, null, { timeout: 10000 });
       await page.waitForTimeout(500);
       const race = await rects();
-      expect(Math.abs(td.laps.w - race.laps.w), 'the laps panel keeps its width').toBeLessThanOrEqual(2);
+      expect(Math.abs(td.map.w - race.map.w), 'the full map is the same size in a race').toBeLessThanOrEqual(1);
+      expect(Math.abs(td.local.w - race.local.w), 'and the following map').toBeLessThanOrEqual(1);
       expect(Math.abs(td.rating.w - race.rating.w), 'the ratings keep their width').toBeLessThanOrEqual(2);
-      expect(td.local.w * td.local.h, 'the following map, in a test drive and in a race').toBeGreaterThan(1.2 * race.local.w * race.local.h);
     });
   }
 });

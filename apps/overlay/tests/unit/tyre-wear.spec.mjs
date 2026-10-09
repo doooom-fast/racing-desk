@@ -350,44 +350,25 @@ test.describe('what the number is', () => {
     }
   });
 
+  // No tyres in the glance layout (he asked, 2026-10-08: "No tires or fuel on iPad"): the rings, the line under them and the
+  // heading are not drawn at any size an iPad has, whatever the tyres say; the rig's own HUD keeps them (the tests above).
   for (const [width, height, what] of [[1180, 820, 'an iPad Air on its side'], [820, 1180, 'an iPad Air upright'], [744, 1133, 'an iPad mini upright']]) {
-    test(`in the glance layout at ${width}x${height} (${what}) the line stays: one line at the label's floor under the rings, whole, and the heading keeps the laps`, async ({ page }) => {
-      await open(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 14 }));
+    test(`in the glance layout at ${width}x${height} (${what}) there are no tyres: no rings, no line under them, no heading`, async ({ page }) => {
+      await open(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 14, [NEWSET]: 0x0F }));
       await page.setViewportSize({ width, height });
       await page.evaluate(() => setDriveMode(true));
       await drawn(page);
-      const look = () => page.evaluate(() => {
-        const el = document.getElementById('pbWearNote');
-        const cs = getComputedStyle(el);
-        const rings = document.querySelector('.pb-tire-circles').getBoundingClientRect();
-        const r = el.getBoundingClientRect();
-        return {
-          heading: getComputedStyle(document.getElementById('pbPageTyres'), '::before').content,
-          text: el.textContent, shown: cs.display !== 'none', nowrap: cs.whiteSpace, size: parseFloat(cs.fontSize),
-          oneLine: r.height < parseFloat(cs.fontSize) * 1.6, underTheRings: r.top >= rings.bottom - 1,
-          whole: el.scrollWidth <= el.clientWidth + 1,
-        };
-      });
-      expect(await look()).toEqual({
-        heading: '"Tyres · 14 laps"', text: 'Tread measured in the pits', shown: true, nowrap: 'nowrap', size: expect.any(Number),
-        oneLine: true, underTheRings: true, whole: true,
-      });
-      expect((await look()).size).toBeGreaterThanOrEqual(11);
-
-      // After a reset to the pits: the rings 100 %, and the line says "new set", in the same place, whole, at the same floor
-      await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 100 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 0, [NEWSET]: 0x0F }));
-      const fresh = await look();
-      expect(fresh).toEqual({
-        heading: '"Tyres"', text: 'New set · not measured', shown: true, nowrap: 'nowrap', size: expect.any(Number),
-        oneLine: true, underTheRings: true, whole: true,
-      });
-      expect(fresh.size).toBeGreaterThanOrEqual(11);
+      const look = () => page.evaluate(() => ({
+        page: document.getElementById('pbPageTyres').getClientRects().length,
+        rings: document.querySelectorAll('.pb-tire-circles').length ? document.querySelector('.pb-tire-circles').getClientRects().length : 0,
+        note: document.getElementById('pbWearNote').getClientRects().length,
+        text: document.getElementById('pitBoxPanel').innerText,
+      }));
+      const m = await look();
+      expect([m.page, m.rings, m.note]).toEqual([0, 0, 0]);
+      expect(m.text).not.toMatch(/Tyres|Tread|New set|Left front/);
+      // (the readings are still kept up to date under it, for the rig: the rings' numbers are still the kept ones)
       expect((await rings(page)).map((x) => x.slice(0, 2))).toEqual([['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok'], ['100%', 'ok']]);
-      // and the widest of the words — a pair's, and an odd change's three corners — fit whole too
-      for (const [flags, text] of [[0x03, 'New fronts · not measured'], [0x0A, 'New rights · not measured'], [0x07, 'New LF, RF, LR']]) {
-        await serve(page, RACE({ [FL]: 100, [FR]: 100, [RL]: 100, [RR]: 93 }, { 'RacingDesk.Plugin.Strategy.StintLaps': 0, [NEWSET]: flags }));
-        expect(await look(), text).toMatchObject({ text, shown: true, oneLine: true, whole: true });
-      }
     });
   }
 });
