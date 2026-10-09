@@ -652,7 +652,7 @@ VALUES ($key, $source, $ibt, $num, 'Race', $path, $id, $name, $at, $at)",
             var scan = new IbtIngest(store, log.Add).ScanCars(pause: () => ++asked < 2);
 
             Assert.That(asked, Is.EqualTo(2), "asked, waited, asked again");
-            Assert.That(log, Is.EqualTo(new[] { "car names: paused while iRacing is running", "car names: resumed" }));
+            Assert.That(log, Is.EqualTo(new[] { "car names: paused while a sim is running", "car names: resumed" }));
             Assert.That(scan.FilesScanned, Is.EqualTo(1));
         }
 
