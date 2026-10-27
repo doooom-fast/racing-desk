@@ -16,6 +16,7 @@
 //   { brakeKg: 45 | null, car: 'mx5 mx52016' | null, wheelNm: 11.55 | null, wheelSource: 'base' | 'pithouse' | null }
 const http = require('http');
 const RacingDeskInCar = require('./in-car');
+const carControls = require('./car-controls');
 const rigApi = require('./rig-api');
 
 const BRAKE_FORCE_PATH = '/racing-desk/data/brakeforce';
@@ -138,6 +139,8 @@ function createRigLimits({ host, send, fetch = fetchRigLimits, now = Date.now, e
   let asking = false;
   let askedAt = -Infinity;
   let saidNotLocal = false;
+  let context = null;
+  let generation = 0;
 
   function tell(next) {
     if (next.brakeKg === current.brakeKg && next.car === current.car && next.wheelNm === current.wheelNm && next.wheelSource === current.wheelSource) return;
@@ -158,27 +161,47 @@ function createRigLimits({ host, send, fetch = fetchRigLimits, now = Date.now, e
     return base.replace(/\/+$/, '') + BRAKE_FORCE_PATH;
   }
 
-  async function ask() {
-    const url = where();
-    if (!url) { tell({ ...NOT_KNOWN }); return; }
+  function changeContext(next) {
+    context = next;
+    generation++;
+    asking = false;
+    askedAt = -Infinity;
+    tell({ ...NOT_KNOWN });
+  }
+
+  async function ask(url, startedIn) {
     asking = true;
+    let next;
     try {
-      tell(told(await fetch(url)));
+      next = told(await fetch(url));
     } catch (e) {
-      tell({ ...NOT_KNOWN });
-    } finally {
-      asking = false;
-      askedAt = now();
+      next = { ...NOT_KNOWN };
     }
+    // An obsolete request owns neither the readings nor the new context's polling state. Even a return to the
+    // same car/host is a new generation. The host can also move between frames, while this request is pending.
+    if (startedIn !== generation) return;
+    if (where() !== url) { changeContext(null); return; }
+    asking = false;
+    askedAt = now();
+    tell(next);
   }
 
   function feed(payload) {
-    if (!RacingDeskInCar.inCar(payload)) {
-      tell({ ...NOT_KNOWN });
-      return;
-    }
-    if (asking || now() - askedAt < everyMs) return;
-    ask();
+    const url = RacingDeskInCar.inCar(payload) ? where() : null;
+    // Only identity fields, never changing controls or session state (green/chequered). Older hosts and cars
+    // outside the list still name the model/session; absent identity fields remain stable, not invented.
+    const cc = url ? carControls.read(payload) : null;
+    const key = url ? JSON.stringify([
+      url, cc ? cc.car : '',
+      ...[
+        'DataCorePlugin.GameData.CarModel', 'RacingDesk.Plugin.GameId', 'RacingDesk.Plugin.DemoMode',
+        'DataCorePlugin.GameRawData.Telemetry.SessionNum', 'RacingDesk.Plugin.SessionTypeName',
+        'RacingDesk.Plugin.Session.TrackName',
+      ].map((name) => String(payload[name] ?? '')),
+    ]) : null;
+    if (key !== context) changeContext(key);
+    if (!url || asking || now() - askedAt < everyMs) return;
+    ask(url, generation);
   }
 
   return { feed, current: () => ({ ...current }) };

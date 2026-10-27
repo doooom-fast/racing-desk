@@ -367,7 +367,9 @@ any of it, and nothing is sent to them.
   on the HUD keeper's own poll, in the car, every two seconds at most, by Node with a Host and no Origin, the brake
   force's route and the wheel's together) and tells the page as the answer changes (`rig-limits`, `{ brakeKg, car,
   wheelNm, wheelSource }`; `get-rig-limits` for a page that loaded after, through the preload's `onRigLimits` /
-  `getRigLimits`). A page with no main process behind it — an iPad, the page OBS draws, a browser — shows a dash for it
+  `getRigLimits`). Leaving the car or changing the reported car, sim/demo, session, track or local host clears the
+  cached readings and invalidates pending answers; re-entry asks immediately. An old response or failure cannot overwrite
+  the new context or change its polling state, and a response checks the host again before publishing. A page with no main process behind it — an iPad, the page OBS draws, a browser — shows a dash for it
   (and for the wheel's, unless the telemetry itself carries the base's reading: `MozaWheelbaseMaxNm`, which the page reads
   ahead of the main process's number). The store's `car_pedal_facts.force_kg` (the force a car was *last* driven with)
   is not shown: the pedals are not put back to it when he gets in, so it is not necessarily what they are at.
