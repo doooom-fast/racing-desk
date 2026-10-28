@@ -6,13 +6,27 @@ The driver asked for a review of overall hygiene, bugs and unfinished work, part
 
 **This review is unfinished.** It was paused to consider doing the source review on his M1 Pro MacBook while another Claude session works on the Windows rig. Findings below distinguish reproductions, source observations and live-verification gaps; they are not an exhaustive audit.
 
-Reviewed source: `main` at `cd1003c` (`fix(plugin): a number that is not finite is null on the wire; the HUD page's errors go into the log`). No application source was changed. No app or host was launched by hand, no SimHub plugin installed, no hardware command sent and no rig setting changed. Focused tests generated local build/test outputs.
+Original review source: `main` at `cd1003c` (`fix(plugin): a number that is not finite is null on the wire; the HUD page's errors go into the log`). No application source was changed. No app or host was launched by hand, no SimHub plugin installed, no hardware command sent and no rig setting changed. Focused tests generated local build/test outputs.
 
 The GitHub destination confirmed by the driver is `https://github.com/doooom-fast/racing-desk`. Older project guidance names a different repository.
 
-## Findings
+## Resumed work from `3f54c72`
 
-### 1. Reproduced: a late request restores stale rig readings after leaving the car
+The first fix is implemented in `rig-limits.js`: leaving the car or changing the reported car, sim/demo, session, track or local host clears cached readings and invalidates outstanding requests. Re-entry asks immediately. Old successes and failures cannot overwrite the new context or alter its polling state; the host is checked again when a request completes, even without another telemetry frame. Normal control adjustments and green/chequered changes do not invalidate readings.
+
+Added 16 lifecycle tests. Before the fix, all 14 initially added regressions failed (the 16 existing tests passed); two more tests cover stable identity and moving back to a previous host. After the fix, **83 selected tests passed**, including the browser-dependent HUD checks:
+
+```text
+npm test -w racing-desk-overlay -- rig-limits.spec.mjs datastream-limits.spec.mjs hud-page-assetto.spec.mjs in-car.spec.mjs host-reads-this-machine.spec.mjs --workers=2 --reporter=line
+```
+
+On the Mac checkout, dependencies were installed with `npm ci --ignore-scripts --no-audit --no-fund`, then the missing browser with `npx playwright install chromium`. Node v25.9.0 / npm 11.12.1. The project's software-rendering flags were retained. No live host/app, SimHub plugin or hardware was started. This run supersedes the missing-browser limitation for these selected tests, not the original .NET/live-verification gaps.
+
+**Still open:** source/freshness presentation, validating the host's reported brake car against the displayed car, AC/EVO brake-force support, and the other findings below. Session invalidation follows the identity fields the wire actually carries; it cannot detect a new session that reports identical identity fields without an intervening exit/disconnect. Next is the trustworthy rig-status slice (step 3 below), followed by Windows verification.
+
+## Findings (original review)
+
+### 1. Fixed in the resumed work: a late request restores stale rig readings after leaving the car
 
 `apps/overlay/modules/js/rig-limits.js:161–181`
 
@@ -39,9 +53,7 @@ resolve({ brakeKg: 80, car: 'old car', wheelNm: 11.55, wheelSource: 'pithouse' }
 setImmediate(() => console.log('after late reply', keeper.current()));
 ```
 
-Suggested fix: invalidate pending responses on context changes. Cover exit, a different car/session and a different host.
-
-**Fixed 2026-10-28** (branch `fix/brake-max-stale`): an answer asked for before he last got out of the car, or from a host that is no longer the one there, is not told; tests in `tests/unit/rig-limits.spec.mjs`. A car change always passes through out of the car in iRacing; the renderer's own use of the reported car is unchanged. The renderer also retains the reported car but does not use it to validate the displayed brake value (`datastream.js:49–58`).
+Suggested fix: invalidate pending responses on context changes. Cover exit, a different car/session and a different host. The renderer also retains the reported car but does not use it to validate the displayed brake value (`datastream.js:49–58`).
 
 ### 2. Wheel max is not necessarily the current hardware setting
 
@@ -121,7 +133,7 @@ The calc run left five snapshot files flagged as modified without any content di
 ## Next steps and working boundaries
 
 1. Recheck the current commit and working tree: another agent may have moved the code forward. Use a separate clone/worktree, not a shared checkout and build directory.
-2. Fix the reproduced stale-response bug with lifecycle tests.
+2. **Implemented and tested:** fix the reproduced stale-response bug with lifecycle tests (see Resumed work above).
 3. Finish one trustworthy rig-status slice: explicit sources/freshness, correct invalidation, actionable unknown states and explicit per-sim support.
 4. On Windows, verify the installed app/plugin versions and perform a short live checklist: cold start, set/step brake keys, Live restart, Pit House saved versus unsaved changes, car changes, garage/replay, reconnect, and one AC/EVO run each.
 5. Complete recording-to-editor timing and CLI integration, then resume the wider review of recording, commentary, liveries and Electron boundaries. Those areas were only sampled, not fully audited.

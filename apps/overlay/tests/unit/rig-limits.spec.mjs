@@ -185,60 +185,165 @@ test.describe('the keeper', () => {
     expect(k.current()).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
   });
 
-  // A keeper whose host answers when the test says: reply(answer) answers the last question asked.
-  function waiting({ host = () => 'http://localhost:18889' } = {}) {
-    const calls = { fetched: [], sent: [] };
+  function pendingKeeper() {
+    let host = 'http://localhost:18889';
     let clock = 1000;
-    let reply = null;
+    const pending = [];
+    const sent = [];
     const k = createRigLimits({
-      host,
-      send: (l) => calls.sent.push(l),
-      fetch: (url) => { calls.fetched.push(url); return new Promise((done) => { reply = done; }); },
-      now: () => clock,
+      host: () => host, now: () => clock, send: (value) => sent.push(value),
+      fetch: (url) => new Promise((resolve, reject) => pending.push({ url, resolve, reject })),
     });
-    return { k, calls, reply: (a) => reply(a), tick: (ms) => { clock += ms; } };
+    return { k, pending, sent, moveHost: (value) => { host = value; }, tick: (ms) => { clock += ms; } };
+  }
+  const READING = { brakeKg: 45, car: 'mx5 mx52016', wheelNm: 11.55, wheelSource: 'pithouse' };
+  const FRAME = {
+    ...IN_CAR,
+    'RacingDesk.Plugin.GameId': 'iRacing',
+    'RacingDesk.Plugin.CarControls': { car: 'mx5 mx52016' },
+    'DataCorePlugin.GameData.CarModel': 'Mazda MX-5',
+    'DataCorePlugin.GameRawData.Telemetry.SessionNum': 0,
+    'RacingDesk.Plugin.SessionTypeName': 'Practice',
+    'RacingDesk.Plugin.Session.TrackName': 'Okayama',
+  };
+
+  for (const exit of [OUT, null]) {
+    test(`a late reply cannot restore readings after ${exit ? 'leaving the car' : 'losing telemetry'}`, async () => {
+      const { k, pending, sent, tick } = pendingKeeper();
+      k.feed(FRAME);
+      pending[0].resolve(READING);
+      await settle();
+      tick(2500);
+      k.feed(FRAME);
+      k.feed(exit);
+      expect(k.current()).toEqual(NOT_KNOWN);
+      pending[1].resolve(READING);
+      await settle();
+      expect(k.current()).toEqual(NOT_KNOWN);
+      expect(sent).toEqual([READING, NOT_KNOWN]);
+    });
   }
 
-  test('an answer that comes back after he got out of the car is not told: it would put the old car back', async () => {
-    const { k, calls, reply, tick } = waiting();
-    k.feed(IN_CAR);
-    k.feed(OUT);
-    reply({ brakeKg: 80, car: 'old car', wheelNm: 11.55, wheelSource: 'pithouse' });
-    await settle();
-    expect(k.current()).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
-    expect(calls.sent).toEqual([]);
+  const changes = [
+    ['car path', { 'RacingDesk.Plugin.CarControls': { car: 'porsche963' } }],
+    ['car model without controls', { 'RacingDesk.Plugin.CarControls': null, 'DataCorePlugin.GameData.CarModel': 'Porsche 963' }],
+    ['session number', { 'DataCorePlugin.GameRawData.Telemetry.SessionNum': 1 }],
+    ['session name without number', { 'DataCorePlugin.GameRawData.Telemetry.SessionNum': null, 'RacingDesk.Plugin.SessionTypeName': 'Race' }],
+    ['track', { 'RacingDesk.Plugin.Session.TrackName': 'Spa' }],
+    ['sim', { 'RacingDesk.Plugin.GameId': 'AssettoCorsa' }],
+    ['demo', { 'RacingDesk.Plugin.DemoMode': 1 }],
+  ];
+  for (const [name, change] of changes) {
+    test(`a changed ${name} clears cached readings and ignores the old request`, async () => {
+      const { k, pending, tick } = pendingKeeper();
+      k.feed(FRAME);
+      pending[0].resolve(READING);
+      await settle();
+      tick(2500);
+      k.feed(FRAME);
+      const next = { ...FRAME, ...change };
+      k.feed(next);
+      expect(k.current()).toEqual(NOT_KNOWN);
+      expect(pending).toHaveLength(3);
+      pending[1].resolve(READING);
+      await settle();
+      expect(k.current()).toEqual(NOT_KNOWN);
+      // The old request's finally must not release the new request's in-flight guard.
+      tick(2500);
+      k.feed(next);
+      expect(pending).toHaveLength(3);
+      pending[2].resolve({ ...READING, brakeKg: 80 });
+      await settle();
+      expect(k.current().brakeKg).toBe(80);
+    });
+  }
 
-    // Out and in again before the answer: still the question of before, and the next is asked as ever.
-    tick(2500);
-    k.feed(IN_CAR);
+  test('returning to the same car asks immediately; an old failure cannot clear the new reading or delay its poll', async () => {
+    const { k, pending, tick } = pendingKeeper();
+    k.feed(FRAME);
     k.feed(OUT);
-    k.feed(IN_CAR);
-    reply({ brakeKg: 80, car: 'old car' });
+    k.feed(FRAME);
+    expect(pending).toHaveLength(2);
+    pending[1].resolve(READING);
     await settle();
-    expect(calls.sent).toEqual([]);
     tick(2500);
-    k.feed(IN_CAR);
-    reply({ brakeKg: 45, car: 'mx5 mx52016' });
+    pending[0].reject(new Error('old host gone'));
     await settle();
-    expect(calls.fetched).toHaveLength(3);
-    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null }]);
+    expect(k.current()).toEqual(READING);
+    k.feed(FRAME);
+    expect(pending).toHaveLength(3);
+    pending[2].resolve(READING);
+    await settle();
   });
 
-  test('an answer from a host that is no longer the one there is not told', async () => {
-    let host = 'http://localhost:8889';
-    const { k, calls, reply, tick } = waiting({ host: () => host });
-    k.feed(IN_CAR);
-    host = 'http://localhost:18889';
-    reply({ brakeKg: 45, car: 'mx5 mx52016' });
-    await settle();
-    expect(k.current().brakeKg).toBeNull();
+  for (const host of ['http://localhost:8889', 'http://192.168.1.20:8889', null]) {
+    test(`moving the host to ${host} invalidates an outstanding answer even before another frame`, async () => {
+      const { k, pending, moveHost, tick } = pendingKeeper();
+      k.feed(FRAME);
+      pending[0].resolve(READING);
+      await settle();
+      tick(2500);
+      k.feed(FRAME);
+      moveHost(host);
+      pending[1].resolve(READING);
+      await settle();
+      expect(k.current()).toEqual(NOT_KNOWN);
+      k.feed(FRAME);
+      expect(pending).toHaveLength(host === 'http://localhost:8889' ? 3 : 2);
+      if (pending[2]) {
+        expect(pending[2].url).toBe(host + BRAKE_FORCE_PATH);
+        pending[2].resolve(READING);
+        await settle();
+      }
+    });
+  }
 
+  test('changing controls and session state is not a new context; object and wire-text controls agree', async () => {
+    const { k, pending, tick } = pendingKeeper();
+    k.feed(FRAME);
+    const next = {
+      ...FRAME,
+      'RacingDesk.Plugin.CarControls': JSON.stringify({ car: 'mx5 mx52016', bb: { value: 53 } }),
+      'RacingDesk.Plugin.Grid.SessionState': 5,
+    };
     tick(2500);
-    k.feed(IN_CAR);
-    reply({ brakeKg: 50, car: 'mx5 mx52016' });
+    k.feed(next);
+    expect(pending).toHaveLength(1);
+    pending[0].resolve(READING);
     await settle();
-    expect(calls.fetched).toEqual(['http://localhost:8889/racing-desk/data/brakeforce', 'http://localhost:18889/racing-desk/data/brakeforce']);
-    expect(k.current().brakeKg).toBe(50);
+    expect(k.current()).toEqual(READING);
+    k.feed(next);
+    expect(pending).toHaveLength(1);
+  });
+
+  test('a late success from the old host cannot overwrite the new host, even after moving back', async () => {
+    const { k, pending, moveHost } = pendingKeeper();
+    k.feed(FRAME);
+    moveHost('http://localhost:8889');
+    k.feed(FRAME);
+    moveHost('http://localhost:18889');
+    k.feed(FRAME);
+    expect(pending).toHaveLength(3);
+    pending[2].resolve(READING);
+    await settle();
+    pending[0].resolve({ ...READING, brakeKg: 80 });
+    pending[1].reject(new Error('old host gone'));
+    await settle();
+    expect(k.current()).toEqual(READING);
+  });
+
+  test('a host change on a frame clears the cache without waiting for the poll interval', async () => {
+    const { k, pending, moveHost } = pendingKeeper();
+    k.feed(FRAME);
+    pending[0].resolve(READING);
+    await settle();
+    moveHost('http://localhost:8889');
+    k.feed(FRAME);
+    expect(k.current()).toEqual(NOT_KNOWN);
+    expect(pending).toHaveLength(2);
+    pending[1].resolve(READING);
+    await settle();
+    expect(k.current()).toEqual(READING);
   });
 
   test('a host that does not answer, or answers with no force, is not known — never a number', async () => {
