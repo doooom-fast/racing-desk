@@ -39,7 +39,7 @@ and are archived in Phase 6 — nothing is deleted before its replacement works.
 ## .NET
 
 ```bash
-npm run test:dotnet                 # dotnet test racing-desk.sln (5 WsTelemetryPublisher failures are pre-existing)
+npm run test:dotnet                 # dotnet test racing-desk.sln
 npm run host                        # live iRacing → :8889/:8890, records sessions, backfills new .ibt
 npm run host -- --ibt <file> --http-port 18889 --ws-port 18890 --loopback-only   # replay an .ibt beside SimHub, on 127.0.0.1 alone
 npm run ingest                      # backfill racing-desk.db from Documents\iRacing\telemetry
