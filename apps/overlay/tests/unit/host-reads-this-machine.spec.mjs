@@ -172,9 +172,9 @@ test('the Cars page\'s four reads and its one write (rig-api.js) are answered', 
 });
 
 test('the brake force and the wheel\'s maximum the HUD\'s datastream is told (rig-limits.js, asked by the main process) are answered', async () => {
-  expect(await rigLimits.fetchBrakeForce(`${host.url}${rigLimits.BRAKE_FORCE_PATH}`)).toEqual({ brakeKg: 45, car: 'mx5 mx52016' });
+  expect(await rigLimits.fetchBrakeForce(`${host.url}${rigLimits.BRAKE_FORCE_PATH}`)).toEqual({ brakeKg: 45, car: 'mx5 mx52016', brakeWhy: null });
   expect(await rigLimits.fetchWheelMax(`${host.url}${rigLimits.WHEEL_MAX_PATH}`)).toEqual({ wheelNm: 11.55, wheelSource: 'pithouse' });
-  expect(await rigLimits.fetchRigLimits(`${host.url}${rigLimits.BRAKE_FORCE_PATH}`)).toEqual({ brakeKg: 45, car: 'mx5 mx52016', wheelNm: 11.55, wheelSource: 'pithouse' });
+  expect(await rigLimits.fetchRigLimits(`${host.url}${rigLimits.BRAKE_FORCE_PATH}`)).toEqual({ brakeKg: 45, car: 'mx5 mx52016', brakeWhy: null, wheelNm: 11.55, wheelSource: 'pithouse' });
   expect(host.state.refused).toEqual([]);
   expect(host.state.asked.map((a) => a.url)).toEqual([
     '/racing-desk/data/brakeforce', '/racing-desk/data/wheelmax', '/racing-desk/data/brakeforce', '/racing-desk/data/wheelmax',

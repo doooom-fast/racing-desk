@@ -90,6 +90,13 @@
   .ds-value.ds-positive { color: hsla(0, 70%, 55%, 1.0); }
   .ds-value.ds-negative { color: hsla(145, 65%, 50%, 1.0); }
   .ds-value.ds-neutral  { color: var(--text-dim); }
+  /* Why a value is not known, in words where its number would be (datastream.js: the brake's row): the label's face, dim. */
+  .ds-value.ds-why {
+    font-family: inherit;
+    letter-spacing: 0.02em;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
 
 
   /* Yaw rate mini bar */

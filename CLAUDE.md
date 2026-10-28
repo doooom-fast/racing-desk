@@ -79,8 +79,8 @@ the monitors, both in physical pixels (see **The HUD is on the screen iRacing is
 `GET /racing-desk/data/controls[?car=<folder>]` serves the car list (from the assembly, so it is there
 before there is a store) with what the check of it has said of each car: this run's, and what the store has kept of
 the runs before (see The car's controls), `GET /racing-desk/data/brakeforce` the brake force the pedals are at now
-as the host follows it from SmartControl Live's keys, for the HUD's datastream (`{ car, force_kg }`, null each while not
-known; see Per car, for the rig), and `GET /racing-desk/data/wheelmax` the wheel's maximum torque in Nm, from what the
+as the host follows it from SmartControl Live's keys, for the HUD's datastream (`{ car, force_kg, why }`, null each while not
+known, `why` the reason while the force is not; see Per car, for the rig), and `GET /racing-desk/data/wheelmax` the wheel's maximum torque in Nm, from what the
 wheel base itself last said (the plugin's poll, which runs while Pit House lets go of the ports) or Pit House's own saved
 preset for it, read and never written (`{ source, model, max_pct, rated_nm, max_nm, candidates }`, null each while not
 known; the overlay's CLAUDE.md, The datastream's rig limits).
@@ -435,11 +435,15 @@ files or to the pedals; putting the cars back (last bullet) does, by itself, by 
     never waited for, and what is thrown while following the car is logged and goes no further.
   - Putting a car's force and profile *back* when he gets in is the next bullet.
   - **What the HUD says of it** (since 2026-10-01): the force the run's keys have left the pedals at, as "Brake max"
-    in the datastream — `CarPedalsRecorder.Now`, served at `GET /racing-desk/data/brakeforce` (`{ car, force_kg }`,
+    in the datastream — `CarPedalsRecorder.Now`, served at `GET /racing-desk/data/brakeforce` (`{ car, force_kg, why }`,
     null each while not known: no key has set a force this run, a step key was held, between cars) to the app's main
     process, which hands it to the page (`apps/overlay/modules/js/rig-limits.js`; the overlay's CLAUDE.md, The
-    datastream's rig limits). A dash until a key sets a force; never the store's last-driven-with number, which the
-    pedals are not put back to.
+    datastream's rig limits). Never the store's last-driven-with number, which the pedals are not put back to. **While
+    the force is not known the row says why** (2026-10-28, the review's "actionable unknown states"): `why` is one of
+    `BrakeForceNow`'s words, the most useful first — `no-car` (nothing followed), `no-smartcontrol`, `no-keys` (Live has
+    none bound to the force), `unread` (SmartControl's database could not be read, asked again), `live-off` (the last key
+    pressed found Live not running; cleared by the next key Live hears or the ten-second look finding it started),
+    `held`, `live-restarted`, else `not-set` — and null beside a number. The HUD's words are in the overlay's CLAUDE.md.
 - **Putting each car's seat height and brakes back** (2026-10-02, his words: "when I get in a car, its saved driver
   height and brake force should be set automatically", and then "No trial mode"; the plan has the design). It acts by
   itself, in the host (`RestoreDirector`, `RacingDesk.Data/Restore`); nothing of it is on the HUD.

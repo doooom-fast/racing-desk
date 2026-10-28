@@ -260,14 +260,16 @@ namespace RacingDesk.Host
                 if (route == "brakeforce" && ctx.Request.HttpMethod == "GET")
                 {
                     // The brake force the pedals are at now, as the host follows it from SmartControl Live's keys
-                    // (CarPedalsRecorder.Now): { car, force_kg }, each null while not known. Not the store's, so answered
-                    // before there is one; a host with no recorder (a replay) answers not known.
+                    // (CarPedalsRecorder.Now): { car, force_kg, why }, each null while not known, and `why` the reason the
+                    // force is not known (BrakeForceNow's words), null while it is. Not the store's, so answered before there
+                    // is one; a host with no recorder (a replay) answers not known, with no reason to give.
                     var now = BrakeForce?.Invoke();
                     Write(res, 200, json =>
                     {
                         json.WriteStartObject();
                         json.WriteString("car", now?.CarPath);
                         Number(json, "force_kg", now?.ForceKg);
+                        json.WriteString("why", now?.ForceKg.HasValue == true ? null : now?.Why);
                         json.WriteEndObject();
                     });
                     return;

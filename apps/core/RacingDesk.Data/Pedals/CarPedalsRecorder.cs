@@ -49,6 +49,29 @@ namespace RacingDesk.Data.Pedals
 
         /// <summary>Kilograms, or null while the force is not known.</summary>
         public double? ForceKg { get; set; }
+
+        /// <summary>
+        /// Why the force is not known, as one of the words below; null while it is. The HUD's datastream says it in place of
+        /// the number, so that a dash is not taken for a fault and he knows what would make it known.
+        /// </summary>
+        public string Why { get; set; }
+
+        /// <summary>No car is being followed: the sim is not sending, or is between cars.</summary>
+        public const string NoCar = "no-car";
+        /// <summary>No key that sets a force has been pressed in this car's run.</summary>
+        public const string NotSet = "not-set";
+        /// <summary>A step key was held until Windows repeated it: what it did is not known.</summary>
+        public const string Held = "held";
+        /// <summary>SmartControl Live has started since its keys were read: what it did to the pedals as it started is not known.</summary>
+        public const string LiveRestarted = "live-restarted";
+        /// <summary>A key was pressed while SmartControl Live was not running, so it did nothing.</summary>
+        public const string LiveOff = "live-off";
+        /// <summary>SmartControl Live has no keys bound to the brake force.</summary>
+        public const string NoKeys = "no-keys";
+        /// <summary>SmartControl is not on this machine.</summary>
+        public const string NoSmartControl = "no-smartcontrol";
+        /// <summary>SmartControl's database could not be read; it is asked again.</summary>
+        public const string Unread = "unread";
     }
 
     /// <summary>
@@ -93,6 +116,11 @@ namespace RacingDesk.Data.Pedals
         private bool _absSetting, _absWorked, _prototype;
         private int _lapsAt = -1, _laps;
         private bool _saidLiveIsNotRunning;
+        // Why the force is not known, for Now: what put it in doubt, what is wrong with the keys, and whether the last key
+        // pressed found Live away.
+        private string _doubtWhy = BrakeForceNow.NotSet;
+        private string _keysWhy;
+        private bool _liveOff;
 
         // What the run before left, and when, in case this one is the same run after a break.
         private double? _leftKg;
@@ -127,11 +155,29 @@ namespace RacingDesk.Data.Pedals
         /// HUD's datastream shows as the brake's maximum. Not known (null) until a key that sets a force is pressed this
         /// run, again after a step key is held or SmartControl Live has started again, and between cars (the sim gone, no
         /// car yet: nothing is being followed, and what the pedals hold meanwhile is the next car's to carry over, by the
-        /// minute's rule in Enter); nothing is read from the pedals and nothing is made up.
+        /// minute's rule in Enter); nothing is read from the pedals and nothing is made up. While it is not known,
+        /// <see cref="BrakeForceNow.Why"/> says why.
         /// </summary>
         public BrakeForceNow Now
         {
-            get { lock (_gate) return new BrakeForceNow { CarPath = _carPath, ForceKg = _carPath == null ? null : _force?.ForceKg }; }
+            get
+            {
+                lock (_gate)
+                {
+                    double? kg = _carPath == null ? null : _force?.ForceKg;
+                    return new BrakeForceNow { CarPath = _carPath, ForceKg = kg, Why = kg.HasValue ? null : WhyNotKnown() };
+                }
+            }
+        }
+
+        // The reason that says most of what to do, first: nothing to follow; keys that cannot be followed at all; a Live that
+        // was not there to hear the last key; and then what put the force in doubt in this car (or that nothing has set one).
+        private string WhyNotKnown()
+        {
+            if (_carPath == null || _force == null) return BrakeForceNow.NoCar;
+            if (_keysWhy != null) return _keysWhy;
+            if (_liveOff) return BrakeForceNow.LiveOff;
+            return _doubtWhy;
         }
 
         /// <summary>
@@ -232,6 +278,9 @@ namespace RacingDesk.Data.Pedals
             _lapsAt = -1;
             _laps = 0;
             _saidLiveIsNotRunning = false;
+            _doubtWhy = BrakeForceNow.NotSet;
+            _keysWhy = null;
+            _liveOff = false;
             // The pedals keep their force from car to car and through a break in the telemetry, so what was
             // known a moment ago is known now. After longer it is not: they may have been set with the sim away.
             bool sameRun = _leftAt != DateTime.MinValue && _now() - _leftAt <= SameRun && _now() >= _leftAt;
@@ -261,12 +310,14 @@ namespace RacingDesk.Data.Pedals
                 if (read.IsFaulted || read.IsCanceled)
                 {
                     _readAgain = _now() + ReadAgainAfter;
+                    _keysWhy = BrakeForceNow.Unread;
                     _log("pedals: SmartControl could not be read — " + (read.Exception?.GetBaseException().Message.Trim() ?? "cancelled"));
                     return;
                 }
                 if (read.Result.Read == null)
                 {
                     _readAgain = DateTime.MaxValue;
+                    _keysWhy = BrakeForceNow.NoSmartControl;
                     _log("pedals: SmartControl is not on this machine; nothing is watched");
                     return;
                 }
@@ -275,9 +326,11 @@ namespace RacingDesk.Data.Pedals
                 if (keys.Watched.Count == 0)
                 {
                     _readAgain = DateTime.MaxValue;
+                    _keysWhy = BrakeForceNow.NoKeys;
                     _log("pedals: SmartControl Live has no brake-force keys; nothing is watched");
                     return;
                 }
+                _keysWhy = null;
                 _keys = keys;
                 _keysLiveStarted = read.Result.LiveStarted;
                 _lookAtLiveAgain = _now() + LookAtLiveEvery;
@@ -291,6 +344,7 @@ namespace RacingDesk.Data.Pedals
                 var look = _lookingAtLive;
                 _lookingAtLive = null;
                 _lookAtLiveAgain = _now() + LookAtLiveEvery;
+                if (look.Result != null) _liveOff = false;     // running now, whatever the last key found
                 if (LiveStartedAgain(look.Result)) return;
             }
 
@@ -302,9 +356,11 @@ namespace RacingDesk.Data.Pedals
             {
                 if (!_saidLiveIsNotRunning) _log("pedals: SmartControl Live is not running, so its keys do nothing; not counted");
                 _saidLiveIsNotRunning = true;
+                _liveOff = true;
                 return;
             }
             _saidLiveIsNotRunning = false;
+            _liveOff = false;
             // Started again since its keys were read, Live may have others: what this press did is not known.
             if (LiveStartedAgain(LiveStarted())) return;
 
@@ -313,6 +369,7 @@ namespace RacingDesk.Data.Pedals
             if (seen.HeldToRepeat)
             {
                 _force.Doubt();
+                _doubtWhy = BrakeForceNow.Held;
                 _log("pedals: a step key was held until it repeated; the brake force is not known until a key sets one");
             }
             else if (_force.ForceKg != before || !_force.ForceKg.HasValue)
@@ -355,6 +412,8 @@ namespace RacingDesk.Data.Pedals
         {
             if (started == null || started == _keysLiveStarted) return false;
             _force.Doubt();
+            _doubtWhy = BrakeForceNow.LiveRestarted;
+            _liveOff = false;
             _log("pedals: SmartControl Live has started again; its keys are read again, and the brake force is not known until a key sets one");
             _keys = null;
             _reading = null;

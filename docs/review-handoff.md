@@ -24,6 +24,14 @@ On the Mac checkout, dependencies were installed with `npm ci --ignore-scripts -
 
 **Still open:** source/freshness presentation, validating the host's reported brake car against the displayed car, AC/EVO brake-force support, and the other findings below. Session invalidation follows the identity fields the wire actually carries; it cannot detect a new session that reports identical identity fields without an intervening exit/disconnect. Next is the trustworthy rig-status slice (step 3 below), followed by Windows verification.
 
+## The rig-status slice (step 3), 2026-10-28, branch `feature/rig-status-sources`
+
+- **Sources**: the HUD's wheel row is labelled "Preset wheel max" while its number is Pit House's saved preset (the host's `wheelSource: pithouse`), and "Wheel max" for the base's own reading (finding 2). The preset's age and the number of bases Pit House has met are still not shown.
+- **Actionable unknown states**: the host's `/racing-desk/data/brakeforce` now says why the force is not known (`why`: `not-set`, `held`, `live-restarted`, `live-off`, `no-keys`, `no-smartcontrol`, `unread`, `no-car`; `CarPedalsRecorder.Now`), and the HUD's Brake max row says it in a few words in place of the dash ("Not set yet", "Key held", "Live restarted", "Live not running", …).
+- **Brake car validated**: a force the host gives for another car than the one the telemetry's `CarControls` names is not shown (finding 1's remainder). A car the list does not have names no folder, so its answer is not checked.
+- **Per-sim support explicit**: in a sim that is not iRacing the row says "iRacing only" instead of a dash, since the host follows the force from iRacing's frames alone (finding 3). Following the force in Assetto Corsa and EVO is still not built.
+- Tests: 195 .NET (brake force, routes), 142 overlay (rig limits, datastream rows, host reads, Assetto page, in-car, words scan) and the 4 golden frames, all passing. **Not verified live**: the reasons have not been seen on the rig's HUD with the real host, SmartControl and Live; that is step 4's checklist. Beside SimHub the host's answer reaches the HUD through the app's main process, so this needs the app rebuilt (`npm run build`), not the plugin reinstalled.
+
 ## Findings (original review)
 
 ### 1. Fixed in the resumed work: a late request restores stale rig readings after leaving the car

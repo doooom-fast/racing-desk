@@ -5,8 +5,9 @@
  * preload), "Sim feedback max", iRacing's own force scale from SteeringWheelMaxForceNm (DS.SteerMaxForceNm, sent only where the
  * sim says it: the strength slider in Nm the sim maps to full output, which is not the wheel's maximum), and "Brake
  * max", SmartControl's brake force in kg as the app's host follows it, handed to the page the same way. Each is a dash
- * while not known — no key, no main process, the demo — and never a number of the page's own. They are the rig HUD's
- * rows: the glance layout has no room for them.
+ * while not known — no key, no main process, the demo — and never a number of the page's own; the brake's says why in
+ * words where the main process says why, and the wheel's label says "Preset wheel max" while its number is Pit House's
+ * saved preset. They are the rig HUD's rows: the glance layout has no room for them.
  */
 
 import { test, expect } from '@playwright/test';
@@ -67,10 +68,68 @@ test.describe('the rows', () => {
     await expect(page.locator('#dsWheelMax')).toHaveText('11.6 Nm');
     const r = await rows(page);
     expect(r.ffb.text).toBe('7.8 Nm');
-    expect([r.wheelMax.label, r.ffbMax.label, r.brakeMax.label]).toEqual(['Wheel max', 'Sim feedback max', 'Brake max']);
+    // The wheel's number is Pit House's saved preset here, and its label says so.
+    expect([r.wheelMax.label, r.ffbMax.label, r.brakeMax.label]).toEqual(['Preset wheel max', 'Sim feedback max', 'Brake max']);
     expect([r.wheelMax.shown, r.ffbMax.shown, r.brakeMax.shown]).toEqual([true, true, true]);
     // The rows sit under the force feedback, in the panel's order: the wheel's, then the sim's scale, then the brake's.
-    expect(await page.evaluate(() => [...document.querySelectorAll('.ds-inner .ds-row')].map((r) => r.querySelector('.ds-label').textContent).slice(0, 8))).toEqual(['Lat', 'Long', 'Peak', 'Yaw', 'Force feedback', 'Wheel max', 'Sim feedback max', 'Brake max']);
+    expect(await page.evaluate(() => [...document.querySelectorAll('.ds-inner .ds-row')].map((r) => r.querySelector('.ds-label').textContent).slice(0, 8))).toEqual(['Lat', 'Long', 'Peak', 'Yaw', 'Force feedback', 'Preset wheel max', 'Sim feedback max', 'Brake max']);
+  });
+
+  test('the wheel\'s label says where its number came from: the base, or Pit House\'s saved preset', async ({ page }) => {
+    const LIVE = 'RacingDesk.Plugin.DS.MozaWheelbaseMaxNm';
+    await openWith(page, WITH_WHEEL, { main: true, limits: { brakeKg: null, car: null, wheelNm: 11.55, wheelSource: 'pithouse' } });
+    await expect(page.locator('#dsWheelMaxLabel')).toHaveText('Preset wheel max');
+    // The base says it in the frame: its own reading, now.
+    await serve(page, { ...WITH_WHEEL, [LIVE]: 8.4 });
+    await expect(page.locator('#dsWheelMax')).toHaveText('8.4 Nm');
+    await expect(page.locator('#dsWheelMaxLabel')).toHaveText('Wheel max');
+    await serve(page, WITH_WHEEL);
+    await expect(page.locator('#dsWheelMaxLabel')).toHaveText('Preset wheel max');
+    // The host read the base itself: the base's, not a preset.
+    await page.evaluate(() => window.__limitsFromMain({ brakeKg: null, car: null, wheelNm: 9.24, wheelSource: 'base' }));
+    await expect(page.locator('#dsWheelMax')).toHaveText('9.2 Nm');
+    await expect(page.locator('#dsWheelMaxLabel')).toHaveText('Wheel max');
+    // Not known: a dash, under the plain label; a source with no number is no source.
+    await page.evaluate(() => window.__limitsFromMain({ brakeKg: null, car: null, wheelNm: null, wheelSource: 'pithouse' }));
+    await expect(page.locator('#dsWheelMax')).toHaveText('—');
+    await expect(page.locator('#dsWheelMaxLabel')).toHaveText('Wheel max');
+  });
+
+  test('the brake\'s row says why the force is not known, in words, where the main process says why', async ({ page }) => {
+    await openWith(page, WITH_WHEEL, { main: true, limits: { brakeKg: null, car: 'mx5 mx52016', brakeWhy: 'not-set' } });
+    await expect(page.locator('#dsBrakeMax')).toHaveText('Not set yet');
+    await expect(page.locator('#dsBrakeMax')).toHaveClass(/ds-why/);
+    const said = {
+      'held': 'Key held', 'live-restarted': 'Live restarted', 'live-off': 'Live not running', 'no-keys': 'No force keys',
+      'no-smartcontrol': 'No SmartControl', 'unread': 'Keys not read', 'iracing-only': 'iRacing only',
+    };
+    for (const [why, words] of Object.entries(said)) {
+      await page.evaluate((w) => window.__limitsFromMain({ brakeKg: null, car: 'mx5 mx52016', brakeWhy: w }), why);
+      await expect(page.locator('#dsBrakeMax'), why).toHaveText(words);
+    }
+    // Known: the number, and no reason however one is sent beside it.
+    await page.evaluate(() => window.__limitsFromMain({ brakeKg: 50, car: 'mx5 mx52016', brakeWhy: 'held' }));
+    await expect(page.locator('#dsBrakeMax')).toHaveText('50 kg');
+    await expect(page.locator('#dsBrakeMax')).not.toHaveClass(/ds-why/);
+    // No car followed, or a word the page does not know: the dash.
+    for (const why of ['no-car', 'gremlins', null]) {
+      await page.evaluate((w) => window.__limitsFromMain({ brakeKg: null, car: null, brakeWhy: w }), why);
+      await expect(page.locator('#dsBrakeMax'), String(why)).toHaveText('—');
+      await expect(page.locator('#dsBrakeMax')).not.toHaveClass(/ds-why/);
+    }
+    // Every reason is whole on its line in the rig's 200px panel, beside its label.
+    for (const why of Object.keys(said)) {
+      await page.evaluate((w) => window.__limitsFromMain({ brakeKg: null, car: 'mx5 mx52016', brakeWhy: w }), why);
+      await expect(page.locator('#dsBrakeMax')).toHaveText(said[why]);
+      const fit = await page.evaluate(() => {
+        const v = document.getElementById('dsBrakeMax');
+        const row = v.closest('.ds-row');
+        const label = row.querySelector('.ds-label');
+        const r = row.getBoundingClientRect(), vr = v.getBoundingClientRect(), lr = label.getBoundingClientRect();
+        return { inside: vr.right <= r.right + 0.5 && vr.left >= lr.right, oneLine: vr.height < 2 * parseFloat(getComputedStyle(v).fontSize) };
+      });
+      expect(fit, why).toEqual({ inside: true, oneLine: true });
+    }
   });
 
   test('the wheel\'s maximum: what the base itself says in the frame first, else the main process\'s, else a dash', async ({ page }) => {

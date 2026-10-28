@@ -430,6 +430,7 @@ namespace RacingDesk.Tests.Pedals
             run.Until(Gtp, () => run.Recorder.Watched.Contains(RightCtrl));
             Assert.That(run.Recorder.Watched, Does.Contain(RightCtrl), "read again, with the keys Live started with");
             Assert.That(run.Recorder.Now.ForceKg, Is.Null, "what Live did to the pedals as it started is not known");
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.LiveRestarted));
             Assert.That(run.Log, Has.Exactly(1).Contains("SmartControl Live has started again"));
 
             run.Frame(Gtp);
@@ -665,8 +666,10 @@ namespace RacingDesk.Tests.Pedals
             run.Live = false;
             run.Tap(Honda, PageUp);
             run.Tap(Honda, PageDown);
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.LiveOff), "the HUD says Live is not running, not a dash");
             run.Live = true;
             run.Tap(Honda, RightCtrl, Up);
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.NotSet), "Live heard that one; still nothing has set a force");
             run.Recorder.SimGone();
 
             Assert.That((run.Saved[0].ForceKg, run.Saved[0].ChangeKg, run.Saved[0].Presses), Is.EqualTo(((double?)null, 5.0, 1)));
@@ -685,7 +688,9 @@ namespace RacingDesk.Tests.Pedals
             for (int i = 0; i < 30; i++) run.Frame(Honda);
             run.Board.Down.Clear();
             run.Frame(Honda);
+            Assert.That((run.Recorder.Now.ForceKg, run.Recorder.Now.Why), Is.EqualTo(((double?)null, BrakeForceNow.Held)));
             run.Recorder.SimGone();
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.NoCar));
 
             Assert.That(run.Saved[0].ForceKg, Is.Null, "85, or 90, or 95: whatever Live made of the repeats");
             Assert.That(run.Saved[0].Presses, Is.EqualTo(2));
@@ -776,6 +781,7 @@ namespace RacingDesk.Tests.Pedals
         {
             var run = new Run(RigKeys()) { Read = () => null };
             for (int i = 0; i < 20 && !run.Log.Any(); i++) { run.Frame(Honda, absSetting: true); Thread.Sleep(5); }
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.NoSmartControl));
             run.Recorder.SimGone();
             Assert.That(run.Board.Asked, Is.Empty);
             Assert.That((run.Saved[0].AbsSeen, run.Saved[0].Presses, run.Saved[0].ForceKg), Is.EqualTo((true, 0, (double?)null)));
@@ -799,6 +805,7 @@ namespace RacingDesk.Tests.Pedals
             for (int i = 0; i < 200 && !run.Log.Any(); i++) { run.Frame(Honda); Thread.Sleep(5); }
             Assert.That(run.Log, Has.Some.Contains("could not be read — database is locked"));
             Assert.That(run.Recorder.Watched, Is.Empty);
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.Unread));
 
             run.Read = good;
             run.Frame(Honda);
@@ -806,6 +813,53 @@ namespace RacingDesk.Tests.Pedals
             run.Board.Tick(2500);
             run.GetIn(Honda);
             Assert.That(run.Recorder.Watched, Is.Not.Empty, "but asked again");
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.NotSet), "read now: what is missing is a key that sets a force");
+        }
+
+        [Test]
+        public void WhileTheForceIsNotKnownTheRecorderSaysWhy_AndOnceItIsKnownItSaysNothing()
+        {
+            var run = new Run(RigKeys());
+            Assert.That((run.Recorder.Now.ForceKg, run.Recorder.Now.Why), Is.EqualTo(((double?)null, BrakeForceNow.NoCar)), "no car yet");
+
+            run.GetIn(Honda);
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.NotSet));
+            run.Tap(Honda, PageUp);
+            Assert.That((run.Recorder.Now.ForceKg, run.Recorder.Now.Why), Is.EqualTo(((double?)50, (string)null)));
+
+            // Known, Live away: the force is still the one the pedals hold, and nothing is said against it.
+            run.Live = false;
+            run.Tap(Honda, PageDown);
+            Assert.That((run.Recorder.Now.ForceKg, run.Recorder.Now.Why), Is.EqualTo(((double?)50, (string)null)));
+            run.Live = true;
+
+            // The next car, within the minute: the force goes with the pedals, and the new car's run starts afresh.
+            run.GetIn(Mx5);
+            Assert.That((run.Recorder.Now.ForceKg, run.Recorder.Now.Why), Is.EqualTo(((double?)50, (string)null)));
+            run.Recorder.SimGone();
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.NoCar));
+
+            // A Live with no brake-force keys at all: nothing can make the force known, and that is what is said.
+            var none = new Run(new List<LiveKey>());
+            for (int i = 0; i < 200 && !none.Log.Any(); i++) { none.Frame(Honda); Thread.Sleep(5); }
+            Assert.That(none.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.NoKeys));
+        }
+
+        [Test]
+        public void ALiveThatWasAwayForAKeyIsNotSaidToBeAwayOnceItHasStarted()
+        {
+            var run = new Run(HisKeys(moved: false)) { LiveStarted = June.AddHours(-2) };
+            run.GetIn(Gtp);
+            run.Live = false;
+            run.Tap(Gtp, KeyF2);
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.LiveOff));
+
+            // Live started again: the look every ten seconds sees it, and the reason is now that it has started.
+            run.Live = true;
+            run.LiveStarted = run.Board.Now;
+            run.Board.Tick(10_000);
+            run.Until(Gtp, () => run.Recorder.Now.Why != BrakeForceNow.LiveOff);
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.LiveRestarted));
         }
 
         [Test]

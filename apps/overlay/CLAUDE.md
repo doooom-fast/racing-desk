@@ -352,7 +352,11 @@ any of it, and nothing is sent to them.
   motor presets in `[LastUsedPreset]` (an R9, "bmw", saved 2026-08-02, and the R21 Ultra, 2026-09-30), so **the preset
   saved last is taken** (`candidates` says how many there were); if he moves to the other base without saving a preset
   for it, the row shows the old base's number until he does. 55 per cent of an R21 Ultra is 11.6 Nm; his 963 GTP's
-  29.7 Nm is the next row, not this.
+  29.7 Nm is the next row, not this. **So the row says when its number is the preset** (2026-10-28, the review's finding
+  that the page dropped the source and showed a saved preset as the base's setting): its label is "Preset wheel max"
+  while the number on it is the main process's and its `wheelSource` is `pithouse`, and "Wheel max" for the base's own
+  reading (the frame's `MozaWheelbaseMaxNm`, or the host's `base`) and for a dash (`datastream.js` `_drawWheelMax`,
+  `#dsWheelMaxLabel`).
 - **Sim feedback max** is the sim's ("Sim FFB max" until 2026-10-02): iRacing's own `SteeringWheelMaxForceNm`, the strength slider in Nm the sim maps to full
   output on the wheel, set per car (29.7 on his 963, 27.3 on the MX-5), sent as `RacingDesk.Plugin.DS.SteerMaxForceNm`
   only where the sim says a number above nought and never in demo (`TelemetryCapture.SteeringWheelMaxForceNm`,
@@ -362,23 +366,34 @@ any of it, and nothing is sent to them.
   key arrives only once the plugin has been installed again from a build that carries it.
 - **Brake max** is the host's: SmartControl's brake force in kg as the app's host follows it from Live's keys (root
   CLAUDE.md, Per car, for the rig; `CarPedalsRecorder.Now`), known from a key that sets a force and not known again after
-  a held step key or between cars. The host serves it at `GET /racing-desk/data/brakeforce` (`{ car, force_kg }`, null
-  each while not known) for programs on this machine and no page, so the main process asks (`modules/js/rig-limits.js`:
+  a held step key or between cars. The host serves it at `GET /racing-desk/data/brakeforce` (`{ car, force_kg, why }`, null
+  each while not known, `why` the reason while the force is not) for programs on this machine and no page, so the main process asks (`modules/js/rig-limits.js`:
   on the HUD keeper's own poll, in the car, every two seconds at most, by Node with a Host and no Origin, the brake
   force's route and the wheel's together) and tells the page as the answer changes (`rig-limits`, `{ brakeKg, car,
-  wheelNm, wheelSource }`; `get-rig-limits` for a page that loaded after, through the preload's `onRigLimits` /
+  brakeWhy, wheelNm, wheelSource }`; `get-rig-limits` for a page that loaded after, through the preload's `onRigLimits` /
   `getRigLimits`). Leaving the car or changing the reported car, sim/demo, session, track or local host clears the
   cached readings and invalidates pending answers; re-entry asks immediately. An old response or failure cannot overwrite
-  the new context or change its polling state, and a response checks the host again before publishing. A page with no main process behind it — an iPad, the page OBS draws, a browser — shows a dash for it
+  the new context or change its polling state, and a response checks the host again before publishing. **The answer is
+  held to the frame it was asked on** (`forFrame`): in another sim (`RacingDesk.Plugin.GameId` naming one that is not
+  iRacing; none named is iRacing) the force is not told and `brakeWhy` is `iracing-only`, since the host follows it from
+  iRacing's frames alone (the wheel's maximum is told as ever); and a force the host gives for another car than the one
+  the frame's `CarControls` names (folders compared as the car list does, case-blind, `-`, `_` and space as one) is not
+  told, with no reason — a car the list does not have names no folder, and its answer stands. **The row says why in
+  words** (`.ds-why`: the label's face, dim, on one line in the rig's 200px panel): `not-set` "Not set yet", `held` "Key
+  held", `live-restarted` "Live restarted", `live-off` "Live not running", `no-keys` "No force keys", `no-smartcontrol`
+  "No SmartControl", `unread` "Keys not read", `iracing-only` "iRacing only"; `no-car`, a word the page does not know, and
+  no reason at all (a host from before it, a host that does not answer) are the dash. A page with no main process behind it — an iPad, the page OBS draws, a browser — shows a dash for it
   (and for the wheel's, unless the telemetry itself carries the base's reading: `MozaWheelbaseMaxNm`, which the page reads
   ahead of the main process's number). The store's `car_pedal_facts.force_kg` (the force a car was *last* driven with)
   is not shown: the pedals are not put back to it when he gets in, so it is not necessarily what they are at.
 - **Tests**: `tests/unit/rig-limits.spec.mjs` (the answers as read, the requests over a 127.0.0.1 stand-in, the keeper's
-  asking and telling, the keeper with its own fetch against the stand-in — the host's `{ car, force_kg }` and
-  `{ max_nm }` are read once, into the page's `{ brakeKg, car, wheelNm, wheelSource }`, and that is what the keeper
-  checks — main.js's and the preload's wiring), `tests/unit/datastream-limits.spec.mjs` (the rows on the page: the
-  units, a change told by the main process, the wheel's from the frame ahead of the main process, the dashes, the demo,
-  the switches, the glance layout), `host-reads-this-machine.spec.mjs` (the requests are ones the host answers);
+  asking and telling, the keeper with its own fetch against the stand-in — the host's `{ car, force_kg, why }` and
+  `{ max_nm }` are read once, into the page's `{ brakeKg, car, brakeWhy, wheelNm, wheelSource }`, and that is what the keeper
+  checks — another sim, another car, the reasons, main.js's and the preload's wiring), `tests/unit/datastream-limits.spec.mjs` (the rows on the page: the
+  units, a change told by the main process, the wheel's from the frame ahead of the main process, the preset's label,
+  every reason in words and whole on its line, the dashes, the demo, the switches, the glance layout),
+  `host-reads-this-machine.spec.mjs` (the requests are ones the host answers); RacingDesk.Tests
+  `Pedals/BrakeForceTests.cs` and `BrakeForceRouteTests.cs` (each reason, from the recorder to the route);
   RacingDesk.Tests `Wheel/WheelMaxTests.cs` (the preset's shape, two bases, a preset that is not usable, a model not in
   the table, nothing written, files held open for writing, the route, the poll's keys).
 

@@ -428,9 +428,11 @@
          app's host through the main process: rig-limits.js) — iRacing's own force scale, SteeringWheelMaxForceNm (the
          strength slider in Nm the sim maps to full output, per car; DS.SteerMaxForceNm, sent only where the sim says
          it), and the brake's, SmartControl's force in kg as the app's host follows it from Live's keys (rig-limits.js,
-         through the preload). A dash where not known: nothing is read from the pedals, and nothing is made up. -->
+         through the preload). A dash where not known: nothing is read from the pedals, and nothing is made up. The wheel's
+         label says "Preset wheel max" while its number is Pit House's saved preset, and the brake's value says why it is
+         not known where the main process says why. -->
     <div class="ds-row" data-ds-field="dsShowWheelMax">
-      <span class="ds-label">Wheel max</span>
+      <span class="ds-label" id="dsWheelMaxLabel">Wheel max</span>
       <span class="ds-value" id="dsWheelMax">—</span>
     </div>
     <div class="ds-row" data-ds-field="dsShowFfbMax">

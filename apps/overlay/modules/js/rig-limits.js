@@ -13,7 +13,13 @@
 // changes; a page that loaded after is given the last answer (get-rig-limits). Out of the car nothing is asked and the
 // page is told not known. Nothing here throws, and a host that does not answer is "not known", never a number.
 //
-//   { brakeKg: 45 | null, car: 'mx5 mx52016' | null, wheelNm: 11.55 | null, wheelSource: 'base' | 'pithouse' | null }
+// While the force is not known the page is told why, in one of BRAKE_WHY's words, so that its row can say what would make
+// it known rather than show a dash that looks broken: the host's own reasons (CarPedalsRecorder's BrakeForceNow), and
+// 'iracing-only' where the sim is not iRacing (the host follows the force from iRacing's frames alone). A force the host
+// gives for another car than the one the telemetry names is not told at all (not known, with no reason).
+//
+//   { brakeKg: 45 | null, car: 'mx5 mx52016' | null, brakeWhy: 'held' | … | null,
+//     wheelNm: 11.55 | null, wheelSource: 'base' | 'pithouse' | null }
 const http = require('http');
 const RacingDeskInCar = require('./in-car');
 const carControls = require('./car-controls');
@@ -25,16 +31,37 @@ const ASK_EVERY_MS = 2000;
 const ANSWER_WITHIN_MS = 1500;
 const MAX_ANSWER_BYTES = 4096;
 
-const NO_BRAKE = Object.freeze({ brakeKg: null, car: null });
+// Why the force is not known: the host's words, and the one this module adds for a sim the host does not follow.
+const BRAKE_WHY = Object.freeze(['no-car', 'not-set', 'held', 'live-restarted', 'live-off', 'no-keys', 'no-smartcontrol', 'unread', 'iracing-only']);
+const IRACING_ONLY = 'iracing-only';
+
+const NO_BRAKE = Object.freeze({ brakeKg: null, car: null, brakeWhy: null });
 const NO_WHEEL = Object.freeze({ wheelNm: null, wheelSource: null });
 const NOT_KNOWN = Object.freeze({ ...NO_BRAKE, ...NO_WHEEL });
 
-// The host's answer as the page is told it: a force of nought or more in kg, else not known; the car as a string, else none.
+// A reason, only where the force is not known and only one of BRAKE_WHY's words.
+function whyOf(kg, why) {
+  return kg === null && typeof why === 'string' && BRAKE_WHY.includes(why) ? why : null;
+}
+
+// The host's answer as the page is told it: a force of nought or more in kg, else not known and why; the car as a string,
+// else none.
 function readAnswer(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ...NO_BRAKE };
   const kg = typeof body.force_kg === 'number' && Number.isFinite(body.force_kg) && body.force_kg >= 0 ? body.force_kg : null;
   const car = typeof body.car === 'string' && body.car.length ? body.car.slice(0, 200) : null;
-  return { brakeKg: kg, car };
+  return { brakeKg: kg, car, brakeWhy: whyOf(kg, body.why) };
+}
+
+// A car's folder as the car list reads it (CarList.Find): case-blind, with '-', '_' and spaces as one.
+function carKey(path) {
+  return typeof path === 'string' ? path.toLowerCase().replace(/[-_\s]+/g, ' ').trim() : '';
+}
+
+// The sim the telemetry names, iRacing unless it names another: the host's own frames name it, and an older host none.
+function isIRacing(payload) {
+  const id = payload ? payload['RacingDesk.Plugin.GameId'] : null;
+  return typeof id !== 'string' || !id.trim() || /iracing/i.test(id);
 }
 
 // The host's wheel answer as the page is told it: a maximum torque above nought in Nm and where it came from, else not
@@ -46,16 +73,24 @@ function readWheelAnswer(body) {
   return { wheelNm: nm, wheelSource: source };
 }
 
-// What the fetch resolved, checked again as the page is told it ({ brakeKg, car, wheelNm, wheelSource }: already read
-// from the host's answers, so not read as the host's a second time): a force of nought or more, a torque above nought,
-// else not known; a stand-in or an older fetch that says nothing of the wheel leaves it not known.
+// What the fetch resolved, checked again as the page is told it ({ brakeKg, car, brakeWhy, wheelNm, wheelSource }:
+// already read from the host's answers, so not read as the host's a second time): a force of nought or more, a torque
+// above nought, else not known; a stand-in or an older fetch that says nothing of the wheel leaves it not known.
 function told(limits) {
   if (!limits || typeof limits !== 'object' || Array.isArray(limits)) return { ...NOT_KNOWN };
   const kg = typeof limits.brakeKg === 'number' && Number.isFinite(limits.brakeKg) && limits.brakeKg >= 0 ? limits.brakeKg : null;
   const car = typeof limits.car === 'string' && limits.car.length ? limits.car.slice(0, 200) : null;
   const nm = typeof limits.wheelNm === 'number' && Number.isFinite(limits.wheelNm) && limits.wheelNm > 0 ? limits.wheelNm : null;
   const source = nm !== null && (limits.wheelSource === 'base' || limits.wheelSource === 'pithouse') ? limits.wheelSource : null;
-  return { brakeKg: kg, car, wheelNm: nm, wheelSource: source };
+  return { brakeKg: kg, car, brakeWhy: whyOf(kg, limits.brakeWhy), wheelNm: nm, wheelSource: source };
+}
+
+// What the page is told of the brake, held to the frame the question was asked on: another sim is not the host's to
+// follow, and a force for another car than the telemetry's is not this car's. The wheel is the wheel's whatever the sim.
+function forFrame(limits, { iracing, car }) {
+  if (!iracing) return { ...limits, brakeKg: null, car: null, brakeWhy: IRACING_ONLY };
+  if (car && limits.car && carKey(car) !== carKey(limits.car)) return { ...limits, brakeKg: null, car: null, brakeWhy: null };
+  return limits;
 }
 
 // GET a host route. Resolves its JSON, or null for anything that is not an answer: nothing listening, no answer in time,
@@ -143,7 +178,8 @@ function createRigLimits({ host, send, fetch = fetchRigLimits, now = Date.now, e
   let generation = 0;
 
   function tell(next) {
-    if (next.brakeKg === current.brakeKg && next.car === current.car && next.wheelNm === current.wheelNm && next.wheelSource === current.wheelSource) return;
+    if (next.brakeKg === current.brakeKg && next.car === current.car && next.brakeWhy === current.brakeWhy
+      && next.wheelNm === current.wheelNm && next.wheelSource === current.wheelSource) return;
     current = next;
     try { send({ ...current }); } catch (e) { log(`[RacingDesk] rig limits: the page could not be told (${e.message})`); }
   }
@@ -169,11 +205,11 @@ function createRigLimits({ host, send, fetch = fetchRigLimits, now = Date.now, e
     tell({ ...NOT_KNOWN });
   }
 
-  async function ask(url, startedIn) {
+  async function ask(url, startedIn, frame) {
     asking = true;
     let next;
     try {
-      next = told(await fetch(url));
+      next = forFrame(told(await fetch(url)), frame);
     } catch (e) {
       next = { ...NOT_KNOWN };
     }
@@ -201,10 +237,12 @@ function createRigLimits({ host, send, fetch = fetchRigLimits, now = Date.now, e
     ]) : null;
     if (key !== context) changeContext(key);
     if (!url || asking || now() - askedAt < everyMs) return;
-    ask(url, generation);
+    // The sim and the car are in the context's key, so a frame that changes either asks afresh: what is held here is the
+    // frame the question belongs to.
+    ask(url, generation, { iracing: isIRacing(payload), car: cc ? cc.car : null });
   }
 
   return { feed, current: () => ({ ...current }) };
 }
 
-module.exports = { BRAKE_FORCE_PATH, WHEEL_MAX_PATH, ASK_EVERY_MS, ANSWER_WITHIN_MS, NOT_KNOWN, readAnswer, readWheelAnswer, told, getJson, fetchBrakeForce, fetchWheelMax, fetchRigLimits, createRigLimits };
+module.exports = { BRAKE_FORCE_PATH, WHEEL_MAX_PATH, ASK_EVERY_MS, ANSWER_WITHIN_MS, NOT_KNOWN, BRAKE_WHY, readAnswer, readWheelAnswer, told, getJson, fetchBrakeForce, fetchWheelMax, fetchRigLimits, createRigLimits };

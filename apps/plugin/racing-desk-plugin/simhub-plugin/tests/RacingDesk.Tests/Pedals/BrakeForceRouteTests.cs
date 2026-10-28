@@ -85,6 +85,7 @@ namespace RacingDesk.Tests.Pedals
             run.GetIn(Honda);
             Assert.That(run.Recorder.Now.CarPath, Is.EqualTo(Honda));
             Assert.That(run.Recorder.Now.ForceKg, Is.Null, "no key has set a force: nothing is made up");
+            Assert.That(run.Recorder.Now.Why, Is.EqualTo(BrakeForceNow.NotSet));
 
             run.Tap(Honda, RightCtrl, Up);
             Assert.That(run.Recorder.Now.ForceKg, Is.Null, "raised from a force nobody knows");
@@ -152,14 +153,20 @@ namespace RacingDesk.Tests.Pedals
             var (status, known) = Get(() => new BrakeForceNow { CarPath = Mx5, ForceKg = 45 });
             Assert.That(status, Is.EqualTo(HttpStatusCode.OK));
             Assert.That(((string)known["car"], (double)known["force_kg"]), Is.EqualTo((Mx5, 45.0)));
+            Assert.That(known["why"].Type, Is.EqualTo(JTokenType.Null), "known: there is nothing to explain");
 
-            var (_, unknown) = Get(() => new BrakeForceNow { CarPath = Honda, ForceKg = null });
+            var (_, unknown) = Get(() => new BrakeForceNow { CarPath = Honda, ForceKg = null, Why = BrakeForceNow.Held });
             Assert.That((string)unknown["car"], Is.EqualTo(Honda));
             Assert.That(unknown["force_kg"].Type, Is.EqualTo(JTokenType.Null), "not known: null, never a number");
+            Assert.That((string)unknown["why"], Is.EqualTo("held"), "and why, for the HUD to say");
+
+            var (_, both) = Get(() => new BrakeForceNow { CarPath = Honda, ForceKg = 50, Why = BrakeForceNow.Held });
+            Assert.That(both["why"].Type, Is.EqualTo(JTokenType.Null), "a reason is never sent beside a number");
 
             var (_, none) = Get(() => null);
             Assert.That(none["car"].Type, Is.EqualTo(JTokenType.Null), "a host with no recorder");
             Assert.That(none["force_kg"].Type, Is.EqualTo(JTokenType.Null));
+            Assert.That(none["why"].Type, Is.EqualTo(JTokenType.Null), "and no reason it can give");
 
             var (noReader, body) = Get(null);
             Assert.That(noReader, Is.EqualTo(HttpStatusCode.OK));

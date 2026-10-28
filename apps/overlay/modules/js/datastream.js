@@ -44,18 +44,43 @@
   // force in kg as the app's host follows it from Live's keys, told by the main process the same way: not asked for
   // here, and not known on a page with no main process behind it (an iPad, OBS, a browser). Each shows a dash while it is
   // not known; none is ever made up.
-  let _rigLimits = { brakeKg: null, car: null, wheelNm: null };
+  //
+  // What each says of where it came from (the review of 2026-10-26: a saved preset is not the base's setting now, and a
+  // dash that does not say why looks broken): the wheel's row is "Preset wheel max" while its number is Pit House's saved
+  // preset, which is what Pit House last loaded and not what the base says; and the brake's row says, in place of the dash,
+  // why the force is not known where the main process says why — the host's reason, or another sim's — in a few words.
+  const _BRAKE_WHY_WORDS = {
+    'not-set': 'Not set yet',
+    'held': 'Key held',
+    'live-restarted': 'Live restarted',
+    'live-off': 'Live not running',
+    'no-keys': 'No force keys',
+    'no-smartcontrol': 'No SmartControl',
+    'unread': 'Keys not read',
+    'iracing-only': 'iRacing only',
+  };
+  const _elWheelMaxLabel = document.getElementById('dsWheelMaxLabel');
+  let _rigLimits = { brakeKg: null, car: null, brakeWhy: null, wheelNm: null, wheelSource: null };
   const _positive = (x) => (typeof x === 'number' && isFinite(x) && x > 0 ? x : null);
   function _takeRigLimits(limits) {
     const kg = limits && typeof limits.brakeKg === 'number' && isFinite(limits.brakeKg) && limits.brakeKg >= 0 ? limits.brakeKg : null;
-    _rigLimits = { brakeKg: kg, car: limits && typeof limits.car === 'string' ? limits.car : null, wheelNm: limits ? _positive(limits.wheelNm) : null };
+    const nm = limits ? _positive(limits.wheelNm) : null;
+    _rigLimits = {
+      brakeKg: kg,
+      car: limits && typeof limits.car === 'string' ? limits.car : null,
+      brakeWhy: kg === null && limits && Object.prototype.hasOwnProperty.call(_BRAKE_WHY_WORDS, limits.brakeWhy) ? limits.brakeWhy : null,
+      wheelNm: nm,
+      wheelSource: nm !== null && limits && (limits.wheelSource === 'base' || limits.wheelSource === 'pithouse') ? limits.wheelSource : null,
+    };
     _drawBrakeMax();
     _drawWheelMax(null, true);
   }
   function _drawBrakeMax() {
     if (!_elBrakeMax) return;
-    const text = _rigLimits.brakeKg === null ? '—' : _rigLimits.brakeKg.toFixed(_rigLimits.brakeKg % 1 ? 1 : 0) + ' kg';
+    const why = _rigLimits.brakeKg === null && _rigLimits.brakeWhy ? _BRAKE_WHY_WORDS[_rigLimits.brakeWhy] : null;
+    const text = _rigLimits.brakeKg !== null ? _rigLimits.brakeKg.toFixed(_rigLimits.brakeKg % 1 ? 1 : 0) + ' kg' : (why || '—');
     if (_elBrakeMax.textContent !== text) _elBrakeMax.textContent = text;
+    _elBrakeMax.classList.toggle('ds-why', !!why);
   }
   // The frame's own reading of the base first (it is the base's, now), then the main process's. `p` null: from what the
   // main process just said alone (the frame's reading is kept as it was drawn).
@@ -63,9 +88,12 @@
   function _drawWheelMax(p, isDemo) {
     if (!_elWheelMax) return;
     if (p) _liveWheelNm = isDemo ? null : _positive(p['RacingDesk.Plugin.DS.MozaWheelbaseMaxNm']);
+    const fromPreset = _liveWheelNm === null && _rigLimits.wheelNm !== null && _rigLimits.wheelSource === 'pithouse';
     const nm = _liveWheelNm !== null ? _liveWheelNm : _rigLimits.wheelNm;
     const text = nm === null ? '—' : nm.toFixed(1) + ' Nm';
     if (_elWheelMax.textContent !== text) _elWheelMax.textContent = text;
+    const label = fromPreset ? 'Preset wheel max' : 'Wheel max';
+    if (_elWheelMaxLabel && _elWheelMaxLabel.textContent !== label) _elWheelMaxLabel.textContent = label;
   }
   if (window.racingDesk && typeof window.racingDesk.onRigLimits === 'function') {
     try { window.racingDesk.onRigLimits(_takeRigLimits); } catch (e) { /* no bridge */ }
