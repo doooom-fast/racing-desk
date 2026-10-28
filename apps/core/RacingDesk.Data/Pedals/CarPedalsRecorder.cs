@@ -70,9 +70,13 @@ namespace RacingDesk.Data.Pedals
         /// <summary>How long after SmartControl could not be read it is asked again.</summary>
         internal TimeSpan ReadAgainAfter = TimeSpan.FromSeconds(15);
 
+        /// <summary>How often, in a car, it is asked when SmartControl Live started: Live reads its keys when it starts.</summary>
+        internal TimeSpan LookAtLiveEvery = TimeSpan.FromSeconds(10);
+
         private readonly Func<SmartControlSnapshot> _smartControl;
         private readonly Func<IEnumerable<LiveKey>, LiveKeyWatcher> _watch;
         private readonly Func<bool> _liveRunning;
+        private readonly Func<DateTime?> _liveStarted;
         private readonly Func<DateTime> _now;
         private readonly Action<PedalsSeen> _save;
         private readonly Action<string> _log;
@@ -80,7 +84,10 @@ namespace RacingDesk.Data.Pedals
 
         private string _carPath;
         private LiveKeyWatcher _keys;
-        private Task<SmartControlSnapshot> _reading;
+        private Task<(SmartControlSnapshot Read, DateTime? LiveStarted)> _reading;
+        private DateTime? _keysLiveStarted;     // when Live had started as its keys were read; null: not running, or not known
+        private Task<DateTime?> _lookingAtLive;
+        private DateTime _lookAtLiveAgain = DateTime.MinValue;
         private DateTime _readAgain = DateTime.MinValue;
         private BrakeForceTracker _force;
         private bool _absSetting, _absWorked, _prototype;
@@ -93,10 +100,12 @@ namespace RacingDesk.Data.Pedals
 
         /// <param name="smartControl">Reads SmartControl's database (<see cref="SmartControl.Read"/>); null from it means no SmartControl.</param>
         public CarPedalsRecorder(Func<SmartControlSnapshot> smartControl, Action<PedalsSeen> save, Action<string> log = null)
-            : this(smartControl, keys => new LiveKeyWatcher(keys), LiveIsRunning, () => DateTime.UtcNow, save, log) { }
+            : this(smartControl, keys => new LiveKeyWatcher(keys), LiveIsRunning, () => DateTime.UtcNow, save, log,
+                new Restore.WindowsRigProbe().LiveStartedAtUtc) { }
 
+        /// <param name="liveStarted">When SmartControl Live started; null while it is not running or when that cannot be asked.</param>
         internal CarPedalsRecorder(Func<SmartControlSnapshot> smartControl, Func<IEnumerable<LiveKey>, LiveKeyWatcher> watch,
-            Func<bool> liveRunning, Func<DateTime> now, Action<PedalsSeen> save, Action<string> log = null)
+            Func<bool> liveRunning, Func<DateTime> now, Action<PedalsSeen> save, Action<string> log = null, Func<DateTime?> liveStarted = null)
         {
             _smartControl = smartControl ?? throw new ArgumentNullException(nameof(smartControl));
             _watch = watch ?? throw new ArgumentNullException(nameof(watch));
@@ -104,6 +113,7 @@ namespace RacingDesk.Data.Pedals
             _now = now ?? throw new ArgumentNullException(nameof(now));
             _save = save ?? throw new ArgumentNullException(nameof(save));
             _log = log ?? (_ => { });
+            _liveStarted = liveStarted ?? (() => null);
         }
 
         /// <summary>The keys being asked about, for saying so. Empty when none are.</summary>
@@ -115,9 +125,9 @@ namespace RacingDesk.Data.Pedals
         /// <summary>
         /// The brake force the pedals are at now, as the keys have said, and the car it is being followed in: what the
         /// HUD's datastream shows as the brake's maximum. Not known (null) until a key that sets a force is pressed this
-        /// run, again after a step key is held, and between cars (the sim gone, no car yet: nothing is being followed,
-        /// and what the pedals hold meanwhile is the next car's to carry over, by the minute's rule in Enter); nothing
-        /// is read from the pedals and nothing is made up.
+        /// run, again after a step key is held or SmartControl Live has started again, and between cars (the sim gone, no
+        /// car yet: nothing is being followed, and what the pedals hold meanwhile is the next car's to carry over, by the
+        /// minute's rule in Enter); nothing is read from the pedals and nothing is made up.
         /// </summary>
         public BrakeForceNow Now
         {
@@ -229,6 +239,7 @@ namespace RacingDesk.Data.Pedals
             _keys = null;
             _reading = null;
             _readAgain = DateTime.MinValue;
+            _lookingAtLive = null;
         }
 
         // SmartControl's database is read on a thread of its own and its keys watched once it has been: it is
@@ -240,7 +251,8 @@ namespace RacingDesk.Data.Pedals
                 if (_reading == null)
                 {
                     if (_now() < _readAgain) return;
-                    _reading = Task.Run(_smartControl);
+                    // When Live started is asked first: had it started again during the read, the next look says so.
+                    _reading = Task.Run(() => { DateTime? started = LiveStarted(); return (_smartControl(), started); });
                     return;
                 }
                 if (!_reading.IsCompleted) return;
@@ -252,13 +264,13 @@ namespace RacingDesk.Data.Pedals
                     _log("pedals: SmartControl could not be read — " + (read.Exception?.GetBaseException().Message.Trim() ?? "cancelled"));
                     return;
                 }
-                if (read.Result == null)
+                if (read.Result.Read == null)
                 {
                     _readAgain = DateTime.MaxValue;
                     _log("pedals: SmartControl is not on this machine; nothing is watched");
                     return;
                 }
-                var keys = _watch(read.Result.Keys);
+                var keys = _watch(read.Result.Read.Keys);
                 foreach (var key in keys.NotWatched) _log("pedals: " + Describe(key) + " is not a key this watches");
                 if (keys.Watched.Count == 0)
                 {
@@ -267,6 +279,19 @@ namespace RacingDesk.Data.Pedals
                     return;
                 }
                 _keys = keys;
+                _keysLiveStarted = read.Result.LiveStarted;
+                _lookAtLiveAgain = _now() + LookAtLiveEvery;
+            }
+            else if (_lookingAtLive == null)
+            {
+                if (_now() >= _lookAtLiveAgain) _lookingAtLive = Task.Run(LiveStarted);
+            }
+            else if (_lookingAtLive.IsCompleted)
+            {
+                var look = _lookingAtLive;
+                _lookingAtLive = null;
+                _lookAtLiveAgain = _now() + LookAtLiveEvery;
+                if (LiveStartedAgain(look.Result)) return;
             }
 
             var seen = _keys.Poll();
@@ -280,6 +305,8 @@ namespace RacingDesk.Data.Pedals
                 return;
             }
             _saidLiveIsNotRunning = false;
+            // Started again since its keys were read, Live may have others: what this press did is not known.
+            if (LiveStartedAgain(LiveStarted())) return;
 
             double? before = _force.ForceKg;
             foreach (var key in seen.Pressed) _force.Press(key);
@@ -314,7 +341,32 @@ namespace RacingDesk.Data.Pedals
             _carPath = null;
             _keys = null;
             _reading = null;
+            _lookingAtLive = null;
             return left;
+        }
+
+        /// <summary>
+        /// SmartControl Live reads its keys when it starts, so one started since its keys were read may have others (his
+        /// brake-force keys moved to Right Ctrl, and Live restarted to take them). They are read again, and the force is not known
+        /// until a key sets one: what Live does to the pedals as it starts is not known either. One that has quit is not this:
+        /// its keys do nothing while it is away (<see cref="Watch"/>), and it is seen when it starts.
+        /// </summary>
+        private bool LiveStartedAgain(DateTime? started)
+        {
+            if (started == null || started == _keysLiveStarted) return false;
+            _force.Doubt();
+            _log("pedals: SmartControl Live has started again; its keys are read again, and the brake force is not known until a key sets one");
+            _keys = null;
+            _reading = null;
+            _readAgain = DateTime.MinValue;
+            _lookingAtLive = null;
+            return true;
+        }
+
+        private DateTime? LiveStarted()
+        {
+            try { return _liveStarted(); }
+            catch (Exception) { return null; }
         }
 
         private static bool LiveIsRunning()

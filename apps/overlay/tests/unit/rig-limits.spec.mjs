@@ -185,6 +185,62 @@ test.describe('the keeper', () => {
     expect(k.current()).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
   });
 
+  // A keeper whose host answers when the test says: reply(answer) answers the last question asked.
+  function waiting({ host = () => 'http://localhost:18889' } = {}) {
+    const calls = { fetched: [], sent: [] };
+    let clock = 1000;
+    let reply = null;
+    const k = createRigLimits({
+      host,
+      send: (l) => calls.sent.push(l),
+      fetch: (url) => { calls.fetched.push(url); return new Promise((done) => { reply = done; }); },
+      now: () => clock,
+    });
+    return { k, calls, reply: (a) => reply(a), tick: (ms) => { clock += ms; } };
+  }
+
+  test('an answer that comes back after he got out of the car is not told: it would put the old car back', async () => {
+    const { k, calls, reply, tick } = waiting();
+    k.feed(IN_CAR);
+    k.feed(OUT);
+    reply({ brakeKg: 80, car: 'old car', wheelNm: 11.55, wheelSource: 'pithouse' });
+    await settle();
+    expect(k.current()).toEqual({ brakeKg: null, car: null, wheelNm: null, wheelSource: null });
+    expect(calls.sent).toEqual([]);
+
+    // Out and in again before the answer: still the question of before, and the next is asked as ever.
+    tick(2500);
+    k.feed(IN_CAR);
+    k.feed(OUT);
+    k.feed(IN_CAR);
+    reply({ brakeKg: 80, car: 'old car' });
+    await settle();
+    expect(calls.sent).toEqual([]);
+    tick(2500);
+    k.feed(IN_CAR);
+    reply({ brakeKg: 45, car: 'mx5 mx52016' });
+    await settle();
+    expect(calls.fetched).toHaveLength(3);
+    expect(calls.sent).toEqual([{ brakeKg: 45, car: 'mx5 mx52016', wheelNm: null, wheelSource: null }]);
+  });
+
+  test('an answer from a host that is no longer the one there is not told', async () => {
+    let host = 'http://localhost:8889';
+    const { k, calls, reply, tick } = waiting({ host: () => host });
+    k.feed(IN_CAR);
+    host = 'http://localhost:18889';
+    reply({ brakeKg: 45, car: 'mx5 mx52016' });
+    await settle();
+    expect(k.current().brakeKg).toBeNull();
+
+    tick(2500);
+    k.feed(IN_CAR);
+    reply({ brakeKg: 50, car: 'mx5 mx52016' });
+    await settle();
+    expect(calls.fetched).toEqual(['http://localhost:8889/racing-desk/data/brakeforce', 'http://localhost:18889/racing-desk/data/brakeforce']);
+    expect(k.current().brakeKg).toBe(50);
+  });
+
   test('a host that does not answer, or answers with no force, is not known — never a number', async () => {
     const { k, calls, tick } = keeper({ answer: () => new Error('ECONNREFUSED') });
     k.feed(IN_CAR);
