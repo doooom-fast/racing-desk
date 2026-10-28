@@ -56,7 +56,7 @@
     <PackageReference Include="IRSDKSharper" Version="1.1.4" />
     <PackageReference Include="Fleck" Version="1.2.0" />
     <!-- stay on 2.5.x for net48 compatibility -->
-    <PackageReference Include="MessagePack" Version="2.5.187" />
+    <PackageReference Include="MessagePack" Version="2.5.307" />
   </ItemGroup>
 
   <!--

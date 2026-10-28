@@ -91,6 +91,30 @@ Each claim checked against the tree before it was rewritten; nothing of the code
   not read through for smaller drifts (`plugin-component-architecture` plans a React migration the overlay's CLAUDE.md
   forbids); `docs/video-editor-plan.md` still links three skills that never existed here.
 
+## MessagePack advisories, 2026-10-28, branch `chore/messagepack-review`
+
+- **What NuGet reported** against MessagePack 2.5.187 (`RacingDesk.Core` and the test project): twelve advisories, two
+  high (GHSA-hv8m-jj95-wg3x, LZ4 decompression of bad input; GHSA-vh6j-jc39-fggf, `MessagePackReader.Skip` recursing
+  without the depth limit) and ten moderate (LZ4 output lengths, typeless type restrictions, union and JSON-conversion
+  depth, `ExpandoObject` and interface-lookup hashing, multi-dimensional arrays, Unity blit, the ASP.NET Core input
+  formatter, and GHSA-qhrr-8q5h-9q3h of 2026-10-15, nested arrays allocating before the depth check). Every one is about
+  **reading** MessagePack an attacker controls; fixed in 2.5.301, and 2.5.303 for the last.
+- **Not reachable here.** The shipped code only writes MessagePack: `WsTelemetryPublisher.Serialize*`, the `:8890` feed's
+  frames, built from the runtime's own snapshot. Nothing deserialises it — the only `Deserialize` calls are in
+  `EnvelopeRoundTripTests`, on bytes the test made — no LZ4 option is set, no ASP.NET Core or SignalR is in the tree, and
+  `WsServer` attaches no message handler to a client's socket (only `OnClose` and `OnError`), so what a client sends is
+  dropped by Fleck's framing and never reaches MessagePack. Nothing in the overlay or the packages decodes MessagePack.
+- **Upgraded anyway** to **2.5.307** (2026-10-03, the newest 2.5.x; the same API), in `RacingDesk.Core.csproj` and the
+  test project, so the warnings stop hiding a real one. Its dependencies are 2.5.187's but for `System.Memory` 4.5.5
+  named directly, which Core already resolved; the assembly version stays **2.5.0.0**, so nothing binding to it changes.
+  Inside SimHub the only DLLs that change are `MessagePack.dll` and `MessagePack.Annotations.dll` (`install.bat`'s copy
+  list; it never copies the framework polyfills, and SimHub's own are untouched). The restore reports no MessagePack
+  advisory now. It reaches the app's host with `npm run build`, and SimHub's copy only when the plugin is installed again
+  (`install.bat`, asked for first) — there is no hurry, since nothing was reachable.
+- **log4net 2.0.15** (GHSA-4f7c-pmjv-c25w, moderate: `XmlLayout` drops an event with characters XML 1.0 forbids) is left:
+  the plugin compiles against it and ships none (its runtime DLL is excluded; SimHub's own is the one loaded), the code
+  uses no `XmlLayout`, and a newer reference than SimHub carries could stop the plugin loading.
+
 ## Findings (original review)
 
 ### 1. Fixed in the resumed work: a late request restores stale rig readings after leaving the car
