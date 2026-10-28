@@ -41,6 +41,10 @@ src/render/
 src/utils/
   ffmpeg.js                 ffmpeg path resolution + probe helpers
   time.js                   Frame ↔ time conversions, lap-time formatting
+  video-time.js             The sidecar's t ↔ the video's own time (offset, pauses)
+
+bin/
+  racing-desk-edit.js       The command line: ingest, analyze, preview, render, condense, clips
 ```
 
 ## Tech stack
@@ -62,11 +66,16 @@ If you want the Claude direction step, set `ANTHROPIC_API_KEY` in your environme
 ## Use
 
 ```bash
-# Top-level entrypoint (planned bin script — not wired yet)
-npm start -- <bundle-dir> [--mode=condense|highlight] [--out=path.mp4]
+node bin/racing-desk-edit.js --help
+node bin/racing-desk-edit.js ingest "D:\Racing Desk\Recordings\<date track car>"
+node bin/racing-desk-edit.js analyze <dir> [--no-claude]
+node bin/racing-desk-edit.js render <dir> [--dry-run] [--resolution 720] [--output edit.mp4]
+node bin/racing-desk-edit.js condense <dir> --target 5:00
+node bin/racing-desk-edit.js clips <dir> [--social]
 ```
 
-Today the steps are run individually as Node scripts; a unified `bin/racing-desk-edit.js` is the next step (referenced in `package.json:bin` but not yet present).
+Cuts are worked out in the telemetry's time and cut from the video at the moment it shows them: the sidecar's
+`videoOffsetMs`, less any pauses (`src/utils/video-time.js`; [`CLAUDE.md`](CLAUDE.md), Telemetry time and video time).
 
 ## Tests
 
@@ -80,6 +89,10 @@ Tests live in `tests/` (using Node's built-in test runner):
 - `edl-generator.test.js` — EDL ordering + bounds
 - `scoring-engine.test.js` — significance scoring shape
 - `time.test.js` — frame/time conversion math
+- `video-time.test.js` — telemetry time ↔ video time (offset, pauses, held to the file)
+- `render-plan.test.js` — the EDL's cuts as stretches of the video
+- `cli.test.js` — the commands over a made-up recording's folder
+- `render-timing.test.js` — a real cut through ffmpeg lands on the telemetry's moment (skipped without ffmpeg)
 
 The fixtures under `tests/` use sample telemetry from [`prodrive-telemetry`](https://github.com/DOOOOM/prodrive-telemetry) (a sibling repo of `.mp4` + `.telemetry.jsonl` pairs from real iRacing sessions).
 

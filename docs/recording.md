@@ -471,15 +471,18 @@ session, at the end of the race and when he leaves the car, and the pit lane is 
 nothing read: Ctrl+Shift+G flipped it and restarted the app, and now only restarts the app) are deleted. The rig's and
 the iPad's panel background, `panelBackground` (90), is a key of the HUD's own (Settings → Look), not of the recording's.
 
+## The editor's side
+
+**The editor applies `videoOffsetMs` and the `pauses`** (2026-10-28, `apps/edit/src/utils/video-time.js`): its cuts are
+made in the sidecar's `t` and cut from the recording at `t` plus the summary's offset, less the pauses before it, held
+to the file; the condenser's silences, found in the video, go back the other way (`apps/edit/CLAUDE.md`, Telemetry time
+and video time). A real cut through ffmpeg is tested to land on the telemetry's moment.
+
 ## Coming (not in this stage)
 
-- **The editor applying `videoOffsetMs`.** `apps/edit/src/ingest/parse-telemetry.js` keeps the last summary as
-  `sidecarSummary` and reads each frame's `t` as it is; adding the summary's `videoOffsetMs` (ms) to `t` (s) — less the
-  `pauses` before it, for a recording that was paused — is for the editor's stage, and until then its cuts are as
-  far off as the offset (up to about four seconds for a plain keyframe wait).
-
-- **The editor cutting from a TV take**: `apps/edit` names the take by `tv` in the file name and takes it for the TV
-  view, but applies none of the take's sidecar (its `pauses`, its own offset) yet.
+- **The editor cutting from a TV take**: `apps/edit` names the take by `tv` in the file name, but applies none of the
+  take's sidecar (its `sn`/`st`, its `pauses`, its own offset) yet, so a cut the EDL gives the TV view is taken from
+  the recording instead, and the render says so.
 
 ## First run (what no test here can check)
 

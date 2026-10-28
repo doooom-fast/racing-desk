@@ -43,6 +43,7 @@ export function detectClaudeMode() {
     _detectedMode = override;
     return _detectedMode;
   }
+  if (override === 'none') return null;   // mechanical only (--no-claude)
 
   // SDK available?
   if (process.env.ANTHROPIC_API_KEY) {

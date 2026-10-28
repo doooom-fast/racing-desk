@@ -21,6 +21,7 @@ import { detectSilence } from './silence-detect.js';
 import { refineCondensing, detectClaudeMode } from './claude-director.js';
 import { renderEdit } from '../render/ffmpeg-assembly.js';
 import { parseDuration, formatDuration } from '../utils/time.js';
+import { videoClock, toSidecarTime } from '../utils/video-time.js';
 
 // ── Thresholds ──────────────────────────────────────────────
 const KEEP_THRESHOLD = 50;
@@ -85,9 +86,10 @@ export async function condense(dir, opts = {}) {
     silences = detectSilence(cockpitPath, { noiseDb: -30, minDuration: 5 });
     console.log(`  Found ${silences.length} silent stretches`);
 
-    // Apply silence penalty to interest scores
-    for (const s of silences) {
-      for (let sec = Math.floor(s.start); sec <= Math.ceil(s.end) && sec < scores.length; sec++) {
+    // Apply silence penalty to interest scores. The silences are in the video's time and the scores in the
+    // telemetry's, so each is turned back through the recording's clock first.
+    for (const s of silencesInSidecarTime(videoClock(session.sidecarSummary), silences)) {
+      for (let sec = Math.max(0, Math.floor(s.start)); sec <= Math.ceil(s.end) && sec < scores.length; sec++) {
         if (scores[sec]) {
           scores[sec].interestScore = Math.max(0, scores[sec].interestScore - 25);
         }
@@ -183,6 +185,13 @@ export async function condense(dir, opts = {}) {
     threshold,
     outputPath: result.outputPath,
   };
+}
+
+/**
+ * Silences found in the video ({ start, end } in its seconds) as stretches of the telemetry's time.
+ */
+export function silencesInSidecarTime(clock, silences) {
+  return silences.map((s) => ({ ...s, start: toSidecarTime(clock, s.start), end: toSidecarTime(clock, s.end) }));
 }
 
 /**

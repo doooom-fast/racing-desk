@@ -15,7 +15,7 @@ export function getFFmpegPath() {
   if (_ffmpegPath) return _ffmpegPath;
   try {
     const cmd = process.platform === 'win32' ? 'where ffmpeg' : 'which ffmpeg';
-    _ffmpegPath = execSync(cmd, { encoding: 'utf8' }).trim().split('\n')[0];
+    _ffmpegPath = execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().split(/\r?\n/)[0];
   } catch {
     throw new Error('FFmpeg not found on PATH. Install FFmpeg to continue.');
   }

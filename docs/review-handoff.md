@@ -32,6 +32,30 @@ On the Mac checkout, dependencies were installed with `npm ci --ignore-scripts -
 - **Per-sim support explicit**: in a sim that is not iRacing the row says "iRacing only" instead of a dash, since the host follows the force from iRacing's frames alone (finding 3). Following the force in Assetto Corsa and EVO is still not built.
 - Tests: 195 .NET (brake force, routes), 142 overlay (rig limits, datastream rows, host reads, Assetto page, in-car, words scan) and the 4 golden frames, all passing. **Not verified live**: the reasons have not been seen on the rig's HUD with the real host, SmartControl and Live; that is step 4's checklist. Beside SimHub the host's answer reaches the HUD through the app's main process, so this needs the app rebuilt (`npm run build`), not the plugin reinstalled.
 
+## The editor's entry point and timing (step 5, first half), 2026-10-28, branch `fix/edit-cli-timing`
+
+- **Entry point**: `apps/edit/bin/racing-desk-edit.js` was never in git in any of the repos (the root's `bin/`, for
+  .NET output, ignored it from the start), so it is written new over the modules that are there: `ingest`, `analyze`,
+  `preview`, `render`, `condense`, `clips`, with `--dry-run` (the cuts in the video's time, nothing rendered) and
+  `--no-claude`. `apps/edit/.gitignore` has `!bin/`.
+- **One conversion** (`apps/edit/src/utils/video-time.js`): video time is `t` + the summary's `videoOffsetMs` − the
+  pauses before it. The render's cuts go through it (`planSegments`), held to the file; the condenser's silences come
+  back through it. A TV take, or any second file of an OBS recording, is not on the recording's clock, so the EDL's
+  `tv` cuts come from the cockpit and the render says so; cutting from a TV take by its own sidecar is not built.
+- Tests: 78 in the editor's workspace, among them a real cut through ffmpeg from a video made in the test (its
+  brightness is its time) that lands at the telemetry's moment with an offset and a pause; with the conversion taken
+  out, 6 of them fail.
+- **His recordings, read 2026-10-28**: all eight in `D:\Racing Desk\Recordings` are lined up (six by chapters, two by
+  the end) with offsets of −8 to +19 ms, and none was paused, so on this rig the gap was milliseconds and not the
+  "up to four seconds" the guidance feared; the conversion matters for a paused recording and a slower keyframe. A dry
+  run from a copy of the 2026-10-27 Zandvoort race's sidecar (nothing written into his folder) read 36,748 frames and
+  planned its five highlights at +6 ms; nothing was rendered from his video.
+- **Seen in that run, not changed** (the editorial side, for later): the end position reads `P-1` (the last frames'
+  `pos`), 40 flag changes in a 21-minute race, the TV view chosen for 98.6 % of it, and two "Battle (gap 0s)"
+  highlights — a gap of 0, which may be no car rather than a car alongside, is taken as a battle. The EDL's times are
+  whole seconds, a larger error (±0.5 s) than his offsets.
+- Left for the second half of step 5: the wider review of recording, commentary, liveries and the Electron boundaries.
+
 ## Findings (original review)
 
 ### 1. Fixed in the resumed work: a late request restores stale rig readings after leaving the car
