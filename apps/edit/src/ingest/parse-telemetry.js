@@ -20,6 +20,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { detectEvents } from './detect-events.js';
+import { knownPosition, finishTime, FINISH_HOLD_SEC } from './frame-values.js';
 import { probe } from '../utils/ffmpeg.js';
 import { formatDuration } from '../utils/time.js';
 
@@ -128,9 +129,15 @@ export async function ingest(dir, opts = {}) {
   }
 
   // ── Build session metadata ────────────────────────────────
+  // The race's numbers are read from the race: up to his chequered flag and the moment after it, not from the last
+  // frame of the file, which is the cool-down or the menus (a position of -1, lap 1 of the next session).
   const firstFrame = frames[0];
   const lastFrame = frames[frames.length - 1];
   const durationSec = (lastFrame.t || 0) - (firstFrame.t || 0);
+  const finishedAt = finishTime(frames);
+  const race = finishedAt === null ? frames : frames.filter((f) => (f.t || 0) <= finishedAt + FINISH_HOLD_SEC);
+  const positions = race.map((f) => knownPosition(f.pos)).filter((p) => p !== null);
+  const most = (key) => race.reduce((m, f) => (Number.isFinite(f[key]) && f[key] > m ? f[key] : m), 0);
 
   const session = {
     version: 1,
@@ -139,11 +146,13 @@ export async function ingest(dir, opts = {}) {
     durationSec: +durationSec.toFixed(1),
     durationStr: formatDuration(durationSec),
     fps: frames.length / Math.max(1, durationSec),
-    startPosition: firstFrame.pos || 0,
-    endPosition: lastFrame.pos || 0,
-    totalCars: firstFrame.totalCars || 0,
-    totalIncidents: lastFrame.incidents || 0,
-    totalLaps: lastFrame.lap || 0,
+    startPosition: positions[0] ?? 0,
+    endPosition: positions[positions.length - 1] ?? 0,
+    totalCars: most('totalCars'),
+    totalIncidents: most('incidents'),
+    // The lap he took the flag on (the counter goes on to the next a few seconds after it), else the last he reached.
+    totalLaps: finishedAt === null ? most('lap') : (frames.find((f) => f.endOfRace).lap || most('lap')),
+    finishedAt,
     sources,
     events,
     eventSummary: summarizeEvents(events),

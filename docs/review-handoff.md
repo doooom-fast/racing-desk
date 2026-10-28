@@ -50,10 +50,16 @@ On the Mac checkout, dependencies were installed with `npm ci --ignore-scripts -
   "up to four seconds" the guidance feared; the conversion matters for a paused recording and a slower keyframe. A dry
   run from a copy of the 2026-10-27 Zandvoort race's sidecar (nothing written into his folder) read 36,748 frames and
   planned its five highlights at +6 ms; nothing was rendered from his video.
-- **Seen in that run, not changed** (the editorial side, for later): the end position reads `P-1` (the last frames'
-  `pos`), 40 flag changes in a 21-minute race, the TV view chosen for 98.6 % of it, and two "Battle (gap 0s)"
-  highlights — a gap of 0, which may be no car rather than a car alongside, is taken as a battle. The EDL's times are
-  whole seconds, a larger error (±0.5 s) than his offsets.
+- **Seen in that run, then fixed** (branch `fix/edit-decisions`): the end position read `P-1` (the last frames' `pos`,
+  after the race), 40 flag changes in a 21-minute race (debris and blue flags and `none` in between), the TV view chosen
+  for 98.6 % of it, and two "Battle (gap 0s)" highlights. The battles were real gaps of 0.002–0.15 s in the cool-down
+  after the flag, not gaps of 0 (the detector already skipped those); the TV share was the scorer reading the gap behind,
+  0 in every frame, as a car on his tail and `none` as a flag. Now `apps/edit/src/ingest/frame-values.js` says what
+  a frame's values mean, the race ends at his chequered flag, the start is lap 1's first minute, a battle's highlight
+  is its closest 20 s and overlapping highlights are one (`apps/edit/CLAUDE.md`, What a frame's values mean). Zandvoort
+  now reads P8 → P8, 14 laps, 2 flag changes, one battle on the last lap, TV 0.3 %.
+- **Still so**: the EDL's times are whole seconds, a larger error (±0.5 s) than his offsets; the highlight reel is the
+  first five moments in order, not the best five.
 - Left for the second half of step 5: the wider review of recording, commentary, liveries and the Electron boundaries.
 
 ## Findings (original review)

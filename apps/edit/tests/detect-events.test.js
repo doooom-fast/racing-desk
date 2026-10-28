@@ -249,8 +249,9 @@ test('detectEvents - race end detection', () => {
   const raceEndEvent = events.find(e => e.event === 'race_end');
 
   assert(raceEndEvent, 'Should detect race end');
-  // Race end fires at the last frame when endOfRace is true, or when endOfRace transitions to false
-  assert.strictEqual(raceEndEvent.t, 100.5);
+  // Race end fires at his chequered flag, the first frame that says the race is over (it fired at the last such frame,
+  // which in a real recording is the end of the file, after the cool-down)
+  assert.strictEqual(raceEndEvent.t, 100);
   assert.strictEqual(raceEndEvent.data.lap, 10);
   assert.strictEqual(raceEndEvent.data.pos, 1);
 });

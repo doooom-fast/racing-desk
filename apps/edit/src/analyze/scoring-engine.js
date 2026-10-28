@@ -11,7 +11,15 @@
 //
 // These are pure rule-based. Claude refines the editorial judgment
 // on top of these mechanical scores.
+//
+// A gap of 0 is no gap known and the flag `none` is no flag
+// (ingest/frame-values.js); after his chequered flag and the moment
+// after it every second scores 0, the cool-down being no part of
+// the race. The start is its first minute, not the whole of lap 1
+// (a lap of the Nordschleife is eight of them).
 // ═══════════════════════════════════════════════════════════════
+
+import { knownGap, isCaution, FINISH_HOLD_SEC, finishTime, START_HOLD_SEC, raceStartTime } from '../ingest/frame-values.js';
 
 // ── TV Score Weights ────────────────────────────────────────
 const TV_WEIGHTS = {
@@ -90,10 +98,12 @@ export function scoreFrames(frames, events) {
 
   let prevPos = 0;
   let posHeldSince = 0;
+  const finishedAt = finishTime(frames);
+  const startedAt = raceStartTime(frames);
 
   for (let sec = 0; sec <= totalSeconds; sec++) {
     const f = frameIndex.get(sec);
-    if (!f) {
+    if (!f || (finishedAt !== null && sec > finishedAt + FINISH_HOLD_SEC)) {
       scores.push({ t: sec, tvScore: 0, interestScore: 0 });
       continue;
     }
@@ -103,9 +113,11 @@ export function scoreFrames(frames, events) {
     const secEvents = eventsBySecond.get(sec) || [];
 
     // ── Frame-based signals ─────────────────────────────
-    const gapAhead = f.gapAhead ?? Infinity;
-    const gapBehind = f.gapBehind ?? Infinity;
-    const closestCar = f.closestCar ?? Infinity;
+    // No gap known is no car near (the sidecar writes 0 where there is none); closestCar, in metres, is no longer
+    // written, and an older file's 0 is the same.
+    const gapAhead = knownGap(f.gapAhead) ?? Infinity;
+    const gapBehind = knownGap(f.gapBehind) ?? Infinity;
+    const closestCar = knownGap(f.closestCar) ?? Infinity;
 
     // TV Score signals
     if (gapAhead < 0.8) tvScore += TV_WEIGHTS.gap_ahead_close;
@@ -116,11 +128,12 @@ export function scoreFrames(frames, events) {
 
     if (closestCar < 1.5) tvScore += TV_WEIGHTS.side_by_side;
 
-    if (f.lap === 1) tvScore += TV_WEIGHTS.lap_one;
+    const atStart = f.lap === 1 && startedAt !== null && sec - startedAt <= START_HOLD_SEC;
+    if (atStart) tvScore += TV_WEIGHTS.lap_one;
 
     if (f.pit) tvScore += TV_WEIGHTS.pit;
 
-    if (f.flag && f.flag !== 'green') tvScore += TV_WEIGHTS.flag_not_green;
+    if (isCaution(f.flag)) tvScore += TV_WEIGHTS.flag_not_green;
 
     if (f.lapDelta && f.lapDelta < -0.5) tvScore += TV_WEIGHTS.hot_lap;
 
@@ -132,11 +145,11 @@ export function scoreFrames(frames, events) {
     if (gapAhead < 1.5 || gapBehind < 1.5) interestScore += INTEREST_WEIGHTS.gap_close;
     if (gapBehind < 1.5) interestScore += INTEREST_WEIGHTS.gap_pressure;
 
-    if (f.lap === 1 || f.endOfRace) interestScore += INTEREST_WEIGHTS.start_or_finish;
+    if (atStart || f.endOfRace) interestScore += INTEREST_WEIGHTS.start_or_finish;
 
     if (f.pit) interestScore += INTEREST_WEIGHTS.pit;
 
-    if (f.flag && f.flag !== 'green') interestScore += INTEREST_WEIGHTS.flag_not_green;
+    if (isCaution(f.flag)) interestScore += INTEREST_WEIGHTS.flag_not_green;
 
     if (gapAhead > 3 && gapBehind > 3) interestScore += INTEREST_WEIGHTS.clean_air;
 
