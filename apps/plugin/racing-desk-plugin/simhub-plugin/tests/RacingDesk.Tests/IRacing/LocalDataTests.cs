@@ -89,8 +89,12 @@ namespace RacingDesk.Tests.IRacing
                     foreach (var lap in s.Laps)
                     {
                         Assert.That(lap.LapTimeSeconds == 0 || lap.LapTimeSeconds >= minLap, $"{file.Name} lap {lap.Lap}: {lap.LapTimeSeconds:F2}s");
-                        // A partial lap (capture started mid-lap) would show up as faster than the session's best.
-                        if (s.BestLapSeconds > 0 && lap.LapTimeSeconds > 0)
+                        // A partial lap (capture started mid-lap) would show up as faster than the session's best. A lap
+                        // with incident points may be, and be real: iRacing does not count a lap it invalidated (off
+                        // the track, a cut) for its best, and the best is iRacing's. His Nordschleife race of
+                        // 2026-10-20: lap 2 was 407.023 by iRacing's own LapLastLapTime, with 8x and 103 frames off
+                        // the track, and LapBestLapTime stayed unset until lap 3's 409.508.
+                        if (s.BestLapSeconds > 0 && lap.LapTimeSeconds > 0 && lap.Incidents == 0)
                             Assert.That(lap.LapTimeSeconds, Is.GreaterThanOrEqualTo(s.BestLapSeconds - 0.01), $"{file.Name} lap {lap.Lap} beats the best lap");
                     }
                     if (s.Laps.Any(l => !l.OutLap && !l.Pitted && l.LapTimeSeconds > 0))

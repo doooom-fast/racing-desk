@@ -115,6 +115,16 @@ Each claim checked against the tree before it was rewritten; nothing of the code
   the plugin compiles against it and ships none (its runtime DLL is excluded; SimHub's own is the one loaded), the code
   uses no `XmlLayout`, and a newer reference than SimHub carries could stop the plugin loading.
 
+## The best-lap test, 2026-10-28, branch `fix/best-lap`
+
+`LocalDataTests.ShortAndInterruptedRacesStillGetABestLapAndNoImpossibleLapTimes` failed on `main` on his Nordschleife race
+of 2026-10-20 (lap 2, 407.02 s, faster than the best, 409.51 s). **The store was right and the test was not**: lap 2 was
+407.023 s by iRacing's own `LapLastLapTime`, with 8x and 103 frames off the track, and iRacing did not count it —
+`LapBestLapTime` stayed unset after it and took lap 3's 409.508 (read from the file frame by frame, with a probe that was not
+kept). The session's best is iRacing's, so a lap iRacing invalidated can be faster than it. The test's check, meant to catch
+a partial lap at the start of a capture, now leaves out laps with incident points; the rest are held to it as before. The
+.NET suite: 1,701 of 1,701.
+
 ## Findings (original review)
 
 ### 1. Fixed in the resumed work: a late request restores stale rig readings after leaving the car
