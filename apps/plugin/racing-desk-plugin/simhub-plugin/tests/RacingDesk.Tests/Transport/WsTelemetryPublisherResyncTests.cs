@@ -69,13 +69,26 @@ namespace RacingDesk.Tests.Transport
             // Initial snapshot
             clock.Now = _fakeNow;
             publisher.Tick(dict);
+            Assert.AreEqual(1, conn.SentMessages.Count);
+            Assert.AreEqual(FakeWsConnection.MessageType.Snapshot, conn.SentMessages[0].Type);
+
+            // No change, so still within 5 second window
+            conn.SentMessages.Clear();
             clock.Now = _fakeNow.AddSeconds(3);
             publisher.Tick(dict);
-            // No change, so still within 5 second window
+            Assert.AreEqual(0, conn.SentMessages.Count, "No message for unchanged data at 3s");
+
+            // Now we should see a resync
             clock.Now = _fakeNow.AddSeconds(6);
             publisher.Tick(dict);
-            // Now we should see a resync
-            Assert.AreEqual(1, conn.SentMessages.Count);
+            Assert.AreEqual(1, conn.SentMessages.Count, "Should resync with snapshot at 6s");
+            Assert.AreEqual(FakeWsConnection.MessageType.Snapshot, conn.SentMessages[0].Type);
+
+            // 9s is 3s after the resync: no snapshot, so the resync moved lastFullSent on
+            conn.SentMessages.Clear();
+            clock.Now = _fakeNow.AddSeconds(9);
+            publisher.Tick(dict);
+            Assert.AreEqual(0, conn.SentMessages.Count, "No resync 3s after the last one");
         }
 
         /// <summary>

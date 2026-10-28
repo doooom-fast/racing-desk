@@ -66,7 +66,8 @@ namespace RacingDesk.Plugin.Transport
                     {
                         Connection = conn,
                         LastSent = new Dictionary<string, object>(),
-                        LastFullSent = _clock(),
+                        // Due a snapshot on its first frame: it has nothing yet for a delta to change.
+                        LastFullSent = DateTime.MinValue,
                     };
                     _clients = _clientState.Count;
 
@@ -95,7 +96,7 @@ namespace RacingDesk.Plugin.Transport
             if (currentDict == null || !HasClients) return;
 
             var now = _clock();
-            // Packed when a client is due one (on its first frame after five seconds), not every frame for nobody.
+            // Packed when a client is due one (its first frame, then every five seconds), not every frame for nobody.
             byte[] snapshotPayload = null;
 
             lock (_clientStateLock)
