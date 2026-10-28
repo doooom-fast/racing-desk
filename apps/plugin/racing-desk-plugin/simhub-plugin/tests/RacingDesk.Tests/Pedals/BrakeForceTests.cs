@@ -414,6 +414,69 @@ namespace RacingDesk.Tests.Pedals
             }
         }
 
+        [Test]
+        public void LiveStartedAgainInTheRun_ItsKeysAreReadAgain_AndTheForceIsNotKnownUntilAKeySetsOne()
+        {
+            var run = new Run(HisKeys(moved: false)) { LiveStarted = June.AddHours(-2) };
+            run.GetIn(Gtp);
+            run.Tap(Gtp, KeyF2);
+            Assert.That(run.Recorder.Now.ForceKg, Is.EqualTo(50));
+
+            // His keys moved to Right Ctrl, and Live started again to take them, with him in the car.
+            var moved = Made(HisKeys(moved: true));
+            run.Read = () => moved;
+            run.LiveStarted = run.Board.Now;
+            run.Board.Tick(10_000);
+            run.Until(Gtp, () => run.Recorder.Watched.Contains(RightCtrl));
+            Assert.That(run.Recorder.Watched, Does.Contain(RightCtrl), "read again, with the keys Live started with");
+            Assert.That(run.Recorder.Now.ForceKg, Is.Null, "what Live did to the pedals as it started is not known");
+            Assert.That(run.Log, Has.Exactly(1).Contains("SmartControl Live has started again"));
+
+            run.Frame(Gtp);
+            run.Tap(Gtp, KeyF1);
+            Assert.That(run.Recorder.Now.ForceKg, Is.Null, "F1 alone is nothing of Live's now");
+            run.Tap(Gtp, RightCtrl, KeyF4);
+            Assert.That(run.Recorder.Now.ForceKg, Is.EqualTo(100));
+            run.Board.Tick(10_000);
+            run.Frames(Gtp, 40);
+            Assert.That(run.Reads, Is.EqualTo(2), "a Live that has not started again is not read again");
+        }
+
+        [Test]
+        public void APressSeenBeforeTheLook_AfterLiveStartedAgain_IsNotCounted()
+        {
+            var run = new Run(HisKeys(moved: false)) { LiveStarted = June.AddHours(-2) };
+            run.GetIn(Gtp);
+            run.Tap(Gtp, KeyF3);
+            var moved = Made(HisKeys(moved: true));
+            run.Read = () => moved;
+            run.LiveStarted = run.Board.Now;
+
+            run.Tap(Gtp, RightCtrl, KeyF2);
+            Assert.That(run.Recorder.Now.ForceKg, Is.Null, "read by the keys of before, F2 would have been 50");
+            run.Until(Gtp, () => run.Recorder.Watched.Contains(RightCtrl));
+            run.Frame(Gtp);
+            run.Tap(Gtp, RightCtrl, KeyF2);
+            Assert.That(run.Recorder.Now.ForceKg, Is.EqualTo(50));
+        }
+
+        [Test]
+        public void LiveQuittingIsNotStartingAgain_ItsStartIs()
+        {
+            var run = new Run(HisKeys(moved: false)) { LiveStarted = June.AddHours(-2) };
+            run.GetIn(Gtp);
+            run.Tap(Gtp, KeyF2);
+            run.LiveStarted = null;
+            run.Board.Tick(10_000);
+            run.Frames(Gtp, 40);
+            Assert.That((run.Reads, run.Recorder.Now.ForceKg), Is.EqualTo((1, (double?)50)), "quit, it did nothing to the pedals");
+
+            run.LiveStarted = run.Board.Now;
+            run.Board.Tick(10_000);
+            run.Until(Gtp, () => run.Reads > 1);
+            Assert.That((run.Reads, run.Recorder.Now.ForceKg), Is.EqualTo((2, (double?)null)));
+        }
+
         // ------------------------------------------------------------------ a run in a car
 
         private sealed class Run
@@ -423,6 +486,7 @@ namespace RacingDesk.Tests.Pedals
             public readonly List<string> Log = new List<string>();
             public int Reads;
             public bool Live = true;
+            public DateTime? LiveStarted;
             public Func<SmartControlSnapshot> Read;
             public readonly CarPedalsRecorder Recorder;
 
@@ -431,7 +495,7 @@ namespace RacingDesk.Tests.Pedals
                 var snapshot = Made(keys);
                 Read = () => snapshot;
                 Recorder = new CarPedalsRecorder(() => { Reads++; return Read(); }, bound => Board.Watcher(bound), () => Live, () => Board.Now,
-                    seen => { lock (Saved) Saved.Add(seen); }, line => { lock (Log) Log.Add(line); });
+                    seen => { lock (Saved) Saved.Add(seen); }, line => { lock (Log) Log.Add(line); }, () => LiveStarted);
             }
 
             /// <summary>A frame in the car, a frame later.</summary>
@@ -451,6 +515,19 @@ namespace RacingDesk.Tests.Pedals
                     if (Recorder.Watched.Count == 0) Thread.Sleep(5);
                 } while (Recorder.Watched.Count == 0 && DateTime.UtcNow < until);
                 Frame(car, absSetting);
+            }
+
+            /// <summary>Frames until what is done on another thread has come back, or ten seconds.</summary>
+            public void Until(string car, Func<bool> done)
+            {
+                var until = DateTime.UtcNow.AddSeconds(10);
+                while (!done() && DateTime.UtcNow < until) { Frame(car); Thread.Sleep(5); }
+            }
+
+            /// <summary>So many frames, each a moment apart: time for what was started on another thread to come back.</summary>
+            public void Frames(string car, int count)
+            {
+                for (int i = 0; i < count; i++) { Frame(car); Thread.Sleep(5); }
             }
 
             public void Tap(string car, params int[] keys)

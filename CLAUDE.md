@@ -390,7 +390,11 @@ files or to the pedals; putting the cars back (last bullet) does, by itself, by 
     watched none of his keys, and "Brake max" never filled.
   - The force is known from the first key that *sets* one. **A number that may be wrong is not kept**: a step key
     held until Windows repeats it leaves the force not known until a key sets one, a key pressed while
-    SmartControl Live is not running is not counted, and a look after a gap in the frames only looks.
+    SmartControl Live is not running is not counted, and a look after a gap in the frames only looks. **Live reads its
+    keys when it starts**, so one started since its keys were read (when Live started is asked every 10 s in a car, off the
+    telemetry thread, and again on a key) has them read again, and the force is not known until a key sets one: Live may
+    have others (the move to Right Ctrl, taken at a restart), and what it does to the pedals as it starts is not known. The
+    key seen as it is noticed is not counted. Live quitting is not this; its start is (2026-10-28).
   - When the sim goes, the car changes or the host stops, the run's force becomes the car's — if a key was pressed
     in that car, and whether or not the car has a profile. The pedals keep their force from car to car and through
     a break in the telemetry of under a minute; after longer, nothing is known until a key sets a force.

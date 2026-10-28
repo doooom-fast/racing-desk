@@ -132,12 +132,16 @@ function fetchRigLimits(brakeUrl, options) {
  *
  *   feed(payload)   the telemetry the HUD keeper polled, or null: asks the host while he is in the car
  *   current()       what the page was last told, for one that loaded after
+ *
+ * An answer that comes back after he got out of the car, or from a host that is no longer the one there, is not told:
+ * it is of a car or a host that has gone, and would put back what the page was told is not known.
  */
 function createRigLimits({ host, send, fetch = fetchRigLimits, now = Date.now, everyMs = ASK_EVERY_MS, log = () => {} }) {
   let current = { ...NOT_KNOWN };
   let asking = false;
   let askedAt = -Infinity;
   let saidNotLocal = false;
+  let outs = 0;               // times he has got out of the car: an answer asked for before the last is not his now
 
   function tell(next) {
     if (next.brakeKg === current.brakeKg && next.car === current.car && next.wheelNm === current.wheelNm && next.wheelSource === current.wheelSource) return;
@@ -161,19 +165,23 @@ function createRigLimits({ host, send, fetch = fetchRigLimits, now = Date.now, e
   async function ask() {
     const url = where();
     if (!url) { tell({ ...NOT_KNOWN }); return; }
+    const out = outs;
     asking = true;
+    let answer;
     try {
-      tell(told(await fetch(url)));
+      answer = told(await fetch(url));
     } catch (e) {
-      tell({ ...NOT_KNOWN });
+      answer = { ...NOT_KNOWN };
     } finally {
       asking = false;
       askedAt = now();
     }
+    if (out === outs && where() === url) tell(answer);
   }
 
   function feed(payload) {
     if (!RacingDeskInCar.inCar(payload)) {
+      outs += 1;
       tell({ ...NOT_KNOWN });
       return;
     }

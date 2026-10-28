@@ -39,7 +39,9 @@ resolve({ brakeKg: 80, car: 'old car', wheelNm: 11.55, wheelSource: 'pithouse' }
 setImmediate(() => console.log('after late reply', keeper.current()));
 ```
 
-Suggested fix: invalidate pending responses on context changes. Cover exit, a different car/session and a different host. The renderer also retains the reported car but does not use it to validate the displayed brake value (`datastream.js:49–58`).
+Suggested fix: invalidate pending responses on context changes. Cover exit, a different car/session and a different host.
+
+**Fixed 2026-10-28** (branch `fix/brake-max-stale`): an answer asked for before he last got out of the car, or from a host that is no longer the one there, is not told; tests in `tests/unit/rig-limits.spec.mjs`. A car change always passes through out of the car in iRacing; the renderer's own use of the reported car is unchanged. The renderer also retains the reported car but does not use it to validate the displayed brake value (`datastream.js:49–58`).
 
 ### 2. Wheel max is not necessarily the current hardware setting
 
@@ -70,6 +72,8 @@ AC/EVO support is explicitly partial in the root guidance. Live SimHub property 
 `apps/core/RacingDesk.Data/Pedals/CarPedalsRecorder.cs:234–282`
 
 Once `_keys` exists, the watcher does not reload bindings. Investigate restarting SmartControl Live during the same run after the Right-Ctrl key migration: the watcher can retain the bindings Live previously used. **Source observation; not reproduced against Live.**
+
+**Fixed 2026-10-28** (branch `fix/brake-max-stale`): the recorder asks when Live started (every 10 s in a car, off the telemetry thread, and on a key); one started since its keys were read has them read again, and the force becomes not known until a key sets one. Tests in `Pedals/BrakeForceTests.cs`. Still to see at the rig: what Live does to the pedals as it starts.
 
 The force is inferred from observed keys or seeded after the restoration action, not measured back from the pedal controller. Validate what happens after external profile edits, restarts and telemetry gaps before treating it as a hardware-confirmed setting. A dash should explain why the force is unknown on the desk, rather than silently looking broken.
 
