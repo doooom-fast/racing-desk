@@ -1,33 +1,19 @@
-# Build & Utility Scripts
+# apps/plugin/scripts
 
-Cross-project scripts for building, installing, launching, and maintaining the platform.
-
-## Scripts
-
-| Script | Language | Purpose |
-|--------|----------|---------|
-| `parse-shtl.js` | Node.js | Parses SimHub template language (SHTL) files. |
-| `stamp-version.sh` | Bash | Stamps version numbers across the monorepo (installer `.iss`, package.json files, etc.). |
-
-> **Moved to closed repo:** `build-web-demo.mjs` and `generate-screenshots.py` served the web app and marketing site, which now live in [`alternatekev/racing-desk-prodrive-server`](https://github.com/alternatekev/racing-desk-prodrive-server).
-
-## Platform Launchers (macOS)
+## In use
 
 | Script | Purpose |
 |--------|---------|
-| `mac/RacingDesk.command` | Double-click launcher for the overlay |
-| `mac/install.command` | Dependency installer |
-| `mac/launch.sh` | Shell launch script |
+| `windows/install.bat` | Stops SimHub, builds the plugin (`-c Release`, or the configuration given), removes the old `RaceCorProDrive`/`RaceCor.Core` files, copies the plugin, `RacingDesk.Core.dll`, the third-party DLLs SimHub does not ship and `racingdesk-data` into SimHub, and starts SimHub again only if it was running. **Ask the driver before running it**: it replaces the installed plugin (root CLAUDE.md). |
 
-## Windows Build Scripts
+## Dead (kept until the driver says to remove them)
 
-| Script | Purpose |
-|--------|---------|
-| `windows/build-installer.bat` | Builds the Inno Setup installer |
-| `windows/export.bat` | Exports built files from SimHub back to repo |
-| `windows/rebuild.bat` | Full rebuild of plugin + overlay |
+Each points at something this tree no longer has; none is run by anything.
 
-## Relationship to Other Projects
-
-- `stamp-version.sh` updates version strings in `installer/racing-desk-prodrive.iss` and other files
-- macOS launchers start the `racing-desk-overlay/` Electron app
+| Script | What it needed |
+|--------|----------------|
+| `windows/build-installer.bat` | An Inno Setup installer (`installer/k10-motorsports.iss`): there is no installer (root, Ground rules) |
+| `stamp-version.sh` | The same installer and a release's version numbers: there is no release |
+| `windows/export.bat` | Copying the built DLL back from SimHub into the repo, from when the build wrote into SimHub; it builds into `simhub-plugin/build/` now and the DLL is not committed |
+| `mac/RacingDesk.command`, `mac/install.command`, `mac/launch.sh` | A `racing-desk-overlay/` folder beside them, and a Mac: the overlay is `apps/overlay` and the rig is Windows |
+| `parse-shtl.js` | Turning SimHub's `.shtl` maps into CSVs for a server's upload route; the host reads `.shtl` files itself (`CrowdMaps.cs`, root CLAUDE.md, Track maps) |

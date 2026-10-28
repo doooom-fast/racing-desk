@@ -62,6 +62,35 @@ On the Mac checkout, dependencies were installed with `npm ci --ignore-scripts -
   first five moments in order, not the best five.
 - Left for the second half of step 5: the wider review of recording, commentary, liveries and the Electron boundaries.
 
+## Stale guidance (step 6), 2026-10-28, branch `docs/stale-guidance`
+
+Each claim checked against the tree before it was rewritten; nothing of the code changed but a comment in `install.bat`.
+- **`apps/plugin/CLAUDE.md`** rewritten: the plugin as it is (a thin adapter over `RacingDesk.Core`, `:8889` and the
+  `:8890` MessagePack feed, its outline from the app's host, building into `simhub-plugin/build/`, `install.bat` asked
+  for first), pointing at the root rather than repeating it, and a "Retired" list: the cloud client (track configs and
+  session push to `prodrive.racing-desk.io`, PKCE), the `members-ng` client, the release zip, the installer, CI, the
+  `/racing-desk/ws` WebSocket, the Windows and Homebridge consumers — none of which is in the code (a grep finds only the
+  old store's name, which the data folder migrates from).
+- **`apps/plugin/racing-desk-plugin/CLAUDE.md`** rewritten: the real key files (the engine is Core's), the test project
+  (`net8.0-windows`, Core, Data and Host; which `TestHelpers/` copies remain), the datasets, and which of its `docs/` are
+  design history. The test project's README says the same in its first line.
+- **`apps/plugin/scripts/CLAUDE.md`**: `install.bat` in use; `build-installer.bat`, `stamp-version.sh`, `export.bat`, the
+  macOS launchers and `parse-shtl.js` listed as dead, with what each needed. **Kept, not deleted**: removing them is the
+  driver's call. `install.bat`'s header no longer says the build writes into SimHub.
+- **`apps/plugin/src/agents/CLAUDE.md`**: one MCP server of three is in the tree, nothing runs it; `apps/plugin/docs/CLAUDE.md`:
+  each document marked for what it is still good for.
+- **`apps/overlay/CLAUDE.md`**: the showcase and marketing iframe, the SimHub `$prop()` template, the server's token
+  pipeline and `token-loader.js`, the auto-updater and the server's iRacing sync paths are gone from it; the Design
+  System section says what is there (tokens in `base.css`, the three modes in `modes.css`, `data-theme`); "Where
+  `dashboard.html` runs" is the app, the iPad and OBS; the race coach's Anthropic call is said as it is (`agentKey`).
+- **Four skills archived** to `docs/archive/skills/` (they load no more): `server-design-system` (the web app),
+  `plugin-style-dictionary` (the token build), `plugin-theming` (Vercel Blob tokens, an admin UI, a database) and
+  `race-bundle-format` (the `.rcpdv` bundle) — they triggered on words like "theme", "card" and "bundle". Links fixed
+  in `docs/README.md`, `docs/video-editor-plan.md` and the root's Layout table.
+- **Not done**: the root `CLAUDE.md` is still very large (1,698 lines) and was not cut down; the remaining skills were
+  not read through for smaller drifts (`plugin-component-architecture` plans a React migration the overlay's CLAUDE.md
+  forbids); `docs/video-editor-plan.md` still links three skills that never existed here.
+
 ## Findings (original review)
 
 ### 1. Fixed in the resumed work: a late request restores stale rig readings after leaving the car

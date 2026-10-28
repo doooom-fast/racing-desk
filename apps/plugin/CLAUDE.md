@@ -1,103 +1,76 @@
-# prodrive-plugin — SimHub plugin (the producer)
+# apps/plugin — the SimHub plugin
 
-## What this repo is
+The SimHub plugin, `RacingDesk.dll`: a thin adapter that runs inside SimHub (.NET Framework 4.8) and hands SimHub's
+telemetry to `RacingDesk.Core` (`apps/core/RacingDesk.Core/`), which builds the same `:8889` contract the app's own host
+builds. Everything about that contract, the runtime's routes, the car list, flags, tyre wear, names, maps and the rules
+the code is held to is in the **root [`CLAUDE.md`](../../CLAUDE.md)**; this file is only what is particular to SimHub.
 
-The **The Racing Desk SimHub plugin** — C# .NET 4.8 plugin that runs inside [SimHub](https://www.simhubdash.com), reads iRacing SDK telemetry, and exposes it on `localhost:8889` for in-machine consumers (overlay, The Racing Desk desktop app, Homebridge plugin).
+Until 2026-09-27 it was RaceCor Pro Drive (`RaceCorProDrive.dll`, `RaceCor.Core.dll`). Guidance from that time — a cloud
+client, a release zip, an installer, CI — is retired: see "Retired" below. Imported into this monorepo on 2026-09-16
+from `prodrive-plugin`.
 
-It's also a **cloud client** today — fetches track configuration from the server at track change, and pushes session data to the server at session end via Bearer auth.
+## What it is
 
-The plugin is **distributed separately** from the The Racing Desk Windows installer; the installer bundles the overlay only, not this plugin.
-
-## Tech stack
-
-- **C# .NET Framework 4.8** (SimHub's runtime requirement)
-- **NUnit** for tests
-- **HttpListener** for the localhost server
-- **iRacing SDK shared-memory bridge** via `IRacingSdkBridge.cs`
-- **Direct iRacing API client** via `IRacingDataClient.cs` — authenticates against `members-ng.iracing.com/auth` with stored local credentials to fetch live iRating + Safety Rating
-- **Anthropic prompt fragments** — 240+ pre-generated Haiku-4.5 commentary fragments for offline use, **plus** live API hooks for the overlay's race-coach (the overlay handles the API call, not this plugin)
-- **MozaSerialManager** — direct serial control of Moza wheels for force-feedback events triggered by telemetry. It looks
-  for the ports never while MOZA Pit House runs (process `MOZA Pit House`; it holds the base's ports, on the rig all day,
-  and is looked at once a minute while it does), and otherwise at the start, when the list of COM ports changes, when
-  Pit House quits, when a device drops and on `mozaReconnect`; on a timer (every 5 min, `SlowSearchMs`) only while no base
-  is connected or a port is held (Pit House's helpers can hold the base after it quits; a failed WMI read finds no Moza
-  port), never once the base is connected and nothing is held. It opens, checks or writes to a port
-  only when Windows describes it as Moza's or its USB vendor id is Moza's (`346E`); a Valve receiver or an Arduino is
-  never touched. (The diagnostic route's `probe=1`, asked by hand, still writes to the others.)
+- **The plugin project** is three files of its own in `racing-desk-plugin/simhub-plugin/plugin/RacingDesk.Plugin/`:
+  `Plugin.cs` (SimHub's entry point: data updates, actions, events, the settings it saves), `SimHubTelemetrySource.cs`
+  (SimHub's game data as RacingDesk.Core's `ITelemetrySource`) and the settings panel (`Control.xaml`). The engine, the
+  capture (`Capture/TelemetryCapture.cs`), the runtime and its servers, the Moza manager, the commentary and the
+  strategist are all `RacingDesk.Core`, which the plugin carries.
+- **It serves** `GET http://localhost:8889/racing-desk/` (the HUD, the iPad's proxy, OBS's pages) and the MessagePack
+  WebSocket on `:8890`, both from `RacingDeskRuntime`. The app's own host serves the same contract on `:8889`, or on
+  `:18889`/`:18890` beside SimHub (root CLAUDE.md, Desk).
+- **It reads nothing of his files and no store.** The track map's outline comes from the app's host over loopback
+  (`HostOutlineSource`, `http://127.0.0.1:18889`); with the app closed there is no map (root CLAUDE.md, Track maps).
+- **Other sims** come through SimHub's own readers (Assetto Corsa and EVO: root CLAUDE.md, Assetto Corsa).
 - **SimHub's opponents** are read by GameReaderCommon's own names: `IRacing_IRating`, `GaptoPlayer`, `IsCarInPit`,
   `IsCarInPitLane` (`SimHubOpponentTests` reads them from SimHub's installed assembly); the host's opponents keep
   `IRating`, `GapToPlayer`, `IsInPit`, read after them. The leaderboard's gap takes its size from the source and its sign
   from the order of the race (negative ahead of him, as `leaderboard.js` sorts), whatever sign the source uses; a gap that
   is null, 0 or not a finite number is not known, and while any other car's is not, every row carries 0 (the board in the
-  order of the race, no gaps shown) — `RacingDeskRuntime.LeaderboardGaps`.
+  order of the race, no gaps shown) — `RacingDeskRuntime.LeaderboardGaps`. A real name of another driver never leaves
+  the source (root CLAUDE.md, Other drivers' names).
+- **The Moza manager** (`MozaSerialManager`, in Core) looks for the ports never while MOZA Pit House runs (process
+  `MOZA Pit House`; it holds the base's ports, on the rig all day, and is looked at once a minute while it does), and
+  otherwise at the start, when the list of COM ports changes, when Pit House quits, when a device drops and on
+  `mozaReconnect`; on a timer (every 5 min, `SlowSearchMs`) only while no base is connected or a port is held (Pit House's
+  helpers can hold the base after it quits; a failed WMI read finds no Moza port), never once the base is connected and
+  nothing is held. It opens, checks or writes to a port only when Windows describes it as Moza's or its USB vendor id is
+  Moza's (`346E`); a Valve receiver or an Arduino is never touched. (The diagnostic route's `probe=1`, asked by hand,
+  still writes to the others.)
+- **Commentary** is offline: fragments and topics in `racing-desk-plugin/simhub-plugin/racingdesk-data/`, assembled by
+  Core's engine. The plugin calls no API. (The overlay's race coach, `race-coach.js`, asks Anthropic's API itself with a
+  key he gives it.)
 
-## What it exposes
+## Building and installing
 
-### `localhost:8889` — the contract
+```bash
+npm run test:dotnet                                   # every .NET project's tests, the plugin's included (root)
+dotnet build apps/plugin/racing-desk-plugin/simhub-plugin/plugin/RacingDesk.Plugin/RacingDesk.Plugin.csproj -c Release
+apps\plugin\scripts\windows\install.bat               # ASK THE DRIVER FIRST: it replaces SimHub's plugin
+```
 
-`GET http://localhost:8889/racing-desk/` returns a flat JSON object with 100+ properties:
+The build stages into `racing-desk-plugin/simhub-plugin/build/` and never into SimHub. `install.bat` stops SimHub, builds,
+removes the old `RaceCorProDrive.dll`/`RaceCor.Core.dll` files, copies the plugin, `RacingDesk.Core.dll` and the
+third-party DLLs SimHub does not ship (never a BCL polyfill or a library SimHub has: its plugin manager disables itself
+on a version mismatch) and the `racingdesk-data` folder into SimHub, and starts SimHub again only if it was running.
+**Ask before running it**, and see the root CLAUDE.md on what a plugin older or newer than the app means (install order).
 
-- `telemetry.*` — speed, RPM, gear, throttle / brake / clutch / steering, fuel, tyres
-- `lap.*` — current lap, lap time, sector deltas, optimal lap target
-- `session.*` — track name, layout, car name, series, session type
-- `field.*` — number of cars, your position, gap to leader / next / behind
-- `weather.*` — track temp, air temp, wind, sky
-- `commentary.*` — derived event commentary (incidents, position changes, fuel calls)
-- `strategy.*` — pit window, fuel projection, tyre wear projection
+## Retired (do not follow)
 
-WebSocket variant at `ws://localhost:8889/racing-desk/ws` for push-style consumption.
+These were true of `prodrive-plugin` and are not of this tree; the code for them is gone:
+- a cloud client (track configs fetched from `prodrive.racing-desk.io`, sessions pushed to it with a PKCE token) and a
+  direct `members-ng.iracing.com` client — no feature depends on an iRacing login or any server (root, Ground rules);
+- a GitHub release zip, a Windows installer, a lockstep release and CI (`simhub-ci.yml`) — there is no CI and no
+  distribution;
+- a WebSocket at `/racing-desk/ws` — the feed is MessagePack on `:8890`;
+- consumers `prodrive-windows` and `prodrive-homebridge` — archived repos.
 
-Polled by:
-
-- [`prodrive-overlay`](../overlay/CLAUDE.md) at ~30 fps
-- [`prodrive-windows`](https://github.com/DOOOOM/prodrive-windows) for Dashboard HUD-status indicator
-- Any third-party tool
-
-(`prodrive-homebridge` polls SimHub directly on port **8888** — not this plugin's port.)
-
-## Cross-repo seams
-
-### 1. Track config — plugin → server
-
-At every track change, the plugin GETs `https://prodrive.racing-desk.io/api/tracks?trackName=...` to load custom sector boundaries. Cached in-memory until track changes again.
-
-Implementation: `racing-desk-plugin/.../Engine/TelemetrySnapshot.Capture.cs:~1007`.
-
-### 2. Session push — plugin → server
-
-After each session ends, the plugin packages captured telemetry and POSTs to `https://prodrive.racing-desk.io/api/iracing/import` with a Bearer token.
-
-Auth via `/api/plugin-auth/{authorize, token}` PKCE flow. Token stored in `%APPDATA%\RacingDesk\plugin\auth.json`. Refreshes automatically.
-
-This is the only path that captures **per-frame telemetry traces** (the Chrome extension scrape only sees what iRacing exposes on the website).
-
-### 3. Direct iRacing API — plugin → members-ng.iracing.com
-
-`IRacingDataClient.cs` authenticates against `members-ng.iracing.com/auth` with stored local credentials to fetch the user's live iRating + Safety Rating for the overlay's display.
-
-This is **separate from the Chrome extension's scraping path** in `prodrive-server/apps/web/browser-extension/`. The plugin authenticates as the user; the extension scrapes the user's already-loaded session. Both end up in the server's Postgres tables but via different mechanisms.
-
-## Distribution
-
-GitHub release zip from [k10-motorsports/prodrive-plugin](https://github.com/DOOOOM/prodrive-plugin) → user drops into `%PROGRAMFILES%\SimHub\PluginsData\Common\RacingDesk\` → restart SimHub → enable in **Additional plugins**.
-
-CI: `simhub-ci.yml` runs C# NUnit (~147 tests), Python dataset validation (28), Python installer tests (34).
-
-Release wave: **Wave 1** of the lockstep release (parallel with overlay), per the release orchestrator at [`.claude/commands/release.md`](../.claude/commands/release.md) in this agents repo.
-
-## What this repo does NOT do
-
-- **Does NOT process `.ibt` files.** Reads live SDK shared memory only.
-- **Does NOT host the overlay or Windows desktop app.** Those are separate repos.
-- **Does NOT call the Anthropic API directly.** The overlay's `race-coach.js` does that; the plugin only ships pre-generated commentary fragments.
-
-## Agent work policy
-
-All agent-spawned work MUST use `isolation: "worktree"`. Exceptions: read-only exploration, single non-code file writes.
+The old repos' design documents are in `docs/` here (see its CLAUDE.md for which still describe the code) and in the
+root's `docs/archive/`.
 
 ## Pointers
 
-- Cross-repo orchestration: [`../../docs/archive/monorepo-orchestration.md`](../../docs/archive/monorepo-orchestration.md)
-- Overlay (consumer): [`../overlay/CLAUDE.md`](../overlay/CLAUDE.md)
-- Server (cloud target): [`prodrive-server`](https://github.com/DOOOOM/prodrive-server)
-- Telemetry sidecar schema: [`../../docs/telemetry-sidecar-schema.md`](../../docs/telemetry-sidecar-schema.md)
+- Root guidance and the contract: [`../../CLAUDE.md`](../../CLAUDE.md)
+- The plugin's datasets, tests and engine notes: [`racing-desk-plugin/CLAUDE.md`](racing-desk-plugin/CLAUDE.md)
+- The overlay (the consumer): [`../overlay/CLAUDE.md`](../overlay/CLAUDE.md)
+- The scripts, live and dead: [`scripts/CLAUDE.md`](scripts/CLAUDE.md)

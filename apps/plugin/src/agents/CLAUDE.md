@@ -1,34 +1,11 @@
-# MCP Servers
+# apps/plugin/src/agents — MCP servers (dormant)
 
-Three Model Context Protocol servers that provide Claude agents with access to The Racing Desk platform data and capabilities.
+Of the three Model Context Protocol servers this folder had in `prodrive-plugin`, one is here: `k10-broadcaster/`
+(broadcast control and OBS, with its own README, QUICKSTART and DEPLOYMENT). `k10-plugin/` and `simhub-telemetry/`, which
+`claude-mcp-config.json` still names, are not in the tree, and that file's paths (`racing-desk-plugin`,
+`racing-desk-overlay`) are the old repo's.
 
-## Servers
-
-| Server | Directory | Purpose |
-|--------|-----------|---------|
-| `k10-broadcaster` | `k10-broadcaster/` | Broadcast control and OBS integration |
-| `k10-plugin` | `k10-plugin/` | SimHub plugin management and configuration |
-| `simhub-telemetry` | `simhub-telemetry/` | Live telemetry data access from SimHub's HTTP API |
-
-## Tech Stack
-
-- Node.js (ESM)
-- MCP SDK (`@modelcontextprotocol/sdk`)
-- Configuration: `claude-mcp-config.json`
-
-## Related Resources
-
-- Design skill: `racing-hud-design-skill/` — HUD design system reference for agents
-- Tufte audit skill: `tufte-audit-skill/` and `skills/tufte-audit/` — data visualization quality audits
-- MCP spec: `racing-desk-mcp.md` (in parent `src/` directory)
-
-## Documentation
-
-Each server has its own docs:
-- `k10-broadcaster/`: README, QUICKSTART, DEPLOYMENT, CHECKLIST, INDEX
-- `k10-plugin/`: README
-- `simhub-telemetry/`: see source files
-
-## Relationship to Other Projects
-
-These servers bridge the plugin and overlay data into Claude agent workflows. The `simhub-telemetry` server reads from the same HTTP API (port 8889) that the overlay polls. See [root CLAUDE.md](../../CLAUDE.md) for the full data flow.
+Nothing in Racing Desk runs or depends on them. OBS is driven by the app itself (`apps/overlay/modules/js/obs/`,
+`docs/recording.md`); the telemetry is `GET localhost:8889/racing-desk/` (root CLAUDE.md). Treat this folder as history
+until the driver decides to bring a server back or remove it. `../racing-desk-io-pro-drive-mcp.md` is the original
+brief for the plugin and dashboard, written before any of the current design.

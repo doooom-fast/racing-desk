@@ -16,4 +16,6 @@ Context that spans more than one app in this repo. Anything tied to a single app
 | [video-editor-plan.md](video-editor-plan.md) | Video editor plan — written for the multi-repo, native-apps world; its `.rcpdv` bundle is dropped (2026-09-30), the editor pairs loose files by folder |
 
 [`archive/`](archive/) holds docs superseded by the local-first plan (cloud hub, native-app API
-contracts, the six-repo release pipeline). Kept for reference; don't build on them.
+contracts, the six-repo release pipeline). Kept for reference; don't build on them. `archive/skills/` holds the
+project skills that described retired systems (the web app's design system, the Style Dictionary token build, remote
+theming, the `.rcpdv` bundle), moved out of `.claude/skills/` on 2026-10-28 so they no longer load.

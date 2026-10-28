@@ -29,7 +29,7 @@ The web app never receives source video. Only the YouTube URL + race metadata.
 
 ## The `.rcpdv` portable bundle format
 
-Single-file format combining race video + telemetry sidecar. Spec lives in [`skills/race-bundle-format/`](../.claude/skills/race-bundle-format/SKILL.md).
+Single-file format combining race video + telemetry sidecar. Spec lives in [`archive/skills/race-bundle-format/`](archive/skills/race-bundle-format/SKILL.md) (the bundle was dropped on 2026-09-30).
 
 - Standard MP4 (plays in QuickTime / VLC / Finder Quick Look)
 - Telemetry embedded as an ISO-BMFF `uuid` box with a Prodrive-assigned UUID
@@ -116,7 +116,7 @@ The timeline UI is the prodrive-designer layout: video stage with overlay compos
 
 ## Companion docs
 
-- [`skills/race-bundle-format/`](../.claude/skills/race-bundle-format/SKILL.md) — `.rcpdv` spec, schema, parsing/writing
+- [`archive/skills/race-bundle-format/`](archive/skills/race-bundle-format/SKILL.md) — `.rcpdv` spec, schema, parsing/writing (retired)
 - [`skills/bundle-transfer/`](../.claude/skills/bundle-transfer/SKILL.md) — Bonjour LAN + Vercel Blob fallback transfer
 - [`skills/server-claude-broker/`](../.claude/skills/server-claude-broker/SKILL.md) — Server-side Claude API broker + BYOK pattern
 - [`skills/native-video-editor/`](../.claude/skills/native-video-editor/SKILL.md) — Editor pipeline (analysis → EDL → ffmpeg render)

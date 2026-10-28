@@ -7,13 +7,11 @@ setlocal enabledelayedexpansion
 ::
 ::  Stops SimHub, builds the plugin, copies the build output + the
 ::  racingdesk-data dataset folder into SimHub's install
-::  directory, and relaunches SimHub.
+::  directory, and starts SimHub again if it was running.
 ::
-::  The csproj is already wired so that when SimHub is detected on
-::  this machine its OutputPath points at $(SimHubPath) directly -
-::  meaning `dotnet build` drops the DLL straight into SimHub. This
-::  script handles everything around that: kill, build, copy data,
-::  restart.
+::  The build stages into simhub-plugin\build\ (the csproj's
+::  OutputPath), never into SimHub: this script is the only thing
+::  that copies the plugin in.
 ::
 ::  Usage:
 ::    install.bat                  Release build, auto-detect SimHub

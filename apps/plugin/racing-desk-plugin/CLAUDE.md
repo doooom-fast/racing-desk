@@ -1,124 +1,50 @@
-# RacingDesk Plugin — SimHub
+# racing-desk-plugin — the SimHub plugin's sources, datasets and tests
 
-The SimHub plugin (`simhub-plugin/`) — C# .NET Framework 4.8. Ingests telemetry from iRacing (and other sims), runs commentary triggers and strategy analysis, and serves results over HTTP on port 8889.
+`simhub-plugin/` holds the SimHub plugin project, the commentary datasets, and the test project for every .NET project
+in the repo. What the plugin is, how it is built and installed, and what is retired: [`../CLAUDE.md`](../CLAUDE.md). The
+`:8889` contract and the rules behind it: the root [`CLAUDE.md`](../../../CLAUDE.md).
 
-> The Homebridge plugin that used to live alongside this directory has moved to its own repo: [`k10-motorsports/prodrive-homebridge`](https://github.com/DOOOOM/prodrive-homebridge) (instructions: [`prodrive-homebridge`](https://github.com/DOOOOM/prodrive-homebridge)). It remains a consumer of the same HTTP API described below.
-
-## Integration Contract (Plugin ↔ Overlay)
-
-This plugin is the **producer** side of the telemetry pipeline. The overlay (`racing-desk-overlay/`) is the **consumer**. See also: [root CLAUDE.md](../CLAUDE.md) for the full end-to-end data flow.
-
-- **HTTP API**: Port 8889, `GET http://localhost:8889/racing-desk/`
-- **Response**: Flat JSON object with 100+ properties (telemetry values, commentary state, strategy recommendations)
-- **Polling**: The overlay polls this endpoint at ~30fps (every 33ms)
-- **Contract rule**: Any change to JSON property names, types, or removal of properties is a breaking change that requires a coordinated update in `racing-desk-overlay/`
-
-## SimHub Plugin (C#)
-
-### Tech Stack
-
-- .NET Framework 4.8 (SimHub's runtime)
-- WPF for settings panel (`Control.xaml`, renders inside SimHub's plugin settings tab)
-- Newtonsoft.Json for dataset deserialization
-- No NuGet packages — all dependencies are SimHub-provided DLLs
-
-### Key Files
+## Key files
 
 | What | Path |
 |------|------|
-| Plugin entry | `simhub-plugin/plugin/RacingDesk.Plugin/Plugin.cs` |
-| Project file | `simhub-plugin/plugin/RacingDesk.Plugin/RacingDesk.Plugin.csproj` |
-| Engine logic | `simhub-plugin/plugin/RacingDesk.Plugin/Engine/` |
-| Data models | `simhub-plugin/plugin/RacingDesk.Plugin/Models/` |
-| Settings panel | `simhub-plugin/plugin/RacingDesk.Plugin/Control.xaml` |
-| Shared datasets | `simhub-plugin/racingdesk-data/` (JSON: topics, fragments, sentiments, channel notes) |
-| Unit tests | `simhub-plugin/tests/RacingDesk.Tests/` |
-| SimHub DLL refs | `simhub-plugin/lib/simhub-refs/` |
+| Plugin entry (SimHub's `IPlugin`, actions, events, settings) | `simhub-plugin/plugin/RacingDesk.Plugin/Plugin.cs` |
+| SimHub's game data as Core's `ITelemetrySource` | `simhub-plugin/plugin/RacingDesk.Plugin/SimHubTelemetrySource.cs` |
+| Settings panel (WPF, in SimHub's plugin tab) | `simhub-plugin/plugin/RacingDesk.Plugin/Control.xaml` |
+| Project (`net48`, references `RacingDesk.Core`, stages into `simhub-plugin/build/`) | `simhub-plugin/plugin/RacingDesk.Plugin/RacingDesk.Plugin.csproj` |
+| The engine, capture, runtime, Moza, strategist, commentary engine | `apps/core/RacingDesk.Core/` (`Engine/`, `Capture/`, `Runtime/`, `Models/`, …) |
+| Commentary datasets (topics, fragments, sentiments, cars, tracks, sources) | `simhub-plugin/racingdesk-data/` |
+| Tests (NUnit, `net8.0-windows`; Core, Data, Host and the plugin's logic) | `simhub-plugin/tests/RacingDesk.Tests/` |
+| SimHub's DLLs to compile against | `simhub-plugin/lib/simhub-refs/` |
 
-### Architecture
-
-The plugin runs inside SimHub's .NET Framework 4.8 process. It:
-1. Receives `TelemetrySnapshot` objects from SimHub's game reader
-2. Normalizes telemetry across supported sims (iRacing, ACC, etc.)
-3. Evaluates 33+ commentary trigger conditions (tire wear, fuel, proximity, flags, etc.)
-4. Assembles commentary sentences from fragment datasets (opener + body + closer)
-5. Runs strategy modules: tire degradation, fuel planning, pit window, opponent tracking, position analysis
-6. Serves everything as a flat JSON blob on port 8889
-
-Output goes directly to the SimHub folder (`AppendTargetFrameworkToOutputPath=false`). A build immediately updates the plugin — restart SimHub to pick up changes.
-
-### Building
+## Tests
 
 ```bash
-# Set SimHub path (or edit .csproj default)
-set SIMHUB_PATH=C:\Program Files (x86)\SimHub\
-
-# Build (copies DLL to SimHub dir, datasets to SimHub\dataset\, dashboards to SimHub\DashTemplates\)
-dotnet build simhub-plugin/plugin/RacingDesk.Plugin/RacingDesk.Plugin.sln
+npm run test:dotnet                                  # from the root: dotnet test racing-desk.sln
+dotnet test apps/plugin/racing-desk-plugin/simhub-plugin/tests/RacingDesk.Tests/RacingDesk.Tests.csproj --filter "FullyQualifiedName~TyreWear"
+python apps/plugin/racing-desk-plugin/simhub-plugin/tests/validate_datasets.py
 ```
 
-### Testing
+The test project references `RacingDesk.Core`, `RacingDesk.Data` and `RacingDesk.Host` and runs the shipped code; it
+needs no SimHub (`SimHubOpponentTests` reads SimHub's installed assembly where there is one). `TestHelpers/` still holds
+copies of a few older engines (the trigger evaluator, the fragment assembler, the colour resolver, the coaches): a test of
+one of those runs the copy, so a change to the engine is a change to its copy too, and tyre wear's cases run against the
+shipped evaluator instead (root CLAUDE.md, Tyre wear). Some tests read his real `.ibt` files where the rig has them
+(`LocalDataTests`, `HostContractTests`) and are skipped where it has none.
 
-Tests run **without SimHub installed** — the test project targets .NET 6.0 (cross-platform) and uses standalone reimplementations of the plugin logic in `TestHelpers/`. When plugin engine code changes, the corresponding TestHelper must be updated to match.
+## Datasets
 
-```bash
-cd simhub-plugin/tests/RacingDesk.Tests && dotnet test
-```
+`simhub-plugin/racingdesk-data/` is copied into SimHub by `install.bat` and into the app's host by `npm run build`; the
+repo is their source. `commentary_topics.json` (triggers: conditions, severity, cooldowns), `commentary_fragments.json`
+(openers, bodies, closers per topic), `sentiments.json` (colours, which must not collide with a flag's hue),
+`channel_notes.json`, and the commentary's car and track facts. A new topic: add it to the topics, give it fragments
+(≥6 openers, ≥8 bodies, ≥5 closers), a sentiment if it needs one, run `validate_datasets.py` and
+`DatasetValidationTests`. `simhub-plugin/tools/generate_fragments.py` drafts fragments with Claude (`ANTHROPIC_API_KEY`),
+for him to read before they go in. Text in them follows the root's Words, not capitals.
 
-~147 NUnit tests (including parameterized `[TestCase]` expansions) covering:
-- **TriggerEvaluatorTests** (~47) — all 18 trigger conditions with regression tests for corrected thresholds (tyre wear as tread remaining in percent, worn is low; Fahrenheit temps ≥200, kerb delta ≥10, heavy braking ≤-38, spin yaw ≥3.0, proximity ≤0.008)
-- **TyreWearTests** (`IRacing/`) — tyre wear's one meaning end to end: raw SDK bands through the host to the HTTP and WebSocket wire, the plugin's bands-before-SimHub reading, `TyreSetMask` (a reset to the pits, a stop with four, with two, without tyres: the changed corners read a new set's 100 with `RacingDesk.Plugin.TyreNewSetFlags` saying which, through a runtime to the wire, the topic and the strategist, until the sim measures them), the real topic, the strategist's wear calls (none from a new set), the demo (root CLAUDE.md, Tyre wear)
-- **ColorResolverTests** (~42) — category-to-hue mapping, severity-to-alpha, `#AARRGGBB` format, flag collision detection (15° tolerance)
-- **NormalizeColorTests** (~26) — hex format conversion edge cases
-- **FragmentAssemblerTests** (~18) — sentence composition, placeholder substitution (`{ahead}`, `{behind}`, `{value}`), repetition avoidance (ring buffer)
-- **DatasetValidationTests** (~14) — live validation of actual JSON dataset files
+## The older documents here
 
-### Dataset Development
-
-Datasets live in `simhub-plugin/racingdesk-data/`:
-- `commentary_topics.json` — trigger definitions (conditions, severity, cooldowns)
-- `commentary_fragments.json` — sentence fragments (openers, bodies, closers per topic)
-- `sentiments.json` — sentiment colors (must not collide with flag hues)
-- `channel_notes.json` — channel-specific commentary context
-
-```bash
-# Validate datasets (28 tests)
-python3 simhub-plugin/tests/validate_datasets.py
-
-# Generate new fragments via Claude Haiku (requires ANTHROPIC_API_KEY)
-python3 simhub-plugin/tools/generate_fragments.py
-```
-
-### Export Workflow
-
-After building in Visual Studio, export built files back to the repo:
-```bash
-# Double-click export.bat or run from terminal
-# Copies: DLL + PDB from SimHub, DashTemplates (excluding _Backups/)
-# Does NOT copy datasets — repo is source of truth for those
-```
-
-## CI
-
-The `simhub-ci.yml` workflow runs on every push/PR with 3 parallel jobs:
-
-| Job | Runner | Tests |
-|-----|--------|-------|
-| Python Tests | ubuntu-latest | Dataset validation (28) + installer tests (34) |
-| C# Tests | ubuntu-latest | NUnit (.NET 6.0, 200+) |
-| Windows Installer | windows-latest | Live `.bat` execution (3) |
-
-## Code Style
-
-- C# follows standard .NET conventions, no special formatting rules
-- Dataset JSON files must pass all 28 validation tests before committing
-- When adding a new commentary topic: add to `commentary_topics.json`, add matching fragments (≥6 openers / ≥8 bodies / ≥5 closers), add sentiment if new, validate, rebuild
-
-## Documentation
-
-Detailed docs in `docs/`:
-- `COMMENTARY_ENGINE.md` — trigger system and fragment assembly
-- `DATASETS.md` — JSON dataset schema and validation rules
-- `DEVELOPMENT.md` — full build/test/export workflow
-- `TESTING.md` — comprehensive test suite documentation
-- `SIMHUB_PLUGIN.md` — SimHub plugin architecture
+`docs/` (`COMMENTARY_ENGINE.md`, `DATASETS.md`, `SIMHUB_PLUGIN.md`, `TESTING.md`, `DEVELOPMENT.md`, …) were written for
+`prodrive-plugin`, when the engine lived in the plugin, the build wrote into SimHub and CI ran the tests. What they say of
+the commentary engine and the datasets' shape is still the design; their paths, build steps, test counts and CI are not.
+`simhub-plugin/tools/test_installer.py` tests an installer that is gone.

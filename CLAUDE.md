@@ -30,7 +30,7 @@ repo's home is `DOOOOM/racing-desk`.
 | `apps/edit/` | Node CLI that cuts a recording by its telemetry sidecar (loose files by folder; the `.rcpdv` bundle is gone) | [`apps/edit/CLAUDE.md`](apps/edit/CLAUDE.md) |
 | `apps/livery/` | Python CLI: livery spec (YAML, car space) → the TGA paint + spec map iRacing loads, self-checked, installed into `Documents\iRacing\paint` | [`apps/livery/docs/DESIGN.md`](apps/livery/docs/DESIGN.md), skill `livery-pipeline` |
 | `docs/` | Cross-app context; `docs/archive/` is superseded | [`docs/README.md`](docs/README.md) |
-| `.claude/skills/` | Project skills (overlay, plugin, racing domain, bundle format) | — |
+| `.claude/skills/` | Project skills (overlay, plugin, racing domain, liveries); the retired ones are in `docs/archive/skills/` | — |
 
 Imported 2026-09-16 from `prodrive-overlay`, `prodrive-plugin`, `prodrive-edit` and `prodrive-agents`
 with history (subtree merges). Those repos, plus `prodrive-server` and `prodrive-windows`, still exist

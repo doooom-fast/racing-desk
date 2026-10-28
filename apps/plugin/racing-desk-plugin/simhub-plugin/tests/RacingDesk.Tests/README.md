@@ -1,6 +1,6 @@
 # RacingDesk.Tests — Comprehensive Test Suite
 
-A complete unit test project for the SimHub The Racing Desk plugin. Tests all core logic components without SimHub runtime dependencies.
+The test project for every .NET project in the repo (`net8.0-windows`, NUnit): RacingDesk.Core, RacingDesk.Data, RacingDesk.Host and the plugin. The tree below is from when it was the plugin's alone (.NET 6.0, the logic copied into `TestHelpers/`); for what it is now see `apps/plugin/racing-desk-plugin/CLAUDE.md`.
 
 ## Project Structure
 
